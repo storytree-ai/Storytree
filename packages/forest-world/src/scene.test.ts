@@ -1278,8 +1278,10 @@ test('ADR-0226 §4: the UAT flowers render SMALL under the flag (still 1:1, stat
   // the small body: every flower's shadow is the 2.3 SMALL footprint, not the 5.2 tall one.
   assert.ok(markerShadowRxs(on).every((rx) => rx === 2.3), 'flowers are the small footprint');
   assert.ok(markerShadowRxs(markerScene(THREE_CRITERIA)).every((rx) => rx === 5.2), 'flag-off keeps the tall footprint');
-  // the wrapper scale stays 0.6 (the scatter keep-outs are tuned for it).
-  for (const m of flowers) assert.match(m.transform ?? '', MARKER_TRANSFORM);
+  // the vocabulary scatter wears the larger 1.0 wrapper (ADR-0226 promotion — the owner found 0.6 too
+  // small); the flag-OFF tall path keeps the historical 0.6.
+  for (const m of flowers) assert.match(m.transform ?? '', /^translate\((-?[\d.]+) (-?[\d.]+)\) scale\(1\.0\)$/);
+  for (const m of flowersOf(markerScene(THREE_CRITERIA))) assert.match(m.transform ?? '', MARKER_TRANSFORM);
 });
 
 test('ADR-0226 §4: the honesty wall holds under the flag — only a proven flower blooms; a bud never does', () => {
@@ -1409,7 +1411,7 @@ test('garden PRESENT → the autumn-tree hero REPLACES the procedural tree on th
   assert.ok(firstByKind(territoryById(scene, 'cli'), 'tree'), 'the normal island keeps its procedural tree');
 });
 
-test('garden PRESENT → procedural flora + central tree suppressed; the 1:1 UAT scatter folds into a massed BED', () => {
+test('garden PRESENT → procedural flora + tree suppressed; the UAT criteria render as the unified small-flower scatter', () => {
   const scene = buildScene(
     mkInput({
       territories: mkGardenTerritories({
@@ -1427,25 +1429,34 @@ test('garden PRESENT → procedural flora + central tree suppressed; the 1:1 UAT
   for (const k of ['conifer', 'flora', 'tree']) {
     assert.equal(firstByKind(gardenIsle, k), null, `no ${k} on the garden island`);
   }
-  // the UAT verdict is RETAINED — one flower per criterion in a massed bed, each keeping its id + state
-  // (the FORM reads the verdict, the id is the click-to-detail hook) — NOT the busy 1:1 island scatter.
-  const beds = [
+  // ADR-0226 promotion (owner look verdict 2026-07-22): the garden node shows the SAME unified UAT scatter
+  // every island speaks — one small flower per criterion, each keeping its id + state — not the old,
+  // easy-to-miss massed bud-bed.
+  const flowers = [
     ...allByKind(gardenIsle, 'tall-flower-proven'),
     ...allByKind(gardenIsle, 'tall-flower-pending'),
     ...allByKind(gardenIsle, 'tall-flower-failing'),
   ];
-  assert.equal(beds.length, 3, 'one flower per criterion in the bed (verdict retained, not suppressed)');
-  assert.deepEqual(beds.map((f) => f.id).sort(), ['c1', 'c2', 'c3'], 'each bed flower keeps its criterion id');
+  assert.equal(flowers.length, 3, 'one flower per criterion (verdict retained, not suppressed)');
+  assert.deepEqual(flowers.map((fl) => fl.id).sort(), ['c1', 'c2', 'c3'], 'each flower keeps its criterion id');
+  // and they wear the SMALL vocabulary body + wrapper (scale 1.0), not the tall bed daisy.
+  assert.ok(
+    flowers.every((fl) => /scale\(1\.0\)$/.test((fl as SceneG).transform ?? '')),
+    'garden UAT flowers use the unified small-flower wrapper',
+  );
 });
 
-test('garden PRESENT → the human-witness signpost is RETAINED beside the hero tree', () => {
+test('garden PRESENT → the human-witness signpost is RETIRED on the garden island (ADR-0226 decision 5)', () => {
   const scene = buildScene(
     mkInput({
       territories: mkGardenTerritories({ signpost: { outcome: 'pass' } }),
       garden: mkGarden('library'),
     }),
   );
-  assert.ok(firstByKind(territoryById(scene, 'library'), 'sign-pass'), 'signpost retained on the garden island');
+  const gardenIsle = territoryById(scene, 'library');
+  for (const k of ['sign-blank', 'sign-pass', 'sign-fail', 'sign-post', 'sign-head']) {
+    assert.equal(firstByKind(gardenIsle, k), null, `${k} retired on the garden island (the unified vocabulary)`);
+  }
 });
 
 test('garden is deterministic — same input → byte-identical scene', () => {

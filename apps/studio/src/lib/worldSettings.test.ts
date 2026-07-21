@@ -215,13 +215,19 @@ describe('worldSettings — readGardenIsland (grounded-art inc 11, ADR-0221, def
 });
 
 describe('worldSettings — the cosy-island gear TOGGLES (owner ask: gear panel, not URLs)', () => {
-  it('garden + cosy + veg are default-off toggles in the "Cosy island" group', () => {
-    for (const key of ['garden', 'cosy', 'veg']) {
+  it('garden + cosy are default-off toggles in the "Cosy island" group', () => {
+    for (const key of ['garden', 'cosy']) {
       const c = ctl(key);
       expect(c.kind).toBe('toggle');
       expect(c.group).toBe('Cosy island');
       expect(readControlValue('', c)).toBe(false); // default off
     }
+  });
+  it('veg is a default-ON toggle in the "Cosy island" group (ADR-0226 promoted to the studio default)', () => {
+    const c = ctl('veg');
+    expect(c.kind).toBe('toggle');
+    expect(c.group).toBe('Cosy island');
+    expect(readControlValue('', c)).toBe(true); // default ON — the vocabulary is the studio default
   });
   it('flicking the garden toggle writes garden=on / removes it — and the reader agrees', () => {
     const c = ctl('garden');
@@ -237,26 +243,28 @@ describe('worldSettings — the cosy-island gear TOGGLES (owner ask: gear panel,
     expect(readCosyIsland('?cosy=on')).toBe(true);
     expect(setControlValue('?cosy=on', c, false)).toBe('');
   });
-  it('the veg toggle writes veg=on / removes it, matching readVegetationVocab', () => {
+  it('the veg toggle (default ON) writes veg=off when turned off / removes it when on, matching readVegetationVocab', () => {
     const c = ctl('veg');
-    expect(setControlValue('', c, true)).toBe('?veg=on');
-    expect(readVegetationVocab('?veg=on')).toBe(true);
-    expect(setControlValue('?veg=on', c, false)).toBe('');
+    // ON is the default → setting it on removes the param; OFF writes the escape token.
+    expect(setControlValue('', c, true)).toBe('');
+    expect(setControlValue('', c, false)).toBe('?veg=off');
+    expect(readVegetationVocab('?veg=off')).toBe(false);
+    expect(setControlValue('?veg=off', c, true)).toBe('');
   });
 });
 
-describe('worldSettings — readVegetationVocab (grounded-art, ADR-0226, default-off vegetation flag)', () => {
-  it('is OFF by default / for unrelated params', () => {
-    expect(readVegetationVocab('')).toBe(false);
-    expect(readVegetationVocab('?cosy=on&layout=solar')).toBe(false);
+describe('worldSettings — readVegetationVocab (grounded-art, ADR-0226, promoted to the studio DEFAULT)', () => {
+  it('is ON by default / for unrelated params', () => {
+    expect(readVegetationVocab('')).toBe(true);
+    expect(readVegetationVocab('?cosy=on&layout=solar')).toBe(true);
   });
-  it('is ON for the accepted truthy tokens', () => {
-    expect(readVegetationVocab('?veg=on')).toBe(true);
-    expect(readVegetationVocab('?veg=1')).toBe(true);
-    expect(readVegetationVocab('?veg=true')).toBe(true);
-  });
-  it('an unknown ?veg value stays OFF', () => {
-    expect(readVegetationVocab('?veg=wat')).toBe(false);
+  it('is OFF only for the explicit escape tokens', () => {
     expect(readVegetationVocab('?veg=off')).toBe(false);
+    expect(readVegetationVocab('?veg=0')).toBe(false);
+    expect(readVegetationVocab('?veg=false')).toBe(false);
+  });
+  it('an unknown ?veg value stays ON (default)', () => {
+    expect(readVegetationVocab('?veg=wat')).toBe(true);
+    expect(readVegetationVocab('?veg=on')).toBe(true);
   });
 });

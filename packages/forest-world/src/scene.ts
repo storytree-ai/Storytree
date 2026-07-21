@@ -967,6 +967,13 @@ function tallFlowerMarks(state: MarkerState, k: number, small = false): SceneNod
  *  transform is never clobbered). */
 const MARKER_SCALE = 0.6;
 
+/** The unified vegetation vocabulary's SMALL-flower wrapper scale (ADR-0226 promotion). The small flower
+ *  read a touch too small at the 0.6 footprint (owner look verdict 2026-07-22), so the vocabulary scatter
+ *  wears a larger wrapper — a low meadow flower that reads clearly against the grass without towering
+ *  like the tall (`!small`) markers. Placement + keep-outs are unchanged (they key on the wrapper POINT,
+ *  not its size); only the tall flag-off path keeps the historical 0.6. */
+const MARKER_SCALE_SMALL = 1.0;
+
 /** Ray-cast point-in-polygon over a substrate cell ring. */
 function pointInPoly(x: number, y: number, poly: Pt[]): boolean {
   let inside = false;
@@ -1043,7 +1050,7 @@ function buildUatMarkers(
       node: g(tallFlowerMarks(c.state, k, small), {
         kind,
         id: c.id,
-        transform: `translate(${f(x)} ${f(y)}) scale(${MARKER_SCALE})`,
+        transform: `translate(${f(x)} ${f(y)}) scale(${f(small ? MARKER_SCALE_SMALL : MARKER_SCALE)})`,
       }),
     });
   });
@@ -2535,43 +2542,13 @@ function grassMarks(k: number): SceneNode[] {
   return marks;
 }
 
-/** The UAT verdict as a MASSED daisy BED (grounded-art inc 11 unit 3 — the owner's few-hero-objects
- *  read). Instead of ONE tall-flower scattered per criterion across the whole island (the inc-7 render
- *  the owner flagged as busy), the criteria cluster into one bed near the garden — each flower KEEPING
- *  its per-criterion `state` (bloom=proven / bud=pending / wilted=failing — the FORM is the verdict) and
- *  `id` (the click-to-detail hook, unchanged). The human-witness signpost seal is retained separately.
- *  A phyllotactic (golden-angle) cluster reads as one dense bed. Empty criteria ⇒ no bed. */
-function buildGardenUatBed(
-  t: SceneTerritoryInput,
-  land: RelaxedCell[] | null,
-  anchor: Pt,
-): Array<{ y: number; node: SceneNode }> {
-  const criteria = t.uatCriteria ?? [];
-  if (!criteria.length) return [];
-  const out: Array<{ y: number; node: SceneNode }> = [];
-  criteria.forEach((c, i) => {
-    const k = hash(`${t.id}:bed:${c.id}`);
-    const ang = i * 2.399963; // golden angle → an even, natural cluster
-    const rr = 3 + Math.sqrt(i) * 8 + (rand01(k) - 0.5) * 3;
-    const p = towardLand({ x: anchor.x + Math.cos(ang) * rr, y: anchor.y + Math.sin(ang) * rr * 0.7 }, anchor, land);
-    const kind: SceneKind =
-      c.state === 'proven' ? 'tall-flower-proven' : c.state === 'failing' ? 'tall-flower-failing' : 'tall-flower-pending';
-    out.push({
-      y: p.y,
-      node: g(tallFlowerMarks(c.state, k), {
-        kind,
-        id: c.id,
-        transform: `translate(${f(p.x)} ${f(p.y)}) scale(${f(MARKER_SCALE * 0.8)})`,
-      }),
-    });
-  });
-  return out;
-}
 
 /** The garden island's art drawables (grounded-art inc 11) — the `autumn-tree` hero at the tree spot
- *  (ADR-0221, replacing the procedural tree), the human-witness signpost RETAINED beside it, and the
- *  cottage + gazebo placed around the island. Each is a y-sorted `baked-use` so it interleaves in
- *  painter order with anything else on the island. The caller SUPPRESSES the decorative flora. */
+ *  (ADR-0221, replacing the procedural tree) and the cottage + gazebo placed around the island. Each is
+ *  a y-sorted `baked-use` so it interleaves in painter order with anything else on the island. The caller
+ *  SUPPRESSES the decorative flora. The unified vegetation vocabulary applies here too (ADR-0226
+ *  promotion): the UAT criteria render as the same small-flower scatter every island speaks, and the
+ *  human-witness signpost is retired (redundant with the UAT flowers + crown bloom). */
 function buildGardenArt(
   t: SceneTerritoryInput,
   garden: SceneGardenInput,
@@ -2591,15 +2568,8 @@ function buildGardenArt(
     y: t.treeSpot.y,
     node: gardenHeroUse('autumn-tree', t.treeSpot.x, t.treeSpot.y, treeScale),
   });
-  // the human-witness signpost is RETAINED beside the hero tree (the seal never leaves).
-  if (t.signpost) {
-    out.push({
-      y: t.treeSpot.y,
-      node: g([buildSignpost(t.signpost, crownR)], {
-        transform: `translate(${f(t.treeSpot.x)} ${f(t.treeSpot.y)})`,
-      }),
-    });
-  }
+  // the human-witness signpost is RETIRED here too (ADR-0226 decision 5 — the unified vocabulary; the
+  // UAT flowers + crown bloom carry the story-level UAT state).
   // the free-standing garden heroes — cottage + gazebo: each FITTED to the island, then placed so the
   // whole fitted footprint sits on owned land (unit 2 — the owner's "fully land within the island" fix).
   const freeIds: GardenHeroId[] = ['cottage', 'gazebo'];
@@ -2635,20 +2605,19 @@ function buildGardenArt(
     out.push(...buildStonePath(t, stone, [cottage, detour, gazebo], { spacingMul: 1.5, wobbleMul: 0.8, skipNear: crown, tag: 'step' }));
   }
 
-  // flat decorative accents + the UAT verdict (unit 3): a lavender clump beside the cottage, the UAT
-  // verdict as a MASSED daisy bed beside the gazebo, and a couple of grass tufts in the open — all flat,
-  // seeded, clamped to owned land. This is the cosy garden read the concept has, and it folds the
-  // per-criterion verdict into ONE bed instead of the busy 1:1 island-wide scatter.
+  // flat decorative accents + the UAT verdict: a lavender clump beside the cottage, and a couple of grass
+  // tufts in the open — flat, seeded, clamped to owned land. This is the cosy garden read the concept has.
+  // The UAT criteria render as the SAME unified small-flower scatter every other island uses (ADR-0226
+  // promotion, owner look verdict 2026-07-22 — the garden node showed no visible UAT flowers because its
+  // massed bud-bed read as a subtle clump; the 1:1 small-flower scatter is the one vocabulary the whole
+  // map now speaks). The scatter keeps out of the hero tree well + spaces itself + lands on owned cells.
   const cen = t.centroid;
   const accentScale = crownR / 26;
   if (cottage) {
     const a = towardLand({ x: cottage.x - crownR * 0.85, y: cottage.y + crownR * 0.4 }, cen, land);
     out.push({ y: a.y, node: g(lavenderMarks(hash(`${t.id}:lavender`)), { transform: `translate(${f(a.x)} ${f(a.y)}) scale(${f(accentScale)})` }) });
   }
-  const bedAnchor = gazebo
-    ? towardLand({ x: gazebo.x + crownR * 0.9, y: gazebo.y + crownR * 0.3 }, cen, land)
-    : towardLand({ x: cen.x + crownR, y: cen.y + crownR * 0.5 }, cen, land);
-  out.push(...buildGardenUatBed(t, land, bedAnchor));
+  out.push(...buildUatMarkers(t, land, true));
   for (let i = 0; i < 3; i++) {
     const k = hash(`${t.id}:grass:${i}`);
     const ang = rand01(k) * Math.PI * 2;

@@ -199,8 +199,8 @@ export const CONTROLS: readonly ControlSpec[] = [
     key: 'veg',
     label: 'Vegetation vocabulary',
     group: GROUP_COSY,
-    hint: 'The unified world-art vegetation vocabulary (ADR-0226): grass = a capability’s tests, small flowers = the story’s UAT, dead grass = an unhealthy capability, and the human-witness signpost retired. Studio-only; default off; other islands unchanged when off.',
-    default: false,
+    hint: 'The unified world-art vegetation vocabulary (ADR-0226): grass = a capability’s tests, small flowers = the story’s UAT, dead grass = an unhealthy capability, the human-witness signpost retired, and the autumn-tree hero as every island’s central tree. Studio-only; ON by default — turn off to see the pre-ADR-0226 world.',
+    default: true,
     offToken: 'off',
     onToken: 'on',
     offReads: ['off', '0', 'false'],
@@ -358,15 +358,15 @@ export function readGardenIsland(search: string): boolean {
 }
 
 /**
- * grounded-art (ADR-0226): the unified world-art vegetation vocabulary behind this DEFAULT-OFF flag.
- * Off ⇒ every island renders byte-for-byte (the `SceneInput.vegetation` absence lock; the public
- * website fold never sends it, so its render is unchanged). `?veg=on` (or `=1` / `=true`) flips the
- * vocabulary studio-side: grass = a capability's tests (the decorative wildflower / anemone /
- * heather-bell accents retired), the UAT criteria as SMALL flowers folded into the grass, dead grass =
- * an unhealthy capability, the human-witness signpost retired. The look is the owner's ADR-0070 stage-2
- * call — this flag is how the vocabulary is previewed, not shipped.
+ * grounded-art (ADR-0226, promoted to the studio DEFAULT after the owner's 2026-07-22 look verdict): the
+ * unified world-art vegetation vocabulary. ON by default — grass = a capability's tests (the decorative
+ * wildflower / anemone / heather-bell accents retired), the UAT criteria as small flowers folded into the
+ * grass, dead grass = an unhealthy capability, the human-witness signpost retired, and the `autumn-tree`
+ * hero as every island's central tree. `?veg=off` (or `=0` / `=false`) is the escape hatch back to the
+ * pre-ADR-0226 world. The public website fold never sends `vegetation`, so its render is unchanged (the
+ * core's absence lock still holds). This is studio-side only.
  */
 export function readVegetationVocab(search: string): boolean {
   const v = new URLSearchParams(search).get('veg');
-  return v === 'on' || v === '1' || v === 'true';
+  return v !== 'off' && v !== '0' && v !== 'false';
 }
