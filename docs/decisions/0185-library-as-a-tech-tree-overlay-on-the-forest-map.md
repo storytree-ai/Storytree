@@ -28,6 +28,14 @@ chain) under an explicit **contrast contract** — the lens reads as an object o
 Forest-cozy LIGHT (dec 5) still stands; blend-in realisations of it do not. dec 1/3/4/6 are untouched by
 this amendment. This ADR otherwise stays accepted; read dec 2 and dec 5 through ADR-0188.
 
+**Amended in part by ADR-0223 (2026-07-21):** the premise carried in this ADR's Context — that the
+knowledge corpus's DAG edges ARE `references` (citations, "today") — is overturned. Citations are a
+many-to-many cyclic web, not a DAG (mutual "composes with" links scramble the fan's two sides), so
+**dec 2**'s focus subgraph is re-driven off a new, authored `standsOn` dependency edge, directed by a
+fixed tier order and enforced acyclic by a gate. The `references` citation web and lens survive
+unchanged — only their claim to *define the DAG* is retired. dec 1/3–6 are untouched; read dec 2 through
+ADR-0223.
+
 ## Context
 
 The studio's Library surface is a separate page (`#/library`, a searchable list/grid) — a route
