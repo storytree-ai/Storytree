@@ -41,7 +41,7 @@ test('the hero roster has distinct, stable ids', () => {
   const ids = HERO_KIT.map((e) => e.id);
   assert.equal(new Set(ids).size, ids.length);
   // Inc 11 references these by name; a rename is a breaking change worth catching here.
-  assert.deepEqual(ids, ['cottage', 'gazebo', 'autumn-tree', 'stepping-stone']);
+  assert.deepEqual(ids, ['cottage', 'gazebo', 'autumn-tree', 'stepping-stone', 'forest-hut']);
 });
 
 // ---------------------------------------------------------------------------

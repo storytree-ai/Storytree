@@ -61,6 +61,8 @@ export { cottage, DEFAULTS as COTTAGE_DEFAULTS } from './buildings/cottage.js';
 export type { CottageParams } from './buildings/cottage.js';
 export { gazebo, DEFAULTS as GAZEBO_DEFAULTS } from './buildings/gazebo.js';
 export type { GazeboParams } from './buildings/gazebo.js';
+export { forestHut, DEFAULTS as FOREST_HUT_DEFAULTS } from './buildings/forest-hut.js';
+export type { ForestHutParams } from './buildings/forest-hut.js';
 export { autumnTree, expectedTreePartCount, DEFAULTS as AUTUMN_TREE_DEFAULTS } from './landscape/autumn-tree.js';
 export type { AutumnTreeParams } from './landscape/autumn-tree.js';
 export { steppingStone, DEFAULTS as STEPPING_STONE_DEFAULTS } from './landscape/stepping-stone.js';
