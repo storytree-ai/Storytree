@@ -8,6 +8,7 @@
 //   draw-order        station 3: the explicit deterministic draw order (BSP)
 //   bake              station 3's output as DRAWABLES — the pipeline, minus the document
 //   render-svg        the ONE file that knows what an SVG DOCUMENT is
+//   refine            station 4: the bounded render→look→refine loop + revert-only quorum judge
 //
 // A building module (./buildings/*) composes the first and is judged by the second.
 // There is ONE bake and two printers: `render-svg` prints a contact sheet, a surface
@@ -19,6 +20,7 @@ export * from './procedural-utils.js';
 export * from './invariants.js';
 export * from './apertures.js';
 export * from './draw-order.js';
+export * from './refine.js';
 export * from './render-svg.js';
 
 // Named rather than `export *`, because render-svg re-exports the palette surface and a
