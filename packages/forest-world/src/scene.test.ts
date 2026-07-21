@@ -20,6 +20,9 @@ import {
   buildPlant,
   buildConifer,
   buildBloom,
+  placeGardenHeroes,
+  treeKeepOut,
+  fittedHeroScale,
   type SceneG,
   type SceneNode,
   type SceneInput,
@@ -27,6 +30,7 @@ import {
   type ScenePlantInput,
   type SceneGardenInput,
   type SceneGardenHero,
+  type GardenHeroId,
 } from './scene.js';
 
 // ---------- traversal helpers ----------
@@ -1369,9 +1373,9 @@ test('garden def carries the hero nodes VERBATIM (BakedPaintNode shape-parity wi
 });
 
 test('garden stone path — deterministic stepping-stones that dock at the downward-shore landfall (unit 2)', () => {
-  // The path threads landfall → cottage → tree → gazebo. Assert it lays stones, is deterministic
-  // (seeded — no Math.random), and reaches DOWN toward the bottom-shore landfall (a stone sits below
-  // the tree spot), so it reads continuous with the island's inter-island trail.
+  // The primary front-door WALK runs landfall → cottage (grounded-art inc 12). Assert it lays stones, is
+  // deterministic (seeded — no Math.random), and reaches DOWN toward the bottom-shore landfall (a stone
+  // sits below the tree spot), so it reads continuous with the island's inter-island trail.
   const yOf = (n: SceneNode): number => Number(/translate\((?:-?[\d.]+) (-?[\d.]+)\)/.exec(n.transform ?? '')?.[1] ?? '0');
   const scene = buildScene(mkInput({ territories: mkGardenTerritories(), garden: mkGarden('library') }));
   const again = buildScene(mkInput({ territories: mkGardenTerritories(), garden: mkGarden('library') }));
@@ -1381,6 +1385,32 @@ test('garden stone path — deterministic stepping-stones that dock at the downw
   assert.ok(stones.length >= 2, 'the path lays several stepping-stones');
   const tree = mkTerritory({ id: 'library' }).treeSpot.y;
   assert.ok(stones.some((s) => yOf(s) > tree), 'a stone sits below the tree — the path docks toward the bottom-shore landfall');
+});
+
+test('garden footpath — no stepping-stone is buried behind the tree crown (grounded-art inc 12 footpath fix)', () => {
+  // The refined footpath must not bury a stone under the canopy: a stone NORTH of the tree base and within
+  // the fitted crown would be painted over by the tree (the owner's occlusion complaint). Land-free so the
+  // heroes settle across a roomy island and the path is laid through a representative layout.
+  const xy = (n: SceneNode): { x: number; y: number } => {
+    const m = /translate\((-?[\d.]+) (-?[\d.]+)\)/.exec(n.transform ?? '');
+    return { x: Number(m?.[1] ?? '0'), y: Number(m?.[2] ?? '0') };
+  };
+  const territories = [
+    mkTerritory({ id: 'library', radius: 120, caps: 9 }),
+    mkTerritory({ id: 'cli', caps: 2, centroid: { x: 600, y: 60 }, treeSpot: { x: 600, y: 50 } }),
+  ];
+  const gdn = mkGarden('library');
+  const scene = buildScene(mkInput({ territories, relaxedCells: null, garden: gdn }));
+  const isle = territoryById(scene, 'library');
+  const t = territories[0]!;
+  const treeHalfW = (fittedHeroScale('autumn-tree', gdn.heroes['autumn-tree'], t) * gdn.heroes['autumn-tree'].width) / 2;
+  const stones = allByKind(isle, 'baked-art').filter((u) => (u as { defId: string }).defId === 'garden-hero-stepping-stone');
+  assert.ok(stones.length >= 3, 'the refined path still lays stones');
+  for (const s of stones) {
+    const p = xy(s);
+    const northUnderCrown = p.y < t.treeSpot.y && Math.hypot(p.x - t.treeSpot.x, p.y - t.treeSpot.y) < treeHalfW;
+    assert.ok(!northUnderCrown, `a stepping-stone at (${p.x}, ${p.y}) is buried behind the tree crown (r=${treeHalfW})`);
+  }
 });
 
 test('garden heroes are FITTED to the island — a small island shrinks them within its shore, a large one does not (unit 2)', () => {
@@ -1416,5 +1446,63 @@ test('garden heroes are FITTED to the island — a small island shrinks them wit
   for (const u of large) {
     const id = (u as { defId: string }).defId;
     assert.ok(scaleOf(u) > smallById.get(id)!, `${id} did not grow on the larger island — the fit isn't island-relative`);
+  }
+});
+
+// ---------- the free-hero tree keep-out (grounded-art inc 12 — the small-island collision fix) ----------
+
+test('treeKeepOut clears the fitted tree canopy plus a lawn gap, scaling with the fitted footprint', () => {
+  // The canopy keep-out is the tree's fitted footprint half-width + a 15% lawn gap — radius-independent, so
+  // it scales with how big the tree is FITTED on this island (a small island fits a proportionally big tree).
+  assert.equal(treeKeepOut(40), 46, 'canopy keep-out is the fitted half-width + a 15% lawn gap (40·1.15)');
+  assert.equal(treeKeepOut(20), 23, 'a smaller fitted tree needs a proportionally smaller keep-out');
+  // Invariant: always OUTSIDE the fitted canopy (a hero honouring it never sits inside the tree footprint).
+  for (const hw of [10, 28.95, 41.36, 45]) {
+    assert.ok(treeKeepOut(hw) > hw, `keep-out ${treeKeepOut(hw)} sits inside the fitted canopy ${hw}`);
+  }
+});
+
+test('placeGardenHeroes fallback honours the tree keep-out — a building never snaps onto the trunk (grounded-art inc 12)', () => {
+  // The bug the owner saw on a small island: the exhausted-draws fallback (when no sampled point fits the
+  // shore) snapped a hero to a land-cell centroid WITHOUT the tree keep-out, landing the gazebo on the
+  // trunk. This fixture forces that fallback and asserts the fix routes the hero to a tree-clearing cell.
+  const t = mkTerritory({ id: 'library', radius: 60, caps: 9 }); // centroid (100,200), treeSpot (100,190)
+  const TREE_HALF_W = 40; // the fitted autumn-tree footprint half-width → canopy keep-out 40·1.15 = 46
+  const keepOut = treeKeepOut(TREE_HALF_W);
+  // Two land cells force the fallback: a BIG cell hugging the TRUNK (its centroid is the treeSpot and a
+  // hero footprint fits on it — the old code's trap) and a SMALL cell clear of the tree (the escape the
+  // fixed fallback must reach). No sampled point clears the tree AND fits, so the sampler exhausts.
+  const trunkCell: RelaxedCell = {
+    owner: 0, variant: 1, wheat: false,
+    poly: [{ x: 78, y: 180 }, { x: 122, y: 180 }, { x: 122, y: 200 }, { x: 78, y: 200 }], // centroid (100,190) = treeSpot
+  };
+  const escapeCell: RelaxedCell = {
+    owner: 0, variant: 1, wheat: false,
+    poly: [{ x: 98, y: 248 }, { x: 102, y: 248 }, { x: 100, y: 254 }], // centroid (100,250), 60 from the trunk
+  };
+  const ids: GardenHeroId[] = ['gazebo'];
+  const halfW = new Map<GardenHeroId, number>([['gazebo', 18]]);
+  const spots = placeGardenHeroes(t, ids, halfW, [trunkCell, escapeCell], TREE_HALF_W);
+  const gazebo = spots.get('gazebo')!;
+  const dist = Math.hypot(gazebo.x - t.treeSpot.x, gazebo.y - t.treeSpot.y);
+  // RED before the fix: the fallback took the trunk cell (dist 0). GREEN after: it clears the fitted tree.
+  assert.ok(dist >= TREE_HALF_W, `the gazebo (dist ${dist}) sits inside the fitted tree footprint ${TREE_HALF_W} — it merged into the trunk`);
+  assert.ok(dist > keepOut, `the gazebo (dist ${dist}) is inside the tree keep-out ${keepOut}`);
+});
+
+test('placeGardenHeroes keeps every settled hero outside the fitted tree footprint (land-free sampler path)', () => {
+  // With no land constraint the rejection sampler settles freely; every hero it places must still clear the
+  // tree keep-out (the invariant the fallback test guards on the exhausted path). A roomy island so the
+  // sampler can settle deterministically.
+  const t = mkTerritory({ id: 'library', radius: 140, caps: 9 });
+  const TREE_HALF_W = 45;
+  const canopyKeepOut = treeKeepOut(TREE_HALF_W);
+  const ids: GardenHeroId[] = ['cottage', 'gazebo'];
+  const halfW = new Map<GardenHeroId, number>([['cottage', 22], ['gazebo', 18]]);
+  const spots = placeGardenHeroes(t, ids, halfW, null, TREE_HALF_W);
+  for (const [id, p] of spots) {
+    const dist = Math.hypot(p.x - t.treeSpot.x, p.y - t.treeSpot.y);
+    // every settled hero clears the canopy (and, being sampler-placed, also the radius·0.5 spread).
+    assert.ok(dist > canopyKeepOut, `${id} (dist ${dist}) sits inside the tree canopy keep-out ${canopyKeepOut}`);
   }
 });

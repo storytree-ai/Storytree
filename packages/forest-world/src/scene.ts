@@ -2189,14 +2189,34 @@ const GARDEN_HERO_TARGET: Record<GardenHeroId, number> = {
 const GARDEN_FIT_HALF_FRAC = 0.42; // scaled base half-width ≤ 0.42·radius (full width ≤ 0.84·radius)
 const GARDEN_FIT_HEIGHT_FRAC = 1.25; // scaled height ≤ 1.25·radius (a standing object may rise a little above)
 
+/** The lawn gap a free garden hero's PLACEMENT POINT keeps beyond the fitted tree canopy, as a fraction of
+ *  the tree's fitted footprint half-width (grounded-art inc 12 — the small-island collision fix). It sets
+ *  the canopy keep-out `treeHalfW·(1+GAP)` ({@link treeKeepOut}): the anti-merge bound that keeps a building
+ *  from sitting inside the trunk. See {@link placeGardenHeroes} for how the sampler layers the historical
+ *  `radius·0.5` spread on top of it while the fallback uses only this canopy bound (which is what leaves the
+ *  attested studio composition unchanged). */
+const GARDEN_TREE_GAP = 0.15;
+
 /** The fitted scale for one hero on island `t`: the crown-based target height, CAPPED so the scaled
  *  footprint (base half-width and height) stays inside the island (see the FIT constants). Independent
  *  of the placement point, so a caller can derive the footprint half-width before it places the hero. */
-function fittedHeroScale(id: GardenHeroId, hero: SceneGardenHero, t: SceneTerritoryInput): number {
+export function fittedHeroScale(id: GardenHeroId, hero: SceneGardenHero, t: SceneTerritoryInput): number {
   const sTarget = (crownRadius(t.caps) * GARDEN_HERO_TARGET[id]) / hero.height;
   const sCapW = (2 * GARDEN_FIT_HALF_FRAC * t.radius) / hero.width;
   const sCapH = (GARDEN_FIT_HEIGHT_FRAC * t.radius) / hero.height;
   return Math.min(sTarget, sCapW, sCapH);
+}
+
+/** The tree CANOPY keep-out (grounded-art inc 12): how far a free hero's placement point must sit from the
+ *  tree spot so its base clears the fitted canopy + a small lawn gap — i.e. so it never merges into the
+ *  trunk. Radius-independent: it scales with the tree's ACTUAL fitted footprint, so a small island (where
+ *  the fitted tree fills the island) pushes buildings out just as a large one does. The sampler additionally
+ *  keeps its historical `radius·0.5` spread (`max(radius·0.5, …)`), so on a big island heroes still spread
+ *  wide; the FALLBACK uses only THIS canopy keep-out — lenient enough to leave the attested studio spot
+ *  (a fallback pick nestled just inside `radius·0.5` but well clear of the canopy) exactly where it is,
+ *  while still evicting a building that merged into the trunk on a small island. Exported for the unit test. */
+export function treeKeepOut(treeFitHalfW: number): number {
+  return treeFitHalfW * (1 + GARDEN_TREE_GAP);
 }
 
 /** Place ONE garden hero as a paint-free `baked-use` of its def at scale `s`, translated to (x, y): the
@@ -2220,14 +2240,21 @@ function gardenHeroUse(
 }
 
 /** Deterministically place the free-standing garden heroes (cottage, gazebo) around the island — the
- *  same id-seeded rejection sampling the UAT-flower scatter uses: keep-outs for the tree well, the
- *  nameplate band and spacing from each other, and a keep-IN to the island's land cells (no hero in the
- *  water). Same input ⇒ the same spots; exhausting the draws snaps to the nearest free land-cell centroid. */
-function placeGardenHeroes(
+ *  same id-seeded rejection sampling the UAT-flower scatter uses: keep-outs for the tree, the nameplate
+ *  band and spacing from each other, and a keep-IN to the island's land cells (no hero in the water).
+ *  Same input ⇒ the same spots; exhausting the draws snaps to the nearest free land-cell centroid.
+ *
+ *  `treeFitHalfW` is the FITTED half-width of the central autumn-tree hero (grounded-art inc 12): the tree
+ *  keep-out scales to the tree's actual fitted footprint (via {@link treeKeepOut}), so on a small island —
+ *  where the fitted tree fills the island — a building no longer merges into the trunk. The fallback branch
+ *  now honours that canopy keep-out too (it used to drop it entirely, which is how the exhausted-draws snap
+ *  landed a gazebo on the trunk). Exported for the placement unit test. */
+export function placeGardenHeroes(
   t: SceneTerritoryInput,
   ids: GardenHeroId[],
   halfW: Map<GardenHeroId, number>,
   land: RelaxedCell[] | null,
+  treeFitHalfW: number,
 ): Map<GardenHeroId, Pt> {
   const onLand = (x: number, y: number): boolean =>
     !land || land.some((c) => pointInPoly(x, y, c.poly));
@@ -2236,6 +2263,20 @@ function placeGardenHeroes(
   // AND the midpoint must sit on owned land before a spot is accepted.
   const footprintOnLand = (x: number, y: number, hw: number): boolean =>
     onLand(x, y) && onLand(x - hw, y) && onLand(x + hw, y);
+  // The tree keep-outs (grounded-art inc 12). The CANOPY keep-out scales to the fitted tree footprint
+  // ({@link treeKeepOut}): a placement point outside it clears the canopy + a small lawn gap, so a building
+  // never merges into the trunk — even on a small island where the fitted tree fills the island. The
+  // SAMPLER additionally keeps the historical `radius·0.5` spread (the `max`), so a big island still
+  // spreads its heroes wide, byte-for-byte as before. The FALLBACK uses ONLY the canopy keep-out — the true
+  // anti-merge bound, lenient enough to LEAVE a nestled-but-clear studio fallback spot exactly where the
+  // owner attested it (inside `radius·0.5` yet well clear of the canopy), while still evicting a building
+  // that snapped onto the trunk. Independent of which hero — it is the tree's footprint, not the pair's,
+  // that must not be sat inside (a building may still nestle under the canopy EDGE, matching the concept).
+  const canopyKeepOut = treeKeepOut(treeFitHalfW);
+  const samplerKeepOut = Math.max(t.radius * 0.5, canopyKeepOut);
+  const dTree = (x: number, y: number): number => Math.hypot(x - t.treeSpot.x, y - t.treeSpot.y);
+  const clearsCanopy = (x: number, y: number): boolean => dTree(x, y) > canopyKeepOut;
+  const clearsTreeSampler = (x: number, y: number): boolean => dTree(x, y) > samplerKeepOut;
   const placed: Pt[] = [];
   const out = new Map<GardenHeroId, Pt>();
   for (const id of ids) {
@@ -2251,24 +2292,26 @@ function placeGardenHeroes(
       const rr = (0.28 + rand01(k + attempt * 2 + 1) * 0.34) * t.radius;
       x = t.centroid.x + Math.cos(ang) * rr;
       y = t.centroid.y + Math.sin(ang) * rr * 0.7; // top-down squash, same as the marker scatter
-      const clearsTree = Math.hypot(x - t.treeSpot.x, y - t.treeSpot.y) > t.radius * 0.5;
       const clearsPlate = y < t.labelY - 18;
       const clearsOthers = placed.every((p) => Math.hypot(x - p.x, y - p.y) > t.radius * 0.55);
-      if (clearsTree && clearsPlate && clearsOthers && footprintOnLand(x, y, hw)) {
+      if (clearsTreeSampler(x, y) && clearsPlate && clearsOthers && footprintOnLand(x, y, hw)) {
         settled = true;
         break;
       }
     }
     if (!settled && land) {
-      // Snap to the land-cell centroid whose whole footprint fits and that clears the others; fall back
-      // to the nearest free centroid, then the nearest centroid (a tiny island can't always do better).
+      // Snap to the land-cell centroid that clears the CANOPY and the others and whose whole footprint
+      // fits; then relax the footprint, then the canopy, then the others (a tiny island can't always do
+      // better). The canopy keep-out is honoured FIRST here — dropping it entirely is what let the
+      // exhausted-draws snap land a building on the trunk (grounded-art inc 12).
       const spots = land
         .map((cell) => cellCentroid(cell.poly))
         .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
       const clearsPlaced = (p: Pt): boolean =>
         placed.every((q) => Math.hypot(p.x - q.x, p.y - q.y) > t.radius * 0.5);
       const free =
-        spots.find((p) => clearsPlaced(p) && footprintOnLand(p.x, p.y, hw)) ??
+        spots.find((p) => clearsCanopy(p.x, p.y) && clearsPlaced(p) && footprintOnLand(p.x, p.y, hw)) ??
+        spots.find((p) => clearsCanopy(p.x, p.y) && clearsPlaced(p)) ??
         spots.find(clearsPlaced) ??
         spots[0]!;
       x = free.x;
@@ -2295,19 +2338,41 @@ function islandLandfall(t: SceneTerritoryInput, land: RelaxedCell[] | null): Pt 
   return best;
 }
 
-/** The deterministic stepping-stone garden PATH (grounded-art inc 11 unit 2) — a seeded walk of small
- *  `stepping-stone` `baked-use`s threading the `waypoints` (landfall → cottage → tree → gazebo), one
- *  cheap `<use>` per stone off the ONE shared def. Purely ADDITIVE: `buildTrails` and the segment/casing
- *  system are untouched — these stones are garden art on the island, not trail segments. Seeded jitter
- *  gives a natural meander (never `Math.random`). Each stone is y-sorted so it interleaves in depth. */
+interface StonePathOpts {
+  /** stone-centre spacing multiplier — <1 lays a TIGHTER, more continuous walkway; >1 a sparser trail. */
+  spacingMul?: number;
+  /** seeded-meander multiplier — 0 is a straight, deliberate walk; 1 is the loose garden wander. */
+  wobbleMul?: number;
+  /** an occlusion keep-out (the tree crown): a stone that would be HIDDEN behind the canopy is DROPPED, so
+   *  no stone is buried under the tree (grounded-art inc 12 — the owner's footpath ask). Only stones NORTH
+   *  of the tree base (smaller y) and within `r` are hidden — the y-sort paints the tree over them; a stone
+   *  SOUTH of the base draws in FRONT of the tree, so it is always kept (it reads on the lawn, not buried). */
+  skipNear?: { c: Pt; r: number };
+  /** id-namespace so two paths' stones don't collide (`garden-<tag>-<leg>-<i>`). */
+  tag: string;
+}
+
+/** The deterministic stepping-stone garden PATH (grounded-art inc 11 unit 2, footpath refined inc 12) — a
+ *  seeded walk of small `stepping-stone` `baked-use`s threading the `waypoints`, one cheap `<use>` per stone
+ *  off the ONE shared def. Purely ADDITIVE: `buildTrails` and the segment/casing system are untouched — these
+ *  stones are garden art on the island, not trail segments. Seeded jitter gives a natural meander (never
+ *  `Math.random`). Each stone is y-sorted so it interleaves in depth. `opts` tunes density / meander per
+ *  path and drops any stone buried under the tree crown (the `skipNear` occlusion filter). */
 function buildStonePath(
   t: SceneTerritoryInput,
   hero: SceneGardenHero,
   waypoints: Pt[],
+  opts: StonePathOpts,
 ): Array<{ y: number; node: SceneNode }> {
   const s = fittedHeroScale('stepping-stone', hero, t);
   const stoneW = s * hero.width; // scaled footprint width
-  const spacing = Math.max(stoneW * 1.05, t.radius * 0.06); // stone-centre gap — close enough to read as a path
+  const spacingMul = opts.spacingMul ?? 1;
+  const wobbleMul = opts.wobbleMul ?? 1;
+  const spacing = Math.max(stoneW * 1.05, t.radius * 0.06) * spacingMul; // stone-centre gap
+  const buried = (x: number, y: number): boolean =>
+    !!opts.skipNear &&
+    y < opts.skipNear.c.y && // only NORTH of the base is painted over — a southern stone reads in front
+    Math.hypot(x - opts.skipNear.c.x, y - opts.skipNear.c.y) < opts.skipNear.r;
   const out: Array<{ y: number; node: SceneNode }> = [];
   for (let leg = 0; leg + 1 < waypoints.length; leg++) {
     const a = waypoints[leg]!;
@@ -2327,14 +2392,35 @@ function buildStonePath(
     const n = Math.max(1, Math.round(usable / spacing));
     for (let i = 0; i <= n; i++) {
       const dist = margin + (usable * i) / n;
-      const k = hash(`${t.id}:stone:${leg}:${i}`);
-      const wob = (rand01(k) - 0.5) * spacing * 0.35; // seeded meander in [−0.175, 0.175)·spacing
+      const k = hash(`${t.id}:${opts.tag}:${leg}:${i}`);
+      const wob = (rand01(k) - 0.5) * spacing * 0.35 * wobbleMul; // seeded meander
       const x = a.x + ux * dist + px * wob;
       const y = a.y + uy * dist + py * wob;
-      out.push({ y, node: gardenHeroUse('stepping-stone', x, y, s, `garden-stone-${leg}-${i}`) });
+      if (buried(x, y)) continue; // never bury a stone under the tree crown (occlusion)
+      out.push({ y, node: gardenHeroUse('stepping-stone', x, y, s, `garden-${opts.tag}-${leg}-${i}`) });
     }
   }
   return out;
+}
+
+/** A midpoint for a stone leg that BOWS around the tree crown instead of crossing it (grounded-art inc 12).
+ *  If the straight leg's midpoint already clears the crown it is kept; otherwise it is pushed radially out
+ *  from the tree spot to just past the crown, so the light secondary path skirts the tree rather than
+ *  vanishing beneath it. Deterministic; a degenerate near-centre midpoint bows perpendicular to the leg. */
+function detourAroundTree(a: Pt, b: Pt, tree: Pt, crownR: number): Pt {
+  const mid: Pt = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const dx = mid.x - tree.x;
+  const dy = mid.y - tree.y;
+  const d = Math.hypot(dx, dy);
+  const want = crownR * 1.3; // clear the crown with a small lawn gap
+  if (d >= want) return mid;
+  if (d < 1e-3) {
+    // midpoint sits on the trunk — bow perpendicular to the leg (deterministic side: +perp).
+    const lx = b.x - a.x, ly = b.y - a.y;
+    const ll = Math.hypot(lx, ly) || 1;
+    return { x: tree.x + (-ly / ll) * want, y: tree.y + (lx / ll) * want };
+  }
+  return { x: tree.x + (dx / d) * want, y: tree.y + (dy / d) * want };
 }
 
 /** Pull a point onto owned land: if it is already on land keep it; otherwise walk it back toward the
@@ -2439,6 +2525,9 @@ function buildGardenArt(
   // the autumn-tree hero AS the central tree (ADR-0221) — at the story's tree spot, FITTED to the island
   // so its footprint lands within the shore on a small island (unit 2).
   const treeScale = fittedHeroScale('autumn-tree', garden.heroes['autumn-tree'], t);
+  // its fitted footprint half-width feeds the free heroes' tree keep-out (grounded-art inc 12), so a
+  // building never merges into the trunk on a small island where the tree fills the island.
+  const treeHalfW = (treeScale * garden.heroes['autumn-tree'].width) / 2;
   out.push({
     y: t.treeSpot.y,
     node: gardenHeroUse('autumn-tree', t.treeSpot.x, t.treeSpot.y, treeScale),
@@ -2461,22 +2550,31 @@ function buildGardenArt(
   const halfW = new Map<GardenHeroId, number>(
     freeIds.map((id) => [id, (scales.get(id)! * garden.heroes[id].width) / 2]),
   );
-  const spots = placeGardenHeroes(t, freeIds, halfW, land);
+  const spots = placeGardenHeroes(t, freeIds, halfW, land, treeHalfW);
   for (const [id, p] of spots) {
     out.push({ y: p.y, node: gardenHeroUse(id, p.x, p.y, scales.get(id)!) });
   }
-  // the stepping-stone garden PATH (unit 2): the concept's main path runs from the shore LANDFALL up to
-  // the cottage door, then on past the tree to the gazebo — so it docks at the island's inter-island
-  // trail and threads the heroes. Fixed order (landfall → cottage → tree → gazebo) keeps that
-  // front-door leg prominent, matching the reference.
+  // the stepping-stone garden PATH (unit 2; footpath refined inc 12). The concept reads as ONE clear paved
+  // front-door WALK from the shore landfall up to the cottage door, with the rest of the garden lighter and
+  // NO stones buried under the tree crown. So the path is TWO tiers, both dropping any stone that would sit
+  // under the fitted canopy (`skipNear`): a PRIMARY walk (landfall → cottage) laid tight + nearly straight
+  // (a deliberate front-door path that docks at the island's inter-island trail), and a LIGHT secondary
+  // trail (cottage → gazebo) laid sparse and bowed AROUND the tree crown (`detourAroundTree`) rather than
+  // threading through the tree spot — which is what buried stones under the canopy before.
   const landfall = islandLandfall(t, land);
   const cottage = spots.get('cottage');
   const gazebo = spots.get('gazebo');
-  const waypoints: Pt[] = [landfall];
-  if (cottage) waypoints.push(cottage);
-  waypoints.push({ x: t.treeSpot.x, y: t.treeSpot.y });
-  if (gazebo) waypoints.push(gazebo);
-  out.push(...buildStonePath(t, garden.heroes['stepping-stone'], waypoints));
+  const crown = { c: { x: t.treeSpot.x, y: t.treeSpot.y }, r: treeHalfW };
+  const stone = garden.heroes['stepping-stone'];
+  if (cottage) {
+    // the prominent front-door WALK — tight spacing + a calm meander reads as a laid path, not a scatter.
+    out.push(...buildStonePath(t, stone, [landfall, cottage], { spacingMul: 0.72, wobbleMul: 0.45, skipNear: crown, tag: 'walk' }));
+  }
+  if (cottage && gazebo) {
+    // a LIGHT trail on to the gazebo — sparse, skirting the tree crown so no stone hides beneath it.
+    const detour = detourAroundTree(cottage, gazebo, crown.c, treeHalfW);
+    out.push(...buildStonePath(t, stone, [cottage, detour, gazebo], { spacingMul: 1.5, wobbleMul: 0.8, skipNear: crown, tag: 'step' }));
+  }
 
   // flat decorative accents + the UAT verdict (unit 3): a lavender clump beside the cottage, the UAT
   // verdict as a MASSED daisy bed beside the gazebo, and a couple of grass tufts in the open — all flat,
