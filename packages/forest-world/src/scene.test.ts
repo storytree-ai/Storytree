@@ -30,6 +30,7 @@ import {
   type ScenePlantInput,
   type SceneGardenInput,
   type SceneGardenHero,
+  type SceneVegetationInput,
   type GardenHeroId,
 } from './scene.js';
 
@@ -1228,6 +1229,95 @@ test('§ back-compat ABSENCE LOCK: uatCriteria absent OR empty → NO marker kin
   }
   const empty = buildScene(mkInput({ territories: [mkTerritory({ uatCriteria: [] })] }));
   assert.deepEqual(empty, buildScene(mkInput({ territories: [mkTerritory()] })));
+});
+
+// ---------- the unified vegetation vocabulary (grounded-art, ADR-0226) ----------
+//
+// PRESENT ⇒ every NON-garden island reads ONE language, studio-side: grass = a capability's tests (the
+// decorative wildflower / anemone / heather-bell accents retired), the UAT criteria as SMALL flowers
+// folded into the grass (form-reads-verdict), and the human-witness signpost retired. ABSENT ⇒
+// byte-for-byte (the committed golden fixture above is the byte lock; every existing test stays green).
+// These cover decisions 2–5; the tree-spread (decision 1) is the separate UNIT 2.
+
+const VEG: SceneVegetationInput = {};
+
+/** A one-island scene with `vegetation` set (the flag ON), else the same shape as `markerScene`. */
+function vegScene(over: Partial<SceneTerritoryInput> = {}, cells: RelaxedCell[] | null = FULL_LAND): SceneG {
+  return buildScene(
+    mkInput({
+      territories: [mkTerritory({ signpost: { outcome: 'pass' }, uatCriteria: THREE_CRITERIA, ...over })],
+      relaxedCells: cells,
+      vegetation: VEG,
+    }),
+  );
+}
+
+/** The shadow ellipse rx a `tallFlowerMarks` body emits — 2.3 SMALL (the flag) vs 5.2 tall (default). */
+function markerShadowRxs(scene: SceneG): number[] {
+  return flowersOf(scene).map((flower) => {
+    const sh = mustByKind(flower, 'shadow');
+    assert.ok(sh.el === 'ellipse');
+    return sh.rx;
+  });
+}
+
+test('ADR-0226 §5: the vegetation vocabulary RETIRES the human-witness signpost (no sign-* kinds)', () => {
+  // a human-witness story carries a signpost; flag OFF it renders, flag ON it is gone.
+  assert.ok(firstByKind(markerScene(THREE_CRITERIA, { signpost: { outcome: 'pass' } }), 'sign-pass'), 'signpost renders with the flag off');
+  const on = vegScene();
+  for (const k of ['sign-blank', 'sign-pass', 'sign-fail', 'sign-post', 'sign-head'] as const) {
+    assert.equal(firstByKind(on, k), null, `${k} retired under the vocabulary`);
+  }
+});
+
+test('ADR-0226 §4: the UAT flowers render SMALL under the flag (still 1:1, state on the wrapper kind)', () => {
+  const on = vegScene();
+  const flowers = flowersOf(on);
+  assert.equal(flowers.length, THREE_CRITERIA.length, 'still one flower per criterion (1:1)');
+  assert.deepEqual(new Set(flowers.map((m) => m.kind)), new Set(FLOWER_KINDS), 'form still reads the verdict');
+  // the small body: every flower's shadow is the 2.3 SMALL footprint, not the 5.2 tall one.
+  assert.ok(markerShadowRxs(on).every((rx) => rx === 2.3), 'flowers are the small footprint');
+  assert.ok(markerShadowRxs(markerScene(THREE_CRITERIA)).every((rx) => rx === 5.2), 'flag-off keeps the tall footprint');
+  // the wrapper scale stays 0.6 (the scatter keep-outs are tuned for it).
+  for (const m of flowers) assert.match(m.transform ?? '', MARKER_TRANSFORM);
+});
+
+test('ADR-0226 §4: the honesty wall holds under the flag — only a proven flower blooms; a bud never does', () => {
+  const on = vegScene({ uatCriteria: [{ id: 'x', state: 'pending' }] });
+  const bud = flowersOf(on)[0]!;
+  assert.equal(bud.kind, 'tall-flower-pending');
+  assert.ok(firstByKind(bud, 'tall-flower-bud'), 'awaiting UAT is a closed bud');
+  assert.equal(firstByKind(bud, 'tall-flower-petal'), null, 'a bud has no open petals (ADR-0045)');
+  assert.equal(firstByKind(bud, 'tall-flower-glow'), null, 'a bud never glows');
+});
+
+test('ADR-0226 §2: the vocabulary retires the decorative bloom in every biome; the grass bulk stays', () => {
+  for (const theme of ['meadow', 'woodland', 'heath'] as const) {
+    // a HEALTHY parcel's ONLY `parcel-flower` source is its decorative bloom (wildflower / anemone /
+    // heather-bell); grass (blades) + UAT markers (tall-flower-*) are distinct kinds, so parcel-flower ⇒ bloom.
+    const parcels: Parcels = [{ capId: 'cap', status: 'healthy', testCount: 10, theme, seed: SEED_A }];
+    const mk = (veg: boolean): SceneG =>
+      buildScene(
+        mkInput({
+          relaxedCells: CELLS_AB,
+          territories: [mkTerritory({ status: 'proposed', parcels, uatCriteria: [] })],
+          ...(veg ? { vegetation: VEG } : {}),
+        }),
+      );
+    const off = mustByKind(mk(false), 'flora-layer');
+    const on = mustByKind(mk(true), 'flora-layer');
+    assert.ok(allByKind(off, 'parcel-flower').length > 0, `${theme}: the decorative bloom appears with the flag off`);
+    assert.equal(allByKind(on, 'parcel-flower').length, 0, `${theme}: no decorative bloom under the vocabulary`);
+    // the density bulk stays — the biome still reads as grass/vegetation.
+    assert.ok(allByKind(on, 'parcel-blade').length > 0, `${theme}: the grass/fern bulk remains`);
+  }
+});
+
+test('ADR-0226 absence lock: vegetation present is deterministic, and present ≠ absent', () => {
+  const withVeg = (): SceneG => vegScene();
+  const without = markerScene(THREE_CRITERIA, { signpost: { outcome: 'pass' } });
+  assert.deepEqual(withVeg(), withVeg(), 'same input (veg on) → byte-identical');
+  assert.notDeepEqual(withVeg(), without, 'the flag changes the render');
 });
 
 // ---------- the cosy-island GARDEN (grounded-art inc 11, ADR-0221) ----------

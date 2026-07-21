@@ -194,6 +194,17 @@ export const CONTROLS: readonly ControlSpec[] = [
     onToken: 'on',
     offReads: ['off', '0', 'false'],
   },
+  {
+    kind: 'toggle',
+    key: 'veg',
+    label: 'Vegetation vocabulary',
+    group: GROUP_COSY,
+    hint: 'The unified world-art vegetation vocabulary (ADR-0226): grass = a capability’s tests, small flowers = the story’s UAT, dead grass = an unhealthy capability, and the human-witness signpost retired. Studio-only; default off; other islands unchanged when off.',
+    default: false,
+    offToken: 'off',
+    onToken: 'on',
+    offReads: ['off', '0', 'false'],
+  },
 ] as const;
 
 const BY_KEY = new Map<string, ControlSpec>(CONTROLS.map((c) => [c.key, c]));
@@ -343,5 +354,19 @@ export function readCosyIsland(search: string): boolean {
  */
 export function readGardenIsland(search: string): boolean {
   const v = new URLSearchParams(search).get('garden');
+  return v === 'on' || v === '1' || v === 'true';
+}
+
+/**
+ * grounded-art (ADR-0226): the unified world-art vegetation vocabulary behind this DEFAULT-OFF flag.
+ * Off ⇒ every island renders byte-for-byte (the `SceneInput.vegetation` absence lock; the public
+ * website fold never sends it, so its render is unchanged). `?veg=on` (or `=1` / `=true`) flips the
+ * vocabulary studio-side: grass = a capability's tests (the decorative wildflower / anemone /
+ * heather-bell accents retired), the UAT criteria as SMALL flowers folded into the grass, dead grass =
+ * an unhealthy capability, the human-witness signpost retired. The look is the owner's ADR-0070 stage-2
+ * call — this flag is how the vocabulary is previewed, not shipped.
+ */
+export function readVegetationVocab(search: string): boolean {
+  const v = new URLSearchParams(search).get('veg');
   return v === 'on' || v === '1' || v === 'true';
 }

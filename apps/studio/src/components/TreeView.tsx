@@ -61,6 +61,7 @@ import {
   readRenderScene,
   readCosyIsland,
   readGardenIsland,
+  readVegetationVocab,
   type ControlSpec,
 } from '../lib/worldSettings.js';
 import {
@@ -152,6 +153,7 @@ import {
   wispBand,
   type SceneInput,
   type SceneGardenInput,
+  type SceneVegetationInput,
   type SceneStatus,
   type ScenePlantInput,
   type SceneTerritoryInput,
@@ -1150,6 +1152,7 @@ export function worldToScene(
   departuresByStory: Map<string, DepartedClaim[]> = new Map(),
   bakedStone: BakedStoneAsset | null = null,
   garden: SceneGardenInput | null = null,
+  vegetation: SceneVegetationInput | null = null,
 ): SceneInput {
   return {
     offset: world.offset,
@@ -1175,6 +1178,9 @@ export function worldToScene(
     // ADR-0221 (grounded-art inc 11): the cosy-island garden, supplied only when `?garden=on` fetched
     // the heroes. The core composes them onto `garden.islandId`; absent ⇒ every island byte-for-byte.
     ...(garden ? { garden } : {}),
+    // ADR-0226 (grounded-art): the unified vegetation vocabulary, supplied only when `?veg=on`. The
+    // core reads its presence to flip the vocabulary on the non-garden islands; absent ⇒ byte-for-byte.
+    ...(vegetation ? { vegetation } : {}),
   };
 }
 
@@ -2022,6 +2028,12 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // flag IMPLIES `?cosy`. Off ⇒ no heroes fetched, `SceneInput.garden` absent, every island byte-identical.
   const gardenOn = useMemo(() => readGardenIsland(search), [search]);
   const garden = useGardenIsland(gardenOn);
+  // grounded-art (ADR-0226): the unified vegetation vocabulary, default-off behind `?veg=on`. Presence
+  // alone flips the vocabulary on the non-garden islands (grass = tests, small UAT flowers, dead grass =
+  // unhealthy, signpost retired). Off ⇒ `SceneInput.vegetation` absent, every island byte-identical. A
+  // pure vocabulary switch — orthogonal to the cosy palette (the owner can combine `?veg=on&cosy=on`).
+  const vegOn = useMemo(() => readVegetationVocab(search), [search]);
+  const vegetation = useMemo<SceneVegetationInput | null>(() => (vegOn ? {} : null), [vegOn]);
   useEffect(() => {
     if (!cosyOn && !gardenOn) return;
     document.body.classList.add('cosy-island');
@@ -2033,10 +2045,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     () =>
       world
         ? buildScene(
-            worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden),
+            worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden, vegetation),
           )
         : null,
-    [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden],
+    [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden, vegetation],
   );
 
   // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the

@@ -81,6 +81,7 @@ export {
   type SceneParcelInput,
   type SceneGardenInput,
   type SceneGardenHero,
+  type SceneVegetationInput,
   type GardenHeroId,
   SURFACES,
   wispBand,

@@ -26,6 +26,7 @@ import {
   readRenderScene,
   readCosyIsland,
   readGardenIsland,
+  readVegetationVocab,
   type ControlSpec,
 } from './worldSettings.js';
 
@@ -40,10 +41,10 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
   it('exposes exactly the surviving dials, each with a key/label/group/kind/hint', () => {
     const keys = CONTROLS.map((c) => c.key);
     // Layout (DAG vs solar) + Ground (tiling), plus the grounded-art cosy-island feature gates
-    // (`garden` / `cosy`) surfaced as gear toggles (owner ask 2026-07-20 — flick them in the panel
-    // rather than type URLs). The `buildingIsland` toggle was REMOVED with ADR-0088 (the shared-island
-    // panel is permanent, not a gear flag), so the gear no longer carries a Panels switch.
-    const expected = ['layout', 'substrate', 'garden', 'cosy'];
+    // (`garden` / `cosy` / `veg`) surfaced as gear toggles (owner ask 2026-07-20 — flick them in the
+    // panel rather than type URLs). The `buildingIsland` toggle was REMOVED with ADR-0088 (the
+    // shared-island panel is permanent, not a gear flag), so the gear no longer carries a Panels switch.
+    const expected = ['layout', 'substrate', 'garden', 'cosy', 'veg'];
     expect([...keys].sort()).toEqual([...expected].sort());
     // The retired river/pond dials, road-routing dials AND the removed building toggles
     // (building-DRAWER, then building-ISLAND) must be GONE (genuinely stripped, not shelved —
@@ -214,8 +215,8 @@ describe('worldSettings — readGardenIsland (grounded-art inc 11, ADR-0221, def
 });
 
 describe('worldSettings — the cosy-island gear TOGGLES (owner ask: gear panel, not URLs)', () => {
-  it('garden + cosy are default-off toggles in the "Cosy island" group', () => {
-    for (const key of ['garden', 'cosy']) {
+  it('garden + cosy + veg are default-off toggles in the "Cosy island" group', () => {
+    for (const key of ['garden', 'cosy', 'veg']) {
       const c = ctl(key);
       expect(c.kind).toBe('toggle');
       expect(c.group).toBe('Cosy island');
@@ -235,5 +236,27 @@ describe('worldSettings — the cosy-island gear TOGGLES (owner ask: gear panel,
     expect(setControlValue('', c, true)).toBe('?cosy=on');
     expect(readCosyIsland('?cosy=on')).toBe(true);
     expect(setControlValue('?cosy=on', c, false)).toBe('');
+  });
+  it('the veg toggle writes veg=on / removes it, matching readVegetationVocab', () => {
+    const c = ctl('veg');
+    expect(setControlValue('', c, true)).toBe('?veg=on');
+    expect(readVegetationVocab('?veg=on')).toBe(true);
+    expect(setControlValue('?veg=on', c, false)).toBe('');
+  });
+});
+
+describe('worldSettings — readVegetationVocab (grounded-art, ADR-0226, default-off vegetation flag)', () => {
+  it('is OFF by default / for unrelated params', () => {
+    expect(readVegetationVocab('')).toBe(false);
+    expect(readVegetationVocab('?cosy=on&layout=solar')).toBe(false);
+  });
+  it('is ON for the accepted truthy tokens', () => {
+    expect(readVegetationVocab('?veg=on')).toBe(true);
+    expect(readVegetationVocab('?veg=1')).toBe(true);
+    expect(readVegetationVocab('?veg=true')).toBe(true);
+  });
+  it('an unknown ?veg value stays OFF', () => {
+    expect(readVegetationVocab('?veg=wat')).toBe(false);
+    expect(readVegetationVocab('?veg=off')).toBe(false);
   });
 });
