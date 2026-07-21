@@ -1,0 +1,22 @@
+{
+  "name": "@storytree/art-authoring",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The art-authoring organism (ADR-0225): the author-time, vendor-swappable generative-3D blocking-substrate adapter. A `(prompt, concept image) -> maquette` adapter that fans one request to swappable vendor backends (fixture offline; NVIDIA build.nvidia.com TRELLIS live, credential-gated), lets an author select one THROWN-AWAY maquette, and hands off ONLY a re-authored checkable vector asset the @storytree/procedural-architecture factory checker governs. Author-time ONLY — never in the deterministic build, the runtime, or per-instance; NEVER browser-bundled; carries node/network deps, so it is NOT a foundational port.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@storytree/procedural-architecture": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.3"
+  }
+}

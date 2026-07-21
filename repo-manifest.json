@@ -19,7 +19,7 @@
       "web": "storytree-web (the public front-door site) vendored as a submodule; wired in .gitmodules (PR #111)."
     },
     "dirs": {
-      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / model-uat / uat-criterion / model-judged-uat / model-uat-pilot; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; model-uat is the model-UAT-witness organism added packages-forward per ADR-0192; uat-criterion is the seed-canonical per-criterion detail organism for ADR-0209 D5/D6; model-judged-uat is the independent model-judge + spine-validation + escalation organism for ADR-0209 D3/D4; model-uat-pilot is the three-story pilot migration harness for ADR-0209 D8).",
+      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / model-uat / uat-criterion / model-judged-uat / model-uat-pilot; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; model-uat is the model-UAT-witness organism added packages-forward per ADR-0192; uat-criterion is the seed-canonical per-criterion detail organism for ADR-0209 D5/D6; model-judged-uat is the independent model-judge + spine-validation + escalation organism for ADR-0209 D3/D4; model-uat-pilot is the three-story pilot migration harness for ADR-0209 D8; art-authoring is the author-time, vendor-swappable generative-3D blocking-substrate adapter for ADR-0225 — a second art-factory-owned package that depends on procedural-architecture, NOT foundational because it carries node/network deps).",
       "apps": "Workspace apps (studio).",
       "docs": "ADRs + open-questions backlog + research notes (see docs.* below).",
       "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/library.",
@@ -56,6 +56,7 @@
       "@storytree/forest-world": "forest-world",
       "@storytree/forest-world-r3f": "website-experience",
       "@storytree/procedural-architecture": "art-factory",
+      "@storytree/art-authoring": "art-factory",
       "@storytree/model-uat": "model-uat-witness",
       "@storytree/uat-criterion": "uat-criterion-detail",
       "@storytree/model-judged-uat": "model-judged-uat",
