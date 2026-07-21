@@ -69,6 +69,13 @@ stays 2.5D isometric.** In four parts.
    iso projection, occlusion and one consistent light → **re-author** a structured, parametric,
    **CHECKABLE vector** asset against it → the existing checker (ADR-0217 stations 1–3). This is our
    part-tree doctrine with an explicit correctness rig bolted onto the front, not a new mechanism.
+   **Amended by
+   [ADR-0225](0225-generative-3d-produces-the-bridge-blocking-substrate-via-a-v.md):** the LIGHT
+   ortho/parametric blocking substrate is now **generator-produced** — a reputable generative-3D model
+   produces the block, reached through a vendor-swappable author-time adapter (NVIDIA Edify first;
+   Gemini is view-only per that ADR's verification, so it stays image-reference only) — rather than
+   hand-built. The rest of this bridge stands unchanged: thrown-away maquette, re-author to checkable
+   vector, checker governs.
 
 3. **Look fork RESOLVED: baked VECTOR first,** reusing ADR-0218's fenced baked-art node family
    (`baked-def` / `baked-use` / `BakedPaintNode`) — cohesive shaded iso informed by the concept, not
@@ -108,7 +115,11 @@ map renderer; Google video for Act 2; and any machine-signed look verdict.
   prove-it-gate's reproducibility is untouched.
 - **Cost — the bridge's light 3D substrate is net-new authoring tooling** and is NOT built here. It is a
   future increment; decision 2 fixes its shape (a correctness rig, never shipped) so it cannot drift
-  into being a runtime renderer.
+  into being a runtime renderer. **Amended by
+  [ADR-0225](0225-generative-3d-produces-the-bridge-blocking-substrate-via-a-v.md):** that increment is
+  now specified — a generative-3D model produces the block through a vendor-swappable author-time
+  adapter (NVIDIA Edify first). It stays author-time-only tooling and the adapter BUILD is still a later
+  increment; ADR-0225 records the decision and the verified vendor strategy, not the build.
 - **Parked, deliberately.** Decision 4 closes off three recurring scope debates (R3F-for-the-map, "3D"
   as a shipped thing, Google video for Act 2) so later increments do not re-open them.
 - **Deferred — the SDK adoption is a LATER increment.** Adopting `@google/genai` and generating NEW
@@ -122,6 +133,12 @@ map renderer; Google video for Act 2; and any machine-signed look verdict.
 
 ## References
 
+- [ADR-0225](0225-generative-3d-produces-the-bridge-blocking-substrate-via-a-v.md) — **amends this
+  ADR.** Decision 2's hand-built light-3D blocking substrate becomes **generator-produced** (a reputable
+  generative-3D model, reached through a vendor-swappable author-time adapter — NVIDIA Edify first,
+  Google/Gemini image-reference only after a mesh-export verification); every other invariant here —
+  author-time only, thrown-away maquette, re-author to checkable vector, baked-vector look D3,
+  2.5D-isometric D4 — stands. Read it before relying on decision 2.
 - [ADR-0214](0214-ground-ai-authored-art-in-a-physical-model-csg-over-svg-not.md) — **amended**: D4's
   "improving the art is a hard non-goal" becomes a named aesthetic DIRECTION (the cosy concept). D4's
   **never-reinterpret rule stands** — the concept informs an author, never our code (ADR-0217 D2).

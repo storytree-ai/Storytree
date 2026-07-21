@@ -12,14 +12,18 @@ proof_mode: UAT
 # `adopted` machine verdict (ADR-0085). No DB, no API key, no browser — the math is exercised headless.
 uat_witness: machine
 arc: grounded-art-machinery-arc
-# Three capabilities on the real organ boundaries (ADR-0217 D1 — art factories are per object type):
+# Four capabilities on the real organ boundaries (ADR-0217 D1 — art factories are per object type):
 # the shared PIPELINE (stations 1–4: the model builder + projection, the invariant checker, the
 # aperture cut, the deterministic draw order, the bake, and the SVG printer), the BUILDING factory
-# (the parametric building modules + the kit roster), and the LANDSCAPE factory (the standing-stone /
-# autumn-tree / stepping-stone heroes + the hero-kit roster). Each organ has its own isolatable
-# offline suites, so each earns a capability; the split does not go finer (slow growth — no per-module
-# capability, because a module has no red→green leg the observed suite does not already give its organ).
-capabilities: [art-pipeline, building-factory, landscape-factory]
+# (the parametric building modules + the kit roster), the LANDSCAPE factory (the standing-stone /
+# autumn-tree / stepping-stone heroes + the hero-kit roster), and the author-time BLOCKING-SUBSTRATE
+# adapter (ADR-0225 — a vendor-swappable generative-3D adapter that PRODUCES the maquette an author
+# re-authors into a checkable factory input; a distinct organ from the factories, which consume such an
+# input). Each organ has its own isolatable suite, so each earns a capability; the split does not go
+# finer (slow growth — no per-module capability, because a module has no red→green leg the observed
+# suite does not already give its organ). The three factory organs are brownfield (`mapped`, adopted by
+# the observe gate below); the adapter is greenfield (`proposed`, unbuilt — it greens by BUILD, ADR-0094).
+capabilities: [art-pipeline, building-factory, landscape-factory, blocking-substrate-adapter]
 # Foundational root organism (ADR-0222 D1, standing on ADR-0075 / ADR-0093): the package is
 # zero-dependency and browser-safe (`@storytree/procedural-architecture` — pure math + string
 # building, no other workspace package, no `node:*`), so it sits at the bottom of the order alongside
@@ -34,9 +38,11 @@ depends_on: []
 consumed_by: []
 # Deciding ADRs (ADR-0037 §2): the factory-per-object-type design + explicit draw order + kit
 # (217); the fenced baked-art scene family the bake feeds (218); generative entry author-time only,
-# bridged to checkable vector (219); the garden composition seam / studio fold (221); and the split
-# that gives the factory its own story + a spine-signable node (222).
-decisions: [217, 218, 219, 221, 222]
+# bridged to checkable vector (219); the garden composition seam / studio fold (221); the split
+# that gives the factory its own story + a spine-signable node (222); and the generative-3D
+# blocking-substrate adapter that produces the bridge substrate author-time via a vendor-swappable
+# adapter, NVIDIA Edify first (225).
+decisions: [217, 218, 219, 221, 222, 225]
 ---
 
 # The art factory — per-object-type parametric factories that bake grounded art through one shared pipeline
@@ -75,6 +81,37 @@ or a landscape hero (`./landscape/*`) composes the builder and is judged by the 
 `HERO_KIT` / `bakeHeroKit` → `kit.json` `heroes` (landscape heroes), and `bakeStone` → `stone.json`.
 That baked output is exactly the *build-time DATA* ([ADR-0217](../../docs/decisions/0217-art-factories-are-per-object-type-parametric-kit-explicit-dr.md))
 a surface composes, checked by drift-guard tests and pinned deterministically in git.
+
+## The author-time blocking-substrate adapter (greenfield, unbuilt)
+
+Upstream of the factories sits one more organ, the fourth capability
+[`blocking-substrate-adapter`](blocking-substrate-adapter.md), decided by
+[ADR-0225](../../docs/decisions/0225-generative-3d-produces-the-bridge-blocking-substrate-via-a-v.md)
+(amending [ADR-0219](../../docs/decisions/0219-generative-image-models-enter-the-art-pipeline-author-time-o.md)
+D2). It is the "net-new authoring tooling" ADR-0219 deferred: a **vendor-swappable, author-time
+`(prompt, concept image) → block` adapter** that has a generative-3D model PRODUCE the bridge's blocking
+substrate (the light ortho/parametric maquette) instead of an author hand-building the rig. NVIDIA Edify
+(via the Shutterstock / Getty NVIDIA NIM services) is the first block-producing backend; Google/Gemini
+stays an optional image-reference backend; Adobe is excluded (ADR-0225).
+
+It is a **distinct organ** from the per-object-type factories: the factories CONSUME a re-authored
+checkable input and prove soundness + bake; the adapter PRODUCES the reference an author re-authors into
+such an input. Its load-bearing invariants are ADR-0219's, unchanged — **author-time only** (never in
+the deterministic build, the runtime, or per-instance), the **maquette is thrown away**, the
+**re-authored checkable vector is the source of truth**, the existing checker governs, and the shipped
+map stays **2.5D-isometric** (a generated mesh is never the shipped asset). Because it holds a network
+client + an owner-provided credential, it does NOT live in `@storytree/procedural-architecture` (the
+browser-bundleable foundational root, ADR-0075 / ADR-0222); the recommendation is a new sibling
+author-tool package depending on the factory — see the capability spec.
+
+Unlike the three factory organs (brownfield `mapped`, adopted below), this adapter is **greenfield and
+unbuilt**: it is authored as the provable journey + contract set and greens by BUILD
+([ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md):
+*proposed builds*), not by the observe gate. Its offline core (the vendor-swappable interface,
+author-selection, and the re-author hand-off to the real checker) is provable without any credential;
+only the live NVIDIA-Edify backend leg is credential-gated. The story-green crown therefore stays dark
+until this capability is built to a signed verdict AND the observe gate below is adopted — the honest
+state today.
 
 ## Consumers
 
