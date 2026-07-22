@@ -59,8 +59,6 @@ import {
   controlByKey,
   readControlValue,
   readRenderScene,
-  readCosyIsland,
-  readGardenIsland,
   readVegetationVocab,
   type ControlSpec,
 } from '../lib/worldSettings.js';
@@ -93,17 +91,8 @@ import {
   ICON_SHAPES,
 } from '../lib/buildingLayout.js';
 import {
-  factoryBuildingFor,
-  factoryDefId,
-  factoryScale,
-  loadBakedStone,
-  loadFactoryKit,
-  loadGardenHeroes,
   loadHeroTreeVariants,
-  usedFactoryBuildings,
   type BakedStoneAsset,
-  type FactoryBuilding,
-  type FactoryNode,
 } from '../lib/factoryBuildings.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { BuildSection } from './BuildSection.js';
@@ -2016,49 +2005,22 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // so it only rebuilds on the world / substrate / ticker / build-activity inputs —
   // never on hover. Hooks live above the early returns (the world may still be null).
   const renderScene = useMemo(() => readRenderScene(search), [search]);
-  // ADR-0218: the baked standing stone rides the SAME `?factoryart=on` flag as the buildings, so the
-  // owner sees the whole isometric world at once. Off by default (the look is the owner's verdict) and
-  // fetched only then; until it resolves the markers draw their flat body — a late repaint, never a
-  // hole. Absent ⇒ the scene renders flat stones (the public website's byte-for-byte path).
-  const factoryOn = useMemo(() => readFactoryArt(search), [search]);
-  const bakedStone = useBakedStone(factoryOn);
-  // grounded-art increment 9 (ADR-0219 / style-bible.md): the cosy palette lift is CSS-only
-  // (colour-is-class, ADR-0093 §4) behind `?cosy=on`, default off. The `cosy-island` class is
-  // applied to <body> (not a local wrapper) so it reaches the board backdrop gradient painted
-  // above `.world-frame` as well as every hex/coast/conifer token inside the SVG — a single
-  // switch the CSS override block in index.css targets. Off ⇒ no class is ever added, so the
-  // default render stays byte-identical.
-  const cosyOn = useMemo(() => readCosyIsland(search), [search]);
-  // grounded-art increment 11 (ADR-0221): the cosy-island GARDEN composition, default-off behind
-  // `?garden=on`. It fetches the inc-10 heroes and composes them onto the exemplar `studio` island —
-  // and it renders on the cosy-WARM land (the concept is entirely warm, style-bible.md), so the garden
-  // flag IMPLIES `?cosy`. Off ⇒ no heroes fetched, `SceneInput.garden` absent, every island byte-identical.
-  const gardenOn = useMemo(() => readGardenIsland(search), [search]);
-  const garden = useGardenIsland(gardenOn);
-  // grounded-art (ADR-0226): the unified vegetation vocabulary, default-off behind `?veg=on`. Presence
-  // alone flips the vocabulary on the non-garden islands (grass = tests, small UAT flowers, dead grass =
-  // unhealthy, signpost retired). Off ⇒ `SceneInput.vegetation` absent, every island byte-identical. A
-  // pure vocabulary switch — orthogonal to the cosy palette (the owner can combine `?veg=on&cosy=on`).
+  // grounded-art (ADR-0226): the unified vegetation vocabulary — the STUDIO DEFAULT (ADR-0226 promoted;
+  // `?veg=off` escapes). Presence flips the vocabulary on every island (grass = tests, small UAT flowers,
+  // dead grass = unhealthy, the witness signpost retired) and, via the tree-spread (decision 1), fetches
+  // the per-status `autumn-tree` colourways (ADR-0227) so each island's central tree is the baked hero.
+  // (The default-off `?cosy` / `?garden` / `?factoryart` grounded-art flags were retired by ADR-0228; the
+  // scene's dormant `bakedStone` / `garden` seams stay in forest-world, fed `null` here.)
   const vegOn = useMemo(() => readVegetationVocab(search), [search]);
-  // grounded-art (ADR-0226 decision 1): the tree-spread fetches the `autumn-tree` hero from the kit
-  // chunk and sends it as `vegetation.heroTree`, so every non-garden island's central tree becomes the
-  // baked hero. Until it resolves the procedural tree stands (a late repaint). Off ⇒ vegetation null.
   const vegetation = useVegetation(vegOn);
-  useEffect(() => {
-    if (!cosyOn && !gardenOn) return;
-    document.body.classList.add('cosy-island');
-    return () => {
-      document.body.classList.remove('cosy-island');
-    };
-  }, [cosyOn, gardenOn]);
   const scene = useMemo(
     () =>
       world
         ? buildScene(
-            worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden, vegetation),
+            worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, null, null, vegetation),
           )
         : null,
-    [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden, vegetation],
+    [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, vegetation],
   );
 
   // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the
@@ -2412,7 +2374,6 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   hidden={hidden}
                   onStampClick={(id) => setHighlightShared(id)}
                   buildings={buildings}
-                  gardenIslandId={gardenOn ? GARDEN_ISLAND_ID : null}
                 />
               </>
             ) : (
@@ -2921,185 +2882,12 @@ function IconGlyph({ id, label = true }: { id: string; label?: boolean }): React
   );
 }
 
-/**
- * ONE baked drawable. The nodes arrive from the factory in painter order with their colour already
- * resolved, so this paints them in sequence and decides nothing — no sorting, no shading, no class.
- * The fill is an attribute rather than CSS precisely because it is not a category: a facade's colour
- * is its material modulated by N·L, so two walls of the same building differ and no class names that.
- */
-function FactoryNodeEl({ n }: { n: FactoryNode }): React.JSX.Element {
-  const op = n.opacity !== undefined ? { opacity: n.opacity } : {};
-  if (n.el === 'ellipse') {
-    return <ellipse cx={n.cx} cy={n.cy} rx={n.rx} ry={n.ry} fill={n.fill} {...op} />;
-  }
-  if (n.el === 'polygon') {
-    return (
-      <polygon
-        points={n.points}
-        fill={n.fill}
-        stroke={n.stroke}
-        strokeWidth={n.strokeWidth}
-        strokeLinejoin="round"
-        {...op}
-      />
-    );
-  }
-  if (n.fillRule === 'evenodd') {
-    // A wall and its openings as one even-odd path — the hole is genuinely empty.
-    return (
-      <path
-        d={n.d}
-        fillRule="evenodd"
-        fill={n.fill}
-        stroke={n.stroke}
-        strokeWidth={n.strokeWidth}
-        strokeLinejoin="round"
-        {...op}
-      />
-    );
-  }
-  // A split fragment's inherited outline: unfilled, so the cut edges stay invisible.
-  return (
-    <path
-      d={n.d}
-      fill="none"
-      stroke={n.stroke}
-      strokeWidth={n.strokeWidth}
-      strokeLinejoin="round"
-      strokeLinecap="round"
-      {...op}
-    />
-  );
-}
-
-/**
- * Every factory building the map references, DEFINED ONCE.
- *
- * This is the node-budget decision made visible. A baked building is ~800 elements; a map with a
- * dozen islands that inlined its own copy would be past ADR-0069's ceiling several times over. Each
- * building is defined here and referenced by `<use>`, so adding an island costs one node rather than
- * eight hundred. Only the buildings actually referenced are defined — `<defs>` content is still DOM.
- */
-function FactoryBuildingDefs({
-  kit,
-  storyIds,
-}: {
-  kit: readonly FactoryBuilding[];
-  storyIds: readonly string[];
-}): React.JSX.Element {
-  return (
-    <defs>
-      {usedFactoryBuildings(kit, storyIds).map((b) => (
-        <g key={b.id} id={factoryDefId(b.id)}>
-          {b.nodes.map((n, i) => (
-            <FactoryNodeEl key={i} n={n} />
-          ))}
-        </g>
-      ))}
-    </defs>
-  );
-}
-
-/**
- * A story's identity as a BUILDING THE FACTORY MADE (ADR-0217) rather than as a flat glyph — the
- * drop-in replacement for {@link IconGlyph} behind `?factoryart=on`.
- *
- * It is a `<use>` and a scale, and that is the whole runtime: the geometry was derived, checked,
- * ordered and projected at build time (ADR-0217 D4 — "the runtime performs no geometry"). Baked to
- * the same placement contract the glyph used (centred on x = 0, standing on y = 0), so every call
- * site's existing `translate` already puts it in the right place.
- */
-function FactoryGlyph({
-  kit,
-  id,
-  height = ICON_GLYPH.H,
-}: {
-  kit: readonly FactoryBuilding[];
-  id: string;
-  height?: number;
-}): React.JSX.Element {
-  const b = factoryBuildingFor(kit, id);
-  const k = factoryScale(b, height);
-  return (
-    <g className="story-factory-art" transform={`scale(${k.toFixed(4)})`}>
-      <use href={`#${factoryDefId(b.id)}`} />
-    </g>
-  );
-}
-
-/** DEFAULT OFF. `?factoryart=on` swaps the flat ADR-0102 identity glyphs for buildings the ADR-0217
- *  factory produced. Off by default because the appearance is the OWNER's call and has not been
- *  given (ADR-0070 stage 2 / ADR-0159): the flag is how the look is shown without shipping it. */
-function readFactoryArt(search: string = defaultSearch()): boolean {
-  const v = new URLSearchParams(search).get('factoryart');
-  return v === 'on' || v === '1' || v === 'true';
-}
-
-/**
- * The baked kit, fetched only when the flag asks for it — `null` until it arrives, and forever if
- * the flag is off.
- *
- * Until it resolves the map draws the flat glyphs, so the swap is a late repaint rather than a hole
- * in the world. That is the right failure mode for a chunk this size: an island that is briefly
- * its old self is unremarkable, an island that is briefly missing is alarming.
- */
-function useFactoryKit(enabled: boolean): FactoryBuilding[] | null {
-  const [kit, setKit] = useState<FactoryBuilding[] | null>(null);
-  useEffect(() => {
-    if (!enabled) return;
-    let live = true;
-    void loadFactoryKit().then(
-      (k) => { if (live) setKit(k); },
-      (err: unknown) => { console.error('factory kit failed to load; keeping the flat glyphs', err); },
-    );
-    return () => { live = false; };
-  }, [enabled]);
-  return kit;
-}
-
-/**
- * The baked standing stone, fetched only when `?factoryart=on` (ADR-0218) — `null` until it arrives,
- * and forever if the flag is off. The mirror of {@link useFactoryKit} for the scene-graph's fenced
- * baked-art family: until it resolves the UAT markers draw their flat body, so the swap is a late
- * repaint rather than a hole in the world.
- */
-function useBakedStone(enabled: boolean): BakedStoneAsset | null {
-  const [stone, setStone] = useState<BakedStoneAsset | null>(null);
-  useEffect(() => {
-    if (!enabled) return;
-    let live = true;
-    void loadBakedStone().then(
-      (s) => { if (live) setStone(s); },
-      (err: unknown) => { console.error('baked stone failed to load; keeping the flat markers', err); },
-    );
-    return () => { live = false; };
-  }, [enabled]);
-  return stone;
-}
-
-/** The exemplar island the cosy-island garden composes onto (grounded-art inc 11, ADR-0221) — the
- *  `studio` story, whose concept image the whole arc matches. */
-const GARDEN_ISLAND_ID = 'studio';
-
-/**
- * The cosy-island garden, assembled only when `?garden=on` (ADR-0221) has fetched the inc-10 heroes
- * from the dynamic kit chunk — `null` until they arrive, and forever if the flag is off. The mirror of
- * {@link useBakedStone} for the garden composition: until it resolves the exemplar island renders its
- * normal flora, so the swap is a late repaint rather than a hole in the world.
- */
-function useGardenIsland(enabled: boolean): SceneGardenInput | null {
-  const [heroes, setHeroes] = useState<SceneGardenInput['heroes'] | null>(null);
-  useEffect(() => {
-    if (!enabled) return;
-    let live = true;
-    void loadGardenHeroes().then(
-      (h) => { if (live) setHeroes(h); },
-      (err: unknown) => { console.error('garden heroes failed to load; keeping the default island', err); },
-    );
-    return () => { live = false; };
-  }, [enabled]);
-  return enabled && heroes ? { islandId: GARDEN_ISLAND_ID, heroes } : null;
-}
+/* ADR-0228 retired the default-off grounded-art flags `?factoryart` (the baked identity-building
+ * kit + baked standing stone) and `?garden` (the cosy-island garden composition) along with the
+ * `?buildings` panel/stamp default. Their studio wiring — FactoryNodeEl / FactoryBuildingDefs /
+ * FactoryGlyph / readFactoryArt / useFactoryKit / useBakedStone / GARDEN_ISLAND_ID / useGardenIsland —
+ * is removed; the forest-world `bakedStone` / `garden` scene seams stay (dormant, fed `null`). The
+ * unified vegetation vocabulary (`?veg`, the promoted default) is unaffected. */
 
 /**
  * The unified vegetation vocabulary (grounded-art, ADR-0226), assembled when `?veg=on`. Presence flips
@@ -3140,7 +2928,6 @@ function StoryStamp({
   spot,
   hidden,
   onStampClick,
-  kit = null,
 }: {
   story: TreeStory;
   /** The building id whose identity glyph this stamp carries. */
@@ -3150,8 +2937,6 @@ function StoryStamp({
   /** ADR-0102: clicking the stamp highlights the shared island it names in the left panel
    *  (instead of selecting the carrier island). Absent in the panel's own one-island render. */
   onStampClick?: (sharedId: string) => void;
-  /** The baked kit once `?factoryart=on` has fetched it; null keeps the flat glyph. */
-  kit?: readonly FactoryBuilding[] | null;
 }): React.JSX.Element {
   const st = story.status ?? 'unknown';
   return (
@@ -3168,9 +2953,8 @@ function StoryStamp({
         : {})}
     >
       <title>{`${icon} — used by ${story.id} · click to find it in Shared Islands`}</title>
-      {/* The factory bakes its own contact shadow, so the glyph's stand-in one would double up. */}
-      {!kit && <ellipse className="flora-shadow" cx={1} cy={1.6} rx={11} ry={3.0} />}
-      {kit ? <FactoryGlyph kit={kit} id={icon} /> : <IconGlyph id={icon} />}
+      <ellipse className="flora-shadow" cx={1} cy={1.6} rx={11} ry={3.0} />
+      <IconGlyph id={icon} />
     </g>
   );
 }
@@ -3199,7 +2983,6 @@ export function StudioWorldChrome({
   hidden,
   onStampClick,
   buildings = false,
-  gardenIslandId = null,
 }: {
   world: HexWorld;
   hidden: ReadonlySet<string>;
@@ -3210,28 +2993,9 @@ export function StudioWorldChrome({
    *  driven off the island id directly — it is gated here so the default map has clean nameplates and
    *  the glyph returns only under the `?buildings=on` escape (where it decodes the stamps). */
   buildings?: boolean;
-  /** The cosy-island garden's exemplar island id when `?garden` is on (grounded-art inc 11, ADR-0221),
-   *  else null. The garden island carries NO 2D dependency stamps and NO identity-key glyph — the
-   *  concept is a clean garden with no little house glyphs (owner ask 2026-07-20). Every OTHER island
-   *  is untouched, and with the flag off (null) nothing changes. */
-  gardenIslandId?: string | null;
 }): React.JSX.Element {
-  // ADR-0217 increment 5: every island's identity drawn as a building the factory produced.
-  // Behind a flag because the LOOK is the owner's verdict to give (ADR-0070 stage 2), not ours.
-  // `kit` stays null until the chunk lands (and always, with the flag off), so the flat glyphs
-  // are what renders in the meantime.
-  const kit = useFactoryKit(readFactoryArt());
-  // Every id that will ask for a building — the carried stamps plus each island's own key glyph.
-  const factoryIds = kit
-    ? [
-        ...world.territories.flatMap((t) => t.stamps.map((s) => s.icon)),
-        ...world.territories.map((t) => t.story.id),
-      ]
-    : [];
   return (
     <g className="studio-world-chrome" transform={`translate(${world.offset.x} ${world.offset.y})`}>
-      {/* Define each referenced building ONCE; every stamp and key glyph below is a `<use>`. */}
-      {kit && <FactoryBuildingDefs kit={kit} storyIds={factoryIds} />}
       {/* SOLAR spokes (solar mode only) — the same low-salience perimeter-docked wiring the inline
           path drew, layered UNDER the stamps so the icons stay legible. */}
       {world.solar && (
@@ -3241,22 +3005,19 @@ export function StudioWorldChrome({
           ))}
         </g>
       )}
-      {/* The distributed-consumer building stamps each island carries (ADR-0102). The cosy-island
-          GARDEN island carries none — the concept is a clean garden, no little house glyphs (ADR-0221). */}
+      {/* The distributed-consumer building stamps each island carries (ADR-0102) — the `?buildings=on`
+          escape only; `t.stamps` is empty in the default (buildings-off) pathways world (ADR-0228). */}
       {world.territories.map((t) =>
-        t.story.id === gardenIslandId
-          ? null
-          : t.stamps.map((stamp) => (
-              <StoryStamp
-                key={`stamp:${t.story.id}:${stamp.icon}`}
-                story={t.story}
-                icon={stamp.icon}
-                spot={stamp.spot}
-                hidden={hidden}
-                onStampClick={onStampClick}
-                kit={kit}
-              />
-            )),
+        t.stamps.map((stamp) => (
+          <StoryStamp
+            key={`stamp:${t.story.id}:${stamp.icon}`}
+            story={t.story}
+            icon={stamp.icon}
+            spot={stamp.spot}
+            hidden={hidden}
+            onStampClick={onStampClick}
+          />
+        )),
       )}
       {/* The per-nameplate identity-key glyph (ADR-0102) — the scene draws the plate; this restores
           the key beside it at the SAME world placement the legacy TerritoryFlora used: inside the
@@ -3266,9 +3027,6 @@ export function StudioWorldChrome({
           `?buildings=on` escape; the default map has clean nameplates (no little house glyph). */}
       {buildings &&
         world.territories.map((t) => {
-          // The garden island shows no identity-key house glyph either — a clean nameplate to match the
-          // concept (ADR-0221); every other island keeps its key. Flag off ⇒ gardenIslandId is null.
-          if (t.story.id === gardenIslandId) return null;
           const plate = nameplateLayout(t.story.id.length, t.buildingGlyph);
           const x = t.centroid.x - plate.w / 2 + plate.w + NAMEPLATE_KEY_MARGIN;
           const y = t.labelY + plate.h;
@@ -3278,7 +3036,7 @@ export function StudioWorldChrome({
               className="world-plate-key"
               transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${NAMEPLATE_KEY_SCALE})`}
             >
-              {kit ? <FactoryGlyph kit={kit} id={t.story.id} /> : <IconGlyph id={t.story.id} />}
+              <IconGlyph id={t.story.id} />
             </g>
           );
         })}
