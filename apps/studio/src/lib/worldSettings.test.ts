@@ -24,8 +24,6 @@ import {
   resetControls,
   buildShareUrl,
   readRenderScene,
-  readCosyIsland,
-  readGardenIsland,
   readVegetationVocab,
   type ControlSpec,
 } from './worldSettings.js';
@@ -40,15 +38,15 @@ function ctl(key: string): ControlSpec {
 describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
   it('exposes exactly the surviving dials, each with a key/label/group/kind/hint', () => {
     const keys = CONTROLS.map((c) => c.key);
-    // Layout (DAG vs solar) + Ground (tiling), plus the grounded-art cosy-island feature gates
-    // (`garden` / `cosy` / `veg`) surfaced as gear toggles (owner ask 2026-07-20 — flick them in the
-    // panel rather than type URLs). The `buildingIsland` toggle was REMOVED with ADR-0088 (the
-    // shared-island panel is permanent, not a gear flag), so the gear no longer carries a Panels switch.
-    const expected = ['layout', 'substrate', 'garden', 'cosy', 'veg', 'artStyle'];
+    // Layout (DAG vs solar) + Ground (tiling), plus the grounded-art `veg` toggle (the promoted
+    // vegetation-vocabulary default; the `garden` / `cosy` toggles were retired by ADR-0228) and the
+    // sprite-art-sheets spike's `artStyle` select. The `buildingIsland` toggle was REMOVED with
+    // ADR-0088 (the shared-island panel is permanent, not a gear flag), so the gear carries no Panels switch.
+    const expected = ['layout', 'substrate', 'veg', 'artStyle'];
     expect([...keys].sort()).toEqual([...expected].sort());
-    // The retired river/pond dials, road-routing dials AND the removed building toggles
-    // (building-DRAWER, then building-ISLAND) must be GONE (genuinely stripped, not shelved —
-    // ADR-0073 / ADR-0076 / ADR-0088).
+    // The retired river/pond dials, road-routing dials, the removed building toggles
+    // (building-DRAWER, then building-ISLAND) AND the retired grounded-art `garden` / `cosy` toggles
+    // must be GONE (genuinely stripped, not shelved — ADR-0073 / ADR-0076 / ADR-0088 / ADR-0228).
     for (const gone of [
       'roads',
       'roadStraighten',
@@ -62,6 +60,8 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
       'weld',
       'buildingDrawer',
       'buildingIsland',
+      'garden',
+      'cosy',
     ]) {
       expect(keys, `retired control still present: ${gone}`).not.toContain(gone);
     }
@@ -75,12 +75,13 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     }
   });
 
-  it('groups controls under Layout, Ground and Cosy island (Panels gone with ADR-0088)', () => {
+  it('groups controls under Layout, Ground and World art (Panels gone with ADR-0088)', () => {
     const groups = new Set(CONTROLS.map((c) => c.group));
     expect(groups.has('Layout')).toBe(true);
     expect(groups.has('Ground')).toBe(true);
-    // The grounded-art cosy-island feature gates (garden / cosy) live in their own gear section.
-    expect(groups.has('Cosy island')).toBe(true);
+    // The grounded-art vegetation vocabulary lives in its own gear section (renamed from "Cosy island"
+    // to "World art" when the garden/cosy toggles were retired — ADR-0228).
+    expect(groups.has('World art')).toBe(true);
     // The building-island toggle (the only Panels control) was removed — no Panels section.
     expect(groups.has('Panels')).toBe(false);
     // The sprite-art-sheets spike's `artStyle` select lives in its own "Art style" section.
@@ -94,23 +95,23 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
   });
 });
 
-describe('worldSettings — layout control (ADR-0171 stress default / ADR-0074 §6 solar)', () => {
-  it('defaults to stress and writing stress REMOVES the param (ADR-0171 attested default)', () => {
-    expect(readControlValue('', ctl('layout'))).toBe('stress');
-    expect(setControlValue('?layout=dag', ctl('layout'), 'stress')).toBe('');
+describe('worldSettings — layout control (ADR-0229 dag default / ADR-0074 §6 solar)', () => {
+  it('defaults to dag and writing dag REMOVES the param (ADR-0229 attested default, amends ADR-0171)', () => {
+    expect(readControlValue('', ctl('layout'))).toBe('dag');
+    expect(setControlValue('?layout=stress', ctl('layout'), 'dag')).toBe('');
   });
 
-  it('writes layout=dag / layout=solar when a non-default world is picked', () => {
-    expect(setControlValue('', ctl('layout'), 'dag')).toBe('?layout=dag');
-    expect(readControlValue('?layout=dag', ctl('layout'))).toBe('dag');
+  it('writes layout=stress / layout=solar when a non-default world is picked', () => {
+    expect(setControlValue('', ctl('layout'), 'stress')).toBe('?layout=stress');
+    expect(readControlValue('?layout=stress', ctl('layout'))).toBe('stress');
     expect(setControlValue('', ctl('layout'), 'solar')).toBe('?layout=solar');
     expect(readControlValue('?layout=solar', ctl('layout'))).toBe('solar');
   });
 
-  it('normalizes aliases and unknowns to the stress default', () => {
+  it('normalizes aliases and unknowns to the dag default', () => {
     expect(readControlValue('?layout=radial', ctl('layout'))).toBe('solar');
-    expect(readControlValue('?layout=rows', ctl('layout'))).toBe('dag');
-    expect(readControlValue('?layout=whatever', ctl('layout'))).toBe('stress');
+    expect(readControlValue('?layout=stress-majorization', ctl('layout'))).toBe('stress');
+    expect(readControlValue('?layout=whatever', ctl('layout'))).toBe('dag');
   });
 });
 
@@ -182,68 +183,14 @@ describe('worldSettings — readRenderScene (scene is now the DEFAULT, ADR-0093 
   });
 });
 
-describe('worldSettings — readCosyIsland (grounded-art inc 9, default-off cosy palette flag)', () => {
-  it('defaults OFF when no ?cosy param is present', () => {
-    expect(readCosyIsland('')).toBe(false);
-    expect(readCosyIsland('?substrate=hex&layout=solar')).toBe(false);
-  });
-
-  it('?cosy=on / =1 / =true all turn the cosy palette on', () => {
-    expect(readCosyIsland('?cosy=on')).toBe(true);
-    expect(readCosyIsland('?cosy=1')).toBe(true);
-    expect(readCosyIsland('?cosy=true')).toBe(true);
-  });
-
-  it('an unknown ?cosy value stays OFF (no silent typo-activation)', () => {
-    expect(readCosyIsland('?cosy=wat')).toBe(false);
-    expect(readCosyIsland('?cosy=off')).toBe(false);
-  });
-});
-
-describe('worldSettings — readGardenIsland (grounded-art inc 11, ADR-0221, default-off garden flag)', () => {
-  it('defaults OFF (absent or unrelated params)', () => {
-    expect(readGardenIsland('')).toBe(false);
-    expect(readGardenIsland('?cosy=on&layout=solar')).toBe(false);
-  });
-  it('reads ON for the accepted spellings', () => {
-    expect(readGardenIsland('?garden=on')).toBe(true);
-    expect(readGardenIsland('?garden=1')).toBe(true);
-    expect(readGardenIsland('?garden=true')).toBe(true);
-  });
-  it('an unknown ?garden value stays OFF', () => {
-    expect(readGardenIsland('?garden=wat')).toBe(false);
-    expect(readGardenIsland('?garden=off')).toBe(false);
-  });
-});
-
-describe('worldSettings — the cosy-island gear TOGGLES (owner ask: gear panel, not URLs)', () => {
-  it('garden + cosy are default-off toggles in the "Cosy island" group', () => {
-    for (const key of ['garden', 'cosy']) {
-      const c = ctl(key);
-      expect(c.kind).toBe('toggle');
-      expect(c.group).toBe('Cosy island');
-      expect(readControlValue('', c)).toBe(false); // default off
-    }
-  });
-  it('veg is a default-ON toggle in the "Cosy island" group (ADR-0226 promoted to the studio default)', () => {
+describe('worldSettings — the vegetation-vocabulary gear TOGGLE (owner ask: gear panel, not URLs)', () => {
+  // ADR-0228 retired the `garden` / `cosy` grounded-art toggles + readGardenIsland / readCosyIsland;
+  // `veg` (the promoted default) is the one grounded-art world-art toggle that remains.
+  it('veg is a default-ON toggle in the "World art" group (ADR-0226 promoted to the studio default)', () => {
     const c = ctl('veg');
     expect(c.kind).toBe('toggle');
-    expect(c.group).toBe('Cosy island');
+    expect(c.group).toBe('World art');
     expect(readControlValue('', c)).toBe(true); // default ON — the vocabulary is the studio default
-  });
-  it('flicking the garden toggle writes garden=on / removes it — and the reader agrees', () => {
-    const c = ctl('garden');
-    const on = setControlValue('', c, true);
-    expect(on).toBe('?garden=on');
-    expect(readControlValue(on, c)).toBe(true);
-    expect(readGardenIsland(on)).toBe(true); // the gear toggle and the standalone reader match
-    expect(setControlValue('?garden=on', c, false)).toBe(''); // back to default removes the param
-  });
-  it('the cosy toggle writes cosy=on / removes it, matching readCosyIsland', () => {
-    const c = ctl('cosy');
-    expect(setControlValue('', c, true)).toBe('?cosy=on');
-    expect(readCosyIsland('?cosy=on')).toBe(true);
-    expect(setControlValue('?cosy=on', c, false)).toBe('');
   });
   it('the veg toggle (default ON) writes veg=off when turned off / removes it when on, matching readVegetationVocab', () => {
     const c = ctl('veg');

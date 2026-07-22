@@ -77,10 +77,15 @@ function mkWorld(opts: { withSolar?: boolean } = {}): HexWorld {
   return base;
 }
 
-function renderChrome(world: HexWorld, onStampClick = vi.fn()): HTMLElement {
+function renderChrome(world: HexWorld, onStampClick = vi.fn(), buildings = true): HTMLElement {
   const { container } = render(
     <svg>
-      <StudioWorldChrome world={world} hidden={new Set()} onStampClick={onStampClick} />
+      <StudioWorldChrome
+        world={world}
+        hidden={new Set()}
+        onStampClick={onStampClick}
+        buildings={buildings}
+      />
     </svg>,
   );
   return container;
@@ -113,6 +118,13 @@ describe('StudioWorldChrome — the on-top studio chrome overlay', () => {
     expect(keys.length).toBe(2);
     // each key wraps a real IconGlyph (the .story-icon-art body), not an empty group.
     expect(keys[0]?.querySelector('.story-icon-art')).toBeTruthy();
+  });
+
+  it('omits the identity-key glyph when buildings is off (ADR-0228 default — clean nameplates)', () => {
+    // The default map is buildings-off: the hubs are ordinary islands, dependencies ride pathways,
+    // and the little house key glyph — the decoder for the (now absent) stamps — is gone.
+    const root = renderChrome(mkWorld(), vi.fn(), false);
+    expect(root.querySelectorAll('.world-plate-key').length).toBe(0);
   });
 
   it('a stamp click highlights the shared island it names (onStampClick wired through)', () => {

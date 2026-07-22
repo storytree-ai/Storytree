@@ -22,6 +22,13 @@ renders the dependency-aware world; `?layout=dag` opts back to the old strict-la
 rows, kept as the fallback). Follow-up: item 4 of the same owner round — pushing trail
 merging harder in the ADR-0169 router — re-tunes against this tighter placement.
 
+*(Currency note — amended by [ADR-0229](0229-the-default-map-layout-is-dag-rows-again-the-dependency-awar.md)
+(2026-07-23): the studio DEFAULT layout is **`dag` rows again**, not `stress` — against the ADR-0228
+pathways-only map the owner judged the layered rows to read more cleanly and flipped the default back. The
+`stress` (dependency-aware) placement decided HERE, its algorithm, and its picker option all **stand**;
+only which layout a clean URL renders changed (`stress` is now one click / `?layout=stress` away). Corrected
+in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).)*
+
 ## Context
 
 The map places story islands, then the ADR-0169 trail router routes `depends_on` edges
@@ -53,7 +60,8 @@ DEFAULT on attestation.** It joins the existing `dag` and `solar` modes as a thi
 `LayoutMode`, a gear-panel option ("Dependency-aware"). It shipped behind `?layout=stress`
 with `dag` as the default (PR #641); on the owner's 2026-07-07 look-attestation stress
 became the DEFAULT (an absent `?layout` param), with `?layout=dag` kept as the explicit
-opt-back. Only WHERE islands are seeded changes; seeds flow into the SAME hex-snap /
+opt-back. *(The default was flipped back to `dag` by [ADR-0229](0229-the-default-map-layout-is-dag-rows-again-the-dependency-awar.md)
+(2026-07-23) — `stress` stays a picker option; see the Status currency note.)* Only WHERE islands are seeded changes; seeds flow into the SAME hex-snap /
 growth-floor / territory-growth / trail-routing pipeline, so the world reads as the same
 forest — and `?layout=dag` still reproduces the byte-identical old layered world.
 
