@@ -1,0 +1,139 @@
+{
+  "name": "cosy",
+  "label": "Cosy — warm storybook",
+  "sprites": {
+    "tree:healthy": {
+      "href": "/art-sheets/cosy/tree-healthy.png",
+      "w": 60,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree:healthy": {
+      "href": "/art-sheets/cosy/tree-healthy.png",
+      "w": 60,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree": {
+      "href": "/art-sheets/cosy/tree-healthy.png",
+      "w": 60,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tree:unhealthy": {
+      "href": "/art-sheets/cosy/tree-unhealthy.png",
+      "w": 73,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree:unhealthy": {
+      "href": "/art-sheets/cosy/tree-unhealthy.png",
+      "w": 73,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tree:proposed": {
+      "href": "/art-sheets/cosy/tree-proposed.png",
+      "w": 63,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree:proposed": {
+      "href": "/art-sheets/cosy/tree-proposed.png",
+      "w": 63,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tree:mapped": {
+      "href": "/art-sheets/cosy/tree-mapped.png",
+      "w": 65,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree:mapped": {
+      "href": "/art-sheets/cosy/tree-mapped.png",
+      "w": 65,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tree:unknown": {
+      "href": "/art-sheets/cosy/tree-unknown.png",
+      "w": 64,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree:unknown": {
+      "href": "/art-sheets/cosy/tree-unknown.png",
+      "w": 64,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "conifer": {
+      "href": "/art-sheets/cosy/conifer.png",
+      "w": 21,
+      "h": 34,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "flora": {
+      "href": "/art-sheets/cosy/flora.png",
+      "w": 31,
+      "h": 26,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "flora:unhealthy": {
+      "href": "/art-sheets/cosy/flora-dead.png",
+      "w": 25,
+      "h": 26,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tall-flower-proven": {
+      "href": "/art-sheets/cosy/flower-proven.png",
+      "w": 9,
+      "h": 30,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tall-flower-pending": {
+      "href": "/art-sheets/cosy/flower-pending.png",
+      "w": 10,
+      "h": 30,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tall-flower-failing": {
+      "href": "/art-sheets/cosy/flower-failing.png",
+      "w": 15,
+      "h": 30,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "cottage": {
+      "href": "/art-sheets/cosy/cottage.png",
+      "w": 48,
+      "h": 52,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "gazebo": {
+      "href": "/art-sheets/cosy/gazebo.png",
+      "w": 37,
+      "h": 50,
+      "anchorX": 0.5,
+      "anchorY": 1
+    }
+  }
+}

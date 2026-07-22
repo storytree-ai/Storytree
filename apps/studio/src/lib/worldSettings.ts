@@ -101,7 +101,7 @@ const GROUP_ART = 'Art style';
  *  an absent/unknown/typo'd value is the `vector` default — the byte-identical procedural render — so a
  *  bad `?artStyle=` param can never silently break the map. Wave 2 appends more sheet names here as more
  *  sheets ship; it never needs to touch the reader / mapper, only this list + the CONTROLS options below. */
-const ART_STYLE_NAMES = ['stub-a', 'stub-b'] as const;
+const ART_STYLE_NAMES = ['stub-a', 'stub-b', 'cosy', 'evening'] as const;
 function normalizeArtStyle(raw: string | null): string {
   return (ART_STYLE_NAMES as readonly string[]).includes(raw ?? '') ? (raw as string) : 'vector';
 }
@@ -230,12 +230,14 @@ export const CONTROLS: readonly ControlSpec[] = [
     key: 'artStyle',
     label: 'Art style',
     group: GROUP_ART,
-    hint: 'Re-skin the map from a sprite style sheet instead of the procedural vector shapes. Vector is the default (byte-identical); the stub sheets are placeholder art proving the swap mechanism, not the final look.',
+    hint: 'Re-skin the map from a sprite style sheet instead of the procedural vector shapes. Vector is the default (byte-identical); the stub sheets are placeholder art, and Cosy / Evening are real nano-banana sprite sheets (warm storybook vs cool moonlit) proving the swap with finished art.',
     default: 'vector',
     options: [
       { value: 'vector', label: 'Vector (default)' },
       { value: 'stub-a', label: 'Stub A' },
       { value: 'stub-b', label: 'Stub B' },
+      { value: 'cosy', label: 'Cosy — warm storybook' },
+      { value: 'evening', label: 'Evening — moonlit' },
     ],
     normalize: normalizeArtStyle,
   },

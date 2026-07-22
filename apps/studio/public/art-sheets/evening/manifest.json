@@ -1,0 +1,104 @@
+{
+  "name": "evening",
+  "label": "Evening — moonlit",
+  "sprites": {
+    "tree:healthy": {
+      "href": "/art-sheets/evening/tree-healthy.png",
+      "w": 68,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree:healthy": {
+      "href": "/art-sheets/evening/tree-healthy.png",
+      "w": 68,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree": {
+      "href": "/art-sheets/evening/tree-healthy.png",
+      "w": 68,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tree:unhealthy": {
+      "href": "/art-sheets/evening/tree-unhealthy.png",
+      "w": 60,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree:unhealthy": {
+      "href": "/art-sheets/evening/tree-unhealthy.png",
+      "w": 60,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tree:proposed": {
+      "href": "/art-sheets/evening/tree-proposed.png",
+      "w": 67,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree:proposed": {
+      "href": "/art-sheets/evening/tree-proposed.png",
+      "w": 67,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tree:mapped": {
+      "href": "/art-sheets/evening/tree-mapped.png",
+      "w": 61,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree:mapped": {
+      "href": "/art-sheets/evening/tree-mapped.png",
+      "w": 61,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "tree:unknown": {
+      "href": "/art-sheets/evening/tree-unknown.png",
+      "w": 64,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "autumn-tree:unknown": {
+      "href": "/art-sheets/evening/tree-unknown.png",
+      "w": 64,
+      "h": 70,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "flora": {
+      "href": "/art-sheets/evening/flora.png",
+      "w": 28,
+      "h": 26,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "cottage": {
+      "href": "/art-sheets/evening/cottage.png",
+      "w": 45,
+      "h": 52,
+      "anchorX": 0.5,
+      "anchorY": 1
+    },
+    "gazebo": {
+      "href": "/art-sheets/evening/gazebo.png",
+      "w": 40,
+      "h": 50,
+      "anchorX": 0.5,
+      "anchorY": 1
+    }
+  }
+}

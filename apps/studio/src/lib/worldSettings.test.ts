@@ -268,6 +268,19 @@ describe('worldSettings — artStyle control (sprite-art-sheets spike, default-o
     expect(readControlValue('?artStyle=stub-b', ctl('artStyle'))).toBe('stub-b');
   });
 
+  it('writes the real nano-banana sheets (cosy / evening) when picked (sprite-art-sheets wave 2)', () => {
+    expect(setControlValue('', ctl('artStyle'), 'cosy')).toBe('?artStyle=cosy');
+    expect(readControlValue('?artStyle=cosy', ctl('artStyle'))).toBe('cosy');
+    expect(setControlValue('', ctl('artStyle'), 'evening')).toBe('?artStyle=evening');
+    expect(readControlValue('?artStyle=evening', ctl('artStyle'))).toBe('evening');
+    // both are offered in the panel dropdown
+    const artStyle = ctl('artStyle');
+    if (artStyle.kind !== 'select') throw new Error('artStyle should be a select control');
+    const opts = artStyle.options.map((o) => o.value);
+    expect(opts).toContain('cosy');
+    expect(opts).toContain('evening');
+  });
+
   it('an unknown/typo`d value normalizes to the vector default (never a silent broken sheet)', () => {
     expect(readControlValue('?artStyle=stub-z', ctl('artStyle'))).toBe('vector');
     expect(readControlValue('?artStyle=', ctl('artStyle'))).toBe('vector');

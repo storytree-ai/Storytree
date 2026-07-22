@@ -13,4 +13,8 @@
 export * from './adapter.js';
 export * from './fixture-backend.js';
 export * from './backends/nvidia-trellis.js';
+export * from './backends/gemini-nano-banana.js';
 export * from './reauthor.js';
+// sprite-art-sheets spike (wave 2): the author-time studio-map sprite-sheet plan + background cutout.
+export * from './sprite/sprite-sheet-plan.js';
+export * from './sprite/cutout.js';
