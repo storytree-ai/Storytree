@@ -175,6 +175,7 @@ function requireControl(key: string): ControlSpec {
 const SUBSTRATE_CTL = requireControl('substrate');
 const LAYOUT_CTL = requireControl('layout');
 const ART_STYLE_CTL = requireControl('artStyle');
+const ART_SCALE_CTL = requireControl('artScale');
 
 /** Shared empty id-set (the DAG path passes no hub ids). */
 const EMPTY_ID_SET: ReadonlySet<string> = new Set();
@@ -1333,6 +1334,12 @@ export function readArtStyle(search: string = defaultSearch()): string {
   return readControlValue(search, ART_STYLE_CTL) as string;
 }
 
+/** The sprite size dial (worldSettings' `artScale` number control, default 1 = match the vector
+ *  footprint) — multiplies the derived sprite fit; inert while `artStyle` is `vector`. */
+export function readArtScale(search: string = defaultSearch()): number {
+  return readControlValue(search, ART_SCALE_CTL) as number;
+}
+
 /**
  * The central wiring hubs everything orbits in solar mode (ADR-0074 §2 — the wiring
  * layer is VISIBLE, not exempt: hiding the most-connected nodes hides the most
@@ -2032,6 +2039,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // `sceneCtx` below (NOT `SceneInput`/`buildScene` — the scene graph itself carries no sprite opinion).
   const artStyle = useMemo(() => readArtStyle(search), [search]);
   const spriteSheet = useArtStyleSheet(artStyle);
+  const artScale = useMemo(() => readArtScale(search), [search]);
   const scene = useMemo(
     () =>
       world
@@ -2152,8 +2160,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
       onSelectStory: onSelectStoryStable,
       onSelectCap: onSelectCapStable,
       spriteSheet,
+      artScale,
     }),
-    [territoryClassById, growPlan, hidden, arrivalIds, onSelectStoryStable, onSelectCapStable, spriteSheet],
+    [territoryClassById, growPlan, hidden, arrivalIds, onSelectStoryStable, onSelectCapStable, spriteSheet, artScale],
   );
 
   if (loadError) {

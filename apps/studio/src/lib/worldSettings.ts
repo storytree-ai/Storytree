@@ -217,6 +217,24 @@ export const CONTROLS: readonly ControlSpec[] = [
     ],
     normalize: normalizeArtStyle,
   },
+
+  // Sprite size dial (owner verdict 2026-07-23: the first cosy render read "way too big"). Sprites now
+  // DERIVE their size from the vector body they replace (see the studio's `sprite-sizing.ts`), and this
+  // dial multiplies that fit — 1 (default, no param) = match the vector footprint exactly; nudge up or
+  // down to taste. Only meaningful when an Art style sheet is active; inert in vector mode.
+  {
+    kind: 'number',
+    key: 'artScale',
+    label: 'Art scale',
+    group: GROUP_ART,
+    hint: 'Sprite size relative to the vector art it replaces — 1 matches the vector footprint; raise or lower to taste. Only applies when an Art style sheet is selected.',
+    default: 1,
+    min: 0.4,
+    max: 2.5,
+    step: 0.05,
+    clampMin: 0.05,
+    clampMax: 10,
+  },
 ] as const;
 
 const BY_KEY = new Map<string, ControlSpec>(CONTROLS.map((c) => [c.key, c]));

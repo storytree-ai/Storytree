@@ -40,9 +40,11 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     const keys = CONTROLS.map((c) => c.key);
     // Layout (DAG vs solar) + Ground (tiling), plus the grounded-art `veg` toggle (the promoted
     // vegetation-vocabulary default; the `garden` / `cosy` toggles were retired by ADR-0228) and the
-    // sprite-art-sheets spike's `artStyle` select. The `buildingIsland` toggle was REMOVED with
-    // ADR-0088 (the shared-island panel is permanent, not a gear flag), so the gear carries no Panels switch.
-    const expected = ['layout', 'substrate', 'veg', 'artStyle'];
+    // sprite-art-sheets `artStyle` select + its `artScale` size dial (sprites derive their size from
+    // the vector body they replace; the dial multiplies the fit). The `buildingIsland` toggle was
+    // REMOVED with ADR-0088 (the shared-island panel is permanent, not a gear flag), so the gear
+    // carries no Panels switch.
+    const expected = ['layout', 'substrate', 'veg', 'artStyle', 'artScale'];
     expect([...keys].sort()).toEqual([...expected].sort());
     // The retired river/pond dials, road-routing dials, the removed building toggles
     // (building-DRAWER, then building-ISLAND) AND the retired grounded-art `garden` / `cosy` toggles
@@ -84,7 +86,7 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     expect(groups.has('World art')).toBe(true);
     // The building-island toggle (the only Panels control) was removed — no Panels section.
     expect(groups.has('Panels')).toBe(false);
-    // The sprite-art-sheets spike's `artStyle` select lives in its own "Art style" section.
+    // The sprite-art-sheets `artStyle` select + `artScale` dial share the "Art style" section.
     expect(groups.has('Art style')).toBe(true);
     expect(groups.size).toBe(4);
   });
@@ -237,6 +239,19 @@ describe('worldSettings — artStyle control (sprite-art-sheets spike, default-o
     const out = setControlValue('?debug=1', ctl('artStyle'), 'stub-a');
     expect(out).toContain('debug=1');
     expect(out).toContain('artStyle=stub-a');
+  });
+});
+
+describe('worldSettings — artScale dial (derived sprite sizing)', () => {
+  it('defaults to 1 (match the vector footprint) and writing 1 REMOVES the param', () => {
+    expect(readControlValue('', ctl('artScale'))).toBe(1);
+    expect(setControlValue('?artScale=1.5', ctl('artScale'), 1)).toBe('');
+  });
+
+  it('reads a set value and clamps garbage to the default / the clamp floor', () => {
+    expect(readControlValue('?artScale=1.5', ctl('artScale'))).toBe(1.5);
+    expect(readControlValue('?artScale=wat', ctl('artScale'))).toBe(1);
+    expect(readControlValue('?artScale=0', ctl('artScale'))).toBe(0.05); // clampMin, never zero-size art
   });
 });
 
