@@ -105,16 +105,16 @@ function normalizeSubstrate(raw: string | null): string {
   return 'mesh';
 }
 
-/** layout aliases, mirroring readLayoutMode. Default = `stress` (ADR-0171,
- *  owner-attested 2026-07-07): an absent/unknown param renders the dependency-aware
- *  placement that shortens trails. `?layout=dag` opts back to the old layered world. */
+/** layout aliases, mirroring readLayoutMode. Default = `dag` (ADR-0229, owner-directed 2026-07-23,
+ *  amends ADR-0171): an absent/unknown param renders the DAG rows. `?layout=stress` opts into the
+ *  dependency-aware trail-shortening placement; `?layout=solar` the radial hub world. */
 function normalizeLayout(raw: string | null): string {
   if (raw === 'solar' || raw === 'solar-system' || raw === 'radial') return 'solar';
-  // explicit opt-back to the old strict-layered rows
-  if (raw === 'dag' || raw === 'rows' || raw === 'tree') return 'dag';
-  // ADR-0171: dependency-aware stress-majorization placement (shortens trails) is now
-  // the default — 'stress' | 'stress-majorization' | 'force' | unknown | null → stress.
-  return 'stress';
+  // explicit opt-in to the dependency-aware stress-majorization placement (shortens trails)
+  if (raw === 'stress' || raw === 'stress-majorization' || raw === 'force') return 'stress';
+  // ADR-0229 (amends ADR-0171): DAG rows are the default again —
+  // 'dag' | 'rows' | 'tree' | unknown | null → dag.
+  return 'dag';
 }
 
 // The forest-map dials (owner ask 2026-06-18). Since the river-trail road system was
@@ -123,20 +123,20 @@ function normalizeLayout(raw: string | null): string {
 // Each control's `hint` is the visible plain-English description shown UNDER the control.
 export const CONTROLS: readonly ControlSpec[] = [
   // ---- Layout ----
-  // ADR-0171 (owner-attested 2026-07-07): dependency-aware `stress` placement is now the
-  // DEFAULT — it writes NO param, so a clean URL renders the trail-shortening world.
-  // `?layout=dag` opts back to the old layered rows; `?layout=solar` the radial world
-  // (ADR-0074 §6: cli/store hubs at the centre, organisms orbiting by rank).
+  // ADR-0229 (owner-directed 2026-07-23, amends ADR-0171): DAG rows are the DEFAULT again — a clean
+  // URL renders the layered rows (which read cleanly against the pathways-only map, ADR-0228). The
+  // dependency-aware `stress` placement and the radial `solar` world (ADR-0074 §6: cli/store hubs at
+  // the centre) stay in the picker — `?layout=stress` / `?layout=solar` opt into them.
   {
     kind: 'select',
     key: 'layout',
     label: 'Layout',
     group: GROUP_LAYOUT,
-    hint: 'How islands are arranged — a dependency-aware layout that shortens trails (default), DAG rows, or a solar-system with the cli/store hubs at the centre.',
-    default: 'stress',
+    hint: 'How islands are arranged — DAG rows (default), a dependency-aware layout that shortens trails, or a solar-system with the cli/store hubs at the centre.',
+    default: 'dag',
     options: [
-      { value: 'stress', label: 'Dependency-aware' },
       { value: 'dag', label: 'DAG rows' },
+      { value: 'stress', label: 'Dependency-aware' },
       { value: 'solar', label: 'Solar system' },
     ],
     normalize: normalizeLayout,
