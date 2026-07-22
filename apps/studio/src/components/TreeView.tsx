@@ -1301,15 +1301,20 @@ export function demoDepartures(stories: TreeStory[]): DepartedClaim[] {
   ];
 }
 
-/** Stories tagged `render: building` (ADR-0076 §2) are EXCLUDED from the map and their
- *  consumers carry a distributed bookshelf STAMP (the "uses the shared library" marker). Since
- *  ADR-0088 the buildings themselves live in the permanent Shared Islands panel; this flag now
- *  only gates the on-map stamp + the exclusion. DEFAULT ON (the owner attested the look
- *  2026-06-20); the escape `?buildings=off` restores the old world where a building is a normal
- *  connected island and there are no stamps. */
+/** Stories tagged `render: building` (ADR-0076 §2 / ADR-0088) — the shared-island hubs (`library`,
+ *  `cli`, `notice-board`). When ON they are EXCLUDED from the map into the permanent Shared Islands
+ *  panel and their edges are promoted to per-island icon STAMPS (ADR-0102); the per-nameplate
+ *  identity-key glyph decodes those stamps.
+ *
+ *  DEFAULT OFF (ADR-0228, owner-directed 2026-07-22): the mature pathways system (ADR-0169) now
+ *  carries the hub dependencies on the map, so the hubs render as ordinary connected islands — no
+ *  stamps, no source-hub city clusters, no identity-key glyph, and the panel's Shared-Islands drawer
+ *  is empty (hidden). The escape `?buildings=on` restores the old off-map panel + stamp world. The
+ *  whole model is studio chrome — the public website's forest never rendered it, so flipping the
+ *  default is a studio-only change (no web-engine sync). */
 function readBuildings(search: string = defaultSearch()): boolean {
   const v = new URLSearchParams(search).get('buildings');
-  return v !== 'off' && v !== '0' && v !== 'false';
+  return v === 'on' || v === '1' || v === 'true';
 }
 
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
@@ -2406,6 +2411,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   world={world}
                   hidden={hidden}
                   onStampClick={(id) => setHighlightShared(id)}
+                  buildings={buildings}
                   gardenIslandId={gardenOn ? GARDEN_ISLAND_ID : null}
                 />
               </>
@@ -3192,12 +3198,18 @@ export function StudioWorldChrome({
   world,
   hidden,
   onStampClick,
+  buildings = false,
   gardenIslandId = null,
 }: {
   world: HexWorld;
   hidden: ReadonlySet<string>;
   /** ADR-0102: clicking an island's stamp highlights the shared island it names in the left panel. */
   onStampClick: (sharedId: string) => void;
+  /** ADR-0228: the shared-island / stamp world (default OFF). The distributed stamps ride `t.stamps`
+   *  (already empty when the caller has `buildings` off), but the per-nameplate IDENTITY-KEY glyph is
+   *  driven off the island id directly — it is gated here so the default map has clean nameplates and
+   *  the glyph returns only under the `?buildings=on` escape (where it decodes the stamps). */
+  buildings?: boolean;
   /** The cosy-island garden's exemplar island id when `?garden` is on (grounded-art inc 11, ADR-0221),
    *  else null. The garden island carries NO 2D dependency stamps and NO identity-key glyph — the
    *  concept is a clean garden with no little house glyphs (owner ask 2026-07-20). Every OTHER island
@@ -3249,24 +3261,27 @@ export function StudioWorldChrome({
       {/* The per-nameplate identity-key glyph (ADR-0102) — the scene draws the plate; this restores
           the key beside it at the SAME world placement the legacy TerritoryFlora used: inside the
           plate group (centroid.x - w/2, labelY), then right of the plate base-aligned to its bottom
-          (w + NAMEPLATE_KEY_MARGIN, h). The building-glyph stays false on the map (ADR-0088). */}
-      {world.territories.map((t) => {
-        // The garden island shows no identity-key house glyph either — a clean nameplate to match the
-        // concept (ADR-0221); every other island keeps its key. Flag off ⇒ gardenIslandId is null.
-        if (t.story.id === gardenIslandId) return null;
-        const plate = nameplateLayout(t.story.id.length, t.buildingGlyph);
-        const x = t.centroid.x - plate.w / 2 + plate.w + NAMEPLATE_KEY_MARGIN;
-        const y = t.labelY + plate.h;
-        return (
-          <g
-            key={`key:${t.story.id}`}
-            className="world-plate-key"
-            transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${NAMEPLATE_KEY_SCALE})`}
-          >
-            {kit ? <FactoryGlyph kit={kit} id={t.story.id} /> : <IconGlyph id={t.story.id} />}
-          </g>
-        );
-      })}
+          (w + NAMEPLATE_KEY_MARGIN, h). The building-glyph stays false on the map (ADR-0088).
+          ADR-0228: the identity-key glyph decodes the stamps, so it renders ONLY under the
+          `?buildings=on` escape; the default map has clean nameplates (no little house glyph). */}
+      {buildings &&
+        world.territories.map((t) => {
+          // The garden island shows no identity-key house glyph either — a clean nameplate to match the
+          // concept (ADR-0221); every other island keeps its key. Flag off ⇒ gardenIslandId is null.
+          if (t.story.id === gardenIslandId) return null;
+          const plate = nameplateLayout(t.story.id.length, t.buildingGlyph);
+          const x = t.centroid.x - plate.w / 2 + plate.w + NAMEPLATE_KEY_MARGIN;
+          const y = t.labelY + plate.h;
+          return (
+            <g
+              key={`key:${t.story.id}`}
+              className="world-plate-key"
+              transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${NAMEPLATE_KEY_SCALE})`}
+            >
+              {kit ? <FactoryGlyph kit={kit} id={t.story.id} /> : <IconGlyph id={t.story.id} />}
+            </g>
+          );
+        })}
     </g>
   );
 }
@@ -3688,15 +3703,16 @@ function SharedIslandsPanel({
           />
         </details>
 
-        <details
-          className="panel-drawer panel-islands"
-          open={islandsOpen}
-          onToggle={(e) => setIslandsOpen((e.currentTarget as HTMLDetailsElement).open)}
-        >
-          <summary className="panel-drawer-head">Shared Islands</summary>
-          {islands.length === 0 ? (
-            <p className="panel-empty">No shared islands. (Set <code>?buildings=off</code> to draw them on the map instead.)</p>
-          ) : (
+        {/* ADR-0228: the Shared-Islands drawer renders only when there ARE shared islands to house —
+            i.e. under the `?buildings=on` escape. The default is buildings-off, so this drawer is
+            absent and the panel carries just the Legend. */}
+        {islands.length > 0 && (
+          <details
+            className="panel-drawer panel-islands"
+            open={islandsOpen}
+            onToggle={(e) => setIslandsOpen((e.currentTarget as HTMLDetailsElement).open)}
+          >
+            <summary className="panel-drawer-head">Shared Islands</summary>
             <div className="shared-islands-list">
               {islands.map((s) => (
                 <div
@@ -3731,8 +3747,8 @@ function SharedIslandsPanel({
                 </div>
               ))}
             </div>
-          )}
-        </details>
+          </details>
+        )}
       </div>
 
       {/* The ONE right-flyout (a self-contained box anchored to the panel's right edge): either
