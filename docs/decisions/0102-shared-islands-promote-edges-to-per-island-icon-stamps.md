@@ -23,6 +23,14 @@ off-map panel, the legend relocation (§4), and the BuildingLegend removal (§5)
 [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md)'s manual
 `render: building` tag.
 
+*(Currency note — amended by [ADR-0228](0228-forest-map-defaults-to-pathways-only-shared-island-hubs-retu.md)
+(2026-07-22): the per-island icon stamps, the source-hub "city", and the per-nameplate identity-key glyph
+are now **DEFAULT-OFF**, kept behind the `?buildings=on` escape; the studio map now defaults to
+**pathways-only**, with the shared-island hubs back on the map and their dependencies drawn as ordinary
+ADR-0169 trails rather than promoted to stamps. This ADR still describes the `?buildings=on` world — its
+machinery is kept, not deleted. Corrected in place per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).)*
+
 *(History, in git: this ADR began the same session as a "flag/warn the antipattern edge" proposal. That
 frame over-judged the coupling — a warning asserts an edge is wrong before a human has read it — and was
 replaced by this simpler, neutral model during the owner conversation. This is the decided form.)*

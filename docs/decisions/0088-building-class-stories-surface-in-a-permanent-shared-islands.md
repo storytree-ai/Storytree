@@ -18,6 +18,13 @@ two-stage proof — geometry/behaviour red-green, the look built then surfaced f
 distributed-only building placement; 0076's docked-line connections (§1) and the manual
 `render: building` tag stand.
 
+*(Currency note — amended by [ADR-0228](0228-forest-map-defaults-to-pathways-only-shared-island-hubs-retu.md)
+(2026-07-22): the off-map Shared Islands panel (§1/§2) and its on-map consumer stamps (§3) are now
+**DEFAULT-OFF**, kept behind the `?buildings=on` escape; the studio map now defaults to **pathways-only**,
+with the shared-island hubs (`library`/`cli`/`notice-board`) drawn back on the map and their dependencies
+routed as ordinary ADR-0169 trails. This ADR still describes the `?buildings=on` world — its machinery is
+kept, not deleted. Corrected in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).)*
+
 ## Context
 
 [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) §2 decided that a
