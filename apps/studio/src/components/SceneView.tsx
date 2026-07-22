@@ -17,7 +17,13 @@ import {
   type SceneNode,
   type SceneStatus,
 } from '@storytree/forest-world';
-import { resolveSprite, spritePlacement, type SpriteStyleSheet } from '../lib/sprite-sheet.js';
+import { resolveSprite, type SpriteStyleSheet } from '../lib/sprite-sheet.js';
+import {
+  collectDefBounds,
+  fitSpritePlacement,
+  wrapperContentBounds,
+  type Bounds,
+} from '../lib/sprite-sizing.js';
 import type { TrailRevealPlan } from '../lib/trailReveal.js';
 
 /** The focus-aware context the walk needs — the studio's per-render interactivity
@@ -49,6 +55,14 @@ export interface SceneCtx {
    *  always stays vector, so a sheet may cover only some kinds. `null`/absent (the `vector` default) ⇒
    *  every node renders vector, byte-identical to before this flag existed. */
   spriteSheet?: SpriteStyleSheet | null;
+  /** Global sprite size dial (the `artScale` world setting, default 1) — multiplies the DERIVED fit
+   *  {@link fitSpritePlacement} computes from the vector body a sprite replaces. Only read when
+   *  `spriteSheet` is present. */
+  artScale?: number;
+  /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
+   *  so a `baked-use` hero (the ADR-0227 status trees, the garden cottage/gazebo) sizes from its real
+   *  def geometry. Memoized once per scene in the component below. */
+  defBounds?: ReadonlyMap<string, Bounds>;
 }
 
 /** Role → the studio's base class(es). Composed kinds (status / variant / focus) are
@@ -465,7 +479,11 @@ function trySprite(
   if (!sk) return null;
   const def = resolveSprite(sheet, sk.kind, sk.status);
   if (!def) return null;
-  const place = spritePlacement(def);
+  // DERIVED sizing (owner verdict 2026-07-23 "way too big"): fit the sprite into the content box of
+  // the vector body it replaces — sprites inherit the scene's data-driven size semantics (sapling vs
+  // hero, per-island veg scale) instead of stamping at the manifest's native box. `artScale` is the
+  // world-settings taste dial; an unmeasurable body falls back to the native box.
+  const place = fitSpritePlacement(def, wrapperContentBounds(node, ctx.defBounds), ctx.artScale ?? 1);
   const props: Record<string, unknown> = {
     key,
     href: def.href,
@@ -683,6 +701,13 @@ export const SceneView = React.memo(function SceneView({
   scene: SceneNode;
   ctx: SceneCtx;
 }): React.JSX.Element {
+  // Sprite mode only: precompute every `baked-def`'s geometry bounds once per scene so trySprite can
+  // size a `baked-use` hero from its real def (see sprite-sizing.ts). Inert (null) in vector mode.
+  const defBounds = React.useMemo(
+    () => (ctx.spriteSheet ? collectDefBounds(scene) : null),
+    [scene, ctx.spriteSheet],
+  );
+  const walkCtx = defBounds ? { ...ctx, defBounds } : ctx;
   // The scene root (the `world` group) always renders — only the hit layer is skipped.
-  return renderNode(scene, 'scene', undefined, ctx) ?? <g />;
+  return renderNode(scene, 'scene', undefined, walkCtx) ?? <g />;
 });

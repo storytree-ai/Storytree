@@ -711,6 +711,9 @@ describe('SceneView — the sprite art-style render mode (default-off spike)', (
     };
   }
 
+  /** A tree wrapper with a MEASURABLE vector body (sprite-sizing derives the sprite's size from it):
+   *  shadow ellipse (±8, y 0±3) + trunk + crown circle (±10, y −60..−40) → content box
+   *  x ∈ [−10, 10], y ∈ [−60, 3] — height 63, centred on x 0, grounded at y 3. */
   function treeScene(): SceneNode {
     return {
       el: 'g',
@@ -721,7 +724,11 @@ describe('SceneView — the sprite art-style render mode (default-off spike)', (
           kind: 'tree',
           status: 'healthy',
           transform: 'translate(10.0 20.0)',
-          children: [{ el: 'path', kind: 'trunk', d: 'M 0 0 Z' }],
+          children: [
+            { el: 'ellipse', kind: 'shadow', cx: 0, cy: 0, rx: 8, ry: 3 },
+            { el: 'path', kind: 'trunk', d: 'M 0 0 Z' },
+            { el: 'circle', kind: 'crown-hi', cx: 0, cy: -50, r: 10 },
+          ],
         },
       ],
     };
@@ -744,7 +751,7 @@ describe('SceneView — the sprite art-style render mode (default-off spike)', (
     expect(root.querySelector('image')).toBeNull();
   });
 
-  it('swaps a covered kind:status for an `<image>` positioned by spritePlacement, with NO child recursion', () => {
+  it('swaps a covered kind:status for an `<image>` FITTED to the vector body it replaces, with NO child recursion', () => {
     const sheet: SpriteStyleSheet = {
       name: 'stub-a',
       label: 'Stub A',
@@ -758,14 +765,105 @@ describe('SceneView — the sprite art-style render mode (default-off spike)', (
     expect(img?.getAttribute('href')).toBe('/art-sheets/stub-a/tree-healthy.svg');
     // the wrapper's OWN ground-anchor transform rides unchanged.
     expect(img?.getAttribute('transform')).toBe('translate(10.0 20.0)');
-    // spritePlacement: anchorX 0.5 anchorY 1, w 40 h 60 → x=-20 y=-60 (bottom-centre ground pivot).
-    expect(img?.getAttribute('x')).toBe('-20.0');
+    // DERIVED sizing (sprite-sizing.ts): the content box is x ∈ [−10,10], y ∈ [−60,3] → height 63,
+    // width 63·(40/60) = 42, centred on x 0 (x −21), bottom-aligned at y 3 (y = 3 − 63 = −60). The
+    // manifest's 40×60 is an aspect ratio here, NOT the rendered size.
+    expect(img?.getAttribute('x')).toBe('-21.0');
     expect(img?.getAttribute('y')).toBe('-60.0');
-    expect(img?.getAttribute('width')).toBe('40.0');
-    expect(img?.getAttribute('height')).toBe('60.0');
+    expect(img?.getAttribute('width')).toBe('42.0');
+    expect(img?.getAttribute('height')).toBe('63.0');
     // NO recursion into the wrapper's vector children — the sprite REPLACES the whole object.
     expect(root.querySelector('.story-tree')).toBeNull();
     expect(root.querySelector('.story-trunk')).toBeNull();
+  });
+
+  it('the artScale world-setting dial multiplies the fitted size around the same ground line', () => {
+    const sheet: SpriteStyleSheet = {
+      name: 'stub-a',
+      label: 'Stub A',
+      sprites: {
+        'tree:healthy': { href: '/art-sheets/stub-a/tree-healthy.svg', w: 40, h: 60, anchorX: 0.5, anchorY: 1 },
+      },
+    };
+    const root = renderTree(sheet, { artScale: 0.5 });
+    const img = root.querySelector('image');
+    // fitted 42×63 halved → 21×31.5, still centred (x −10.5) and grounded at y 3 (y = 3 − 31.5).
+    expect(img?.getAttribute('width')).toBe('21.0');
+    expect(img?.getAttribute('height')).toBe('31.5');
+    expect(img?.getAttribute('x')).toBe('-10.5');
+    expect(img?.getAttribute('y')).toBe('-28.5');
+  });
+
+  it('an unmeasurable body falls back to the manifest native box seated by its anchor (never zero-height)', () => {
+    const scene: SceneNode = {
+      el: 'g',
+      kind: 'world',
+      children: [
+        {
+          el: 'g',
+          kind: 'conifer',
+          transform: 'translate(5.0 6.0)',
+          children: [{ el: 'path', kind: 'conifer-body', d: 'M 0 0 Z' }], // degenerate: a single point
+        },
+      ],
+    };
+    const sheet: SpriteStyleSheet = {
+      name: 'stub-a',
+      label: 'Stub A',
+      sprites: { conifer: { href: '/x.svg', w: 10, h: 20, anchorX: 0.5, anchorY: 1 } },
+    };
+    const { container } = render(
+      <svg>
+        <SceneView scene={scene} ctx={baseCtx(sheet)} />
+      </svg>,
+    );
+    const img = container.querySelector('image');
+    expect(img?.getAttribute('width')).toBe('10.0');
+    expect(img?.getAttribute('height')).toBe('20.0');
+    expect(img?.getAttribute('x')).toBe('-5.0');
+    expect(img?.getAttribute('y')).toBe('-20.0');
+  });
+
+  it('a baked-use hero sizes from its baked-def geometry when the def is in the scene (ADR-0227 trees)', () => {
+    const scene: SceneNode = {
+      el: 'g',
+      kind: 'world',
+      children: [
+        {
+          el: 'g',
+          kind: 'baked-defs',
+          children: [
+            {
+              el: 'baked-def',
+              defId: 'veg-hero-autumn-tree-healthy',
+              // def geometry: x ∈ [−12, 12], y ∈ [−40, 2] → height 42, centred on x 0, ground at y 2.
+              nodes: [
+                { el: 'polygon', points: '-12,2 12,2 0,-40', fill: '#85583a', stroke: '#6a563c', strokeWidth: 1 },
+              ],
+            },
+          ],
+        },
+        { el: 'baked-use', kind: 'baked-art', defId: 'veg-hero-autumn-tree-healthy', transform: 'translate(1.0 2.0)' },
+      ],
+    };
+    const sheet: SpriteStyleSheet = {
+      name: 'stub-a',
+      label: 'Stub A',
+      sprites: {
+        'autumn-tree:healthy': { href: '/art-sheets/stub-a/tree-healthy.svg', w: 40, h: 60, anchorX: 0.5, anchorY: 1 },
+      },
+    };
+    const { container } = render(
+      <svg>
+        <SceneView scene={scene} ctx={baseCtx(sheet)} />
+      </svg>,
+    );
+    const img = container.querySelector('image');
+    // height 42, width 42·(40/60) = 28, centred (x −14), bottom at y 2 (y = 2 − 42 = −40).
+    expect(img?.getAttribute('height')).toBe('42.0');
+    expect(img?.getAttribute('width')).toBe('28.0');
+    expect(img?.getAttribute('x')).toBe('-14.0');
+    expect(img?.getAttribute('y')).toBe('-40.0');
   });
 
   it('falls back to vector for an UNCOVERED kind (a partial sheet still works everywhere else)', () => {
