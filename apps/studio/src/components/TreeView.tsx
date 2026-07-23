@@ -2269,6 +2269,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           highlightId={highlightShared}
           substrateMode={substrateMode}
           substrateTuning={substrateTuning}
+          spriteSheet={spriteSheet}
           onToggleStatus={toggleStatus}
           onResetHidden={() => setHidden(new Set())}
           onSelectIsland={(id) => selectStory(id, null)}
@@ -3417,6 +3418,7 @@ function SharedIslandsPanel({
   highlightId,
   substrateMode,
   substrateTuning,
+  spriteSheet,
   onToggleStatus,
   onResetHidden,
   onSelectIsland,
@@ -3434,6 +3436,9 @@ function SharedIslandsPanel({
   highlightId: string | null;
   substrateMode: SubstrateMode | null;
   substrateTuning: Partial<SubstrateTuning>;
+  /** ADR-0230: the active sprite art sheet (or null in vector mode), threaded to the panel's legend
+   *  (both the chip bar and the right-flyout drawer) so its icons sprite in sync with the map. */
+  spriteSheet: SpriteStyleSheet | null;
   onToggleStatus: (st: string) => void;
   onResetHidden: () => void;
   onSelectIsland: (id: string) => void;
@@ -3514,6 +3519,7 @@ function SharedIslandsPanel({
             }
             renderDrawer={false}
             barClassName="legend-bar-panel"
+            spriteSheet={spriteSheet}
           />
         </details>
 
@@ -3577,6 +3583,7 @@ function SharedIslandsPanel({
                 model={model}
                 hidden={hidden}
                 onToggleStatus={onToggleStatus}
+                spriteSheet={spriteSheet}
               />
             </>
           ) : openIsland ? (

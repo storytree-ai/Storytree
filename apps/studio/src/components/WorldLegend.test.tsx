@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { WorldLegend, legendFacts, treeForm } from './WorldLegend';
+import type { SpriteStyleSheet } from '../lib/sprite-sheet';
 import type { BuildActivity, ClaimActivity, TreeCapability, TreeStory, WorkStatus } from '../types';
 
 const cap = (
@@ -322,5 +323,63 @@ describe('WorldLegend (adaptive bar)', () => {
     expect(screen.getByRole('region', { name: 'legend — story trees' })).toBeTruthy();
     fireEvent.click(chip);
     expect(screen.queryByRole('region', { name: 'legend — story trees' })).toBeNull();
+  });
+});
+
+// ADR-0230: when an artStyle sprite sheet is active in the world, the legend renders the SAME sprites
+// the map draws instead of its vector CSS shapes — so the legend stays "the world's palette" in sprite
+// mode too. A `null` sheet (vector mode, the default) leaves every icon byte-identical; an icon whose
+// kind/status the sheet doesn't cover falls back to its vector shape.
+describe('WorldLegend — sprite art sheet (ADR-0230)', () => {
+  const spr = (href: string) => ({ href, w: 100, h: 120, anchorX: 0.5, anchorY: 1 });
+  // Covers tree (per-status), flora (+ dead), conifer — but NOT wheat, so wheat stays vector.
+  const sheet: SpriteStyleSheet = {
+    name: 'test-sheet',
+    label: 'Test sheet',
+    sprites: {
+      'tree:proposed': spr('/art-sheets/test/tree-proposed.png'),
+      'tree:mapped': spr('/art-sheets/test/tree-mapped.png'),
+      'tree:unhealthy': spr('/art-sheets/test/tree-withered.png'),
+      conifer: spr('/art-sheets/test/conifer.png'),
+      flora: spr('/art-sheets/test/flora.png'),
+      'flora:unhealthy': spr('/art-sheets/test/flora-dead.png'),
+    },
+  };
+  const spriteHrefs = (): string[] =>
+    [...document.querySelectorAll('image')].map((n) => n.getAttribute('href') ?? '');
+
+  it('default (no sheet) renders vector only — no sprite <image> anywhere in the legend', () => {
+    renderLegend(offlineWorld());
+    expect(document.querySelector('image')).toBeNull();
+  });
+
+  it('with a sheet, the chip-bar tree/flora/conifer icons render the sprite image', () => {
+    // offlineWorld has proposed + mapped stories/caps → the tree chip shows both, the flora chip shows
+    // the alive `flora` sprite, and the always-present decoration chip shows the conifer sprite.
+    renderLegend(offlineWorld(), { spriteSheet: sheet });
+    const hrefs = spriteHrefs();
+    expect(hrefs).toContain('/art-sheets/test/tree-proposed.png');
+    expect(hrefs).toContain('/art-sheets/test/tree-mapped.png');
+    expect(hrefs).toContain('/art-sheets/test/flora.png');
+    expect(hrefs).toContain('/art-sheets/test/conifer.png');
+    // the sprite swatches replaced the vector shapes — no vector story-tree/conifer left in the bar
+    expect(document.querySelector('.legend-bar .story-tree')).toBeNull();
+    expect(document.querySelector('.legend-bar .hex-conifer')).toBeNull();
+  });
+
+  it('an UNCOVERED icon (wheat — not in the sheet) falls back to its vector shape', () => {
+    renderLegend(offlineWorld(), { spriteSheet: sheet });
+    fireEvent.click(screen.getByRole('button', { name: 'decoration' }));
+    // conifer IS covered → sprite; wheat is NOT → the vector `hex-top is-wheat` path stays, no wheat image
+    expect(spriteHrefs()).toContain('/art-sheets/test/conifer.png');
+    expect(document.querySelector('.legend-drawer .hex-top.is-wheat')).toBeTruthy();
+    expect(spriteHrefs().some((h) => h.includes('wheat'))).toBe(false);
+  });
+
+  it('the withered (unhealthy) tree resolves the `tree:unhealthy` sprite in the drawer fan', () => {
+    // the fan always shows all four statuses; unhealthy resolves the withered sprite, not the vector.
+    renderLegend([story('s', 'unhealthy', [cap('c', 'unhealthy')])], { spriteSheet: sheet });
+    fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
+    expect(spriteHrefs()).toContain('/art-sheets/test/tree-withered.png');
   });
 });
