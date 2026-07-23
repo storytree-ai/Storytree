@@ -3,7 +3,7 @@
 // binding.
 //
 // Why a standalone, framework-free module:
-//   • One source of truth. The TreeView readers (readSubstrateMode / readRiverTuning)
+//   • One source of truth. The TreeView readers (readLayoutMode / readArtStyle / readArtScale)
 //     and the gear panel BOTH consume the defaults + clamps declared here, so a default
 //     or a clamp can never drift between "what the world renders" and "what the panel
 //     shows / writes".
@@ -13,9 +13,9 @@
 //   • Pure string/URL math (no React, no DOM) so the contract is unit-testable in the
 //     node-env vitest suite (worldSettings.test.ts) — Stage-1 red-green of the gear.
 //
-// The clamps here MIRROR the TreeView parser (readRiverTuning, readSubstrateMode).
-// When the panel writes a value it is already UI-bounded; on READ
-// the value is re-clamped to the parser's open-ended clamp, exactly as the URL path is.
+// The clamps here MIRROR the TreeView readers (e.g. readArtScale). When the panel writes a value it is
+// already UI-bounded; on READ the value is re-clamped to the reader's open-ended clamp, exactly as the
+// URL path is.
 
 /** A select option: the stored URL token and its human label. */
 export interface SelectOption {
@@ -92,9 +92,7 @@ export type ControlValue = number | boolean | string;
 // The schema. Defaults + clamps MIRROR TreeView's RIVER_TUNING / the readers.
 // ---------------------------------------------------------------------------
 
-const GROUP_GROUND = 'Ground';
 const GROUP_LAYOUT = 'Layout';
-const GROUP_COSY = 'World art';
 const GROUP_ART = 'Art style';
 
 /** artStyle aliases (sprite-art-sheets arc). Only the sheet names the studio actually ships resolve;
@@ -105,15 +103,6 @@ const GROUP_ART = 'Art style';
 const ART_STYLE_NAMES = ['storybook', 'daylight', 'watercolor'] as const;
 function normalizeArtStyle(raw: string | null): string {
   return (ART_STYLE_NAMES as readonly string[]).includes(raw ?? '') ? (raw as string) : 'vector';
-}
-
-/** substrate aliases, mirroring readSubstrateMode. */
-function normalizeSubstrate(raw: string | null): string {
-  if (raw === 'hex' || raw === 'none' || raw === 'default' || raw === 'classic') return 'hex';
-  if (raw === 'relaxed-hex') return 'relaxed-hex';
-  if (raw === 'relaxed-quad' || raw === 'relaxed') return 'relaxed-quad';
-  // 'mesh' | 'path-b' | unknown | null → mesh (the default world).
-  return 'mesh';
 }
 
 /** layout aliases, mirroring readLayoutMode. Default = `dag` (ADR-0229, owner-directed 2026-07-23,
@@ -154,21 +143,11 @@ export const CONTROLS: readonly ControlSpec[] = [
   },
 
   // ---- Ground ----
-  {
-    kind: 'select',
-    key: 'substrate',
-    label: 'Ground tiling',
-    group: GROUP_GROUND,
-    hint: 'How the island ground is tiled.',
-    default: 'mesh',
-    options: [
-      { value: 'mesh', label: 'Mesh' },
-      { value: 'hex', label: 'Hex' },
-      { value: 'relaxed-quad', label: 'Relaxed quad' },
-      { value: 'relaxed-hex', label: 'Relaxed hex' },
-    ],
-    normalize: normalizeSubstrate,
-  },
+  // ADR-0233 retired the `substrate` "Ground tiling" gear select (mesh / hex / relaxed-quad /
+  // relaxed-hex). The Townscaper irregular MESH is now the one and only tiling — always rendered, no
+  // dial (the alternates were spike modes nothing relied on, and the "Ground" gear section retires with
+  // the control). TreeView's ground reader is a fixed `'mesh'` now; the non-mesh generators in
+  // forest-world's `substrate.ts` are the dead code the follow-on web-engine unit removes.
 
   // ADR-0088 (Shared Islands panel, amends ADR-0076 §2): the `buildingIsland` gear TOGGLE was
   // REMOVED. The building-class islands now live in a PERMANENT left "Shared Islands" panel —
@@ -178,20 +157,10 @@ export const CONTROLS: readonly ControlSpec[] = [
 
   // ---- World art (grounded-art arc) ----
   // ADR-0228 retired the default-OFF `garden` and `cosy` toggles (the cosy-island garden composition
-  // and the cosy palette lift). The unified vegetation vocabulary below is the promoted DEFAULT — the
-  // one grounded-art world-art switch that remains, surfaced as a gear toggle whose `?veg=off` escape
-  // returns the pre-ADR-0226 world.
-  {
-    kind: 'toggle',
-    key: 'veg',
-    label: 'Vegetation vocabulary',
-    group: GROUP_COSY,
-    hint: 'The unified world-art vegetation vocabulary (ADR-0226): grass = a capability’s tests, small flowers = the story’s UAT, dead grass = an unhealthy capability, the human-witness signpost retired, and the autumn-tree hero as every island’s central tree. Studio-only; ON by default — turn off to see the pre-ADR-0226 world.',
-    default: true,
-    offToken: 'off',
-    onToken: 'on',
-    offReads: ['off', '0', 'false'],
-  },
+  // and the cosy palette lift). ADR-0231 then made the unified vegetation vocabulary (ADR-0226) the
+  // PERMANENT world art — no longer a gear toggle at all, so the last grounded-art switch is gone and
+  // the "World art" gear section retires with it. Vegetation is always composed (TreeView's
+  // `useVegetation`), so there is nothing left to dial here.
 
   // ---- Art style (sprite-art-sheets arc) ----
   // A default-off render-mode swap: instead of drawing an object's procedural vector body, the studio
@@ -363,19 +332,7 @@ export function readRenderScene(search: string): boolean {
 }
 
 /* ADR-0228 retired the default-off `readCosyIsland` (`?cosy`) and `readGardenIsland` (`?garden`)
- * grounded-art flags. The unified vegetation vocabulary below (`?veg`, the promoted default) is the
- * one grounded-art world-art switch that remains. */
-
-/**
- * grounded-art (ADR-0226, promoted to the studio DEFAULT after the owner's 2026-07-22 look verdict): the
- * unified world-art vegetation vocabulary. ON by default — grass = a capability's tests (the decorative
- * wildflower / anemone / heather-bell accents retired), the UAT criteria as small flowers folded into the
- * grass, dead grass = an unhealthy capability, the human-witness signpost retired, and the `autumn-tree`
- * hero as every island's central tree. `?veg=off` (or `=0` / `=false`) is the escape hatch back to the
- * pre-ADR-0226 world. The public website fold never sends `vegetation`, so its render is unchanged (the
- * core's absence lock still holds). This is studio-side only.
- */
-export function readVegetationVocab(search: string): boolean {
-  const v = new URLSearchParams(search).get('veg');
-  return v !== 'off' && v !== '0' && v !== 'false';
-}
+ * grounded-art flags. ADR-0231 then retired `readVegetationVocab` (`?veg=off`) too: the unified
+ * vegetation vocabulary (ADR-0226) is now the PERMANENT studio world art — always composed
+ * (TreeView's `useVegetation`), never a flag. No grounded-art render toggle remains. The public
+ * website fold never sent `vegetation`, so its render is unchanged (the core's absence lock holds). */

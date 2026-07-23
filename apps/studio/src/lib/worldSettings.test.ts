@@ -24,7 +24,6 @@ import {
   resetControls,
   buildShareUrl,
   readRenderScene,
-  readVegetationVocab,
   type ControlSpec,
 } from './worldSettings.js';
 
@@ -38,17 +37,19 @@ function ctl(key: string): ControlSpec {
 describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
   it('exposes exactly the surviving dials, each with a key/label/group/kind/hint', () => {
     const keys = CONTROLS.map((c) => c.key);
-    // Layout (DAG vs solar) + Ground (tiling), plus the grounded-art `veg` toggle (the promoted
-    // vegetation-vocabulary default; the `garden` / `cosy` toggles were retired by ADR-0228) and the
-    // sprite-art-sheets `artStyle` select + its `artScale` size dial (sprites derive their size from
-    // the vector body they replace; the dial multiplies the fit). The `buildingIsland` toggle was
-    // REMOVED with ADR-0088 (the shared-island panel is permanent, not a gear flag), so the gear
-    // carries no Panels switch.
-    const expected = ['layout', 'substrate', 'veg', 'artStyle', 'artScale'];
+    // Layout (DAG / dependency-aware / solar) — owner-KEPT — plus the sprite-art-sheets `artStyle`
+    // select + its `artScale` size dial (sprites derive their size from the vector body they replace;
+    // the dial multiplies the fit). The grounded-art `garden` / `cosy` toggles were retired by
+    // ADR-0228, the `veg` vegetation-vocabulary toggle by ADR-0231, and the `substrate` "Ground tiling"
+    // select by ADR-0233 (mesh is now the one tiling, not a dial). The `buildingIsland` toggle was
+    // REMOVED with ADR-0088 (the shared-island panel is permanent, not a gear flag), so the gear carries
+    // no Panels switch.
+    const expected = ['layout', 'artStyle', 'artScale'];
     expect([...keys].sort()).toEqual([...expected].sort());
     // The retired river/pond dials, road-routing dials, the removed building toggles
-    // (building-DRAWER, then building-ISLAND) AND the retired grounded-art `garden` / `cosy` toggles
-    // must be GONE (genuinely stripped, not shelved — ADR-0073 / ADR-0076 / ADR-0088 / ADR-0228).
+    // (building-DRAWER, then building-ISLAND), the retired grounded-art `garden` / `cosy` / `veg`
+    // toggles AND the retired `substrate` ground-tiling select must be GONE (genuinely stripped, not
+    // shelved — ADR-0073 / ADR-0076 / ADR-0088 / ADR-0228 / ADR-0231 / ADR-0233).
     for (const gone of [
       'roads',
       'roadStraighten',
@@ -64,6 +65,8 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
       'buildingIsland',
       'garden',
       'cosy',
+      'veg',
+      'substrate',
     ]) {
       expect(keys, `retired control still present: ${gone}`).not.toContain(gone);
     }
@@ -77,18 +80,20 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     }
   });
 
-  it('groups controls under Layout, Ground and World art (Panels gone with ADR-0088)', () => {
+  it('groups controls under Layout and Art style (Panels + World art + Ground gone)', () => {
     const groups = new Set(CONTROLS.map((c) => c.group));
     expect(groups.has('Layout')).toBe(true);
-    expect(groups.has('Ground')).toBe(true);
-    // The grounded-art vegetation vocabulary lives in its own gear section (renamed from "Cosy island"
-    // to "World art" when the garden/cosy toggles were retired — ADR-0228).
-    expect(groups.has('World art')).toBe(true);
     // The building-island toggle (the only Panels control) was removed — no Panels section.
     expect(groups.has('Panels')).toBe(false);
+    // The "World art" section held only the `veg` toggle, retired by ADR-0231 (vegetation is now
+    // permanent world art, not a dial), so the section is gone.
+    expect(groups.has('World art')).toBe(false);
+    // The "Ground" section held only the `substrate` tiling select, retired by ADR-0233 (mesh is the one
+    // tiling, not a dial), so that section is gone too.
+    expect(groups.has('Ground')).toBe(false);
     // The sprite-art-sheets `artStyle` select + `artScale` dial share the "Art style" section.
     expect(groups.has('Art style')).toBe(true);
-    expect(groups.size).toBe(4);
+    expect(groups.size).toBe(2);
   });
 
   it('keys are unique', () => {
@@ -117,29 +122,15 @@ describe('worldSettings — layout control (ADR-0229 dag default / ADR-0074 §6 
   });
 });
 
-describe('worldSettings — substrate control (select)', () => {
-  it('mesh (default) removes the param, others write substrate=<value>', () => {
-    expect(setControlValue('?substrate=hex', ctl('substrate'), 'mesh')).toBe('');
-    expect(setControlValue('', ctl('substrate'), 'hex')).toBe('?substrate=hex');
-    expect(setControlValue('', ctl('substrate'), 'relaxed-quad')).toBe('?substrate=relaxed-quad');
-  });
-
-  it('reads the default when absent and a present value when set', () => {
-    expect(readControlValue('', ctl('substrate'))).toBe('mesh');
-    expect(readControlValue('?substrate=relaxed-quad', ctl('substrate'))).toBe('relaxed-quad');
-  });
-
-  it('preserves UNRELATED params when setting a select', () => {
-    const out = setControlValue('?debug=1', ctl('substrate'), 'hex');
-    expect(out).toContain('debug=1');
-    expect(out).toContain('substrate=hex');
-  });
-});
+// ADR-0233 retired the `substrate` "Ground tiling" select: mesh is the one and only tiling, no longer a
+// dial. The former "substrate control (select)" suite is gone; the schema test above pins `substrate` as
+// a RETIRED key. Select-control binding (default removes the param, unrelated params preserved) stays
+// covered by the artStyle suite below.
 
 describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
   it('orders ?…params before the #/tree hash', () => {
-    const url = buildShareUrl('https://x.test/', '?substrate=hex', '#/tree');
-    expect(url).toBe('https://x.test/?substrate=hex#/tree');
+    const url = buildShareUrl('https://x.test/', '?layout=solar', '#/tree');
+    expect(url).toBe('https://x.test/?layout=solar#/tree');
   });
 
   it('omits the ? when there are no params', () => {
@@ -154,12 +145,12 @@ describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
 
 describe('worldSettings — resetControls drops every managed param', () => {
   it('returns empty when only managed params were present', () => {
-    expect(resetControls('?substrate=hex&layout=solar')).toBe('');
+    expect(resetControls('?artStyle=storybook&layout=solar')).toBe('');
   });
 
   it('preserves unmanaged params', () => {
-    const out = resetControls('?substrate=hex&debug=1');
-    expect(out).not.toContain('substrate');
+    const out = resetControls('?artStyle=storybook&debug=1');
+    expect(out).not.toContain('artStyle');
     expect(out).toContain('debug=1');
   });
 });
@@ -168,7 +159,7 @@ describe('worldSettings — readRenderScene (scene is now the DEFAULT, ADR-0093 
   it('defaults to the SCENE render when no ?render param is present', () => {
     // The flip: absence => scene (the shared scene-graph is the canonical render now).
     expect(readRenderScene('')).toBe(true);
-    expect(readRenderScene('?substrate=hex&layout=solar')).toBe(true);
+    expect(readRenderScene('?layout=solar')).toBe(true);
   });
 
   it('the ?render=legacy / ?render=inline escape hatch selects the inline render', () => {
@@ -185,24 +176,10 @@ describe('worldSettings — readRenderScene (scene is now the DEFAULT, ADR-0093 
   });
 });
 
-describe('worldSettings — the vegetation-vocabulary gear TOGGLE (owner ask: gear panel, not URLs)', () => {
-  // ADR-0228 retired the `garden` / `cosy` grounded-art toggles + readGardenIsland / readCosyIsland;
-  // `veg` (the promoted default) is the one grounded-art world-art toggle that remains.
-  it('veg is a default-ON toggle in the "World art" group (ADR-0226 promoted to the studio default)', () => {
-    const c = ctl('veg');
-    expect(c.kind).toBe('toggle');
-    expect(c.group).toBe('World art');
-    expect(readControlValue('', c)).toBe(true); // default ON — the vocabulary is the studio default
-  });
-  it('the veg toggle (default ON) writes veg=off when turned off / removes it when on, matching readVegetationVocab', () => {
-    const c = ctl('veg');
-    // ON is the default → setting it on removes the param; OFF writes the escape token.
-    expect(setControlValue('', c, true)).toBe('');
-    expect(setControlValue('', c, false)).toBe('?veg=off');
-    expect(readVegetationVocab('?veg=off')).toBe(false);
-    expect(setControlValue('?veg=off', c, true)).toBe('');
-  });
-});
+// ADR-0231 retired the `veg` gear toggle and `readVegetationVocab`: the vegetation vocabulary
+// (ADR-0226) is now PERMANENT studio world art, always composed — there is no dial to bind, so the
+// former "vegetation-vocabulary gear TOGGLE" + "readVegetationVocab" suites are gone. The schema test
+// above pins `veg` as a RETIRED key so a re-introduction is caught red.
 
 describe('worldSettings — artStyle control (sprite-art-sheets arc, default-off select)', () => {
   it('defaults to vector and writing vector REMOVES the param (byte-identical world)', () => {
@@ -249,21 +226,5 @@ describe('worldSettings — artScale dial (derived sprite sizing)', () => {
     expect(readControlValue('?artScale=1.5', ctl('artScale'))).toBe(1.5);
     expect(readControlValue('?artScale=wat', ctl('artScale'))).toBe(1);
     expect(readControlValue('?artScale=0', ctl('artScale'))).toBe(0.05); // clampMin, never zero-size art
-  });
-});
-
-describe('worldSettings — readVegetationVocab (grounded-art, ADR-0226, promoted to the studio DEFAULT)', () => {
-  it('is ON by default / for unrelated params', () => {
-    expect(readVegetationVocab('')).toBe(true);
-    expect(readVegetationVocab('?cosy=on&layout=solar')).toBe(true);
-  });
-  it('is OFF only for the explicit escape tokens', () => {
-    expect(readVegetationVocab('?veg=off')).toBe(false);
-    expect(readVegetationVocab('?veg=0')).toBe(false);
-    expect(readVegetationVocab('?veg=false')).toBe(false);
-  });
-  it('an unknown ?veg value stays ON (default)', () => {
-    expect(readVegetationVocab('?veg=wat')).toBe(true);
-    expect(readVegetationVocab('?veg=on')).toBe(true);
   });
 });

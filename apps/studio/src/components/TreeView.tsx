@@ -59,7 +59,6 @@ import {
   controlByKey,
   readControlValue,
   readRenderScene,
-  readVegetationVocab,
   type ControlSpec,
 } from '../lib/worldSettings.js';
 import {
@@ -172,7 +171,6 @@ function requireControl(key: string): ControlSpec {
   if (!c) throw new Error(`worldSettings: missing control "${key}"`);
   return c;
 }
-const SUBSTRATE_CTL = requireControl('substrate');
 const LAYOUT_CTL = requireControl('layout');
 const ART_STYLE_CTL = requireControl('artStyle');
 const ART_SCALE_CTL = requireControl('artScale');
@@ -1179,22 +1177,13 @@ export function worldToScene(
 }
 
 /**
- * Which substrate the forest map renders. The irregular Townscaper `mesh` is the
- * DEFAULT (owner look-decision 2026-06-16) — so no param renders mesh. Escapes:
- * `?substrate=hex` (aliases `none`/`default`/`classic`) → the original extruded
- * hex world (null); `?substrate=relaxed-quad|relaxed|relaxed-hex` → the earlier
- * spike modes. Returns null only for the explicit classic-world escape.
+ * The forest map's ground tiling is ALWAYS the irregular Townscaper `mesh` (ADR-0233 retired the
+ * `substrate` gear control + the `?substrate=` escapes: mesh won the look-off and is the one tiling,
+ * no longer a dial). A module constant, not a URL read — the studio always builds the relaxed mesh
+ * cells. The non-mesh `SubstrateMode` members live on in forest-world until the follow-on web-engine
+ * unit removes them.
  */
-function readSubstrateMode(search: string = defaultSearch()): SubstrateMode | null {
-  // SINGLE SOURCE OF TRUTH: the panel + this reader both resolve `substrate` through
-  // worldSettings (its normalize mirrors the historical aliases). `hex` ⇒ null (the
-  // classic-world escape); every other canonical value maps straight through.
-  const v = readControlValue(search, SUBSTRATE_CTL) as string;
-  if (v === 'hex') return null;
-  if (v === 'relaxed-hex') return 'relaxed-hex';
-  if (v === 'relaxed-quad') return 'relaxed-quad';
-  return 'mesh';
-}
+const SUBSTRATE_MODE: SubstrateMode = 'mesh';
 
 /** Live tuning overrides from the URL — let the owner dial the look in directly. */
 function readSubstrateTuning(): Partial<SubstrateTuning> {
@@ -1650,14 +1639,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     commitSearch(qs ? `?${qs}` : '');
   }, [search, commitSearch]);
 
-  // VISUAL SPIKE (do not land): swap the regular hex interiors for an irregular
-  // relaxed grid when `?substrate=…` is set. Null = the default hex world.
-  // Tuning (`jitter`/`iters`/`relax`/`wheatScatter`) is read from the URL so the
-  // owner can dial the look in live without a rebuild.
-  const substrateMode = useMemo(() => readSubstrateMode(search), [search]);
+  // The island ground is always the Townscaper mesh (ADR-0233 — the `?substrate=` gear control is
+  // retired). Live tuning (`jitter`/`iters`/`relax`/`wheatScatter`) is still read from the URL so the
+  // owner can dial the mesh look in without a rebuild.
+  const substrateMode = SUBSTRATE_MODE;
   const substrateTuning = useMemo(() => readSubstrateTuning(), []);
   const relaxedCells = useMemo(
-    () => (world && substrateMode ? buildRelaxedCells(world, substrateMode, substrateTuning) : null),
+    () => (world ? buildRelaxedCells(world, substrateMode, substrateTuning) : null),
     [world, substrateMode, substrateTuning],
   );
 
@@ -2025,14 +2013,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // so it only rebuilds on the world / substrate / ticker / build-activity inputs —
   // never on hover. Hooks live above the early returns (the world may still be null).
   const renderScene = useMemo(() => readRenderScene(search), [search]);
-  // grounded-art (ADR-0226): the unified vegetation vocabulary — the STUDIO DEFAULT (ADR-0226 promoted;
-  // `?veg=off` escapes). Presence flips the vocabulary on every island (grass = tests, small UAT flowers,
-  // dead grass = unhealthy, the witness signpost retired) and, via the tree-spread (decision 1), fetches
-  // the per-status `autumn-tree` colourways (ADR-0227) so each island's central tree is the baked hero.
-  // (The default-off `?cosy` / `?garden` / `?factoryart` grounded-art flags were retired by ADR-0228; the
-  // scene's dormant `bakedStone` / `garden` seams stay in forest-world, fed `null` here.)
-  const vegOn = useMemo(() => readVegetationVocab(search), [search]);
-  const vegetation = useVegetation(vegOn);
+  // grounded-art (ADR-0226): the unified vegetation vocabulary — now PERMANENT studio world art
+  // (ADR-0231 retired the `?veg` toggle: always composed, no flag). Every island wears the vocabulary
+  // (grass = tests, small UAT flowers, dead grass = unhealthy, the witness signpost retired) and, via
+  // the tree-spread (decision 1), the per-status `autumn-tree` colourways (ADR-0227) as its central
+  // baked-hero tree. (The default-off `?cosy` / `?garden` / `?factoryart` grounded-art flags were retired
+  // by ADR-0228; the scene's dormant `bakedStone` / `garden` seams stay in forest-world, fed `null` here.)
+  const vegetation = useVegetation();
   // sprite-art-sheets spike: a default-off render-mode swap (worldSettings' `artStyle` select). `vector`
   // (default/absence) fetches nothing — `spriteSheet` stays null and SceneView's sprite branch never
   // fires, so the render is byte-identical to before this flag existed. A chosen sheet only affects
@@ -2919,28 +2906,27 @@ function IconGlyph({ id, label = true }: { id: string; label?: boolean }): React
  * unified vegetation vocabulary (`?veg`, the promoted default) is unaffected. */
 
 /**
- * The unified vegetation vocabulary (grounded-art, ADR-0226), assembled when `?veg=on`. Presence flips
- * the vocabulary on the non-garden islands; the per-status `autumn-tree` colourways — fetched from the
- * SAME dynamic kit chunk as the garden heroes (the tree-spread, decision 1, amends ADR-0221; per-status
- * hue restored by ADR-0227) — are added once they resolve, replacing every non-garden island's procedural
- * central tree with a `<use>` of the colourway for that island's status. `null` when the flag is off;
- * `{}` (vocabulary on, procedural tree) until the colourways arrive, so the tree swap is a late repaint
- * rather than a hole. Off ⇒ `SceneInput.vegetation` absent, every island byte-identical.
+ * The unified vegetation vocabulary (grounded-art, ADR-0226) — now PERMANENT studio world art
+ * (ADR-0231 retired the `?veg` toggle: always composed, never a flag). Every island wears the
+ * vocabulary; the per-status `autumn-tree` colourways — fetched from the dynamic kit chunk (the
+ * tree-spread, decision 1, amends ADR-0221; per-status hue restored by ADR-0227) — are added once they
+ * resolve, replacing each island's procedural central tree with a `<use>` of the colourway for that
+ * island's status. Returns `{}` (vocabulary on, procedural tree) until the colourways arrive, so the
+ * tree swap is a late repaint rather than a hole — never `null`, since the vocabulary is always on.
  */
-function useVegetation(enabled: boolean): SceneVegetationInput | null {
+function useVegetation(): SceneVegetationInput {
   const [heroTrees, setHeroTrees] = useState<SceneVegHeroTrees | null>(null);
   useEffect(() => {
-    if (!enabled) return;
     let live = true;
     void loadHeroTreeVariants().then(
       (h) => { if (live) setHeroTrees(h); },
       (err: unknown) => { console.error('vegetation tree colourways failed to load; keeping the procedural tree', err); },
     );
     return () => { live = false; };
-  }, [enabled]);
-  return useMemo<SceneVegetationInput | null>(
-    () => (enabled ? (heroTrees ? { heroTrees } : {}) : null),
-    [enabled, heroTrees],
+  }, []);
+  return useMemo<SceneVegetationInput>(
+    () => (heroTrees ? { heroTrees } : {}),
+    [heroTrees],
   );
 }
 
