@@ -564,6 +564,19 @@ function yamlDoubleQuoted(s: string): string {
   return '"' + s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, " ") + '"';
 }
 
+/** Quote a one-line string as a TOML basic string. JSON's string grammar is a TOML subset here. */
+function tomlBasicString(s: string): string {
+  return JSON.stringify(s.replace(/\r?\n/g, " "));
+}
+
+/**
+ * Render a TOML multiline basic string without letting an agent prompt terminate its own value.
+ * Backslashes are escaped first so the prompt reaches Codex byte-for-byte after TOML parsing.
+ */
+function tomlMultilineBasicString(s: string): string {
+  return `"""\n${s.replace(/\\/g, "\\\\").replace(/"""/g, '\\"""')}\n"""`;
+}
+
 export type RenderAgentFileResult =
   | { ok: true; name: string; content: string; missingRefs: string[] }
   | { ok: false; reason: string; available: string[] };
@@ -631,6 +644,32 @@ export async function renderCursorAgentFile(
   name: string,
 ): Promise<RenderAgentFileResult> {
   return renderHarnessAgentFile(store, name, (stored) => [`model: ${agentModelFrontmatter(stored)}`]);
+}
+
+/**
+ * Render the committed `.codex/agents/<id>.toml` view of a Library agent. Codex custom agents
+ * require a name, description, and developer instructions; model selection deliberately inherits
+ * from the spawning session because the Library's Claude-oriented sonnet/opus tiers are not Codex
+ * model identifiers.
+ */
+export async function renderCodexAgentFile(
+  store: Store,
+  name: string,
+): Promise<RenderAgentFileResult> {
+  const res = await renderAgentEssentials(store, name);
+  if (!res.ok) return res;
+  const { agent } = res;
+  return {
+    ok: true,
+    name: agent.name,
+    content: [
+      `name = ${tomlBasicString(agent.name)}`,
+      `description = ${tomlBasicString(agent.description)}`,
+      `developer_instructions = ${tomlMultilineBasicString(`${GENERATED_AGENT_MARKER}\n\n${agent.prompt}`)}`,
+      "",
+    ].join("\n"),
+    missingRefs: agent.missingRefs,
+  };
 }
 
 /** The ids that render to harness subagent files — every agent minus the dedicated-surface roles. */

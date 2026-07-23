@@ -9,6 +9,7 @@ import {
   renderAgentDigest,
   renderAgentFile,
   renderCursorAgentFile,
+  renderCodexAgentFile,
   renderAgentStep,
   delegatableAgentIds,
   essentialsGateViolations,
@@ -240,6 +241,46 @@ test("both harness renderers emit the same model tier over the same essentials (
   assert.ok(cursor.content.includes(GENERATED_AGENT_MARKER));
   assert.equal(cursor.content, claude.content, "both harness surfaces render the same tier line");
   assert.deepEqual(cursor.missingRefs, []);
+});
+
+test("renderCodexAgentFile emits the native custom-agent TOML shape without a foreign model tier", async () => {
+  const store = await seeded();
+  const res = await renderCodexAgentFile(store, "clean-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+
+  assert.match(res.content, /^name = "clean-agent"\ndescription = "a role whose refs all resolve"\n/);
+  assert.match(res.content, /developer_instructions = """\n/);
+  assert.ok(res.content.includes(GENERATED_AGENT_MARKER));
+  assert.match(res.content, /The clean agent does one thing\./);
+  assert.ok(!res.content.includes("model ="), "Codex inherits its spawning session model");
+  assert.ok(res.content.endsWith("\n"));
+  assert.deepEqual(res.missingRefs, []);
+});
+
+test("renderCodexAgentFile escapes a multiline prompt that contains TOML delimiters", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "toml-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "TOML Agent",
+      description: 'has a "quote" and a: colon',
+      oneLine: "o",
+      role: 'Keep the literal """ delimiter and \\ path.',
+      outcome: "o",
+      context: ["asset:test-principle"],
+      tools: "t",
+      workflow: "w",
+      references: [],
+    },
+  });
+  const res = await renderCodexAgentFile(store, "toml-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.match(res.content, /description = "has a \\"quote\\" and a: colon"/);
+  assert.match(res.content, /literal \\""" delimiter and \\\\ path/);
 });
 
 test("a pinned model tier flows into both harness frontmatter surfaces (ADR-0182)", async () => {

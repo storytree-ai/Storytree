@@ -1,17 +1,17 @@
 // Render the delegatable library `agent` artifacts to each harness-native subagent directory:
-// `.claude/agents/<id>.md` (ADR-0052) and `.cursor/agents/<id>.md` (ADR-0178). Both are generated
+// `.claude/agents/<id>.md` (ADR-0052), `.cursor/agents/<id>.md` (ADR-0178), and
+// `.codex/agents/<id>.toml` (Codex custom-agent surface). All are generated
 // VIEWS of one Library population, drift-gated so neither harness can diverge by hand.
 //
-//   pnpm build:agents      (re)generate .claude/agents/*.md + .cursor/agents/*.md
+//   pnpm build:agents      (re)generate every harness agent view
 //   pnpm check:agents      fail (exit 1) if any file is stale / missing / orphaned — the gate's guard
 //
 // Offline by construction (reads the seed corpus via loadCorpus), so it runs in the gate and CI with
-// no DB. Both harness directories are FULLY GENERATED: write prunes orphaned *.md. Edit the agent
+// no DB. All harness directories are FULLY GENERATED: write prunes orphaned agent files. Edit the agent
 // artifact (the live store / knowledge.json), not a generated file.
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { loadCorpus } from "@storytree/library/store";
@@ -20,21 +20,30 @@ import {
   delegatableAgentIds,
   renderAgentFile,
   renderCursorAgentFile,
+  renderCodexAgentFile,
   essentialsGateViolations,
 } from "@storytree/library/store";
 
 /** Repo root: packages/cli/src/build-agents.ts → four dirs up (the build-claude-md.ts pattern). */
-const repoRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+const repoRoot = path.resolve(process.cwd(), "..", "..");
 const targets = [
   {
     label: ".claude/agents",
     dir: path.join(repoRoot, ".claude", "agents"),
+    extension: "md",
     render: renderAgentFile,
   },
   {
     label: ".cursor/agents",
     dir: path.join(repoRoot, ".cursor", "agents"),
+    extension: "md",
     render: renderCursorAgentFile,
+  },
+  {
+    label: ".codex/agents",
+    dir: path.join(repoRoot, ".codex", "agents"),
+    extension: "toml",
+    render: renderCodexAgentFile,
   },
 ] as const;
 
@@ -72,12 +81,12 @@ async function main(): Promise<void> {
             "fix the agent artifact.",
         );
       }
-      files.set(`${id}.md`, res.content);
+      files.set(`${id}.${target.extension}`, res.content);
     }
 
     let existing: string[] = [];
     try {
-      existing = (await fs.readdir(target.dir)).filter((f) => f.endsWith(".md"));
+      existing = (await fs.readdir(target.dir)).filter((f) => f.endsWith(".md") || f.endsWith(".toml"));
     } catch {
       /* dir missing → every expected file is reported missing in check mode */
     }

@@ -51,6 +51,7 @@ export {
   renderAgentDigest,
   renderAgentFile,
   renderCursorAgentFile,
+  renderCodexAgentFile,
   renderAgentStep,
   delegatableAgentIds,
   essentialsGateViolations,

@@ -21,10 +21,11 @@ the one renderer and listed "one population, many rendered surfaces"; this adds 
 
 **Correction ([ADR-0178](0178-render-delegatable-library-agents-to-native-cursor-subagent.md), per
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's
-one-authored-population/generated-surface decision now applies to both supported project-subagent
-directories. Claude Code consumes `.claude/agents/*.md`; Cursor's native contract consumes
-`.cursor/agents/*.md` while its IDE may also read the Claude directory as a compatibility source.
-Both directories are generated and drift-gated from the same delegatable Library agents.
+one-authored-population/generated-surface decision applies to every supported project-subagent
+directory. Claude Code consumes `.claude/agents/*.md`; Cursor's native contract consumes
+`.cursor/agents/*.md` while its IDE may also read the Claude directory as a compatibility source; Codex
+consumes `.codex/agents/*.toml`. Every directory is generated and drift-gated from the same delegatable
+Library agents.
 
 **Correction ([ADR-0156](0156-subagent-prompts-are-essentials-only-the-cli-serves-ceremony.md), per
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's
@@ -51,7 +52,8 @@ delegated to by the corresponding harness. That is the gap this decision closes,
 
 1. **Harness-native project files are generated surfaces of the SAME renderer.** `renderAgentFile`
    wraps the essentials renderer in Claude Code subagent frontmatter; `renderCursorAgentFile` wraps
-   the same essentials in Cursor-native frontmatter. Both carry a generated marker.
+   the same essentials in Cursor-native frontmatter; `renderCodexAgentFile` emits the same essentials
+   in Codex custom-agent TOML. Every generated view carries a marker.
    *(The original wording said `renderAgentFile` wraps `renderAgentPrompt` — the FULL-body inline path —
    with "no new render logic"; that render-function sub-choice is re-decided by
    [ADR-0156](0156-subagent-prompts-are-essentials-only-the-cli-serves-ceremony.md) (per
@@ -65,9 +67,9 @@ delegated to by the corresponding harness. That is the gap this decision closes,
    spawnable project subagent; the generated files, not a hand-maintained list in this ADR, are the
    current roster.
 
-3. **Generated, drift-gated, like CLAUDE.md.** `pnpm build:agents` regenerates both directories from
+3. **Generated, drift-gated, like CLAUDE.md.** `pnpm build:agents` regenerates every directory from
    the SEED corpus (offline, CI-safe); `pnpm check:agents` fails on stale / missing / orphaned files
-   in either target and joins `pnpm gate` + a CI step, mirroring `check:claude`. Both directories are
+   in any target and joins `pnpm gate` + a CI step, mirroring `check:claude`. Every directory is
    fully generated (write prunes orphans). A dangling agent ref fails the build closed. The repository
    manifest allow-lists both generated roots.
 
@@ -78,12 +80,12 @@ delegated to by the corresponding harness. That is the gap this decision closes,
 
 ## Consequences
 
-- Good: Claude and Cursor sessions can delegate to the same authored story-writers. One source (the
-  Library `agent` tier) feeds CLAUDE.md, the SDK leaf, `.claude/agents`, and `.cursor/agents`; none are
-  hand-maintained.
+- Good: Claude, Cursor, and Codex sessions can delegate to the same authored story-writers. One source
+  (the Library `agent` tier) feeds CLAUDE.md, the SDK leaf, `.claude/agents`, `.cursor/agents`, and
+  `.codex/agents`; none are hand-maintained.
 - Cost / sharp edges: multiple generated surfaces must stay green (`check:agents` in the gate + CI).
   The files render from the SEED, so live `--pg` agent edits don't show until a DB→seed export runs (the
-  gap CLAUDE.md already names). Neither generated directory may be hand-edited (the marker + drift
+  gap CLAUDE.md already names). No generated directory may be hand-edited (the marker + drift
   gate enforce this). These harness-native surfaces sit alongside ADR-0030's harness-agnostic pull
   model — a deliberate, additive convenience, not a reversal.
 
@@ -95,4 +97,4 @@ delegated to by the corresponding harness. That is the gap this decision closes,
 - [ADR-0029](0029-agents-as-library-artifact-category.md) — the `agent` knowledge kind.
 - [ADR-0030](0030-all-in-on-claude-agent-sdk.md) — harness-agnostic, pull-based context.
 - `packages/library/src/store/render-agent.ts`, `packages/cli/src/build-agents.ts`,
-  `.claude/agents/`, `.cursor/agents/`.
+  `.claude/agents/`, `.cursor/agents/`, `.codex/agents/`.

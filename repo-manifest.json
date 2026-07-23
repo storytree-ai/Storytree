@@ -28,7 +28,8 @@
       "legacy": "Read-only V1 Rust submodule (legacy/Agentic); reference only.",
       ".github": "CI workflows (the green gate + auto-merge, ADR-0022).",
       ".claude": "Claude Code project config / worktrees.",
-      ".cursor": "Cursor project config; generated native subagents mirror the Library agent tier (ADR-0178)."
+      ".cursor": "Cursor project config; generated native subagents mirror the Library agent tier (ADR-0178).",
+      ".codex": "Codex project config; generated native subagents mirror the Library agent tier."
     }
   },
   "docs": {
