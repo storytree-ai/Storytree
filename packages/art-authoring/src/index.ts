@@ -18,3 +18,9 @@ export * from './reauthor.js';
 // sprite-art-sheets spike (wave 2): the author-time studio-map sprite-sheet plan + background cutout.
 export * from './sprite/sprite-sheet-plan.js';
 export * from './sprite/cutout.js';
+// sprite-art-sheets (wave 3): the COHERENT whole-sheet pipeline — one generation per style, then a
+// content-aware slicer + a crown recolour + a review contact sheet.
+export * from './sprite/whole-sheet-plan.js';
+export * from './sprite/blob-slice.js';
+export * from './sprite/crown-recolor.js';
+export * from './sprite/contact-sheet.js';
