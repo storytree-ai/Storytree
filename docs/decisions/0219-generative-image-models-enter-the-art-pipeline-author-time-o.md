@@ -80,7 +80,12 @@ stays 2.5D isometric.** In four parts.
 3. **Look fork RESOLVED: baked VECTOR first,** reusing ADR-0218's fenced baked-art node family
    (`baked-def` / `baked-use` / `BakedPaintNode`) — cohesive shaded iso informed by the concept, not
    raster sprites. A literal-painterly **raster** layer is a bigger, later fork and is **not taken
-   now**; if it is ever wanted it is its own ADR.
+   now**; if it is ever wanted it is its own ADR. **That fork is now TAKEN by
+   [ADR-0230](0230-swappable-sprite-art-sheet-render-mode-take-adr-0219-s-parke.md):** the raster-sprite
+   look layer is adopted for the STUDIO map only, as a default-off, prototype-scoped `artStyle` toggle
+   selecting among nano-banana sprite art-sheets. It stands BESIDE this D3 baked-vector look, which
+   remains the DEFAULT render — 0230 adds an optional mode, it does not reverse baked-vector-first (D1
+   author-time-only, D2 hand-the-angle, D4 2.5D-isometric all STAND).
 
 4. **PARKED — do NOT reopen: the game is 2.5D ISOMETRIC and stays that way.** Real 3D / R3F is **Act 1
    only**. "3D" in this arc is an **authoring substrate** (decision 2's light ortho rig), never a
@@ -139,6 +144,11 @@ map renderer; Google video for Act 2; and any machine-signed look verdict.
   Google/Gemini image-reference only after a mesh-export verification); every other invariant here —
   author-time only, thrown-away maquette, re-author to checkable vector, baked-vector look D3,
   2.5D-isometric D4 — stands. Read it before relying on decision 2.
+- [ADR-0230](0230-swappable-sprite-art-sheet-render-mode-take-adr-0219-s-parke.md) — **amends this
+  ADR.** Takes D3's parked raster-sprite fork ("if it is ever wanted it is its own ADR") for the STUDIO
+  map only — a default-off, prototype-scoped sprite art-sheet render mode beside the baked-vector
+  default. D1 (author-time only), D2 (hand-the-angle), D3's baked-vector-as-default, and D4 (2.5D
+  isometric) all STAND; the vector look remains the default render.
 - [ADR-0214](0214-ground-ai-authored-art-in-a-physical-model-csg-over-svg-not.md) — **amended**: D4's
   "improving the art is a hard non-goal" becomes a named aesthetic DIRECTION (the cosy concept). D4's
   **never-reinterpret rule stands** — the concept informs an author, never our code (ADR-0217 D2).
