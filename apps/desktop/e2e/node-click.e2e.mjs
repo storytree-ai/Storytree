@@ -19,6 +19,7 @@ import {
   findStoryTarget,
   findEmptyPoint,
   panelOpen,
+  waitForPanel,
   renderedStoryIds,
   FIXTURE_MAP_STORY_IDS,
   readCameraTransform,
@@ -38,10 +39,13 @@ test('forest map: a story-node click opens the detail panel (clean + jittered); 
     );
 
     // 1) a CLEAN click selects the story (this is what regressed in Electron)
+    // Panel waits go through waitForPanel (evaluate polling), never a Playwright DOM-wait task —
+    // a wait task armed right after the click's hash navigation can wedge permanently in this
+    // Electron (see waitForPanel in harness.mjs for the full trap).
     const t1 = await findStoryTarget(win);
     assert.ok(t1, 'should find a clickable story node');
     await win.mouse.click(t1.cx, t1.cy);
-    await win.waitForSelector('.tree-detail', { state: 'attached', timeout: 4000 });
+    await waitForPanel(win, { present: true });
     assert.ok(await panelOpen(win), 'a clean click on a node opens the detail panel');
 
     // 2) a JITTERED click (~7px between press and release) still selects — not eaten as a micro-drag
@@ -52,7 +56,7 @@ test('forest map: a story-node click opens the detail panel (clean + jittered); 
     await win.mouse.down();
     await win.mouse.move(t2.cx + 6, t2.cy + 4); // < DRAG_SLOP (10px), so still a click, not a pan
     await win.mouse.up();
-    await win.waitForSelector('.tree-detail', { state: 'attached', timeout: 4000 });
+    await waitForPanel(win, { present: true });
     assert.ok(await panelOpen(win), 'a jittered click on a node opens the detail panel');
 
     // 3) clicking far-off empty map clears the selection
@@ -60,11 +64,11 @@ test('forest map: a story-node click opens the detail panel (clean + jittered); 
     const t3 = await findStoryTarget(win);
     assert.ok(t3, 'should find a clickable story node (clear case)');
     await win.mouse.click(t3.cx, t3.cy);
-    await win.waitForSelector('.tree-detail', { state: 'attached', timeout: 4000 });
+    await waitForPanel(win, { present: true });
     const empty = await findEmptyPoint(win);
     if (empty) {
       await win.mouse.click(empty.x, empty.y);
-      await win.waitForSelector('.tree-detail', { state: 'detached', timeout: 4000 });
+      await waitForPanel(win, { present: false });
       assert.equal(await panelOpen(win), false, 'clicking empty map clears the selection');
     }
 

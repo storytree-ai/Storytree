@@ -36,8 +36,8 @@ export const appDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 //
 // Hand-authored so the world renders identically every run (buildWorld hashes all jitter from ids).
 // Shape mirrors GET /api/tree. A small dependency DAG: one foundation engine, two dependents, plus one
-// `building: true` shared library (excluded from the map, rendered in the Shared Islands drawer). Three
-// laid-out islands give selection / pan / zoom something to act on; the building feeds the islands panel.
+// `building: true` shared library. Under the pathways-only default (ADR-0228) building-class stories lay
+// out on the map like any other island, so all four render; the flag only matters behind `?buildings=on`.
 
 const cap = (id, dependsOn = []) => ({
   id,
@@ -85,8 +85,8 @@ export const TREE_FIXTURE = {
       capabilities: [cap('gamma-step')],
     },
     {
-      // A `render: building` story: excluded from the map, shown in the Shared Islands drawer; its
-      // consumers (alpha-engine, beta-surface) carry its bookshelf stamp (ADR-0102).
+      // A `render: building` story. Since ADR-0228 the default map is pathways-only, so it lays out as
+      // an ordinary island (the old ADR-0088/0102 drawer + stamps model lives behind `?buildings=on`).
       id: 'shared-lib',
       title: 'Shared Lib',
       outcome: 'the shared building',
@@ -265,6 +265,28 @@ async function closeHard(app, { graceMs = 15_000 } = {}) {
 /** True iff the right-side story detail panel is open. */
 export const panelOpen = (win) => win.evaluate(() => !!document.querySelector('.tree-detail'));
 
+/**
+ * Poll until the detail panel is present/absent, by FRESH `evaluate` reads — never a Playwright
+ * DOM-wait task. A wait task (page.waitForSelector OR locator().waitFor()) armed in the immediate
+ * wake of a node-click's same-document hash navigation (#/tree → #/tree/<id>) can wedge permanently
+ * in this Electron (playwright-core 1.61.1, observed on Windows): it times out on an element that
+ * IS attached, while a per-read evaluate sees the DOM truthfully throughout. Throws with the
+ * observed state on timeout so the spec's failure names what the DOM actually held.
+ */
+export async function waitForPanel(win, { present, timeout = 4000 } = {}) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const open = await panelOpen(win);
+    if (open === present) return;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `timed out (${timeout}ms) waiting for .tree-detail to be ${present ? 'attached' : 'detached'} (panelOpen=${open})`,
+      );
+    }
+    await win.waitForTimeout(100);
+  }
+}
+
 /** The sorted unique `data-story-id`s present in the rendered world — the proof that the forest paints
  *  from the offline fixture (not a live DB leaking in): the caller asserts this is the fixture's set. */
 export const renderedStoryIds = (win) =>
@@ -274,9 +296,10 @@ export const renderedStoryIds = (win) =>
       .sort(),
   );
 
-/** The story ids the fixture LAYS OUT on the map (building-class `shared-lib` is excluded from the map
- *  and rendered in the Shared Islands drawer instead — ADR-0088). */
-export const FIXTURE_MAP_STORY_IDS = ['alpha-engine', 'beta-surface', 'gamma-flow'];
+/** The story ids the fixture LAYS OUT on the map — ALL of them, sorted to match renderedStoryIds():
+ *  the pathways-only default (ADR-0228) no longer excludes building-class stories, so `shared-lib`
+ *  renders as an ordinary island (the ADR-0088 drawer exclusion survives only behind `?buildings=on`). */
+export const FIXTURE_MAP_STORY_IDS = TREE_FIXTURE.stories.map((s) => s.id).sort();
 
 /**
  * Wait for the forest to be rendered AND the camera to stop moving. SVG `<g>` isn't "visible" to
@@ -289,7 +312,7 @@ export async function waitForForestSettled(win, { timeout = 25_000 } = {}) {
   // vegetation vocabulary (now the studio default) the tree is a baked-art `<use>` (the autumn-tree
   // hero), NOT a `g.story-tree`, so waiting on the tree class would hang. `g.hex-flora` is present
   // regardless of the tree kind or the async hero-kit load.
-  await win.waitForSelector('g.hex-flora', { state: 'attached', timeout });
+  await win.locator('g.hex-flora').first().waitFor({ state: 'attached', timeout });
   const readTransform = () =>
     win.evaluate(() => {
       const g = document.querySelector('g.world-camera');
