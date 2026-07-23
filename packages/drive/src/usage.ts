@@ -1,4 +1,4 @@
-import type { SdkRunInfo } from "@storytree/agent";
+import type { CodexRunInfo, SdkRunInfo } from "@storytree/agent";
 import { usageEvent } from "@storytree/orchestrator";
 import type { UsageEventDoc } from "@storytree/proof-protocol";
 import type { Store } from "@storytree/storage-protocol";
@@ -28,7 +28,9 @@ export interface UsageRunIds {
  * SKIPPED (capture is additive — there is nothing honest to persist for it); the doc keeps the
  * slice's coarse turns/costUsd accounting alongside the breakdown.
  */
-export function sliceUsageDocs(ids: UsageRunIds, runs: readonly SdkRunInfo[]): UsageEventDoc[] {
+export type LiveRunInfo = SdkRunInfo | CodexRunInfo;
+
+export function sliceUsageDocs(ids: UsageRunIds, runs: readonly LiveRunInfo[]): UsageEventDoc[] {
   const docs: UsageEventDoc[] = [];
   for (const run of runs) {
     if (run.usage === undefined) continue;
@@ -36,12 +38,19 @@ export function sliceUsageDocs(ids: UsageRunIds, runs: readonly SdkRunInfo[]): U
       unitId: ids.unitId,
       runId: ids.runId,
       phase: run.phase,
-      source: "sdk-leaf",
+      source: "source" in run ? run.source : "sdk-leaf",
       usage: run.usage,
       turns: run.turns,
-      costUsd: run.costUsd,
-      ...(ids.model !== undefined ? { model: ids.model } : {}),
-      ...(run.byModel !== undefined ? { byModel: run.byModel } : {}),
+      ...("costUsd" in run ? { costUsd: run.costUsd } : {}),
+      ...("reasoningOutputTokens" in run && run.reasoningOutputTokens !== undefined
+        ? { reasoningOutputTokens: run.reasoningOutputTokens }
+        : {}),
+      ...(ids.model !== undefined
+        ? { model: ids.model }
+        : "model" in run
+          ? { model: run.model }
+          : {}),
+      ...("byModel" in run && run.byModel !== undefined ? { byModel: run.byModel } : {}),
     });
   }
   return docs;
@@ -55,7 +64,7 @@ export function sliceUsageDocs(ids: UsageRunIds, runs: readonly SdkRunInfo[]): U
 export async function appendSliceUsage(
   store: Store,
   ids: UsageRunIds,
-  runs: readonly SdkRunInfo[],
+  runs: readonly LiveRunInfo[],
   signer: string,
   warn: (message: string) => void = (m) => console.error(`[usage] ${m}`),
 ): Promise<number> {

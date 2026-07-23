@@ -1,7 +1,7 @@
 // @storytree/agent — the agent runtimes (ADR-0011 / ADR-0030). This package is the SOLE model-
 // runtime import site (ADR-0004): the owned loop on the raw Messages API (the offline/test
-// executor and pivot-out fallback) AND the Claude Agent SDK leaf (the live runtime, ADR-0030),
-// both behind the runtime-agnostic PhaseAuthor seam.
+// executor and pivot-out fallback) plus the Claude-default and Codex-opt-in subscription leaves,
+// all behind the runtime-agnostic PhaseAuthor seam (ADR-0030 / ADR-0232).
 export type {
   Model,
   ModelMessage,
@@ -20,7 +20,7 @@ export { runTurn, DEFAULT_MAX_TURNS } from "./run-turn.js";
 export type { StepResult, StepArgs } from "./step.js";
 export { runStep, runStepValidated } from "./step.js";
 
-export type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
+export type { AuthoringPhase, AuthorResult, LiveRuntime, PhaseAuthor } from "./phase-author.js";
 
 export type {
   SdkQueryFn,
@@ -40,6 +40,24 @@ export {
   composeLeafSystemPrompt,
   usageFromSdkResult,
 } from "./sdk-author.js";
+
+export type {
+  CodexCommand,
+  CodexCommandResult,
+  CodexRunner,
+  CodexWriteViolation,
+  CodexRunInfo,
+  CodexPhaseAuthorArgs,
+} from "./codex-author.js";
+export {
+  DEFAULT_CODEX_MODEL,
+  CodexPhaseAuthor,
+  scrubMeteredCodexAuth,
+  isChatGptManagedLogin,
+  buildCodexExecArgs,
+  parseCodexJsonl,
+  runPinnedCodexCli,
+} from "./codex-author.js";
 
 export type { SdkCuratorArgs, SdkCuratorResult } from "./sdk-curator.js";
 export { runSdkCurator } from "./sdk-curator.js";

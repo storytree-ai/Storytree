@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { SdkRunInfo } from "@storytree/agent";
+import type { CodexRunInfo, SdkRunInfo } from "@storytree/agent";
 import { UsageEventDoc } from "@storytree/proof-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
 
@@ -51,6 +51,35 @@ test("a slice without a token breakdown is skipped — capture is additive, noth
   ]);
   assert.equal(docs.length, 1);
   assert.equal(docs[0]!.phase, "IMPLEMENT");
+});
+
+test("Codex usage keeps subscription accounting and never invents API/list-price cost", () => {
+  const runs: CodexRunInfo[] = [
+    {
+      source: "codex-leaf",
+      phase: "IMPLEMENT",
+      subtype: "success",
+      turns: 1,
+      model: "gpt-5.6-terra",
+      usage: USAGE,
+      reasoningOutputTokens: 7,
+    },
+  ];
+  const docs = sliceUsageDocs({ unitId: "u1", runId: "codex-r" }, runs);
+  assert.deepEqual(docs, [
+    {
+      unitId: "u1",
+      runId: "codex-r",
+      phase: "IMPLEMENT",
+      source: "codex-leaf",
+      usage: USAGE,
+      turns: 1,
+      model: "gpt-5.6-terra",
+      reasoningOutputTokens: 7,
+    },
+  ]);
+  assert.equal("costUsd" in docs[0]!, false);
+  UsageEventDoc.parse(docs[0]);
 });
 
 test("appendSliceUsage lands one usage event per slice in the run's store", async () => {

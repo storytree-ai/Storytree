@@ -50,8 +50,9 @@ artifact_edges: [embedded-terminal, studio]
 # proof — behaviour machine-proven, the native-shell pre-fill operator-attested); 0158 (the TreeView seed
 # wiring is glue — un-asserted connective code WITHIN the story, witnessed under the Story UAT); 0010 (the
 # organism model + the splitting-rule tiering the two caps); 0057 (the spec-borne proof config making
-# each cap inner-loop buildable); 0004 (the thin-client boundary — the terminal is the interactive surface;
-# the prove-it-gate leaf sdk-author.ts is UNTOUCHED and the renderer imports no @storytree/agent).
+# each cap inner-loop buildable); 0004 (the thin-client boundary — the terminal is the interactive
+# surface; the prove-it-gate runtime binding is UNTOUCHED and the renderer imports no
+# @storytree/agent).
 decisions: [174, 137, 70, 158, 10, 57, 4]
 ---
 
@@ -99,19 +100,21 @@ story's `terminal-dock-seed`, now superseded).
 ## What this story is NOT (the walls — encode from the ADRs)
 
 - **It re-points the INTERACTIVE dispatch, NOT the prove-it-gate (ADR-0174 CRITICAL scoping note).** Signed
-  `--real` verdicts still come **only** from the deterministic spine driving `ClaudeAgentAuthor`
-  (`packages/agent/src/sdk-author.ts`) through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN →
-  GATE` walk (`packages/orchestrator/*`). This story changes only WHERE the map's Build **click** sends its
+  `--real` verdicts still come **only** from the deterministic spine driving the selected
+  `PhaseAuthor` — `ClaudeAgentAuthor` is the compatibility default and `--runtime codex` opts into
+  `CodexPhaseAuthor` — through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`
+  walk (`packages/orchestrator/*`). This story changes only WHERE the map's Build **click** sends its
   intent — into the terminal (where the user's real Claude Code runs the command) instead of the in-app
   build-registry → SDK author. The command it seeds (`storytree … build --real --store pg`) drives the
   SAME proof path when the user runs it; whether a human fires it from this terminal or a headless job
-  fires it, the proof runtime is identical. The prove-it-gate leaf (`sdk-author.ts`) and the whole
-  `packages/orchestrator` spine are **UNTOUCHED** (ADR-0020 / ADR-0030 / ADR-0091 stand).
+  fires it, the proof path and spine authority are identical. The prove-it-gate runtime binding and
+  the whole `packages/orchestrator` spine are **UNTOUCHED** (ADR-0020 / ADR-0030 / ADR-0091 stand).
 - **Desktop-only — the in-app dispatch is RETAINED as the bridge-absent fallback, NOT deleted.** The
   embedded terminal exists only where `window.desktopTerminal` is present (the Electron desktop). Where it
   is absent — the hosted studio (members are watch-and-comment only until cloud terminals land, ADR-0174),
   the dev studio in a plain browser, any non-desktop surface — there is no terminal to seed, so the
-  EXISTING `api.build` → build-registry → `ClaudeAgentAuthor` dispatch stays exactly as today. This is a
+  EXISTING `api.build` → build-registry dispatch stays on its Claude compatibility default. Codex is
+  available only when `--runtime codex` is selected explicitly. This is a
   feature-detected re-point, not a wholesale retirement of the in-app build path (the dispatch machinery in
   `apps/studio/server` / `packages/drive` is unchanged and still serves the fallback + capability `--live`
   smokes + `desktop-build-mount`'s routed dispatch). Cloud/web terminals are DEFERRED (ADR-0174).

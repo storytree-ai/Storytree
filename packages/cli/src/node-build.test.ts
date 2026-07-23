@@ -92,6 +92,36 @@ test("node build with BOTH modes is refused (dry-run xor live)", async () => {
   assert.match(env.body, /pick exactly one mode/);
 });
 
+test("node build parses --runtime, keeps it live-only, and refuses fake Codex controls", async () => {
+  const dry = await run(
+    ["node", "build", "library-cli", "--dry-run", "--runtime", "codex"],
+    deps,
+  );
+  assert.equal(dry.ok, false);
+  assert.match(dry.body, /valid only with --live or --real/);
+
+  const unknown = await run(
+    ["node", "build", "library-cli", "--live", "--runtime", "other"],
+    deps,
+  );
+  assert.equal(unknown.ok, false);
+  assert.match(unknown.body, /unknown --runtime "other"/);
+
+  const budget = await run(
+    ["node", "build", "library-cli", "--live", "--runtime", "codex", "--budget", "1"],
+    deps,
+  );
+  assert.equal(budget.ok, false);
+  assert.match(budget.body, /ChatGPT subscription quota/);
+
+  const turns = await run(
+    ["node", "build", "library-cli", "--live", "--runtime", "codex", "--max-turns", "2"],
+    deps,
+  );
+  assert.equal(turns.ok, false);
+  assert.match(turns.body, /fixed at 1/);
+});
+
 test("node build with --dry-run AND --real is refused; the mode menu names --real", async () => {
   const env = await run(["node", "build", "verdict-line", "--dry-run", "--real"], deps);
   assert.equal(env.ok, false);

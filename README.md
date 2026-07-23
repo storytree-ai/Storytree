@@ -71,12 +71,13 @@ store and render in our own UI. No external trace SaaS.
 | Orchestration | thin custom layer | the story-DAG + event store; small, ours |
 | Observability | own event store | owned-loop events + orchestrator events → typed event log → UI. No per-trace SaaS |
 | Tree UI | **SVG** hex-forest world (ADR-0036/0069; PixiJS was rejected) | procedural SVG scenes, no engine dependency; R3F/WebGL stays a far-future website target (ADR-0145) |
-| Models | via the owned loop | pay-as-you-go API keys; not tied to a subscription |
+| Models | via `PhaseAuthor` | Claude subscription by default; opt-in Codex reuses saved ChatGPT auth; owned loop stays offline/pivot-out |
 
 See [docs/decisions/0001-foundational-stack.md](docs/decisions/0001-foundational-stack.md)
 for how this was chosen (and what was rejected — Mastra, LangGraph/LangSmith,
-Google ADK; the Claude Agent SDK, initially passed over, later became the **live**
-runtime per ADR-0030, with the owned loop demoted to the offline executor).
+Google ADK; the Claude Agent SDK, initially passed over, later became the default **live**
+runtime per ADR-0030, with the owned loop demoted to the offline executor; ADR-0232 adds an
+opt-in ChatGPT-subscription Codex leaf through the same proof boundary).
 
 ## Principles
 

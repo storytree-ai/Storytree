@@ -4,7 +4,7 @@ import * as os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { ClaudeAgentAuthor, PhaseAuthor } from "@storytree/agent";
+import type { ClaudeAgentAuthor, CodexPhaseAuthor, LiveRuntime, PhaseAuthor } from "@storytree/agent";
 import type { Store } from "@storytree/storage-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import {
@@ -72,7 +72,7 @@ import { appendSliceUsage } from "./usage.js";
  *
  * HONEST FRAMING (repeated in the envelope): a dry-run proves the GLUE — spec → ProveSpec → gate →
  * signed verdict → rollup — not the node's actual proofs. The model is scripted and the red→green
- * is synthetic. `--live` is the ADR-0030 SDK smoke (subscription-funded, SDK-enforced budget).
+ * is synthetic. `--live` is the ADR-0030/0232 subscription-leaf smoke.
  */
 
 const HONEST_FRAMING_DRY =
@@ -80,10 +80,14 @@ const HONEST_FRAMING_DRY =
   "node's actual proofs — the model is scripted and the red→green is synthetic in a temp workspace.\n" +
   "The node's authored status is untouched; the verdict landed in an in-memory store and is gone.";
 
-function honestFramingLive(persisted: boolean): string {
+function honestFramingLive(persisted: boolean, runtime: LiveRuntime): string {
+  const leaf =
+    runtime === "codex"
+      ? "the Codex CLI with saved ChatGPT subscription authentication"
+      : "the Claude Agent SDK with subscription authentication";
   return (
-    "honest framing: a live smoke proves the LIVE LOOP through the gate — a real Claude Agent SDK leaf\n" +
-    "(ADR-0030, subscription-funded) genuinely authored the test and impl under hook-enforced write\n" +
+    `honest framing: a live smoke proves the LIVE LOOP through the gate — ${leaf}\n` +
+    "(ADR-0030/0232) genuinely authored the test and impl under phase-enforced write\n" +
     "scope, and the spine observed the genuine red→green those writes caused. The TASK is still the\n" +
     "synthetic add(2,3) pair in a temp workspace — the node's REAL proof command was not run (Phase F).\n" +
     `The node's authored status is untouched; ${verdictFate(persisted)}.`
@@ -95,7 +99,12 @@ function honestFramingReal(
   promotion: PromotionResult | undefined,
   regression: "green" | "red" | undefined,
   typecheck: "green" | "red" | undefined,
+  runtime: LiveRuntime,
 ): string {
+  const leaf =
+    runtime === "codex"
+      ? "the ChatGPT-subscription Codex leaf via exact replica promotion"
+      : "the Claude Agent SDK leaf under hook-enforced write scope";
   const commitFate =
     promotion !== undefined
       ? `the authored commit is PARKED on ${promotion.branch}\n(landing rides the PR/CI gate — merge NON-SQUASH so the verdict's commit stays an ancestor of main)`
@@ -108,8 +117,8 @@ function honestFramingReal(
         : `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nand the package typecheck ${typecheck.toUpperCase()} in the installed worktree (the proof run is\ntsx-driven — types stripped — so only the typecheck sees type-illegal code)`;
   return (
     "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the\n" +
-    "node's REAL test/impl files at their real repo paths authored by a live Claude Agent SDK leaf\n" +
-    "under hook-enforced write scope, the node's declared REAL proof command run by the spine for\n" +
+    `node's REAL test/impl files at their real repo paths authored by ${leaf},\n` +
+    "the node's declared REAL proof command run by the spine for\n" +
     "both red and green, a spine-side commit of the authored files, and a GATE that read genuine\n" +
     `\`git status\` off that worktree. ${commitFate}` +
     (persisted ? "" : "; the verdict\nlanded in an in-memory store and is gone") +
@@ -175,7 +184,7 @@ function defaultStoriesDir(): string {
   return path.join(repoRoot(), "stories");
 }
 
-// ── The live SDK leaf's per-phase system prompt = the rendered Library agent (ADR-0051 §4) ──
+// ── The live leaf's per-phase system prompt = the rendered Library agent (ADR-0051 §4) ──
 
 /** The Library agent that drives the red phase (AUTHOR_TEST): writes the one failing test, stops. */
 export const RED_BUILDER_AGENT = "red-builder";
@@ -434,6 +443,21 @@ export function resolveAddDepsGroup(
 
 // ── The single-node drive (shared by `node build` and `story build`) ────────
 
+/** The two admitted live authors behind the runtime-neutral PhaseAuthor seam. */
+export type LiveAuthor = ClaudeAgentAuthor | CodexPhaseAuthor;
+
+/** Validate the CLI/runtime boundary once; every internal caller receives a closed union. */
+export function resolveLiveRuntime(
+  value: string | undefined,
+): { ok: true; runtime: LiveRuntime } | { ok: false; reason: string } {
+  if (value === undefined || value === "claude") return { ok: true, runtime: "claude" };
+  if (value === "codex") return { ok: true, runtime: "codex" };
+  return {
+    ok: false,
+    reason: `unknown --runtime "${value}" — choose "claude" or "codex"`,
+  };
+}
+
 export interface DriveNodeArgs {
   mode: "dry-run" | "live-smoke";
   /** The event store the building mark + signed verdict land in (shared across a story run). */
@@ -441,14 +465,16 @@ export interface DriveNodeArgs {
   runId: string;
   /** The resolved signer (also the work-event actor). */
   signer: string;
-  /** SDK leaf model (live only). */
+  /** Selected live leaf model (live only). */
   model?: string;
+  /** Subscription-funded live leaf. Default: Claude. */
+  runtime?: LiveRuntime;
   /** OPTIONAL per-authoring-slice USD ceiling, SDK-enforced (live only). Absent = no USD ceiling (ADR-0130). */
   budgetUsd?: number;
   /** Per-authoring-slice turn ceiling, SDK-enforced (live only). Default: 16. */
   maxTurns?: number;
   /**
-   * The rendered red-builder/green-builder system prompts the live SDK leaf runs on (ADR-0051 §4),
+   * The rendered red-builder/green-builder system prompts the live leaf runs on (ADR-0051 §4),
    * assembled once by the caller and passed down. Required for live-smoke; the dry-run owned loop
    * ignores it.
    */
@@ -456,7 +482,7 @@ export interface DriveNodeArgs {
 }
 
 export type DriveNodeResult =
-  | { resolved: true; result: ProveResult; liveAuthor?: ClaudeAgentAuthor }
+  | { resolved: true; result: ProveResult; liveAuthor?: LiveAuthor }
   | { resolved: false; reason: string; registered: string[] };
 
 /**
@@ -475,6 +501,7 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
       ),
     );
     const sdkOpts = {
+      ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.budgetUsd !== undefined ? { maxBudgetUsd: args.budgetUsd } : {}),
       ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
@@ -535,7 +562,30 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
 }
 
 /** The per-node leaf summary lines shared by the node and story envelopes. */
-export function liveLeafLines(liveAuthor: ClaudeAgentAuthor): string[] {
+export function liveLeafLines(liveAuthor: LiveAuthor): string[] {
+  if (liveAuthor.runtime === "codex") {
+    return [
+      `leaf:        Codex CLI / ChatGPT subscription (${liveAuthor.runs.map((r) => `${r.phase}: ${r.subtype}, ${r.turns} turn`).join("; ") || "no slices ran"})`,
+      "cost:        not metered — ChatGPT subscription quota (no API/list-price USD asserted)",
+      ...(liveAuthor.runs.some((r) => r.usage !== undefined)
+        ? [
+            `tokens:      ${liveAuthor.runs
+              .flatMap((r) =>
+                r.usage === undefined
+                  ? []
+                  : [{ phase: r.phase, u: r.usage, reasoning: r.reasoningOutputTokens }],
+              )
+              .map(
+                ({ phase, u, reasoning }) =>
+                  `${phase}: ${u.outputTokens} out / ${u.inputTokens} in / ${u.cacheReadInputTokens} cache-read / ${u.cacheCreationInputTokens} cache-write${reasoning === undefined ? "" : ` / ${reasoning} reasoning`}`,
+              )
+              .join("; ")}`,
+          ]
+        : []),
+      `scope walls: ${liveAuthor.violations.length === 0 ? "no write refusals" : liveAuthor.violations.map((v) => `${v.phase}:${v.path}`).join(", ")}`,
+      "feedback:    none — the spine reruns every registered proof command out of band",
+    ];
+  }
   return [
     `leaf:        Claude Agent SDK (${liveAuthor.runs.map((r) => `${r.phase}: ${r.subtype}, ${r.turns} turns`).join("; ") || "no slices ran"})`,
     `cost:        $${liveAuthor.totalCostUsd.toFixed(4)} SDK-reported (subscription-billed)`,
@@ -620,6 +670,7 @@ export interface RealBuildArgs {
   phasePrompts: LeafPhasePrompts;
   repoRoot: string;
   model?: string;
+  runtime?: LiveRuntime;
   budgetUsd?: number;
   maxTurns?: number;
   /**
@@ -642,7 +693,7 @@ export interface RealBuildArgs {
 /** Outcome of {@link buildNodeReal}: the gate result plus the promotion/backstop facts (when promoting). */
 export interface RealBuildResult {
   result: ProveResult;
-  liveAuthor?: ClaudeAgentAuthor;
+  liveAuthor?: LiveAuthor;
   /** The verdict's commit (= the new worktree HEAD) on a pass that authored; undefined otherwise. */
   commitSha?: string;
   promotion?: PromotionResult;
@@ -674,6 +725,7 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
     phasePrompts: args.phasePrompts,
     ...(args.authorOverride !== undefined ? { authorOverride: args.authorOverride } : {}),
     ...(args.dbProofEnv !== undefined ? { dbProofEnv: args.dbProofEnv } : {}),
+    ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.budgetUsd !== undefined ? { maxBudgetUsd: args.budgetUsd } : {}),
     ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
@@ -752,12 +804,14 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
 
 export interface NodeBuildOpts {
   dryRun: boolean;
-  /** `--live` — the ADR-0030 live smoke: a real Claude Agent SDK leaf authors through the gate. */
+  /** `--live` — a real selected subscription leaf authors the synthetic pair through the gate. */
   live?: boolean;
   /** `--real` — Phase F: the leaf authors the node's REAL proof in a fresh git worktree. */
   real?: boolean;
-  /** `--model` — the SDK leaf's model (live/real only). Default: claude-sonnet-5. */
+  /** `--model` — runtime-relative live model override. Defaults are owned by each leaf. */
   model?: string;
+  /** `--runtime claude|codex` — explicit live leaf selection. Default: Claude compatibility path. */
+  runtime?: string;
   /**
    * `--budget` — OPTIONAL per-authoring-slice USD ceiling, SDK-enforced (live/real only). Default:
    * NONE — no USD ceiling (ADR-0130); the leaf is subscription-funded (ADR-0030), so a metered dollar
@@ -827,9 +881,8 @@ export async function nodeBuild(
       body:
         "pick exactly one mode:\n" +
         "  --dry-run   offline scripted walk (zero cost)\n" +
-        "  --live      ADR-0030 live smoke: a real Claude Agent SDK leaf authors the SYNTHETIC\n" +
-        "              add(2,3) pair through the gate (subscription-funded; needs Claude Code\n" +
-        "              auth / CLAUDE_CODE_OAUTH_TOKEN)\n" +
+        "  --live      subscription leaf smoke: --runtime claude|codex authors the SYNTHETIC\n" +
+        "              add(2,3) pair through the gate (default: claude)\n" +
         "  --real      Phase F: the leaf authors the node's REAL test/impl in a fresh git\n" +
         "              worktree; the spine runs the node's REAL proof command and commits the\n" +
         "              authored files before the GATE reads the real tree",
@@ -841,6 +894,36 @@ export async function nodeBuild(
     };
   }
   const mode = real ? "real" : live ? "live-smoke" : "dry-run";
+  const runtimeResult = resolveLiveRuntime(opts.runtime);
+  if (!runtimeResult.ok) {
+    return { ok: false, body: runtimeResult.reason, next: [`storytree node build ${unitId} --live --runtime claude`] };
+  }
+  const runtime = runtimeResult.runtime;
+  if (!live && !real && opts.runtime !== undefined) {
+    return {
+      ok: false,
+      body: "--runtime selects a live subscription leaf and is valid only with --live or --real",
+      next: [`storytree node build ${unitId} --live --runtime ${runtime}`],
+    };
+  }
+  if (runtime === "codex" && opts.budgetUsd !== undefined) {
+    return {
+      ok: false,
+      body:
+        "--budget is unavailable with --runtime codex: Codex uses ChatGPT subscription quota and " +
+        "reports no honest USD spend. Drop --budget or select --runtime claude.",
+      next: [`storytree node build ${unitId} ${real ? "--real" : "--live"} --runtime codex`],
+    };
+  }
+  if (runtime === "codex" && opts.maxTurns !== undefined && opts.maxTurns !== 1) {
+    return {
+      ok: false,
+      body:
+        "--max-turns is fixed at 1 with --runtime codex: each prove-it phase is exactly one " +
+        "non-interactive Codex turn. Omit the flag or pass --max-turns 1.",
+      next: [`storytree node build ${unitId} ${real ? "--real" : "--live"} --runtime codex`],
+    };
+  }
 
   // Fail-closed before any work: a verdict must be attributable (flag → env → git email).
   const signer = resolveSignerFromEnv(
@@ -1013,7 +1096,7 @@ export async function nodeBuild(
     }
 
     let result: ProveResult;
-    let liveAuthor: ClaudeAgentAuthor | undefined;
+    let liveAuthor: LiveAuthor | undefined;
     let worktree: BuildWorktree | undefined;
     let promotion: PromotionResult | undefined;
     let promotionSkipped: string | undefined;
@@ -1046,6 +1129,7 @@ export async function nodeBuild(
           signer: signer.signer,
           phasePrompts,
           repoRoot: repoRoot(),
+          runtime,
           ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
@@ -1066,6 +1150,7 @@ export async function nodeBuild(
         store,
         runId,
         signer: signer.signer,
+        ...(live ? { runtime } : {}),
         ...(phasePrompts !== undefined ? { phasePrompts } : {}),
         ...(opts.model !== undefined ? { model: opts.model } : {}),
         ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
@@ -1091,6 +1176,7 @@ export async function nodeBuild(
       `run:         ${runId}`,
       `signer:      ${signer.signer}`,
       `store:       ${storeChoice.label}`,
+      ...(live || real ? [`runtime:     ${runtime}${opts.model !== undefined ? ` (${opts.model})` : ""}`] : []),
       ...(real && worktree !== undefined && realConfig !== undefined
         ? [
             `worktree:    ${worktree.root} (detached @ ${worktree.headSha.slice(0, 7)}${realConfig.install === true ? ", deps installed (lockfile-only)" : ""}, removed after)`,
@@ -1132,9 +1218,9 @@ export async function nodeBuild(
       ...(promotionSkipped !== undefined ? [`promotion:   skipped — ${promotionSkipped}`] : []),
     ];
     const framing = real
-      ? honestFramingReal(persisted, promotion, regression, typecheck)
+      ? honestFramingReal(persisted, promotion, regression, typecheck, runtime)
       : live
-        ? honestFramingLive(persisted)
+      ? honestFramingLive(persisted, runtime)
         : HONEST_FRAMING_DRY;
 
     if (!result.ok) {
@@ -1326,17 +1412,17 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
       "      temp workspace: zero API cost, no live DB. Proves the drive-machinery glue, not",
       "      the node's actual proofs.",
       "",
-      "  storytree node build <id> --live [--model <id>] [--budget <usd>] [--actor <email>]",
-      "      the ADR-0030 live smoke: a REAL Claude Agent SDK leaf (subscription-funded) authors",
+      "  storytree node build <id> --live [--runtime claude|codex] [--model <id>] [--budget <usd>] [--actor <email>]",
+      "      the live smoke: a REAL subscription-funded leaf (Claude by default, Codex opt-in) authors",
       "      the synthetic red→green pair through the gate under hook-enforced write scope.",
-      "      Needs Claude Code auth (CLAUDE_CODE_OAUTH_TOKEN). No USD ceiling by default (ADR-0130;",
-      "      the turn cap is the brake) — --budget opts into a per-slice cap.",
+      "      Claude needs Claude Code auth; Codex requires saved ChatGPT-managed Codex auth and",
+      "      defaults to gpt-5.6-terra. --budget is an optional Claude-only per-slice cap.",
       "",
-      "  storytree node build <id> --real [--model <id>] [--budget <usd>] [--max-turns <n>] [--actor <email>]",
+      "  storytree node build <id> --real [--runtime claude|codex] [--model <id>] [--budget <usd>] [--max-turns <n>] [--actor <email>]",
       "      Phase F — the REAL build: a fresh git worktree of this repo, the leaf authors the",
       "      node's REAL test/impl at their real paths, the spine runs the node's REAL proof",
       "      command for red/green, commits the authored files, and the GATE reads genuine git",
-      "      state. Needs Claude Code auth. A signed PASS is PROMOTED (ADR-0031): the proven",
+      "      state. Needs the selected runtime's subscription auth. A signed PASS is PROMOTED (ADR-0031): the proven",
       "      commit is parked on claude/real/<id>-<run> and pushed when origin exists — land it",
       "      via PR with a NON-SQUASH merge. Registry nodes with real.install get a lockfile-only",
       "      pnpm install in the worktree plus a package typecheck (tsx strips types; tsc must",

@@ -18,7 +18,8 @@ capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-
 # are now declared cross-story edges — they were exempt substrate dependencies before ADR-0075.
 # ADR-0058 §3 + the now-authored stories/agent organism: the spine imports @storytree/agent as a
 # RUNTIME dependency (OwnedLoopAuthor + the gate consume the PhaseAuthor seam; resolve-prove-spec
-# binds ClaudeAgentAuthor) — the cross-story edge the "PhaseAuthor seam is CONSUMED, not owned"
+# binds ClaudeAgentAuthor by default or CodexPhaseAuthor when explicitly selected) — the cross-story
+# edge the "PhaseAuthor seam is CONSUMED, not owned"
 # section below predicted this frontmatter would gain once the leaf organism was authored. Declared
 # CONSUMER-side here; the agent root organism is depends_on [] (it imports no @storytree/* package).
 depends_on: [library, storage-protocol, proof-protocol, agent, notice-board]
@@ -30,7 +31,7 @@ depends_on: [library, storage-protocol, proof-protocol, agent, notice-board]
 # (lazy-imports @storytree/drive, dropping its cli dep, ADR-0112) — but via the studio→drive-machinery
 # edge already declared in stories/studio/story.md, so no new graph edge appears here.
 consumed_by: [cli]
-# Deciding ADRs (ADR-0037 §2): the spine sequence (5), the gate (20), the SDK leaf (30),
+# Deciding ADRs (ADR-0037 §2): the spine sequence (5), the gate (20), the live-author seam (30),
 # promotion (31), leaf feedback tools (35), the OQ hygiene gate on live builds (37), the
 # inner-loop-expansion keystone — node-borne proof config (57) — gate-as-proof authoring (59),
 # the drive-package extraction that gave this story its own @storytree/drive home (112), the
@@ -38,8 +39,8 @@ consumed_by: [cli]
 # of Story UAT legs 3/4/7 (184 — leg 4 landed as the observe ancestry gate-5, leg 3 as the
 # live-artifact witnessable-verdict gate-6, leg 7 as the cold-start dogfood-probe witness gate-7
 # (dogfood-probe.run.ts / dogfood-witness.check.ts); all three legs now machine — no human UAT leg
-# remains).
-decisions: [5, 20, 30, 31, 35, 37, 57, 59, 60, 112, 180, 184]
+# remains), and the ChatGPT-funded Codex live leaf beside the Claude compatibility default (232).
+decisions: [5, 20, 30, 31, 35, 37, 57, 59, 60, 112, 180, 184, 232]
 ---
 
 # The drive machinery
@@ -86,8 +87,9 @@ declared cross-story interface to that organism, and the frontmatter `depends_on
 `packages/agent` imports no `@storytree/*` package so it is a depends_on-[] root organism) is recorded
 in the agent story. The original case below stands as the rationale:
 
-`packages/agent` — the `PhaseAuthor` seam type, the live `ClaudeAgentAuthor` (ADR-0030), and the
-owned-loop internals (`model.ts`/`run-turn.ts`/`step.ts`/`tool-executor.ts`/`fs-tools.ts`) — is
+`packages/agent` — the `PhaseAuthor` seam type, the live `ClaudeAgentAuthor` compatibility default,
+the opt-in `CodexPhaseAuthor` (`--runtime codex`, ADR-0232), and the owned-loop internals
+(`model.ts`/`run-turn.ts`/`step.ts`/`tool-executor.ts`/`fs-tools.ts`) — is
 **not a capability of this story** (it is the `agent` organism's). The reasoning:
 
 1. **The seam's whole point is author-agnosticism.** ADR-0030 §2 frames `PhaseAuthor` as the
@@ -96,14 +98,14 @@ owned-loop internals (`model.ts`/`run-turn.ts`/`step.ts`/`tool-executor.ts`/`fs-
    makes the pivot-out fallback real. The gate consumes the seam as a TYPE only
    (`prove-it-gate.ts:18`).
 2. **`packages/agent` is its own organism** — a model seam, a turn loop, a fail-closed step
-   runner, a real file-tool surface, and the SDK leaf, with its own passing suite (55/55). That is
+   runner, a real file-tool surface, and the live leaves, with its own passing suite. That is
    a story-sized bounded context (ADR-0010), currently unauthored.
 3. **The spine-side adapter IS in-story.** `OwnedLoopAuthor` lives in `packages/orchestrator` and
    is mapped here as [`owned-loop-phase-author`](owned-loop-phase-author.md) — the drive owns its
    side of the seam, not the loop behind it.
-4. **The one place the seam goes concrete** — the VALUE import of `ClaudeAgentAuthor` in
-   [`prove-spec-resolution`](prove-spec-resolution.md) (`resolve-prove-spec.ts:3-8`) — is the
-   injection layer, which is exactly where a seam SHOULD be bound to an implementation.
+4. **The one place the seam goes concrete** — the VALUE imports of `ClaudeAgentAuthor` and
+   `CodexPhaseAuthor` in [`prove-spec-resolution`](prove-spec-resolution.md) — is the injection
+   layer, which is exactly where a seam SHOULD be bound to the explicitly selected implementation.
 
 Consequence (now realized): the `packages/agent` leaf organism is authored as
 [`stories/agent`](../agent/story.md); the seam is its declared cross-story interface (ADR-0010 §4)
@@ -252,8 +254,9 @@ coupling) and marked.
 **Cross-story:** the `library` edge (the store-connection seam + the OQ loader's library stores),
 the `storage-protocol` + `proof-protocol` root-port edges (ADR-0075), and the **`agent`** edge — the
 spine imports `@storytree/agent` to consume the `PhaseAuthor` seam (`OwnedLoopAuthor` + the gate +
-the prove-spec resolver) and bind `ClaudeAgentAuthor`. See the "PhaseAuthor seam is CONSUMED, not
-owned" section above for the now-settled modeling call.
+the prove-spec resolver) and bind `ClaudeAgentAuthor` by default or `CodexPhaseAuthor` when
+`--runtime codex` is selected. See the "PhaseAuthor seam is CONSUMED, not owned" section above for
+the now-settled modeling call.
 
 ## Units
 

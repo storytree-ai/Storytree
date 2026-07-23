@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { ClaudeAgentAuthor, PhaseAuthor } from "@storytree/agent";
+import type { PhaseAuthor } from "@storytree/agent";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import type { AdrMeta } from "./adr-frontmatter.js";
 import type { Store } from "@storytree/storage-protocol";
@@ -39,11 +39,12 @@ import {
   renderLeafPhasePrompts,
   repoRoot,
   rel,
+  resolveLiveRuntime,
   resolveAddDepsGroup,
   resolveDbProofEnv,
   resolveVerdictStore,
 } from "./node-build.js";
-import type { ClaimStoreLike } from "./node-build.js";
+import type { ClaimStoreLike, LiveAuthor } from "./node-build.js";
 import { PgCommentStore, PgLibraryStore, closePool, createPool } from "@storytree/library/store";
 
 import { loadAdrMetas } from "./adr-metas.js";
@@ -237,6 +238,8 @@ export interface StoryBuildOpts {
   real?: boolean;
   /** `--model` — the SDK leaf's model (live/real only). */
   model?: string;
+  /** `--runtime claude|codex` — explicit live leaf selection. Default: Claude compatibility path. */
+  runtime?: string;
   /**
    * `--budget` — OPTIONAL TOTAL USD ceiling across every node (live/real only). Default: NONE — no USD
    * ceiling (ADR-0130); the per-slice turn cap is the runaway brake. Set it to opt into a total cap.
@@ -341,12 +344,12 @@ export async function storyBuild(
       body:
         "pick exactly one mode:\n" +
         "  --dry-run   offline scripted walk of every node, topo-ordered (zero cost)\n" +
-        "  --live      a real Claude Agent SDK leaf per node (subscription-funded), SYNTHETIC task,\n" +
-        "              no USD ceiling by default — the turn cap brakes each slice (--budget opts into one)\n" +
+        "  --live      a real subscription leaf per node (--runtime claude|codex; Claude default),\n" +
+        "              SYNTHETIC task; --budget is an optional Claude-only ceiling\n" +
         "  --real      ADR-0057 §3 expansion D: chain node build --real over the WHOLE story —\n" +
         "              each node authored for real in ONE shared worktree in dependency order, signed,\n" +
         "              the proven chain promoted ONCE at the stacked HEAD (a halt parks the prefix\n" +
-        "              local-only). Subscription-funded; no USD ceiling by default (--budget opts into one)",
+        "              local-only). Subscription-funded; --budget is Claude-only",
       next: [
         `storytree story build ${storyId} --dry-run`,
         `storytree story build ${storyId} --live`,
@@ -355,6 +358,36 @@ export async function storyBuild(
     };
   }
   const mode = real ? "real" : live ? "live" : "dry-run";
+  const runtimeResult = resolveLiveRuntime(opts.runtime);
+  if (!runtimeResult.ok) {
+    return { ok: false, body: runtimeResult.reason, next: [`storytree story build ${storyId} --live --runtime claude`] };
+  }
+  const runtime = runtimeResult.runtime;
+  if (!live && !real && opts.runtime !== undefined) {
+    return {
+      ok: false,
+      body: "--runtime selects a live subscription leaf and is valid only with --live or --real",
+      next: [`storytree story build ${storyId} --live --runtime ${runtime}`],
+    };
+  }
+  if (runtime === "codex" && opts.budgetUsd !== undefined) {
+    return {
+      ok: false,
+      body:
+        "--budget is unavailable with --runtime codex: Codex uses ChatGPT subscription quota and " +
+        "reports no honest USD spend. Drop --budget or select --runtime claude.",
+      next: [`storytree story build ${storyId} ${real ? "--real" : "--live"} --runtime codex`],
+    };
+  }
+  if (runtime === "codex" && opts.maxTurns !== undefined && opts.maxTurns !== 1) {
+    return {
+      ok: false,
+      body:
+        "--max-turns is fixed at 1 with --runtime codex: each prove-it phase is exactly one " +
+        "non-interactive Codex turn. Omit the flag or pass --max-turns 1.",
+      next: [`storytree story build ${storyId} ${real ? "--real" : "--live"} --runtime codex`],
+    };
+  }
   const rootDir = opts.repoRoot ?? repoRoot();
 
   // Fail-closed before any work: a verdict must be attributable.
@@ -609,7 +642,7 @@ export async function storyBuild(
     }
 
     // Per-node side data for the report (the loop itself only sees ProveResults + costs).
-    const leaves = new Map<string, ClaudeAgentAuthor>();
+    const leaves = new Map<string, LiveAuthor>();
     const failures = new Map<string, Extract<ProveResult, { ok: false }>>();
     // The REAL chain's stacked HEAD: advances to each node's verdict commit as it passes, so the
     // next node builds on top. Promotion at chain end points at THIS, not the stale worktree cut.
@@ -648,6 +681,7 @@ export async function storyBuild(
             phasePrompts,
             repoRoot: rootDir,
             promote: false,
+            runtime,
             ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
             ...(override !== undefined ? { authorOverride: override } : {}),
             ...(opts.model !== undefined ? { model: opts.model } : {}),
@@ -662,7 +696,9 @@ export async function storyBuild(
           if (built.commitSha !== undefined) currentHead = built.commitSha;
           return {
             result: built.result,
-            ...(built.liveAuthor !== undefined ? { costUsd: built.liveAuthor.totalCostUsd } : {}),
+            ...(built.liveAuthor?.runtime === "claude"
+              ? { costUsd: built.liveAuthor.totalCostUsd }
+              : {}),
           };
         }
         const drive = await driveNode(spec, {
@@ -670,6 +706,7 @@ export async function storyBuild(
           store,
           runId,
           signer: signer.signer,
+          ...(live ? { runtime } : {}),
           ...(phasePrompts !== undefined ? { phasePrompts } : {}),
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           // ADR-0130: a live slice draws the remaining total when `--budget` is set; unbounded otherwise.
@@ -689,7 +726,9 @@ export async function storyBuild(
         if (!drive.result.ok) failures.set(spec.id, drive.result);
         return {
           result: drive.result,
-          ...(drive.liveAuthor !== undefined ? { costUsd: drive.liveAuthor.totalCostUsd } : {}),
+          ...(drive.liveAuthor?.runtime === "claude"
+            ? { costUsd: drive.liveAuthor.totalCostUsd }
+            : {}),
         };
       },
     });
@@ -746,7 +785,8 @@ export async function storyBuild(
     const nodeLines = order.map((spec, i) => {
       const label = `${String(i + 1).padStart(2)}. ${spec.id.padEnd(width)}`;
       const leaf = leaves.get(spec.id);
-      const cost = leaf !== undefined ? `  $${leaf.totalCostUsd.toFixed(4)}` : "";
+      const cost =
+        leaf?.runtime === "claude" ? `  $${leaf.totalCostUsd.toFixed(4)} advisory` : "";
       if (storyWithheld && spec.tier === "story") {
         return `  ${label}  WITHHELD — uat_witness: human${story.uatWitness === undefined ? " (the default)" : ""}: a human must witness this UAT; the gate refuses to drive or sign it`;
       }
@@ -769,9 +809,12 @@ export async function storyBuild(
       `run:         ${runId}`,
       `signer:      ${signer.signer}`,
       `store:       ${storeChoice.label}`,
+      ...(live || real ? [`runtime:     ${runtime}${opts.model !== undefined ? ` (${opts.model})` : ""}`] : []),
       `budget:      ${
         budgetUsd !== undefined
           ? `$${budgetUsd.toFixed(2)} total ceiling (operator-set; each slice may draw the remaining total)`
+          : (real || live) && runtime === "codex"
+            ? "not applicable — ChatGPT subscription quota; no USD spend is inferred"
           : real || live
             ? "none — no USD ceiling (ADR-0130: subscription-funded; the turn cap is the brake)"
             : "none — a dry-run spends nothing"
@@ -804,7 +847,9 @@ export async function storyBuild(
           `story green: ${storyGreenLine(story.capabilities, obligations, events, story.reliabilityGates)}`,
         ];
       })(),
-      `total cost:  $${run.totalCostUsd.toFixed(4)} SDK-reported`,
+      runtime === "codex" && (real || live)
+        ? "total cost:  not metered — Codex token usage is subscription accounting, not API spend"
+        : `total cost:  $${run.totalCostUsd.toFixed(4)} SDK-reported advisory`,
       ...(real && worktree !== undefined
         ? [`worktree:    ${worktree.root} (ONE shared worktree, stacked commits in dependency order, removed after)`]
         : []),
@@ -848,7 +893,13 @@ export async function storyBuild(
     const curationInjected = opts.curationStores !== undefined || opts.curatorRunner !== undefined;
     if (!curationInjected && (live || real)) {
       // Live/real default: the SDK-spawned librarian-curator against the live library/comment stores.
-      curationLines = await runLiveCuration(story, driveOrder, rootDir, opts.model);
+      // Curation remains a separate Claude role; a Codex leaf model slug must never leak into it.
+      curationLines = await runLiveCuration(
+        story,
+        driveOrder,
+        rootDir,
+        runtime === "claude" ? opts.model : undefined,
+      );
     } else {
       // Dry-run default exercises the GLUE against a fresh in-memory store; tests inject the stores +
       // a scripted/SDK runner. Load the ADR context only when there is a library (best-effort: a
@@ -965,19 +1016,19 @@ export function storyHelp(): Envelope {
       "      declares uat_witness: machine. Absent (or human) = a human must witness the UAT —",
       "      the gate builds the capabilities and WITHHOLDS the story node, fail-closed.",
       "",
-      "  storytree story build <story-id> --live [--budget <usd>] [--model <id>] [--actor <email>]",
-      "      the same chain with a REAL Claude Agent SDK leaf per node (subscription-funded), but the",
-      "      TASK per node is still the synthetic add(2,3) pair. No USD ceiling by default (ADR-0130) —",
-      "      the per-slice turn cap is the brake; --budget opts into a TOTAL ceiling across every node.",
+      "  storytree story build <story-id> --live [--runtime claude|codex] [--budget <usd>] [--model <id>] [--actor <email>]",
+      "      the same chain with a REAL subscription leaf per node (Claude default, Codex opt-in),",
+      "      but the TASK per node is still synthetic. Codex defaults to gpt-5.6-terra and requires",
+      "      saved ChatGPT-managed auth; --budget is an optional Claude-only total ceiling.",
       "",
-      "  storytree story build <story-id> --real [--budget <usd>] [--model <id>] [--max-turns <n>] [--actor <email>]",
+      "  storytree story build <story-id> --real [--runtime claude|codex] [--budget <usd>] [--model <id>] [--max-turns <n>] [--actor <email>]",
       "      ADR-0057 §3 expansion D — chain node build --real over the WHOLE story: each node",
       "      authored for real in ONE shared worktree in dependency order (a later node builds on",
       "      earlier nodes' committed source), signed, the proven chain promoted ONCE at the stacked",
       "      HEAD (land via a NON-SQUASH PR). A node failing closed HALTS the chain; the proven prefix",
       "      is parked LOCAL-ONLY (never pushed). Every driven node must be REAL-buildable (a real:",
-      "      arm). No USD ceiling by default (ADR-0130); --budget opts into a total ceiling. The turn",
-      "      cap (--max-turns, default 16) is the runaway brake.",
+      "      arm). Claude accepts the optional --budget total; Codex records subscription usage and",
+      "      refuses a fake USD cap.",
       "",
       "  --store     (--live/--real) ALWAYS pg (ADR-0060/0081): the build owns the DB — it persists",
       "      building marks + signed verdicts (events.work_event/events.verdict) so real work feeds",

@@ -46,7 +46,7 @@ artifact_edges: [desktop, studio]
 # 0158 (glue is un-asserted code WITHIN a story — the main pty wiring / preload bridge / deps / mount
 # swap); 0010 (the organism model + the splitting-rule that tiers the two caps across the bridge); 0057
 # (the spec-borne proof config making each cap inner-loop buildable); 0004 (the agent boundary — the
-# terminal is the INTERACTIVE surface only; the prove-it-gate leaf sdk-author.ts is UNTOUCHED, and the
+# terminal is the INTERACTIVE surface only; the prove-it-gate runtime binding is UNTOUCHED, and the
 # renderer never imports @storytree/agent); 0142 (the presence claim + story wisp — the CLI seam that
 # lights a wisp for the terminal's Claude Code session).
 decisions: [174, 175, 70, 158, 10, 57, 4, 142]
@@ -86,10 +86,12 @@ the watching rides for free.
 ## What this story is NOT (the walls — encode from the ADRs)
 
 - **It replaces the interactive orchestrator, NOT the prove-it-gate (ADR-0174 CRITICAL scoping note).**
-  Signed `--real` verdicts still come **only** from the deterministic spine driving `ClaudeAgentAuthor`
-  (`packages/agent/src/sdk-author.ts`) through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN
-  → GATE` walk (`packages/orchestrator/src/prove-it-gate.ts` etc.) — i.e. `story build --real` /
-  `node build --real`. That leaf is **entirely separate** from the interactive surface and is
+  Signed `--real` verdicts still come **only** from the deterministic spine driving the selected
+  `PhaseAuthor` — `ClaudeAgentAuthor` is the compatibility default and `--runtime codex` opts into
+  `CodexPhaseAuthor` — through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`
+  walk (`packages/orchestrator/src/prove-it-gate.ts` etc.) — i.e. `story build --real` /
+  `node build --real`. The selected live leaf is **entirely separate** from the interactive surface and
+  is
   **UNTOUCHED** by this story. Whether a human fires `story build --real` **from this terminal** or a
   headless job fires it, the proof path is identical. This story changes the *interactive runtime*, never
   the *proof runtime* (ADR-0020 / ADR-0030 / ADR-0011 / ADR-0091 all untouched). It also does NOT license

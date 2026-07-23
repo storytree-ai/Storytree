@@ -69,13 +69,27 @@ test("UsageEventDoc rejects malformed docs fail-closed", () => {
   };
   // The phase vocabulary is BuildPhase — an invented word is drift.
   assert.equal(UsageEventDoc.safeParse({ ...minimal, phase: "SHIPPING" }).success, false);
-  // The source names one of the two leaf runtimes, nothing else.
+  // The source names one of the admitted leaf runtimes, nothing else.
   assert.equal(UsageEventDoc.safeParse({ ...minimal, source: "mystery" }).success, false);
   // No usage breakdown = nothing to persist; the field is required.
   const { usage: _dropped, ...withoutUsage } = minimal;
   assert.equal(UsageEventDoc.safeParse(withoutUsage).success, false);
   // Strict: unknown fields are rejected.
   assert.equal(UsageEventDoc.safeParse({ ...minimal, rogue: true }).success, false);
+});
+
+test("UsageEventDoc admits the Codex subscription leaf without inventing USD spend", () => {
+  const parsed = UsageEventDoc.parse({
+    unitId: "u1",
+    runId: "r",
+    phase: "AUTHOR_TEST",
+    source: "codex-leaf",
+    model: "gpt-5.6-terra",
+    turns: 1,
+    usage: USAGE,
+  });
+  assert.equal(parsed.source, "codex-leaf");
+  assert.equal(parsed.costUsd, undefined);
 });
 
 test("ModelTokenUsage carries the optional metered per-model cost", () => {

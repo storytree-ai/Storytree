@@ -244,6 +244,22 @@ test("story build with no mode (or both modes) is refused", async () => {
   assert.match(both.body, /pick exactly one mode/);
 });
 
+test("story build threads explicit runtime policy before any live work starts", async () => {
+  const dry = await run(
+    ["story", "build", "library", "--dry-run", "--runtime", "codex"],
+    deps,
+  );
+  assert.equal(dry.ok, false);
+  assert.match(dry.body, /valid only with --live or --real/);
+
+  const budget = await run(
+    ["story", "build", "library", "--live", "--runtime", "codex", "--budget", "1"],
+    deps,
+  );
+  assert.equal(budget.ok, false);
+  assert.match(budget.body, /ChatGPT subscription quota/);
+});
+
 test("story build on a story with nodes lacking proof config fails closed BEFORE any node runs", async () => {
   const env = await run(
     ["story", "build", "studio", "--dry-run", "--actor", "t@e.c"],

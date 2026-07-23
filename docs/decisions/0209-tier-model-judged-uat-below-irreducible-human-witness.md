@@ -32,10 +32,10 @@ directed that this detail become an addressable Library artifact per criterion w
 the canonical one-line acceptance intent.
 
 The runtime constraint is deliberate. [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md)
-retired metered Cursor SDK execution. The admitted live inner loop remains the Claude Agent SDK on
-subscription auth. Fable is therefore the only frontier UAT judge admitted now; GPT-5.6 Sol is a
-future frontier candidate only after a separate subscription-funded OpenAI runtime is available and
-admitted.
+retired metered Cursor SDK execution. [ADR-0232](0232-add-a-chatgpt-subscription-codex-prove-it-leaf.md)
+now admits a ChatGPT-subscription Codex **builder** behind `PhaseAuthor`, but that does not
+automatically admit any GPT model as the separate read-only UAT judge. Fable remains the only
+frontier UAT judge until the registry and judge integration explicitly admit a Codex-backed model.
 
 ## Decision
 
@@ -122,8 +122,9 @@ admitted.
   needs its own fail-closed reconciliation checks.
 - Per-criterion artifacts increase corpus volume. The pilot must measure whether the navigation and
   authoring cost is justified before bulk migration.
-- Fable availability is currently a hard dependency for frontier UAT. GPT-5.6 Sol is not admitted by
-  aspiration alone; a future runtime decision must settle subscription funding and integration.
+- Fable availability is currently a hard dependency for frontier UAT. A subscription-funded Codex
+  builder now exists, but GPT-5.6 Sol is not admitted by proximity; the independent read-only judge
+  registry/integration must still admit it explicitly.
 - Artifact hashes invalidate stale green honestly, which may create re-attestation work after rubric
   edits.
 

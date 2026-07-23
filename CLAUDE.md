@@ -30,7 +30,8 @@ inline). The list is derived from `docs/decisions/` on disk, so it can never dri
 hand-maintained here**.
 
 The headline current-state facts those ADRs encode: pi is gone — we own the agent loop (0011), now
-demoted under the **live Claude Agent SDK** runtime (0030); the **library tier lives in shared Cloud
+demoted behind two subscription-funded live leaves — **Claude Agent SDK by default, Codex opt-in**
+(0030 / 0232); the **library tier lives in shared Cloud
 SQL Postgres**, DBOS deferred (0017 / 0019); the **prove-it-gate is BUILT** spine-side (0020); **DB
 auth is keyless** Cloud SQL IAM via ambient ADC (0021 — credentials are present, verify with `gcloud
 auth application-default print-access-token`, don't assume unauthenticated).
@@ -73,13 +74,17 @@ model-events), never by importing another organism's source.
 - **`packages/studio-members`** — the studio-members organism (ADR-0068 step 6): the member/user
   schema + access-control compute (`UserDoc`/`resolveAccess`/`mergeUser`/`parseSeedAdmins`/the
   last-admin guard). Pure zod, browser-safe.
-- **`packages/agent`** — both leaf executors behind the `PhaseAuthor` seam (`phase-author.ts`,
+- **`packages/agent`** — the leaf executors behind the `PhaseAuthor` seam (`phase-author.ts`,
   ADR-0030): the **owned loop** (ADR-0011 — now the offline/deterministic executor + pivot-out
   fallback): `model.ts` (the `Model` seam + `ScriptedModel` + `AnthropicModel`), `run-turn.ts`,
   `step.ts` (fail-closed `runStep`/`runStepValidated`), `tool-executor.ts`, `fs-tools.ts` (the real
   local file tool surface — read/write/edit/list/run); and **`ClaudeAgentAuthor`** (`sdk-author.ts`
-  — the **live** runtime on the Claude Agent SDK, subscription-funded, write scope held by a
-  fail-closed `PreToolUse` hook). Also owns the model-event vocabulary `port` (`model-events.ts`,
+  — the compatibility-default live runtime on the Claude Agent SDK, subscription-funded, write
+  scope held by a fail-closed `PreToolUse` hook); and **`CodexPhaseAuthor`** (`codex-author.ts` —
+  opt-in via `--runtime codex`, default model `gpt-5.6-terra`, saved ChatGPT-managed auth only,
+  API-key fallback forbidden, authoring in a disposable replica from which the spine promotes one
+  exact phase-checked file). Also owns the
+  model-event vocabulary `port` (`model-events.ts`,
   ADR-0068 step 6a) — orchestrator consumes it across the seam.
 - **`packages/orchestrator`** — the deterministic spine (ADR-0005) **and the proof RULER** (the
   "farmer", ADR-0068): `sequence.ts` (`runSequence` / `runLoop`, with the *halted-is-never-a-pass*
@@ -200,7 +205,9 @@ file conflicts).
   wins (`packages/drive/src/secrets.ts`; the old `packages/cli/src/secrets.ts` is a re-export shim,
   ADR-0112). `CURSOR_API_KEY` is **not** hydrated (Cursor leaf retired, ADR-0198). One rotation
   point, survives sessions and worktrees; no env-var prefixes needed on `pnpm storytree …`
-  commands.
+  commands. The Codex leaf deliberately hydrates nothing: it reuses the official local Codex
+  saved login, proves `Logged in using ChatGPT`, and strips `OPENAI_API_KEY`, `CODEX_API_KEY`, and
+  `CODEX_ACCESS_TOKEN` before every run (ADR-0232).
 - **Cloud SQL** (not local Docker): `pnpm db:up` / `pnpm db:status` / `pnpm db:down`
   (gcloud against instance `storytree-498613:australia-southeast1:storytree-pg`). `db:up` it when you
   need it and then **LEAVE IT RUNNING — do not `db:down` when you finish** (owner call 2026-06-13:
@@ -220,11 +227,12 @@ file conflicts).
   Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/library/src/store/load-corpus.ts`.
 - Prove-it-gate: `packages/orchestrator/src/prove-it-gate.ts` (+ `.e2e.test.ts`). Red-green is enforced
   spine-side (phase machine + per-phase write-scope + spine-observed RED/GREEN + a signed verdict).
-  Live smoke (ADR-0030, subscription-billed): `pnpm storytree node build <id> --live`
+  Live smoke (ADR-0030/0232, subscription-billed):
+  `pnpm storytree node build <id> --live [--runtime claude|codex]`
   (`--dry-run` is the offline scripted walk). Phase E chains a WHOLE story in dependency order:
-  `pnpm storytree story build <story-id> --dry-run | --live [--budget <usd>]` (topo order from
-  `depends_on`, story UAT node last, halt-is-never-a-pass; live/real have NO USD ceiling by default —
-  the turn cap is the runaway brake, ADR-0130 — and `--budget` opts into a total ceiling).
+  `pnpm storytree story build <story-id> --dry-run | --live [--runtime claude|codex]`
+  (topo order from `depends_on`, story UAT node last, halt-is-never-a-pass; Claude accepts an
+  optional `--budget` total, while Codex records subscription usage and refuses a fake USD cap).
   `--store pg` on live/real builds persists verdicts to `events.work_event`/`events.verdict`
   (refused for dry-runs — a scripted PASS persisted would be a forged healthy).
 - Library CLI (ADR-0023): `pnpm storytree library` (explore; offline). Writes need the live DB:
