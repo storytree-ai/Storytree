@@ -25,9 +25,40 @@
 // green), crown-is-never-a-roll-up, signpost-is-the-human-witness-mark,
 // offline-under-claims, build-wisps-are-the-harness (ADR-0048).
 
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { anyInFlight, anyRecentLanding } from '../lib/activity';
+import { resolveSprite, type SpriteDef, type SpriteStyleSheet } from '../lib/sprite-sheet';
 import type { BuildActivity, ClaimActivity, SubagentColourState, TreeStory } from '../types';
+
+// ---------- sprite art sheet (ADR-0230) — the legend IS the world's palette, sprites too ----------
+//
+// When an `artStyle` sprite sheet is active in the world (`artStyle !== 'vector'`), the legend's
+// status/kind icons render the SAME sprite the map draws, instead of the vector CSS shape — so the
+// legend stays "the world's palette" in sprite mode too (the whole point of the legend, ADR-0036 d.6c).
+// The sheet is supplied by context so the pure icon factories (TreeIcon / PlantIcon / ConiferIcon /
+// WheatIcon) can resolve a sprite without every legend caller prop-drilling it; a `null` sheet (the
+// default, vector mode) leaves every icon byte-identical to before. An icon whose `${kind}[:status]`
+// the sheet does NOT cover falls back to its vector shape (resolveSprite → null), exactly as the map does.
+const SpriteSheetContext = createContext<SpriteStyleSheet | null>(null);
+
+/** A legend swatch that draws a resolved sprite instead of a vector shape. The `<svg viewBox="0 0 w h">`
+ *  carries the sprite's native aspect, and the legend CSS sizes it by height (`width:auto`), so the
+ *  sprite slots into the same 18px chip / 36px tile row as the vector icons it replaces. */
+function SpriteSwatch({ def }: { def: SpriteDef }): React.JSX.Element {
+  return (
+    <svg viewBox={`0 0 ${def.w} ${def.h}`} aria-hidden="true">
+      <image href={def.href} x={0} y={0} width={def.w} height={def.h} preserveAspectRatio="xMidYMid meet" />
+    </svg>
+  );
+}
+
+/** Resolve the active sheet's sprite for a drawable `kind` (+ optional folded `status`); `null` in
+ *  vector mode or when the sheet doesn't cover it (the caller then renders its vector shape). */
+function useSprite(kind: string, status?: string): SpriteDef | null {
+  const sheet = useContext(SpriteSheetContext);
+  if (!sheet) return null;
+  return resolveSprite(sheet, kind, status);
+}
 
 // ADR-0212 retired the `building` row: the build wisp is no longer its own drawable, so it is no
 // longer its own legend row — the band it contributes is taught inside `claim`, where the one
@@ -113,6 +144,10 @@ function TreeIcon({
   status: string;
   form: 'full' | 'withered' | 'young';
 }): React.JSX.Element {
+  // Sprite mode: the sheet re-skins the tree per status (`tree:<status>`, `unhealthy` = the withered
+  // form) exactly as the map does; a miss falls back to the vector growth-ladder shapes below.
+  const sprite = useSprite('tree', status);
+  if (sprite) return <SpriteSwatch def={sprite} />;
   if (form === 'young') {
     // The not-yet-full proposed tree: same viewBox as the full form so the
     // smaller growth stage reads at a glance.
@@ -179,6 +214,10 @@ function PlantIcon({
   status: string;
   dead?: boolean;
 }): React.JSX.Element {
+  // Sprite mode: alive flora → the `flora` sprite; a withered/unhealthy one → `flora:unhealthy` (the
+  // dead form). A miss falls back to the vector flora shapes below.
+  const sprite = useSprite('flora', dead ? 'unhealthy' : status);
+  if (sprite) return <SpriteSwatch def={sprite} />;
   if (dead) {
     return (
       <svg viewBox="-12 -18 24 24" aria-hidden="true">
@@ -323,6 +362,9 @@ function BloomIcon(): React.JSX.Element {
 }
 
 function ConiferIcon(): React.JSX.Element {
+  // Sprite mode: the sheet's `conifer` sprite; a miss falls back to the vector conifer below.
+  const sprite = useSprite('conifer');
+  if (sprite) return <SpriteSwatch def={sprite} />;
   return (
     <svg viewBox="-12 -14 24 18" aria-hidden="true">
       <g className="hex-conifer">
@@ -334,6 +376,10 @@ function ConiferIcon(): React.JSX.Element {
 }
 
 function WheatIcon(): React.JSX.Element {
+  // Sprite mode: a `wheat` sprite if the sheet covers it (the current sheets do not) — else the vector
+  // wheat tile below.
+  const sprite = useSprite('wheat');
+  if (sprite) return <SpriteSwatch def={sprite} />;
   return (
     <svg viewBox="-13 -13 26 26" aria-hidden="true">
       <path className="hex-top is-wheat" d={HEX} />
@@ -551,17 +597,23 @@ export function LegendDrawerBody({
   model,
   hidden,
   onToggleStatus,
+  spriteSheet = null,
 }: {
   rowKey: RowKey;
   model: LegendModel;
   hidden: ReadonlySet<string>;
   onToggleStatus: (st: string) => void;
+  /** ADR-0230: the active art sheet (or null in vector mode). Provided to the icon factories so a
+   *  drawer rendered STANDALONE by the panel (outside <WorldLegend>) still sprites its fan tiles. */
+  spriteSheet?: SpriteStyleSheet | null;
 }): React.JSX.Element {
   const { facts, totals, anyWitnessed, unknownPresent } = model;
   const region = (label: string, body: React.JSX.Element): React.JSX.Element => (
-    <div className="legend-drawer" role="region" aria-label={`legend — ${label}`}>
-      {body}
-    </div>
+    <SpriteSheetContext.Provider value={spriteSheet}>
+      <div className="legend-drawer" role="region" aria-label={`legend — ${label}`}>
+        {body}
+      </div>
+    </SpriteSheetContext.Provider>
   );
   if (rowKey === 'tree') {
     return region(
@@ -836,6 +888,7 @@ export function WorldLegend({
   onToggle,
   renderDrawer = true,
   barClassName,
+  spriteSheet = null,
 }: {
   stories: TreeStory[];
   builds?: BuildActivity[];
@@ -855,6 +908,10 @@ export function WorldLegend({
   renderDrawer?: boolean;
   /** Extra class on the chip bar (e.g. a vertical-wrap variant in the panel). */
   barClassName?: string;
+  /** ADR-0230: the active sprite art sheet (or null in vector mode). When set, the chip-bar +
+   *  inline-drawer icons render the sheet's sprites instead of the vector shapes — the legend stays
+   *  the world's palette in sprite mode. Default null ⇒ every icon is byte-identical vector. */
+  spriteSheet?: SpriteStyleSheet | null;
 }): React.JSX.Element {
   const controlled = openProp !== undefined && onToggle !== undefined;
   const [openState, setOpenState] = useState<RowKey | null>(null);
@@ -886,37 +943,42 @@ export function WorldLegend({
   const openRow = open ? model.rows.find((r) => r.key === open && r.visible) : undefined;
 
   return (
-    <div className={controlled ? 'world-legend-panel' : 'world-legend-dock'} ref={dockRef}>
-      <div className={`legend-bar${barClassName ? ` ${barClassName}` : ''}`} role="group" aria-label="legend">
-        {model.rows
-          .filter((r) => r.visible)
-          .map((r) => (
-            <button
-              key={r.key}
-              type="button"
-              className={`legend-chip${open === r.key ? ' on' : ''}`}
-              aria-expanded={open === r.key}
-              onClick={() => toggle(r.key)}
-            >
-              {r.icons}
-              {r.label}
+    // The whole legend renders under the active sheet, so both the chip-bar icons (built in
+    // `legendModel`) and the inline drawer's fan tiles resolve their sprites from one place.
+    <SpriteSheetContext.Provider value={spriteSheet}>
+      <div className={controlled ? 'world-legend-panel' : 'world-legend-dock'} ref={dockRef}>
+        <div className={`legend-bar${barClassName ? ` ${barClassName}` : ''}`} role="group" aria-label="legend">
+          {model.rows
+            .filter((r) => r.visible)
+            .map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                className={`legend-chip${open === r.key ? ' on' : ''}`}
+                aria-expanded={open === r.key}
+                onClick={() => toggle(r.key)}
+              >
+                {r.icons}
+                {r.label}
+              </button>
+            ))}
+          {hidden.size > 0 && (
+            <button type="button" className="legend-chip legend-reset" onClick={onResetHidden}>
+              show all statuses ({hidden.size} hidden)
             </button>
-          ))}
-        {hidden.size > 0 && (
-          <button type="button" className="legend-chip legend-reset" onClick={onResetHidden}>
-            show all statuses ({hidden.size} hidden)
-          </button>
+          )}
+        </div>
+
+        {renderDrawer && openRow && (
+          <LegendDrawerBody
+            rowKey={openRow.key}
+            model={model}
+            hidden={hidden}
+            onToggleStatus={onToggleStatus}
+            spriteSheet={spriteSheet}
+          />
         )}
       </div>
-
-      {renderDrawer && openRow && (
-        <LegendDrawerBody
-          rowKey={openRow.key}
-          model={model}
-          hidden={hidden}
-          onToggleStatus={onToggleStatus}
-        />
-      )}
-    </div>
+    </SpriteSheetContext.Provider>
   );
 }
