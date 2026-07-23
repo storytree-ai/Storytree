@@ -1,15 +1,18 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-07-15
 supersedes: [177]
 amends: [30, 179]
-load_bearing: true
 ---
 # ADR-0198: Retire the Cursor leaf — Claude Agent SDK is the only live prove-it-gate harness
 
 ## Status
 
-accepted (2026-07-15) — decided/directed by the owner in conversation on 2026-07-15. Design-time
+superseded by [ADR-0232](0232-add-a-chatgpt-subscription-codex-prove-it-leaf.md) (2026-07-23),
+which preserves this ADR's Cursor retirement and metered-API ban but replaces the Claude-only
+live-leaf conclusion with an explicit ChatGPT-subscription Codex option.
+
+Originally accepted (2026-07-15) — decided/directed by the owner in conversation on 2026-07-15. Design-time
 alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
 **Supersedes ADR-0177** — Cursor as a second live prove-it-gate harness (Rung A handshake, planned

@@ -56,8 +56,8 @@ artifact_edges: [embedded-terminal, map-terminal-build, studio]
 # feel operator-attested); 0158 (glue is un-asserted code WITHIN a story — the session-panel CSS/look +
 # any dock-mount prop delta); 0010 (the organism model + the splitting-rule tiering the two caps + the
 # real-prerequisites-only within-story edge); 0057 (the spec-borne proof config making each cap
-# inner-loop buildable); 0004 (the thin-client boundary — the terminal is the INTERACTIVE surface only; the
-# prove-it-gate leaf sdk-author.ts is UNTOUCHED and the renderer imports no @storytree/agent).
+# inner-loop buildable); 0004 (the thin-client boundary — the terminal is the INTERACTIVE surface
+# only; the prove-it-gate runtime binding is UNTOUCHED and the renderer imports no @storytree/agent).
 decisions: [186, 190, 174, 70, 158, 10, 57, 4]
 ---
 
@@ -125,10 +125,11 @@ never silently.
   `apps/desktop` code** — this story lifts the renderer to many sessions over the already-per-session
   bridge. No `desktop` edge; no `pty-session-manager` change.
 - **It changes the INTERACTIVE terminal, NOT the prove-it-gate (ADR-0186 Scope / ADR-0174 CRITICAL note).**
-  Signed `--real` verdicts still come **only** from the deterministic spine driving `ClaudeAgentAuthor`
-  (`packages/agent/src/sdk-author.ts`) through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN →
-  GATE` walk (`packages/orchestrator/*`). This story changes only the interactive terminal — how many
-  sessions it holds, and which one a seed lands in. The prove-it-gate leaf (`sdk-author.ts`) and the whole
+  Signed `--real` verdicts still come **only** from the deterministic spine driving the selected
+  `PhaseAuthor` — `ClaudeAgentAuthor` is the compatibility default and `--runtime codex` opts into
+  `CodexPhaseAuthor` — through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`
+  walk (`packages/orchestrator/*`). This story changes only the interactive terminal — how many
+  sessions it holds, and which one a seed lands in. The prove-it-gate runtime binding and the whole
   `packages/orchestrator` spine are **UNTOUCHED** (ADR-0020 / ADR-0030 / ADR-0091 stand). It also does NOT
   license gate-landing as a substitute for the crown (the "gate-land skips `--real` verdicts" trap).
 - **A seed NEVER touches an existing/active session — it ALWAYS opens a fresh tab (the load-bearing

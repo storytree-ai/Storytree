@@ -41,8 +41,8 @@ export const ModelTokenUsage = TokenUsage.extend({
 }).strict();
 export type ModelTokenUsage = z.infer<typeof ModelTokenUsage>;
 
-/** Which leaf runtime produced a usage row (ADR-0030's two PhaseAuthor implementations). */
-export const UsageSource = z.enum(["sdk-leaf", "owned-loop"]);
+/** Which leaf runtime produced a usage row (ADR-0030/0232's PhaseAuthor implementations). */
+export const UsageSource = z.enum(["sdk-leaf", "codex-leaf", "owned-loop"]);
 export type UsageSource = z.infer<typeof UsageSource>;
 
 /**
@@ -63,6 +63,8 @@ export const UsageEventDoc = z
     usage: TokenUsage,
     model: z.string().optional(),
     turns: z.number().int().nonnegative().optional(),
+    /** Reasoning tokens reported separately by Codex; included in outputTokens by some runtimes. */
+    reasoningOutputTokens: z.number().int().nonnegative().optional(),
     costUsd: z.number().nonnegative().optional(),
     byModel: z.record(z.string(), ModelTokenUsage).optional(),
   })

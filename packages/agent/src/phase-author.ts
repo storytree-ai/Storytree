@@ -3,16 +3,21 @@
  * through. The spine owns every phase transition; a {@link PhaseAuthor} only ever AUTHORS inside
  * the two authoring phases — it never observes red/green and never reports a verdict (ADR-0020).
  *
- * Two implementations exist by design:
+ * Three implementations exist by design:
  *  - the owned loop (`OwnedLoopAuthor` in @storytree/orchestrator): ScriptedModel/AnthropicModel +
  *    ToolExecutor + write-scoped decorator — the offline/deterministic test harness and the
  *    pivot-out fallback;
- *  - the Claude Agent SDK ({@link ClaudeAgentAuthor} in ./sdk-author.js): the live runtime
- *    (ADR-0030), subscription-funded, write-scope enforced via PreToolUse hooks.
+ *  - the Claude Agent SDK ({@link ClaudeAgentAuthor} in ./sdk-author.js): the compatibility-default
+ *    live runtime (ADR-0030), subscription-funded, write-scope enforced via PreToolUse hooks;
+ *  - local Codex ({@link CodexPhaseAuthor} in ./codex-author.js): the opt-in ChatGPT-subscription
+ *    live runtime (ADR-0232), authoring in a disposable replica that the spine promotes exactly.
  */
 
 /** The two phases a leaf authors in (ADR-0020 §1). All other phases are spine-only — no leaf runs. */
 export type AuthoringPhase = "AUTHOR_TEST" | "IMPLEMENT";
+
+/** The admitted subscription-funded live leaves (ADR-0232). */
+export type LiveRuntime = "claude" | "codex";
 
 /**
  * The authoring outcome the gate consumes: complete, or fail-closed with a reason.

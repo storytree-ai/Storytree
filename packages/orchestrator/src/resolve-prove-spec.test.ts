@@ -10,7 +10,12 @@ import { fileURLToPath } from "node:url";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import type { ToolResultBlock, ToolUseBlock } from "@storytree/agent";
 import { rollupStatus, workEvent } from "./proof/rollup.js";
-import { FileToolExecutor, FILE_WRITE_TOOLS } from "@storytree/agent";
+import {
+  ClaudeAgentAuthor,
+  CodexPhaseAuthor,
+  FileToolExecutor,
+  FILE_WRITE_TOOLS,
+} from "@storytree/agent";
 import type { PhaseAuthor, ToolExecutor } from "@storytree/agent";
 
 import { loadNodeSpec, findNodeSpecFile, mapProofMode } from "./node-spec.js";
@@ -514,6 +519,46 @@ test("live-smoke resolution arms run_proof over the synthetic pair", () => {
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.deepEqual(result.liveAuthor?.feedbackToolNames, ["mcp__spine__run_proof"]);
+});
+
+test("live runtime selection preserves Claude by default and admits Codex only explicitly", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "library", "library-cli.md"));
+  const base = {
+    mode: "live-smoke" as const,
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "r-runtime",
+    signerInputs: { flag: "tester@example.com" },
+  };
+
+  const compatibility = resolveProveSpec(spec, base);
+  assert.equal(compatibility.ok, true);
+  if (!compatibility.ok) return;
+  assert.ok(compatibility.liveAuthor instanceof ClaudeAgentAuthor);
+  assert.equal(compatibility.liveAuthor.runtime, "claude");
+
+  const codex = resolveProveSpec(spec, { ...base, runtime: "codex" });
+  assert.equal(codex.ok, true);
+  if (!codex.ok) return;
+  assert.ok(codex.liveAuthor instanceof CodexPhaseAuthor);
+  assert.equal(codex.liveAuthor.runtime, "codex");
+  assert.deepEqual(codex.liveAuthor.feedbackToolNames, []);
+});
+
+test("Codex runtime refuses invented USD budget enforcement before authoring", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "library", "library-cli.md"));
+  const result = resolveProveSpec(spec, {
+    mode: "live-smoke",
+    runtime: "codex",
+    maxBudgetUsd: 1,
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "r-codex-budget",
+    signerInputs: { flag: "tester@example.com" },
+  });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.reason, /no honest USD budget control/);
 });
 
 /**

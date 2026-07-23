@@ -59,6 +59,7 @@ import {
   renderLeafPhasePrompts,
   resolveAddDepsGroup,
   resolveDbProofEnv,
+  resolveLiveRuntime,
   resolveVerdictStore,
 } from "@storytree/drive";
 
@@ -93,6 +94,8 @@ export interface GateBuildDriverDeps {
   promote?: boolean;
   /** SDK leaf model (live build only). */
   model?: string;
+  /** Live prove-it leaf runtime. Default: Claude compatibility path. */
+  runtime?: string;
   /** Per-authoring-slice USD ceiling (live build only). */
   budgetUsd?: number;
   /** Per-authoring-slice turn ceiling (live build only). */
@@ -129,6 +132,28 @@ export async function driveBuildTestsGate(
   deps: GateBuildDriverDeps,
 ): Promise<Envelope> {
   const retryCmd = `storytree gate run ${gate.id} --real --pg`;
+  const runtimeResult = resolveLiveRuntime(deps.runtime);
+  if (!runtimeResult.ok) {
+    return { ok: false, body: runtimeResult.reason, next: [retryCmd] };
+  }
+  if (runtimeResult.runtime === "codex" && deps.budgetUsd !== undefined) {
+    return {
+      ok: false,
+      body: "--budget is unavailable with --runtime codex; Codex subscription usage is not USD spend",
+      next: [retryCmd],
+    };
+  }
+  if (
+    runtimeResult.runtime === "codex" &&
+    deps.maxTurns !== undefined &&
+    deps.maxTurns !== 1
+  ) {
+    return {
+      ok: false,
+      body: "--max-turns is fixed at 1 with --runtime codex",
+      next: [retryCmd],
+    };
+  }
 
   // 1. The gate must name a node to borrow a real: build config from (the `(build:)` annotation).
   //    gate.ts already guards this for the CLI; re-check here so the driver is honest standalone.
@@ -287,6 +312,7 @@ export async function driveBuildTestsGate(
       ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
       ...(override !== undefined ? { authorOverride: override } : {}),
       ...(deps.model !== undefined ? { model: deps.model } : {}),
+      runtime: runtimeResult.runtime,
       ...(deps.budgetUsd !== undefined ? { budgetUsd: deps.budgetUsd } : {}),
       ...(deps.maxTurns !== undefined ? { maxTurns: deps.maxTurns } : {}),
     });

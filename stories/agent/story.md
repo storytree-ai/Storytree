@@ -2,11 +2,12 @@
 id: "agent"
 tier: story
 title: "The agent runtime — the swappable leaf behind the PhaseAuthor seam"
-outcome: "The spine hands a leaf one authoring slice and gets back an authored deliverable (or a fail-closed refusal) without caring which model runtime answered — the owned loop or the live Claude Agent SDK, both behind one seam that never observes red/green or reports a verdict."
+outcome: "The spine hands a leaf one authoring slice and gets back an authored deliverable (or a fail-closed refusal) without caring which model runtime answered — the owned loop, the live Claude Agent SDK, or the live ChatGPT-funded Codex runtime, all behind one seam that never observes red/green or reports a verdict."
 status: proposed
 proof_mode: UAT
 # Near-root organism (ADR-0075, amended in degree by ADR-0138 §3): packages/agent's runtime deps are
-# @anthropic-ai/* + zod + ONE @storytree package — @storytree/notice-board (pure zod, browser-safe),
+# @anthropic-ai/* + @openai/codex + zod + ONE @storytree package — @storytree/notice-board (pure
+# zod, browser-safe),
 # whose work-time claim primitive (workClaimRequest) the claim-at-spawn gate consumes
 # (packages/agent/src/claim-gated-spawn.ts, the chat-subagent-spawn story's claim-gated-spawn
 # capability — code hosted in this package under that story's declared edge, ADR-0004 forcing the
@@ -34,23 +35,28 @@ consumed_by: [cli]
 # import site (4), the Claude Agent SDK live leaf + the PhaseAuthor pivot seam (30), the leaf's
 # bounded feedback tools (35), the organism rebuild that gave this package the model-event vocabulary
 # port (68), ports-as-root-organisms (75) under which this leaf was a declared root, the
-# claim-at-spawn wall (138), and the retirement of the Cursor second-harness leaf (198, superseding
-# 177) — Claude Agent SDK is again the only live prove-it-gate harness.
-decisions: [4, 11, 30, 35, 68, 75, 138, 198]
+# claim-at-spawn wall (138), the retirement of the Cursor second-harness leaf (198, superseding
+# 177), and the ChatGPT-funded Codex second live leaf (232, superseding 198 while preserving the
+# Cursor retirement).
+decisions: [4, 11, 30, 35, 68, 75, 138, 232]
 ---
 
 # The agent runtime — the swappable leaf behind the PhaseAuthor seam
 
 **Outcome —** The spine hands a leaf one authoring slice and gets back an authored deliverable (or a
-fail-closed refusal) without caring which model runtime answered — the owned loop or the live Claude
-Agent SDK, both behind one seam that never observes red/green or reports a verdict.
+fail-closed refusal) without caring which model runtime answered — the owned loop, the live Claude
+Agent SDK, or the live ChatGPT-funded Codex runtime, all behind one seam that never observes
+red/green or reports a verdict.
 
 `packages/agent` is storytree's **leaf-runtime organism**: the model seam, the turn loop, the
-fail-closed step runner, the real local file-tool surface, the model-event vocabulary port, and BOTH
-`PhaseAuthor` implementations — the owned loop (ADR-0011: the offline/deterministic executor and the
-pivot-out fallback) and the live `ClaudeAgentAuthor` on the Claude Agent SDK (ADR-0030). It is the
-**single model-runtime import site** (ADR-0004, widened to this package): every `@anthropic-ai/*`
-import lives here, behind the runtime-agnostic seam, so the rest of the system never names a model.
+fail-closed step runner, the real local file-tool surface, the model-event vocabulary port, and both
+live `PhaseAuthor` implementations — `ClaudeAgentAuthor` on the Claude Agent SDK (the compatibility
+default) and `CodexPhaseAuthor` on the official Codex CLI using saved ChatGPT authentication
+(`--runtime codex`, default model `gpt-5.6-terra`; ADR-0232). The owned loop remains the
+offline/deterministic executor and pivot-out fallback (ADR-0011), adapted to the same seam by
+`OwnedLoopAuthor` in drive-machinery. This package is the **single model-runtime import site**
+(ADR-0004, widened here): the third-party runtime imports live behind the runtime-agnostic seam, so
+the deterministic spine never names a model.
 
 ## Why this is its own organism (the modeling call this story settles)
 
@@ -104,17 +110,17 @@ so no path returns from agent to any consumer and the graph stays acyclic (ADR-0
 
 **`mapped` (brownfield), NOT `healthy`.** The organism's dominant behaviour is observationally
 verified by a real, passing, OFFLINE suite (`pnpm --filter @storytree/agent test`): **70/70** on
-2026-06-21 (no DB, no API key — `ScriptedModel` + an injectable `queryFn` keep every decision
-offline-testable). Per `docs/glossary.md` that observational green is exactly brownfield `mapped`:
+2026-06-21 (no DB, no API key — `ScriptedModel`, an injectable `queryFn`, and an injectable Codex
+runner keep runtime decisions offline-testable). Per `docs/glossary.md` that observational green is
+exactly brownfield `mapped`:
 storytree's own prove-it-gate did not drive these red→green. `healthy` is non-authorable (ADR-0020) —
 it is only ever DERIVED from signed verdicts, of which this organism has none. The authored frontmatter
 `status:` stays `mapped`.
 
 The recurring honesty shape, per capability: **offline-proven mechanics, live-attested-but-not-
-standing-tested live legs.** The owned loop, the file-tool surface, the model seam, and the SDK
-write-scope decision function are all offline-proven; the genuinely live legs — a real SDK `query()`,
-the subscription-funded inner loop — are operator-attested in the drive-machinery dogfood history
-(the SDK leaf authored real units there), never a standing test in this package.
+standing-tested live legs.** The owned loop, the file-tool surface, the model seam, and both live
+leaves' authentication/result/scope decisions are offline-proven; the genuinely live SDK/CLI
+subscription invocations remain need-gated, never a standing test in this package.
 
 ## Capabilities (5)
 
@@ -144,7 +150,8 @@ table) — so they are NOT in the buildable set, kept honestly `mapped` as docum
 - **`phase-author-seam` is a pure type module.** `phase-author.ts` declares `AuthoringPhase`,
   `AuthorResult`, and the `PhaseAuthor` interface — no runtime, no test of its own to count (its own
   proof prose says exactly this). A pure type module has NO isolatable red→green: it is proven only
-  THROUGH its two implementations (`ClaudeAgentAuthor`, and `OwnedLoopAuthor` in drive-machinery) and
+  THROUGH its three implementations (`ClaudeAgentAuthor`, `CodexPhaseAuthor`, and `OwnedLoopAuthor`
+  in drive-machinery) and
   by the gate type-checking against it. There is no additive runtime assertion to fail-then-pass, so a
   `real:` arm would be a fake. It stays `mapped`, unwired.
 - **`live-sdk-leaf` has an operator-attested live leg, and an unwired dependency.** Its DECISION
@@ -155,12 +162,14 @@ table) — so they are NOT in the buildable set, kept honestly `mapped` as docum
   [phase-author-seam]`, which is unwired, so dependency-closure would exclude it from the buildable set
   regardless. It stays `mapped`, unwired.
 
-> **The Cursor second-harness leaf is RETIRED (ADR-0198, superseding ADR-0177).** The former
+> **The Cursor second-harness leaf remains RETIRED (ADR-0198, superseding ADR-0177; subsequently
+> superseded by ADR-0232 without reversing that retirement).** The former
 > `cursor-sdk-leaf` capability (a read-only Cursor SDK admission handshake) and its `@cursor/sdk`
 > machinery are removed — Cursor was a metered API billing path, not a subscription-funded harness, so
-> no Storytree surface may invite Cursor API spend. `ClaudeAgentAuthor` on the Claude Agent SDK is
-> again the ONLY live prove-it-gate leaf; a future second harness would need a fresh ADR with an
-> explicit funding model. No replacement Cursor work is planned here.
+> no Storytree surface may invite Cursor API spend. ADR-0232 supplies the fresh decision and explicit
+> funding model that ADR-0198 required: `ClaudeAgentAuthor` remains the compatibility default, while
+> `CodexPhaseAuthor` is an explicit `--runtime codex` live leaf funded only through saved
+> ChatGPT-managed authentication. No replacement Cursor work is planned here.
 
 ## Dependency graph (code-derived)
 
@@ -183,13 +192,16 @@ contract shape IS the coupling) and marked.
   - `sdk-author.ts` imports `AuthoringPhase`/`AuthorResult`/`PhaseAuthor` (type) from
     `./phase-author.js` — `ClaudeAgentAuthor` IS an implementation of the seam; `sdk-curator.ts`
     imports `SdkQueryFn` from `./sdk-author.js` (the curator reuses the leaf's injectable query seam).
+- The second live implementation also consumes `phase-author-seam`: `codex-author.ts` implements
+  `CodexPhaseAuthor` over the official Codex CLI. It is selected explicitly at the injection layer,
+  without changing the Claude-specific `live-sdk-leaf` capability above.
 
 **Cross-story:** one outbound — `notice-board` (`claim-gated-spawn.ts`, hosted here by the
 chat-subagent-spawn story, value-imports `workClaimRequest`; see the frontmatter note). Inbound: the `PhaseAuthor` seam (and the
 re-exported model-event vocabulary `port`) is consumed by `drive-machinery` (the spine's
-`OwnedLoopAuthor`, the gate, the prove-spec resolver) and bound to `ClaudeAgentAuthor` in the CLI's
-build path — declared as the drive-machinery `depends_on agent` edge and this story's `consumed_by:
-[cli]`.
+`OwnedLoopAuthor`, the gate, the prove-spec resolver) and bound to either `ClaudeAgentAuthor` (the
+compatibility default) or `CodexPhaseAuthor` (`--runtime codex`) in the CLI's build path — declared
+as the drive-machinery `depends_on agent` edge and this story's `consumed_by: [cli]`.
 
 ## This story's published interface (ADR-0010 §4)
 
@@ -198,40 +210,41 @@ The declared cross-story seam this organism exposes is the **`PhaseAuthor` execu
 (`model-events.ts`, re-exported from the package index) that the orchestrator consumes to read tool
 blocks. A consumer (the spine) depends on this seam as a TYPE and binds a concrete runtime at the
 injection layer — exactly where a seam SHOULD meet an implementation (drive-machinery's
-`prove-spec-resolution` is the one place `ClaudeAgentAuthor` is a VALUE import). The seam's contract:
-a `PhaseAuthor` only AUTHORS inside the two authoring phases (`AUTHOR_TEST` / `IMPLEMENT`); it never
-observes red/green and never reports a verdict — the spine keeps every honesty property OUTSIDE the
-leaf (ADR-0020).
+`prove-spec-resolution` is the one place the selected live author is bound). The seam's contract: a
+`PhaseAuthor` only AUTHORS inside the two authoring phases (`AUTHOR_TEST` / `IMPLEMENT`); it never
+observes red/green and never reports a verdict — the deterministic spine remains the sole
+red/green/verdict authority and keeps every honesty property OUTSIDE the leaf (ADR-0020).
 
 ## UAT Test Criteria
 
 The integrated **acceptance walkthrough** proving the organism's outcome end to end: a spine drives
-the SAME two authoring slices through TWO different runtimes behind one seam and gets an authored
-deliverable each time, with every honesty wall held.
+the SAME two authoring slices through the runtime implementations behind one seam and gets an
+authored deliverable each time, with every honesty wall held.
 
 > **HONEST status — `mapped`, no single scripted UAT spans the whole journey live.** The offline
 > legs (1–4, 6) are automated TODAY by the package's own suite (citations inline). Leg 5 — a REAL
-> SDK `query()` authoring against a live subscription — is **operator-attested** history from the
-> drive-machinery dogfood (the live leaf authored real units red→green there), not a standing test in
-> this package: proving a live runtime needs the paid leaf, so the offline path scripts the seam +
-> the write-scope decision only. This UAT is therefore part-scripted, part-attested — exactly the
-> drive-machinery honesty pattern.
+> SDK/CLI invocation authoring against a live subscription — is not a standing test in this package:
+> the Claude leg is **operator-attested** history from the drive-machinery dogfood, while the Codex
+> leg is need-gated to a host with saved ChatGPT authentication. The offline path proves each leaf's
+> seam, authentication refusal, result mapping, and write-scope decision. This UAT is therefore
+> part-scripted, part-attested — exactly the drive-machinery honesty pattern.
 >
 > **Per-leg witness (ADR-0106).** The adopt pass resolves each leg's witness, never defaulting it onto
 > the human: legs 1–4 and 6 are `witness: machine`, each explicitly bound to `agent#gate-1` — the
 > package's own offline suite (`pnpm --filter @storytree/agent test`) demonstrably covers them, so
 > Adopt observe-and-signs them through that exact command. Leg
-> 5 is `witness: human` — the live `query()` is experiential/operator-attested, with no standing offline
+> 5 is `witness: human` — the live subscription invocation is experiential/operator-attested, with no standing offline
 > test, so it (and it alone) awaits the operator's "I saw it work" (ADR-0082). No leg rests `either`.
 
-**Goal —** Behind one `PhaseAuthor` seam, two runtimes each author a slice on demand, refusing every
-out-of-scope write and never forging a success.
+**Goal —** Behind one `PhaseAuthor` seam, each runtime implementation authors a slice on demand,
+refusing every out-of-scope write and never forging a success.
 
 1. **The seam is runtime-agnostic.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ A consumer holds a `PhaseAuthor` and calls
    `author("AUTHOR_TEST", prompt)`. **Success —** it returns `{ ok: true }` on a completed slice or
    `{ ok: false, error }` fail-closed, and the consumer never had to know which runtime answered.
    *(proven offline: `sdk-author.test.ts` exercises `ClaudeAgentAuthor.author` over an injected
-   `queryFn`; the owned-loop side is `OwnedLoopAuthor`, mapped in drive-machinery.)*
+   `queryFn`; `codex-author.test.ts` exercises `CodexPhaseAuthor` over an injected runner; the
+   owned-loop side is `OwnedLoopAuthor`, mapped in drive-machinery.)*
 2. **The model is swappable.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ Drive the owned loop with a `ScriptedModel` (zero live calls);
    running past the scripted end is a LOUD error, never silent. **Success —** a turn runs to a
    natural stop with all `@anthropic-ai/sdk` imports confined to `model.ts`. *(proven:
@@ -243,28 +256,28 @@ out-of-scope write and never forging a success.
 4. **A step fails closed.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ The model returns malformed or wrong-shape JSON. **Success —**
    `runStepValidated` retries, then HALTS to `ValidationFailed` — never reports a forged success.
    *(proven: `step.test.ts`)*
-5. **The live runtime authors a real slice.** _(witness: human)_ `ClaudeAgentAuthor` runs one `query()`: write scope is
-   enforced fail-closed by a PreToolUse hook BEFORE any write lands, Bash is absent from the tool
-   surface (a shell write would bypass the scope hook), and red/green is never this runtime's to
-   report. **Success —** the slice's deliverable is authored under scope, out-of-scope writes are
-   recorded violations, and no verdict is claimed. *(write-scope DECISION proven offline:
-   `sdk-author.test.ts` (`decideWrite`); the live `query()` leg is operator-attested — drive-machinery
-   dogfood history, the SDK leaf authored real units red→green.)*
+5. **The selected live runtime authors a real slice.** _(witness: human)_ With Claude as the
+   compatibility default or Codex selected explicitly via `--runtime codex`, the leaf runs one
+   subscription-funded invocation. **Success —** phase scope is enforced before any write lands,
+   out-of-scope writes are recorded violations, and no red/green claim or verdict is accepted from
+   the leaf; the spine reruns the registered command out of band. *(write-scope decisions proven
+   offline in `sdk-author.test.ts` and `codex-author.test.ts`; live invocations are need-gated.)*
 6. **Feedback is a doorbell, not a shell.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ The spine exposes its proof/typecheck commands as
    bounded in-process MCP tools (`mcp__spine__run_proof` …). **Success —** the leaf can iterate
    write→run→fix, but it controls ZERO arguments (fixed commands), the output is feedback only, and
    the attested red/green stays the spine's own out-of-band runs after the leaf stops. *(proven:
    `sdk-author.test.ts` — `executeFeedback` / `formatFeedbackOutput`)*
 
-End state — one seam, two runtimes, every honesty wall (path confinement, fail-closed steps, scoped
-writes, no-self-verdict) held; the spine never named a model.
+End state — one seam, three runtime implementations, every honesty wall (path confinement,
+fail-closed steps, scoped writes, no-self-verdict) held; the spine never named a model.
 
 ## Reliability Gates
 
 The agent runtime is **brownfield** (`status: mapped`): its dominant behaviour is observationally
 verified by a real, passing, OFFLINE suite (`pnpm --filter @storytree/agent test`, **70/70** —
-`ScriptedModel` + an injectable `queryFn` keep every decision offline-testable, no DB, no API key, see
-**Honest status**), but storytree's own prove-it-gate never DROVE those proofs red→green. So its honest
+`ScriptedModel`, an injectable `queryFn`, and an injectable Codex runner keep runtime decisions
+offline-testable, no DB, no API key, see **Honest status**), but storytree's own prove-it-gate never
+DROVE those proofs red→green. So its honest
 path off `mapped` is **not** a fail-closed `--real` Build over a mature artifact with no genuine live
 red — it is the author-declared **reliability gates** below, observe-and-signed to an `adopted` verdict
 ([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
@@ -272,22 +285,22 @@ resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declar
 Fork B). This is the `mapped → healthy` = **Adopt** transition
 [ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)
 names (its decision d.3 retired the status-blind Build for `mapped` stories). Distinct from
-`## UAT Test Criteria` above (the integrated, part-scripted/part-attested acceptance journey across two
-runtimes): the gates are the author's **expandable reliability floor**, starting by adopting the
+`## UAT Test Criteria` above (the integrated, part-scripted/part-attested acceptance journey across
+the runtime implementations): the gates are the author's **expandable reliability floor**, starting by adopting the
 existing green suite and GROWING a `_(gate: build-tests)_` gate (a genuine red→green regression leg)
-the moment observation proves insufficient — a real defect slips through, or the live SDK leg
+the moment observation proves insufficient — a real defect slips through, or a live subscription leg
 (currently operator-attested) finally earns a standing offline test.
 
 1. **The agent runtime's own suite is green** _(gate: observe)_ `pnpm --filter @storytree/agent test`.
    The spine runs it at a clean committed HEAD and OBSERVES it green — the `Model` seam + `ScriptedModel`
    (every `@anthropic-ai/sdk` import confined to `model.ts`), the owned turn loop, the fail-closed step
    runner (malformed result retries then HALTS, never a forged success), the confined file-tool surface
-   (a path escape refused as a tool result, never a thrown crash), and the SDK leaf's `decideWrite`
-   write-scope DECISION function all pass offline (no DB, no API key) — then signs an `adopted` verdict
+   (a path escape refused as a tool result, never a thrown crash), and both live leaves'
+   authentication/result/scope decisions all pass offline (no DB, no API key) — then signs an `adopted` verdict
    (`storytree gate run agent#gate-1 --pg`). This is the bulk of the leaf organism's mechanics
-   (`packages/agent`). The genuinely live legs — a real subscription `query()`, the inner loop — stay
-   operator-attested in the drive-machinery dogfood history (see **Honest status** and Story UAT leg 5),
-   never a standing test in this package; they become a `build-tests` gate here if one is ever authored.
+   (`packages/agent`). The genuinely live SDK/CLI subscription invocations stay need-gated (see
+   **Honest status** and Story UAT leg 5), never a standing test in this package; they become a
+   `build-tests` gate here if one is ever authored.
 
 Adopting this gate flips the runtime off `mapped`. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored

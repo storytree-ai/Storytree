@@ -37,11 +37,14 @@ material reason a session reaches for `edit → pnpm gate → merge` instead of 
 the rational local choice is the free offline path over a billed build that can stall on a phantom
 ceiling (`docs/research/inner-loop-adoption-gap.md` §4). Fewer artificial caps lowers that friction.
 
-The forces against removal are weak: the **turn cap** (`maxTurns`, default 16, raisable to 45) is the
-genuine fail-closed runaway brake — it bounds how long any one slice can churn regardless of estimated
-dollars. The USD ceiling was a *second* brake measured in a currency that does not reflect our actual
-spend. ADR-0108 deferred per-*session* budget controls; this ADR resolves the per-*build* default in the
-no-ceiling direction, leaving the per-session question to ADR-0108 where it belongs.
+The forces against removal are weak: for the Claude leaf, the **turn cap** (`maxTurns`, default 16,
+raisable to 45) is the genuine fail-closed runaway brake — it bounds how long any one slice can churn
+regardless of estimated dollars. The USD ceiling was a *second* brake measured in a currency that does
+not reflect our actual spend. [ADR-0232](0232-add-a-chatgpt-subscription-codex-prove-it-leaf.md)
+extends this conclusion to the Codex subscription leaf: its token/turn usage is accounting, never
+API spend, and the Claude-SDK USD control is not offered there. ADR-0108 deferred per-*session*
+budget controls; this ADR resolves the per-*build* default in the no-ceiling direction, leaving the
+per-session question to ADR-0108 where it belongs.
 
 ## Decision
 
@@ -62,6 +65,9 @@ Concretely:
   remaining total (no artificial $1 sub-cap — the turn cap bounds the slice).
 - **`node build --real/--live`** already threaded `--budget` conditionally; with the SDK-author keystone
   it is now unbounded-by-default too. Docs/help updated to match.
+- **The Codex leaf records no USD spend and refuses `--runtime codex --budget`.** The CLI reports
+  subscription token/turn usage only. A list-price estimate cannot be repackaged as an operator cap
+  because it is not the run's funding model.
 
 What is explicitly **out of scope** (untouched): the adjacent subscription-funded SDK sessions that are
 not the build harness — the chat/headless orchestrator's per-session budget (ADR-0108's deferred
@@ -83,7 +89,8 @@ still mapped to `exhausted` (salvage-not-discard) for the case where an operator
   risk posture taken on the backstop-verify skip). It is a default change, fully reversible by passing
   `--budget`.
 - **Neutral.** The `budgetUsd` / `maxBudgetUsd` plumbing and the `runStoryBuild` total-budget
-  sequencing stay — the change makes the default unbounded, it does not rip out the capability.
+  sequencing stay for Claude — the change makes the default unbounded, it does not rip out that
+  runtime-specific capability. Codex deliberately has no fake USD branch.
 
 ## References
 

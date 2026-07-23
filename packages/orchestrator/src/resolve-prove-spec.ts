@@ -3,11 +3,17 @@ import * as path from "node:path";
 
 import {
   ClaudeAgentAuthor,
+  CodexPhaseAuthor,
   FileToolExecutor,
   FILE_WRITE_TOOLS,
   ScriptedModel,
 } from "@storytree/agent";
-import type { FeedbackCommand, ModelResponse, PhaseAuthor } from "@storytree/agent";
+import type {
+  FeedbackCommand,
+  LiveRuntime,
+  ModelResponse,
+  PhaseAuthor,
+} from "@storytree/agent";
 import type { Store } from "@storytree/storage-protocol";
 import type { ContractCoverageAxis } from "@storytree/proof-protocol";
 
@@ -48,7 +54,7 @@ import { commitAuthored, platformShellCommand } from "./build-worktree.js";
  *    a temp workspace, a Node test runner over a planted red→green pair, an injected clean
  *    TreeState). A dry-run proves the GLUE, not the node's actual proofs.
  *  - **live-smoke** (ADR-0030, the plan's Phase D): the SAME temp-workspace walk, but the leaf is
- *    REAL — a {@link ClaudeAgentAuthor} (Claude Agent SDK, subscription-funded) genuinely authors
+ *    REAL — an explicitly selected subscription leaf genuinely authors
  *    the test and the impl under hook-enforced write scope, and the spine observes the genuine
  *    red→green its writes cause. Still synthetic in WHAT is built (the add(2,3) task in a temp
  *    dir) — it proves the live loop through the gate, not the node's real proof command (Phase F).
@@ -153,8 +159,8 @@ interface BaseResolveOptions {
 /**
  * The rendered per-phase leaf system prompts (ADR-0051 §4): the `red-builder` agent drives
  * AUTHOR_TEST, the `green-builder` agent drives IMPLEMENT. The CLI assembles these from the Library
- * offline and threads them down so the LIVE SDK leaf's system prompt IS the library agent — never a
- * hard-coded generic. The owned-loop (dry-run) leaf ignores them; an SDK leaf with no injected
+ * offline and threads them down so the LIVE leaf's system prompt IS the library agent — never a
+ * hard-coded generic. The owned-loop (dry-run) leaf ignores them; a live leaf with no injected
  * prompt fails closed (the anti-blindside guarantee, see {@link ClaudeAgentAuthor}).
  */
 export interface LeafPhasePrompts {
@@ -167,12 +173,14 @@ export interface DryRunResolveOptions extends BaseResolveOptions {
   mode: "dry-run";
 }
 
-/** Live-smoke (ADR-0030 / plan Phase D): a real Claude Agent SDK leaf, subscription-funded. */
+/** Live-smoke (ADR-0030/0232): one explicitly selected subscription-funded live leaf. */
 export interface LiveSmokeResolveOptions extends BaseResolveOptions {
   mode: "live-smoke";
-  /** Model for the SDK leaf. Default: claude-sonnet-5. */
+  /** Explicit live leaf. Default: Claude for compatibility. */
+  runtime?: LiveRuntime;
+  /** Model for the selected leaf. Defaults are runtime-owned. */
   model?: string;
-  /** Per-authoring-slice budget ceiling in USD (SDK-enforced). Default: 1. */
+  /** Per-authoring-slice budget ceiling in USD (Claude only). */
   maxBudgetUsd?: number;
   /** Per-authoring-slice turn ceiling (SDK-enforced). Default: 16. */
   maxTurns?: number;
@@ -188,9 +196,11 @@ export interface LiveSmokeResolveOptions extends BaseResolveOptions {
  */
 export interface RealResolveOptions extends BaseResolveOptions {
   mode: "real";
-  /** Model for the SDK leaf. Default: claude-sonnet-5. */
+  /** Explicit live leaf. Default: Claude for compatibility. */
+  runtime?: LiveRuntime;
+  /** Model for the selected leaf. Defaults are runtime-owned. */
   model?: string;
-  /** Per-authoring-slice budget ceiling in USD (SDK-enforced). Default: 1. */
+  /** Per-authoring-slice budget ceiling in USD (Claude only). */
   maxBudgetUsd?: number;
   /** Per-authoring-slice turn ceiling (SDK-enforced). Default: 16. */
   maxTurns?: number;
@@ -218,12 +228,15 @@ export type ResolveOptions =
   | LiveSmokeResolveOptions
   | RealResolveOptions;
 
+/** The admitted subscription leaves behind the runtime-neutral phase-author seam. */
+export type LiveAuthor = ClaudeAgentAuthor | CodexPhaseAuthor;
+
 /**
  * Resolution outcome: the full ProveSpec (plus, in live mode, the live author for cost/violation
  * reporting), or a fail-closed refusal with the buildable ids.
  */
 export type ResolveResult =
-  | { ok: true; spec: ProveSpec; liveAuthor?: ClaudeAgentAuthor }
+  | { ok: true; spec: ProveSpec; liveAuthor?: LiveAuthor }
   | { ok: false; reason: string; registered: string[] };
 
 /**
@@ -288,9 +301,9 @@ export function resolveProveSpec(
     opts.treeState ??
     (async (): Promise<TreeState> => ({ commitSha: `${opts.mode}-synthetic-tree`, clean: true }));
 
-  // The leaf, per mode (the ADR-0030 executor seam): scripted owned loop, or the live SDK author.
+  // The leaf, per mode: scripted owned loop or one explicit subscription author.
   let author: PhaseAuthor;
-  let liveAuthor: ClaudeAgentAuthor | undefined;
+  let liveAuthor: LiveAuthor | undefined;
   let prompts: PhasePrompts;
   if (opts.mode === "dry-run") {
     author = new OwnedLoopAuthor({
@@ -301,15 +314,40 @@ export function resolveProveSpec(
     });
     prompts = assemblePrompts(spec);
   } else {
-    liveAuthor = new ClaudeAgentAuthor({
-      cwd: opts.workspace,
-      isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
-      feedbackCommands: feedbackCommandsFor(syntheticProofCmd, `node ${DRY_RUN_TEST_REL}`),
-      ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
-      ...(opts.model !== undefined ? { model: opts.model } : {}),
-      ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
-      ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
-    });
+    if ((opts.runtime ?? "claude") === "codex") {
+      if (opts.maxBudgetUsd !== undefined) {
+        return {
+          ok: false,
+          reason:
+            "Codex subscription runs have no honest USD budget control; omit maxBudgetUsd or select Claude",
+          registered: registeredNodeIds(),
+        };
+      }
+      liveAuthor = new CodexPhaseAuthor({
+        cwd: opts.workspace,
+        writeGlobs: {
+          AUTHOR_TEST: ["*.test.cjs"],
+          IMPLEMENT: [DRY_RUN_IMPL_REL],
+        },
+        permissionPaths: {
+          AUTHOR_TEST: [DRY_RUN_TEST_REL],
+          IMPLEMENT: [DRY_RUN_IMPL_REL],
+        },
+        isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
+        ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
+        ...(opts.model !== undefined ? { model: opts.model } : {}),
+      });
+    } else {
+      liveAuthor = new ClaudeAgentAuthor({
+        cwd: opts.workspace,
+        isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
+        feedbackCommands: feedbackCommandsFor(syntheticProofCmd, `node ${DRY_RUN_TEST_REL}`),
+        ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
+        ...(opts.model !== undefined ? { model: opts.model } : {}),
+        ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
+        ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
+      });
+    }
     author = liveAuthor;
     prompts = liveSmokePrompts(spec);
   }
@@ -435,19 +473,44 @@ function resolveReal(
   const feedbackCommands = feedbackCommandsFor(realProofCmd, proofDisplay, typecheckCmd);
 
   let author: PhaseAuthor;
-  let liveAuthor: ClaudeAgentAuthor | undefined;
+  let liveAuthor: LiveAuthor | undefined;
   if (opts.authorOverride !== undefined) {
     author = opts.authorOverride;
   } else {
-    liveAuthor = new ClaudeAgentAuthor({
-      cwd: opts.workspace,
-      isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
-      feedbackCommands,
-      ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
-      ...(opts.model !== undefined ? { model: opts.model } : {}),
-      ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
-      ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
-    });
+    if ((opts.runtime ?? "claude") === "codex") {
+      if (opts.maxBudgetUsd !== undefined) {
+        return {
+          ok: false,
+          reason:
+            "Codex subscription runs have no honest USD budget control; omit maxBudgetUsd or select Claude",
+          registered: realBuildableNodeIds(),
+        };
+      }
+      liveAuthor = new CodexPhaseAuthor({
+        cwd: opts.workspace,
+        writeGlobs: {
+          AUTHOR_TEST: real.scope.testGlobs,
+          IMPLEMENT: real.scope.sourceGlobs,
+        },
+        permissionPaths: {
+          AUTHOR_TEST: [real.testFile],
+          IMPLEMENT: [real.sourceFile],
+        },
+        isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
+        ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
+        ...(opts.model !== undefined ? { model: opts.model } : {}),
+      });
+    } else {
+      liveAuthor = new ClaudeAgentAuthor({
+        cwd: opts.workspace,
+        isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
+        feedbackCommands,
+        ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
+        ...(opts.model !== undefined ? { model: opts.model } : {}),
+        ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
+        ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
+      });
+    }
     author = liveAuthor;
   }
 
@@ -776,6 +839,8 @@ export function liveSmokePrompts(spec: NodeSpec): PhasePrompts {
     implement:
       `${header}\n\n${conventions}\n\nPhase IMPLEMENT — read \`${DRY_RUN_TEST_REL}\`, then write ONLY ` +
       `\`${DRY_RUN_IMPL_REL}\` so that test passes. Writes to the test file are refused in this phase. ` +
-      `Iterate with \`run_proof\` until green, then stop — the spine observes the official green itself.`,
+      `The complete intended file is exactly:\n\n` +
+      "```js\nmodule.exports = { add: (a, b) => a + b };\n```\n\n" +
+      `Write that file and stop — the spine observes the official green itself.`,
   };
 }

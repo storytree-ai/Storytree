@@ -33,7 +33,9 @@ The operator surface over the whole machinery — two commands, one honest-envel
 - **`node build <id>`** (`packages/drive/src/node-build.ts:754-1096`): pick EXACTLY one of
   `--dry-run` (offline scripted glue walk), `--live` (ADR-0030 SDK smoke over the synthetic pair),
   `--real` (Phase F — fresh worktree, the node's REAL files and proof command, spine commit,
-  ADR-0031 promotion with the typecheck/regression pre-checks and push-withhold on red). Before
+  ADR-0031 promotion with the typecheck/regression pre-checks and push-withhold on red). Live/real
+  author selection is explicit: Claude is the compatibility default and `--runtime codex` selects
+  the ChatGPT-funded Codex leaf (`gpt-5.6-terra` by default). Before
   any work: a resolvable signer (a verdict must be attributable), the spec file, and — for
   `--real` — the registry's real-proof config and the install⇒typecheck invariant, each a cheap
   fail-closed refusal. `driveNode` (`node-build.ts:461-516`) is the shared single-node walk:
@@ -43,8 +45,10 @@ The operator surface over the whole machinery — two commands, one honest-envel
   listed capabilities, topo-orders them ([`story-topo-build`](story-topo-build.md)), prechecks
   EVERY node's registry entry before any node runs (and before any spend), runs the
   [`oq-hygiene-gate`](oq-hygiene-gate.md) (live only), then chains `driveNode` per node over ONE
-  store and runId under the total budget ceiling (default $10, each slice capped at $1). The
-  report derives per-node rollups off the one shared event log.
+  store and runId. `--runtime` threads through the whole chain; Claude remains the compatibility
+  default and may opt into a caller-supplied USD ceiling, while Codex refuses `--budget` rather
+  than presenting subscription quota as API spend. The report derives per-node rollups off the one
+  shared event log.
 - **The verdict store seam** (`resolveVerdictStore`, `node-build.ts:264-328`): in-memory by
   default; `--store pg` swaps in [`work-verdict-event-log`](work-verdict-event-log.md)'s
   `PgWorkStore` over the live tables — and is REFUSED for scripted dry-runs, because persisting a
@@ -58,8 +62,10 @@ Code edges for the `depends_on`: `node-build.ts:11-25` (the resolver/gate/worktr
 (`oqHygieneGate`); `node-build.ts:23-27` (`workEvent`, `rollupStatus`, `verdictLine`) and `:49`
 (`PgWorkStore`). **Cross-story (the story-level `library` edge):** `node-build.ts:41-44` also pulls
 `createPool`/`closePool`/`applySchema` — the library story's store-connection seam. The
-`ClaudeAgentAuthor` import (`node-build.ts:7`) is type-only — the consumed executor seam's
-reporting surface (cost, scope walls, feedback runs — `liveLeafLines`, `node-build.ts:519-530`).
+live-author imports are type-only — the consumed executor seam's reporting surface. Claude reports
+advisory API-list-price accounting for compatibility; Codex reports turns/tokens without pretending
+that list price is real subscription spend. In both cases the leaf's feedback is untrusted and the
+spine's out-of-band proof commands remain the sole red/green/verdict authority.
 
 ## Integration test
 

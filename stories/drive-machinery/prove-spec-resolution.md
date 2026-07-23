@@ -19,10 +19,11 @@ depends_on: [red-green-phase-machine, shell-test-observer, prove-it-gate, owned-
 > resolver, the spec loader, the registry, the prompts, the feedback-tool arming, and BOTH offline
 > end-to-end walks (dry-run glue and the REAL-mode worktree walk with a scripted author) are
 > covered by a real, passing, offline suite (`packages/orchestrator/src/resolve-prove-spec.test.ts`,
-> part of `@storytree/orchestrator` 99/99 — I ran it 2026-06-13). The pocket: the default
-> live-mode author is a REAL `ClaudeAgentAuthor` — offline tests verify it is constructed and
-> armed (`:452-:484`) but never run it; the genuinely-live legs are attested by the Phase D/E/F
-> runs (signed passes, e.g. run `real-mq7ky4ck`), not by a standing test.
+> part of `@storytree/orchestrator` 99/99 — I ran it 2026-06-13). The pocket: live mode binds a
+> REAL author selected at the injection layer — `ClaudeAgentAuthor` is the compatibility default,
+> while `--runtime codex` selects `CodexPhaseAuthor` with saved ChatGPT authentication. Offline
+> tests verify construction and scope arming but never run the subscription leaf; the
+> genuinely-live legs are need-gated, not standing tests.
 
 ## Guidance
 
@@ -45,11 +46,13 @@ Three files, one act — turn a unit id into everything `proveUnit` needs:
   **dry-run** (offline, zero cost: a scripted phase-aware model behind
   [`owned-loop-phase-author`](owned-loop-phase-author.md), a temp workspace, a real Node test
   runner over a planted red→green pair — proves the GLUE, not the node's proofs);
-  **live-smoke** (ADR-0030 Phase D: a REAL `ClaudeAgentAuthor` authors the synthetic pair under
-  hook-enforced scope); **real** (Phase F: nothing synthetic — the registry's real files in a
+  **live-smoke** (ADR-0030 Phase D: the selected REAL author — Claude by default, Codex via
+  `--runtime codex` — authors the synthetic pair under phase-enforced scope); **real** (Phase F:
+  nothing synthetic — the registry's real files in a
   fresh git worktree, the registry's REAL proof command, and a tree seam that COMMITS the
   authored files spine-side before reading genuine `git status`, `resolve-prove-spec.ts:344-355`).
-  `feedbackCommandsFor` (`:385-411`) arms the leaf's bounded ADR-0035 tools — `run_proof` spawns
+  For the Claude compatibility runtime, `feedbackCommandsFor` (`:385-411`) arms the leaf's bounded
+  ADR-0035 tools — `run_proof` spawns
   the SAME command the spine's observations spawn (one oracle, two consumers), `run_typecheck`
   only when registered. The prompt builders (`assemblePrompts` `:119-127`, `realPrompts`
   `:418-463`) splice the node's REAL outcome + guidance into the phase briefs, including the
@@ -58,10 +61,12 @@ Three files, one act — turn a unit id into everything `proveUnit` needs:
 Code edges for the `depends_on`: `resolve-prove-spec.ts:13` (`PathWriteScope`), `:14`
 (`OwnedLoopAuthor`), `:15` (`ShellTestExecutor`, `runShellCommand`), `:17` (`gitTreeState`), `:27`
 (`commitAuthored`, `platformShellCommand`); plus the type edges `test-command-registry.ts:1-2`
-(`ShellCommand`, `PathWriteScopeConfig`). The VALUE import of `ClaudeAgentAuthor` from
-`@storytree/agent` (`resolve-prove-spec.ts:3-8`) is the one place the consumed executor seam goes
-concrete — deliberately HERE, in the injection layer, so the gate itself stays author-agnostic
-(see the story's executor-seam section).
+(`ShellCommand`, `PathWriteScopeConfig`). The VALUE imports of `ClaudeAgentAuthor` and
+`CodexPhaseAuthor` from `@storytree/agent` are the one place the consumed executor seam goes
+concrete — deliberately HERE, in the injection layer, so the gate itself stays author-agnostic.
+Whichever author is selected, its proof feedback remains untrusted: the deterministic spine reruns
+the registered command out of band and remains the sole red/green/verdict authority (see the
+story's executor-seam section).
 
 ## Integration test
 

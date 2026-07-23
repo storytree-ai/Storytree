@@ -1421,6 +1421,7 @@ interface BuildValues {
   "emit-wisp"?: boolean;
   dwell?: string;
   model?: string;
+  runtime?: string;
   budget?: string;
   "max-turns"?: string;
   actor?: string;
@@ -1434,7 +1435,7 @@ interface BuildValues {
  * single source the dispatch routes into, never re-typed per area (ADR-0118: relocate the primitive,
  * don't fork it).
  */
-function nodeStoryBuildOpts(values: BuildValues) {
+export function nodeStoryBuildOpts(values: BuildValues) {
   return {
     dryRun: values["dry-run"] === true,
     live: values.live === true,
@@ -1442,6 +1443,7 @@ function nodeStoryBuildOpts(values: BuildValues) {
     emitWisp: values["emit-wisp"] === true,
     ...(values.dwell !== undefined ? { dwellSec: Number(values.dwell) } : {}),
     ...(values.model !== undefined ? { model: values.model } : {}),
+    ...(values.runtime !== undefined ? { runtime: values.runtime } : {}),
     ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
     ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
     ...(values.actor !== undefined ? { actor: values.actor } : {}),
@@ -1493,6 +1495,7 @@ function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): G
         repoRoot: repoRoot(),
         ...(values.store !== undefined ? { verdictStore: values.store } : {}),
         ...(values.model !== undefined ? { model: values.model } : {}),
+        ...(values.runtime !== undefined ? { runtime: values.runtime } : {}),
         ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
         ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
       }),
@@ -1517,7 +1520,9 @@ function buildHelp(): Envelope {
       "  storytree build story <id> [flags]             drive a WHOLE story's nodes in dependency order (was `story build`)",
       "  storytree build gate <story>#gate-<n> --real   earn a build-tests gate by a real red→green (was `gate run --real`)",
       "",
-      "flags: --dry-run (scripted, offline) · --live (SDK smoke) · --real (real build) · --budget <usd> · --model <id>",
+      "flags: --dry-run (scripted, offline) · --live (subscription leaf smoke) · --real (real build)",
+      "       --runtime claude|codex (default: claude) · --model <runtime-model-id>",
+      "       --budget <usd> (Claude only) · --max-turns <n>",
       "",
       "An `observe` gate is NOT a build — it is observe-and-signed by adoption: `storytree adopt gate <id>`.",
       "The moved verbs keep working as back-compat aliases (`node build`, `node resolve`, `story build`,",

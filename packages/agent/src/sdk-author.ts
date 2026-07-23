@@ -390,6 +390,8 @@ function isResult(message: unknown): message is ResultLike {
  * slice; auth is ambient (CLAUDE_CODE_OAUTH_TOKEN / Claude Code login — subscription-funded).
  */
 export class ClaudeAgentAuthor implements PhaseAuthor {
+  /** Runtime discriminator used by drive/reporting without coupling to SDK-specific accounting. */
+  readonly runtime = "claude" as const;
   readonly #args: ClaudeAgentAuthorArgs;
   readonly #queryFn: SdkQueryFn;
   /** True when no `queryFn` was injected — i.e. this leaf runs the REAL Agent SDK (live/real). */

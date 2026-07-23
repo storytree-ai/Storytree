@@ -79,7 +79,7 @@ artifact_edges: [studio, app-guide, studio-cloud]
 # operator-attested appearance (and the live `builder` grant); 0176 supersedes 0119 and is the complete
 # current sidecar decision: tsx-sidecar + studio boot reads + re-compose boundary, with DB/git launch
 # preconditions and no degraded shell.
-decisions: [109, 111, 113, 117, 176, 90, 91, 4, 108, 175, 21, 70, 179, 180, 198]
+decisions: [109, 111, 113, 117, 176, 90, 91, 4, 108, 175, 21, 70, 179, 180, 232]
 ---
 
 # Desktop client — a trusted member runs the whole storytree loop on their own machine
