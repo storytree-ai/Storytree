@@ -1,7 +1,7 @@
 // Render the delegatable library `agent` artifacts to each harness-native subagent directory:
-// `.claude/agents/<id>.md` (ADR-0052), `.cursor/agents/<id>.md` (ADR-0178), and
-// `.codex/agents/<id>.toml` (Codex custom-agent surface). All are generated
-// VIEWS of one Library population, drift-gated so neither harness can diverge by hand.
+// `.claude/agents/<id>.md` (ADR-0052), `.cursor/agents/<id>.md` (ADR-0178),
+// `.codex/agents/<id>.toml`, and `.gemini/agents/<id>.md`. All are generated
+// VIEWS of one Library population, drift-gated so no harness can diverge by hand.
 //
 //   pnpm build:agents      (re)generate every harness agent view
 //   pnpm check:agents      fail (exit 1) if any file is stale / missing / orphaned — the gate's guard
@@ -21,6 +21,7 @@ import {
   renderAgentFile,
   renderCursorAgentFile,
   renderCodexAgentFile,
+  renderGeminiAgentFile,
   essentialsGateViolations,
 } from "@storytree/library/store";
 
@@ -44,6 +45,12 @@ const targets = [
     dir: path.join(repoRoot, ".codex", "agents"),
     extension: "toml",
     render: renderCodexAgentFile,
+  },
+  {
+    label: ".gemini/agents",
+    dir: path.join(repoRoot, ".gemini", "agents"),
+    extension: "md",
+    render: renderGeminiAgentFile,
   },
 ] as const;
 
@@ -70,14 +77,14 @@ async function main(): Promise<void> {
   }> = [];
 
   for (const target of targets) {
-    // <id>.md -> generated content; a dangling ref fails closed (never a silently-thinner subagent).
+    // <id>.<native extension> -> content; a dangling ref fails closed (never silently thinner).
     const files = new Map<string, string>();
     for (const id of ids) {
       const res = await target.render(store, id);
       if (!res.ok) fail(`${res.reason} (agents: ${res.available.join(", ") || "none"})`);
       if (res.missingRefs.length > 0) {
         fail(
-          `${target.label}/${id}.md has dangling refs: ${res.missingRefs.join(", ")} — ` +
+          `${target.label}/${id}.${target.extension} has dangling refs: ${res.missingRefs.join(", ")} — ` +
             "fix the agent artifact.",
         );
       }

@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-06-14
 amends: [51]
+load_bearing: true
 ---
 # ADR-0052: Render delegatable agents to harness-native subagent files
 
@@ -19,13 +20,14 @@ the harness-native subagent rendering is built and enforced by `check:agents`.
 the one renderer and listed "one population, many rendered surfaces"; this adds one more surface
 (`.claude/agents/*.md`) on top of the same renderer, for the harness-native delegation path.
 
-**Correction ([ADR-0178](0178-render-delegatable-library-agents-to-native-cursor-subagent.md), per
+**Correction ([ADR-0178](0178-render-delegatable-library-agents-to-native-cursor-subagent.md) and
+[ADR-0234](0234-render-delegatable-library-agents-to-native-gemini-cli-subag.md), per
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's
 one-authored-population/generated-surface decision applies to every supported project-subagent
 directory. Claude Code consumes `.claude/agents/*.md`; Cursor's native contract consumes
 `.cursor/agents/*.md` while its IDE may also read the Claude directory as a compatibility source; Codex
-consumes `.codex/agents/*.toml`. Every directory is generated and drift-gated from the same delegatable
-Library agents.
+consumes `.codex/agents/*.toml`; Gemini CLI consumes `.gemini/agents/*.md`. Every directory is
+generated and drift-gated from the same delegatable Library agents.
 
 **Correction ([ADR-0156](0156-subagent-prompts-are-essentials-only-the-cli-serves-ceremony.md), per
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's
@@ -43,7 +45,8 @@ ADR-0051 deliberately favours the harness-AGNOSTIC, pull-based model (ADR-0030):
 into CLAUDE.md (the main session) and into the SDK leaf, and any role is *pullable* via
 `storytree agents <name>`. But the pull model alone does not register `story-author` as a native
 project subagent. Claude Code binds project subagents from `.claude/agents/<id>.md`; Cursor's native
-project contract is `.cursor/agents/<id>.md` (ADR-0178). Without generated project files the authored
+project contract is `.cursor/agents/<id>.md` (ADR-0178); Codex and Gemini use their corresponding
+native project directories (ADR-0234). Without generated project files the authored
 "story-writer" roles (story-author, the curators, the investigators) could be *printed* but not
 delegated to by the corresponding harness. That is the gap this decision closes, complementary to
 (not a replacement for) ADR-0051's surfaces.
@@ -53,7 +56,8 @@ delegated to by the corresponding harness. That is the gap this decision closes,
 1. **Harness-native project files are generated surfaces of the SAME renderer.** `renderAgentFile`
    wraps the essentials renderer in Claude Code subagent frontmatter; `renderCursorAgentFile` wraps
    the same essentials in Cursor-native frontmatter; `renderCodexAgentFile` emits the same essentials
-   in Codex custom-agent TOML. Every generated view carries a marker.
+   in Codex custom-agent TOML; `renderGeminiAgentFile` wraps the same essentials in Gemini-native
+   Markdown frontmatter. Every generated view carries a marker.
    *(The original wording said `renderAgentFile` wraps `renderAgentPrompt` — the FULL-body inline path —
    with "no new render logic"; that render-function sub-choice is re-decided by
    [ADR-0156](0156-subagent-prompts-are-essentials-only-the-cli-serves-ceremony.md) (per
@@ -76,13 +80,15 @@ delegated to by the corresponding harness. That is the gap this decision closes,
 4. **Emit only explicit harness policy.** Claude `tools` frontmatter is omitted (the subagent inherits
    the full surface; the prose Tools section carries the guidance). Cursor files declare
    `model: inherit`; `readonly` and `is_background` remain omitted until structured Library policy
-   can justify those execution semantics. Dedicated-surface agents remain excluded.
+   can justify those execution semantics. Codex and Gemini inherit their spawning session's model;
+   Gemini emits no tools, turn, or timeout policy until those grants are structured in the Library.
+   Dedicated-surface agents remain excluded.
 
 ## Consequences
 
-- Good: Claude, Cursor, and Codex sessions can delegate to the same authored story-writers. One source
+- Good: Claude, Cursor, Codex, and Gemini CLI sessions can delegate to the same authored story-writers. One source
   (the Library `agent` tier) feeds CLAUDE.md, the SDK leaf, `.claude/agents`, `.cursor/agents`, and
-  `.codex/agents`; none are hand-maintained.
+  `.codex/agents`, and `.gemini/agents`; none are hand-maintained.
 - Cost / sharp edges: multiple generated surfaces must stay green (`check:agents` in the gate + CI).
   The files render from the SEED, so live `--pg` agent edits don't show until a DB→seed export runs (the
   gap CLAUDE.md already names). No generated directory may be hand-edited (the marker + drift
@@ -94,7 +100,9 @@ delegated to by the corresponding harness. That is the gap this decision closes,
 - [ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) — the agent renderer (amended).
 - [ADR-0178](0178-render-delegatable-library-agents-to-native-cursor-subagent.md) — the Cursor-native
   generated surface (amends this decision).
+- [ADR-0234](0234-render-delegatable-library-agents-to-native-gemini-cli-subag.md) — the Gemini-native
+  generated surface (amends this decision).
 - [ADR-0029](0029-agents-as-library-artifact-category.md) — the `agent` knowledge kind.
 - [ADR-0030](0030-all-in-on-claude-agent-sdk.md) — harness-agnostic, pull-based context.
 - `packages/library/src/store/render-agent.ts`, `packages/cli/src/build-agents.ts`,
-  `.claude/agents/`, `.cursor/agents/`, `.codex/agents/`.
+  `.claude/agents/`, `.cursor/agents/`, `.codex/agents/`, `.gemini/agents/`.

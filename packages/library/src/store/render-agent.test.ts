@@ -10,6 +10,7 @@ import {
   renderAgentFile,
   renderCursorAgentFile,
   renderCodexAgentFile,
+  renderGeminiAgentFile,
   renderAgentStep,
   delegatableAgentIds,
   essentialsGateViolations,
@@ -283,7 +284,24 @@ test("renderCodexAgentFile escapes a multiline prompt that contains TOML delimit
   assert.match(res.content, /literal \\""" delimiter and \\\\ path/);
 });
 
-test("a pinned model tier flows into both harness frontmatter surfaces (ADR-0182)", async () => {
+test("renderGeminiAgentFile emits native Markdown frontmatter and inherits the Gemini session model", async () => {
+  const store = await seeded();
+  const res = await renderGeminiAgentFile(store, "clean-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+
+  assert.match(
+    res.content,
+    /^---\nname: clean-agent\ndescription: "a role whose refs all resolve"\n---\n\n/,
+  );
+  assert.ok(res.content.includes(GENERATED_AGENT_MARKER));
+  assert.match(res.content, /The clean agent does one thing\./);
+  assert.ok(!res.content.includes("\nmodel:"), "Gemini inherits the spawning session model");
+  assert.ok(res.content.endsWith("\n"));
+  assert.deepEqual(res.missingRefs, []);
+});
+
+test("a pinned Claude model tier is not translated into a foreign Gemini model id", async () => {
   const store = await seeded();
   await store.upsertDoc({
     id: "sonnet-agent",
@@ -304,11 +322,14 @@ test("a pinned model tier flows into both harness frontmatter surfaces (ADR-0182
   });
   const claude = await renderAgentFile(store, "sonnet-agent");
   const cursor = await renderCursorAgentFile(store, "sonnet-agent");
+  const gemini = await renderGeminiAgentFile(store, "sonnet-agent");
   assert.equal(claude.ok, true);
   assert.equal(cursor.ok, true);
-  if (!claude.ok || !cursor.ok) return;
+  assert.equal(gemini.ok, true);
+  if (!claude.ok || !cursor.ok || !gemini.ok) return;
   assert.match(claude.content, /\nmodel: sonnet\n---\n/);
   assert.match(cursor.content, /\nmodel: sonnet\n---\n/);
+  assert.ok(!gemini.content.includes("\nmodel:"));
 });
 
 test("renderAgentFile surfaces a dangling ref via missingRefs (the build:agents fail-closed guard)", async () => {

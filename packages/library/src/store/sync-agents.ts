@@ -6,8 +6,8 @@ import { loadCorpus } from "./load-corpus.js";
  * Reconcile the Library's `agent` tier from the SEED to a target store (ADR-0055).
  *
  * The agent tier is **seed-canonical**: agents are authored in `apps/studio/data/knowledge.json`
- * and the renderer (`storytree agents`, the CLAUDE.md region per ADR-0051, the `.claude/agents`
- * files per ADR-0052) reads the seed offline. That is the EXCEPTION to ADR-0023's live-store-is-the-
+ * and the renderer (`storytree agents`, the CLAUDE.md region per ADR-0051, and every harness-native
+ * agent directory) reads the seed offline. That is the EXCEPTION to ADR-0023's live-store-is-the-
  * edit-surface default, which still holds for every OTHER kind. Because edits land in the seed, the
  * live Cloud SQL projection drifts unless it is re-synced — twice now (PR #117 reshape, ADR-0051/0052
  * rename+extend) the seed changed and the live tier was left stale, breaking `storytree agents --pg`

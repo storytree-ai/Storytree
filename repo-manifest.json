@@ -29,7 +29,8 @@
       ".github": "CI workflows (the green gate + auto-merge, ADR-0022).",
       ".claude": "Claude Code project config / worktrees.",
       ".cursor": "Cursor project config; generated native subagents mirror the Library agent tier (ADR-0178).",
-      ".codex": "Codex project config; generated native subagents mirror the Library agent tier."
+      ".codex": "Codex project config; generated native subagents mirror the Library agent tier.",
+      ".gemini": "Gemini CLI project config; generated native subagents mirror the Library agent tier."
     }
   },
   "docs": {

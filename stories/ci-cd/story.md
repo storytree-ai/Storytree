@@ -24,8 +24,9 @@ artifact_edges: [studio-cloud, notice-board]
 # Deciding ADRs (ADR-0037 §2): the green gate + auto-merge (22), repo-surface manifest (25),
 # decision binding + adr-health (37), the ADR-number allocator (50), session presence the retire
 # backstop serves (33), the display posture it heals (41), studio CD (46), keyless WIF auth (21),
-# the dependency-direction / no-cycle model that fixed this story's edges (58).
-decisions: [22, 25, 37, 50, 33, 41, 46, 21, 58]
+# the dependency-direction / no-cycle model that fixed this story's edges (58), and the fourth
+# harness-native generated agent view covered by check:agents — Gemini CLI (234).
+decisions: [22, 25, 37, 50, 33, 41, 46, 21, 58, 234]
 ---
 
 # CI/CD — the one enforced pipeline every green unit crosses to reach trunk
@@ -88,7 +89,7 @@ reaches forward to a sibling story.
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
-| 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves it against the merge of branch+main — manifest, CLAUDE.md/agents sync, typecheck, test, build — and a red anything blocks the merge. | proposed | — |
+| 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves it against the merge of branch+main — manifest, CLAUDE.md plus all four harness-native agent views in sync, typecheck, test, build — and a red anything blocks the merge. | proposed | — |
 | 2 | [`repo-surface-manifest`](repo-surface-manifest.md) | `pnpm check:manifest` refuses any tracked root entry or loose doc not declared in `repo-manifest.json`, so ad-hoc junk can't merge. | proposed | — |
 | 3 | [`adr-health-gate`](adr-health-gate.md) | Decision-binding hygiene on the dev-repo path: atomic ADR-number allocation + the full adr-health suite (frontmatter, edges, supersede, story-decisions, green-flip, number-uniqueness) reddens a PR, plus a cross-open-PR collision check. | proposed | — |
 | 4 | [`gate-ci-parity`](gate-ci-parity.md) | The local `pnpm gate` and the CI `verify` invariant sets stand in one declared, checkable relationship (gate = CI − build, HEAD vs merge-ref); a stale-behind-main branch is surfaced. | proposed | `green-gate` |
@@ -193,11 +194,13 @@ Surfaced rather than guessed — plain files, cheap to revise.
    artifact of double-counting "stay fresh," which is ci-cd's outcome alone (§1). Verified acyclic
    globally.
 3. **`green-gate`'s invariant set is broader than the original spec named.** The live `verify` job
-   runs `check:manifest` + `check:claude` + **`check:agents`** (ADR-0052, generated `.claude/agents`)
-   + `typecheck` + `test` + `build` — i.e. there are now THREE generated-view/surface gates, not the
-   two (`manifest` + `claude`) the scope brief named. I grounded `green-gate` and `gate-ci-parity` in
-   what the file actually runs (including `check:agents`). Confirm that broader set is intended (it
-   matches `ci.yml` at HEAD).
+   runs `check:manifest` + `check:claude` + **`check:agents`** (ADRs 0052/0178/0234: the same
+   delegatable Library population rendered to `.claude/agents`, `.cursor/agents`, `.codex/agents`,
+   and Gemini CLI's native `.gemini/agents`) + `typecheck` + `test` + `build` — i.e. there are now
+   THREE generated-view/surface gates, not the two (`manifest` + `claude`) the scope brief named. I
+   grounded `green-gate` and `gate-ci-parity` in what the file actually runs (including
+   `check:agents`). The Gemini view inherits its parent Gemini CLI session's model/tools; this
+   projection makes no Antigravity compatibility claim.
 4. **Status stays `proposed` (greenfield, like notice-board).** This machinery is live and working,
    but it has never been driven through storytree's own prove-it-gate red→green, and per ADR-0031
    authored status is a projection of signed verdicts, not of "it works in prod." Confirm `proposed`

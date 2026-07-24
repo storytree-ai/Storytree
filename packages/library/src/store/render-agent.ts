@@ -647,6 +647,20 @@ export async function renderCursorAgentFile(
 }
 
 /**
+ * Render the committed `.gemini/agents/<id>.md` view consumed by Gemini CLI custom subagents.
+ * Gemini receives the same essentials prompt but deliberately inherits the spawning session model:
+ * the Library's `sonnet` / `opus` tiers are Claude-specific labels, not Gemini model identifiers.
+ * Optional execution policy (`tools`, turn/time limits) stays absent until the Library can express
+ * those grants structurally.
+ */
+export async function renderGeminiAgentFile(
+  store: Store,
+  name: string,
+): Promise<RenderAgentFileResult> {
+  return renderHarnessAgentFile(store, name);
+}
+
+/**
  * Render the committed `.codex/agents/<id>.toml` view of a Library agent. Codex custom agents
  * require a name, description, and developer instructions; model selection deliberately inherits
  * from the spawning session because the Library's Claude-oriented sonnet/opus tiers are not Codex

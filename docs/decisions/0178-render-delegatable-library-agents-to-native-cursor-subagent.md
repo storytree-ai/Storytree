@@ -17,6 +17,11 @@ claim that Cursor does not automatically recognise `.claude/agents`: Cursor IDE 
 directory as a compatibility input, but the Cursor SDK documents `.cursor/agents` as its native
 project-file contract.
 
+**Correction ([ADR-0234](0234-render-delegatable-library-agents-to-native-gemini-cli-subag.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the
+one-population/many-native-surfaces rule now also generates Gemini CLI's `.gemini/agents/*.md`
+directory alongside Claude, Cursor, and Codex. Cursor's native policy below is unchanged.
+
 ## Context
 
 Storytree already solved subagent authorship for Claude. Library `agent` artifacts are canonical;
@@ -48,18 +53,19 @@ generated-view gate.
    `.cursor/agents` file is hand-edited. Both are generated views of the same
    `renderAgentEssentials` body and the same `delegatableAgentIds` selection.
 
-2. **Generate both harness-native project surfaces.**
+2. **Generate every admitted harness-native project surface.**
    - `renderAgentFile` remains the backwards-compatible Claude renderer.
    - `renderCursorAgentFile` emits Cursor-native frontmatter and the same generated marker +
      essentials prompt.
-   - `pnpm build:agents` writes and orphan-prunes both `.claude/agents/*.md` and
-     `.cursor/agents/*.md`.
+   - Codex and Gemini render the same essentials through their native TOML/Markdown wrappers.
+   - `pnpm build:agents` writes and orphan-prunes `.claude/agents/*.md`, `.cursor/agents/*.md`,
+     `.codex/agents/*.toml`, and `.gemini/agents/*.md`.
 
 3. **Cursor files start with the minimum explicit native policy:** `name`, `description`, and
    `model: inherit`. Do not infer `readonly` or `is_background` from prose. Those fields grant
    execution semantics and require structured Library policy before the generator may emit them.
 
-4. **One gate covers both directories.** `pnpm check:agents` fails when either target is stale,
+4. **One gate covers every directory.** `pnpm check:agents` fails when any target is stale,
    missing, orphaned, carries dangling references, or violates the essentials size/structure
    contract. Its success output names both targets so CI cannot appear green while checking only the
    legacy Claude view.
@@ -78,7 +84,7 @@ generated-view gate.
 
 **Good.**
 
-- Claude and Cursor spawn the same authored specialists with no prompt duplication.
+- Claude, Cursor, Codex, and Gemini CLI spawn the same authored specialists with no prompt duplication.
 - Cursor IDE compatibility works immediately, while the native `.cursor` view gives the SDK a
   documented, highest-precedence project contract.
 - Existing essentials, dangling-reference, orphan, and drift checks extend to the new harness rather
@@ -87,7 +93,7 @@ generated-view gate.
 
 **Bad / watch.**
 
-- Every agent-artifact edit now changes two generated directories, increasing review noise.
+- Every agent-artifact edit now changes four generated directories, increasing review noise.
 - Cursor-specific execution policy is intentionally conservative until the Library schema can express
   it structurally; prose `Tools` text is not a safe source for `readonly`.
 - A local SDK caller that forgets `settingSources: ["project"]` gets no generated subagents. Runtime
@@ -102,6 +108,7 @@ generated-view gate.
 - ADR-0052 — generated Claude subagent files (amended here).
 - ADR-0156 / ADR-0161 — essentials-only prompts and just-in-time step context.
 - ADR-0177 — Cursor behind the leaf-runtime seam (amended/corrected here).
+- ADR-0234 — the Gemini CLI native generated surface (amends this decision).
 - `packages/library/src/store/render-agent.ts`
 - `packages/cli/src/build-agents.ts`
 - Cursor subagent documentation: `https://cursor.com/docs/subagents`
