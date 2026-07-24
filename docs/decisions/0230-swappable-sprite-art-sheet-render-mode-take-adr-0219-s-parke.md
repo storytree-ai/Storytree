@@ -13,6 +13,12 @@ spike into generative isometric asset pipelines. Design-time alignment IS the ra
 no second end-of-flow ask. The LOOK verdict on any produced render remains separate and the owner's
 (ADR-0070 stage 2), still outstanding.
 
+**Currency (2026-07-24).** The owner attested the sized Storybook sheet on 2026-07-23: it clears and
+beats the parametric vector factory for this prototype. The landing gate below is therefore satisfied.
+Under D4's existing authorization, Storybook is now the clean-URL default and Vector remains intact as
+the explicit `?artStyle=vector` option. The original default-off/outstanding wording below records the
+adoption gate; it no longer describes the current default or verdict state.
+
 ## Context
 
 The grounded-art arc built a machinery-heavy parametric factory ([ADR-0214](0214-ground-ai-authored-art-in-a-physical-model-csg-over-svg-not.md)
@@ -53,6 +59,10 @@ factory, does not remove it.**
 2. **Default-off world-settings toggle.** An `artStyle` SELECT control (`vector | <sheet>`), copying
    the `substrate` precedent; at its `vector` default it writes no URL param, so **off is byte-identical
    to today**. Studio `WorldSettingsPanel` renders it with no UI work.
+
+   **Currency (2026-07-24):** after the owner signed Storybook, absence now resolves to `storybook`;
+   choosing the preserved procedural render writes `?artStyle=vector`. Unknown or retired explicit
+   values still fail safely to Vector rather than attempting a broken manifest fetch.
 3. **Generation is AUTHOR-TIME ONLY** (upholds ADR-0219 D1): nano-banana (`gemini-3-pro-image`,
    `@google/genai`) in `packages/art-authoring`, key read from GCP Secret Manager via ambient ADC into
    `process.env`, fail-closed, validated by one free `models.list` probe before any paid burst. The
@@ -65,6 +75,10 @@ factory, does not remove it.**
    The **look verdict stays owner-attested** (ADR-0070 stage 2 / ADR-0159); sheets land default-off
    until the owner signs. The vector factory (ADR-0214/0217) remains the default render and is NOT
    deleted — the two coexist behind the toggle.
+
+   **Currency (2026-07-24):** the owner signed on 2026-07-23, so the authorized default flip has now
+   occurred. The vector factory remains present and selectable; only its role changed from default to
+   explicit option.
 
 Rejected: replacing or deleting the parametric factory; per-instance or runtime generative calls;
 auto-tracing raster into the scene-graph as geometry; shipping this to the public website now; any

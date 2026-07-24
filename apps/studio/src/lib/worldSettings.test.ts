@@ -181,21 +181,26 @@ describe('worldSettings — readRenderScene (scene is now the DEFAULT, ADR-0093 
 // former "vegetation-vocabulary gear TOGGLE" + "readVegetationVocab" suites are gone. The schema test
 // above pins `veg` as a RETIRED key so a re-introduction is caught red.
 
-describe('worldSettings — artStyle control (sprite-art-sheets arc, default-off select)', () => {
-  it('defaults to vector and writing vector REMOVES the param (byte-identical world)', () => {
-    expect(readControlValue('', ctl('artStyle'))).toBe('vector');
-    expect(setControlValue('?artStyle=storybook', ctl('artStyle'), 'vector')).toBe('');
+describe('worldSettings — artStyle control (sprite-art-sheets arc, Storybook default)', () => {
+  it('defaults to Storybook and writing Storybook REMOVES the param', () => {
+    expect(readControlValue('', ctl('artStyle'))).toBe('storybook');
+    expect(setControlValue('?artStyle=vector', ctl('artStyle'), 'storybook')).toBe('');
   });
 
-  it('writes the three coherent nano-banana sheets when picked, and offers them in the dropdown', () => {
-    for (const name of ['storybook', 'daylight', 'watercolor']) {
+  it('writes Vector as the explicit procedural opt-out', () => {
+    expect(setControlValue('', ctl('artStyle'), 'vector')).toBe('?artStyle=vector');
+    expect(readControlValue('?artStyle=vector', ctl('artStyle'))).toBe('vector');
+  });
+
+  it('writes the two non-default nano-banana sheets when picked, and offers every style in the dropdown', () => {
+    for (const name of ['daylight', 'watercolor']) {
       expect(setControlValue('', ctl('artStyle'), name)).toBe(`?artStyle=${name}`);
       expect(readControlValue(`?artStyle=${name}`, ctl('artStyle'))).toBe(name);
     }
     const artStyle = ctl('artStyle');
     if (artStyle.kind !== 'select') throw new Error('artStyle should be a select control');
     const opts = artStyle.options.map((o) => o.value);
-    expect(opts).toEqual(['vector', 'storybook', 'daylight', 'watercolor']);
+    expect(opts).toEqual(['storybook', 'daylight', 'watercolor', 'vector']);
   });
 
   it('the retired stub / cosy / evening sheets no longer resolve (fall back to vector)', () => {
@@ -204,15 +209,15 @@ describe('worldSettings — artStyle control (sprite-art-sheets arc, default-off
     }
   });
 
-  it('an unknown/typo`d value normalizes to the vector default (never a silent broken sheet)', () => {
+  it('an unknown/typo`d explicit value normalizes to Vector (never a silent broken sheet)', () => {
     expect(readControlValue('?artStyle=stub-z', ctl('artStyle'))).toBe('vector');
     expect(readControlValue('?artStyle=', ctl('artStyle'))).toBe('vector');
   });
 
-  it('preserves UNRELATED params when setting the select', () => {
-    const out = setControlValue('?debug=1', ctl('artStyle'), 'storybook');
+  it('preserves UNRELATED params when setting the default', () => {
+    const out = setControlValue('?artStyle=vector&debug=1', ctl('artStyle'), 'storybook');
     expect(out).toContain('debug=1');
-    expect(out).toContain('artStyle=storybook');
+    expect(out).not.toContain('artStyle');
   });
 });
 
