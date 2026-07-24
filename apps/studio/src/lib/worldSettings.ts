@@ -7,9 +7,9 @@
 //     and the gear panel BOTH consume the defaults + clamps declared here, so a default
 //     or a clamp can never drift between "what the world renders" and "what the panel
 //     shows / writes".
-//   • Byte-identical default world. Writing a control AT its default REMOVES the param
+//   • Canonical clean default URL. Writing a control AT its default REMOVES the param
 //     (setControlValue), and resetControls drops every managed param — so an untouched
-//     world's URL stays clean and the geometry is unchanged by construction.
+//     world's URL stays clean.
 //   • Pure string/URL math (no React, no DOM) so the contract is unit-testable in the
 //     node-env vitest suite (worldSettings.test.ts) — Stage-1 red-green of the gear.
 //
@@ -95,14 +95,16 @@ export type ControlValue = number | boolean | string;
 const GROUP_LAYOUT = 'Layout';
 const GROUP_ART = 'Art style';
 
-/** artStyle aliases (sprite-art-sheets arc). Only the sheet names the studio actually ships resolve;
- *  an absent/unknown/typo'd value is the `vector` default — the byte-identical procedural render — so a
- *  bad `?artStyle=` param can never silently break the map. The three coherent nano-banana sheets
- *  (whole-sheet gen → content-aware slice → crown recolour, owner-attested 2026-07-23); adding a sheet
- *  never touches the reader / mapper, only this list + the CONTROLS options below. */
-const ART_STYLE_NAMES = ['storybook', 'daylight', 'watercolor'] as const;
+/** artStyle aliases (sprite-art-sheets arc). Absence resolves to the owner-attested `storybook`
+ *  default; a recognized explicit value resolves as written, including the still-supported procedural
+ *  `vector` render. Unknown/retired explicit values keep the prior fail-safe and resolve to `vector`, so
+ *  a stale or bad `?artStyle=` param can never trigger a broken manifest fetch. The three coherent
+ *  nano-banana sheets were produced whole-sheet → content-aware slice → crown recolour and attested
+ *  2026-07-23; adding a sheet only touches this list + the CONTROLS options below. */
+const ART_STYLE_NAMES = ['storybook', 'daylight', 'watercolor', 'vector'] as const;
 function normalizeArtStyle(raw: string | null): string {
-  return (ART_STYLE_NAMES as readonly string[]).includes(raw ?? '') ? (raw as string) : 'vector';
+  if (raw === null) return 'storybook';
+  return (ART_STYLE_NAMES as readonly string[]).includes(raw) ? raw : 'vector';
 }
 
 /** layout aliases, mirroring readLayoutMode. Default = `dag` (ADR-0229, owner-directed 2026-07-23,
@@ -163,27 +165,27 @@ export const CONTROLS: readonly ControlSpec[] = [
   // `useVegetation`), so there is nothing left to dial here.
 
   // ---- Art style (sprite-art-sheets arc) ----
-  // A default-off render-mode swap: instead of drawing an object's procedural vector body, the studio
-  // mapper can re-skin it from a sprite STYLE SHEET — a manifest of images keyed by drawable kind (+
-  // status), fetched from `apps/studio/public/art-sheets/<name>/manifest.json` (see the studio's
-  // `./sprite-sheet.ts` for the manifest contract). `vector` (default, absence) fetches nothing and
-  // renders byte-identical to today; each other option re-skins every COVERED kind and leaves everything
-  // uncovered as vector. The three sheets are the coherent nano-banana set (one whole-sheet generation per
-  // style, content-aware sliced, per-status trees recoloured from one master, unhealthy = the withered
-  // form) — owner-attested 2026-07-23. Adding/removing a sheet touches only this options list + the names
-  // alias above, never the reader/mapper.
+  // Instead of drawing an object's procedural vector body, the studio mapper can re-skin it from a
+  // sprite STYLE SHEET — a manifest of images keyed by drawable kind (+ status), fetched from
+  // `apps/studio/public/art-sheets/<name>/manifest.json` (see `./sprite-sheet.ts` for the contract).
+  // The owner attested Storybook on 2026-07-23, so it is now the clean-URL default; `?artStyle=vector`
+  // explicitly selects the preserved procedural render. Every sheet re-skins each COVERED kind and
+  // leaves uncovered kinds as vector. The three sheets are the coherent nano-banana set (one whole-sheet
+  // generation per style, content-aware sliced, per-status trees recoloured from one master, unhealthy =
+  // the withered form). Adding/removing a sheet touches only this options list + the names alias above,
+  // never the reader/mapper.
   {
     kind: 'select',
     key: 'artStyle',
     label: 'Art style',
     group: GROUP_ART,
-    hint: 'Re-skin the map from a sprite art sheet instead of the procedural vector shapes. Vector is the default (byte-identical). Storybook is a warm cosy look, Daylight a brighter one, and Watercolour a soft hand-painted wash — all AI-authored, default-off until picked here.',
-    default: 'vector',
+    hint: 'Re-skin the map from a sprite art sheet instead of the procedural vector shapes. Storybook is the approved warm default; Daylight is brighter, Watercolour a soft hand-painted wash, and Vector keeps the original procedural render.',
+    default: 'storybook',
     options: [
-      { value: 'vector', label: 'Vector (default)' },
-      { value: 'storybook', label: 'Storybook — warm' },
+      { value: 'storybook', label: 'Storybook — warm (default)' },
       { value: 'daylight', label: 'Daylight — bright' },
       { value: 'watercolor', label: 'Watercolour — soft wash' },
+      { value: 'vector', label: 'Vector — procedural' },
     ],
     normalize: normalizeArtStyle,
   },

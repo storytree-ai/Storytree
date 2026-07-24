@@ -1313,11 +1313,11 @@ function readLayoutMode(search: string = defaultSearch()): LayoutMode {
 }
 
 /**
- * Which sprite art STYLE SHEET re-skins the map (sprite-art-sheets spike) — `'vector'` (default,
- * absence) is the byte-identical procedural render; any other value names a sheet folder under
+ * Which sprite art STYLE SHEET re-skins the map (sprite-art-sheets arc) — `'storybook'` is the
+ * owner-attested default when the parameter is absent; `'vector'` explicitly selects the preserved
+ * procedural render; every other recognized value names a sheet folder under
  * `apps/studio/public/art-sheets/<name>/`. Gear-panel managed (worldSettings' `artStyle` control is
- * the single source of truth for the default + the option list), so the panel and this reader never
- * drift.
+ * the single source of truth for the default + the option list), so the panel and this reader never drift.
  */
 export function readArtStyle(search: string = defaultSearch()): string {
   return readControlValue(search, ART_STYLE_CTL) as string;
@@ -2020,10 +2020,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // baked-hero tree. (The default-off `?cosy` / `?garden` / `?factoryart` grounded-art flags were retired
   // by ADR-0228; the scene's dormant `bakedStone` / `garden` seams stay in forest-world, fed `null` here.)
   const vegetation = useVegetation();
-  // sprite-art-sheets spike: a default-off render-mode swap (worldSettings' `artStyle` select). `vector`
-  // (default/absence) fetches nothing — `spriteSheet` stays null and SceneView's sprite branch never
-  // fires, so the render is byte-identical to before this flag existed. A chosen sheet only affects
-  // `sceneCtx` below (NOT `SceneInput`/`buildScene` — the scene graph itself carries no sprite opinion).
+  // sprite-art-sheets arc: Storybook is the owner-attested default; `?artStyle=vector` is the explicit
+  // procedural opt-out and fetches nothing. A chosen sheet only affects `sceneCtx` below (NOT
+  // `SceneInput`/`buildScene` — the scene graph itself carries no sprite opinion).
   const artStyle = useMemo(() => readArtStyle(search), [search]);
   const spriteSheet = useArtStyleSheet(artStyle);
   const artScale = useMemo(() => readArtScale(search), [search]);
@@ -2932,9 +2931,9 @@ function useVegetation(): SceneVegetationInput {
 }
 
 /**
- * The resolved sprite ART STYLE SHEET for the default-off `artStyle` world setting
- * (sprite-art-sheets spike) — `null` while `artStyle` is `'vector'` (the default: no fetch at all, so
- * the flag-off path stays fully inert) or until a chosen sheet's manifest resolves. The mirror of
+ * The resolved sprite ART STYLE SHEET for the `artStyle` world setting (sprite-art-sheets arc) —
+ * `null` while `artStyle` is the explicit `'vector'` procedural option (no fetch at all) or until a
+ * chosen sheet's manifest resolves. The mirror of
  * {@link useBakedStone} / {@link useGardenIsland} for this seam: until it resolves the map keeps its
  * current render (vector, or a previously-loaded sheet), so a style swap is a late repaint rather than
  * a hole in the world.
