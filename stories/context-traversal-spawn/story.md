@@ -8,7 +8,7 @@ proof_mode: UAT
 uat_witness: machine
 arc: linked-session-context-arc
 depends_on: [context-traversal-telemetry, context-traversal-capture]
-consumed_by: [drive-machinery]
+consumed_by: [drive-machinery, cli]
 decisions: [235, 241, 192]
 capabilities: [leaf-slice-spawn-observations, build-spawn-capture, multi-adapter-replay]
 ---
@@ -76,11 +76,24 @@ other.
   and its coverage domain, and both capture and replay go through increment 2's
   `appendTraversalEvents` / `readTraversalSession` / `renderTraversalSession` barrel. Increment 2's
   package is CONSUMED through its public barrel and is never edited by this story.
-- `consumed_by: [drive-machinery]` — the PROVIDER-side declaration of the new
-  `@storytree/drive` → `@storytree/context-traversal-spawn` runtime import at the build composition
-  site. `check:boundaries` needs that cross-story edge declared in one direction; provider-side is
-  the cheaper side and leaves the `drive-machinery` spec untouched. The edge is code-backed (a real
-  `dependencies` entry), not declaration wallpaper.
+- `consumed_by: [drive-machinery, cli]` — both are PROVIDER-side declarations of a real runtime
+  import of `@storytree/context-traversal-spawn`, each code-backed by a `dependencies` entry rather
+  than declaration wallpaper. `check:boundaries` needs each cross-story edge declared in one
+  direction, and provider-side is the right side here for both.
+  - **`drive-machinery`** — `@storytree/drive` imports the build capture composition at the build
+    composition site, beside the existing per-slice usage append. Declaring it here leaves the
+    `drive-machinery` spec untouched.
+  - **`cli`** — `@storytree/cli` imports the multi-adapter replay so
+    `packages/cli/src/traversal.ts` can call `showTraversalSessionAllAdapters` in place of increment
+    2's single-adapter `showTraversalSession`. That swap is the whole point of the
+    `multi-adapter-replay` capability: the hardcoded `TERMINAL_CLI_DISPATCH_COVERAGE` explicitly
+    OMITS `event:spawn_handoff`, `event:model_context`, and `event:result_return`, so once builds
+    emit, `storytree traversal show` would render those events under a declaration that denies
+    them — the ADR-0235 clause 6 dishonesty this story exists to prevent. This mirrors increment 2's
+    own `consumed_by: [cli]`, declared for exactly this reason.
+  The CLI-side line itself — the one swapped import in `traversal.ts` plus the `package.json`
+  dependency — is un-asserted connective glue (ADR-0158) in another story's building: declared as
+  this edge and reviewed in the diff, claimed by no capability here and never this story's evidence.
 - This story does NOT depend on `@storytree/drive`. Session identity is resolved by the CALLER and
   passed in (the increment-2 rule, ADR-0241 D9); importing `deriveIdentity()` here would make
   `drive → spawn → drive` a cycle.

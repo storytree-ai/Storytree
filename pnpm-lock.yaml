@@ -270,6 +270,9 @@ importers:
       '@storytree/context-traversal-capture':
         specifier: workspace:*
         version: link:../context-traversal-capture
+      '@storytree/context-traversal-spawn':
+        specifier: workspace:*
+        version: link:../context-traversal-spawn
       '@storytree/drive':
         specifier: workspace:*
         version: link:../drive

@@ -21,6 +21,7 @@
   "dependencies": {
     "@storytree/agent": "workspace:*",
     "@storytree/context-traversal-capture": "workspace:*",
+    "@storytree/context-traversal-spawn": "workspace:*",
     "@storytree/drive": "workspace:*",
     "@storytree/storage-protocol": "workspace:*",
     "@storytree/library": "workspace:*",
