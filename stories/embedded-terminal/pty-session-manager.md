@@ -165,9 +165,11 @@ the Electron main). `@xterm/headless` + `@xterm/addon-serialize` ARE permitted d
 ADR-0190) — both are pure JS (no native module, no DOM), so the per-session headless screen model parses
 and serializes under `node:test` exactly as the real Electron main would; only the pty (`node-pty`) and
 `electron` stay banned from this module. So `node:test` drives the whole lifecycle headlessly. The
-Electron main (`main.ts`) is the thin operator-attested binding that injects the real `node-pty` adapter
-and mounts the `terminal:*` ipc handlers + the `webContents.send` stream (witnessed under the Story UAT
-legs 4–5, not asserted in CI).
+Electron main (`main.ts`) is the thin GLUE binding that injects the real `node-pty` adapter
+and mounts the `terminal:*` ipc handlers + the `webContents.send` stream — glue at the CAPABILITY tier
+(no isolatable red→green here), witnessed under the Story UAT's **machine** legs 4 and 6 in the
+integrated `_electron` harness (re-adjudicated 2026-07-26 from "legs 4–5, not asserted in CI": a real
+native pty IS machine-observable there, and merely-native is a cost, not a judgment gap).
 
 FAIL CLOSED, NEVER CRASH (the load-bearing safety observable): `write` / `resize` / `dispose` on an
 unknown or already-disposed session id is a typed no-op / `false` — NEVER a throw that would crash the
@@ -359,7 +361,7 @@ Rules:
   is the ONE form esbuild lowers correctly for both runtimes — use it verbatim, never a runtime-require
   shim.
 - **Electron-free core** — no `electron`/`dom` import; the ipc handlers + `webContents.send` stream are
-  the operator-attested binding in `main.ts`, witnessed under the Story UAT, not asserted here.
+  the glue binding in `main.ts`, witnessed under the Story UAT's machine legs 4/6, not asserted here.
 - **Fail closed, never crash** — an op on an unknown/disposed id is a typed no-op/`false`, never a throw;
   a late `onData` after teardown is dropped. The test pins this (`psm-fails-closed-on-unknown-session`).
 - **Deep module, narrow surface** — hide the spawn/route/resize/teardown/isolation lifecycle behind
