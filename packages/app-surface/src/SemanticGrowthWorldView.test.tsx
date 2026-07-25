@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildScene,
@@ -151,6 +153,21 @@ describe('SemanticGrowthWorldView', () => {
     // this file already does) must end up with `./semantic-growth.css` evaluated as part of that
     // — never left to a caller to remember to `import './semantic-growth.css'` separately.
     expect(cssSideEffect.loaded).toBe(true);
+  });
+
+  it("reduced motion never blankets every scene descendant's transform, preserving the mapper's static placement/anchor/nesting transforms", () => {
+    // Guidance: "It must preserve the scene mapper's existing static SVG transform attributes
+    // used for placement, anchors, and nesting; never apply a blanket transform: none to scene
+    // descendants." A universal `*` selector that forces `transform: none` under the reduced
+    // `[data-motion='reduced']` state would override every static placement transform SceneView
+    // stamps (a tree's ground anchor, an island's nesting group, etc.) -- not just the motion
+    // vocabulary's own sweeps/orbits -- which is exactly the blanket this guidance forbids.
+    const css = readFileSync(
+      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      'utf8',
+    );
+    const blanketReducedTransform = /\[data-motion=['"]reduced['"]\]\s*\*\s*\{[^}]*transform\s*:/i;
+    expect(css).not.toMatch(blanketReducedTransform);
   });
 
   it('exports the semantic growth player from the package root as the same public seam', () => {

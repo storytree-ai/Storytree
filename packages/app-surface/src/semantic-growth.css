@@ -63,10 +63,25 @@
 
 /* Reduced motion: no spatial translation/scale/orbit, no delayed hidden content — every marker
  * (scene, wisp, bloom, territory) renders at rest immediately. The cursor/model are never
- * affected — only this staging. */
-[data-semantic-growth-frame][data-motion='reduced'] * {
+ * affected — only this staging.
+ *
+ * Scoped to the same named hooks the full-motion rules above animate — NEVER a universal `*`
+ * selector. A blanket `transform: none` would override every STATIC SVG `transform` attribute
+ * the scene mapper stamps for placement/anchors/nesting (a tree's ground anchor, an island's
+ * nesting group, …), not just this vocabulary's own sweeps/scale/orbit — exactly what the node
+ * spec forbids. Cancelling `animation`/`transition` here is sufficient: the full-motion rules
+ * above are themselves gated to `[data-motion='full']`, so under `reduced` they never match in
+ * the first place: this block only guards against a delayed/hidden starting keyframe (`opacity:
+ * 0`) ever being the resting state, without touching `transform` at all. */
+[data-semantic-growth-frame][data-motion='reduced'] .hex-territory,
+[data-semantic-growth-frame][data-motion='reduced'] .world-wisp,
+[data-semantic-growth-frame][data-motion='reduced'] .world-claim-wisp,
+[data-semantic-growth-frame][data-motion='reduced'] .world-bloom,
+[data-semantic-growth-frame][data-motion='reduced'] .arrive-island,
+[data-semantic-growth-frame][data-motion='reduced'] .st-proposed,
+[data-semantic-growth-frame][data-motion='reduced'] .st-claimed,
+[data-semantic-growth-frame][data-motion='reduced'] .st-healthy {
   animation: none !important;
   transition: none !important;
-  transform: none !important;
   opacity: 1 !important;
 }
