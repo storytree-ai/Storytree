@@ -145,10 +145,14 @@ const FRAMES: readonly SemanticGrowthFrame[] = [
     }),
   },
   {
+    // Still `proposed`/non-healthy (a signed verdict alone never flips authored status here — the
+    // real map only greens the crown once a story's OWN status is healthy, ADR-0040) — this frame
+    // carries the real signed-proof bloom while remaining honest about status: no pre-final frame
+    // may render `st-healthy`.
     key: 'signed-proof',
     model: normalizeWorldPresentationModel({
       scene: buildScene(
-        frameInput([territory('healthy', { bloom: { ageRatio: 0, outcome: 'pass' } })]),
+        frameInput([territory('proposed', { bloom: { ageRatio: 0, outcome: 'pass' } })]),
       ),
     }),
   },

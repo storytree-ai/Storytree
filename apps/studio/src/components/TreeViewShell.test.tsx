@@ -143,4 +143,46 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
     ).toBe('land');
   });
+
+  // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
+  // machine contract 3): "signed-proof remains proposed/non-healthy while carrying the proof bloom;
+  // healthy appears only last" / "no pre-final frame may appear healthy". The `signed-proof` frame is
+  // the FIFTH of six (index 4), not the final one — its underlying story must still wear the SAME
+  // non-healthy status as the `proposed`/`claimed` frames (it only gains the real signed-proof bloom on
+  // top), and only the sixth, final `healthy` frame may render with the `st-healthy` territory class.
+  it('signed-proof stays proposed/non-healthy while carrying the proof bloom; healthy appears only last', async () => {
+    window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
+    const flagged = await renderTree();
+    const nav = flagged.querySelector('nav[aria-label="Semantic growth controls"]');
+    expect(nav).toBeTruthy();
+    const nextButton = Array.from(nav!.querySelectorAll('button')).find((b) => b.textContent === 'Next');
+    expect(nextButton).toBeTruthy();
+
+    // Walk empty -> land -> proposed -> claimed -> signed-proof (four Next clicks).
+    for (let i = 0; i < 4; i += 1) {
+      await act(async () => {
+        nextButton!.click();
+      });
+    }
+    expect(
+      flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
+    ).toBe('signed-proof');
+
+    const signedProofTerritory = flagged.querySelector('.hex-territory');
+    expect(signedProofTerritory).toBeTruthy();
+    expect(signedProofTerritory!.classList.contains('st-healthy')).toBe(false);
+    // The real signed-proof bloom is still carried on this pre-final frame.
+    expect(flagged.querySelector('.world-bloom')).toBeTruthy();
+
+    // The sixth and FINAL Next reaches `healthy` — the only frame allowed to appear healthy.
+    await act(async () => {
+      nextButton!.click();
+    });
+    expect(
+      flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
+    ).toBe('healthy');
+    const healthyTerritory = flagged.querySelector('.hex-territory');
+    expect(healthyTerritory).toBeTruthy();
+    expect(healthyTerritory!.classList.contains('st-healthy')).toBe(true);
+  });
 });
