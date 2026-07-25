@@ -267,6 +267,9 @@ importers:
       '@storytree/agent':
         specifier: workspace:*
         version: link:../agent
+      '@storytree/context-traversal-capture':
+        specifier: workspace:*
+        version: link:../context-traversal-capture
       '@storytree/drive':
         specifier: workspace:*
         version: link:../drive

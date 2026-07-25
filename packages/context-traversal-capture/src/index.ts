@@ -4,5 +4,37 @@
  *
  * Export lines are appended here as each capability's source lands. The barrel stays
  * connective glue: it is deliberately un-asserted, so no capability claims it as proof.
+ *
+ * This package is node-only by construction (the sink writes real bytes), so unlike the
+ * increment-1 vocabulary barrel it is never bundled by the studio.
  */
-export {};
+export {
+  resolveTraversalDir,
+  appendTraversalEvents,
+  readTraversalSession,
+  listTraversalSessions,
+  type TraversalSinkLocation,
+  type TraversalListLocation,
+  type TraversalReadResult,
+  type TraversalSessionSummary,
+} from "./sink.js";
+
+export {
+  observeCliInvocation,
+  TERMINAL_CLI_DISPATCH_COVERAGE,
+  type ObserveCliDeps,
+} from "./observe-cli.js";
+
+export {
+  renderTraversalSessions,
+  renderTraversalSession,
+  type TraversalRenderEnvelope,
+} from "./query-render.js";
+
+export {
+  captureCliInvocation,
+  showTraversalSession,
+  listTraversalSessionsRendered,
+  type CaptureCliInvocationInput,
+  type TraversalQueryOptions,
+} from "./terminal-capture.js";
