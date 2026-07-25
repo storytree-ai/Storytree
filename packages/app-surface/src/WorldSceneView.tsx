@@ -3,6 +3,7 @@ import type { SceneNode } from '@storytree/forest-world';
 import { SceneView, type SceneCtx } from './SceneView.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 import type { TrailRevealPlan } from './trailReveal.js';
+import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 
 export interface WorldPresentationModel {
   readonly scene: SceneNode;
@@ -11,6 +12,9 @@ export interface WorldPresentationModel {
   readonly hiddenStatuses: readonly string[];
   readonly arrivalIds: readonly string[];
   readonly reveal: TrailRevealPlan | null;
+  /** The ADR-0242 one-hop selection highlight: the lit trail segments + the immediate
+   *  upstream / downstream islands. Null ⇒ nothing selected, no lane and no rings. */
+  readonly neighbours: NeighbourHighlightPlan | null;
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
 }
@@ -22,6 +26,7 @@ export interface WorldPresentationModelInput {
   readonly hiddenStatuses?: readonly string[];
   readonly arrivalIds?: readonly string[];
   readonly reveal?: TrailRevealPlan | null;
+  readonly neighbours?: NeighbourHighlightPlan | null;
   readonly spriteSheet?: SpriteStyleSheet | null;
   readonly artScale?: number;
 }
@@ -46,6 +51,7 @@ export function normalizeWorldPresentationModel(
     hiddenStatuses: sortedUnique(input.hiddenStatuses),
     arrivalIds: sortedUnique(input.arrivalIds),
     reveal: input.reveal ?? null,
+    neighbours: input.neighbours ?? null,
     spriteSheet: input.spriteSheet ?? null,
     artScale: input.artScale ?? 1,
   };
@@ -68,10 +74,16 @@ export function WorldSceneView({
       territoryClassById: (id, status) => {
         const classes = ['hex-territory', `st-${status}`];
         if (id === model.selectedStoryId) classes.push('is-selected');
+        // ADR-0242: the immediate neighbours ring their own shore, by direction — `is-upstream`
+        // is a story the selection stands on, `is-downstream` one that stands on it. A story on
+        // both sides of a cycle honestly wears both.
+        if (model.neighbours?.upstream.has(id)) classes.push('is-upstream');
+        if (model.neighbours?.downstream.has(id)) classes.push('is-downstream');
         if (emphasized.has(id)) classes.push('is-hub', 'is-emphasized');
         return classes.join(' ');
       },
       reveal: model.reveal,
+      neighbours: model.neighbours,
       hidden: new Set(model.hiddenStatuses),
       arrivalIds: new Set(model.arrivalIds),
       onSelectStory: events?.onSelectStory ?? NOOP_SELECT_STORY,

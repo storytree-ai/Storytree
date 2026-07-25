@@ -23,6 +23,10 @@ export {
   type Bounds,
 } from './sprite-sizing.js';
 export {
+  neighbourHighlightPlan,
+  type NeighbourHighlightPlan,
+} from './neighbourHighlight.js';
+export {
   arrivalGrowPlan,
   REVEAL_STAGGER_MS,
   trailRevealPlan,
