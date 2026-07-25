@@ -15,7 +15,9 @@ depends_on: []
 # proves the GEOMETRY/BEHAVIOUR ONLY (spawn-on-open, data↔bridge wiring, resize, visibility toggle,
 # honest absent-bridge degradation) over a MOCKED xterm + a MOCKED `desktopTerminal` bridge — the
 # terminal's APPEARANCE ("reads and behaves like a real terminal") is the story's operator-attested UAT
-# leg 5 (the look is witnessed, never a machine visual verdict; do NOT add a visual assertion here).
+# leg 7 (the look is witnessed, never a machine visual verdict; do NOT add a visual assertion here;
+# renumbered from leg 5 by the 2026-07-26 ADR-0209 §8 witness re-adjudication, which split the
+# terminal's MECHANICS — scrollback / reflow / keys — out to machine leg 6 and left only the FEEL human).
 # The dock collapse/resize geometry REUSES ChatDock's tested pattern (mirror it in this one self-
 # contained component; do NOT modify/fold into ChatDock — it stays DORMANT per ADR-0175). The proof
 # command is the studio VITEST suite (`pnpm --filter studio test`), NOT node:test — the studio convention
@@ -110,9 +112,11 @@ proof:
     # Then EDIT TerminalDock.tsx (`initTab`, for EVERY tab's Terminal) to attach the handler via
     # `term.attachCustomKeyEventHandler`. No new dep.
     #
-    # WHETHER THE OS CLIPBOARD PHYSICALLY HOLDS THE TEXT is the story's operator-attested UAT leg (ADR-0070),
-    # never asserted here — the jsdom test asserts only the handler's return values, the clipboard `vi.fn`
-    # calls, and that no '\x03' reaches `bridge.write`.
+    # WHETHER THE OS CLIPBOARD PHYSICALLY HOLDS THE TEXT is NOT asserted here — the jsdom test asserts only
+    # the handler's return values, the clipboard `vi.fn` calls, and that no '\x03' reaches `bridge.write`.
+    # (Corrected 2026-07-26: this used to name it "the story's operator-attested UAT leg". No story UAT leg
+    # covers the OS-clipboard round trip, and it would be MACHINE-observable in the `_electron` harness if
+    # one did — the gap is recorded in the story's "Open modeling calls", not laundered onto a human leg.)
     #
     # FREEZE EVERYTHING ELSE BY NAME: contracts 1–8, contract 9 (`tdp-reattaches-live-sessions-on-mount` @
     # 60280a0c, plus its companion `tdp-restores-snapshot-at-recorded-size-then-fits`), contract 10
@@ -204,7 +208,7 @@ nothing from it — they share the bridge WIRE SHAPE as a cross-boundary contrac
 > (`apps/desktop/electron/preload.ts`, including the re-attach `list`/`snapshot` relay) and the real-pty
 > Electron-main wiring are the story's
 > operator-attested GLUE. Its *appearance inside the native shell* ("reads and behaves like a real
-> terminal") is the story's operator-attested UAT leg 5 (ADR-0070 — the look is witnessed, never a machine
+> terminal") is the story's operator-attested UAT leg 7 (ADR-0070 — the look is witnessed, never a machine
 > visual verdict), and the `.terminal-dock*` chrome is CSS glue re-attested there; the tab-strip look is
 > `terminal-tabs`' operator-attested leg.
 
@@ -310,7 +314,9 @@ walked: fresh tabs are the wrong size). The fit lifecycle splits into THREE cont
 THE JSDOM-PROVABLE PART (all three built contracts): the mocked `FitAddon`/xterm records `fit()` (and the
 resulting dims) on the covered events and the scripted bridge records the `resize`/`spawn` dims — assert the
 fit fires and that the dims flow to `spawn`/`resize`; whether the glyphs then physically reflow is the
-story's operator-attested UAT leg (ADR-0070), never a jsdom/visual assertion. (jsdom lays out no real
+story's **machine** UAT leg 6 (the real xterm + real pty in the `_electron` harness — re-adjudicated
+2026-07-26; physical reflow is observable, so it is no longer operator-attested), never a jsdom/visual
+assertion here. (jsdom lays out no real
 geometry, so the test drives the fit-triggering state — the fold/unfold and the active-tab switch — and
 reads the fit's computed dims through the mock, exactly as it drives the drag fit; contract 13's
 `ResizeObserver` refit drives its observer callback the same way via a `FakeResizeObserver` mock.)
@@ -321,7 +327,7 @@ on `../api`). The test `vi.mock`s the xterm module with a fake `Terminal` (recor
 `bridge.write`, dock-resize → `terminal` fit + `bridge.resize`) is observable deterministically with NO
 real canvas/DOM-heavy xterm render. `@vitest-environment jsdom`, `@testing-library/react`, fake timers —
 no real socket, no live pty, no SDK, no DB, no Electron. The xterm **look/feel** is NOT asserted here —
-it is the story's operator-attested UAT leg 5.
+it is the story's operator-attested UAT leg 7.
 
 REUSE ChatDock's TESTED DOCK PATTERN, DO NOT DISTURB THE DORMANT CHAT (ADR-0175). The collapse/resize
 dock geometry (a folded-by-default bottom overlay that expands and drags-to-resize, clamped to the map
@@ -332,7 +338,8 @@ leaf's call; the contracts pin the OBSERVABLE (the same collapse/resize affordan
 mechanism. Either way: do NOT fold the terminal into `ChatDock` and do NOT change `ChatDock`/`ChatPanel`
 behaviour — they stay in the tree DORMANT for the future `app-guide` (their vitest suites must stay
 green). The terminal dock takes the interactive dock SLOT (the TreeView mount swap is operator-attested
-glue, the story's leg 1).
+glue at the CAPABILITY tier, asserted in CI under the story's **machine** leg 1 — glue-ness is a tiering
+call, not a witness kind, re-adjudicated 2026-07-26).
 
 DEGRADE HONESTLY WHERE THE BRIDGE IS ABSENT (slow growth, the honest-failure discipline). The terminal
 ships inside BOTH the native desktop (bridge present) and the standalone studio (`window.desktopTerminal`
@@ -351,8 +358,8 @@ the terminal being mounted (a spawned session exists) so an absent-bridge / fold
 The refocus is a behaviour change of the contract-6 re-prove; the spawn/data/resize/toggle/degrade wiring
 and the other existing contracts stay intact. THE JSDOM-PROVABLE PART is that `term.focus()` is invoked on
 those events (the mocked xterm records `focus()` calls) — assert exactly that. Whether keystrokes then
-*physically* reach the textarea is operator-attested (the story's UAT legs 4/5), NEVER a jsdom/visual
-assertion here.
+*physically* reach the textarea is the story's **machine** UAT legs 4 and 6 (a real pty + real xterm in
+the `_electron` harness — re-adjudicated 2026-07-26), NEVER a jsdom/visual assertion here.
 
 AN OPTIONAL `headerRight` HEADER SLOT (contract 7 — the terminal-repo-picker UX refinement). The terminal
 needs an affordance in its OWN header (the toggle bar) so a caller can place a control there — the
@@ -365,7 +372,7 @@ to keep valid HTML). When the prop is ABSENT the header renders exactly as befor
 — the `❯_` prompt + fold chevron, nothing extra). The absent-bridge disabled state renders NO `headerRight`
 (studio-standalone has no repo control to host). THE JSDOM-PROVABLE PART: with `headerRight` provided the
 node renders within the dock; with it absent, no header-right container renders — assert exactly that. The
-slot's exact placement/look is `.terminal-dock*` CSS glue, operator-attested (UAT leg 5), NEVER asserted
+slot's exact placement/look is `.terminal-dock*` CSS glue, operator-attested (UAT leg 7), NEVER asserted
 here.
 
 AN HONEST MESSAGE ON AN EMPTY SESSION (contract 8 — item 1, the main-side fail-close feedback). The
@@ -453,7 +460,7 @@ Ctrl+V-pastes keyboard wiring — UNBUILT and the NEXT drive. Per
 ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named test (the
 `it("<id>: …")` convention); contracts 1–11 and 13 are present and green, so the coverage check reports
 12/13 until contract 12's new test lands (`tdp-ctrl-c-copies-selection-ctrl-v-pastes`). None is an APPEARANCE
-assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
+assertion — the look is the story's operator-attested UAT leg 7 (ADR-0070).
 
 1. **`tdp-spawns-on-open-and-writes-data`** — opening the terminal spawns over the bridge and pipes bridge data into xterm
    - **asserts —** expanding the dock calls `desktopTerminal.spawn` once and `open`s the (mocked) xterm
@@ -488,7 +495,7 @@ assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
      input after the Electron window loses+regains focus (the operator-found bug). When the terminal is
      NOT mounted (bridge absent / never expanded) those events call no `focus()` (the mount guard). This
      asserts the `term.focus()` INVOCATION only — that keystrokes then physically reach the textarea is
-     the story's operator-attested UAT leg (ADR-0070), never a jsdom assertion.
+     the story's **machine** UAT legs 4/6 (real pty + real xterm), never a jsdom assertion.
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the window-focus/body/visibility refocus wiring) *(provisional path)*
 7. **`tdp-renders-header-right-slot`** — an optional `headerRight` node renders in the dock's toggle-bar header when provided, and nothing extra when absent
    - **asserts —** with the bridge present, rendering `<TerminalDock headerRight={<X/>}/>` renders the
@@ -516,8 +523,8 @@ assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
      restore never auto-spawns a duplicate tab. An older preload (a STRING `snapshot`, or `snapshot`/`list`
      ABSENT) is feature-guarded and never crashes; with `list()` resolving `[]` the dock is
      byte-behaviour-identical to before: first expand auto-spawns one fresh session (ADR-0189 app-owned
-     sessions). Asserts the restore ORDER + the fit-and-forward, never the visual reflow (the story's UAT
-     leg).
+     sessions). Asserts the restore ORDER + the fit-and-forward, never the physical reflow (the story's
+     machine UAT leg 6).
    - **Status —** BUILT+SIGNED @ 60280a0c: the shipped `TerminalDock.tsx` does the
      resize→write(`data`)→flush-held-chunks→fit replay, and the suite carries the re-tensed
      `tdp-reattaches-live-sessions-on-mount` assertions above plus a companion
@@ -532,7 +539,7 @@ assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
      `desktopTerminal.spawn({ …, cols, rows })` (the ADR-0190 optional `spawn` dims), so the new pty starts
      at the real terminal size, never the 80×24 default under a wide dock — the defect this closes. Asserts
      the fit-then-spawn ORDER + the dims flowing into `spawn` only; whether glyphs physically reflow is the
-     story's operator-attested UAT leg (ADR-0070), never a jsdom assertion. This is the mount-time fit for a
+     story's **machine** UAT leg 6 (real xterm + real pty), never a jsdom assertion. This is the mount-time fit for a
      FRESH tab; the standing refit lifecycle is contract 11 and the adopted-tab restore-then-fit is contract
      9 — this contract covers NEITHER.
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the fit-before-spawn + fitted-spawn dims) — built @ a90e30b
@@ -548,7 +555,7 @@ assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
      restore-then-fit, so this contract covers neither. A container-size-change (`ResizeObserver`) refit is
      its own contract 13 (`tdp-refits-on-container-resize`, built @ eee0314), NOT covered by this contract.
      Asserts the `fit()` INVOCATION + the dims flowing to
-     `resize` only; the visual reflow is the story's UAT leg (ADR-0070).
+     `resize` only; the physical reflow is the story's **machine** UAT leg 6 (real xterm + real pty).
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the expand + activation refit effect) — built @ 9439df5
 
 12. **`tdp-ctrl-c-copies-selection-ctrl-v-pastes`** — Ctrl+C with a selection copies it to the clipboard instead of interrupting; Ctrl+C with no selection still reaches the pty; Ctrl+V pastes the clipboard — **the owner-reported keyboard-wiring defect, UNBUILT (the NEXT drive)**
@@ -563,8 +570,9 @@ assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
      honoured; the bytes flow to the pty via the existing onData→`bridge.write` wiring) and returns FALSE —
      assert `term.paste` called with the clipboard text; (d) a non-keydown event (keyup/keypress) or any
      other key returns TRUE (untouched); (e) `navigator.clipboard` ABSENT returns TRUE and never throws
-     (jsdom/older-runtime feature-guard). Whether the OS clipboard then physically holds the text is the
-     story's operator-attested UAT leg (ADR-0070), never asserted here — the jsdom test asserts only the
+     (jsdom/older-runtime feature-guard). Whether the OS clipboard then physically holds the text is NOT
+     covered by any story UAT leg today (a machine-observable gap, recorded in the story's "Open modeling
+     calls" — not an operator-attested leg), and is never asserted here — the jsdom test asserts only the
      handler return values, the clipboard `vi.fn` calls, and that no '\x03' reaches `desktopTerminal.write`.
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the per-tab custom-key-handler: Ctrl+C-copies-selection / Ctrl+V-pastes wiring) *(provisional path)*
 
@@ -578,8 +586,8 @@ assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
      is disconnected on unmount-cleanup. This closes the last piece of the fit lifecycle; it covers ONLY the
      container-size-change trigger — the expand + activation triggers are contract 11, the fit-before-spawn is
      contract 10, and the adopted-tab restore-then-fit is contract 9, so this contract covers none of those.
-     Asserts the `fit()` INVOCATION + the dims flowing to `resize` only; the visual reflow is the story's
-     operator-attested UAT leg (ADR-0070), never a jsdom assertion.
+     Asserts the `fit()` INVOCATION + the dims flowing to `resize` only; the physical reflow is the story's
+     **machine** UAT leg 6 (real xterm + real pty), never a jsdom assertion.
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the once-per-dock ResizeObserver refit on the body-row) — built @ eee0314
 
 ## Guidance — the net-new slice that earns the signed verdict
@@ -623,7 +631,7 @@ Rules:
   backend seam is `window.desktopTerminal`; it imports no agent/drive/model code and declares the bridge
   shape locally. The `modelPathBoundary.test.ts` guard pins this repo-wide; the terminal must not breach it.
 - **Mock xterm + the bridge — assert wiring, never the look** (ADR-0070). Prove the geometry/behaviour
-  over the two mocked seams; the xterm appearance ("reads like a real terminal") is the story's UAT leg 5.
+  over the two mocked seams; the xterm appearance ("reads like a real terminal") is the story's UAT leg 7.
   Do NOT author a visual/appearance assertion here; the terminal author signs no visual verdict.
 - **Reuse ChatDock's dock pattern, keep it DORMANT** (ADR-0175) — mirror the collapse/resize geometry;
   do NOT fold into or behaviourally change `ChatDock`/`ChatPanel` (their suites must stay green).
