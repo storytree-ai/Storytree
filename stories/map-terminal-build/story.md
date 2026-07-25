@@ -5,12 +5,15 @@ title: "Clicking Build on the forest map seeds a runnable command into the embed
 outcome: "Clicking Build on a node or story on the forest map — on the desktop, where the embedded terminal exists — composes the corresponding `storytree … build <id> --real --store pg` command and SEEDS it pre-filled (never auto-run) into the embedded terminal, ready for the user to run as their own real Claude Code — instead of dispatching an in-app SDK-driven build; where the terminal bridge is absent (hosted/dev studio, a plain browser) the existing dispatch is unchanged."
 status: proposed
 proof_mode: UAT
-# uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT — "does clicking Build
-# put a RUNNABLE command in the terminal, pre-filled and un-run, in the native shell" — is appearance +
-# native-shell + live behaviour, operator-attested (ADR-0070 / ADR-0174). The machine-driven story UAT
-# node stays WITHHELD; the crown derives from the two capabilities' signed verdicts (plus the consumed
-# terminal-tabs seed-opens-new-tab verdict for the dock side) plus the operator's attestation of the
-# pre-fill-reads-right and bridge-absent-unchanged legs.
+# uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the story-level crown still rests on an
+# owner judgment, so the machine-driven story UAT node stays WITHHELD. Re-adjudicated 2026-07-25
+# (ADR-0209 D8): the human residue is NARROWER than first authored. It is NOT "the pre-fill lands in the
+# native shell" (a harness statement — the Electron `_electron` harness already drives the real
+# `window.desktopTerminal` bridge, see leg 4) and NOT "the bridge-absent surface is unchanged" (already a
+# signed contract, see leg 5). What genuinely has no compiler is the owner's acceptance of the INVOCATION
+# FORM the composer emits (leg 6) and the owner's verdict on a real, BILLED, PR-opening run (leg 7). The
+# crown derives from the two capabilities' signed verdicts (plus the consumed terminal-tabs
+# seed-opens-new-tab verdict for the dock side) plus those two attestations.
 # Capabilities, roots-first (a capability appears after everything it depends on). TWO machine-provable
 # caps: compose-build-command (a pure string builder — the command a Build click should run) is the ROOT;
 # map-build-seeds-terminal (the desktop Build button seeds instead of dispatching) is the capstone that
@@ -166,7 +169,9 @@ bridge as glue:
   through `StoryPanel` to `<BuildSection onSeedTerminal={…}/>` (~L4329). This is the wire between the Build
   button (`map-build-seeds-terminal`, this story's cap) and the dock (now `terminal-tabs`' multi-session
   `TerminalDock`) — un-asserted connective code within the story: there is no isolatable red→green in a
-  `useState` + a prop pass-through, so it is witnessed under UAT legs 4/5, not asserted in CI. (Both
+  `useState` + a prop pass-through, so it is witnessed under UAT leg 4, not asserted in CI. (Re-adjudicated
+  2026-07-25: leg 4 became `witness: machine`, so this glue is now witnessable by the Electron harness
+  end-to-end rather than only by an operator's eye — it stays un-asserted glue in CI either way.) (Both
   endpoints ARE proven: the button calls `onSeedTerminal` — `map-build-seeds-terminal`'s signed verdict;
   the dock opens a fresh tab and pre-fills the `seed` — `terminal-tabs`' seed-opens-new-tab signed verdict,
   ADR-0186. The glue is only the wire between them.)
@@ -236,17 +241,25 @@ Minimal-first (one coherent journey: on the desktop, click Build → a runnable 
 the terminal → the user runs it as real Claude Code; off the desktop, Build is unchanged), defect-driven
 thereafter (each real failure earns a permanent regression case, never speculative breadth).
 
-> **Per-leg witness (ADR-0106 / ADR-0070).** The mechanics legs are covered by signed `--real` verdicts —
-> two from this story's caps (the command composes per scope; the desktop Build click seeds instead of
-> dispatching, the bridge-absent path unchanged, Adopt untouched) and one CONSUMED from `terminal-tabs`
-> (the dock opens a fresh tab + pre-fills the seed without a newline — leg 2, ADR-0186; originally this
-> story's `terminal-dock-seed`, superseded) — all over mocked seams. The experiential legs — the pre-fill actually landing in the REAL
-> terminal, reading like a command the user typed, un-run until Enter, and then launching a real build in
-> the native shell; and the bridge-absent surface still dispatching in-app — are `witness: human`
-> (operator-attested, ADR-0070): an automated CI run cannot drive the real `window.desktopTerminal` bridge,
-> run the paid build, or judge the native-shell feel. The story-level `uat_witness` is absent → human (the
-> ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays WITHHELD; the crown
-> derives from the per-cap signed verdicts plus the operator's attestations (legs 4, 5).
+> **Per-leg witness (ADR-0106 / ADR-0070), re-adjudicated 2026-07-25 (ADR-0209 D8).** Legs 1–3 are covered
+> by signed `--real` verdicts over MOCKED seams — two from this story's caps (the command composes per
+> scope; the desktop Build click seeds instead of dispatching, the bridge-absent path unchanged, Adopt
+> untouched) and one CONSUMED from `terminal-tabs` (the dock opens a fresh tab + pre-fills the seed without
+> a newline — leg 2, ADR-0186; originally this story's `terminal-dock-seed`, superseded). Leg 4 — the
+> INTEGRATED walk over the real bridge, which is the only leg that exercises the ADR-0158 TreeView glue —
+> is now `witness: machine`: its former basis ("an automated CI run cannot drive the real
+> `window.desktopTerminal` bridge") was a HARNESS statement, and it is false today —
+> `apps/desktop/e2e/session-survival.e2e.mjs` already drives that bridge and a real pty offline in CI. Leg
+> 5 is now `witness: machine` too: its only stated basis named a harness, and its assertion is already the
+> signed contract `mbt-without-bridge-dispatches-as-today`, so it REFERENCES that verdict rather than
+> restating a compiled fact as an unrepeatable signature. What survives as `witness: human` are the two
+> clauses that were fused inside the old leg 4 and have no compiler at all: the owner's acceptance of the
+> INVOCATION FORM (leg 6, a value call) and the owner's verdict on a real, BILLED, PR-opening run (leg 7,
+> spend + outward-facing). The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
+> signpost), so the machine-driven whole-story UAT node stays WITHHELD; the crown derives from the per-cap
+> signed verdicts plus the operator's attestations (legs 6, 7). Per ADR-0209 §6 every re-adjudicated leg
+> returns to UNSTAMPED until judged — a `machine` tag here asserts which witness is RIGHT, never that the
+> proof exists.
 
 **Goal —** A desktop user on the forest map clicks Build on a node or story; the corresponding `storytree
 … build <id> --real --store pg` command appears **pre-filled** (expanded, un-run) in the embedded terminal;
@@ -255,9 +268,13 @@ SDK-driven dispatch. Where the terminal is absent, clicking Build dispatches the
 before.
 
 1. **The Build command composes correctly for the unit's scope.** _(witness: machine)_ A story-scope Build
-   composes `storytree story build <id> --real --store pg`; a node-scope Build composes `storytree node
-   build <id> --real --store pg`; the unit id is embedded verbatim. **Success —**
+   composes `pnpm storytree story build <id> --real --store pg`; a node-scope Build composes `pnpm
+   storytree node build <id> --real --store pg`; the unit id is embedded verbatim. **Success —**
    [`compose-build-command`](compose-build-command.md)'s signed verdict (a pure red→green).
+   *(Scope note, 2026-07-25: witness UNCHANGED. The prose said bare `storytree …`, but the landed composer
+   — `apps/studio/src/lib/buildCommand.ts:15` — emits the `pnpm ` prefix, exactly as open modeling call 1
+   settled and as the three passing `cbc-*` tests assert. Corrected in place: had this leg been executed
+   as written it would have understated the command it is meant to pin.)*
 2. **The terminal dock accepts the seed and pre-fills it without running it.** _(witness: machine)_ A new
    seed opens a **fresh tab** (never the active Claude Code session — ADR-0186), switches to it, and writes
    the command as a pre-fill with NO trailing newline; a pre-spawn seed is written once the new tab's
@@ -271,38 +288,73 @@ before.
    path is untouched. **Success —** [`map-build-seeds-terminal`](map-build-seeds-terminal.md)'s signed
    verdict (the branch over a mocked bridge + spy).
 4. **Clicking Build drops a runnable command into the REAL terminal, pre-filled and NOT run.** _(witness:
-   human)_ In the desktop app, the member clicks Build on a node/story; the composed `storytree … build
-   --real --store pg` command appears in the expanded embedded terminal, cursor at the end, **nothing
-   executed**; the command reads like one the member typed; pressing Enter launches a real build (real
-   Claude Code, or a bare storytree run) in the native shell. **Success —** the owner's two-stage verdict
-   (ADR-0070): the pre-fill reads right and runs, witnessed inside the native shell — never machine-
-   asserted. *(operator-attested — a real bridge + a paid, PR-opening build; an agent must not fire it
-   unattended.)*
-5. **Where the terminal is absent, clicking Build is unchanged.** _(witness: human)_ On the hosted / dev
-   studio (a plain browser, no `window.desktopTerminal`), clicking Build POSTs the in-app build and polls
-   to a verdict exactly as before — no regression, no seed attempted. **Success —** the existing in-app
-   dispatch, operator-attested on a bridge-absent surface. *(operator-attested — needs the running studio
-   without the desktop bridge.)*
+   machine)(detail: map-terminal-build#uat-4)_ The INTEGRATED walk over the real seam rather than a mocked
+   one: in the desktop app the member clicks Build on a node/story; the composed command travels the
+   TreeView `seed` glue to the real `window.desktopTerminal` bridge, lands in a fresh tab, and sits there
+   **un-executed**. This is the only leg that exercises the glue legs 1–3 all stop short of (the `seed`
+   state + prop pass-through, un-asserted by design per ADR-0158). **Success —** an Electron `_electron`
+   spec asserting the composed command's text in the main-held `desktopTerminal.snapshot()` AND that no
+   execution occurred. *(Re-adjudicated 2026-07-25, ADR-0209 D8 — was `human`, justified by "an automated
+   CI run cannot drive the real `window.desktopTerminal` bridge". That is a HARNESS statement, and it is
+   FALSE today: `apps/desktop/e2e/session-survival.e2e.mjs` already drives that bridge and a real pty
+   offline in CI, reading `desktopTerminal.list()`/`snapshot()`. The two genuinely no-compiler clauses
+   fused into this leg — whether the command reads like one the member would type, and whether pressing
+   Enter runs a real billed build — are SPLIT OUT to legs 6 and 7. Deliberately UNBOUND: this story
+   declares no reliability gate, so the binding gap is recorded rather than rubber-stamped over absent
+   machinery (ADR-0097 §2). That gap is PRE-EXISTING — no leg here was bound before this pass.)*
+5. **Where the terminal is absent, clicking Build is unchanged.** _(witness: machine)_ On a bridge-absent
+   surface (the hosted / dev studio in a plain browser, no `window.desktopTerminal`), clicking Build POSTs
+   the in-app build and polls to a verdict exactly as before — no regression, no seed attempted.
+   **Success —** [`map-build-seeds-terminal`](map-build-seeds-terminal.md)'s signed verdict, contract
+   `mbt-without-bridge-dispatches-as-today` (`apps/studio/src/components/BuildSection.test.tsx:671`,
+   verified passing 2026-07-25) — the same assertion leg 3 already carries; this leg is its real-surface
+   fidelity, not a second obligation. *(Re-adjudicated 2026-07-25, ADR-0209 D8 — was `human`, whose ONLY
+   stated reason was "needs the running studio without the desktop bridge". That names a harness, not a
+   judgment: no success condition here lacks a compiler. Because the machine half is ALREADY covered by
+   the contract above, this leg REFERENCES that verdict instead of being split — restating a compiled
+   fact as a human success condition would launder it into an unrepeatable signature.)*
+6. **The seeded command is the invocation the owner actually wants.** _(witness: human)(detail:
+   map-terminal-build#uat-6)_ Shown the pre-filled command, the owner accepts its FORM — specifically the
+   `pnpm ` prefix the composer emits (`pnpm storytree story build <id> --real --store pg`), which
+   ADR-0174's own text does not write and which open modeling call 1 explicitly left to the owner.
+   **Success —** the owner's substantive acceptance of the invocation form. *(Split out of the old leg 4
+   by this pass. Human on a NO-COMPILER basis: whether the command RUNS compiles — anyone can execute it —
+   but whether this is the invocation the owner wants on their shell is an owner value call no code can
+   decide. This basis dissolves under neither a new harness nor cheaper spend; it is discharged only when
+   the owner settles the prefix.)*
+7. **Pressing Enter runs a real, billed build from the seeded command.** _(witness: human)(detail:
+   map-terminal-build#uat-7)_ The owner presses Enter on the pre-filled command in the native shell; a
+   real build runs as their own Claude Code and — for a story-scope seed — opens the auto-merging PR
+   (ADR-0136). **Success —** the owner's verdict that the seeded command launched the build they intended.
+   *(Split out of the old leg 4 by this pass. Human on a SPEND + OUTWARD-FACING basis: real metered
+   subscription spend and an auto-merging PR that leaves the repo; an agent must never fire it unattended.
+   That basis is honest but NARROW, and it is stated so it can be retired honestly: it dissolves the
+   moment the spend and the PR do — the same walk against a `--dry-run` seed carries no judgment a machine
+   could not make, and would belong on leg 4.)*
 
-End state — on the desktop, a Build click on the forest map composes the right `storytree … build --real
---store pg` command and seeds it pre-filled (un-run) into the embedded terminal for the user to run as real
-Claude Code; off the desktop, the existing dispatch is unchanged. The two caps' behaviours are signed
-under the studio suite (the dock-side fresh-tab seed handling by `terminal-tabs`' seed-opens-new-tab), the
-native-shell pre-fill + the bridge-absent fallback operator-attested — the prove-it-gate leaf and the spine
-untouched, the app composing intent while the real tool runs the build.
+End state — on the desktop, a Build click on the forest map composes the right `pnpm storytree … build
+--real --store pg` command and seeds it pre-filled (un-run) into the embedded terminal for the user to run
+as real Claude Code; off the desktop, the existing dispatch is unchanged. The two caps' behaviours are
+signed under the studio suite (the dock-side fresh-tab seed handling by `terminal-tabs`'
+seed-opens-new-tab), the integrated real-bridge pre-fill machine-observable in the Electron harness (leg 4,
+not yet written), and only the invocation form and the billed run left operator-attested (legs 6, 7) — the
+prove-it-gate leaf and the spine untouched, the app composing intent while the real tool runs the build.
 
 ## Proof
 
 The story is proven when that walkthrough passes — the mechanics legs (1, 3) green under this story's two
-capabilities' signed `--real` verdicts and leg 2 under `terminal-tabs`' consumed seed-opens-new-tab verdict
-(with each cap's contracts green underneath), and the experiential legs (4, 5) operator-attested. Per
+capabilities' signed `--real` verdicts, leg 2 under `terminal-tabs`' consumed seed-opens-new-tab verdict
+and leg 5 under this story's own `mbt-without-bridge-dispatches-as-today` (with each cap's contracts green
+underneath), leg 4 green under a still-to-be-written Electron `_electron` spec over the real bridge, and
+the two owner-judgment legs (6, 7) operator-attested. Per
 ADR-0020, `healthy` is only ever DERIVED from signed verdicts; nothing here is authored healthy. Both
 capabilities are proof-wired (each carries a `proof:` block with a `real:` arm — a NET-NEW red→green for the
 composer, edit-existing red→green for the button re-point) so the spine can drive their studio vitest suites
 red→green under its own gate; the
 story's machine-driven UAT node is WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving
 those capabilities to signed verdicts is what makes the re-point buildable, and the crown additionally
-awaits the operator's attestations (legs 4, 5).
+awaits the operator's attestations (legs 6, 7 — legs 4 and 5 were re-adjudicated to `machine` on
+2026-07-25, ADR-0209 D8).
 
 ## Open modeling calls (for the owner / orchestrator)
 
@@ -311,14 +363,15 @@ terminal; owner-directed, no ADR reserved). Three items are **surfaced for the o
 decided here:
 
 1. **The `pnpm ` prefix on the seeded command (orchestrator-settled from a verified fact; operator-attested
-   at UAT leg 4).** ADR-0174's text writes bare `storytree … build <id> --real`, but the orchestrator
+   at UAT leg 6).** ADR-0174's text writes bare `storytree … build <id> --real`, but the orchestrator
    verified the embedded terminal spawns the platform shell (PowerShell on Windows) at the pinned-main
    runtime worktree root (ADR-0181; `apps/desktop/electron/main.ts` `cwd: serveRoot`), where a bare
    `storytree` is not on `PATH` but `pnpm storytree …` IS the documented, runnable invocation (CLAUDE.md).
    So `compose-build-command` composes `pnpm storytree … build <id> --real --store pg` — the RUNNABLE form
    (ADR-0174's whole point is a command the user can actually run). This stays operator-attested at UAT leg
-   4: the pre-fill is editable, and if the owner keeps a global `storytree` bin, dropping `pnpm ` is a
-   one-token edit to that one function + its `cbc-*` contracts.
+   6 — the leg the 2026-07-25 re-adjudication split out precisely to carry this one no-compiler call: the
+   pre-fill is editable, and if the owner keeps a global `storytree` bin, dropping `pnpm ` is a one-token
+   edit to that one function + its `cbc-*` contracts.
 2. **An Adopt re-point (a deliberate follow-on, NOT scoped here).** This story re-points only the Build
    button. A `mapped` story's Adopt (`api.adopt`, observe-and-sign) could similarly seed a `storytree adopt
    <id> --pg` command into the terminal — a different command shape and a different owner call. It is left
