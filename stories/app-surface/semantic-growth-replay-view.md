@@ -16,6 +16,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # PROOF-PRESERVATION WALL: AUTHOR_TEST extends the full pre-9377 integration suite in place. Replacing
 # it with a narrow framing test, or deleting/weakening/skipping/consolidating any existing assertion,
 # is red even when the focused command exits zero.
+# TWO-RED FLOOR: before implementation, AUTHOR_TEST adds two independent executable cases: stable
+# representative framing AND a semantic-growth.css/source motion discriminator. A framing-only green
+# is invalid even when every retained test passes.
 proof:
   command:
     file: pnpm
@@ -55,14 +58,16 @@ semantic-growth view:
 2. assert the exact fixture semantics: land has ground but no story marker; proposed introduces the
    pale/non-healthy story; claimed adds presence without proof identity; signed-proof remains
    proposed/non-healthy while carrying the real proof bloom; only the final frame is healthy;
-3. mount inside a bounded host and assert all six frames keep one normal contain-style world
-   framing with the representative coast, substrate and standing objects visible with breathing
-   room; reject the current literal `viewBox="0 0 100 100"` and any per-frame zoom to the newest
-   marker;
-4. walk the normal-motion deltas and assert `land` uses the app's coast/ground arrival, `proposed`
-   uses its flora growth/pop, `claimed` uses the real claim-wisp entrance/orbit, and `signed-proof`
-   uses the real bloom pulse; reject one generic keyframe applied to the whole scene or to all four
-   semantic families;
+3. add independent red A: mount inside a bounded host and assert all six frames keep one normal
+   contain-style world framing with the representative coast, substrate and standing objects visible
+   with breathing room; reject the current literal `viewBox="0 0 100 100"` and any per-frame zoom to
+   the newest marker;
+4. add independent red B before implementation: read `semantic-growth.css` and, where needed, the
+   component source; fail the current `semantic-growth-settle` rule that groups `.hex-territory`,
+   `.world-wisp`/`.world-claim-wisp`, `.world-bloom` and `.arrive-island` under one animation; then
+   assert `land` is wired to the existing `arrive-ground` profile, `proposed` to `arrive-pop`,
+   `claimed` to `wisp-in` plus the mapper's built-in orbit, and `signed-proof` to `bloom-pulse`.
+   Named selector/keyframe assertions must discriminate those profiles; prose/comments do not count;
 5. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
    action trace twice and compare every semantic snapshot and transition-family trace;
 6. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
@@ -86,6 +91,9 @@ build a Chapter 2 controller, duplicate `SceneView`, synthesize art or reach int
 The first promoted correction at `fcd6cf5` is not valid proof: it replaced the 309-line integration
 suite with a 36-line framing-only test and thereby made green mean less. This correction must restore
 the full pre-9377 proof surface before adding the new red.
+The second promoted correction at `e7b55c0` is also invalid proof: it preserved the old suite but
+added only stable framing, leaving the generic `semantic-growth-settle` slideshow untested and
+unchanged. Both independent additive reds must exist before implementation begins.
 
 ## Guidance
 
@@ -103,6 +111,13 @@ the full pre-9377 proof surface before adding the new red.
   machine proof must source-audit retention of the semantic sequence/navigation, stylesheet-load,
   reduced-motion static-transform, bounded-host, definite-root-height, package-root-export and
   Storybook bloom-parity cases by their independent test bodies and discriminating assertions.
+- Meet a fail-closed two-red floor before implementation: add one independent test for stable
+  representative framing and a second independent test for semantic delta motion. A framing-only
+  test/green, including the shape promoted at `e7b55c0`, is invalid. The motion test must execute a
+  source/CSS read of `semantic-growth.css` and, if needed, `SemanticGrowthWorldView.tsx`; it must
+  reject the current `semantic-growth-settle` selector grouping and positively discriminate the
+  named `arrive-ground`, `arrive-pop`, `wisp-in` plus built-in SVG orbit, and `bloom-pulse` profiles
+  on their respective entering deltas. Matching comments or restated prose is never evidence.
 - Keep the cursor and transition selection pure. Next clamps at healthy, Back clamps at empty,
   restart selects empty, and Replay reapplies the same ordered keys. Time controls interpolation
   only; no timeout advances the cursor and no random value influences output.
@@ -159,6 +174,15 @@ preservation of static SVG transforms; bounded SVG/visible controls; a definite 
 the package-root export; and Storybook tree replacement preserving the signed-proof `.world-bloom`.
 The framing and per-delta motion reds are additional assertions in that retained suite.
 
+**Two-red floor — applies before IMPLEMENT.** AUTHOR_TEST must introduce two separate executable
+test cases in the retained suite: **A**, stable representative framing; and **B**, semantic-delta
+motion. Case B reads `semantic-growth.css` and/or component source and asserts over actual selectors,
+keyframe names and wiring. It fails while `semantic-growth-settle` groups territory, wisp/claim-wisp,
+bloom and arrival hooks, and passes only when `arrive-ground`, `arrive-pop`, `wisp-in` plus the
+mapper-owned orbit, and `bloom-pulse` are applied to land, proposed, claimed and signed-proof
+respectively. A source audit that matches comments/prose, or a framing-only green such as `e7b55c0`,
+fails this floor.
+
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
    - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
      marker; `proposed` adds a proposed/non-healthy story; `claimed` adds real presence without
@@ -181,9 +205,11 @@ The framing and per-delta motion reds are additional assertions in that retained
 4. **`sgrv-motion-and-authority-stay-in-the-shared-package`**
    - **asserts —** the public view loads `semantic-growth.css` itself; the test fails when that load
      is absent; normal motion uses the existing per-delta arrival-ground, arrival-pop, wisp
-     entrance/orbit and bloom-pulse hooks/profiles, while a source/CSS assertion rejects a single
-     generic animation shared by `.hex-territory`, claim wisps, blooms and arrival groups. Transition
-     rules and reduced-motion handling live under `packages/app-surface`; the view delegates to
+     entrance/orbit and bloom-pulse hooks/profiles. An independent executable motion test reads the
+     real CSS/source, rejects `semantic-growth-settle` grouping over `.hex-territory`,
+     `.world-wisp`/`.world-claim-wisp`, `.world-bloom` and `.arrive-island`, and positively asserts
+     the named per-delta selector/keyframe wiring; comments/prose cannot satisfy it. Transition rules
+     and reduced-motion handling live under `packages/app-surface`; the view delegates to
      `WorldSceneView`; and its source imports no Studio/web module, live data/store authority,
      Chapter 2 controller or duplicate renderer.
 5. **`sgrv-existing-art-and-scene-contracts-do-not-regress`**
