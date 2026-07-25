@@ -458,6 +458,26 @@ function spriteKeyFor(node: SceneNode): { kind: string; status?: SceneStatus } |
 }
 
 /**
+ * A sprite replaces its whole wrapper's ARTWORK, never the semantic descendants the scene composed
+ * onto that wrapper for reasons the sprite sheet knows nothing about — today, the signed-proof bloom
+ * (`bloom-anchor` > `bloom-crown`/`bloom-plant`, composed to `.world-bloom` by {@link composeClass})
+ * `buildTree`/`buildPlant` splice in as a direct sibling child alongside the trunk/crown geometry a
+ * sprite swap discards. Collect those preserved descendants (a shallow per-`g` walk, stopping at the
+ * first `bloom-anchor` found along each branch — a bloom never nests a second bloom) so the caller can
+ * render them ALONGSIDE the sprite `<image>` instead of silently dropping them.
+ */
+function collectPreservedDescendants(node: SceneNode, out: SceneNode[]): void {
+  if (node.el !== 'g') return;
+  for (const child of node.children) {
+    if (child.kind === 'bloom-anchor') {
+      out.push(child);
+    } else {
+      collectPreservedDescendants(child, out);
+    }
+  }
+}
+
+/**
  * Render `node` as a sprite `<image>` when `ctx.spriteSheet` covers its key — `null` when there is no
  * sheet, no usable key, or the sheet doesn't cover this node (the caller falls through to vector). The
  * image is positioned by {@link spritePlacement} and carries the wrapper's OWN `transform` untouched
@@ -465,7 +485,9 @@ function spriteKeyFor(node: SceneNode): { kind: string; status?: SceneStatus } |
  * what draws there. Interactivity (the click handlers + delegation `data-*` hooks a vector `flora` node
  * would carry) is preserved so a sprite-swapped capability plant stays clickable. Text/tooltips/a11y
  * stay in the DOM: a `title` rides along as an accessible `<title>` child of the `<image>`, exactly as
- * the vector path does.
+ * the vector path does. Semantic descendants the replaced node owned (the signed-proof bloom) are
+ * preserved as vector siblings of the image — see {@link collectPreservedDescendants}; renderer choice
+ * may change artwork, it must never erase proof-bloom semantics.
  */
 function trySprite(
   node: SceneNode,
@@ -509,7 +531,19 @@ function trySprite(
   }
   const kids: React.ReactNode[] = [];
   if (node.title) kids.push(React.createElement('title', { key: '__title' }, node.title));
-  return React.createElement('image', props, ...kids);
+  const image = React.createElement('image', props, ...kids);
+
+  const preserved: SceneNode[] = [];
+  collectPreservedDescendants(node, preserved);
+  if (preserved.length === 0) return image;
+  return React.createElement(
+    React.Fragment,
+    { key },
+    image,
+    ...preserved.map((preservedNode, index) =>
+      renderNode(preservedNode, `__preserved-${index}`, storyId, ctx),
+    ),
+  );
 }
 
 function renderNode(

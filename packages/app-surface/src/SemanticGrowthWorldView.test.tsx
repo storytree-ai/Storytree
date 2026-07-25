@@ -13,6 +13,7 @@ import {
 import { normalizeWorldPresentationModel } from './WorldSceneView.js';
 import { SemanticGrowthWorldView } from './SemanticGrowthWorldView.js';
 import * as AppSurfacePackageRoot from './index.js';
+import type { SpriteStyleSheet } from './sprite-sheet.js';
 
 // Guidance: "The public view itself imports/loads its co-located motion stylesheet, so a
 // consumer cannot mount an inert semantic player by forgetting a separate CSS side effect."
@@ -221,5 +222,89 @@ describe('SemanticGrowthWorldView', () => {
       AppSurfacePackageRoot as { SemanticGrowthWorldView?: typeof SemanticGrowthWorldView }
     ).SemanticGrowthWorldView;
     expect(rootExport).toBe(SemanticGrowthWorldView);
+  });
+
+  it('preserves the signed-proof bloom overlay when a sprite sheet renders the tree — renderer choice may change artwork, never erase proof-bloom semantics', () => {
+    // Guidance: "Sprite replacement must preserve semantic descendants owned by the replaced scene
+    // node. Replacing the tree visual with Storybook must retain the signed-proof `.world-bloom`
+    // overlay identity that Vector exposes; renderer choice may change artwork, never erase
+    // proof-bloom semantics." The signed-proof frame keeps its story proposed/non-healthy while
+    // carrying the real proof bloom (a `bloom-anchor` > `bloom-crown` descendant of the `tree` node,
+    // composed to the `.world-bloom` class by the scene mapper). A "Storybook" sprite sheet covering
+    // `tree:proposed` re-skins the tree wrapper as an `<image>` -- that swap must NOT silently drop
+    // the bloom overlay the vector render exposes for the exact same frame.
+    const signedProofInput: SceneInput = {
+      offset: { x: 0, y: 0 },
+      width: 100,
+      height: 100,
+      empties: [],
+      relaxedCells: [],
+      drawTiles: [],
+      wheatSets: [new Set()],
+      trails: NO_TRAILS,
+      territories: [
+        {
+          id: 'semantic-growth',
+          status: 'proposed',
+          caps: 1,
+          centroid: { x: 50, y: 50 },
+          radius: 24,
+          treeSpot: { x: 50, y: 45 },
+          labelY: 76,
+          coastPaths: ['M 20 20 L 80 20 L 50 80 Z'],
+          decor: [],
+          plants: [],
+          treeTitle: 'Growth frame: signed-proof',
+          wisps: [],
+          bloom: { ageRatio: 0.5, outcome: 'pass' },
+          plate: {
+            w: 60,
+            h: 30,
+            rx: 7,
+            idY: 13,
+            subY: 25,
+            idText: 'semantic-growth',
+            subText: 'signed-proof',
+            title: 'Growth frame: signed-proof',
+          },
+        },
+      ],
+    };
+
+    const storybookSheet: SpriteStyleSheet = {
+      name: 'storybook',
+      label: 'Storybook — warm (cosy rebuilt)',
+      sprites: {
+        'tree:proposed': {
+          href: '/art-sheets/storybook/tree-proposed.svg',
+          w: 40,
+          h: 60,
+          anchorX: 0.5,
+          anchorY: 1,
+        },
+      },
+    };
+
+    const signedProofModel = normalizeWorldPresentationModel({
+      scene: buildScene(signedProofInput),
+      spriteSheet: storybookSheet,
+    });
+
+    const frames = ORDERED_KEYS.map((key) =>
+      key === 'signed-proof' ? { key, model: signedProofModel } : { key, model: frameModel(key) },
+    );
+
+    const view = render(<SemanticGrowthWorldView frames={frames} />);
+    for (const key of ORDERED_KEYS.slice(1, 5)) {
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    }
+    expect(
+      view.container.querySelector('[data-semantic-growth-frame="signed-proof"]'),
+    ).toBeTruthy();
+    // the sprite sheet DID re-skin the tree with real artwork ...
+    expect(view.container.querySelector('image')).toBeTruthy();
+    // ... but the signed-proof bloom overlay Vector exposes for this exact frame must still be
+    // present -- the renderer swap must never erase proof-bloom semantics.
+    expect(view.container.querySelector('.world-bloom')).toBeTruthy();
   });
 });
