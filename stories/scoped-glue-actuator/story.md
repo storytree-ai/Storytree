@@ -26,6 +26,17 @@ proof_mode: UAT
 # — subscription-billed AND the spawned worker writes real files). The story-level uat_witness is absent
 # → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays withheld;
 # the crown derives from the per-leg roll-up.
+# RE-ADJUDICATED 2026-07-26 (ADR-0209 D8 — see `## UAT Test Criteria`): ALL SIX legs are now
+# `witness: machine`; NO leg stays `human`. The two former human legs (5 the live scoped edit, 6 the
+# gate→CI landing) rested entirely on SUBSCRIPTION SPEND, on "real files are written", and on the desktop
+# UI being un-driveable by an agent — a cost, a blast-radius and a HARNESS statement respectively, none of
+# them a judgment gap (`human-witness-is-a-judgment-gap-not-cost`). Every condition they name is a claim
+# row, a tool-call trace, a file diff, a recorded `ScopeViolation`, a gate exit code or a PR draft flag.
+# ADR-0184 is the settled precedent: `drive-machinery`'s live `--real` build AND its "Land it" trunk PR
+# are both `witness: machine`. This is a story about fences, claims and routing that had tagged its own
+# routing mechanics as judgment. Per ADR-0209 §6 both legs return to UNSTAMPED until a spec judges them;
+# nothing here goes green and the owner signs nothing. All six legs are machine and UNBOUND (this story
+# declares no `## Reliability Gates` section) — a PRE-EXISTING gap, not a regression from this pass.
 capabilities: [glue-worker-spawn, spawn-glue-tool, glue-deps-composition]
 # WHY A NEW STORY, NOT AN EDIT TO chat-subagent-spawn (journey-principle + splitting-rule):
 #   - chat-subagent-spawn's five capabilities are all LANDED + green under signed --real verdicts; its
@@ -319,18 +330,105 @@ the live scoped edit is the operator-attested leg.
 > suites (`@storytree/agent` + `@storytree/drive`) over an injected `queryFn` + scripted doubles + the
 > in-memory seed. Legs 5–6 — a REAL desktop conversation in which the orchestrator claims the owning
 > story then actually spawns the glue worker to perform a scoped `backend-entry.ts`-style edit (real
-> files written inside the fence), landed through the gate→PR path WITHOUT a whole-story `--real` — are
-> **operator-attested** (subscription-billed AND the spawned worker writes real files; the scoped edit is
-> not exercised unattended), NOT standing tests.
+> files written inside the fence), landed through the gate→PR path WITHOUT a whole-story `--real` — were
+> authored as **operator-attested**, NOT standing tests. *(That authored posture is what the 2026-07-26
+> re-adjudication below overturned.)*
 >
-> **Per-leg witness (ADR-0106).** Legs 1–4 are `witness: machine`; legs 5–6 are `witness: human`. No leg
-> rests `either`. The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so
-> the machine-driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
+> **Per-leg witness (ADR-0106; RE-ADJUDICATED 2026-07-26, ADR-0209 D8).** ALL SIX legs are
+> `witness: machine`. No leg stays `human`; no leg rests `either`.
+>
+> **What the re-adjudication changed, and why.** Legs 5 and 6 were `human` on three stated grounds — the
+> run is **subscription-billed**, the spawned worker **writes real files**, and the scoped edit **"is not
+> exercised unattended"** (i.e. no agent can drive the Electron chat). Those are a COST, a BLAST RADIUS
+> and a MISSING HARNESS. None of them is a judgment gap, and
+> `human-witness-is-a-judgment-gap-not-cost` puts all three on the machine rung: *"a success that is
+> machine-observable but merely expensive, live, or not-yet-harnessed is `machine` … never `human` to
+> stand in for a missing harness."* Strip the three and nothing no-compiler is left. Every condition
+> these legs name is a claim-store row, a tool-call trace, a file diff, a recorded `ScopeViolation`, a
+> gate exit code, a PR draft flag or a CI check status — refusals, absences, shapes and counts, every one
+> of which compiles. **ADR-0184 is the settled precedent**: `drive-machinery`'s live `--real` build
+> (`#uat-3`) AND its "Land it" NON-DRAFT trunk PR (`#uat-4`) are both `witness: machine`, gate-bound to
+> `#gate-6` / `#gate-5`. A live subscription run and an outward trunk landing are machine when the
+> success is read off a git/CI fact. This is the subject-matter trap: a story whose entire subject is
+> fences, claims and routing had tagged its own routing mechanics as judgment.
+>
+> **The one leg that could have looked like a counter-example, distinguished.**
+> `chat-drive-bridge`#uat-5 stayed `human` on a superficially identical "spend + outward write" pairing.
+> It is genuinely different: its load-bearing condition is that **a human's CLICK** caused the build, and
+> its own insufficiency clause records that nothing distinguishes an operator-initiated run from an
+> agent-initiated one on that surface — an unobservable PROVENANCE fact. Neither leg here asserts human
+> provenance. Here the human types the setup intent; the verdict is entirely about what the ORCHESTRATOR
+> then did, which the trace records.
+>
+> **ZERO SPLITS, reasoned.** One clause was judgment-shaped: leg 6's *"where a residual glue edit is
+> genuinely un-reachable even transitively, it was operator-attested or escalated (ADR-0158 D3)."* It was
+> REMOVED rather than split into its own human leg. It is a conditional restatement of ADR-0158 D3's
+> policy, not a verdict this walkthrough produces — in the walk as specified (three routes into
+> `backend-entry.ts`, with `pnpm gate` re-proving the tree) the gate reaches the edit transitively, so no
+> such residual arises and the clause is vacuous. Splitting a vacuous conditional off would mint a
+> permanently-unwalkable owner signature over a case the walk may never generate.
+>
+> **The coverage claim was CHECKED, not trusted — and it is HALF true.** The original text asserts legs
+> 1–4 are covered by the `@storytree/agent` + `@storytree/drive` suites. **Leg 1 is**:
+> `packages/agent/src/spawn-write-scoped.test.ts` carries all four of its assertions as named tests
+> (`sws-writes-fenced-to-caller-declared-scope`, `sws-honours-the-task-prompt-verbatim`,
+> `sws-typed-result-never-a-verdict`, `sws-story-author-wrapper-keeps-its-default-scope`). **Legs 2–4 are
+> NOT**: ADR-0175 removed the `spawn_glue_worker` mount and the `spawnGlueWorker` composition along with
+> their tests (see each leg's scope note). Both suites ran green on 2026-07-26 — `@storytree/agent` 189
+> pass / 0 fail, `@storytree/drive` 318 pass / 0 fail — which is exactly how the absence was established:
+> the suites are healthy and simply no longer contain glue-tool or glue-deps tests.
+>
+> **The absent sources are a DELIBERATE, RECORDED deletion — no dead binding, nothing repaired.** The
+> actuator was built (`1b094cbe`, ADR-0160), extended (`9495d5e1`), then removed by
+> `474f55ec refactor(spawn): retire the desktop chat's spawn_glue_worker actuator (ADR-0175)`. This is
+> the `chat-drive-bridge` shape (a correctly-recorded deletion), NOT the `app-guide` shape (an absence
+> that WAS the authored brownfield red, ADR-0057). No proof binding was repaired in either direction.
+>
+> **No prior attestation is claimed, and none exists.** `events.attestation` holds 8 rows corpus-wide
+> (probed live 2026-07-26: seq 1–8, ids `uat-attestation#uat-1` ×2, `_deploy-verify#uat-1`,
+> `invite-notify#uat-1`, `studio-members#uat-{2,3}`, `agent#uat-5`, `embedded-terminal#uat-5`). Not one
+> is a `scoped-glue-actuator#uat-*` id. Every "attested" mention in this story is forward-looking — it
+> says the crown *awaits* an attestation — so the prose was honest; it is now simply moot.
+>
+> **NO leg is gate-bound, and that is deliberate.** This story declares NO `## Reliability Gates`
+> section, so there is no gate id to name: every machine leg here resolves `refused` for want of a
+> binding. That is a PRE-EXISTING open gap on legs 1–4 which legs 5–6 now join, NOT a regression this
+> pass introduced. Minting an `observe` gate over capabilities whose `real:` arms were dropped at
+> retirement — and whose subject code no longer exists — is precisely the rubber-stamp ADR-0097 §2 bans.
+> The honest state is: machine and unbound. Per ADR-0209 §6 legs 5–6 are UNSTAMPED until a spec judges
+> them — the tag records which witness is RIGHT, not that a proof exists, and the owner signs nothing.
+>
+> The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
+> machine-driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
 
 **Goal —** A scoped glue intent is DELEGATED, not over-routed: the orchestrator claims the owning story,
 spawns a path-fenced glue worker that makes the minimal scoped edit the task prompt describes (a write
 outside the fence DENIED), and lands the result through the existing gate→CI path — having itself written
 nothing, signed nothing, and never reached for the whole-story `--real` build.
+
+> **PRECONDITION SCOPE NOTE (recorded 2026-07-26 alongside the ADR-0209 D8 re-adjudication) — this story
+> is RETIRED *and* its subject code is GONE, so legs 2–6 are CURRENTLY UNWALKABLE.** ADR-0175 did not
+> merely move ownership here; `474f55ec` deleted the `spawn_glue_worker` tool, the `spawnGlueWorker`
+> composition and their tests. `buildSpawnTools` builds TWO tools today (`spawn_story_author`,
+> `spawn_builder`), and `packages/drive/src/spawn-deps.ts` composes two spawn deps. **Three facts that
+> are easy to fuse and must be kept apart:**
+> - **IRREDUCIBLE** — a success condition with no compiler. *No leg on this story is irreducible.*
+> - **CURRENTLY UNWALKABLE** — the surface the leg names no longer exists. *Legs 2–6 are unwalkable;
+>   only their still-live fragments (below) can be exercised at all.* This is a fact about the SURFACE,
+>   independent of which witness kind is right — it never converts a leg to `human`.
+> - **RETIRED BUT STILL LIVE** — the retirement moved ownership without removing code (the
+>   `headless-orchestrator` shape). *Only leg 1 is in this state here*, and it is not even retired
+>   substrate: `runSpawnWriteScoped` is OWNED BY `chat-subagent-spawn`, was never retired, and is green.
+>
+> **What survived the retirement, and therefore what each leg can still say.** (a) The role-neutral
+> **`runSpawnWriteScoped`** core and its `stories/**` wrapper (`packages/agent/src/spawn-story-author.ts`,
+> exported from `index.ts:104-108`) — the ADR-0160 D2 generalisation LANDED and STANDS, under
+> `spawn-write-scoped.test.ts`. (b) The ADR-0160 **D5.i honesty fix** — `spawn_builder`'s phantom
+> `userPrompt` is still dropped (`packages/agent/src/spawn-tool-surface.ts:49`). (c) The **`glue-worker`
+> library agent artifact** itself, still authored in `apps/studio/data/knowledge.json` and rendered to
+> `.claude/agents/glue-worker.md` — it outlived the actuator and now carries an ADR-0182 model tier.
+> What did NOT survive: the `spawn_glue_worker` mount, the `spawnGlueWorker` dep, and the whole live
+> walkthrough legs 5–6 describe.
 
 1. **A spawned glue worker is write-fenced to caller-declared paths and honours the task prompt.**
    _(witness: machine)_ Drive the generalised runner with an injected scripted `queryFn` whose session
@@ -342,13 +440,39 @@ nothing, signed nothing, and never reached for the whole-story `--real` build.
    returns `{ ok: true, summary }` — a result shape with no verdict/signing field; a dead/empty session
    returns `{ ok: false, error }`, never a forged success. The SAME core, driven with the `stories/**`
    predicate, still fences a story-author session (the generalisation kept the existing caller green).
-2. **`spawn_glue_worker` runs claim→handler and threads the fence; `spawn_builder` sheds its phantom
-   knob.** _(witness: machine)_ Drive `buildSpawnTools` with a recording claim store + a recording glue
+   *(SCOPE NOTE, corrected in place 2026-07-26 — witness, id and position unchanged. **This is the ONE
+   leg of the six that is fully alive and covered.** `runSpawnWriteScoped` exists and is exported
+   (`packages/agent/src/spawn-story-author.ts:176`, `index.ts:108`), and all four assertions above are
+   named tests in `packages/agent/src/spawn-write-scoped.test.ts` — ran green 2026-07-26. **Two prose
+   corrections.** (i) THE RESULT SHAPE IS WRONG AS WRITTEN and would go RED against correct code: the
+   success arm is `{ ok: true, summary, violations }` and the failure arm `{ ok: false, error,
+   violations }` — `violations` is present on BOTH, which is how the leg's own "the violation recorded on
+   the typed result" clause is satisfied at all. A machine leg asserting exactly `{ ok: true, summary }`
+   by deep-equality fails; the honest assertion is that the shape carries no verdict/signing/proof field,
+   which is what `sws-typed-result-never-a-verdict` actually pins. (ii) THE CONTRACT IDS CITED FOR THIS
+   LEG ELSEWHERE IN THIS SPEC ARE STALE: the "safety walls" list above names
+   `gws-writes-fenced-to-caller-declared-paths`, `gws-honours-the-task-prompt-verbatim` and
+   `gws-typed-result-never-a-verdict`; the tests that LANDED are named `sws-*`, not `gws-*` — the
+   generalisation to a role-neutral core renamed them off the glue-worker role. Those three are the
+   story's only contract ids that still resolve to living tests.)*
+2. **`spawn_glue_worker` runs claim→handler and threads the fence; `spawn_builder` sheds its phantom knob.**
+   _(witness: machine)_ Drive `buildSpawnTools` with a recording claim store + a recording glue
    handler. **Success —** invoking `spawn_glue_worker` (schema `{ unitId, paths, userPrompt }`) runs the
    claim gate STRICTLY BEFORE the handler; a refused claim returns the holder-naming refusal TEXT to the
    model and the handler NEVER runs; on acquire, the handler receives the caller-declared `paths` (threaded
    to the runner's fence) and the `userPrompt`; and `spawn_builder`'s schema no longer advertises a
    `userPrompt` param (ADR-0160 D5.i — the phantom knob is gone).
+   *(SCOPE NOTE, corrected in place 2026-07-26 — witness, id and position unchanged. **THE LEG'S TITLE
+   WAS ALSO REPAIRED: only its LINE WRAPPING.** The bold lead used to break across two source lines, so
+   `BOLD_LEAD` — which matches an item's FIRST line only — never fired and the parser fell through to the
+   raw first line, yielding a truncated title beginning with a literal `**`. Unwrapping the lead onto one
+   line is the whole fix; the witness, the id, the position, the annotation run and every success word
+   are byte-identical. **This leg is now HALF FALSE and cannot be walked as written.** The
+   `spawn_glue_worker` clauses are dead: `474f55ec` (ADR-0175) removed the mount, and `buildSpawnTools`
+   builds exactly TWO tools today — `spawn_story_author` (`spawn-tool-surface.ts:96`) and `spawn_builder`
+   (`:135`). The `spawn_builder` clause, by contrast, is TRUE AND STILL LANDED: the phantom `userPrompt`
+   is gone and `:49` still carries the ADR-0160 D5.i rationale in place. So the D5.i honesty fix outlived
+   the actuator that motivated it — the only part of this leg a machine could observe today.)*
 3. **The composition renders the real glue-worker agent fail-closed and wires the path fence.**
    _(witness: machine)_ Build the glue deps over the real seed. **Success —** the glue worker's system
    prompt is the REAL rendered `glue-worker` agent (`renderAgentPrompt(store, "glue-worker")`, non-empty,
@@ -357,28 +481,75 @@ nothing, signed nothing, and never reached for the whole-story `--real` build.
    calls the generalised runner with an `isWriteAllowed` predicate built from the caller-declared `paths`
    (a write inside `paths` allowed, one outside DENIED) and the `userPrompt` honoured — threaded through
    `orchestrate()` without forking the spawn chain.
+   *(SCOPE NOTE, corrected in place 2026-07-26 — witness, id and position unchanged. **The whole leg is
+   dead code and cannot be walked**: `474f55ec` (ADR-0175) removed the `glue-worker` render and the
+   `spawnGlueWorker` wiring from `packages/drive/src/spawn-deps.ts`, which composes exactly two spawn
+   deps today — `spawnStoryAuthor` (`:126`) and `spawnBuilder` (`:150`). **One thing here is NOT dead and
+   is easy to mis-read as dead: the `glue-worker` LIBRARY AGENT.** It survives, authored in
+   `apps/studio/data/knowledge.json` and rendered to `.claude/agents/glue-worker.md` (and the `.cursor` /
+   `.gemini` views), and ADR-0182 later gave it a model tier. `renderAgentPrompt(store, "glue-worker")`
+   would still return a real prompt today; what no longer exists is any caller that asks for it on this
+   path. An agent checking "is the glue-worker agent gone?" and concluding the leg is intact would have
+   the fact right and the leg wrong.)*
 4. **The composed surface holds every wall.** _(witness: machine)_ Drive the spawn-capable session with a
    scripted `queryFn` whose session invokes `spawn_glue_worker`. **Success —** the glue tool is advertised
    only when spawn deps are present (a dep-less session is byte-identical to today's surface); the tool
    call runs claim→handler in order; the chat session's own tool surface carries NO `Write`/`Edit`/`Bash`
    (spawn power only); the single-session guard still holds; and the text returned to the model from a
    glue spawn carries the worker's summary, never a verdict payload.
+   *(SCOPE NOTE, corrected in place 2026-07-26 — witness, id and position unchanged. **The glue half is
+   dead**: there is no `spawn_glue_worker` to advertise, so "the glue tool is advertised only when spawn
+   deps are present" has no subject. **The rest of the leg's walls are ALIVE but are NOT this story's** —
+   the chat session's `tools: []` surface and the single-session guard belong to `chat-subagent-spawn` /
+   `headless-orchestrator` and are asserted there. Read as a whole this leg is unwalkable; read
+   clause-by-clause it now asserts other stories' contracts. That is a modelling residue of the
+   retirement, recorded rather than repaired — this pass adjudicates witnesses, it does not re-tier.)*
 5. **Live: a scoped glue intent is delegated to a path-fenced worker, not over-routed.**
-   _(witness: human)_ In the desktop app, converse a scoped glue intent — *"add these 3 routes to
-   `apps/desktop/electron/backend-entry.ts` and stop."* **Success —** the orchestrator takes the owning
-   story-claim (visible as the story's wisp), spawns `spawn_glue_worker` scoped to
+   _(witness: machine)(detail: scoped-glue-actuator#uat-5)_ In the desktop app, converse a scoped glue
+   intent — *"add these 3 routes to `apps/desktop/electron/backend-entry.ts` and stop."* **Success —** the
+   orchestrator takes the owning story-claim, spawns `spawn_glue_worker` scoped to
    `apps/desktop/electron/backend-entry.ts`, and the three routes appear in that file authored by the
    SPAWNED worker — the chat itself wrote no file, and NO whole-story `story build --real` was run; an
-   attempt by the worker to write outside the declared `paths` is denied. *(operator-attested —
-   subscription-billed, and real files are written.)*
+   attempt by the worker to write outside the declared `paths` is denied and recorded as a typed
+   `ScopeViolation`.
+   *(Re-adjudicated human → machine 2026-07-26, ADR-0209 D8. Its stated basis was **"operator-attested —
+   subscription-billed, and real files are written."** Both halves are disqualified premises, and the
+   implicit third — that no agent can drive the Electron chat — is a MISSING HARNESS, the plainest form
+   of the thing `human-witness-is-a-judgment-gap-not-cost` refuses. The subscription leaf is not a paid
+   meter (ADR-0030/0130); "real files are written" is blast radius, which the fence itself bounds and
+   which ADR-0010 §5 addresses by keeping the walk OFF a gate pass — answered by a DELIBERATE
+   spine-signed run, never by a human glyph. Strip all three and every remaining condition compiles: the
+   claim is a claim-store row, the spawn and the absent `--real` are read off the session's COMPLETE tool
+   trail, the three routes are a file diff, and the fence denial is a `ScopeViolation` on the typed
+   result — already compiled offline by leg 1's `sws-writes-fenced-to-caller-declared-scope`. ADR-0184
+   settled this shape: `drive-machinery`#uat-3, a live `--real` build, is machine. **Removed:** "(visible
+   as the story's wisp)" — the wisp is a studio RENDER of the claim row, and routing a machine leg's
+   verdict through a UI paint invites exactly the harness-for-judgment substitution this pass is
+   correcting; the claim row is the fact. Per ADR-0209 §6 this leg is UNSTAMPED until a spec judges it,
+   and no spec can exist while the actuator is deleted — machine, unbound, and unwalkable.)*
 6. **Live: the scoped edit lands through the existing gate→CI path, walls intact.**
-   _(witness: human)_ **Success —** the chat lands the glue edit through `run_gate` (`pnpm gate` re-proves
-   the whole tree, including the owning story's registered tests) then `open_landing_pr` (a NON-DRAFT PR;
-   CI independently re-proves the merge with main, ADR-0022) — WITHOUT re-running the owning story's
-   `--real` build; the chat session held NO write tool at any point (spawn power only); the glue worker
-   signed nothing (no verdict crossed back); ONE orchestration ran at a time; and every spawn was
-   claim-first. Where a residual glue edit is genuinely un-reachable even transitively, it was
-   operator-attested or escalated (ADR-0158 D3), never autonomously landed as un-proven surface.
+   _(witness: machine)(detail: scoped-glue-actuator#uat-6)_ **Success —** the chat lands the glue edit
+   through `run_gate` (`pnpm gate` re-proves the whole tree, including the owning story's registered
+   tests) then `open_landing_pr` (a NON-DRAFT PR; CI independently re-proves the merge with main,
+   ADR-0022) — WITHOUT re-running the owning story's `--real` build; the chat session held NO write tool
+   at any point (spawn power only); the glue worker signed nothing (no verdict crossed back); ONE
+   orchestration ran at a time; and every spawn was claim-first.
+   *(Re-adjudicated human → machine 2026-07-26, ADR-0209 D8. This leg stated NO basis of its own at all —
+   it inherited "subscription-billed AND the spawned worker writes real files" from the section preamble,
+   which is a cost plus a blast radius, not a judgment. Every condition is a compiled fact: a gate exit
+   code, a PR `isDraft` flag, a CI check status, the absence of a `story build --real` invocation in the
+   COMPLETE tool trail together with the absence of any new `events.verdict` row for this story, a
+   `tools: []` surface, a result shape with no verdict field, the single-session guard, and claim-then-
+   handler ordering. **ADR-0184 is directly on point**: `drive-machinery`#uat-4 "Land it" — open the PR,
+   CI auto-merges onto the trunk — is `witness: machine`, gate-bound to `#gate-5`. An outward trunk
+   landing is machine when its success is a git/CI fact. **Removed:** the trailing clause *"where a
+   residual glue edit is genuinely un-reachable even transitively, it was operator-attested or escalated
+   (ADR-0158 D3), never autonomously landed as un-proven surface."* That was the one judgment-shaped
+   fragment on this story, and it is a conditional restatement of ADR-0158 D3's policy rather than a
+   verdict this walkthrough produces — for the specified walk `pnpm gate` reaches the edit transitively,
+   so the residual never arises. It was NOT split into its own human leg: splitting a vacuous conditional
+   would mint a permanently-unwalkable owner signature over a case the walk may never generate. Machine,
+   unbound, and unwalkable.)*
 
 End state — the desktop chat can DELEGATE a scoped glue edit to a path-fenced worker and land it through
 the existing gate/CI path, with every wall held: claim before spawn, fenced writes in the spawned worker
