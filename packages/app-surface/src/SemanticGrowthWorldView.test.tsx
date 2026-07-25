@@ -170,6 +170,26 @@ describe('SemanticGrowthWorldView', () => {
     expect(css).not.toMatch(blanketReducedTransform);
   });
 
+  it('bounds the svg so it cannot escape through viewport sizing and cover the nav controls', () => {
+    // Guidance: "Stay bounded by the supplied host. The root/SVG must not escape through
+    // viewport sizing or cover the controls; Back, Next and Replay remain visible, enabled
+    // click targets in normal layout at every frame and host size." A bare `width: 100%;
+    // height: auto` on the svg rule has NO upper bound on the rendered height once the host is
+    // wide and short (a common shape for an embedded demo player) -- the svg can grow taller
+    // than the host and push, or overlap, the nav controls that sit below it in normal flow.
+    // The svg rule must ALSO cap its height relative to the host (a `max-height`, or an
+    // explicit `aspect-ratio` that lets `object-fit: contain` resolve it), so it always settles
+    // within the host's box regardless of host width/height -- never just an unbounded `auto`.
+    const css = readFileSync(
+      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      'utf8',
+    );
+    const svgRuleMatch = css.match(/\[data-semantic-growth-frame\]\s*svg\s*\{([^}]*)\}/i);
+    expect(svgRuleMatch).toBeTruthy();
+    const svgRuleBody = svgRuleMatch?.[1] ?? '';
+    expect(svgRuleBody).toMatch(/max-height\s*:|aspect-ratio\s*:/i);
+  });
+
   it('exports the semantic growth player from the package root as the same public seam', () => {
     // Guidance: "Export the public seam from the package root." A consumer must be able to
     // reach this view via `@storytree/app-surface`'s root barrel (this file's `index.ts`),

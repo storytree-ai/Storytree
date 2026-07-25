@@ -29,6 +29,9 @@
   display: block;
   width: 100%;
   height: auto;
+  max-height: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
 }
 
 /* Full-motion: each new frame settles in with a transform/opacity fade instead of snapping. */
