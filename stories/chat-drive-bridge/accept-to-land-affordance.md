@@ -202,7 +202,11 @@ EDITS it to add the accept-to-land Build affordance, test-first.
   no-button-without-id + no-free-text-path assertions hold, and `pnpm --filter studio test` +
   `pnpm --filter studio typecheck` stay green. WIRING the dispatched build's live run to a real signed
   verdict + opened PR, and the affordance's appearance, are witnessed under the story's UAT legs 5–6
-  (operator-attested, ADR-0070), not asserted in CI.
+  (operator-attested, ADR-0070), not asserted in CI. *(Clarified 2026-07-26, ADR-0209 D8: "not asserted
+  in CI" is a COVERAGE fact and is NOT why those legs are human — a harness gap would put them on the
+  machine rung (`human-witness-is-a-judgment-gap-not-cost`). Leg 5 is human on real metered subscription
+  spend plus an outward-facing trunk write; leg 6 is human because an ADR-0070 stage-2 appearance verdict
+  has no compiler. The bases are stated on the legs themselves.)*
 
 Rules:
 
