@@ -71,6 +71,20 @@ operator/CI-observed:
 
 1. **CI-observed —** the merge job runs the release step on a real merge; the released count + the
    `released` `claim_event` rows are the machine evidence the clear fired.
-2. **Operator-attested (the visible leg) —** on the forest map, the merged branch's claim-wisp
-   **disappears** after merge — leg 4 of the story UAT (capability [`appearance-uat`](appearance-uat.md)).
-   A human witnesses no stale zombie wisp remains.
+2. **Operator-attested (the visible leg) —** on the forest map, the merged branch's claim-wisp fades and
+   goes after merge, and the fade reads as *just left* rather than as a lost claim.
+
+> **Witness re-adjudication 2026-07-26 (ADR-0209 D8).** The old story leg 4 this capability pointed at was
+> a single `human` leg fusing all of the above. It split three ways: the release EFFECT on the ledger
+> (every grade cleared for the branch, one `released` audit row each, the oldest live waiter promoted) is
+> now **story leg 9, `machine`** — witness (1) above, which this capability already called *"the machine
+> evidence the clear fired"*; the departure WINDOW (a departing body inside `DEPARTURE_WINDOW_MS` fading
+> by age, gone past it, no zombie) is **story leg 10, `machine`**; and only the READING — *just left*, not
+> *lost* — stays **story leg 11, `human`**, witness (2) above. **This capability's `proof_mode` is
+> deliberately UNCHANGED at `operator-attested`:** the witness kind states what kind of observer is right
+> for the leg (released rows are byte-level observables, and an un-harnessed workflow is a cost, not a
+> judgment gap), while the proof mode states how the prove-it-gate can reach this capability — and a
+> `.github/workflows/ci.yml` edit still has no isolatable red→green. How a CI-observed effect reaches the
+> parent proof spine is an open owner call on the story (`## Open modeling calls`, call 4). Detail
+> contract for leg 9, including why re-running A's own live spec is a FALSE pass here:
+> `wisp-as-story-claim#uat-9`.

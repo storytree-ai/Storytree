@@ -58,9 +58,12 @@ real visitors once these exits are machine-guarded. Owner decision 6, 2026-07-02
 > `check:web-experience` script, its `pnpm gate` slot, and the CI step after "web engine in sync" —
 > verified against the real pinned site (bootstrap SKIP at that pre-storm pin — no entry marker yet;
 > ARMED + OK since the 2026-07-02 home flip put all three markers on the entry page). The ADEQUACY of the
-> exits (does the fallback read as a real calm view; does the skip land well) stays human —
-> story-UAT leg 3 — the gate guards PRESENCE and the no-WebGL floor, which is exactly what a machine
-> can honestly hold; `healthy` stays earned, never authored (ADR-0020).
+> exits (does the fallback read as a real calm view; does the skip land well) stays human — **story-UAT
+> leg 5** as of the 2026-07-25 witness re-adjudication, which gave that claim its own explicit human leg
+> instead of leaving it in this prose (the exits' BEHAVIOUR — the exit resolving to the calm view, the
+> a11y visitor never being played the storm — became machine leg 4, distinct from what the gate can see).
+> The gate itself still guards only PRESENCE and the no-WebGL floor, which is exactly what a machine can
+> honestly hold here; `healthy` stays earned, never authored (ADR-0020).
 
 ## Guidance
 
@@ -156,7 +159,8 @@ The bootstrap rung (ADR-0057 §3, NET-NEW): author the pure judge, test-first.
 Rules:
 
 - **Presence, not adequacy** — the gate greps markers and walks imports; a human witnesses the feel
-  (story-UAT leg 3). Do not author appearance assertions here.
+  (story-UAT leg 5), and a web-repo behaviour spec witnesses that the exits actually resolve (story-UAT
+  leg 4). Do not author appearance assertions here.
 - **Static reachability only** — dynamic `import()` is the sanctioned inflection seam; counting it
   would outlaw the design.
 - **SKIP is loud** — the bootstrap allowance prints why, so a silent no-op can never masquerade as
