@@ -18,16 +18,8 @@ export interface SemanticGrowthFrame {
   readonly model: WorldPresentationModel;
 }
 
-export interface SemanticGrowthFraming {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-}
-
 export interface SemanticGrowthWorldViewProps {
   readonly frames: readonly SemanticGrowthFrame[];
-  readonly framing: SemanticGrowthFraming;
   readonly reducedMotion?: boolean;
   readonly events?: WorldPresentationEvents;
   readonly onNext?: (key: SemanticGrowthFrameKey) => void;
@@ -62,7 +54,6 @@ function browserPrefersReducedMotion(): boolean {
 
 export function SemanticGrowthWorldView({
   frames,
-  framing,
   reducedMotion,
   events,
   onNext,
@@ -89,10 +80,7 @@ export function SemanticGrowthWorldView({
       data-semantic-growth-frame={frame.key}
       data-motion={reduce ? 'reduced' : 'full'}
     >
-      <svg
-        viewBox={`${framing.x} ${framing.y} ${framing.width} ${framing.height}`}
-        aria-label={`Semantic growth: ${frame.key}`}
-      >
+      <svg viewBox="0 0 100 100" aria-label={`Semantic growth: ${frame.key}`}>
         {events ? (
           <WorldSceneView model={model} events={events} />
         ) : (
