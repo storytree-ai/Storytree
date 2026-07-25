@@ -315,25 +315,25 @@ surviving a relaunch, the studio-standalone build degrading honestly, and the pi
    pick, and renders a disabled "repo picker unavailable" state where the bridge is absent — never calling
    the bridge, never hanging, never crashing. **Success —** [`repo-picker-panel`](repo-picker-panel.md)'s
    signed verdict (geometry + wiring, the bridge mocked).
-3. **The embedded terminal spawns in the picked repo.** _(witness: machine)_ In the Electron
+3. **The embedded terminal spawns in the picked repo.** _(witness: machine)(detail: terminal-repo-picker#uat-3)_ In the Electron
    `_electron` harness with `dialog.showOpenDialog` stubbed in the main to return a known git checkout,
    `desktopRepo.pick()` validates and persists it through the REAL `node:fs` probe and the REAL userData
    store; expanding the terminal spawns a REAL node-pty, and `pwd` echoed through that shell reports the
    picked directory — not the serve root. **Success —** the real pty's `cwd` is the picked directory,
    read back from the main-held scrollback (`desktopTerminal.snapshot`), the renderer-independent
-   observable. Detail: `terminal-repo-picker#uat-3`.
-4. **The fail-closed gate holds end-to-end.** _(witness: machine)_ With NO valid selection the gate
+   observable.
+4. **The fail-closed gate holds end-to-end.** _(witness: machine)(detail: terminal-repo-picker#uat-4)_ With NO valid selection the gate
    renders `.terminal-gate-message` ("Select a repository to start the terminal") and
    `desktopTerminal.list()` stays EMPTY — no pty is spawned at all; after a stubbed pick the dock renders
    and a pty spawns in that repo; a stubbed pick of a DIFFERENT repo remounts the cwd-keyed dock and a
    FRESH session id appears with the new cwd. **Success —** the real terminal is genuinely refused until
    a valid repo exists and reopens on a change, observed across the real bridge and a real pty (not the
-   mocked-bridge wiring capability 3 signs). Detail: `terminal-repo-picker#uat-4`.
-5. **The selection survives an app relaunch.** _(witness: machine)_ Launch against a clean userData, pick
+   mocked-bridge wiring capability 3 signs).
+5. **The selection survives an app relaunch.** _(witness: machine)(detail: terminal-repo-picker#uat-5)_ Launch against a clean userData, pick
    (stubbed dialog), assert the selection persisted to `repo-selection.json`; close the app; relaunch
    against the SAME userData; `repo:get` returns the same path with no second pick, and the terminal
    reopens there. **Success —** the selection is durable across a real process restart, proven by two
-   sequential real app launches. Detail: `terminal-repo-picker#uat-5`.
+   sequential real app launches.
 6. **The studio-standalone build degrades honestly.** _(witness: machine)_ Where `window.desktopRepo` is
    absent — the hosted/dev studio in a plain browser, since only the Electron preload defines the bridge
    — the picker renders a disabled "repo picker unavailable" state and the gate renders `TerminalDock`
