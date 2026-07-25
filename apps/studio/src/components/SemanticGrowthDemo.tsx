@@ -185,9 +185,11 @@ export function SemanticGrowthDemo({
   }));
   return (
     <div className="tree-wrap semantic-growth-demo-host">
-      <div className="world-frame">
-        <div className="world-viewport" aria-label="semantic growth witness (static fixture)">
-          <SemanticGrowthWorldView frames={framesWithArt} />
+      <div className="tree-layout">
+        <div className="world-frame">
+          <div className="world-viewport" aria-label="semantic growth witness (static fixture)">
+            <SemanticGrowthWorldView frames={framesWithArt} />
+          </div>
         </div>
       </div>
     </div>

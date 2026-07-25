@@ -185,4 +185,18 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     expect(healthyTerritory).toBeTruthy();
     expect(healthyTerritory!.classList.contains('st-healthy')).toBe(true);
   });
+
+  // sgsd-bounded-in-map-host (stories/app-surface/semantic-growth-studio-demo.md): "it may size
+  // within the available forest frame but may not expand the page, clip/cover its navigation or
+  // place Back/Next/Replay behind the SVG." The live map's `.world-frame` is only given its
+  // fill-the-frame sizing (`.tree-layout > .world-frame { flex: 1 1 auto; min-height: 0; … }`,
+  // index.css) when it sits INSIDE `.tree-layout` — a bare `.tree-wrap > .world-frame` (no
+  // `.tree-layout` between them) never matches that selector and the frame collapses to its
+  // unconstrained intrinsic (zero) height instead of bounding to the forest frame. The demo's host
+  // must reuse the SAME wrapping chain, not a shortened one.
+  it('sgsd-bounded-in-map-host: the demo host wraps `.world-frame` inside `.tree-layout`, the same chain the live map relies on to bound the frame instead of collapsing it', async () => {
+    window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
+    const flagged = await renderTree();
+    expect(flagged.querySelector('.tree-layout > .world-frame')).toBeTruthy();
+  });
 });
