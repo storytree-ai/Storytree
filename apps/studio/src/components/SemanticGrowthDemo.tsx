@@ -24,6 +24,8 @@
 import {
   buildScene,
   type SceneInput,
+  type SceneKind,
+  type SceneNode,
   type SceneStatus,
   type SceneTerritoryInput,
   type SceneTrailsInput,
@@ -87,6 +89,24 @@ function territory(
   };
 }
 
+/**
+ * Recursively drop every drawable of the given `kind` from a built scene (and its descendants).
+ * Forest-world's `buildTerritoryFlora` (scene.ts) always wraps a territory's tree + nameplate +
+ * wisps in one `kind: 'territory'` group — the nameplate (`plate`) is a REQUIRED field on
+ * `SceneTerritoryInput`, so there is no input shape that produces claimed ground without a
+ * territory identity. The `land` frame ("the plot is claimed; no story markers yet") can therefore
+ * only be staged by building the full scene through the normal per-territory pipeline (so its
+ * ground/coast tiles are the real, shared geometry) and then removing that one identity group —
+ * never by re-deriving the ground geometry by hand or copying forest-world's internals.
+ */
+function stripKind(node: SceneNode, kind: SceneKind): SceneNode {
+  if (node.el !== 'g') return node;
+  return {
+    ...node,
+    children: node.children.filter((c) => c.kind !== kind).map((c) => stripKind(c, kind)),
+  };
+}
+
 function frameInput(territories: readonly SceneTerritoryInput[]): SceneInput {
   return {
     offset: { x: 0, y: 0 },
@@ -111,9 +131,13 @@ const FRAMES: readonly SemanticGrowthFrame[] = [
     model: normalizeWorldPresentationModel({ scene: buildScene(frameInput([])) }),
   },
   {
+    // "The plot is claimed ('mapped' ground); no story markers yet" — claimed coast/ground renders
+    // through the real territory pipeline, then the one `kind: 'territory'` group that carries the
+    // story's tree + nameplate + wisps is stripped, so no story identity (`.world-plate` included)
+    // appears until the `proposed` frame.
     key: 'land',
     model: normalizeWorldPresentationModel({
-      scene: buildScene(frameInput([territory('mapped')])),
+      scene: stripKind(buildScene(frameInput([territory('mapped')])), 'territory'),
     }),
   },
   {

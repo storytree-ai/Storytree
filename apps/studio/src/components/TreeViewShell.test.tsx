@@ -186,6 +186,31 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     expect(healthyTerritory!.classList.contains('st-healthy')).toBe(true);
   });
 
+  // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
+  // machine contract 3): "land has no story marker" — the second frame is claimed ground with no
+  // story yet (the guidance's exact sequence is "empty, then land with no story marker, then a pale
+  // proposed/non-healthy story…"). A story identity only enters the walk at the THIRD frame
+  // (`proposed`); `land` itself must render no nameplate/tree identity for the fixture's story id.
+  it('sgsd-land-has-no-story-marker: the second (`land`) frame is claimed ground with no nameplate/tree story identity', async () => {
+    window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
+    const flagged = await renderTree();
+    const nav = flagged.querySelector('nav[aria-label="Semantic growth controls"]');
+    expect(nav).toBeTruthy();
+    const nextButton = Array.from(nav!.querySelectorAll('button')).find((b) => b.textContent === 'Next');
+    expect(nextButton).toBeTruthy();
+
+    await act(async () => {
+      nextButton!.click();
+    });
+    expect(
+      flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
+    ).toBe('land');
+
+    // No nameplate (`.world-plate`, the story id/status card) may render on the `land` frame — a
+    // story marker only belongs from `proposed` onward.
+    expect(flagged.querySelector('.world-plate')).toBeNull();
+  });
+
   // sgsd-bounded-in-map-host (stories/app-surface/semantic-growth-studio-demo.md): "it may size
   // within the available forest frame but may not expand the page, clip/cover its navigation or
   // place Back/Next/Replay behind the SVG." The live map's `.world-frame` is only given its
