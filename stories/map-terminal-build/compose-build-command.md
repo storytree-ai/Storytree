@@ -82,7 +82,7 @@ through the story's TreeView glue).
 > **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. It is the smallest,
 > load-bearing slice of ADR-0174's map-spawn re-point: the exact command string a Build click should put
 > in the terminal. Whether that string is the RIGHT thing to seed (does it launch the build the owner
-> expects, on the member's `PATH`) is the story's operator-attested UAT leg 4 — the machine proof pins
+> expects, on the member's `PATH`) is the story's operator-attested UAT leg 6 — the machine proof pins
 > only that the function composes the AUTHORED string deterministically per scope.
 
 ## Guidance
@@ -147,22 +147,25 @@ The test would:
 ## Contracts (3)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest,
-`apps/studio/src/lib/buildCommand.test.ts`). None exist yet; each is the assertion a contract test WILL
-prove against the real function once authored (provisional path — re-cite at real `file:line` when built).
+`apps/studio/src/lib/buildCommand.test.ts`). All three now EXIST and pass (verified 2026-07-25); the
+`*(provisional path)*` markers below are retained where a real `file:line` has not been re-cited.
 Per ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named test, so
 `storytree coverage compose-build-command` reports 3/3.
 
 1. **`cbc-composes-story-real-build`** — a story scope composes the whole-story real build command
-   - **asserts —** `composeBuildCommand({ unitId, scope: 'story' })` equals exactly `storytree story
+   - **asserts —** `composeBuildCommand({ unitId, scope: 'story' })` equals exactly `pnpm storytree story
      build <unitId> --real --store pg` — the CLI equivalent of the dispatch's `storyBuild(id, { real:
      true, verdictStore: 'pg', openPr: true })` (the `--real` story build opens the auto-merging PR by CLI
-     default, ADR-0136). No `--live` / `--dry-run` / `--budget`.
+     default, ADR-0136). No `--live` / `--dry-run` / `--budget`. *(Corrected 2026-07-25: this line said
+     bare `storytree story build …`, contradicting both the `pnpm ` prefix rule below and the landed
+     `buildCommand.ts:15` / its passing test.)*
    - **covers —** `apps/studio/src/lib/buildCommand.ts` (the story branch) *(provisional path)*
 2. **`cbc-composes-node-real-build`** — a node scope composes the single-node real build command
-   - **asserts —** `composeBuildCommand({ unitId, scope: 'node' })` equals exactly `storytree node build
-     <unitId> --real --store pg` — the CLI equivalent of the dispatch's `nodeBuild(id, { real: true,
+   - **asserts —** `composeBuildCommand({ unitId, scope: 'node' })` equals exactly `pnpm storytree node
+     build <unitId> --real --store pg` — the CLI equivalent of the dispatch's `nodeBuild(id, { real: true,
      verdictStore: 'pg' })` (ADR-0144; the `--real` node build parks a `claude/real/<unit>-<run>` branch
-     by CLI default, ADR-0031 / ADR-0136). It is NOT the old synthetic `--live` smoke.
+     by CLI default, ADR-0031 / ADR-0136). It is NOT the old synthetic `--live` smoke. *(Corrected
+     2026-07-25 — same missing `pnpm ` prefix as contract 1.)*
    - **covers —** `apps/studio/src/lib/buildCommand.ts` (the node branch) *(provisional path)*
 3. **`cbc-embeds-the-unit-id-verbatim`** — the unit id is interpolated verbatim, so the command targets the clicked unit
    - **asserts —** the supplied `unitId` appears verbatim in the composed command for both scopes; two
@@ -193,18 +196,18 @@ Rules:
 - **Mirror the dispatch, don't reinvent it** — exactly `pnpm storytree <scope> build <id> --real --store pg`;
   no `--live` / `--dry-run` / `--budget` / `--open-pr` (the CLI defaults carry openPr-vs-park-branch).
 - **The `pnpm ` prefix is deliberate (orchestrator-settled from a verified fact, operator-attested at UAT
-  leg 4).** ADR-0174's text writes bare `storytree story build …`, but the embedded terminal spawns the
+  leg 6).** ADR-0174's text writes bare `storytree story build …`, but the embedded terminal spawns the
   platform shell (PowerShell on Windows) at the pinned-main runtime worktree root (ADR-0181;
   `apps/desktop/electron/main.ts` `cwd: serveRoot`), where a bare `storytree` is not on `PATH` but `pnpm
   storytree …` IS the documented, runnable invocation (CLAUDE.md). So the composer emits the RUNNABLE form
   — the whole point of ADR-0174 is a command the user can actually run. The pre-fill is editable and the
-  final prefix is operator-attested at UAT leg 4; if the owner keeps a global `storytree` bin, dropping
+  final prefix is operator-attested at UAT leg 6; if the owner keeps a global `storytree` bin, dropping
   `pnpm ` is a one-token change to this one function + its `cbc-*` contracts.
 - **Pure and import-free** — the function takes `{ unitId, scope }` and returns a string; no seam, no
   window, no async, no `@storytree/*` import (a string builder, not a build engine — ADR-0004).
 - **The string's CORRECTNESS is operator-attested, not machine-asserted** (ADR-0070) — the machine proof
   pins that the function composes the AUTHORED string per scope; whether that string launches the build
-  the owner expects on the member's shell is the story's UAT leg 4.
+  the owner expects on the member's shell is the story's UAT leg 6.
 - **Compose only, wire nothing (slow growth)** — this returns a command. It does NOT feature-detect the
   bridge, seed the terminal, or touch the Build button (that is `map-build-seeds-terminal`), and it does
   NOT sign / build / open a PR (the interactive surface composes intent; the prove-it-gate leaf is
