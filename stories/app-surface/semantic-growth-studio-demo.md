@@ -19,6 +19,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # source/rendered requirement; a parcel-only green is invalid even when the command exits zero.
 # ANCHORED-MOTION HOST RED after owner UAT-4 FAIL at ffcdc24: the retained integration walk must prove
 # stable composed anchors and localized in-world deltas; whole-scene/whole-group lateral slide is red.
+# SVG TRANSFORM FLOOR: transform-attribute snapshots alone are insufficient; source/computed proof
+# must reject full CSS `transform:` replacement on mapped elements and prove additive scale/origin/
+# stagger or an inner wrapper that preserves outer placement throughout motion.
 proof:
   command:
     file: pnpm
@@ -67,7 +70,12 @@ Extend the existing `TreeViewShell` integration proof:
    terrain reveals/grows in place, flora/tree scale from planted/root anchors with the existing brief
    overshoot/stagger, claim enters locally then orbits, and bloom pulses radially at its proof anchor;
    reject lateral translation of the whole scene, terrain/island or complete asset/flora group, then
-   operate Back and Replay and compare the same settled transforms;
+   operate Back and Replay and compare the same settled transforms. Source-discriminate that no
+   semantic-growth arrival/pulse keyframe sets full CSS `transform:` on a mapper-positioned SVG
+   element: unchanged `transform="translate(...)"` attributes are insufficient because CSS
+   `transform: scale(...)` still overrides visual placement during animation. Require additive
+   individual `scale:` with fill-box, ground/root origin and stagger, or an equivalent inner visual
+   wrapper that leaves the outer placement transform effective throughout;
 7. repeat the trace under reduced motion and assert the same final static transforms appear
    immediately without slide, travel, orbit, delayed concealment or changed framing;
 8. repeat that full walkthrough with Studio's resolved Storybook default and
@@ -91,6 +99,9 @@ deleted proof valid.
 Owner UAT-4 then failed at `ffcdc24`: the real composition was better, but whole asset groups sliding
 into place still looked cheap. The host correction is limited to proving the shared surface now grows
 and reveals at stable in-world anchors; Studio still owns no animation implementation.
+The following real-proof candidate showed the source of the remaining slide: full CSS
+`transform: scale(...)` temporarily replaced mapper-authored SVG translation while the DOM attribute
+stayed unchanged. The host proof must therefore inspect property composition, not only attributes.
 
 ## Guidance
 
@@ -130,6 +141,13 @@ and reveals at stable in-world anchors; Studio still owns no animation implement
   reveals/grows in place, flora/tree scale from planted/root anchors with the existing eased
   overshoot/stagger, claim enters locally and uses its real orbit, and bloom pulses radially at its
   proof anchor. A whole-scene, whole-terrain/island or complete asset/flora lateral slide is red.
+- Do not accept equal SVG `transform` attributes as sufficient anchor proof. The executable test must
+  inspect the shared semantic-growth CSS/source (without widening the declared write globs) and reject
+  full `transform:` declarations in arrival/pulse selectors or keyframes applied to positioned
+  terrain, flora/tree, claim or bloom elements. It must positively find additive individual `scale:`
+  with `transform-box: fill-box`, an appropriate ground/root origin and the intended layer stagger,
+  or verify an inner visual wrapper whose outer mapped placement transform stays effective throughout
+  computed animation. Claim and bloom remain localized under the same rule.
 - Derive one stable representative contain framing from that composed world's real bounds through
   the same world-framing vocabulary TreeView uses. Keep the full coast, substrate, parcel vegetation
   and standing objects visible with ordinary breathing room at every state. Do not pass a magic
@@ -177,6 +195,12 @@ and framing across forward, Back, Replay and reduced motion, and positively obse
 growth, root-anchored flora/tree scale, localized claim entrance/orbit and localized radial bloom.
 Studio contributes no keyframe, generated animation asset, sprite-frame pipeline or renderer.
 
+**SVG transform-composition floor — part of the host red.** The machine proof reads real shared
+CSS/source and fails full CSS `transform:` animation on mapper-positioned terrain, flora/tree, claim
+or bloom elements, including scale-only keyframes. It positively proves additive `scale:` plus
+fill-box/root origin/stagger, or an inner wrapper that preserves the outer SVG placement transform
+for every animation frame. DOM `transform` attribute snapshots alone cannot pass.
+
 1. **`sgsd-clean-studio-never-mounts-the-demo`**
    - **asserts —** without the exact flag, TreeView mounts its existing shared world and contains no
      semantic-growth fixture or Back/Next/Replay demo controls.
@@ -198,9 +222,12 @@ Studio contributes no keyframe, generated animation asset, sprite-frame pipeline
      proof identity; signed-proof remains proposed/non-healthy while carrying the proof bloom; healthy
      appears only last. Its transition trace is ground-arrival, flora-growth, claim-orbit and bloom
      rather than one generic scene-settle animation or whole-group lateral slide; settled world
-     anchors remain equal through forward, Back, Replay and reduced motion. The fixture contains no
-     API/store/subscription, mutation, timer advance, generated animation assets, sprite-frame
-     pipeline, product-art fork, second renderer or Chapter 2 controller.
+     anchors remain equal through forward, Back, Replay and reduced motion, and source/computed proof
+     rejects full CSS `transform:` replacement in favor of additive `scale:` plus grounded
+     origin/stagger or an equivalent inner wrapper. DOM transform-attribute equality alone is
+     insufficient. The fixture contains no API/store/subscription, mutation, timer advance, generated
+     animation assets, sprite-frame pipeline, product-art fork, second renderer or Chapter 2
+     controller.
 4. **`sgsd-reuses-studio-art-policy-without-a-second-resolver`**
    - **asserts —** the machine proof walks all six frames plus Back/Replay with TreeView's resolved
      Storybook sheet/art scale, repeats the same trace with explicit Vector null/fallback, and observes

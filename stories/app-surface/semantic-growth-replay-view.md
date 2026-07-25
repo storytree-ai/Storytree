@@ -22,6 +22,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # ANCHORED-MOTION RED after owner UAT-4 FAIL at ffcdc24: AUTHOR_TEST adds an independent additive
 # CSS/source case rejecting whole-scene/whole-group lateral slides and proving in-place/root-anchored
 # growth, localized claim entrance/orbit and localized bloom pulse with stable world anchors.
+# SVG TRANSFORM FLOOR: unchanged transform attributes are insufficient. The red rejects CSS
+# `transform:` animation on mapper-positioned elements and requires additive `scale:` plus box/origin,
+# or an inner visual wrapper that never replaces the outer SVG placement transform.
 proof:
   command:
     file: pnpm
@@ -76,8 +79,12 @@ semantic-growth view:
    Assert terrain reveals/grows at its existing world coordinates; flora/tree scale from their
    planted/root anchors with the existing brief eased overshoot/stagger; claim enters locally then
    uses its existing orbit; bloom pulses radially at its existing proof anchor. Compare settled
-   static placement transforms before/after, Back and Replay so movement cannot be hidden behind a
-   differently positioned final frame;
+   static placement transforms before/after, Back and Replay, and source-discriminate the animated
+   property itself: a CSS `transform:` in an arrival/pulse selector or keyframe applied to a
+   mapper-positioned SVG element is red because it visually replaces `transform="translate(...)"`
+   during motion even when the DOM attribute is unchanged. Require additive individual `scale:` with
+   `transform-box: fill-box`, the correct ground/root origin and stagger, or an inner visual wrapper
+   whose outer placement transform remains effective for every computed animation frame;
 6. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
    action trace twice and compare every semantic snapshot and transition-family trace;
 7. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
@@ -107,6 +114,10 @@ unchanged. Both independent additive reds must exist before implementation begin
 Owner UAT-4 failed again at `ffcdc24`: the composition looked better, but whole asset groups sliding
 laterally into place read like a PowerPoint transition. This correction changes motion only. The
 world and every settled art anchor stay fixed; entering meaning grows/reveals at that anchor.
+The next real-proof candidate exposed why attribute snapshots alone under-claim that failure: CSS
+`transform: scale(...)` overrides an SVG element's mapper-authored `transform="translate(...)"` while
+the animation runs, then the element appears to slide back when the CSS transform releases. The
+proof must discriminate computed/source property composition, not merely unchanged DOM attributes.
 
 ## Guidance
 
@@ -140,6 +151,16 @@ world and every settled art anchor stay fixed; entering meaning grows/reveals at
   followed by its mapper-owned orbit; the bloom uses its localized radial pulse. The test compares
   settled placement transforms across forward, Back and Replay and proves reduced motion renders
   those same final transforms immediately.
+- For mapper-positioned SVG elements, forbid semantic-growth arrival/pulse rules and keyframes from
+  animating the full CSS `transform` property. A source assertion must fail `transform: scale(...)`
+  as well as `transform: translate(...)`: either replaces the element's SVG placement transform
+  during animation even though `getAttribute('transform')` still reports the original translate.
+  Use the additive individual `scale:` property with `transform-box: fill-box` and an appropriate
+  ground/root `transform-origin`, preserving the existing ease/overshoot and layer stagger; or animate
+  a dedicated inner visual wrapper while the outer mapper-authored placement wrapper remains static.
+  Apply the same preservation rule to localized claim entrance and bloom pulse. Attribute equality
+  alone is not proof; the machine test must inspect real CSS/source and verify the individual
+  scale/origin/stagger or equivalent wrapper structure.
 - Keep the cursor and transition selection pure. Next clamps at healthy, Back clamps at empty,
   restart selects empty, and Replay reapplies the same ordered keys. Time controls interpolation
   only; no timeout advances the cursor and no random value influences output.
@@ -220,6 +241,14 @@ localized claim entrance plus built-in orbit, and localized radial bloom pulse. 
 settled static placement transforms through forward, Back, Replay and reduced motion. Comment/prose
 matches do not satisfy this red.
 
+**SVG transform-composition floor — part of anchored-motion red C.** The executable source/CSS
+assertion fails any semantic-growth arrival or pulse selector/keyframe that sets the full
+`transform:` property on mapper-positioned terrain, flora/tree, claim or bloom elements, including
+`transform: scale(...)`. Passing requires either additive individual `scale:` with
+`transform-box: fill-box`, the correct ground/root `transform-origin` and the existing stagger, or a
+proved inner visual wrapper whose outer SVG `transform="translate(...)"` remains the effective
+placement throughout animation. Merely comparing `getAttribute('transform')` before/after is red.
+
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
    - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
      marker; `proposed` adds a proposed/non-healthy story; `claimed` adds real presence without
@@ -247,8 +276,11 @@ matches do not satisfy this red.
      `.world-wisp`/`.world-claim-wisp`, `.world-bloom` and `.arrive-island`, and positively asserts
      the named per-delta selector/keyframe wiring. A separate source/CSS case rejects whole-group
      lateral translation and proves stable world anchors, in-place terrain growth, root-anchored
-     flora/tree scale, localized claim entrance/orbit and localized bloom pulse; comments/prose
-     cannot satisfy either case. Transition rules and reduced-motion handling live under
+     flora/tree scale, localized claim entrance/orbit and localized bloom pulse. It also rejects the
+     full CSS `transform:` property on mapper-positioned animated elements and positively requires
+     additive `scale:` plus fill-box/root origin/stagger or an equivalent inner-wrapper composition;
+     DOM transform-attribute equality and comments/prose cannot satisfy either case. Transition rules
+     and reduced-motion handling live under
      `packages/app-surface`; the view delegates to `WorldSceneView`; and its source imports no
      Studio/web module, live data/store authority, generated animation asset/frame pipeline, product
      art fork, Chapter 2 controller or duplicate renderer.
