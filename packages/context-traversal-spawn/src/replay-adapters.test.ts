@@ -1,0 +1,218 @@
+/**
+ * Contract tests for the multi-adapter replay composition (story `context-traversal-spawn`,
+ * capability `multi-adapter-replay`, ADR-0235 / ADR-0241 / ADR-0192).
+ *
+ * Real-collaborator integration: fixtures are written through increment 2's actual
+ * `appendTraversalEvents` sink into a temporary directory (no mock store), and the corrupt-line
+ * fixture is appended as a raw byte line the same way a crash-truncated write would land on disk —
+ * never a stubbed reader. `showTraversalSessionAllAdapters` is exercised end-to-end: read through
+ * increment 2's `readTraversalSession`, rendered through its `renderTraversalSession`.
+ */
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { test } from "node:test";
+
+import { appendTraversalEvents, TERMINAL_CLI_DISPATCH_COVERAGE } from "@storytree/context-traversal-capture";
+import { CoverageFeature } from "@storytree/context-traversal-telemetry";
+import type { CoverageFeature as CoverageFeatureValue } from "@storytree/context-traversal-telemetry";
+
+import { BUILD_SPAWN_BOUNDARY_COVERAGE } from "./observe-leaf-slices.js";
+import { showTraversalSessionAllAdapters } from "./replay-adapters.js";
+
+function makeTempDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "context-traversal-spawn-replay-"));
+}
+
+function removeTempDir(dir: string): void {
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+function sessionFilePath(dir: string, sessionId: string): string {
+  return path.join(dir, `${sessionId}.jsonl`);
+}
+
+/** Maps one event kind to the `CoverageFeature` literal that names it, using the closed domain
+ * itself so a future vocabulary addition would fail this mapping to compile rather than silently
+ * passing an untracked feature. */
+function eventKindFeature(
+  kind: "front_matter_read" | "spawn_handoff" | "model_context" | "result_return",
+): CoverageFeatureValue {
+  const feature = ({
+    front_matter_read: "event:front_matter_read",
+    spawn_handoff: "event:spawn_handoff",
+    model_context: "event:model_context",
+    result_return: "event:result_return",
+  } as const)[kind];
+  assert.ok((CoverageFeature.options as readonly string[]).includes(feature));
+  return feature;
+}
+
+/**
+ * A mixed fixture: one terminal-adapter read event alongside a full build-spawn-boundary triple
+ * (spawn_handoff / model_context / result_return), all under one session. The `model_context`
+ * carries no `contextWindowCapacity` — an honest, common shape the CLI boundary actually produces.
+ */
+function writeMixedFixture(dir: string, sessionId: string): void {
+  const childSessionId = `${sessionId}-child`;
+  const events: unknown[] = [
+    {
+      kind: "front_matter_read",
+      eventId: "event:visit-1",
+      sessionId,
+      visitId: "visit-1",
+      nodeId: "node-a",
+      surfaceId: "tree",
+      at: "2026-07-26T10:00:00.000Z",
+    },
+    {
+      kind: "spawn_handoff",
+      eventId: "event:spawn-1",
+      sessionId,
+      at: "2026-07-26T10:00:01.000Z",
+      edgeId: "edge-1",
+      parentSessionId: sessionId,
+      childSessionId,
+      agentType: "red-builder",
+    },
+    {
+      kind: "model_context",
+      eventId: "event:model-1",
+      sessionId,
+      at: "2026-07-26T10:00:02.000Z",
+      cumulativeInputTokens: 1_500,
+      addedInputTokens: 1_500,
+    },
+    {
+      kind: "result_return",
+      eventId: "event:result-1",
+      sessionId,
+      at: "2026-07-26T10:00:03.000Z",
+      edgeId: "edge-1",
+      parentSessionId: sessionId,
+      childSessionId,
+      ok: true,
+      resultTokenCount: 120,
+    },
+  ];
+
+  const ok = appendTraversalEvents(events, { dir, sessionId });
+  assert.equal(ok, true, "fixture events must be schema-valid and actually land on disk");
+}
+
+test("every rendered event kind in a mixed terminal+build-spawn session is supported by at least one declared adapter", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-mixed-coverage";
+  try {
+    writeMixedFixture(dir, sessionId);
+
+    const result = showTraversalSessionAllAdapters(sessionId, { dir });
+    assert.equal(result.ok, true);
+
+    const unionSupported = new Set<string>([
+      ...TERMINAL_CLI_DISPATCH_COVERAGE.supported,
+      ...BUILD_SPAWN_BOUNDARY_COVERAGE.supported,
+    ]);
+
+    const presentKinds = ["front_matter_read", "spawn_handoff", "model_context", "result_return"] as const;
+    for (const kind of presentKinds) {
+      assert.ok(
+        unionSupported.has(eventKindFeature(kind)),
+        `event kind ${kind} must be named supported by at least one declared adapter`,
+      );
+    }
+
+    // The render itself must actually show every one of these event kinds — never silently drop
+    // one because it happens to fall in some other adapter's territory.
+    assert.ok(result.body.includes("[front-matter] visit=visit-1"));
+    assert.ok(result.body.includes("[spawn-handoff] edge=edge-1"));
+    assert.ok(result.body.includes("[model-context] model=unknown cumulative=1500"));
+    assert.ok(result.body.includes("[result-return] edge=edge-1"));
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("the rendered body names both adapter declarations in full, never merged or one-sided", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-both-adapters";
+  try {
+    writeMixedFixture(dir, sessionId);
+
+    const result = showTraversalSessionAllAdapters(sessionId, { dir });
+
+    const terminalLine = `coverage: adapter=${TERMINAL_CLI_DISPATCH_COVERAGE.adapterId} supported=[${TERMINAL_CLI_DISPATCH_COVERAGE.supported.join(", ")}] omitted=[${TERMINAL_CLI_DISPATCH_COVERAGE.omitted.join(", ")}]`;
+    const buildLine = `coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId} supported=[${BUILD_SPAWN_BOUNDARY_COVERAGE.supported.join(", ")}] omitted=[${BUILD_SPAWN_BOUNDARY_COVERAGE.omitted.join(", ")}]`;
+
+    assert.ok(
+      result.body.includes(terminalLine),
+      "the terminal adapter's full supported+omitted declaration must render verbatim",
+    );
+    assert.ok(
+      result.body.includes(buildLine),
+      "the build spawn boundary adapter's full supported+omitted declaration must render verbatim",
+    );
+
+    // Both declarations carry a non-empty omitted side in the real vocabulary — a render that
+    // dropped the omitted half of either would still pass a naive "adapter=... appears" check but
+    // fail these.
+    assert.ok(TERMINAL_CLI_DISPATCH_COVERAGE.omitted.length > 0);
+    assert.ok(BUILD_SPAWN_BOUNDARY_COVERAGE.omitted.length > 0);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("capacity still renders honestly unknown when the latest model_context carries none, while its token observation still renders", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-capacity-unknown";
+  try {
+    writeMixedFixture(dir, sessionId);
+
+    const result = showTraversalSessionAllAdapters(sessionId, { dir });
+
+    assert.ok(
+      result.body.includes("capacity: unknown (no model_context observation at this boundary)"),
+      "no default capacity, no inferred gauge, no danger region may be fabricated",
+    );
+    assert.ok(result.body.includes("cumulative=1500"), "the actual token observation must still render");
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("a corrupt line replays every good event, reports the skipped count, and never throws", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-corrupt-line";
+  try {
+    writeMixedFixture(dir, sessionId);
+    fs.appendFileSync(sessionFilePath(dir, sessionId), "this is not json at all\n", { encoding: "utf8" });
+
+    const result = showTraversalSessionAllAdapters(sessionId, { dir });
+
+    assert.equal(result.ok, true);
+    assert.ok(result.body.includes("partial replay: 1 event line(s) skipped (unreadable or corrupt)"));
+    // The good events from the same file still replay in full alongside the partial notice.
+    assert.ok(result.body.includes("[front-matter] visit=visit-1"));
+    assert.ok(result.body.includes("[spawn-handoff] edge=edge-1"));
+    assert.ok(result.body.includes("[result-return] edge=edge-1"));
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("a session with no captured file at all replays empty, with no coverage-block omission of either adapter", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-never-captured";
+  try {
+    const result = showTraversalSessionAllAdapters(sessionId, { dir });
+
+    assert.equal(result.ok, true);
+    assert.ok(result.body.includes("(no events observed)"));
+    assert.ok(result.body.includes(`coverage: adapter=${TERMINAL_CLI_DISPATCH_COVERAGE.adapterId}`));
+    assert.ok(result.body.includes(`coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId}`));
+  } finally {
+    removeTempDir(dir);
+  }
+});
