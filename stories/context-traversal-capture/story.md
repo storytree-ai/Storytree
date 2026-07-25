@@ -111,28 +111,28 @@ query consumes the sink's reader; the activation composes all three.
 performed and nothing else, then replay that trace from the command line — with every ADR-0235
 uncertainty and every ADR-0241 honesty rule intact.
 
-1. **A real spawned read command writes a replayable visit.** _(witness: machine)_ Spawn the real
+1. **A real spawned read command writes a replayable visit.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real
    CLI binary (`node packages/cli/launch.mjs library artifact plan`) with
    `STORYTREE_TRAVERSAL_DIR` and `STORYTREE_SESSION_ID` pointed at a temporary directory, offline
    and without `--pg`. **Success —** the temporary directory holds one session trace file whose
    replay contains exactly one `full_payload_read` for canonical node `plan`, under the supplied
    `sessionId`, written by a process that has since exited.
-2. **Two invocations join into one session with distinct visits.** _(witness: machine)_ In the SAME
+2. **Two invocations join into one session with distinct visits.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In the SAME
    session id, spawn a second command at a different read strength
    (`tree spec context-traversal-telemetry`). **Success —** the replay holds two events under one
    `sessionId` with two distinct `visitId` values, the front-matter and full-payload kinds stay
    distinct, and no event carries `parentVisitId`, `priorVisitId`, or `followedEdgeId` — cross-process
    adjacency creates no causal edge.
-3. **A write command leaves no owner prose on disk.** _(witness: machine)_ Spawn a write-shaped
+3. **A write command leaves no owner prose on disk.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn a write-shaped
    command carrying canary prose in its arguments (`noticeboard declare --working-on "<canary>"
    --node x`, which refuses offline). **Success —** no new event is appended, and the session file's
    BYTES do not contain the canary — asserted against the file contents, not merely against parsed
    objects.
-4. **The captured session replays from the command line.** _(witness: machine)_ Spawn
+4. **The captured session replays from the command line.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn
    `traversal show <sessionId>` against the same directory. **Success —** it exits 0 and the rendered
    body names both visits in chronological order, keeps the read-strength distinction visible,
    reports context capacity as unknown, and prints the adapter's supported/omitted coverage block.
-5. **Capture is additive and opt-out-clean.** _(witness: machine)_ Re-run the same read command with
+5. **Capture is additive and opt-out-clean.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Re-run the same read command with
    `STORYTREE_TRAVERSAL=off`, and again with no resolvable session identity. **Success —** no trace
    file is created in either run, and each command's envelope and exit code are byte-identical to the
    same command run with capture entirely absent.
@@ -151,6 +151,31 @@ All proof sources this story claims live under `packages/context-traversal-captu
 activation lines (`packages/cli/src/main.ts`, `cli-areas.ts`, `commands.ts`, `traversal.ts`,
 `package.json`) are un-asserted connective glue in another story's building: they are declared as a
 consumed-by edge and reviewed in the diff, never claimed as this story's evidence.
+
+## Reliability Gates
+
+Every UAT leg above is `witness: machine`, and each is bound to `context-traversal-capture#gate-1`
+by an explicit `_(proof-gate: …)_` annotation — the binding the resolver looks up VERBATIM, with no
+first-observe fallback and no inference from ordering or `(covers:)`. The gate is what makes those
+legs machine-provable at all: without it a machine leg has no command to resolve to, refuses
+operator attestation (ADR-0082 d.2), and the story's UAT can never green.
+
+The gate observes the SAME suite the spine already drove red→green: all four capabilities
+(`traversal-trace-sink`, `terminal-boundary-observations`, `traversal-session-query`,
+`terminal-capture-activation`) earned signed `--real` PASS verdicts through the prove-it-gate, and
+`terminal-capture-activation`'s red→green authored the standing UAT file itself. So observing this
+suite green at a clean committed HEAD is a truthful second observation of spine-driven proofs, not
+an adoption standing in for a red that never happened.
+
+1. **The capture package's own suite is green** _(gate: observe)_
+   `pnpm --filter @storytree/context-traversal-capture test`. The spine runs it at a clean committed
+   HEAD and OBSERVES it green — the durable JSONL sink (append, tolerant partial read, validated
+   bytes), the argv read-allowlist (owner prose never recorded), the replay renderers (read strength
+   distinct, coverage always printed, capacity honestly unknown), and the standing UAT that SPAWNS
+   the real `node packages/cli/launch.mjs` process to prove production emits — all offline, no DB and
+   no API key — then signs an `adopted` verdict
+   (`storytree adopt context-traversal-capture --pg`, which observe-and-signs this gate and the five
+   legs bound to it).
 
 ## Explicitly outside this increment
 
