@@ -7,6 +7,24 @@ status: proposed
 proof_mode: UAT
 # Mixed witness: deterministic model/view, Studio adoption, art policy and existing selector parity
 # are machine legs; the final visual-parity regression remains operator-attested under ADR-0070.
+#
+# RE-ADJUDICATED 2026-07-26 (ADR-0209 D8 — see `## UAT Test Criteria`). The tags are UNCHANGED at
+# 3 machine (legs 1–3) / 1 human (leg 4); leg 4 was tested against
+# `human-witness-is-a-judgment-gap-not-cost` rather than inherited, and stays human on the
+# NO-COMPILER basis alone (an ADR-0070 stage-2 appearance verdict has no oracle). ZERO splits: the
+# one compiled rider leg 4 also asserted — "no duplicate/placeholder renderer" — already has a
+# machine leg here (leg 2), so leg 4 now references its sibling instead of restating it. Two facts
+# corrected in this pass, neither visible from the witness tags: (a) leg 2's walk overstated what
+# gate-2 observes today, and 3 of `studio-app-surface-adapter`'s 4 declared contracts have no
+# test-name binding — recorded as a coverage gap, NOT repaired (ADR-0097 §2); (b) `app-surface#uat-4`
+# already carries an operator-attested `fail` in `events.verdict` that was signed against a DIFFERENT,
+# broader leg 4 on an unmerged branch — see the leg's RECORD note. Nothing here goes green and the
+# owner signs nothing; per ADR-0209 §6 a tag records which witness is RIGHT, never that a proof exists.
+#
+# STORE/DISK DIVERGENCE, recorded 2026-07-25/26: `events.verdict` holds `app-surface#gate-1..gate-4`
+# and `#uat-1,2,3,5,6,7` (adopted, spine-signed) — a SEVEN-leg / FOUR-gate shape that exists only on
+# the unmerged branch `claude/app-surface-f0e166` (commit 9377e897). This authored story carries FOUR
+# legs and TWO gates. Leg ids are positional, so store rows and this file are not interchangeable.
 arc: chapter2-real-app-surface-arc
 capabilities: [app-surface-world-view, studio-app-surface-adapter]
 # The framework-bearing package sits immediately above @storytree/forest-world and imports it.
@@ -102,16 +120,47 @@ controller/view separation and existing sprite/arrival/trail policy intact.
    _(proof-gate: app-surface#gate-2)_ Render real `TreeView` with loaded, selected, claimed, proven,
    arrival and reveal-plan state. **Success —** it mounts the public shared world view, routes the
    selection event through the existing controller, and retains no second private scene mapper.
-   Legend/inspector/chat/camera remain unchanged Studio siblings.
+   Legend/inspector/chat/camera remain unchanged Studio siblings. *(Scope corrected 2026-07-26,
+   ADR-0209 D8. The witness stays `machine` — every condition above compiles — but the walk as
+   written OVERSTATES what gate-2 observes today. The bound suite is green (105 files / 947 tests,
+   run 2026-07-26), and within it only `asa-treeview-mounts-one-shared-world-view`
+   (`apps/studio/src/components/TreeViewShell.test.tsx:68`) speaks to this leg — and it is a
+   SOURCE-TEXT assertion over `apps/studio/src/components/TreeView.tsx` (it imports `WorldSceneView`
+   from `@storytree/app-surface`, renders `<WorldSceneView`, and no longer imports `SceneView` from
+   `./SceneView.js`), not a render carrying selected/claimed/proven/arrival/reveal-plan state; no
+   test anywhere drives a selection event through the controller. Three of this leaf's four declared
+   contracts — `asa-treeview-folds-world-state-into-shared-model`,
+   `asa-world-events-reach-existing-studio-controller`, `asa-studio-scene-regressions-stay-green` —
+   have no test-name binding. Recorded as a COVERAGE gap and left as one: no binding was invented and
+   no observe gate was minted over unproven ground (ADR-0097 §2).)*
 3. **Art and existing selector policy survive.** _(witness: machine)_
    _(proof-gate: app-surface#gate-1)_ Exercise default, Vector, unknown and partially covered
    Storybook cases plus the moved selector fixtures. **Success —** art resolution/fallback, sizing,
    anchors/depth order, `trailRevealPlan` and `arrivalGrowPlan` match their existing behaviour.
-4. **The hosted Studio world scene has not visually regressed.** _(witness: human)_ Stand up a
-   verified forest-map deep-link. Walk the default Storybook scene, select a story and observe the
+4. **The hosted Studio world scene has not visually regressed.**
+   _(witness: human)(detail: app-surface#uat-4)_ Stand up a verified forest-map deep-link — staging,
+   not the reason this leg is human. Walk the default Storybook scene, select a story and observe the
    existing arrival/trail treatment, then repeat with `?artStyle=vector`. **Success —** the world
-   scene reads as the same owner-attested Studio scene, with no duplicate/placeholder renderer.
-   Surrounding chrome is not migrated or re-attested here.
+   scene READS as the same owner-attested Studio scene it did before the renderer moved out of
+   `apps/studio`. Surrounding chrome is not migrated or re-attested here. *(Re-adjudicated 2026-07-26,
+   ADR-0209 D8. HUMAN on the **NO-COMPILER** basis and that basis alone: whether a re-hosted renderer
+   still LOOKS like the scene the owner already attested is an ADR-0070 stage-2 appearance verdict
+   with no oracle — not spend, not liveness, not a native-shell or missing-harness gap, none of which
+   would keep a leg on this rung. NARROWED: "with no duplicate/placeholder renderer" was REMOVED from
+   the success condition. That half compiles and is already leg 2's ("retains no second private scene
+   mapper"), asserted by `asa-treeview-mounts-one-shared-world-view`
+   (`apps/studio/src/components/TreeViewShell.test.tsx:68`), so this leg points at its sibling instead
+   of restating it — restating a compiled fact here would launder it into an owner's signature. No
+   split was minted for the same reason. The `?artStyle=vector` repeat likewise asks only how the
+   Vector scene LOOKS; that its art resolution/fallback RESOLVES correctly is leg 3's compiled claim.)*
+   *(RECORD — signed state, checked 2026-07-26 and deliberately left untouched: `app-surface#uat-4`
+   ALREADY carries an operator-attested verdict in `events.verdict` — outcome `fail`, signer
+   `hua.mick@gmail.com`, `2026-07-25T14:43:09Z`, commit `9377e897`, no note. It was **not** signed
+   against the walk above. At `9377e897` — the unmerged branch `claude/app-surface-f0e166` — this story
+   carried SEVEN legs and `#uat-4` was a FUSED scene + six-state-motion + Back/Replay + reduced-motion
+   leg. Leg ids are positional and the store keys on `unit_id`, so that row now reads as an owner fail
+   against this narrower leg, which the owner never walked in this form. This pass changed no store
+   state. A fresh signature is required, and it must be taken against THIS text.)*
 
 ## Reliability Gates
 
