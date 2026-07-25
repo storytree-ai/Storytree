@@ -2,24 +2,30 @@
  * The terminal CLI capture composition — story `context-traversal-capture`, capability
  * `terminal-capture-activation` (ADR-0235 / ADR-0241).
  *
- * ── SCAFFOLD, NOT THE IMPLEMENTATION ─────────────────────────────────────────────────────────
- * This file is staged as an inert, fail-silent STUB so that the CLI can import and call it before
- * the capability that owns it has been built. That resolves a real chicken-and-egg: the story's
- * UAT spawns the REAL `pnpm storytree` process, so the CLI must already compose this entry point,
- * yet this file is `terminal-capture-activation`'s declared `real.sourceFile` and only that
- * capability's write-scoped leaf may author its behaviour.
+ * The one entry point the CLI calls: resolve the trace directory, call
+ * `terminal-boundary-observations`'s pure observer (`observeCliInvocation`), and hand the result
+ * to `traversal-trace-sink`'s synchronous append. Also exposes the thin query composition
+ * (`showTraversalSession` / `listTraversalSessionsRendered`) that reads through the sink and
+ * renders through `traversal-session-query`.
  *
- * The stub keeps every CLI invocation working and observably uninstrumented: capture writes
- * nothing and the query surface reports that the composition is not yet built. The UAT is
- * therefore honestly RED against this file and GREEN against the real composition — the red→green
- * the prove-it-gate observes, rather than a pre-passed test.
- *
- * The signatures below are the seam the CLI glue already calls, taken from the capability's
- * guidance (`captureCliInvocation({ argv, ok, sessionId, … })` plus the thin query composition).
- * Identity is resolved by the CLI and passed IN — this package must not depend on
- * `@storytree/drive` for `deriveIdentity()`, which keeps its runtime deps to zod and the
- * increment-1 vocabulary.
+ * Capture is additive and fail-silent, never fail-closed (ADR-0241 D3): this module never throws
+ * (every filesystem edge is already absorbed by the sink) and its only side effect is appending
+ * bytes — it never touches the envelope or the exit code. Identity is resolved by the CLI and
+ * passed IN — this package must not depend on `@storytree/drive` for `deriveIdentity()`, which
+ * keeps its runtime deps to zod and the increment-1 vocabulary.
  */
+import { randomUUID } from "node:crypto";
+
+import { observeCliInvocation, TERMINAL_CLI_DISPATCH_COVERAGE } from "./observe-cli.js";
+import { renderTraversalSession, renderTraversalSessions } from "./query-render.js";
+import {
+  appendTraversalEvents,
+  listTraversalSessions,
+  readTraversalSession,
+  resolveTraversalDir,
+} from "./sink.js";
+
+const TRAVERSAL_TOGGLE_ENV = "STORYTREE_TRAVERSAL";
 
 /** What the CLI boundary hands the capture composition for one invocation. */
 export interface CaptureCliInvocationInput {
@@ -55,39 +61,62 @@ interface RenderedEnvelope {
   readonly next?: readonly string[];
 }
 
-const NOT_COMPOSED =
-  "Context-traversal capture is not composed yet — `terminal-capture-activation` has not been built.";
+/**
+ * Whether capture is enabled for this invocation: an explicit `enabled` override wins, else
+ * `STORYTREE_TRAVERSAL=off` opts out, else capture is on by default.
+ */
+function isCaptureEnabled(override: boolean | undefined): boolean {
+  if (override !== undefined) return override;
+  return process.env[TRAVERSAL_TOGGLE_ENV] !== "off";
+}
 
 /**
  * Ambient capture of one terminal invocation's allowlisted READS.
  *
- * STUB: deliberately does nothing. Capture is additive and fail-silent by contract (ADR-0241 D3),
- * so an uncomposed capture path is indistinguishable from an uninstrumented run — which is exactly
- * what the "capture is additive and opt-out-clean" contract demands of the off path anyway.
+ * Additive and fail-silent (ADR-0241 D3): with capture off, or no resolvable session identity,
+ * this is a silent no-op — no directory is resolved, no file is created. Otherwise it observes the
+ * invocation through the pure `terminal-cli-dispatch` adapter and appends whatever it finds
+ * (possibly zero events) through the sink. Never throws — the sink itself never throws, and every
+ * step here is synchronous.
  */
-export function captureCliInvocation(_input: CaptureCliInvocationInput): void {
-  // Intentionally empty. `terminal-capture-activation`'s leaf replaces this file wholesale with the
-  // real composition: resolve the directory, call the pure `observeCliInvocation` observer, and hand
-  // its events to the sink's synchronous `appendTraversalEvents`.
+export function captureCliInvocation(input: CaptureCliInvocationInput): void {
+  if (!isCaptureEnabled(input.enabled)) return;
+  if (input.sessionId === null) return;
+
+  const sessionId = input.sessionId;
+  const now = input.now ?? (() => new Date());
+  const nextId = input.nextId ?? (() => randomUUID());
+
+  const events = observeCliInvocation(input.argv, {
+    ok: input.ok,
+    sessionId,
+    nextVisitId: nextId,
+    now,
+  });
+  if (events.length === 0) return;
+
+  const dir = input.dir ?? resolveTraversalDir();
+  appendTraversalEvents(events, { dir, sessionId });
 }
 
 /**
  * Replay one captured session for `storytree traversal show <sessionId>`.
  *
- * STUB: reports honestly that the composition does not exist yet rather than fabricating a replay.
+ * The sink persists events only, never coverage declarations, so this composition — the only place
+ * that knows which adapter captured through the terminal CLI — declares `terminal-cli-dispatch`'s
+ * coverage for the render itself.
  */
-export function showTraversalSession(sessionId: string, _opts?: TraversalQueryOptions): RenderedEnvelope {
-  return {
-    ok: false,
-    body: `${NOT_COMPOSED}\n\nNo replay is available for session "${sessionId}".`,
-  };
+export function showTraversalSession(sessionId: string, opts?: TraversalQueryOptions): RenderedEnvelope {
+  const dir = opts?.dir ?? resolveTraversalDir();
+  const { replay, skipped } = readTraversalSession({ dir, sessionId });
+  return renderTraversalSession({ ...replay, coverage: [TERMINAL_CLI_DISPATCH_COVERAGE] }, { skipped });
 }
 
 /**
  * Render the captured-session index for `storytree traversal list`.
- *
- * STUB: reports honestly that the composition does not exist yet rather than fabricating an index.
  */
-export function listTraversalSessionsRendered(_opts?: TraversalQueryOptions): RenderedEnvelope {
-  return { ok: false, body: NOT_COMPOSED };
+export function listTraversalSessionsRendered(opts?: TraversalQueryOptions): RenderedEnvelope {
+  const dir = opts?.dir ?? resolveTraversalDir();
+  const list = listTraversalSessions({ dir });
+  return renderTraversalSessions(list);
 }
