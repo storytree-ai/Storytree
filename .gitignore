@@ -60,3 +60,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Personal Claude Code overrides (per-machine, never shared)
+.claude/settings.local.json
