@@ -224,4 +224,85 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     const flagged = await renderTree();
     expect(flagged.querySelector('.tree-layout > .world-frame')).toBeTruthy();
   });
+
+  // sgsd-composed-through-real-studio-world-pipeline (stories/app-surface/semantic-growth-studio-demo.md):
+  // the fixture must be COMPOSED through the SAME real Studio pipeline the live map uses —
+  // deterministic representative story/capability data enters `buildWorld`, its real draw tiles
+  // enter `buildRelaxedCells`, and `worldToScene` (carrying the same permanent vegetation input)
+  // feeds `buildScene` — never a demo-only hand-authored `SceneInput`, coast path, or hand-filled
+  // empty `relaxedCells`/`drawTiles`/`decor`/`plants`. This is the ONE fail-closed composition red
+  // the node spec asks for: source imports/calls, source literals, AND rendered output are checked
+  // TOGETHER — a parcel-only rendered check alone is not sufficient proof of real composition.
+  it('sgsd-composed-through-real-studio-world-pipeline: the fixture is folded through buildWorld -> buildRelaxedCells -> worldToScene -> buildScene, never a demo-only hand-authored SceneInput/COAST/empty geometry', async () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
+      'utf8',
+    );
+
+    // 1) The real composition boundary is actually IMPORTED from the studio's own pipeline (never a
+    // demo-only re-derivation of it).
+    expect(source).toMatch(
+      /import\s*\{[\s\S]*?\bbuildWorld\b[\s\S]*?\}\s*from '\.\/TreeView\.js'/,
+    );
+    expect(source).toMatch(
+      /import\s*\{[\s\S]*?\bbuildRelaxedCells\b[\s\S]*?\}\s*from '\.\/TreeView\.js'/,
+    );
+    expect(source).toMatch(
+      /import\s*\{[\s\S]*?\bworldToScene\b[\s\S]*?\}\s*from '\.\/TreeView\.js'/,
+    );
+    expect(source).toMatch(
+      /import\s*\{[\s\S]*?\bbuildScene\b[\s\S]*?\}\s*from '@storytree\/forest-world'/,
+    );
+
+    // 2) ...and actually CALLED — an unused import would still leave a demo-only geometry builder
+    // in place.
+    expect(source).toMatch(/\bbuildWorld\s*\(/);
+    expect(source).toMatch(/\bbuildRelaxedCells\s*\(/);
+    expect(source).toMatch(/\bworldToScene\s*\(/);
+    expect(source).toMatch(/\bbuildScene\s*\(/);
+
+    // 3) No demo-only hand-authored `SceneInput`, coast path, or hand-filled EMPTY geometry arrays
+    // — exactly the demo-only geometry builder this node forbids maintaining.
+    expect(source).not.toMatch(/\)\s*:\s*SceneInput\b/);
+    expect(source).not.toMatch(/\bCOAST\s*=\s*\[/);
+    expect(source).not.toMatch(/relaxedCells\s*:\s*\[\]/);
+    expect(source).not.toMatch(/drawTiles\s*:\s*\[\]/);
+    expect(source).not.toMatch(/decor\s*:\s*\[\]/);
+    expect(source).not.toMatch(/plants\s*:\s*\[\]/);
+
+    // 4) The RENDERED `proposed` frame reuses the real composed geometry — non-empty relaxed
+    // substrate, MULTIPLE capability parcels, and parcel flora (the real permanent vegetation this
+    // world composes) — never an empty demo shell.
+    window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
+    const flagged = await renderTree();
+    const nav = flagged.querySelector('nav[aria-label="Semantic growth controls"]');
+    expect(nav).toBeTruthy();
+    const nextButton = Array.from(nav!.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Next',
+    );
+    expect(nextButton).toBeTruthy();
+    // empty -> land -> proposed (two Next clicks).
+    for (let i = 0; i < 2; i += 1) {
+      await act(async () => {
+        nextButton!.click();
+      });
+    }
+    const proposedFrame = flagged.querySelector('[data-semantic-growth-frame="proposed"]');
+    expect(proposedFrame).toBeTruthy();
+
+    const substrate = proposedFrame!.querySelectorAll('.relaxed-tile, .relaxed-cell');
+    expect(substrate.length).toBeGreaterThan(0);
+
+    const parcels = proposedFrame!.querySelectorAll('.parcel');
+    expect(parcels.length).toBeGreaterThan(1);
+
+    const parcelFlora = proposedFrame!.querySelectorAll('.parcel-flora');
+    expect(parcelFlora.length).toBeGreaterThan(0);
+
+    // 5) The public player receives a stable COMPOSED framing derived from this world's real
+    // bounds — never the fallback/magic 100x100 viewBox a nothing-to-frame world falls back to.
+    const svg = flagged.querySelector('svg');
+    expect(svg).toBeTruthy();
+    expect(svg!.getAttribute('viewBox')).not.toBe('0 0 100 100');
+  });
 });
