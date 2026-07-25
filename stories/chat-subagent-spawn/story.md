@@ -16,16 +16,18 @@ outcome: "From a desktop chat conversation the session-orchestrator spawns the r
 # companion code-cleanup PR (edits OUTSIDE stories/**; no code unmount here, ADR-0175 item F).
 status: retired
 proof_mode: UAT
-# Per-leg witness (ADR-0106): the offline mechanics legs (the fenced story-author spawn session, the
-# builder dispatch through the existing routed worker, the claim-before-spawn gate, the composed spawn
-# tool surface + its safety walls) are machine-witnessed by the package suites over an injected queryFn
-# + scripted doubles + the in-memory seed. The live legs — a REAL desktop conversation in which the
-# orchestrator claims a story then actually SPAWNS the story-author (files appear, authored by the
-# spawned agent) and the builder leaf (a spine-signed drive) — are human-witness (operator-attested:
-# subscription-billed, and the spawned work writes real files / drives real builds; an agent should not
-# burn the spend or exercise spawn authority unattended). The story-level uat_witness is absent → human
-# (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays withheld; the
-# crown derives from the per-leg roll-up.
+# Per-leg witness (ADR-0106; RE-ADJUDICATED 2026-07-26 under ADR-0209 D8 — see the UAT section):
+# the mechanics legs (the fenced story-author spawn session, the builder dispatch through the existing
+# routed worker, the claim-before-spawn gate, the composed spawn tool surface, and the scope-wall
+# ABSENCE audit) are machine-witnessed by the package suites over an injected queryFn + scripted
+# doubles + the in-memory seed. Only the two LIVE legs stay human, on named bases: leg 5 on SPEND (a
+# real `query()` story-author spawn is subscription-billed, ADR-0030/ADR-0010 §5) and leg 6 on SPEND
+# PLUS a genuine judgment gap (decision 4's consultative routing has no mechanical classifier, by
+# design — "was that the right route?" has no oracle). Leg 7 was human for neither reason: its success
+# conditions are shapes and absences over the constructed tool surface, all of which compile — it is
+# now `machine` (and per ADR-0209 §6 it is UNSTAMPED until a spec judges it; no owner signs anything).
+# The story-level uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the
+# machine-driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
 capabilities: [story-author-spawn, builder-spawn-dispatch, claim-gated-spawn, spawn-tool-surface, spawn-deps-composition]
 # WHY A NEW STORY, NOT AN EDIT TO headless-orchestrator OR chat-drive-bridge:
 #   - headless-orchestrator is ADR-0108 Phases 1–2 and is read/propose ONLY — its proof posture
@@ -149,7 +151,8 @@ capabilities below are green under signed `--real` verdicts — the agent-side m
 composition included: `packages/drive/src/spawn-deps.ts` assembles the real spawn deps and
 `orchestrate()` threads them through to the runtime. What keeps the DESKTOP chat propose-only today is
 only the sidecar glue — `apps/desktop/electron/backend-entry.ts` does not yet compose real spawn deps
-into the chat mount (operator-attested wiring) — plus the operator-attested UAT legs 5–7.)*
+into the chat mount (operator-attested wiring) — plus the operator-attested UAT legs 5–6 (leg 7
+re-adjudicated to `machine` 2026-07-26; the scope walls are absences, not an attestation).)*
 
 The build shape ADR-0137 decision 1 pins, verbatim:
 
@@ -194,10 +197,19 @@ walkthrough that proves the whole spawn authority.
   into the existing worker; progress crosses back as text; no verdict object ever crosses back into
   the chat surface, and the chat holds no signing key. Pinned by `bsd-progress-is-text-never-a-verdict`
   + `sts-no-verdict-crosses-back`.
-- **Accept-to-land stays the human gate (ADR-0108 d.3 / ADR-0136).** Nothing here lands: the spawned
-  leaf's work reaches the trunk only through the existing human-gated ceremony (the accept click / the
-  PR CI merges); the deliberate whole-story go-green stays the forest-map Adopt/Build button. This
-  story adds no landing path — asserted structurally (no PR/merge verb exists on any spawn surface).
+- **This story adds no landing path (ADR-0108 d.3 / ADR-0136 as authored; see the ADR-0152 scope note).**
+  Nothing HERE lands: the spawn surface carries no PR, merge, or land verb, so the spawned leaf's work
+  reaches the trunk only through a gate this story does not own, and CI is the independent judge
+  (ADR-0022). Asserted structurally — an ABSENCE on the spawn tools.
+  > **SCOPE NOTE (corrected 2026-07-26).** This bullet was authored as "accept-to-land stays the human
+  > gate … nothing merged without the human's ceremony". **[ADR-0152](../../docs/decisions/0152-lift-the-phase-2-landing-wall-the-desktop-orchestrator-runs.md)**
+  > (accepted 2026-07-04, *amends* ADR-0137) LIFTED that wall for the desktop orchestrator: the SAME
+  > session now mounts `run_gate` / `open_landing_pr` / `poll_pr_checks` when landing deps are present,
+  > so it runs the merge ceremony itself and CI auto-merges. The narrow claim above (this story's spawn
+  > surface adds no landing verb) is still TRUE and still compiles; the wider claim ("the session cannot
+  > land") is FALSE today and must never be asserted — a leg holding the wider claim would go red
+  > against correct code. The spine is still the sole signer (ADR-0091/ADR-0020) and CI still re-proves
+  > before the trunk (ADR-0022) — those are unchanged.
 - **One orchestration at a time (ADR-0108 d.6).** The single-session guard is preserved; a spawned
   subagent runs WITHIN the one session's claim, never as a second orchestration. Pinned by
   `sts-single-session-guard-holds`.
@@ -221,8 +233,9 @@ Listed roots-first (a capability appears after everything it depends on). All fi
 (ADR-0057 — each carries a `proof:` block with a `real:` arm), so they form a dependency-closed,
 acyclic set in which every member resolves a `real:` arm — what makes the WHOLE story
 story-`real`-buildable (`isStoryBuildable`). The live spawn walk is NOT a sixth capability (it has no
-separate code — it is the composed surface run live); it is the human-witness Story UAT legs 5–7, the
-slow-growth-minimal choice (the headless-orchestrator leg-4 pattern).
+separate code — it is the composed surface run live); it is the human-witness Story UAT legs 5–6, the
+slow-growth-minimal choice (the headless-orchestrator leg-4 pattern). (Leg 7 — the scope-wall
+audit — is `machine`: it inspects the constructed surface and needs no live walk.)
 
 | # | capability | outcome | depends on |
 |---|---|---|---|
@@ -262,8 +275,12 @@ seam, the claim store, the build worker, the loop definitions, or the chat chain
   optional `spawn` dep, mirroring how the orientation surface is wired only when a runner is present)
   and the spawn deps thread through `orchestrate()` (`packages/drive/src/orchestrate.ts`) exactly as
   `proposedUnitId` threaded through it (chat-drive-bridge precedent: additive edits to that story's
-  drive/agent-resident files under the declared edge, never a fork). The single-session guard and the
-  `propose_unit` surface are consumed unchanged.
+  drive/agent-resident files under the declared edge, never a fork). The single-session guard is
+  consumed unchanged. *(Corrected 2026-07-26: this sentence also claimed "the `propose_unit` surface
+  [is] consumed unchanged" — falsified by **ADR-0155**, which retired `propose_unit` outright. The
+  orchestrator now DRIVES via its spawn + landing tools rather than proposing a unit for a human's
+  accept click, so there is no propose surface left to consume; the dep-less baseline this story's
+  spawn tools scale down to is ORIENTATION-only. See leg 4's scope note.)*
 - **`wisp-as-story-claim`** — the claim layer. The gate consumes the E1 acquire-or-wait seam
   (`resolveSpawnClaim`, `packages/agent/src/spawn-claim.ts`) and the work-time claim-store deltas
   (`PgClaimStore.claim()` / `bumpHeartbeat`), and REALISES that story's deferred E2 contract
@@ -309,17 +326,36 @@ the SDK `query()` is scripted offline, and the claim store / build runner are in
 (ADR-0010 §5 — a live SDK-billed spawn is never run on a gate pass); the live spawns are the
 operator-attested legs.
 
-> **HONEST status — `proposed`, part-scripted / part-attested.** Legs 1–4 are automatable by the
-> package suites (`@storytree/agent` + `@storytree/drive`) over an injected `queryFn` + scripted
-> doubles + the in-memory seed. Legs 5–7 — a REAL desktop conversation in which the orchestrator
+> **HONEST status — `proposed`, part-scripted / part-attested.** Legs 1–4 and 7 are automatable by
+> the package suites (`@storytree/agent` + `@storytree/drive`) over an injected `queryFn` + scripted
+> doubles + the in-memory seed. Legs 5–6 — a REAL desktop conversation in which the orchestrator
 > claims and actually spawns (real files authored by the spawned story-author; a real spine-signed
-> drive) — are **operator-attested** (subscription-billed AND the spawned work writes real files /
-> drives real builds; spawn authority is not exercised unattended), NOT standing tests.
+> drive) — are **operator-attested**, NOT standing tests.
 >
-> **Per-leg witness (ADR-0106).** Legs 1–4 are `witness: machine`; legs 5–7 are `witness: human`. No
-> leg rests `either`. The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
-> signpost), so the machine-driven whole-story UAT node stays withheld; the crown derives from the
-> per-leg roll-up.
+> **Per-leg witness (ADR-0106; RE-ADJUDICATED 2026-07-26, ADR-0209 D8).** Legs 1–4 and 7 are
+> `witness: machine`; legs 5–6 are `witness: human`. No leg rests `either`.
+>
+> **What the re-adjudication changed and why.** Leg 7 ("the scope walls held throughout") was tagged
+> `human` because it read as the retrospective companion to the live walk. But **being *about* a live
+> walk is not the same as needing one**: every condition it states is a SHAPE or an ABSENCE on the
+> constructed tool surface — `tools: []`, the claim gate wrapped at construction, no PR/merge verb on
+> the spawn server, no ADR-write tool anywhere, the typed `single-session` refusal — and all of those
+> compile. It is now `machine`. Per **ADR-0209 §6** a re-adjudicated leg returns to UNSTAMPED until a
+> spec judges it: tagging it `machine` records which witness is RIGHT, not that a proof exists, and
+> the owner signs nothing here.
+>
+> Legs 5 and 6 stay `human` on **explicitly different bases**, because the bases behave differently:
+> - **Leg 5 — SPEND only.** A live `query()` story-author spawn is subscription-billed (ADR-0030), so
+>   it can never run on a gate pass (ADR-0010 §5). Nobody judges anything: every shape the walk
+>   touches is proven by a machine leg. If that spawn ever became free to run, leg 5 would become
+>   machine.
+> - **Leg 6 — NO COMPILER, plus spend.** Decision 4's routing (*under-specified story, or
+>   right-contract-wrong-impl?*) is a **consultative judgment this story deliberately does not ship a
+>   classifier for**. "Was that the right route for this defect?" has no oracle — only a reader can
+>   grade it. That basis survives even if the spend vanished.
+>
+> The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
+> machine-driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
 
 **Goal —** A desktop chat conversation makes work HAPPEN by spawning: the orchestrator claims the
 story, spawns the story-author to author it (or the missing contract), spawns the builder leaf to
@@ -347,31 +383,63 @@ landed nothing.
    a blank story id is a fail-closed refusal, never a claim-free spawn.
 4. **The composed surface holds every wall.** _(witness: machine)_ Drive the spawn-capable session
    with a scripted `queryFn` whose session invokes `spawn_story_author`. **Success —** the two spawn
-   tools are advertised only when spawn deps are present (a dep-less session is byte-identical to
-   today's propose-only surface); the tool call runs claim→handler in order and a refused claim
-   returns the holder-naming refusal to the model with no handler run; the chat session's own tool
-   surface carries NO `Write`/`Edit`/`Bash`; a second concurrent orchestration is still refused; and
-   the text returned to the model from a builder spawn carries progress, never a verdict payload.
-5. **Live: the chat brings a story in by spawning the story-author.** _(witness: human)_ In the
-   desktop app, converse until the orchestrator decides a story should exist. **Success —** the
-   orchestrator takes the story-claim (visible as the story's wisp — authoring colour, witnessed
-   properly in wisp-as-story-claim's appearance UAT), spawns the story-author, and
-   `stories/<id>/story.md` (+ capability files) appear authored by the SPAWNED agent — the chat
-   itself wrote no file; a second session claiming the same story during the spawn is refused and
-   told the holder. *(operator-attested — subscription-billed, and real files are written.)*
-6. **Live: a bug becomes a contract and is driven through the gate.** _(witness: human)_ Raise a real
-   defect in conversation. **Success —** the orchestrator makes decision 4's consultative judgment
-   (under-specified story → spawn the story-author to add the missing contract, then spawn the builder
-   to drive it; right-contract-wrong-impl → straight to the builder), the dispatched drive runs on the
-   REAL worker, the spine observes RED→GREEN and SIGNS (the chat handed in nothing), and the work
-   reaches the trunk only through the existing human-gated ceremony. *(operator-attested. NOTE: the
-   node→`--real` routing landed as ADR-0144 before this story was built, so a node-tier dispatch runs
-   the node's REAL persisted proof — this leg carries its full force.)*
-7. **The scope walls held throughout.** _(witness: human)_ **Success —** the chat session held NO
-   write tool at any point (spawn power only); accept-to-land stayed the human's (nothing merged
-   without the ceremony; the forest-map Build stayed the whole-story go-green, ADR-0136); ONE
-   orchestration ran at a time; every spawn was claim-first; and no ADR-write tool exists on this
-   surface (ADR-authoring, the sole claim-free act, is a deliberately-unshipped follow-on).
+   tools are advertised only when spawn deps are present (a dep-less session is byte-identical to the
+   ORIENTATION-ONLY baseline — `tools: []` plus the read-only orientation tools, and nothing else);
+   the tool call runs claim→handler in order and a refused claim returns the holder-naming refusal to
+   the model with no handler run; the chat session's own tool surface carries NO `Write`/`Edit`/`Bash`;
+   a second concurrent orchestration is still refused; and the text returned to the model from a
+   builder spawn carries progress, never a verdict payload.
+   > **SCOPE NOTE (corrected 2026-07-26, alongside the ADR-0209 D8 re-adjudication).** This leg was
+   > authored as "byte-identical to today's **propose-only** surface". **ADR-0155** retired
+   > `propose_unit`: the session carries no propose/accept declaration surface any more
+   > (`packages/agent/src/headless-orchestrator.ts:270` — "the orchestrator DRIVES via its spawn +
+   > landing tools … there is no `propose_unit` declaration surface"), so the dep-less baseline is
+   > ORIENTATION-only. The scale-down claim itself is unchanged and still compiles — absent spawn
+   > deps, no spawn tool is advertised — only the NAME of the baseline was stale, and a spec written
+   > from the old wording would have gone RED against correct code (the same failure shape as the
+   > ADR-0152 landing-wall claim corrected on leg 7). The leg's id, position, and `machine` witness
+   > are unchanged; only the factually wrong description moved.
+5. **Live: the chat brings a story in by spawning the story-author.**
+   _(witness: human)(detail: chat-subagent-spawn#uat-5)_ In the desktop app, converse until the
+   orchestrator decides a story should exist. **Success —** the orchestrator takes the story-claim
+   (visible as the story's wisp — authoring colour, witnessed properly in wisp-as-story-claim's
+   appearance UAT), spawns the story-author, and `stories/<id>/story.md` (+ capability files) appear
+   authored by the SPAWNED agent. *(HUMAN on the **SPEND** basis, and on that basis alone: a live
+   `query()` story-author session is subscription-billed (ADR-0030), so ADR-0010 §5 forbids it on a
+   gate pass. Nothing here is a judgment call. The SHAPES this walk touches are each proven by a
+   machine leg and are deliberately NOT restated as human conditions: the write fence + typed
+   non-verdict result by leg 1, the claim-before-spawn ordering and the holder-naming refusal of a
+   concurrent claimant by leg 3, and "the chat itself wrote no file" by leg 7's absence audit.)*
+6. **Live: a bug becomes a contract and is driven through the gate.**
+   _(witness: human)(detail: chat-subagent-spawn#uat-6)_ Raise a real defect in conversation.
+   **Success —** the orchestrator makes decision 4's consultative judgment (under-specified story →
+   spawn the story-author to add the missing contract, then spawn the builder to drive it;
+   right-contract-wrong-impl → straight to the builder) **and a competent reader agrees that was the
+   right route for this defect**; the dispatched drive runs on the REAL worker; and the spine
+   observes RED→GREEN and SIGNS, the chat having handed in nothing. *(HUMAN on TWO bases, named
+   separately. **(a) NO COMPILER** — this story ships the spawn MECHANISMS the judgment routes
+   through, explicitly "not a mechanical classifier", so the routing verdict has no oracle; this
+   basis holds even if the run were free. **(b) SPEND** — the conversation and the drive it
+   dispatches are both subscription-billed. NOTE: the node→`--real` routing landed as ADR-0144 before
+   this story was built, so a node-tier dispatch runs the node's REAL persisted proof — this leg
+   carries its full force. LANDING SCOPE (ADR-0152): as authored this leg ended "and the work reaches
+   the trunk only through the existing human-gated ceremony" — that clause is REMOVED because
+   ADR-0152 lifted the landing wall for the desktop orchestrator; the surviving, still-true claim is
+   that CI independently re-proves before the trunk (ADR-0022) and the spine remains the sole signer.)*
+7. **The scope walls are ABSENCES on the composed surface — no live walk required.**
+   _(witness: machine)(detail: chat-subagent-spawn#uat-7)_ Audit the assembled
+   `runHeadlessOrchestrator` session and the spawn tool definitions it mounts, with and without spawn
+   deps. **Success —** the session's own `tools` is `[]` and its `allowedTools` names ONLY in-process
+   MCP tools, so no `Write`/`Edit`/`Bash` is reachable at any point; BOTH spawn tools are claim-gated
+   by CONSTRUCTION (`buildSpawnTools` wraps every handler, so there is no constructor path that
+   mounts an ungated spawn); the spawn server advertises exactly `spawn_story_author` +
+   `spawn_builder`, and neither carries a PR, merge, or land verb; NO tool on ANY mounted server
+   writes an ADR (ADR-authoring, the sole claim-free act, is a deliberately-unshipped follow-on —
+   Open modeling call 1); and a second concurrent orchestration is still refused with the typed
+   `single-session` reason. **SCOPE — read before asserting (ADR-0152):** this leg asserts that THIS
+   STORY'S spawn path adds no landing verb. It must NOT assert that the session as a whole cannot
+   land: ADR-0152 mounts `run_gate` / `open_landing_pr` / `poll_pr_checks` on the same session when
+   landing deps are present, so the wider assertion would go RED against correct code.
 
 End state — the desktop chat is the SAME orchestrator the terminal session is (spawn subagents,
 delegate red→green), with every wall held: claim before spawn, fenced writes in the spawned agent
@@ -380,8 +448,9 @@ only, the spine the sole signer, the human the sole lander.
 ## Proof
 
 The story carries the UAT (above); it is proven when that walkthrough passes — the offline legs (1–4)
-green under the package suites, the live spawns (5–6) and the walls confirmation (7)
-operator-attested — with the capabilities' integration tests and contracts green underneath. The
+green under the package suites, the walls-absence audit (7) machine-witnessed alongside them, and
+only the live spawns (5–6) operator-attested — with the capabilities' integration tests and
+contracts green underneath. The
 capability/contract obligations are minimal-to-green (slow growth): the runner, dispatch, and gate are
 isolatable over injected doubles; the surface and composition are integration tests against the real
 in-story collaborators (the real E1 seam, the real rendered `story-author` agent, the real seed) with
@@ -394,10 +463,11 @@ PASS verdicts (`story-author-spawn`, `builder-spawn-dispatch`, `claim-gated-spaw
 and `spawn-deps-composition` — the drive-side composition, `packages/drive/src/spawn-deps.ts`,
 threaded through `orchestrate()`). What keeps the desktop chat propose-only today is only the sidecar
 glue (`backend-entry.ts` does not yet compose real spawn deps into the chat mount — operator-attested
-wiring) plus the operator-attested legs 5–7. The five capabilities are proof-wired so the spine can drive their offline suites
+wiring) plus the operator-attested legs 5–6. The five capabilities are proof-wired so the spine can drive their offline suites
 red→green (`pnpm storytree story build chat-subagent-spawn --real`); the story's own machine-driven
 UAT node is WITHHELD (`uat_witness` absent → human, ADR-0040), and the crown additionally awaits the
-operator's live-spawn attestation (legs 5–7).
+operator's live-spawn attestation (legs 5–6; leg 7 is `machine` and UNSTAMPED until a spec judges
+it, ADR-0209 §6).
 
 ## Open modeling calls (for the owner / the orchestrator)
 
