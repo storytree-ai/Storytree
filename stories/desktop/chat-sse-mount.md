@@ -69,7 +69,8 @@ orient/propose agent inside the desktop. **Read/propose only** (ADR-0091): no si
 > loop only (ADR-0119 §2): no build-trigger / adopt / chat-SSE — those are later increments."* This
 > capability adds the chat-SSE mount that increment deferred. The renderer chat PANEL (the thin client
 > that POSTs the intake and renders the SSE stream) is a SEPARATE follow-on owned by the `studio` story
-> (see "Renderer chat panel placement" below); its appearance is this story's operator-attested UAT leg 7.
+> (see "Renderer chat panel placement" below); its appearance is this story's operator-attested UAT leg 9
+> (renumbered from leg 7 by the 2026-07-25 ADR-0209 §8 witness re-adjudication).
 
 ## Guidance
 
@@ -160,7 +161,7 @@ REAL `startChatStream` → REAL `orchestrate` → REAL `renderAgentPrompt` over 
 live-spend SDK `queryFn` injected as a scripted double (forwarded through the mount's deps into
 `startChatStream`). So the intake → session → SSE stream is proven WITHOUT a live SDK run on every gate
 pass (ADR-0010 §5). The live chat run (a real subscription `query()` streaming to a real panel) is the
-operator-attested leg (the desktop Story UAT leg 7), not a standing test. No real keychain, no DB, no
+operator-attested leg (the desktop Story UAT leg 9, renumbered from leg 7 on 2026-07-25), not a standing test. No real keychain, no DB, no
 network beyond loopback HTTP.
 
 ## Integration test
@@ -285,7 +286,8 @@ new module, test-first.
 > (`packages/agent/src/orientation-tools.ts`, the ONLY call site) never fires. A sentinel runner injected
 > into the mount would be wired but never invoked offline, so "the mount forwards the runner" has no
 > observable, offline-provable consequence at the mount's own scope. It is meaningfully exercised only in
-> a live run — i.e. the `desktop` Story UAT leg 7 (operator-attested, ADR-0070), the same leg the live
+> a live run — i.e. the `desktop` Story UAT leg 9 (operator-attested, ADR-0070; renumbered from leg 7 on
+> 2026-07-25), the same leg the live
 > chat run already lives under. So the extension is folded into the operator-attested sidecar wiring
 > below, not authored as a new CI contract. (If the runner's wiring is ever made observable WITHOUT a live
 > SDK — e.g. a scripted `queryFn` that fakes a `tool_use` the SDK contract would route through the MCP

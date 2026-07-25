@@ -103,9 +103,12 @@ validates shape + attribution and persists the local signature unchanged (it nev
 THE BUILDER ROLE IS AN IN-APP GRANT, OPERATOR-ATTESTED (ADR-0117 d.2 — replaces the per-friend IAM grant):
 the member's `builder` role is granted IN-APP through the studio Members panel (the owner marks them a
 builder; ADR-0043 in-UI invitation extended by ADR-0117). NO `gcloud`, NO Cloud SQL IAM grant. The REAL
-brokered write over the network and the live `builder` grant are **operator-attested** (Story UAT leg 5/6)
+brokered write over the network and the live `builder` grant are **operator-attested** (Story UAT legs 7
+and 8)
 — a CI run has neither a hosted broker nor an in-app builder role. What CI proves is the PROBE + CLIENT
-LOGIC over an injected broker-POST seam.
+LOGIC over an injected broker-POST seam — and since the 2026-07-25 ADR-0209 §8 re-adjudication that logic
+IS the whole of **machine** Story UAT leg 6 (the fail-closed half split out of old leg 6; the live grant
+remained human as leg 8).
 
 THE PROBE FAILS CLOSED, NEVER HANGS OR FORGES (the honesty wall, unchanged from the direct-path version):
 an unreachable/forbidden broker must yield a clear, member-actionable readiness failure (the broker is
@@ -140,8 +143,8 @@ over an injected broker-POST seam.
 The integration test exercises this capability against its **real in-story collaborator** — the readiness
 probe + broker write client over an injected broker-POST seam (authorized / forbidden / unreachable /
 hanging doubles), POSTing the real proof-protocol `Verdict` / notice-board `PresenceDeclaration` shapes. The
-real broker over the network + the member's live `builder` grant are the operator-attested Story UAT legs,
-not this test.
+real broker over the network + the member's live `builder` grant are the operator-attested Story UAT legs
+(7 and 8), not this test — while this test's fail-closed assertions discharge machine Story UAT leg 6.
 
 The integration test would:
 
