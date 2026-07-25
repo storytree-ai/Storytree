@@ -26,7 +26,7 @@ proof:
     sourceGlobs: ["apps/studio/src/components/TreeView.tsx", "apps/studio/src/components/SemanticGrowthDemo.tsx"]
   real:
     testFile: "apps/studio/src/components/TreeViewShell.test.tsx"
-    sourceFile: "apps/studio/src/components/TreeView.tsx"
+    sourceFile: "apps/studio/src/components/SemanticGrowthDemo.tsx"
     editsExisting: true
     scope:
       testGlobs: ["apps/studio/src/components/TreeViewShell.test.tsx"]
