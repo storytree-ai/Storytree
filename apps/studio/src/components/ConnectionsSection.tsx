@@ -13,6 +13,7 @@
 // is an injected callback, so it's a clean jsdom unit (ConnectionsSection.test.tsx).
 
 import type { ConnectionSet } from '../lib/connectionSet.js';
+import { DetailDisclosure } from './DetailDisclosure.js';
 
 /** One wiring id: a navigable pill if it's a known story, else an inert chip. */
 function ConnLink({
@@ -81,8 +82,9 @@ export function ConnectionsSection({
 }): React.JSX.Element | null {
   const { dependsOn, consumedBy } = connections;
   if (dependsOn.length === 0 && consumedBy.length === 0) return null;
+  const count = new Set([...dependsOn, ...consumedBy]).size;
   return (
-    <div className="tree-connections">
+    <DetailDisclosure label="Connections" count={count} className="tree-connections">
       <ConnRow
         label="depends on"
         hint="what this organism consumes — its outbound depends_on (ADR-0074 §4)"
@@ -97,6 +99,6 @@ export function ConnectionsSection({
         storyIds={storyIds}
         onNavigate={onNavigate}
       />
-    </div>
+    </DetailDisclosure>
   );
 }
