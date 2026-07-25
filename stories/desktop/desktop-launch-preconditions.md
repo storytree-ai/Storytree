@@ -142,7 +142,10 @@ build / spawn / overlay wiring already is:
 
 These have no isolatable offline red→green (a `node:test` over them would open a real DB / spawn the
 Electron shell); the orchestrator supplements them and the owner witnesses the appearance under Story
-UAT leg 8. Keep this capability pointed at the pure gate + renderer only.
+UAT leg 11. Keep this capability pointed at the pure gate + renderer only. (The 2026-07-25 ADR-0209 §8
+re-adjudication SPLIT old leg 8: the git-first refusal / never-wake fence / DB-reason passthrough are now
+**machine** leg 10, and only the splash → refuse+retry window's APPEARANCE stays operator-attested as leg
+11.)
 
 OFFLINE-TESTABLE BY INJECTION: the gate takes `probeGitRepo` / `ensureDb` / `log` as injected callbacks;
 the test drives it with boolean / `EnsureDbResult` doubles and a `log` spy — no real git, no DB, no live
@@ -243,8 +246,11 @@ Rules:
   (`lp-both-preconditions-met-returns-ready`, `lp-db-refusal-passes-through-reason`).
 - **Pure, Electron-free core** — no `pg` / `git` / `electron` / `dom` import; only a TYPE-ONLY
   `EnsureDbResult` import. The shell wiring (the gate in `main()`, the splash / refuse window) is the
-  operator-attested binding, proven transitively under Story UAT leg 8 — NOT a machine leg here
-  (ADR-0158 / ADR-0070 / ADR-0176 §5).
+  operator-attested binding whose APPEARANCE is witnessed under Story UAT leg 11 — NOT a machine leg
+  here (ADR-0158 / ADR-0070 / ADR-0176 §5). Its BEHAVIOUR in the real Electron launch (refuses naming the
+  unmet precondition, never wakes the DB, passes the DB reason through) is machine Story UAT leg 10 since
+  the 2026-07-25 ADR-0209 §8 re-adjudication — still not a machine leg HERE: this capability proves the
+  pure gate over injected doubles, leg 10 proves the wired launch.
 - **Refuse cleanly, never degrade** — a refusal is a typed outcome the sidecar exits on; there is no
   partial read shell. `serveDegraded` / `degradedBackend` are deleted in the glue that consumes this
   gate (the change that kills the drift class, ADR-0176 §2).
