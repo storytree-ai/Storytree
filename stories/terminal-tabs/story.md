@@ -378,30 +378,29 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    pty, keystrokes following the active row, a close reaping exactly one pty — are machine-proven at leg 8;
    only whether they add up to one coherent surface is witnessed here.)*
 6. **The session panel creates, switches and closes REAL sessions in the native shell.** _(witness:
-   machine)_ In the Electron `_electron` harness with `userData/repo-selection.json` pre-written to a real
+   machine)(detail: terminal-tabs#uat-6)_ In the Electron `_electron` harness with `userData/repo-selection.json` pre-written to a real
    checkout (the `session-survival.e2e.mjs` precedent) and `/api/*` Playwright-routed to fixtures,
    expanding the dock spawns ONE real node-pty and renders one panel row; the panel's `+` spawns a SECOND
    real pty and a second row; clicking row 1 switches the visible pane back; row 2's `×` disposes exactly
    that pty. **Success —** `desktopTerminal.list()` goes 1 → 2 → 1 across the walk, the surviving id is row
    1's (never a re-spawn), and the toggle + `headerRight` render exactly once throughout — the panel
    driving REAL ptys across the real IPC bridge, which the mocked-bridge jsdom verdict at leg 2 cannot
-   show. Detail: `terminal-tabs#uat-6`.
+   show.
 7. **A Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched.**
-   _(witness: machine)_ In the same harness, with a real pty in tab 1 carrying typed, un-submitted input,
+   _(witness: machine)(detail: terminal-tabs#uat-7)_ In the same harness, with a real pty in tab 1 carrying typed, un-submitted input,
    open the fixture's `proposed` story panel and click Build — with the bridge present the dock **seeds
    instead of POSTing** `/api/build` (the desktop re-point). **Success —** a SECOND session appears, its
    `desktopTerminal.snapshot` shows the composed `storytree … build … --real --store pg` sitting at a
    prompt with **no trailing newline and no execution**, and tab 1's snapshot is **identical** to the one
    taken before the click — the load-bearing ADR-0186 safety wall proven over REAL ptys end-to-end, not
-   over the mocked bridge leg 3 signs. Detail: `terminal-tabs#uat-7`.
-8. **Per-tab scrollback, colour, resize and focus survive switching and closing.** _(witness: machine)_
+   over the mocked bridge leg 3 signs.
+8. **Per-tab scrollback, colour, resize and focus survive switching and closing.** _(witness: machine)(detail: terminal-tabs#uat-8)_
    Over two real ptys in the same harness: write a distinct marker into each, switch rows and read both
    back; emit ANSI colour into one; resize the dock; type after a switch; close one row. **Success —** each
    session's `desktopTerminal.snapshot` retains only its OWN marker across switches, the colour bytes
    appear only in the emitting session, a resize forwards new `cols`/`rows` to the ACTIVE session's pty and
    only it, post-switch keystrokes reach the newly-active pty, and closing a row leaves the surviving
    session's screen intact — the per-tab state leg 5's feel verdict rests on, machine-observed.
-   Detail: `terminal-tabs#uat-8`.
 
 End state — the embedded terminal is a tabbed multi-session terminal: N pty sessions in a session panel,
 per-session behaviours signed under the studio suite, the chrome per-dock, each session killed only by its
