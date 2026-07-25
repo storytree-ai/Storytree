@@ -18,15 +18,15 @@ proof:
     file: pnpm
     args: ["--filter", "@storytree/app-surface", "test"]
   scope:
-    testGlobs: ["packages/app-surface/src/SemanticGrowthWorldView.test.tsx"]
-    sourceGlobs: ["packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/semantic-growth.css", "packages/app-surface/src/index.ts"]
+    testGlobs: ["packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
+    sourceGlobs: ["packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/semantic-growth.css", "packages/app-surface/src/index.ts", "packages/app-surface/src/SceneView.tsx"]
   real:
     testFile: "packages/app-surface/src/SemanticGrowthWorldView.test.tsx"
     sourceFile: "packages/app-surface/src/SemanticGrowthWorldView.tsx"
     editsExisting: true
     scope:
-      testGlobs: ["packages/app-surface/src/SemanticGrowthWorldView.test.tsx"]
-      sourceGlobs: ["packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/semantic-growth.css", "packages/app-surface/src/index.ts"]
+      testGlobs: ["packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
+      sourceGlobs: ["packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/semantic-growth.css", "packages/app-surface/src/index.ts", "packages/app-surface/src/SceneView.tsx"]
     install: true
     proofCommand:
       file: pnpm
@@ -90,6 +90,9 @@ reach into Studio/web.
 - Delegate every frame to the existing `WorldSceneView`. Reuse the scene's real territory, tree,
   claim-wisp, signed-proof/bloom and status identities. Do not fork `SceneView`, sprite resolution,
   scene construction or `@storytree/forest-world`.
+- Sprite replacement must preserve semantic descendants owned by the replaced scene node. Replacing
+  the `tree` visual with Storybook must retain the signed-proof `.world-bloom` overlay identity that
+  Vector exposes; renderer choice may change artwork, never erase proof-bloom semantics.
 - Own one semantic transition vocabulary in `@storytree/app-surface`: transform/opacity staging over
   the current arrival/growth, wisp, proof-bloom and proposed-to-healthy hooks. Prefer existing
   transforms and CSS capabilities; add no animation framework, canvas/game engine, raster frame
@@ -135,7 +138,9 @@ reach into Studio/web.
      Studio/web module, live data/store authority, Chapter 2 controller or duplicate renderer.
 5. **`sgrv-existing-art-and-scene-contracts-do-not-regress`**
    - **asserts —** the full package command retains existing Storybook/Vector resolution and fallback,
-     sprite sizing/anchors/depth order, semantic mapper, trail/arrival and event tests.
+     sprite sizing/anchors/depth order, semantic mapper, trail/arrival and event tests; the focused
+     `SceneView` regression proves Storybook replacement of `tree` preserves the same signed-proof
+     `.world-bloom` overlay identity exposed by Vector.
 
 The fifth contract is a regression wall observed by the package command after the new integration
 test greens; it does not ask the new test to duplicate the existing fixture matrices. Visible timing,
