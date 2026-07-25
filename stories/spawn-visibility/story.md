@@ -10,10 +10,12 @@ outcome: "During a live spawn from the desktop chat, the operator can SEE that a
 # app-guide — ADR-0175), there is no chat spawn to make visible, so this follow-on is moot and retires with
 # it, in place (chat-drive-bridge / scoped-glue-actuator precedent). Body kept as history; the capability
 # files flip to `status: retired`. NOT retired: `wisp-as-story-claim` (the claim ledger / map wisps stay
-# load-bearing for terminal Claude Code via the noticeboard). The caps keep their `real:` arms in this
-# stories/**-only reconcile — dropping them + updating packages/cli/src/node-build.test.ts's REAL-buildable
-# snapshot AND removing this story from repo-manifest.json's hostedStories.register are the companion
-# code-cleanup PR (edits OUTSIDE stories/**; no code unmount here, ADR-0175 item F).
+# load-bearing for terminal Claude Code via the noticeboard).
+# COMPANION CLEANUP: LANDED — verified 2026-07-26, this comment previously described it as still
+# pending. The caps' `real:` arms ARE dropped; packages/cli/src/node-build.test.ts's REAL-buildable
+# snapshot now carries only a comment recording their removal (:273–278); and repo-manifest.json's
+# hostedStories.register no longer lists this story (zero hits). No code unmount was done (ADR-0175
+# item F) — the implementation is still mounted and its suites are still green.
 # ORIGINAL status note — status: proposed = ADR-0097 "adoption underway". The four capabilities LANDED in PR #567 with passing
 # real-arm tests across three offline suites, but that merge ran through DB-free CI, so the prove-it-gate
 # never signed a `--real --store pg` verdict — it was BROWNFIELD (built, tested, gate never drove it).
@@ -21,14 +23,25 @@ outcome: "During a live spawn from the desktop chat, the operator can SEE that a
 # machine UAT legs and flipped mapped → proposed; NOT a `--real` build (the green base had no red to drive).
 status: retired
 proof_mode: UAT
-# Per-leg witness (ADR-0106): the offline mechanics legs (the typed spawn trace threaded onto the chat
-# stream, the SSE frame carrying it, the frontend geometry that renders the spawn line and triggers the
-# live tree reload, the advisory retry that survives a DB cold-start) are machine-witnessed by the
-# package + component suites over injected doubles + scripted queues + a slow injected fn. The live
-# legs — a REAL desktop spawn in which the operator READS the "🔧 spawning story-author…" line, SEES
-# the new island appear, and SEES the fresh claim wisp light — are human-witness (operator-attested,
-# ADR-0070 two-stage: the geometry/behaviour is machine-proven, the on-screen appearance human-
-# witnessed). The story-level uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the
+# Per-leg witness (ADR-0106) — RE-ADJUDICATED 2026-07-26 (owner-directed corpus-wide pass, ADR-0209 D8,
+# arc model-uat-promotion). Now 6 machine / 1 human (was 4 machine / 3 human).
+#   - Legs 1–4 (machine, unchanged): the typed spawn trace threaded onto the chat stream, the advisory
+#     read surviving a cold-start, the panel's spawn-line geometry, the dock→tree reload callback —
+#     machine-witnessed by the package + component suites over injected doubles + a slow injected fn.
+#   - Legs 6 and 7 CONVERTED human → machine. Both success conditions are DOM/data assertions with a
+#     compiler (a node for a known story id is present in the rendered map; a wisp is present for the
+#     just-taken claim). They were human only because no harness drives them end-to-end, and the old
+#     prose's own justification for leg 7 — "exercises the REAL cold-start the machine leg injects" —
+#     is a fidelity/harness argument, not a judgment gap. `human-witness-is-a-judgment-gap-not-cost`
+#     puts not-yet-harnessed on the machine rung. Neither carries a `proof-gate:` (none of the three
+#     declared gates covers the end-to-end assertion), so per ADR-0209 §6 both return to UNSTAMPED —
+#     correct and honest, not green; the owner signs nothing for them.
+#   - Leg 5 STAYS human, narrowed, on the NO-COMPILER basis: the strings/order/arrival of the spawn line
+#     are leg 3's compiled business; what has no compiler is whether the line READS as "a subagent is
+#     working right now" (ADR-0070 stage-2 appearance). The live spawn's subscription spend is recorded
+#     as a SECOND and DISTINCT basis (a cost/blast-radius reason not to run it on a gate pass), never
+#     folded into the irreducibility claim.
+# The story-level uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the
 # machine-driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
 capabilities: [chat-spawn-trace-events, chat-panel-spawn-render, live-story-island-refresh, claim-wisp-cold-start]
 # WHY A NEW STORY, NOT AN EDIT TO chat-subagent-spawn:
@@ -164,8 +177,9 @@ heartbeat and DROPS the message) and never reach the chat. The fix threads them 
   (`{ type: "spawn", phase: "started" | "finished", role, unitId, ok? }`) onto the SAME FIFO queue the
   `delta` events use — interleaved, non-terminal, ordered. Fully additive: absent spawn deps ⇒
   byte-identical to today.
-- `createChatSseMount` (`apps/desktop/src/backend/chat-sse-mount.ts:307`) already forwards ANY
-  `ChatStreamEvent` generically as an SSE frame — so the new event flows through automatically.
+- `createChatSseMount` (`apps/desktop/src/backend/chat-sse-mount.ts:301`, forwarding loop at :374–376)
+  already forwards ANY `ChatStreamEvent` generically as an SSE frame — so the new event flows through
+  automatically. *(Anchor corrected 2026-07-26: the export was cited at :307.)*
 - `apps/studio/src/api.ts` adds the `spawn` variant to the `ChatEvent` union + `isChatEvent` guard
   (wire shape only — the panel imports no drive/agent code, ADR-0004).
 - `apps/studio/src/components/ChatPanel.tsx` renders it — "🔧 spawning story-author for `<id>`…" then
@@ -177,13 +191,21 @@ machine-proven, appearance human-witnessed).
 **FIX 2 — make a just-authored story appear live on the map (frontend + backend).**
 
 - **(a) A story the spawn just authored does not appear live.** `TreeView.reloadTree`
-  (`apps/studio/src/components/TreeView.tsx:1227`) only runs on mount / crown-refresh / after a build —
+  (`apps/studio/src/components/TreeView.tsx:1518`) only runs on mount / crown-refresh / after a build —
   never on a spawn. When a spawn authors a new story (the `ChatPanel` sees a `spawn`-finished event for
   a story-author), a parent (`apps/studio/src/components/ChatDock.tsx`) wires that to
   `TreeView.reloadTree` via a callback — NO drive/agent import; the thin-client wall holds. Frontend
-  geometry machine-proven; the island appearing live is operator-attested.
+  geometry machine-proven (leg 4); the island actually appearing after the reload is ALSO machine
+  (leg 6, re-adjudicated 2026-07-26) — it is a DOM/data assertion, not a judgment gap.
+  *(Anchors corrected 2026-07-26: `reloadTree` was cited at TreeView.tsx:1227; it is at :1518, called
+  at :1537 and passed as `onCrownRefresh` at :2594. And `ChatDock` is DORMANT in the shipped app —
+  ADR-0174 gave the dock slot to the embedded terminal, ADR-0175 held spawn/landing out of `app-guide`,
+  so nothing imports or mounts `<ChatDock>` today; `TreeView.tsx:2561` records this. The wiring exists
+  and its component test runs, but the composed path is not live.)*
 - **(b) The claim wisp never lit even though the claim row existed.** `backend-entry.ts`'s
-  `inFlightClaims` (~275–305) reads through the shared advisory reader
+  `inFlightClaims` (`apps/desktop/electron/backend-entry.ts:489–491` — anchor corrected 2026-07-26; the
+  file is under `electron/`, not `src/backend/`, and the read was cited at ~275–305) reads through the
+  shared advisory reader
   (`apps/desktop/src/backend/advisory.ts`), whose 4s timeout (`timeoutMs ?? 4_000`) DROPS the claim
   read on a DB cold-start (which can far exceed 4s), silently returning null → the fresh claim wisp is
   dropped. The fix gives the claims read a softer budget — a per-read timeout override and/or a
@@ -228,16 +250,19 @@ operator's live-spawn attestation of the on-screen appearance; it is never autho
 Listed roots-first (a capability appears after everything it depends on). All four are **proof-wired**
 (ADR-0057 — each carries a `proof:` block with a `real:` arm), so they form a dependency-closed,
 acyclic set in which every member resolves a `real:` arm — what makes the WHOLE story
-story-`real`-buildable (`isStoryBuildable`). The live on-screen appearance (the spawn line read, the
-island seen to bloom, the wisp seen to light) is NOT a fifth capability (it has no separate code — it
-is the composed surface run live); it is the human-witness Story UAT legs 5–7.
+story-`real`-buildable (`isStoryBuildable`). The composed surface run live is NOT a fifth capability
+(it has no separate code); it is Story UAT legs 5–7. *(Re-adjudicated 2026-07-26: of those three, only
+leg 5 — whether the spawn line READS as a spawn happening — is human-witness. Legs 6 and 7 assert the
+presence of a map node and of a wisp: DOM/data claims with a compiler, so `machine`. The `real:` arms
+were subsequently dropped on retirement, so the story is no longer story-`real`-buildable — see the
+frontmatter's companion-cleanup note.)*
 
 | # | capability | outcome | depends on |
 |---|---|---|---|
 | 1 | [`chat-spawn-trace-events`](chat-spawn-trace-events.md) | The spawn boundary traces are typed as a `SpawnTrace` union and surfaced out of the swallowing claim gate: `startChatStream` intercepts them and pushes a new non-terminal `ChatStreamSpawnEvent` onto the same FIFO the deltas use — interleaved and ordered — while the trace still bumps the claim heartbeat, and an absent-spawn-deps session emits none. Machine-proven end to end over the injected `queryFn` + scripted spawn double. | — |
 | 2 | [`claim-wisp-cold-start`](claim-wisp-cold-start.md) | The advisory reader gains a per-read budget (a timeout override and/or a single retry-once on cold-start) so the `inFlightClaims` read survives a DB cold-start that exceeds 4s and the fresh claim is not dropped — WITHOUT slowing the other four overlay reads or letting `/api/tree` hang. Machine-proven over an injected slow fn. | — |
 | 3 | [`chat-panel-spawn-render`](chat-panel-spawn-render.md) | The studio chat surface carries the `spawn` variant on its `ChatEvent` wire union + `isChatEvent` guard and the `ChatPanel` renders it as a spawn line ("🔧 spawning story-author for `<id>`…" → "✓ story-author finished") — geometry/behaviour machine-witnessed over a scripted seam; the on-screen appearance operator-attested (ADR-0070). | `chat-spawn-trace-events` |
-| 4 | [`live-story-island-refresh`](live-story-island-refresh.md) | When the chat surface sees a spawn-finished event for a story-author, `ChatDock` invokes a `TreeView.reloadTree` callback so the just-authored story's island appears live on the forest map — geometry/behaviour machine-witnessed (the callback fires on the right event, imports no drive/agent code); the island appearing live operator-attested. | `chat-panel-spawn-render` |
+| 4 | [`live-story-island-refresh`](live-story-island-refresh.md) | When the chat surface sees a spawn-finished event for a story-author, `ChatDock` invokes a `TreeView.reloadTree` callback so the just-authored story's island appears live on the forest map — geometry/behaviour machine-witnessed (the callback fires on the right event, imports no drive/agent code); the island's PRESENCE after the reload also machine (leg 6, re-adjudicated 2026-07-26 — a DOM/data assertion, not a judgment gap). | `chat-panel-spawn-render` |
 
 ## Dependency graph (will be code-derived)
 
@@ -275,7 +300,8 @@ tree schema.
 
 - **`chat-subagent-spawn`** — the spawn authority this story makes visible. The traces this story
   types + surfaces are FIRED by that story's `spawnStoryAuthor` / `spawnBuilder`
-  (`packages/drive/src/spawn-deps.ts:130,138,150,152` — `onTrace({ type: "spawn_started" |
+  (`packages/drive/src/spawn-deps.ts:131,139,151,153` — anchors corrected 2026-07-26, each was cited
+  one line early — `onTrace({ type: "spawn_started" |
   "spawn_finished", role, unitId, ok })`) and SWALLOWED by its claim gate
   (`packages/agent/src/claim-gated-spawn.ts:137` — `onTrace(_msg: unknown)` bumps the heartbeat, drops
   the message). This story TYPES that trace (`SpawnTrace`) and threads it OUT as an additive
@@ -285,10 +311,13 @@ tree schema.
 - **`chat-drive-bridge`** *(RETIRED, ADR-0155 — the edge is dropped; the seam lives on with
   headless-orchestrator's `chat-session-stream`, desktop's `chat-sse-mount`, and studio's `chat-panel`,
   all reached through the declared edges)* — the chat seam this story extends. The `ChatStreamEvent` union threaded
-  through `startChatStream` (`packages/drive/src/chat-stream.ts:83`, the delta FIFO at :159–208), the
-  generic SSE forwarder (`apps/desktop/src/backend/chat-sse-mount.ts:307` — `res.write(data:
+  through `startChatStream` (`packages/drive/src/chat-stream.ts:202`, the delta FIFO at :210–213,
+  drained at :293–294), the
+  generic SSE forwarder (`apps/desktop/src/backend/chat-sse-mount.ts:301`, loop at :374–376 — `res.write(data:
   ${JSON.stringify(event)})` for ANY event), and the studio wire shape + render (`apps/studio/src/
-  api.ts:88` the `ChatEvent` union / `:91` `isChatEvent`, `apps/studio/src/components/ChatPanel.tsx`).
+  api.ts:108–113` the `ChatEvent` union / `:116–120` `isChatEvent`, `apps/studio/src/components/ChatPanel.tsx:405–421`).
+  *(All five anchors corrected 2026-07-26 — they were cited at chat-stream.ts:83/:159–208,
+  chat-sse-mount.ts:307, api.ts:88/:91.)*
   This story adds a NEW non-terminal `spawn` variant beside delta/done/error/refused — additive, the
   generic forwarder needs no change.
 - **`desktop-build-mount`** — the sidecar surface + build worker the traces flow from. The advisory
@@ -320,22 +349,49 @@ journey), defect-driven thereafter. Mocks are forbidden in the consumed seams th
 trace threading runs the REAL `startChatStream` delta-FIFO over a scripted `queryFn` + a scripted spawn
 double; the advisory fix runs the REAL `createAdvisoryReader` over an injected slow fn; the panel/dock
 render over the REAL `api` wire shape scripted as a double. Only the SDK `query()` and the live DB
-cold-start are scripted/injected offline (ADR-0010 §5); the live spawn walk is the operator-attested
-legs.
+cold-start are scripted/injected offline (ADR-0010 §5); the one irreducibly operator-attested leg is
+leg 5 (re-adjudicated 2026-07-26 — legs 6 and 7 are machine, unharnessed).
 
-> **HONEST status — `proposed`, part-machine / part-attested.** Legs 1–4 are automatable by the package
+> **HONEST status — `retired`, part-machine / part-attested.** Legs 1–4 are automatable by the package
 > + component suites (`@storytree/drive` + `apps/desktop` backend + the `studio` vitest suite) over an
-> injected `queryFn` + scripted spawn double + an injected slow fn + a scripted `api` seam. Legs 5–7 —
-> a REAL desktop spawn in which the operator READS the spawn line, SEES the new island appear, and SEES
-> the fresh claim wisp light — are **operator-attested** (ADR-0070 two-stage: the geometry/behaviour is
-> machine-proven, the on-screen appearance is human-witnessed; and a live spawn is subscription-billed
-> and writes real files, so it is not run on a gate pass), NOT standing tests.
+> injected `queryFn` + scripted spawn double + an injected slow fn + a scripted `api` seam. Legs 6–7 are
+> machine-observable but have NO harness and NO bound gate — they stand UNSTAMPED. Leg 5 is
+> **operator-attested** and is not a standing test.
 >
-> **Per-leg witness (ADR-0106).** Legs 1–4 are `witness: machine`, each bound to the exact package
-> observe gate that proves it: leg 1 → `spawn-visibility#gate-1`, leg 2 → `#gate-2`, and legs 3–4 →
-> `#gate-3`. Legs 5–7 are `witness: human`. No leg rests `either`. The story-level `uat_witness` is
-> absent → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays
-> withheld; the crown derives from the per-leg roll-up.
+> **Per-leg witness (ADR-0106) — RE-ADJUDICATED 2026-07-26** (owner-directed corpus-wide pass,
+> ADR-0209 D8, arc `model-uat-promotion`). **6 machine / 1 human**, was 4/3.
+>
+> - Legs 1–4 stay `witness: machine`, each bound to the exact package observe gate that proves it:
+>   leg 1 → `spawn-visibility#gate-1`, leg 2 → `#gate-2`, legs 3–4 → `#gate-3`. Ids, positions,
+>   witnesses and proof-gate bindings unchanged.
+> - **Legs 6 and 7 CONVERTED `human` → `machine`.** Each asserts the PRESENCE of a rendered thing for a
+>   known id — a map node for the just-authored story, a wisp for the just-taken claim. Those are
+>   DOM/data assertions with a compiler; every step between the triggering frame and the rendered node
+>   compiles. They were tagged human because nothing drives them end-to-end, and leg 7's own stated
+>   reason ("exercises the REAL cold-start the machine leg injects") is a fidelity/harness argument, not
+>   a judgment gap. `human-witness-is-a-judgment-gap-not-cost` puts live/expensive/not-yet-harnessed on
+>   the machine rung. **Neither carries a `proof-gate:`** — none of the three declared gates covers the
+>   end-to-end assertion — so per ADR-0209 §6 both return to UNSTAMPED. That is correct and honest: a
+>   `machine` tag names the RIGHT KIND of witness, it does not claim the proof exists, and the owner
+>   signs nothing for them.
+> - **Leg 5 STAYS `human`**, narrowed to its irreducible core. Basis: **no compiler.** The spawn line's
+>   exact strings, their order and their arrival are leg 3's — already compiled and machine-witnessed;
+>   what has no compiler is whether the line READS as "a subagent is working right now" (an ADR-0070
+>   stage-2 appearance judgment). A **second and distinct** basis is that a live spawn is
+>   subscription-billed and writes real files, so it is not run on a gate pass — that is a cost and
+>   blast-radius reason to keep it off the gate, and it is recorded separately rather than folded into
+>   the irreducibility claim, because conflating the two would hide a cost argument inside a
+>   "nothing could observe this" claim.
+> - **No splits.** Legs 5–7 each fused a compiled half with a claimed-irreducible half, but in every
+>   case the compiled half ALREADY HAS its own machine leg — leg 3 for the spawn-line strings, leg 4 for
+>   the reload callback, leg 2 for the advisory read. Restating those as human success conditions would
+>   launder compiled facts into unrepeatable signatures, which is this migration running backwards, so
+>   each narrowed leg REFERENCES its machine sibling instead of duplicating it.
+>
+> No leg rests `either`, and no leg is tagged `model` (`witness: model` is unreachable through the story
+> schema — see Open modeling calls #4). The story-level `uat_witness` is absent → human (the ADR-0040
+> fail-closed signpost), so the machine-driven whole-story UAT node stays withheld; the crown derives
+> from the per-leg roll-up.
 
 **Goal —** A desktop chat spawn is VISIBLE where it happens: the operator reads a spawn line in the
 transcript as the subagent starts and finishes, and — for a story the spawn just authored — watches
@@ -360,33 +416,83 @@ its island appear live on the forest map with its claim wisp lit, without reload
    guard accept the `spawn` frame, the panel renders a "🔧 spawning story-author for `<id>`…" line that
    resolves to "✓ story-author finished", and the thin client imports no drive/agent/model
    (`modelPathBoundary.test.ts` green). (This proves GEOMETRY/BEHAVIOUR; the on-screen look is leg 5.)
-4. **A story-author finish triggers a live tree reload.** _(witness: machine)_ _(proof-gate: spawn-visibility#gate-3)_ Render the dock/panel
+   *(Scope note, 2026-07-26 — the prose implied two render states; `ChatPanel.tsx:415–419` has THREE:
+   `started` → "🔧 spawning `<role>` for `<id>`…", `finished` with `ok === false` → "✗ `<role>` failed",
+   `finished` otherwise → "✓ `<role>` finished". This leg walks only the started→finished-ok path; the
+   failure branch is UNCOVERED by it and is not claimed green here.)*
+4. **A story-author finish triggers a live tree reload.** _(witness: machine)(detail: spawn-visibility#uat-4)_ _(proof-gate: spawn-visibility#gate-3)_ Render the dock/panel
    given a `spawn`-finished frame for a `story-author`. **Success —** `ChatDock` invokes the injected
    `reloadTree` callback EXACTLY once for a story-author finish (and NOT for a builder finish, nor for
    `started`), the callback is a plain prop (no drive/agent import), and the reload path is the same
-   `reloadTree` the crown-refresh uses (`TreeView.tsx:1227`). (Geometry/behaviour; the island appearing
-   live is leg 6.)
-5. **Live: the operator READS the spawn line in the transcript.** _(witness: human)_ In the desktop
-   app, converse until the orchestrator spawns the story-author. **Success —** a "🔧 spawning
-   story-author…" line appears in the conversation as the subagent starts and resolves to a "✓ …
-   finished" line — the operator can TELL a spawn happened, live, without inspecting logs.
-   *(operator-attested appearance, ADR-0070 — subscription-billed.)*
-6. **Live: the just-authored story's island appears on the map.** _(witness: human)_ **Success —** as
-   the spawned story-author writes `stories/<id>/` and finishes, the new story's island appears on the
-   forest map WITHOUT a manual reload — the operator SEES where the spawn worked. *(operator-attested.)*
-7. **Live: the fresh claim wisp lights (even on a cold-start DB).** _(witness: human)_ **Success —**
-   the just-taken story claim's wisp lights on the map on the first poll after the spawn, even when the
-   DB was cold-started and the claims read took longer than 4s — the wisp is no longer dropped.
-   *(operator-attested — exercises the real cold-start the machine leg injects.)*
+   `reloadTree` the crown-refresh uses (`TreeView.tsx:1518`). (Geometry/behaviour; the island's presence
+   after the reload is leg 6.)
+   *(Corrections, 2026-07-26 — the anchor was cited at `TreeView.tsx:1227`; `reloadTree` is at :1518.
+   And `ChatDock` is DORMANT in the shipped app: ADR-0174 gave the dock slot to the embedded terminal
+   and ADR-0175 held spawn/landing out of `app-guide`, so nothing imports or mounts `<ChatDock>` today
+   (`TreeView.tsx:2561` records this). The callback wiring is real and is exercised by
+   `apps/studio/src/components/ChatDock.reload.test.tsx`, but ONLY at the component seam — a green
+   there says nothing about the composed app, which is the detail artifact's false-pass fence.)*
+5. **Live: the spawn line READS as a spawn happening.** _(witness: human)(detail: spawn-visibility#uat-5)_ With a real
+   spawn running in a live transcript, judge the rendered spawn line's LEGIBILITY. **Success —** the
+   operator judges the line reads at a glance as "a subagent is working right now", stays visually
+   distinguishable from the surrounding `delta` prose, and reads as RESOLVING when it flips to the
+   finished form — rather than as two unrelated lines.
+   *(Human on the NO-COMPILER basis, re-adjudicated 2026-07-26. The line's exact strings, their order
+   and their arrival are leg 3's — already compiled and machine-witnessed; this leg deliberately does
+   NOT restate them. What remains has no compiler: whether the line READS right, an ADR-0070 stage-2
+   appearance judgment. A SECOND and DISTINCT basis — recorded separately, never folded into the
+   irreducibility claim — is that a live spawn is subscription-billed and writes real files, so it is
+   not run on a gate pass; that is cost and blast radius, not "nothing could observe this".)*
+   *(Scope, 2026-07-26: UNRUNNABLE AS WRITTEN today. The leg presumed the in-app interactive
+   orchestrator chat, RETIRED by ADR-0174 for an embedded terminal running real Claude Code — there is
+   no in-app conversation left in which to spawn. Recorded, not deleted: this is a retired story kept as
+   history, and the leg stands honestly unstamped, not green.)*
+6. **The just-authored story's island is PRESENT on the map after a spawn-finished reload.**
+   _(witness: machine)(detail: spawn-visibility#uat-6)_ With `stories/<id>/` present on disk, deliver a
+   `spawn`-finished frame for a `story-author` to the composed dock+map surface and let the reload
+   settle. **Success —** the rendered forest map then contains a node for `<id>` that was ABSENT before
+   the frame, and no manual reload or refresh was issued in between.
+   *(Re-adjudicated `human` → `machine`, 2026-07-26. The success condition is a DOM/data assertion — a
+   node for a known id is present in the rendered tree — and every step between the frame and that node
+   compiles: the callback (leg 4), the tree fetch, the render. The old tag rested on "an operator SEES
+   the island", which is a data claim in a perceptual costume; nothing here is a judgment with no
+   compiler. It was human only because no harness drives the reload end-to-end, and
+   `human-witness-is-a-judgment-gap-not-cost` puts not-yet-harnessed on the machine rung. NO
+   `proof-gate:` is bound — none of the three declared gates covers this end-to-end assertion — so per
+   ADR-0209 §6 this leg returns to UNSTAMPED: correct and honest, not green. The map's LOOK, whether the
+   island reads well where it lands, belongs to the map stories' appearance UAT, not to this story.)*
+7. **The fresh claim's wisp is PRESENT on the map after a >4s cold-start claims read.**
+   _(witness: machine)(detail: spawn-visibility#uat-7)_ Drive the composed overlay with an
+   `inFlightClaims` read that resolves slower than the shared 4s but inside the softened budget, then
+   let the first poll after the spawn land. **Success —** that poll carries the just-taken claim and the
+   map renders a wisp for it — the claim is not dropped, as it was before the cold-start fix.
+   *(Re-adjudicated `human` → `machine`, 2026-07-26. Every clause compiles. The read returning the claim
+   is already leg 2's; what this leg adds is that the returned claim reaches a RENDERED wisp — again a
+   DOM/data assertion. The old prose's own justification, "exercises the real cold-start the machine leg
+   injects", is a FIDELITY/HARNESS argument (a real slow DB versus an injected slow fn), not a judgment
+   gap — precisely the substitution `human-witness-is-a-judgment-gap-not-cost` forbids. NO `proof-gate:`
+   is bound: `#gate-2` covers the advisory read, not the rendered wisp — so this leg returns to
+   UNSTAMPED. The wisp's COLOUR and look stay `wisp-as-story-claim`'s appearance UAT, per the
+   cross-story boundary above.)*
 
 End state — a desktop chat spawn is VISIBLE in both places the operator looks: the transcript shows the
 subagent start and finish, and the map shows the new island and its lit claim wisp, live — the two gaps
 the 2026-07-03 Phase-3 walk found are closed, every wall held (additive frames, heartbeat still bumps,
 thin-client wall intact, advisory null-on-failure preserved).
 
+*(Honesty note, 2026-07-26 — this end state is the AUTHORED goal, not a record of achievement. Legs 1–4
+are the only ones with bound proof; leg 5 was never attested (no record exists — see Proof below) and
+legs 6–7 are machine but unharnessed and unstamped. The story is `retired`, so this end state is kept
+as the statement of what the journey was FOR, not as a claim that it was witnessed.)*
+
 ## Reliability Gates
 
-`spawn-visibility` is a **landed-but-unregistered straggler** (`status: mapped`): its four capabilities
+*(History, as authored during the ADR-0097 adoption pass. Status has since moved `mapped → proposed →
+retired`; the register entry and the `real:` arms are gone — see the frontmatter's companion-cleanup
+note. Kept unrewritten below because the three `observe` gates it declares are what legs 1–4 are bound
+to, and those bindings are unchanged by the 2026-07-26 re-adjudication.)*
+
+`spawn-visibility` was a **landed-but-unregistered straggler** (`status: mapped` at the time): its four capabilities
 LANDED in PR #567 with passing real-arm tests across three offline suites, but that merge ran through
 DB-free CI, so storytree's own prove-it-gate never signed a `--real --store pg` verdict for them — the
 caps read `build=unregistered` and hold the crown at `proposed`. A fresh `--real` build is the wrong
@@ -399,8 +505,10 @@ ADR-0085 — the reliability-gate author surface). Same move proven on the `cli`
 The four caps span **three** suites, so the story declares **three** `observe` gates — one per suite —
 each `(covers:)` only the capabilities its suite genuinely exercises (ADR-0097 §5). The two studio caps
 are **two-stage** (ADR-0070): the vitest gate covers their machine GEOMETRY (the wire shape, the
-transcript render, the dock→tree reload callback); their on-screen / on-map APPEARANCE is human UAT legs
-5–6, already operator-attested. So an `observe` gate over each suite honestly covers its caps' machine
+transcript render, the dock→tree reload callback); the remainder is UAT legs 5–6. *(Re-adjudicated
+2026-07-26: only leg 5 — does the spawn line READ as a spawn happening — is an APPEARANCE judgment and
+stays human. Leg 6 asserts a map node's PRESENCE, a DOM/data claim, and is now `machine`, unharnessed
+and unstamped.)* So an `observe` gate over each suite honestly covers its caps' machine
 half — `healthy` still DERIVES from a signed verdict (ADR-0020), never authored.
 
 1. **The drive spawn-trace suite is green** _(gate: observe)_ _(covers: chat-spawn-trace-events)_
@@ -422,31 +530,49 @@ half — `healthy` still DERIVES from a signed verdict (ADR-0020), never authore
    the `ChatDock` → `TreeView.reloadTree` callback firing exactly once on a story-author finish
    (`live-story-island-refresh`), and the thin-client wall (no drive/agent import) — proven offline over
    the scripted `api` seam (studio vitest/jsdom). This is the machine GEOMETRY of the two two-stage caps
-   (UAT legs 3–4); their live appearance is the operator-attested legs 5–6.
+   (UAT legs 3–4). Their remainder is legs 5–6 — leg 5 operator-attested (appearance), leg 6 `machine`
+   since the 2026-07-26 re-adjudication and covered by no gate.
 
 Adopting these three gates signs one `adopted` verdict per gate (signer = the spine principal that
 witnessed the green, approvedBy = the owner adopting it) and observe-signs the four machine UAT legs
 (1–4) against their explicitly bound package suites (ADR-0106), then flips the authored status
 `mapped → proposed` ("adoption underway", ADR-0097). No single gate greens the story: `healthy` stays
 non-authorable (ADR-0020) — the crown DERIVES green once every capability is covered, every machine UAT
-leg is signed, and the human legs 5–7 are attested (they already are).
+leg is signed, and legs 5–7 are discharged. *(Corrected 2026-07-26: this previously read "the human
+legs 5–7 are attested (they already are)". After re-adjudication only leg 5 is human; legs 6 and 7 are
+`machine` and, per ADR-0209 §6, returned to UNSTAMPED with no gate bound — so they are NOT discharged,
+and no prior attestation can stand in for them. Retired story: nothing here is being driven to green.)*
 
 ## Proof
 
 The story carries the UAT (above); it is proven when that walkthrough passes — the offline legs (1–4)
-green under the package + backend + component suites, the live appearance (5–7) operator-attested —
+green under the package + backend + component suites, the appearance judgment (leg 5) operator-attested,
+and the two unharnessed machine legs (6–7) driven by some harness that does not yet exist —
 with the capabilities' integration tests and contracts green underneath. The capability/contract
 obligations are minimal-to-green (slow growth): the trace threading is an integration test over the
 real `startChatStream` FIFO with the SDK `query()` + spawn scripted; the advisory fix is isolatable
 over an injected slow fn; the panel render and the reload callback are component/behaviour tests over a
-scripted `api` seam (the studio vitest/jsdom convention). The on-screen appearance is the human-witness
-UAT leg, never a machine visual verdict (ADR-0070).
+scripted `api` seam (the studio vitest/jsdom convention). The on-screen APPEARANCE — whether the spawn
+line reads right — is the human-witness UAT leg, never a machine visual verdict (ADR-0070); the PRESENCE
+of a map node or a wisp is not appearance and is machine (legs 6–7, re-adjudicated 2026-07-26).
+
+**NO OWNER ATTESTATION WAS EVER RECORDED against any leg of this story** (verified 2026-07-26 — no row,
+no fixture, no signed UAT record; the prior "already operator-attested" wording traces to a single
+docs-only commit, `903b6da5` of 2026-07-04, that authored it as a bare assertion with no signer, date or
+test id). So the standing open call — *does an owner attestation carry forward onto a re-adjudicated or
+split leg, or must it be re-signed?* ([`wisp-as-story-claim`](../wisp-as-story-claim/story.md), open
+modeling call 1, for the owner to settle once and generally) — **does not bite here**: there is no prior
+signature to carry forward, re-point or scope-limit. The `uat-attestation` precedent. Nothing is being
+re-raised and nothing is being decided.
 
 **Honest status — `proposed`.** Authored status stays `proposed` everywhere: per ADR-0020, `healthy` is
 only ever DERIVED from signed verdicts, never authored. The four capabilities are proof-wired so the
 spine can drive their offline suites red→green (`pnpm storytree story build spawn-visibility --real`);
 the story's own machine-driven UAT node is WITHHELD (`uat_witness` absent → human, ADR-0040), and the
-crown additionally awaits the operator's live-spawn attestation (legs 5–7).
+crown additionally awaits leg 5's appearance attestation plus a harness for the two unstamped machine
+legs 6–7. *(Corrected 2026-07-26: this previously read "the operator's live-spawn attestation (legs
+5–7)". The story is `retired` and its caps' `real:` arms are dropped, so the `story build --real`
+command quoted just above no longer applies either — kept as history.)*
 
 ## Open modeling calls (for the owner / the orchestrator)
 
@@ -468,3 +594,19 @@ crown additionally awaits the operator's live-spawn attestation (legs 5–7).
    `timeoutMs` override, a single retry-once, or both, are all acceptable — the leaf chooses the
    minimal one that passes the contracts. Surfaced so the leaf does not over-build (no blanket raise of
    the shared 4s, which would risk hanging `/api/tree`).
+4. **`witness: model` is UNREACHABLE through the story schema — an owner fork, not an agent's call.**
+   *(Raised 2026-07-26 during the re-adjudication.)* `@storytree/model-uat`'s prose parser recognises
+   `(witness: model)` and its `Criterion` schema accepts it, but the story-side witness enum
+   (`UAT_TEST_CRITERION_WITNESSES = ["human","machine","either"]`) hard-throws on it, and
+   `proof-protocol`'s `UatWitness` is `z.enum(["human","machine"])`. So a model-judged witness cannot be
+   authored on a story leg today even where it might be the right rung. No leg of this story is tagged
+   `model`, and this re-adjudication does not decide the fork — it records it. Same call surfaced across
+   the sibling stories of the ADR-0209 D8 pass; for the owner to settle once and generally.
+5. **Legs 6 and 7 are `machine` with NO harness and NO bound gate — a real, recorded hole.**
+   *(Raised 2026-07-26.)* Both assert the PRESENCE of a rendered thing (a map node for the just-authored
+   story; a wisp for the just-taken claim) end-to-end across the dock → reload → render path and the
+   overlay poll → render path. Nothing drives either today, and none of the three declared `observe`
+   gates covers them, so they stand UNSTAMPED. On a LIVE story that hole would be worth closing with a
+   composed-surface test; on THIS story it is recorded rather than closed, because the story is
+   `retired` and the composed path it would drive (`ChatDock`) is dormant. Flagged so a future reader
+   does not mistake the `machine` tag for a claim that the proof exists.
