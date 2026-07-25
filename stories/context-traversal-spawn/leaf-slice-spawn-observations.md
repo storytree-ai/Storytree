@@ -5,7 +5,15 @@ story: context-traversal-spawn
 arc: linked-session-context-arc
 title: "One authoring slice's run accounting becomes a linked handoff, child window, and return"
 outcome: "A build authoring slice's run accounting observes as an explicit spawn handoff, one child context observation, and a result return — metadata only, capacity absent."
-status: proposed
+# AMENDED after its first signed green (2026-07-26): a defect found while building the dependent
+# capability `build-spawn-capture` violated this capability's own contract surface — the composed
+# child session id carried `:`, which is illegal in a Windows path segment, so the sink silently
+# wrote nothing for the child lane. The defect amends the OWNING capability rather than spawning a
+# new unit (`defects-amend-the-owning-story`): contract 11 is new, contract 2 is de-pinned from the
+# literal template, and the authored line reverts to `building` because the existing signed verdict
+# no longer covers the full contract list. The crown still DERIVES from signed verdicts (ADR-0020),
+# not from this line.
+status: building
 proof_mode: integration-test
 depends_on: []
 decisions: [235, 241, 192]
@@ -59,10 +67,21 @@ chronological `ContextTraversalEvent[]`. For each slice it emits, in order:
    `resultTokenCount` and `ok`.
 
 **Identity is explicit and deterministic (ADR-0235 clause 2).** The child session id is composed
-from declared build identity — `<parentSessionId>:build:<runId>:<unitId>:<phase>` — never from a
-timestamp, an array index, or adjacency. The parent id is supplied by the caller and never derived
-here (the increment-2 rule, ADR-0241 D9). The same edge identity joins the handoff and the return so
-the lanes link by id alone.
+from declared build identity ALONE — the parent session id, the run id, the unit id, and the phase —
+never from a timestamp, an array index, or adjacency. The parent id is supplied by the caller and
+never derived here (the increment-2 rule, ADR-0241 D9). The same edge identity joins the handoff and
+the return so the lanes link by id alone.
+
+**A session id is also a FILENAME, so it must be legal as one.** The sink names one file per
+session, `<sessionId>.jsonl`, and it swallows a failed write (`catch { return false }`). A child id
+carrying a character that is illegal in a path segment on any supported platform therefore makes
+that child's lane silently unpersistable — no file, no events, no error — and story UAT leg 2
+unsatisfiable. This was MEASURED, not theorised: a `:`-separated child id returned `false` from
+`appendTraversalEvents` and left zero files on disk under Windows, while the same id without colons
+wrote normally. **The separator choice is free** — any character legal in a path segment on every
+supported platform (`-`, `_`, `__`) — provided the id stays derived from declared build identity
+alone, so determinism and explicit-id-only linkage are untouched. Contract 11 asserts this directly
+on the composed id; it is a permanent regression case for a real defect, not speculative breadth.
 
 **What is NOT observed is asserted, not merely omitted.** `payloadTokenCount` is always absent: the
 size of the prompt handed to the child is not visible at this boundary, and a contract pins that so
@@ -101,10 +120,13 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
      `result_return` under the parent `sessionId` — and the handoff and return carry the same
      explicit `edgeId`.
 2. **`child-session-id-is-explicit-and-deterministic`**
-   - **asserts —** the child id is the declared `<parent>:build:<runId>:<unitId>:<phase>`
-     composition, is stable across repeated observation of identical input, is never equal to the
-     parent, and changes only when a declared identity component changes — never with the clock, the
-     slice's position in the array, or an adjacent slice.
+   - **asserts —** the child id is composed from declared build identity ALONE — the parent session
+     id, the run id, the unit id, and the phase — is byte-identical across repeated observation of
+     identical input, is never equal to the parent, and changes if and only if one of those declared
+     components changes: never with the clock, the slice's position in the array, an adjacent slice,
+     or the separator's incidental spelling. The composition is pinned by its declared components,
+     NOT by a literal template, so contract 11 can constrain the separator without reopening this
+     one.
 3. **`payload-token-count-is-always-absent`**
    - **asserts —** no emitted `spawn_handoff` carries `payloadTokenCount` under any input, including
      slices with full usage — the handed-off prompt size is not observed at this boundary, so a
@@ -141,6 +163,16 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
       omitted, lists the three emitted event kinds plus the spawned-agent and SDK surfaces as
       supported, and explicitly omits `field:context_window_capacity` and
       `field:candidate_follow_causality`.
+11. **`child-session-id-is-a-legal-filename-segment`**
+    - **asserts —** for every observed slice, the COMPOSED child session id contains no character
+      that is illegal in a path segment on any supported platform — none of `: \ / * ? " < > |`, and
+      no control character — asserted directly on the composed id across the full fixture set (every
+      phase, unit id, and run id shape), so the id remains usable as the sink's `<sessionId>.jsonl`
+      filename. The observer must introduce no such character of its own: given a filename-safe
+      parent session id in, a filename-safe child id comes out. This is the permanent regression case
+      for a MEASURED defect — a `:`-separated child id made `appendTraversalEvents` return `false`
+      and write nothing on Windows, silently, because the sink swallows the failure — and it is what
+      makes story UAT leg 2 satisfiable at all.
 
 ## Integration evidence
 
@@ -150,3 +182,8 @@ one model, with several — using an injected clock and id source so ordering is
 raced. Every emitted event is round-tripped through increment 1's `ContextTraversalEvent`, and the
 absence contracts (payload count, capacity) are asserted across the whole emitted set, not on a
 single happy-path fixture.
+
+The filename-safety contract is asserted on the composed id itself — a character-class check, not a
+filesystem write — so it holds identically on every platform's CI runner rather than passing
+wherever the host happens to be permissive. The write-side consequence it protects is proven next
+door, in `build-spawn-capture`'s bytes-on-disk contracts.

@@ -106,9 +106,13 @@ replay under a coverage statement that admits what it does not observe.
 2. **Both lanes survive as bytes in their own per-session traces.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Run the build
    capture against a temporary trace directory with an explicit parent session id. **Success —** the
    directory holds a parent trace file carrying the handoff and return, and a separate child trace
-   file carrying that child's `model_context`; both are asserted on the FILE CONTENTS and read back
-   through a fresh reader, and the parent's and child's token observations are never merged into one
-   window.
+   file carrying that child's `model_context`; both are asserted by LISTING the directory and reading
+   the FILE CONTENTS back through a fresh reader — a write the sink silently refused fails this leg
+   — and the parent's and child's token observations are never merged into one window. This holds on
+   every supported platform, which requires the composed child session id to be legal as a path
+   segment (`leaf-slice-spawn-observations` contract 11): the sink names one file per session and
+   swallows a failed write, so an illegal character would make this leg unsatisfiable and invisible
+   at once.
 3. **Only metadata ever reaches the bytes, and capture changes nothing else.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Thread a
    canary string through every free-text-looking input, then re-run with no resolvable parent
    session id, with `STORYTREE_TRAVERSAL=off`, and against an unwritable directory. **Success —** the

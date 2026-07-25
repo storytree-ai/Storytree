@@ -67,6 +67,16 @@ already absorbs every filesystem edge, and this composition adds no await, no ne
 call. Capture must never change an exit code, an envelope, a verdict, or a build's control flow: it
 runs beside `appendSliceUsage`, which holds exactly this advisory posture.
 
+**Fail-silent is not the same as unobserved — assert that the write SUCCEEDED.** The sink names one
+file per session, `<sessionId>.jsonl`, and swallows every write failure (`catch { return false }`).
+That posture is correct for production and treacherous for a proof: a lane that never persists looks
+exactly like a lane that persisted, unless the proof reads the directory back. A measured instance:
+a child session id containing `:` — legal in the vocabulary, illegal in a Windows path segment —
+returned `false` and left zero files on disk, silently. The id's filename-safety is now
+`leaf-slice-spawn-observations` contract 11 (that is where the id is composed, so that is where it
+is fixed); the obligation HERE is that contract 1 observes the real files rather than a return value
+or a call count.
+
 **Metadata only, asserted on the BYTES (ADR-0235 clause 6, ADR-0241 D4).** The observer emits counts
 only, and the sink validates every event against increment 1's vocabulary before writing, so the
 metadata-only rule is a claim about what is on disk. Prove it that way: thread a canary through
@@ -84,10 +94,12 @@ the barrel export line only after the source lands.
 ## Contracts
 
 1. **`parent-and-child-lanes-land-in-their-own-files`**
-   - **asserts —** after one capture over slices with usage, `<dir>/<parentSessionId>.jsonl` holds
-     the `spawn_handoff` and `result_return` events and each `<dir>/<childSessionId>.jsonl` holds
-     that child's `model_context` — asserted on the file CONTENTS and read back through a fresh
-     reader, never on a return value, and with no child event in the parent's file or vice versa.
+   - **asserts —** after one capture over slices with usage, the trace directory CONTAINS both files
+     — `<dir>/<parentSessionId>.jsonl` holding the `spawn_handoff` and `result_return` events, and
+     each `<dir>/<childSessionId>.jsonl` holding that child's `model_context` — asserted by listing
+     the directory and reading the file CONTENTS back through a fresh reader, never on a return
+     value or a call count, and with no child event in the parent's file or vice versa. A write the
+     sink silently refused must FAIL this contract, not pass it.
 2. **`an-absent-parent-session-is-a-total-no-op`**
    - **asserts —** a null or empty `parentSessionId` writes nothing, creates no directory and no
      file, and returns normally — an unresolvable identity is a silent no-op, never an error.
