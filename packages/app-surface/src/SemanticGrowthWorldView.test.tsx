@@ -190,6 +190,29 @@ describe('SemanticGrowthWorldView', () => {
     expect(svgRuleBody).toMatch(/max-height\s*:|aspect-ratio\s*:/i);
   });
 
+  it('establishes a definite height chain on the root so the svg max-height is an actual bound, not a percentage against an auto-height root', () => {
+    // Guidance: "The public root must itself participate in a definite host-height/min-height
+    // chain ... so the SVG sizes into the remaining space. A percentage max-height on the SVG
+    // against an auto-height root is not a bound: the proof must fail that combination because
+    // it can still push the controls outside the supplied host." The root rule
+    // (`[data-semantic-growth-frame] { ... }`) sets its own layout intent -- it must set a
+    // definite height/min-height on itself (participating in the supplied host's height chain),
+    // not leave itself `display: block` with an implicit auto height: an auto-height root makes
+    // the svg's `max-height: 100%` resolve against an indefinite ancestor, so it is not a bound
+    // at all -- on a wide-and-short host the svg (and everything laid out after it) can still
+    // grow past the supplied host and push the Back/Next/Replay controls outside it.
+    const css = readFileSync(
+      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      'utf8',
+    );
+    const rootRuleMatch = css.match(/\[data-semantic-growth-frame\]\s*\{([^}]*)\}/);
+    expect(rootRuleMatch).toBeTruthy();
+    const rootRuleBody = rootRuleMatch?.[1] ?? '';
+    expect(rootRuleBody).toMatch(
+      /(?:^|;)\s*(?:min-)?height\s*:\s*(?:100%|[\d.]+(?:px|vh|dvh|em|rem))/i,
+    );
+  });
+
   it('exports the semantic growth player from the package root as the same public seam', () => {
     // Guidance: "Export the public seam from the package root." A consumer must be able to
     // reach this view via `@storytree/app-surface`'s root barrel (this file's `index.ts`),

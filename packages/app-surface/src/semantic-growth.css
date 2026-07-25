@@ -21,8 +21,17 @@
  * render at their resting state immediately — never a different cursor or model, only motion.
  */
 
+/* The public root participates in a definite host-height/min-height chain: `height: 100%`
+ * fills a sized host, and `min-height` is the floor when the host itself is auto-height,
+ * so the svg's `max-height: 100%` below always resolves against a DEFINITE ancestor box —
+ * never an indefinite (auto) one that would let the svg (and the controls after it) grow
+ * past the supplied host. A flex column reserves the nav row as its own flex item so the
+ * svg sizes into the remaining space instead of the nav being pushed out of view. */
 [data-semantic-growth-frame] {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 320px;
 }
 
 [data-semantic-growth-frame] svg {
@@ -30,8 +39,14 @@
   width: 100%;
   height: auto;
   max-height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
   aspect-ratio: 1 / 1;
   object-fit: contain;
+}
+
+[data-semantic-growth-frame] nav {
+  flex: 0 0 auto;
 }
 
 /* Full-motion: each new frame settles in with a transform/opacity fade instead of snapping. */
