@@ -5,12 +5,18 @@ title: "The embedded terminal opens in a repo the user picks — thread the sele
 outcome: "The desktop user SELECTS a repo (e.g. their storytree checkout) through a native directory dialog, and the embedded terminal spawns there instead of the app's serve root — the selection is validated, persisted across relaunches, and resolved into the pty's cwd inside the Electron MAIN process, so the byte-locked TerminalDock renderer stays arg-free and the terminal simply opens where the user chose."
 status: proposed
 proof_mode: UAT
-# uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT — "the user picks a repo
-# in the native dialog and the real terminal opens there, surviving a relaunch" — needs the native OS
-# dialog, a real node-pty in the member's checkout, userData persistence across an app restart, and the
-# picker's appearance, all operator-attested (ADR-0070 / ADR-0174). The machine-driven story UAT node
-# stays WITHHELD; the crown derives from the three capabilities' signed verdicts plus the operator's
-# attestation of the opens-in-the-picked-repo / fail-closed-gate / survives-relaunch / looks-right legs.
+# uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the machine-driven whole-story UAT node
+# stays WITHHELD because TWO legs are irreducibly operator-attested — the NATIVE OS directory dialog
+# actually opening and being usable (the one call the Electron e2e stubs), and the picker's / gate's LOOK
+# (ADR-0070 stage 2; ADR-0209 keeps look and feel on the human rung). RE-ADJUDICATED 2026-07-25 under the
+# ADR-0209 §8 corpus-wide witness migration: the cwd thread, the fail-closed gate, the relaunch
+# persistence and the standalone degradation were all reclassified from `human` to `machine` — they are
+# deterministic and spine-observable through the EXISTING `_electron` Playwright harness
+# (`apps/desktop/e2e/`, the `session-survival.e2e.mjs` precedent) with `dialog.showOpenDialog` stubbed in
+# the Electron main. Per ADR-0209 §6 that change invalidates any prior green: every leg is UNSTAMPED and
+# earns green only under its newly-declared witness. The crown derives from the three capabilities'
+# signed verdicts + the machine UAT legs' verdicts + the operator's attestation of the native-dialog and
+# look legs.
 # Capabilities, roots-first. THREE machine-provable caps over a NEW `desktopRepo` bridge, each its own
 # suite (the pty-session-manager ↔ terminal-dock-panel precedent this story mirrors): repo-selection (the
 # backend validate/persist/resolve lifecycle, apps/desktop node:test over injected DirProbe +
@@ -171,10 +177,11 @@ the bridge). They are witnessed under the Story UAT's operator-attested legs (AD
   terminal dock in the `.world-frame` (where `<TerminalDock/>` sits today, TreeView.tsx ~L2168) — a glue
   mount of an already-proven component, exactly the dock-slot-swap precedent. It mounts OUTSIDE the
   byte-locked `TerminalDock`; the exact placement (a control above the dock, a dock header button, …) is
-  a layout call surfaced under "Open modeling calls", witnessed under UAT leg 5, not asserted in CI.
+  a layout call surfaced under "Open modeling calls", witnessed under UAT leg 8 (the look), not asserted
+  in CI.
 - **New `.repo-picker*` CSS in `apps/studio/src/index.css`**: the picker's appearance, in a NEW namespace
   that never touches `.terminal-dock*` (the sibling chip's surface). The look is the operator-attested UAT
-  leg 5 (ADR-0070), never a machine visual verdict.
+  leg 8 (ADR-0070), never a machine visual verdict.
 - **The `<TerminalRepoGate/>` swap in `apps/studio/src/components/TreeView.tsx` + the fail-closed
   `ready`/`onChanged` bridge glue.** The gate ([`terminal-repo-gate`](terminal-repo-gate.md)) REPLACES the
   bare `<TerminalDock/>` mount near the terminal dock (the map frame) with `<TerminalRepoGate/>` — a glue
@@ -187,7 +194,9 @@ the bridge). They are witnessed under the Story UAT's operator-attested legs (AD
   persisted) — so `ready` returns a cwd ONLY for a VALID selection (the fail-closed contract) and
   `onChanged` fires the new cwd on a change. Plus the NEW `.terminal-gate*` CSS (the gate message's
   appearance, a namespace that never touches `.terminal-dock*` / `.repo-picker*`). The exact placement +
-  the look + the real fail-closed behaviour are operator-attested (UAT legs 5, 6), not asserted in CI.
+  the look is operator-attested (UAT leg 8). The real fail-closed behaviour is NOT operator-attested —
+  the 2026-07-25 ADR-0209 §8 re-adjudication made it machine (UAT leg 4), observable end-to-end through
+  the Electron e2e harness over the real bridge and a real pty.
 
 ## Within-story dependency graph
 
@@ -255,21 +264,44 @@ there → change the repo and it reopens → it survives a relaunch → the pick
 honestly standalone), defect-driven thereafter (each real failure earns a permanent regression case, never
 speculative breadth).
 
-> **Per-leg witness (ADR-0106 / ADR-0070).** The mechanics legs are covered by the three capabilities'
-> signed `--real` verdicts (the validate/persist/resolve lifecycle over fake ports; the picker
-> reflect/pick/cancel/degrade over the mocked bridge; the gate's gate/show/reopen/degrade/forward-seed
-> LOGIC over the mocked bridge + a mocked TerminalDock). The experiential legs — the native OS directory
-> dialog, a REAL node-pty opening in the picked repo, the REAL terminal refusing to run until a repo is
-> picked and REOPENING in the new one, userData persistence across a real app relaunch, and the picker's /
-> gate's **look** — are `witness: human` (operator-attested, ADR-0070): an automated CI run cannot open the
-> native dialog, spawn a real pty in a chosen checkout, watch the real terminal fail closed, restart the
-> app, or judge the appearance. The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
-> signpost), so the machine-driven whole-story UAT node stays WITHHELD; the crown derives from the
-> per-cap signed verdicts plus the operator's attestations.
+> **Per-leg witness (ADR-0209 §1 / ADR-0106 / ADR-0070).** **RE-ADJUDICATED 2026-07-25** under the
+> ADR-0209 §8 corpus-wide migration — this story is the first non-pilot story migrated. Three classified
+> kinds are available: `machine` (deterministic, spine-observed proof), `model` (rubric-bound semantic
+> judgment by an eligible read-only judge), `human` (irreducible operator judgment). This story resolves
+> to **six `machine` legs and two `human` legs; no leg is model-judged** — nothing here turns on semantic
+> judgment of prose or artifacts, so the model rung genuinely does not apply.
+>
+> The wiring legs (1, 2, 6) are covered by the three capabilities' signed `--real` verdicts (the
+> validate/persist/resolve lifecycle over fake ports; the picker reflect/pick/cancel/degrade and the
+> gate's gate/show/reopen/degrade/forward-seed LOGIC over a mocked bridge + a mocked TerminalDock).
+>
+> Legs 3, 4 and 5 are `machine` through the **existing** Electron `_electron` Playwright harness
+> (`apps/desktop/e2e/`, the `session-survival.e2e.mjs` precedent), which already launches the app
+> offline, pre-writes the userData `repo-selection.json` this feature persists, drives a REAL node-pty,
+> and reads the main-held scrollback — with `dialog.showOpenDialog` stubbed in the Electron main so the
+> pick resolves deterministically. Everything downstream of that stub stays REAL: the real `node:fs`
+> `DirProbe`, the real userData JSON store, the real IPC, the real pty `cwd`. These were previously
+> tagged `human`; that was a conservative mis-tag, not an irreducible judgment
+> (`human-witness-is-a-judgment-gap-not-cost` — a machine-observable success that is merely unharnessed
+> is never labelled `human`).
+>
+> Exactly **two** legs stay `human` because their success condition has no compiler: the **native OS
+> directory dialog** actually opening and being usable — the one call the harness stubs, an OS-level
+> modal outside every harness the proof spine owns, and "usable" is an owner judgment — and the picker's
+> / gate's **look** (ADR-0070 stage 2; ADR-0209 keeps look, feel and lived experience on the human rung,
+> never model-judged). The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
+> signpost), so the machine-driven whole-story UAT node stays WITHHELD.
+>
+> **Nothing here is green.** Per ADR-0209 §6 a substantive criterion change invalidates the old green, so
+> every leg below is UNSTAMPED and earns green only under its newly-declared witness. Legs 3, 4 and 5
+> carry seed-canonical `uat-criterion` detail artifacts (ADR-0209 §5) because their one-line titles
+> cannot convey the stub boundary or the observable; the remaining legs are fully specified by their
+> capability contracts or by short, self-contained attestation prose, so per the owner's 2026-07-25
+> narrower bar they get no artifact.
 
 **Goal —** A desktop user opens the app, picks their `storytree` checkout in a native dialog, and the
-embedded terminal opens in that repo — the selection surviving a relaunch, the picker reading right, and
-the studio-standalone build degrading honestly.
+embedded terminal opens in that repo — the terminal refusing to run until they pick, the selection
+surviving a relaunch, the studio-standalone build degrading honestly, and the picker reading right.
 
 1. **The repo selection lifecycle is honest over validate → persist → resolve.** _(witness: machine)_
    Over injected fake `DirProbe` + `SelectionStore` ports, `repo-selection` accepts a valid git dir,
@@ -283,51 +315,76 @@ the studio-standalone build degrading honestly.
    pick, and renders a disabled "repo picker unavailable" state where the bridge is absent — never calling
    the bridge, never hanging, never crashing. **Success —** [`repo-picker-panel`](repo-picker-panel.md)'s
    signed verdict (geometry + wiring, the bridge mocked).
-3. **The embedded terminal opens in the picked repo.** _(witness: human)_ The member clicks "Choose
-   repo…", picks their `storytree` checkout in the native OS dialog, expands the terminal, and `pwd` /
-   `cd` shows the terminal opened in the chosen repo (not the serve root). **Success —** a real node-pty
-   spawned in the picked directory, driven interactively in-app. *(operator-attested — the native dialog +
-   a real native pty; an agent should not spawn it unattended.)*
-4. **The selection survives an app relaunch.** _(witness: human)_ The member quits and reopens the app;
-   the previously-picked repo is still selected and the terminal reopens there (the userData persistence).
-   **Success —** the selection is durable across the process restart. *(operator-attested — a real app
-   restart + a real userData file.)*
-5. **The picker reads right and the studio-standalone build degrades honestly.** _(witness: human)_ The
-   repo picker reads and sits well beside the terminal dock, and the hosted/dev studio (a plain browser,
-   no `desktopRepo` bridge) shows the honest disabled "unavailable" state. **Success —** the owner's
-   two-stage visual verdict (ADR-0070): the picker look is witnessed, never machine-asserted.
-6. **The fail-closed gate holds end-to-end.** _(witness: human)_ With NO repo selected the gate shows
-   ("Select a repository to start the terminal") and the embedded terminal WILL NOT run; the member picks a
-   repo and the terminal opens there; the member changes the repo and the terminal REOPENS (a fresh pty) in
-   the new one. **Success —** the real terminal is genuinely refused until a valid repo is selected and
-   reopens on a change — the fail-closed experience the gate's signed verdict proves only in wiring
-   (gate/show/reopen over the mocked bridge + mocked dock). *(operator-attested — a real bridge + a real
-   node-pty failing closed and reopening; an agent should not drive it unattended.)*
+3. **The embedded terminal spawns in the picked repo.** _(witness: machine)_ In the Electron
+   `_electron` harness with `dialog.showOpenDialog` stubbed in the main to return a known git checkout,
+   `desktopRepo.pick()` validates and persists it through the REAL `node:fs` probe and the REAL userData
+   store; expanding the terminal spawns a REAL node-pty, and `pwd` echoed through that shell reports the
+   picked directory — not the serve root. **Success —** the real pty's `cwd` is the picked directory,
+   read back from the main-held scrollback (`desktopTerminal.snapshot`), the renderer-independent
+   observable. Detail: `terminal-repo-picker#uat-3`.
+4. **The fail-closed gate holds end-to-end.** _(witness: machine)_ With NO valid selection the gate
+   renders `.terminal-gate-message` ("Select a repository to start the terminal") and
+   `desktopTerminal.list()` stays EMPTY — no pty is spawned at all; after a stubbed pick the dock renders
+   and a pty spawns in that repo; a stubbed pick of a DIFFERENT repo remounts the cwd-keyed dock and a
+   FRESH session id appears with the new cwd. **Success —** the real terminal is genuinely refused until
+   a valid repo exists and reopens on a change, observed across the real bridge and a real pty (not the
+   mocked-bridge wiring capability 3 signs). Detail: `terminal-repo-picker#uat-4`.
+5. **The selection survives an app relaunch.** _(witness: machine)_ Launch against a clean userData, pick
+   (stubbed dialog), assert the selection persisted to `repo-selection.json`; close the app; relaunch
+   against the SAME userData; `repo:get` returns the same path with no second pick, and the terminal
+   reopens there. **Success —** the selection is durable across a real process restart, proven by two
+   sequential real app launches. Detail: `terminal-repo-picker#uat-5`.
+6. **The studio-standalone build degrades honestly.** _(witness: machine)_ Where `window.desktopRepo` is
+   absent — the hosted/dev studio in a plain browser, since only the Electron preload defines the bridge
+   — the picker renders a disabled "repo picker unavailable" state and the gate renders `TerminalDock`
+   directly, never calling the bridge, never hanging, never crashing. **Success —**
+   [`repo-picker-panel`](repo-picker-panel.md)'s and [`terminal-repo-gate`](terminal-repo-gate.md)'s
+   signed absent-bridge verdicts.
+7. **The native OS directory dialog opens and is usable.** _(witness: human)_ The member clicks "Choose
+   repo…" and a REAL native OS directory chooser appears, titled for this purpose, and returns their
+   chosen checkout. **Success —** the owner's attestation that the one call legs 3–5 stub behaves in the
+   real OS. *(operator-attested and irreducible — an OS-level modal sits outside every harness the proof
+   spine owns, and "usable" is an owner judgment, not an observable.)*
+8. **The picker and the gate read right.** _(witness: human)_ The repo picker reads and sits well beside
+   the terminal dock, and the gate's "Select a repository to start the terminal" message reads right in
+   its place. **Success —** the owner's stage-2 visual verdict (ADR-0070). *(operator-attested and
+   irreducible — look and feel have no compiler and are never machine-asserted nor model-judged,
+   ADR-0209.)*
 
 End state — the desktop user picks a repo and the embedded terminal opens there (and refuses to run until
 they do), the selection lifecycle / the renderer picker / the fail-closed gate signed under their suites,
-the native-dialog / opens-in-the-picked-repo / fail-closed / survives-relaunch / look legs
-operator-attested — the interactive terminal opening where the user chose, while the prove-it-gate leaf,
-the signed terminal sources, and the observability seams are untouched.
+the opens-in-the-picked-repo / fail-closed / survives-relaunch / standalone-degradation legs signed under
+the Electron e2e harness, and only the native-dialog and look legs operator-attested — the interactive
+terminal opening where the user chose, while the prove-it-gate leaf, the signed terminal sources, and the
+observability seams are untouched.
 
 ## Proof
 
-The story is proven when that walkthrough passes — the mechanics legs (1, 2) green under two of the
-capabilities' signed `--real` verdicts, and the gate's gate/show/reopen/degrade/forward-seed LOGIC green
-under [`terminal-repo-gate`](terminal-repo-gate.md)'s signed verdict (with each cap's contracts green
-underneath), and the experiential legs (3, 4, 5, 6) operator-attested. Per ADR-0020, `healthy` is only
-ever DERIVED from signed verdicts; nothing here is authored healthy. All three capabilities are
+The story is proven when that walkthrough passes — the wiring legs (1, 2, 6) green under the three
+capabilities' signed `--real` verdicts (with each cap's contracts green underneath), the integration legs
+(3, 4, 5) green under the Electron `_electron` e2e harness, and only the two experiential legs (7, 8)
+operator-attested. Per ADR-0020, `healthy` is only ever DERIVED from signed verdicts; nothing here is
+authored healthy, and per ADR-0209 §6 this 2026-07-25 re-adjudication returned every leg to UNSTAMPED —
+the reclassified legs are not green, they are newly eligible to BE proven. All three capabilities are
 proof-wired (each carries a `proof:` block with a `real:` arm — a NET-NEW red→green: a new
 module/component tested first against an injected fake/mock) so the spine can drive their offline suites
 red→green under its own gate; the story's machine-driven UAT node is WITHHELD (its `uat_witness` is absent
 → human, ADR-0040), so driving those capabilities to signed verdicts is what makes this layer buildable,
-and the crown additionally awaits the operator's attestations (legs 3, 4, 5, 6) — including, per the
-`embedded-terminal` build-atop edge, that the terminal itself works.
+and the crown additionally awaits the machine e2e legs' verdicts and the operator's attestations (legs 7,
+8) — including, per the `embedded-terminal` build-atop edge, that the terminal itself works.
+
+**The e2e legs are a build obligation, not a claim of existing coverage.** Legs 3, 4 and 5 declare the
+witness kind that is RIGHT for them (ADR-0209 §1); the specs that discharge them are NOT yet written.
+`apps/desktop/e2e/session-survival.e2e.mjs` is the precedent that makes them provable — it already
+launches the app offline, pre-writes the userData `repo-selection.json`, drives a real node-pty, and
+reads the main-held scrollback — but a new spec (and the main-side `dialog.showOpenDialog` stub) is
+required. That work lives in `apps/desktop/**`, OUTSIDE the story-author's fence; it is flagged under
+"Open modeling calls" so it lands with whoever builds these legs.
 
 ## Open modeling calls (for the owner / orchestrator)
 
 None re-opens the settled design (ADR-0174 + the follow-on chip settled the WHAT — pick a repo, open the
-terminal there, cwd resolved in main; owner-directed, no new ADR reserved). Four items are **surfaced**,
+terminal there, cwd resolved in main; owner-directed, no new ADR reserved). Five items are **surfaced**,
 not decided here:
 
 1. **The `embedded-terminal` dependency edge (a DIVERGENCE from the follow-on brief, flagged).** The brief
@@ -350,7 +407,7 @@ not decided here:
    reading.
 3. **The `<RepoPicker/>` placement (a layout call, operator-attested glue).** Whether the picker sits as a
    control above the terminal dock, a button in a (new, non-`.terminal-dock`) header strip, or elsewhere
-   in `.world-frame` is a layout/glue choice witnessed under UAT leg 5 — NOT a machine capability (there
+   in `.world-frame` is a layout/glue choice witnessed under UAT leg 8 — NOT a machine capability (there
    is no isolatable red→green in where an already-proven control mounts). The wall to hold: it mounts
    OUTSIDE `TerminalDock` and uses `.repo-picker*` CSS, never `.terminal-dock*`.
 4. **The `node-build.test.ts` snapshot companion edit (REQUIRED, outside `stories/**`).** Authoring these
@@ -363,3 +420,16 @@ not decided here:
    `stories/**` fence** — flagged here so it lands with the caps. (No cap declares `addDeps`: `apps/*` is
    not a `resolveAddDepsGroup` target, and this feature adds no new package dep — node:fs and the native
    dialog are Electron-main built-ins, and the studio components add no new studio dep.)
+5. **The Electron e2e spec that discharges machine legs 3–5 (REQUIRED, outside `stories/**`).** The
+   2026-07-25 ADR-0209 §8 re-adjudication reclassified the cwd-thread, fail-closed-gate and
+   survives-relaunch legs from `human` to `machine`. Those specs do NOT exist yet: a new
+   `apps/desktop/e2e/repo-picker.e2e.mjs` (following `session-survival.e2e.mjs`) must stub
+   `dialog.showOpenDialog` in the Electron main — reachable from Playwright via
+   `app.evaluate(({ dialog }) => …)`, since `main.ts` calls it as a property on the shared `electron`
+   module — and drive: pick → `pwd` in the real pty; no-selection → an empty `desktopTerminal.list()` +
+   `.terminal-gate-message`; change → a fresh session id on the cwd-keyed remount; plus a second
+   `electron.launch` against the SAME userData for the relaunch leg. This is an `apps/desktop` edit —
+   **outside the story-author's fence** — flagged so it lands with the legs it proves. It is genuinely
+   CI-observable: the `e2e-desktop` workflow already triggers on `apps/desktop/**` for PRs to `main`, so
+   the new spec becomes a standing check, not a local-only run. Until it lands, legs 3–5 are honestly
+   UNSTAMPED — declared machine, not yet machine-proven.
