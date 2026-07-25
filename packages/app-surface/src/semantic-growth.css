@@ -5,12 +5,24 @@
  *
  * These rules stage transform/opacity around what `WorldSceneView`/`SceneView` already render —
  * they never fork `SceneView`, sprite resolution, scene construction, or `@storytree/forest-world`.
- * They layer over the existing hooks by class name only:
- *   - arrival/growth draw-on:      `.arrive-island`, `.is-growing`
- *   - the build/claim wisp orbit:  `.world-wisp`, `.world-claim-wisp`
- *   - the signed-proof bloom:      `.world-bloom`
- *   - the proposed -> healthy
- *     territory colourway:        `.st-proposed`, `.st-claimed`, `.st-healthy`
+ * They layer over the existing hooks by class name only, one NAMED profile per semantic role —
+ * never one shared settle grouping (a single keyframe covering every role would erase the
+ * distinction the node spec draws between them):
+ *   - coast / relaxed-or-hex ground (the claimed plot itself):
+ *       `arrive-ground`  scale 0.78 -> 1   on `.coast-fill-group` / `.relaxed-tile` / `.hex-tile`
+ *   - flora / tree / nameplate / parcels (the story identity that stands on the ground):
+ *       `arrive-pop`     scale 0.55 -> 1   on `.story-tree` / `.garden-flora` / `.world-plate` /
+ *                                            `.parcel` / `.parcel-flora`
+ *   - the claim/presence wisp (a session working the story) — rides ALONGSIDE its existing SVG
+ *     `animateTransform` orbit (SceneView.tsx), never replaced by it:
+ *       `wisp-in`                          on `.world-claim-wisp`
+ *   - the signed-proof bloom (the real proof identity, never a claim):
+ *       `bloom-pulse`    0.94 <-> 1.06     on `.world-bloom`
+ * Each profile is wired ONLY to its own role's selector — never re-grouped with another role's
+ * classes under the same animation name, so a family's identity stays legible in the stylesheet
+ * itself. A profile fires only when its role's element actually enters the DOM (a frame that omits
+ * a role — e.g. the `land` frame's stripped story identity — simply never mounts that element, so
+ * no code here needs to track "did this role just appear" itself).
  *
  * Wiring this stylesheet into a consumer (Studio or otherwise) is deliberately deferred — this
  * increment only authors the vocabulary in place beside `SemanticGrowthWorldView`.
@@ -49,24 +61,74 @@
   flex: 0 0 auto;
 }
 
-/* Full-motion: each new frame settles in with a transform/opacity fade instead of snapping. */
-[data-semantic-growth-frame][data-motion='full'] .hex-territory,
-[data-semantic-growth-frame][data-motion='full'] .world-wisp,
-[data-semantic-growth-frame][data-motion='full'] .world-claim-wisp,
-[data-semantic-growth-frame][data-motion='full'] .world-bloom,
-[data-semantic-growth-frame][data-motion='full'] .arrive-island {
-  animation: semantic-growth-settle 320ms ease-out;
-}
-
-@keyframes semantic-growth-settle {
+/* --- coast / relaxed-or-hex ground: the claimed plot itself. --------------------------------- */
+@keyframes arrive-ground {
   from {
     opacity: 0;
-    transform: scale(0.94) translateY(2px);
+    transform: scale(0.78);
   }
   to {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: scale(1);
   }
+}
+
+[data-semantic-growth-frame][data-motion='full'] .coast-fill-group,
+[data-semantic-growth-frame][data-motion='full'] .relaxed-tile,
+[data-semantic-growth-frame][data-motion='full'] .hex-tile {
+  animation: arrive-ground 320ms ease-out;
+  transform-origin: center;
+}
+
+/* --- flora / tree / nameplate / parcels: the story identity standing on the ground. ---------- */
+@keyframes arrive-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+[data-semantic-growth-frame][data-motion='full'] .story-tree,
+[data-semantic-growth-frame][data-motion='full'] .garden-flora,
+[data-semantic-growth-frame][data-motion='full'] .world-plate,
+[data-semantic-growth-frame][data-motion='full'] .parcel,
+[data-semantic-growth-frame][data-motion='full'] .parcel-flora {
+  animation: arrive-pop 320ms ease-out;
+  transform-origin: center;
+}
+
+/* --- the claim/presence wisp: rides ALONGSIDE its existing SVG animateTransform orbit --------- */
+@keyframes wisp-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+[data-semantic-growth-frame][data-motion='full'] .world-claim-wisp {
+  animation: wisp-in 320ms ease-out;
+}
+
+/* --- the signed-proof bloom: the real proof identity, never a claim. -------------------------- */
+@keyframes bloom-pulse {
+  0%,
+  100% {
+    transform: scale(0.94);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+[data-semantic-growth-frame][data-motion='full'] .world-bloom {
+  animation: bloom-pulse 900ms ease-in-out infinite;
+  transform-origin: center;
 }
 
 /* proposed -> claimed -> healthy: ease the territory colourway across frames instead of a snap. */
@@ -80,8 +142,8 @@
 }
 
 /* Reduced motion: no spatial translation/scale/orbit, no delayed hidden content — every marker
- * (scene, wisp, bloom, territory) renders at rest immediately. The cursor/model are never
- * affected — only this staging.
+ * (ground, story identity, claim, bloom, territory colourway) renders at rest immediately. The
+ * cursor/model are never affected — only this staging.
  *
  * Scoped to the same named hooks the full-motion rules above animate — NEVER a universal `*`
  * selector. A blanket `transform: none` would override every STATIC SVG `transform` attribute
@@ -91,11 +153,16 @@
  * above are themselves gated to `[data-motion='full']`, so under `reduced` they never match in
  * the first place: this block only guards against a delayed/hidden starting keyframe (`opacity:
  * 0`) ever being the resting state, without touching `transform` at all. */
-[data-semantic-growth-frame][data-motion='reduced'] .hex-territory,
-[data-semantic-growth-frame][data-motion='reduced'] .world-wisp,
+[data-semantic-growth-frame][data-motion='reduced'] .coast-fill-group,
+[data-semantic-growth-frame][data-motion='reduced'] .relaxed-tile,
+[data-semantic-growth-frame][data-motion='reduced'] .hex-tile,
+[data-semantic-growth-frame][data-motion='reduced'] .story-tree,
+[data-semantic-growth-frame][data-motion='reduced'] .garden-flora,
+[data-semantic-growth-frame][data-motion='reduced'] .world-plate,
+[data-semantic-growth-frame][data-motion='reduced'] .parcel,
+[data-semantic-growth-frame][data-motion='reduced'] .parcel-flora,
 [data-semantic-growth-frame][data-motion='reduced'] .world-claim-wisp,
 [data-semantic-growth-frame][data-motion='reduced'] .world-bloom,
-[data-semantic-growth-frame][data-motion='reduced'] .arrive-island,
 [data-semantic-growth-frame][data-motion='reduced'] .st-proposed,
 [data-semantic-growth-frame][data-motion='reduced'] .st-claimed,
 [data-semantic-growth-frame][data-motion='reduced'] .st-healthy {
