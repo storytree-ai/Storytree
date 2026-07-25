@@ -40,9 +40,20 @@ interface CliResult {
   readonly stderr: string;
 }
 
-/** Spawns the REAL CLI as a child process with an explicit env — never inherits ambient overrides. */
-function runCli(args: readonly string[], env: NodeJS.ProcessEnv): CliResult {
-  const res = spawnSync(process.execPath, [LAUNCHER, ...args], { encoding: "utf8", env });
+/**
+ * Spawns the REAL CLI as a child process with an explicit env — never inherits ambient overrides.
+ *
+ * `cwd` is load-bearing for the unresolved-identity leg: `deriveIdentity()` resolves by running
+ * `git rev-parse --show-toplevel` in the CHILD's working directory and matching
+ * `.claude/worktrees/<name>`, so the caller's directory — not any env var — is what decides whether
+ * an identity exists. Defaults to this process's cwd.
+ */
+function runCli(args: readonly string[], env: NodeJS.ProcessEnv, cwd?: string): CliResult {
+  const res = spawnSync(process.execPath, [LAUNCHER, ...args], {
+    encoding: "utf8",
+    env,
+    ...(cwd !== undefined ? { cwd } : {}),
+  });
   return { status: res.status, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
 }
 
@@ -263,14 +274,27 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
   assert.equal(offResult.stdout, baseline.stdout, "STORYTREE_TRAVERSAL=off must not change the envelope");
   assert.deepEqual(listDir(offDir), [], "STORYTREE_TRAVERSAL=off must create no trace file");
 
-  // Variant B: no resolvable session identity — STORYTREE_SESSION_ID deliberately left unset, and
-  // this suite never runs from a `.claude/worktrees/<name>` checkout, so deriveIdentity() genuinely
-  // resolves to null here rather than the test faking that outcome.
+  // Variant B: no resolvable session identity — STORYTREE_SESSION_ID deliberately left unset AND
+  // the child spawned from a directory that is not a `.claude/worktrees/<name>` checkout, so
+  // `deriveIdentity()` genuinely resolves to null rather than the test faking that outcome.
+  //
+  // The cwd is what makes this deterministic, and it is not optional. Identity is derived from the
+  // CHILD's working directory, so leaving cwd ambient makes this leg environment-dependent: it holds
+  // in CI and in the spine's temporary build worktree (neither matches the slot pattern) but INVERTS
+  // inside a real `.claude/worktrees/<name>` session, where an identity resolves, capture correctly
+  // fires, and the "no trace file" assertion fails on a working implementation. That is the
+  // worktree-shaped-identity trap in its second direction — and a session worktree is exactly where
+  // this story's reliability gate is observed.
   const noIdDir = freshDir("contract5-no-identity");
-  const noIdResult = runCli(args, {
-    ...baseEnv(),
-    STORYTREE_TRAVERSAL_DIR: noIdDir,
-  });
+  const noIdCwd = freshDir("contract5-no-identity-cwd");
+  const noIdResult = runCli(
+    args,
+    {
+      ...baseEnv(),
+      STORYTREE_TRAVERSAL_DIR: noIdDir,
+    },
+    noIdCwd,
+  );
   assert.equal(noIdResult.status, baseline.status, "an unresolved identity must not change the exit code");
   assert.equal(noIdResult.stdout, baseline.stdout, "an unresolved identity must not change the envelope");
   assert.deepEqual(listDir(noIdDir), [], "an unresolved identity must create no trace file");
