@@ -18,7 +18,8 @@ human, a machine, or either can attest it.
 
 - Formalise the "Story UAT (would-be)" prose into structured units: a `uatTestCriteria` list in the story
   spec (or a derived parse), each `{ id, title, witness: 'human'|'machine'|'either' }` with a
-  stable id (e.g. `<story>#uat-<n>`). zod-validated in `@storytree/core`.
+  stable id (e.g. `<story>#uat-<n>`). zod-validated in `@storytree/library`
+  (`src/uat-test-criteria.ts`) — the guidance said `@storytree/core`, which ADR-0068 DISSOLVED.
 - Pure, no I/O: a parser/validator + the witness enum; the id scheme is the join key the
   attestation log writes against.
 - Backward-compatible: a story with only prose UAT still loads (tests default to `either` /
