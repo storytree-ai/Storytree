@@ -284,6 +284,49 @@ permanent regression case, never speculative breadth).
 > state: the tag states which KIND of witness is right, never that the proof exists. Stub recipes naming
 > the harness are recorded in "Open modeling calls".
 
+> **A SIGNED ATTESTATION ROW POINTS AT `#uat-5` AND NO LONGER MATCHES THE CLAIM THERE — READ THIS BEFORE
+> READING LEG 5 (recorded 2026-07-26; migration residue, not an authoring defect in these legs; the
+> remedy is an OPEN OWNER CALL, deliberately NOT made here).**
+>
+> The live store holds exactly one attestation against this story: `events.attestation` seq 8, `test_id:
+> embedded-terminal#uat-5`, `outcome: pass`, `witness: human`, signer `hua.mick@gmail.com`, relayed by
+> session `clever-chatelet-76014c`, at **2026-07-16** (verified by direct query, not inferred). It was
+> granted against the claim that stood at **position 5 BEFORE the 2026-07-26 re-adjudication** — *"It
+> reads and behaves like a real terminal"* (scrollback, colours, resize reflow, keys, the collapse/resize
+> dock). Its stored note records the walk the owner actually did: selecting text in the embedded terminal,
+> `Ctrl+C` copying it without a spurious interrupt, `Ctrl+V` pasting it back, PowerShell as the Windows
+> default shell; the owner's words were *"this works"*.
+>
+> **That is NOT the claim now at position 5.** The ADR-0209 §8 re-adjudication (PR #904) split the old
+> fused leg and RENUMBERED, so position 5 now carries *"Real Claude Code runs interactively in the
+> embedded terminal"* — the REAL PAID subscription run. The feel claim the owner signed now lives at
+> **`#uat-7`** ("It READS as one coherent terminal") and is **UNSIGNED**; the mechanics half moved to
+> `machine` leg **6** and is likewise unsigned; the clipboard round trip the note actually describes has
+> no leg at all (open modeling call 5 below). **So this row must NOT be read as vouching for leg 5's paid
+> interactive Claude Code run — that run has never been attested.** Leg 5 is **UNSTAMPED**, exactly like
+> every other re-adjudicated leg here (ADR-0209 §6), and nothing on this page is green.
+>
+> **The remedy is the owner's to choose, and is not chosen here.** At least three honest options stand,
+> named without preference: (i) leave the row as it is and let this note carry the correction; (ii) the
+> owner re-signs the feel claim at its new id `#uat-7` (deciding separately what, if anything, the
+> mechanics and clipboard substance need); or (iii) the row is invalidated or superseded as pointing at a
+> retired claim. No agent may pick one — granting the row forward would be an agent restoring green it was
+> never given (`agent-never-self-exempts`), and discarding it would destroy real signed state. **This note
+> is a prerequisite of ALL THREE options, not an election of (i):** the mismatch has to be visible here
+> whatever the owner then decides, and writing it down settles nothing.
+>
+> **This is `wisp-as-story-claim`'s open call, actually occurred.** That story's open modeling call 1 asks
+> whether an owner attestation carries forward onto a SPLIT leg. Here the situation is strictly worse than
+> that hypothetical: there the split legs are NARROWER than the signed one, so carry-forward is at least
+> arguable; here the **id was reused for a different claim**, so the stored row silently denotes something
+> the owner never looked at. The general call belongs with that story's item 1 and is **not decided here**.
+>
+> **Cause, stated factually:** leg renumbering by the ADR-0209 §8 re-adjudication in PR #904. That
+> migration's brief specified the prior-attestation check as a TEXT search of the story's own files; the
+> record lives in Postgres, so the re-adjudication truthfully reported "no prior owner attestation is
+> recorded in this story's files" and the id collision went unseen. A live-store probe entered the brief
+> only later in the migration.
+
 **Goal —** A desktop user opens the app, finds a real terminal in the dock, runs real Claude Code in it,
 and watches a wisp light on the forest map for that Claude Code session — the interactive surface being
 the real tool, the observability layer watching it through the existing seams with no new code.
@@ -433,3 +476,15 @@ re-adjudication, not decided here:
    now would be speculative breadth (`uat-proves-the-goal-not-the-surface`) — the goal is running Claude
    Code in a real terminal, not covering the clipboard surface. Recorded so a future copy/paste defect
    earns a permanent regression leg (defect-driven), rather than the gap being hidden on a human rung.
+6. **The signed `#uat-5` attestation now points at a DIFFERENT claim than the one witnessed (an OWNER
+   call; recorded 2026-07-26).** The load-bearing statement is the marked note in the UAT witness preamble
+   above — read it there, since that is where a reader forms a belief about what leg 5 means. In short:
+   `events.attestation` seq 8 (`embedded-terminal#uat-5`, pass, human, signer `hua.mick@gmail.com`,
+   2026-07-16) was given for the pre-#904 position-5 claim *"It reads and behaves like a real terminal"*;
+   the ADR-0209 §8 re-adjudication renumbered, so position 5 now carries the REAL PAID interactive Claude
+   Code run, which has never been attested, while the feel claim moved to unsigned `#uat-7`. Leg 5 stays
+   UNSTAMPED and the row vouches for neither claim. Options, none chosen: annotate only; the owner re-signs
+   at `#uat-7`; or the row is invalidated/superseded. This is `wisp-as-story-claim`'s open modeling call 1
+   (does an attestation carry forward onto a SPLIT leg?) having actually happened — and worse, since the
+   ID was reused rather than merely narrowed. Cause: leg renumbering in PR #904, whose brief checked for
+   prior attestations by TEXT search of `stories/**` while the record lives in Postgres.
