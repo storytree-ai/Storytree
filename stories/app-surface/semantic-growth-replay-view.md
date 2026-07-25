@@ -48,10 +48,14 @@ The existing integration test supplies six representative, already-built
 `WorldPresentationModel` frames to the public semantic-growth view:
 
 1. render `empty`, then advance through `land`, `proposed`, `claimed`, `signed-proof`, `healthy`;
-2. assert the stable frame key and real semantic scene markers at each stop;
-3. Back to empty, replay the same action trace twice and compare every semantic snapshot;
-4. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots and assert no
-   spatial travel/orbit/delayed-hidden treatment remains;
+2. assert the exact fixture semantics: land has ground but no story marker; proposed introduces the
+   pale/non-healthy story; claimed adds presence without proof identity; signed-proof remains
+   proposed/non-healthy while carrying the real proof bloom; only the final frame is healthy;
+3. mount inside a bounded host, click visible Back/Next/Replay controls through all six frames, Back
+   to empty, replay the same action trace twice and compare every semantic snapshot;
+4. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
+   animation/orbit instructions are absent, and assert every existing static SVG placement transform
+   remains unchanged;
 5. prove the public view itself loads its co-located app-owned stylesheet and that removing that load
    makes the motion proof fail; and
 6. inspect the package boundary and normal-motion hooks, then let the package proof command rerun the
@@ -69,9 +73,16 @@ reach into Studio/web.
 - Accept exactly six ordered entries keyed `empty`, `land`, `proposed`, `claimed`, `signed-proof`,
   `healthy`, each carrying an already-normalized `WorldPresentationModel`. Fail closed on missing,
   duplicate or reordered keys; do not silently invent a frame.
+- Prove the representative fixtures exactly: `land` contains the target ground but no tree, plate or
+  other story marker; `proposed` introduces a proposed/non-healthy story; `claimed` adds the real
+  claim/presence family without proof/bloom identity; `signed-proof` keeps that story proposed and
+  non-healthy while adding the real proof bloom; `healthy` is the only healthy frame.
 - Keep the cursor and transition selection pure. Next clamps at healthy, Back clamps at empty,
   restart selects empty, and Replay reapplies the same ordered keys. Time controls interpolation
   only; no timeout advances the cursor and no random value influences output.
+- Stay bounded by the supplied host. The root/SVG must not escape through viewport sizing or cover
+  the controls; Back, Next and Replay remain visible, enabled click targets in normal layout at every
+  frame and host size.
 - Delegate every frame to the existing `WorldSceneView`. Reuse the scene's real territory, tree,
   claim-wisp, signed-proof/bloom and status identities. Do not fork `SceneView`, sprite resolution,
   scene construction or `@storytree/forest-world`.
@@ -80,9 +91,11 @@ reach into Studio/web.
   transforms and CSS capabilities; add no animation framework, canvas/game engine, raster frame
   sequence or new art.
 - Resolve the browser's `prefers-reduced-motion` signal inside the shared surface (an explicit test
-  override is allowed). Reduced mode must suppress spatial translation/scale/orbit and delayed hidden
-  content, including the real wisp's SVG orbit, while rendering the same scene/model markers
-  immediately. The preference never changes the cursor or supplied model.
+  override is allowed). Reduced mode suppresses animation, interpolated travel, scale sweeps, delayed
+  hidden content and the real wisp's SVG orbit while rendering the same markers immediately. It must
+  preserve the scene mapper's existing static SVG `transform` attributes used for placement, anchors
+  and nesting; never apply a blanket `transform: none` to scene descendants. The preference never
+  changes the cursor or supplied model.
 - Keep product authority out. Inputs are plain frames plus optional navigation callbacks; there is no
   fetch, store, subscription, claim mutation, proof mutation, clock-selected semantic state, website
   selector or Chapter 2 pacing/script.
@@ -96,17 +109,20 @@ reach into Studio/web.
 ## Machine contracts
 
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
-   - **asserts —** only the exact ordered key set is accepted; walking it renders land before a
-     proposed tree, a real claim/presence wisp without bloom/verdict identity, a signed-proof marker
-     before roll-up, and healthy status only at the final frame.
+   - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
+     marker; `proposed` adds a proposed/non-healthy story; `claimed` adds real presence without
+     bloom/verdict identity; `signed-proof` remains proposed/non-healthy while carrying the proof
+     bloom; and healthy status appears only in the final frame.
 2. **`sgrv-back-restart-replay-are-deterministic`**
-   - **asserts —** equal frame inputs plus equal navigation traces yield equal frame-key sequences and
-     semantic DOM snapshots; Next/Back clamp at the ends and no timer/random/remount history changes
-     the result.
+   - **asserts —** in a bounded host, visible/clickable Next walks all six frames, visible/clickable
+     Back walks toward empty and visible/clickable Replay returns to empty; equal inputs plus equal
+     traces yield equal frame-key sequences and semantic DOM snapshots; controls remain reachable and
+     no timer/random/remount history changes the result.
 3. **`sgrv-reduced-motion-keeps-identical-semantics-without-travel`**
    - **asserts —** a stubbed `prefers-reduced-motion: reduce` run yields the same six semantic
-     snapshots as normal motion while emitting no active translate/scale/orbit instruction and never
-     hiding settled state behind an animation delay.
+     snapshots as normal motion, emits no animation/orbit/interpolated-travel instruction, never hides
+     settled state behind a delay, and preserves every static SVG placement `transform` from the
+     normal semantic render.
 4. **`sgrv-motion-and-authority-stay-in-the-shared-package`**
    - **asserts —** the public view loads `semantic-growth.css` itself; the test fails when that load
      is absent; transition hooks/rules and reduced-motion handling live under
