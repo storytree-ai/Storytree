@@ -14,7 +14,9 @@ depends_on: []
 # it does NOT touch apps/studio/src and carries no modelPathBoundary concern.
 #
 # Node-borne proof config (ADR-0057 keystone). BROWNFIELD (editsExisting): `compositionInFlight` is a
-# module-level `let` in packages/drive/src/orchestrate.ts:107 with NO exported reset, and the desktop chat
+# module-level `let` in packages/drive/src/orchestrate.ts:142 (re-verified 2026-07-26; the citation read
+# :107 and had drifted — the symbol and its no-exported-reset premise are unchanged) with NO exported
+# reset, and the desktop chat
 # sidecar (apps/desktop/src/backend/chat-sse-mount.ts) mounts ONLY POST /api/chat (it falls through for
 # everything else — see csm-dispatcher-falls-through-not-404s). The RED the spine observes: (1) an assertion
 # that a drive-exported guard reset clears an in-flight guard fails (no such export exists), and (2) an
@@ -69,9 +71,13 @@ composition guard-reset it calls) — a CROSS-STORY edge declared on the story (
 SIBLING dispatcher pattern that story already established, re-used here.
 
 > **Proof status (honest) — BROWNFIELD, `proposed`.** `compositionInFlight` is a module-level `let` in
-> `packages/drive/src/orchestrate.ts:107` with NO exported reset; the desktop chat sidecar mounts ONLY
-> `POST /api/chat` (`apps/desktop/src/backend/chat-sse-mount.ts`, falling through for every other path).
-> This capability adds the drive guard-reset export + the `POST /api/chat/reset` sidecar route.
+> `packages/drive/src/orchestrate.ts:142` with NO exported reset; the desktop chat sidecar mounts ONLY
+> `POST /api/chat` (`apps/desktop/src/backend/chat-sse-mount.ts:310`, falling through for every other
+> path). This capability adds the drive guard-reset export + the `POST /api/chat/reset` sidecar route.
+> *(All three citations re-verified against HEAD on 2026-07-26; the guard line number had drifted from
+> :107 to :142, the premises themselves are intact. The `real:` arm's `chat-reset-route.{ts,test.ts}`
+> are ABSENT BY DESIGN — they are the net-new files whose non-existence IS the authored red, not a dead
+> binding to a deleted file.)*
 
 ## Guidance
 
@@ -107,8 +113,17 @@ falls through; the route never does anything but clear the guard + return 200.
 THE CI-PROVABLE CORE IS ELECTRON-FREE (the standalone-resilient-library shape, mirroring
 `chat-sse-mount.ts`): the module lives under `apps/desktop/src/backend/` with NO `electron`/`dom` import, so
 `node:test` drives it headlessly over a real `node:http` server + a loopback `fetch`. The Electron sidecar
-(`backend-entry.ts`) mounting this dispatcher alongside `chat-sse-mount` is the operator-attested wiring
-(the story's UAT leg), not asserted in CI.
+(`backend-entry.ts`) mounting this dispatcher alongside `chat-sse-mount` is un-CI-asserted composition
+GLUE — outside this capability's proof scope, and NOT an operator-attested judgment.
+
+> **CORRECTED 2026-07-26 (ADR-0209 D8).** This paragraph, and the two mirroring it below, called that
+> sidecar wiring "the operator-attested wiring (the story's UAT leg)". Both halves were wrong.
+> (a) The story's leg 5 is now `witness: machine`, so no human leg backs the wiring. (b) More
+> importantly, "not asserted in CI" is a HARNESS statement, not a judgment gap
+> (`human-witness-is-a-judgment-gap-not-cost`): whether `backend-entry.ts` mounts a dispatcher is a
+> shape a test can read, and the reason it is unasserted is that this capability deliberately scopes
+> itself to the Electron-free core. Calling un-harnessed glue "operator-attested" invents an owner
+> obligation out of a coverage gap, which is exactly the failure this re-adjudication exists to undo.
 
 WIRING THE FRONTEND RESET TO CALL THIS ROUTE IS A FOLLOW-ON, NOT THIS CAPABILITY (slow growth). This
 capability adds the ROUTE + the guard-reset. Making the thin-client [`transcript-reset`](transcript-reset.md)
@@ -180,7 +195,8 @@ against the no-export / 404 code at HEAD), then add the drive export + the sidec
   `createChatResetRoute()` returning the `(req, res, pathname) => Promise<boolean>` dispatcher that, on
   `POST /api/chat/reset`, calls the drive reset + returns `200`, and returns `false` otherwise. NO
   `electron`/`dom`, NO `apps/studio/server` import. The Electron sidecar (`backend-entry.ts`) then mounts
-  this alongside `chat-sse-mount` (operator-attested wiring, not CI).
+  this alongside `chat-sse-mount` (un-CI-asserted glue, out of this capability's proof scope — see the
+  2026-07-26 correction above; NOT an operator attestation).
 
 Rules:
 
@@ -188,7 +204,8 @@ Rules:
   session, opens no PR (ADR-0091). Read/control only.
 - **Sibling dispatcher, fall through** — mount alongside `chat-sse-mount`; return `false` for any other
   path (`bcr-falls-through-not-404s`).
-- **Electron-free core** — no `electron`/`dom`/`apps/studio/server` import; the sidecar wiring is the
-  operator-attested binding.
+- **Electron-free core** — no `electron`/`dom`/`apps/studio/server` import; the sidecar wiring is
+  un-CI-asserted glue outside this proof's scope, not an operator-attested binding (corrected
+  2026-07-26).
 - **Stretch / held-by-default** — this lands separately from the thin-client caps; the story's UAT does not
   require it.

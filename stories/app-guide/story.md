@@ -27,7 +27,14 @@ proof_mode: UAT
 # uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT — "does the concierge
 # chat surface read as one continuous conversation" — is APPEARANCE/FEEL, operator-attested (ADR-0070).
 # The machine-driven story UAT node stays WITHHELD; the crown derives from the capabilities' signed
-# verdicts plus the operator's attestation of the concierge-chat feel legs.
+# verdicts plus the operator's attestation of the concierge-chat feel leg.
+# RE-ADJUDICATED 2026-07-26 (ADR-0209 D8 — see the `## UAT Test Criteria` section): legs 1–3 and 5 are
+# `witness: machine`; only leg 4 stays `human`, on the NO-COMPILER basis (does the surface READ as one
+# continuous conversation — an aesthetic verdict no test decides). Leg 5 (backend-wedge recovery) was
+# human for a HARNESS reason, not a judgment gap: clearing a module-level guard through a POST route and
+# observing a subsequent session admitted is exactly what `backend-chat-reset-route`'s own authored
+# integration test asserts. Per ADR-0209 §6 it is UNSTAMPED until a spec judges it — the tag records
+# which witness is RIGHT, not that a proof exists, and the owner signs nothing here.
 # Capabilities, roots-first. The three thin-client caps edit the SAME component (apps/studio/src/
 # components/ChatPanel.tsx) + its test, so they are SEQUENCED (multi-turn-transcript → auto-grow-input →
 # transcript-reset) to build on each other's committed source in ONE shared --real worktree (ADR-0057 §3
@@ -39,7 +46,9 @@ capabilities: [multi-turn-transcript, auto-grow-input, transcript-reset, backend
 #               component + apps/studio/src/api.ts. So app-guide is a follow-on that extends studio's
 #               chat-panel surface — a real code edge into apps/studio/src. The panel is proven under the
 #               studio VITEST suite; the concierge-chat FEEL is witnessed inside the desktop app (the
-#               consuming surface, ADR-0070 / the desktop story's leg-7 precedent).
+#               consuming surface, ADR-0070 / the desktop story's leg-9 precedent — corrected 2026-07-26
+#               from "leg-7": desktop#uat-7 is the brokered-build SPEND leg, and desktop#uat-9 ("It feels
+#               like one app, chat included") is the feel leg that actually names this chat surface).
 #   - drive-machinery — the OPTIONAL backend-chat-reset-route cap consumes drive (the exported
 #               composition guard-reset it calls); AND, as of the ADR-0175 absorb, app-guide now OWNS the
 #               dormant chat-substrate composition physically hosted in packages/drive
@@ -158,9 +167,11 @@ everything it depends on).
 
 **Capability 4 is OPTIONAL / STRETCH in prioritisation, not in proof accounting.** It may land
 separately from caps 1–3, but while it remains a normal authored capability and Story-UAT criterion it
-blocks the crown until its capability is healthy and UAT leg 5 is human-attested. Holding it therefore
+blocks the crown until its capability is healthy and UAT leg 5 is discharged. Holding it therefore
 means holding the story at unproven; the label never makes either obligation moot. Do NOT auto-build it
-in the same chain as caps 1–3.
+in the same chain as caps 1–3. *(Re-adjudicated 2026-07-26: leg 5 is `witness: machine`, so discharging
+it is a signed machine observation, no longer an owner's attestation — the obligation is unchanged, only
+who may discharge it.)*
 
 ### Future slice — the concierge behaviour itself (NOT YET CAPABILITIES; prose only, ADR-0175 deferred)
 
@@ -209,7 +220,10 @@ Authored from the intended consumed seams (re-verify against the real imports wh
   studio component + `apps/studio/src/api.ts` — a real code edge into `apps/studio/src`, proven under the
   studio VITEST suite (jsdom, `@testing-library/react`), exactly as `chat-panel` is. So `app-guide` is a
   FOLLOW-ON that extends studio's chat-panel surface; the concierge-chat FEEL is witnessed inside the
-  DESKTOP app (the consuming surface, the desktop story's operator-attested leg-7 precedent, ADR-0070). The
+  DESKTOP app (the consuming surface, the desktop story's operator-attested leg-9 precedent, ADR-0070 —
+  *corrected 2026-07-26 from "leg-7"*: [`desktop`](../desktop/story.md)#uat-7 is the brokered-real-build
+  leg, human on SPEND + an outward write; its #uat-9 "It feels like one app, chat included" is the FEEL
+  leg, and it names this very chat surface as the thing being witnessed). The
   caps stay THIN CLIENTS — no `@storytree/agent` / `@storytree/drive` / model import (the
   `modelPathBoundary.test.ts` wall), so this edge adds no forbidden coupling and no new `@storytree/*`
   frontend dep.
@@ -236,18 +250,66 @@ permanent regression case, never speculative breadth).
 > help/advise → wire the user's Claude Code → verify a wisp lights — is the DEFERRED app-guide build; its
 > wire-and-verify UAT is authored with that build, alongside the future-slice capabilities named above.
 
-> **Per-leg witness (ADR-0106 / ADR-0070).** Deterministic behaviour legs 1–3 are `witness: machine`,
-> each bound exactly to the command-bearing `app-guide#gate-1`: the studio vitest suite covers
-> append-not-replace + auto-scroll, height recompute + cap + keybindings, and clear-to-idle + abort +
-> signal threading. The holistic conversational-feel judgment in leg 4 and the live backend-wedge
-> recovery in stretch leg 5 are `witness: human` (operator-attested, ADR-0070). The story-level
-> `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story
-> UAT node stays WITHHELD; the crown derives from the gate-signed machine legs, the gate's declared
-> capability coverage, and the operator's attestations.
+> **Per-leg witness (ADR-0106 / ADR-0070; RE-ADJUDICATED 2026-07-26, ADR-0209 D8).** Deterministic
+> behaviour legs 1–3 are `witness: machine`, each bound exactly to the command-bearing
+> `app-guide#gate-1`: the studio vitest suite covers append-not-replace + auto-scroll, height recompute
+> + cap + keybindings, and clear-to-idle + abort + signal threading. Stretch leg 5 is ALSO
+> `witness: machine`, and deliberately carries **no** proof-gate annotation. Only leg 4 — the
+> holistic conversational-feel judgment — stays `witness: human`. No leg rests `either`.
+>
+> **What the re-adjudication changed and why.** Leg 5 (a wedged backend session recovers without a
+> restart) was `human` for a HARNESS reason wearing a witness costume: "witnessed on the live surface".
+> Live-vs-in-process is FIDELITY, not a judgment gap — `human-witness-is-a-judgment-gap-not-cost`. Every
+> condition the leg states is decidable by a machine: the composition single-session guard
+> (`compositionInFlight`, a module-level `let` at `packages/drive/src/orchestrate.ts:142`) is in-flight,
+> a `POST /api/chat/reset` returns `200`, and a subsequent session is thereafter admitted. That is
+> *exactly* what [`backend-chat-reset-route`](backend-chat-reset-route.md) already authors as its own
+> integration test (`bcr-clears-the-composition-guard`, driving the REAL drive guard over a loopback
+> `node:http` server — no Electron, no live app). A leg whose success condition is already someone's
+> written assertion is not an irreducible human verdict. Per **ADR-0209 §6** it returns to UNSTAMPED
+> until a spec judges it: the tag records which witness is RIGHT, not that a proof exists.
+>
+> **Why leg 5 names no proof gate, and why that is correct.** The only declared gate here
+> (`app-guide#gate-1`) is an `observe` gate over the studio vitest suite, which does not touch the
+> desktop sidecar or the drive guard. Binding leg 5 to it would be a false binding; minting a second
+> observe gate over source that does not exist at HEAD would be precisely the rubber-stamp
+> [ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md) §2
+> bans. So the leg is `machine` and UNBOUND: `resolveWitness` reports it `refused` — *a binding gap the
+> author must close when the stretch capability is built*, which is the honest state, not a defect to
+> paper over. It still blocks the crown.
+>
+> **Leg 4 stays `human` on the NO-COMPILER basis, and on that basis alone.** Not spend (nothing here is
+> billed), not liveness, not a missing harness: "does this read as ONE continuous conversation" is an
+> aesthetic verdict with no oracle. The mechanical halves it used to also assert — the scrollback
+> appends, the input grows, the reset clears — are NOT restated as human success conditions, because
+> each already has a machine leg (1, 2, 3) pointing at it; restating a compiled fact as something the
+> owner signs would launder it into an unrepeatable signature.
+>
+> The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
+> machine-driven whole-story UAT node stays WITHHELD; the crown derives from the gate-signed machine
+> legs, the gate's declared capability coverage, leg 5's future binding, and the operator's attestation
+> of leg 4.
 
 **Goal —** A member opens the desktop chat panel, holds a multi-turn conversation whose scrollback
 persists, edits a comfortable multi-line prompt in an input that grows, and resets to a fresh surface —
 the panel reading and behaving like one continuous conversation throughout.
+
+> **PRECONDITION SCOPE NOTE (recorded 2026-07-26, alongside the ADR-0209 D8 re-adjudication) — the chat
+> surface is DORMANT, so "a member opens the desktop chat panel" is not walkable today.** `ChatDock` is
+> imported by NO non-test source file: `apps/studio/src/components/ChatDock.tsx` is rendered only from
+> `ChatDock.test.tsx` / `ChatDock.reload.test.tsx`, and `ChatPanel` is mounted only by that dock (and by
+> its own vitest files). **ADR-0174** gave the dock slot to the embedded terminal —
+> `apps/studio/src/components/TreeView.tsx:2561` states it outright: *"the same dock slot the chat used
+> (ADR-0174 terminal pivot; ChatDock stays dormant in the tree for a future app-guide, ADR-0175)"*. The
+> BACKEND half is still live (`apps/desktop/electron/backend-entry.ts` still mounts `createChatSseMount`
+> → `POST /api/chat`); it is the FRONTEND mount that is gone. Consequences, kept explicit so nobody
+> reads a false precondition into a spec: **(a)** legs 1–3 are unaffected — the studio vitest suite
+> renders the components directly under jsdom and never needs the app to mount them, which is why they
+> stay machine and stay green-able; **(b)** leg 4 (the FEEL judgment) genuinely cannot be walked until
+> the deferred concierge build re-mounts the surface — it is human because it is irreducible, and
+> *separately* it is currently unwalkable; those are two different facts and neither implies the other;
+> **(c)** leg 5's re-adjudication to `machine` makes it walkable WITHOUT the UI at all (it drives the
+> sidecar route + the drive guard in-process), which is a real gain, not a workaround.
 
 1. **The transcript persists across turns.** _(witness: machine)_ _(proof-gate: app-guide#gate-1)_ The
    member sends several prompts in a row; each `› <prompt>` echo and its reply APPENDS below the last, prior
@@ -264,20 +326,41 @@ the panel reading and behaving like one continuous conversation throughout.
    the input returns to its resting one-row height. **Success —** the clear-to-idle, abort, and input reset
    behaviours occur without an app restart; the named studio suite tests provide positive, deterministic
    evidence for this `transcript-reset` behaviour.
-4. **It reads like one continuous conversation.** _(witness: human)_ Across the whole conversation — the
-   growing scrollback, the pinned-flush input, the reset — the panel reads and behaves as ONE coherent
-   conversational surface inside the native desktop shell (the concierge-chat feel). **Success —** the
-   owner's two-stage visual verdict (ADR-0070): the conversational feel is witnessed, not machine-asserted.
-5. **(OPTIONAL / STRETCH) A wedged backend session recovers without a restart.** _(witness: human)_ If the
-   backend single-session guard is stuck (a wedged composition), a `POST /api/chat/reset` clears it and chat
-   resumes without restarting the app. **Success —** backend-wedge recovery is witnessed on the live
-   surface. The stretch label controls prioritisation only: as a normal authored UAT criterion, this leg
-   remains a crown-blocking human obligation until attested.
+4. **It reads like one continuous conversation.** _(witness: human)(detail: app-guide#uat-4)_ Hold a real
+   conversation on the mounted panel inside the native desktop shell and judge the WHOLE surface: does it
+   read as ONE continuous conversation, or as a sequence of separate exchanges sharing a box? **Success —**
+   the owner's two-stage visual verdict (ADR-0070): the conversational feel is witnessed, not
+   machine-asserted. *(HUMAN on the **NO-COMPILER** basis, and on that basis alone — not spend (nothing
+   here is billed), not liveness, not a missing harness. "Does this read right" has no oracle. The
+   mechanical halves this leg used to ALSO assert — "the growing scrollback, the pinned-flush input, the
+   reset" *behaving* as declared — were removed on 2026-07-26: each already has a machine leg (1, 2, 3)
+   pointing at it, and restating a compiled fact as a condition the owner signs would launder it into an
+   unrepeatable signature. What is left is only the judgment. See the PRECONDITION SCOPE NOTE above: the
+   panel is currently unmounted, so this leg is not walkable until the deferred build re-mounts it — a
+   fact about scheduling, not about the witness.)*
+5. **(OPTIONAL / STRETCH) A wedged backend session recovers without a restart.**
+   _(witness: machine)(detail: app-guide#uat-5)_ With the drive composition single-session guard in the
+   in-flight state, a `POST /api/chat/reset` on the chat sidecar clears it and a subsequent session is
+   admitted — no app restart. **Success —** the route answers `200`, the guard
+   (`compositionInFlight`, `packages/drive/src/orchestrate.ts:142`) is observably cleared against the REAL
+   drive export, a subsequent composition is admitted where it was previously refused, and the dispatcher
+   still returns `false` for every other path/method so the sibling dispatchers and the 404 still fire.
+   The stretch label controls prioritisation only: as a normal authored UAT criterion this leg remains
+   crown-blocking until discharged. *(RE-ADJUDICATED human → machine 2026-07-26 (ADR-0209 D8). It was
+   human on the words "witnessed on the live surface" — a FIDELITY/harness claim, not a judgment gap
+   (`human-witness-is-a-judgment-gap-not-cost`). Every condition above is decidable, and
+   [`backend-chat-reset-route`](backend-chat-reset-route.md) already authors it as
+   `bcr-clears-the-composition-guard` + `bcr-falls-through-not-404s`, driven over a loopback `node:http`
+   server against the real drive guard — no Electron, no live app, no spend. **No proof-gate annotation
+   is named on purpose:** `app-guide#gate-1` observes the studio vitest suite, which never touches this
+   surface, and minting an observe gate over source absent at HEAD is the rubber-stamp ADR-0097 §2 bans.
+   Per ADR-0209 §6 the leg is UNSTAMPED — this records which witness is RIGHT, not that a proof exists.)*
 
 End state — the desktop chat panel reads and behaves like one continuous conversation: a persistent
 multi-turn scrollback, an input that grows and resets cleanly, the caps' behaviours signed under the studio
-suite and the conversational FEEL operator-attested — the panel never breaching the thin-client wall. The
-concierge behaviour that rides this substrate is the deferred future slice (ADR-0175).
+suite, the backend wedge-recovery machine-observed, and the conversational FEEL operator-attested — the
+panel never breaching the thin-client wall. The concierge behaviour that rides this substrate is the
+deferred future slice (ADR-0175).
 
 ## Reliability Gates
 
@@ -296,7 +379,8 @@ Distinct from `## UAT Test Criteria` above (the integrated continuous-conversati
 machine-observable reliability floor — the two-stage frontend-builder split
 ([ADR-0070](../../docs/decisions/0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)):
 the gate covers the caps' machine GEOMETRY; the "reads like one continuous conversation" FEEL stays the
-Story UAT's operator-attested `witness: human` legs.
+Story UAT's operator-attested `witness: human` leg 4. *(Corrected 2026-07-26: this read "legs", plural —
+after the ADR-0209 D8 re-adjudication leg 4 is the story's ONLY human leg.)*
 
 1. **The studio suite is green** _(gate: observe)_ _(covers: multi-turn-transcript, auto-grow-input, transcript-reset)_ `pnpm --filter studio test`. The
    spine runs the studio VITEST suite at a clean committed HEAD and OBSERVES it green, then signs an
@@ -320,10 +404,14 @@ Story UAT's operator-attested `witness: human` legs.
 The OPTIONAL / STRETCH `backend-chat-reset-route` cap is deliberately **left uncovered**: it is a desktop
 sidecar/drive `node:test` unit (not thin-client), its backend-wedge-recovery behaviour is UNBUILT (no
 `apps/desktop/src/backend/chat-reset-route.test.ts`), so an `observe` gate over it would be exactly the
-rubber-stamp ADR-0097 §2 bans. It therefore keeps the crown at `proposed` alongside its backing
-`witness: human` Story-UAT leg (leg 5, backend-wedge recovery) — the owner's optional stretch. The
-OPTIONAL / STRETCH label does not remove either normal obligation: until the capability is healthy and
-leg 5 is attested, the crown remains blocked. Adopting
+rubber-stamp ADR-0097 §2 bans. It therefore keeps the crown at `proposed` alongside its backing Story-UAT
+leg (leg 5, backend-wedge recovery) — the owner's optional stretch. *(Re-adjudicated 2026-07-26: leg 5 is
+now `witness: machine` and, for exactly the reason stated in this paragraph, carries NO proof-gate
+binding — there is no honest observe gate to name until the capability is built. `resolveWitness`
+therefore reports it `refused`: an open binding gap, which is the truthful state of an unbuilt stretch
+unit, not a defect to paper over with a fabricated gate.)* The OPTIONAL / STRETCH label does not remove
+either normal obligation: until the capability is healthy and leg 5 is discharged, the crown remains
+blocked. Adopting
 this one gate flips the story off `mapped`; `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the world's crown
 DERIVES green from the signed verdicts and only when every capability is healthy AND every own-proof
@@ -338,10 +426,13 @@ The present slice is proven when that walkthrough passes: deterministic behaviou
 their exact `app-guide#gate-1` observe binding, and the same signed gate derives
 `multi-turn-transcript`, `auto-grow-input`, and `transcript-reset` healthy through its declared
 `(covers:)` list. No separate per-capability `--real` verdict is claimed. Holistic conversational-feel
-leg 4 and live backend-wedge-recovery leg 5 are operator-attested. Per ADR-0020, `healthy` is only ever
-DERIVED from signed verdicts; nothing here is authored healthy. The story's machine-driven UAT node is
-WITHHELD (`uat_witness` is absent → human, ADR-0040), so the crown awaits both the gate-backed machine
-legs and the two human attestations. Capability 4 is OPTIONAL/STRETCH only in prioritisation: because it
-and UAT leg 5 are normal authored obligations, holding that work keeps the story unproven. The concierge
+leg 4 is operator-attested. Backend-wedge-recovery leg 5 is `witness: machine` (re-adjudicated
+2026-07-26, ADR-0209 D8) and awaits the binding it can only honestly acquire once
+`backend-chat-reset-route` is built. Per ADR-0020, `healthy` is only ever DERIVED from signed verdicts;
+nothing here is authored healthy. The story's machine-driven UAT node is WITHHELD (`uat_witness` is
+absent → human, ADR-0040), so the crown awaits the gate-backed machine legs, leg 5's future machine
+observation, and the ONE human attestation (leg 4). Capability 4 is OPTIONAL/STRETCH only in
+prioritisation: because it and UAT leg 5 are normal authored obligations, holding that work keeps the
+story unproven. The concierge
 onboarding/wiring behaviour that rides this substrate is the DEFERRED app-guide build (ADR-0175); its
 capabilities and wire-and-verify UAT are authored when that build is picked up.
