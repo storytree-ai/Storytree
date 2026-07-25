@@ -93,6 +93,7 @@ import {
   type BakedStoneAsset,
 } from '../lib/factoryBuildings.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
+import { DetailDisclosure } from './DetailDisclosure.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { LibraryDrawer } from './LibraryDrawer.js';
@@ -1382,6 +1383,10 @@ function relationsFor(nodes: { id: string; dependsOn: string[] }[], focusId: str
 const SUB_W = 134;
 const SUB_H = 46;
 const SUB_STRIP = 13;
+// Keep capability cards at one calm, readable zoom no matter how many nodes the
+// selected story owns. Small DAGs centre at this intrinsic size; wide DAGs
+// scroll inside the frame instead of scaling every card down.
+const SUB_RENDER_SCALE = 0.85;
 
 /** Smooth path through dagre's edge waypoints (quadratic through the bends). */
 function pathThrough(points: Pt[]): string {
@@ -4375,8 +4380,12 @@ export function UatTestCriteriaSection({
   if (tests === null || tests.length === 0) return null; // loading, or a story with no parsed UAT test criteria
 
   return (
-    <div className="uat-test-criteria">
-      <h4 className="tree-subdag-title">UAT test criteria ({tests.length})</h4>
+    <DetailDisclosure
+      label="UAT test criteria"
+      count={tests.length}
+      defaultOpen
+      className="uat-test-criteria"
+    >
       {/* ADR-0106 d.1 — the "no `either` at rest" guard: this adopted story still carries undecided
           legs, which silently land on the operator. Nudge the author to record each leg's witness. */}
       {unresolved.length > 0 && (
@@ -4486,7 +4495,7 @@ export function UatTestCriteriaSection({
           </>
         )}
       </p>
-    </div>
+    </DetailDisclosure>
   );
 }
 
@@ -4514,10 +4523,11 @@ export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.
     if (n !== null) byNum.set(n, d);
   }
   return (
-    <details className="tree-relevant-adrs">
-      <summary className="tree-subdag-title relevant-adrs-summary">
-        Architectural Decision Records ({decisions.length})
-      </summary>
+    <DetailDisclosure
+      label="Architectural Decision Records"
+      count={decisions.length}
+      className="tree-relevant-adrs"
+    >
       <ul className="relevant-adrs small">
         {decisions.map((n) => {
           const doc = byNum.get(n);
@@ -4540,7 +4550,7 @@ export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.
           );
         })}
       </ul>
-    </details>
+    </DetailDisclosure>
   );
 }
 
@@ -4689,16 +4699,24 @@ function StoryPanel({
           setResizing(false);
         }}
       />
-      <header>
-        <span className={`tree-badge st-${story.status ?? 'unknown'}`}>
-          {story.status ?? 'unknown'}
-        </span>
-        {/* the story id rides in the header only while minimised, so the collapsed
-            one-row bar still names what it is (mirrors the Legend drawer's summary). */}
-        {minimized && (
-          <code className="tree-detail-mini-id" title={story.title}>
-            {story.id}
-          </code>
+      <header className="tree-detail-header">
+        {minimized ? (
+          <>
+            <span className={`tree-badge st-${story.status ?? 'unknown'}`}>
+              {story.status ?? 'unknown'}
+            </span>
+            <code className="tree-detail-mini-id" title={story.title}>
+              {story.id}
+            </code>
+          </>
+        ) : (
+          <div className="tree-detail-heading">
+            <span className={`tree-badge st-${story.status ?? 'unknown'}`}>
+              {story.status ?? 'unknown'}
+            </span>
+            <h3 className="tree-detail-heading-title">{story.title}</h3>
+            <code className="tree-detail-id">{story.id}</code>
+          </div>
         )}
         <span className="tree-detail-controls">
           <button
@@ -4715,11 +4733,9 @@ function StoryPanel({
           </button>
         </span>
       </header>
-      <h3>{story.id}</h3>
-      <p className="tree-detail-title">{story.title}</p>
       {story.error && <p className="tree-detail-error">{story.error}</p>}
-      {story.outcome && <p className="muted small">{story.outcome}</p>}
-      <p className="small">
+      {story.outcome && <p className="muted small tree-detail-outcome">{story.outcome}</p>}
+      <p className="small tree-detail-verdict">
         <span className="muted">UAT verdict </span>
         <VerdictLine verdict={story.verdict} />
         <span className="muted"> · witness: {story.uatWitness}</span>
@@ -4734,21 +4750,33 @@ function StoryPanel({
       />
 
       {claims.length > 0 && (
-        <div className="tree-sessions">
+        <DetailDisclosure
+          label="Sessions here"
+          count={claims.length}
+          defaultOpen
+          className="tree-sessions"
+        >
           {/* The panel is a detail surface like the dock: one row per live CLAIM on this story
               (ADR-0200 D7 — self-reported presence retired; the claim ledger is the one
               coordination signal). Clicking a row opens the session dock's grouped ledger. */}
-          <h4 className="tree-subdag-title">sessions here ({claims.length})</h4>
           {claims.map(claimLine)}
-        </div>
+        </DetailDisclosure>
       )}
 
-      <h4 className="tree-subdag-title">capabilities ({story.capabilities.length})</h4>
+      <DetailDisclosure
+        label="Capabilities"
+        count={story.capabilities.length}
+        defaultOpen
+        className="tree-capabilities"
+      >
       <div className="tree-subdag-frame">
         <svg
           className="tree-subdag"
           viewBox={`0 0 ${layout.width} ${layout.height}`}
-          style={{ aspectRatio: `${layout.width} / ${layout.height}` }}
+          style={{
+            width: Math.ceil(layout.width * SUB_RENDER_SCALE),
+            height: Math.ceil(layout.height * SUB_RENDER_SCALE),
+          }}
         >
           {layout.edges.map((e) => (
             <path
@@ -4855,15 +4883,16 @@ function StoryPanel({
           </dl>
         </div>
       )}
+      </DetailDisclosure>
 
       {/* The per-UAT-test attestation table sits near the FOOT of the drill-down (the last thing
           you read once you've taken in the story + its capability DAG) — a vouch surface, never
           the gate-green hue (ADR-0044). */}
       <UatTestCriteriaSection storyId={story.id} onCrownRefresh={onCrownRefresh} />
+      <RelevantAdrs decisions={story.decisions ?? []} />
 
       {/* The UI-driven go-green control (ADR-0090 / ADR-0094) is the last ACTION in the panel (owner
-          placement, 2026-06-22; the collapsed ADR reference below it is footer context, not an
-          affordance): a single affordance at the foot. A drilled-in capability targets a
+          placement, 2026-06-22): a single affordance at the foot. A drilled-in capability targets a
           single-node `--live` build (its `buildable`). A story shows a STATUS-AWARE go-green
           affordance (ADR-0094): `proposed → Build` (whole-story `--real` drive), `mapped → Adopt`
           (observe-and-sign its `## Reliability Gates`, ADR-0085), or a reason when neither applies —
@@ -4889,11 +4918,6 @@ function StoryPanel({
         onSeedTerminal={onSeedTerminal}
       />
 
-      {/* The story's deciding ADRs (ADR-0037 §2), linked to the Decisions-group Library docs — the
-          panel's "what governs this story" context (ADR-0097 Layer 2). Moved to the foot as a
-          collapsed disclosure (owner steer 2026-06-24): low-priority governance reference, out of the
-          way until opened. */}
-      <RelevantAdrs decisions={story.decisions ?? []} />
     </aside>
   );
 }

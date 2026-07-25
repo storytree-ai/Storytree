@@ -244,7 +244,7 @@ export function BuildSection({
   };
 
   return (
-    <div className="tree-build">
+    <div className={`tree-build${showButton ? ' is-actionable' : ''}`}>
       {showButton && (
         <>
           <button type="button" className="btn build-btn" onClick={handleBuildClick} disabled={busy}>
@@ -408,7 +408,7 @@ function AdoptPanel({
   }
 
   return (
-    <div className="tree-build tree-adopt">
+    <div className={`tree-build tree-adopt${showButton ? ' is-actionable' : ''}`}>
       {showButton && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button type="button" className="btn build-btn" onClick={() => void trigger()} disabled={busy}>
