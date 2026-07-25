@@ -14,3 +14,6 @@
 // capability `leaf-slice-spawn-observations`
 export { observeLeafSlices, BUILD_SPAWN_BOUNDARY_COVERAGE } from "./observe-leaf-slices.js";
 export type { LeafSliceRun, LeafSliceUsage, ObserveLeafSlicesArgs } from "./observe-leaf-slices.js";
+
+// capability `multi-adapter-replay`
+export { showTraversalSessionAllAdapters } from "./replay-adapters.js";
