@@ -489,4 +489,68 @@ describe('SemanticGrowthWorldView', () => {
     // the claim's real SVG orbit rides ALONGSIDE wisp-in, never replaced by it.
     expect(sceneView).toMatch(/animateTransform/);
   });
+
+  it('keeps the arrive-pop sweep off the full CSS `transform` property when it is bound directly to the mapper-positioned tree/flora/plate groups it repositions -- never overriding the static placement anchor those groups carry mid-sweep', () => {
+    // Guidance: "For mapper-positioned SVG elements, forbid semantic-growth arrival/pulse rules
+    // and keyframes from animating the full CSS `transform` property. A source assertion must
+    // fail `transform: scale(...)` as well as `transform: translate(...)`: either replaces the
+    // element's SVG placement transform during animation even though `getAttribute('transform')`
+    // still reports the original translate. Use the additive individual `scale:` property with
+    // `transform-box: fill-box` ... or animate a dedicated inner visual wrapper while the outer
+    // mapper-authored placement wrapper remains static ... Attribute equality alone is not proof;
+    // the machine test must inspect real CSS/source and verify the individual scale/origin/
+    // stagger or equivalent wrapper structure."
+    //
+    // `.story-tree` (the tree group), `.garden-flora` (a plant group) and `.world-plate` (the
+    // nameplate group) are each stamped by the SCENE (not this package) with their own real
+    // ground/root anchor -- `transform="translate(...)"` -- which `SceneView.tsx` passes straight
+    // through onto whatever element it renders (`if (node.transform) props.transform =
+    // node.transform;`, asserted below). The current `arrive-pop` rule binds `animation:
+    // arrive-pop` DIRECTLY to those same three classes, and its keyframe sweeps the full CSS
+    // `transform` property (`transform: scale(0.55) -> scale(1)`) -- on an SVG element that
+    // already carries its own placement `transform` attribute, the CSS shorthand REPLACES that
+    // attribute for the sweep's duration (the DOM attribute itself never changes, so attribute
+    // equality alone would wrongly read as proof nothing moved). This must go through the
+    // additive `scale` route (paired with `transform-box: fill-box`) or a dedicated inner wrapper
+    // distinct from the placement-carrying class -- never the bare shorthand directly on it.
+    const css = readFileSync(
+      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      'utf8',
+    );
+    const sceneView = readFileSync(resolve(process.cwd(), 'src', 'SceneView.tsx'), 'utf8');
+
+    expect(sceneView).toMatch(
+      /if\s*\(node\.transform\)\s*props\.transform\s*=\s*node\.transform;/,
+    );
+
+    const ruleRe = /([^{}]+)\{([^{}]*animation(?:-name)?:\s*arrive-pop\b[^{}]*)\}/g;
+    const rules = [...css.matchAll(ruleRe)].map((m) => ({
+      selectors: (m[1] ?? '').split(',').map((s) => s.trim()),
+      body: m[2] ?? '',
+    }));
+    expect(rules.length).toBeGreaterThan(0);
+
+    const keyframeBody = css.match(/@keyframes\s+arrive-pop\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const keyframeSweepsFullTransform = /transform\s*:\s*(?:scale|translate)/i.test(keyframeBody);
+
+    for (const role of ['story-tree', 'garden-flora', 'world-plate']) {
+      const boundDirectlyToPlacementClass = rules.find((r) =>
+        r.selectors.some((sel) => new RegExp(`\\.${role}\\s*$`).test(sel)),
+      );
+      // it must still cover this role by name -- either bound directly, or through a dedicated
+      // inner wrapper selector nested under it.
+      const coveredAtAll =
+        boundDirectlyToPlacementClass ||
+        rules.some((r) => r.selectors.some((sel) => new RegExp(`\\.${role}\\b`).test(sel)));
+      expect(coveredAtAll).toBeTruthy();
+      if (!boundDirectlyToPlacementClass) continue; // only a nested wrapper selector -- never the bare placement class itself; safe.
+      const declaresAdditiveScale =
+        /(?:^|[^-\w])scale\s*:\s*[\d.]/.test(boundDirectlyToPlacementClass.body) &&
+        /transform-box\s*:\s*fill-box/.test(boundDirectlyToPlacementClass.body);
+      // bound directly to the placement-carrying class itself: the full `transform` sweep is
+      // only safe here behind the additive `scale` route (with `transform-box: fill-box`) --
+      // never the bare shorthand.
+      expect(keyframeSweepsFullTransform && !declaresAdditiveScale).toBe(false);
+    }
+  });
 });
