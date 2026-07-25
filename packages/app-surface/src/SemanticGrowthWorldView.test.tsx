@@ -89,6 +89,60 @@ function frameModel(key: (typeof ORDERED_KEYS)[number]) {
   return normalizeWorldPresentationModel({ scene: buildScene(input) });
 }
 
+/** Like {@link frameModel} but with the territory's real geometry (coast/centroid/tree/plate)
+ * placed around a caller-chosen region -- so two frame sets can carry genuinely different
+ * COMPOSED WORLD BOUNDS while both still walking the same six ordered semantic keys. Used only
+ * to prove the representative framing actually derives from the world's real geometry, never a
+ * fixed magic default shared by every world regardless of where it actually sits. */
+function frameModelAt(
+  key: (typeof ORDERED_KEYS)[number],
+  region: { readonly cx: number; readonly cy: number },
+) {
+  const input: SceneInput = {
+    offset: { x: 0, y: 0 },
+    width: 100,
+    height: 100,
+    empties: [],
+    relaxedCells: [],
+    drawTiles: [],
+    wheatSets: [new Set()],
+    trails: NO_TRAILS,
+    territories: [
+      {
+        id: 'semantic-growth',
+        status: 'proposed',
+        caps: 1,
+        centroid: { x: region.cx, y: region.cy },
+        radius: 24,
+        treeSpot: { x: region.cx, y: region.cy - 5 },
+        labelY: region.cy + 26,
+        coastPaths: [
+          `M ${region.cx - 30} ${region.cy - 30} L ${region.cx + 30} ${region.cy - 30} L ${region.cx} ${region.cy + 30} Z`,
+        ],
+        decor: [],
+        plants: [],
+        treeTitle: `Growth frame: ${key}`,
+        wisps:
+          key === 'claimed'
+            ? [{ runId: 'semantic-growth', title: 'A real work wisp', phase: 'IMPLEMENT' }]
+            : [],
+        plate: {
+          w: 60,
+          h: 30,
+          rx: 7,
+          idY: 13,
+          subY: 25,
+          idText: 'semantic-growth',
+          subText: key,
+          title: `Growth frame: ${key}`,
+        },
+      },
+    ],
+  };
+
+  return normalizeWorldPresentationModel({ scene: buildScene(input) });
+}
+
 describe('SemanticGrowthWorldView', () => {
   it('plays the supplied semantic sequence deterministically, clamps navigation, and renders its real scene immediately without motion when reduced', () => {
     const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
@@ -306,5 +360,133 @@ describe('SemanticGrowthWorldView', () => {
     // ... but the signed-proof bloom overlay Vector exposes for this exact frame must still be
     // present -- the renderer swap must never erase proof-bloom semantics.
     expect(view.container.querySelector('.world-bloom')).toBeTruthy();
+  });
+
+  it('holds one deterministic representative world framing across the whole walk, derived from the composed world bounds -- never a magic 0 0 100 100 default or a frame-by-frame camera jump', () => {
+    // Guidance: "Accept one deterministic representative world framing alongside the six
+    // frames and hold it stable through the whole walk. It is the host's normal contain-style
+    // view of the composed world bounds ... it is not a magic `0 0 100 100`, a crop around the
+    // current tree, or a frame-by-frame camera jump." Two worlds whose real geometry sits in
+    // genuinely different places (one composed near (50, 50), one composed far away near
+    // (520, 420)) cannot honestly resolve to the SAME representative framing -- that would only
+    // be true of a framing that ignores the actual composed bounds entirely (the current fixed
+    // `viewBox="0 0 100 100"`). Within either single world, the framing must not move as the
+    // cursor walks Next/Back/Replay across all six frames -- that is the "hold it stable",
+    // "never a frame-by-frame camera jump" half of the same guidance.
+    const readViewBox = (container: HTMLElement): string | null =>
+      container.querySelector('svg')?.getAttribute('viewBox') ?? null;
+
+    const nearFrames = ORDERED_KEYS.map((key) => ({
+      key,
+      model: frameModelAt(key, { cx: 50, cy: 50 }),
+    }));
+    const nearView = render(<SemanticGrowthWorldView frames={nearFrames} />);
+    const nearInitial = readViewBox(nearView.container);
+    expect(nearInitial).toBeTruthy();
+    for (const key of ORDERED_KEYS.slice(1)) {
+      fireEvent.click(nearView.getByRole('button', { name: 'Next' }));
+      expect(readViewBox(nearView.container)).toBe(nearInitial);
+    }
+    fireEvent.click(nearView.getByRole('button', { name: 'Back' }));
+    expect(readViewBox(nearView.container)).toBe(nearInitial);
+    fireEvent.click(nearView.getByRole('button', { name: 'Replay' }));
+    expect(readViewBox(nearView.container)).toBe(nearInitial);
+    nearView.unmount();
+
+    const farFrames = ORDERED_KEYS.map((key) => ({
+      key,
+      model: frameModelAt(key, { cx: 520, cy: 420 }),
+    }));
+    const farView = render(<SemanticGrowthWorldView frames={farFrames} />);
+    const farInitial = readViewBox(farView.container);
+    expect(farInitial).toBeTruthy();
+    for (const key of ORDERED_KEYS.slice(1)) {
+      fireEvent.click(farView.getByRole('button', { name: 'Next' }));
+      expect(readViewBox(farView.container)).toBe(farInitial);
+    }
+    farView.unmount();
+
+    // the representative framing must actually reflect where the composed world sits -- a
+    // world composed far from the origin cannot share the near world's framing, and it
+    // cannot coincide with the fixed 0 0 100 100 default either.
+    expect(farInitial).not.toBe(nearInitial);
+    expect(farInitial).not.toBe('0 0 100 100');
+  });
+
+  it('grounds the semantic vocabulary in independently named, role-scoped motion profiles -- arrive-ground, arrive-pop, wisp-in (alongside the real SVG orbit), and bloom-pulse -- never one shared settle grouping', () => {
+    // Guidance: "coast/relaxed ground uses the existing `arrive-ground` scale `0.78 -> 1`,
+    // flora/tree/nameplate/parcels use `arrive-pop` scale `0.55 -> 1`, the claim uses the real
+    // `wisp-in` plus its existing SVG orbit, and signed proof uses the real `bloom-pulse`
+    // `0.94 <-> 1.06`. Apply each family only when that semantic role enters. Do not group
+    // territory, claim wisp, bloom and arrival under one new settle keyframe." A source/CSS
+    // read, not a render: this must reject the CURRENT single `semantic-growth-settle`
+    // grouping outright and positively discriminate each named profile's own keyframe body and
+    // its own role-scoped selector -- never re-grouped with another role's classes.
+    const css = readFileSync(
+      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      'utf8',
+    );
+    const sceneView = readFileSync(resolve(process.cwd(), 'src', 'SceneView.tsx'), 'utf8');
+
+    // reject the current grouped settle keyframe entirely -- it must not survive under any name
+    // that still bundles every role behind one shared animation.
+    expect(css).not.toMatch(/semantic-growth-settle/);
+
+    const arriveGround = css.match(/@keyframes\s+arrive-ground\s*\{([\s\S]*?)\n\}/);
+    expect(arriveGround).toBeTruthy();
+    expect(arriveGround?.[1] ?? '').toMatch(/scale\(\s*0\.78\s*\)/);
+    expect(arriveGround?.[1] ?? '').toMatch(/scale\(\s*1\s*\)/);
+
+    const arrivePop = css.match(/@keyframes\s+arrive-pop\s*\{([\s\S]*?)\n\}/);
+    expect(arrivePop).toBeTruthy();
+    expect(arrivePop?.[1] ?? '').toMatch(/scale\(\s*0\.55\s*\)/);
+    expect(arrivePop?.[1] ?? '').toMatch(/scale\(\s*1\s*\)/);
+
+    const bloomPulse = css.match(/@keyframes\s+bloom-pulse\s*\{([\s\S]*?)\n\}/);
+    expect(bloomPulse).toBeTruthy();
+    expect(bloomPulse?.[1] ?? '').toMatch(/0\.94/);
+    expect(bloomPulse?.[1] ?? '').toMatch(/1\.06/);
+
+    const wispIn = css.match(/@keyframes\s+wisp-in\s*\{([\s\S]*?)\n\}/);
+    expect(wispIn).toBeTruthy();
+
+    // each profile must be wired through its OWN rule, scoped to its OWN semantic role --
+    // never re-grouped onto another role's classes under the same animation.
+    const selectorsAnimatedBy = (animationName: string): string[] => {
+      const re = new RegExp(
+        `([^{}]+)\\{[^{}]*animation(?:-name)?:\\s*${animationName}[^{}]*\\}`,
+        'g',
+      );
+      return [...css.matchAll(re)].map((m) => m[1] ?? '');
+    };
+
+    const groundSelectors = selectorsAnimatedBy('arrive-ground');
+    expect(groundSelectors.length).toBeGreaterThan(0);
+    for (const selector of groundSelectors) {
+      expect(selector).not.toMatch(/\.world-claim-wisp|\.world-bloom/);
+    }
+
+    const popSelectors = selectorsAnimatedBy('arrive-pop');
+    expect(popSelectors.length).toBeGreaterThan(0);
+    for (const selector of popSelectors) {
+      expect(selector).not.toMatch(/\.world-claim-wisp|\.world-bloom/);
+    }
+
+    const wispSelectors = selectorsAnimatedBy('wisp-in');
+    expect(wispSelectors.length).toBeGreaterThan(0);
+    for (const selector of wispSelectors) {
+      expect(selector).toMatch(/\.world-claim-wisp/);
+      expect(selector).not.toMatch(/\.world-bloom/);
+    }
+
+    const bloomSelectors = selectorsAnimatedBy('bloom-pulse');
+    expect(bloomSelectors.length).toBeGreaterThan(0);
+    for (const selector of bloomSelectors) {
+      expect(selector).toMatch(/\.world-bloom/);
+      expect(selector).not.toMatch(/\.world-claim-wisp/);
+    }
+
+    // the claim's real SVG orbit rides ALONGSIDE wisp-in, never replaced by it.
+    expect(sceneView).toMatch(/animateTransform/);
   });
 });
