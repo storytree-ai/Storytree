@@ -17,6 +17,8 @@ decisions: [237, 93, 213, 215, 230, 70]
 # Deleting/replacing/weakening/skipping/narrowing/consolidating any existing test/assertion is red.
 # COMPOSITION-RED FLOOR: one additive executable proof must discriminate every named real composition
 # source/rendered requirement; a parcel-only green is invalid even when the command exits zero.
+# ANCHORED-MOTION HOST RED after owner UAT-4 FAIL at ffcdc24: the retained integration walk must prove
+# stable composed anchors and localized in-world deltas; whole-scene/whole-group lateral slide is red.
 proof:
   command:
     file: pnpm
@@ -61,12 +63,17 @@ Extend the existing `TreeViewShell` integration proof:
 5. assert the bounded public `SemanticGrowthWorldView` is mounted over exactly
    `empty → land → proposed → claimed → signed-proof → healthy` at one normal representative
    contain framing, with the whole island and its breathing room visible and controls clickable;
-6. walk all six frames with Next, assert exact semantic markers and the existing ground-arrival,
-   flora-growth, claim-orbit and bloom transition families, then operate Back and Replay; and
-7. repeat that full walkthrough with Studio's resolved Storybook default and
+6. walk all six frames with Next, assert exact semantic markers and stable composed coordinates:
+   terrain reveals/grows in place, flora/tree scale from planted/root anchors with the existing brief
+   overshoot/stagger, claim enters locally then orbits, and bloom pulses radially at its proof anchor;
+   reject lateral translation of the whole scene, terrain/island or complete asset/flora group, then
+   operate Back and Replay and compare the same settled transforms;
+7. repeat the trace under reduced motion and assert the same final static transforms appear
+   immediately without slide, travel, orbit, delayed concealment or changed framing;
+8. repeat that full walkthrough with Studio's resolved Storybook default and
    `?semanticGrowth=demo&artStyle=vector#/tree`, asserting the host passes the existing sheet/null
    fallback rather than resolving or drawing art itself.
-8. source-audit the retained pre-attempt semantic-growth describe block and fail unless its
+9. source-audit the retained pre-attempt semantic-growth describe block and fail unless its
    independent executable tests/assertions remain intact: clean and unknown query isolation; exactly
    one public player plus navigation; signed-proof proposed/non-healthy with bloom and final-only
    healthy; land with no story marker; and the bounded `.tree-layout > .world-frame` host.
@@ -81,6 +88,9 @@ The first attempted correction is invalid proof: it replaced 195 lines of the ex
 `TreeViewShell` semantic-growth integration coverage with a 22-line parcel-only test. The full prior
 describe block must be restored before the composition red is added; a passing command cannot make
 deleted proof valid.
+Owner UAT-4 then failed at `ffcdc24`: the real composition was better, but whole asset groups sliding
+into place still looked cheap. The host correction is limited to proving the shared surface now grows
+and reveals at stable in-world anchors; Studio still owns no animation implementation.
 
 ## Guidance
 
@@ -114,6 +124,12 @@ deleted proof valid.
   vegetation; and the public player receives stable composed framing other than `0 0 100 100`.
   Inspect actual imports/calls, source literals and rendered selectors/attributes. Comments or prose
   matches do not count, and a parcel-only assertion is invalid.
+- Add an anchored-motion host red to the retained integration walk. Snapshot the composed
+  coast/substrate/parcel/standing-object placement transforms, advance, Back and Replay, and prove
+  those settled world anchors and the stable non-100 framing do not shift. Assert entering terrain
+  reveals/grows in place, flora/tree scale from planted/root anchors with the existing eased
+  overshoot/stagger, claim enters locally and uses its real orbit, and bloom pulses radially at its
+  proof anchor. A whole-scene, whole-terrain/island or complete asset/flora lateral slide is red.
 - Derive one stable representative contain framing from that composed world's real bounds through
   the same world-framing vocabulary TreeView uses. Keep the full coast, substrate, parcel vegetation
   and standing objects visible with ordinary breathing room at every state. Do not pass a magic
@@ -133,7 +149,8 @@ deleted proof valid.
 - Keep the mount inside the existing forest/map host and visibly dedicated to the fixture. Do not
   extract or alter legend, inspector, chat, camera, chrome, layout or live controller behaviour.
 - This is a witness stage, not a product controller. Do not add website code, Chapter 2 sequencing,
-  artifact sync, production art, animation frames or a permanent navigation entry.
+  artifact sync, production art, generated animation assets, sprite-frame/frame-sequence pipelines,
+  a second renderer, a product-art fork, animation frames or a permanent navigation entry.
 
 ## Machine contracts
 
@@ -152,6 +169,13 @@ red: calls to `buildWorld`, `buildRelaxedCells`, `worldToScene` and `buildScene`
 evidence of non-empty relaxed substrate, multiple parcels and parcel flora/permanent vegetation; and
 stable composed framing that is not `0 0 100 100`. The test inspects real source syntax and rendered
 selectors/attributes, never comments/prose. A parcel-only green is invalid.
+
+**Anchored-motion host red — applies to the `ffcdc24` correction.** The retained integration test
+adds executable rendered/source assertions that reject lateral entry translation of the whole
+scene, whole terrain/island or complete asset/flora group. It compares settled composed transforms
+and framing across forward, Back, Replay and reduced motion, and positively observes in-place terrain
+growth, root-anchored flora/tree scale, localized claim entrance/orbit and localized radial bloom.
+Studio contributes no keyframe, generated animation asset, sprite-frame pipeline or renderer.
 
 1. **`sgsd-clean-studio-never-mounts-the-demo`**
    - **asserts —** without the exact flag, TreeView mounts its existing shared world and contains no
@@ -173,8 +197,10 @@ selectors/attributes, never comments/prose. A parcel-only green is invalid.
      that real ground but no story marker; proposed is non-healthy; claimed adds real presence without
      proof identity; signed-proof remains proposed/non-healthy while carrying the proof bloom; healthy
      appears only last. Its transition trace is ground-arrival, flora-growth, claim-orbit and bloom
-     rather than one generic scene-settle animation; the fixture contains no API/store/subscription,
-     mutation, timer advance or Chapter 2 controller.
+     rather than one generic scene-settle animation or whole-group lateral slide; settled world
+     anchors remain equal through forward, Back, Replay and reduced motion. The fixture contains no
+     API/store/subscription, mutation, timer advance, generated animation assets, sprite-frame
+     pipeline, product-art fork, second renderer or Chapter 2 controller.
 4. **`sgsd-reuses-studio-art-policy-without-a-second-resolver`**
    - **asserts —** the machine proof walks all six frames plus Back/Replay with TreeView's resolved
      Storybook sheet/art scale, repeats the same trace with explicit Vector null/fallback, and observes

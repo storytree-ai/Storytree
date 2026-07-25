@@ -19,6 +19,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # TWO-RED FLOOR: before implementation, AUTHOR_TEST adds two independent executable cases: stable
 # representative framing AND a semantic-growth.css/source motion discriminator. A framing-only green
 # is invalid even when every retained test passes.
+# ANCHORED-MOTION RED after owner UAT-4 FAIL at ffcdc24: AUTHOR_TEST adds an independent additive
+# CSS/source case rejecting whole-scene/whole-group lateral slides and proving in-place/root-anchored
+# growth, localized claim entrance/orbit and localized bloom pulse with stable world anchors.
 proof:
   command:
     file: pnpm
@@ -68,16 +71,23 @@ semantic-growth view:
    assert `land` is wired to the existing `arrive-ground` profile, `proposed` to `arrive-pop`,
    `claimed` to `wisp-in` plus the mapper's built-in orbit, and `signed-proof` to `bloom-pulse`.
    Named selector/keyframe assertions must discriminate those profiles; prose/comments do not count;
-5. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
+5. add independent anchored-motion red C: inspect executable CSS/source and fail while any transition
+   laterally translates the world, scene, complete terrain/island, or complete asset/flora group.
+   Assert terrain reveals/grows at its existing world coordinates; flora/tree scale from their
+   planted/root anchors with the existing brief eased overshoot/stagger; claim enters locally then
+   uses its existing orbit; bloom pulses radially at its existing proof anchor. Compare settled
+   static placement transforms before/after, Back and Replay so movement cannot be hidden behind a
+   differently positioned final frame;
+6. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
    action trace twice and compare every semantic snapshot and transition-family trace;
-6. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
+7. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
    animation/orbit instructions are absent, and assert every existing static SVG placement transform
    remains unchanged;
-7. prove the public view itself loads its co-located app-owned stylesheet and that removing that load
+8. prove the public view itself loads its co-located app-owned stylesheet and that removing that load
    makes the motion proof fail; and
-8. inspect the package boundary and normal-motion hooks, then let the package proof command rerun the
+9. inspect the package boundary and normal-motion hooks, then let the package proof command rerun the
    existing renderer, sprite, sizing, trail and arrival regression suite.
-9. source-audit `SemanticGrowthWorldView.test.tsx` against its pre-9377 suite and fail unless every
+10. source-audit `SemanticGrowthWorldView.test.tsx` against its pre-9377 suite and fail unless every
    existing test and assertion remains independently present: semantic-sequence/navigation,
    co-located stylesheet loading, reduced-motion static-transform preservation, bounded SVG,
    definite root-height chain, package-root export, and Storybook signed-proof bloom parity. The new
@@ -94,6 +104,9 @@ the full pre-9377 proof surface before adding the new red.
 The second promoted correction at `e7b55c0` is also invalid proof: it preserved the old suite but
 added only stable framing, leaving the generic `semantic-growth-settle` slideshow untested and
 unchanged. Both independent additive reds must exist before implementation begins.
+Owner UAT-4 failed again at `ffcdc24`: the composition looked better, but whole asset groups sliding
+laterally into place read like a PowerPoint transition. This correction changes motion only. The
+world and every settled art anchor stay fixed; entering meaning grows/reveals at that anchor.
 
 ## Guidance
 
@@ -118,6 +131,15 @@ unchanged. Both independent additive reds must exist before implementation begin
   reject the current `semantic-growth-settle` selector grouping and positively discriminate the
   named `arrive-ground`, `arrive-pop`, `wisp-in` plus built-in SVG orbit, and `bloom-pulse` profiles
   on their respective entering deltas. Matching comments or restated prose is never evidence.
+- Add an independent anchored-motion red for the `ffcdc24` owner failure. It reads executable
+  CSS/source and rejects `translate`, `translateX` or `translateY` used as entry motion on the whole
+  semantic-growth scene, terrain/island group, or complete flora/asset group. Static SVG
+  translations used for world placement, ground anchors and nesting remain untouched and are not
+  animation. Terrain reveals/grows in place; flora/tree scale from planted/root anchors with the
+  already-established brief ease/overshoot and layer stagger; the claim uses a localized entrance
+  followed by its mapper-owned orbit; the bloom uses its localized radial pulse. The test compares
+  settled placement transforms across forward, Back and Replay and proves reduced motion renders
+  those same final transforms immediately.
 - Keep the cursor and transition selection pure. Next clamps at healthy, Back clamps at empty,
   restart selects empty, and Replay reapplies the same ordered keys. Time controls interpolation
   only; no timeout advances the cursor and no random value influences output.
@@ -147,6 +169,13 @@ unchanged. Both independent additive reds must exist before implementation begin
   territory, claim wisp, bloom and arrival under one new settle keyframe, remount the whole scene to
   fake motion, add an animation framework/game engine/raster sequence, or create new transform
   geometry/easing.
+- Never translate the whole world, island/terrain group, or complete sprite/flora group laterally to
+  announce a state. Keep every composed world coordinate and settled ground-contact transform stable.
+  Reveal terrain where it lies; grow flora/tree from planted/root anchors; introduce the claim only
+  around its local tree/island anchor before its existing orbit; pulse proof radially at its existing
+  bloom anchor. Reuse current Storybook/Vector art and transform vocabulary only. Do not generate
+  animation assets, add sprite-frame/frame-sequence manifests or pipelines, fork product art, create
+  a second renderer, or move animation into website/Studio code.
 - Resolve the browser's `prefers-reduced-motion` signal inside the shared surface (an explicit test
   override is allowed). Reduced mode suppresses animation, interpolated travel, scale sweeps, delayed
   hidden content and the real wisp's SVG orbit while rendering the same markers immediately. It must
@@ -183,6 +212,14 @@ mapper-owned orbit, and `bloom-pulse` are applied to land, proposed, claimed and
 respectively. A source audit that matches comments/prose, or a framing-only green such as `e7b55c0`,
 fails this floor.
 
+**Anchored-motion red — applies before the correction at `ffcdc24` may implement.** An additional
+independent executable case reads real CSS/source and fails any whole-scene, whole-terrain/island or
+whole-flora/asset entry keyframe containing lateral translation. It positively discriminates
+in-place terrain reveal/growth, root-anchored flora/tree scale with the existing overshoot/stagger,
+localized claim entrance plus built-in orbit, and localized radial bloom pulse. It also compares
+settled static placement transforms through forward, Back, Replay and reduced motion. Comment/prose
+matches do not satisfy this red.
+
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
    - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
      marker; `proposed` adds a proposed/non-healthy story; `claimed` adds real presence without
@@ -208,10 +245,13 @@ fails this floor.
      entrance/orbit and bloom-pulse hooks/profiles. An independent executable motion test reads the
      real CSS/source, rejects `semantic-growth-settle` grouping over `.hex-territory`,
      `.world-wisp`/`.world-claim-wisp`, `.world-bloom` and `.arrive-island`, and positively asserts
-     the named per-delta selector/keyframe wiring; comments/prose cannot satisfy it. Transition rules
-     and reduced-motion handling live under `packages/app-surface`; the view delegates to
-     `WorldSceneView`; and its source imports no Studio/web module, live data/store authority,
-     Chapter 2 controller or duplicate renderer.
+     the named per-delta selector/keyframe wiring. A separate source/CSS case rejects whole-group
+     lateral translation and proves stable world anchors, in-place terrain growth, root-anchored
+     flora/tree scale, localized claim entrance/orbit and localized bloom pulse; comments/prose
+     cannot satisfy either case. Transition rules and reduced-motion handling live under
+     `packages/app-surface`; the view delegates to `WorldSceneView`; and its source imports no
+     Studio/web module, live data/store authority, generated animation asset/frame pipeline, product
+     art fork, Chapter 2 controller or duplicate renderer.
 5. **`sgrv-existing-art-and-scene-contracts-do-not-regress`**
    - **asserts —** the full package command retains existing Storybook/Vector resolution and fallback,
      sprite sizing/anchors/depth order, semantic mapper, trail/arrival and event tests; the retained
