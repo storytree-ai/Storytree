@@ -157,6 +157,7 @@ import {
   type WorldPresentationModel,
 } from '@storytree/app-surface';
 import { parseStyleSheet, type SpriteStyleSheet } from '../lib/sprite-sheet.js';
+import { SemanticGrowthDemo } from './SemanticGrowthDemo.js';
 
 // The current `?…` search string, SSR-guarded ('' when there is no window). The
 // panel-exposed readers default to this so non-panel call sites (and SSR) keep
@@ -1282,6 +1283,16 @@ function readBuildings(search: string = defaultSearch()): boolean {
   return v === 'on' || v === '1' || v === 'true';
 }
 
+/**
+ * `?semanticGrowth=demo` — the ONLY value that mounts the query-gated Studio witness stage
+ * (semantic-growth-studio-demo, stories/app-surface/semantic-growth-studio-demo.md). Absence, an
+ * empty value, or any OTHER value (including a near-miss like `?semanticGrowth=on`) leaves the
+ * clean Studio route byte-for-byte unchanged — an EXACT match, never a truthy/loose gate.
+ */
+export function readSemanticGrowthDemo(search: string = defaultSearch()): boolean {
+  return new URLSearchParams(search).get('semanticGrowth') === 'demo';
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar' | 'stress';
@@ -2010,6 +2021,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   const artStyle = useMemo(() => readArtStyle(search), [search]);
   const spriteSheet = useArtStyleSheet(artStyle);
   const artScale = useMemo(() => readArtScale(search), [search]);
+  // semantic-growth-studio-demo: the exact `?semanticGrowth=demo` flag (read-only above the
+  // scene/hooks below never depend on it). Checked once all hooks are declared (React ordering),
+  // near the other early returns.
+  const semanticGrowthDemo = useMemo(() => readSemanticGrowthDemo(search), [search]);
   const scene = useMemo(
     () =>
       world
@@ -2146,6 +2161,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     [onSelectStoryStable, onSelectCapStable],
   );
 
+  // semantic-growth-studio-demo: mounted BEFORE any of the clean-route early returns below, so
+  // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
+  // not a variant of the product controller. Every other value (absent/empty/unknown) falls
+  // through unchanged, byte-for-byte, to the clean Studio path.
+  if (semanticGrowthDemo) {
+    return <SemanticGrowthDemo spriteSheet={spriteSheet} artScale={artScale} />;
+  }
   if (loadError) {
     return (
       <div className="pad">

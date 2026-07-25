@@ -94,3 +94,53 @@ describe('TreeView shell — full-bleed map, no session counter (owner feedback 
     expect(container.textContent).not.toMatch(/aged session/i);
   });
 });
+
+// semantic-growth-studio-demo (stories/app-surface/semantic-growth-studio-demo.md): an explicit
+// `?semanticGrowth=demo` query flag mounts the public `SemanticGrowthWorldView` over one static,
+// representative six-frame fixture; absent/empty/unknown values leave the clean Studio route byte-
+// for-byte unchanged. `SemanticGrowthWorldView` stamps its current frame as
+// `data-semantic-growth-frame` on its host <section> and exposes a `nav[aria-label="Semantic growth
+// controls"]` with Back/Next/Replay buttons (packages/app-surface/src/SemanticGrowthWorldView.tsx) —
+// this regression locks TreeView's wiring to that public contract without importing it, so a red here
+// can only be TreeView ignoring the flag (today's actual behaviour), never a missing symbol.
+describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-clean-studio-never-mounts-the-demo, sgsd-flag-mounts-one-public-six-frame-player', () => {
+  afterEach(() => {
+    window.history.pushState({}, '', '/');
+  });
+
+  it('the clean route (and any unknown value) never mounts the demo; only the exact flag mounts one public six-frame player, steppable via its own Next control', async () => {
+    // 1) Clean Studio (no `semanticGrowth` key at all): no semantic-growth fixture, no demo controls.
+    const clean = await renderTree();
+    expect(clean.querySelector('[data-semantic-growth-frame]')).toBeNull();
+    expect(clean.querySelector('nav[aria-label="Semantic growth controls"]')).toBeNull();
+    cleanup();
+
+    // 2) An unknown value follows the same clean path byte-for-byte — no demo mount.
+    window.history.pushState({}, '', '/?semanticGrowth=off#/tree');
+    const unknown = await renderTree();
+    expect(unknown.querySelector('[data-semantic-growth-frame]')).toBeNull();
+    expect(unknown.querySelector('nav[aria-label="Semantic growth controls"]')).toBeNull();
+    cleanup();
+
+    // 3) `?semanticGrowth=demo#/tree`: mounts exactly one public SemanticGrowthWorldView player,
+    // starting on the first of its six ordered frames (`empty`).
+    window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
+    const flagged = await renderTree();
+    const frames = flagged.querySelectorAll('[data-semantic-growth-frame]');
+    expect(frames.length).toBe(1);
+    expect(frames[0]?.getAttribute('data-semantic-growth-frame')).toBe('empty');
+
+    // 4) Its Next control (the public component's own button, never a Studio-authored copy) steps
+    // the visible frame forward through the fixture's real ordering (empty -> land).
+    const nav = flagged.querySelector('nav[aria-label="Semantic growth controls"]');
+    expect(nav).toBeTruthy();
+    const nextButton = Array.from(nav!.querySelectorAll('button')).find((b) => b.textContent === 'Next');
+    expect(nextButton).toBeTruthy();
+    await act(async () => {
+      nextButton!.click();
+    });
+    expect(
+      flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
+    ).toBe('land');
+  });
+});
