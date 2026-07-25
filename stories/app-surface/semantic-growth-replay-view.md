@@ -13,6 +13,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # viewBox and semantic-growth.css gives every changed role one generic settle animation. AUTHOR_TEST
 # extends the existing focused test to reject that zoomed/slideshow implementation before IMPLEMENT
 # reuses the existing app arrival/growth/claim/bloom vocabulary. Scope stays on the existing files.
+# PROOF-PRESERVATION WALL: AUTHOR_TEST extends the full pre-9377 integration suite in place. Replacing
+# it with a narrow framing test, or deleting/weakening/skipping/consolidating any existing assertion,
+# is red even when the focused command exits zero.
 proof:
   command:
     file: pnpm
@@ -69,12 +72,20 @@ semantic-growth view:
    makes the motion proof fail; and
 8. inspect the package boundary and normal-motion hooks, then let the package proof command rerun the
    existing renderer, sprite, sizing, trail and arrival regression suite.
+9. source-audit `SemanticGrowthWorldView.test.tsx` against its pre-9377 suite and fail unless every
+   existing test and assertion remains independently present: semantic-sequence/navigation,
+   co-located stylesheet loading, reduced-motion static-transform preservation, bounded SVG,
+   definite root-height chain, package-root export, and Storybook signed-proof bloom parity. The new
+   framing and per-delta motion assertions extend that suite; they never replace or consolidate it.
 
 Human UAT-4 failed the implementation at `9377e897`: its literal `0 0 100 100` viewBox crops a normal
 Studio-composed island into an over-zoomed close-up, and one 320 ms fade/scale over territory, wisp,
 bloom and arrival hooks reads as static scene swaps rather than in-game growth. The writable red
 extends the existing test/source pair and must fail both defects before greening. The test does not
 build a Chapter 2 controller, duplicate `SceneView`, synthesize art or reach into Studio/web.
+The first promoted correction at `fcd6cf5` is not valid proof: it replaced the 309-line integration
+suite with a 36-line framing-only test and thereby made green mean less. This correction must restore
+the full pre-9377 proof surface before adding the new red.
 
 ## Guidance
 
@@ -85,6 +96,13 @@ build a Chapter 2 controller, duplicate `SceneView`, synthesize art or reach int
   other story marker; `proposed` introduces a proposed/non-healthy story; `claimed` adds the real
   claim/presence family without proof/bloom identity; `signed-proof` keeps that story proposed and
   non-healthy while adding the real proof bloom; `healthy` is the only healthy frame.
+- Treat the pre-9377 `SemanticGrowthWorldView.test.tsx` suite as a preservation floor, not disposable
+  scaffolding. AUTHOR_TEST must extend it in place and retain every existing test and assertion.
+  Deleting, replacing, weakening, skipping, narrowing or consolidating those assertions is red,
+  including when a shorter test covers the new framing defect and the command exits zero. The
+  machine proof must source-audit retention of the semantic sequence/navigation, stylesheet-load,
+  reduced-motion static-transform, bounded-host, definite-root-height, package-root-export and
+  Storybook bloom-parity cases by their independent test bodies and discriminating assertions.
 - Keep the cursor and transition selection pure. Next clamps at healthy, Back clamps at empty,
   restart selects empty, and Replay reapplies the same ordered keys. Time controls interpolation
   only; no timeout advances the cursor and no random value influences output.
@@ -132,6 +150,15 @@ build a Chapter 2 controller, duplicate `SceneView`, synthesize art or reach int
 
 ## Machine contracts
 
+**Proof-preservation wall — applies before any numbered contract may pass.** The machine proof
+source-audits `packages/app-surface/src/SemanticGrowthWorldView.test.tsx` against the pre-9377 suite.
+It fails if any existing test/assertion is absent, skipped, weakened, narrowed, folded into a less
+discriminating replacement, or consolidated away. At minimum it must find independent executable
+cases for: the six-state semantic/navigation trace; component-owned stylesheet load; reduced-motion
+preservation of static SVG transforms; bounded SVG/visible controls; a definite root-height chain;
+the package-root export; and Storybook tree replacement preserving the signed-proof `.world-bloom`.
+The framing and per-delta motion reds are additional assertions in that retained suite.
+
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
    - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
      marker; `proposed` adds a proposed/non-healthy story; `claimed` adds real presence without
@@ -161,9 +188,10 @@ build a Chapter 2 controller, duplicate `SceneView`, synthesize art or reach int
      Chapter 2 controller or duplicate renderer.
 5. **`sgrv-existing-art-and-scene-contracts-do-not-regress`**
    - **asserts —** the full package command retains existing Storybook/Vector resolution and fallback,
-     sprite sizing/anchors/depth order, semantic mapper, trail/arrival and event tests; the focused
-     `SceneView` regression proves Storybook replacement of `tree` preserves the same signed-proof
-     `.world-bloom` overlay identity exposed by Vector.
+     sprite sizing/anchors/depth order, semantic mapper, trail/arrival and event tests; the retained
+     integration case plus focused `SceneView` regression prove Storybook replacement of `tree`
+     preserves the same signed-proof `.world-bloom` overlay identity exposed by Vector. A green
+     command after replacing the retained integration suite with a smaller framing-only test is red.
 
 The fifth contract is a regression wall observed by the package command after the new integration
 test greens; it does not ask the new test to duplicate the existing fixture matrices. Visible timing,
