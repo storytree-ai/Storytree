@@ -12,6 +12,12 @@ reached their end state (several saying so verbatim in their own final increment
 them still read as outstanding. The owner has **not** directed a decision here: this ADR records the
 fork and the recommendation for ratification.
 
+Revised the same day on owner challenge — *"when all plans are marked as completed wouldn't an arc
+automatically get closed, why do we need to waste model context space with guidance here?"* The
+plan-derivation option was measured against the live store and rejected on evidence (see the options
+weighed below); the context objection was **accepted**, and D4 changed from a ceremony amendment to a
+`next:` hint in the tool output — no prompt context, no agent-artifact edit.
+
 **Amends** [ADR-0183](0183-arcs-contain-plans-the-initiative-overlay-upstream-of-storie.md) (D1's
 authored-mutation set and D3's "the arc is never otherwise edited" rule gain exactly one more
 mutation: the closing transition) and
@@ -146,14 +152,27 @@ owner's call.
 the rot self-correcting: an arc that was never closed keeps appearing in the default worklist, so the
 omission is visible weekly instead of at audit time.
 
-### D4 — The ceremony gains exactly one clause, via guidance-curator
+### D4 — The reminder lives in the tool output, not in any agent prompt
 
-Step 6's arc sentence extends to: *if this landing meets the arc's `endState`, run `arc close`
-instead of `increment add`.* The "never otherwise edited" rule stands for children being born (D3's
-actual subject); closure is named as the one further authored mutation, alongside intent edits and
-increment appends. Authored through **guidance-curator** against the library artifacts
-(`session-orchestrator`, `merge-ceremony`, the `arc` definition), never by hand-editing the generated
-CLAUDE.md region.
+**No ceremony amendment, and no new prompt text.** `arc increment add` already returns a `next:`
+block (`packages/cli/src/arc.ts:353-356`); it gains two lines at the point of use — the arc's stored
+`endState` echoed back, and `next: storytree arc close <id> --outcome "…" --pg  (if this landing met
+the end state)`. The session that just appended an increment reads the closure question at the exact
+moment it can answer it, from data it already asked for.
+
+This is the ADR-0023 pull model applied to a ceremony step (`asset:pull-based-context-architecture`):
+guidance at the point of use, not preloaded. Its cost is **zero context for every session that is
+not landing an arc increment** — which is almost all of them. A step-6 clause, by contrast, is paid
+for by every session in the generated CLAUDE.md region whether or not it will ever touch an arc, and
+it is strictly weaker: the nine arcs of the 2026-07-25 audit prove that prose instructions to record
+something are what rot; a `next:` line sits in the output of the very command the situation forces
+you to run.
+
+Step 6's existing text needs **no edit**: "the arc is never otherwise edited when children land"
+remains true of children being born (D3's actual subject), and `arc close` is not a child landing.
+Should later evidence show the hint is being missed, the ceremony amendment stays available as a
+fallback — authored through **guidance-curator** against the library artifacts, never by hand-editing
+the generated region.
 
 ### D5 — Backfill the nine, no gate
 
@@ -164,6 +183,21 @@ default filter is the backstop, and it costs nothing to comply with.
 
 ### Options weighed, and why the others lose
 
+- **Deriving closure from plan state ("all plans consumed → the arc is done")** — the most appealing
+  option, because it needs no field, no verb, and no guidance at all. It fails on measurement: run
+  against the live store on 2026-07-25 it closes **all 15 arcs, the 6 live ones included** — a 100%
+  false-positive rate. Two ADR-0183 facts make it unfixable rather than merely mistuned. Plans are
+  **per-increment and disposable** (D2 — consumed, then retired, then prunable), so "all plans
+  consumed" is the normal resting state *between* increments, not an end state; and plans are
+  **never mandatory** (D6), so **6 of the 9 genuinely-closed arcs have zero plans** and would close
+  vacuously, having never had one to consume. The correlation is absent in both directions:
+  `grounded-art-machinery-arc` is live with 42 increments behind 3 plans, while
+  `terminal-orchestrator-seat-arc` is closed with 14 increments and none. Plan rows measure how the
+  work was choreographed, never whether the initiative's `endState` was met — and by D2 they are
+  designed to be **deleted**, so a derivation over them would drift as the pruning it invites
+  happens. The same objection retires the near variants (all child stories `healthy`, no open
+  claims): an arc spans ADRs, owner attestations, and website deploys that no child-status roll-up
+  sees, and ADR-0183 D1 is explicit that nothing proof-related rolls up to an arc.
 - **(b) a derived/closed filter alone** — deriving closure by pattern-matching increment prose for
   "CLOSES"/"end state met" is precisely the invented flip ADR-0084/0086 forbids, in its most fragile
   form (a regex over free text deciding an initiative is done). It also cannot express the nine
@@ -184,7 +218,10 @@ does: it is set once, from evidence, at the moment the end state is met.
 
 ## Consequences
 
-**Good.** The outstanding-work view stops rotting: `arc list` is a real worklist, and the studio's
+**Good.** No prompt-context cost: the whole proposal adds one schema field, one CLI verb, one default
+filter, and two lines to an existing `next:` block — no agent artifact changes and no generated-region
+edit, so no session pays for it until it is landing an arc increment. The outstanding-work view stops
+rotting: `arc list` is a real worklist, and the studio's
 `archived` state becomes reachable for arcs (today it is unreachable by construction). ADR-0196's arc
 row becomes true instead of aspirational, through its own single projection. Closure becomes cheap
 and evidence-bound — one verb, one required outcome — so the recognition step has somewhere to land
@@ -192,8 +229,11 @@ at the moment a session notices it. Zero migration; zero new gate.
 
 **Bad / costs.** One more authored arc mutation, against ADR-0183's ceremony-light intent — bounded
 to a single terminal verb, but real. A session must still *recognise* that an end state was met;
-nothing forces that judgment, so a missed closure is still possible — D3's default filter makes it
-visible rather than silent, which is the honest limit of this proposal. And the `lifecycle` /
+nothing forces that judgment, so a missed closure is still possible — the D4 hint puts the question in
+front of the only session positioned to answer it and D3's default filter keeps an unclosed arc
+visible in the worklist, but neither compels the call. That judgment is irreducible: no derivation
+over plans, stories, or claims can see an `endState` being met (see the options weighed above), so the
+honest limit of this proposal is that it makes closure cheap and visible, not automatic. And the `lifecycle` /
 `status` vocabularies now coexist across kinds until ADR-0196 D4's deferred rename (default: never)
 — accepted knowingly, since `lifecycleOf` remains the single mapping.
 
@@ -213,7 +253,8 @@ visible rather than silent, which is the honest limit of this proposal. And the 
 - Code: `packages/library/src/knowledge.ts` (`KIND_SPECS.arc` ≈ L523, `Arc` ≈ L910),
   `packages/library/src/lifecycle.ts:62-63` (the hardcoded `arc → active`),
   `packages/cli/src/arc.ts:91-116` (`arcList`, no state column), `packages/cli/src/arc.ts:259-357`
-  (`arcEdit` / `arcIncrementAdd` — the only arc write verbs),
+  (`arcEdit` / `arcIncrementAdd` — the only arc write verbs; `:353-356` is the `next:` block D4
+  extends),
   `apps/studio/src/components/LibraryFinder.tsx:60` (selector defaults to `open`).
 - `stories/library-tech-tree-overlay/library-lifecycle-wire.md:162-164` (the capability spec that
   recorded the deferral).
