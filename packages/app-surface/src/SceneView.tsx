@@ -711,10 +711,29 @@ function renderNode(
     // At the world root, sink the hit layer to the back so its rects catch clicks without covering
     // the island tiles / plants on top (see hitsLayerToBack).
     const children = node.kind === 'world' ? hitsLayerToBack(node.children) : node.children;
+    const rendered: React.ReactNode[] = [];
     children.forEach((c, i) => {
       const el = renderNode(c, i, childStory, ctx);
-      if (el) kids.push(el);
+      if (el) rendered.push(el);
     });
+    if (node.kind === 'tree' || node.kind === 'flora' || node.kind === 'plate') {
+      // Motion-safe inner wrapper (semantic-growth.css `arrive-pop`): `tree`/`flora`/`plate` are
+      // the mapper-POSITIONED wrappers above — the `if (node.transform) props.transform =
+      // node.transform;` line above already stamped this node's own SVG placement `transform`
+      // (its ground/root anchor). A CSS `arrive-pop` sweep must never bind to THIS class directly
+      // (the full `transform` shorthand would replace that placement attribute for the sweep's
+      // duration): binding the scale sweep to this dedicated INNER `<g class="pop-motion-inner">`
+      // instead keeps the outer placement wrapper's transform attribute completely static while
+      // the sweep still scales everything the outer wrapper draws. Named WITHOUT "arrive" so it
+      // never collides with the unrelated island-arrival `.arrive-island` staging class (a plain
+      // `[class*="arrive"]` selector elsewhere must still find zero matches on a steady-state
+      // board with no island arriving).
+      kids.push(
+        React.createElement('g', { key: '__pop-motion-inner', className: 'pop-motion-inner' }, ...rendered),
+      );
+    } else {
+      kids.push(...rendered);
+    }
   } else if (node.el === 'text') {
     kids.push(node.text);
   }

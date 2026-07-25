@@ -92,9 +92,16 @@
   }
 }
 
-[data-semantic-growth-frame][data-motion='full'] .story-tree,
-[data-semantic-growth-frame][data-motion='full'] .garden-flora,
-[data-semantic-growth-frame][data-motion='full'] .world-plate,
+/* `.story-tree` / `.garden-flora` / `.world-plate` each carry their OWN static SVG placement
+ * `transform` attribute (the ground/root anchor SceneView stamps from the scene's real geometry —
+ * `if (node.transform) props.transform = node.transform;`). Binding the sweep to a dedicated INNER
+ * `.pop-motion-inner` wrapper (SceneView.tsx) instead of the placement-carrying class itself means
+ * the CSS `transform: scale(...)` keyframe below can never replace that outer placement attribute
+ * mid-sweep. `.parcel` / `.parcel-flora` carry no placement transform of their own (their children
+ * hold their own absolute/derived coordinates), so they animate directly. */
+[data-semantic-growth-frame][data-motion='full'] .story-tree .pop-motion-inner,
+[data-semantic-growth-frame][data-motion='full'] .garden-flora .pop-motion-inner,
+[data-semantic-growth-frame][data-motion='full'] .world-plate .pop-motion-inner,
 [data-semantic-growth-frame][data-motion='full'] .parcel,
 [data-semantic-growth-frame][data-motion='full'] .parcel-flora {
   animation: arrive-pop 320ms ease-out;
