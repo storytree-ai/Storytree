@@ -152,6 +152,7 @@ import {
   type BuildPhase,
 } from '@storytree/forest-world';
 import {
+  neighbourHighlightPlan,
   normalizeWorldPresentationModel,
   WorldSceneView,
   type WorldPresentationEvents,
@@ -1996,8 +1997,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     return byStory;
   }, [claimsMode, rawDepartures, stories, storyIds, capOwner]);
 
-  // ADR-0093 Unit 2b: the shared scene-graph render, behind `?render=scene` (default
-  // off ⇒ the inline render below is untouched / byte-identical). The scene is
+  // ADR-0093 Unit 2b: the shared scene-graph render — the DEFAULT path now (`readRenderScene`
+  // treats anything but an explicit `?render=legacy`/`inline` as scene; the inline render below
+  // is the one-release escape hatch, not the canonical one). The scene is
   // focus-AGNOSTIC (focus / hover / selection are applied by the mapper per render),
   // so it only rebuilds on the world / substrate / ticker / build-activity inputs —
   // never on hover. Hooks live above the early returns (the world may still be null).
@@ -2093,6 +2095,16 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     () => arrivalGrowPlan(world?.trails ?? null, arrivalIds),
     [world, arrivalIds],
   );
+  // ADR-0242 — the selection highlight the reveal-on-click era never had: ONE hop, both
+  // directions. `neighbourHighlightPlan` is pure, so this is just which segments sit on the
+  // selected story's own edges (the lit lane) and which islands are its immediate upstream /
+  // downstream neighbours (the shore rings). Null when nothing is selected ⇒ no lane, no rings.
+  // Deliberately NOT the retired transitive closure (`trailRevealPlan`): that repainted the
+  // world on hover and was pulled for the lag.
+  const neighbourPlan = useMemo(
+    () => neighbourHighlightPlan(world?.trails ?? null, selectedStory),
+    [world, selectedStory],
+  );
 
   // ── A STABLE presentation model so the memoised shared view skips the O(nodes) re-walk on a pan ──
   // A pointermove pans by updating `cam` (state), re-rendering TreeView. Neither the scene nor this
@@ -2137,11 +2149,12 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             hiddenStatuses: [...hidden],
             arrivalIds: [...(arrivalIds ?? [])],
             reveal: growPlan,
+            neighbours: neighbourPlan,
             spriteSheet,
             artScale,
           })
         : null,
-    [scene, selectedStory, hidden, arrivalIds, growPlan, spriteSheet, artScale],
+    [scene, selectedStory, hidden, arrivalIds, growPlan, neighbourPlan, spriteSheet, artScale],
   );
   const worldPresentationEvents = useMemo<WorldPresentationEvents>(
     () => ({

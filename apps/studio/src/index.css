@@ -73,6 +73,14 @@
      shadow/casing passes and the in/out direction tints are suppressed in CSS (the core
      still emits them — a rendering-layer minimalism choice, tunable per ADR-0169). */
   --trail-line: #a98b63; /* soft faded brown — the one quiet pathway stroke */
+  /* ADR-0242 selection highlight. The lane is INK, not a hue: direction is carried by the
+     neighbour shore rings, so one trunk that happens to carry an upstream AND a downstream
+     edge needs no special case. The two ring hues are cool on purpose — nothing on the warm
+     board (flora greens, amber/brown crowns, the sand) can be mistaken for them. */
+  --trail-lit: #3a3128; /* warm-black lane painted on the road */
+  --rel-upstream: #0e7490; /* what the selection stands on */
+  --rel-downstream: #4f46e5; /* what stands on the selection */
+  --sel-shore: #33291f; /* the selected island's own shore — outranks both rings */
   --trail-fill: var(--trail-bed);
   --trail-casing: #917c59; /* --trail-bed × 0.75 — same hue, ~25% darker (unused: casing suppressed) */
   --tree-trunk: #7d5f44;
@@ -1567,8 +1575,28 @@ a.stat:hover {
    rest of the map (that per-hex repaint on hover was the reported lag). The dependency
    relationship reads through the click-revealed trail chain instead. */
 .coast-fill-group.is-selected .coast-fill {
-  stroke: var(--accent);
-  stroke-width: 2.6;
+  stroke: var(--sel-shore);
+  stroke-width: 2.9;
+}
+/* ADR-0242 — the IMMEDIATE neighbours of the selection ring their own shore, by direction:
+   `is-upstream` is a story the selection stands on, `is-downstream` one that stands on it.
+   One hop only — this is NOT the transitive ancestor/descendant recolour that was pulled in
+   2026-07-06 for the per-hex repaint lag: nothing here touches the hex substrate, only nine-odd
+   coast strokes. Downstream wins when a cycle puts an island on both sides (one ring can only
+   be one colour; the lit lanes still show both roads). */
+.coast-fill-group.is-upstream .coast-fill {
+  stroke: var(--rel-upstream);
+  stroke-width: 2.4;
+}
+.coast-fill-group.is-downstream .coast-fill {
+  stroke: var(--rel-downstream);
+  stroke-width: 2.4;
+}
+/* the selection outranks a ring — a self-referential island reads as SELECTED first. */
+.coast-fill-group.is-selected.is-upstream .coast-fill,
+.coast-fill-group.is-selected.is-downstream .coast-fill {
+  stroke: var(--sel-shore);
+  stroke-width: 2.9;
 }
 
 /* TRAILS (ADR-0169, supersedes the ADR-0076 docked lines): the `depends_on` edges are a
@@ -1608,6 +1636,17 @@ a.stat:hover {
   stroke: var(--trail-line); /* the OSM tunnel convention: a fine dashed under-island run */
   stroke-dasharray: 2 6;
   opacity: 0.45;
+}
+/* ADR-0242 — the LIT LANE: when a story is selected, every trail segment on its own one-hop
+   edges gets this second, NARROWER stroke painted over the road (SceneView emits one per lit
+   segment, after the whole fill pass, at `trailFillWidth(usage) - 1.7`). Narrower is the whole
+   point: a merged trunk keeps a rim of road showing either side, so a road the selection SHARES
+   with three strangers never reads as exclusively its own — while a usage-1 spur, which really
+   is private, is lit almost edge to edge. Solid on purpose, even over a dashed spur fill: the
+   lane is what you are meant to follow. */
+.trail-lit {
+  stroke: var(--trail-lit);
+  opacity: 0.92;
 }
 /* a segment DRAWING ON during an island arrival: its per-segment mask owns the growth
    (below); the base opacity above is simply what it grows into. */
