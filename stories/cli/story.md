@@ -5,10 +5,15 @@ title: "The CLI — one agent-facing command surface that wires every organism t
 outcome: "Every organism is reachable through one agent-facing CLI that hydrates credentials, dispatches by verb to the owning organism, and returns a typed envelope/exit code — the composition root that wires the system into one command."
 status: proposed
 proof_mode: UAT
-# Per-leg witness: the three offline command legs are machine-witnessed by the CLI suite and bind to
-# cli#gate-1. The live `--pg` credential-hydration + pull has no standing suite that runs it (the DB
-# path is skipped by default), so that leg is human-witnessed. With a mixed UAT the story-level
-# `uat_witness` stays absent → human (ADR-0040); the crown derives from the per-leg roll-up.
+# Per-leg witness (re-adjudicated 2026-07-25, ADR-0209 D8): ALL FOUR legs are machine-witnessed —
+# every success condition here compiles (envelope fields, exit codes, an env var, a refusal string).
+# The three offline legs bind to cli#gate-1. Leg 4 (live `--pg` hydration + pull) is machine but
+# deliberately UNBOUND: no harness runs it yet, and `resolveWitness` fails CLOSED on a machine leg
+# with no `(proof-gate:)` → `coverage: "refused"`, so no adopt pass can observe-sign it (that is
+# exactly what happened on 2026-07-04 — see the leg's note). "Not yet harnessed" is a harness
+# statement, never a judgment gap (`human-witness-is-a-judgment-gap-not-cost`).
+# `uat_witness` stays ABSENT on purpose: the roll-up is per-leg, and a story-level `machine` would
+# re-open the blanket-adopt path that produced the stranded verdict. The crown derives per-leg.
 capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling]
 # The CLI is the wiring HUB: it imports every organism to surface it. Those outbound edges
 # (cli → drive-machinery / library / notice-board / store) are declared PROVIDER-SIDE on each spoke
@@ -117,10 +122,12 @@ consumed_by) is **acyclic** (ADR-0058): the CLI is a pure source — nothing imp
 ## UAT Test Criteria
 
 The integrated acceptance walkthrough that proves the whole `cli` organism end-to-end — *an agent
-runs a few core commands* (ADR-0074 §3), the minimum that proves the goal. The three offline legs are
-machine exercises bound to the CLI suite's observe gate. The live `--pg` credential-hydration + pull
-has no standing test that runs rather than skips it, so it is human-witnessed until real machine proof
-exists. The list is **expandable** — each real defect earns a permanent regression leg.
+runs a few core commands* (ADR-0074 §3), the minimum that proves the goal. **All four legs are machine
+exercises** — each success condition is a compiler-decidable observation (an `ok:` field, an exit code,
+a refusal string, a populated env var), with no aesthetic or owner value call anywhere in the walk. The
+three offline legs bind to the CLI suite's observe gate; leg 4 is machine but UNBOUND, because no
+harness runs the live `--pg` path yet. The list is **expandable** — each real defect earns a permanent
+regression leg.
 
 **Goal —** One agent reaches multiple organisms through the one binary: it explores the library
 offline, is refused an offline write, and (DB up) pulls live — each command returning a typed
@@ -135,18 +142,37 @@ envelope.
 3. **Write gate:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree library artifact new --file <doc.json>`
    WITHOUT `--pg`. **Success —** `ok:false` with "writes go to the shared store … run with --pg" and
    a non-zero exit — the offline-safe write gate.
-4. **Credential hydration + live pull:** _(witness: human)_ with `pnpm db:up`, run `pnpm storytree
+4. **Credential hydration + live pull:** _(witness: machine)_ with `pnpm db:up`, run `pnpm storytree
    library artifact <id> --pg` (no env prefix). **Success —** `secrets.ts` hydrated
    `STORYTREE_DB_USER`, the live read returned `ok:true` — the shim wired the live store in.
+   > **Witness re-adjudicated `human` → `machine` 2026-07-25 (ADR-0209 D8), deliberately UNBOUND.**
+   > Both halves of the success condition compile: a populated `STORYTREE_DB_USER` is an assertion on
+   > the environment, and `ok:true` is an envelope field. Nothing here is a judgment gap — the leg is
+   > merely LIVE and unharnessed, which `human-witness-is-a-judgment-gap-not-cost` puts on the machine
+   > rung. The prior `human` tag (set 2026-07-11, `9ae39cb6`) rested entirely on a harness statement —
+   > "no standing suite that runs it … **until real machine proof exists**" — which concedes machine
+   > proof is possible, and so disqualifies its own conclusion.
+   > **No `(proof-gate:)` is asserted, and none may be added until a harness truly runs this.** Binding
+   > it to `cli#gate-1` would be a rubber-stamp (ADR-0097 §2): that gate's command is `pnpm --filter
+   > @storytree/cli test`, which does not exercise the live `--pg` path at all. Unbound, `resolveWitness`
+   > fails CLOSED (`coverage: "refused"`) and no adopt can sign it.
+   > **Known stranded verdict —** a `studio-adopt` run on 2026-07-04 observe-signed `cli#uat-4` as
+   > `adopted`/pass at `c79fe948` (on main), citing evidence "observed green at a clean HEAD: `pnpm
+   > --filter @storytree/cli test`". That evidence was never true for this leg: the CLI suite reports
+   > **0 skipped** and contains no live-`--pg` test, skipped or otherwise. The row is a false green and
+   > should be superseded when a real harness lands — it is recorded here, not silently reused.
+   > **Half already covered, elsewhere —** the hydration half IS machine-proven today, by
+   > `packages/drive/src/secrets.test.ts` (env-wins, exact key list) in the **`@storytree/drive`** suite,
+   > not this story's gate. Only the live-read half is genuinely unharnessed.
 
 End state — multiple organisms reached through one binary, the envelope/exit-code contract held, and
 the write gate + credential hydration proven.
 
 ## Reliability Gates
 
-The CLI hub is **brownfield** (`status: mapped`): `packages/cli` has a real, passing, OFFLINE
+The CLI hub entered as **brownfield**: `packages/cli` has a real, passing, OFFLINE
 automated suite that observationally verifies the dominant dispatch / envelope / write-gate / corpus-
-guard behaviour (the live `--pg` leg is DB-gated and skipped by default), but storytree's own prove-
+guard behaviour (no live-`--pg` test exists), but storytree's own prove-
 it-gate never DROVE those proofs red→green. So its honest path off `mapped` is **not** a fail-closed
 `--real` Build over a mature artifact with no genuine live red — it is the author-declared
 **reliability gates** below, observe-and-signed to an `adopted` verdict
@@ -164,34 +190,59 @@ defect slips through, or the live `--pg` credential-hydration leg earns a standi
    spine runs it at a clean committed HEAD and OBSERVES it green — the `run` verb dispatch + typed
    `Envelope` contract (**unified-command-dispatch**: `cli.test.ts` / `cli-aliases.test.ts` /
    `tree-dispatch.test.ts`), the offline-safe `--pg` write gate (a write refused offline with guidance,
-   not a silent no-op), credential hydration (`secrets.ts`), the genuinely CLI-resident authoring
+   not a silent no-op), the genuinely CLI-resident authoring
    primitives this story owns (**cli-resident-corpus-tools**: the `stories/` YAML corpus guard
-   `scripts/validate-corpus.ts` and the ADR frontmatter parser `adr-frontmatter.ts`), and the
+   `scripts/validate-corpus.ts`, and the `adr-health` checks over parsed ADR frontmatter,
+   `adr-health.ts` / `adr-health.test.ts`), and the
    organism-boundary analyser (**organism-boundary-tooling**: `boundaries.ts` / `boundaries.test.ts`,
    the pure judge behind `check:boundaries`) all pass offline (no DB, no API key) — then signs an
    `adopted` verdict (`storytree gate run cli#gate-1 --pg`). This observes the whole `packages/cli`
    suite, which is the connective-tissue behaviour this hub owns; the three caps above green via this
    gate's `(covers:)` (ADR-0097 §5); the deep per-domain journeys it
    surfaces are adopted by their own organisms' gates (`library`'s `library-cli`, `drive-machinery`'s
-   `build-drive-cli`). The live `--pg` credential-hydration + pull (Story UAT leg 4) is DB-gated and
-   skipped by default — it becomes a `build-tests` gate here if it ever earns a standing offline test.
+   `build-drive-cli`). The live `--pg` credential-hydration + pull (UAT leg 4) is **not exercised by
+   this gate at all** — it becomes a `build-tests` gate here if it ever earns a standing test.
+   > **Scope correction 2026-07-25 (ADR-0209 D8).** Two citations above were stale and are fixed in
+   > place. (i) *Credential hydration (`secrets.ts`)* was struck: since ADR-0112 `packages/cli/src/secrets.ts`
+   > is a three-line re-export shim, and the real assertions live in `packages/drive/src/secrets.test.ts`
+   > — the **`@storytree/drive`** suite, which this gate's command never runs. (ii) *The ADR frontmatter
+   > parser `adr-frontmatter.ts`* was likewise never in this suite: ADR-0112 moved it to
+   > `packages/drive/src/adr-frontmatter.ts`, tested by `packages/drive/src/adr-frontmatter.test.ts`.
+   > What `packages/cli` genuinely owns is `adr-health.ts`, which judges already-parsed frontmatter from
+   > injected fixtures — cited above in its place. (iii) The phrase *"DB-gated and skipped by default"*
+   > was retired throughout: it implies a test exists that skips, and none does — this suite reports
+   > **0 skipped** over 875 passing tests. The honest statement is that no live-`--pg` test exists.
+   > `cli-resident-corpus-tools`' own capability text still names the ADR frontmatter parser; correcting
+   > a capability's outcome is a story-shape call and is escalated, not taken here.
 
-Adopting this gate flips the hub off `mapped`. `healthy` stays non-authorable
+Adopting this gate flips the hub off `mapped` — **this already happened** (`studio-adopt`, 2026-07-04
+at `c79fe948`; the flip landed in `98dc73e6`), which is why the frontmatter above reads
+`status: proposed`, not `mapped`. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
-frontmatter `status:` stays `mapped`; the world's crown DERIVES green from the signed verdicts
+frontmatter `status:` is never `healthy`; the world's crown DERIVES green from the signed verdicts
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
-when every capability is `healthy` AND every own-proof obligation (the three machine-witnessed Story
-UAT legs bound to `cli#gate-1`, the human-witnessed live leg, and this reliability gate) is signed
+when every capability is `healthy` AND every own-proof obligation (the three machine UAT legs bound to
+`cli#gate-1`, the fourth machine leg once a real harness binds it, and this reliability gate) is signed
 ([ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
 ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 
 ## Proof
 
-**Honest status — `mapped` (brownfield), NOT `healthy`.** `packages/cli` has a real, passing,
+**Honest status — `proposed` (adopted brownfield), NOT `healthy`.** `packages/cli` has a real, passing,
 offline automated suite (the dominant dispatch/envelope/guard behaviour is observationally verified;
-the live `--pg` leg is gated and skipped by default). Per the glossary that is brownfield `mapped`
-— storytree's prove-it-gate has not driven these red→green, so nothing here is `healthy`. The
-live-DB credential-hydration + pull (step 4) is the `proposed`-flavoured, human-witnessed pocket.
+no live-`--pg` test exists). storytree's prove-it-gate never drove these red→green, so nothing here is
+`healthy`. The live-DB credential-hydration + pull (leg 4) is the unharnessed pocket — machine-witnessed
+since the 2026-07-25 re-adjudication, but deliberately unbound.
+
+**Signed state on record (probed live 2026-07-25).** Five `adopted`/pass verdicts exist for this story
+— `cli#gate-1` and `cli#uat-1..4` — all from run `studio-adopt:2026-07-04T01:18:08.072Z` at
+`c79fe948` (an ancestor of `main`), signer `spine@storytree`, approved by `hua.mick@gmail.com`. There
+are **no** `operator-attested` verdicts and **no** `events.attestation` rows for any `cli#` id. Two
+honesty notes: (i) the `cli#uat-4` row is the stranded false green documented on leg 4 — it was signed
+while that leg still read `witness: machine`, before the 2026-07-11 flip to `human` that this
+re-adjudication reverses; (ii) `apps/studio/data/unit-status.json` currently contains **no** `cli#`
+entries despite these five verdicts, so the generated offline status view is stale for this story
+(regenerate with `pnpm build:status`). Neither is repaired here — recorded, not reused.
 
 ## Open modeling calls (for the owner)
 
@@ -206,3 +257,17 @@ live-DB credential-hydration + pull (step 4) is the `proposed`-flavoured, human-
    covers a code edge when EITHER endpoint declares it. The trade is the UI-sequencing note above
    (the CLI's edges render in the radial world, not today's tree). See the PR for the rationale and
    the alternative (consumer-side `depends_on` on the CLI, visible-now but tree-tangling).
+3. **`cli-resident-corpus-tools` no longer owns the ADR frontmatter parser (raised 2026-07-25).**
+   That capability's outcome still reads "the `stories/` YAML corpus guard **and the ADR frontmatter
+   parser**", but ADR-0112 moved the parser to `packages/drive/src/adr-frontmatter.ts` (tested in
+   `@storytree/drive`'s suite). What remains CLI-resident is the corpus guard plus `adr-health.ts`,
+   which judges already-parsed frontmatter. The gate leg's citation is corrected above; **restating a
+   capability's outcome is a story-shape call, so it is escalated rather than taken.** Options, not
+   chosen here: (a) narrow the capability's outcome to the corpus guard + `adr-health`; (b) keep the
+   wording and let the capability formally span the drive-hosted parser, which would re-open a landlord
+   question (ADR-0192). Owner or a scoped story-author pass should pick.
+4. **The stranded `cli#uat-4` verdict needs an owner call (raised 2026-07-25).** A machine-observation
+   `adopted` verdict sits on leg 4 citing evidence that was never true of it (see the leg's note). The
+   re-adjudication makes the leg's *tag* honest again, but cannot unsign a row. Options, not chosen
+   here: (a) leave it and let a future real harness supersede it; (b) record a superseding `fail`/void
+   verdict now. Signing and voiding are both operator-granted — no agent may self-exempt.
