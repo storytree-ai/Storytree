@@ -403,7 +403,7 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
 > ONLY where the one-line title is too thin to judge against, never one per leg) because their
 > observables, thresholds and cross-repo boundaries cannot survive compression to a sentence.
 
-1. **One prompt breeds the storm — the choreography.** _(witness: machine)_ Load the live experience
+1. **One prompt breeds the storm — the choreography.** _(witness: machine)(detail: website-experience#uat-1)_ Load the live experience
    entry, assert the opening surface, send ONE prompt, then drive NOTHING further. **Success —** ONE
    terminal at rest, offering suggested chips and a prompt line leading with **"build me a shopping
    website"** (the prompt reused across both acts, ADR-0148); audio unlocks on that gesture (silent
@@ -411,7 +411,7 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    — the visitor never opens a window), tiling/overlapping to the ~10–12 peak (the seeded plan's hard
    cap); every terminal streams activity and parks on an unanswerable demand; the HUD reads
    `AGENTS: n ▲` rising to that peak; and NOT ONE further visitor input is required between the send and
-   the peak. Detail: `website-experience#uat-1`.
+   the peak.
 2. **The calm exits are machine-guarded.** _(witness: machine)_ `pnpm check:web-experience` at a
    clean HEAD. **Success —** green: the skip affordance marker and the reduced-motion / no-WebGL
    fallback marker are present on the experience entry, and no module reachable from the Act 1
@@ -441,7 +441,7 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    ADEQUACY claim [`experience-rollout-guardrails`](experience-rollout-guardrails.md) declines and homes
    at story level ("presence, not adequacy"); before this re-adjudication it lived only in that
    capability's prose and in no story leg at all.)*
-6. **One tap transforms — IN PLACE.** _(witness: machine)_ At peak overload, click the single calm
+6. **One tap transforms — IN PLACE.** _(witness: machine)(detail: website-experience#uat-6)_ At peak overload, click the single calm
    storytree affordance once, instrumented. **Success —** exactly ONE such affordance is present at
    peak and one click discharges it; the document is NEVER navigated — no URL change, no unload/load,
    the same DOM session carries through, so the change is a TRANSFORM and not a page swap — and the
@@ -449,7 +449,6 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    (the runtime companion to leg 2's static-import wall). *(Scope note — open call 8: the historical
    observable was the R3F island's chunks; ADR-0148 retired that island, so WHICH deferred module the
    inflection lazy-loads on the current 2.5D surface is a build-time call the spec must name.)*
-   Detail: `website-experience#uat-6`.
 7. **The exhale is FELT.** _(witness: human)_ Watch the same click leg 6 instruments. **Success —** the
    owner's verdict that the terminals falling silent and collapsing, their fragments dropping into the
    ground as soil, and the calm land fading up are perceived as ONE continuous transformation in place
@@ -459,7 +458,7 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    ADR-0209. The load hiding "behind the exhale" is this leg's; that the bytes waited for the click is
    leg 6's.)*
 8. **The same request, done right — the website-first walk's MECHANICS (increment G).**
-   _(witness: machine)_ Reshaped by ADR-0153, then ADR-0165. From the calm land carrying the SAME
+   _(witness: machine)(detail: website-experience#uat-8)_ Reshaped by ADR-0153, then ADR-0165. From the calm land carrying the SAME
    "build me a shopping website" request, advance the whole walk to its end, one advance at a time.
    **Success —** the session orchestrator's chat surface is the REAL app's, AT THE BOTTOM, and it
    presents the story as an OUTCOME BRIEF WITH AN EXAMPLE and proposes a MOCK local website (no
@@ -472,7 +471,7 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    escape to a static/deprecated page (a11y fallback only); there is NO wrong-way-road "antipattern
    flagged" teach anywhere (retired per ADR-0150 §4 — the dependency-layer-as-advantage is increment
    H's, legs 10 and 11); and the arc ENDS on a CTA that CONTINUES into "what's next" rather than
-   terminating. Detail: `website-experience#uat-8`.
+   terminating.
 9. **The walk READS as Act 1's request answered.** _(witness: human)_ Walk the same arc leg 8 measures,
    end to end. **Success —** the owner's verdict that Act 2 reads as Act 1's request ANSWERED, shown
    through the real product's own UI; that the mock-website proposal reads HONEST and does not
@@ -482,7 +481,7 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    compiler. Leg 8 proves the one-tap pacing that makes the contrast POSSIBLE; only a human can say it
    landed.)*
 10. **The ONE continuous walk grows upstream — the BaaS dependency layers, MECHANICALLY.**
-    _(witness: machine)_ Increment H (ADR-0150; re-specced by ADR-0153 then ADR-0157). From the mock
+    _(witness: machine)(detail: website-experience#uat-10)_ Increment H (ADR-0150; re-specced by ADR-0153 then ADR-0157). From the mock
     website's completion, keep advancing, instrumented. **Success —** the SAME session continues — no
     navigation to a new page, no separate CTA-gated phase ("it shouldnt be separate") — still on the
     REAL app's UI;
@@ -496,8 +495,7 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
     (owner spatial preference), stories at every DAG level and not just leaves; each upstream story is
     INSPECTABLE (its what AND its why-proposed both present) and is walked green progressively on demand,
     green again only on a signed-proof marker; not-yet-walked complexity stays HIDDEN and is revealed as
-    the walk continues; and NO antipattern flag is presented as the teach. Detail:
-    `website-experience#uat-10`.
+    the walk continues; and NO antipattern flag is presented as the teach.
 11. **A NON-EXPERT reads the layout as the dependency it is.** _(witness: human)_ Put the walk leg 10
     measures in front of a non-expert reader. **Success —** the owner's verdict that the layout reads as
     "my website DEPENDS ON these; they are the foundation it rests on; it reads the catalog straight from
@@ -512,7 +510,7 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
     HEAD. **Success —** green: the site's synced copies of the render core AND the R3F mapper are
     byte-fresh from their parent packages (`@generated`, no drift, no stale leftovers) — the 3D look
     flows from the parent, never hand-ported.
-13. **The surrounding pages' disposition is EXECUTED.** _(witness: machine)_ Crawl the built site over
+13. **The surrounding pages' disposition is EXECUTED.** _(witness: machine)(detail: website-experience#uat-13)_ Crawl the built site over
     every legacy page (how-it-works, roadmap, landscape, constitution, contact, get-involved, the 404).
     **Success —** every page's live state matches the SIGNED ADR-0167 disposition set exactly — the KEEP
     set reachable as plain static pages that mount no experience engine, the DISCARD set (`/roadmap/`,
@@ -520,7 +518,7 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
     internal href resolves, and no surviving page is unreachable from the site graph); and
     `check:web-grounding` green over every surviving claim. The editorial JUDGMENT of which page gets
     which disposition was the owner's and is already SIGNED (ADR-0167 / open call 4); this leg verifies
-    only that the EXECUTION matches it. Detail: `website-experience#uat-13`.
+    only that the EXECUTION matches it.
 
 ## Proof
 

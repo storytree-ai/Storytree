@@ -219,7 +219,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > Legs 1, 2, 5 and 9 carry seed-canonical `uat-criterion` detail artifacts (ADR-0209 D5, under the owner's
 > narrower bar: a detail ONLY where the one-line title is too thin to judge against, never one per leg).
 
-1. **One wisp per claimed story, anchored on the STORY's territory.** _(witness: machine)_ Fold a set of
+1. **One wisp per claimed story, anchored on the STORY's territory.** _(witness: machine)(detail: wisp-as-story-claim#uat-1)_ Fold a set of
    live claims — one per session, some landing on capability units, some on story units, some on unknown
    ids — through the real surface path (`worldToScene` → `buildScene`,
    `apps/studio/src/components/TreeView.tsx` / `packages/forest-world/src/scene.ts`) and walk the resulting
@@ -228,8 +228,8 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    unknown unit is dropped; a claim past `CLAIM_STALE_RECLAIM_MS` yields no body at all; and at most ONE
    whole-island orbit exists per story however many grades are present — hover and queue bodies may coexist
    with it, a second island orbit may not (the work claim is an exclusive mutex, ADR-0200 D2, and wisp
-   COUNT encodes SESSIONS, ADR-0212). Detail: `wisp-as-story-claim#uat-1`.
-2. **The claim GRADE is the position channel.** _(witness: machine)_ Build the scene with one claim of each
+   COUNT encodes SESSIONS, ADR-0212).
+2. **The claim GRADE is the position channel.** _(witness: machine)(detail: wisp-as-story-claim#uat-2)_ Build the scene with one claim of each
    grade on one territory, plus one grade-absent claim, and assert each body's placement. **Success —** an
    `exploring` claim sits on a SMALL LOCAL orbit beside the story tree (`HOVER_ORBIT_R`), its rest spot on
    a parent `g` so the rotation cannot sweep the centroid; a `waiting` claim is STATIONARY and index-placed
@@ -237,7 +237,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    deliberately wider radius; and an ABSENT grade renders as `work` (the pre-grade back-compat lock,
    ADR-0200 D2). Substantially discharged already by `packages/forest-world/src/scene.test.ts` (the
    window-shop, queue-order, work and grade-absent walks) and `packages/app-surface/src/SceneView.test.tsx`
-   (the rendered classes and orbit durations). Detail: `wisp-as-story-claim#uat-2`.
+   (the rendered classes and orbit durations).
 3. **Contention resolves — refused and told the holder, or queued.** _(witness: machine)_ Two sessions
    contend for the `work` claim on one unit through the real `PgClaimStore`. **Success —** exactly one
    acquires; the loser's `claim` returns `{acquired: false, heldBy}` NAMING the live holder, appends a
@@ -258,7 +258,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    leg 2 pins the POSITIONS in scene coordinates and can never say the reading lands. **This is the leg the
    owner's 2026-07-17 hover / queue / orbit attestation was given against**; per ADR-0209 D6 it returns
    unstamped pending open modeling call 1.)*
-5. **The active subagent's colour state is STAMPED, and it SHIFTS.** _(witness: machine)_ Drive one claimed
+5. **The active subagent's colour state is STAMPED, and it SHIFTS.** _(witness: machine)(detail: wisp-as-story-claim#uat-5)_ Drive one claimed
    story through authoring → proving → supplementing and read the colour state off the data the surface
    consumes. **Success —** the pure mapping returns exactly one of three mutually distinct, never-green
    tokens for each subagent role and each claim intent (`subagentColourState`,
@@ -268,7 +268,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    (`writer-stamps-the-subagent-colour-state`, `packages/drive/src/phase-activity.ts`); AND the token a
    real run actually produces CHANGES across the three phases of work. The two mapping halves are green
    today; **the SHIFT is not, and no live producer drives all three states** — see the detail's producer
-   gap. Detail: `wisp-as-story-claim#uat-5`.
+   gap.
 6. **The three colour states are distinguishable to the eye.** _(witness: human)_ On the real map, look at
    claim wisps in the authoring, proving and supplementing states. **Success —** the owner's verdict that
    the three read as three different states at map scale and map opacity — not three shades of one colour —
@@ -302,7 +302,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    jsdom test can evaluate, and the both-at-once co-presence case is rendered by no test today (open
    modeling call 5). **NOT covered by the 2026-07-17 attestation.**)*
 9. **The CI merge releases the branch's claims — every grade, audited, waiter promoted.**
-   _(witness: machine)_ Merge a real PR whose branch holds claims, then read the ledger. **Success —**
+   _(witness: machine)(detail: wisp-as-story-claim#uat-9)_ Merge a real PR whose branch holds claims, then read the ledger. **Success —**
    every `events.node_claim` row for the merged branch is gone whatever its grade, one `released`
    `claim_event` row exists per cleared claim, the oldest LIVE waiter on each cleared unit is promoted in
    the same transaction, releasing a branch with no claims is a no-op returning `0`, and a release failure
@@ -313,7 +313,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    byte-level observables, and "CI-observed — the released count + the `released` `claim_event` rows are
    the machine evidence the clear fired" is what that capability already calls its own evidence. The
    workflow being un-harnessed by the prove-it-gate is a COST, not a judgment gap — open modeling call
-   4.)* Detail: `wisp-as-story-claim#uat-9`.
+   4.)*
 10. **The departure window: fades by age, then gone — no zombie.** _(witness: machine)_ Release a claim and
     observe the departing body across the window. **Success —** the released claim surfaces as a
     `departing-wisp` family body inside `DEPARTURE_WINDOW_MS` (120 s,
