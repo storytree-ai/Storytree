@@ -82,7 +82,11 @@ reach into Studio/web.
   only; no timeout advances the cursor and no random value influences output.
 - Stay bounded by the supplied host. The root/SVG must not escape through viewport sizing or cover
   the controls; Back, Next and Replay remain visible, enabled click targets in normal layout at every
-  frame and host size.
+  frame and host size. The public root must itself participate in a definite host-height/min-height
+  chain and reserve a separate control row (or an equivalent bounded composition), so the SVG sizes
+  into the remaining space. A percentage `max-height` on the SVG against an auto-height root is not
+  a bound: the proof must fail that combination because it can still push the controls outside the
+  supplied host.
 - Delegate every frame to the existing `WorldSceneView`. Reuse the scene's real territory, tree,
   claim-wisp, signed-proof/bloom and status identities. Do not fork `SceneView`, sprite resolution,
   scene construction or `@storytree/forest-world`.
@@ -117,7 +121,8 @@ reach into Studio/web.
    - **asserts —** in a bounded host, visible/clickable Next walks all six frames, visible/clickable
      Back walks toward empty and visible/clickable Replay returns to empty; equal inputs plus equal
      traces yield equal frame-key sequences and semantic DOM snapshots; controls remain reachable and
-     no timer/random/remount history changes the result.
+     no timer/random/remount history changes the result. The root establishes a definite bounded
+     layout and reserves the controls' row; an auto-height root plus percentage-only SVG cap is red.
 3. **`sgrv-reduced-motion-keeps-identical-semantics-without-travel`**
    - **asserts —** a stubbed `prefers-reduced-motion: reduce` run yields the same six semantic
      snapshots as normal motion, emits no animation/orbit/interpolated-travel instruction, never hides
