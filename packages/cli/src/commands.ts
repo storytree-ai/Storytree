@@ -30,6 +30,7 @@ import { execFileSync } from "node:child_process";
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { arcCommand, arcHelp, arcEdit, arcIncrementAdd, type ArcWriteDeps } from "./arc.js";
 import { planCommand, planHelp, type CountCommitsSince } from "./plan.js";
+import { traversalCommand, traversalHelp } from "./traversal.js";
 import { CLI_AREAS } from "./cli-areas.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
@@ -2209,6 +2210,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       { ...(values.threshold !== undefined ? { threshold: values.threshold } : {}) },
       { store: deps.store, countCommits, pg: values.pg === true },
     );
+  }
+
+  if (area === "traversal") {
+    // The captured-trace read surface (ADR-0235 / ADR-0241). Reads local JSONL only — offline-safe,
+    // never `--pg`. The composition lives in `@storytree/context-traversal-capture`; this branch is
+    // declared glue (ADR-0158) and is claimed by no capability.
+    if (help) return traversalHelp();
+    return traversalCommand(sub, third);
   }
 
   if (area === "agents") {

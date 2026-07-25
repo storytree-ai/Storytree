@@ -10,6 +10,7 @@ import {
   PgLibraryStore,
   PgAdrStore,
 } from "@storytree/library/store";
+import { captureCliInvocation } from "@storytree/context-traversal-capture";
 import { digestOverlapDeltas, type OverlapDelta } from "@storytree/notice-board";
 import { PgClaimStore } from "@storytree/notice-board/store";
 import { PgWorkStore, PgAttestationStore } from "@storytree/orchestrator/store";
@@ -110,6 +111,32 @@ async function attachDeltaFooter(
 }
 
 /**
+ * Ambient, metadata-only capture of this invocation's allowlisted READS (ADR-0235 / ADR-0241).
+ *
+ * FAIL-SILENT and ADDITIVE by contract, exactly like {@link attachDeltaFooter} above: it runs after
+ * the envelope has already been written and the exit code already set, so nothing here can alter
+ * what the command produced. It is SYNCHRONOUS and never awaits a network or DB path — `main` runs
+ * on EVERY invocation, including the gate's own internal calls (ADR-0162 startup budget).
+ *
+ * Identity resolves HERE and is passed in: `STORYTREE_SESSION_ID` wins (the secrets-hydration
+ * precedent, and the seam a future spawned-agent adapter inherits a parent session through), else
+ * the worktree derivation, which is null in the main checkout and in CI. A null identity captures
+ * nothing — silently, since an uninstrumented run is a normal outcome, not an error.
+ */
+function captureInvocation(argv: readonly string[], ok: boolean): void {
+  try {
+    const override = process.env["STORYTREE_SESSION_ID"];
+    const sessionId =
+      override !== undefined && override.trim().length > 0
+        ? override
+        : (deriveIdentity()?.sessionId ?? null);
+    captureCliInvocation({ argv, ok, sessionId });
+  } catch {
+    // Telemetry never breaks a command — the envelope is the payload, the trace is a courtesy.
+  }
+}
+
+/**
  * The CLI's async entry. Exported so the direct launcher (`packages/cli/launch.mjs`, ADR-0162
  * inc 2) can register the tsx loader in-process and call this WITHOUT re-spawning a second node
  * through pnpm — the launcher's `import.meta.url` is the launcher, not this file, so the
@@ -143,6 +170,7 @@ export async function main(): Promise<void> {
     // ADR-0200 D4: the cursor-once delta footer rides the render the agent already reads.
     process.stdout.write(formatEnvelope(await attachDeltaFooter(env, pullDeltas)));
     process.exitCode = env.ok ? 0 : 1;
+    captureInvocation(argv, env.ok);
   } finally {
     await close();
   }

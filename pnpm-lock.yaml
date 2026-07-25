@@ -267,6 +267,9 @@ importers:
       '@storytree/agent':
         specifier: workspace:*
         version: link:../agent
+      '@storytree/context-traversal-capture':
+        specifier: workspace:*
+        version: link:../context-traversal-capture
       '@storytree/drive':
         specifier: workspace:*
         version: link:../drive
@@ -288,6 +291,25 @@ importers:
       yaml:
         specifier: ^2.6.1
         version: 2.9.0
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
+      typescript:
+        specifier: ~5.7.3
+        version: 5.7.3
+
+  packages/context-traversal-capture:
+    dependencies:
+      '@storytree/context-traversal-telemetry':
+        specifier: workspace:*
+        version: link:../context-traversal-telemetry
       zod:
         specifier: ^3.24.1
         version: 3.25.76
