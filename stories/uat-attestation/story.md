@@ -74,8 +74,14 @@ untouched: green is still a signed verdict, and no one can forge one.
     note, `relayedBy` when an agent scribed for a human). It lives in a separate log, NEVER in
     `events.verdict`, never paints the gate-green hue, and never rolls up (ADR-0044 d.2/d.3 stand,
     scoped to the vouch).
-- **Distinct, in detail.** Per-test marks render in the story panel + CLI — the PROVEN verdict
-  (✓/✗/–) distinct from the lower-rigor vouch (⚑/⚐).
+- **Distinct, in detail.** The proof tier and the vouch tier are never conflated on any surface.
+  `storytree tree <story>` carries BOTH in separate columns — `proven=✓/✗/–` read from
+  `events.verdict`, and the ◉/▣ vouch mark read from `events.attestation`. The studio row carries the
+  SIGNED verdict only: one right-edge glyph whose shape is the witness (robot/person) and whose colour
+  is the verdict. *(Corrected 2026-07-26: the ⚑/⚐ vouch this bullet used to promise in the panel was
+  REMOVED from the row by an owner UX call — two look-alike actions confused the sign affordance,
+  `apps/studio/src/components/TreeView.tsx`. `/api/attestations` still carries the vouch marks; the
+  panel just never renders them.)*
 
 ## Capabilities (3)
 
@@ -90,21 +96,103 @@ untouched: green is still a signed verdict, and no one can forge one.
 The bold lead is each test's title; the `(witness: …)` tag declares who may attest it (parsed by
 `uat-test-units` into `<story>#uat-<n>` ids — absent ⇒ `either`).
 
+> **Per-leg witness (ADR-0209 §1 / ADR-0106 / ADR-0070). RE-ADJUDICATED 2026-07-26** under the
+> ADR-0209 §8 corpus-wide migration. This story resolves to **six `machine` legs and one `human` leg;
+> no leg is model-judged** — nothing here turns on semantic judgment of prose or artifacts, so the
+> model rung genuinely does not apply. (It is also structurally unreachable from a story's prose today:
+> `UAT_TEST_CRITERION_WITNESSES` in `packages/library/src/uat-test-criteria.ts` is
+> `human | machine | either` and THROWS on `model`, and `proof-protocol`'s `UatWitness` is
+> `human | machine`. The gap between ADR-0209's three-kind model and that enum is an OPEN owner fork
+> carried by the arc — recorded here, not settled here.)
+>
+> **This story is ABOUT attestation, so read its legs carefully.** A leg that DESCRIBES human
+> witnessing does not thereby NEED a human witness. Legs 2 and 5 were tagged `human` because their
+> subject matter is an operator's signature and an operator's vouch — but their success conditions are
+> a verdict's shape, its signer, and the ABSENCE of a write, every one of which has a compiler and is
+> already exercised offline today (`packages/orchestrator/src/proof/uat-proof.test.ts`,
+> `apps/studio/server/uatVerdict.test.ts`, `apps/studio/server/uatAttestApi.integration.test.ts`,
+> `apps/desktop/src/backend/local-uat-attest.test.ts`, `packages/cli/src/uat.test.ts`,
+> `packages/cli/src/attest.test.ts`). Under `human-witness-is-a-judgment-gap-not-cost` the human rung is
+> for a success condition with NO compiler — never for a leg whose *topic* is humans, and never for a
+> refusal (an agent that cannot self-attest, a click that cannot green a machine leg, a vouch that
+> cannot reach `events.verdict`) — a refusal is among the most machine-checkable things there is.
+>
+> Exactly **one** leg stays `human`, on the NO-COMPILER basis — not spend, not an outward-facing
+> action: whether the two rigor tiers actually READ as different to a person (leg 7). Everything
+> STRUCTURAL about that distinctness — which glyph, which colour, which column, which state can even
+> reach the row — is machine-observable and is leg 6; only the legibility verdict is irreducible, and
+> `apps/studio/src/index.css` already records the row's icon styling as owner-attested art (ADR-0070).
+>
+> **Stale prose corrected before it became executable (2026-07-26).** The old leg 6 asserted that the
+> studio panel shows a `✓/✗/–` PROVEN glyph "distinct from the lower-rigor vouch (⚑/⚐)". That is FALSE
+> against the panel today: an owner UX call REMOVED the ⚑/⚐ vouch from the row (two look-alike actions
+> confused the sign affordance — `apps/studio/src/components/TreeView.tsx`), and the row now carries ONE
+> right-edge glyph whose SHAPE is the witness (robot/person) and whose COLOUR is the signed verdict; the
+> `/api/attestations` payload still carries the vouch marks, the panel just never renders them. The
+> two-mark display survives only on the CLI (`storytree tree <story>`). Tagged `machine` against the old
+> wording, leg 6 would have been a false red against correct code. It is restated below to what the
+> surfaces actually do; the Design floor and [`attestation-surface`](attestation-surface.md) carried the
+> same drift and are corrected there.
+>
+> **Nothing here is green.** Per ADR-0209 §6 a substantive criterion change invalidates the old green,
+> so every leg below is UNSTAMPED and earns green only under its newly-declared witness. This story is
+> `proposed` and its section is `(would-be)`: tagging a leg `machine` with no spec yet is the honest
+> classification, not a claim that a proof exists. No owner attestation has ever been recorded against
+> any leg of this story, so the standing open call — *does an owner attestation carry forward onto a
+> SPLIT leg, or must it be re-signed?* ([`wisp-as-story-claim`](../wisp-as-story-claim/story.md), open
+> modeling call 1, for the owner to settle once and generally) — does not bite on the leg-6 split here.
+>
+> **Ordering note (leg ids are POSITIONAL, `uat-attestation#uat-N`).** Legs 1–5 keep their positions:
+> `packages/cli/src/attest.test.ts` uses `uat-attestation#uat-2` and `uat-attestation#uat-3` as fixture
+> ids, so *Human verdict* and *Machine* must stay at 2 and 3. The old leg 6 was narrowed IN PLACE and
+> its irreducible human half APPENDED as leg 7 rather than interleaved.
+
 1. **Decompose** _(witness: machine)_: a story's UAT prose resolves to addressable test ids with
    witness kinds. **Success —** each test has a stable id and a `witness`.
-2. **Human verdict** _(witness: human)_: the owner signs "I saw it work" for a human-witness test
-   (in-UI, or via `storytree uat attest`). **Success —** a signed `operator-attested` verdict lands
-   in `events.verdict`, signed by a real person; that test reads PROVEN ✓.
+2. **Human verdict** _(witness: machine)(detail: uat-attestation#uat-2)_: a permitted operator
+   signs "I saw it work" for a human-witness test — the studio row's muted person icon, or
+   `storytree witness attest <story>#uat-<n> --pg` (the ADR-0118 canonical verb; `uat attest` still
+   works as a back-compat alias). **Success —** a signed `operator-attested` verdict lands in
+   `events.verdict` carrying the VERIFIED operator identity as `signer` (never client-supplied) and
+   the commit it attests as `commitSha`, having passed `checkUatProof` — which refuses an empty
+   signer, a `sandbox:` identity, and the building session itself — and that test reads PROVEN ✓.
+   *(Re-adjudicated `human` → `machine` 2026-07-26: the leg's SUBJECT is a human signature, but its
+   success condition is a verdict's shape, signer and derived state, all of which have compilers.)*
 3. **Machine** _(witness: machine)_: an automated UAT run proves a `machine` test. **Success —** a
    signed machine verdict for that test id; it reads PROVEN ✓.
 4. **Story roll-up** _(witness: machine)_: every per-test verdict for the story passes.
    **Success —** the story's own UAT crown greens as the AND-roll-up (`rollupStoryUat`); a single
    signed `fail` withers it.
-5. **Vouch never greens** _(witness: human)_: the owner records a lower-rigor vouch ("I also
-   eyeballed it"). **Success —** it lands in `events.attestation` only (signer, `relayedBy` when an
-   agent scribed); `events.verdict` is untouched, the island hue is unchanged, and no green is forged.
-6. **Distinct display** _(witness: human)_: the panel shows the PROVEN verdict (✓/✗/–) distinct from
-   the lower-rigor vouch (⚑/⚐). **Success —** the vouch never reads as a gate-proven pass.
+5. **Vouch never greens** _(witness: machine)(detail: uat-attestation#uat-5)_: a lower-rigor vouch
+   ("I also eyeballed it") is recorded for a test — `storytree witness vouch <story>#uat-<n> --pg`
+   (the ADR-0118 canonical verb; `storytree attest` still works as a back-compat alias), or
+   `POST /api/attestations`. **Success —** it lands in `events.attestation` only (signer,
+   `relayedBy` when an agent scribed); `events.verdict` is untouched, the test's derived PROVEN state
+   and the story-UAT roll-up (`rollupStoryUat`) are unchanged, the island hue is unchanged, and no
+   green is forged. *(Re-adjudicated `human` → `machine` 2026-07-26: this is an ISOLATION claim — the
+   load-bearing half is the absence of a write — and an absence is machine-observable.)*
+6. **The proof tier and the vouch tier are never conflated on any surface.**
+   _(witness: machine)(detail: uat-attestation#uat-6)_ With one test carrying a signed verdict, one
+   carrying only a vouch, and one carrying neither, read both surfaces. **Success —**
+   `storytree tree <story>` renders the two in SEPARATE columns — `proven=✓/✗/–` derived from
+   `events.verdict`, and the ◉/▣ vouch mark derived from `events.attestation` — and no vouch ever
+   produces a `proven=✓`; the studio row surfaces the SIGNED verdict ONLY (one witness-shaped glyph
+   coloured by `events.verdict`), so no vouch state can reach the row at all even though
+   `/api/attestations` still carries it; and `storytree witness list` carries the `proven=` column
+   with no vouch column. *(Restated 2026-07-26 to what the surfaces actually do — see the stale-prose
+   note above — and re-adjudicated `human` → `machine`: which mark, which column, and which state can
+   reach a row are all structural.)*
+7. **A vouch never READS as a gate-proven pass.** _(witness: human)(detail: uat-attestation#uat-7)_
+   The owner looks at a story whose UAT carries all three states — one test PROVEN, one carrying only
+   a vouch, one blank — in the studio panel and in `storytree tree <story>`, and judges whether the
+   rigor tiers are unmistakable: can a reader tell, WITHOUT being told, which mark is a gate verdict
+   that can green the crown and which is only "I also eyeballed it"? **Success —** the owner's
+   stage-2 visual verdict (ADR-0070) that the vouch cannot be misread as a proof.
+   *(Operator-attested and irreducible — the one success condition in this story with NO COMPILER.
+   The basis is the judgment gap, not spend and not an outward-facing action. Leg 6 proves the marks are structurally different, which is NOT the same claim as a person
+   reading them as different rigor; `apps/studio/src/index.css` already records the row's icon styling
+   as owner-attested art. Split out of the old leg 6 on 2026-07-26, which fused this verdict with the
+   structural claim.)*
 
 ## Resolved modeling calls
 
