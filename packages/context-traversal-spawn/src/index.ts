@@ -5,9 +5,12 @@
  * that boundary's per-slice run accounting into linked parent/child traversal lanes and appends
  * them through `context-traversal-capture`'s existing sink.
  *
- * The barrel is deliberately EMPTY at scaffold time: one export line is appended per capability as
- * that capability's source lands. A barrel that re-exports a not-yet-authored file makes
- * `pnpm -r typecheck` red before the first build can observe its own red.
+ * The barrel starts EMPTY and gains one export line per capability as that capability's source
+ * lands — a barrel that re-exports a not-yet-authored file makes `pnpm -r typecheck` red before the
+ * first build can observe its own red. Each line is added here, outside the leaf's write scope,
+ * because a `--real` leaf is fenced to its own file pair and hits a scope wall on this file.
  */
 
-export {};
+// capability `leaf-slice-spawn-observations`
+export { observeLeafSlices, BUILD_SPAWN_BOUNDARY_COVERAGE } from "./observe-leaf-slices.js";
+export type { LeafSliceRun, LeafSliceUsage, ObserveLeafSlicesArgs } from "./observe-leaf-slices.js";
