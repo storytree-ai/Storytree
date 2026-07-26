@@ -26,6 +26,8 @@ export * from "./contracts.js";
 export * from "./witness-resolution.js";
 // Proof-binding-integrity: a total, display/audit-only adapter over the strict machine-leg resolver.
 export * from "./proof-binding-outcome.js";
+// Proof-binding-integrity: a complete read-only projection of parsed machine legs into audit rows.
+export * from "./machine-leg-binding-audit.js";
 // ADR-0107 (generalising ADR-0106 d4): the proving-process OQ-attachment predicate — an open question
 // carrying a `node:<id>` reference is attached to that node's proving process and WITHHOLDS its green
 // (the green-fold is the orchestrator's `gateStoryGreenOnOpenQuestions`). Pure, browser-safe.
