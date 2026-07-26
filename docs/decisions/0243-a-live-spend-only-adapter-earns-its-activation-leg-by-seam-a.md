@@ -93,8 +93,14 @@ accounting and fenced it by store choice.
 Separating two questions that this ADR had conflated:
 
 - **"Is the observer wired in — does anything call it?"** This is the failure that actually happened
-  (increment 1 landed a trustworthy seam that nothing composed). It needs a populated `liveAuthor` and
+  (increment 1 landed a seam that nothing composed). It needs a populated `liveAuthor` and
   nothing else, so it is machine-provable in CI for free.
+  *(Corrected 2026-07-27. This bullet originally called increment 1's seam **trustworthy**. It was
+  not: `context-traversal-telemetry` held ZERO signed verdicts from increment 1 until the floor
+  rebuild of 2026-07-27 re-proved both its capabilities red→green on signed `--real` verdicts. The
+  composition failure this bullet names is real and unchanged — nothing composed the adapter — but
+  the seam's own trustworthiness was never established, and reading "it landed, so the seam is fine"
+  off a spec is the document-checking blind spot this arc has now hit three times.)*
 - **"Does a real SDK run still produce the shape the observer assumes?"** This genuinely needs a real
   run. Increment 4 already pinned part of it at compile time (`keyof ModelUsage`, falsified by renaming
   the key and observing TS2322), and any real build the owner runs exercises the rest.

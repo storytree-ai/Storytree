@@ -114,7 +114,31 @@ export const ModelContextEvent = z
     kind: z.literal("model_context"),
     ...eventBase,
     modelId: identity.optional(),
+    /**
+     * A BILLING TOTAL — tokens PROCESSED — not window OCCUPANCY (ADR-0248 D2, documented here
+     * because the name reads as the latter). Emitters sum the input axes over a whole slice, and
+     * `cacheReadInputTokens` re-counts the resident context on every turn, so this routinely
+     * exceeds {@link contextWindowCapacity} many times over: measured at 613% and 504% of a
+     * declared 200,000-token window on two real builds. It is also MONOTONIC by construction.
+     *
+     * Do NOT plot this against `contextWindowCapacity`. A gauge built from the two reads six times
+     * full with a negative remainder, and the arc's approved visual contract needs a quantity that
+     * can FALL. Occupancy is sourced from the host transcript surface instead (ADR-0248 D1); the
+     * billing axes proper live in `events.usage_event` (ADR-0203).
+     */
     cumulativeInputTokens: nonNegativeInt,
+    /**
+     * DEPRECATED, pending removal (ADR-0248 D3). Despite the name this carries no per-visit delta:
+     * at the only boundary that emits it, `observe-leaf-slices.ts` assigns it and
+     * {@link cumulativeInputTokens} from ONE variable, so both fields hold the identical
+     * whole-slice billing total. The owner's revised visual contract replaced the per-node gauge
+     * with a single playhead bar, and a bar needs one quantity, so the field is to be deleted
+     * rather than given a real delta.
+     *
+     * It is still REQUIRED here: the field has live emitters in `@storytree/context-traversal-spawn`
+     * and this schema is `.strict()`, so dropping the key belongs to the increment that owns those
+     * emitters, not to this floor.
+     */
     addedInputTokens: nonNegativeInt,
     contextWindowCapacity: positiveInt.optional(),
   })

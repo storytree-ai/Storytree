@@ -160,11 +160,26 @@ that expectation is the planning increment's to confirm, not this ADR's to assum
   and the increment log says so plainly.
 - The arc's signature visual is unblocked by this decision plus the revised visual contract, but not
   yet built: the transcript adapter is the next observability increment after the floor rebuild.
-- `addedInputTokens` leaves the vocabulary. That is a narrowing of an ADR-0235 clause-4 field and is
+- `addedInputTokens` is to leave the vocabulary (not yet done — see the execution-status bullet
+  below). That is a narrowing of an ADR-0235 clause-4 field and is
   recorded here rather than by amending 0235, because 0235 says a request *may* record tokens added —
   permissive, not mandatory — so removing the field contradicts nothing in it.
+- **Execution status of D2 and D3, recorded 2026-07-27 — neither is done, and the floor rebuild
+  deliberately did not do D3.** The `context-traversal-telemetry` floor rebuild (the increment that
+  re-proved the event vocabulary red→green after it was found holding zero signed verdicts) KEPT
+  `addedInputTokens` on `ModelContextEvent`. The field has live emitters in
+  `packages/context-traversal-spawn` — a different story — and dropping a key from a `.strict()`
+  shape that another package writes into belongs to the increment that owns those emitters, not to
+  the floor. The reasoning is recorded at the definition site in
+  `stories/context-traversal-telemetry/traversal-event-vocabulary.md`. **Read that re-green as D3
+  PENDING, not as D3 contradicted.** D2 is also unexecuted: as of this date no definition site
+  documents `cumulativeInputTokens` as a billing total — not the schema in
+  `packages/context-traversal-telemetry/src/traversal-events.ts`, not the emitter in
+  `observe-leaf-slices.ts`, and not either story spec. That is an open gap rather than a deliberate
+  deferral, and it leaves the misreading trap below still open.
 - Anyone reading "capacity now flows" as "the gauge can be built" would have built a gauge reading
-  613%. That trap is closed by D2's documentation requirement.
+  613%. D2's documentation requirement is what closes that trap — and until D2 actually lands
+  (previous bullet) the trap stays open, guarded by this ADR alone rather than by the code.
 - The 500k region survives as a display-only rule on the bar: the portion of the fill beyond the
   threshold renders red, with no marker drawn. It is not a cutoff, an eviction trigger, or a claim
   about any model's window size.
