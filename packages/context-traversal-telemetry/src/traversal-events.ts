@@ -115,6 +115,19 @@ export const ModelContextEvent = z
     ...eventBase,
     modelId: identity.optional(),
     /**
+     * WHICH context window this observation belongs to, when one session spans several.
+     *
+     * A storytree `sessionId` is worktree-derived, so it outlives any single runtime window: one
+     * worktree routinely hosts several host-harness sessions in sequence, and each of those is its
+     * own window that starts empty. Concatenating their observations into one series would draw a
+     * bar that resets without explanation. Absent means "this session had one window", which is the
+     * only case every pre-existing emitter observes.
+     *
+     * It is an OPAQUE identity, never a path, a title, or anything a reader could mine for content
+     * (ADR-0235 clause 6).
+     */
+    windowId: identity.optional(),
+    /**
      * A BILLING TOTAL — tokens PROCESSED — not window OCCUPANCY (ADR-0248 D2, documented here
      * because the name reads as the latter). Emitters sum the input axes over a whole slice, and
      * `cacheReadInputTokens` re-counts the resident context on every turn, so this routinely
@@ -140,6 +153,23 @@ export const ModelContextEvent = z
      * emitters, not to this floor.
      */
     addedInputTokens: nonNegativeInt,
+    /**
+     * WINDOW OCCUPANCY at one model request — the quantity the arc's playhead bar plots
+     * (ADR-0248 D1). Tokens RESIDENT in the window when that request was made, which is the sum of
+     * the request's own input axes for a SINGLE request: fresh input + cache-read + cache-write.
+     *
+     * Unlike {@link cumulativeInputTokens} it is NOT monotonic. It FALLS when the window is
+     * compacted or a shorter prompt is sent, and the owner-approved visual contract's reference
+     * trace does exactly that (240.9k → 228.1k) — a quantity that can only rise cannot draw that
+     * bar, which is the whole reason this field exists beside the other one rather than replacing
+     * it.
+     *
+     * OPTIONAL because most boundaries cannot see it: a per-slice aggregate (the build spawn
+     * boundary) observes tokens processed, never tokens resident. It is populated where a
+     * per-REQUEST record exists — today the host transcript surface. Absent means unobserved, and
+     * must never be defaulted from a capacity, a model id, or a cumulative figure.
+     */
+    residentInputTokens: nonNegativeInt.optional(),
     contextWindowCapacity: positiveInt.optional(),
   })
   .strict();
@@ -222,6 +252,7 @@ export const CoverageFeature = z.enum([
   "surface:spawned_agent",
   "surface:agents",
   "surface:noticeboard",
+  "surface:host_transcript",
   "event:front_matter_read",
   "event:full_payload_read",
   "event:search",
@@ -234,6 +265,8 @@ export const CoverageFeature = z.enum([
   "field:parent_visit_id",
   "field:prior_visit_id",
   "field:model_tokens",
+  "field:resident_input_tokens",
+  "field:window_id",
   "field:context_window_capacity",
   "field:candidate_follow_causality",
   "field:child_context_window",
