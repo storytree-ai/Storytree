@@ -23,6 +23,22 @@ export {
   type Bounds,
 } from './sprite-sizing.js';
 export {
+  neighbourHighlightPlan,
+  type NeighbourHighlightPlan,
+  type NeighbourRoute,
+  type NeighbourRouteStep,
+} from './neighbourHighlight.js';
+export {
+  laneGeometry,
+  laneLayout,
+  netTurnOf,
+  type Lane,
+  type LaneHub,
+  type LaneLayout,
+  type LaneLayoutOptions,
+  type LanePoint,
+} from './laneLayout.js';
+export {
   arrivalGrowPlan,
   REVEAL_STAGGER_MS,
   trailRevealPlan,

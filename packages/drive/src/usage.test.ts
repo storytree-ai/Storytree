@@ -23,7 +23,12 @@ const RUNS: SdkRunInfo[] = [
     turns: 9,
     costUsd: 0.3,
     usage: { ...USAGE, outputTokens: 999 },
-    byModel: { "claude-sonnet-5": { ...USAGE, outputTokens: 999, costUsd: 0.3 } },
+    // `contextWindow` is part of the real per-model split the SDK leaf collects — carry it in the
+    // fixture. `ModelTokenUsage` is `.strict()`, so a per-model field that the leaf emits but the
+    // wire shape has not admitted makes the WHOLE doc fail to parse. Usage capture is fail-silent,
+    // so that failure is invisible: verdicts stay green while `events.usage_event` quietly stops
+    // recording. This fixture is the only thing standing between that and a silent accounting hole.
+    byModel: { "claude-sonnet-5": { ...USAGE, outputTokens: 999, costUsd: 0.3, contextWindow: 200_000 } },
   },
 ];
 
@@ -41,7 +46,9 @@ test("sliceUsageDocs maps each slice with a breakdown to a valid UsageEventDoc",
     costUsd: 0.1,
     model: "claude-sonnet-5",
   });
-  assert.deepEqual(docs[1]!.byModel, { "claude-sonnet-5": { ...USAGE, outputTokens: 999, costUsd: 0.3 } });
+  assert.deepEqual(docs[1]!.byModel, {
+    "claude-sonnet-5": { ...USAGE, outputTokens: 999, costUsd: 0.3, contextWindow: 200_000 },
+  });
 });
 
 test("a slice without a token breakdown is skipped — capture is additive, nothing is invented", () => {

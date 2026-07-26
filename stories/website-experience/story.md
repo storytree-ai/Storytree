@@ -5,13 +5,15 @@ title: "The two-act vibe-coding experience — the public site's front door enac
 outcome: "A visitor on the public site FEELS the thesis instead of reading it: one prompt into a retro terminal breeds an illegible agent storm, one calm tap collapses the noise into soil, and the same single gesture then grows a legible, proof-bearing forest beat by beat to the CTA — with the skip and reduced-motion/no-WebGL exits first-class from the first live increment."
 status: proposed
 proof_mode: UAT
-# MIXED WITNESS, no blanket `uat_witness:` override (the ADR-0040 fail-closed default is human):
-# the felt surfaces (the storm's overwhelm, the inflection's transform, Act 2's plain-language calm,
-# the info-page dispositions) are ADR-0070 operator-attested human-witness legs — an agent cannot
-# judge a feel and can NEVER self-attest one. The machine legs are the parent-side gates: the
-# extended web-engine drift gate (the synced R3F artifact is byte-fresh) and the new
-# `check:web-experience` rollout guard (skip + fallback markers present, no R3F reachable from
-# Act 1) — each an honest spine-observable check. Each Story-UAT leg below marks its own witness.
+# MIXED WITNESS, no blanket `uat_witness:` override (the ADR-0040 fail-closed default is human).
+# RE-ADJUDICATED 2026-07-25 (ADR-0209 §8 corpus-wide migration): the FELT surfaces — the storm's
+# overwhelm, the inflection's exhale, Act 2 reading as Act 1's request answered, a non-expert's
+# reading of the dependency layout — are ADR-0070 operator-attested human legs; an agent cannot
+# judge a feel and can NEVER self-attest one. Everything MECHANICAL underneath them is `machine`,
+# including the site BEHAVIOUR the two parent-side gates (the extended web-engine drift gate; the
+# `check:web-experience` rollout guard) cannot see: cross-repo and not-yet-harnessed are COSTS, not
+# judgment gaps (`human-witness-is-a-judgment-gap-not-cost`). Eight machine legs, five human legs;
+# each Story-UAT leg below marks its own witness (the split table is in "UAT Test Criteria").
 capabilities: [r3f-world-spike, experience-rollout-guardrails, web-experience-sync, act2-beat-director, act1-terminal-storm, storm-to-forest-inflection, act2-guided-walkthrough, act2-guided-forest, info-pages-triage]
 # Consumer-side outbound edges (the ADR-0058 delivered-outcome test, run both ways):
 #  - forest-world: the R3F mapper (`packages/forest-world-r3f`, this story's parent-side package —
@@ -337,70 +339,186 @@ studio: nothing on the site reads the live store, and the CTA points at the real
 The integrated acceptance walkthrough proving the whole journey end-to-end on the REAL published
 site (or its preview build). Minimal-first (`uat-proves-the-goal-not-the-surface`): one coherent
 visitor arc plus the two machine gates; the list grows only when a real defect earns a permanent
-case. Witnesses marked per leg (ADR-0040 / ADR-0070) — the felt legs are human, the gates machine.
+case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
 
-1. **One prompt breeds the storm.** _(witness: human)_ Land on the live home: a single retro CRT
-   terminal, already logged into a coding agent, offers suggested chips and a prompt line leading
-   with **"build me a shopping website"** (the prompt reused across both acts, ADR-0148). Send ONE
-   prompt. **Success —** audio unlocks on that gesture; the agent "thinks," then sub-agents spawn AS
-   new terminals (diegetic — the visitor never opens a window), tiling/overlapping toward a peak of
-   ~10–12; each terminal streams plausible-but-opaque activity and parks on an unanswerable demand;
-   the HUD reads `AGENTS: n ▲` rising; the overwhelm is felt without any further visitor input.
+> **Per-leg witness — RE-ADJUDICATED 2026-07-25** under the ADR-0209 §8 corpus-wide migration. The
+> governing rule is `human-witness-is-a-judgment-gap-not-cost`: the human rung is for a success
+> condition that has **no compiler**, and a success that is machine-observable but merely live,
+> EXPENSIVE, CROSS-REPO, or NOT-YET-HARNESSED is `machine`. Re-adjudicating leg by leg resolves this
+> story to **eight `machine` legs and five `human` legs** (thirteen, up from eight — see the splits
+> below). Only `machine` and `human` exist as classified kinds here; there is no third rung to reach
+> for.
+>
+> **This was the most FUSED criterion set in the corpus — every human leg welded a FELT verdict onto a
+> pile of hard structural claims. Each was SPLIT rather than laundered**, which is the honest source of
+> the drainage: the leg count GROWS, and every felt verdict keeps standing as its own human leg instead
+> of being shaved into a footnote on a machine one.
+>
+> | old leg | machine half | human half |
+> | --- | --- | --- |
+> | 1 (one prompt breeds the storm) | 1 — the choreography: audio unlocked on the gesture, diegetic spawn to the ~10–12 peak, every terminal parked on a demand, `AGENTS: n ▲` rising, zero further visitor input | 3 — the overwhelm is FELT; the CRT surface reads retro; the chatter reads plausible-but-OPAQUE |
+> | 3 (the exits actually work) | 4 — the exit RESOLVES to the calm view and the reduced-motion / no-WebGL / no-JS visitor is never played the storm | 5 — the ADEQUACY of that destination: it reads as a real calm view, not a degraded page |
+> | 4 (one tap transforms) | 6 — a TRANSFORM IN PLACE: no navigation, no document load, no URL change; the deferred Act 2 bundle first fetched AT the click | 7 — the exhale: silence, collapse, fragments into soil, the land fading up as ONE continuous transformation; audio resolving rather than cutting |
+> | 5 (the same request done right, increment G) | 8 — the walk's mechanics: the chat surface AT THE BOTTOM, progressive disclosure, ONE tap per beat, the beat sequence, green only on a signed-proof marker, NO skip / NO escape to a static page, NO wrong-way-road teach, the arc ending on a continuing CTA | 9 — it READS as Act 1's request answered; the proposal is honest and does not overwhelm; the plain language lands; the Act 1 CONTRAST lands |
+> | 6 (the walk grows upstream, increment H) | 10 — the same session continues with no page change; the BaaS diamond's `dependsOn` DIRECTION and shape; frontend HIGH / foundation BELOW; each upstream story inspectable and progressively green; NO antipattern flag | 11 — a NON-EXPERT reads the layout as "my website DEPENDS ON these"; the layers read as storytree's ADVANTAGE; the complexity feels SCAFFOLDED, never dumped |
+>
+> Legs **4** (old 3) and **13** (old 8) moved wholesale `human` → `machine`: nothing in "the exit
+> resolves to the calm view", "the a11y visitor never sits through the storm", "no orphan links", or
+> "every legacy page's live state matches the signed disposition set" turns on judgment — each is a
+> crawl or a byte-level observable. They were tagged `human` only because the parent gate cannot reach
+> the site's RUNTIME, which is precisely the mis-tag the rule above forbids. Old leg 3 also carried a
+> hidden APPEARANCE claim that lived in no leg at all — `experience-rollout-guardrails` declines the
+> adequacy of the exits ("presence, not adequacy") and homes it at story level; it is now leg 5,
+> explicitly human, rather than an unwitnessed aside in a capability's prose.
+>
+> **The harness expected to judge the machine legs lives in ANOTHER REPO.** Six of the eight machine
+> legs (1, 4, 6, 8, 10, 13) are site-BEHAVIOUR claims whose harness is the `storytree-web` repo's OWN
+> headless Playwright suite — which already exists and has already exercised most of these very
+> observables (23/23 on the storm incl. the audio unlock, the 12-window peak under `AGENTS: 12 ▲`, the
+> demands, the skip and the reduced-motion view; 10/10 on the inflection's lazy-load wall — zero island
+> bytes pre-click, chunks first fetched at the click; 61 → 41 → 34 → 3/3 across the Act 2 walks incl.
+> the 16-tap flow, the director-beat mapping, the absence of the Next button and the corner overlays,
+> and no-JS / reduced-motion never fetching the walk; see each LOOK cap's proof record). Only legs 2
+> and 12 are discharged parent-side, by `check:web-experience` and `check:web-engine`. The web repo is
+> not a pnpm workspace member, so the parent prove-it-gate cannot run red→green inside it (Structural
+> call 3's provability firewall) — **how a web-repo machine verdict reaches the parent proof spine is an
+> OPEN modeling call (item 6), which this re-adjudication surfaces rather than settles.** The witness
+> KIND is still `machine`: a cross-repo harness is a cost, not a judgment gap.
+>
+> **Five legs stay `human` because their success condition has no compiler** — and every one of them is
+> a FELT verdict, which is this story's entire point: the overwhelm (3), the exit destination's adequacy
+> (5), the exhale (7), Act 2 reading as Act 1's request answered (9), and a non-expert's reading of the
+> dependency layout (11). ADR-0209 keeps look, feel and lived experience on the human rung and never
+> model-judges them; an agent may STAGE any of these but never renders the verdict (ADR-0070 stage 2).
+> The story-level `uat_witness` stays absent → human (the ADR-0040 fail-closed signpost), so the
+> machine-driven whole-story UAT node stays WITHHELD; the crown derives from the per-leg roll-up plus
+> the operator's five attestations.
+>
+> **Nothing here is green.** Per ADR-0209 §6 a re-adjudicated leg returns to UNSTAMPED and earns green
+> only under its newly-declared witness. The machine legs below are **declared, not proven** — no spec
+> discharges legs 1, 4, 6, 8, 10 or 13 today; the prior owner attestations recorded against the OLD
+> fused legs stand as true history (copy-on-write) but discharge nothing here; and the owner signs
+> nothing as a result of this re-adjudication. Legs 1, 6, 8, 10 and 13 carry seed-canonical
+> `uat-criterion` detail artifacts (ADR-0209 §5, under the owner's 2026-07-25 narrower bar: a detail
+> ONLY where the one-line title is too thin to judge against, never one per leg) because their
+> observables, thresholds and cross-repo boundaries cannot survive compression to a sentence.
+
+1. **One prompt breeds the storm — the choreography.** _(witness: machine)(detail: website-experience#uat-1)_ Load the live experience
+   entry, assert the opening surface, send ONE prompt, then drive NOTHING further. **Success —** ONE
+   terminal at rest, offering suggested chips and a prompt line leading with **"build me a shopping
+   website"** (the prompt reused across both acts, ADR-0148); audio unlocks on that gesture (silent
+   before it, an audio context running only after it); sub-agents then spawn AS new terminals (diegetic
+   — the visitor never opens a window), tiling/overlapping to the ~10–12 peak (the seeded plan's hard
+   cap); every terminal streams activity and parks on an unanswerable demand; the HUD reads
+   `AGENTS: n ▲` rising to that peak; and NOT ONE further visitor input is required between the send and
+   the peak.
 2. **The calm exits are machine-guarded.** _(witness: machine)_ `pnpm check:web-experience` at a
    clean HEAD. **Success —** green: the skip affordance marker and the reduced-motion / no-WebGL
    fallback marker are present on the experience entry, and no module reachable from the Act 1
    entry statically imports the R3F island / `three` — Act 1 ships no WebGL bytes.
-3. **The exits actually work.** _(witness: human)_ From any storm moment, use the persistent skip
-   control; separately, revisit with `prefers-reduced-motion` (or WebGL disabled). **Success —**
-   the skip lands directly in the calm world; the reduced-motion / no-WebGL visitor gets the static
-   calm view and is NEVER made to sit through the storm — the storm is a choice, not a toll booth.
-4. **One tap transforms.** _(witness: human)_ At peak overload, the dimming and the single calm
-   storytree affordance appear amid the noise. Click once. **Success —** the terminals fall silent
-   and collapse, their fragments drop into the ground as soil, the calm empty land fades up — a
-   TRANSFORM in place, not a navigation; the R3F bundle loads only now, behind the exhale.
-5. **The same request, done right — the website-first walk (increment G; reshaped by ADR-0153).**
-   _(witness: human)_ On the calm land carrying the SAME "build me a shopping website" request, the
-   session orchestrator — in the REAL app's chat surface AT THE BOTTOM — presents the story as an
-   OUTCOME BRIEF WITH AN EXAMPLE and proposes a MOCK local website (no backend — honest, meeting the
-   vibe coder where they are); then advance the walk one Next-tap per beat, in plain language, on the
-   REAL app's UI (elements not yet walked through stay hidden — progressive disclosure): the orchestrator
-   ROUTES the story to the drive machinery (a temporary top-left overlay of the agent loop) → the story
-   branches (limbs turn green ONLY on a signed passing proof) → the drive machinery deepens (CI/CD,
-   devops, gates, wiring — overlay diagrams, scaffolded, not overloading) → pull back (one legible
-   forest: green = proven, sapling = in-progress, withered = broken). **Success —** Act 2 reads as Act 1's
-   request answered, shown through the real product's own UI; the proposal is honest and does not
-   overwhelm; there is NO "skip the intro" and no escape to a static/deprecated page (a11y fallback only);
-   the arc ends on a CTA that CONTINUES into "what's next"; at no beat does the visitor work harder than
-   one tap — the Act 1 contrast lands. (There is NO wrong-way-road "antipattern flagged" teach — retired
-   per ADR-0150 §4; the dependency-layer-as-advantage is increment H's, leg 6.)
-6. **The ONE continuous walk grows upstream — the BaaS dependency layers are the advantage (increment H,
-   ADR-0150; re-specced by ADR-0153 then ADR-0157).** _(witness: human)_ From the mock website's
-   completion, keep walking. **Success —** the SAME walk continues (no jump to a new page or separate
-   phase — "it shouldnt be separate"), shown through the REAL app's UI: the orchestrator guides the
-   visitor into the DEPENDENCY STACK the website rests on — a PROPOSED backend + database (because the
-   mock's Cart / Payments / Receipts cannot truly work without them, and the catalog is read straight
-   from the database), shown as proposed trees on real `dependsOn` edges pointing FROM the dependent TO
-   its prerequisite in the BaaS DIAMOND — the website `dependsOn` the backend AND the database directly,
-   the backend `dependsOn` the database (`website.dependsOn=[backend, database]`,
-   `backend.dependsOn=[database]`; ADR-0058 / `cross-story-dependency`; the frontend reads the database
-   directly as a real shopping app does — ADR-0157), rendered with the FRONTEND HIGH and the foundation
-   BELOW (owner spatial preference), the database the shared foundation, stories at every DAG level (not
-   just leaves). A non-expert reads the layout as "my website DEPENDS ON these; they are the foundation
-   it rests on; it reads the catalog straight from the database and goes through the backend for
-   checkout," with the direction right way round (NOT the website being what the backend depends on — the
-   refused build had it backwards; ADR-0153 corrects it). The dependency LAYERS shown on the real map
-   read as storytree's ADVANTAGE — you SEE them, in order, nothing hidden — the POSITIVE teach that
-   replaces beat 4's wrong-way flag; there is NO antipattern flag presented as the teach. Each upstream
-   story is inspectable (what it is + why proposed) and walked green progressively on demand; complexity
-   is revealed as the walk continues, never dumped up front and never hidden.
-7. **The artifact edge is live.** _(witness: machine)_ `pnpm check:web-engine` (extended) at a clean
-   HEAD. **Success —** green: the site's synced copies of the render core AND the R3F mapper are
-   byte-fresh from their parent packages (`@generated`, no drift, no stale leftovers) — the 3D look
-   flows from the parent, never hand-ported.
-8. **The surrounding pages are dispositioned.** _(witness: human)_ Walk the legacy pages
-   (how-it-works, roadmap, landscape, constitution, contact, get-involved). **Success —** each is
-   explicitly folded into Act 2, discarded, or kept as a reachable plain static page; no orphan
-   links; `check:web-grounding` still green over every surviving claim.
+3. **The overwhelm is FELT.** _(witness: human)_ Watch the same arc leg 1 measures. **Success —** the
+   owner's verdict that the storm actually OVERWHELMS without any further visitor input, that the CRT
+   surface reads retro rather than merely styled, and that each terminal's chatter reads
+   plausible-but-OPAQUE — activity a real vibe coder could not answer. *(operator-attested and
+   irreducible — "overwhelm", "retro", and "plausible but opaque" are felt and semantic verdicts with no
+   compiler; ADR-0209 keeps them on the human rung and never model-judges them. This leg is Act 1's
+   whole reason to exist; leg 1 proves the mechanics beneath it and never this.)*
+4. **The exits actually work.** _(witness: machine)_ From a mid-storm moment take whatever exit the
+   current decided surface offers; separately, load the entry with `prefers-reduced-motion`, again with
+   WebGL unavailable, and again with JS off. **Success —** the exit RESOLVES to the calm view, and the
+   reduced-motion / no-WebGL / no-JS visitor gets that calm view directly and is NEVER played the storm
+   — the storm is a choice, not a toll booth. The observable is runtime BEHAVIOUR: a spec that asserts
+   the `data-experience-skip` / `data-experience-fallback` markers are PRESENT merely re-runs leg 2 and
+   is a FALSE pass here (`experience-rollout-guardrails` guards presence; this leg guards that the exit
+   actually goes somewhere, and that the storm never starts for the a11y visitor). *(Scope note — open
+   call 7: ADR-0153 removed the capable-visitor skip, leaving the a11y fallback as the floor, so the
+   spec's first half cannot be written until the owner settles whether a skip CONTROL survives on the
+   current surface.)*
+5. **The exit's destination is adequate.** _(witness: human)_ Arrive at the calm fallback view by both
+   routes leg 4 exercises. **Success —** the owner's verdict that it reads as a REAL calm view — a
+   coherent destination a reduced-motion visitor is glad to have landed on — and that the exit lands
+   well rather than dumping the visitor. *(operator-attested and irreducible — this is exactly the
+   ADEQUACY claim [`experience-rollout-guardrails`](experience-rollout-guardrails.md) declines and homes
+   at story level ("presence, not adequacy"); before this re-adjudication it lived only in that
+   capability's prose and in no story leg at all.)*
+6. **One tap transforms — IN PLACE.** _(witness: machine)(detail: website-experience#uat-6)_ At peak overload, click the single calm
+   storytree affordance once, instrumented. **Success —** exactly ONE such affordance is present at
+   peak and one click discharges it; the document is NEVER navigated — no URL change, no unload/load,
+   the same DOM session carries through, so the change is a TRANSFORM and not a page swap — and the
+   deferred Act 2 bundle is first fetched AT that click, with zero bytes of it requested during Act 1
+   (the runtime companion to leg 2's static-import wall). *(Scope note — open call 8: the historical
+   observable was the R3F island's chunks; ADR-0148 retired that island, so WHICH deferred module the
+   inflection lazy-loads on the current 2.5D surface is a build-time call the spec must name.)*
+7. **The exhale is FELT.** _(witness: human)_ Watch the same click leg 6 instruments. **Success —** the
+   owner's verdict that the terminals falling silent and collapsing, their fragments dropping into the
+   ground as soil, and the calm land fading up are perceived as ONE continuous transformation in place
+   rather than a cut — and that the audio RESOLVES to quiet rather than being chopped off.
+   *(operator-attested and irreducible — perceived continuity, the soil aesthetic, and an audio
+   resolution are look/feel verdicts with no compiler, never machine-asserted nor model-judged,
+   ADR-0209. The load hiding "behind the exhale" is this leg's; that the bytes waited for the click is
+   leg 6's.)*
+8. **The same request, done right — the website-first walk's MECHANICS (increment G).**
+   _(witness: machine)(detail: website-experience#uat-8)_ Reshaped by ADR-0153, then ADR-0165. From the calm land carrying the SAME
+   "build me a shopping website" request, advance the whole walk to its end, one advance at a time.
+   **Success —** the session orchestrator's chat surface is the REAL app's, AT THE BOTTOM, and it
+   presents the story as an OUTCOME BRIEF WITH AN EXAMPLE and proposes a MOCK local website (no
+   backend); the walk then
+   advances ONE tap per beat and never more (no beat demands a second input) through the decided beat
+   sequence — routed to the drive machinery → the story branches → the machinery deepens (CI/CD, devops,
+   gates, wiring) → the pull-back to one legible forest (green = proven, sapling = in-progress, withered
+   = broken) — with limbs turning green ONLY where a signed-passing-proof marker is present; elements
+   not yet walked stay HIDDEN (progressive disclosure); there is NO "skip the intro" and NO reachable
+   escape to a static/deprecated page (a11y fallback only); there is NO wrong-way-road "antipattern
+   flagged" teach anywhere (retired per ADR-0150 §4 — the dependency-layer-as-advantage is increment
+   H's, legs 10 and 11); and the arc ENDS on a CTA that CONTINUES into "what's next" rather than
+   terminating.
+9. **The walk READS as Act 1's request answered.** _(witness: human)_ Walk the same arc leg 8 measures,
+   end to end. **Success —** the owner's verdict that Act 2 reads as Act 1's request ANSWERED, shown
+   through the real product's own UI; that the mock-website proposal reads HONEST and does not
+   overwhelm; that the language is plain newcomer-dev language with no weird analogies or jargon
+   (`plain-language-first`, ADR-0157); and that the Act 1 CONTRAST lands. *(operator-attested and
+   irreducible — "answered", "honest", "plain", "does not overwhelm", and a felt contrast have no
+   compiler. Leg 8 proves the one-tap pacing that makes the contrast POSSIBLE; only a human can say it
+   landed.)*
+10. **The ONE continuous walk grows upstream — the BaaS dependency layers, MECHANICALLY.**
+    _(witness: machine)(detail: website-experience#uat-10)_ Increment H (ADR-0150; re-specced by ADR-0153 then ADR-0157). From the mock
+    website's completion, keep advancing, instrumented. **Success —** the SAME session continues — no
+    navigation to a new page, no separate CTA-gated phase ("it shouldnt be separate") — still on the
+    REAL app's UI;
+    a PROPOSED backend and database appear on real `dependsOn` edges in the BaaS DIAMOND, pointing FROM
+    the dependent TO its prerequisite: `website.dependsOn=[backend, database]` and
+    `backend.dependsOn=[database]` (ADR-0058 / `cross-story-dependency`; the frontend reads the database
+    directly as a real shopping app does — ADR-0157), the DIRECTION asserted against the rendered edge
+    DATA and not inferred from a picture, because the first build encoded it BACKWARDS and was REFUSED
+    for exactly that (ADR-0153 corrects it — a defect-driven regression case that must never recur); the
+    render places the FRONTEND HIGH and the foundation BELOW with the database the shared foundation
+    (owner spatial preference), stories at every DAG level and not just leaves; each upstream story is
+    INSPECTABLE (its what AND its why-proposed both present) and is walked green progressively on demand,
+    green again only on a signed-proof marker; not-yet-walked complexity stays HIDDEN and is revealed as
+    the walk continues; and NO antipattern flag is presented as the teach.
+11. **A NON-EXPERT reads the layout as the dependency it is.** _(witness: human)_ Put the walk leg 10
+    measures in front of a non-expert reader. **Success —** the owner's verdict that the layout reads as
+    "my website DEPENDS ON these; they are the foundation it rests on; it reads the catalog straight from
+    the database and goes through the backend for checkout" — the direction right way round to a READER,
+    not merely right in the data; that the dependency LAYERS read as storytree's ADVANTAGE (you SEE them,
+    in order, nothing hidden — the POSITIVE teach that replaced beat 4's wrong-way flag); and that the
+    complexity feels SCAFFOLDED, never dumped up front and never hidden. *(operator-attested and
+    irreducible — what a non-expert reads off a picture, and whether a teach lands as an advantage, have
+    no compiler; ADR-0209 forbids model-judging comprehension and feel. Leg 10 pins the edge DATA and the
+    spatial arrangement; only a human can say the READING lands.)*
+12. **The artifact edge is live.** _(witness: machine)_ `pnpm check:web-engine` (extended) at a clean
+    HEAD. **Success —** green: the site's synced copies of the render core AND the R3F mapper are
+    byte-fresh from their parent packages (`@generated`, no drift, no stale leftovers) — the 3D look
+    flows from the parent, never hand-ported.
+13. **The surrounding pages' disposition is EXECUTED.** _(witness: machine)(detail: website-experience#uat-13)_ Crawl the built site over
+    every legacy page (how-it-works, roadmap, landscape, constitution, contact, get-involved, the 404).
+    **Success —** every page's live state matches the SIGNED ADR-0167 disposition set exactly — the KEEP
+    set reachable as plain static pages that mount no experience engine, the DISCARD set (`/roadmap/`,
+    `/landscape/`) resolving through their redirect stubs; NO orphan links anywhere in the crawl (every
+    internal href resolves, and no surviving page is unreachable from the site graph); and
+    `check:web-grounding` green over every surviving claim. The editorial JUDGMENT of which page gets
+    which disposition was the owner's and is already SIGNED (ADR-0167 / open call 4); this leg verifies
+    only that the EXECUTION matches it.
 
 ## Proof
 
@@ -420,17 +538,35 @@ diamond) and the two LOOK caps (G + H) toward `building` for the reshaped surfac
 forward" record stays true history (copy-on-write). The 2026-07-05 owner-approved redesign (ADR-0165)
 then re-opens the two LOOK caps AGAIN for the redesigned opening/finale — this time the LEAF is
 UNTOUCHED (the island beats reuse the landed default script verbatim; web-repo-only, no parent
-re-proof). The story stays `proposed` because increment I
-(`info-pages-triage`) is unbuilt and the story's machine gates + human UAT legs are not all closed yet. The four LEAF caps are armed with `--real` proof config so the orchestrator
+re-proof).
+
+**The 2026-07-25 witness re-adjudication (ADR-0209 §8) reset the leg ledger, not the history.** Per
+ADR-0209 §6 every UAT leg returned to UNSTAMPED: the reclassified legs are not green, they are newly
+eligible to BE proven, and the prior owner attestations recorded against the OLD fused legs stand as
+true history (copy-on-write) while discharging none of the thirteen legs above. So the story stays
+`proposed` because of that unstamped leg set plus the LOOK surfaces the ADR-0165 redesign re-opened —
+NOT because an increment is unbuilt (increment I is EXECUTED and owner-attested; see its record above).
+The four LEAF caps are armed with `--real` proof config so the orchestrator
 drives each through `node build <id> --real --store pg` in dependency order — with the one documented
 pre-step that `r3f-world-spike`'s package scaffold (package.json + deps + tsconfig + `repo-manifest.json`
 ownership) is orchestrator-supplemented GLUE before its leaf runs (a leaf can never touch package.json,
 ADR-0031 §2). The five web-side caps (the storm, the inflection, the two Act 2 increments G + H, and the
 page triage) are built in the `storytree-web` repo (branching off ITS `origin/main`, its own CD) by the
-`frontend-builder` role and witnessed by the owner (ADR-0070 two-stage; appearance and feel are never
-self-signed) — each an explicit HALT point for the driving session. The story goes green only when the
-machine legs' gates run green at a clean HEAD AND the human legs are attested — attestation is recorded,
-never presumed (ADR-0044).
+`frontend-builder` role; their FELT legs (3, 5, 7, 9, 11) are witnessed by the owner (ADR-0070 two-stage;
+appearance and feel are never self-signed) — each an explicit HALT point for the driving session — while
+the site-BEHAVIOUR legs (1, 4, 6, 8, 10, 13) are now `machine`, discharged by specs in that same web
+repo's own Playwright suite.
+
+**Those six specs are a WEB-REPO build obligation, not a claim of existing coverage.** The tag declares
+the witness kind that is RIGHT for the leg (ADR-0209 §1); the specs that discharge them are NOT yet
+written, and the web repo's prior Playwright runs recorded on the LOOK caps (23/23, 10/10, 61/41/34/3-of-3)
+are PRECEDENT that these observables are reachable — not a discharge of these legs. Because the web repo
+is not a workspace member, the parent prove-it-gate cannot sign those runs today; the route by which a
+web-repo machine verdict reaches the proof spine is open call 6.
+
+The story goes green only when the two parent gates (legs 2, 12) run green at a clean HEAD, the six
+site-behaviour legs are green through a route the proof spine can honour, AND the five human legs are
+attested — attestation is recorded, never presumed (ADR-0044).
 
 ## Open modeling calls (for the owner)
 
@@ -459,6 +595,35 @@ Surfaced rather than guessed — none blocks the first increments:
    [`info-pages-triage`](info-pages-triage.md)'s proof status for the attestation record.
 5. **The home-flip moment** ("as soon as presentable", increment D) is an owner attestation by
    definition — the driving session HALTs and asks rather than deciding presentability itself.
-   **DONE (owner-attested 2026-07-02):** the storm was attested presentable (UAT legs 1–4, audio
-   included) and flipped live — storytree-web PR #18 → web main `3e53f14`, the live front door
-   since; see [`act1-terminal-storm`](act1-terminal-storm.md)'s proof status for the record.
+   **DONE (owner-attested 2026-07-02):** the storm was attested presentable (the
+   [`act1-terminal-storm`](act1-terminal-storm.md) cap's own UAT legs 1–4, audio included — not the
+   story legs above, which the 2026-07-25 re-adjudication renumbered) and flipped live — storytree-web
+   PR #18 → web main `3e53f14`, the live front door since; see that cap's proof status for the record.
+
+6. **How a WEB-REPO machine verdict reaches the parent proof spine** — raised by the 2026-07-25
+   re-adjudication (ADR-0209 §8), and the biggest thing it surfaced. Six of the eight machine legs
+   (1, 4, 6, 8, 10, 13) are site-BEHAVIOUR claims whose only honest harness is the `storytree-web`
+   repo's own headless Playwright suite. Classifying them `machine` is right — a cross-repo harness is
+   a COST, not a judgment gap (`human-witness-is-a-judgment-gap-not-cost`) — but it collides with
+   Structural call 3's provability firewall: the web repo is not a pnpm workspace member, so the parent
+   prove-it-gate cannot run red→green inside it. **The spec work for those six legs is therefore a WEB
+   REPO build obligation, and the CARRY is unresolved.** Candidate shapes, none chosen here: a
+   published web-CD Playwright verdict SYNCED into the parent (the `check:web-engine` artifact-flow
+   precedent); a parent-driven Playwright run against the PINNED preview build (which keeps the assertion
+   parent-side and spine-signable, at the cost of standing up the site in the parent's gate); or a third
+   parent-side check in the `check:web-experience` family. Owner/build-time call — until it is settled,
+   these six legs are honestly `machine` and honestly unproven.
+7. **Does a capable-visitor SKIP control still exist?** Leg 4 asserts an exit resolves to the calm view,
+   but ADR-0153's redirection 2 removed the skip as a capable-visitor escape, leaving only the
+   gate-required no-JS / `prefers-reduced-motion` a11y fallback — and the rollout narrowing above already
+   flags, unresolved, whether `check:web-experience` keeps asserting a DISTINCT skip-affordance marker or
+   folds it into the fallback marker. Leg 4's first half cannot be specced until that is settled; its
+   a11y half (the reduced-motion / no-WebGL / no-JS visitor is never played the storm) is unaffected and
+   is the load-bearing floor either way. Owner/build-time call on that LEAF cap's contract.
+8. **Which deferred module is the inflection's lazy-load observable, post-ADR-0148?** The old fused leg
+   asserted "the R3F bundle loads only now," and the inflection's 2026-07-02 attestation witnessed exactly
+   that (10/10 Playwright, zero R3F pre-click). ADR-0148 then retired the R3F landing island — the whole
+   post-storm experience is 2.5D SVG/DOM with zero WebGL — so there may be no R3F bundle left to observe.
+   Machine leg 6's claim is stated generically (the deferred Act 2 bundle is first fetched AT the click);
+   its spec must NAME the current target on the live surface. A build-time call, not a re-spec of the
+   claim; recorded rather than guessed.

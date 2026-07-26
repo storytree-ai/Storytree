@@ -70,6 +70,18 @@ export interface ShellTestResolver {
    * (see {@link ./proof/oracle-accounting.ts}). Absent ⇒ exit-code-only observation (unchanged).
    */
   verifyGreen?: (out: ShellRunResult) => { ok: true } | { ok: false; reason: string };
+  /**
+   * ADR-0249: an optional PRE-observation step, run before the command is spawned, that establishes
+   * the out-of-band evidence {@link ShellTestResolver.verifyGreen} will read belongs to THIS
+   * observation — the oracle wiring clears the stale assertion report here. A non-ok result makes the
+   * observation a fail-closed RED WITHOUT spawning: if the spine cannot trust what it is about to
+   * read, it must not go on to read it. Absent ⇒ spawn immediately (unchanged).
+   *
+   * It is the necessary counterpart to `verifyGreen`: a cross-check against evidence of unknown
+   * provenance can be satisfied by a PREVIOUS observation's evidence, which turns a fail-closed check
+   * into a fail-open one.
+   */
+  beforeRun?: () => { ok: true } | { ok: false; reason: string };
 }
 
 /**
@@ -101,6 +113,15 @@ export class ShellTestExecutor implements TestExecutor {
   }
 
   async run(testId: string): Promise<TestObservation> {
+    // ADR-0249: establish the provenance of the out-of-band evidence BEFORE spawning — the oracle
+    // wiring clears the previous observation's assertion report here, so a count read back after this
+    // run can only have been written BY this run. Fail-closed: if the evidence cannot be made
+    // attributable, the observation is a red and the command is never spawned.
+    const prepared = this.resolver.beforeRun?.();
+    if (prepared !== undefined && !prepared.ok) {
+      return { result: "red", kind: "runtime", testId, note: prepared.reason };
+    }
+
     const cmd = this.resolver.command(testId);
     const out = await this.spawn(cmd);
 

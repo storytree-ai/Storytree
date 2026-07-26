@@ -34,7 +34,7 @@
 // live store answers. All "randomness" (tile growth, crown-blob jitter, road
 // bows) is hashed from ids so the world renders identically every time.
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
@@ -93,6 +93,7 @@ import {
   type BakedStoneAsset,
 } from '../lib/factoryBuildings.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
+import { DetailDisclosure } from './DetailDisclosure.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { LibraryDrawer } from './LibraryDrawer.js';
@@ -151,6 +152,8 @@ import {
   type BuildPhase,
 } from '@storytree/forest-world';
 import {
+  neighbourHighlightPlan,
+  laneLayout,
   normalizeWorldPresentationModel,
   WorldSceneView,
   type WorldPresentationEvents,
@@ -179,6 +182,7 @@ function requireControl(key: string): ControlSpec {
 const LAYOUT_CTL = requireControl('layout');
 const ART_STYLE_CTL = requireControl('artStyle');
 const ART_SCALE_CTL = requireControl('artScale');
+const SELECTION_MOTION_CTL = requireControl('selectionMotion');
 
 /** Shared empty id-set (the DAG path passes no hub ids). */
 const EMPTY_ID_SET: ReadonlySet<string> = new Set();
@@ -1324,6 +1328,15 @@ export function readArtScale(search: string = defaultSearch()): number {
   return readControlValue(search, ART_SCALE_CTL) as number;
 }
 
+/** What MOVES when an island is selected (worldSettings' `selectionMotion` select, default
+ *  `draw`). `draw` = each route draws on once and the neighbour shores pulse, then still;
+ *  `march` = a looping travelling dash; `off` = the lanes paint with nothing moving. The
+ *  lanes themselves are not optional — this dial is only about the motion. */
+export function readSelectionMotion(search: string = defaultSearch()): 'draw' | 'march' | 'none' {
+  const v = readControlValue(search, SELECTION_MOTION_CTL) as string;
+  return v === 'march' ? 'march' : v === 'off' ? 'none' : 'draw';
+}
+
 /**
  * The central wiring hubs everything orbits in solar mode (ADR-0074 §2 — the wiring
  * layer is VISIBLE, not exempt: hiding the most-connected nodes hides the most
@@ -1393,6 +1406,10 @@ function relationsFor(nodes: { id: string; dependsOn: string[] }[], focusId: str
 const SUB_W = 134;
 const SUB_H = 46;
 const SUB_STRIP = 13;
+// Keep capability cards at one calm, readable zoom no matter how many nodes the
+// selected story owns. Small DAGs centre at this intrinsic size; wide DAGs
+// scroll inside the frame instead of scaling every card down.
+const SUB_RENDER_SCALE = 0.85;
 
 /** Smooth path through dagre's edge waypoints (quadratic through the bends). */
 function pathThrough(points: Pt[]): string {
@@ -1663,6 +1680,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   const dragRef = useRef<{ x: number; y: number; moved: boolean; lastX: number; lastY: number } | null>(
     null,
   );
+  // Pointermoves can arrive substantially faster than the display refreshes. Accumulate their deltas
+  // behind one animation-frame commit, then flush the trailing movement at gesture end.
+  const panFrameRef = useRef<number | null>(null);
+  const pendingPanRef = useRef({ dx: 0, dy: 0 });
+  // Guards against a callback that arrives after cancellation, so an old frame cannot consume a newer
+  // gesture's pending delta.
+  const panFrameGenerationRef = useRef(0);
   const suppressClickRef = useRef(false);
   // True for the instant between a per-node onClick (SceneView) handling a clean tap and that click
   // bubbling to the viewport — so the viewport's coordinate-hit-test FALLBACK never double-handles a
@@ -1815,6 +1839,53 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   );
 
   // Drag → pan. Pointer capture keeps the gesture even if it leaves the frame.
+  const commitPendingPan = useCallback((): void => {
+    const { dx, dy } = pendingPanRef.current;
+    pendingPanRef.current = { dx: 0, dy: 0 };
+    if (dx !== 0 || dy !== 0) {
+      // Commit the camera and disable programmatic easing together, once per coalesced frame.
+      // Do not retire the fitted-view flag until a camera move actually lands: a cancelled queued
+      // drag must still let a later resize re-fit the untouched view.
+      atFitRef.current = false;
+      setAnimate(false);
+      setCam((c) => (c ? panBy(c, dx, dy) : c));
+    }
+  }, []);
+
+  const queuePan = useCallback(
+    (dx: number, dy: number): void => {
+      pendingPanRef.current.dx += dx;
+      pendingPanRef.current.dy += dy;
+      if (panFrameRef.current !== null) return;
+      const generation = ++panFrameGenerationRef.current;
+      panFrameRef.current = requestAnimationFrame(() => {
+        // A cancelled rAF should not be able to consume a newer gesture's pending movement.
+        if (panFrameGenerationRef.current !== generation) return;
+        panFrameRef.current = null;
+        commitPendingPan();
+      });
+    },
+    [commitPendingPan],
+  );
+
+  const flushPendingPan = useCallback((): void => {
+    if (panFrameRef.current !== null) {
+      cancelAnimationFrame(panFrameRef.current);
+      panFrameRef.current = null;
+      panFrameGenerationRef.current += 1;
+    }
+    commitPendingPan();
+  }, [commitPendingPan]);
+
+  const cancelPendingPan = useCallback((): void => {
+    if (panFrameRef.current !== null) cancelAnimationFrame(panFrameRef.current);
+    panFrameRef.current = null;
+    panFrameGenerationRef.current += 1;
+    pendingPanRef.current = { dx: 0, dy: 0 };
+  }, []);
+
+  useEffect(() => cancelPendingPan, [cancelPendingPan]);
+
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     // Start each gesture fresh: clear any suppression a prior drag left set when
@@ -1854,20 +1925,33 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     const dy = e.clientY - d.lastY;
     d.lastX = e.clientX;
     d.lastY = e.clientY;
-    atFitRef.current = false; // manual pan — preserve this view across a later resize
-    setAnimate(false);
-    setCam((c) => (c ? panBy(c, dx, dy) : c));
-  }, []);
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    queuePan(dx, dy);
+  }, [queuePan]);
+  const finishDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
     if (d?.moved) suppressClickRef.current = true; // a drag must not register as a click
+    // Pointer-up is the trailing edge of the burst: land its latest accumulated delta now.
+    flushPendingPan();
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
       /* capture may already be gone */
     }
     dragRef.current = null;
-  }, []);
+  }, [flushPendingPan]);
+  const onPointerUp = finishDrag;
+  const onPointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (d?.moved) suppressClickRef.current = true;
+    // A cancellation is not a completed gesture: discard, rather than land, any queued movement.
+    cancelPendingPan();
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* capture may already be gone */
+    }
+    dragRef.current = null;
+  }, [cancelPendingPan]);
 
   // WASD / arrows → pan (the div is tabIndex={0}). Arrow keys preventDefault so
   // the page never scrolls; modifier-held or input-focused keystrokes pass through.
@@ -2002,8 +2086,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     return byStory;
   }, [claimsMode, rawDepartures, stories, storyIds, capOwner]);
 
-  // ADR-0093 Unit 2b: the shared scene-graph render, behind `?render=scene` (default
-  // off ⇒ the inline render below is untouched / byte-identical). The scene is
+  // ADR-0093 Unit 2b: the shared scene-graph render — the DEFAULT path now (`readRenderScene`
+  // treats anything but an explicit `?render=legacy`/`inline` as scene; the inline render below
+  // is the one-release escape hatch, not the canonical one). The scene is
   // focus-AGNOSTIC (focus / hover / selection are applied by the mapper per render),
   // so it only rebuilds on the world / substrate / ticker / build-activity inputs —
   // never on hover. Hooks live above the early returns (the world may still be null).
@@ -2103,6 +2188,24 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     () => arrivalGrowPlan(world?.trails ?? null, arrivalIds),
     [world, arrivalIds],
   );
+  // ADR-0242 — the selection highlight the reveal-on-click era never had: ONE hop, both
+  // directions. `neighbourHighlightPlan` is pure, so this is just which segments sit on the
+  // selected story's own edges (the lit lane) and which islands are its immediate upstream /
+  // downstream neighbours (the shore rings). Null when nothing is selected ⇒ no lane, no rings.
+  // Deliberately NOT the retired transitive closure (`trailRevealPlan`): that repainted the
+  // world on hover and was pulled for the lag.
+  const neighbourPlan = useMemo(
+    () => neighbourHighlightPlan(world?.trails ?? null, selectedStory),
+    [world, selectedStory],
+  );
+  // The two-lane LAYOUT (owner-directed 2026-07-27): the plan's routes turned into one lane
+  // path per route, island to island. Pure and memoised on (world, selection) — a pan or a
+  // hover never recomputes it, and it is the same shape of cheap the plan above is.
+  const selectionMotion = useMemo(() => readSelectionMotion(search), [search]);
+  const laneLayoutPlan = useMemo(
+    () => laneLayout(world?.trails ?? null, neighbourPlan, { hand: 'auto', roundabouts: true }),
+    [world, neighbourPlan],
+  );
 
   // ── A STABLE presentation model so the memoised shared view skips the O(nodes) re-walk on a pan ──
   // A pointermove pans by updating `cam` (state), re-rendering TreeView. Neither the scene nor this
@@ -2137,6 +2240,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     handledRef.current = true;
     selectStoryRef.current(storyId, capId);
   }, []);
+  // This callback stays stable while the camera moves, so the camera-neutral chrome can retain its
+  // memoized territory/stamp output across every coalesced pan commit.
+  const onStampClickStable = useCallback((id: string): void => {
+    setHighlightShared(id);
+  }, []);
   const worldPresentationModel = useMemo<WorldPresentationModel | null>(
     () =>
       scene
@@ -2147,11 +2255,25 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             hiddenStatuses: [...hidden],
             arrivalIds: [...(arrivalIds ?? [])],
             reveal: growPlan,
+            neighbours: neighbourPlan,
+            lanes: laneLayoutPlan,
+            laneMotion: selectionMotion,
             spriteSheet,
             artScale,
           })
         : null,
-    [scene, selectedStory, hidden, arrivalIds, growPlan, spriteSheet, artScale],
+    [
+      scene,
+      selectedStory,
+      hidden,
+      arrivalIds,
+      growPlan,
+      neighbourPlan,
+      laneLayoutPlan,
+      selectionMotion,
+      spriteSheet,
+      artScale,
+    ],
   );
   const worldPresentationEvents = useMemo<WorldPresentationEvents>(
     () => ({
@@ -2299,6 +2421,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
             onKeyDown={onKeyDown}
             onClick={(e) => {
               if (!renderScene) {
@@ -2317,7 +2440,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           >
           <svg
             ref={svgRef}
-            className="world-scene"
+            className={`world-scene lane-motion-${selectionMotion}`}
             onClick={(e) => {
               // scene selection is handled on the viewport (coordinate hit-test); here only the legacy
               // render clears on a true background click.
@@ -2405,7 +2528,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                 <StudioWorldChrome
                   world={world}
                   hidden={hidden}
-                  onStampClick={(id) => setHighlightShared(id)}
+                  onStampClick={onStampClickStable}
                   buildings={buildings}
                 />
               </>
@@ -3051,7 +3174,7 @@ function StoryStamp({
  * The `depends_on` roads and the static layers are already in the scene; the Shared-Islands panel,
  * session dock and settings gear are React `<div>`s outside the `<svg>` and are untouched.
  */
-export function StudioWorldChrome({
+export const StudioWorldChrome = memo(function StudioWorldChrome({
   world,
   hidden,
   onStampClick,
@@ -3115,7 +3238,7 @@ export function StudioWorldChrome({
         })}
     </g>
   );
-}
+});
 
 /**
  * The claimed-land GROUND layer for every territory in `world`, back-to-front so extrusions
@@ -4397,8 +4520,12 @@ export function UatTestCriteriaSection({
   if (tests === null || tests.length === 0) return null; // loading, or a story with no parsed UAT test criteria
 
   return (
-    <div className="uat-test-criteria">
-      <h4 className="tree-subdag-title">UAT test criteria ({tests.length})</h4>
+    <DetailDisclosure
+      label="UAT test criteria"
+      count={tests.length}
+      defaultOpen
+      className="uat-test-criteria"
+    >
       {/* ADR-0106 d.1 — the "no `either` at rest" guard: this adopted story still carries undecided
           legs, which silently land on the operator. Nudge the author to record each leg's witness. */}
       {unresolved.length > 0 && (
@@ -4508,7 +4635,7 @@ export function UatTestCriteriaSection({
           </>
         )}
       </p>
-    </div>
+    </DetailDisclosure>
   );
 }
 
@@ -4536,10 +4663,11 @@ export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.
     if (n !== null) byNum.set(n, d);
   }
   return (
-    <details className="tree-relevant-adrs">
-      <summary className="tree-subdag-title relevant-adrs-summary">
-        Architectural Decision Records ({decisions.length})
-      </summary>
+    <DetailDisclosure
+      label="Architectural Decision Records"
+      count={decisions.length}
+      className="tree-relevant-adrs"
+    >
       <ul className="relevant-adrs small">
         {decisions.map((n) => {
           const doc = byNum.get(n);
@@ -4562,7 +4690,7 @@ export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.
           );
         })}
       </ul>
-    </details>
+    </DetailDisclosure>
   );
 }
 
@@ -4711,16 +4839,24 @@ function StoryPanel({
           setResizing(false);
         }}
       />
-      <header>
-        <span className={`tree-badge st-${story.status ?? 'unknown'}`}>
-          {story.status ?? 'unknown'}
-        </span>
-        {/* the story id rides in the header only while minimised, so the collapsed
-            one-row bar still names what it is (mirrors the Legend drawer's summary). */}
-        {minimized && (
-          <code className="tree-detail-mini-id" title={story.title}>
-            {story.id}
-          </code>
+      <header className="tree-detail-header">
+        {minimized ? (
+          <>
+            <span className={`tree-badge st-${story.status ?? 'unknown'}`}>
+              {story.status ?? 'unknown'}
+            </span>
+            <code className="tree-detail-mini-id" title={story.title}>
+              {story.id}
+            </code>
+          </>
+        ) : (
+          <div className="tree-detail-heading">
+            <span className={`tree-badge st-${story.status ?? 'unknown'}`}>
+              {story.status ?? 'unknown'}
+            </span>
+            <h3 className="tree-detail-heading-title">{story.title}</h3>
+            <code className="tree-detail-id">{story.id}</code>
+          </div>
         )}
         <span className="tree-detail-controls">
           <button
@@ -4737,11 +4873,9 @@ function StoryPanel({
           </button>
         </span>
       </header>
-      <h3>{story.id}</h3>
-      <p className="tree-detail-title">{story.title}</p>
       {story.error && <p className="tree-detail-error">{story.error}</p>}
-      {story.outcome && <p className="muted small">{story.outcome}</p>}
-      <p className="small">
+      {story.outcome && <p className="muted small tree-detail-outcome">{story.outcome}</p>}
+      <p className="small tree-detail-verdict">
         <span className="muted">UAT verdict </span>
         <VerdictLine verdict={story.verdict} />
         <span className="muted"> · witness: {story.uatWitness}</span>
@@ -4756,21 +4890,33 @@ function StoryPanel({
       />
 
       {claims.length > 0 && (
-        <div className="tree-sessions">
+        <DetailDisclosure
+          label="Sessions here"
+          count={claims.length}
+          defaultOpen
+          className="tree-sessions"
+        >
           {/* The panel is a detail surface like the dock: one row per live CLAIM on this story
               (ADR-0200 D7 — self-reported presence retired; the claim ledger is the one
               coordination signal). Clicking a row opens the session dock's grouped ledger. */}
-          <h4 className="tree-subdag-title">sessions here ({claims.length})</h4>
           {claims.map(claimLine)}
-        </div>
+        </DetailDisclosure>
       )}
 
-      <h4 className="tree-subdag-title">capabilities ({story.capabilities.length})</h4>
+      <DetailDisclosure
+        label="Capabilities"
+        count={story.capabilities.length}
+        defaultOpen
+        className="tree-capabilities"
+      >
       <div className="tree-subdag-frame">
         <svg
           className="tree-subdag"
           viewBox={`0 0 ${layout.width} ${layout.height}`}
-          style={{ aspectRatio: `${layout.width} / ${layout.height}` }}
+          style={{
+            width: Math.ceil(layout.width * SUB_RENDER_SCALE),
+            height: Math.ceil(layout.height * SUB_RENDER_SCALE),
+          }}
         >
           {layout.edges.map((e) => (
             <path
@@ -4877,15 +5023,16 @@ function StoryPanel({
           </dl>
         </div>
       )}
+      </DetailDisclosure>
 
       {/* The per-UAT-test attestation table sits near the FOOT of the drill-down (the last thing
           you read once you've taken in the story + its capability DAG) — a vouch surface, never
           the gate-green hue (ADR-0044). */}
       <UatTestCriteriaSection storyId={story.id} onCrownRefresh={onCrownRefresh} />
+      <RelevantAdrs decisions={story.decisions ?? []} />
 
       {/* The UI-driven go-green control (ADR-0090 / ADR-0094) is the last ACTION in the panel (owner
-          placement, 2026-06-22; the collapsed ADR reference below it is footer context, not an
-          affordance): a single affordance at the foot. A drilled-in capability targets a
+          placement, 2026-06-22): a single affordance at the foot. A drilled-in capability targets a
           single-node `--live` build (its `buildable`). A story shows a STATUS-AWARE go-green
           affordance (ADR-0094): `proposed → Build` (whole-story `--real` drive), `mapped → Adopt`
           (observe-and-sign its `## Reliability Gates`, ADR-0085), or a reason when neither applies —
@@ -4911,11 +5058,6 @@ function StoryPanel({
         onSeedTerminal={onSeedTerminal}
       />
 
-      {/* The story's deciding ADRs (ADR-0037 §2), linked to the Decisions-group Library docs — the
-          panel's "what governs this story" context (ADR-0097 Layer 2). Moved to the foot as a
-          collapsed disclosure (owner steer 2026-06-24): low-priority governance reference, out of the
-          way until opened. */}
-      <RelevantAdrs decisions={story.decisions ?? []} />
     </aside>
   );
 }

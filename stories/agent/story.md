@@ -108,14 +108,23 @@ so no path returns from agent to any consumer and the graph stays acyclic (ADR-0
 
 ## Honest status
 
-**`mapped` (brownfield), NOT `healthy`.** The organism's dominant behaviour is observationally
-verified by a real, passing, OFFLINE suite (`pnpm --filter @storytree/agent test`): **70/70** on
-2026-06-21 (no DB, no API key — `ScriptedModel`, an injectable `queryFn`, and an injectable Codex
-runner keep runtime decisions offline-testable). Per `docs/glossary.md` that observational green is
-exactly brownfield `mapped`:
-storytree's own prove-it-gate did not drive these red→green. `healthy` is non-authorable (ADR-0020) —
-it is only ever DERIVED from signed verdicts, of which this organism has none. The authored frontmatter
-`status:` stays `mapped`.
+**Brownfield in origin, ADOPTED since 2026-06-26.** The organism's dominant behaviour is
+observationally verified by a real, passing, OFFLINE suite (`pnpm --filter @storytree/agent test`):
+**189/189** on 2026-07-26 (no DB, no API key — `ScriptedModel`, an injectable `queryFn`, and an
+injectable Codex runner keep runtime decisions offline-testable). That observational green is exactly
+brownfield `mapped`: storytree's own prove-it-gate did not drive these red→green.
+
+*(Scope note 2026-07-26 — three claims in this paragraph were stale and are corrected in place. The
+suite count was **70/70 on 2026-06-21**; it is now 189/189, re-run at this date. The `mapped` basis
+cited `docs/glossary.md`, which ADR-0135 RETIRED — the definitions are authoritative in the Library
+(`storytree library artifact mapped`), so the dead pointer is dropped rather than re-aimed. And the
+claim that this organism has **no signed verdicts** is now FALSE: the live store holds 25
+`events.verdict` rows for `agent#*`, including the 6 `adopted` verdicts the 2026-06-26 adopt pass
+signed — `agent#gate-1` and legs 1–4, 6, each `approvedBy: hua.mick@gmail.com` — plus the
+`operator-attested` verdict on leg 5 discussed under `## UAT Test Criteria`. `healthy` remains
+non-authorable (ADR-0020): it is only ever DERIVED from those verdicts, never written here. The
+authored frontmatter `status:` accordingly reads **`proposed`**, flipped by the adopt pass in commit
+`e21ee4d4`, not `mapped` as this section previously asserted.)*
 
 The recurring honesty shape, per capability: **offline-proven mechanics, live-attested-but-not-
 standing-tested live legs.** The owned loop, the file-tool surface, the model seam, and both live
@@ -235,6 +244,66 @@ authored deliverable each time, with every honesty wall held.
 > Adopt observe-and-signs them through that exact command. Leg
 > 5 is `witness: human` — the live subscription invocation is experiential/operator-attested, with no standing offline
 > test, so it (and it alone) awaits the operator's "I saw it work" (ADR-0082). No leg rests `either`.
+>
+> *(Scope note 2026-07-26: that "awaits" is now HISTORY, not current state — the adopt pass ran on
+> 2026-06-26 and legs 1–4 and 6 carry signed `adopted` verdicts, while leg 5 carries both an
+> attestation and an `operator-attested` verdict. See the two blockquotes below.)*
+
+> **TWO SIGNED ROWS POINT AT `#uat-5`, AND THE CLAIM THERE HAS BROADENED SINCE THEY WERE SIGNED —
+> READ THIS BEFORE READING LEG 5 (recorded 2026-07-26 during the ADR-0209 §8 re-adjudication; the
+> remedy is an OPEN OWNER CALL, deliberately NOT made here).**
+>
+> **What is stored.** Verified by direct query against the live store, not inferred:
+> - `events.attestation` seq **7** — `test_id: agent#uat-5`, `outcome: pass`, `witness: human`,
+>   signer **`operator`**, `relayed_by` NULL, at **2026-06-26T13:37:41Z**. It carries **no `note`**.
+> - `events.verdict` — an **`operator-attested`** PASS for `agent#uat-5`, `runId`
+>   `studio-uat-attest:2026-06-26T13:47:08.024Z`, pinning commit `e21ee4d4`, signer **`operator`**,
+>   **no `approvedBy`**, evidence exactly `[{ ref: "operator", kind: "operator-attested" }]`.
+>   `apps/studio/data/unit-status.json` DERIVES `agent#uat-5` → **`healthy`** from this verdict.
+>
+> **`operator` is a placeholder, not a person.** It is the studio's fallback signer when there is no
+> verified IAP caller and no client-supplied signer (`apps/studio/server/apiRouter.ts` — `const signer
+> = caller ?? 'operator'` on the verdict path, `caller ?? (… || 'operator')` on the attestation path),
+> i.e. the open localhost dev posture. Of the **8** attestation rows corpus-wide, this is the only
+> human-witness row with neither an identified signer nor a note; of the **18** `operator-attested`
+> verdicts corpus-wide, it is the **only one** not signed `hua.mick@gmail.com`. So the walk behind it
+> is unrecorded: nothing states which runtime ran, against what, or what was observed.
+>
+> **The claim has since BROADENED under the signed id.** At the pinned commit `e21ee4d4` leg 5 read
+> *"The live runtime authors a real slice — `ClaudeAgentAuthor` runs one `query()`…"*: Claude-only.
+> On **2026-07-24** (the ADR-0232 Codex leaf) it became *"The **selected** live runtime authors a real
+> slice — with Claude as the compatibility default **or Codex selected explicitly via `--runtime
+> codex`**…"*. The Codex leaf did not exist when the rows were signed, so both rows now sit under a
+> claim strictly wider than the one signed. This is NOT the `embedded-terminal#uat-5` failure mode (an
+> id RENUMBERED onto a different claim, PR #916) — the id, position, title-sense and witness are
+> continuous here. It is the milder sibling: **same claim, widened**. Recorded so the difference is
+> not flattened.
+>
+> **The re-adjudication verdict for leg 5 is WITHHELD, not made.** On the merits the leg would move:
+> its stated basis — *"experiential/operator-attested, with no standing offline test"*, *"proving a
+> live runtime needs the paid leaf"* — is a **harness/cost statement, not a judgment gap**, and every
+> clause of its success condition compiles (scope enforced before a write lands, out-of-scope writes
+> recorded as violations, no verdict accepted from the leaf). Both leaves are **subscription-funded**,
+> not metered spend (ADR-0232 has Codex refuse a USD cap outright), so the spend wall does not apply
+> either; under `human-witness-is-a-judgment-gap-not-cost` that is `machine`, witnessed by a
+> deliberate need-gated spine-signed run. **It is left `human` anyway**, for two reasons that are about
+> the record and the code, not the merits: (i) changing the witness would retroactively invalidate both
+> signed rows above — the studio's own sign-time trust guard REFUSES an `operator-attested` verdict on
+> a `machine` leg — and would silently drop a unit that currently derives `healthy`; and (ii) the
+> witness vector, the leg COUNT (6) and `agent#uat-5 → { witness: "human" }` are hard-pinned by a real
+> passing test OUTSIDE `stories/**` (`packages/cli/src/agent-witness-resolution.test.ts`), so a flip
+> **or an append** turns `pnpm --filter @storytree/cli test` red. Leg 5 is therefore **UNSTAMPED and
+> unchanged** (ADR-0209 §6), and this note is the honest residue.
+>
+> **The remedy is the owner's.** At least three options stand, named without preference: (i) leave both
+> rows and let this note carry the correction; (ii) the owner re-signs leg 5 as itself — under an
+> identified signer, with a note naming the runtime and the walk — re-grounding the widened claim;
+> (iii) leg 5 is re-adjudicated to `machine` as a coordinated change that also amends the pinning test
+> and supersedes the two `operator` rows. No agent may pick: granting the rows forward would be an
+> agent restoring green it was never given (`agent-never-self-exempts`), and discarding them would
+> destroy real signed state. Writing this down is a PREREQUISITE of all three, not an election of (i).
+> This is `wisp-as-story-claim`'s open call — *does an owner attestation carry forward onto a changed
+> leg?* — with a second real instance; that general call stays with that story and is not decided here.
 
 **Goal —** Behind one `PhaseAuthor` seam, each runtime implementation authors a slice on demand,
 refusing every out-of-scope write and never forging a success.
@@ -273,8 +342,10 @@ fail-closed steps, scoped writes, no-self-verdict) held; the spine never named a
 
 ## Reliability Gates
 
-The agent runtime is **brownfield** (`status: mapped`): its dominant behaviour is observationally
-verified by a real, passing, OFFLINE suite (`pnpm --filter @storytree/agent test`, **70/70** —
+The agent runtime is **brownfield in origin** (`status:` was `mapped`, flipped to `proposed` by the
+2026-06-26 adopt pass): its dominant behaviour is observationally
+verified by a real, passing, OFFLINE suite (`pnpm --filter @storytree/agent test`, **189/189** on
+2026-07-26, was 70/70 —
 `ScriptedModel`, an injectable `queryFn`, and an injectable Codex runner keep runtime decisions
 offline-testable, no DB, no API key, see **Honest status**), but storytree's own prove-it-gate never
 DROVE those proofs red→green. So its honest
@@ -302,14 +373,20 @@ the moment observation proves insufficient — a real defect slips through, or a
    **Honest status** and Story UAT leg 5), never a standing test in this package; they become a
    `build-tests` gate here if one is ever authored.
 
-Adopting this gate flips the runtime off `mapped`. `healthy` stays non-authorable
-([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
-frontmatter `status:` stays `mapped`; the world's crown DERIVES green from the signed verdicts
+Adopting this gate flips the runtime off `mapped` — **this HAS happened** (2026-06-26): the adopt pass
+observed the suite green at a clean HEAD and signed `adopted` verdicts for `agent#gate-1` and the five
+`machine` legs (1–4, 6), each `approvedBy: hua.mick@gmail.com`, and flipped the frontmatter `status:`
+to `proposed` in commit `e21ee4d4`. `healthy` stays non-authorable
+([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — it is never
+written into the frontmatter; the world's crown DERIVES green from the signed verdicts
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
-when every capability is `healthy` AND this reliability gate is signed AND the Story UAT above is
+when every capability is `healthy` AND this reliability gate is signed AND the `## UAT Test Criteria`
+above is
 attested — per-leg now (ADR-0106): the five `machine` legs (1–4, 6) explicitly bind to
-`agent#gate-1`, so Adopt observe-and-signs them against that exact suite; only leg 5
-(`witness: human`) awaits the operator's "I saw it work" (ADR-0082).
+`agent#gate-1`, so Adopt observe-and-signed them against that exact suite. Leg 5
+(`witness: human`) carries an `operator-attested` verdict and an attestation from the same day, both
+signed `operator` — **read the blockquote under `## UAT Test Criteria` before relying on either**
+(ADR-0082).
 The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the machine-
 driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up
 ([ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
@@ -318,11 +395,18 @@ ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 ## Proof
 
 The story carries the UAT above (ADR-0010 §2); it is proven when that walkthrough passes against the
-real runtimes with the capabilities' integration tests and contracts green underneath. Why `mapped`
-and what stays live-attested is pinned in **Honest status** and per capability — nothing here is
-`healthy`: per ADR-0020, `healthy` is only ever DERIVED from signed verdicts, and this organism has
-none yet. The next bootstrap rung toward `healthy` is authoring a `proof:` block per capability
-(ADR-0057) so the spine can drive these offline suites red→green under its own gate.
+real runtimes with the capabilities' integration tests and contracts green underneath. Why the origin
+was `mapped` and what stays live-attested is pinned in **Honest status** and per capability. Per
+ADR-0020 `healthy` is only ever DERIVED from signed verdicts — *(scope note 2026-07-26: the claim that
+"this organism has none yet" was FALSE and is corrected here, verified against the live store. The
+2026-06-26 adopt pass signed `adopted` verdicts for `agent#gate-1` and legs 1–4, 6, so
+`apps/studio/data/unit-status.json` already derives those units `healthy`; and the three proof-wired
+capabilities — `model-runtime-seam`, `leaf-tool-surface`, `owned-turn-loop` — each carry a
+`capability`-mode PASS verdict, i.e. the "next rung" below was not merely authored but DRIVEN. What
+genuinely has no verdict is the pair that never could: `phase-author-seam` and `live-sdk-leaf`, the
+two deliberately unwired capabilities — exactly as **Capabilities (5)** predicts.)*. The remaining
+bootstrap rung is therefore only those two, and neither carries a genuine standalone red→green
+(ADR-0057) to drive.
 
 ### This story is now story-`real`-buildable (the first rung is taken)
 
@@ -364,3 +448,17 @@ rung anyone can take.
    `owned-loop-phase-author` — the drive owns its side of the seam, this organism owns the loop
    behind it. That split is deliberate (it keeps the seam real); flagged here so it is visible, not
    hidden.
+3. **What do the two `operator`-signed rows on `#uat-5` vouch for? (raised 2026-07-26, NOT decided.)**
+   Leg 5 carries both an attestation and an `operator-attested` verdict from 2026-06-26, each signed
+   with the studio's placeholder `operator` rather than an identified person, with no note and no
+   recorded walk — and the claim at that id has since been BROADENED to cover the ADR-0232 Codex leaf,
+   which did not exist when they were signed. The full evidence, the three honest remedies, and why no
+   agent may pick one are in the blockquote under `## UAT Test Criteria`. Mirrored here so the call is
+   discoverable from this index.
+4. **Leg 5's witness is pinned OUTSIDE `stories/**` — is that intended? (raised 2026-07-26.)**
+   `packages/cli/src/agent-witness-resolution.test.ts` hard-pins this story's leg COUNT (6), its exact
+   witness vector, `agent#uat-5 → { witness: "human" }`, and the adopt summary string, as ADR-0106's
+   "concrete instance" fixture. That makes a real, useful assertion — but it also means this story's
+   UAT shape cannot be re-adjudicated, split, or extended without a coordinated edit to a package test
+   that story authors do not own. Worth deciding whether the fixture should keep pinning the LIVE
+   story or move to a synthetic one, so the corpus stays free to re-adjudicate.

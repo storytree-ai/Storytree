@@ -6,8 +6,11 @@
 // chose strategy C over B). The geometry + structure are the core's; this file owns
 // only the role → studio-class translation and the interactivity.
 //
-// Behind a flag for now (`?render=scene`, default off) so the canonical inline
-// render is untouched — visual parity is operator-attested (ADR-0070), not asserted.
+// This IS the map's render now: `readRenderScene` treats everything except an explicit
+// `?render=legacy` / `?render=inline` as the scene default, so the old inline render in
+// TreeView is the escape hatch, not the canonical path. (The "behind a flag, default off"
+// note this replaced was true only for the ADR-0093 rollout.) Visual parity with the
+// inline render is operator-attested (ADR-0070), not asserted.
 
 import React from 'react';
 import {
@@ -25,6 +28,8 @@ import {
   type Bounds,
 } from './sprite-sizing.js';
 import type { TrailRevealPlan } from './trailReveal.js';
+import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
+import type { LaneLayout } from './laneLayout.js';
 
 /** The focus-aware context the walk needs — the studio's per-render interactivity
  *  (the scene itself is focus-agnostic; focus / hover / selection are applied here). */
@@ -59,6 +64,21 @@ export interface SceneCtx {
    *  {@link fitSpritePlacement} computes from the vector body a sprite replaces. Only read when
    *  `spriteSheet` is present. */
   artScale?: number;
+  /** The SELECTION highlight plan (ADR-0242, `neighbourHighlightPlan`) — which trail segments sit on
+   *  the selected story's OWN one-hop edges. Present ⇒ the trail-fill pass gains a `trail-lit` LANE
+   *  drawn over each of those segments, narrower than the road beneath it so a shared trunk still
+   *  reads as shared. Null/absent ⇒ no lane at all, byte-identical to before. (The neighbour ISLAND
+   *  rings ride `territoryClassById`, which the caller composes from the same plan.) */
+  neighbours?: NeighbourHighlightPlan | null;
+  /** The laid-out selection lanes (`laneLayout`). PRESENT ⇒ the trail-fill pass draws ONE
+   *  lane per route, island to island, in the relation's hue, plus any roundabout islands —
+   *  and the per-segment `trail-lit` pass above is skipped entirely. Absent ⇒ the shipped
+   *  ADR-0242 per-segment ink lane, byte-identical to before this existed. */
+  lanes?: LaneLayout | null;
+  /** Which selection motion the lanes carry: `draw` (each route draws on once, the default
+   *  the studio ships) or `march` (a looping travelling dash). `none` leaves them still.
+   *  Only read when {@link lanes} is present; `prefers-reduced-motion` overrides all three. */
+  laneMotion?: 'draw' | 'march' | 'none';
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
    *  so a `baked-use` hero (the ADR-0227 status trees, the garden cottage/gazebo) sizes from its real
    *  def geometry. Memoized once per scene in the component below. */
@@ -546,6 +566,116 @@ function trySprite(
   );
 }
 
+/** The lit lane is ONE EDGE WIDE — capped at the width of a usage-1 road — and never more
+ *  than this fraction of the road it rides, so even a spur keeps a rim. */
+const LIT_LANE_CAP = trailFillWidth(1);
+const LIT_LANE_FRACTION = 0.8;
+
+/**
+ * The lane width for a segment of the given usage. ALWAYS narrower than
+ * `trailFillWidth(usage)`, which is what keeps the merge honest — but the interesting half
+ * is the CAP: a lane never grows past the width of a single-edge road, so on a trunk it
+ * reads as exactly what it is, one edge's worth of traffic inside a road that carries many.
+ * Live trunks on the real forest run to ~11 units wide; a constant inset off that leaves a
+ * hairline rim and the lane just reads as a recolour, which is what the cap fixes. A
+ * usage-1 spur — a road that really is the selection's alone — is lit nearly edge to edge.
+ */
+export function litLaneWidth(usage: number): number {
+  return Math.min(LIT_LANE_CAP, trailFillWidth(usage) * LIT_LANE_FRACTION);
+}
+
+/**
+ * The ADR-0242 lit-lane overlay for the trail-fill pass: one extra `trail-lit` path per
+ * segment the selection's own edges run through, drawn AFTER every fill so the lanes sit
+ * on top of the whole road network rather than under a later trunk. A lane inherits the
+ * arrival draw-on mask when its segment is growing, so an arriving island's new lit road
+ * still draws on rather than snapping in. Empty (no extra nodes at all) when nothing is
+ * selected — the pass is then byte-identical to before this existed.
+ */
+function litLaneNodes(children: readonly SceneNode[], ctx: SceneCtx): React.JSX.Element[] {
+  // A laid-out layout supersedes the per-segment pass entirely (see litRouteLanes).
+  if (ctx.lanes && ctx.lanes.lanes.length > 0) return litRouteLanes(ctx);
+  const plan = ctx.neighbours;
+  if (!plan || plan.litSegments.size === 0) return [];
+  const lanes: React.JSX.Element[] = [];
+  for (const child of children) {
+    if (child.el !== 'path' || !child.id || !plan.litSegments.has(child.id)) continue;
+    const props: Record<string, unknown> = {
+      key: `lit-${child.id}`,
+      className: 'trail-lit',
+      d: child.d,
+      'data-id': child.id,
+      strokeWidth: litLaneWidth(child.usage ?? 1),
+    };
+    if (ctx.reveal?.byId.get(child.id)) props.mask = `url(#trail-m-${child.id})`;
+    lanes.push(React.createElement('path', props));
+  }
+  return lanes;
+}
+
+/** World units a lane's draw-on covers per second. Calibrated against the LIVE forest, where
+ *  a one-hop route runs roughly 200–3700 units (median ~2500): fast enough that a long haul
+ *  still lands inside a second, slow enough that the travel is legible rather than a flash.
+ *  Getting this wrong is not cosmetic — a speed tuned for a small map pins every route to
+ *  the ceiling clamp, which silently un-does the one-speed property this exists for. */
+const LANE_DRAW_SPEED = 3400;
+/** Seconds a lane takes to draw on — its own length at a fixed speed, so a short spur really
+ *  is quicker than a long haul instead of every route taking the same time. Clamped at both
+ *  ends so a stub still registers and the longest route stays brisk. */
+export function laneDrawSeconds(length: number): number {
+  return Math.max(0.28, Math.min(1.2, 0.15 + length / LANE_DRAW_SPEED));
+}
+
+/**
+ * The lanes of a laid-out selection: ONE path per route, island to island, plus a roundabout
+ * island under each junction the layout named.
+ *
+ * Why this replaces the per-segment pass rather than extending it: a segment is an artefact
+ * of the routing merge and invisible to a reader, so a lane drawn per segment shows its
+ * seams — the offset steps sideways at a junction, and a per-segment draw-on appears to
+ * start fresh at every one instead of travelling from an island. Both were reported. A route
+ * is one path, so it has no seams to show.
+ *
+ * `.is-drawing` opts each lane into the one-shot growth (its own duration, via a custom
+ * property so the CSS owns the curve); the class is absent when the caller wants the quiet
+ * resting state, and `prefers-reduced-motion` kills it regardless.
+ */
+function litRouteLanes(ctx: SceneCtx): React.JSX.Element[] {
+  const layout = ctx.lanes;
+  if (!layout) return [];
+  const out: React.JSX.Element[] = [];
+  for (const hub of layout.hubs) {
+    out.push(
+      React.createElement('circle', {
+        key: `hub-${hub.x.toFixed(1)}-${hub.y.toFixed(1)}`,
+        className: 'trail-lane-hub',
+        cx: hub.x,
+        cy: hub.y,
+        r: Number((hub.r * 0.45).toFixed(2)),
+      }),
+    );
+  }
+  for (const lane of layout.lanes) {
+    const props: Record<string, unknown> = {
+      key: `lane-${lane.key}`,
+      className: `trail-lane dir-${lane.dir}${ctx.laneMotion === 'march' ? ' is-marching' : ''}${
+        ctx.laneMotion === 'draw' ? ' is-drawing' : ''
+      }`,
+      d: lane.d,
+      'data-lane': lane.key,
+      strokeWidth: lane.width,
+    };
+    if (ctx.laneMotion === 'draw') {
+      // normalise the run so the growth is length-agnostic (no dash PERIOD to outrun a short
+      // route), and hand the CSS this lane's own duration so all lanes travel at one speed
+      props.pathLength = 1;
+      props.style = { ['--lane-draw' as string]: `${laneDrawSeconds(lane.length).toFixed(2)}s` };
+    }
+    out.push(React.createElement('path', props));
+  }
+  return out;
+}
+
 function renderNode(
   node: SceneNode,
   key: React.Key,
@@ -734,6 +864,8 @@ function renderNode(
     } else {
       kids.push(...rendered);
     }
+    // ADR-0242: the selection's lit lanes ride on top of the finished fill pass.
+    if (node.kind === 'trail-fill-pass') kids.push(...litLaneNodes(children, ctx));
   } else if (node.el === 'text') {
     kids.push(node.text);
   }

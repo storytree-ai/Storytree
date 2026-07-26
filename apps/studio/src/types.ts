@@ -226,16 +226,27 @@ export interface DocMeta {
   decided?: string;
   /**
    * The ADR's frontmatter `load_bearing` tag (ADR-0086) — present ONLY for `group === 'Decisions'`
-   * docs, and true only when the tag is explicitly `load_bearing: true`. Feeds the overview
-   * constellation's size + depth-of-colour = how load-bearing encoding (ADR-0187 dec 3). Optional /
-   * absent-by-default so every existing `DocMeta` reader (and the offline json path) keeps validating.
+   * docs, and true only when the tag is explicitly `load_bearing: true`. Optional / absent-by-default
+   * so every existing `DocMeta` reader (and the offline json path) keeps validating.
+   *
+   * READER: `resolveSelectionDetail` (`./lib/selectionDetail`) → the Library selection card's
+   * load-bearing badge. It was introduced for ADR-0187 dec 3's overview size + depth-of-colour
+   * encoding, but ADR-0188 retired that overview design before it was built and redirected these
+   * wire signals to the selection card / hover cards / focus-chain weighting.
    */
   loadBearing?: boolean;
   /**
-   * The ADR's outbound decision-lineage edges (ADR-0037/0086 `supersedes`/`supersedes_in_part`/`amends`)
-   * resolved to `doc:decisions/NNNN-slug.md` pointers — present ONLY for `group === 'Decisions'` docs
-   * that carry at least one lineage edge. Lets the overview draw the ADR reference graph (ADR-0187
-   * dec 3), closing the increment-5 out-degree-0 gap. Optional / absent-by-default (back-compat).
+   * The ADR's outbound decision-lineage edges (ADR-0037/0086 `supersedes`/`amends`; `supersedes_in_part`
+   * is retired per ADR-0139) resolved to `doc:decisions/NNNN-slug.md` pointers — present ONLY for
+   * `group === 'Decisions'` docs that carry at least one lineage edge. Optional / absent-by-default
+   * (back-compat).
+   *
+   * ⚠ NO READER TODAY, in either surface — the increment-5 out-degree-0 gap is NOT closed (ADR-0251).
+   * The data ships; the consumer never landed. `importanceOf` (`./lib/overviewConstellation`) and
+   * `buildFocusGraph` (`./lib/focusGraph`) both walk `GuidanceAsset.references` only, and
+   * `LibraryOverview.test.tsx` positively pins doc out-degree at 0. Kept on the wire — and held equal
+   * across the studio/desktop mirror by `check:mirror-conformance` — so a future reader is a
+   * studio-side change, not a wire change.
    */
   references?: string[];
 }

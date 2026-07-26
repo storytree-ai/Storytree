@@ -128,11 +128,19 @@ the accumulated signal warrants.
    --reason”, and “reinforce records a recurrence on an ARCHIVED item”.)*
 4. **Synthesis** _(witness: human)_: the graduation-synthesist reads the connected friction signal
    with comments, agent-memory candidates, and the decision log, applies the
-   `friction-adjudication` process and `friction-justification-bar`, and proposes or routes the
-   durable essence while citing its source signal. **Success —** the proposed route and
-   `routeReason` are justified by the evidence, preserve the source attribution, and escalate to the
-   owner only for a genuine owner fork; this is an operator-attested value judgment, not a missing
-   machine harness.
+   `friction-adjudication` process and `friction-justification-bar`, and routes the durable essence.
+   **Success —** the chosen `route` and its `routeReason` clear the justification bar against the
+   evidence actually cited — the evidence *supports* the claim, and the essence is durable enough to
+   be worth guidance at all — and only a genuine `owner-fork-bar` fork is escalated. Sufficiency and
+   durability are value calls with **no compiler**: no schema, count, or generated-agent check can
+   decide whether this evidence earns this guidance. That is a judgment gap, not a missing harness
+   (`human-witness-is-a-judgment-gap-not-cost`).
+   *Scope (re-adjudicated 2026-07-26, ADR-0209 D8): the mechanically checkable half formerly fused
+   into this leg — that the emitted artifact carries a walkable link back to the signal it was
+   synthesised from — is **not** part of this human verdict. It is already authored as
+   [`signal-synthesis`](signal-synthesis.md) would-be contract 2 `provenance-is-walkable`, so it is
+   referenced here rather than split into a new leg. This leg judges only whether the routing call
+   was right.*
 
 ## Reliability Gates
 

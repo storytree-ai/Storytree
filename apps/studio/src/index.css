@@ -73,6 +73,20 @@
      shadow/casing passes and the in/out direction tints are suppressed in CSS (the core
      still emits them — a rendering-layer minimalism choice, tunable per ADR-0169). */
   --trail-line: #a98b63; /* soft faded brown — the one quiet pathway stroke */
+  /* ADR-0242 selection highlight. The lane is INK, not a hue: direction is carried by the
+     neighbour shore rings, so one trunk that happens to carry an upstream AND a downstream
+     edge needs no special case. The two ring hues are cool on purpose — nothing on the warm
+     board (flora greens, amber/brown crowns, the sand) can be mistaken for them. */
+  --trail-lit: #3a3128; /* warm-black lane painted on the road */
+  --rel-upstream: #0e7490; /* what the selection stands on */
+  --rel-downstream: #4f46e5; /* what stands on the selection */
+  /* the same two relations at LANE weight — lifted a step, because at the lane's capped
+     ~3-unit width the ring tones go muddy on the warm tan roadbed and start reading as the
+     ink they replaced. Same relation, two weights; still cool, so nothing on the warm board
+     can be mistaken for them. */
+  --trail-lane-up: #0d8fb0;
+  --trail-lane-down: #6a5fee;
+  --sel-shore: #33291f; /* the selected island's own shore — outranks both rings */
   --trail-fill: var(--trail-bed);
   --trail-casing: #917c59; /* --trail-bed × 0.75 — same hue, ~25% darker (unused: casing suppressed) */
   --tree-trunk: #7d5f44;
@@ -207,6 +221,12 @@ code {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+.app-stage {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* ---------- the floating HUD (ADR-0204) — the only global chrome ---------- */
@@ -417,6 +437,27 @@ code {
   flex: 1 1 auto;
   overflow-y: auto;
   min-width: 0;
+}
+
+/* ADR-0240 D2: App owns the one long-lived forest route. This is a layer of the stable app stage, not
+   a child of the changing document/sidebar layout, so a parked map keeps its exact camera + terminal
+   geometry without covering a visible StoreBanner. In particular, never use `display:none` here:
+   TerminalDock observes its body and would fit an active PTY to a destructive 2×1 while away. */
+.tree-route {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+.tree-route > .tree-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.tree-route[data-parked='true'] {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* ---------- store health banner ---------- */
@@ -1567,8 +1608,28 @@ a.stat:hover {
    rest of the map (that per-hex repaint on hover was the reported lag). The dependency
    relationship reads through the click-revealed trail chain instead. */
 .coast-fill-group.is-selected .coast-fill {
-  stroke: var(--accent);
-  stroke-width: 2.6;
+  stroke: var(--sel-shore);
+  stroke-width: 2.9;
+}
+/* ADR-0242 — the IMMEDIATE neighbours of the selection ring their own shore, by direction:
+   `is-upstream` is a story the selection stands on, `is-downstream` one that stands on it.
+   One hop only — this is NOT the transitive ancestor/descendant recolour that was pulled in
+   2026-07-06 for the per-hex repaint lag: nothing here touches the hex substrate, only nine-odd
+   coast strokes. Downstream wins when a cycle puts an island on both sides (one ring can only
+   be one colour; the lit lanes still show both roads). */
+.coast-fill-group.is-upstream .coast-fill {
+  stroke: var(--rel-upstream);
+  stroke-width: 2.4;
+}
+.coast-fill-group.is-downstream .coast-fill {
+  stroke: var(--rel-downstream);
+  stroke-width: 2.4;
+}
+/* the selection outranks a ring — a self-referential island reads as SELECTED first. */
+.coast-fill-group.is-selected.is-upstream .coast-fill,
+.coast-fill-group.is-selected.is-downstream .coast-fill {
+  stroke: var(--sel-shore);
+  stroke-width: 2.9;
 }
 
 /* TRAILS (ADR-0169, supersedes the ADR-0076 docked lines): the `depends_on` edges are a
@@ -1608,6 +1669,115 @@ a.stat:hover {
   stroke: var(--trail-line); /* the OSM tunnel convention: a fine dashed under-island run */
   stroke-dasharray: 2 6;
   opacity: 0.45;
+}
+/* ADR-0242 — the LIT LANE: when a story is selected, every trail segment on its own one-hop
+   edges gets this second, NARROWER stroke painted over the road (SceneView emits one per lit
+   segment, after the whole fill pass, at `trailFillWidth(usage) - 1.7`). Narrower is the whole
+   point: a merged trunk keeps a rim of road showing either side, so a road the selection SHARES
+   with three strangers never reads as exclusively its own — while a usage-1 spur, which really
+   is private, is lit almost edge to edge. Solid on purpose, even over a dashed spur fill: the
+   lane is what you are meant to follow. */
+.trail-lit {
+  stroke: var(--trail-lit);
+  opacity: 0.92;
+}
+
+/* THE TWO-LANE SELECTION LANES (owner-directed 2026-07-27, extends ADR-0242). One path per
+   ROUTE — island to island — in the relation's own hue, laid out by `laneLayout`. It
+   supersedes the per-segment `.trail-lit` pass above whenever a layout is present.
+
+   Why per route and not per segment: a segment is an artefact of the routing merge and
+   invisible to whoever reads the map, so a decision taken per segment (how far off-centre a
+   lane sits, when it starts drawing) surfaces as an artefact exactly at a junction — a lane
+   that steps sideways, or one that appears to light up at junctions instead of travelling
+   from an island. Both were reported from the mock round; a route has no seams to show.
+
+   The hues are the shore-ring relation hues LIFTED a step. At the lane's capped ~3-unit
+   width the ring tones go muddy against the warm tan roadbed and start reading as the ink
+   they replaced; ring and lane are the same relation in two weights, not two facts. */
+.trail-lane {
+  stroke: var(--trail-lit);
+  opacity: 0.95;
+}
+.trail-lane.dir-up {
+  stroke: var(--trail-lane-up);
+}
+.trail-lane.dir-down {
+  stroke: var(--trail-lane-down);
+}
+/* the roundabout island: the ground showing through a ring of road, drawn under the lanes */
+.trail-lane-hub {
+  fill: var(--board-1);
+  stroke: var(--trail-line);
+  stroke-width: 1;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+/* MOTION 1 — the one-shot draw-on. The lane is a single solid path, so unlike the arrival
+   reveal (which masks a possibly-DASHED fill) it can dash-offset directly: `pathLength=1`
+   normalises the run, so the growth is length-agnostic and there is no dash PERIOD that
+   could outrun a short segment. Its duration rides `--lane-draw`, which the mapper sets from
+   the route's own length so every lane travels at one speed rather than every route taking
+   the same time. Growth runs start→end, and the path is built in dependency order, so the
+   light moves the way the dependency points: an upstream lane arrives at the selection, a
+   downstream lane leaves it. */
+.trail-lane.is-drawing {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: lane-draw var(--lane-draw, 0.6s) ease-out both;
+}
+@keyframes lane-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* MOTION 2 — the looping march (opt-in via the world setting). Dashes travel ALONG the path,
+   which is dependency order, so the direction needs no per-lane flag. */
+.trail-lane.is-marching {
+  stroke-dasharray: 6 20;
+  animation: lane-march 1.5s linear infinite;
+}
+@keyframes lane-march {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+
+/* MOTION 3 — the one-shot shore pulse that rides with the draw-on: the neighbour's own coast
+   stroke swells and settles, so it costs no extra element. It fires when the ring class is
+   applied — i.e. on a selection change — and never loops. */
+.world-scene.lane-motion-draw .coast-fill-group.is-upstream .coast-fill,
+.world-scene.lane-motion-draw .coast-fill-group.is-downstream .coast-fill {
+  animation: shore-pulse 0.72s ease-out both;
+}
+@keyframes shore-pulse {
+  from {
+    stroke-width: 6.5;
+    stroke-opacity: 0.45;
+  }
+  to {
+    stroke-width: 2.4;
+    stroke-opacity: 1;
+  }
+}
+
+/* the hard constraint: reduced motion kills every one of them, and each lands on the state
+   the animation would have finished in — a fully drawn lane, a settled ring, a static dash. */
+@media (prefers-reduced-motion: reduce) {
+  .trail-lane.is-drawing {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .trail-lane.is-marching {
+    animation: none;
+    stroke-dasharray: 6 9;
+  }
+  .world-scene.lane-motion-draw .coast-fill-group.is-upstream .coast-fill,
+  .world-scene.lane-motion-draw .coast-fill-group.is-downstream .coast-fill {
+    animation: none;
+  }
 }
 /* a segment DRAWING ON during an island arrival: its per-segment mask owns the growth
    (below); the base opacity above is simply what it grows into. */
@@ -2116,7 +2286,7 @@ a.stat:hover {
    work". CRUCIAL: this is a REAL gate verdict (events.verdict) that greens the story crown, unlike the
    removed lower-rigor ⚑/⚐ vouch. The icon styling here is owner-attested art (ADR-0070). */
 .uat-test-criteria {
-  margin-top: 14px;
+  margin-top: 0;
 }
 .uat-table {
   width: 100%;
@@ -4237,18 +4407,72 @@ button.legend-tile:hover {
   letter-spacing: 0.5px;
   color: var(--muted);
 }
+/* One disclosure language for every information surface in the story panel.
+   Identity + the current UAT line stay visible; deeper surfaces open only when
+   the operator wants them. */
+.tree-detail-section {
+  margin: 0;
+  border-top: 1px solid var(--border);
+}
+.tree-detail-section-summary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 9px 4px 9px 22px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.tree-detail-section-summary::-webkit-details-marker {
+  display: none;
+}
+.tree-detail-section-summary::before {
+  content: '›';
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
+  transform: translateY(-52%);
+  transform-origin: 50% 50%;
+  transition: transform 120ms ease;
+}
+.tree-detail-section[open] > .tree-detail-section-summary::before {
+  transform: translateY(-52%) rotate(90deg);
+}
+.tree-detail-section-summary:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-2) 66%, transparent);
+}
+.tree-detail-section-summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+.tree-detail-section-body {
+  padding: 0 2px 12px;
+}
 .tree-subdag-frame {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-2);
-  padding: 6px;
+  padding: 16px;
   overflow: auto;
   max-height: 46vh;
+  scrollbar-gutter: stable;
 }
 .tree-subdag {
   display: block;
-  width: 100%;
-  height: auto;
+  max-width: none;
+  margin-inline: auto;
 }
 .sub-card .tree-card-status {
   font-size: 8.5px;
@@ -4288,7 +4512,7 @@ button.legend-tile:hover {
   border: 1px solid var(--border-strong);
   border-radius: 12px;
   box-shadow: 0 8px 28px rgba(16, 24, 40, 0.18);
-  padding: 14px 16px 14px 20px;
+  padding: 18px 16px 14px 20px;
   font-size: 13.5px;
 }
 .tree-detail.is-resizing {
@@ -4308,7 +4532,7 @@ button.legend-tile:hover {
 .tree-detail.is-minimized > :not(header) {
   display: none;
 }
-.tree-detail.is-minimized header {
+.tree-detail.is-minimized > header {
   margin-bottom: 0;
   gap: 10px;
 }
@@ -4325,6 +4549,21 @@ button.legend-tile:hover {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
+}
+.tree-detail-controls .btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-color: var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.tree-detail-controls .btn:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
 }
 .tree-detail-min {
   line-height: 1;
@@ -4345,11 +4584,45 @@ button.legend-tile:hover {
   background: linear-gradient(90deg, var(--accent-weak), transparent);
   box-shadow: inset 2px 0 0 var(--accent);
 }
-.tree-detail header {
+.tree-detail > .tree-detail-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.tree-detail-heading {
+  min-width: 0;
+}
+.tree-detail-heading .tree-badge {
+  margin-bottom: 8px;
+}
+.tree-detail-heading-title {
+  margin: 0 0 5px !important;
+  font-family: inherit !important;
+  font-size: 16px !important;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.tree-detail-id {
+  display: block;
+  color: var(--text);
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.tree-detail-outcome {
+  margin: 0 0 10px;
+  line-height: 1.55;
+}
+.tree-detail-verdict {
+  margin: 0 0 14px;
+  line-height: 1.45;
 }
 .tree-detail h3 {
   margin: 0 0 4px;
@@ -4413,10 +4686,10 @@ button.legend-tile:hover {
 }
 /* the panel's two-way wiring block (ADR-0074 §4): depends on / consumed by */
 .tree-connections {
-  margin: 2px 0 4px;
+  margin: 0;
 }
 .tree-conn-row {
-  margin: 4px 0;
+  margin: 4px 0 0;
   line-height: 1.9;
 }
 .tree-conn-row .muted {
@@ -4425,6 +4698,32 @@ button.legend-tile:hover {
 /* a declared edge with no matching story — inert, reads as muted not navigable */
 .tree-conn-dangling {
   color: var(--muted);
+}
+
+/* Keep the idle primary action reachable without making a running transcript
+   or a large adoption plan sticky. BuildSection adds is-actionable only while
+   the compact button + explanation surface is present. */
+.tree-detail > .tree-build.is-actionable {
+  position: sticky;
+  bottom: 34px; /* clear the folded terminal dock overlay */
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin: 0 -16px -14px -20px;
+  padding: 12px 16px 14px 20px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 -8px 20px color-mix(in srgb, var(--text) 7%, transparent);
+  backdrop-filter: blur(8px);
+}
+.tree-detail > .tree-build.is-actionable .build-hint {
+  margin: 0;
+  line-height: 1.45;
+}
+.tree-detail > .tree-build.is-actionable .build-error {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 1080px) {
@@ -4437,6 +4736,9 @@ button.legend-tile:hover {
   }
   .tree-detail-grip {
     display: none;
+  }
+  .tree-detail > .tree-build.is-actionable {
+    bottom: 34px;
   }
 }
 

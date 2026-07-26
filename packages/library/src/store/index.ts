@@ -13,6 +13,16 @@ export {
   DEFAULT_DATABASE,
 } from "./connection.js";
 export type { CreatePoolOptions, PoolHandle } from "./connection.js";
+// ADR-0250: the remote-session data-plane refusal — `createPool` enforces it, and the build
+// preflight (`ensureLiveDb`) reads it directly so a blocked session refuses instantly instead of
+// burning the 420s cold-start poll on an instance that was never the problem.
+export {
+  dataPlaneRefusal,
+  isDataPlaneBlockedSession,
+  ALLOW_DATA_PLANE_ENV,
+  REMOTE_MARKER_DIR,
+} from "./data-plane.js";
+export type { EnvLike, DataPlaneProbe } from "./data-plane.js";
 export { applySchema, SCHEMA_SQL_PATH } from "./migrate.js";
 // The disposable test-DB isolation guard (ADR-0054), surfaced for the DB-backed inner-loop proof
 // (ADR-0064): the CLI asserts a db-backed proof's STORYTREE_DB_NAME is non-prod before any build.

@@ -37,7 +37,8 @@
     "allowedDirs": {
       "decisions": "ADRs — immutable dated decision records; also the source-of-record the studio folds in as the Library's read-only `adr` category. New ADRs do not need a manifest entry.",
       "research": "Long-form decision-provenance behind specific ADRs (option surveys / how a decision was reached). Does not fit the Library's atomic-unit model.",
-      "friction-inbox": "Offline/remote capture staging for `friction` Library items (ADR-0168 D2): a remote 443-only session that cannot reach the live store files `storytree friction new` here as validated doc JSON for its PR, and the adjudicator/librarian files it live and deletes the staging file (migrate-only, like sync-corpus). Schema-validated fail-closed by friction-inbox.test.ts in `pnpm -r test`. NOT durable knowledge — a transient staging surface, so it sits in docs/ rather than the Library."
+      "friction-inbox": "Offline/remote capture staging for `friction` Library items (ADR-0168 D2): a remote 443-only session that cannot reach the live store files `storytree friction new` here as validated doc JSON for its PR, and the adjudicator/librarian files it live and deletes the staging file (migrate-only, like sync-corpus). Schema-validated fail-closed by friction-inbox.test.ts in `pnpm -r test`. NOT durable knowledge — a transient staging surface, so it sits in docs/ rather than the Library.",
+      "design": "Owner-approved executable HTML mocks and binary visual witnesses referenced by an arc or ADR. Their behavioural rules stay in the Library/decision record; renderable assets do not fit the Library's atomic text schema and must remain directly reviewable by humans and visual-build agents."
     },
     "files": {
       "open-questions.md": "The deferred-decisions backlog, cited by stable section number (§n) from the ADRs and Library units' references. A threaded cross-reference ledger, not atomic Library units."
@@ -64,7 +65,9 @@
       "@storytree/uat-criterion": "uat-criterion-detail",
       "@storytree/model-judged-uat": "model-judged-uat",
       "@storytree/model-uat-pilot": "model-uat-pilot",
-      "@storytree/context-traversal-telemetry": "context-traversal-telemetry"
+      "@storytree/context-traversal-telemetry": "context-traversal-telemetry",
+      "@storytree/context-traversal-capture": "context-traversal-capture",
+      "@storytree/context-traversal-spawn": "context-traversal-spawn"
     },
     "foundational": ["@storytree/storage-protocol", "@storytree/proof-protocol", "@storytree/forest-world", "@storytree/procedural-architecture"],
     "$comment_surfaces": "Consuming SURFACES (ADR-0100): a surface name → the story that owns it. A surface is an apps/* app (the studio) — a sink that wires organisms together and is consumed by nothing. ADR-0100 brought apps/* into the same boundary scan as packages/*: a surface's package.json @storytree/* deps are COVERED by the same rule as an organism's (declared in the surface's own story depends_on), so the studio's real wiring is enforced + rendered, exactly the visibility-over-exemption call ADR-0074 §2 made for the cli/store hubs. A surface is never `foundational` and draws no inbound edge. (The public-website subrepo is also a consuming surface but ships no workspace package — its forest-world edge is a declared story node backed by the check:web-engine drift gate, ADR-0093, not a package scanned here.)",

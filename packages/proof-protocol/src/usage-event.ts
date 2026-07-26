@@ -35,9 +35,24 @@ export const TokenUsage = z
   .strict();
 export type TokenUsage = z.infer<typeof TokenUsage>;
 
-/** Per-model token counts + the SDK's metered cost for that model (subscription-billed = advisory). */
+/**
+ * Per-model token counts + the SDK's metered cost for that model (subscription-billed = advisory)
+ * + the context window that model's runtime DECLARED for the slice, when it declared one.
+ *
+ * `contextWindow` is carried, never inferred: it is what the runtime itself reported
+ * (`ModelUsage.contextWindow`), never a default and never a model-id → capacity lookup
+ * (ADR-0235 clause 4). It is strictly positive — a declared `0` is not a window and is dropped at
+ * the read, so it never reaches here.
+ *
+ * This object is `.strict()`, which is load-bearing and has bitten once: the field was added to the
+ * leaf's `byModel` split without being admitted here, and every usage event silently failed to
+ * persist to `events.usage_event` for a full build. Usage capture is fail-silent by design, so
+ * nothing went red — the accounting just stopped. A new per-model field MUST be added here in the
+ * same change that starts emitting it.
+ */
 export const ModelTokenUsage = TokenUsage.extend({
   costUsd: z.number().nonnegative().optional(),
+  contextWindow: z.number().int().positive().optional(),
 }).strict();
 export type ModelTokenUsage = z.infer<typeof ModelTokenUsage>;
 

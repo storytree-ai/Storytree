@@ -61,8 +61,31 @@ test("usageFromSdkResult reads the SDK result's snake_case usage + camelCase mod
       cacheReadInputTokens: 300_000,
       outputTokens: 400,
       costUsd: 0.1234,
+      // The runtime-DECLARED context window (ADR-0235 clause 4) — carried verbatim off the SDK's
+      // `ModelUsage`, never a default and never a model-id → capacity lookup. This is the only
+      // source of a declared capacity in the whole pipeline.
+      contextWindow: 200_000,
     },
   });
+});
+
+test("a declared context window is carried only when it is genuinely declared and positive", () => {
+  const windowOf = (raw: Record<string, unknown>): number | undefined =>
+    usageFromSdkResult({ modelUsage: { "claude-sonnet-5": { inputTokens: 1, outputTokens: 2, ...raw } } })
+      .byModel?.["claude-sonnet-5"]?.contextWindow;
+
+  // Declared and positive: carried verbatim.
+  assert.equal(windowOf({ contextWindow: 1_000_000 }), 1_000_000);
+  // Not declared at all (an old SDK, a scripted double): ABSENT, never defaulted or estimated.
+  assert.equal(windowOf({}), undefined);
+  // Zero is not a window. Token COUNTS legitimately read 0, but `contextWindowCapacity` is a
+  // positive count downstream, so a 0 carried forward would fail its zod parse instead of
+  // degrading to "unknown". It must become absent here, at the first opportunity.
+  assert.equal(windowOf({ contextWindow: 0 }), undefined);
+  // Garbage is skipped like every other usage field — additive, never fail-closed.
+  assert.equal(windowOf({ contextWindow: -1 }), undefined);
+  assert.equal(windowOf({ contextWindow: "200k" }), undefined);
+  assert.equal(windowOf({ contextWindow: null }), undefined);
 });
 
 test("usageFromSdkResult is additive, never fail-closed: unreadable usage yields nothing", () => {

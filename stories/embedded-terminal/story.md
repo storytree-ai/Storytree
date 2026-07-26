@@ -5,11 +5,18 @@ title: "The desktop app embeds a real local terminal — run Claude Code in-app,
 outcome: "The desktop app embeds a real local terminal — xterm.js in the renderer over a node-pty pseudo-terminal in the Electron main — docked with the same collapse/resize affordance the retired chat had, so the user runs REAL Claude Code in-app as their interactive build surface, and the observability layer watches that session through the existing presence-hook / noticeboard-claim / store-verdict seams exactly as it watches any Claude Code session — no new observer code required."
 status: proposed
 proof_mode: UAT
-# uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT — "a real terminal
-# runs real Claude Code in-app and a wisp lights for it" — is native-module + subscription + appearance
-# + live-store, all operator-attested (ADR-0070 / ADR-0174). The machine-driven story UAT node stays
-# WITHHELD; the crown derives from the two capabilities' signed verdicts plus the operator's attestation
-# of the real-pty / terminal-feel / wisp-lights legs.
+# uat_witness ABSENT → human (ADR-0040 fail-closed signpost). RE-ADJUDICATED 2026-07-26 (ADR-0209 §8
+# corpus-wide migration, owner-directed 2026-07-25): the whole-story UAT resolves to SIX `machine` legs
+# and TWO `human` legs; no leg is model-judged (nothing here turns on semantic judgment of prose or
+# artifacts, so the model rung genuinely does not apply). The native-module, live-store and structural
+# legs are `machine` — a real node-pty, a real xterm and a real claim row are all machine-observable
+# through the EXISTING Electron `_electron` harness plus one live-gated spec; unharnessed, native, live
+# and expensive are COSTS, never judgment gaps (`human-witness-is-a-judgment-gap-not-cost`). Exactly two
+# legs stay `human`: driving the REAL PAID Claude Code subscription interactively (the owner's honesty
+# wall — metered spend the proof spine must never burn unattended) and the terminal's FEEL (ADR-0070
+# stage 2 — "reads like a real terminal" has no compiler, and ADR-0209 keeps look/feel on the human
+# rung, never model-judged). The machine-driven story UAT node stays WITHHELD; the crown derives from
+# the two capabilities' signed verdicts plus those two attestations.
 # Capabilities, roots-first. TWO machine-provable caps on OPPOSITE sides of the contextBridge, each its
 # own suite (the chat-sse-mount ↔ chat-panel precedent): pty-session-manager (the backend pty lifecycle,
 # apps/desktop node:test over an injected fake pty) and terminal-dock-panel (the renderer xterm dock,
@@ -126,11 +133,19 @@ of the `desktopTerminal` contextBridge and prove different observables in differ
 
 ## Operator-attested glue (un-asserted connective code WITHIN this story — ADR-0158, NOT capabilities)
 
-These pieces have **no isolatable red→green seam** — a `node:test` that spawned a real node-pty (a native
-module) or drove a real Electron window would be the live-native trap the machine caps deliberately avoid
-(the pty-session-manager is Electron-free and pty-native-free by construction; the terminal-dock-panel
-mocks xterm + the bridge). They are witnessed under the Story UAT's operator-attested legs (ADR-0070),
-exactly as the `desktop` story models its `backend-entry.ts` sidecar wiring and its `desktopAuth` preload:
+These pieces have **no isolatable red→green seam at the CAPABILITY tier** — a `node:test` that spawned a
+real node-pty (a native module) or drove a real Electron window would be the live-native trap the machine
+caps deliberately avoid (the pty-session-manager is Electron-free and pty-native-free by construction; the
+terminal-dock-panel mocks xterm + the bridge). They are witnessed under the **Story UAT**, exactly as the
+`desktop` story models its `backend-entry.ts` sidecar wiring and its `desktopAuth` preload:
+
+> **Glue-ness is a TIERING call, not a witness kind (corrected 2026-07-26, ADR-0209 §8).** This section
+> previously read as if "glue" implied `witness: human`. It does not. A piece is glue because it has no
+> isolatable capability-tier red→green; the Story-UAT leg that witnesses it is classified on its own
+> merits, and the integrated Electron `_electron` Playwright harness (`apps/desktop/e2e/`) DOES drive a
+> real node-pty and a real renderer end-to-end. So most of this glue is witnessed by `machine` UAT legs
+> (1, 4, 6, 8) — "no CI leg exists for it yet" was never a reason to call a claim human
+> (`human-witness-is-a-judgment-gap-not-cost`).
 
 - **The real node-pty adapter + the pty IPC in the Electron main** (`apps/desktop/electron/main.ts`): the
   concrete `node-pty` implementation of the pty-session-manager's injected `PtyPort`, the
@@ -162,12 +177,15 @@ exactly as the `desktop` story models its `backend-entry.ts` sidecar wiring and 
   `packages/*`, never `apps/*`; verified `workspacePackageForSource("apps/studio/src/x.ts") → null`. So the
   deps are a glue prerequisite the orchestrator supplements BEFORE driving each cap's `--real` build; each
   cap's `install: true` then picks them up in the fresh worktree.)*
-- **The dock-slot swap in `apps/studio/src/components/TreeView.tsx`**: mounting `<TerminalDock/>` in the
-  `.world-frame` where `<ChatDock onReloadTree={…}/>` sits today (TreeView.tsx ~L2141). The terminal dock
-  takes the interactive dock slot; ChatDock's component + tests stay in the tree DORMANT (ADR-0175). Which
-  disposition — unmount ChatDock, hide it, or feature-flag it — is a layout call surfaced in "Open
-  modeling calls" below; there is no isolatable red→green in mounting an already-proven component, so it
-  is witnessed under UAT leg 1, not asserted in CI.
+- **The dock-slot swap in `apps/studio/src/components/TreeView.tsx`**: mounting the terminal in the
+  `.world-frame` where `<ChatDock onReloadTree={…}/>` used to sit. The terminal dock takes the interactive
+  dock slot; ChatDock's component + tests stay in the tree DORMANT (ADR-0175). *(RESOLVED by the build,
+  recorded 2026-07-26: the disposition chosen was **UNMOUNT** — `TreeView` mounts `<TerminalRepoGate …
+  repoControl={<RepoPicker/>}/>` and imports only `TerminalDockSeed` as a type; `<ChatDock/>` is rendered
+  nowhere in `apps/studio/src` outside `ChatDock*.test.tsx`, whose vitest suites stay green. The old "Open
+  modeling calls" item asking unmount-vs-hide-vs-flag is closed below.)* There is no isolatable red→green
+  in mounting an already-proven component, so it stays glue at the capability tier — but the mount IS
+  observable in the integrated harness, so UAT leg 1 asserts it in CI rather than attesting it.
 
 ## Within-story dependency graph
 
@@ -223,25 +241,107 @@ end-to-end. Minimal-first (one coherent journey: open the app → a real termina
 Claude Code in it → the map lights a wisp for it), defect-driven thereafter (each real failure earns a
 permanent regression case, never speculative breadth).
 
-> **Per-leg witness (ADR-0106 / ADR-0070).** The mechanics legs are covered by the two capabilities'
-> signed `--real` verdicts (the pty lifecycle over a fake pty; the xterm dock over a mocked xterm +
-> bridge). The experiential legs — a REAL node-pty spawning real Claude Code in-app (a native module +
-> the paid subscription), the xterm **look/feel** ("reads and behaves like a real terminal"), and the
-> end-to-end "a wisp lights on the map for the terminal's session" (needs a live store + the running
-> map) — are `witness: human` (operator-attested, ADR-0070): an automated CI run cannot spawn a real
-> native pty, run the paid SDK, or judge the terminal feel. The story-level `uat_witness` is absent →
-> human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays WITHHELD;
-> the crown derives from the per-cap signed verdicts plus the operator's attestations.
+> **Per-leg witness (ADR-0209 §1 / ADR-0106 / ADR-0070).** **RE-ADJUDICATED 2026-07-26** under the
+> ADR-0209 §8 corpus-wide migration (owner-directed 2026-07-25). Three classified kinds are available:
+> `machine` (deterministic, spine-observed proof), `model` (rubric-bound semantic judgment by an eligible
+> read-only judge), `human` (irreducible operator judgment). This story resolves to **six `machine` legs
+> and two `human` legs; no leg is model-judged** — nothing here turns on semantic judgment of prose or
+> artifacts, so the model rung genuinely does not apply.
+>
+> The wiring legs (2, 3) are covered by the two capabilities' signed `--real` verdicts (the pty lifecycle
+> over a fake pty; the xterm dock over a mocked xterm + bridge) — those two tags are unchanged.
+>
+> Legs **1, 4 and 6** are `machine` through the **existing** Electron `_electron` Playwright harness
+> (`apps/desktop/e2e/`), which already launches the app offline, satisfies the repo gate by pre-writing
+> the userData `repo-selection.json`, spawns a **REAL node-pty**, types into it, and reads the main-held
+> serialized screen state back through `desktopTerminal.snapshot` (`session-survival.e2e.mjs` — the
+> renderer-independent observable, since xterm paints to a WebGL canvas where available and DOM text
+> would pass or fail by GPU availability). A real native module, a real renderer and a real shell are all
+> machine-observable there; leg **8** is `machine` too, on a SECOND, live-gated spec (see below). These
+> four were previously tagged `human`; that was a conservative mis-tag, not an irreducible judgment
+> (`human-witness-is-a-judgment-gap-not-cost` — a machine-observable success that is merely native,
+> live, expensive or unharnessed is never labelled `human`). In particular, leg 1 previously justified
+> itself as *"operator-attested glue, not a CI leg"* — glue-ness is a capability-TIERING call and the
+> absence of a harness is a cost; neither makes a DOM-structural claim irreducible.
+>
+> Exactly **two** legs stay `human` because their success condition has no compiler *(or, for leg 5, sits
+> behind the owner's explicit honesty wall)*: driving the **REAL PAID Claude Code subscription**
+> interactively — real metered spend the proof spine must never burn unattended, and a judgment about a
+> third-party interactive product's affordances rather than about our pty — and the terminal's **FEEL**
+> ("reads as ONE coherent terminal"; ADR-0070 stage 2, and ADR-0209 keeps look, feel and lived experience
+> on the human rung, never model-judged). The story-level `uat_witness` is absent → human (the ADR-0040
+> fail-closed signpost), so the machine-driven whole-story UAT node stays WITHHELD.
+>
+> **Nothing here is green.** Per ADR-0209 §6 a substantive criterion change invalidates the old green, so
+> every leg below is UNSTAMPED and earns green only under its newly-declared witness. Legs 1, 4, 6 and 8
+> carry seed-canonical `uat-criterion` detail artifacts (ADR-0209 §5) because their one-line titles cannot
+> convey the stub boundary, the false-pass trap, or the renderer-independent observable; the remaining
+> legs are fully specified by their capability contracts or by short, self-contained attestation prose, so
+> per the owner's narrower bar they get no artifact.
+>
+> **Two `machine` legs have no spec at HEAD** (legs 6 and 8 — leg 1's and leg 4's observables are already
+> driven by `session-survival.e2e.mjs`). Tagging them `machine` with no spec yet is the correct, honest
+> state: the tag states which KIND of witness is right, never that the proof exists. Stub recipes naming
+> the harness are recorded in "Open modeling calls".
+
+> **A SIGNED ATTESTATION ROW POINTS AT `#uat-5` AND NO LONGER MATCHES THE CLAIM THERE — READ THIS BEFORE
+> READING LEG 5 (recorded 2026-07-26; migration residue, not an authoring defect in these legs; the
+> remedy is an OPEN OWNER CALL, deliberately NOT made here).**
+>
+> The live store holds exactly one attestation against this story: `events.attestation` seq 8, `test_id:
+> embedded-terminal#uat-5`, `outcome: pass`, `witness: human`, signer `hua.mick@gmail.com`, relayed by
+> session `clever-chatelet-76014c`, at **2026-07-16** (verified by direct query, not inferred). It was
+> granted against the claim that stood at **position 5 BEFORE the 2026-07-26 re-adjudication** — *"It
+> reads and behaves like a real terminal"* (scrollback, colours, resize reflow, keys, the collapse/resize
+> dock). Its stored note records the walk the owner actually did: selecting text in the embedded terminal,
+> `Ctrl+C` copying it without a spurious interrupt, `Ctrl+V` pasting it back, PowerShell as the Windows
+> default shell; the owner's words were *"this works"*.
+>
+> **That is NOT the claim now at position 5.** The ADR-0209 §8 re-adjudication (PR #904) split the old
+> fused leg and RENUMBERED, so position 5 now carries *"Real Claude Code runs interactively in the
+> embedded terminal"* — the REAL PAID subscription run. The feel claim the owner signed now lives at
+> **`#uat-7`** ("It READS as one coherent terminal") and is **UNSIGNED**; the mechanics half moved to
+> `machine` leg **6** and is likewise unsigned; the clipboard round trip the note actually describes has
+> no leg at all (open modeling call 5 below). **So this row must NOT be read as vouching for leg 5's paid
+> interactive Claude Code run — that run has never been attested.** Leg 5 is **UNSTAMPED**, exactly like
+> every other re-adjudicated leg here (ADR-0209 §6), and nothing on this page is green.
+>
+> **The remedy is the owner's to choose, and is not chosen here.** At least three honest options stand,
+> named without preference: (i) leave the row as it is and let this note carry the correction; (ii) the
+> owner re-signs the feel claim at its new id `#uat-7` (deciding separately what, if anything, the
+> mechanics and clipboard substance need); or (iii) the row is invalidated or superseded as pointing at a
+> retired claim. No agent may pick one — granting the row forward would be an agent restoring green it was
+> never given (`agent-never-self-exempts`), and discarding it would destroy real signed state. **This note
+> is a prerequisite of ALL THREE options, not an election of (i):** the mismatch has to be visible here
+> whatever the owner then decides, and writing it down settles nothing.
+>
+> **This is `wisp-as-story-claim`'s open call, actually occurred.** That story's open modeling call 1 asks
+> whether an owner attestation carries forward onto a SPLIT leg. Here the situation is strictly worse than
+> that hypothetical: there the split legs are NARROWER than the signed one, so carry-forward is at least
+> arguable; here the **id was reused for a different claim**, so the stored row silently denotes something
+> the owner never looked at. The general call belongs with that story's item 1 and is **not decided here**.
+>
+> **Cause, stated factually:** leg renumbering by the ADR-0209 §8 re-adjudication in PR #904. That
+> migration's brief specified the prior-attestation check as a TEXT search of the story's own files; the
+> record lives in Postgres, so the re-adjudication truthfully reported "no prior owner attestation is
+> recorded in this story's files" and the id collision went unseen. A live-store probe entered the brief
+> only later in the migration.
 
 **Goal —** A desktop user opens the app, finds a real terminal in the dock, runs real Claude Code in it,
 and watches a wisp light on the forest map for that Claude Code session — the interactive surface being
 the real tool, the observability layer watching it through the existing seams with no new code.
 
-1. **A terminal sits in the dock.** _(witness: human)_ The member opens the desktop app; a terminal
-   panel sits in the same collapse/resize dock the chat had (the interactive dock slot). **Success —**
-   the terminal renders in the dock inside the native shell; ChatDock's dormant chat is not a second
-   interactive surface (ADR-0175). *(Mounting the already-proven `TerminalDock` in `TreeView` is
-   operator-attested glue, not a CI leg.)*
+1. **A terminal sits in the dock.** _(witness: machine)(detail: embedded-terminal#uat-1)_ The member opens the desktop app; with a valid
+   repo selected (the `terminal-repo-picker` gate — satisfied in the harness by pre-writing the userData
+   `repo-selection.json`, as `session-survival.e2e.mjs` already does), a terminal panel sits in the same
+   `.world-frame` dock slot the chat occupied. **Success —** in the real Electron renderer the forest page
+   exposes the `[aria-label="expand terminal"]` toggle, expanding it renders a live `.terminal-dock` with
+   its session panel, and NO chat dock (`.chat-dock`) is rendered anywhere in the app — the dormant chat
+   is not a second interactive surface, while `ChatDock`/`ChatPanel` and their vitest suites stay in the
+   tree (ADR-0175). *(Presence, placement and the single-interactive-surface property are DOM-structural
+   observables in the integrated harness. Mounting the dock stays glue at the capability tier — no
+   isolatable red→green in swapping which already-proven component mounts — but that is a tiering call,
+   not a witness kind.)*
 2. **The pty lifecycle is honest over the whole spawn → I/O → resize → dispose cycle.** _(witness:
    machine)_ Over a fake pty, the pty-session-manager spawns a session, routes the pty's output to the
    session's sink, forwards typed input and resizes to the right session, isolates concurrent sessions,
@@ -253,59 +353,138 @@ the real tool, the observability layer watching it through the existing seams wi
    terminal mounted, and renders a disabled "terminal unavailable here" state where the bridge is absent.
    **Success —** [`terminal-dock-panel`](terminal-dock-panel.md)'s signed verdict (geometry + wiring,
    xterm mocked).
-4. **Real Claude Code runs in the embedded terminal.** _(witness: human)_ The member types `claude` (and
-   real shell commands) in the embedded terminal; a REAL node-pty spawns a real shell in the member's
-   checkout and Claude Code runs interactively in-app — its own turn knobs, slash commands, permission
-   modes, plan mode, MCP, and skills all working (ADR-0174: the terminal's Claude Code has all of it for
-   free). **Success —** real Claude Code, driven interactively inside the app. *(operator-attested — a
-   native pty + a paid subscription session; an agent should not spawn it unattended.)*
-5. **It reads and behaves like a real terminal.** _(witness: human)_ Scrollback, colours, resize reflow,
-   keys, and the collapse/resize dock read and behave as ONE coherent terminal inside the native shell.
-   **Success —** the owner's two-stage visual verdict (ADR-0070): the terminal feel is witnessed, never
-   machine-asserted.
-6. **The observability layer lights a wisp for the terminal's Claude Code session.** _(witness: human)_
-   The Claude Code session running in the embedded terminal declares presence through the existing seams
-   (the `SessionStart` presence hook + `storytree noticeboard declare --node <story> --pg`), and a story
-   **wisp lights on the forest map** for it (ADR-0142) — with NO new observer code, proving the ADR-0174
-   premise end-to-end. **Success —** a plain Claude Code session, launched from the in-app terminal,
-   watched by the map exactly as any Claude Code session is. *(operator-attested — needs a live store +
-   the running map + a real session.)*
+4. **A REAL pty hosts a real interactive shell in the member's checkout.** _(witness: machine)(detail: embedded-terminal#uat-4)_ The dock
+   spawns a REAL node-pty in the selected repo; typed input reaches the real shell and its output comes
+   back, and a full-screen interactive program (alternate screen buffer, redraw on keypress) drives the
+   same session — the property that makes an interactive TUI work at all. **Success —** a line command
+   round-trips through the real shell and an interactive full-screen program renders and responds, read
+   back from the main-held serialized screen state (`desktopTerminal.snapshot`) — NOT the mocked
+   xterm/mocked bridge capability 3 signs. *(`session-survival.e2e.mjs` already spawns the real pty, types
+   `echo survival-probe` and reads it back this way, so the native-module half of this leg is harnessed
+   today; only the interactive-program assertion is net-new.)*
+5. **Real Claude Code runs interactively in the embedded terminal.** _(witness: human)_ The member types
+   `claude` and drives a real session in-app — its own turn knobs, slash commands, permission modes, plan
+   mode, MCP and skills all working (ADR-0174: the terminal's Claude Code has all of it for free).
+   **Success —** the owner's attestation that real Claude Code, not an imitation of it, is the interactive
+   build surface. *(`human` under the owner's explicit honesty wall, and NOT because the harness is
+   missing: this burns REAL metered subscription spend that the proof spine must never spawn unattended,
+   and "all of Claude Code's affordances work" is a judgment about a third-party interactive product
+   rather than about our pty. Leg 4 machine-proves the part with a compiler — that the pty faithfully
+   hosts a real interactive program.)*
+6. **Scrollback, reflow and keys behave like a real terminal.** _(witness: machine)(detail: embedded-terminal#uat-6)_ Over the REAL xterm
+   and REAL pty in the integrated harness: output beyond the viewport is retained in scrollback (the dock
+   constructs xterm at scrollback 5000, aligned with the main-held headless screen model, ADR-0190);
+   resizing the dock RESIZES the pty and reflows the session (the serialized screen returns at the new
+   geometry with content rewrapped, not truncated); control keys reach the shell (Ctrl+C interrupts a
+   running command); and collapsing/expanding the dock keeps the SAME session live. **Success —** the
+   terminal's mechanics asserted against a real renderer and a real shell. *(Capability 3's suite pins the
+   same WIRING over a MOCKED xterm — `tdp-resizes-with-the-dock`, `tdp-ctrl-c-copies-selection-ctrl-v-pastes`,
+   `tdp-toggles-visibility-keeping-terminal-mounted`, `tdp-constructs-with-aligned-scrollback` — but a mock
+   cannot exhibit reflow or scrollback retention, so this leg is the real-renderer half, not a
+   restatement.)*
+7. **It READS as one coherent terminal.** _(witness: human)_ Colours, glyph rendering, the dock chrome and
+   the terminal body read as ONE coherent terminal inside the native shell — not a web widget imitating a
+   terminal. **Success —** the owner's two-stage visual verdict (ADR-0070 stage 2). *(Irreducible: "reads
+   like a real terminal" is an aesthetic judgment with no compiler, and ADR-0209 keeps look, feel and
+   lived experience on the human rung — never model-judged, never machine-asserted. The MECHANICS this leg
+   used to carry — scrollback, reflow, keys, the collapse/resize dock — moved to leg 6, where they have
+   one.)*
+8. **The existing observability seams watch a session started in the terminal — a wisp lights.**
+   _(witness: machine)(detail: embedded-terminal#uat-8)_ A session started in the embedded terminal takes its claim through the EXISTING
+   CLI seam — `storytree noticeboard declare --node embedded-terminal --pg`, run in the terminal's real
+   pty (ADR-0142) — and the map paints a wisp for it with NO new observer code, proving the ADR-0174
+   premise end-to-end. **Success —** the declare writes a `work`-grade row to `events.node_claim` for that
+   session; the desktop's own `/api/activity` read reports it (`claimsToActivity`); and the rendered scene
+   carries exactly one claim-wisp keyed to that session (ADR-0212: wisp count encodes SESSIONS, the build
+   wisp folded into the claim body). *(Live-gated — it needs the REAL backend sidecar and a reachable
+   store, which the offline `_electron` mode stubs away (`STORYTREE_DESKTOP_E2E=1` skips the sidecar and
+   `harness.mjs` stubs every `/api/*` call), so this needs a SECOND, live-gated spec that SKIPs on absent
+   preconditions rather than failing. Live and expensive are costs, not judgment gaps. The wisp's LOOK is
+   `wisp-as-story-claim`'s own leg and is not re-judged here.)* **Corrected 2026-07-26:** this leg
+   previously credited the `SessionStart` **presence hook** with declaring. ADR-0200 D3 RETIRED presence
+   rows and made the hook's `start` mode pure and offline — it prints the anchor nudge and touches no
+   store (`packages/cli/src/ambient-presence-entry.ts`); the claim is taken by the explicit `declare`
+   (or `storytree worktree create --node`), and the statusline only heartbeats an existing claim. A
+   machine leg written from the old prose would have asserted a write that correctly no longer happens.
 
 End state — the desktop app embeds a real local terminal that runs real Claude Code in-app as the
-interactive build surface, the pty lifecycle and the renderer dock signed under their suites, the real
-pty / terminal feel / wisp-lights legs operator-attested — the interactive runtime becoming the real
-tool while the prove-it-gate leaf and the observability seams are untouched.
+interactive build surface: the pty lifecycle and the renderer dock signed under their suites, the dock
+mount / the real pty / the terminal mechanics / the wisp seam machine-observed in the integrated harness,
+and exactly two legs operator-attested — the paid interactive Claude Code session and the terminal's feel
+— the interactive runtime becoming the real tool while the prove-it-gate leaf and the observability seams
+are untouched.
 
 ## Proof
 
-The story is proven when that walkthrough passes — the mechanics legs (2, 3) green under the two
-capabilities' signed `--real` verdicts (with each cap's contracts green underneath), and the
-experiential legs (1, 4, 5, 6) operator-attested. Per ADR-0020, `healthy` is only ever DERIVED from
+The story is proven when that walkthrough passes — the wiring legs (2, 3) green under the two
+capabilities' signed `--real` verdicts (with each cap's contracts green underneath), the integrated legs
+(1, 4, 6, 8) green under spine-observed specs in the Electron `_electron` harness plus one live-gated
+spec, and the two irreducible legs (5, 7) operator-attested. Per ADR-0209 §6 this re-adjudication leaves
+every leg UNSTAMPED — nothing below is green, and two machine legs (6, 8) have no spec at HEAD; a
+`machine` tag states which witness is right, never that the proof exists. Per ADR-0020, `healthy` is only ever DERIVED from
 signed verdicts; nothing here is authored healthy. Both capabilities are proof-wired (each carries a
 `proof:` block with a `real:` arm — a NET-NEW red→green: a new module/component tested first against an
 injected fake/mock) so the spine can drive their offline suites red→green under its own gate; the story's
 machine-driven UAT node is WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving those
 capabilities to signed verdicts is what makes the terminal layer buildable, and the crown additionally
-awaits the operator's attestations (legs 1, 4, 5, 6).
+awaits the four integrated machine legs (1, 4, 6, 8) and the operator's two attestations (legs 5, 7).
 
 ## Open modeling calls (for the owner / orchestrator)
 
 None is a story-shape fork (ADR-0174 settled the WHAT — embed a local terminal, retire the interactive
-chat; owner-directed, no ADR reserved). Two items are **surfaced for the orchestrator's build**, not
-decided here:
+chat; owner-directed, no ADR reserved). The first two items are **CLOSED** (kept as the record of how
+they resolved); items 3 and 4 are **surfaced for the orchestrator's build** by the 2026-07-26 witness
+re-adjudication, not decided here:
 
-1. **The ChatDock dock-slot disposition (a layout call, operator-attested glue).** ADR-0175 keeps the
-   chat components in the tree, DORMANT (their vitest suites stay green), for a future `app-guide`. The
-   terminal dock takes the interactive dock slot. Whether the orchestrator **unmounts** `<ChatDock/>`
-   from `TreeView`, **hides** it, or **feature-flags** it while keeping the code+tests is a layout/glue
-   choice witnessed under UAT leg 1 — NOT a machine capability (there is no isolatable red→green in
-   swapping which already-proven component mounts in `.world-frame`). The wall to hold: do NOT delete or
-   behaviourally alter `ChatDock` / `ChatPanel` / the SSE / continuity / inspect infra (ADR-0175).
-2. **The `node-build.test.ts` snapshot companion edit (REQUIRED, outside `stories/**`).** Authoring these
-   two `real:`-armed caps makes `buildableNodeIds()` discover them (spec-borne, ADR-0057), which the
-   `packages/cli/src/node-build.test.ts` REAL-buildable snapshot regex + its per-story discovery comment
-   pin exactly (the known "node-build snapshot trap"). The orchestrator must add `pty-session-manager`
-   and `terminal-dock-panel` (alphabetically) to that regex + a per-story comment, or `pnpm -r test` goes
-   red. This is a `packages/cli` test edit — outside the story-author's `stories/**` fence — flagged here
-   so it lands with the caps. (The `node-pty` / `@xterm/xterm` deps + esbuild `--external` are the other
-   required glue prerequisites, listed under "Operator-attested glue" above.)
+1. ~~**The ChatDock dock-slot disposition.**~~ **CLOSED 2026-07-26 — resolved by the build.** The
+   disposition chosen was **UNMOUNT**: `TreeView` renders `<TerminalRepoGate … repoControl={<RepoPicker/>}/>`
+   in `.world-frame` and imports only `TerminalDockSeed` as a type; `<ChatDock/>` appears nowhere in
+   `apps/studio/src` outside `ChatDock.test.tsx` / `ChatDock.reload.test.tsx`, whose suites stay green.
+   The ADR-0175 wall held — the components, the SSE transport, continuity and inspect infra are all still
+   in the tree, behaviourally untouched. The "not a second interactive surface" property is now asserted
+   in CI under UAT leg 1 rather than attested.
+2. ~~**The `node-build.test.ts` snapshot companion edit.**~~ **CLOSED — landed.** Both
+   `pty-session-manager` and `terminal-dock-panel` are present in the REAL-buildable snapshot regex in
+   `packages/cli/src/node-build.test.ts` with their per-story discovery comment.
+3. **Two `machine` legs have no spec at HEAD (a build obligation, not a re-tag).** Legs 6 and 8 are
+   correctly classified but undischarged; a `machine` tag is a statement about the RIGHT witness, never a
+   claim that proof exists (ADR-0209 §6 — both are UNSTAMPED). Stub recipes, so the tag is cheap rather
+   than speculative:
+   - **Leg 6** — extend the existing `_electron` harness (`apps/desktop/e2e/`, the `session-survival.e2e.mjs`
+     pattern: real pty, repo gate pre-satisfied, read back via `desktopTerminal.snapshot` — never DOM text,
+     which the WebGL renderer makes GPU-dependent). Emit more rows than the viewport and assert retention;
+     drive the dock's resize edge and assert the serialized screen returns at the new geometry with content
+     REWRAPPED; send Ctrl+C to a running command and assert the interrupt; collapse/expand and assert the
+     same `sessionId` from `desktopTerminal.list()`.
+   - **Leg 8** — a SECOND, live-gated spec: launch WITHOUT `STORYTREE_DESKTOP_E2E` and WITHOUT the
+     harness's `/api/*` stubs so the real sidecar spawns (the `desktop#uat-4` precedent), run the declare
+     inside the real pty, then assert the claim row, the `/api/activity` payload and exactly one
+     claim-wisp for that session id. Gate it on a reachable store and SKIP — never fail — when the
+     preconditions are absent (the live-store-test pattern); a SKIP is an honest non-result, not a pass.
+4. **Leg 6's reflow assertion may need a main-side capability check first (surfaced, not settled).** The
+   renderer-independent observable is the main-held `@xterm/headless` screen model (ADR-0190). Whether
+   `snapshot()` after a resize genuinely exhibits REWRAP — rather than the headless model being resized
+   without reflowing historical rows — should be probed before the spec is authored; if it does not, the
+   honest options are to assert reflow on a different real observable or to narrow leg 6's reflow clause
+   to what the seam can actually show. Narrowing the CLAIM is legitimate; silently re-tagging it `human`
+   because the observable is awkward is not.
+5. **The OS-clipboard round trip has no UAT leg (surfaced, deliberately NOT added).**
+   `terminal-dock-panel`'s contract 12 (`tdp-ctrl-c-copies-selection-ctrl-v-pastes`) proves the handler
+   over a mocked clipboard, and the cap file used to describe the physical clipboard as "the story's
+   operator-attested UAT leg" — but no story leg covers it, and it would be MACHINE-observable in the
+   `_electron` harness if one did (that mis-description is corrected in the cap file). Adding a leg for it
+   now would be speculative breadth (`uat-proves-the-goal-not-the-surface`) — the goal is running Claude
+   Code in a real terminal, not covering the clipboard surface. Recorded so a future copy/paste defect
+   earns a permanent regression leg (defect-driven), rather than the gap being hidden on a human rung.
+6. **The signed `#uat-5` attestation now points at a DIFFERENT claim than the one witnessed (an OWNER
+   call; recorded 2026-07-26).** The load-bearing statement is the marked note in the UAT witness preamble
+   above — read it there, since that is where a reader forms a belief about what leg 5 means. In short:
+   `events.attestation` seq 8 (`embedded-terminal#uat-5`, pass, human, signer `hua.mick@gmail.com`,
+   2026-07-16) was given for the pre-#904 position-5 claim *"It reads and behaves like a real terminal"*;
+   the ADR-0209 §8 re-adjudication renumbered, so position 5 now carries the REAL PAID interactive Claude
+   Code run, which has never been attested, while the feel claim moved to unsigned `#uat-7`. Leg 5 stays
+   UNSTAMPED and the row vouches for neither claim. Options, none chosen: annotate only; the owner re-signs
+   at `#uat-7`; or the row is invalidated/superseded. This is `wisp-as-story-claim`'s open modeling call 1
+   (does an attestation carry forward onto a SPLIT leg?) having actually happened — and worse, since the
+   ID was reused rather than merely narrowed. Cause: leg renumbering in PR #904, whose brief checked for
+   prior attestations by TEXT search of `stories/**` while the record lives in Postgres.

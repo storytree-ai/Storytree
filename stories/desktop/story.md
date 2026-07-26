@@ -260,7 +260,8 @@ The **chat surface** the member talks to has THREE layers, split across two stor
 - the renderer chat **PANEL** (the thin client that POSTs the intake and renders the SSE stream) is a
   **`studio` frontend component** (consumed compiled, ADR-0090 d.4 / ADR-0108 d.1), **not a capability
   here** (see "Renderer chat panel placement" + the Cross-story boundary section); its *appearance* is
-  part of this story's operator-attested UAT (leg 7 below).
+  part of this story's operator-attested UAT (leg 9 below — renumbered from leg 7 by the 2026-07-25
+  ADR-0209 §8 witness re-adjudication).
 
 ## Within-story dependency graph
 
@@ -303,7 +304,7 @@ agent/SDK seam, the library schema, the studio frontend, or the app-guide-owned 
   renderer chat panel that POSTs `/api/chat` and renders the SSE stream is a `studio` frontend component
   (`apps/studio/src`) — its provable geometry/behaviour is a `studio`-story contract (frontend-builder
   two-stage, ADR-0070), consumed here compiled; its *appearance inside the native shell* is THIS story's
-  operator-attested UAT leg 7. The desktop does NOT import studio's SERVER source (the surface boundary,
+  operator-attested UAT leg 9. The desktop does NOT import studio's SERVER source (the surface boundary,
   above).
 - **`drive-machinery`** — the **build/orchestrate drivers + spec discovery**. The local backend
   composes `@storytree/drive` (`nodeBuild`/`storyBuild`/`adoptStory`/`orchestrate` + `loadLocalSecrets`,
@@ -352,43 +353,104 @@ end-to-end. Minimal-first (one coherent journey: launch → sign in → the loop
 in the shared forest), defect-driven thereafter (each real failure earns a permanent regression case,
 never speculative breadth).
 
-> **Per-leg witness (ADR-0106).** All eight legs exercise the integrated native-desktop journey and are
-> `witness: human` (operator-attested, ADR-0070). In particular, the headless local-backend and
-> credential-bridge suites support legs 3 and 4 at the component boundary, but do not prove that the
-> Electron main actually booted the composed backend or handed the credential through that live
-> integration. The real OS keychain, subscription `query()`, hosted broker, in-app `builder` grant,
-> native appearance, and splash/refuse+retry experience likewise require the operator. Deterministic
-> component tests remain supporting evidence; they do not replace the integrated witness.
-> The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
-> machine-driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up plus
-> the operator's attestations.
+> **Per-leg witness (ADR-0209 §1 / ADR-0106 / ADR-0070).** **RE-ADJUDICATED 2026-07-25** under the
+> ADR-0209 §8 corpus-wide witness migration. The previous pass tagged **all eight** legs `witness:
+> human` — the largest human pool in the corpus. That was conservative over-tagging, not eight
+> irreducible judgment gaps: `human-witness-is-a-judgment-gap-not-cost` reserves the human rung for a
+> success condition that has **no compiler**, and a success that is machine-observable but merely
+> live, expensive, or NOT-YET-HARNESSED is `machine`. Re-adjudicating leg by leg resolves this story to
+> **six `machine` legs and five `human` legs** (eleven, up from eight — see the splits below).
+>
+> **Five criteria FUSED an irreducible operator claim onto a provable one; each was SPLIT rather than
+> laundered** (the honest source of the drainage — the leg count GROWS):
+>
+> | old leg | machine half | human half |
+> | --- | --- | --- |
+> | 2 (credentials) | 2 — the panel/bridge surface holds no read-back and the renderer stores nothing | 3 — the REAL OS-keychain round-trip surviving a restart |
+> | 6 (brokered forest) | 6 — the fail-closed probe + its guidance | 8 — the owner's in-app `builder` grant opening the write path |
+> | 8 (launch refusal) | 10 — git-first refusal, the never-wake fence, the DB-reason passthrough | 11 — the splash → refuse+retry window's appearance |
+>
+> Legs **1, 4, 5** moved wholesale `human` → `machine`: nothing in "the compiled studio renders", "the
+> route returns a real envelope, not the 503 stub", or "the credential reached the backend in-process and
+> the renderer never held it" turns on judgment — each is a byte-level observable. They were tagged
+> human only because no harness drove them, which is precisely the mis-tag the rule above forbids.
+>
+> **The harness that is expected to judge the machine legs.** `apps/desktop/e2e/` drives the REAL packaged
+> Electron app through Playwright's `_electron` (`pnpm --filter desktop test:e2e`), with
+> `session-survival.e2e.mjs` as the worked precedent — it launches the real app, pre-writes `userData`
+> state, relaunches, and asserts across the restart. Leg 1 and leg 2 sit inside that harness's EXISTING
+> offline mode (`STORYTREE_DESKTOP_E2E=1`). Legs 4, 5 and 10 do **not**: that mode deliberately never
+> spawns the backend sidecar and stubs every `/api/*` call, so those three need a **second, live-gated**
+> spec that launches WITHOUT e2e mode — see "Open modeling calls" item 3. Plain headless Chrome is a
+> FALSE PASS for all of them; only `_electron` exercises the real main process.
+>
+> **Nothing here is green.** Per ADR-0209 §6 a re-adjudicated leg returns to UNSTAMPED and earns green
+> only under its newly-declared witness. The machine legs below are **declared, not proven** — no spec
+> discharges legs 4, 5 or 10 today, and the owner signs nothing as a result of this re-adjudication. The
+> story-level `uat_witness` stays absent → human (the ADR-0040 fail-closed signpost), so the
+> machine-driven whole-story UAT node stays WITHHELD; the crown derives from the per-leg roll-up plus the
+> operator's five remaining attestations. Legs 2, 4, 5 and 10 carry seed-canonical `uat-criterion` detail
+> artifacts (ADR-0209 §5, under the owner's 2026-07-25 narrower bar: a detail ONLY where the one-line
+> title is too thin to judge against, never one per leg) because their observables and their
+> stub/fake boundaries cannot survive compression to a sentence.
 
 **Goal —** A trusted member launches the native app, signs in with their Claude subscription (held in
 the OS keychain), drives a real build through the local backend, and watches it reach a signed verdict
 that blooms in the shared forest — the renderer never holding the credential or importing the agent, the
 credential never leaving the machine.
 
-1. **Launch.** _(witness: human)_ The member opens the desktop app; it loads the compiled studio UI
-   inside the native shell (no Vite, no source on the renderer). **Success —** the studio renders.
-2. **Configure credentials in the panel, stored in the keychain.** _(witness: human)_ The member opens
-   the desktop-only Credentials panel (settings/control surface), enters each credential kind
-   independently (Claude subscription
-   `oauth`, Anthropic `api-key`), stores through Store/Replace, observes
-   boolean-only saved status, and removes through Sign out/Remove — the raw credential never pre-fills,
-   never reads back, and never appears in `localStorage` or plaintext on disk; on a real desktop app the
-   operator attests a replacement token survives restart then removes cleanly. (The CI-honest core —
-   two-kind broker independence, typed IPC, operation-bridge lifetime, and the panel's one-way store/
-   feature gate — is `credential-broker`'s contracts 1–9.)
-3. **The local backend is live (no 503).** _(witness: human)_ With the desktop main process running,
-   a `GET /api/*` read route (library/tree/activity) returns a real envelope body — NOT the
-   `static-server.ts` 503 stub. **Success —** the backend booted in-process and `/api/*` serves the
-   composed organism drivers. (`local-backend-boot`'s contract test asserts the live route over the
-   stub.)
-4. **The credential reaches the in-process backend.** _(witness: human)_ A build/orchestrate driver
-   invocation in the local backend receives the brokered credential in-process (no TLS hop), and the
-   renderer is never handed the raw token. (`local-credential-wiring`'s contract test asserts the
-   in-process hand-off + the renderer isolation.)
-5. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.**
+1. **Launch — the native shell renders the COMPILED studio, no Vite, no source.** _(witness: machine)_
+   The packaged app opens; the Electron main serves the compiled studio dist over `127.0.0.1` and
+   navigates the window there off its launch page, and the renderer mounts the real studio SPA.
+   **Success —** in the `_electron` harness the window reaches an `http://127.0.0.1:<port>` origin with
+   `document.readyState === "complete"` and the forest paints, while the loaded document references ONLY
+   the built hashed `/assets/*.js` bundle — NO `/@vite/client`, no dev-server module graph, no
+   `/src/**` request (ADR-0090 d.4's carries-no-source guard, observably). *(Machine, not human: "the
+   studio renders" is a DOM/URL/network observable, and the existing harness already drives exactly this
+   launch — the appearance verdict is leg 9's, not this leg's.)*
+2. **The credentials surface is one-way — nothing reads back, the renderer stores nothing.**
+   _(witness: machine)(detail: desktop#uat-2)_ In the running Electron app the member's credential surface exposes no recovery
+   path: `window.desktopAuth` offers `status`/`store`/`signOut` and NO getter, `status(kind)` resolves a
+   BOOLEAN, the panel's inputs never pre-fill from a stored value, and after a store attempt no raw
+   credential byte is reachable from the renderer — nothing in `localStorage`, `sessionStorage`, or any
+   IPC reply. **Success —** the real preload bridge's shape and the renderer's storage are both clean,
+   asserted over the real `contextBridge` (not a jsdom fake). The CI-honest component core —
+   two-kind broker independence, typed IPC, operation-bridge lifetime, and the panel's one-way store /
+   feature gate — is `credential-broker`'s contracts 1–9; this leg adds the integrated claim that the
+   REAL bridge exposes no read-back.
+3. **A credential survives a real restart in the OS keychain, then removes cleanly.** _(witness: human)_
+   On a real desktop app the operator stores each kind independently (Claude subscription `oauth`,
+   Anthropic `api-key`), REPLACES one, quits and relaunches, confirms the replacement is still held, and
+   removes it through Sign out/Remove leaving no plaintext on disk. **Success —** the owner's
+   attestation of the real OS-keychain round-trip. *(operator-attested and irreducible — the round-trip
+   runs through `@napi-rs/keyring` against the real macOS Keychain / Windows Credential Manager /
+   libsecret, which a headless runner has no equivalent of; `apps/desktop/src/keychain/napi-adapter.ts`
+   records this exemption at the source, and `set` has no offline fallback to observe.)*
+4. **The local backend is live (no 503).** _(witness: machine)(detail: desktop#uat-4)_ With the desktop main process running
+   for real — the sidecar spawned, NOT the harness's e2e mode — a `GET /api/*` read route
+   (`tree`/`docs`/`activity`) returns a real envelope body. **Success —** the response is the composed
+   organism drivers' envelope and NOT `static-server.ts`'s `503 {"error":"no backend in the desktop
+   shell …"}` fallback. *(Machine, not human: a 503 stub versus a real envelope is a byte comparison with
+   no judgment in it. It is live-gated — the sidecar's fail-closed boot needs a git checkout and a
+   reachable store — which makes it expensive, not irreducible.)*
+5. **The credential reaches the in-process backend; the renderer never holds the raw token.**
+   _(witness: machine)(detail: desktop#uat-5)_ A build/orchestrate driver invocation in the running local backend receives the
+   brokered credential in-process — no TLS hop — while no `/api/*` response body and no
+   renderer-reachable surface ever carries that value. **Success —** with a FAKE credential held for the
+   run, the driver invocation observes it and every renderer-visible byte stream does not.
+   (`local-credential-wiring`'s contract test asserts the same hand-off + isolation at the component
+   boundary; this leg adds that the real Electron main actually wired it.) *(Machine, not human: "the
+   token appears in this byte stream" is decidable, and a FAKE credential means no spend and no live
+   studio.)*
+6. **The brokered-forest probe fails CLOSED when the broker is unreachable or the member is not a builder.**
+   _(witness: machine)_ Before the member is marked a `builder`, or when the broker is down,
+   the readiness probe refuses with clear guidance (you are not yet an authorized builder — ask the
+   owner / the broker is unreachable — is the studio up?) rather than hanging or forging success.
+   **Success —** [`shared-forest-connection`](shared-forest-connection.md)'s signed verdict over its
+   injected broker-POST seam (a reachable/authorized double and an unreachable/forbidden double drive
+   both paths). *(Machine: the fail-closed branch needs no live broker at all — it is exactly what an
+   injected seam proves. Only the AUTHORIZED path needs the live grant, and that is leg 8.)*
+7. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.**
    _(witness: human)_ The member triggers a build from the UI; the local backend drives the real `story
    build --real` (or a node `--live` smoke) on their machine — a real checkout + git + pnpm + worktrees —
    the spine observes RED then GREEN from real exit codes and SIGNS LOCALLY, then the local backend **POSTs
@@ -396,41 +458,50 @@ credential never leaving the machine.
    `events.verdict`, and the build blooms in the forest the owner watches. **Success —** a signed verdict
    from a real local build, brokered to the shared forest under the friend's `builder` role (no DB identity
    on his machine), the agent having signed nothing itself and the broker having re-signed nothing
-   (ADR-0091) — and CI later re-proves it independently. *(operator-attested — a real `--real`/`--live`
-   build is subscription-billed and the brokered write needs the live hosted studio; an agent should not
-   burn the spend unattended.)*
-6. **The brokered-forest connection is honest when the broker is unreachable / the member is not a builder.**
-   _(witness: human)_ Before the member is marked a
-   `builder` (or when the broker is down), the readiness probe fails CLOSED with clear guidance (you are
-   not yet an authorized builder — ask the owner / the broker is unreachable — is the studio up?) rather
-   than hanging or forging success; after the owner marks the member a **builder** in the Members panel (an
-   in-app grant — no `gcloud`, no Cloud SQL IAM grant; ADR-0117 d.2), the brokered write path connects.
-   (`shared-forest-connection`'s contract test proves the fail-closed probe over an injected broker-POST
-   seam; the live broker + the `builder` grant are operator-attested.)
-7. **It feels like one app, chat included.** _(witness: human)_ Launch, sign-in, the live loop, the chat
+   (ADR-0091) — and CI later re-proves it independently. *(operator-attested and irreducible — a real
+   `--real`/`--live` build is subscription-billed REAL SPEND and the brokered write lands on the live
+   hosted studio; an agent may never burn the spend or write outward unattended.)*
+8. **The owner's in-app `builder` grant opens the brokered write path.** _(witness: human)_ After the
+   owner marks the member a **builder** in the live Members panel (an in-app grant — no `gcloud`, no
+   Cloud SQL IAM grant; ADR-0117 d.2), the member's brokered write path connects against the real hosted
+   broker. **Success —** the owner's attestation that the grant they performed authorized the write.
+   *(operator-attested and irreducible — the grant is a privileged action only the owner can take, and
+   it is exercised against the live hosted studio; no agent may self-grant it,
+   `agent-never-self-exempts`.)*
+9. **It feels like one app, chat included.** _(witness: human)_ Launch, sign-in, the live loop, the chat
    panel (the consumed app-guide chat surface, absorbed from headless-orchestrator's Phase 2, ADR-0175), and the approval-to-land gate read as one
    coherent native application. **Success —** the owner's two-stage visual verdict (ADR-0070 / ADR-0113
-   §9): the appearance is witnessed, not machine-asserted.
-8. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).**
-   _(witness: human)_ Before the
-   sidecar wires any backend, the launch-precondition gate runs: with no git checkout it refuses
-   IMMEDIATELY naming the unmet precondition and NEVER wakes the DB; with a checkout it reuses
-   `ensureLiveDb` to probe and bounded-auto-wake the live store, proceeding to the ONE fully-wired
-   backend only when both hold, else refusing with the DB reason surfaced unchanged. **Success —** the
-   sidecar either wires the single full backend or refuses with a clear reason (through the Electron
-   splash → refuse+retry window); it NEVER serves the retired degraded read shell
-   (`serveDegraded` / `degradedBackend` deleted), so the *"UAT test criteria unavailable: unknown endpoint"*
-   half-wired-forest failure cannot recur. (`desktop-launch-preconditions`'s contract test proves the
-   git-first refusal + the never-wake fence + the DB passthrough over injected git/DB doubles; the
-   splash + refuse+retry window flow is operator-attested, ADR-0070 / ADR-0176 §5.) *(This is the
-   defect-driven regression case ADR-0176 was root-caused from — the Story UAT grows by appending a
-   permanent case per real failure, never speculative breadth.)*
+   §9): the appearance is witnessed, not machine-asserted. *(operator-attested and irreducible — "reads
+   as one coherent app" has no compiler; ADR-0209 keeps look, feel and lived coherence on the human rung.)*
+10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).**
+    _(witness: machine)(detail: desktop#uat-10)_ Before the sidecar wires any backend, the launch-precondition gate runs: with no
+    git checkout it refuses IMMEDIATELY naming the unmet precondition and NEVER wakes the DB; with a
+    checkout it reuses `ensureLiveDb` to probe and bounded-auto-wake the live store, proceeding to the ONE
+    fully-wired backend only when both hold, else refusing with the DB reason surfaced UNCHANGED.
+    **Success —** the sidecar either wires the single full backend or refuses naming the reason, and it
+    NEVER serves the retired degraded read shell (`serveDegraded` / `degradedBackend` deleted), so the
+    *"UAT test criteria unavailable: unknown endpoint"* half-wired-forest failure cannot recur.
+    (`desktop-launch-preconditions`'s contract test proves the same three branches over injected git/DB
+    doubles; this leg adds that the real Electron launch honours them — including the never-wake fence,
+    observable as the absence of any store-wake call on the no-git path.) *(Machine, not human: "it
+    refused, naming this precondition, without waking the DB" is a decidable observable; the window's
+    APPEARANCE while doing so is leg 11.)* *(This is the defect-driven regression case ADR-0176 was
+    root-caused from — the Story UAT grows by appending a permanent case per real failure, never
+    speculative breadth.)*
+11. **The splash → refuse+retry window reads right.** _(witness: human)_ The Electron splash and the
+    refuse+retry window the failed launch lands on read clearly and let the member retry.
+    **Success —** the owner's stage-2 visual verdict (ADR-0070 / ADR-0176 §5). *(operator-attested and
+    irreducible — the refusal's LOOK has no compiler; leg 10 already machine-pins that the refusal
+    happened and what it said.)*
 
 End state — a trusted member ran the whole storytree loop on their own machine through a native app,
 their credential held in the OS keychain and never leaving the machine, their builds signed locally from
 real exit codes and BROKERED to the shared forest (POSTed to the studio's members-gated write-broker under
 their in-app `builder` role, no DB identity on their machine; ADR-0117), the renderer never crossing the
-agent boundary.
+agent boundary — the launch, the one-way credential surface, the live backend, the in-process credential
+hand-off, the fail-closed broker probe and the clean launch refusal all machine-witnessed, and only the
+real keychain round-trip, the billed build, the owner's `builder` grant, the one-app feel and the refusal
+window's look attested by the operator.
 
 ## Reliability Gates
 
@@ -478,15 +549,18 @@ suites.
    per-kind sign-out; `apps/studio/src/components/CredentialsPanel.test.tsx`, ADR-0179, vitest jsdom) —
    then signs an `adopted` verdict. `credential-broker` greens via this gate's `(covers:)` (ADR-0097 §5).
    The real `@napi-rs/keyring` OS-keychain round-trip through the panel is NOT observed here — it is the
-   operator-attested leg (ADR-0070 / ADR-0179 §5, Story UAT leg 2), which an agent can never
+   operator-attested leg (ADR-0070 / ADR-0179 §5, Story UAT leg 3), which an agent can never
    self-attest.
 
 Adopting this gate greens ONLY `credential-broker` — its DERIVED crown, via the `(covers:)` above. It
 does NOT green the story and does NOT touch the authored `status:` (which stays `proposed`): the desktop
-crown still awaits its OTHER capabilities and all eight operator-attested Story UAT legs — including
-the Electron-main backend boot, live credential hand-off, real OS-keychain round-trip, subscription
-loop, brokered forest write, in-app `builder` grant, native appearance, and splash/refuse+retry
-experience — which an agent can never self-attest. `healthy` stays non-authorable
+crown still awaits its OTHER capabilities and all ELEVEN Story UAT legs, in the two kinds the 2026-07-25
+ADR-0209 §8 re-adjudication resolved them into: **six machine legs** awaiting signed verdicts (the
+compiled-studio launch, the one-way credential surface, the Electron-main backend boot, the in-process
+credential hand-off, the fail-closed broker probe, and the clean launch refusal) and **five
+operator-attested legs** (the real OS-keychain round-trip, the subscription-billed build, the in-app
+`builder` grant, the one-app feel, and the refuse+retry window's look) — the latter five an agent can
+never self-attest. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
 `status:` is never `healthy`; the world's crown DERIVES green from the signed verdict
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)), and only
@@ -495,24 +569,66 @@ signed verdict toward that roll-up; it is not the crown.
 
 ## Proof
 
-The story is proven when all eight integrated legs are operator-attested. The deterministic
-credential-broker, local-backend, credential-bridge, forest-readiness, and launch-precondition suites
-remain supporting component evidence, but they do not sign the Electron-main/live-integration UAT
-observables. Per ADR-0020, `healthy` is only ever
+The story is proven when the eleven legs above pass under their **re-adjudicated** witnesses (2026-07-25,
+ADR-0209 §8): six machine legs (1, 2, 4, 5, 6, 10) green under a signed verdict, and five legs (3, 7, 8,
+9, 11) operator-attested. Leg 6 is discharged by
+[`shared-forest-connection`](shared-forest-connection.md)'s own signed verdict over its injected seam;
+legs 1 and 2 by the EXISTING offline `_electron` harness; legs 4, 5 and 10 by a live-gated `_electron`
+spec that does **not** yet exist (open modeling call 3). The deterministic credential-broker,
+local-backend, credential-bridge, forest-readiness, and launch-precondition suites remain supporting
+component evidence — they prove the same logic over doubles, which is why the integrated legs stay
+distinct obligations rather than being folded into the caps. Per ADR-0020, `healthy` is only ever
 DERIVED from signed verdicts; nothing here is authored healthy. The three thick-client capabilities are
 proof-wired (each carries a `proof:` block with a `real:` arm — a NET-NEW red→green) so the spine can
 drive their offline suites red→green under its own gate; the story's machine-driven UAT node is WITHHELD
 (its `uat_witness` is absent → human, ADR-0040), so driving those capabilities to signed verdicts is
-what makes the thick-client layer buildable, and the crown additionally awaits the operator's
-attestations (legs 1–8).
+what makes the thick-client layer buildable, and the crown additionally awaits the six machine legs'
+verdicts and the operator's five attestations.
+
+**The machine legs are a build obligation, not a claim of existing coverage.** Per ADR-0209 §6 this
+re-adjudication returned EVERY leg to UNSTAMPED: the six machine legs declare the witness kind that is
+RIGHT for them, and four of them (1, 4, 5, 10) have no spec discharging them at HEAD. They are newly
+eligible to BE proven, not proven. The specs live in `apps/desktop/e2e/**` — OUTSIDE the story-author's
+`stories/**` fence — so they are flagged under "Open modeling calls" to land with whoever builds them.
 
 ## Open modeling calls (for the owner)
 
 One GENUINELY OPEN fork at the story-shape level (recorded below, escalated — not pre-decided), plus two
-decided-and-surfaced items. ADR-0113 settled the desktop's overall shape (thick-local, the inner-circle
+decided-and-surfaced items and one item surfaced by the 2026-07-25 witness re-adjudication (3 below —
+the specs that discharge the reclassified machine legs). ADR-0113 settled the desktop's overall shape (thick-local, the inner-circle
 premise, the shared forest, minimal packaging); the local-backend boundary call (re-compose the organism
 drivers vs import the studio server) is a **dependency-graph/layout decision the story-author owns** (owner
 correction 2026-06-26) and is DECIDED above (re-compose), not escalated.
+
+### 3. The `_electron` specs that discharge machine legs 1, 4, 5 and 10 (REQUIRED, outside `stories/**`)
+
+The 2026-07-25 ADR-0209 §8 re-adjudication reclassified these legs from `human` to `machine`. **No spec
+discharges them at HEAD** — recorded here as an obligation, never claimed as coverage. Two distinct
+harness shapes are needed, and the split matters:
+
+- **Leg 1 (and leg 2) fit the EXISTING offline harness.** A new spec under `apps/desktop/e2e/` following
+  `session-survival.e2e.mjs` runs in `STORYTREE_DESKTOP_E2E=1` mode: leg 1 asserts the
+  `http://127.0.0.1:<port>` origin plus a script-tag/network sweep showing only hashed `/assets/*.js` and
+  no `/@vite/client`; leg 2 asserts the real `window.desktopAuth` surface (three methods, no getter, a
+  boolean `status`) and a clean `localStorage`/`sessionStorage`. Leg 2 must NOT drive a store of a real
+  secret — `NapiKeychain.set` has no offline fallback and a headless runner has no keychain, which is
+  exactly why the round-trip stayed human as leg 3. Reading `status(kind)` IS safe (the adapter's `get`
+  normalises a missing/unavailable entry to `null`).
+- **Legs 4, 5 and 10 need a SECOND, LIVE-GATED spec that launches WITHOUT e2e mode.** `STORYTREE_DESKTOP_E2E=1`
+  deliberately never spawns the sidecar and the harness stubs every `/api/*` call
+  (`electron/main.ts` L450, `harness.mjs`), so the existing mode structurally cannot observe a real
+  envelope, a real credential hand-off, or the real launch-precondition gate. A live-gated spec must let
+  the sidecar boot for real (git checkout + reachable store; the `live-store test traps` skip-when-offline
+  pattern keeps CI honest), inject a FAKE credential for leg 5 rather than a real one, and drive leg 10's
+  no-git branch — where the observable includes the ABSENCE of a store-wake call, so the spec needs a
+  seam or log to witness the never-wake fence, not just the refusal text. **Whether that seam already
+  exists is an implementation question for the builder, not a story-shape call** — but if the fence turns
+  out to be unobservable from outside the sidecar, leg 10's machine tag should be revisited rather than
+  discharged loosely.
+
+These are `apps/desktop/**` edits — outside the story-author's fence — flagged so they land with the legs
+they prove. Until they land, legs 1, 4, 5 and 10 are honestly UNSTAMPED: declared machine, not yet
+machine-proven.
 
 ### OPEN — the live chat's orientation `runner` needs a boundary decision (escalated to the owner)
 
@@ -570,7 +686,7 @@ operator-attested GLUE in item 1 below and in `chat-sse-mount.md`; THIS open ite
      precedent (frontend-builder two-stage, ADR-0070); it imports NO agent/drive/model code and parses
      SSE `data:` frames as plain JSON against a locally-declared type (so it adds no cross-story edge —
      see chat-panel.md "No new cross-story edge"). Its *appearance inside the native shell* is THIS
-     story's already-declared operator-attested UAT leg 7 (the look is witnessed, never a machine visual
+     story's already-declared operator-attested UAT leg 9 (the look is witnessed, never a machine visual
      verdict — the panel author signs no visual verdict). The panel is owned by `studio` — deliberately
      NOT a desktop capability (slow growth: the desktop's net-new is the mount; the panel rides studio's
      frontend discipline).
@@ -581,13 +697,13 @@ operator-attested GLUE in item 1 below and in `chat-sse-mount.md`; THIS open ite
      provable cap (`chat-sse-mount`, green); `electron/` is the operator-attested binding the
      CI-provable core is deliberately electron-free of ("THE CI-PROVABLE CORE IS ELECTRON-FREE",
      chat-sse-mount.md). There is no isolatable red→green seam in chaining a third already-proven
-     dispatcher into the Electron main — it is witnessed under UAT leg 7, not asserted in CI. The
+     dispatcher into the Electron main — it is witnessed under UAT leg 9, not asserted in CI. The
      **mount-deps extension** (forwarding `startChatStream`'s live `runner`/`model`/etc. so the live chat
      actually ORIENTS) is **also operator-attested glue, not an offline-provable contract** — the
      `OrientationRunner` is reachable ONLY via a real SDK tool-dispatch, which a scripted `queryFn` never
      triggers, so a forwarded sentinel runner has no offline observable (full reasoning in chat-sse-mount.md
      "The deferred mount-deps extension is GLUE"). The orchestrator executes both operator-attested under
-     leg 7.
+     leg 9.
 2. **The desktop serves the studio's BOOT read set; verbatim full route-table sharing stays deferred
    (decided, ADR-0119 §2).** The desktop mounts the studio's BOOT read routes
    (`me`/`health`/`docs`/`tree`/`assets`/`comments`) — composed from the organism drivers and a read-only
@@ -603,7 +719,8 @@ operator-attested GLUE in item 1 below and in `chat-sse-mount.md`; THIS open ite
 The only **owner-level** item is operational, not modeling, and ADR-0117 SIMPLIFIED it: it is no longer
 an attended Cloud SQL IAM `gcloud` grant but an **in-app `builder` mark in the Members panel** (ADR-0117
 d.2 — the friend holds no DB identity; the server is the single DB authority). A privileged action the
-human performs, now fully in-app, surfaced in `shared-forest-connection` and UAT leg 6. *(A third item is
+human performs, now fully in-app, surfaced in `shared-forest-connection` and UAT leg 8 (the grant leg the
+2026-07-25 re-adjudication split out of old leg 6, whose fail-closed half is now machine leg 6). *(A third item is
 RECORDED as decided-and-surfaced, forced by ADR-0117, reversible, internal — not re-litigated:* **the
 friend's forest writes are brokered to studio-cloud's `write-broker`, not direct** *— the local backend
 opens no DB connection. The cross-story edge desktop → studio-cloud is a runtime HTTP edge, declared in

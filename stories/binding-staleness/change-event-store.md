@@ -1,11 +1,11 @@
 ---
 id: "change-event-store"
-tier: contract
+tier: capability
 story: binding-staleness
 title: "A typed change-event contract on the store"
 outcome: "The store gains a narrow ChangeStore contract — append + read ADR-0016 ChangeEvents — implemented by InMemoryStore and held to a reusable parity suite, so any backend (the parallel session's Postgres adapter next) can be proven equivalent offline."
 status: proposed
-proof_mode: contract-test
+proof_mode: integration-test
 depends_on: []
 decisions: [16]
 # Node-borne proof config (ADR-0057 keystone A): authoring THIS block is what makes the node

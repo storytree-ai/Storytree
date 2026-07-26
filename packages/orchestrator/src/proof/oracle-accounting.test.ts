@@ -4,6 +4,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import type { TestObservation } from "../phase-machine.js";
 import { ShellTestExecutor } from "../shell-test-executor.js";
 import type { ShellCommand, ShellRunResult } from "../shell-test-executor.js";
 import {
@@ -11,6 +12,7 @@ import {
   assertOracleGuardUrl,
   oracleReportPath,
   readAssertionCount,
+  resetOracleReport,
   verifyOracleExercised,
 } from "./oracle-accounting.js";
 
@@ -46,6 +48,21 @@ process.exit(0);
 const IMPL_GOOD = `export const add = (a, b) => a + b;
 `;
 
+/**
+ * A malicious source that REMOVES the guard's accounting hook before truncating. ADR-0211's vector B
+ * defence is "register the exit hook FIRST, so it fires even on `process.exit(0)`" — registering first
+ * does nothing against source that REMOVES the listener. No report is written by this observation at
+ * all, so whatever the previous observation left on disk is what the spine reads back.
+ */
+const IMPL_REMOVE_EXIT_HOOK = `process.removeAllListeners("exit");
+process.exit(0);
+export const add = (_a, _b) => 0;
+`;
+
+/** A wrong-but-present source: the honest test's assertion EXECUTES (counted), then throws — a red. */
+const IMPL_WRONG = `export const add = (_a, _b) => 0;
+`;
+
 /** The leaf-authored test (frozen after CONFIRM_RED): it genuinely asserts the contract behaviour. */
 const UNIT_TEST = (implRel: string): string => `import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -74,7 +91,12 @@ function unguarded(dir: string, testRel: string): ShellTestExecutor {
   });
 }
 
-/** The GUARDED observer: the assert-oracle guard preloaded + the out-of-band green cross-check. */
+/**
+ * The GUARDED observer: exactly the wiring `resolve-prove-spec.ts` builds — the assert-oracle guard
+ * preloaded, the stale report cleared BEFORE the spawn (ADR-0249), and the out-of-band green
+ * cross-check after it. beforeRun/verifyGreen are a pair; a test that wired only one would be
+ * measuring a configuration production never uses.
+ */
 function guarded(dir: string, testRel: string, reportPath: string): ShellTestExecutor {
   return new ShellTestExecutor({
     command: (): ShellCommand => ({
@@ -83,6 +105,7 @@ function guarded(dir: string, testRel: string, reportPath: string): ShellTestExe
       cwd: dir,
       env: { [PROOF_REPORT_ENV]: reportPath },
     }),
+    beforeRun: () => resetOracleReport(reportPath),
     verifyGreen: (out: ShellRunResult) => verifyOracleExercised(reportPath, out),
   });
 }
@@ -121,6 +144,78 @@ test("ATTACK B (process.exit(0) truncation): forges a green UNGUARDED; the accou
     assert.match(obs.note ?? "", /0 assertions/);
     // The report is real: the guard wrote a zero count even though the source called process.exit(0).
     assert.equal(readAssertionCount(report), 0);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ATTACK C (remove the accounting hook): a STALE report from the previous observation must never green", async () => {
+  // The REAL build sequence over ONE report path — the thing a single-observation test cannot see.
+  // resolve-prove-spec computes oracleReportPath(runId, unitId) ONCE and closes over it for CONFIRM_RED,
+  // every leaf feedback run, and CONFIRM_GREEN. The protocol assumes the guard truncates on every run;
+  // source that REMOVES the exit listener never truncates, so the spine reads the PREVIOUS observation.
+  const { dir, testRel } = await workspace(IMPL_WRONG);
+  try {
+    const report = path.join(dir, "report.json");
+    const observe = (): Promise<TestObservation> => guarded(dir, testRel, report).run("t");
+
+    // CONFIRM_RED: the honest test runs against a wrong source. The assertion EXECUTES (so the guard
+    // counts it) and then throws — a genuine red that leaves a POSITIVE count on disk.
+    const red = await observe();
+    assert.equal(red.result, "red", "precondition: a wrong source is observed red");
+    assert.equal(readAssertionCount(report), 1, "precondition: CONFIRM_RED leaves a positive count");
+
+    // IMPLEMENT authors the attack, then CONFIRM_GREEN observes. The exit code is 0 and NO report is
+    // written by this run — the stale `{assertions:1}` above is what a freshness-blind spine reads.
+    await fs.writeFile(path.join(dir, "impl.mjs"), IMPL_REMOVE_EXIT_HOOK);
+    const green = await observe();
+    assert.equal(
+      green.result,
+      "red",
+      "a green whose observation wrote no assertion report must be refused, not served by the previous run's count",
+    );
+    assert.match(green.note ?? "", /oracle accounting/);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ATTACK C differential: the SAME source on a FRESH report path is already refused — staleness is the whole gap", async () => {
+  // The control that isolates the cause: with no prior observation to inherit from, the attack is
+  // caught by the existing missing-report rule. So the ONLY thing that made it green above was the
+  // spine trusting a report it had not established belonged to the observation it just made.
+  const { dir, testRel } = await workspace(IMPL_REMOVE_EXIT_HOOK);
+  try {
+    const report = path.join(dir, "fresh.json");
+    const obs = await guarded(dir, testRel, report).run("t");
+    assert.equal(obs.result, "red", "on a fresh path the attack hits the missing-report refusal");
+    assert.match(obs.note ?? "", /no assertion report/);
+    assert.equal(readAssertionCount(report), null, "the attack genuinely wrote no report");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("resetOracleReport: clears a stale report, is a no-op when absent, and REFUSES when one survives", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-oracle-reset-"));
+  try {
+    const stale = path.join(dir, "stale.json");
+    await fs.writeFile(stale, JSON.stringify({ assertions: 7 }));
+    assert.equal(readAssertionCount(stale), 7, "precondition: a stale report is on disk");
+    assert.deepEqual(resetOracleReport(stale), { ok: true });
+    assert.equal(readAssertionCount(stale), null, "the stale report is gone after the reset");
+
+    // Absent is the normal first-observation case — a no-op success, never a refusal.
+    assert.deepEqual(resetOracleReport(path.join(dir, "never-existed.json")), { ok: true });
+
+    // A path that cannot be cleared (a DIRECTORY stands in for any unlink failure) must REFUSE, not
+    // silently proceed — an uncleared report is exactly the stale-read hole this reset exists to close.
+    const undeletable = path.join(dir, "undeletable.json");
+    await fs.mkdir(undeletable);
+    await fs.writeFile(path.join(undeletable, "child"), "keeps the directory non-empty");
+    const refused = resetOracleReport(undeletable);
+    assert.equal(refused.ok, false, "a report that survives the reset must fail closed");
+    if (!refused.ok) assert.match(refused.reason, /could not be cleared/);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
@@ -166,6 +261,7 @@ test("tsx fidelity: the guard defeats the monkeypatch under `node --import tsx -
         cwd: dir,
         env: { [PROOF_REPORT_ENV]: report },
       }),
+      beforeRun: () => resetOracleReport(report),
       verifyGreen: (out: ShellRunResult) => verifyOracleExercised(report, out),
     });
     const obs = await exec.run("t");

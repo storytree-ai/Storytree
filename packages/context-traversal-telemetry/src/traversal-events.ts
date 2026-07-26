@@ -1,141 +1,194 @@
-/** Browser-safe metadata-only traversal event and adapter-coverage vocabulary (ADR-0235). */
+/**
+ * The strict, metadata-only context-traversal event vocabulary (story
+ * `context-traversal-telemetry`, capability `traversal-event-vocabulary`, ADR-0235 / ADR-0192).
+ *
+ * Every event kind is a `.strict()` zod object: no arbitrary metadata bag, no content-bearing
+ * field (prompt/body/text/result/etc). Identity is explicit — canonical `nodeId` is never
+ * conflated with chronological `visitId`, and relationships (priorVisitId/parentVisitId/
+ * followedEdgeId/spawn edges) are always named, never inferred from timestamp proximity.
+ */
 import { z } from "zod";
 
-const identity = z.string().trim().min(1);
-const count = z.number().int().nonnegative();
-const common = {
+// ---------------------------------------------------------------------------
+// Shared primitives
+// ---------------------------------------------------------------------------
+
+/** A non-blank identity string — refuses "", and whitespace-only. */
+const identity = z.string().min(1).refine((value) => value.trim().length > 0, {
+  message: "identity must not be blank or whitespace-only",
+});
+
+/** An ISO-8601 timestamp carrying an explicit offset. */
+const isoTimestamp = z.string().refine(
+  (value) => {
+    const parsed = new Date(value);
+    return !Number.isNaN(parsed.getTime()) && /[Zz]|[+-]\d{2}:\d{2}$/.test(value);
+  },
+  { message: "at must be an ISO-8601 timestamp with an explicit offset" },
+);
+
+const nonNegativeInt = z.number().int().nonnegative();
+const positiveInt = z.number().int().positive();
+
+const eventBase = {
   eventId: identity,
   sessionId: identity,
-  at: z.string().datetime({ offset: true }),
-} as const;
+  at: isoTimestamp,
+};
 
-const visit = {
-  ...common,
+// ---------------------------------------------------------------------------
+// Node-visit events — canonical nodeId vs. chronological visitId
+// ---------------------------------------------------------------------------
+
+const visitFields = {
+  ...eventBase,
   visitId: identity,
   nodeId: identity,
   surfaceId: identity.optional(),
   parentVisitId: identity.optional(),
   priorVisitId: identity.optional(),
   followedEdgeId: identity.optional(),
-} as const;
+};
 
-function visitSchema(kind: "front_matter_read" | "full_payload_read") {
-  return z
-    .object({
-      kind: z.literal(kind),
-      ...visit,
-    })
-    .strict()
-    .superRefine((value, ctx) => {
-      if (value.parentVisitId === value.visitId || value.priorVisitId === value.visitId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "a visit cannot name itself as its parent or prior visit",
-        });
-      }
-    });
-}
+export const FrontMatterReadEvent = z
+  .object({
+    kind: z.literal("front_matter_read"),
+    ...visitFields,
+  })
+  .strict();
+export type FrontMatterReadEvent = z.infer<typeof FrontMatterReadEvent>;
 
-export const FrontMatterReadEvent = visitSchema("front_matter_read");
-export const FullPayloadReadEvent = visitSchema("full_payload_read");
+export const FullPayloadReadEvent = z
+  .object({
+    kind: z.literal("full_payload_read"),
+    ...visitFields,
+  })
+  .strict();
+export type FullPayloadReadEvent = z.infer<typeof FullPayloadReadEvent>;
+
+// ---------------------------------------------------------------------------
+// Search / candidate-set / followed-edge events
+// ---------------------------------------------------------------------------
 
 export const SearchEvent = z
   .object({
     kind: z.literal("search"),
-    ...common,
+    ...eventBase,
     searchId: identity,
     surfaceId: identity,
     operation: z.enum(["library_artifact_list", "library_dashboard"]),
     resultNodeIds: z.array(identity),
   })
   .strict();
+export type SearchEvent = z.infer<typeof SearchEvent>;
 
 export const CandidateSetEvent = z
   .object({
     kind: z.literal("candidate_set"),
-    ...common,
+    ...eventBase,
     candidateSetId: identity,
     surfaceId: identity,
-    candidateNodeIds: z.array(identity).min(1),
+    candidateNodeIds: z.array(identity).nonempty(),
   })
   .strict();
+export type CandidateSetEvent = z.infer<typeof CandidateSetEvent>;
 
 export const FollowedEdgeEvent = z
   .object({
     kind: z.literal("followed_edge"),
-    ...common,
+    ...eventBase,
     edgeId: identity,
     candidateSetId: identity,
     fromVisitId: identity,
     toVisitId: identity,
   })
-  .strict()
-  .refine((value) => value.fromVisitId !== value.toVisitId, {
-    message: "a followed edge must connect two different visits",
-  });
+  .strict();
+export type FollowedEdgeEvent = z.infer<typeof FollowedEdgeEvent>;
+
+// ---------------------------------------------------------------------------
+// Model-context observations — capacity is runtime-declared, or absent
+// ---------------------------------------------------------------------------
 
 export const ModelContextEvent = z
   .object({
     kind: z.literal("model_context"),
-    ...common,
+    ...eventBase,
     modelId: identity.optional(),
-    cumulativeInputTokens: count,
-    addedInputTokens: count,
-    contextWindowCapacity: count.positive().optional(),
+    /**
+     * A BILLING TOTAL — tokens PROCESSED — not window OCCUPANCY (ADR-0248 D2, documented here
+     * because the name reads as the latter). Emitters sum the input axes over a whole slice, and
+     * `cacheReadInputTokens` re-counts the resident context on every turn, so this routinely
+     * exceeds {@link contextWindowCapacity} many times over: measured at 613% and 504% of a
+     * declared 200,000-token window on two real builds. It is also MONOTONIC by construction.
+     *
+     * Do NOT plot this against `contextWindowCapacity`. A gauge built from the two reads six times
+     * full with a negative remainder, and the arc's approved visual contract needs a quantity that
+     * can FALL. Occupancy is sourced from the host transcript surface instead (ADR-0248 D1); the
+     * billing axes proper live in `events.usage_event` (ADR-0203).
+     */
+    cumulativeInputTokens: nonNegativeInt,
+    /**
+     * DEPRECATED, pending removal (ADR-0248 D3). Despite the name this carries no per-visit delta:
+     * at the only boundary that emits it, `observe-leaf-slices.ts` assigns it and
+     * {@link cumulativeInputTokens} from ONE variable, so both fields hold the identical
+     * whole-slice billing total. The owner's revised visual contract replaced the per-node gauge
+     * with a single playhead bar, and a bar needs one quantity, so the field is to be deleted
+     * rather than given a real delta.
+     *
+     * It is still REQUIRED here: the field has live emitters in `@storytree/context-traversal-spawn`
+     * and this schema is `.strict()`, so dropping the key belongs to the increment that owns those
+     * emitters, not to this floor.
+     */
+    addedInputTokens: nonNegativeInt,
+    contextWindowCapacity: positiveInt.optional(),
   })
   .strict();
+export type ModelContextEvent = z.infer<typeof ModelContextEvent>;
+
+// ---------------------------------------------------------------------------
+// Spawn handoff / result return — explicit parent/child session identity + edge identity only
+// ---------------------------------------------------------------------------
+
+const spawnEdgeBase = {
+  ...eventBase,
+  edgeId: identity,
+  parentSessionId: identity,
+  childSessionId: identity,
+};
+
+const spawnEdgeInvariants = {
+  message: "parentSessionId/childSessionId must differ, and sessionId must equal parentSessionId",
+} as const;
+
+function spawnEdgeIsValid(value: { sessionId: string; parentSessionId: string; childSessionId: string }): boolean {
+  return value.parentSessionId !== value.childSessionId && value.sessionId === value.parentSessionId;
+}
 
 export const SpawnHandoffEvent = z
   .object({
     kind: z.literal("spawn_handoff"),
-    ...common,
-    edgeId: identity,
-    parentSessionId: identity,
-    childSessionId: identity,
-    agentType: identity.optional(),
-    payloadTokenCount: count.optional(),
+    ...spawnEdgeBase,
+    agentType: identity,
+    payloadTokenCount: nonNegativeInt.optional(),
   })
   .strict()
-  .superRefine((value, ctx) => {
-    if (value.sessionId !== value.parentSessionId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "spawn handoff sessionId must be the parent session",
-      });
-    }
-    if (value.parentSessionId === value.childSessionId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "spawn handoff must join two independent sessions",
-      });
-    }
-  });
+  .refine(spawnEdgeIsValid, spawnEdgeInvariants);
+export type SpawnHandoffEvent = z.infer<typeof SpawnHandoffEvent>;
 
 export const ResultReturnEvent = z
   .object({
     kind: z.literal("result_return"),
-    ...common,
-    edgeId: identity,
-    parentSessionId: identity,
-    childSessionId: identity,
-    resultTokenCount: count.optional(),
-    ok: z.boolean().optional(),
+    ...spawnEdgeBase,
+    ok: z.boolean(),
+    resultTokenCount: nonNegativeInt.optional(),
   })
   .strict()
-  .superRefine((value, ctx) => {
-    if (value.sessionId !== value.parentSessionId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "result return sessionId must be the parent session",
-      });
-    }
-    if (value.parentSessionId === value.childSessionId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "result return must join two independent sessions",
-      });
-    }
-  });
+  .refine(spawnEdgeIsValid, spawnEdgeInvariants);
+export type ResultReturnEvent = z.infer<typeof ResultReturnEvent>;
+
+// ---------------------------------------------------------------------------
+// The union
+// ---------------------------------------------------------------------------
 
 export const ContextTraversalEvent = z.union([
   FrontMatterReadEvent,
@@ -149,13 +202,17 @@ export const ContextTraversalEvent = z.union([
 ]);
 export type ContextTraversalEvent = z.infer<typeof ContextTraversalEvent>;
 
-export type ContextVisitEvent = z.infer<typeof FrontMatterReadEvent> | z.infer<typeof FullPayloadReadEvent>;
-export type ContextModelEvent = z.infer<typeof ModelContextEvent>;
+export type ContextVisitEvent = FrontMatterReadEvent | FullPayloadReadEvent;
+export type ContextModelEvent = ModelContextEvent;
 
-/**
- * One closed domain for both positive coverage and omissions. Keeping both sides in the same
- * vocabulary makes contradictory or conveniently-incomplete declarations mechanically refusible.
- */
+export function isContextVisitEvent(event: ContextTraversalEvent): event is ContextVisitEvent {
+  return event.kind === "front_matter_read" || event.kind === "full_payload_read";
+}
+
+// ---------------------------------------------------------------------------
+// Adapter coverage — closed feature domain, exhaustively named across supported/omitted
+// ---------------------------------------------------------------------------
+
 export const CoverageFeature = z.enum([
   "surface:create_orientation_runner",
   "surface:direct_cli",
@@ -183,8 +240,6 @@ export const CoverageFeature = z.enum([
 ]);
 export type CoverageFeature = z.infer<typeof CoverageFeature>;
 
-const allCoverageFeatures: readonly CoverageFeature[] = CoverageFeature.options;
-
 export const ContextTraversalCoverage = z
   .object({
     adapterId: identity,
@@ -192,34 +247,17 @@ export const ContextTraversalCoverage = z
     omitted: z.array(CoverageFeature),
   })
   .strict()
-  .superRefine((value, ctx) => {
-    const supported = new Set(value.supported);
-    const omitted = new Set(value.omitted);
-    if (supported.size !== value.supported.length || omitted.size !== value.omitted.length) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "coverage features may be declared only once",
-      });
-    }
-    for (const feature of supported) {
-      if (omitted.has(feature)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `coverage feature ${feature} cannot be both supported and omitted`,
-        });
+  .refine(
+    (value) => {
+      const all = new Set(value.supported);
+      const combined = [...value.supported, ...value.omitted];
+      if (combined.length !== new Set(combined).size) {
+        // a feature named on both lists (or duplicated within one) is refused
+        return false;
       }
-    }
-    for (const feature of allCoverageFeatures) {
-      if (!supported.has(feature) && !omitted.has(feature)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `coverage feature ${feature} must be explicitly supported or omitted`,
-        });
-      }
-    }
-  });
+      const named = new Set(combined);
+      return CoverageFeature.options.every((feature) => named.has(feature)) && all.size === value.supported.length;
+    },
+    { message: "every CoverageFeature must be named exactly once across supported/omitted" },
+  );
 export type ContextTraversalCoverage = z.infer<typeof ContextTraversalCoverage>;
-
-export function isContextVisitEvent(event: ContextTraversalEvent): event is ContextVisitEvent {
-  return event.kind === "front_matter_read" || event.kind === "full_payload_read";
-}

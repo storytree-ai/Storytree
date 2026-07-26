@@ -5,12 +5,17 @@ title: "The embedded terminal is multi-session with a VS Code-style session pane
 outcome: "The embedded terminal becomes multi-session with a VS Code-style session panel: the dock holds N pty sessions, each its own xterm pane, listed as ROWS in a panel beside the terminal pane (down the right of the dock body) — switchable (click a row) / creatable (a \"+\" in the panel) / closable (a per-row \"×\" that disposes+reaps its pty), and every existing single-session behaviour (spawn, input↔pty, data-in, resize, visibility-toggle, refocus, absent-bridge degrade, the empty-session message) holds PER SESSION — while the dock chrome (collapse/resize, the toggle, the headerRight slot that hosts the repo-gate gear) stays PER-DOCK, wrapping the panel + pane; the per-row \"×\" disposes exactly its session, and dock unmount preserves sessions (app-owned, ADR-0189). The numbered tab-button strip is replaced by this panel (ADR-0190 §3); split panes are OUT of scope. A forest-map Build seed no longer writes into the active session: it opens a FRESH session (a new pty session + row), switches to it, and pre-fills the composed command there (still pre-fill, never auto-run), so a Build click can never corrupt the user's interactive Claude Code session running in another row."
 status: proposed
 proof_mode: UAT
-# uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT — "the terminal has a
-# session panel, holds several real pty sessions, and a Build opens a fresh tab that leaves my Claude Code
-# session untouched" — is appearance + native-shell + real-pty + live behaviour, all operator-attested
-# (ADR-0070 / ADR-0186 / ADR-0190). The machine-driven story UAT node stays WITHHELD; the crown derives from the two
-# capabilities' signed verdicts plus the operator's attestation of the session-panel LOOK, the real-pty
-# per-session behaviour, and the "a Build opens a fresh tab, my Claude session untouched" legs.
+# uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT is not driven as one
+# machine node. RE-ADJUDICATED 2026-07-26 under the ADR-0209 §8 corpus-wide migration — the story's eight
+# legs resolve to FIVE `machine` and THREE `human`. Real-pty, native-shell behaviour is NOT irreducibly
+# operator-attested: the existing Electron `_electron` Playwright harness (`apps/desktop/e2e/`) already
+# launches the app offline, satisfies the repo gate, drives a REAL node-pty and reads the main-held screen
+# via `desktopTerminal.snapshot`, so the session panel's create/switch/close, the seed's fresh tab, and the
+# per-tab screen state are machine-observable (their specs are not written yet — a HARNESS gap, never a
+# judgment gap, `human-witness-is-a-judgment-gap-not-cost`). Only the panel's LOOK, the whole surface's
+# FEEL, and the one walk that spends the paid subscription and fires an outward-facing PR-opening build
+# stay `human` (ADR-0070 / ADR-0209). The machine-driven story UAT node stays WITHHELD; the crown derives
+# from the two capabilities' signed verdicts, the three e2e-signed legs, and those three attestations.
 # Capabilities, roots-first (a capability appears after everything it depends on). TWO machine-provable
 # caps, BOTH editsExisting studio vitest jsdom over the SAME source (TerminalDock.tsx / .test.tsx) that
 # embedded-terminal + map-terminal-build signed: multi-session-tabs (the tab substrate — the ROOT) and
@@ -178,10 +183,13 @@ affected signed caps" and "Within-story dependency graph" for how the shared sou
 - **The session-panel appearance + the dock-mount prop delta.** The panel's LOOK (does it read as VS
   Code-style session tabs, the active row legible, "+"/"×" affordances clear, the panel sitting cleanly
   beside the terminal pane down the right of the dock body) is operator-attested (ADR-0070 / ADR-0190),
-  witnessed under the Story UAT — never a machine visual verdict.
+  witnessed under **UAT leg 1** — never a machine visual verdict. Only the LOOK is glue: the panel's
+  STRUCTURE and wiring are contracted (`mst-chrome-stays-per-dock`, `mst-panel-sits-beside-pane`) and
+  re-observed over real ptys at **legs 6–8** — glue-ness is a TIERING call and says nothing about which
+  witness is right (`human-witness-is-a-judgment-gap-not-cost`).
   The `.terminal-dock*` CSS for the panel is glue. If the dock's public props change (they need not — the
   `seed` and `headerRight` prop shapes are unchanged), any `TreeView`/dock-mount delta is un-asserted
-  connective code witnessed under the Story UAT, not a capability. The existing TreeView `seed` glue
+  connective code — machine-observable end-to-end at legs 6–7, not a capability. The existing TreeView `seed` glue
   (`map-terminal-build` threads `seed`/`onSeedTerminal`) and the `terminal-repo-gate` `headerRight` mount
   are REUSED AS-IS: the story feeds the SAME `seed?: { command; token }` into the now-multi-session dock;
   only the dock's HANDLING of it changes (open a fresh tab). No new glue wire is required.
@@ -272,31 +280,70 @@ end-to-end. Minimal-first (one coherent journey: open the app → the terminal h
 Code in one tab → click Build → a fresh tab opens pre-filled, the Claude Code tab untouched), defect-driven
 thereafter (each real failure earns a permanent regression case, never speculative breadth).
 
-> **Per-leg witness (ADR-0106 / ADR-0070).** The mechanics legs are covered by the two capabilities' signed
-> `--real` verdicts (the tab lifecycle + per-tab behaviours over the mocked xterm + bridge; the
-> seed-opens-a-fresh-tab branch over the same seams). The experiential legs — the session-panel **look/feel**, a
-> REAL node-pty in each tab running real Claude Code (a native module + the paid subscription), and the
-> load-bearing "a Build opens a fresh tab and my active Claude Code session is untouched" in the native
-> shell — are `witness: human` (operator-attested, ADR-0070): an automated CI run cannot spawn real native
-> ptys, run the paid SDK, or judge the tab feel. The story-level `uat_witness` is absent → human (the
-> ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays WITHHELD; the crown
-> derives from the per-cap signed verdicts plus the operator's attestations (legs 1, 4, 5).
+> **Per-leg witness (ADR-0209 §1 / ADR-0106 / ADR-0070).** **RE-ADJUDICATED 2026-07-26** under the
+> ADR-0209 §8 corpus-wide migration. Three classified kinds are available: `machine` (deterministic,
+> spine-observed proof), `model` (rubric-bound semantic judgment by an eligible read-only judge), `human`
+> (irreducible operator judgment). This story resolves to **five `machine` legs and three `human` legs; no
+> leg is model-judged** — nothing here turns on semantic judgment of prose or artifacts, so the model rung
+> genuinely does not apply.
+>
+> The wiring legs (2, 3) are covered by the two capabilities' signed `--real` verdicts over the mocked
+> xterm + `desktopTerminal` bridge in jsdom (the tab lifecycle + per-tab routing; the
+> seed-opens-a-fresh-tab branch over the same seams).
+>
+> Legs 6, 7 and 8 are `machine` through the **existing** Electron `_electron` Playwright harness
+> (`apps/desktop/e2e/`, the `session-survival.e2e.mjs` precedent), which already launches the app offline
+> with `/api/*` Playwright-routed to fixtures, **satisfies the repo gate by pre-writing
+> `userData/repo-selection.json`**, drives a **REAL node-pty**, and reads the main-held screen through
+> `desktopTerminal.snapshot` (the dock paints on xterm's WebGL renderer, so DOM `textContent` is not a
+> readable observable — the snapshot relay is). Nothing about the panel's create/switch/close, the seed's
+> fresh tab, or the per-tab screen state is an owner judgment; these were tagged `human` because **no e2e
+> spec drives them yet**, which is a HARNESS statement, not a judgment gap
+> (`human-witness-is-a-judgment-gap-not-cost` — a machine-observable success that is merely unharnessed is
+> never labelled `human`). The prior preamble's claim that "an automated CI run cannot spawn real native
+> ptys" was already false when written: `session-survival.e2e.mjs` spawns one and types into it.
+>
+> Exactly **three** legs stay `human` because their success condition has no compiler: the session panel's
+> **look** (leg 1), the whole surface's **feel** as one coherent tabbed terminal (leg 5), and the one walk
+> that runs a **live paid-subscription Claude Code session** and, on Enter, fires an **outward-facing
+> PR-opening build** (leg 4). The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
+> signpost), so the machine-driven whole-story UAT node stays WITHHELD.
+>
+> **Ordering note (leg ids are POSITIONAL, `terminal-tabs#uat-N`).** The three re-adjudicated legs were
+> **narrowed in place** and their machine halves **appended as legs 6–8** rather than interleaved: legs 2
+> and 3 stay byte-identical where they are because they bind the two capability verdicts, and
+> `apps/studio/src/index.css`'s terminal-dock comment names "terminal-tabs story UAT leg 1" as the
+> appearance attestation — a reference outside the story-author fence that stays true only while the LOOK
+> verdict remains leg 1.
+>
+> **Nothing here is green.** Per ADR-0209 §6 a substantive criterion change invalidates the old green, so
+> every leg below is UNSTAMPED and earns green only under its newly-declared witness. Legs 6, 7 and 8 carry
+> seed-canonical `uat-criterion` detail artifacts (ADR-0209 §5) because their one-line titles cannot convey
+> the harness precondition, the stub boundary, or what would make a PASSING run a false pass; the remaining
+> legs are fully specified by their capability contracts or by short, self-contained attestation prose, so
+> per the owner's narrower bar they get no artifact.
 
-**Goal —** A desktop user opens the app, finds a terminal with a **session panel**, runs real Claude Code in
-one tab, clicks **Build** on the forest map, and watches a **fresh tab** open pre-filled with the composed
-`pnpm storytree … build <id> --real --store pg` command — the Claude Code tab **untouched** — reviews it,
-and presses Enter to run the build as their own Claude Code in that new tab.
+**Goal —** A desktop user opens the app with their repo already chosen (since
+[`terminal-repo-picker`](../terminal-repo-picker/story.md) the terminal is **gated** behind a valid repo
+selection — a bare launch shows the gate, not the dock), finds a terminal with a **session panel**, runs
+real Claude Code in one tab, clicks **Build** on the forest map, and watches a **fresh tab** open pre-filled
+with the composed `pnpm storytree … build <id> --real --store pg` command — the Claude Code tab
+**untouched** — reviews it, and presses Enter to run the build as their own Claude Code in that new tab.
 
-1. **The terminal has a session panel and holds several sessions.** _(witness: human)_ The member opens
-   the desktop app; the terminal dock shows a **VS Code-style session panel** beside the terminal pane
-   (down the right of the dock body) — one **row per session** with a readable label, the **active row
-   visibly marked**, a per-row **"×"** to close a session, and a **"+"** in the panel to open a new one;
-   clicking a row activates that session's pane. The toggle + the repo-gate gear sit once in the dock
-   header, above the body. **Success —** the session panel renders and reads as VS Code-style session tabs
-   inside the native shell (the two-stage LOOK verdict, ADR-0070). *(The session-panel appearance is
-   operator-attested glue, not a CI leg.)*
-2. **The multi-session tab lifecycle is honest over create / switch / close / dispose, per-tab behaviours
-   intact.** _(witness: machine)_ Over the mocked xterm + `desktopTerminal` bridge, the dock spawns the
+1. **The session panel READS as VS Code-style session tabs.** _(witness: human)_ With a repo already
+   chosen, the member expands the terminal and looks at the session panel beside the pane (down the right
+   of the dock body): does it read as VS Code-style session tabs — the **active row legible at a glance**,
+   each row's label readable, the **"+"** and per-row **"×"** affordances clear, the panel sitting cleanly
+   beside the terminal without crowding it, and the toggle + repo-gate gear reading as dock chrome above
+   the body rather than as another row? Includes the edge the code answers silently today: what the dock
+   looks like when the LAST row is closed (see "Open modeling calls" item 4). **Success —** the owner's
+   stage-2 visual verdict (ADR-0070). *(operator-attested and irreducible — look has no compiler and is
+   never machine-asserted nor model-judged, ADR-0209. The panel's STRUCTURE — one row per session, the
+   active row marked, "+"/"×" present and wired, the chrome per-dock — is machine-proven at legs 2 and 6;
+   only its appearance is witnessed here. `apps/studio/src/index.css` names this leg as the attestation
+   for the dock's terminal palette, so the LOOK verdict must stay at position 1.)*
+2. **The multi-session tab lifecycle is honest over create / switch / close / dispose, per-tab behaviours intact.**
+   _(witness: machine)_ Over the mocked xterm + `desktopTerminal` bridge, the dock spawns the
    first tab on open, opens an independent session on "+", shows the selected tab's pane on switch (others
    hidden, sessions preserved), disposes exactly the closed tab's session on "×" (others untouched), scopes
    input/data/resize per tab, keeps the toggle + `headerRight` + degrade per-dock, and on unmount disposes
@@ -310,42 +357,76 @@ and presses Enter to run the build as their own Claude Code in that new tab.
    writes once its new session resolves; a token bump opens ANOTHER fresh tab; an absent seed leaves the
    dock byte-identical. **Success —** [`seed-opens-new-tab`](seed-opens-new-tab.md)'s signed verdict
    (behaviour over the mocked seams) — the load-bearing ADR-0186 safety wall, machine-proven.
-4. **Clicking Build opens a fresh tab pre-filled, my Claude Code session untouched.** _(witness: human)_ In
-   the desktop app, with real Claude Code running in tab 1, the member clicks Build on a node/story; a
-   **new tab** opens, the composed `pnpm storytree … build --real --store pg` command sits pre-filled at
-   its prompt (cursor at the end, **nothing executed**), and **tab 1's Claude Code session is exactly as it
-   was** — no injected text, no interrupted input. Pressing Enter in the new tab launches a real build.
-   **Success —** the owner's two-stage verdict (ADR-0070): the fresh tab opens, reads right, and leaves the
-   active session untouched, witnessed inside the native shell — the exact failure ADR-0186 fixes, confirmed
-   end-to-end. *(operator-attested — a real bridge + a real Claude Code session + a paid, PR-opening build;
-   an agent must not fire it unattended.)*
-5. **The tabs read and behave like real terminal tabs.** _(witness: human)_ Switching, closing, per-tab
-   scrollback, colours, resize reflow, and focus all read and behave as ONE coherent tabbed terminal inside
-   the native shell. **Success —** the owner's two-stage visual verdict (ADR-0070): the tab feel is
-   witnessed, never machine-asserted.
+4. **A Build lands in a fresh tab while REAL Claude Code runs in another, and Enter fires the real build.**
+   _(witness: human)_ With the member's own interactive **Claude Code** session live in tab 1 — a paid
+   subscription session, not a plain shell — they click Build on a node/story; a new tab opens pre-filled,
+   and **tab 1's Claude Code is exactly as it was**: no injected text, no interrupted input, nothing sent
+   as a *message to Claude*. The member then presses Enter in the new tab and a real `--real --store pg`
+   build runs. **Success —** the owner's verdict that the exact failure ADR-0186 fixes cannot happen
+   against a LIVE Claude Code session, and that the seeded command runs when they choose to fire it.
+   *(operator-attested and irreducible — it costs real paid-subscription spend and, on Enter, opens an
+   outward-facing auto-merging PR (ADR-0136); an agent must never fire it unattended. The mechanical half —
+   a fresh tab opens, is pre-filled and un-run, and the previously-active REAL pty's screen is unchanged —
+   is machine-proven at leg 7 over a plain shell; only the live-Claude-Code and real-spend halves are
+   irreducible here.)*
+5. **The tabs FEEL like ONE coherent tabbed terminal.** _(witness: human)_ Switching, closing, per-tab
+   scrollback, colours, resize reflow and focus add up to one coherent tabbed terminal inside the native
+   shell — not N docks bolted together; nothing jars, nothing reads as borrowed. **Success —** the owner's
+   stage-2 verdict (ADR-0070). *(operator-attested and irreducible — coherence and feel have no compiler
+   and are never machine-asserted nor model-judged, ADR-0209. The BEHAVIOURS underneath — per-tab
+   scrollback preserved across a switch, colour output landing in its own pane, resize reflowing the active
+   pty, keystrokes following the active row, a close reaping exactly one pty — are machine-proven at leg 8;
+   only whether they add up to one coherent surface is witnessed here.)*
+6. **The session panel creates, switches and closes REAL sessions in the native shell.** _(witness:
+   machine)(detail: terminal-tabs#uat-6)_ In the Electron `_electron` harness with `userData/repo-selection.json` pre-written to a real
+   checkout (the `session-survival.e2e.mjs` precedent) and `/api/*` Playwright-routed to fixtures,
+   expanding the dock spawns ONE real node-pty and renders one panel row; the panel's `+` spawns a SECOND
+   real pty and a second row; clicking row 1 switches the visible pane back; row 2's `×` disposes exactly
+   that pty. **Success —** `desktopTerminal.list()` goes 1 → 2 → 1 across the walk, the surviving id is row
+   1's (never a re-spawn), and the toggle + `headerRight` render exactly once throughout — the panel
+   driving REAL ptys across the real IPC bridge, which the mocked-bridge jsdom verdict at leg 2 cannot
+   show.
+7. **A Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched.**
+   _(witness: machine)(detail: terminal-tabs#uat-7)_ In the same harness, with a real pty in tab 1 carrying typed, un-submitted input,
+   open the fixture's `proposed` story panel and click Build — with the bridge present the dock **seeds
+   instead of POSTing** `/api/build` (the desktop re-point). **Success —** a SECOND session appears, its
+   `desktopTerminal.snapshot` shows the composed `storytree … build … --real --store pg` sitting at a
+   prompt with **no trailing newline and no execution**, and tab 1's snapshot is **identical** to the one
+   taken before the click — the load-bearing ADR-0186 safety wall proven over REAL ptys end-to-end, not
+   over the mocked bridge leg 3 signs.
+8. **Per-tab scrollback, colour, resize and focus survive switching and closing.** _(witness: machine)(detail: terminal-tabs#uat-8)_
+   Over two real ptys in the same harness: write a distinct marker into each, switch rows and read both
+   back; emit ANSI colour into one; resize the dock; type after a switch; close one row. **Success —** each
+   session's `desktopTerminal.snapshot` retains only its OWN marker across switches, the colour bytes
+   appear only in the emitting session, a resize forwards new `cols`/`rows` to the ACTIVE session's pty and
+   only it, post-switch keystrokes reach the newly-active pty, and closing a row leaves the surviving
+   session's screen intact — the per-tab state leg 5's feel verdict rests on, machine-observed.
 
 End state — the embedded terminal is a tabbed multi-session terminal: N pty sessions in a session panel,
 per-session behaviours signed under the studio suite, the chrome per-dock, each session killed only by its
-row's "×" or the app closing (unmount preserves them — app-owned, ADR-0189); a Build seed opens a fresh tab pre-filled (un-run) and never disturbs the user's active Claude
-Code session — the session-panel look, the real-pty per-session feel, and the "fresh tab, active untouched" legs
-operator-attested, the prove-it-gate leaf and the spine untouched.
+row's "×" or the app closing (unmount preserves them — app-owned, ADR-0189); a Build seed opens a fresh tab
+pre-filled (un-run) and never disturbs the user's active session — the panel's create/switch/close, the
+seed's fresh tab, and the per-tab screen state additionally signed over REAL ptys under the Electron
+`_electron` harness, and only the panel's LOOK, the surface's FEEL, and the live-Claude-Code / real-spend
+walk operator-attested, the prove-it-gate leaf and the spine untouched.
 
 ## Proof
 
-The story is proven when that walkthrough passes — the mechanics legs (2, 3) green under the two
-capabilities' signed `--real` verdicts (with each cap's contracts green underneath), and the experiential
-legs (1, 4, 5) operator-attested. Per ADR-0020, `healthy` is only ever DERIVED from signed verdicts;
-nothing here is authored healthy. Both capabilities are proof-wired (each carries a `proof:` block with an
-`editsExisting` `real:` arm — a behaviour-assertion red→green over the existing `TerminalDock.tsx` + its
-vitest suite) so the spine can drive their studio vitest suites red→green under its own gate; the story's
-machine-driven UAT node is WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving those
-capabilities to signed verdicts is what makes the multi-session terminal buildable, and the crown
-additionally awaits the operator's attestations (legs 1, 4, 5).
+The story is proven when that walkthrough passes — the wiring legs (2, 3) green under the two capabilities'
+signed `--real` verdicts (with each cap's contracts green underneath), the real-pty legs (6, 7, 8) green
+under the Electron `_electron` harness, and the three irreducible legs (1, 4, 5) operator-attested. Per
+ADR-0020, `healthy` is only ever DERIVED from signed verdicts; nothing here is authored healthy. Both
+capabilities are proof-wired (each carries a `proof:` block with an `editsExisting` `real:` arm — a
+behaviour-assertion red→green over the existing `TerminalDock.tsx` + its vitest suite) so the spine can
+drive their studio vitest suites red→green under its own gate; the story's machine-driven UAT node is
+WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving those capabilities to signed verdicts
+plus writing the three e2e specs (see "Open modeling calls" item 6) is what makes the multi-session
+terminal buildable, and the crown additionally awaits the operator's attestations (legs 1, 4, 5).
 
 ## Open modeling calls (for the owner / orchestrator)
 
 None is a story-shape fork (ADR-0186 settled the WHAT — the terminal becomes multi-session with tabs, a
-Build seed opens a fresh tab; owner-directed, born accepted, no new ADR reserved). Five items are
+Build seed opens a fresh tab; owner-directed, born accepted, no new ADR reserved). Seven items are
 **surfaced for the orchestrator's build**, not decided here:
 
 1. **The within-story shared-source re-sign (REQUIRED sequencing).** Both caps `editsExisting` the SAME
@@ -371,11 +452,16 @@ Build seed opens a fresh tab; owner-directed, born accepted, no new ADR reserved
    snapshot regex + the map-terminal-build discovery comment (outside the `stories/**` fence) — lands with
    this story (see item 5). The load-bearing no-newline safety wall is preserved verbatim in
    `son-prefills-without-trailing-newline`.
-4. **The empty / last-tab-closed disposition (a layout call, operator-attested glue).** When the user closes
-   the last remaining tab, does the dock show an empty "+"-to-open state, or auto-open a fresh tab? There is
-   no isolatable red→green in the empty-state look, so it is witnessed under UAT leg 1 —
-   `multi-session-tabs` pins only that closing a tab disposes+reaps its session; the empty-state look is the
-   orchestrator's call under the operator-attested glue.
+4. **The empty / last-tab-closed disposition — the CODE has answered it silently; the owner has not.** The
+   question was: when the user closes the last remaining tab, does the dock show an empty "+"-to-open state,
+   or auto-open a fresh tab? As shipped it **auto-opens a fresh session** — `closeTab` empties `tabIds`, and
+   the first-expand spawn effect keys on `tabIds.length` and therefore re-fires. That is **emergent, not
+   decided and not tested**: no `mst-*` contract and no e2e closes the last row (the suite only ever closes
+   tab 2 of 2). So the behaviour stands, un-pinned. `multi-session-tabs` pins only that closing a tab
+   disposes+reaps its session; the resulting look is witnessed under UAT leg 1. The orchestrator either
+   contracts the auto-respawn (it is machine-observable — `list()` goes 1 → 0 → 1) or records the owner's
+   preference for an empty state; **do not** author a leg asserting an empty "+"-to-open state, which would
+   go red against correct code.
 5. **The `node-build.test.ts` REAL-buildable snapshot companion edit (REQUIRED, outside `stories/**`).**
    Authoring these two `real:`-armed caps makes `buildableNodeIds()` discover them (spec-borne, ADR-0057),
    which the `packages/cli/src/node-build.test.ts` REAL-buildable snapshot regex + its per-story discovery
@@ -385,3 +471,24 @@ Build seed opens a fresh tab; owner-directed, born accepted, no new ADR reserved
    — plus a per-story discovery comment for `terminal-tabs`, or `pnpm -r test` goes red. This is a
    `packages/cli` test edit — outside the story-author's `stories/**` fence — flagged here so it lands with
    the caps.
+6. **The three real-pty legs (6, 7, 8) have NO spec yet — new files, NOT an edit of `session-survival`.**
+   The 2026-07-26 re-adjudication tags them `machine` because the Electron `_electron` harness demonstrably
+   CAN drive them (a real node-pty, the repo gate satisfied by a pre-written `repo-selection.json`, screens
+   read via `desktopTerminal.snapshot`), not because a spec exists. Nothing in `apps/desktop/e2e/`
+   currently clicks `[aria-label="new terminal tab"]`, `[aria-label="tab 2"]`, or
+   `[aria-label^="close tab"]`, and `session-survival.e2e.mjs` **asserts exactly ONE live session in both
+   directions** — so a second session must NOT be introduced into that walk; legs 6–8 need their own spec
+   file(s). Two harness affordances the author should not re-discover: with the bridge present the Build
+   click **seeds instead of POSTing** `/api/build` (so no build-endpoint stub is needed), and
+   `harness.mjs`'s `TREE_FIXTURE` already carries a `proposed` story (`gamma-flow`) whose panel lights a
+   real Build button. Per ADR-0209 §6 these legs are UNSTAMPED until those specs sign them; tagging
+   `machine` with no spec yet is honest, not green.
+7. **Stale prose OUTSIDE this fence, flagged for the orchestrator.** Two comments describe
+   pre-ADR-0189/0190 behaviour while the code itself is current:
+   `apps/studio/src/components/TerminalDock.tsx`'s module docstring still calls the chrome "a tab strip
+   between the dock header and the body" (it is the ADR-0190 session panel, its CSS `order: 2` placing it
+   right of the pane), and `apps/studio/src/components/TerminalRepoGate.tsx`'s `key={cwd}` comment still
+   says the remount "dispos[es] its pty" (ADR-0189 made unmount PRESERVE sessions). Neither is a behaviour
+   defect. Also load-bearing for future edits: `apps/studio/src/index.css` names **"terminal-tabs story UAT
+   leg 1"** as the appearance attestation for the dock's terminal palette, so the LOOK verdict must stay at
+   leg 1 or that reference must move with it.

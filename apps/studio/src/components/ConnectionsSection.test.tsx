@@ -18,6 +18,7 @@ const renderSection = (
   connections: ConnectionSet,
   knownIds: string[],
   onNavigate = vi.fn(),
+  open = true,
 ): { onNavigate: ReturnType<typeof vi.fn> } => {
   render(
     <ConnectionsSection
@@ -26,10 +27,26 @@ const renderSection = (
       onNavigate={onNavigate}
     />,
   );
+  if (open) {
+    const count = new Set([...connections.dependsOn, ...connections.consumedBy]).size;
+    fireEvent.click(screen.getByText(`Connections (${count})`));
+  }
   return { onNavigate };
 };
 
 describe('ConnectionsSection', () => {
+  it('is collapsed by default so wiring only expands when requested', () => {
+    const { container } = render(
+      <ConnectionsSection
+        connections={{ dependsOn: ['library'], consumedBy: ['cli'] }}
+        storyIds={new Set(['library', 'cli'])}
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('details')?.open).toBe(false);
+    expect(screen.getByText('Connections (2)')).toBeTruthy();
+  });
+
   it('shows BOTH directions with their labels', () => {
     renderSection(
       { dependsOn: ['library', 'store'], consumedBy: ['cli', 'drive-machinery'] },

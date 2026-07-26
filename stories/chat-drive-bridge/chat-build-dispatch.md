@@ -129,7 +129,10 @@ registry, dispatched to the worker, and its coarse progress folded back onto the
 ids and concurrent dispatches refused with typed results, and no verdict ever handed in.
 
 The integration test exercises this capability against its **real in-story collaborators** — the real
-`BuildRegistry` and the real `runBuildJob` (`apps/studio/server/buildWorker.ts`) — with a SCRIPTED
+`BuildRegistry` and the real `runBuildJob` (cited as `apps/studio/server/buildWorker.ts`; *corrected
+2026-07-26 — that file no longer exists, ADR-0133 d.3 relocated both to
+`packages/drive/src/build-worker.ts`, `BuildRegistry:77` / `runBuildJob:218`, exported as
+`@storytree/drive/build-worker`*) — with a SCRIPTED
 `BuildRunner` and an injected `isBuildable` (no SDK spend, ADR-0010 §5). No stubs of the registry/worker
 machinery.
 

@@ -30,6 +30,7 @@ import type {
 
 import { backstopJobs, observeBackstop } from "./chain-backstop.js";
 import { effectiveVerdictStore, ensureLiveDb } from "./db-control.js";
+import type { LeafSlicesObserver } from "./node-build.js";
 import type { EnsureDbResult } from "./db-control.js";
 import type { Envelope } from "./envelope.js";
 import {
@@ -228,6 +229,12 @@ async function runLiveCuration(
 
 export interface StoryBuildOpts {
   dryRun: boolean;
+  /**
+   * Observe each chained node's per-slice leaf run accounting (ADR-0235) — the same seam
+   * `node build` takes, so a chained story emits every node's traversal lanes. Injected by the CLI
+   * so drive never imports the traversal adapter (see {@link LeafSlicesObserver}).
+   */
+  onLeafSlices?: LeafSlicesObserver;
   /** `--live` — a real SDK leaf per node, subscription-funded, under the total budget ceiling. */
   live?: boolean;
   /**
@@ -689,7 +696,10 @@ export async function storyBuild(
             ...(remainingUsd !== undefined ? { budgetUsd: remainingUsd } : {}),
             ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
           });
-          if (built.liveAuthor !== undefined) leaves.set(spec.id, built.liveAuthor);
+          if (built.liveAuthor !== undefined) {
+            leaves.set(spec.id, built.liveAuthor);
+            opts.onLeafSlices?.({ runId, unitId: spec.id, runs: built.liveAuthor.runs });
+          }
           if (!built.result.ok) failures.set(spec.id, built.result);
           // Advance the stacked HEAD only on a pass (commitSha is set iff result.ok; equals baseSha
           // when nothing was authored, which is a harmless no-op advance).
@@ -722,7 +732,10 @@ export async function storyBuild(
           };
           return { result };
         }
-        if (drive.liveAuthor !== undefined) leaves.set(spec.id, drive.liveAuthor);
+        if (drive.liveAuthor !== undefined) {
+          leaves.set(spec.id, drive.liveAuthor);
+          opts.onLeafSlices?.({ runId, unitId: spec.id, runs: drive.liveAuthor.runs });
+        }
         if (!drive.result.ok) failures.set(spec.id, drive.result);
         return {
           result: drive.result,

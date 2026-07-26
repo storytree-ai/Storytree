@@ -120,20 +120,34 @@ same honest semantic states.
    _(proof-gate: app-surface#gate-2)_ Render real `TreeView` with loaded, selected, claimed, proven,
    arrival and reveal-plan state. **Success —** it mounts the public shared world view, routes the
    selection event through the existing controller, and retains no second private scene mapper.
-   Legend/inspector/chat/camera remain unchanged Studio siblings.
+   Legend/inspector/chat/camera remain unchanged Studio siblings. *(Scope corrected 2026-07-26,
+   ADR-0209 D8. The witness stays `machine` — every condition above compiles — but the walk as
+   written OVERSTATES what gate-2 observes today. The bound suite is green (105 files / 947 tests,
+   run 2026-07-26), and within it only `asa-treeview-mounts-one-shared-world-view`
+   (`apps/studio/src/components/TreeViewShell.test.tsx:68`) speaks to this leg — and it is a
+   SOURCE-TEXT assertion over `apps/studio/src/components/TreeView.tsx` (it imports `WorldSceneView`
+   from `@storytree/app-surface`, renders `<WorldSceneView`, and no longer imports `SceneView` from
+   `./SceneView.js`), not a render carrying selected/claimed/proven/arrival/reveal-plan state; no
+   test anywhere drives a selection event through the controller. Three of this leaf's four declared
+   contracts — `asa-treeview-folds-world-state-into-shared-model`,
+   `asa-world-events-reach-existing-studio-controller`, `asa-studio-scene-regressions-stay-green` —
+   have no test-name binding. Recorded as a COVERAGE gap and left as one: no binding was invented and
+   no observe gate was minted over unproven ground (ADR-0097 §2).)*
 3. **Art and existing selector policy survive.** _(witness: machine)_
    _(proof-gate: app-surface#gate-1)_ Exercise default, Vector, unknown and partially covered
    Storybook cases plus the moved selector fixtures. **Success —** art resolution/fallback, sizing,
    anchors/depth order, `trailRevealPlan` and `arrivalGrowPlan` match their existing behaviour.
 4. **The hosted Studio scene and six transitions read as one coherent product surface.**
-   _(witness: human)_ Stand up and verify the clean forest-map deep-link plus
+   _(witness: human)(detail: app-surface#uat-4)_ Stand up and verify the clean forest-map deep-link plus
    `?semanticGrowth=demo#/tree`. Walk the default Storybook scene, select a story and observe its
    existing arrival/trail treatment; then walk forward, Back and Replay through all six demo states,
    sample `?semanticGrowth=demo&artStyle=vector#/tree`, and enable the operating-system
    reduced-motion setting. **Success —** the operator judges the original shared scene visually
-   unregressed, with no duplicate/placeholder renderer; transform/opacity movement is legible;
-   claim/proof/healthy changes are honest; replay is coherent; reduced motion is calm without losing
-   a state. Surrounding chrome is not migrated or re-attested; an agent never signs this leg.
+   unregressed; transform/opacity movement is legible; claim/proof/healthy changes are honest;
+   replay is coherent; reduced motion is calm without losing a state. The no-duplicate-renderer,
+   art-resolution and exact-state claims remain compiled sibling legs 2, 3 and 5–7 rather than being
+   laundered into the human judgment. Surrounding chrome is not migrated or re-attested; an agent
+   never signs this leg.
 5. **The semantic walk exposes exactly six honest states.** _(witness: machine)_
    _(proof-gate: app-surface#gate-3)_ Mount the public semantic-growth view with six representative
    `WorldPresentationModel` frames and advance from empty to healthy. **Success —** observed keys are

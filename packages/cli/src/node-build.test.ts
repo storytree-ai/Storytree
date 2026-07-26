@@ -209,6 +209,11 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // Plus the `studio` story's chat-panel capability (stories/studio/chat-panel.md — a NET-NEW `real:` arm:
   // the renderer chat panel, the first studio frontend cap proof-wired for the vitest two-stage, ADR-0070;
   // its real arm declares a vitest `proofCommand` since the studio suite is vitest, not node:test).
+  // And the `studio` story's coalesced-camera-pan capability (stories/studio/coalesced-camera-pan.md):
+  // the BROWNFIELD studio vitest `real:` arm over TreeView.tsx's frame-coalesced drag camera controller.
+  // Its ADR-0240 sibling map-route-retention (stories/studio/map-route-retention.md) is another
+  // BROWNFIELD studio vitest `real:` arm: App-level composition keeps a visited TreeView alive across
+  // hash routes while safely parking it outside the active route's paint and input tree.
   // Most of the library
   // story's 7 capabilities are NO LONGER here:
   // ADR-0094 (supersedes_in_part 92 d.1 & d.5) removed their brownfield `real:` arms — the library is
@@ -438,9 +443,39 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // And the model-uat-promotion arc's uat-detail-studio story (ADR-0209 D7): BROWNFIELD studio vitest
   // `real:` arms over UatTestCriteriaSection (one-liner display + Library detail open via assetHref;
   // observe gate-1 covers both leaves; hostedStories register + studio depends_on uat-criterion-detail).
+  // And the linked-session-context arc's increment-2 story context-traversal-capture
+  // (stories/context-traversal-capture/** — ADR-0235 activation under ADR-0241's local-JSONL
+  // persistence decision): the terminal CLI's one dispatch boundary starts emitting for real. Its
+  // four NET-NEW node:test `real:` arms all live in the story's own package
+  // packages/context-traversal-capture (ADR-0192 D2 — a new story's code lives in its own workspace
+  // package, so nothing is added to the hostedStories register): traversal-trace-sink (the durable
+  // append/read/list seam over sink.ts), terminal-boundary-observations (the pure argv→observation
+  // read allowlist over observe-cli.ts), traversal-session-query (the replay renderers over
+  // query-render.ts), and terminal-capture-activation (the composition over terminal-capture.ts,
+  // proven by the story UAT that SPAWNS the real CLI). The packages/cli-side activation lines
+  // (main.ts / cli-areas.ts / commands.ts / traversal.ts / package.json) are un-asserted connective
+  // glue (ADR-0158) in a foreign building and are claimed by no `real:` arm.
+  // And the same arc's increment-3 story context-traversal-spawn (stories/context-traversal-spawn/**):
+  // the BUILD spawn boundary starts emitting linked parent/child lanes, so `spawn_handoff` /
+  // `model_context` / `result_return` gain their first producer. Its three NET-NEW node:test `real:`
+  // arms all live in the story's own package packages/context-traversal-spawn (ADR-0192 D2 again —
+  // nothing added to the hostedStories register): leaf-slice-spawn-observations (the pure slice
+  // accounting → lane triple over observe-leaf-slices.ts), build-spawn-capture (the parent/child
+  // per-session append over build-capture.ts) and multi-adapter-replay (the coverage-union render over
+  // replay-adapters.ts). The story itself carries NO story-level `real:` arm — it greens through its
+  // observe gate — so only the three capability ids appear here. The drive/cli-side activation lines
+  // (node-build.ts / story-build.ts / package.json / traversal.ts) are glue (ADR-0158) in a foreign
+  // building, claimed by no `real:` arm.
+  // And the same arc's increment-6 capability revisit-link-metadata, added to the EXISTING story
+  // context-traversal-capture: a repeat read of a canonical node names the earlier visit it repeats,
+  // giving `field:prior_visit_id` its first producer. Its `real:` arm lives in that story's own
+  // package (packages/context-traversal-capture/src/revisit-links.ts + .test.ts) over a pure
+  // in-memory linker, so nothing is added to the hostedStories register. The composition change in
+  // terminal-capture.ts that wires it is un-asserted connective glue (ADR-0158) claimed by no
+  // `real:` arm.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +accept-reject-suggestion-api, act2-beat-director, ambient-integration, app-surface-world-view, auto-grow-input, backend-chat-reset-route, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, brokered-local-uat-signing, builder-role, change-event-store, change-store-pg, chat-panel, chat-sse-mount, claim-store-work-time, cloud-sql-admin-rest, collapsed-suggestion-view, colour-by-subagent, compose-build-command, context-traversal-telemetry, credential-broker, criterion-detail-hash-anchor, criterion-detail-pointer, declared-edge-drift-report, deploy-health-signal, desktop-build-route, desktop-launch-preconditions, dogfood-probe-mrfuze9m, drift-reads-store, event-sourced-store-seam, experience-rollout-guardrails, gate-emits-change, graduation-park-lease, hosted-story-landlord-rule, hud-chrome, independent-judge-seam, inline-comment-thread, judge-result-shape, leaf-tool-surface, library-adr-wire-signals, library-category-shelf, library-dag-canvas, library-dive-body, library-drawer-shell, library-finder, library-lifecycle-shelf, library-lifecycle-wire, library-open-overlay, library-open-trigger, library-overview, library-permanent-lens, library-retire-standalone-page, library-selection-card, library-top-drawer, library-typed-edges, local-backend-boot, local-credential-wiring, map-build-seeds-terminal, member-suggest-write-policy, model-eligibility-registry, model-escalation-ladder, model-judged-uat, model-runtime-seam, model-tier-classification, model-uat-pilot, model-uat-witness, multi-session-tabs, multi-turn-transcript, node-resolve-report, noticeboard-cli, orientation-runner-telemetry, owned-turn-loop, packages-forward-refusal, pilot-criteria-classified, pilot-detail-seed, pilot-migration-harness, pty-session-manager, r3f-world-spike, render-claim-as-wisp, repo-picker-panel, repo-selection, review-mode-toggle, review-refresh-feed, routed-node-real-dispatch, seed-corpus-scripts, seed-opens-new-tab, shared-forest-connection, source-drift, spine-judge-validation, story-author-detail-authority, studio-app-surface-adapter, suggestion-edit-store, take-claim-at-spawn, terminal-dock-panel, terminal-repo-gate, three-kind-witness, transcript-reset, traversal-event-vocabulary, tree-view, uat-bound-command-adoption, uat-criterion-detail, uat-criterion-library-surface, uat-detail-kind, uat-detail-seed-sync, uat-detail-studio, uat-machine-gate-resolution, uat-machine-proof-binding, uat-row-one-liner, uat-row-opens-detail, verdict-glyphs, verdict-line, verified-attribution, web-experience-sync, witnessable-verdict, worker-relocation, write-broker/,
+    /REAL-buildable nodes: +accept-reject-suggestion-api, act2-beat-director, ambient-integration, app-surface-world-view, auto-grow-input, backend-chat-reset-route, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, brokered-local-uat-signing, build-spawn-capture, builder-role, change-event-store, change-store-pg, chat-panel, chat-sse-mount, claim-store-work-time, cloud-sql-admin-rest, coalesced-camera-pan, collapsed-suggestion-view, colour-by-subagent, compose-build-command, context-traversal-capture, context-traversal-telemetry, credential-broker, criterion-detail-hash-anchor, criterion-detail-pointer, declared-edge-drift-report, deploy-health-signal, desktop-build-route, desktop-launch-preconditions, dogfood-probe-mrfuze9m, drift-reads-store, event-sourced-store-seam, experience-rollout-guardrails, gate-emits-change, graduation-park-lease, hosted-story-landlord-rule, hud-chrome, independent-judge-seam, inline-comment-thread, judge-result-shape, leaf-slice-spawn-observations, leaf-tool-surface, library-adr-wire-signals, library-category-shelf, library-dag-canvas, library-dive-body, library-drawer-shell, library-finder, library-lifecycle-shelf, library-lifecycle-wire, library-open-overlay, library-open-trigger, library-overview, library-permanent-lens, library-retire-standalone-page, library-selection-card, library-top-drawer, library-typed-edges, local-backend-boot, local-credential-wiring, map-build-seeds-terminal, map-route-retention, member-suggest-write-policy, model-eligibility-registry, model-escalation-ladder, model-judged-uat, model-runtime-seam, model-tier-classification, model-uat-pilot, model-uat-witness, multi-adapter-replay, multi-session-tabs, multi-turn-transcript, node-resolve-report, noticeboard-cli, orientation-runner-telemetry, owned-turn-loop, packages-forward-refusal, pilot-criteria-classified, pilot-detail-seed, pilot-migration-harness, pty-session-manager, r3f-world-spike, render-claim-as-wisp, repo-picker-panel, repo-selection, review-mode-toggle, review-refresh-feed, revisit-link-metadata, routed-node-real-dispatch, seed-corpus-scripts, seed-opens-new-tab, shared-forest-connection, source-drift, spine-judge-validation, story-author-detail-authority, studio-app-surface-adapter, suggestion-edit-store, take-claim-at-spawn, terminal-boundary-observations, terminal-capture-activation, terminal-dock-panel, terminal-repo-gate, three-kind-witness, transcript-reset, traversal-event-vocabulary, traversal-session-query, traversal-trace-sink, tree-view, uat-bound-command-adoption, uat-criterion-detail, uat-criterion-library-surface, uat-detail-kind, uat-detail-seed-sync, uat-detail-studio, uat-machine-gate-resolution, uat-machine-proof-binding, uat-row-one-liner, uat-row-opens-detail, verdict-glyphs, verdict-line, verified-attribution, web-experience-sync, witnessable-verdict, worker-relocation, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);

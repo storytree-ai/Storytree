@@ -92,6 +92,15 @@ jobs:
       - name: Organism boundary
         run: pnpm check:boundaries
 
+      # Cross-surface mirror conformance (verification-integrity-arc inc 2). Surfaces that
+      # re-compose another's route — the desktop backend hand-mirrors the studio's /api/docs walk
+      # and may never import it (ADR-0176) — must serve the SAME payload. Each surface is run by
+      # its own probe in its own process over one shared input and the JSON is diffed. Deliberately
+      # a ROOT step, OUTSIDE the ADR-0195 affected-only narrowing below: drift is introduced by
+      # editing EITHER surface, and the affected filter would run only the edited one's suite.
+      - name: Cross-surface mirror conformance
+        run: pnpm check:mirror-conformance
+
       # CLAUDE.md's operating-discipline region is a GENERATED VIEW of the
       # `session-orchestrator` library agent (ADR-0051) — fail if it has drifted
       # from the artifact (edit the artifact + `pnpm build:claude`, don't hand-edit).
