@@ -166,13 +166,20 @@ file conflicts).
   `Credentials auto-hydrate` bullet). Two probes STAY load-bearing: **probe `SELECT 1`, don't assume**
   the DB is unreachable (Cloud SQL bullet), and **`git fetch origin/main`** before a PR / on a CI-red
   (the stale-branch check).
-- **Remote (web/VM) sessions ONLY** (Claude Code on the web — ephemeral container, GitHub via MCP,
-  **443-only egress**) can't open a DB *data* connection: Postgres' data socket is port **3307**,
-  which the 443-only egress blocks, so live/`--pg` writes and live builds hang there (the REST
-  **control plane** — `db:status`, the activation flip — still works; `gcloud` is not required,
-  ADR-0063). **This caveat is remote-only. On a laptop / direct-network session the DB is reachable —
-  do NOT infer "unreachable" from your environment; PROBE it** (see the Cloud SQL bullet's
-  probe-don't-assume rule). Full remote-session detail: ADR-0063 / ADR-0034.
+- **Remote (web/VM) sessions ONLY** (Claude Code on the web — ephemeral container, GitHub via MCP)
+  can't open a DB *data* connection, and **the reason is NOT a blocked port** (ADR-0250 corrected
+  this — the old "443-only egress blocks 3307" wording sent sessions down port-shaped dead ends).
+  Raw sockets are 443-only, but the agent proxy CONNECT-**tunnels arbitrary ports**; the real fence is
+  that the proxy **re-terminates TLS and resets TLS on any non-443 port**, and its own policy lists
+  **client-mTLS / non-443 HTTPS / raw-TCP databases** as unsupported — *report, do not work around*.
+  The Cloud SQL connector is all three at once, so `--pg` writes, `--store pg`, and live/`--real`
+  builds are **structurally** impossible there — **don't try to tunnel or forward around it.** They
+  now **refuse instantly** with that explanation rather than hanging ~8 min (ADR-0250 D2). Still fine
+  remotely: the REST **control plane** (`db:status`, the activation flip; `gcloud` not required,
+  ADR-0063), every read command (in-memory seed), and the whole offline gate. **This caveat is
+  remote-only. On a laptop / direct-network session the DB is reachable — do NOT infer "unreachable"
+  from your environment; PROBE it** (see the Cloud SQL bullet's probe-don't-assume rule). Full detail
+  and the settled fork: ADR-0250 / ADR-0089.
 - Install: `corepack enable pnpm` · `pnpm install`
 - **Fresh worktree?** A new git worktree has NO `node_modules` of its own — but a `SessionStart` hook
   now **auto-provisions** it: `node packages/cli/provision-worktree.mjs --hook` runs `pnpm install` once
@@ -224,7 +231,7 @@ file conflicts).
   A `db:up`/preflight "unreachable within Ns" at status **RUNNABLE** is almost always a slow cold-start
   (can exceed the 420s poll — seen ~21 min after the overnight stop), not a wedge: wait + re-probe. A
   direct `SELECT 1` is the definitive check (it connected in ~340 ms once warm while `db:up`'s own poll
-  was still timing out). The 3307-blocked caveat above applies to REMOTE sessions only.
+  was still timing out). The TLS-re-termination caveat above applies to REMOTE sessions only.
   Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/library/src/store/load-corpus.ts`.
 - Prove-it-gate: `packages/orchestrator/src/prove-it-gate.ts` (+ `.e2e.test.ts`). Red-green is enforced
   spine-side (phase machine + per-phase write-scope + spine-observed RED/GREEN + a signed verdict).
