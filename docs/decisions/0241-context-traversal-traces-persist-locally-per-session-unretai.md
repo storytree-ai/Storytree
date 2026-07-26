@@ -1,16 +1,23 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-07-26
 arc: linked-session-context-arc
 ---
 # ADR-0241: Context traversal traces persist locally per session, unretained and version-pinned
 
 ## Status
 
-proposed — decided by the `session-orchestrator` on 2026-07-26 while consuming
-`linked-session-context-plan-3` (inc 2 of `linked-session-context-arc`), which named this fork and
-deliberately did not settle it. Grounded in existing corpus precedent rather than a fresh owner
-direction, so it is born `proposed` and awaits the owner's ratifying read. It does not re-open
-ADR-0235; it fills the storage hole ADR-0235's own consequences left explicitly open.
+accepted (2026-07-26) — ratified by the owner in conversation on 2026-07-26, after increment 2 landed
+(PR #905) and the design had been exercised end-to-end rather than only argued: the landing session
+captured its own traversal, and ADR-0235 clause 6's metadata-only rule was verified against the trace
+file's actual bytes on disk.
+
+Authored by the `session-orchestrator` on 2026-07-26 while consuming `linked-session-context-plan-3`
+(inc 2 of `linked-session-context-arc`), which named this fork and deliberately did not settle it. It
+was born `proposed` because it rested on existing corpus precedent — ADR-0203's owner-directed,
+default-on, shared-store usage capture, of which this is a strictly more conservative case — rather
+than on a fresh owner direction. The owner's ratification supplies that direction. It does not
+re-open ADR-0235; it fills the storage hole ADR-0235's own consequences left explicitly open.
 
 ## Context
 

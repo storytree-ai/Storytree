@@ -113,9 +113,37 @@ describe('WorldSceneView', () => {
       hiddenStatuses: ['proposed', 'unhealthy'],
       arrivalIds: ['story-a', 'story-b'],
       reveal: null,
+      neighbours: null,
       spriteSheet: null,
       artScale: 1,
     });
+  });
+
+  // ADR-0242: the neighbour RINGS ride the island class the model composes, by direction —
+  // the lit LANE half is pinned in SceneView.test.tsx.
+  it('rings the immediate neighbours by direction, and only them', () => {
+    const model = normalizeWorldPresentationModel({
+      scene: representativeScene(),
+      // the one island in the fixture is a NEIGHBOUR of the selection, not the selection
+      selectedStoryId: 'story-elsewhere',
+      neighbours: {
+        selectedId: 'story-elsewhere',
+        litSegmentIds: [],
+        litSegments: new Set<string>(),
+        upstreamIds: ['story-a'],
+        downstreamIds: [],
+        upstream: new Set(['story-a']),
+        downstream: new Set<string>(),
+      },
+    });
+    const { container } = render(
+      <svg>
+        <WorldSceneView model={model} />
+      </svg>,
+    );
+    expect(container.querySelector('.hex-flora.is-upstream')).toBeTruthy();
+    expect(container.querySelector('.is-selected')).toBeNull(); // the selection is off-screen here
+    expect(container.querySelector('.is-downstream')).toBeNull();
   });
 
   it('aswv-delegates-one-semantic-scene-and-event', () => {

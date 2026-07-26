@@ -6,8 +6,11 @@
 // chose strategy C over B). The geometry + structure are the core's; this file owns
 // only the role → studio-class translation and the interactivity.
 //
-// Behind a flag for now (`?render=scene`, default off) so the canonical inline
-// render is untouched — visual parity is operator-attested (ADR-0070), not asserted.
+// This IS the map's render now: `readRenderScene` treats everything except an explicit
+// `?render=legacy` / `?render=inline` as the scene default, so the old inline render in
+// TreeView is the escape hatch, not the canonical path. (The "behind a flag, default off"
+// note this replaced was true only for the ADR-0093 rollout.) Visual parity with the
+// inline render is operator-attested (ADR-0070), not asserted.
 
 import React from 'react';
 import {
@@ -25,6 +28,7 @@ import {
   type Bounds,
 } from './sprite-sizing.js';
 import type { TrailRevealPlan } from './trailReveal.js';
+import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 
 /** The focus-aware context the walk needs — the studio's per-render interactivity
  *  (the scene itself is focus-agnostic; focus / hover / selection are applied here). */
@@ -59,6 +63,12 @@ export interface SceneCtx {
    *  {@link fitSpritePlacement} computes from the vector body a sprite replaces. Only read when
    *  `spriteSheet` is present. */
   artScale?: number;
+  /** The SELECTION highlight plan (ADR-0242, `neighbourHighlightPlan`) — which trail segments sit on
+   *  the selected story's OWN one-hop edges. Present ⇒ the trail-fill pass gains a `trail-lit` LANE
+   *  drawn over each of those segments, narrower than the road beneath it so a shared trunk still
+   *  reads as shared. Null/absent ⇒ no lane at all, byte-identical to before. (The neighbour ISLAND
+   *  rings ride `territoryClassById`, which the caller composes from the same plan.) */
+  neighbours?: NeighbourHighlightPlan | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
    *  so a `baked-use` hero (the ADR-0227 status trees, the garden cottage/gazebo) sizes from its real
    *  def geometry. Memoized once per scene in the component below. */
@@ -512,6 +522,51 @@ function trySprite(
   return React.createElement('image', props, ...kids);
 }
 
+/** The lit lane is ONE EDGE WIDE — capped at the width of a usage-1 road — and never more
+ *  than this fraction of the road it rides, so even a spur keeps a rim. */
+const LIT_LANE_CAP = trailFillWidth(1);
+const LIT_LANE_FRACTION = 0.8;
+
+/**
+ * The lane width for a segment of the given usage. ALWAYS narrower than
+ * `trailFillWidth(usage)`, which is what keeps the merge honest — but the interesting half
+ * is the CAP: a lane never grows past the width of a single-edge road, so on a trunk it
+ * reads as exactly what it is, one edge's worth of traffic inside a road that carries many.
+ * Live trunks on the real forest run to ~11 units wide; a constant inset off that leaves a
+ * hairline rim and the lane just reads as a recolour, which is what the cap fixes. A
+ * usage-1 spur — a road that really is the selection's alone — is lit nearly edge to edge.
+ */
+export function litLaneWidth(usage: number): number {
+  return Math.min(LIT_LANE_CAP, trailFillWidth(usage) * LIT_LANE_FRACTION);
+}
+
+/**
+ * The ADR-0242 lit-lane overlay for the trail-fill pass: one extra `trail-lit` path per
+ * segment the selection's own edges run through, drawn AFTER every fill so the lanes sit
+ * on top of the whole road network rather than under a later trunk. A lane inherits the
+ * arrival draw-on mask when its segment is growing, so an arriving island's new lit road
+ * still draws on rather than snapping in. Empty (no extra nodes at all) when nothing is
+ * selected — the pass is then byte-identical to before this existed.
+ */
+function litLaneNodes(children: readonly SceneNode[], ctx: SceneCtx): React.JSX.Element[] {
+  const plan = ctx.neighbours;
+  if (!plan || plan.litSegments.size === 0) return [];
+  const lanes: React.JSX.Element[] = [];
+  for (const child of children) {
+    if (child.el !== 'path' || !child.id || !plan.litSegments.has(child.id)) continue;
+    const props: Record<string, unknown> = {
+      key: `lit-${child.id}`,
+      className: 'trail-lit',
+      d: child.d,
+      'data-id': child.id,
+      strokeWidth: litLaneWidth(child.usage ?? 1),
+    };
+    if (ctx.reveal?.byId.get(child.id)) props.mask = `url(#trail-m-${child.id})`;
+    lanes.push(React.createElement('path', props));
+  }
+  return lanes;
+}
+
 function renderNode(
   node: SceneNode,
   key: React.Key,
@@ -681,6 +736,8 @@ function renderNode(
       const el = renderNode(c, i, childStory, ctx);
       if (el) kids.push(el);
     });
+    // ADR-0242: the selection's lit lanes ride on top of the finished fill pass.
+    if (node.kind === 'trail-fill-pass') kids.push(...litLaneNodes(children, ctx));
   } else if (node.el === 'text') {
     kids.push(node.text);
   }

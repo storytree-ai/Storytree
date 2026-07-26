@@ -19,8 +19,9 @@ import {
   type SceneTrailsInput,
 } from '@storytree/forest-world';
 import { arrivalGrowPlan } from './trailReveal.js';
+import { neighbourHighlightPlan } from './neighbourHighlight.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
-import { SceneView, type SceneCtx } from './SceneView.js';
+import { SceneView, litLaneWidth, type SceneCtx } from './SceneView.js';
 
 afterEach(cleanup);
 
@@ -481,6 +482,72 @@ describe('SceneView — the ADR-0169 trail network mapping', () => {
     expect(cave.querySelector('.cave-apron')).toBeTruthy();
     expect(cave.querySelector('.cave-arch')).toBeTruthy();
     expect(cave.querySelector('.cave-rim')).toBeTruthy();
+  });
+});
+
+// ADR-0242: selecting a story lights the trail segments on its OWN one-hop edges with a lane
+// drawn over the road. The selector itself is pinned in neighbourHighlight.test.ts; here we pin
+// the RENDER half — that a lane exists, that it is narrower than the road it rides (the merge
+// honesty), that it paints after the fills, and that absent a selection the pass is untouched.
+// The look of the lane is owner-attested (ADR-0070), never asserted.
+describe('SceneView — the ADR-0242 lit lane', () => {
+  it('emits no lane at all when nothing is selected', () => {
+    const { root } = renderScene(); // neighbours: absent
+    expect(root.querySelectorAll('.trail-lit')).toHaveLength(0);
+  });
+
+  it('lights the selected story`s own segments — one lane each, over the fill pass', () => {
+    // `lib` stands on `a` (segments tseg1 + tseg2) and is stood on by `b` (the hidden tseg3).
+    const plan = neighbourHighlightPlan(mkTrails(), 'lib');
+    const { root } = renderScene({ neighbours: plan });
+    const lanes = [...root.querySelectorAll('.trail-fill-pass .trail-lit')];
+    expect(lanes.map((l) => l.getAttribute('data-id'))).toEqual(['tseg1', 'tseg2']);
+    // painted AFTER every fill, so a lane is never buried under a later trunk
+    const pass = root.querySelector('.trail-fill-pass')!;
+    const kinds = [...pass.children].map((c) => c.classList.contains('trail-lit'));
+    expect(kinds).toEqual([false, false, true, true]);
+  });
+
+  it('draws the lane NARROWER than the road it rides — so a shared trunk still reads shared', () => {
+    const plan = neighbourHighlightPlan(mkTrails(), 'lib');
+    const { root } = renderScene({ neighbours: plan });
+    const lane = root.querySelector('.trail-lit[data-id="tseg2"]')!; // usage 2 — a trunk
+    const road = root.querySelector('.trail-fill[data-id="tseg2"]')!;
+    const laneW = Number(lane.getAttribute('stroke-width'));
+    const roadW = Number(road.getAttribute('stroke-width'));
+    expect(laneW).toBeCloseTo(litLaneWidth(2), 3);
+    expect(laneW).toBeLessThan(roadW);
+  });
+
+  it('caps the lane at ONE EDGE wide, so a heavy trunk keeps a wide rim of shared road', () => {
+    // The real forest routes trunks up to ~30 edges deep. Without the cap the lane tracks the
+    // road and the affordance degrades into a recolour — the merge stops being visible.
+    const heavy = litLaneWidth(30);
+    expect(heavy).toBeCloseTo(trailFillWidth(1), 3);
+    expect(heavy).toBeLessThan(trailFillWidth(30) / 2);
+    // …while a usage-1 spur, which really IS the selection's alone, is lit nearly edge to edge.
+    const spur = litLaneWidth(1);
+    expect(spur).toBeLessThan(trailFillWidth(1));
+    expect(spur).toBeGreaterThan(trailFillWidth(1) * 0.7);
+    // monotone: a lane never shrinks as its road grows
+    expect(litLaneWidth(2)).toBeGreaterThanOrEqual(litLaneWidth(1));
+  });
+
+  it('leaves a hidden under-island run to the ghost pass — a cave gets no lane', () => {
+    // `b` stands on `lib` through tseg3 ONLY, which is a hidden cave run.
+    const plan = neighbourHighlightPlan(mkTrails(), 'b');
+    expect(plan?.litSegments.has('tseg3')).toBe(true);
+    const { root } = renderScene({ neighbours: plan });
+    expect(root.querySelectorAll('.trail-lit')).toHaveLength(0);
+  });
+
+  it('keeps the arrival draw-on: a lane on a growing segment wears the same mask', () => {
+    const plan = neighbourHighlightPlan(mkTrails(), 'lib');
+    const reveal = arrivalGrowPlan(mkTrails(), new Set(['lib']));
+    const { root } = renderScene({ neighbours: plan, reveal });
+    expect(root.querySelector('.trail-lit[data-id="tseg2"]')!.getAttribute('mask')).toBe(
+      'url(#trail-m-tseg2)',
+    );
   });
 });
 
