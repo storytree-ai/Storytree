@@ -1,11 +1,11 @@
 ---
 id: "source-drift"
-tier: contract
+tier: capability
 story: binding-staleness
 title: "A pure source-drift classifier over the derives_from DAG"
 outcome: "A pure classifier mirrors classifyDrift but over an artifact's derives_from upstreams (ADR-0017) — an upstream ADR/artifact whose content changed makes the artifact source-drifted; a described change → stale, an undescribed one → demoted, none → fresh — the second of ADR-0016's two drift signals."
 status: proposed
-proof_mode: contract-test
+proof_mode: integration-test
 depends_on: []
 decisions: [16]
 # Node-borne proof config (ADR-0057 keystone A): authoring THIS block is what makes the node

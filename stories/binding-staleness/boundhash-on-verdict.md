@@ -1,11 +1,11 @@
 ---
 id: "boundhash-on-verdict"
-tier: contract
+tier: capability
 story: binding-staleness
 title: "A verdict records the content-hash of the code it proved"
 outcome: "The signed Verdict carries an optional boundHash — the ADR-0016 content-hash (hashSpan) of the proved span at sign time — so a verdict KNOWS what code it proved and drift can be computed against it later; absent on verdicts predating ADR-0016 (back-compat)."
 status: proposed
-proof_mode: contract-test
+proof_mode: integration-test
 depends_on: []
 decisions: [16]
 # Node-borne proof config (ADR-0057 keystone A): authoring THIS block is what makes the node
