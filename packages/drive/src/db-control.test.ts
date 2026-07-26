@@ -41,6 +41,34 @@ test("ensureDbUp fast path: a reachable DB returns immediately and never starts"
   assert.equal(started, false, "the DB was already up — db:up must not run");
 });
 
+test("ensureDbUp refuses INSTANTLY on a data-plane refusal — never probes, never starts (ADR-0250)", async () => {
+  let probed = 0;
+  let started = 0;
+  const res = await ensureDbUp(
+    deps({
+      refusal: "live store refused: this session's egress cannot carry a Postgres data connection",
+      probe: async () => {
+        probed++;
+        return false;
+      },
+      start: async () => void started++,
+    }),
+  );
+  assert.equal(res.ok, false);
+  assert.match(
+    res.ok === false ? res.reason : "",
+    /egress cannot carry a Postgres data connection/,
+    "the refusal must carry the real mechanism through, not the generic 'did not accept connections'",
+  );
+  assert.equal(probed, 0, "a structurally blocked session must not spend the 45s probe budget");
+  assert.equal(started, 0, "and must not start an instance that was never the problem");
+});
+
+test("ensureDbUp with an ABSENT/null refusal behaves exactly as before (the laptop path)", async () => {
+  assert.deepEqual(await ensureDbUp(deps({ refusal: null })), { ok: true, started: false });
+  assert.deepEqual(await ensureDbUp(deps({})), { ok: true, started: false });
+});
+
 test("ensureDbUp starts the DB and succeeds once a later poll connects", async () => {
   // probe: #1 fast-path (false) → start → poll#1 (false) → poll#2 (true).
   const p = scriptedProbe([false, false, true]);

@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StoryTree context traversal — canonical visual reference</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #101416;
+      --foreground: #e7ece9;
+      --muted-foreground: #8f9b96;
+      --border: #34403b;
+      --primary: #397b64;
+      --primary-foreground: #f4fff9;
+      --destructive: #ef645f;
+      --viz-series-1: #62b795;
+      --viz-series-2: #d5a24c;
+      --viz-series-3: #778bd8;
+      --viz-series-4: #bd77bf;
+      --font-size-base: 13px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+      display: grid;
+      justify-items: end;
+      align-items: start;
+      overflow-x: hidden;
+      color: var(--foreground);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(65, 114, 87, .18), transparent 30%),
+        linear-gradient(145deg, #111917, #0d1112 62%);
+      font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .reference-panel {
+      width: min(100%, 420px);
+      min-height: calc(100vh - 48px);
+      padding: 14px 10px 18px 16px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(16, 20, 22, .94);
+      box-shadow: 0 22px 70px rgba(0, 0, 0, .34);
+    }
+    button, select, input { font: inherit; }
+    button, .btn {
+      min-height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 6px 10px;
+      color: var(--foreground);
+      background: #18201e;
+      cursor: pointer;
+    }
+    .btn-primary { color: var(--primary-foreground); background: var(--primary); border-color: transparent; }
+    .btn-ghost { background: transparent; }
+    .form-select {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 6px 28px 6px 9px;
+      color: var(--foreground);
+      background: #151c1a;
+    }
+    .form-range { width: 100%; accent-color: var(--primary); }
+    .text-small { font-size: 11px; }
+    .text-destructive { color: var(--destructive); }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .table { width: 100%; border-collapse: collapse; }
+    .table th, .table td { padding: 7px 4px; border-bottom: 1px solid var(--border); text-align: left; }
+    [data-lucide] { display: inline-grid; place-items: center; min-width: 1em; font-style: normal; }
+    [data-lucide="book-open"]::before { content: "◫"; }
+    [data-lucide="play"]::before { content: "▶"; }
+    [data-lucide="pause"]::before { content: "Ⅱ"; }
+    [data-lucide="terminal"]::before { content: "›_"; font-size: 8px; font-weight: 700; }
+    [data-lucide="bot"]::before { content: "◉"; }
+    [data-lucide="compass"]::before { content: "◇"; }
+    [data-lucide="library"]::before { content: "▥"; }
+    [data-lucide="search"]::before, [data-lucide="scan-search"]::before { content: "⌕"; }
+    [data-lucide="arrow-left"]::before { content: "←"; }
+    [data-lucide="sparkles"]::before { content: "✦"; }
+    [data-lucide="waypoints"]::before { content: "⌁"; font-size: 28px; }
+    @media (max-width: 520px) {
+      body { padding: 0; }
+      .reference-panel { width: 100%; min-height: 100vh; border: 0; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="reference-panel" aria-label="StoryTree narrow story-details panel">
+<div id="long-session-trace-playback">
+  <style>
+    #long-session-trace-playback {
+      width: min(100%, 400px);
+      margin-inline-start: auto;
+      color: var(--foreground);
+      font-size: var(--font-size-base);
+    }
+    #long-session-trace-playback .trace-head {
+      display: grid;
+      grid-template-columns: 50px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    #long-session-trace-playback .story-island {
+      display: grid;
+      place-items: center;
+      width: 50px;
+      height: 42px;
+      color: var(--primary-foreground);
+      background: var(--primary);
+      border-radius: 52% 48% 44% 56% / 58% 46% 54% 42%;
+    }
+    #long-session-trace-playback .trace-controls {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    #long-session-trace-playback .trace-clock {
+      color: var(--muted-foreground);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    #long-session-trace-playback .trace-map {
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+      touch-action: manipulation;
+    }
+    #long-session-trace-playback .time-spine,
+    #long-session-trace-playback .hour-tick,
+    #long-session-trace-playback .hour-line {
+      stroke: var(--border);
+      stroke-width: 1;
+    }
+    #long-session-trace-playback .time-label,
+    #long-session-trace-playback .fold-label {
+      fill: var(--muted-foreground);
+      font-family: inherit;
+      font-size: 9px;
+    }
+    #long-session-trace-playback .fold-mark {
+      fill: none;
+      stroke: var(--muted-foreground);
+      stroke-width: 1.2;
+    }
+    #long-session-trace-playback .parent-edge {
+      fill: none;
+      stroke: var(--viz-series-1);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+    }
+    #long-session-trace-playback .parent-edge.wait {
+      stroke: var(--muted-foreground);
+      stroke-width: 1;
+      opacity: 0.5;
+    }
+    #long-session-trace-playback .child-band {
+      opacity: 0.1;
+    }
+    #long-session-trace-playback .child-spine,
+    #long-session-trace-playback .handoff {
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+    }
+    #long-session-trace-playback .trace-node {
+      cursor: zoom-in;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms ease;
+    }
+    #long-session-trace-playback .trace-node.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #long-session-trace-playback .trace-node .window-ring {
+      fill: var(--background);
+      stroke: var(--muted-foreground);
+      stroke-width: 0.9;
+    }
+    #long-session-trace-playback .trace-node:hover .window-ring,
+    #long-session-trace-playback .trace-node.is-selected .window-ring {
+      stroke: var(--foreground);
+      stroke-width: 1.8;
+    }
+    #long-session-trace-playback .gauge-track {
+      fill: var(--background);
+      stroke: var(--border);
+    }
+    #long-session-trace-playback .gauge-safe,
+    #long-session-trace-playback .gauge-added {
+      fill: none;
+      stroke: var(--viz-series-1);
+      stroke-linecap: round;
+    }
+    #long-session-trace-playback .gauge-danger-zone {
+      fill: none;
+      stroke: var(--destructive);
+      opacity: 1;
+    }
+    #long-session-trace-playback .gauge-danger-used {
+      fill: none;
+      stroke: var(--destructive);
+      stroke-linecap: round;
+    }
+    #long-session-trace-playback .trace-node.child .gauge-safe,
+    #long-session-trace-playback .trace-node.child .gauge-added {
+      stroke: var(--lane-color);
+    }
+    #long-session-trace-playback .search-lens {
+      fill: none;
+      stroke: var(--foreground);
+      stroke-width: 1;
+      stroke-linecap: round;
+    }
+    #long-session-trace-playback .lane-icon {
+      opacity: 0;
+    }
+    #long-session-trace-playback .lane-icon-disc {
+      stroke: var(--background);
+      stroke-width: 1;
+    }
+    #long-session-trace-playback .lane-icon-mark {
+      fill: none;
+      stroke: var(--background);
+      stroke-width: 1.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    #long-session-trace-playback .playhead {
+      stroke: var(--foreground);
+      stroke-width: 1;
+      opacity: 0.42;
+    }
+    #long-session-trace-playback .playhead-dot {
+      fill: var(--foreground);
+    }
+    #long-session-trace-playback .selection-strip {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 38px;
+      border-top: 1px solid var(--border);
+      padding-top: 7px;
+    }
+    #long-session-trace-playback .selection-strip.is-visible {
+      display: flex;
+    }
+    #long-session-trace-playback .selection-copy {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #long-session-trace-playback .trace-legend {
+      display: grid;
+      gap: 7px;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+    }
+    #long-session-trace-playback .type-keys,
+    #long-session-trace-playback .gauge-key {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px 12px;
+    }
+    #long-session-trace-playback .type-key,
+    #long-session-trace-playback .gauge-key-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--muted-foreground);
+    }
+    #long-session-trace-playback .type-icon {
+      display: grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      color: var(--background);
+    }
+    #long-session-trace-playback .type-icon.parent {
+      background: var(--viz-series-1);
+    }
+    #long-session-trace-playback .type-icon.general {
+      background: var(--viz-series-3);
+    }
+    #long-session-trace-playback .type-icon.explore {
+      background: var(--viz-series-2);
+    }
+    #long-session-trace-playback .type-icon.curator {
+      background: var(--viz-series-4);
+    }
+    #long-session-trace-playback .type-icon svg {
+      width: 12px;
+      height: 12px;
+    }
+    #long-session-trace-playback .mini-gauge {
+      width: 25px;
+      height: 25px;
+      transform: rotate(-90deg);
+    }
+    #long-session-trace-playback .mini-gauge circle {
+      fill: none;
+    }
+    #long-session-trace-playback .mini-track {
+      stroke: var(--border);
+      stroke-width: 3;
+    }
+    #long-session-trace-playback .mini-used {
+      stroke: var(--viz-series-1);
+      stroke-width: 3;
+      stroke-dasharray: 31 69;
+    }
+    #long-session-trace-playback .mini-danger {
+      stroke: var(--destructive);
+      stroke-width: 4;
+      stroke-dasharray: 2 98;
+      stroke-dashoffset: -50;
+    }
+    #long-session-trace-playback .overview.is-hidden {
+      display: none;
+    }
+    #long-session-trace-playback .drill {
+      display: none;
+      min-height: 540px;
+    }
+    #long-session-trace-playback .drill.is-visible {
+      display: block;
+    }
+    #long-session-trace-playback .drill-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    #long-session-trace-playback .drill-orb {
+      display: grid;
+      place-items: center;
+      width: 70px;
+      height: 70px;
+      margin: 18px auto 22px;
+      border: 1px solid var(--muted-foreground);
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--viz-series-1) 16%, var(--background));
+    }
+    #long-session-trace-playback .drill .table {
+      font-variant-numeric: tabular-nums;
+    }
+    #long-session-trace-playback .drill .table th {
+      color: var(--muted-foreground);
+      font-weight: 400;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #long-session-trace-playback .trace-node {
+        transition: none;
+      }
+    }
+  </style>
+
+  <div class="trace-head">
+    <div class="story-island" data-tooltip="Recorded StoryTree session">
+      <i data-lucide="book-open" aria-hidden="true"></i>
+      <span class="sr-only">Recorded StoryTree session</span>
+    </div>
+    <label>
+      <span class="sr-only">Recorded session</span>
+      <select class="form-select" id="long-trace-session">
+        <option>02b6… · 7h39m · recorded trace</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="overview" id="long-trace-overview">
+    <div class="trace-controls">
+      <button type="button" class="btn btn-primary" id="long-trace-play" aria-pressed="false">
+        <i data-lucide="play" aria-hidden="true"></i>
+        <span id="long-trace-play-label">Play</span>
+      </button>
+      <label>
+        <span class="sr-only">Recorded session time</span>
+        <input class="form-range" id="long-trace-range" type="range" min="0" max="458.5" step="0.1" value="0">
+      </label>
+      <output class="trace-clock text-small" id="long-trace-clock">00:00 / 07:39</output>
+    </div>
+
+    <div data-tooltip="Idle spans are folded; double-click a footprint to inspect">
+      <svg class="trace-map" id="long-trace-map" viewBox="0 0 360 580" role="img" aria-labelledby="long-trace-title long-trace-desc">
+        <title id="long-trace-title">Recorded seven-hour StoryTree session traversal</title>
+        <desc id="long-trace-desc">A playback of metadata extracted from a recorded StoryTree session. Each footprint is a one-million-token circular gauge with a red zone above five hundred thousand tokens. Five child-agent lanes receive payloads from and return results to the parent, with color and icon shared by agent type. Confirmed idle gaps are visibly folded.</desc>
+        <g id="long-trace-axis" aria-hidden="true"></g>
+        <g id="long-trace-band-layer" aria-hidden="true"></g>
+        <g id="long-trace-edge-layer" aria-hidden="true"></g>
+        <g id="long-trace-node-layer"></g>
+        <g id="long-trace-playhead" aria-hidden="true">
+          <line class="playhead" x1="16" y1="30" x2="348" y2="30"></line>
+          <circle class="playhead-dot" cx="24" cy="30" r="2.5"></circle>
+        </g>
+      </svg>
+    </div>
+
+    <div class="trace-legend text-small" aria-label="Traversal legend">
+      <div class="type-keys">
+        <span class="type-key"><span class="type-icon parent"><i data-lucide="terminal" aria-hidden="true"></i></span>parent</span>
+        <span class="type-key"><span class="type-icon general"><i data-lucide="bot" aria-hidden="true"></i></span>general</span>
+        <span class="type-key"><span class="type-icon explore"><i data-lucide="compass" aria-hidden="true"></i></span>explore</span>
+        <span class="type-key"><span class="type-icon curator"><i data-lucide="library" aria-hidden="true"></i></span>curator</span>
+      </div>
+      <div class="gauge-key">
+        <span class="gauge-key-item">
+          <svg class="mini-gauge" viewBox="0 0 25 25" role="img" aria-label="Example context gauge">
+            <circle class="mini-track" cx="12.5" cy="12.5" r="9" pathLength="100"></circle>
+            <circle class="mini-danger" cx="12.5" cy="12.5" r="9" pathLength="100"></circle>
+            <circle class="mini-used" cx="12.5" cy="12.5" r="9" pathLength="100"></circle>
+          </svg>
+          used
+        </span>
+        <span class="gauge-key-item"><span class="text-destructive">●</span>500k dumb zone</span>
+        <span class="gauge-key-item">○ 1m window</span>
+        <span class="gauge-key-item"><i data-lucide="search" aria-hidden="true"></i>search</span>
+      </div>
+    </div>
+
+    <div class="selection-strip" id="long-trace-selection" aria-live="polite">
+      <span class="selection-copy text-small" id="long-trace-selection-copy"></span>
+      <button type="button" class="btn btn-ghost" id="long-trace-inspect">
+        <i data-lucide="scan-search" aria-hidden="true"></i>
+        Inspect
+      </button>
+    </div>
+  </div>
+
+  <div class="drill" id="long-trace-drill">
+    <div class="drill-actions">
+      <button type="button" class="btn btn-ghost" id="long-trace-back">
+        <i data-lucide="arrow-left" aria-hidden="true"></i>
+        Back
+      </button>
+      <button type="button" class="btn" id="long-trace-ask">
+        <i data-lucide="sparkles" aria-hidden="true"></i>
+        Ask agent
+      </button>
+    </div>
+    <div class="drill-orb"><i data-lucide="waypoints" aria-hidden="true"></i></div>
+    <table class="table table-sm">
+      <tbody id="long-trace-detail-rows"></tbody>
+    </table>
+  </div>
+
+  <script>
+    (() => {
+      const root = document.getElementById('long-session-trace-playback');
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const duration = 458.5;
+      const windowCapacity = 1000;
+      const dumbThreshold = 500;
+      const parentX = 106;
+      const playButton = document.getElementById('long-trace-play');
+      const playLabel = document.getElementById('long-trace-play-label');
+      const range = document.getElementById('long-trace-range');
+      const clock = document.getElementById('long-trace-clock');
+      const axisLayer = document.getElementById('long-trace-axis');
+      const bandLayer = document.getElementById('long-trace-band-layer');
+      const edgeLayer = document.getElementById('long-trace-edge-layer');
+      const nodeLayer = document.getElementById('long-trace-node-layer');
+      const playhead = document.getElementById('long-trace-playhead');
+      const selection = document.getElementById('long-trace-selection');
+      const selectionCopy = document.getElementById('long-trace-selection-copy');
+      const inspectButton = document.getElementById('long-trace-inspect');
+      const overview = document.getElementById('long-trace-overview');
+      const drill = document.getElementById('long-trace-drill');
+      const detailRows = document.getElementById('long-trace-detail-rows');
+      const backButton = document.getElementById('long-trace-back');
+      const askButton = document.getElementById('long-trace-ask');
+      let playing = false;
+      let frame = null;
+      let lastFrame = 0;
+      let selectedDatum = null;
+      let renderedNodes = [];
+      let renderedEdges = [];
+      let renderedBands = [];
+      let renderedIcons = [];
+
+      const segments = [
+        [0,30,30,140,'active'],
+        [30,67,140,158,'gap'],
+        [67,72,158,178,'active'],
+        [72,127,178,198,'gap'],
+        [127,160,198,344,'active'],
+        [160,187,344,362,'gap'],
+        [187,193,362,384,'active'],
+        [193,227,384,402,'gap'],
+        [227,243,402,468,'active'],
+        [243,257,468,481,'gap'],
+        [257,263,481,505,'active'],
+        [263,457,505,535,'gap'],
+        [457,458.5,535,552,'active']
+      ];
+
+      const parent = [
+        [2.5,29,17,95.8,95.8,1],
+        [7.5,4,6,126.8,31.0,0],
+        [12.5,8,7,141.6,14.8,0],
+        [22.5,12,11,155.9,14.2,0],
+        [27.5,1,1,169.8,13.9,0],
+        [67.5,8,8,114.3,0,1],
+        [127.5,3,3,136.7,22.3,0],
+        [132.5,10,9,156.3,19.6,0],
+        [137.5,26,26,179.3,23.0,0],
+        [142.5,23,22,194.7,15.4,0],
+        [147.5,17,17,209.5,14.7,0],
+        [152.5,7,7,217.3,7.8,1],
+        [157.5,14,14,233.4,16.1,1],
+        [187.5,3,3,235.5,2.1,0],
+        [227.5,2,2,240.9,5.4,0],
+        [232.5,2,3,228.1,0,0],
+        [237.5,1,2,229.0,0.9,0],
+        [242.5,14,16,239.8,10.9,0],
+        [257.5,1,2,229.6,0,0],
+        [262.5,1,1,232.4,2.8,0],
+        [457.5,0,1,233.3,1.0,0]
+      ].map((row, index) => ({
+        id:`p${index}`, lane:'parent', t:row[0], calls:row[1], turns:row[2],
+        used:row[3], added:row[4], search:Boolean(row[5]), x:parentX,
+        name:'Parent activity burst'
+      }));
+
+      const children = [
+        {
+          id:'explore', x:184, color:'var(--viz-series-2)', start:2.1, end:6.3,
+          name:'Map current pathway pipeline', type:'Explore', calls:45, turns:36, max:94.4,
+          bins:[[3,77.5,77.5,1],[5,92.2,14.7,0],[6.3,94.4,2.1,0]]
+        },
+        {
+          id:'pathfinding', x:220, color:'var(--viz-series-3)', start:2.4, end:8.0,
+          name:'Research pathfinding algorithms', type:'general-purpose', calls:18, turns:11, max:72.4,
+          bins:[[3,58.5,58.5,1],[5,71.1,12.5,1],[8,72.4,1.3,0]]
+        },
+        {
+          id:'aesthetics', x:256, color:'var(--viz-series-3)', start:2.7, end:8.3,
+          name:'Research trail aesthetics + caves', type:'general-purpose', calls:27, turns:9, max:80.8,
+          bins:[[3,61.1,61.1,1],[5,79.1,17.9,1],[8.3,80.8,1.8,0]]
+        },
+        {
+          id:'curator', x:214, color:'var(--viz-series-4)', start:133.5, end:137.2,
+          name:'Librarian pre-merge curation pass', type:'librarian-curator', calls:15, turns:11, max:93.1,
+          bins:[[133.5,69.1,69.1,1],[135,91.2,22.2,1],[137.2,93.1,1.9,0]]
+        },
+        {
+          id:'adapter', x:272, color:'var(--viz-series-3)', start:135.4, end:155.7,
+          name:'Adapt web repo to trails', type:'general-purpose', calls:103, turns:99, max:193.0,
+          bins:[
+            [135.4,65.1,65.1,0],[137,120.7,55.5,0],[139,130.9,10.2,0],
+            [141,139.9,9.0,0],[143,149.7,9.8,0],[145,158.0,8.3,0],
+            [147,169.4,11.4,0],[149,177.5,8.1,0],[151,183.6,6.1,0],
+            [153,188.4,4.8,0],[155.7,193.0,4.5,0]
+          ]
+        }
+      ];
+
+      function yFor(time) {
+        const segment = segments.find((item) => time >= item[0] && time <= item[1]) || segments.at(-1);
+        const ratio = segment[1] === segment[0] ? 0 : (time - segment[0]) / (segment[1] - segment[0]);
+        return segment[2] + (ratio * (segment[3] - segment[2]));
+      }
+
+      function formatTime(minutes) {
+        const rounded = Math.max(0, Math.round(minutes));
+        const hours = Math.floor(rounded / 60).toString().padStart(2,'0');
+        const mins = (rounded % 60).toString().padStart(2,'0');
+        return `${hours}:${mins}`;
+      }
+
+      function makeLine(x1,y1,x2,y2,className) {
+        const path = document.createElementNS(svgNS,'path');
+        path.setAttribute('class',className);
+        path.setAttribute('d',`M ${x1} ${y1} C ${x1} ${(y1+y2)/2}, ${x2} ${(y1+y2)/2}, ${x2} ${y2}`);
+        return path;
+      }
+
+      function addAnimatedEdge(path,start,end) {
+        edgeLayer.appendChild(path);
+        const length = path.getTotalLength();
+        path.style.strokeDasharray = `${length} ${length}`;
+        path.style.strokeDashoffset = `${length}`;
+        path.style.opacity = '0';
+        renderedEdges.push({path,start,end,length});
+      }
+
+      function createFootprint(datum, color, radius) {
+        const y = yFor(datum.t);
+        const group = document.createElementNS(svgNS,'g');
+        const track = document.createElementNS(svgNS,'circle');
+        const dangerZone = document.createElementNS(svgNS,'circle');
+        const safeArc = document.createElementNS(svgNS,'circle');
+        const dangerArc = document.createElementNS(svgNS,'circle');
+        const addedArc = document.createElementNS(svgNS,'circle');
+        const usedPercent = Math.max(0,Math.min(100,(datum.used/windowCapacity)*100));
+        const safePercent = Math.min((dumbThreshold/windowCapacity)*100,usedPercent);
+        const dangerPercent = Math.max(0,usedPercent-((dumbThreshold/windowCapacity)*100));
+        const addedPercent = Math.max(0,Math.min(usedPercent,(datum.added/windowCapacity)*100));
+        const previousPercent = Math.max(0,usedPercent-addedPercent);
+        const rotation = `rotate(-90 ${datum.x} ${y})`;
+        group.setAttribute('class',`trace-node ${datum.lane==='parent'?'parent':'child'}`);
+        group.setAttribute('role','img');
+        group.setAttribute('aria-label',`${datum.name} at ${formatTime(datum.t)}`);
+        group.style.setProperty('--lane-color',color);
+        [track,dangerZone,safeArc,dangerArc,addedArc].forEach((circle)=>{
+          circle.setAttribute('cx',datum.x);
+          circle.setAttribute('cy',y);
+          circle.setAttribute('r',radius);
+          circle.setAttribute('pathLength','100');
+        });
+        track.setAttribute('class','window-ring gauge-track');
+        track.setAttribute('stroke-width','1.2');
+        dangerZone.setAttribute('class','gauge-danger-zone');
+        dangerZone.setAttribute('stroke-width','2.2');
+        dangerZone.setAttribute('stroke-dasharray','1.5 98.5');
+        dangerZone.setAttribute('stroke-dashoffset','-50');
+        dangerZone.setAttribute('transform',rotation);
+        safeArc.setAttribute('class','gauge-safe');
+        safeArc.setAttribute('stroke-width','1.8');
+        safeArc.setAttribute('stroke-dasharray',`${safePercent} ${100-safePercent}`);
+        safeArc.setAttribute('transform',rotation);
+        dangerArc.setAttribute('class','gauge-danger-used');
+        dangerArc.setAttribute('stroke-width','2');
+        dangerArc.setAttribute('stroke-dasharray',`${dangerPercent} ${100-dangerPercent}`);
+        dangerArc.setAttribute('stroke-dashoffset','-50');
+        dangerArc.setAttribute('transform',rotation);
+        addedArc.setAttribute('class',usedPercent>dumbThreshold/windowCapacity*100?'gauge-danger-used':'gauge-added');
+        addedArc.setAttribute('stroke-width','3');
+        addedArc.setAttribute('stroke-dasharray',`${addedPercent} ${100-addedPercent}`);
+        addedArc.setAttribute('stroke-dashoffset',`${-previousPercent}`);
+        addedArc.setAttribute('transform',rotation);
+        const title = document.createElementNS(svgNS,'title');
+        title.textContent = datum.name;
+        group.append(title,track,dangerZone,safeArc,dangerArc,addedArc);
+        if (datum.search) {
+          const lens = document.createElementNS(svgNS,'circle');
+          const handle = document.createElementNS(svgNS,'line');
+          lens.setAttribute('class','search-lens');
+          lens.setAttribute('cx',datum.x-0.7);
+          lens.setAttribute('cy',y-0.7);
+          lens.setAttribute('r',1.7);
+          handle.setAttribute('class','search-lens');
+          handle.setAttribute('x1',datum.x+0.6);
+          handle.setAttribute('y1',y+0.6);
+          handle.setAttribute('x2',datum.x+2.6);
+          handle.setAttribute('y2',y+2.6);
+          group.append(lens,handle);
+        }
+        group.addEventListener('click',()=>selectDatum(datum,group));
+        group.addEventListener('dblclick',()=>openDatum(datum));
+        nodeLayer.appendChild(group);
+        renderedNodes.push({group,datum});
+      }
+
+      function createLaneIcon(child,startY) {
+        const group=document.createElementNS(svgNS,'g');
+        const disc=document.createElementNS(svgNS,'circle');
+        const mark=document.createElementNS(svgNS,'path');
+        const iconY=Math.max(20,startY-9);
+        group.setAttribute('class','lane-icon');
+        group.setAttribute('aria-hidden','true');
+        disc.setAttribute('class','lane-icon-disc');
+        disc.setAttribute('cx',child.x);
+        disc.setAttribute('cy',iconY);
+        disc.setAttribute('r','5.5');
+        disc.setAttribute('fill',child.color);
+        mark.setAttribute('class','lane-icon-mark');
+        if(child.type==='Explore'){
+          mark.setAttribute('d',`M ${child.x-2.8} ${iconY+2.8} L ${child.x+2.8} ${iconY-2.8} M ${child.x+1.2} ${iconY-1.2} L ${child.x-0.4} ${iconY+0.4}`);
+        }else if(child.type==='librarian-curator'){
+          mark.setAttribute('d',`M ${child.x} ${iconY-2.5} C ${child.x-1.5} ${iconY-3.2}, ${child.x-3.2} ${iconY-2.7}, ${child.x-3.2} ${iconY-1} L ${child.x-3.2} ${iconY+2.4} C ${child.x-1.7} ${iconY+1.7}, ${child.x-0.7} ${iconY+2}, ${child.x} ${iconY+2.7} M ${child.x} ${iconY-2.5} C ${child.x+1.5} ${iconY-3.2}, ${child.x+3.2} ${iconY-2.7}, ${child.x+3.2} ${iconY-1} L ${child.x+3.2} ${iconY+2.4} C ${child.x+1.7} ${iconY+1.7}, ${child.x+0.7} ${iconY+2}, ${child.x} ${iconY+2.7}`);
+        }else{
+          mark.setAttribute('d',`M ${child.x-3} ${iconY-2} L ${child.x+3} ${iconY-2} L ${child.x+3} ${iconY+2.5} L ${child.x-3} ${iconY+2.5} Z M ${child.x-1.5} ${iconY} L ${child.x-1.5} ${iconY+0.2} M ${child.x+1.5} ${iconY} L ${child.x+1.5} ${iconY+0.2}`);
+        }
+        group.append(disc,mark);
+        bandLayer.appendChild(group);
+        renderedIcons.push({group,start:child.start});
+      }
+
+      function drawAxis() {
+        const spine = document.createElementNS(svgNS,'line');
+        spine.setAttribute('class','time-spine');
+        spine.setAttribute('x1',24);
+        spine.setAttribute('x2',24);
+        spine.setAttribute('y1',30);
+        spine.setAttribute('y2',552);
+        axisLayer.appendChild(spine);
+        [0,60,120,180,240,458.5].forEach((time) => {
+          const y=yFor(time);
+          const tick=document.createElementNS(svgNS,'line');
+          const line=document.createElementNS(svgNS,'line');
+          const text=document.createElementNS(svgNS,'text');
+          tick.setAttribute('class','hour-tick');
+          tick.setAttribute('x1',19);tick.setAttribute('x2',29);tick.setAttribute('y1',y);tick.setAttribute('y2',y);
+          line.setAttribute('class','hour-line');
+          line.setAttribute('x1',36);line.setAttribute('x2',344);line.setAttribute('y1',y);line.setAttribute('y2',y);
+          text.setAttribute('class','time-label');text.setAttribute('x',1);text.setAttribute('y',y+3);
+          text.textContent=time===458.5?'7:39':`${Math.floor(time/60)}h`;
+          axisLayer.append(tick,line,text);
+        });
+        const gapLabels = [
+          [30,67,'31m'],[72,127,'55m'],[160,187,'27m'],
+          [193,227,'34m'],[243,257,'14m'],[263,457,'3h18']
+        ];
+        gapLabels.forEach(([start,end,label]) => {
+          const y=(yFor(start)+yFor(end))/2;
+          const slash=document.createElementNS(svgNS,'path');
+          const text=document.createElementNS(svgNS,'text');
+          slash.setAttribute('class','fold-mark');
+          slash.setAttribute('d',`M 18 ${y-3} L 29 ${y+1} M 18 ${y+2} L 29 ${y+6}`);
+          text.setAttribute('class','fold-label');text.setAttribute('x',33);text.setAttribute('y',y+4);
+          text.textContent=label;
+          axisLayer.append(slash,text);
+        });
+      }
+
+      function build() {
+        drawAxis();
+        for (let index=1;index<parent.length;index++) {
+          const from=parent[index-1],to=parent[index];
+          const mode=(to.t-from.t)>10?' wait':'';
+          addAnimatedEdge(makeLine(from.x,yFor(from.t),to.x,yFor(to.t),`parent-edge${mode}`),from.t,to.t);
+        }
+        parent.forEach((datum)=>createFootprint(datum,'var(--viz-series-1)',6.8));
+
+        children.forEach((child) => {
+          const startY=yFor(child.start),endY=yFor(child.end);
+          const band=document.createElementNS(svgNS,'rect');
+          band.setAttribute('class','child-band');
+          band.setAttribute('x',child.x-10);
+          band.setAttribute('y',startY-5);
+          band.setAttribute('width',20);
+          band.setAttribute('height',0);
+          band.setAttribute('rx',10);
+          band.setAttribute('fill',child.color);
+          const bandTitle=document.createElementNS(svgNS,'title');
+          bandTitle.textContent=`${child.type}: ${child.name}`;
+          band.appendChild(bandTitle);
+          bandLayer.appendChild(band);
+          renderedBands.push({band,child,startY,endY});
+          createLaneIcon(child,startY);
+
+          const spawn=makeLine(parentX,startY,child.x,startY,'handoff');
+          spawn.setAttribute('stroke',child.color);
+          addAnimatedEdge(spawn,child.start,child.start+0.2);
+
+          const bins=child.bins.map((row,index)=>({
+            id:`${child.id}-${index}`,lane:child.id,t:Math.max(child.start,Math.min(child.end,row[0])),
+            used:row[1],added:row[2],search:Boolean(row[3]),x:child.x,
+            name:child.name,childType:child.type,calls:child.calls,turns:child.turns,
+            childStart:child.start,childEnd:child.end,max:child.max
+          }));
+          for(let index=1;index<bins.length;index++){
+            const from=bins[index-1],to=bins[index];
+            const line=makeLine(child.x,yFor(from.t),child.x,yFor(to.t),'child-spine');
+            line.setAttribute('stroke',child.color);
+            addAnimatedEdge(line,from.t,to.t);
+          }
+          bins.forEach((datum)=>createFootprint(datum,child.color,5.2));
+
+          const join=makeLine(child.x,endY,parentX,endY,'handoff');
+          join.setAttribute('stroke',child.color);
+          addAnimatedEdge(join,child.end,child.end+0.2);
+        });
+        update(0);
+      }
+
+      function update(time) {
+        const current=Math.max(0,Math.min(duration,Number(time)));
+        range.value=current;
+        clock.textContent=`${formatTime(current)} / 07:39`;
+        const y=yFor(current);
+        playhead.querySelector('line').setAttribute('y1',y);
+        playhead.querySelector('line').setAttribute('y2',y);
+        playhead.querySelector('circle').setAttribute('cy',y);
+        renderedEdges.forEach(({path,start,end,length})=>{
+          const span=Math.max(0.01,end-start);
+          const progress=Math.max(0,Math.min(1,(current-start)/span));
+          path.style.opacity=progress>0?'1':'0';
+          path.style.strokeDashoffset=`${length*(1-progress)}`;
+        });
+        renderedNodes.forEach(({group,datum})=>group.classList.toggle('is-visible',current>=datum.t));
+        renderedIcons.forEach(({group,start})=>group.style.opacity=current>=start?'1':'0');
+        renderedBands.forEach(({band,child,startY,endY})=>{
+          const progress=Math.max(0,Math.min(1,(current-child.start)/(child.end-child.start)));
+          band.style.opacity=progress>0?'0.1':'0';
+          band.setAttribute('height',Math.max(0,(endY-startY)*progress+10));
+        });
+      }
+
+      function setPlaying(next) {
+        playing=next;
+        playButton.setAttribute('aria-pressed',String(next));
+        playLabel.textContent=next?'Pause':'Play';
+        const icon=playButton.querySelector('svg');
+        if(icon){
+          icon.outerHTML=`<i data-lucide="${next?'pause':'play'}" aria-hidden="true"></i>`;
+          if(window.lucide)window.lucide.createIcons({attrs:{width:16,height:16}});
+        }
+      }
+
+      function pause() {
+        if(frame)cancelAnimationFrame(frame);
+        frame=null;
+        setPlaying(false);
+      }
+
+      function play() {
+        if(Number(range.value)>=duration)update(0);
+        setPlaying(true);
+        lastFrame=performance.now();
+        frame=requestAnimationFrame(tick);
+      }
+
+      function tick(now) {
+        if(!playing)return;
+        const delta=(now-lastFrame)/1000;
+        lastFrame=now;
+        const next=Number(range.value)+(delta*20);
+        update(next);
+        if(next>=duration){pause();return;}
+        frame=requestAnimationFrame(tick);
+      }
+
+      function selectDatum(datum,group) {
+        pause();
+        nodeLayer.querySelectorAll('.trace-node').forEach((node)=>node.classList.remove('is-selected'));
+        group.classList.add('is-selected');
+        selectedDatum=datum;
+        const identity=datum.lane==='parent'?'Parent':datum.name;
+        selectionCopy.textContent=`${formatTime(datum.t)} · ${identity} · ${datum.used.toFixed(1)}k`;
+        selection.classList.add('is-visible');
+      }
+
+      function openDatum(datum) {
+        pause();
+        selectedDatum=datum;
+        const rows=datum.lane==='parent'
+          ? [
+              ['Trace','02b6a304…'],
+              ['Elapsed',formatTime(datum.t)],
+              ['Aggregation','Five-minute parent burst'],
+              ['Model turns',String(datum.turns)],
+              ['Tool calls',String(datum.calls)],
+              ['Observed context',`${datum.used.toFixed(1)}k tokens`],
+              ['Context increase',`${datum.added.toFixed(1)}k tokens`],
+              ['Gauge used',`${((datum.used/windowCapacity)*100).toFixed(1)}%`],
+              ['Dumb-zone threshold','500k tokens'],
+              ['Window scale','1m mock ceiling']
+            ]
+          : [
+              ['Child agent',datum.name],
+              ['Agent type',datum.childType],
+              ['Elapsed',formatTime(datum.t)],
+              ['Child duration',`${(datum.childEnd-datum.childStart).toFixed(1)} minutes`],
+              ['Inner-loop turns',String(datum.turns)],
+              ['Tool calls',String(datum.calls)],
+              ['Observed context',`${datum.used.toFixed(1)}k tokens`],
+              ['Observed peak',`${datum.max.toFixed(1)}k tokens`],
+              ['Gauge used',`${((datum.used/windowCapacity)*100).toFixed(1)}%`],
+              ['Dumb-zone threshold','500k tokens'],
+              ['Window scale','1m mock ceiling']
+            ];
+        detailRows.replaceChildren();
+        rows.forEach(([label,value])=>{
+          const row=document.createElement('tr');
+          const header=document.createElement('th');
+          const cell=document.createElement('td');
+          header.scope='row';header.textContent=label;cell.textContent=value;
+          row.append(header,cell);detailRows.appendChild(row);
+        });
+        overview.classList.add('is-hidden');
+        drill.classList.add('is-visible');
+      }
+
+      playButton.addEventListener('click',()=>playing?pause():play());
+      range.addEventListener('input',()=>{pause();update(range.value)});
+      inspectButton.addEventListener('click',()=>{if(selectedDatum)openDatum(selectedDatum)});
+      backButton.addEventListener('click',()=>{
+        drill.classList.remove('is-visible');
+        overview.classList.remove('is-hidden');
+      });
+      askButton.addEventListener('click',async()=>{
+        if(!selectedDatum||!window.openai)return;
+        await window.openai.sendFollowUpMessage({
+          title:'Inspect recorded traversal',
+          prompt:`Inspect the metadata for the selected footprint at ${formatTime(selectedDatum.t)} in recorded session 02b6a304-6b29-41d0-9276-b9ce7b8958e3. Explain the context growth, tool activity, elapsed time, and any likely inefficiency without reading or exposing transcript content.`
+        });
+      });
+
+      build();
+    })();
+  </script>
+</div>
+  </main>
+</body>
+</html>
