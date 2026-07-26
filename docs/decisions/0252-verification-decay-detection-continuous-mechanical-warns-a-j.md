@@ -116,19 +116,37 @@ wrong — is avoided without giving up enforcement entirely.
 
 **Bad, and accepted.** The judgment gate can be declined indefinitely; the warn-escalation backstop
 mitigates this but does not remove it, and it will need watching in practice. Gate output gets noisier.
-The ceiling cannot be set until the first sweep exists, so the enforcement half lands strictly after
-the detection half — the checks ship advisory-only for at least one interval, which is briefly the very
-failure mode decision 3 guards against. Fresh-session cutting means the pass's findings arrive
-disconnected from the session that triggered it, so the arc's increment log carries more of the
-continuity burden.
+Fresh-session cutting means the pass's findings arrive disconnected from the session that triggered it,
+so the arc's increment log carries more of the continuity burden.
+
+**Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+a predicted cost above did not occur, and the prediction is removed rather than left to be calibrated
+to.** This ADR listed among the accepted bads that "the ceiling cannot be set until the first sweep
+exists, so the enforcement half lands strictly after the detection half — the checks ship advisory-only
+for at least one interval, which is briefly the very failure mode decision 3 guards against." The
+first implementing increment (`check:verification-decay`, `packages/cli/src/check-verification-decay.ts`)
+**ran its own first sweep and baselined the ceiling in the same landing** — `DRAIN_CEILING = 5`, the
+exact count that sweep located, so it shipped GREEN on an honest baseline with enforcement live from
+the first commit. The advisory-only interval was never paid. **Decision 3 is unchanged in every
+respect** — advisory per finding, fail-closed on the count, ceiling *tuned on the first real sweep and
+never picked in advance*; what is corrected is only the assumption that "tuned on the first sweep"
+implied a second, later landing. It does not: a sweep is cheap enough to run and read inside the
+increment that builds it.
 
 **Not decided here.** Which specific checks make up the cheap half beyond the four named, how a warn
 signal "crosses a line" in precise terms, and the ceiling's actual number. Those are build-time
-decisions for the increment that implements this, not owner forks.
+decisions for the increment that implements this, not owner forks. Two of the three have since been
+taken in code rather than in a further ADR, exactly as intended, and
+`packages/cli/src/check-verification-decay.ts` is where they are recorded and reasoned — including
+which of the four cheap checks is and is not yet swept. The **"crosses a line" warn-escalation
+backstop remains open**, and it is the one that matters: it is what covers the skip risk decision 1's
+judgment gate introduces.
 
-**Unblocks.** This was the last named blocker on the `verification-integrity-arc`'s close. The
-remaining chartered work is implementation: this process artifact, the cheap checks, the ceiling, and
-the three-or-four durable guardrails still held for the `guidance-curator`.
+**Unblocks.** This was the last named blocker on the `verification-integrity-arc`'s close. What
+remained *at decision time* was implementation only — the process artifact, the cheap checks, the
+ceiling, and the three-or-four durable guardrails still held for the `guidance-curator`. The CURRENT
+state of that work is the arc's increment log (`storytree arc show verification-integrity-arc --pg`),
+never this ADR: an ADR is a decision record, not a work tracker (ADR-0183 D1).
 
 ## References
 
