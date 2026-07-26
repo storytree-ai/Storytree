@@ -8,4 +8,23 @@
  * This package is node-only by construction (it reads real transcript bytes and writes real trace
  * bytes), so like `@storytree/context-traversal-capture` it is never bundled by the studio.
  */
-export {};
+export {
+  readTranscriptWindow,
+  type OccupancyObservation,
+  type TranscriptWindowRead,
+} from "./transcript-occupancy.js";
+
+export {
+  correlateTranscripts,
+  resolveTranscriptDir,
+  type CorrelatedWindow,
+  type TranscriptCorrelation,
+} from "./correlate-transcripts.js";
+
+export {
+  ingestTranscriptOccupancy,
+  HOST_TRANSCRIPT_COVERAGE,
+  type IngestedWindow,
+  type IngestTranscriptOccupancyArgs,
+  type TranscriptIngestResult,
+} from "./ingest-occupancy.js";

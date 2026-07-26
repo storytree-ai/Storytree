@@ -269,8 +269,17 @@ test("cumulative-is-the-running-billing-total-per-window: cumulativeInputTokens 
   // proof the two are computed independently, never one derived from the other.
   const [firstA, secondA] = windowAEvents;
   assert.ok(firstA !== undefined && secondA !== undefined);
+  // `residentInputTokens` is OPTIONAL on the vocabulary (absent means unobserved, and most
+  // boundaries cannot see it), so its presence at THIS boundary is itself part of the claim —
+  // assert it as a number before comparing rather than asserting `<` against a possible undefined.
+  const firstResident = firstA?.residentInputTokens;
+  const secondResident = secondA?.residentInputTokens;
+  assert.equal(typeof firstResident, "number");
+  assert.equal(typeof secondResident, "number");
+  if (typeof firstResident === "number" && typeof secondResident === "number") {
+    assert.ok(secondResident < firstResident);
+  }
   if (firstA !== undefined && secondA !== undefined) {
-    assert.ok(secondA.residentInputTokens < firstA.residentInputTokens);
     assert.ok(secondA.cumulativeInputTokens > firstA.cumulativeInputTokens);
   }
 
