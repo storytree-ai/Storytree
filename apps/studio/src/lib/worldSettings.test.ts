@@ -44,7 +44,10 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     // select by ADR-0233 (mesh is now the one tiling, not a dial). The `buildingIsland` toggle was
     // REMOVED with ADR-0088 (the shared-island panel is permanent, not a gear flag), so the gear carries
     // no Panels switch.
-    const expected = ['layout', 'artStyle', 'artScale'];
+    // `selectionMotion` joins them (owner-directed 2026-07-27): selecting an island lights its
+    // one-hop routes as two-lane hued lanes, and this dial is what MOVES when it does — draw +
+    // pulse once (default), a looping march, or still. The lanes themselves are not optional.
+    const expected = ['layout', 'artStyle', 'artScale', 'selectionMotion'];
     expect([...keys].sort()).toEqual([...expected].sort());
     // The retired river/pond dials, road-routing dials, the removed building toggles
     // (building-DRAWER, then building-ISLAND), the retired grounded-art `garden` / `cosy` / `veg`
@@ -93,7 +96,9 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     expect(groups.has('Ground')).toBe(false);
     // The sprite-art-sheets `artStyle` select + `artScale` dial share the "Art style" section.
     expect(groups.has('Art style')).toBe(true);
-    expect(groups.size).toBe(2);
+    // the two-lane selection highlight's motion dial gets its own section
+    expect(groups.has('Selection')).toBe(true);
+    expect(groups.size).toBe(3);
   });
 
   it('keys are unique', () => {
@@ -218,6 +223,34 @@ describe('worldSettings — artStyle control (sprite-art-sheets arc, Storybook d
     const out = setControlValue('?artStyle=vector&debug=1', ctl('artStyle'), 'storybook');
     expect(out).toContain('debug=1');
     expect(out).not.toContain('artStyle');
+  });
+});
+
+describe('worldSettings — selectionMotion (the two-lane highlight`s motion)', () => {
+  const CTL = controlByKey('selectionMotion')!;
+
+  it('defaults to the one-shot draw + pulse, and writes NO param for it', () => {
+    expect(readControlValue('', CTL)).toBe('draw');
+    expect(readControlValue('?selectionMotion=draw', CTL)).toBe('draw');
+    // the default option is the param's ABSENCE, so an untouched world's URL stays clean
+    expect(setControlValue('?selectionMotion=march', CTL, 'draw')).toBe('');
+  });
+
+  it('reads the looping march and the still state, and round-trips them through the URL', () => {
+    expect(readControlValue('?selectionMotion=march', CTL)).toBe('march');
+    expect(readControlValue('?selectionMotion=off', CTL)).toBe('off');
+    expect(setControlValue('', CTL, 'march')).toBe('?selectionMotion=march');
+    expect(setControlValue('', CTL, 'off')).toBe('?selectionMotion=off');
+  });
+
+  it('folds the still-spellings together and fails SAFE to the default on anything unknown', () => {
+    for (const off of ['off', 'none', 'still']) {
+      expect(readControlValue(`?selectionMotion=${off}`, CTL)).toBe('off');
+    }
+    // a stale or hand-typed value can never leave the map in an undefined motion state
+    for (const junk of ['', 'sparkle', 'DRAW', '1']) {
+      expect(readControlValue(`?selectionMotion=${junk}`, CTL)).toBe('draw');
+    }
   });
 });
 

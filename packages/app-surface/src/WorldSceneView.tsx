@@ -4,6 +4,7 @@ import { SceneView, type SceneCtx } from './SceneView.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
+import type { LaneLayout } from './laneLayout.js';
 
 export interface WorldPresentationModel {
   readonly scene: SceneNode;
@@ -15,6 +16,11 @@ export interface WorldPresentationModel {
   /** The ADR-0242 one-hop selection highlight: the lit trail segments + the immediate
    *  upstream / downstream islands. Null ⇒ nothing selected, no lane and no rings. */
   readonly neighbours: NeighbourHighlightPlan | null;
+  /** The laid-out selection lanes (`laneLayout`). Present ⇒ the lit lane is drawn ONE PATH
+   *  PER ROUTE in the relation's hue instead of per segment. Null ⇒ the per-segment ink lane. */
+  readonly lanes: LaneLayout | null;
+  /** Which selection motion the lanes carry (world setting `selectionMotion`). */
+  readonly laneMotion: 'draw' | 'march' | 'none';
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
 }
@@ -27,6 +33,8 @@ export interface WorldPresentationModelInput {
   readonly arrivalIds?: readonly string[];
   readonly reveal?: TrailRevealPlan | null;
   readonly neighbours?: NeighbourHighlightPlan | null;
+  readonly lanes?: LaneLayout | null;
+  readonly laneMotion?: 'draw' | 'march' | 'none';
   readonly spriteSheet?: SpriteStyleSheet | null;
   readonly artScale?: number;
 }
@@ -52,6 +60,8 @@ export function normalizeWorldPresentationModel(
     arrivalIds: sortedUnique(input.arrivalIds),
     reveal: input.reveal ?? null,
     neighbours: input.neighbours ?? null,
+    lanes: input.lanes ?? null,
+    laneMotion: input.laneMotion ?? 'draw',
     spriteSheet: input.spriteSheet ?? null,
     artScale: input.artScale ?? 1,
   };
@@ -84,6 +94,8 @@ export function WorldSceneView({
       },
       reveal: model.reveal,
       neighbours: model.neighbours,
+      lanes: model.lanes,
+      laneMotion: model.laneMotion,
       hidden: new Set(model.hiddenStatuses),
       arrivalIds: new Set(model.arrivalIds),
       onSelectStory: events?.onSelectStory ?? NOOP_SELECT_STORY,

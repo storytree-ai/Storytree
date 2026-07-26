@@ -20,8 +20,9 @@ import {
 } from '@storytree/forest-world';
 import { arrivalGrowPlan } from './trailReveal.js';
 import { neighbourHighlightPlan } from './neighbourHighlight.js';
+import { laneLayout } from './laneLayout.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
-import { SceneView, litLaneWidth, type SceneCtx } from './SceneView.js';
+import { SceneView, litLaneWidth, laneDrawSeconds, type SceneCtx } from './SceneView.js';
 
 afterEach(cleanup);
 
@@ -506,6 +507,56 @@ describe('SceneView — the ADR-0242 lit lane', () => {
     const pass = root.querySelector('.trail-fill-pass')!;
     const kinds = [...pass.children].map((c) => c.classList.contains('trail-lit'));
     expect(kinds).toEqual([false, false, true, true]);
+  });
+
+  it('draws ONE lane per ROUTE when a layout is present, superseding the per-segment pass', () => {
+    // The per-segment pass shows its seams at junctions (a lane that steps sideways, a
+    // draw-on that restarts). A layout replaces it wholesale rather than layering over it,
+    // so the two can never both paint.
+    const trails = mkTrails();
+    const plan = neighbourHighlightPlan(trails, 'lib')!;
+    const lanes = laneLayout(trails, plan);
+    const { root } = renderScene({ neighbours: plan, lanes, laneMotion: 'draw' });
+    expect(root.querySelectorAll('.trail-lit')).toHaveLength(0);
+    const drawn = [...root.querySelectorAll('.trail-fill-pass .trail-lane')];
+    expect(drawn).toHaveLength(lanes!.lanes.length);
+    // hued by relation, and each carries its own draw duration so all lanes travel at one speed
+    for (const el of drawn) {
+      expect(el.getAttribute('class') ?? '').toMatch(/dir-(up|down)/);
+      expect(el.getAttribute('pathLength')).toBe('1');
+      expect(el.getAttribute('style') ?? '').toMatch(/--lane-draw:\s*[\d.]+s/);
+    }
+  });
+
+  it('carries the selection motion the world setting asks for, and nothing when it is off', () => {
+    const trails = mkTrails();
+    const plan = neighbourHighlightPlan(trails, 'lib')!;
+    const lanes = laneLayout(trails, plan);
+    const cls = (motion: 'draw' | 'march' | 'none') =>
+      [...renderScene({ neighbours: plan, lanes, laneMotion: motion }).root.querySelectorAll('.trail-lane')]
+        .map((e) => e.getAttribute('class') ?? '')
+        .join(' ');
+    expect(cls('draw')).toContain('is-drawing');
+    expect(cls('draw')).not.toContain('is-marching');
+    expect(cls('march')).toContain('is-marching');
+    expect(cls('march')).not.toContain('is-drawing');
+    expect(cls('none')).not.toMatch(/is-drawing|is-marching/);
+    // a still lane also carries no pathLength — nothing normalises a run nothing animates
+    const still = renderScene({ neighbours: plan, lanes, laneMotion: 'none' }).root;
+    expect(still.querySelector('.trail-lane')!.getAttribute('pathLength')).toBeNull();
+  });
+
+  it('scales each lane`s draw-on by its own length, so lanes travel at one speed', () => {
+    // Strictly increasing across the range the LIVE forest actually produces — a one-hop
+    // route there runs ~200-3700 units. This is the regression that matters: a speed tuned
+    // for a small map pins every real route to the ceiling, so they all take the same time
+    // and the one-speed property is silently lost.
+    expect(laneDrawSeconds(200)).toBeLessThan(laneDrawSeconds(1200));
+    expect(laneDrawSeconds(1200)).toBeLessThan(laneDrawSeconds(2500));
+    expect(laneDrawSeconds(2500)).toBeLessThan(laneDrawSeconds(3500));
+    // and clamped at both ends: a stub still registers, the longest haul stays brisk
+    expect(laneDrawSeconds(0)).toBe(0.28);
+    expect(laneDrawSeconds(1e6)).toBe(1.2);
   });
 
   it('draws the lane NARROWER than the road it rides — so a shared trunk still reads shared', () => {

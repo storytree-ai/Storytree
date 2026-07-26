@@ -153,6 +153,7 @@ import {
 } from '@storytree/forest-world';
 import {
   neighbourHighlightPlan,
+  laneLayout,
   normalizeWorldPresentationModel,
   WorldSceneView,
   type WorldPresentationEvents,
@@ -180,6 +181,7 @@ function requireControl(key: string): ControlSpec {
 const LAYOUT_CTL = requireControl('layout');
 const ART_STYLE_CTL = requireControl('artStyle');
 const ART_SCALE_CTL = requireControl('artScale');
+const SELECTION_MOTION_CTL = requireControl('selectionMotion');
 
 /** Shared empty id-set (the DAG path passes no hub ids). */
 const EMPTY_ID_SET: ReadonlySet<string> = new Set();
@@ -1315,6 +1317,15 @@ export function readArtScale(search: string = defaultSearch()): number {
   return readControlValue(search, ART_SCALE_CTL) as number;
 }
 
+/** What MOVES when an island is selected (worldSettings' `selectionMotion` select, default
+ *  `draw`). `draw` = each route draws on once and the neighbour shores pulse, then still;
+ *  `march` = a looping travelling dash; `off` = the lanes paint with nothing moving. The
+ *  lanes themselves are not optional — this dial is only about the motion. */
+export function readSelectionMotion(search: string = defaultSearch()): 'draw' | 'march' | 'none' {
+  const v = readControlValue(search, SELECTION_MOTION_CTL) as string;
+  return v === 'march' ? 'march' : v === 'off' ? 'none' : 'draw';
+}
+
 /**
  * The central wiring hubs everything orbits in solar mode (ADR-0074 §2 — the wiring
  * layer is VISIBLE, not exempt: hiding the most-connected nodes hides the most
@@ -2105,6 +2116,14 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     () => neighbourHighlightPlan(world?.trails ?? null, selectedStory),
     [world, selectedStory],
   );
+  // The two-lane LAYOUT (owner-directed 2026-07-27): the plan's routes turned into one lane
+  // path per route, island to island. Pure and memoised on (world, selection) — a pan or a
+  // hover never recomputes it, and it is the same shape of cheap the plan above is.
+  const selectionMotion = useMemo(() => readSelectionMotion(search), [search]);
+  const laneLayoutPlan = useMemo(
+    () => laneLayout(world?.trails ?? null, neighbourPlan, { hand: 'auto', roundabouts: true }),
+    [world, neighbourPlan],
+  );
 
   // ── A STABLE presentation model so the memoised shared view skips the O(nodes) re-walk on a pan ──
   // A pointermove pans by updating `cam` (state), re-rendering TreeView. Neither the scene nor this
@@ -2150,11 +2169,24 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             arrivalIds: [...(arrivalIds ?? [])],
             reveal: growPlan,
             neighbours: neighbourPlan,
+            lanes: laneLayoutPlan,
+            laneMotion: selectionMotion,
             spriteSheet,
             artScale,
           })
         : null,
-    [scene, selectedStory, hidden, arrivalIds, growPlan, neighbourPlan, spriteSheet, artScale],
+    [
+      scene,
+      selectedStory,
+      hidden,
+      arrivalIds,
+      growPlan,
+      neighbourPlan,
+      laneLayoutPlan,
+      selectionMotion,
+      spriteSheet,
+      artScale,
+    ],
   );
   const worldPresentationEvents = useMemo<WorldPresentationEvents>(
     () => ({
@@ -2313,7 +2345,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           >
           <svg
             ref={svgRef}
-            className="world-scene"
+            className={`world-scene lane-motion-${selectionMotion}`}
             onClick={(e) => {
               // scene selection is handled on the viewport (coordinate hit-test); here only the legacy
               // render clears on a true background click.

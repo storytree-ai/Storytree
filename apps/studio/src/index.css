@@ -80,6 +80,12 @@
   --trail-lit: #3a3128; /* warm-black lane painted on the road */
   --rel-upstream: #0e7490; /* what the selection stands on */
   --rel-downstream: #4f46e5; /* what stands on the selection */
+  /* the same two relations at LANE weight — lifted a step, because at the lane's capped
+     ~3-unit width the ring tones go muddy on the warm tan roadbed and start reading as the
+     ink they replaced. Same relation, two weights; still cool, so nothing on the warm board
+     can be mistaken for them. */
+  --trail-lane-up: #0d8fb0;
+  --trail-lane-down: #6a5fee;
   --sel-shore: #33291f; /* the selected island's own shore — outranks both rings */
   --trail-fill: var(--trail-bed);
   --trail-casing: #917c59; /* --trail-bed × 0.75 — same hue, ~25% darker (unused: casing suppressed) */
@@ -1647,6 +1653,104 @@ a.stat:hover {
 .trail-lit {
   stroke: var(--trail-lit);
   opacity: 0.92;
+}
+
+/* THE TWO-LANE SELECTION LANES (owner-directed 2026-07-27, extends ADR-0242). One path per
+   ROUTE — island to island — in the relation's own hue, laid out by `laneLayout`. It
+   supersedes the per-segment `.trail-lit` pass above whenever a layout is present.
+
+   Why per route and not per segment: a segment is an artefact of the routing merge and
+   invisible to whoever reads the map, so a decision taken per segment (how far off-centre a
+   lane sits, when it starts drawing) surfaces as an artefact exactly at a junction — a lane
+   that steps sideways, or one that appears to light up at junctions instead of travelling
+   from an island. Both were reported from the mock round; a route has no seams to show.
+
+   The hues are the shore-ring relation hues LIFTED a step. At the lane's capped ~3-unit
+   width the ring tones go muddy against the warm tan roadbed and start reading as the ink
+   they replaced; ring and lane are the same relation in two weights, not two facts. */
+.trail-lane {
+  stroke: var(--trail-lit);
+  opacity: 0.95;
+}
+.trail-lane.dir-up {
+  stroke: var(--trail-lane-up);
+}
+.trail-lane.dir-down {
+  stroke: var(--trail-lane-down);
+}
+/* the roundabout island: the ground showing through a ring of road, drawn under the lanes */
+.trail-lane-hub {
+  fill: var(--board-1);
+  stroke: var(--trail-line);
+  stroke-width: 1;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+/* MOTION 1 — the one-shot draw-on. The lane is a single solid path, so unlike the arrival
+   reveal (which masks a possibly-DASHED fill) it can dash-offset directly: `pathLength=1`
+   normalises the run, so the growth is length-agnostic and there is no dash PERIOD that
+   could outrun a short segment. Its duration rides `--lane-draw`, which the mapper sets from
+   the route's own length so every lane travels at one speed rather than every route taking
+   the same time. Growth runs start→end, and the path is built in dependency order, so the
+   light moves the way the dependency points: an upstream lane arrives at the selection, a
+   downstream lane leaves it. */
+.trail-lane.is-drawing {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: lane-draw var(--lane-draw, 0.6s) ease-out both;
+}
+@keyframes lane-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* MOTION 2 — the looping march (opt-in via the world setting). Dashes travel ALONG the path,
+   which is dependency order, so the direction needs no per-lane flag. */
+.trail-lane.is-marching {
+  stroke-dasharray: 6 20;
+  animation: lane-march 1.5s linear infinite;
+}
+@keyframes lane-march {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+
+/* MOTION 3 — the one-shot shore pulse that rides with the draw-on: the neighbour's own coast
+   stroke swells and settles, so it costs no extra element. It fires when the ring class is
+   applied — i.e. on a selection change — and never loops. */
+.world-scene.lane-motion-draw .coast-fill-group.is-upstream .coast-fill,
+.world-scene.lane-motion-draw .coast-fill-group.is-downstream .coast-fill {
+  animation: shore-pulse 0.72s ease-out both;
+}
+@keyframes shore-pulse {
+  from {
+    stroke-width: 6.5;
+    stroke-opacity: 0.45;
+  }
+  to {
+    stroke-width: 2.4;
+    stroke-opacity: 1;
+  }
+}
+
+/* the hard constraint: reduced motion kills every one of them, and each lands on the state
+   the animation would have finished in — a fully drawn lane, a settled ring, a static dash. */
+@media (prefers-reduced-motion: reduce) {
+  .trail-lane.is-drawing {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .trail-lane.is-marching {
+    animation: none;
+    stroke-dasharray: 6 9;
+  }
+  .world-scene.lane-motion-draw .coast-fill-group.is-upstream .coast-fill,
+  .world-scene.lane-motion-draw .coast-fill-group.is-downstream .coast-fill {
+    animation: none;
+  }
 }
 /* a segment DRAWING ON during an island arrival: its per-segment mask owns the growth
    (below); the base opacity above is simply what it grows into. */
