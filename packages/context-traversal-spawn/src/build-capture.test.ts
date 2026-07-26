@@ -9,12 +9,15 @@
  * call, or the raw file text itself), never a return value or a call count, per the node spec's
  * "fail-silent is not the same as unobserved" instruction.
  *
- * Covers the five contracts declared in `stories/context-traversal-spawn/build-spawn-capture.md`:
+ * Covers the eight contracts declared in `stories/context-traversal-spawn/build-spawn-capture.md`:
  *   1. parent-and-child-lanes-land-in-their-own-files
  *   2. an-absent-parent-session-is-a-total-no-op
  *   3. traversal-off-is-a-total-no-op
  *   4. capture-never-throws-and-never-changes-an-exit-code
  *   5. no-canary-text-ever-reaches-the-bytes
+ *   6. a-declared-window-reaches-the-child-lane-bytes
+ *   7. an-undeclared-window-leaves-the-key-wholly-absent-in-the-bytes
+ *   8. written-bytes-carry-no-field-outside-the-closed-vocabulary
  */
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -23,6 +26,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { readTraversalSession } from "@storytree/context-traversal-capture";
+import { ContextTraversalEvent } from "@storytree/context-traversal-telemetry";
 
 import { captureBuildSpawn } from "./build-capture.js";
 import type { LeafSliceRun, LeafSliceUsage } from "./observe-leaf-slices.js";
@@ -277,6 +281,227 @@ test("no-canary-text-ever-reaches-the-bytes: a distinctive canary threaded throu
       const raw = fs.readFileSync(path.join(dir, file), "utf8");
       assert.equal(raw.includes(CANARY), false, `canary text leaked into ${file}`);
     }
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+// A distinctive number/id pair — no plausible default and no model-id -> capacity map would
+// produce this number, so a carrier that supplies capacity from anywhere other than the input
+// FAILS rather than coincides (the falsifiability bar contract 6 sets).
+const DECLARED_WINDOW_CAPACITY = 733_319;
+const DECLARED_WINDOW_MODEL_ID = "model-canary-capacity-9f21";
+
+function declaringUsage(): LeafSliceUsage {
+  return usage({ inputTokens: 40, cacheCreationInputTokens: 5, cacheReadInputTokens: 5, outputTokens: 12 });
+}
+
+test("a-declared-window-reaches-the-child-lane-bytes: a slice declaring exactly one distinct positive context window writes that number and its modelId onto the child's own model_context line, read back off disk", () => {
+  const dir = makeTempDir("declared-window");
+  try {
+    const parentSessionId = "session-declared-window";
+    const runId = "run-1";
+    const unitId = "unit-a";
+    const phase = "AUTHOR_TEST";
+    const childSessionId = `${parentSessionId}__build__${runId}__${unitId}__${phase}`;
+
+    const declaringRuns: LeafSliceRun[] = [
+      {
+        phase,
+        subtype: "success",
+        turns: 1,
+        usage: declaringUsage(),
+        byModel: {
+          [DECLARED_WINDOW_MODEL_ID]: {
+            ...declaringUsage(),
+            costUsd: 0.02,
+            contextWindow: DECLARED_WINDOW_CAPACITY,
+          },
+        },
+      },
+    ];
+
+    captureBuildSpawn({
+      parentSessionId,
+      runId,
+      unitId,
+      runs: declaringRuns,
+      dir,
+      now: deterministicNow(),
+      nextId: deterministicNextId(),
+    });
+
+    const childPath = path.join(dir, `${childSessionId}.jsonl`);
+    const raw = fs.readFileSync(childPath, "utf8");
+    const rawLine = raw
+      .trim()
+      .split("\n")
+      .find((line) => line.includes('"model_context"'));
+    assert.ok(rawLine, "expected a model_context line in the child's file");
+    // The falsifiable claim itself: the specific declared number, and the model id that declared
+    // it, survive to the raw bytes verbatim — never a default, never a lookup, never coincidence.
+    assert.ok(
+      rawLine?.includes(`"contextWindowCapacity":${DECLARED_WINDOW_CAPACITY}`),
+      "expected the declared window capacity in the raw bytes",
+    );
+    assert.ok(
+      rawLine?.includes(`"modelId":"${DECLARED_WINDOW_MODEL_ID}"`),
+      "expected the matching modelId in the raw bytes",
+    );
+
+    // Same claim proven again through a FRESH typed reader, never only the raw text.
+    const replay = readTraversalSession({ dir, sessionId: childSessionId });
+    assert.equal(replay.skipped, 0);
+    const contextEvent = replay.replay.events.find((event) => event.kind === "model_context");
+    assert.ok(contextEvent?.kind === "model_context");
+    if (contextEvent?.kind === "model_context") {
+      assert.equal(contextEvent.contextWindowCapacity, DECLARED_WINDOW_CAPACITY);
+      assert.equal(contextEvent.modelId, DECLARED_WINDOW_MODEL_ID);
+    }
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("an-undeclared-window-leaves-the-key-wholly-absent-in-the-bytes: a slice declaring no context window keeps the child's model_context line intact but WITHOUT a contextWindowCapacity key anywhere in the raw bytes", () => {
+  const dir = makeTempDir("undeclared-window");
+  try {
+    const parentSessionId = "session-undeclared-window";
+    const runId = "run-1";
+    const unitId = "unit-a";
+    const phase = "AUTHOR_TEST";
+    const childSessionId = `${parentSessionId}__build__${runId}__${unitId}__${phase}`;
+
+    const undeclaringRuns: LeafSliceRun[] = [
+      {
+        phase,
+        subtype: "success",
+        turns: 1,
+        usage: declaringUsage(),
+        // No byModel at all — nothing to attribute a capacity to.
+      },
+    ];
+
+    captureBuildSpawn({
+      parentSessionId,
+      runId,
+      unitId,
+      runs: undeclaringRuns,
+      dir,
+      now: deterministicNow(),
+      nextId: deterministicNextId(),
+    });
+
+    const childPath = path.join(dir, `${childSessionId}.jsonl`);
+    const raw = fs.readFileSync(childPath, "utf8");
+    const rawLine = raw
+      .trim()
+      .split("\n")
+      .find((line) => line.includes('"model_context"'));
+    assert.ok(rawLine, "expected a model_context line in the child's file");
+    // The load-bearing half: an absent declaration must leave the key WHOLLY ABSENT from the raw
+    // bytes — never serialized as null or 0, which would read downstream as a declared capacity.
+    assert.equal(
+      rawLine?.includes("contextWindowCapacity"),
+      false,
+      "an undeclared window must never appear as a key in the raw bytes",
+    );
+
+    const parsedLine = JSON.parse(rawLine as string) as { event: Record<string, unknown> };
+    assert.equal(Object.hasOwn(parsedLine.event, "contextWindowCapacity"), false);
+    // Token observations still land — only the capacity field is missing, not the whole event.
+    assert.equal(typeof parsedLine.event.cumulativeInputTokens, "number");
+    assert.equal(typeof parsedLine.event.addedInputTokens, "number");
+
+    const replay = readTraversalSession({ dir, sessionId: childSessionId });
+    assert.equal(replay.skipped, 0);
+    const contextEvent = replay.replay.events.find((event) => event.kind === "model_context");
+    assert.ok(contextEvent?.kind === "model_context");
+    if (contextEvent?.kind === "model_context") {
+      assert.equal(contextEvent.contextWindowCapacity, undefined);
+    }
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("written-bytes-carry-no-field-outside-the-closed-vocabulary: under both the declared-window and undeclared-window outcomes, every written line parses through the strict ContextTraversalEvent union with no unrecognised key and no free text anywhere in the bytes", () => {
+  const dir = makeTempDir("closed-vocabulary");
+  try {
+    const parentSessionId = "session-closed-vocab";
+    const runId = "run-1";
+    const unitId = "unit-a";
+
+    const runs: LeafSliceRun[] = [
+      {
+        phase: "AUTHOR_TEST",
+        subtype: "success",
+        turns: 1,
+        usage: declaringUsage(),
+        byModel: {
+          [DECLARED_WINDOW_MODEL_ID]: {
+            ...declaringUsage(),
+            contextWindow: DECLARED_WINDOW_CAPACITY,
+          },
+        },
+      },
+      {
+        phase: "IMPLEMENT",
+        subtype: "success",
+        turns: 1,
+        usage: declaringUsage(),
+        // No byModel: the undeclared-window outcome, landing in the SAME capture as the declared
+        // one above — the pairing the node spec's integration evidence calls for.
+      },
+    ];
+
+    captureBuildSpawn({
+      parentSessionId,
+      runId,
+      unitId,
+      runs,
+      dir,
+      now: deterministicNow(),
+      nextId: deterministicNextId(),
+    });
+
+    const files = fs.readdirSync(dir);
+    assert.ok(files.length >= 3, "expected the parent file plus one file per child");
+
+    const ALLOWED_MODEL_CONTEXT_KEYS = new Set([
+      "kind",
+      "eventId",
+      "sessionId",
+      "at",
+      "modelId",
+      "cumulativeInputTokens",
+      "addedInputTokens",
+      "contextWindowCapacity",
+    ]);
+
+    let sawModelContext = false;
+    for (const file of files) {
+      const raw = fs.readFileSync(path.join(dir, file), "utf8");
+      const lines = raw
+        .trim()
+        .split("\n")
+        .filter((line) => line.length > 0);
+      for (const line of lines) {
+        const parsedLine = JSON.parse(line) as { v: unknown; event: unknown };
+        assert.equal(parsedLine.v, 1);
+        // Strict union parse: any key outside the closed vocabulary throws here, extending
+        // contract 5 from "the canary is absent" to "nothing beyond the declared vocabulary is
+        // present" — a new field cannot arrive on disk unnoticed just because it is not the canary.
+        const event = ContextTraversalEvent.parse(parsedLine.event);
+        if (event.kind === "model_context") {
+          sawModelContext = true;
+          for (const key of Object.keys(event)) {
+            assert.ok(ALLOWED_MODEL_CONTEXT_KEYS.has(key), `unexpected key ${key} on a model_context event`);
+          }
+        }
+      }
+    }
+    assert.ok(sawModelContext, "expected at least one model_context line to have been scanned");
   } finally {
     removeTempDir(dir);
   }
