@@ -56,45 +56,6 @@ function hasContent(value: string | null | undefined): value is string {
 }
 
 /**
- * The `modelId` that declared a given capacity, when — and only when — exactly one entry in the
- * slice's `byModel` declared that exact positive window. Increment 1's own capacity derivation
- * already refuses to guess across ambiguous/ absent declarations (see `contextWindowCapacityFor` in
- * `observe-leaf-slices.ts`); this mirrors that same refusal for the id that goes with it, rather
- * than attributing a shared/ambiguous capacity to an arbitrary model.
- */
-function modelIdForCapacity(byModel: LeafSliceRun["byModel"], capacity: number | undefined): string | undefined {
-  if (byModel === undefined || capacity === undefined) return undefined;
-  const matches = Object.entries(byModel).filter(([, model]) => model.contextWindow === capacity);
-  return matches.length === 1 ? matches[0]?.[0] : undefined;
-}
-
-/**
- * Increment 1 (`observeLeafSlices`) emits the capacity number but never the model that declared it
- * — this composition attaches it, per `model_context` event, from the SAME `runs` this build's
- * caller supplied. Correlation walks `events` and `runs` in lockstep: every run contributes exactly
- * one `spawn_handoff` first, so each `spawn_handoff` marks the start of its run's block and any
- * `model_context` that follows before the next `spawn_handoff` belongs to that same run.
- */
-function withModelIds(
-  events: readonly ContextTraversalEvent[],
-  runs: readonly LeafSliceRun[],
-): ContextTraversalEvent[] {
-  let runIndex = -1;
-  return events.map((event) => {
-    if (event.kind === "spawn_handoff") {
-      runIndex += 1;
-      return event;
-    }
-    if (event.kind === "model_context" && event.contextWindowCapacity !== undefined) {
-      const run = runIndex >= 0 ? runs[runIndex] : undefined;
-      const modelId = run !== undefined ? modelIdForCapacity(run.byModel, event.contextWindowCapacity) : undefined;
-      return modelId !== undefined ? { ...event, modelId } : event;
-    }
-    return event;
-  });
-}
-
-/**
  * Observe one build's authoring slices and append the resulting parent/child lanes to their own
  * per-session traces. Additive and fail-silent throughout — see the module doc for the full
  * no-op/failure contract. Always returns `undefined`.
@@ -118,10 +79,13 @@ export function captureBuildSpawn(args: CaptureBuildSpawnArgs): void {
 
     if (observed.length === 0) return;
 
-    const events = withModelIds(observed, runs);
-
+    // A transparent carrier: the events are routed exactly as `observeLeafSlices` emitted them,
+    // `modelId` included. This composition used to attach `modelId` itself, correlating events to
+    // runs POSITIONALLY, because contract 8 was unimplemented in the observer; that workaround was
+    // also narrower than the contract, firing only when a capacity was present. Contract 8 now
+    // lives where it belongs, so nothing is re-derived here.
     const eventsBySession = new Map<string, ContextTraversalEvent[]>();
-    for (const event of events) {
+    for (const event of observed) {
       const bucket = eventsBySession.get(event.sessionId);
       if (bucket !== undefined) {
         bucket.push(event);

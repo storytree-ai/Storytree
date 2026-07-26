@@ -247,8 +247,15 @@ test("no-canary-text-ever-reaches-the-bytes: a distinctive canary threaded throu
         subtype: `${CANARY}-not-a-recognised-subtype`,
         turns: 1,
         usage: usage({ inputTokens: 10, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, outputTokens: 5 }),
+        // A `byModel` KEY is DECLARED METADATA, not a free-text input, so it is deliberately NOT a
+        // canary carrier: contract 6 here requires the bytes to carry "the matching `modelId`", and
+        // contract 8 of `leaf-slice-spawn-observations` requires the sole `byModel` key to be
+        // emitted as exactly that (the vocabulary declares `modelId: identity.optional()`). A
+        // runtime-declared model id is none of ADR-0235 clause 6's banned categories. This fixture
+        // previously threaded the canary through the key and passed only because contract 8 was
+        // unimplemented; the canary stays on `subtype` above, which is genuinely never emitted.
         byModel: {
-          [`model-${CANARY}`]: {
+          "model-declared-runtime-id": {
             inputTokens: 10,
             cacheCreationInputTokens: 0,
             cacheReadInputTokens: 0,
