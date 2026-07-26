@@ -24,10 +24,11 @@ decisions: [237, 93, 213, 215, 230, 70]
 # growth, localized claim entrance/orbit and localized bloom pulse with stable world anchors.
 # SVG TRANSFORM FLOOR: unchanged transform attributes are insufficient. The red rejects CSS
 # `transform:` animation on mapper-positioned elements and requires additive `scale:` plus box/origin,
-# or an inner visual wrapper that never replaces the outer SVG placement transform.
-# INNER-WRAPPER VOCABULARY RED after c87382ba: source proof binds to the already-landed exact
-# `.pop-motion-inner` seam and discriminates individual scale, fill-box, ground/root origins,
-# Studio overshoot/stagger, local claim orbit and reduced-motion settlement from flat 320ms motion.
+# or the existing `.pop-motion-inner` composition that preserves the outer SVG placement transform.
+# AUTHORED-CHOREOGRAPHY RED after the owner's continued UAT-4 FAIL following c87382ba: exact
+# `.pop-motion-inner` placement preservation and additive scale are necessary but not sufficient.
+# AUTHOR_TEST rejects one generic whole-object pop across terrain/tree/flora/plate/parcels and proves
+# distinct, ordered local terrain-formation and identity-growth staging with honest reduced motion.
 proof:
   command:
     file: pnpm
@@ -86,18 +87,22 @@ semantic-growth view:
    property itself: a CSS `transform:` in an arrival/pulse selector or keyframe applied to a
    mapper-positioned SVG element is red because it visually replaces `transform="translate(...)"`
    during motion even when the DOM attribute is unchanged. Require additive individual `scale:` with
-   `transform-box: fill-box`, the correct ground/root origin and stagger, or an inner visual wrapper
-   whose outer placement transform remains effective for every computed animation frame;
-6. add independent wrapper-vocabulary red D: source-audit that `SceneView` emits the exact
-   `.pop-motion-inner` wrapper already landed at `c87382ba` and that `semantic-growth.css` targets
-   that exact class. Parse every semantic-growth `arrive-ground`, `arrive-pop` and `bloom-pulse`
-   keyframe: reject any full `transform:` declaration and require individual `scale:`. Require
-   `transform-box: fill-box`; ground scales around its center, while flora/tree/parcel pixels scale
-   from `center bottom` (plate and bloom may remain centered). Positively assert the existing Studio
-   overshoot `cubic-bezier(0.34, 1.45, 0.5, 1)` and a nonzero inter-layer delay/stagger rather than
-   simultaneous flat 320 ms ease-out. Assert claim entrance changes local opacity only while the
-   mapper-owned orbit remains, and reduced motion resolves every inner scale/opacity immediately
-   without changing the outer settled transform. Fail class-name mismatches and comments-only hits;
+   `transform-box: fill-box`, the correct ground/root origin and stagger, or the existing
+   `.pop-motion-inner` composition whose outer placement remains effective for every animation frame;
+6. add independent authored-choreography red D: retain executable proof that `SceneView` emits the
+   exact existing `.pop-motion-inner` placement-preservation seam and that shared CSS targets it,
+   with no second wrapper, full CSS `transform:` replacement or lateral entry motion. Then fail while
+   one `arrive-pop`/whole-object scale is the sole treatment for terrain, tree/flora, plate and
+   parcels. Require rendered role hooks plus source/CSS timing to prove two distinct one-shot stages:
+   land locally forms/reveals the coast/substrate at its composed geometry; proposed then grows the
+   planted tree/flora from ground contact before the plate and capability parcels resolve in a
+   restrained local stagger. At least two identity subroles must use materially distinct existing
+   reveal/timing treatments (for example grounded scale versus local opacity, mask or clip), rather
+   than selector aliases to one keyframe. Claim remains a local entrance plus mapper orbit and bloom
+   remains a local proof pulse. The test asserts ordered nonzero offsets, settled anchors and no
+   indefinite motion; comments, class names alone and numeric scale changes alone do not pass.
+   Reduced motion removes every delay/orbit/transition and exposes the identical final six-state
+   semantics immediately;
 7. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
    action trace twice and compare every semantic snapshot and transition-family trace;
 8. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
@@ -131,10 +136,12 @@ The next real-proof candidate exposed why attribute snapshots alone under-claim 
 `transform: scale(...)` overrides an SVG element's mapper-authored `transform="translate(...)"` while
 the animation runs, then the element appears to slide back when the CSS transform releases. The
 proof must discriminate computed/source property composition, not merely unchanged DOM attributes.
-The valid outer/inner separation landed at `c87382ba`, but the proof still under-claimed the intended
-in-game vocabulary: CSS continued to use full `transform: scale`, a simultaneous flat 320 ms
-ease-out, centered origin, no fill-box and no stagger/overshoot. The next red binds the exact landed
-inner seam to the already-existing Studio motion profile; it does not authorize another wrapper.
+The valid outer/inner separation landed at `c87382ba`, but placement-safe additive scaling still does
+not prove an authored in-game sequence. The owner kept UAT-4 red after the framing and lateral
+placement corrections, asking for a fresh session to do the space justice. The next red therefore
+treats the existing inner seam as a placement floor, not a visual verdict: terrain formation and
+identity growth must read as distinct staged events, and tree/flora/plate/parcels cannot all be one
+generic whole-object pop. It does not authorize another wrapper or new motion system.
 
 ## Guidance
 
@@ -174,22 +181,22 @@ inner seam to the already-existing Studio motion profile; it does not authorize 
   during animation even though `getAttribute('transform')` still reports the original translate.
   Use the additive individual `scale:` property with `transform-box: fill-box` and an appropriate
   ground/root `transform-origin`, preserving the existing ease/overshoot and layer stagger; or animate
-  a dedicated inner visual wrapper while the outer mapper-authored placement wrapper remains static.
+  the existing `.pop-motion-inner` while the outer mapper-authored placement wrapper remains static.
   Apply the same preservation rule to localized claim entrance and bloom pulse. Attribute equality
   alone is not proof; the machine test must inspect real CSS/source and verify the individual
-  scale/origin/stagger or equivalent wrapper structure.
-- Use exactly the already-landed `.pop-motion-inner` wrapper for visual pop/growth beneath the static
-  mapper placement wrapper. `SceneView` must emit that exact class and the CSS must target that exact
-  class; a renamed/mismatched selector, a second wrapper or a comments-only occurrence is red. Across
-  all semantic-growth `arrive-ground`, `arrive-pop` and `bloom-pulse` keyframes, forbid full
-  `transform:` and require individual `scale:`. Every scaled SVG visual uses
-  `transform-box: fill-box`: terrain/ground is centered; flora, tree and parcel visuals grow from
-  `center bottom`; plate and bloom visuals may be centered. Reuse the existing Studio
-  `cubic-bezier(0.34, 1.45, 0.5, 1)` overshoot and prove at least one nonzero inter-layer
-  delay/stagger so ground, flora/tree/parcel and proof do not enter simultaneously as flat 320 ms
-  ease-out. Claim entry is local opacity only plus the mapper's existing orbit. Reduced motion
-  cancels inner animation and renders scale/opacity at rest while every outer placement transform
-  remains effective.
+  scale/origin/stagger on the existing `.pop-motion-inner` composition.
+- Preserve the already-landed `.pop-motion-inner` as the placement-safe visual seam beneath the
+  static mapper wrapper; `SceneView` emits that exact class and CSS targets it, with no renamed class,
+  second wrapper or comments-only evidence. That seam and additive individual `scale:` are a floor,
+  not the choreography. Source/rendered proof must reject one selector/keyframe/timing profile as the
+  sole treatment for terrain, tree/flora, plate and parcels. Land first forms or reveals its
+  coast/substrate locally; proposed then grows planted tree/flora from ground contact before plate
+  and capability parcels resolve with a restrained local stagger. Prove at least two materially
+  distinct identity treatments using the existing code-native vocabulary—role-scoped scale,
+  opacity, mask/clip reveal or an existing transform idiom as appropriate—without changing composed
+  geometry. Claim entry stays local with its mapper orbit; bloom stays a local proof pulse. Every
+  transition is one-shot and settles cleanly. Reduced motion cancels timing, concealment and orbit
+  and renders the identical final role semantics immediately while outer placement remains effective.
 - Keep the cursor and transition selection pure. Next clamps at healthy, Back clamps at empty,
   restart selects empty, and Replay reapplies the same ordered keys. Time controls interpolation
   only; no timeout advances the cursor and no random value influences output.
@@ -211,21 +218,20 @@ inner seam to the already-existing Studio motion profile; it does not authorize 
 - Sprite replacement must preserve semantic descendants owned by the replaced scene node. Replacing
   the `tree` visual with Storybook must retain the signed-proof `.world-bloom` overlay identity that
   Vector exposes; renderer choice may change artwork, never erase proof-bloom semantics.
-- Own the semantic transition vocabulary in `@storytree/app-surface`, but reuse the app's already
-  landed transforms rather than inventing a demo animation: coast/relaxed ground uses the existing
-  `arrive-ground` scale `0.78 -> 1`, flora/tree/nameplate/parcels use `arrive-pop` scale `0.55 -> 1`,
-  the claim uses the real `wisp-in` plus its existing SVG orbit, and signed proof uses the real
-  `bloom-pulse` `0.94 <-> 1.06`. Apply each family only when that semantic role enters. Do not group
-  territory, claim wisp, bloom and arrival under one new settle keyframe, remount the whole scene to
-  fake motion, add an animation framework/game engine/raster sequence, or create new transform
-  geometry/easing.
+- Own the semantic transition vocabulary in `@storytree/app-surface`, reusing the renderer's existing
+  arrival/growth, claim-orbit, bloom, SVG/code-native geometry and animation primitives. Apply motion
+  only to the entering semantic delta and stage it by meaning: terrain formation is distinct from
+  identity growth, planted flora/tree is distinct from plate/parcels, claim is distinct from proof.
+  Exact legacy scale values or one shared pop keyframe are not the contract. Do not group the roles
+  under one settle/pop treatment, remount the whole scene to fake motion, add an animation
+  framework/game engine/raster sequence, or create a parallel transform vocabulary.
 - Never translate the whole world, island/terrain group, or complete sprite/flora group laterally to
   announce a state. Keep every composed world coordinate and settled ground-contact transform stable.
   Reveal terrain where it lies; grow flora/tree from planted/root anchors; introduce the claim only
   around its local tree/island anchor before its existing orbit; pulse proof radially at its existing
   bloom anchor. Reuse current Storybook/Vector art and transform vocabulary only. Do not generate
-  animation assets, add sprite-frame/frame-sequence manifests or pipelines, fork product art, create
-  a second renderer, or move animation into website/Studio code.
+  frame/sprite assets, add a Nanobanana or sprite-frame/frame-sequence pipeline, introduce production
+  art, fork product art, create a second renderer, or move animation into website/Studio code.
 - Resolve the browser's `prefers-reduced-motion` signal inside the shared surface (an explicit test
   override is allowed). Reduced mode suppresses animation, interpolated travel, scale sweeps, delayed
   hidden content and the real wisp's SVG orbit while rendering the same markers immediately. It must
@@ -274,19 +280,23 @@ matches do not satisfy this red.
 assertion fails any semantic-growth arrival or pulse selector/keyframe that sets the full
 `transform:` property on mapper-positioned terrain, flora/tree, claim or bloom elements, including
 `transform: scale(...)`. Passing requires either additive individual `scale:` with
-`transform-box: fill-box`, the correct ground/root `transform-origin` and the existing stagger, or a
-proved inner visual wrapper whose outer SVG `transform="translate(...)"` remains the effective
-placement throughout animation. Merely comparing `getAttribute('transform')` before/after is red.
+`transform-box: fill-box`, the correct ground/root `transform-origin` and the existing stagger, or
+the existing `.pop-motion-inner` composition whose outer SVG `transform="translate(...)"` remains
+the effective placement throughout animation. Merely comparing `getAttribute('transform')`
+before/after is red.
 
-**Exact inner-wrapper vocabulary red D — additive, no new scope.** The test reads real
-`SceneView.tsx` and `semantic-growth.css`, proves executable emission and exact CSS targeting of
-`.pop-motion-inner`, and rejects mismatched names or comments-only matches. It parses all three
-semantic-growth keyframes (`arrive-ground`, `arrive-pop`, `bloom-pulse`) and fails any full
-`transform:` while requiring individual `scale:`. It requires `transform-box: fill-box`, centered
-ground, `center bottom` flora/tree/parcel roots (plate/bloom may center), the existing Studio
-`cubic-bezier(0.34, 1.45, 0.5, 1)` overshoot, and a nonzero inter-layer delay/stagger. It proves claim
-entry is opacity-local with mapper orbit intact and reduced motion settles inner scale/opacity
-without changing outer placement. The already-landed wrapper is the only wrapper authorized.
+**Authored semantic-choreography red D — additive, no new scope.** The test reads real
+`SceneView.tsx` and `semantic-growth.css`, preserves executable emission/targeting of the exact
+existing `.pop-motion-inner` placement seam, and rejects a second wrapper, full CSS `transform:`,
+lateral entry, mismatched names or comments-only matches. It then fails if terrain, tree/flora,
+plate and parcels merely alias one whole-object scale/keyframe/timing profile. Rendered role hooks
+and source/CSS timing must prove land's local coast/substrate formation is a distinct stage from
+proposed identity growth; planted tree/flora resolves from ground contact before plate/parcels; and
+at least two identity subroles use materially distinct existing local reveal/timing treatments with
+ordered nonzero offsets. Claim remains local with mapper orbit; bloom remains a local proof pulse;
+all motion is one-shot and restrained. Individual scale/fill-box/root origin may satisfy an
+appropriate role but cannot alone satisfy this red. Reduced motion must remove delays, concealment,
+orbit and transition while exposing the same final role semantics and preserving outer placement.
 
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
    - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
@@ -317,15 +327,19 @@ without changing outer placement. The already-landed wrapper is the only wrapper
      lateral translation and proves stable world anchors, in-place terrain growth, root-anchored
      flora/tree scale, localized claim entrance/orbit and localized bloom pulse. It also rejects the
      full CSS `transform:` property on mapper-positioned animated elements and positively requires
-     additive `scale:` plus fill-box/root origin/stagger or an equivalent inner-wrapper composition;
-     the exact-wrapper case additionally proves `.pop-motion-inner` emission/targeting, individual
-     scale in every named keyframe, fill-box, center-vs-root origins, Studio overshoot, nonzero
-     inter-layer stagger, opacity-local claim plus mapper orbit and reduced-motion settlement. DOM
-     transform-attribute equality, class mismatches and comments/prose cannot satisfy the cases.
+     additive `scale:` plus fill-box/root origin/stagger on the existing `.pop-motion-inner`;
+     the authored-choreography case additionally preserves exact `.pop-motion-inner`
+     emission/targeting while rejecting a generic whole-object pop. It proves distinct ordered
+     terrain-formation and identity-growth stages, ground-contact tree/flora before locally revealed
+     plate/parcels, at least two materially distinct identity treatments, one-shot settlement, local
+     claim/orbit and bloom pulse, and immediate honest reduced-motion semantics. DOM
+     transform-attribute equality, numeric scale changes alone, class mismatches and comments/prose
+     cannot satisfy the cases.
      Transition rules and reduced-motion handling live under
      `packages/app-surface`; the view delegates to `WorldSceneView`; and its source imports no
-     Studio/web module, live data/store authority, generated animation asset/frame pipeline, product
-     art fork, Chapter 2 controller or duplicate renderer.
+     Studio/web module, live data/store authority, generated frame/sprite asset, Nanobanana or
+     frame-sequence pipeline, production/product-art fork, Chapter 2 controller or duplicate
+     renderer.
 5. **`sgrv-existing-art-and-scene-contracts-do-not-regress`**
    - **asserts —** the full package command retains existing Storybook/Vector resolution and fallback,
      sprite sizing/anchors/depth order, semantic mapper, trail/arrival and event tests; the retained
