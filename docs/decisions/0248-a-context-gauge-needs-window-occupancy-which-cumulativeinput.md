@@ -15,10 +15,15 @@ so this is born `proposed` and escalates rather than deciding.
 It re-opens nothing. ADR-0235 governs WHAT is observed and its clause 4 governs capacity; ADR-0241
 governs WHERE it is stored. Neither says what quantity a gauge plots against that capacity.
 
-Reviewed in the same increment's pre-merge `librarian-curator` pass (2026-07-26), which corrected the
-quantity count in Context (one of the three exists, not two) and added the measured fact that
-`addedInputTokens` duplicates `cumulativeInputTokens` at this boundary. The fork is untouched — still
-four candidates, still deferred, still the owner's to settle.
+Reviewed in the pre-merge `librarian-curator` pass of increments 4, 5 and 6 (all 2026-07-26).
+Increment 4's pass corrected the quantity count in Context (one of the three exists, not two) and
+added the measured fact that `addedInputTokens` duplicates `cumulativeInputTokens` at this boundary.
+Increment 5 re-verified that duplication and increment 6's pass re-verified it again directly at
+`observe-leaf-slices.ts` — both fields are still assigned from the one `totalInputTokens` variable, so
+the measurement stands. Increment 6 touched no token field and drew no gauge. The fork is untouched
+across all three passes: still four candidates, still deferred, still the owner's to settle. This
+paragraph is maintained as one standing record rather than one paragraph per increment; absence of a
+new note is not evidence the fork went unexamined.
 
 ## Context
 

@@ -14,15 +14,16 @@ is born `proposed` and escalates rather than deciding. It re-opens nothing: ADR-
 is observed, ADR-0241 WHERE it is stored, and neither speaks to how an adapter's *activation* is
 proven.
 
-Reviewed in the same increment's pre-merge `librarian-curator` pass (2026-07-26), which corrected
-two claims in place while the ADR was still `proposed` and the fork still open: what ADR-0184
-actually converted, and what posture increment 3 actually shipped. The fork itself is untouched —
-still three candidates, still deferred, still the owner's to settle.
-
-Reviewed again in increment 4's pre-merge pass (2026-07-26), which recorded ADR-0247's landing
-against candidate B (Context fact 2). Increment 4 ships **no activation leg either**, on the same
-ground and with the same posture as increment 3, so nothing in this ADR is overtaken by it. The fork
-remains open and the owner's.
+Reviewed in the pre-merge `librarian-curator` pass of increments 3, 4, 5 and 6 (all 2026-07-26).
+Two claims were corrected in place while the ADR was `proposed` and the fork still open — what
+ADR-0184 actually converted, and what posture increment 3 actually shipped — and increment 4's pass
+recorded ADR-0247's landing against candidate B (Context fact 2). **Increments 4, 5 and 6 each ship
+no activation leg for the build spawn boundary either**, on the same ground and with the same posture
+as increment 3, so nothing here is overtaken by them. Increment 6 worked the TERMINAL boundary
+instead — the cheap side of the contrast below, which needs no ruling here. The fork itself is
+untouched across all four passes: still three candidates, still deferred, still the owner's to
+settle. This paragraph is maintained as one standing record rather than one paragraph per increment;
+absence of a new note is not evidence the fork went unexamined.
 
 ## Context
 
