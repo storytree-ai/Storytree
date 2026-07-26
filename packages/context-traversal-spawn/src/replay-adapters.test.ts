@@ -173,8 +173,15 @@ test("capacity still renders honestly unknown when the latest model_context carr
     const result = showTraversalSessionAllAdapters(sessionId, { dir });
 
     assert.ok(
-      result.body.includes("capacity: unknown (no model_context observation at this boundary)"),
+      result.body.includes("capacity: unknown (observed, but this boundary declares no window capacity)"),
       "no default capacity, no inferred gauge, no danger region may be fabricated",
+    );
+    // This fixture DOES carry a model_context (`writeMixedFixture` above, built as a literal event):
+    // the render must report the capacity as unknown WITHOUT denying the observation it just made.
+    // Distinguishing the two is the durable part — it holds however many shapes reach this branch.
+    assert.ok(
+      !result.body.includes("no model_context observation"),
+      "an observed-but-capacity-absent window must not be reported as no observation at all",
     );
     assert.ok(result.body.includes("cumulative=1500"), "the actual token observation must still render");
   } finally {

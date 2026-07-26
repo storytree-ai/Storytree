@@ -55,10 +55,16 @@ sequence.
 **Always print the coverage block.** Supported and omitted, from the adapter's own declaration. The
 render's value is inseparable from knowing what it could not see.
 
-**Capacity is unknown here, and says so.** The CLI boundary observes no model tokens, so when a
-session carries no `model_context` event the render must state capacity as UNKNOWN. Never a default
-capacity, never a fabricated gauge, and never the owner-selected 500k threshold shown as a limit — it
-is display-only and out of scope for this increment (ADR-0235 clause 4/7).
+**Capacity is unknown here, and says so — but says WHICH unknown.** The CLI boundary observes no model
+tokens, so when a session carries no `model_context` event the render must state capacity as UNKNOWN.
+A session that DOES carry a `model_context` declaring no `contextWindowCapacity` is a different fact
+and must render differently: unknown because the observation carried no window size, not because
+nothing was observed. Reusing the no-observation wording there would deny an observation the replay
+just rendered. Which shapes reach which branch varies by boundary and shifts as adapters learn to read
+more, so the render owes both branches on their own terms rather than treating either as a given
+boundary's permanent case. `capacity: unknown` leads either way. Never a default capacity, never a
+fabricated gauge, and never the owner-selected 500k threshold shown as a limit — it is display-only
+and out of scope for this increment (ADR-0235 clause 4/7).
 
 **A partial replay says it is partial.** Print the reader's `skipped` count whenever it is non-zero.
 An honest partial is required; a silent one is forbidden (ADR-0241 D5). A render over a corrupt or
@@ -83,7 +89,10 @@ capability needs only the reader's RETURN TYPE, so it can start against a signat
 3. **`capacity-renders-unknown-without-a-model-observation`**
    - **asserts —** the render always prints the adapter coverage block (supported and omitted) and
      states context capacity as unknown when the replay carries no `model_context` event — no default
-     capacity, no fabricated gauge, and no 500k region rendered as a limit.
+     capacity, no fabricated gauge, and no 500k region rendered as a limit; and that the two ways
+     capacity goes unknown render distinctly — a replay carrying a `model_context` that declares no
+     `contextWindowCapacity` still leads with `capacity: unknown` but must NOT claim there was no
+     observation, since one was made and rendered.
 4. **`a-partial-replay-states-its-skipped-count`**
    - **asserts —** a replay accompanied by a non-zero `skipped` count renders that count as an
      explicit partial-read notice, and the render still returns a complete body rather than throwing.
