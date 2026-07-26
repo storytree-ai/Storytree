@@ -16,6 +16,7 @@ capabilities:
     terminal-boundary-observations,
     traversal-session-query,
     terminal-capture-activation,
+    revisit-link-metadata,
   ]
 proof:
   command:
@@ -87,6 +88,7 @@ zod-only because the studio bundles it.
 | 2 | [`terminal-boundary-observations`](terminal-boundary-observations.md) | A terminal invocation's argv becomes metadata-only read observations only when it matches an allowlisted read shape. | — |
 | 3 | [`traversal-session-query`](traversal-session-query.md) | A captured session renders as a chronological replay that states its own coverage, unknowns, and skipped lines. | `traversal-trace-sink` |
 | 4 | [`terminal-capture-activation`](terminal-capture-activation.md) | The real terminal CLI process captures its own reads additively and replays them on demand. | `traversal-trace-sink`, `terminal-boundary-observations`, `traversal-session-query` |
+| 5 | [`revisit-link-metadata`](revisit-link-metadata.md) | A visit to a node this session already read carries the earlier visit's id, and carries none when it does not. | `traversal-trace-sink`, `terminal-boundary-observations` |
 
 The graph is acyclic: the sink and the observation table consume only increment 1's vocabulary; the
 query consumes the sink's reader; the activation composes all three.

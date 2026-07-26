@@ -25,6 +25,8 @@ export {
   type ObserveCliDeps,
 } from "./observe-cli.js";
 
+export { linkRevisits, REVISIT_LINK_COVERAGE } from "./revisit-links.js";
+
 export {
   renderTraversalSessions,
   renderTraversalSession,
