@@ -238,6 +238,10 @@ only exact-frame red E while the named D case stayed byte-unchanged; its CSS mer
 qualifiers and retained the same 90 ms shared `arrive-pop`, 90 ms plate, grouped parcels with no
 per-item offsets, absent Storybook direct-image rules and infinite bloom. Legacy assertions that
 look D-like elsewhere do not validate an appended-E-only diff.
+The run `real-ms1q6ouu` from contract `a415ecc` stopped fail-closed: AUTHOR_TEST reported success
+after 45 turns and IMPLEMENT reported success after 22 turns, but the spine failed at CONFIRM_GREEN
+because proof remained red. It produced no verdict and promoted no candidate. Its disposable
+worktree was removed and the available output identifies no defect, so this history records none.
 
 ## Guidance
 
