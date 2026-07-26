@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -69,7 +69,7 @@ build/secrets seam re-pointed off `cli` onto `@storytree/drive` by ADR-0112) —
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
 
-## Capabilities (10)
+## Capabilities (11)
 
 Listed roots-first (a capability appears after everything it depends on).
 
@@ -85,14 +85,15 @@ Listed roots-first (a capability appears after everything it depends on).
 | 8 | [`chat-panel`](chat-panel.md) | The studio frontend renders a chat panel — a thin client that POSTs the operator's intent to `/api/chat`, streams the SSE response, and renders the `done` proposal / `error` / `refused` outcomes (and an honest disabled state where the route is absent), importing no agent/drive/model code. | — |
 | 9 | [`hud-chrome`](hud-chrome.md) | The forest map becomes the landing surface and the top banner + Overview page retire: the only global chrome is a single verified-identity avatar (top-right) — no brand chip and no navigation outside it — whose menu shows the read-only identity + role and ONLY the role-/posture-gated Members, Credentials, and Sign out account items, with no Library/Documents navigation (ADR-0204, re-tensed by ADR-0205). | `dev-server-persistence-backbone` |
 | 10 | [`verified-attribution`](verified-attribution.md) | Comment attribution derives from the verified `/api/me` identity everywhere: the composer presents the verified identity read-only (`operator` fallback in the open dev posture) and the post relies on the server stamp, and the localStorage operator store (`lib/operator.ts`) retires (ADR-0204 D4). | `dev-server-persistence-backbone` |
+| 11 | [`coalesced-camera-pan`](coalesced-camera-pan.md) | An operator's forest drag commits the latest camera position at most once per display frame. | — |
 
 ## Dependency graph (code-derived)
 
 These are **within-story** edges, **read off the real source** (static analysis of the
 imports / data-flow between capabilities), never hand-drawn from UAT need (ADR-0010 §3):
 A → B means A's code actually couples to B's code inside the one organism. The graph is
-acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, and `chat-panel` are the
-roots. (Cross-story edges are NOT in this graph — they are boundary interfaces, declared in
+acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, `chat-panel`, and
+`coalesced-camera-pan` are the roots. (Cross-story edges are NOT in this graph — they are boundary interfaces, declared in
 §"Cross-story boundary" below and encoded as frontmatter `depends_on` — ADR-0010 §4.)
 
 - `read-corpus` → `dev-server-persistence-backbone`
@@ -121,8 +122,13 @@ roots. (Cross-story edges are NOT in this graph — they are boundary interfaces
     studio-dev-server mount of `/api/chat` is a separate follow-on, see chat-panel.md "Where /api/chat
     lives"). The chat WIRE SHAPE it consumes (`chat-sse-mount`'s `done`/`error`/`refused` SSE frames) is a
     CROSS-BOUNDARY contract (plain JSON over HTTP against a locally-declared type), NOT a within-story
-    code edge and NOT a package import — so it adds no frontmatter `depends_on` (within- or cross-story).
-    See chat-panel.md "No new cross-story edge".
+     code edge and NOT a package import — so it adds no frontmatter `depends_on` (within- or cross-story).
+     See chat-panel.md "No new cross-story edge".
+- `coalesced-camera-pan` → (no within-story edge — a FOURTH root)
+  - The camera controller and the Studio-only chrome are neighbouring slices in `TreeView.tsx`, not
+    imports from any named `studio` capability. Its shared `WorldSceneView`/`SceneView` seam is already
+    the declared **cross-story** `studio → app-surface` edge; this increment neither imports a new
+    package nor changes the world's model, so it adds no in-story or cross-story dependency.
 
 ## Cross-story boundary (ADR-0010 §4)
 
