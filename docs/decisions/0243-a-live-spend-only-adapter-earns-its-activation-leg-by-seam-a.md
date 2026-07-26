@@ -14,6 +14,11 @@ is born `proposed` and escalates rather than deciding. It re-opens nothing: ADR-
 is observed, ADR-0241 WHERE it is stored, and neither speaks to how an adapter's *activation* is
 proven.
 
+Reviewed in the same increment's pre-merge `librarian-curator` pass (2026-07-26), which corrected
+two claims in place while the ADR was still `proposed` and the fork still open: what ADR-0184
+actually converted, and what posture increment 3 actually shipped. The fork itself is untouched —
+still three candidates, still deferred, still the owner's to settle.
+
 ## Context
 
 ADR-0235 records context traversal at deterministic runtime boundaries. Two boundaries have been
@@ -33,9 +38,15 @@ Two facts make this a genuine fork rather than an engineering detail:
    `liveAuthor` for an `authorOverride`. A scripted `PhaseAuthor` therefore yields
    `liveAuthor: undefined`, and the drive-side glue that reads `liveAuthor.runs` is unreachable from
    any offline test. A dry-run build correctly emits nothing, so there is no cheap synthetic path.
-2. ADR-0184 converted the drive-machinery UAT legs from operator-attested to **machine** witnesses.
-   Taking an operator-attested leg here is a partial retreat from that direction and needs to be
-   said out loud, not slipped in.
+2. ADR-0184 converted drive-machinery's three live UAT legs from **human** to **machine** witnesses,
+   and its framing correction is directly load-bearing here: those legs had never been
+   operator-attested — they wore the `human` glyph for a *cost/harness* reason, and ADR-0184's
+   finding is that conflating the two was the error. The corpus draws that line twice already, in
+   `human-witness-is-a-judgment-gap-not-cost` (the human label is for a judgment gap, never for
+   cost) and `a-live-only-guarantee-is-an-honesty-gap` (give a live-only guarantee a cheap offline
+   red→green and let the live run be a smoke test). Taking an operator-attested leg here is
+   therefore not merely a retreat from a direction — it needs the gap to be a genuine judgment gap,
+   and needs to be said out loud rather than slipped in.
 
 The forces: ADR-0020 makes the SPINE the sole arbiter of red/green and keeps the leaf out of the
 verdict, so any seam widened purely for testability sits on a proof-critical path. ADR-0070 stage 2
@@ -57,22 +68,33 @@ Deferred to the owner. Three candidates, stated so the trade is visible:
   one short step from a scripted verdict, which is what ADR-0020 exists to prevent.
 - **B — operator-attested leg.** Stand the build up, run it, and have the owner attest the leg
   (ADR-0070 stage 2). *Cost:* a partial retreat from ADR-0184's machine-witness direction, and it
-  prices every future adapter's activation at one owner interruption.
+  prices every future adapter's activation at one owner interruption. It also has to clear an
+  accepted floor before it is even available: `human-witness-is-a-judgment-gap-not-cost` reserves
+  the human label for a judgment gap, and "did the glue get called?" is a harness gap, not a
+  judgment one. B is therefore only reachable if the owner rules that this particular verdict is
+  one only a human can sign — which is precisely the question deferred here, not an assumption
+  this ADR may make on the owner's behalf.
 - **C — recorded-fixture leg.** Capture one real build's slice accounting once, commit it as a
   fixture, and assert the adapter against it in CI. *Cost:* proves the ADAPTER, not the ACTIVATION —
   the fixture cannot notice the day the glue stops being called, which is precisely the failure
   increment 1 demonstrated is real.
 
-Until this is settled, increment 3 takes **B** as the interim posture for its own activation leg:
-the leg is stood up, run, and handed to the owner rather than self-signed or machine-faked. That is
-the honest-but-expensive option, chosen because it is the only one of the three that is reversible
-without unwinding shipped proof.
+Until this is settled, increment 3 takes **none of the three**. It ships **no activation leg at
+all**: `stories/context-traversal-spawn` lists the live confirmation under *Explicitly outside this
+increment* and hands it to the owner unsigned, on the explicit ground that it is neither
+machine-provable in CI today nor a judgment gap
+(`human-witness-is-a-judgment-gap-not-cost` — so it is NOT labelled a human leg to stand in for a
+missing harness). That is deliberately weaker than B: B would put a signed operator-attested leg on
+the story, and no such leg exists. Not-claiming is the only posture available to an increment that
+must land before the fork is settled, and it is reversible in every direction — whichever of A, B or
+C the owner takes, the leg is added then, and nothing shipped has to be unwound.
 
 ## Consequences
 
-- Increment 3's story `context-traversal-spawn` lands with its three capabilities machine-proven and
-  its activation demonstrated but not machine-witnessed. The story does not claim an activation leg
-  it did not earn.
+- Increment 3's story `context-traversal-spawn` lands with its three capabilities machine-proven on
+  signed `--real` verdicts and its five machine UAT legs signed, and with **no activation leg of any
+  witness kind**. The story does not claim an activation leg it did not earn, and the gap is named in
+  its own spec rather than left for a reader to infer.
 - The arc's remaining adapters stay blocked on this fork for their activation legs specifically —
   not for their adapter work, which is machine-provable in every case.
 - Whichever option is taken, `resolveProveSpec`'s `authorOverride` asymmetry should be documented
@@ -85,8 +107,14 @@ without unwinding shipped proof.
 - ADR-0235 — record context traversal at deterministic runtime boundaries (the governing decision).
 - ADR-0241 — context traversal traces persist locally per session (the storage contract).
 - ADR-0020 — the prove-it-gate: the spine observes red/green, the leaf never reports it.
-- ADR-0184 — drive-machinery UAT legs converted to machine witnesses.
+- ADR-0184 — drive-machinery's three live UAT legs converted from human to machine witnesses, and
+  the human-glyph framing correction (judgment gap vs cost/harness gap).
 - ADR-0070 — operator-attested legs (stage 2).
+- `asset:human-witness-is-a-judgment-gap-not-cost` — the accepted floor candidate B must clear.
+- `asset:a-live-only-guarantee-is-an-honesty-gap` — the standing preference for a cheap offline
+  red→green with the live run as a smoke test (the shape candidates A and C reach for).
+- `stories/context-traversal-spawn/story.md` — the increment that hit this wall; its *Explicitly
+  outside this increment* section is where the missing activation leg is recorded.
 - `packages/orchestrator/src/resolve-prove-spec.ts` — the `authorOverride` / `liveAuthor` asymmetry.
 - `packages/drive/src/node-build.ts` — the composition site the glue lands at.
 - `linked-session-context-plan-4` — the plan that named this fork.
