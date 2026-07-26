@@ -28,6 +28,7 @@ import {
   PROOF_REPORT_ENV,
   assertOracleGuardUrl,
   oracleReportPath,
+  resetOracleReport,
   verifyOracleExercised,
 } from "./proof/oracle-accounting.js";
 import { gitTreeState } from "./prove-it-gate.js";
@@ -454,10 +455,21 @@ function resolveReal(
   };
   const realProofCmd: ShellCommand =
     Object.keys(proofEnv).length > 0 ? { ...base.command, env: proofEnv } : base.command;
+  // ADR-0249: the cross-check is only fail-closed if the report it reads is attributable to the
+  // observation that just ran. `reportPath` is ONE fixed path shared by CONFIRM_RED, every leaf
+  // feedback run, and CONFIRM_GREEN, and the report body carries no run identity — so the spine CLEARS
+  // it before each observation it will trust. After that, a report exists only because the guard wrote
+  // it during THIS run, and "the guard's exit hook never fired" (source can simply
+  // `process.removeAllListeners("exit")`) reads as the missing report it actually is instead of
+  // inheriting the previous observation's positive count. beforeRun and verifyGreen are wired as a
+  // PAIR — never one without the other.
   const testExecutor = new ShellTestExecutor({
     command: (): ShellCommand => realProofCmd,
     ...(reportPath !== undefined
-      ? { verifyGreen: (out: ShellRunResult) => verifyOracleExercised(reportPath, out) }
+      ? {
+          beforeRun: () => resetOracleReport(reportPath),
+          verifyGreen: (out: ShellRunResult) => verifyOracleExercised(reportPath, out),
+        }
       : {}),
   });
   const scope = new PathWriteScope(real.scope);

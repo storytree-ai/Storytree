@@ -1,12 +1,19 @@
 /**
- * ORACLE ACCOUNTING (ADR-0211): the spine-side half of the assert-oracle guard — the guard URL, the
- * out-of-band report path, and the fail-closed GREEN cross-check.
+ * ORACLE ACCOUNTING (ADR-0211, freshness added by ADR-0249): the spine-side half of the assert-oracle
+ * guard — the guard URL, the out-of-band report path, the PRE-observation reset, and the fail-closed
+ * GREEN cross-check.
  *
  * The guard ({@link ./assert-oracle-guard.mjs}) is a `node --import` preload the spine adds to the
  * DEFAULT node:test proof command. It freezes node:assert (defeating the monkeypatch-the-oracle
  * vector) and writes the real assertion count to a report file (surviving the process.exit(0)
  * truncation vector). This module reads that report and turns "exit 0 but 0 assertions" — a hollow /
  * neutralised proof — into a fail-closed RED, so a forged green never reaches the signed verdict.
+ *
+ * THE TWO HALVES ARE ONE MECHANISM (ADR-0249). Reading the report is only fail-closed if the report is
+ * KNOWN to be this observation's: {@link resetOracleReport} clears it before the spawn,
+ * {@link verifyOracleExercised} reads it after. Wire them as a pair. Reading without resetting lets an
+ * observation that wrote NO report inherit the previous one's count — which inverts the whole layer's
+ * degradation mode from fail-closed to fail-OPEN.
  *
  * WHY THE FLOOR IS `>= 1`, and its honest limit: the two demonstrated forged-green vectors both leave
  * ZERO real assertions executed, so requiring at least one closes them. A more determined same-process
@@ -20,7 +27,7 @@
  * does not count, so they keep exit-code-only observation for now — a documented narrower follow-on.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -41,13 +48,60 @@ export function assertOracleGuardUrl(): string {
 
 /**
  * A per-build report path OUTSIDE any git worktree (the OS temp dir), so the guard writing it can
- * never dirty the tree the GATE proves clean. Keyed by runId+unitId so concurrent builds never clash;
- * the guard truncates on every run, so a build's later CONFIRM observation always overwrites its own
- * earlier feedback runs.
+ * never dirty the tree the GATE proves clean. Keyed by runId+unitId so concurrent builds never clash.
+ *
+ * ONE path is REUSED by every observation of the build (CONFIRM_RED, each leaf feedback run,
+ * CONFIRM_GREEN), and the report body carries no run identity — so a count read off this path is NOT
+ * self-evidently this observation's. It becomes attributable only because {@link resetOracleReport}
+ * clears it first; the original protocol instead assumed "the guard truncates on every run", which is
+ * false whenever the guard's exit hook does not fire (ADR-0249).
  */
 export function oracleReportPath(runId: string, unitId: string): string {
   const safe = `${runId}-${unitId}`.replace(/[^A-Za-z0-9._-]/g, "_");
   return path.join(os.tmpdir(), `storytree-proof-oracle-${safe}.json`);
+}
+
+/**
+ * CLEAR the report before an observation the spine intends to TRUST — the freshness half of the
+ * protocol (ADR-0249).
+ *
+ * Why it is load-bearing: {@link oracleReportPath} hands back ONE fixed path per (runId, unitId), and
+ * the resolver closes over it for CONFIRM_RED, every leaf feedback run, and CONFIRM_GREEN. The report
+ * body carries no identity, so the spine cannot tell WHICH observation wrote the count it is reading.
+ * The protocol leaned on "the guard truncates on every run" — but the guard's `process.on("exit")` hook
+ * only truncates if it RUNS, and IMPLEMENT-phase source can simply
+ * `process.removeAllListeners("exit")` before `process.exit(0)`. Then nothing truncates, CONFIRM_GREEN
+ * exits 0, and the spine reads the PREVIOUS observation's positive count and greens a proof that
+ * executed zero assertions — a layer designed to fail closed failing OPEN.
+ *
+ * Deleting the report first makes the count trustworthy BY CONSTRUCTION: after a successful reset the
+ * only way a report can exist is that the guard wrote it DURING this observation. "The guard did not
+ * write" then collapses to "no report", which is what {@link verifyOracleExercised} already refuses —
+ * so the guard's own best-effort-write comment becomes true rather than aspirational.
+ *
+ * FAIL-CLOSED, including its own failure: a report that SURVIVES the reset attempt is a refusal, never
+ * a shrug. An uncleared report is precisely the stale read this exists to prevent, so swallowing the
+ * unlink error would reintroduce the hole it closes. A missing report is the normal
+ * first-observation case and succeeds silently.
+ */
+export function resetOracleReport(
+  reportPath: string,
+): { ok: true } | { ok: false; reason: string } {
+  try {
+    rmSync(reportPath, { force: true });
+  } catch {
+    // Swallowed HERE only because the existence check below is the real verdict — see it fail closed.
+  }
+  if (existsSync(reportPath)) {
+    return {
+      ok: false,
+      reason:
+        `oracle accounting: the previous assertion report at ${reportPath} could not be cleared before ` +
+        `this observation, so a count read back from it cannot be attributed to this run — refusing ` +
+        `the observation fail-closed rather than trusting a possibly stale report`,
+    };
+  }
+  return { ok: true };
 }
 
 /**
