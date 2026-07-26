@@ -150,12 +150,20 @@ colon-template assertions did in the previous amendment. The exhaustiveness asse
 the enum are untouched and stay as they are — they are what keep the move honest, because the
 feature cannot simply vanish from the declaration.
 
-**Contract 8's `modelId` emission is what makes a `byModel` KEY a declared, EMITTED field.** When a
-slice declares exactly one `byModel` key, that key travels OUT as `modelId` — so a `byModel` key is
-runtime-declared metadata on the wire, not an opaque free-text input. That has a consequence next
-door: `build-spawn-capture`'s canary contract 5 currently threads its canary through a `byModel` key,
-which stays green only while contract 8 is unimplemented here. Implementing contract 8 faithfully
-turns that fixture red, and the FIXTURE is what moves — see the matching note in
+**Contract 8 is the unimplemented one — it is the RED this increment must observe.** The observer
+does NOT emit `modelId` today: `observe-leaf-slices.ts` contains zero occurrences of the field, and
+has since this capability was first authored — contract 8 shipped under a signed PASS twice without
+ever being built. The other twelve contracts are ALREADY satisfied by the current source and need
+only their tests BOUND to contract ids by name. Contract 8 is the only behavioural change in this
+increment, so renaming the existing tests is NOT sufficient work: it leaves the suite green and
+fails CONFIRM_RED.
+
+**Contract 8's `modelId` emission is what will make a `byModel` KEY a declared, EMITTED field.** Once
+it lands, a slice declaring exactly one `byModel` key sends that key OUT as `modelId` — so a `byModel`
+key becomes runtime-declared metadata on the wire, not an opaque free-text input. That has a
+consequence next door: `build-spawn-capture`'s canary contract 5 currently threads its canary through
+a `byModel` key, which stays green only while contract 8 is unimplemented here. Implementing contract
+8 faithfully turns that fixture red, and the FIXTURE is what moves — see the matching note in
 `build-spawn-capture.md`. Nothing about contract 8's own claim changes; recording it here is so a
 later session does not rediscover the collision the hard way and mistake it for a contract conflict.
 
@@ -218,6 +226,24 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
      there are several or none, and `agentType` is the rendered Library agent the leaf actually runs
      as for that phase (`red-builder` for the test-authoring phase, `green-builder` for the
      implementing phase) — a runtime-grounded stable type, never an invented label.
+   - **falsifiability —** against the CURRENT source, which emits no `modelId` at all, a correct test
+     for this contract MUST FAIL. A first run that comes back green is proof the test is not reading
+     the observer's output — it is the diagnosis, not the result.
+   - **the subject is the observer's OUTPUT.** The asserted value is the `modelId` field read OFF the
+     `model_context` event that `observeLeafSlices` RETURNED — never a string the test composed, and
+     never the sole-key rule re-derived inside the test file. A test that does either would pass
+     against any implementation, including the current one that emits nothing.
+   - **both sides of the rule, across the fixture set, not one happy path.** `modelId` is PRESENT and
+     strictly equal to the sole `byModel` key when there is exactly one, and WHOLLY ABSENT — no key
+     at all, not `null`, not an empty string — when there are several or none. The current
+     implementation satisfies every absent-side case VACUOUSLY, by emitting nothing at all, so those
+     cases alone can never go red; the PRESENT-side case is what separates a faithful implementation
+     from today's, and a suite that asserts only absence is the under-authored test this contract
+     exists to catch.
+   - **`modelId` and capacity are different rules — do not conflate them.** Contract 12 already
+     states the discriminating interaction: two `byModel` entries declaring the SAME positive window
+     carry a capacity but NO `modelId`, because attribution to a single model stays ambiguous.
+     `modelId` follows the KEY COUNT; capacity follows the count of DISTINCT DECLARED WINDOWS.
 9. **`zero-slices-emit-nothing-and-every-event-parses`**
    - **asserts —** an empty slice list yields zero events, and every event emitted for a mixed slice
      set parses clean through increment 1's `ContextTraversalEvent` union, carrying no field outside
