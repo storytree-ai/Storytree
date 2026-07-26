@@ -2,7 +2,7 @@
 id: "context-traversal-spawn"
 tier: story
 title: "A build's spawn boundary replays as linked parent and child context lanes"
-outcome: "A build's spawned authoring slices replay as linked parent-and-child metadata-only context lanes whose window capacity stays honestly absent."
+outcome: "A build's spawned authoring slices replay as linked parent-and-child metadata-only context lanes whose window capacity is exactly what the runtime declared, or honestly absent when it declared none."
 status: proposed
 proof_mode: UAT
 uat_witness: machine
@@ -16,7 +16,8 @@ capabilities: [leaf-slice-spawn-observations, build-spawn-capture, multi-adapter
 # A build's spawn boundary replays as linked parent and child context lanes
 
 **Outcome —** A build's spawned authoring slices replay as linked parent-and-child metadata-only
-context lanes whose window capacity stays honestly absent.
+context lanes whose window capacity is exactly what the runtime declared, or honestly absent when it
+declared none.
 
 Increment 1 (`context-traversal-telemetry`) proved the `spawn_handoff` / `result_return` /
 `model_context` vocabulary and gave it no producer. Increment 2 (`context-traversal-capture`) made
@@ -60,7 +61,7 @@ currently held under another session's work claim.
 
 | # | capability | outcome | depends on |
 |---|---|---|---|
-| 1 | [`leaf-slice-spawn-observations`](leaf-slice-spawn-observations.md) | One authoring slice's run accounting becomes an explicit handoff, one child window observation, and a return — capacity absent. | — |
+| 1 | [`leaf-slice-spawn-observations`](leaf-slice-spawn-observations.md) | One authoring slice's run accounting becomes an explicit handoff, one child window observation, and a return — capacity carried only as declared. | — |
 | 2 | [`build-spawn-capture`](build-spawn-capture.md) | A build's parent-lane and child-lane events land as bytes in their own per-session traces, additively and fail-silently. | `leaf-slice-spawn-observations` |
 | 3 | [`multi-adapter-replay`](multi-adapter-replay.md) | A replay of a mixed trace declares every installed adapter's coverage, so no event kind renders under a declaration that omits it. | `leaf-slice-spawn-observations` |
 
@@ -124,8 +125,9 @@ other.
 ## UAT Test Criteria
 
 **Goal —** Prove that one build's spawned authoring slices become linked parent/child lanes that
-persist as bytes, carry metadata only, keep the child's window honest with capacity absent, and
-replay under a coverage statement that admits what it does not observe.
+persist as bytes, carry metadata only, keep the child's window honest by carrying exactly the
+capacity the runtime declared and nothing when it declared none, and replay under a coverage
+statement that admits what it does not observe.
 
 1. **One authoring slice becomes a linked parent/child lane triple.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Observe one
    build authoring slice's run accounting through the story-owned observer. **Success —** exactly
@@ -151,20 +153,29 @@ replay under a coverage statement that admits what it does not observe.
    hidden reasoning, no credential, no spawn payload, no returned result content; the two opt-out
    runs create no file at all; the unwritable run returns normally without throwing; and no run alters
    an exit code, an envelope, or a verdict.
-4. **The child's window is one honest observation and capacity stays absent.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Observe
-   slices with and without reported token usage. **Success —** each child `model_context` states
+4. **The child's window is one honest observation and its capacity is a pass-through, never an estimate.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Observe
+   slices with and without reported token usage, and with and without a runtime-declared context
+   window. **Success —** each child `model_context` states
    `cumulativeInputTokens === addedInputTokens === inputTokens + cacheCreationInputTokens +
    cacheReadInputTokens` as one aggregate observation for that child's independent window;
-   `contextWindowCapacity` is ABSENT on every emitted event and the replay reports capacity unknown;
+   `contextWindowCapacity` is PRESENT and strictly equal to the number that travelled in on the
+   slice's own run accounting exactly when that accounting declares ONE distinct positive window, and
+   is WHOLLY ABSENT in every other case — no model declares one, two or more models declare DIFFERENT
+   windows, or the declared value is `0` or negative — so an implementation supplying a default, a
+   model-id → capacity map, or a first-model-wins pick fails this leg rather than coinciding with it;
+   every emitted `model_context` parses clean through increment 1's `ModelContextEvent`, so an
+   out-of-vocabulary capacity is caught by the schema rather than by the leg's own arithmetic; the
+   replay still reports capacity unknown for a `model_context` that carries none;
    `payloadTokenCount` is ABSENT on every handoff; and a slice that reported no usage emits the
    handoff and return but NO `model_context`.
 5. **The replay declares coverage for every kind it shows.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Replay a trace holding
    both terminal read events and build spawn events through the multi-adapter replay. **Success —**
    every event kind present in the replay is named `supported` by at least one declared adapter;
    both adapter ids print their full supported AND omitted lists; the build adapter's declaration is
-   exhaustive over the closed coverage domain, with `field:context_window_capacity` and
-   `field:candidate_follow_causality` explicitly OMITTED; and a corrupt line yields a partial-read
-   notice instead of a throw.
+   exhaustive over the closed coverage domain — every member named exactly once as either supported
+   or omitted — declaring `field:context_window_capacity` SUPPORTED (coverage states what the adapter
+   CAN observe, not what any one trace happens to contain) and `field:candidate_follow_causality`
+   explicitly OMITTED; and a corrupt line yields a partial-read notice instead of a throw.
 
 ## Evidence
 
@@ -208,10 +219,12 @@ green a capability that never went red, which is the inverse theater ADR-0085 / 
 1. **The spawn package's own suite is green** _(gate: observe)_
    `pnpm --filter @storytree/context-traversal-spawn test`. The spine runs it at a clean committed
    HEAD and OBSERVES it green — the pure slice observer (ordered handoff/context/return, explicit
-   child identity, absent payload and capacity counts, the exhaustive coverage declaration), the
-   build capture composition (parent and child lanes as bytes on disk, the no-op and never-throw
-   edges, the canary refusal), and the multi-adapter replay (no event kind rendered under a
-   declaration that omits it, capacity still honestly unknown) — all offline, no DB and no API key —
+   child identity, absent payload counts, capacity carried only as the runtime declared it and
+   absent under every ambiguous or non-positive declaration, the exhaustive coverage declaration),
+   the build capture composition (parent and child lanes as bytes on disk, the declared capacity and
+   its absence proven on those bytes, the no-op and never-throw edges, the canary refusal), and the
+   multi-adapter replay (no event kind rendered under a declaration that omits it, capacity still
+   honestly unknown for an event that carries none) — all offline, no DB and no API key —
    then signs an `adopted` verdict (`storytree adopt context-traversal-spawn --pg`, which
    observe-and-signs this gate and the five legs bound to it).
 
@@ -226,9 +239,15 @@ green a capability that never went red, which is the inverse theater ADR-0085 / 
   requires live spend earns its activation leg (injected seam, operator attestation, or recorded
   fixture) — is reserved as ADR-0243, deliberately `proposed` and awaiting the owner. It is not
   settled here, and `decisions:` above lists only the ADRs that DECIDE this story.
-- Any context-window capacity lookup table, default capacity, or model-id → capacity map. Nothing at
-  this boundary declares a window size, so capacity stays absent (ADR-0235 clause 4) and leg 4
-  asserts it, precisely so a later estimate goes RED rather than quietly appearing.
+- Any context-window capacity lookup table, default capacity, model-id → capacity map, or estimate,
+  in any layer. The ban is unchanged; only its justification is corrected. This boundary DOES declare
+  a window size — the leaf's per-slice run accounting carries a runtime-declared context window — so
+  capacity here is a faithful PASS-THROUGH of exactly that number and nothing else, and stays absent
+  whenever the runtime declared none, declared two different ones, or declared a non-positive one
+  (ADR-0235 clause 4, runtime-declared-or-absent; clause 6, missing metadata stays visibly unknown
+  rather than inferred). Leg 4 asserts BOTH outcomes, precisely so an inferred value — a table, a
+  default, or a first-model-wins pick over an ambiguous slice — goes RED rather than quietly
+  appearing.
 - The desktop-chat capture adapter, and direct SDK, Codex, owned-loop, `agents`, and noticeboard
   adapters. This story adds ONE adapter — the build spawn boundary — and declares every other
   surface omitted.

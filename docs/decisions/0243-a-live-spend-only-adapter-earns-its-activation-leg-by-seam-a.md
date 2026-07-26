@@ -19,6 +19,11 @@ two claims in place while the ADR was still `proposed` and the fork still open: 
 actually converted, and what posture increment 3 actually shipped. The fork itself is untouched —
 still three candidates, still deferred, still the owner's to settle.
 
+Reviewed again in increment 4's pre-merge pass (2026-07-26), which recorded ADR-0247's landing
+against candidate B (Context fact 2). Increment 4 ships **no activation leg either**, on the same
+ground and with the same posture as increment 3, so nothing in this ADR is overtaken by it. The fork
+remains open and the owner's.
+
 ## Context
 
 ADR-0235 records context traversal at deterministic runtime boundaries. Two boundaries have been
@@ -47,6 +52,15 @@ Two facts make this a genuine fork rather than an engineering detail:
    red→green and let the live run be a smoke test). Taking an operator-attested leg here is
    therefore not merely a retreat from a direction — it needs the gap to be a genuine judgment gap,
    and needs to be said out loud rather than slipped in.
+
+   **Since this ADR was written, ADR-0247 has landed** (accepted 2026-07-26) and retires the `model`
+   UAT witness tier, making the split explicitly binary. Its D1 states the test directly: a criterion
+   is `machine` when its success condition has a compiler — *including when the harness does not exist
+   yet* — and `human` only when the judgment is irreducible. That does not move this fork, but it
+   hardens the floor candidate B already had to clear: "did the glue get called?" has a compiler and
+   lacks only a harness, which is exactly the case ADR-0247 D1 assigns to `machine`. B therefore stays
+   reachable only on an explicit owner ruling that this verdict is one only a person can sign.
+   Candidates A and C are untouched.
 
 The forces: ADR-0020 makes the SPINE the sole arbiter of red/green and keeps the leaf out of the
 verdict, so any seam widened purely for testability sits on a proof-critical path. ADR-0070 stage 2
@@ -110,6 +124,8 @@ C the owner takes, the leg is added then, and nothing shipped has to be unwound.
 - ADR-0184 — drive-machinery's three live UAT legs converted from human to machine witnesses, and
   the human-glyph framing correction (judgment gap vs cost/harness gap).
 - ADR-0070 — operator-attested legs (stage 2).
+- ADR-0247 — retires the `model` UAT witness tier; the split is binary, and its D1 (`machine` when a
+  compiler exists, even with no harness yet) hardens the floor candidate B must clear.
 - `asset:human-witness-is-a-judgment-gap-not-cost` — the accepted floor candidate B must clear.
 - `asset:a-live-only-guarantee-is-an-honesty-gap` — the standing preference for a cheap offline
   red→green with the live run as a smoke test (the shape candidates A and C reach for).

@@ -32,10 +32,26 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 export type {
   HookJSONOutput,
   HookPermissionDecision,
+  ModelUsage,
   Options,
   PermissionMode,
   PreToolUseHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
+
+import type { ModelUsage } from "@anthropic-ai/claude-agent-sdk";
+
+/**
+ * The SDK's own key for the runtime-declared context window, pinned to `ModelUsage` at COMPILE
+ * time. `usageFromSdkResult` reads its input defensively as `Record<string, unknown>` (an old or
+ * scripted result may carry anything), which means a renamed or dropped SDK field would otherwise
+ * degrade SILENTLY to "capacity absent, forever" — indistinguishable from a runtime that genuinely
+ * declares none, and therefore invisible. Typing the key as `keyof ModelUsage` turns that into a
+ * RED `pnpm -r typecheck` instead, the same guarantee the hook/permission re-exports above buy.
+ *
+ * This is a typecheck guarantee, NOT an activation witness: it proves we read the field the SDK
+ * declares, never that a real subscription-funded run populates it (ADR-0243, still `proposed`).
+ */
+const CONTEXT_WINDOW_KEY: keyof ModelUsage = "contextWindow";
 
 import type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
 import type { TokenUsage } from "./model-events.js";
@@ -66,8 +82,16 @@ export interface SdkRunInfo {
    * an old/scripted result that carries none: capture is additive, never fail-closed.
    */
   usage?: TokenUsage;
-  /** The SDK result's per-model split (`modelUsage`) incl. its metered per-model cost, when reported. */
-  byModel?: Record<string, TokenUsage & { costUsd?: number }>;
+  /**
+   * The SDK result's per-model split (`modelUsage`) incl. its metered per-model cost, and the
+   * runtime-DECLARED context window for that model (`ModelUsage.contextWindow`), when reported.
+   *
+   * `contextWindow` is the only source of a runtime-declared capacity anywhere in the pipeline
+   * (ADR-0235 clause 4): it is what the runtime itself says the window is, never a default and
+   * never a model-id → capacity lookup. It is carried, not interpreted — a runtime that declares
+   * none leaves it absent, which downstream renders as honestly unknown.
+   */
+  byModel?: Record<string, TokenUsage & { costUsd?: number; contextWindow?: number }>;
 }
 
 /** The captured outcome of one feedback run (the orchestrator's ShellRunResult, structurally). */
@@ -330,9 +354,25 @@ function finiteNumber(v: unknown): number | undefined {
 }
 
 /**
+ * A finite STRICTLY-POSITIVE number or nothing — the floor for a declared context window.
+ *
+ * Token COUNTS legitimately read zero (a slice really can add no cache-creation tokens), so
+ * {@link finiteNumber} accepts `>= 0`. A declared CAPACITY of zero is different: it is not a
+ * window, and the traversal vocabulary types `contextWindowCapacity` as a positive count, so a
+ * `0` carried forward would fail its zod parse downstream instead of degrading to "unknown".
+ * Zero is mapped to ABSENT here, at the first opportunity.
+ */
+function positiveNumber(v: unknown): number | undefined {
+  const n = finiteNumber(v);
+  return n !== undefined && n > 0 ? n : undefined;
+}
+
+/**
  * Read the token breakdown off an SDK result message, DEFENSIVELY: `usage` is the API-shaped
  * snake_case aggregate, `modelUsage` the SDK's camelCase per-model split (incl. its metered
- * `costUSD`). Accounting is additive, never fail-closed — a result that carries no readable
+ * `costUSD` and its runtime-declared `contextWindow`, read through {@link CONTEXT_WINDOW_KEY} so a
+ * renamed SDK field goes RED rather than silently absent). Accounting is additive, never
+ * fail-closed — a result that carries no readable
  * usage (an old SDK, a scripted double) simply yields nothing, and the slice still lands with
  * its turns/cost accounting. Pure; exported for offline tests.
  */
@@ -363,12 +403,14 @@ export function usageFromSdkResult(result: {
       const outputTokens = finiteNumber(m["outputTokens"]);
       if (inputTokens === undefined || outputTokens === undefined) continue;
       const costUsd = finiteNumber(m["costUSD"]);
+      const contextWindow = positiveNumber(m[CONTEXT_WINDOW_KEY]);
       byModel[model] = {
         inputTokens,
         cacheCreationInputTokens: finiteNumber(m["cacheCreationInputTokens"]) ?? 0,
         cacheReadInputTokens: finiteNumber(m["cacheReadInputTokens"]) ?? 0,
         outputTokens,
         ...(costUsd !== undefined ? { costUsd } : {}),
+        ...(contextWindow !== undefined ? { contextWindow } : {}),
       };
     }
     if (Object.keys(byModel).length > 0) out.byModel = byModel;
