@@ -166,6 +166,10 @@ renders planted `garden-flora`. The next red proves the fixture roles before aud
 The run `real-ms1z7wip` from contract `658d724` stopped fail-closed at AUTHOR_TEST after exhausting
 the maximum 48 turns. No slices ran, no verdict was produced and no candidate was promoted. The
 available output identifies no defect, so this history records none.
+The run `real-ms1zlk5a` from contract `7d7f99d` completed AUTHOR_TEST after 55 turns, passed a valid
+CONFIRM_RED and entered IMPLEMENT, which exhausted its maximum 72 turns. No verdict was produced and
+no candidate was promoted. The scope wall reported `AUTHOR_TEST:debug-scratch.txt`; the available
+output supports no further inference, so this history records none.
 
 ## Guidance
 
