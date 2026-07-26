@@ -4,7 +4,7 @@ tier: capability
 story: context-traversal-spawn
 arc: linked-session-context-arc
 title: "One authoring slice's run accounting becomes a linked handoff, child window, and return"
-outcome: "A build authoring slice's run accounting observes as an explicit spawn handoff, one child context observation, and a result return — metadata only, capacity absent."
+outcome: "A build authoring slice's run accounting observes as an explicit spawn handoff, one child context observation, and a result return — metadata only, capacity carried only as the runtime declared it."
 # AMENDED after its first signed green (2026-07-26): a defect found while building the dependent
 # capability `build-spawn-capture` violated this capability's own contract surface — the composed
 # child session id carried `:`, which is illegal in a Windows path segment, so the sink silently
@@ -13,6 +13,13 @@ outcome: "A build authoring slice's run accounting observes as an explicit spawn
 # literal template, and the authored line reverts to `building` because the existing signed verdict
 # no longer covers the full contract list. The crown still DERIVES from signed verdicts (ADR-0020),
 # not from this line.
+# AMENDED AGAIN (2026-07-26, arc increment 4): this capability was authored on a FALSE premise —
+# that nothing at this boundary declares a context-window size. The leaf's per-slice run accounting
+# DOES declare one, so capacity becomes a faithful pass-through rather than a permanent absence.
+# Contract 6 is restated from "always absent" to "never inferred", contract 10 inverts
+# `field:context_window_capacity` from omitted to supported, and contracts 12-13 are new. The ban on
+# lookup tables, defaults, maps and estimates is UNCHANGED — only its justification is corrected.
+# The line stays `building`: no signed verdict covers the amended contract list.
 status: building
 proof_mode: integration-test
 depends_on: []
@@ -50,7 +57,8 @@ injected one, no `@storytree/drive`, no `@storytree/agent`.
 **Input is structurally declared HERE, not imported.** Declare a local `LeafSliceRun` shape —
 `phase`, `subtype`, `turns`, optional `costUsd`, optional
 `usage: { inputTokens, cacheCreationInputTokens, cacheReadInputTokens, outputTokens }`, optional
-`byModel` — matching what the SDK leaf already collects per authoring slice. Importing
+`byModel` whose value shape carries an optional `contextWindow?: number` — matching what the SDK
+leaf already collects per authoring slice. Importing
 `@storytree/agent` would drag the agent organism into a package the studio-adjacent telemetry tier
 must stay free of; reading the accounting structurally is exactly what `sliceUsageDocs()` in
 `packages/drive/src/usage.ts` already does, and it lets every proof here run offline with no leaf,
@@ -94,10 +102,28 @@ greening this capability — an implementer who treats them as untouchable will 
 
 **What is NOT observed is asserted, not merely omitted.** `payloadTokenCount` is always absent: the
 size of the prompt handed to the child is not visible at this boundary, and a contract pins that so
-a later estimate goes RED rather than quietly appearing. `contextWindowCapacity` is always absent
-for the same reason — nothing in the SDK result declares a window size, and ADR-0235 clause 4 is
-runtime-declared-or-absent. **No model-id → capacity lookup table**; that is an assumption, not an
-observation.
+a later estimate goes RED rather than quietly appearing.
+
+**Capacity is a PASS-THROUGH, and the negative cases are the load-bearing ones.** This capability was
+first authored believing nothing here declares a window size; that premise was FALSE. The leaf's
+per-slice run accounting carries a runtime-declared context window on every `byModel` entry, which is
+exactly the runtime-declared value ADR-0235 clause 4 asks for and emphatically NOT a lookup table. So
+the local `LeafSliceRun.byModel` value shape gains an optional `contextWindow?: number` (still a
+STRUCTURAL declaration — this package imports neither `@storytree/agent` nor the SDK), and the
+observer carries exactly that number onto the child `model_context` — never a number it computed.
+
+Attribution must be UNAMBIGUOUS: capacity is set only when the slice's `byModel` declares exactly ONE
+distinct positive window. It stays ABSENT when no model declares one, when two or more models declare
+DIFFERENT windows, and when the declared value is `0` or negative. Clause 4 speaks of the capacity
+declared by *that* runtime, singular, and clause 6 requires missing metadata to stay visibly unknown
+rather than be inferred — so collapsing two different declared windows into one number is a
+fabrication, and picking the first arbitrarily is worse. A `0` is not a capacity either: the
+vocabulary is `count.positive()`, so a `0` carried forward would fail the event's own parse
+downstream, and it must become ABSENT here rather than at validation time.
+
+**The ban is unchanged — no model-id → capacity lookup table, no default capacity, no estimate**, in
+this layer or any other. That is an assumption, not an observation. Contracts 6, 12 and 13 are what
+make a later inference go RED; only the justification for the ban has changed, never its strength.
 
 **One aggregate observation per child, not a running total.** Each authoring slice is its own
 independent query with its own window (ADR-0235 clause 5), so `cumulativeInputTokens` and
@@ -108,10 +134,21 @@ statement about what was observed, not a rounding or a placeholder.
 **Coverage is exhaustive by construction.** Export `BUILD_SPAWN_BOUNDARY_COVERAGE` — a
 `ContextTraversalCoverage` whose `supported` names exactly what this adapter emits
 (`surface:spawned_agent`, `surface:claude_sdk`, `event:spawn_handoff`, `event:model_context`,
-`event:result_return`, `field:model_tokens`, `field:child_context_window`) and whose `omitted` is
-every remaining member of the closed `CoverageFeature` domain — explicitly including
-`field:context_window_capacity` and `field:candidate_follow_causality`. Derive the omissions from
-`CoverageFeature.options` so a future vocabulary addition cannot leave a silent gap.
+`event:result_return`, `field:model_tokens`, `field:child_context_window`, and —
+since the pass-through above — `field:context_window_capacity`) and whose `omitted` is every
+remaining member of the closed `CoverageFeature` domain, explicitly including
+`field:candidate_follow_causality`. Derive the omissions from `CoverageFeature.options` so a future
+vocabulary addition cannot leave a silent gap.
+
+**`field:context_window_capacity` MOVES from omitted to supported, and the existing assertion
+INVERTS.** Coverage declares what the adapter CAN observe, not what any one trace happens to
+contain, so `supported` is the honest declaration the moment the pass-through lands — even though
+many individual slices will still carry no capacity. The test file currently hard-asserts that this
+feature is in `omitted`; that assertion is FLIPPED, not merely added to. An implementer who treats
+it as a fixed point will leave a self-contradicting suite and deadlock, exactly as the literal
+colon-template assertions did in the previous amendment. The exhaustiveness assertions derived from
+the enum are untouched and stay as they are — they are what keep the move honest, because the
+feature cannot simply vanish from the declaration.
 
 **Fences.** Metadata only (ADR-0235 clause 6): never a prompt, a context body, a tool result, hidden
 reasoning, a credential, a spawn payload, or returned result content — token counts only. No
@@ -149,10 +186,20 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
      `cumulativeInputTokens === addedInputTokens === inputTokens + cacheCreationInputTokens +
      cacheReadInputTokens` for its own child session, and two slices' windows never accumulate into
      each other — each child's window stands alone.
-6. **`context-window-capacity-is-always-absent`**
-   - **asserts —** no emitted `model_context` carries `contextWindowCapacity` for any slice, any
-     model id, or any usage shape — the guard that makes a model-id → capacity lookup table a RED
-     change rather than a quiet one.
+6. **`context-window-capacity-is-never-inferred`**
+   - **asserts —** no emitted `model_context` ever carries a `contextWindowCapacity` that did not
+     travel IN on that slice's own run accounting. Over the whole fixture set, every capacity value
+     present on the observer's output is strictly equal to a window declared on that slice's
+     `byModel`, and no value appears that is absent from the input — for any model id, any usage
+     shape, and any number of models. The guard that makes a model-id → capacity lookup table, a
+     default capacity, or any computed estimate a RED change rather than a quiet one.
+   - **falsifiability —** an implementation that supplies capacity from a table, a constant, an
+     environment value, or a computation over the model id must FAIL this contract. It is asserted
+     over the emitted SET, not one happy-path event, so a single correct pass-through cannot vouch
+     for the rest.
+   - **AMENDED (increment 4) —** this contract previously read `context-window-capacity-is-always-absent`
+     on the false premise that nothing at this boundary declares a window. The absence claim is
+     replaced by the never-inferred claim; the anti-inference tripwire it exists to be is unchanged.
 7. **`a-slice-without-usage-emits-no-model-context`**
    - **asserts —** a slice reporting no token breakdown still emits its `spawn_handoff` and
      `result_return` but NO `model_context` — additive capture with nothing honest to persist, the
@@ -169,9 +216,16 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
 10. **`coverage-is-exhaustive-over-the-closed-feature-enum`**
     - **asserts —** `BUILD_SPAWN_BOUNDARY_COVERAGE` parses through `ContextTraversalCoverage`, names
       every member of the closed `CoverageFeature` domain exactly once as either supported or
-      omitted, lists the three emitted event kinds plus the spawned-agent and SDK surfaces as
-      supported, and explicitly omits `field:context_window_capacity` and
+      omitted, lists the three emitted event kinds plus the spawned-agent and SDK surfaces AND
+      `field:context_window_capacity` as supported, and explicitly omits
       `field:candidate_follow_causality`.
+    - **AMENDED (increment 4) —** `field:context_window_capacity` moves from `omitted` to
+      `supported`. The existing assertion that it is omitted INVERTS; it is not merely added to.
+      Coverage declares what the adapter CAN observe, not what a given trace contains, so
+      `supported` is honest even though many slices will still carry no capacity. The
+      exhaustiveness-over-the-closed-domain requirement is UNCHANGED and stays derived from
+      `CoverageFeature.options` — it is what stops the feature quietly disappearing from the
+      declaration instead of moving sides.
 11. **`child-session-id-is-a-legal-filename-segment`**
     - **asserts —** CALL `observeLeafSlices(...)` over the fixture set, then read the
       `childSessionId` field OFF the returned `spawn_handoff` and `result_return` events — the values
@@ -196,15 +250,64 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
     - Permanent regression case for a MEASURED defect — a `:`-separated child id made
       `appendTraversalEvents` return `false` and write nothing on Windows, silently, because the sink
       swallows the failure — and it is what makes story UAT leg 2 satisfiable at all.
+12. **`a-single-declared-window-is-carried-verbatim-onto-the-child-context`**
+    - **asserts —** CALL `observeLeafSlices(...)` over a slice whose `byModel` declares exactly ONE
+      distinct positive `contextWindow`, then read `contextWindowCapacity` OFF the returned
+      `model_context` event — the value the observer itself produced — and assert it is PRESENT and
+      strictly equal to the number that travelled in on the input. When that declaring model is also
+      the slice's sole `byModel` key, the same event carries its `modelId` (contract 8's rule,
+      unchanged). The emitted event parses clean through increment 1's `ModelContextEvent`, so an
+      out-of-vocabulary or non-positive capacity is caught by the vocabulary rather than by the
+      test's own arithmetic.
+    - **the subject is the observer's OUTPUT, never a value the test composed.** A contract phrased
+      as "we read the key `contextWindow`" would prove only that the test author and the implementer
+      picked the same string — the tautology this story has already paid for once. The asserted
+      number must have travelled OUT of `observeLeafSlices`, and the fixture's declared window must
+      be a distinctive value that no plausible default or lookup table would produce, so a wrong
+      implementation fails rather than coincides.
+    - **the discriminating case —** two `byModel` entries declaring the SAME positive window is ONE
+      distinct window, so capacity IS carried, while `modelId` stays absent because attribution to a
+      single model remains ambiguous. An implementation that shortcuts the rule to "exactly one
+      `byModel` KEY" passes the happy path and fails here; that is precisely why the rule is stated
+      over distinct declared WINDOWS rather than over model count.
+    - **no literal id template, no composed strings.** This contract constrains one number's
+      provenance and nothing else. It must not re-pin any session-id spelling — contract 2 owns that
+      composition and contract 11 owns its filename-safety.
+13. **`an-undeclared-ambiguous-or-non-positive-window-yields-absent-capacity`**
+    - **asserts —** over fixture slices covering (a) `byModel` entries declaring NO `contextWindow`,
+      (b) two models declaring DIFFERENT positive windows (for example 200000 and 1000000), and (c) a
+      declared `0` and a declared negative, the returned `model_context` for EACH carries no
+      `contextWindowCapacity` key at all — not `null`, not `0`, not an empty string, not a
+      placeholder — while its token observations still render intact. Every one of those events also
+      parses clean through `ModelContextEvent`.
+    - **these negative cases are the real falsifiers.** A pass-through of a number is trivially
+      satisfied by a happy-path assertion; only these three shapes separate a faithful carrier from a
+      guess. An implementation carrying a default capacity, a model-id → capacity map, or a
+      first-model-wins pick over the ambiguous slice must go RED against this contract.
+    - **a first run that comes back green is the diagnosis, not the result** — it means the fixtures
+      do not actually declare the shapes above, or the assertion is not reading the observer's
+      output.
+    - **why `0` is excluded —** the vocabulary is `count.positive()`, so a `0` carried forward would
+      fail the event's own parse and lose the whole lane. It must become ABSENT at composition time,
+      which is what makes case (c) a behaviour contract rather than a schema restatement.
 
 ## Integration evidence
 
 `packages/context-traversal-spawn/src/observe-leaf-slices.test.ts` drives the observer over fixture
 slice runs shaped exactly like the SDK leaf's per-slice accounting — with usage, without usage, with
-one model, with several — using an injected clock and id source so ordering is asserted, never
-raced. Every emitted event is round-tripped through increment 1's `ContextTraversalEvent`, and the
-absence contracts (payload count, capacity) are asserted across the whole emitted set, not on a
-single happy-path fixture.
+one model, with several, with a declared context window, without one, with two DIFFERENT declared
+windows, and with a non-positive one — using an injected clock and id source so ordering is
+asserted, never raced. Every emitted event is round-tripped through increment 1's
+`ContextTraversalEvent` (and every `model_context` through `ModelContextEvent`), and the absence
+contracts (payload count, never-inferred capacity) are asserted across the whole emitted set, not on
+a single happy-path fixture.
+
+The capacity contracts are deliberately weighted toward their negative cases. A number that simply
+travels through a function is the easiest thing in this story to prove tautologically — assert the
+key name and both sides agree by construction — so the positive contract pins provenance (a
+distinctive input value read back OFF the observer's output) while contract 13 carries the falsifying
+weight: undeclared, ambiguous, and non-positive inputs must each produce a wholly absent key. Neither
+contract may be satisfied by a value the test composed for itself.
 
 The filename-safety contract is a character-class check over ids READ OFF the observer's returned
 events — not a filesystem write — so it holds identically on every platform's CI runner rather than

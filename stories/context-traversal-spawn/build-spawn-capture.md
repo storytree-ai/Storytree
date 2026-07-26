@@ -83,6 +83,19 @@ metadata-only rule is a claim about what is on disk. Prove it that way: thread a
 every free-text-looking input and assert the canary against the file TEXT, not against parsed
 objects.
 
+**Declared capacity survives to the BYTES, or it is not proven.** Clause 6 is a claim about what is
+on disk, and that applies to what IS carried as much as to what is not. This composition is a
+transparent carrier — it routes events, it does not author them — so the window it writes is
+whatever `leaf-slice-spawn-observations` emitted. That transparency is exactly why it needs asserting
+HERE: a field that survives the observer's own suite can still be dropped, coerced, or defaulted
+between the observer and the file, and an "absent" key that is really a serialized `null` or `0`
+reads downstream as a declared capacity of zero — fabricated metadata by another route. Prove both
+outcomes on the file text: a slice declaring one distinct positive window writes a child
+`model_context` LINE carrying that number and its `modelId`; a slice declaring none writes the same
+line with the key WHOLLY ABSENT. `build-capture.ts` may need no change at all for these to pass, in
+which case the unit is test-only and its red comes from the missing assertions — that is a
+legitimate red; do not manufacture a source change to justify one.
+
 **Fences.** No retention, rotation, eviction, compaction, pruning, or size cap. No shared-database
 or hosted path. No reading of prompts, phase-prompt bodies, tool results, file contents,
 credentials, spawn payloads, or returned result content — this composition never sees them and must
@@ -115,6 +128,33 @@ the barrel export line only after the source lands.
      appears nowhere in the written bytes of any trace file — no prompt, no phase-prompt body, no
      tool result, no file content, no credential, no spawn payload, no returned result content —
      asserted against the raw file text.
+6. **`a-declared-window-reaches-the-child-lane-bytes`**
+   - **asserts —** capture a build whose slice run accounting declares exactly ONE distinct positive
+     context window, then READ `<dir>/<childSessionId>.jsonl` back from disk through a fresh reader
+     and inspect that child's `model_context` LINE: it carries `contextWindowCapacity` strictly equal
+     to the declared number, and the matching `modelId`. The subject is the bytes the composition
+     wrote — never a return value, a call count, or an in-process object.
+   - **falsifiability —** the fixture's declared window is a distinctive number that no plausible
+     default and no model-id → capacity map would produce, so a carrier that supplies capacity from
+     anywhere other than the input FAILS rather than coincides. A contract satisfied by the test and
+     the implementation agreeing on a key name proves nothing; this one is satisfied only by a
+     specific number surviving a round trip through the filesystem.
+7. **`an-undeclared-window-leaves-the-key-wholly-absent-in-the-bytes`**
+   - **asserts —** capture a build whose slice declares NO context window, then read the same child
+     trace back: the `model_context` line is present with its token observations intact, and
+     `contextWindowCapacity` is WHOLLY ABSENT from the parsed line — not `null`, not `0`, not an
+     empty string — with the raw file TEXT carrying no `contextWindowCapacity` key for that line at
+     all.
+   - **this is the load-bearing half.** An "absence" serialized as `null` or `0` is read downstream
+     as a declared capacity, which is exactly the fabricated metadata ADR-0235 clause 6 forbids and
+     is invisible to any assertion made on an in-process object. A carrier that writes the key with
+     an empty value must go RED here.
+8. **`written-bytes-carry-no-field-outside-the-closed-vocabulary`**
+   - **asserts —** under BOTH outcomes above, every line of every written trace file parses through
+     increment 1's `ContextTraversalEvent` union and carries no key outside that strict vocabulary,
+     and no prose, label, message, or free text appears anywhere in the bytes — extending contract
+     5 from "the canary is absent" to "nothing beyond the declared vocabulary is present", so a new
+     field cannot arrive on disk unnoticed just because it is not the canary.
 
 ## Integration evidence
 
@@ -125,3 +165,12 @@ assertion reads the traces back through a fresh `readTraversalSession` reader ra
 in-process state. The no-op, never-throw, and canary contracts are asserted on the filesystem's
 actual state — files absent, or file text scanned — so "capture is additive and metadata-only" is an
 observation about disk rather than a claim about an object.
+
+The capacity contracts run the SAME build twice over two temporary directories — once with a
+declaring slice, once with an undeclaring one — and compare the two written child lines against each
+other as well as against the input. That pairing is what makes the pass-through falsifiable: a
+carrier that defaults, coerces, or drops the field produces two lines that agree where they must
+differ, or differ where they must agree, and neither outcome can be reached by a value the test
+composed for itself. The absence half is asserted on the raw file TEXT, not only on the parsed
+object, because `null` and `0` both parse away into a falsy check while remaining plainly present in
+the bytes.
