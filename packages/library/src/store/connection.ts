@@ -1,5 +1,9 @@
+import { existsSync } from "node:fs";
+
 import { Pool } from "pg";
 import { Connector, AuthTypes } from "@google-cloud/cloud-sql-connector";
+
+import { dataPlaneRefusal } from "./data-plane.js";
 
 /**
  * The Cloud SQL connection seam (ADR-0015/0019): a plain typed `pg` Pool whose socket comes from
@@ -41,6 +45,14 @@ export interface PoolHandle {
  * Returns the Pool together with its Connector so the caller can {@link closePool} both.
  */
 export async function createPool(opts?: CreatePoolOptions): Promise<PoolHandle> {
+  // ADR-0250: refuse a data-plane dial this session's egress structurally cannot carry, BEFORE the
+  // connector spends its handshake budget failing. `createPool` is the single choke point every
+  // `--pg` / `--real` / gate-check path funnels through, so one guard here covers them all. Callers
+  // that already treat a createPool throw as "live store unavailable" (the gate's check:* rungs)
+  // keep skipping exactly as they do offline — only the reason they print gets better.
+  const refusal = dataPlaneRefusal(process.env, { dirExists: existsSync });
+  if (refusal !== null) throw new Error(refusal);
+
   const instanceConnectionName =
     opts?.instanceConnectionName ??
     process.env["STORYTREE_INSTANCE_CONNECTION_NAME"] ??

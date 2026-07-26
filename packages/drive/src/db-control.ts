@@ -8,7 +8,9 @@
 // The core decision flow `ensureDbUp` takes its effects as INJECTED deps (probe/start/sleep/now), so it
 // is unit-tested with a fake clock and no real DB or REST; `ensureLiveDb` wires the real effects.
 
-import { closePool, createAdcCloudSqlAdmin, createPool } from "@storytree/library/store";
+import { existsSync } from "node:fs";
+
+import { closePool, createAdcCloudSqlAdmin, createPool, dataPlaneRefusal } from "@storytree/library/store";
 import type { InstanceStatus, PoolHandle } from "@storytree/library/store";
 
 /** The Cloud SQL instance the storytree work tables live on (mirrors `pnpm db:up`, ADR-0015). */
@@ -37,6 +39,13 @@ export interface EnsureDbDeps {
   timeoutMs?: number;
   /** Poll interval while waiting (default 5s). */
   pollMs?: number;
+  /**
+   * ADR-0250: the data-plane refusal for this session, or `null` when the DB may be dialled. A
+   * remote session's egress structurally cannot carry a Postgres connection, so probing and then
+   * starting the instance is ~8 minutes spent to learn nothing — refuse before the first probe.
+   * Absent (tests, non-CLI callers) means "no refusal".
+   */
+  refusal?: string | null;
 }
 
 /** Outcome of the preflight: up (whether we had to start it), or a refusal reason. */
@@ -50,6 +59,12 @@ export type EnsureDbResult = { ok: true; started: boolean } | { ok: false; reaso
  * testable.
  */
 export async function ensureDbUp(deps: EnsureDbDeps): Promise<EnsureDbResult> {
+  // ADR-0250: refuse FIRST — before the probe, before the start. A blocked session that falls
+  // through here pays the 45s probe plus the whole 420s poll before refusing for the wrong reason
+  // ("the database did not accept connections"), which sends the reader after a healthy instance.
+  if (deps.refusal !== undefined && deps.refusal !== null) {
+    return { ok: false, reason: deps.refusal };
+  }
   if (await deps.probe()) return { ok: true, started: false };
 
   deps.log("live store unreachable — starting Cloud SQL (db:up) and waiting for it to accept connections…");
@@ -150,6 +165,9 @@ export function ensureLiveDb(log: (message: string) => void): Promise<EnsureDbRe
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     log,
     now: () => Date.now(),
+    // ADR-0250: on a remote session this is a message and the preflight refuses instantly; on a
+    // laptop it is `null` and nothing changes.
+    refusal: dataPlaneRefusal(process.env, { dirExists: existsSync }),
   });
 }
 

@@ -21,6 +21,15 @@
  *      `STORYTREE_PROOF_REPORT`. The spine reads it and refuses a green that executed 0 assertions,
  *      out-of-band — the thing a bare exit code cannot see.
  *
+ * WHAT REGISTERING FIRST DOES *NOT* BUY (ADR-0249, read before touching the write below): registering
+ * first survives `process.exit(0)`, but nothing an in-process hook can do survives
+ * `process.removeAllListeners("exit")` — source that removes the listener simply produces NO report.
+ * That is safe ONLY because the spine CLEARS the report before every observation it trusts
+ * (`resetOracleReport`), so a run that writes nothing leaves nothing, and "no report" is a fail-closed
+ * refusal. Absent that reset, the report path is reused across CONFIRM_RED / feedback runs /
+ * CONFIRM_GREEN and a non-writing run silently inherits the PREVIOUS run's positive count — a forged
+ * green. The guard's honesty here rests on the spine's reset; do not remove one and keep the other.
+ *
  * Honest limit (ADR-0211): no in-process oracle is PERFECTLY tamper-proof against arbitrary
  * same-process code (a determined attacker could run one dummy `assert.equal(1, 1)` then
  * `process.exit(0)` to bump the count to 1). This is the FLOOR — it fails closed on the easy vectors
@@ -92,7 +101,8 @@ instrument(assertLoose);
 
 // ACCOUNT: write the real count on process exit. Registered FIRST and synchronous, so it fires even
 // when the source calls process.exit(0) (vector B) — delivering the out-of-band evidence the spine
-// cross-checks. Best-effort I/O: if the write fails, the report is absent and the spine fails CLOSED.
+// cross-checks. Best-effort I/O: if the write fails, the report is absent and the spine fails CLOSED —
+// TRUE only because the spine cleared the report before this observation (ADR-0249; see the header).
 const reportPath = process.env[REPORT_ENV];
 if (reportPath !== undefined && reportPath !== "") {
   process.on("exit", () => {
