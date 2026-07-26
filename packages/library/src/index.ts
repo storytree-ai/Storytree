@@ -24,6 +24,8 @@ export * from "./contracts.js";
 // ADR-0106 (amends 0044/0082/0097): the pure per-test UAT witness RESOLUTION — the asymmetric
 // classifier the adopt pass + studio share to resolve `either` into a binary human|machine witness.
 export * from "./witness-resolution.js";
+// Proof-binding-integrity: a total, display/audit-only adapter over the strict machine-leg resolver.
+export * from "./proof-binding-outcome.js";
 // ADR-0107 (generalising ADR-0106 d4): the proving-process OQ-attachment predicate — an open question
 // carrying a `node:<id>` reference is attached to that node's proving process and WITHHOLDS its green
 // (the green-fold is the orchestrator's `gateStoryGreenOnOpenQuestions`). Pure, browser-safe.
