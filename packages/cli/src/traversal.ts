@@ -7,7 +7,8 @@
  * hands back the envelope the dispatch already knows how to print. No capability claims it as
  * proof, and nothing here may re-implement a renderer or touch the trace files directly.
  */
-import { showTraversalSession, listTraversalSessionsRendered } from "@storytree/context-traversal-capture";
+import { listTraversalSessionsRendered } from "@storytree/context-traversal-capture";
+import { showTraversalSessionAllAdapters } from "@storytree/context-traversal-spawn";
 
 import type { Envelope } from "./envelope.js";
 
@@ -45,7 +46,11 @@ export function traversalCommand(sub: string | undefined, third: string | undefi
         next: ["storytree traversal list — the captured session ids"],
       };
     }
-    return showTraversalSession(third);
+    // The MULTI-adapter replay, not increment 2's single-adapter `showTraversalSession`: that one
+    // hardcodes `TERMINAL_CLI_DISPATCH_COVERAGE`, whose omitted list names the three spawn event
+    // kinds. Once a build emits, rendering those under a declaration that denies them is exactly
+    // the ADR-0235 clause 6 dishonesty — so the replay declares every INSTALLED adapter's coverage.
+    return showTraversalSessionAllAdapters(third);
   }
 
   return {

@@ -87,8 +87,16 @@ export async function ensureDbUp(deps: EnsureDbDeps): Promise<EnsureDbResult> {
  * Probe the live store: `createPool` + `SELECT 1`, raced against a short timeout because a STOPPED
  * instance hangs the pool build itself (the same trap the studio's health probe handles). Always
  * tears its pool down, never throws — `true` iff the DB answered inside the budget.
+ *
+ * The budget is 45s, NOT the 10s this originally shipped with. `createPool` alone — the Cloud SQL
+ * connector's ADC + Admin-API + TLS handshake — was measured at ~9.6s from a laptop session on a
+ * RUNNING, already-warm instance (the `SELECT 1` after it costs ~320ms, and a second query on the
+ * warm pool ~17ms). A 10s budget for a ~10s operation has no headroom, so the probe reported a
+ * perfectly healthy database as unreachable and `ensureDbUp` burned its whole 420s poll refusing a
+ * build it should have run. Erring long is nearly free — the fast path returns the instant the DB
+ * answers, and the only cost of a generous budget is a slower refusal when the DB really is down.
  */
-export async function probeLiveDb(timeoutMs = 10_000): Promise<boolean> {
+export async function probeLiveDb(timeoutMs = 45_000): Promise<boolean> {
   const work = (async (): Promise<boolean> => {
     let handle: PoolHandle | undefined;
     try {

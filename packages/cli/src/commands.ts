@@ -93,6 +93,8 @@ import { nodeBuild, nodeHelp, nodeResolve, specView } from "@storytree/drive";
 import { orchestrate } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
+import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
+import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
 import { claimLedgerCommand, isClaimLedgerVerb } from "@storytree/drive";
 import type { ClaimLedgerReadLike, ClaimLedgerStoreLike } from "@storytree/drive";
@@ -1449,7 +1451,39 @@ export function nodeStoryBuildOpts(values: BuildValues) {
     ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
     ...(values.actor !== undefined ? { actor: values.actor } : {}),
     ...(values.store !== undefined ? { verdictStore: values.store } : {}),
+    onLeafSlices: captureBuildLeafSlices,
   };
+}
+
+/**
+ * Wire a build's spawned leaf slices onto the context-traversal spawn adapter (ADR-0235/ADR-0241).
+ *
+ * The wiring lives HERE, not in drive: `context-traversal-spawn` reaches
+ * `context-traversal-capture` → `context-traversal-telemetry`, whose UAT proves itself against
+ * drive's real `createOrientationRunner`, so a direct `drive → spawn` import closes a cross-story
+ * cycle `check:boundaries` refuses. The CLI is the declared consumer of every organism it surfaces
+ * (ADR-0074 §4), so it is the right owner of this edge — and of the session identity, resolved with
+ * exactly `captureInvocation`'s precedence in `main.ts` (`STORYTREE_SESSION_ID`, then the worktree
+ * derivation) so a session's build lane and its CLI reads land in the SAME trace file.
+ *
+ * Additive and fail-silent (ADR-0241 D3): `captureBuildSpawn` never throws, and the `catch` here is
+ * the belt-and-braces the envelope deserves — telemetry must never change a build's outcome.
+ */
+function captureBuildLeafSlices(args: {
+  readonly runId: string;
+  readonly unitId: string;
+  readonly runs: readonly LeafSliceRun[];
+}): void {
+  try {
+    const override = process.env["STORYTREE_SESSION_ID"];
+    const parentSessionId =
+      override !== undefined && override.trim().length > 0
+        ? override
+        : (deriveIdentity()?.sessionId ?? null);
+    captureBuildSpawn({ parentSessionId, runId: args.runId, unitId: args.unitId, runs: args.runs });
+  } catch {
+    // A trace is a courtesy; the build's envelope is the payload.
+  }
 }
 
 /**
