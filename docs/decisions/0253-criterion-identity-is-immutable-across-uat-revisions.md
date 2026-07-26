@@ -19,12 +19,21 @@ that string. It is deterministic for unchanged text, but it is not an identity f
 meaning: inserting, removing, splitting, merging, or reordering a list item can make the same key
 name different acceptance work.
 
-The collision is already documented, not hypothetical. `app-surface#uat-4` has a historical
-operator-attested failure from a broader, unmerged version of the fourth leg. The current story's
-fourth leg is narrower and was never walked in that form, yet the store can display the old row
-against it because both spell `app-surface#uat-4`. That row must not be read as an attestation of the
-current criterion. More generally, an ordinal says where a criterion sits in one rendering of a
-story; it cannot establish continuity across revisions.
+The collision is documented, not hypothetical. `app-surface#uat-4` received an operator-attested
+failure at commit `9377e897` against a seven-leg version of the story whose fourth leg combined the
+shared scene with the six-state semantic-growth walk. Main then carried a four-leg version whose
+narrower fourth leg reused the same positional id, so the store displayed that failure against a
+criterion the operator had not walked. That interval demonstrated the defect: an ordinal says where
+a criterion sits in one rendering of a story; it cannot establish continuity across revisions.
+
+**Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+the concrete app-surface collision is historical, not current.** The accepted app-surface increment
+restored the seven-leg/four-gate story shape, and the live verdict log now ends with an
+operator-attested `pass` for `app-surface#uat-4` at commit `52ffee9e`, after the earlier failures.
+The current UAT projection therefore reads that criterion as proven. This reconciliation does not
+choose or implement any identity model proposed below; it only corrects the overtaken claim that
+the narrower four-leg criterion is still current. The historical interval remains the evidence that
+positional identity can misattribute proof when revisions diverge.
 
 This is proof provenance, not presentation polish. A signed verdict says that a specified witness
 proved a specified criterion; a human attestation says that a specified person observed a specified
@@ -93,8 +102,9 @@ migration needs a reviewed ledger and an honest unresolved path. Some presently 
 positional rows will correctly stop counting until they are mapped with evidence or re-proven.
 
 **Non-consequence:** this proposal does not change current runtime behaviour, store schema, event
-history, UI, story prose, seed data, or verdict status. In particular, it does not retroactively
-declare the documented `app-surface#uat-4` collision resolved.
+history, UI, story prose, seed data, or verdict status. The app-surface increment independently
+reconciled its own criterion and signed state as recorded above; that instance being current again
+does not resolve the general positional-identity defect or ratify any migration alternative.
 
 ## References
 
@@ -106,7 +116,7 @@ declare the documented `app-surface#uat-4` collision resolved.
   binding anchor.
 - [ADR-0206](0206-rename-story-level-uat-tests-to-uat-test-criteria.md) — current criterion
   vocabulary.
-- [`stories/app-surface/story.md`](../../stories/app-surface/story.md) — the documented
-  `app-surface#uat-4` positional collision and its preserved historical fail.
+- [`stories/app-surface/story.md`](../../stories/app-surface/story.md) — the current seven-leg
+  app-surface criterion set whose fourth leg is proven by the latest signed verdict.
 - [`packages/library/src/uat-test-criteria.ts`](../../packages/library/src/uat-test-criteria.ts) —
   current positional id derivation; reference only, not changed here.
