@@ -55,8 +55,14 @@ function agentTypeFor(phase: string): string {
   return phase === AUTHOR_TEST_PHASE ? RED_BUILDER_AGENT : GREEN_BUILDER_AGENT;
 }
 
+/**
+ * `__` is the separator (not `:`): a child session id is also a filename (`<sessionId>.jsonl`), and
+ * `:` is illegal in a path segment on Windows — a colon-separated id silently drops the sink's
+ * write (`catch { return false }`, measured, not theorised). `__` stays legal across every
+ * supported platform while keeping the id composed from the declared build identity alone.
+ */
 function childSessionIdFor(parentSessionId: string, runId: string, unitId: string, phase: string): string {
-  return `${parentSessionId}:build:${runId}:${unitId}:${phase}`;
+  return `${parentSessionId}__build__${runId}__${unitId}__${phase}`;
 }
 
 function isSuccess(subtype: string): boolean {
