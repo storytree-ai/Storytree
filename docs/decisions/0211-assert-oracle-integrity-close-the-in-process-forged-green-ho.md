@@ -13,6 +13,18 @@ alignment IS the ratification (ADR-0110); no second end-of-flow ask. **amends
 ADR-0020's load-bearing "the model never reports the verdict" property without changing the
 decision; ADR-0020's four mechanisms all stand.
 
+**Corrected in place 2026-07-26 (increment 1 of the `verification-integrity-arc`), and
+[ADR-0249](0249-oracle-report-freshness-an-unattributable-observation-is-not.md) amends it.** This
+decision stands ENTIRELY — the two layers, their installation by the spine, the `>= 1` floor, and the
+scope are all unchanged, so this is truth-maintenance under ADR-0139 rather than a re-decision. What
+was wrong was an ASSUMPTION inside layer 2's mechanism: the cross-check read a report it had never
+established belonged to the observation it had just made, so the layer this ADR describes as
+fail-closed was demonstrably fail-OPEN against IMPLEMENT-phase source that removes the guard's exit
+listener. ADR-0249 repairs that by clearing the report before every trusted observation. The four
+claims below that asserted the un-repaired mechanism — in layer 1, in layer 2, in the honest limit, and
+in the first consequence — are corrected where they stand; read ADR-0249 for the defect, the
+measurement, and the fix.
+
 ## Context
 
 A defensive-security review of the prove-it-gate found a real hole in ADR-0020's central guarantee —
@@ -78,6 +90,9 @@ the spine, never by the leaf:
    throws a `TypeError` under ESM strict → its import fails → the proof reds. It registers a
    `process.on("exit")` hook FIRST (so it fires even when the source calls `process.exit(0)` —
    vector B) that writes `{assertions: <count>}` to the file named by `STORYTREE_PROOF_REPORT`.
+   *(Corrected per ADR-0249: registering first defeats `process.exit(0)`, but NOT source that
+   `process.removeAllListeners("exit")` before exiting — then the hook never runs and writes nothing.
+   Closing that needs the pre-observation reset, not hook ordering.)*
 
 2. **Fail-closed green cross-check.**
    [`packages/orchestrator/src/proof/oracle-accounting.ts`](../../packages/orchestrator/src/proof/oracle-accounting.ts)
@@ -91,6 +106,15 @@ the spine, never by the leaf:
    report env onto the ONE proof command both the spine's CONFIRM observation and the leaf's
    `run_proof` spawn, and wires `verifyGreen` for default-command real nodes. A downgraded green
    becomes a red at CONFIRM_GREEN → `nextPhase` fails closed → no verdict is signed.
+
+   **Corrected per ADR-0249 — reading the report is fail-closed only if the report is KNOWN to be this
+   observation's.** ONE report path is reused by CONFIRM_RED, every leaf feedback run, and
+   CONFIRM_GREEN, and the body carries no run identity, so "a missing report counts as zero" protected
+   nothing while a PREVIOUS observation's positive count could still be sitting there. The spine
+   therefore CLEARS the report immediately before each observation it intends to trust
+   (`resetOracleReport`, via a `ShellTestResolver.beforeRun` seam that reds the observation without
+   spawning), and the resolver wires `beforeRun` and `verifyGreen` as a PAIR — never one without the
+   other. Freshness by construction is what makes the words above true.
 
 **This is the FLOOR (owner-chosen over "freeze-only" and over the maximal cross-check).** Freeze
 alone defeats vector A but NOT B (`process.exit(0)` sails through a frozen oracle); the out-of-band
@@ -106,7 +130,10 @@ API the guard does not count, so they keep exit-code-only observation for now (s
 arbitrary same-process code: a determined attacker could run one dummy `assert.equal(1, 1)` then
 `process.exit(0)` to reach a count of 1. Defeating THAT is the maximal follow-on below. The floor
 fails closed on the easy vectors and raises the cost of forgery to conspicuous code; the assertion
-count is already written so a later cross-check can consume it.
+count is already written so a later cross-check can consume it. *(ADR-0249 records a second residual
+of the same class, found while repairing the freshness hole and not a regression: the report path
+reaches the proof process via `STORYTREE_PROOF_REPORT`, so source can write a positive body itself.
+It sits inside the threat model stated above, and hiding the path does not close it.)*
 
 ## Consequences
 
@@ -116,6 +143,11 @@ count is already written so a later cross-check can consume it.
   ([`resolve-prove-spec.test.ts`](../../packages/orchestrator/src/resolve-prove-spec.test.ts), the
   ADR-0211 cases) and at the unit level with before/after controls
   ([`proof/oracle-accounting.test.ts`](../../packages/orchestrator/src/proof/oracle-accounting.test.ts)).
+  **Corrected per ADR-0249: this held for the two vectors demonstrated above, but NOT for a third
+  variant of vector B** (`process.removeAllListeners("exit")` before `process.exit(0)`), which read a
+  stale positive count and signed a `pass`. It is restored in full as of ADR-0249's reset. The proofs
+  cited here were sound for what they exercised; neither could see it, because each ran a single
+  observation per report path and reuse across observations IS the defect.
 - **No false greens; a small, loud false-RED surface.** The cross-check can only turn a green into a
   red, never the reverse — so it can never manufacture a pass. A legitimate default-command test that
   asserts ONLY via bare `assert(x)` (never a counted method like `assert.ok`/`assert.equal`) would
@@ -142,6 +174,9 @@ count is already written so a later cross-check can consume it.
 
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) (the amended decision — spine-observed
   red/green, "the model never reports the verdict").
+- [ADR-0249](0249-oracle-report-freshness-an-unattributable-observation-is-not.md) (**amends this
+  one** — the pre-observation report reset that makes layer 2's fail-closed claim true; read it with
+  this ADR, never this one alone).
 - [ADR-0126](0126-static-ast-hollow-test-detection-a-contract-is-covered-only.md) / [ADR-0127](0127-record-per-contract-coverage-on-the-signed-verdict-shape-adr.md) (the
   static hollow-test / coverage checks this complements at runtime).
 - [ADR-0064](0064-widen-the-inner-loop-proof-envelope-db-backed-proofs-spine-d.md) (the db-proof env this composes with on the one command),
