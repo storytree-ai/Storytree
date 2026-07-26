@@ -31,6 +31,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # one-bloom choreography, and separately rejects any arrival outside its exact entering frame.
 # REAL-GATE SOURCE SEAM: TreeViewShell.test.tsx authors the executable red and SemanticGrowthDemo.tsx
 # is the existing fixture-only source seam; shared app-surface CSS/SceneView remain read-only proof.
+# HOST-FIXTURE ROLE RED after real-ms1yihh5: before dependency CSS audits, the proposed fixture must
+# render planted tree AND garden-flora hooks through both Vector and Storybook from its own non-empty
+# deterministic permanent vegetation input. Parcel flora and already-green shared CSS cannot pass it.
 proof:
   command:
     file: pnpm
@@ -69,7 +72,7 @@ Extend the existing `TreeViewShell` integration proof:
 3. render `?semanticGrowth=demo#/tree`;
 4. assert the fixture was composed by the same `buildWorld -> buildRelaxedCells -> worldToScene ->
    buildScene` path as the real map, over a deterministic representative story with multiple
-   capabilities and Studio's permanent vegetation input; assert a generated organic coast,
+   capabilities and Studio's non-empty permanent vegetation input; assert a generated organic coast,
    non-empty relaxed substrate, capability parcels and parcel vegetation are present, and reject the
    current hand-authored four-point coast plus empty `relaxedCells`/`decor`/`plants`;
 5. assert the bounded public `SemanticGrowthWorldView` is mounted over exactly
@@ -85,7 +88,15 @@ Extend the existing `TreeViewShell` integration proof:
    `transform: scale(...)` still overrides visual placement during animation. Require additive
    individual `scale:` with fill-box, ground/root origin and stagger, or the existing
    `.pop-motion-inner` composition that leaves the outer placement transform effective throughout;
-7. source-audit the exact existing `.pop-motion-inner` seam as a placement-preservation floor, with
+7. before reading dependency CSS, add an independent host-fixture red against the exact query-gated
+   proposed frame. Render once with explicit Vector/null and require both
+   `.story-tree .pop-motion-inner` and `.garden-flora .pop-motion-inner`; render again with a
+   Storybook sheet covering tree and flora and require both direct `image.story-tree` and
+   `image.garden-flora`. All four hooks must come from `SemanticGrowthDemo`'s own deterministic,
+   non-empty permanent vegetation input composed through `worldToScene`; `.parcel-flora` cannot
+   substitute. Source-audit `SemanticGrowthDemo.tsx` and fail the current
+   `const VEGETATION: SceneVegetationInput = {}` before any shared-CSS assertion may count;
+8. source-audit the exact existing `.pop-motion-inner` seam as a placement-preservation floor, with
    no second wrapper, full CSS `transform:` replacement or lateral entry. Then fail while
    terrain/tree/flora/plate/parcels merely alias one `arrive-pop`/whole-object scale. Require rendered
    role hooks and shared source/CSS timing to show land locally forming/revealing coast/substrate,
@@ -106,18 +117,18 @@ Extend the existing `TreeViewShell` integration proof:
    no scale; directly compare plate/planted and ungrouped parcel-boundary/parcel-flora keyframe
    bodies, with at least one pair differing in property set. Resolve bloom iteration to exactly `1`
    from shorthand/longhand precedence and prove its terminal rest state;
-8. add a separate executable shared-CSS selector audit: full-motion terrain arrivals match only
+9. add a separate executable shared-CSS selector audit: full-motion terrain arrivals match only
    exact frame `land`; tree/flora/plate/parcel-boundary/parcel-flora only `proposed`; wisp only
    `claimed`; bloom only `signed-proof`. Reject generic
    `[data-semantic-growth-frame][data-motion='full']` arrival selectors, accumulated terrain/identity
    arrivals on claimed/signed-proof/healthy, claim arrival on signed-proof/healthy, every healthy
    arrival, and any reduced-motion arrival or delayed concealment;
-9. repeat the trace under reduced motion and assert the same final static transforms appear
+10. repeat the trace under reduced motion and assert the same final static transforms appear
    immediately without slide, travel, orbit, delayed concealment or changed framing;
-10. repeat that full walkthrough with Studio's resolved Storybook default and
+11. repeat that full walkthrough with Studio's resolved Storybook default and
    `?semanticGrowth=demo&artStyle=vector#/tree`, asserting the host passes the existing sheet/null
    fallback rather than resolving or drawing art itself.
-11. source-audit the retained pre-attempt semantic-growth describe block and fail unless its
+12. source-audit the retained pre-attempt semantic-growth describe block and fail unless its
    independent executable tests/assertions remain intact: clean and unknown query isolation; exactly
    one public player plus navigation; signed-proof proposed/non-healthy with bloom and final-only
    healthy; land with no story marker; and the bounded `.tree-layout > .world-frame` host.
@@ -147,6 +158,11 @@ adds no seam or motion system.
 The run `real-ms1wbkzb` from contract `b07f3eca` stopped fail-closed at AUTHOR_TEST after exhausting
 the maximum 48 turns while feedback proof remained green. No slices ran, no verdict was produced and
 no candidate was promoted. The available output identifies no defect, so this history records none.
+The run `real-ms1yihh5` from contract `4ede131` reached AUTHOR_TEST success after 40 turns following
+red attempts, but feedback ended green and the spine failed closed at CONFIRM_RED; no verdict or
+candidate was produced. Its concrete host-local loophole is the empty
+`const VEGETATION: SceneVegetationInput = {}`: dependency CSS can pass while the hosted fixture never
+renders planted `garden-flora`. The next red proves the fixture roles before auditing shared CSS.
 
 ## Guidance
 
@@ -180,6 +196,18 @@ no candidate was promoted. The available output identifies no defect, so this hi
   vegetation; and the public player receives stable composed framing other than `0 0 100 100`.
   Inspect actual imports/calls, source literals and rendered selectors/attributes. Comments or prose
   matches do not count, and a parcel-only assertion is invalid.
+- Before any read-only app-surface CSS audit, add an independent executable host-fixture case. Mount
+  the exact `?semanticGrowth=demo` proposed frame with explicit Vector/null and assert real planted
+  `.story-tree .pop-motion-inner` plus `.garden-flora .pop-motion-inner`; mount it with a deterministic
+  Storybook sheet that covers both roles and assert direct `image.story-tree` plus
+  `image.garden-flora`. These are host render assertions, not selector literals: all four must arise
+  from the demo's own deterministic, non-empty `SceneVegetationInput` passed through `worldToScene`.
+  `.parcel-flora`, CSS rules for an absent role, comments or DOM from another fixture cannot
+  substitute. Source-audit rejects `const VEGETATION: SceneVegetationInput = {}`. IMPLEMENT may only
+  populate that existing fixture input with the existing Studio vegetation vocabulary; it may not
+  change app-surface motion/source, `SceneView`, renderer/art policy, assets or production inputs.
+  The later choreography and exact-frame dependency CSS proofs remain mandatory but cannot satisfy
+  this host-local red.
 - Add an anchored-motion host red to the retained integration walk. Snapshot the composed
   coast/substrate/parcel/standing-object placement transforms, advance, Back and Replay, and prove
   those settled world anchors and the stable non-100 framing do not shift. Assert entering terrain
@@ -276,6 +304,18 @@ evidence of non-empty relaxed substrate, multiple parcels and parcel flora/perma
 stable composed framing that is not `0 0 100 100`. The test inspects real source syntax and rendered
 selectors/attributes, never comments/prose. A parcel-only green is invalid.
 
+**Host-fixture renderer-participation red — independent and first.** Before any dependency CSS audit,
+AUTHOR_TEST renders the exact query-gated proposed frame twice. Explicit Vector/null must expose
+`.story-tree .pop-motion-inner` and `.garden-flora .pop-motion-inner`; a deterministic Storybook
+sheet covering tree plus flora must expose direct `image.story-tree` and `image.garden-flora`.
+All four hooks must originate from `SemanticGrowthDemo`'s own deterministic non-empty
+`SceneVegetationInput` composed through `worldToScene`; `.parcel-flora` cannot substitute. Executable
+source proof rejects `const VEGETATION: SceneVegetationInput = {}`. The red must fail before reading
+shared app-surface CSS. IMPLEMENT may only populate that existing fixture input with existing Studio
+vegetation vocabulary. Shared motion/source, `SceneView`, renderer/art policy and assets remain
+unchanged. The authored-choreography and entering-frame dependency CSS reds below are both still
+mandatory, but neither can pass this host-local floor.
+
 **Anchored-motion host red — applies to the `ffcdc24` correction.** The retained integration test
 adds executable rendered/source assertions that reject lateral entry translation of the whole
 scene, whole terrain/island or complete asset/flora group. It compares settled composed transforms
@@ -340,7 +380,12 @@ Studio-owned animation rule or second renderer fails this floor.
    - **asserts —** the fixture source reuses `buildWorld`, `buildRelaxedCells` and `worldToScene`
      and `buildScene` instead of constructing a custom `SceneInput`; executable source assertions
      reject the current four-point `COAST`, empty `relaxedCells`, empty `decor` and empty `plants`
-     implementation. Rendered-selector assertions prove the proposed frame has a generated organic
+     implementation. Before dependency CSS is read, an independent exact-host render rejects empty
+     `VEGETATION` and proves proposed Vector has planted `.story-tree .pop-motion-inner` plus
+     `.garden-flora .pop-motion-inner`, while a tree+flora Storybook sheet produces direct
+     `image.story-tree` plus `image.garden-flora`; all originate in the demo's deterministic
+     `worldToScene` vegetation input and parcel flora cannot substitute. Rendered-selector assertions
+     prove the proposed frame has a generated organic
      coast, non-empty relaxed substrate, multiple capability parcels/parcel flora and the permanent
      Studio vegetation vocabulary; a parcel-only assertion cannot pass this contract. Land retains
      that real ground but no story marker; proposed is non-healthy; claimed adds real presence without
@@ -364,8 +409,9 @@ Studio-owned animation rule or second renderer fails this floor.
      frame-sequence pipeline, production/product-art fork, second renderer or Chapter 2 controller.
 4. **`sgsd-reuses-studio-art-policy-without-a-second-resolver`**
    - **asserts —** the machine proof walks all six frames plus Back/Replay with TreeView's resolved
-     Storybook sheet/art scale, repeats the same trace with explicit Vector null/fallback, and observes
-     the same semantic states; the demo imports no manifest loader and adds no art.
+     Storybook sheet/art scale covering tree and flora, repeats the same trace with explicit Vector
+     null/fallback, and observes the same semantic states; the demo imports no manifest loader and
+     adds no art.
 5. **`sgsd-existing-studio-behaviour-stays-green`**
    - **asserts —** the full Studio suite retains current selection, arrival/replay escape,
      Storybook/Vector fallback, legend, inspector, chat, camera and clean-route behaviour.
