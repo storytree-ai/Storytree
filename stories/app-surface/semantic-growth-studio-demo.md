@@ -34,6 +34,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # HOST-FIXTURE COMPANION RED after real-ms20x9fz: `VEGETATION = {}` is valid vocabulary presence and
 # `heroTrees` must stay absent. Before dependency CSS audits, a fixed second pipeline-composed
 # no-parcel territory must render procedural tree AND garden-flora hooks in Vector and Storybook.
+# THREE-PART AUTHOR_TEST COMPLETION after real-ms22cssp: before IMPLEMENT, the existing TreeViewShell
+# semantic-growth describe span must add H host-companion, D full resolved choreography and E separate
+# exact-frame selector cases. H-only and dependency-CSS-only proof are both invalid.
 proof:
   command:
     file: pnpm
@@ -130,7 +133,11 @@ Extend the existing `TreeViewShell` integration proof:
    `claimed`; bloom only `signed-proof`. Reject generic
    `[data-semantic-growth-frame][data-motion='full']` arrival selectors, accumulated terrain/identity
    arrivals on claimed/signed-proof/healthy, claim arrival on signed-proof/healthy, every healthy
-   arrival, and any reduced-motion arrival or delayed concealment;
+   arrival, and any reduced-motion arrival or delayed concealment. Before IMPLEMENT, AUTHOR_TEST must
+   add independent H (step 7), D (step 8) and E (this step) cases inside the existing
+   `TreeViewShell.test.tsx` semantic-growth describe span. H reads/renders the exact
+   `SemanticGrowthDemo.tsx` host; D/E read the shared CSS/`SceneView.tsx` dependencies as read-only
+   inputs. H alone is invalid, and D/E without H are equally invalid;
 10. repeat the trace under reduced motion and assert the same final static transforms appear
    immediately without slide, travel, orbit, delayed concealment or changed framing;
 11. repeat that full walkthrough with Studio's resolved Storybook default and
@@ -184,6 +191,11 @@ prior contract. It bypassed the impossible non-empty-input demand with a comment
 regex while adding a companion territory and owner-cell filter. The companion direction is retained,
 but proof must semantically establish the real no-parcel pipeline path and companion-scoped Vector
 and Storybook DOM while preserving primary geometry and semantics; comments/regex cannot pass.
+The signed candidate `real-ms22cssp` at `eb85653` is rejected and unmerged. Its companion
+implementation/test aligns with the corrected host semantics—fixed real-pipeline companion, intact
+primary parcel flora, and companion-scoped Vector/Storybook DOM—but AUTHOR_TEST added only H. It
+omitted executable D resolver/referenced-keyframe/property/timing/per-item/exact-one-bloom assertions
+and the independent E exact-frame/no-accumulated/healthy/reduced selector audit. H-only is incomplete.
 
 ## Guidance
 
@@ -195,6 +207,15 @@ and Storybook DOM while preserving primary geometry and semantics; comments/rege
   signed-proof remaining non-healthy while blooming and final-only healthy, land without a story
   marker, and the bounded `.tree-layout > .world-frame` host. Deleting, replacing, weakening,
   skipping, narrowing or consolidating any of that proof is red even when the focused command passes.
+- Extend the current `describe` span whose title begins “semantic-growth studio demo
+  (`?semanticGrowth=demo`)” in `apps/studio/src/components/TreeViewShell.test.tsx` with three
+  independent executable additions before IMPLEMENT: **H**, the exact-host companion render/source
+  case over
+  `apps/studio/src/components/SemanticGrowthDemo.tsx`; **D**, the complete shared-CSS
+  resolved-profile/keyframe/property/timing/renderer/bloom audit; and **E**, a separate exact-frame
+  selector audit. D and E read `packages/app-surface/src/semantic-growth.css` plus
+  `packages/app-surface/src/SceneView.tsx` as read-only dependencies. Adding H alone, as
+  `real-ms22cssp` did, is invalid; adding only already-green dependency audits is also invalid.
 - Mount the public `SemanticGrowthWorldView`; never copy its player, controls, semantic keys, motion
   rules or reduced-motion handling into Studio.
 - Give the demo a bounded in-map host: it may size within the available forest frame but may not
@@ -340,6 +361,19 @@ evidence of non-empty relaxed substrate, multiple parcels and parcel flora/perma
 stable composed framing that is not `0 0 100 100`. The test inspects real source syntax and rendered
 selectors/attributes, never comments/prose. A parcel-only green is invalid.
 
+**Three-part AUTHOR_TEST completion floor — conjunctive before IMPLEMENT.** Inside the existing
+`apps/studio/src/components/TreeViewShell.test.tsx` `describe` span whose title begins
+“semantic-growth studio demo (`?semanticGrowth=demo`)”, AUTHOR_TEST must add three independent
+executable cases: **H**, the companion host render plus executable
+`apps/studio/src/components/SemanticGrowthDemo.tsx` pipeline/source proof below; **D**, the full
+`resolvedProfile`/referenced-keyframe/both-renderer/property/timing/per-item/exact-one-bloom audit
+over read-only shared CSS/`SceneView.tsx`; and **E**, the separate exact-frame/no-accumulated/
+healthy/reduced selector audit. All three must exist and execute before CONFIRM_RED/IMPLEMENT: H
+supplies the current host-local red, while D/E remain mandatory dependency walls even though shared
+CSS is already green. H alone—including `real-ms22cssp`/`eb85653`—is invalid; D/E without H cannot
+establish the red. No case may be folded into comments, selector literals or another case's weak
+proxy.
+
 **Host-fixture companion renderer red — independent and first.** `SceneVegetationInput` is
 presence-sensitive and has only optional `heroTrees`; AUTHOR_TEST accepts and requires
 `VEGETATION = {}` here, and rejects adding `heroTrees` because it replaces procedural trees. Before
@@ -446,7 +480,10 @@ Studio-owned animation rule or second renderer fails this floor.
      anchored/no-scale role treatments, and bloom iteration exactly `1` settling at rest. A separate
      selector audit proves terrain arrives only on land; tree/flora/plate/parcels only on proposed;
      claim only on claimed; bloom only on signed-proof; no accumulated or healthy arrival matches;
-     and reduced mode is immediate. Additive scale/fill-box/root origin may serve an appropriate role
+     and reduced mode is immediate. H, D and E are independent executable additions in the current
+     TreeViewShell semantic-growth describe span and all must execute before IMPLEMENT; H-only and
+     D/E-only AUTHOR_TEST diffs are invalid. Additive scale/fill-box/root origin may serve an
+     appropriate role
      but generic whole-object scale, DOM-only renderer participation, selector-body/name/delay
      assumptions, full `transform:`, class names alone and comments-only matches are insufficient.
      The fixture contains no
