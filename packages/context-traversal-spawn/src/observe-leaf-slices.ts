@@ -89,6 +89,18 @@ function contextWindowCapacityFor(byModel: LeafSliceRun["byModel"]): number | un
 }
 
 /**
+ * Contract 8: a slice declaring exactly one `byModel` key sends that key OUT as `modelId` — a
+ * `byModel` key becomes runtime-declared metadata on the wire, independent of whether a window was
+ * also declared or valid. Two or more declared keys is ambiguous (which key produced this
+ * observation?) and must never be guessed; no `byModel` at all leaves nothing to attribute.
+ */
+function modelIdFor(byModel: LeafSliceRun["byModel"]): string | undefined {
+  if (byModel === undefined) return undefined;
+  const keys = Object.keys(byModel);
+  return keys.length === 1 ? keys[0] : undefined;
+}
+
+/**
  * Turn one build's authoring slices into a chronological `ContextTraversalEvent[]`: for each
  * slice, a `spawn_handoff` on the parent, an optional `model_context` on the child (only when the
  * slice reported usage), and a `result_return` on the parent — the same `edgeId` joining the
@@ -117,6 +129,7 @@ export function observeLeafSlices(args: ObserveLeafSlicesArgs): ContextTraversal
       const totalInputTokens =
         run.usage.inputTokens + run.usage.cacheCreationInputTokens + run.usage.cacheReadInputTokens;
       const contextWindowCapacity = contextWindowCapacityFor(run.byModel);
+      const modelId = modelIdFor(run.byModel);
       events.push({
         kind: "model_context",
         eventId: nextId(),
@@ -125,6 +138,7 @@ export function observeLeafSlices(args: ObserveLeafSlicesArgs): ContextTraversal
         cumulativeInputTokens: totalInputTokens,
         addedInputTokens: totalInputTokens,
         ...(contextWindowCapacity !== undefined ? { contextWindowCapacity } : {}),
+        ...(modelId !== undefined ? { modelId } : {}),
       });
     }
 
