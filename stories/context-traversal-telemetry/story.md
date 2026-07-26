@@ -17,13 +17,13 @@ proof:
     args: ["--filter", "@storytree/context-traversal-telemetry", "test"]
   scope:
     testGlobs: ["packages/context-traversal-telemetry/src/orientation-runner-adapter.uat.test.ts"]
-    sourceGlobs: ["packages/context-traversal-telemetry/src/traversal-events.ts", "packages/context-traversal-telemetry/src/traversal-trace.ts", "packages/context-traversal-telemetry/src/orientation-runner-adapter.ts"]
+    sourceGlobs: ["packages/context-traversal-telemetry/src/traversal-events.ts", "packages/context-traversal-telemetry/src/traversal-trace.ts", "packages/context-traversal-telemetry/src/orientation-runner-adapter.ts", "packages/context-traversal-telemetry/src/index.ts"]
   real:
     testFile: "packages/context-traversal-telemetry/src/orientation-runner-adapter.uat.test.ts"
     sourceFile: "packages/context-traversal-telemetry/src/orientation-runner-adapter.ts"
     scope:
       testGlobs: ["packages/context-traversal-telemetry/src/orientation-runner-adapter.uat.test.ts"]
-      sourceGlobs: ["packages/context-traversal-telemetry/src/traversal-events.ts", "packages/context-traversal-telemetry/src/traversal-trace.ts", "packages/context-traversal-telemetry/src/orientation-runner-adapter.ts"]
+      sourceGlobs: ["packages/context-traversal-telemetry/src/traversal-events.ts", "packages/context-traversal-telemetry/src/traversal-trace.ts", "packages/context-traversal-telemetry/src/orientation-runner-adapter.ts", "packages/context-traversal-telemetry/src/index.ts"]
     install: true
     proofCommand:
       file: pnpm
@@ -68,28 +68,28 @@ consumes nothing.
 journey, and replay its deterministic observations while preserving every uncertainty and identity
 boundary ADR-0235 settles.
 
-1. **Cross the real factory boundary through the story-owned adapter.** _(witness: machine)_ Create a
+1. **Cross the real factory boundary through the story-owned adapter.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Create a
    runner with the production `createOrientationRunner` factory, then pass that runner and a
    structured trace store to the story-owned decorator. Invoke a front-matter-derived focused-tree
    read followed by `tree spec` for the same canonical node. **Success —** the unchanged runner
    responses return, and replay contains two unique chronological `visitId` values under one stable
    `sessionId` and canonical `nodeId`; the front-matter and full-payload visits remain distinct,
    with no returned markdown copied into telemetry.
-2. **Record search/list coverage without claiming a follow.** _(witness: machine)_ Invoke the
+2. **Record search/list coverage without claiming a follow.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Invoke the
    decorated runner's Library artifact-list boundary, then request one returned artifact.
    **Success —** the search/list observation records only operation and canonical result ids; the
    artifact request is a full-payload visit, but no followed edge appears because the adapter
    receives no explicit followed-edge identity.
-3. **Expose the adapter's honest coverage.** _(witness: machine)_ Query the wrapper's coverage
+3. **Expose the adapter's honest coverage.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Query the wrapper's coverage
    declaration. **Success —** it names only the tree/Library search-list, front-matter, and
    full-payload observations emitted by this adapter; it explicitly omits model-token/capacity,
    candidate-follow causality, spawn/handoff/return, agents, noticeboard, direct CLI, SDK,
    owned-loop, and every other runtime adapter. Missing capacity remains unknown.
-4. **Refuse inferred causality.** _(witness: machine)_ Place visits close together in time without an
+4. **Refuse inferred causality.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Place visits close together in time without an
    explicit followed edge, and include a revisit carrying an explicit prior-visit reference.
    **Success —** temporal proximity creates no causal edge; the revisit is a new forward
    chronological visit linked only to its declared earlier visit.
-5. **Prove future parent/child shapes without inventing live wiring.** _(witness: machine)_ Parse and
+5. **Prove future parent/child shapes without inventing live wiring.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Parse and
    replay schema fixtures carrying explicit spawn-handoff and result-return edges. **Success —**
    parent and child windows remain independent and link only through explicit edge identity; this
    is schema/replay proof only, while the orientation adapter declares those event kinds unsupported
@@ -105,6 +105,34 @@ adapter and structured store, then drives front-matter, full-payload, and search
 This is a real-boundary integration adapter proof, not proof of desktop application activation.
 All proof sources and tests owned by this story remain under
 `packages/context-traversal-telemetry`; no drive source is edited or claimed.
+
+## Reliability Gates
+
+Every UAT leg above is `witness: machine`, and each is bound to `context-traversal-telemetry#gate-1`
+by an explicit `_(proof-gate: …)_` annotation — the binding the resolver looks up VERBATIM, with no
+first-observe fallback and no inference from ordering. The gate is what makes those legs
+machine-provable at all: without it a machine leg has no command to resolve to, refuses operator
+attestation (ADR-0082 d.2), and the story's UAT can never green. This story shipped without that
+binding and its legs were structurally unprovable for five increments; this section is the fix.
+
+The gate carries NO `(covers:)` list, deliberately. Both capabilities are driven red→green by the
+spine and earn their own signed `--real` verdicts; a coverage list here would let an adopt pass
+green a capability that never went red, which is the inverse theatre ADR-0085 / ADR-0097 ban — and
+that is precisely the trap this story was rebuilt to escape rather than re-enter.
+
+1. **The telemetry package's own suite is green** _(gate: observe)_
+   `pnpm --filter @storytree/context-traversal-telemetry test`. The spine runs it at a clean
+   committed HEAD and OBSERVES it green — the strict metadata-only event vocabulary and its
+   refusals, the deterministic record/replay trace with its duplicate-identity refusals and its
+   explicit-ids-only relationships, and the standing UAT that decorates a runner built by the real
+   production `createOrientationRunner` factory and proves no envelope body, no fixture canary, and
+   no inferred edge reaches the trace — all offline, no DB and no API key — then signs an `adopted`
+   verdict (`storytree adopt context-traversal-telemetry --pg`, which observe-and-signs this gate
+   and the five legs bound to it).
+
+The gate is a truthful SECOND observation, not an adoption standing in for a red that never
+happened: both capabilities earned signed `--real` PASS verdicts through the prove-it-gate first,
+and `orientation-runner-telemetry`'s own red→green authored the standing UAT file this gate runs.
 
 ## Explicitly outside this increment
 
