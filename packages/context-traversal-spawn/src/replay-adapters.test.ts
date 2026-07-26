@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { appendTraversalEvents, TERMINAL_CLI_DISPATCH_COVERAGE } from "@storytree/context-traversal-capture";
+import { appendTraversalEvents, REVISIT_LINK_COVERAGE } from "@storytree/context-traversal-capture";
 import { CoverageFeature } from "@storytree/context-traversal-telemetry";
 import type { CoverageFeature as CoverageFeatureValue } from "@storytree/context-traversal-telemetry";
 
@@ -111,7 +111,7 @@ test("every-rendered-event-kind-is-supported-by-a-declared-adapter: every render
     assert.equal(result.ok, true);
 
     const unionSupported = new Set<string>([
-      ...TERMINAL_CLI_DISPATCH_COVERAGE.supported,
+      ...REVISIT_LINK_COVERAGE.supported,
       ...BUILD_SPAWN_BOUNDARY_COVERAGE.supported,
     ]);
 
@@ -142,7 +142,27 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
 
     const result = showTraversalSessionAllAdapters(sessionId, { dir });
 
-    const terminalLine = `coverage: adapter=${TERMINAL_CLI_DISPATCH_COVERAGE.adapterId} supported=[${TERMINAL_CLI_DISPATCH_COVERAGE.supported.join(", ")}] omitted=[${TERMINAL_CLI_DISPATCH_COVERAGE.omitted.join(", ")}]`;
+    // Regression pin, asserted BEFORE the verbatim-line comparison below so it is the assertion that
+    // reports this specific defect rather than being masked by a whole-line mismatch. This is the ONE
+    // render the CLI actually calls, and it must declare the terminal adapter as it really behaves:
+    // declaring `observe-cli.ts`'s BASE constant here printed `field:prior_visit_id` under `omitted`
+    // while the very same body rendered "(revisit of visit=...)" — a declaration denying what the
+    // trace visibly carried (ADR-0235 clause 6). Found by walking the real CLI, not by any test.
+    const renderedTerminal = result.body
+      .split("\n")
+      .find((line) => line.includes(`coverage: adapter=${REVISIT_LINK_COVERAGE.adapterId}`));
+    assert.ok(renderedTerminal !== undefined, "the terminal coverage line must render");
+    const [renderedSupported, renderedOmitted] = renderedTerminal.split(" omitted=");
+    assert.ok(
+      renderedSupported?.includes("field:prior_visit_id"),
+      "the terminal adapter links same-node revisits, so its rendered declaration must SUPPORT field:prior_visit_id",
+    );
+    assert.ok(
+      !renderedOmitted?.includes("field:prior_visit_id"),
+      "field:prior_visit_id must not also render as omitted — a render may not deny a field it produces",
+    );
+
+    const terminalLine = `coverage: adapter=${REVISIT_LINK_COVERAGE.adapterId} supported=[${REVISIT_LINK_COVERAGE.supported.join(", ")}] omitted=[${REVISIT_LINK_COVERAGE.omitted.join(", ")}]`;
     const buildLine = `coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId} supported=[${BUILD_SPAWN_BOUNDARY_COVERAGE.supported.join(", ")}] omitted=[${BUILD_SPAWN_BOUNDARY_COVERAGE.omitted.join(", ")}]`;
 
     assert.ok(
@@ -157,7 +177,7 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
     // Both declarations carry a non-empty omitted side in the real vocabulary — a render that
     // dropped the omitted half of either would still pass a naive "adapter=... appears" check but
     // fail these.
-    assert.ok(TERMINAL_CLI_DISPATCH_COVERAGE.omitted.length > 0);
+    assert.ok(REVISIT_LINK_COVERAGE.omitted.length > 0);
     assert.ok(BUILD_SPAWN_BOUNDARY_COVERAGE.omitted.length > 0);
   } finally {
     removeTempDir(dir);
@@ -254,7 +274,7 @@ test("a session with no captured file at all replays empty, with no coverage-blo
 
     assert.equal(result.ok, true);
     assert.ok(result.body.includes("(no events observed)"));
-    assert.ok(result.body.includes(`coverage: adapter=${TERMINAL_CLI_DISPATCH_COVERAGE.adapterId}`));
+    assert.ok(result.body.includes(`coverage: adapter=${REVISIT_LINK_COVERAGE.adapterId}`));
     assert.ok(result.body.includes(`coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId}`));
   } finally {
     removeTempDir(dir);
