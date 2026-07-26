@@ -174,6 +174,53 @@ test("capacity-renders-unknown-without-a-model-observation: the coverage block a
   assert.match(result.body, /capacity[^\n]*unknown/i);
   assert.doesNotMatch(result.body, /500\s?[,]?000/);
   assert.doesNotMatch(result.body, /500\s?k/i);
+
+  // with genuinely NO observation, the render says so — this is the disjunct the sibling test below
+  // proves must NOT be reused when an observation is actually present
+  const noObservationLine = result.body.split("\n").find((line) => line.startsWith("capacity:"));
+  assert.match(noObservationLine ?? "", /no model_context observation/i);
+});
+
+test("capacity-renders-unknown-without-a-model-observation: an observed model_context that declares no capacity renders unknown WITHOUT denying the observation it just made", () => {
+  const sessionId = "session-capacity-observed";
+  const trace = createContextTraversalTrace();
+  const supported: CoverageFeature[] = ["surface:spawned_agent", "event:model_context"];
+  const omitted = CoverageFeature.options.filter((feature) => !supported.includes(feature));
+  trace.declareCoverage({ adapterId: "observed-capacity-fixture-adapter", supported, omitted });
+
+  // A real window observation that carries no capacity — reachable whenever the observation's source
+  // declares none, or declares nothing this render may honestly collapse into a single number. This
+  // is a shape the render must handle on its own terms; it is nobody's permanent "always", so this
+  // fixture is built as a literal event rather than borrowed from any one adapter's current output.
+  trace.append({
+    kind: "model_context",
+    eventId: "event:child-window",
+    sessionId,
+    at: "2026-07-26T00:00:00.000Z",
+    modelId: "claude-opus-5",
+    cumulativeInputTokens: 4_200,
+    addedInputTokens: 4_200,
+  });
+
+  const replay = trace.replay(sessionId);
+  // the observation IS present; it simply carries no capacity
+  assert.equal(replay.sessions[0]?.modelContext.length, 1);
+  assert.equal(replay.sessions[0]?.modelContext[0]?.contextWindowCapacity, undefined);
+
+  const result = renderTraversalSession(replay, { skipped: 0 });
+  assert.equal(result.ok, true);
+
+  const capacityLine = result.body.split("\n").find((line) => line.startsWith("capacity:"));
+  assert.ok(capacityLine !== undefined, "a capacity line renders");
+  // "capacity: unknown" stays the leading token, so readers keying on that prefix still hold
+  assert.match(capacityLine ?? "", /^capacity: unknown/);
+  // ...but the line must NOT claim there was no observation — one was made and rendered
+  assert.doesNotMatch(capacityLine ?? "", /no model_context observation/i);
+  assert.match(capacityLine ?? "", /observed/i);
+  // and capacity is still never invented, defaulted, or estimated
+  assert.doesNotMatch(result.body, /500\s?[,]?000/);
+  assert.doesNotMatch(result.body, /500\s?k/i);
+  assert.doesNotMatch(capacityLine ?? "", /\d/);
 });
 
 test("a-partial-replay-states-its-skipped-count: a non-zero skipped count renders an explicit partial-read notice, and the render still returns a complete body rather than throwing", () => {

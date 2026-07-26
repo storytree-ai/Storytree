@@ -81,14 +81,26 @@ function findLatestModelContext(
 }
 
 /**
- * Capacity is UNKNOWN unless a `model_context` event actually carried a capacity — the CLI boundary
- * observes no model tokens, so this is honest here rather than a default, a fabricated gauge, or the
- * owner-selected 500k display-only threshold (ADR-0235 clause 4/7).
+ * Capacity is UNKNOWN unless a `model_context` event actually carried a capacity — never a default, a
+ * fabricated gauge, or the owner-selected 500k display-only threshold (ADR-0235 clause 4/7).
+ *
+ * The two ways capacity goes unknown are DIFFERENT facts and must render differently: no
+ * `model_context` was observed at all, versus one WAS observed and carried no capacity — because its
+ * source declared none, or declared nothing this render may honestly collapse into a single number.
+ * Which shapes reach which branch varies by boundary and shifts as adapters learn to read more, so
+ * neither branch is any boundary's permanent "always". Reusing the no-observation wording for the
+ * second case denies an observation the replay just rendered.
+ *
+ * `capacity: unknown` leads either way, and capacity is never inferred, defaulted, or estimated to
+ * avoid saying unknown.
  */
 function renderCapacityLine(events: readonly ContextTraversalEvent[]): string {
   const latest = findLatestModelContext(events);
-  if (latest === undefined || latest.contextWindowCapacity === undefined) {
+  if (latest === undefined) {
     return "capacity: unknown (no model_context observation at this boundary)";
+  }
+  if (latest.contextWindowCapacity === undefined) {
+    return "capacity: unknown (observed, but this boundary declares no window capacity)";
   }
   return `capacity: ${latest.contextWindowCapacity} tokens (model=${latest.modelId ?? "unknown"})`;
 }
