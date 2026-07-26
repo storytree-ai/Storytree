@@ -21,6 +21,16 @@ const ANON_ME: MeInfo = { email: null, role: null, status: null, member: false }
 
 export function App(): React.JSX.Element {
   const route = useRoute();
+  // ADR-0240 D2: loading the forest is expensive enough that returning from a Studio route should
+  // resume the existing world/camera rather than mount a new TreeView and re-fetch /api/tree. Keep
+  // the first load lazy, though: a direct document or Members link must not start map work unseen.
+  // A parked view keeps its viewport geometry too: hiding it with `display:none` would make the live
+  // terminal's ResizeObserver fit its PTY to 2×1 before the operator returns.
+  const [treeVisited, setTreeVisited] = useState(route.name === 'tree');
+  const treeMounted = treeVisited || route.name === 'tree';
+  useEffect(() => {
+    if (route.name === 'tree') setTreeVisited(true);
+  }, [route.name]);
   const [me, setMe] = useState<MeInfo | null>(null);
   const [meStatus, setMeStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [meError, setMeError] = useState<string>('');
@@ -164,7 +174,8 @@ export function App(): React.JSX.Element {
           }
           onRetry={() => void loadMe()}
           app={
-            <div className={route.name === 'tree' ? 'body body-full' : 'body'}>
+            <div className="app-stage">
+              <div className={route.name === 'tree' ? 'body body-full' : 'body'}>
               {/* The forest (#/tree) is its own full-bleed world — the Library asset
                   rail is noise there, so hide it and let the canvas fill the width. */}
               {route.name !== 'tree' && <Sidebar />}
@@ -179,8 +190,24 @@ export function App(): React.JSX.Element {
                     </p>
                   </div>
                 )}
-                {status === 'ready' && <RouteView route={route} />}
+                {status === 'ready' && (
+                  <>
+                    {treeMounted && (
+                      <div
+                        className="tree-route"
+                        data-testid="tree-route"
+                        data-parked={route.name !== 'tree' || undefined}
+                        aria-hidden={route.name !== 'tree'}
+                        inert={route.name !== 'tree'}
+                      >
+                        <TreeView focus={route.name === 'tree' ? route.focus : null} />
+                      </div>
+                    )}
+                    {route.name !== 'tree' && <RouteView route={route} />}
+                  </>
+                )}
               </main>
+              </div>
             </div>
           }
         />
@@ -368,7 +395,7 @@ function RequestAccessWall({ email }: { email: string | null }): React.JSX.Eleme
   );
 }
 
-function RouteView({ route }: { route: ReturnType<typeof useRoute> }): React.JSX.Element {
+function RouteView({ route }: { route: ReturnType<typeof useRoute> }): React.JSX.Element | null {
   switch (route.name) {
     case 'doc':
       return <DocView id={route.id} />;
@@ -379,7 +406,9 @@ function RouteView({ route }: { route: ReturnType<typeof useRoute> }): React.JSX
     case 'asset-new':
       return <AssetEditor mode="new" />;
     case 'tree':
-      return <TreeView focus={route.focus} />;
+      // App keeps the forest mounted outside this route switch so away/back navigation retains its
+      // camera, world and terminal state. This case remains defensive for future callers.
+      return null;
     case 'members':
       return <MembersPanel />;
   }

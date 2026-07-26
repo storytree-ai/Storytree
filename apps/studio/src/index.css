@@ -222,6 +222,12 @@ code {
   flex-direction: column;
   height: 100%;
 }
+.app-stage {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 
 /* ---------- the floating HUD (ADR-0204) — the only global chrome ---------- */
 
@@ -431,6 +437,27 @@ code {
   flex: 1 1 auto;
   overflow-y: auto;
   min-width: 0;
+}
+
+/* ADR-0240 D2: App owns the one long-lived forest route. This is a layer of the stable app stage, not
+   a child of the changing document/sidebar layout, so a parked map keeps its exact camera + terminal
+   geometry without covering a visible StoreBanner. In particular, never use `display:none` here:
+   TerminalDock observes its body and would fit an active PTY to a destructive 2×1 while away. */
+.tree-route {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+.tree-route > .tree-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.tree-route[data-parked='true'] {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* ---------- store health banner ---------- */
