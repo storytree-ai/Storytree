@@ -80,8 +80,11 @@ is added noise in a gate output that is already noisy — which decision 3 exist
 
 **3. Enforcement — advisory per finding, with a fixed drain ceiling on the COUNT.**
 
-No individual finding ever blocks a landing; on a ~75% false-positive rate that would be wrong on the
-evidence. But the gate **FAILs when the backlog count grows past a fixed ceiling** — the same shape as
+No individual **located** finding ever blocks a landing; on a ~75% false-positive rate that would be
+wrong on the evidence. (This governs located regions — heuristic signals with a false-positive
+surface. The narrow escalation class decision 1 provides for is not a located region, is not counted
+against this ceiling, and does red the gate on its own; see the second correction below.) But the gate
+**FAILs when the backlog count grows past a fixed ceiling** — the same shape as
 `check:friction-drain` (ADR-0168 D4). This is the concrete answer to the arc's guardrail: the list
 cannot silently grow into `check:coverage`'s condition, because growth is what reds the gate.
 
@@ -133,14 +136,45 @@ never picked in advance*; what is corrected is only the assumption that "tuned o
 implied a second, later landing. It does not: a sweep is cheap enough to run and read inside the
 increment that builds it.
 
+**Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+decision 3's opening sentence was overtaken by decision 1's backstop landing, and is scoped rather
+than reversed.** It read "No individual finding ever blocks a landing"; the word **located** is added,
+with a parenthetical naming the escalation carve-out. The warn-escalation backstop
+(`packages/cli/src/verification-decay.ts`, 2026-07-27) declares one class of finding that DOES red the
+gate by itself — an instrument that failed to run — so the sentence was, read literally, no longer
+true. **Nothing is re-decided.** Decision 3 is unchanged in substance: advisory per located finding,
+fail-closed on the count, ceiling tuned on the first real sweep. Decision 1 always required that "a
+warn signal crossing a line escalates the deep pass early", so the escalation is decision 1 being
+implemented, not decision 3 being weakened — and the two are deliberately independent mechanisms with
+different remedies (a PASS versus a DRAIN), which is why an escalation is excluded from the counted
+total and cannot be discharged by raising the ceiling. The reasoning behind ~75% false positives still
+governs every heuristic located region, none of which blocks anything. Recorded here because a reader
+of decision 3 alone would otherwise conclude the shipped escalation VIOLATES this ADR and "fix" it by
+removing the red — the exact stale-prose harm ADR-0139 exists to prevent.
+
 **Not decided here.** Which specific checks make up the cheap half beyond the four named, how a warn
 signal "crosses a line" in precise terms, and the ceiling's actual number. Those are build-time
-decisions for the increment that implements this, not owner forks. Two of the three have since been
-taken in code rather than in a further ADR, exactly as intended, and
-`packages/cli/src/check-verification-decay.ts` is where they are recorded and reasoned — including
-which of the four cheap checks is and is not yet swept. The **"crosses a line" warn-escalation
-backstop remains open**, and it is the one that matters: it is what covers the skip risk decision 1's
-judgment gate introduces.
+decisions for the increment that implements this, not owner forks. All three have since been taken in
+code rather than in a further ADR, exactly as intended. `packages/cli/src/verification-decay.ts` (the
+pure judge) and `packages/cli/src/check-verification-decay.ts` (the disk-reading entrypoint) are where
+they are recorded and reasoned — including which of the four cheap checks is and is not yet swept,
+which is now a machine fact printed on every run (`chartered coverage: N/4 … NOT swept: …`) rather
+than a source comment somebody must remember to update.
+
+On the third — the **"crosses a line" warn-escalation backstop**, the one that matters because it
+covers the skip risk decision 1's judgment gate introduces — the shape is settled and the backstop is
+**partly built**; the source, not this ADR, is its record. Two build-time calls fixed its form: a line
+is a property of the SIGNAL and never of the clock (decision 1 rejected all three cadences offered, so
+an age-keyed line would smuggle the rejected calendar back under a slower name), and escalating is not
+adjudicating — an escalation asserts an obligation to LOOK, never that a defect exists.
+
+Exactly **one** line is declared today: an instrument that FAILED TO RUN, where the sweep went blind
+and its silence is therefore not evidence. It reds the gate independently of decision 3's ceiling and
+is EXCLUDED from the counted total, so raising `DRAIN_CEILING` can never discharge it — its remedy is
+a PASS, not a DRAIN. Lines keyed to a signal's AGE, or to a count of arc-closes that declined the
+pass, are **NOT built**: both need persisted per-signal state this deliberately-stateless sweep does
+not have. The residual is therefore real and worth stating plainly — the skip risk is covered for the
+blind-instrument class only, and a signal that merely sits unexamined still escalates nothing.
 
 **Unblocks.** This was the last named blocker on the `verification-integrity-arc`'s close. What
 remained *at decision time* was implementation only — the process artifact, the cheap checks, the
