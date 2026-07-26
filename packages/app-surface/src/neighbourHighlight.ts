@@ -22,6 +22,38 @@
 
 import type { TrailNetwork } from '@storytree/forest-world';
 
+/** One step of a {@link NeighbourRoute}: a segment, and which way travel runs along it. */
+export interface NeighbourRouteStep {
+  /** Trail segment id. */
+  id: string;
+  /** True when travel runs ALONG the segment's drawn path, false when against it. */
+  forward: boolean;
+}
+
+/**
+ * One incident edge as a TRAVERSABLE route rather than a bag of segments.
+ *
+ * The segment SET (`litSegmentIds`) is enough to paint a lane on, and was all ADR-0242
+ * needed. It is NOT enough to lay a lane out or to animate one: a segment is an artefact of
+ * the routing merge, invisible to a reader, so anything decided per segment — a lane's
+ * offset, which side it rides, when it starts drawing — surfaces as an artefact at a
+ * junction. Keeping the ORDER lets a consumer treat an edge as one continuous path from
+ * island to island, which is what the lane layout and the one-line draw-on both need.
+ *
+ * `steps` is in DEPENDENCY order — from the story stood on toward the story standing on it.
+ * That is already the order `edge.segments` is stored in (the chain runs `from → to`, and
+ * `from` is the dependency), so this costs nothing to preserve.
+ */
+export interface NeighbourRoute {
+  /** `up` — arrives at the selection from a story it stands on. `down` — leaves the
+   *  selection for a story that stands on it. */
+  dir: 'up' | 'down';
+  /** The neighbour island at the far end of this route. */
+  other: string;
+  /** The chain in dependency order. Never empty. */
+  steps: readonly NeighbourRouteStep[];
+}
+
 export interface NeighbourHighlightPlan {
   /** The selected story this plan was built for. */
   selectedId: string;
@@ -35,6 +67,9 @@ export interface NeighbourHighlightPlan {
   downstreamIds: readonly string[];
   upstream: ReadonlySet<string>;
   downstream: ReadonlySet<string>;
+  /** The incident edges as ordered, traversable routes — see {@link NeighbourRoute}.
+   *  Sorted by direction then neighbour id, so the layout it feeds is deterministic. */
+  routes: readonly NeighbourRoute[];
 }
 
 const sorted = (ids: Iterable<string>): string[] =>
@@ -59,6 +94,7 @@ export function neighbourHighlightPlan(
   const lit = new Set<string>();
   const upstream = new Set<string>();
   const downstream = new Set<string>();
+  const routes: NeighbourRoute[] = [];
 
   for (const edge of network.edges) {
     if (edge.from === edge.to) continue; // nothing distinct to draw, and never its own neighbour
@@ -68,7 +104,22 @@ export function neighbourHighlightPlan(
     if (isDependency) upstream.add(edge.from);
     if (isDependent) downstream.add(edge.to);
     for (const ref of edge.segments) lit.add(ref.id);
+    // The chain is stored `from → to`, i.e. dependency → dependent, which IS the direction
+    // the dependency points — so travel order is the stored order, with no per-edge special
+    // case for which side of the edge the selection happens to sit on. `reversed` means the
+    // segment's drawn path runs against that traversal, so `forward` is its negation.
+    if (edge.segments.length > 0) {
+      routes.push({
+        dir: isDependency ? 'up' : 'down',
+        other: isDependency ? edge.from : edge.to,
+        steps: edge.segments.map((ref) => ({ id: ref.id, forward: !ref.reversed })),
+      });
+    }
   }
+
+  routes.sort((a, b) =>
+    a.dir !== b.dir ? (a.dir < b.dir ? -1 : 1) : a.other < b.other ? -1 : a.other > b.other ? 1 : 0,
+  );
 
   const litSegmentIds = sorted(lit);
   const upstreamIds = sorted(upstream);
@@ -81,5 +132,6 @@ export function neighbourHighlightPlan(
     downstreamIds,
     upstream,
     downstream,
+    routes,
   };
 }

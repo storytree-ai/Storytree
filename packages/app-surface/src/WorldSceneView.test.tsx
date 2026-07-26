@@ -114,6 +114,9 @@ describe('WorldSceneView', () => {
       arrivalIds: ['story-a', 'story-b'],
       reveal: null,
       neighbours: null,
+      lanes: null,
+      // the lanes only carry motion once there is a layout; `draw` is the shipped default
+      laneMotion: 'draw',
       spriteSheet: null,
       artScale: 1,
     });
@@ -132,6 +135,7 @@ describe('WorldSceneView', () => {
         litSegments: new Set<string>(),
         upstreamIds: ['story-a'],
         downstreamIds: [],
+        routes: [],
         upstream: new Set(['story-a']),
         downstream: new Set<string>(),
       },

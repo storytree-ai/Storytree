@@ -94,6 +94,17 @@ export type ControlValue = number | boolean | string;
 
 const GROUP_LAYOUT = 'Layout';
 const GROUP_ART = 'Art style';
+const GROUP_SELECTION = 'Selection';
+
+/** selectionMotion aliases, mirroring TreeView's `readSelectionMotion`. Absence ⇒ the
+ *  owner-directed `draw` default (each route draws on once and the neighbour shores pulse).
+ *  `march` opts into the looping travelling dash; `off` leaves the lanes still. */
+const SELECTION_MOTION_NAMES = ['draw', 'march', 'off'] as const;
+export function normalizeSelectionMotion(raw: string | null): string {
+  if (raw === null) return 'draw';
+  if (raw === 'none' || raw === 'still' || raw === 'off') return 'off';
+  return (SELECTION_MOTION_NAMES as readonly string[]).includes(raw) ? raw : 'draw';
+}
 
 /** artStyle aliases (sprite-art-sheets arc). Absence resolves to the owner-attested `storybook`
  *  default; a recognized explicit value resolves as written, including the still-supported procedural
@@ -206,6 +217,29 @@ export const CONTROLS: readonly ControlSpec[] = [
     step: 0.05,
     clampMin: 0.05,
     clampMax: 10,
+  },
+
+  // ---- Selection (the two-lane neighbour highlight, owner-directed 2026-07-27) ----
+  // Selecting an island lights its one-hop routes as LANES in the relation's hue. This dial
+  // is only about what MOVES when that happens; the lanes themselves are not optional.
+  // `draw` (the default) is one-shot: each route draws on once from its source island and
+  // the neighbour shores pulse, then the map is completely still — the resting state is what
+  // you look at, so it stays quiet. `march` trades that for a permanent travelling dash,
+  // which states direction continuously at the cost of never settling. Either way
+  // `prefers-reduced-motion` lands on the finished static picture.
+  {
+    kind: 'select',
+    key: 'selectionMotion',
+    label: 'Selection motion',
+    group: GROUP_SELECTION,
+    hint: 'What moves when you select an island. Draw + pulse plays once and then settles; Marching dashes keep travelling the way the dependency points; Still leaves the lanes painted with nothing moving.',
+    default: 'draw',
+    options: [
+      { value: 'draw', label: 'Draw + pulse — once (default)' },
+      { value: 'march', label: 'Marching dashes — loops' },
+      { value: 'off', label: 'Still' },
+    ],
+    normalize: normalizeSelectionMotion,
   },
 ] as const;
 
