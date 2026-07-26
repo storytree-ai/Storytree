@@ -41,8 +41,8 @@ function gate(kind: ReliabilityGate["kind"], n = 1, proofCommand?: string): Reli
  * before the production type declares it, without fighting the compiler over a union member that
  * doesn't exist yet.
  */
-function asRefused(res: unknown): { witness: string; coverage: string; reason: string } {
-  return res as { witness: string; coverage: string; reason: string };
+function asRefused(res: unknown): { witness: string; coverage: string; refusal: string; reason: string } {
+  return res as { witness: string; coverage: string; refusal: string; reason: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -98,6 +98,7 @@ test("resolve: a `machine` leg with NO proof-gate binding is refused — never s
   const res = asRefused(resolveWitness(leg("machine", 1), [gate("observe", 1, "pnpm test")]));
   assert.equal(res.witness, "machine");
   assert.equal(res.coverage, "refused");
+  assert.equal(res.refusal, "missing-binding");
   assert.match(res.reason, /proof-gate|binding/i);
 });
 
@@ -107,6 +108,7 @@ test("resolve: a `machine` leg bound to an UNKNOWN gate id is refused, never mat
   );
   assert.equal(res.witness, "machine");
   assert.equal(res.coverage, "refused");
+  assert.equal(res.refusal, "unknown-gate");
   assert.match(res.reason, /story#gate-99/);
 });
 
@@ -116,18 +118,21 @@ test("resolve: a `machine` leg bound to a NON-OBSERVE gate (build-tests/integrat
   );
   assert.equal(resBuildTests.witness, "machine");
   assert.equal(resBuildTests.coverage, "refused");
+  assert.equal(resBuildTests.refusal, "ineligible-gate");
   assert.match(resBuildTests.reason, /observe/i);
 
   const resIntegrate = asRefused(
     resolveWitness(leg("machine", 1, "story#gate-1"), [gate("integrate", 1)]),
   );
   assert.equal(resIntegrate.coverage, "refused");
+  assert.equal(resIntegrate.refusal, "ineligible-gate");
 });
 
 test("resolve: a `machine` leg bound to an observe gate with NO declared proof command is refused", () => {
   const res = asRefused(resolveWitness(leg("machine", 1, "story#gate-1"), [gate("observe", 1)]));
   assert.equal(res.witness, "machine");
   assert.equal(res.coverage, "refused");
+  assert.equal(res.refusal, "missing-command");
   assert.match(res.reason, /command/i);
 });
 

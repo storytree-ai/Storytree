@@ -59,6 +59,15 @@ export type ResolvedWitnessKind = (typeof RESOLVED_WITNESSES)[number];
 export const WITNESS_COVERAGES = ["observe", "refused"] as const;
 export type WitnessCoverage = (typeof WITNESS_COVERAGES)[number];
 
+/** Stable classes for failed machine-leg bindings; `reason` remains the human diagnostic. */
+export const WITNESS_REFUSAL_REASONS = [
+  "missing-binding",
+  "unknown-gate",
+  "ineligible-gate",
+  "missing-command",
+] as const;
+export type WitnessRefusalReason = (typeof WITNESS_REFUSAL_REASONS)[number];
+
 /**
  * The classifier's per-leg verdict. A `human` leg is left for operator attestation (the "I saw it
  * work" verdict, ADR-0082); a `machine` leg either resolves to the EXACT observe gate it is bound to
@@ -68,7 +77,12 @@ export type WitnessCoverage = (typeof WITNESS_COVERAGES)[number];
 export type WitnessResolution =
   | { witness: "human" }
   | { witness: "machine"; coverage: "observe"; observedBy: string; proofCommand: string }
-  | { witness: "machine"; coverage: "refused"; reason: string };
+  | {
+      witness: "machine";
+      coverage: "refused";
+      refusal: WitnessRefusalReason;
+      reason: string;
+    };
 
 // ---------------------------------------------------------------------------
 // The pure classifier
@@ -112,6 +126,7 @@ export function resolveWitness(
     return {
       witness: "machine",
       coverage: "refused",
+      refusal: "missing-binding",
       reason:
         "no proof-gate binding — a machine leg must name the exact observe gate it proves against, e.g. (proof-gate: story-id#gate-n)",
     };
@@ -122,6 +137,7 @@ export function resolveWitness(
     return {
       witness: "machine",
       coverage: "refused",
+      refusal: "unknown-gate",
       reason: `bound gate "${gateId}" is not among this story's declared reliability gates`,
     };
   }
@@ -130,6 +146,7 @@ export function resolveWitness(
     return {
       witness: "machine",
       coverage: "refused",
+      refusal: "ineligible-gate",
       reason: `bound gate "${gateId}" is a "${bound.kind}" gate, not an observe gate — a machine leg can only bind to a command-bearing observe gate`,
     };
   }
@@ -138,6 +155,7 @@ export function resolveWitness(
     return {
       witness: "machine",
       coverage: "refused",
+      refusal: "missing-command",
       reason: `bound gate "${gateId}" declares no proof command to observe`,
     };
   }
