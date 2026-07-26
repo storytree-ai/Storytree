@@ -171,8 +171,26 @@ should treat this registry as its target: the sweep's job is to find pairs missi
 not to re-derive what `MIRRORS` already proves.
 
 That sweep now has a concrete home: the instrument registry in
-`packages/cli/src/check-verification-decay.ts`, where adding it is a row rather than a redesign. It is
-**not built** — only `contract-binding-drift` is — and that file says so.
+`packages/cli/src/check-verification-decay.ts`, where adding it is a row rather than a redesign.
+
+**Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+that sweep is now BUILT, and this paragraph's status note is replaced rather than left to be
+calibrated to.** It read "It is **not built** — only `contract-binding-drift` is — and that file says
+so", which was true at authoring and is not now. `mirror-pair-drift` (`findMirrorPairDrift`,
+`packages/cli/src/verification-decay.ts`) ships as the second of ADR-0252 D1's four chartered
+instruments — chartered coverage 2/4, which the sweep prints on every run, so this ADR is not the
+place to read it from again. It does exactly what this section asked: it locates `/api/*` routes
+served by BOTH surfaces that no `MIRRORS` row compares, and it derives what is registered from the
+registry itself (`registeredMirrorRoutes()`) rather than holding a second list — two lists of one fact
+drifting apart being precisely the class this ADR exists to fence. For that reason the `MIRRORS`
+registry MOVED from `check-mirror-conformance.ts` (which runs `main()` on import, so it cannot be read
+without running the whole gate) into the pure `packages/cli/src/mirror-conformance.ts`, and
+`MirrorSpec` gained a machine-readable `route`. Decision 4's `referenceOnlyFields` allowlist moved with
+it; nothing about the allowlist's self-pruning rule changed. Its first sweep located **10** unregistered
+pairs — every route both surfaces serve except `/api/docs`. **Nothing in this section is re-decided**:
+the boundary still holds exactly — this gate proves its registered pairs by exact assertion and BLOCKS,
+that sweep locates unregistered pairs as a heuristic and stays advisory — and the registry is still
+the sweep's target, never its re-derivation.
 
 ## References
 
@@ -187,5 +205,6 @@ That sweep now has a concrete home: the instrument registry in
   produced it is not evidence. The same instinct shapes this harness's `where` labelling and its
   refusal to treat a silent probe as a pass.
 - ADR-0074 / `check:boundaries` — the organism-boundary gate this one sits beside.
-- `packages/cli/src/mirror-conformance.ts` (judge) · `check-mirror-conformance.ts` (gather) ·
+- `packages/cli/src/mirror-conformance.ts` (judge + the `MIRRORS` registry) ·
+  `check-mirror-conformance.ts` (gather) ·
   `apps/studio/server/docsMirrorProbe.ts` · `apps/desktop/src/backend/docs-mirror-probe.ts`.
