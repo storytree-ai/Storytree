@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  CHARTERED_INSTRUMENTS,
   CONTRACT_BINDING_DRIFT,
   evaluateDecayCeiling,
   findContractBindingDrift,
@@ -178,9 +179,10 @@ describe("the sweep runner and its report", () => {
       ],
       5,
     );
-    assert.equal(verdict.count, 1);
     assert.match(verdict.findings[0]?.detail ?? "", /disk gone/);
     assert.match(verdict.findings[0]?.detail ?? "", /swept nothing/);
+    // It is NOT backlog: a blind instrument located nothing, so it must not consume drain budget.
+    assert.equal(verdict.count, 0);
   });
 
   it("never exits and never throws — it returns the decision for the caller to act on", () => {
@@ -220,4 +222,123 @@ describe("the sweep runner and its report", () => {
   function f1(id: string): DecayFinding[] {
     return [{ instrument: "a", id, where: "w", detail: "d" }];
   }
+});
+
+describe("the escalation backstop (ADR-0252 D1): the continuous half can force the question", () => {
+  const inst = (name: string, run: () => DecayFinding[]): DecayInstrument => ({
+    name,
+    locates: `what ${name} locates`,
+    run,
+  });
+  const blind = (name = CONTRACT_BINDING_DRIFT): DecayInstrument =>
+    inst(name, () => {
+      throw new Error("loadNodeSpec shape changed");
+    });
+  const located = (id: string): DecayFinding => ({
+    instrument: CONTRACT_BINDING_DRIFT,
+    id,
+    where: "w",
+    detail: "d",
+  });
+
+  it("THE RED: a dead instrument fails the gate that a green backlog would otherwise pass", () => {
+    // Inputs → wrong outcome, measured on the pre-change code: the sole registered instrument throws
+    // (its spec enumeration raises), so it sweeps zero specs. Before the backstop, the failure was
+    // filed as ONE ordinary signal — count 1, ceiling 5 — and the gate printed
+    // "WARN … within the drain ceiling" and EXITED 0. A green gate over a blind sweep: the exact
+    // can-never-go-red class this arc exists to fence, inside the instrument built to fence it.
+    const instruments = [blind()];
+    const verdict = runDecaySweep(instruments, 5);
+    const { failed, lines } = formatDecaySweep(verdict, instruments);
+
+    assert.equal(failed, true, "a blind sweep must never exit green");
+    assert.equal(verdict.escalations.length, 1);
+    const text = lines.join("\n");
+    assert.match(text, /ESCALATED/);
+    assert.doesNotMatch(text, /WARN/, "a blind sweep is not a backlog warning");
+  });
+
+  it("names the required response as a FRESH-SESSION pass, not a repair", () => {
+    const instruments = [blind()];
+    const text = formatDecaySweep(runDecaySweep(instruments, 5), instruments).lines.join("\n");
+    assert.match(text, /FRESH SESSION/);
+    assert.match(text, /verification-decay-detection/);
+    // The remedy must not read as "drain an item" — that is the ceiling's remedy, not this one.
+    assert.match(text, /Raising the drain ceiling CANNOT clear an escalation/);
+  });
+
+  it("CANNOT be cleared by raising the ceiling — the two mechanisms are independent", () => {
+    // The load-bearing property. Raising DRAIN_CEILING is a legitimate documented move for real
+    // backlog growth; if it also discharged escalations, the backstop would be defeated by the
+    // routine operation of its neighbour — the "gaming the D3 ceiling" failure mode arriving by
+    // accident. Proved at an absurd ceiling so no arithmetic coincidence can carry it.
+    const instruments = [blind()];
+    const verdict = runDecaySweep(instruments, Number.MAX_SAFE_INTEGER);
+    assert.equal(verdict.level, "ok", "the ceiling itself is satisfied");
+    assert.equal(formatDecaySweep(verdict, instruments).failed, true, "and the gate still fails");
+  });
+
+  it("is not merely the ceiling renamed: a ceiling RED carries no escalation", () => {
+    const instruments = [inst("a", () => [located("x"), located("y")])];
+    const verdict = runDecaySweep(instruments, 1);
+    assert.equal(verdict.level, "red");
+    assert.deepEqual(verdict.escalations, []);
+    const text = formatDecaySweep(verdict, instruments).lines.join("\n");
+    assert.doesNotMatch(text, /ESCALATED/);
+    assert.match(text, /raise the ceiling/, "the ceiling's own remedy is unchanged");
+  });
+
+  it("reports BOTH independently when a blind instrument sits beside a breached ceiling", () => {
+    const instruments = [blind("gone"), inst("a", () => [located("x"), located("y")])];
+    const verdict = runDecaySweep(instruments, 1);
+    assert.equal(verdict.count, 2, "the ceiling counts located regions only");
+    assert.equal(verdict.escalations.length, 1);
+    const text = formatDecaySweep(verdict, instruments).lines.join("\n");
+    assert.match(text, /ESCALATED/);
+    assert.match(text, /RED/);
+  });
+
+  it("THE FALSE-POSITIVE GUARD: an ordinary located signal NEVER escalates", () => {
+    // The bar is deliberately narrow. An escalation that fires on ordinary backlog would train the
+    // reader to clear it, which is precisely how it would stop being a backstop.
+    const instruments = [inst("a", () => [located("x")])];
+    const verdict = runDecaySweep(instruments, 5);
+    assert.deepEqual(verdict.escalations, []);
+    assert.equal(formatDecaySweep(verdict, instruments).failed, false);
+  });
+
+  it("a healthy sweep stays OK and still says so", () => {
+    const instruments = [inst(CONTRACT_BINDING_DRIFT, () => [])];
+    const { failed, lines } = formatDecaySweep(runDecaySweep(instruments, 5), instruments);
+    assert.equal(failed, false);
+    assert.match(lines.join("\n"), /OK/);
+  });
+});
+
+describe("chartered coverage: an unswept instrument is a machine fact, not a source comment", () => {
+  const inst = (name: string): DecayInstrument => ({ name, locates: "…", run: () => [] });
+
+  it("names every chartered instrument that is NOT registered, on a clean run", () => {
+    const instruments = [inst(CONTRACT_BINDING_DRIFT)];
+    const { failed, lines } = formatDecaySweep(runDecaySweep(instruments, 5), instruments);
+    const text = lines.join("\n");
+    assert.equal(failed, false, "an unbuilt instrument is an absence, not a signal — it must not red");
+    assert.match(text, /chartered coverage: 1\/4/);
+    assert.match(text, /mirror-pair-drift/);
+    assert.match(text, /vacuous-proof/);
+    assert.match(text, /warn-list-hygiene/);
+    assert.match(text, /Silence over an unswept instrument is not evidence/);
+  });
+
+  it("reports full coverage once every chartered instrument is registered", () => {
+    const instruments = CHARTERED_INSTRUMENTS.map(inst);
+    const text = formatDecaySweep(runDecaySweep(instruments, 5), instruments).lines.join("\n");
+    assert.match(text, /chartered coverage: 4\/4/);
+    assert.doesNotMatch(text, /NOT swept/);
+  });
+
+  it("the roster is exactly ADR-0252 D1's four cheap instruments", () => {
+    assert.equal(CHARTERED_INSTRUMENTS.length, 4);
+    assert.ok(CHARTERED_INSTRUMENTS.includes(CONTRACT_BINDING_DRIFT));
+  });
 });
