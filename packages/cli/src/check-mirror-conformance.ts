@@ -35,51 +35,15 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  MIRRORS,
   compareMirrors,
   formatDivergences,
   type Divergence,
   type Entry,
-  type MirrorSpec,
+  type Probe,
 } from "./mirror-conformance.js";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
-
-/** One surface's probe: the app dir it runs from, and the probe module it executes. */
-interface Probe {
-  /** Repo-relative app dir — the spawn cwd, so bare specifiers resolve through THAT app. */
-  appDir: string;
-  /** Repo-relative probe module. */
-  file: string;
-}
-
-interface MirrorTarget {
-  spec: MirrorSpec;
-  reference: Probe;
-  mirror: Probe;
-}
-
-/**
- * The registry of mirrored payloads. ADD A ROW when a studio route is re-composed into another
- * surface — that is the moment the drift class opens, and a row is the whole cost of closing it.
- *
- * `referenceOnlyFields` is where a DELIBERATE difference is declared. It is self-pruning (the
- * judge fails a stale entry), so the list can only ever describe differences that are still real.
- */
-const MIRRORS: MirrorTarget[] = [
-  {
-    spec: {
-      surface: "GET /api/docs (DocMeta[])",
-      reference: "studio",
-      mirror: "desktop",
-      key: "id",
-      // EMPTY BY DESIGN: the desktop serves the same compiled studio SPA, so every DocMeta field
-      // the studio emits has a reader on the desktop too. There is no sanctioned difference here.
-      referenceOnlyFields: [],
-    },
-    reference: { appDir: "apps/studio", file: "apps/studio/server/docsMirrorProbe.ts" },
-    mirror: { appDir: "apps/desktop", file: "apps/desktop/src/backend/docs-mirror-probe.ts" },
-  },
-];
 
 // ---------- the fixture ----------
 
@@ -236,7 +200,7 @@ function main(): void {
       "A surface that re-composes another's route must serve the SAME payload. Re-compose the\n" +
         "missing logic verbatim into the mirror (never import the reference — ADR-0176), or, if the\n" +
         "difference is deliberate, declare it in that mirror's `referenceOnlyFields` allowlist in\n" +
-        "packages/cli/src/check-mirror-conformance.ts.",
+        "packages/cli/src/mirror-conformance.ts.",
     );
     process.exit(1);
   }

@@ -9,6 +9,8 @@ import assert from "node:assert/strict";
 import {
   compareMirrors,
   formatDivergences,
+  MIRRORS,
+  registeredMirrorRoutes,
   REPORT_LIMIT,
   type Entry,
   type MirrorSpec,
@@ -16,6 +18,7 @@ import {
 
 const SPEC: MirrorSpec = {
   surface: "GET /api/docs",
+  route: "/api/docs",
   reference: "studio",
   mirror: "desktop",
   key: "id",
@@ -128,6 +131,23 @@ test("the allowlist is self-pruning — an entry the REFERENCE never emits is st
 
 test("empty payloads on both sides are conformant, and an empty allowlist adds no rule", () => {
   assert.deepEqual(compareMirrors([], [], SPEC, "fixture"), []);
+});
+
+test("the registry exposes its routes as DATA, so a second reader never scrapes them from prose", () => {
+  // `mirror-pair-drift` in `check:verification-decay` locates pairs MISSING from this registry, so it
+  // has to know what is IN it. Deriving that from `MirrorSpec.route` keeps one fact in one place; a
+  // hand-kept second list of "what is registered" would be two lists of the same fact drifting apart,
+  // which is the exact class this whole harness exists to fence.
+  const routes = registeredMirrorRoutes();
+  assert.deepEqual([...routes], MIRRORS.map((m) => m.spec.route));
+  assert.ok(routes.has("/api/docs"));
+
+  // Every row's `route` must be a real `/api/*` path — a blank or prose-shaped one would silently
+  // register nothing and leave the pair looking covered.
+  for (const m of MIRRORS) {
+    assert.match(m.spec.route, /^\/api\/[a-z/-]+$/, `${m.spec.surface} has an unusable route`);
+    assert.ok(m.spec.surface.includes(m.spec.route), "the human label must name the route it registers");
+  }
 });
 
 test("formatDivergences reports a per-field census and elides past the limit", () => {

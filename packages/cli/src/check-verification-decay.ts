@@ -14,20 +14,23 @@
  *
  * NOT DONE HERE, so nobody reads this as complete:
  *
- * - ADR-0252 names FOUR cheap instruments. **Only `contract-binding-drift` is implemented.**
- *   Mirror-pair drift, vacuous-proof detection, and WARN-list hygiene are NOT swept (the arc's
- *   no-silent-caps rule). The registry below is the seam that makes each a row, not a redesign.
+ * - ADR-0252 names FOUR cheap instruments. **`contract-binding-drift` and `mirror-pair-drift` are
+ *   implemented; `vacuous-proof` and `warn-list-hygiene` are NOT swept** (the arc's no-silent-caps
+ *   rule — and the sweep reports its own chartered coverage on every run rather than leaving it to
+ *   this comment). The registry below is the seam that makes each a row, not a redesign.
  * - ADR-0252 D1's **warn-escalation backstop** now EXISTS, with exactly ONE line declared: an
  *   instrument that FAILED TO RUN (the sweep went blind). It reds the gate independently of the
  *   ceiling and demands the fresh-session adversarial pass. Lines keyed to a signal's AGE or to a
  *   count of declined arc-closes are NOT built — both need persisted per-signal state this
  *   deliberately-stateless sweep does not have, and a clock-keyed line would smuggle back the
  *   calendar cadence D1 rejected outright.
+ * - `mirror-pair-drift` locates unregistered pairs; it does NOT repair any. Registering a pair means
+ *   authoring a probe on each surface and a `MIRRORS` row, which is a separate increment per payload.
  *
  * On mirror-pair drift specifically, note the boundary ADR-0251 records: `check:mirror-conformance`
  * already proves the pairs in its `MIRRORS` registry EXACTLY, and blocks. The advisory instrument
- * that belongs here is the discovery heuristic — finding mirrored pairs MISSING from that registry —
- * not a re-derivation of what the registry already proves.
+ * here is the discovery heuristic — finding mirrored pairs MISSING from that registry — never a
+ * re-derivation of what the registry already proves.
  */
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -36,14 +39,18 @@ import { fileURLToPath } from "node:url";
 
 import { loadNodeSpec } from "@storytree/orchestrator";
 
+import { registeredMirrorRoutes } from "./mirror-conformance.js";
 import {
   CONTRACT_BINDING_DRIFT,
+  MIRROR_PAIR_DRIFT,
   findContractBindingDrift,
+  findMirrorPairDrift,
   formatDecaySweep,
   runDecaySweep,
   type BoundTarget,
   type DecayInstrument,
   type ProofBinding,
+  type SurfaceRoutes,
   type WorkspaceFacts,
 } from "./verification-decay.js";
 
@@ -51,16 +58,98 @@ import {
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
 /**
- * THE DRAIN CEILING (ADR-0252 D3), tuned on the first real sweep rather than picked in advance.
+ * THE DRAIN CEILINGS (ADR-0252 D3) — one per instrument, each tuned on THAT instrument's first real
+ * sweep rather than picked in advance. See {@link evaluateDecayCeiling} for why the ceiling is
+ * per-instrument: under one shared total, every new instrument arrives carrying its honest baseline
+ * as growth and reds the gate on landing, which pays a session to weaken the instrument instead of
+ * building it — and unrelated backlogs become fungible, so repairing a stale binding buys silence for
+ * an unobserved mirror pair.
  *
- * Baselined 2026-07-27 at the 5 contract-binding-drift signals that sweep located — every one of
- * them a unit bound to `@storytree/core` (dissolved by ADR-0068) or `@storytree/store` (dissolved by
- * ADR-0077). The ceiling starts GREEN on that honest baseline and can only ever be tightened: repair
- * a binding, lower this number. Adding a sixth without repairing one reds the gate.
- *
- * RAISING IT is a deliberate act, and the reason belongs in the commit message.
+ * Each starts GREEN on an honest baseline and can only ever be tightened: repair a signal, lower that
+ * instrument's number. RAISING one is a deliberate act, and the reason belongs in the commit message.
  */
-const DRAIN_CEILING = 5;
+const CEILINGS = {
+  /**
+   * Baselined 2026-07-27 at the 5 signals that sweep located — every one of them a unit bound to
+   * `@storytree/core` (dissolved by ADR-0068) or `@storytree/store` (dissolved by ADR-0077).
+   * Unchanged since: no binding has been repaired.
+   */
+  [CONTRACT_BINDING_DRIFT]: 5,
+  /**
+   * Baselined 2026-07-27 at the 10 route pairs that sweep located — every `/api/*` path served by
+   * BOTH the studio server and the desktop backend except `/api/docs`, the one pair `MIRRORS`
+   * registers. Register a pair (a probe on each surface plus a row), lower this number.
+   */
+  [MIRROR_PAIR_DRIFT]: 10,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Served route tables (the mirror-pair-drift facts)
+// ---------------------------------------------------------------------------
+
+/**
+ * The two surfaces ADR-0176 requires to agree while forbidding them to share code: the studio's
+ * `/api/*` router is the REFERENCE, and the desktop backend holds the hand-written copy.
+ *
+ * Whole DIRECTORIES rather than a hand-listed set of route files, deliberately — a list of files to
+ * scan is a second thing somebody must keep in step, and a new route file nobody added to it would be
+ * invisible to a sweep that still reported full coverage.
+ */
+const REFERENCE_SURFACE = { surface: "studio", dirs: ["apps/studio/server"] };
+const MIRROR_SURFACE = { surface: "desktop", dirs: ["apps/desktop/src/backend"] };
+
+/**
+ * Every `/api/*` path a source file DISPATCHES on. Both spellings are read, and both matter:
+ * `pathname === "/api/x"` is the router's if-chain, while `pathname !== "/api/x"` is how the
+ * desktop's fall-through mount factories claim exactly one route (`build-route.ts`, `adopt-route.ts`,
+ * `chat-sse-mount.ts`). A `===`-only scan would silently miss every mounted desktop route — the sweep
+ * looking at less than it claims to, which is the class this whole check exists to fence.
+ */
+const DISPATCH = /pathname\s*(?:===|!==)\s*["'](\/api\/[^"']*)["']/g;
+
+/** Recursively collect the source files of a surface — tests and fixtures serve nothing. */
+function walkSourceFiles(absDir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(absDir, { withFileTypes: true })) {
+    const full = path.join(absDir, entry.name);
+    if (entry.isDirectory()) out.push(...walkSourceFiles(full));
+    else if (entry.isFile() && /\.ts$/.test(entry.name) && !/\.(test|fixture)\.ts$/.test(entry.name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+/**
+ * Enumerate one surface's served route table from its dispatch sites.
+ *
+ * THROWS rather than returning an empty table, and both guards are load-bearing. A missing directory
+ * or a surface that dispatches NOTHING means the enumeration broke, not that the surface serves
+ * nothing — and two empty route tables intersect to zero findings, so a broken enumeration would
+ * report a perfectly clean sweep. {@link runDecaySweep} turns the throw into an ESCALATION (the sweep
+ * went blind), which is the honest answer and the one no ceiling can clear.
+ */
+function loadSurfaceRoutes(source: { surface: string; dirs: readonly string[] }): SurfaceRoutes {
+  const routes = new Map<string, string>();
+  for (const dir of source.dirs) {
+    const abs = path.join(repoRoot, dir);
+    if (!existsSync(abs)) throw new Error(`${source.surface}: route directory ${dir} does not exist`);
+    for (const file of walkSourceFiles(abs)) {
+      const rel = path.relative(repoRoot, file).replace(/\\/g, "/");
+      const text = readFileSync(file, "utf8");
+      for (const match of text.matchAll(DISPATCH)) {
+        const route = match[1];
+        // First dispatcher wins: the report needs ONE place to look, and a route claimed twice is
+        // still one route.
+        if (route !== undefined && !routes.has(route)) routes.set(route, rel);
+      }
+    }
+  }
+  if (routes.size === 0) {
+    throw new Error(`${source.surface}: no /api/* dispatch found in ${source.dirs.join(", ")}`);
+  }
+  return { surface: source.surface, routes };
+}
 
 // ---------------------------------------------------------------------------
 // Workspace facts
@@ -220,15 +309,36 @@ function main(): void {
   const instruments: DecayInstrument[] = [
     {
       name: CONTRACT_BINDING_DRIFT,
+      ceiling: CEILINGS[CONTRACT_BINDING_DRIFT],
       locates:
         "a unit's registered proof names a workspace target that no longer exists (a dead `--filter` " +
         "exits 0 without running; a path outside every package cannot be built). FALSE POSITIVE: a " +
         "net-new unit that will create a NEW package.",
       run: () => findContractBindingDrift(loadProofBindings(storiesDir, repoRoot), loadWorkspaceFacts(repoRoot)),
     },
+    {
+      name: MIRROR_PAIR_DRIFT,
+      ceiling: CEILINGS[MIRROR_PAIR_DRIFT],
+      locates:
+        "an `/api/*` route served by BOTH the studio server and the desktop backend that no `MIRRORS` " +
+        "row compares, so any divergence between the two implementations has no observer. It is the " +
+        "COMPLEMENT of `check:mirror-conformance`, never a re-derivation: that gate proves the pairs " +
+        "it registers exactly and BLOCKS; this locates the pairs nobody registered. FALSE POSITIVE: " +
+        "serving the same path does not prove the payloads must agree — one surface may be " +
+        "deliberately narrower (`/api/me` serves a constant local identity on the desktop and the IAP " +
+        "caller's on the studio), or its handler a thin pass-through to shared package code where " +
+        "nothing is re-composed; and a `pathname ===` in a POLICY gate reads as a served route. BLIND " +
+        "TO: prefix dispatch (`startsWith('/api/db/')`) and any non-literal route expression.",
+      run: () =>
+        findMirrorPairDrift(
+          loadSurfaceRoutes(REFERENCE_SURFACE),
+          loadSurfaceRoutes(MIRROR_SURFACE),
+          registeredMirrorRoutes(),
+        ),
+    },
   ];
 
-  const verdict = runDecaySweep(instruments, DRAIN_CEILING);
+  const verdict = runDecaySweep(instruments);
   const { failed, lines } = formatDecaySweep(verdict, instruments);
   for (const line of lines) (failed ? console.error : verdict.count > 0 ? console.warn : console.log)(line);
   // Advisory PER FINDING. Two independent fail-closed conditions: the COUNT past the ceiling
