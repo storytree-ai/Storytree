@@ -37,6 +37,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # THREE-PART AUTHOR_TEST COMPLETION after real-ms22cssp: before IMPLEMENT, the existing TreeViewShell
 # semantic-growth describe span must add H host-companion, D full resolved choreography and E separate
 # exact-frame selector cases. H-only and dependency-CSS-only proof are both invalid.
+# INVARIANT-COMPANION FLOOR after real-ms238m2t: H walks all six keys plus Back/Replay in Vector and
+# Storybook and proves one unchanged companion identity/hook set throughout. Global land stripping
+# that removes the companion is red; only primary-id-scoped identity stripping is authorized.
 proof:
   command:
     file: pnpm
@@ -106,7 +109,15 @@ Extend the existing `TreeViewShell` integration proof:
    companion-scoped direct `image.story-tree` and `image.garden-flora`. `.parcel-flora`, unscoped DOM,
    selector literals, comments or regex-only source matches cannot substitute. Executable source
    proof must establish the real pipeline calls, owner-cell filter and absence of custom
-   `SceneInput`/hand geometry before dependency CSS assertions may count;
+   `SceneInput`/hand geometry before dependency CSS assertions may count. In both renderer modes, H
+   must walk `empty`, `land`, `proposed`, `claimed`, `signed-proof`, `healthy`, then Back and Replay,
+   and compare the same companion territory id/status/geometry plus its renderer-appropriate
+   tree/flora hook set at every stop. In the same walk, primary empty has no primary land or identity;
+   primary land has its real ground but no primary tree/plate/flora identity; and proposed, claimed,
+   signed-proof and healthy retain their exact primary semantics. A global
+   `stripKind(..., 'territory')` land path is red because it removes both identities. IMPLEMENT may
+   replace it only with source-local primary-id-scoped identity stripping; shared renderer/motion
+   remains untouched;
 8. source-audit the exact existing `.pop-motion-inner` seam as a placement-preservation floor, with
    no second wrapper, full CSS `transform:` replacement or lateral entry. Then fail while
    terrain/tree/flora/plate/parcels merely alias one `arrive-pop`/whole-object scale. Require rendered
@@ -196,6 +207,12 @@ implementation/test aligns with the corrected host semantics—fixed real-pipeli
 primary parcel flora, and companion-scoped Vector/Storybook DOM—but AUTHOR_TEST added only H. It
 omitted executable D resolver/referenced-keyframe/property/timing/per-item/exact-one-bloom assertions
 and the independent E exact-frame/no-accumulated/healthy/reduced selector audit. H-only is incomplete.
+The signed candidate `real-ms238m2t` at `742e143` is rejected and unmerged. H, D and E are present
+and D/E appear complete; its fixed real-pipeline companion, preserved primary parcel flora and scoped
+Vector/Storybook DOM follow the intended direction. But empty preserves the companion by stripping
+only the primary story, while land calls global `stripKind(..., 'territory')` and removes both primary
+and companion identities. H checks only proposed despite claiming byte-stability from the first
+frame, so it misses that invariant breach. The correction makes H prove every frame and navigation.
 
 ## Guidance
 
@@ -204,9 +221,10 @@ and the independent E exact-frame/no-accumulated/healthy/reduced selector audit.
 - Treat the full pre-attempt semantic-growth describe block in `TreeViewShell.test.tsx` as a
   preservation floor. AUTHOR_TEST extends it in place and retains independent tests and
   discriminating assertions for clean/unknown query isolation, one public player/navigation,
-  signed-proof remaining non-healthy while blooming and final-only healthy, land without a story
-  marker, and the bounded `.tree-layout > .world-frame` host. Deleting, replacing, weakening,
-  skipping, narrowing or consolidating any of that proof is red even when the focused command passes.
+  signed-proof remaining non-healthy while blooming and final-only healthy, primary land without a
+  primary story marker, and the bounded `.tree-layout > .world-frame` host. Deleting, replacing,
+  weakening, skipping, narrowing or consolidating any of that proof is red even when the focused
+  command passes.
 - Extend the current `describe` span whose title begins “semantic-growth studio demo
   (`?semanticGrowth=demo`)” in `apps/studio/src/components/TreeViewShell.test.tsx` with three
   independent executable additions before IMPLEMENT: **H**, the exact-host companion render/source
@@ -253,16 +271,22 @@ and the independent E exact-frame/no-accumulated/healthy/reduced selector audit.
   coast, substrate, parcels and parcel flora. Keep the companion's identity/status/geometry fixed
   across every semantic frame as witness context; only the primary story follows the six-state
   narrative.
-- Mount the exact proposed frame with explicit Vector/null and semantically assert, inside the
-  companion territory, `.story-tree .pop-motion-inner` plus `.garden-flora .pop-motion-inner`.
-  Repeat with a deterministic Storybook sheet covering both roles and assert companion-scoped direct
-  `image.story-tree` plus `image.garden-flora`. `.parcel-flora`, CSS rules for an absent role,
-  unscoped DOM, comments or regex-only source checks cannot substitute. Source proof must establish
-  real pipeline calls and deterministic owner filtering while rejecting hand-authored cells/geometry.
-  IMPLEMENT may only add that fixture companion/filter through existing Studio composition
-  vocabulary; it may not change app-surface motion/source, `SceneView`, renderer/art policy, assets or
-  production inputs. The later choreography and exact-frame dependency CSS proofs remain mandatory
-  but cannot satisfy this host-local red.
+- Mount the exact demo with explicit Vector/null, walk all six keys plus Back/Replay, and at every
+  stop semantically assert the same companion territory identity/status/geometry with scoped
+  `.story-tree .pop-motion-inner` and `.garden-flora .pop-motion-inner`. Repeat the complete trace
+  with a deterministic Storybook sheet covering both roles and require the same companion identity
+  with scoped direct `image.story-tree` plus `image.garden-flora`. Compare companion snapshots across
+  the trace; a proposed-only check cannot pass. `.parcel-flora`, CSS rules for an absent role,
+  unscoped DOM, comments or regex-only source checks cannot substitute.
+- In the same H walk, assert primary empty has no primary ground or identity; primary land has its
+  real ground but no primary tree/plate/flora identity; proposed adds that non-healthy identity;
+  claimed adds presence without proof; signed-proof stays non-healthy with bloom; and only primary
+  healthy is healthy. Source proof must establish real pipeline calls and deterministic owner
+  filtering while rejecting hand-authored cells/geometry. A global
+  `stripKind(..., 'territory')` for land is red. IMPLEMENT may only use source-local, primary-id-scoped
+  identity stripping so the companion survives, alongside the existing fixture companion/filter;
+  it may not change app-surface motion/source, `SceneView`, renderer/art policy, assets or production
+  inputs. The later D/E dependency CSS proofs remain mandatory but cannot satisfy this host red.
 - Add an anchored-motion host red to the retained integration walk. Snapshot the composed
   coast/substrate/parcel/standing-object placement transforms, advance, Back and Replay, and prove
   those settled world anchors and the stable non-100 framing do not shift. Assert entering terrain
@@ -382,14 +406,18 @@ any dependency CSS audit, source/render proof adds one deterministic companion t
 cells owned by that companion so `buildTerritoryFlora` receives no parcel surface for it. No custom
 `SceneInput`, cells or geometry may be authored; every primary owner cell, coast, substrate, parcel
 and parcel-flora remains. The companion's identity/status/geometry is invariant across all six frames
-and carries no narrative state. In the exact proposed host, explicit Vector/null must expose
-companion-scoped `.story-tree .pop-motion-inner` and `.garden-flora .pop-motion-inner`; a deterministic
-Storybook sheet covering both roles must expose companion-scoped direct `image.story-tree` and
-`image.garden-flora`. `.parcel-flora`, unscoped DOM, selector literals, comments and weak source regex
-cannot substitute. IMPLEMENT is limited to this existing-pipeline companion/filter fixture change.
-Shared motion/source, `SceneView`, renderer/art policy and assets remain unchanged. The
-authored-choreography and entering-frame dependency CSS reds below stay mandatory but cannot pass
-this host-local floor.
+and carries no narrative state. H walks all six keys plus Back/Replay twice. At every Vector/null
+stop it compares the same companion territory identity/status/geometry and companion-scoped
+`.story-tree .pop-motion-inner` plus `.garden-flora .pop-motion-inner`; at every Storybook stop it
+compares the same companion identity with scoped direct `image.story-tree` plus
+`image.garden-flora`. A proposed-only assertion, `.parcel-flora`, unscoped DOM, selector literals,
+comments and weak source regex cannot substitute. That same walk proves primary empty has no primary
+land/identity, primary land has ground but no primary tree/plate/flora identity, and later primary
+semantics remain exact. Global land `stripKind(..., 'territory')` is red. IMPLEMENT may replace it
+only with source-local primary-id-scoped identity stripping, alongside the existing-pipeline
+companion/filter fixture; shared motion/source, `SceneView`, renderer/art policy and assets remain
+unchanged. The authored-choreography and entering-frame dependency CSS reds below stay mandatory but
+cannot pass this host-local floor.
 
 **Anchored-motion host red — applies to the `ffcdc24` correction.** The retained integration test
 adds executable rendered/source assertions that reject lateral entry translation of the whole
@@ -458,18 +486,19 @@ Studio-owned animation rule or second renderer fails this floor.
      implementation. Before dependency CSS is read, an independent exact-host case requires valid
      `VEGETATION = {}` with no `heroTrees`, a fixed real-pipeline companion territory, and
      deterministic filtering of only that companion's real composed cells to take the no-parcel path
-     without changing primary cells/geometry. Proposed Vector must expose companion-scoped
-     `.story-tree .pop-motion-inner` plus `.garden-flora .pop-motion-inner`; a tree+flora Storybook
-     sheet must produce companion-scoped direct `image.story-tree` plus `image.garden-flora`.
-     Parcel flora, comments, regex-only source matches and unscoped DOM cannot substitute. The
-     companion stays invariant across all frames. Rendered-selector assertions prove the proposed
-     primary frame has a generated organic
+     without changing primary cells/geometry. H walks all six keys plus Back/Replay in Vector and
+     Storybook, comparing one unchanged companion territory identity/status/geometry and its
+     renderer-appropriate scoped tree+garden-flora hooks at every stop. A proposed-only check, parcel
+     flora, comments, regex-only source matches and unscoped DOM cannot substitute. Global land
+     `stripKind(..., 'territory')` is red; only source-local primary-id-scoped identity stripping may
+     replace it. Rendered-selector assertions prove primary empty has no primary ground/identity and
+     the proposed primary frame has a generated organic
      coast, non-empty relaxed substrate, multiple capability parcels/parcel flora and the permanent
      Studio vegetation vocabulary; a parcel-only assertion cannot pass this contract. Primary land
-     retains that real ground but no primary story marker; primary proposed is non-healthy; primary
-     claimed adds real presence without proof identity; primary signed-proof remains
-     proposed/non-healthy while carrying the proof bloom; primary healthy appears only last. Its
-     transition trace is ground-arrival, flora-growth, claim-orbit and bloom
+     retains that real ground but no primary tree/plate/flora identity; primary proposed is
+     non-healthy; primary claimed adds real presence without proof identity; primary signed-proof
+     remains proposed/non-healthy while carrying the proof bloom; only primary healthy appears last.
+     Its transition trace is ground-arrival, flora-growth, claim-orbit and bloom
      rather than one generic scene-settle animation or whole-group lateral slide; settled world
      anchors remain equal through forward, Back, Replay and reduced motion, and source/computed proof
      rejects full CSS `transform:` replacement while preserving exact `.pop-motion-inner` as the
