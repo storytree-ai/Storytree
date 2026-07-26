@@ -2,15 +2,15 @@
 // terminal-orchestrator-seat-arc increment 1).
 //
 // THE WALK THIS PINS: expand the terminal on the forest page, run a probe command in the REAL pty,
-// SPA-navigate away (#/members — TreeView and the dock unmount; the banner nav retired, ADR-0204),
-// Electron main, SPA-navigate back, and assert the SAME session re-attached with the probe output
-// replayed from the main-held scrollback ring — never a fresh spawn. Before ADR-0189 the dock's unmount
-// cleanup disposed every session, so leaving the forest page killed a live interactive Claude Code
-// session; this spec is the regression wall for exactly that.
+// SPA-navigate away (#/members — the visited TreeView and dock park hidden/inert), then return and
+// assert the SAME live session and probe output are immediately available — never a fresh spawn.
+// Before ADR-0189 the dock's unmount cleanup disposed every session; ADR-0240 now also retains the
+// renderer-side map/dock presentation across a route change. This is the regression wall for both
+// lifetime boundaries.
 //
 // WHY REAL ELECTRON: the thing under test is the MAIN-process session ownership (PtySessionManager's
 // ring + list/snapshot, the terminal:list/terminal:snapshot IPC, the preload's single-consumer relays)
-// under a REAL renderer unmount/remount — jsdom mocks the bridge away, so only `_electron` proves the
+// under a REAL renderer route transition — jsdom mocks the bridge away, so only `_electron` proves the
 // cross-process lifecycle. The /api/* surface is stubbed offline (harness.mjs contract); the pty and the
 // bridge are REAL. The repo gate is satisfied by pre-writing the userData repo-selection.json (the same
 // file the picker persists) pointing at this checkout — a real git repo in dev and CI alike.
@@ -53,7 +53,15 @@ const sessionText = (win, sessionId) =>
     return typeof result === 'string' ? result : result.data;
   }, sessionId);
 
-test('pty sessions survive a route change: away to Members and back re-attaches with scrollback', async (t) => {
+/** The main-held terminal dimensions make the resize debounce observable. DOM bounds alone can
+ *  look correct before TerminalDock's delayed `fit()` forwards a collapsed size to the pty. */
+const sessionDimensions = (win, sessionId) =>
+  win.evaluate(async (id) => {
+    const result = await window.desktopTerminal.snapshot(id);
+    return typeof result === 'string' ? null : { cols: result.cols, rows: result.rows };
+  }, sessionId);
+
+test('pty sessions survive a route change: away to Members and back restores the parked dock with scrollback', async (t) => {
   const ciArgs = process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] : [];
   const app = await electron.launch({
     args: ['.', ...ciArgs],
@@ -119,6 +127,19 @@ test('pty sessions survive a route change: away to Members and back re-attaches 
     assert.ok(before && before.length === 1, `one live session after expand (got ${JSON.stringify(before)})`);
     const sessionId = before[0].sessionId;
     assert.ok(sessionId, 'the spawned session has an id');
+    const liveTerminalGeometry = await win.locator('.terminal-dock-body-row').boundingBox();
+    assert.ok(
+      liveTerminalGeometry && liveTerminalGeometry.width > 0 && liveTerminalGeometry.height > 0,
+      'the live terminal has a nonzero geometry before route parking',
+    );
+    // TerminalDock forwards ResizeObserver fits through a 100 ms debounce. Let the visible dock's
+    // initial fit settle before treating these as the dimensions route parking must preserve.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const livePtyDimensions = await sessionDimensions(win, sessionId);
+    assert.ok(
+      livePtyDimensions && livePtyDimensions.cols > 2 && livePtyDimensions.rows > 1,
+      `the live pty has usable dimensions before route parking (got ${JSON.stringify(livePtyDimensions)})`,
+    );
 
     // Run the probe in the REAL pty and wait for it to echo through the real shell.
     await win.locator('.terminal-dock-body:not([hidden])').click();
@@ -130,35 +151,61 @@ test('pty sessions survive a route change: away to Members and back re-attaches 
     );
     assert.ok(sawProbe, 'the probe command echoed through the real pty into the session scrollback');
 
-    // ROUTE AWAY (SPA hash nav — no reload): TreeView and the dock unmount. The banner nav retired
-    // with ADR-0204 (the HUD chrome has no route links), so navigate the way the app itself does —
+    // ROUTE AWAY (SPA hash nav — no reload): the already-visited map and dock stay mounted, but the
+    // App parks them outside paint, input, and the accessibility tree. The HUD has no route links, so
     // a location.hash write the hash router picks up (same mechanism as the '#/tree' seed above).
     await win.evaluate(() => {
       location.hash = '#/members';
     });
-    await win.waitForSelector('.terminal-dock', { state: 'detached', timeout: 10_000 });
+    await win.waitForSelector('[data-testid="tree-route"][data-parked="true"] .terminal-dock', {
+      state: 'attached',
+      timeout: 10_000,
+    });
+    assert.equal(
+      await win.locator('[data-testid="tree-route"][data-parked="true"] .terminal-dock').isVisible(),
+      false,
+      'the retained dock is hidden while Members is current',
+    );
+    const parkedTerminalGeometry = await win
+      .locator('[data-testid="tree-route"][data-parked="true"] .terminal-dock-body-row')
+      .boundingBox();
+    assert.deepEqual(
+      parkedTerminalGeometry,
+      liveTerminalGeometry,
+      'parking keeps the terminal body dimensions intact; a zero-size fit would resize the pty to 2×1',
+    );
 
-    // The pty is app-owned: still listed while NO dock is attached (the pre-ADR-0189 behaviour killed
+    // Stay parked beyond TerminalDock's delayed ResizeObserver fit, then assert the MAIN's actual
+    // pty dimensions too. This catches a hidden layout collapse that the immediate DOM check misses.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const parkedPtyDimensions = await sessionDimensions(win, sessionId);
+    assert.deepEqual(
+      parkedPtyDimensions,
+      livePtyDimensions,
+      'parking preserves the pty dimensions after the resize debounce; it never refits to 2×1',
+    );
+
+    // The pty is app-owned: still listed while its dock stays parked (the pre-ADR-0189 behaviour killed
     // it right here).
     const whileAway = await listSessions(win);
     assert.deepEqual(
       whileAway.map((s) => s.sessionId),
       [sessionId],
-      'the session survives the dock unmount',
+      'the session survives the parked dock',
     );
 
-    // ROUTE BACK: the remounting dock re-attaches to the SAME session (no fresh spawn) and replays the
-    // main-held scrollback into a fresh xterm.
+    // ROUTE BACK: the same expanded dock becomes visible without an expand/re-attach cycle. Its
+    // original session presentation and main-held scrollback remain available; no fresh spawn occurs.
     await win.evaluate(() => {
       location.hash = '#/tree';
     });
     await waitForForestSettled(win);
     // ADR-0190 chrome: the session panel (rows beside the pane) replaced the numbered tab strip.
-    await win.waitForSelector('.terminal-dock-panel .terminal-dock-panel-row', { state: 'attached', timeout: 20_000 });
-
-    const expandAgain = win.locator('[aria-label="expand terminal"]');
-    await expandAgain.waitFor({ state: 'visible', timeout: 10_000 });
-    await expandAgain.click();
+    await win.waitForSelector('[data-testid="tree-route"]:not([data-parked]) .terminal-dock-panel .terminal-dock-panel-row', {
+      state: 'attached',
+      timeout: 20_000,
+    });
+    await win.locator('[aria-label="collapse terminal"]').waitFor({ state: 'visible', timeout: 10_000 });
 
     const after = await pollFor(async () => {
       const sessions = await listSessions(win);
@@ -167,7 +214,7 @@ test('pty sessions survive a route change: away to Members and back re-attaches 
     assert.deepEqual(
       after.map((s) => s.sessionId),
       [sessionId],
-      'the SAME single session re-attaches — no duplicate spawn on remount',
+      'the SAME single session remains presented — no duplicate spawn on route return',
     );
 
     const replayed = await pollFor(
@@ -176,7 +223,7 @@ test('pty sessions survive a route change: away to Members and back re-attaches 
     );
     assert.ok(
       replayed,
-      'the main still serves the buffered scrollback for the re-attached session (survival-probe present)',
+      'the main still serves buffered scrollback for the retained session (survival-probe present)',
     );
   } finally {
     restoreSelection();
