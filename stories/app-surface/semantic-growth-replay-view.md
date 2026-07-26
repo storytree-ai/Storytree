@@ -41,6 +41,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # KEYFRAME-RESOLVER FLOOR after the stopped post-a7794537 run: selector declarations are not
 # keyframes. Each role is discovered independently, its shorthand/longhands resolve with CSS
 # precedence, and its resolved animation name loads the actual canonical @keyframes body.
+# ENTERING-DELTA/LOOK FLOOR after real-ms1o35is: machine-green is not owner-presentable while
+# accumulated roles reanimate, Storybook snaps, or proposed roles remain near-simultaneous scale
+# aliases. Exact frame selectors, both renderer hooks and visibly separated role choreography are red.
 proof:
   command:
     file: pnpm
@@ -122,20 +125,35 @@ semantic-growth view:
    require numeric `=== 1` (default/omitted or literal `1`), rejecting shorthand or longhand `2`, `3`,
    any larger integer and `infinite`; require finite fill plus a terminal keyframe at
    `scale: 1`/`opacity: 1`, or terminal values equal to explicit base-rest values. In this same case,
-   prove Vector tree and flora each contain `.pop-motion-inner`, and Storybook renders
-   `image.story-tree` plus `image.garden-flora` from a sheet defining both; then prove localized claim,
-   identical reduced-motion semantics and settled placement. Missing any operation keeps D invalid
-   regardless of whether the command is red or green;
-7. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
+   prove CSS resolves the intended planted profiles for both Vector tree/flora
+   `.pop-motion-inner` hooks and Storybook direct `image.story-tree`/`image.garden-flora` hooks from a
+   sheet defining both; DOM existence alone is red. Resolve proposed start times and require planted
+   tree/flora first, parcel boundary at least 100 ms later, parcel flora at least 60 ms after boundary
+   with at least two deterministic per-item `:nth-*` or custom-offset delays, and plate at least
+   180 ms after planted. Canonical bodies must preserve anchored tree/flora grow, give parcel flora a
+   rooted scale-plus-opacity sprout, give parcel boundary opacity/reveal with no scale, and give plate
+   opacity plus vertical-only individual `translate:` settlement with no scale. Full `transform:`,
+   lateral translate, a new wrapper or renderer, and bloom iteration other than exactly one remain
+   red. Then prove localized claim, identical reduced-motion semantics and settled placement. Missing
+   any operation keeps D invalid regardless of whether the command is red or green;
+7. add independent entering-delta frame-scoping red E: parse executable CSS selectors and require
+   terrain arrivals only under exact `[data-semantic-growth-frame='land'][data-motion='full']`;
+   tree/flora/plate/parcel-boundary/parcel-flora only under exact frame `proposed`; wisp only under
+   exact frame `claimed`; and bloom only under exact frame `signed-proof`. A generic
+   `[data-semantic-growth-frame][data-motion='full']` arrival selector is red. Assert no accumulated
+   terrain or identity arrival selector matches `claimed`, `signed-proof` or `healthy`, no claim
+   arrival matches `signed-proof`/`healthy`, and no arrival matches `healthy`. Reduced motion exposes
+   every frame's final semantics immediately with no arrival selector or delayed concealment;
+8. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
    action trace twice and compare every semantic snapshot and transition-family trace;
-8. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
+9. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
    animation/orbit instructions are absent, and assert every existing static SVG placement transform
    remains unchanged;
-9. prove the public view itself loads its co-located app-owned stylesheet and that removing that load
+10. prove the public view itself loads its co-located app-owned stylesheet and that removing that load
    makes the motion proof fail; and
-10. inspect the package boundary and normal-motion hooks, then let the package proof command rerun the
+11. inspect the package boundary and normal-motion hooks, then let the package proof command rerun the
    existing renderer, sprite, sizing, trail and arrival regression suite.
-11. source-audit `SemanticGrowthWorldView.test.tsx` against its pre-9377 suite and fail unless every
+12. source-audit `SemanticGrowthWorldView.test.tsx` against its pre-9377 suite and fail unless every
    existing test and assertion remains independently present: semantic-sequence/navigation,
    co-located stylesheet loading, reduced-motion static-transform preservation, bounded SVG,
    definite root-height chain, package-root export, and Storybook signed-proof bloom parity. The new
@@ -190,6 +208,13 @@ rule declarations rather than the referenced `@keyframes`; it discovered roles o
 read only the iteration-count longhand, allowing shorthand `3 forwards`; and it omitted
 Storybook/Vector role participation from the indivisible case. This correction names the anchored
 stopped attempt and invents no run id.
+The signed run `real-ms1o35is` at `6f25eed` is valid machine proof but remains unmerged,
+machine-green and not owner-presentable LOOK evidence. Its CSS targets every
+`[data-semantic-growth-frame][data-motion='full']`, so accumulated terrain/identity reanimate on later
+Next actions; proposed starts cluster at 90/140/180 ms as mostly whole-object scale variants;
+Storybook tree/flora images exist but only Vector `.pop-motion-inner` hooks receive animation; and
+Storybook therefore snaps. The correction must scope each arrival to its exact entering frame,
+resolve CSS participation for both renderers and create visible, role-specific proposed staging.
 
 ## Guidance
 
@@ -238,11 +263,8 @@ stopped attempt and invents no run id.
   second wrapper or comments-only evidence; this is read-only proof and does not authorize a
   `SceneView` change. That seam and additive individual `scale:` are a floor, not the choreography.
   One executable authored-choreography case must prove the coherent bundle together: land locally
-  forms/reveals coast/substrate; Storybook and Vector renders both expose participating tree/flora;
-  planted tree/flora resolve before plate/parcels with ordered nonzero offsets; and identity subrole
-  profiles include at least two treatments that differ materially in actual keyframed property or
-  declaration value/trajectory using existing role-scoped scale, opacity, mask/clip reveal or
-  transform treatments. Discover each role selector independently from rendered hooks, without
+  forms/reveals coast/substrate and identity roles use materially authored existing CSS/SVG
+  treatments. Discover each role selector independently from rendered hooks, without
   assuming any animation name. `resolvedProfile(selector)` parses shorthand positional tokens and
   longhands, applies longhand precedence, resolves name/duration/easing/delay/iteration/fill, then
   loads the resolved name's actual `@keyframes`, strips comments and canonicalizes declarations by
@@ -252,10 +274,25 @@ stopped attempt and invents no run id.
   keyframed property set; names, delays, durations, easing and numeric scale endpoints alone are
   insufficient. Bloom iteration resolves from shorthand plus longhand precedence to numeric exactly
   `1`; reject shorthand/longhand counts above `1` and `infinite`. Its finite fill and terminal body
-  settle at `scale: 1`/`opacity: 1` or explicit equivalent base-rest values. The same case proves
-  Vector tree plus flora `.pop-motion-inner` participation and Storybook `image.story-tree` plus
-  `image.garden-flora` from a sheet defining both, then local claim/orbit and immediate honest reduced
-  semantics. Omitting any exact operation is invalid AUTHOR_TEST even when the command is red or green.
+  settle at `scale: 1`/`opacity: 1` or explicit equivalent base-rest values. The same case resolves
+  CSS profiles—not DOM existence—for Vector tree/flora `.pop-motion-inner` and Storybook direct
+  `image.story-tree`/`image.garden-flora` hooks from a sheet defining both. Start-time assertions use
+  resolved delays: planted tree/flora first; parcel boundary at least 100 ms later; earliest parcel
+  flora at least 60 ms after boundary with at least two deterministic per-item `:nth-*` or
+  custom-offset delays; plate at least 180 ms after planted. Tree/flora retain anchored grow; parcel
+  flora uses rooted scale plus opacity sprout; parcel boundary uses opacity/reveal with no scale;
+  plate uses opacity plus vertical-only individual `translate:` settle with no scale on its existing
+  `.pop-motion-inner` or direct image role hook. No full `transform:`, lateral translate, new wrapper
+  or renderer is allowed. The case also proves local
+  claim/orbit and immediate honest reduced semantics. Omitting any exact operation is invalid
+  AUTHOR_TEST even when the command is red or green.
+- Add a separate executable entering-delta selector audit. Full-motion arrival selectors must be
+  qualified by exactly one entering frame: terrain=`land`; tree/flora/plate/parcel-boundary/
+  parcel-flora=`proposed`; wisp=`claimed`; bloom=`signed-proof`. Generic
+  `[data-semantic-growth-frame][data-motion='full']` arrival targeting is red. Terrain/identity
+  arrivals must not match claimed, signed-proof or healthy; claim arrival must not match signed-proof
+  or healthy; no arrival matches healthy. Reduced mode renders each accumulated final role
+  immediately without an arrival selector or delayed concealment.
 - Keep the cursor and transition selection pure. Next clamps at healthy, Back clamps at empty,
   restart selects empty, and Replay reapplies the same ordered keys. Time controls interpolation
   only; no timeout advances the cursor and no random value influences output.
@@ -348,9 +385,9 @@ before/after is red.
 reads real `semantic-growth.css` and read-only `SceneView.tsx`, preserves exact existing
 `.pop-motion-inner` emission/targeting, and rejects a second wrapper, `SceneView` implementation
 change, full CSS `transform:`, lateral entry, mismatched names or comments-only matches. That same
-case must prove every bundle member together: distinct local coast/substrate formation; participating
-tree/flora role hooks under both Storybook and Vector; planted tree/flora before plate/parcels with
-ordered nonzero offsets; at least two materially non-equivalent identity profiles; ungrouped,
+case must prove every bundle member together: distinct local coast/substrate formation; CSS-resolved
+tree/flora profiles under both Storybook and Vector hooks; planted tree/flora before plate/parcels
+with visible minimum gaps; at least two materially non-equivalent identity profiles; ungrouped,
 body-non-equivalent parcel-boundary and parcel-flora treatments; plate body-non-equivalent to planted
 tree/flora; localized claim plus mapper orbit; exactly one finite bloom announcement settling at
 rest; and reduced motion immediately exposing identical final semantics while preserving placement.
@@ -363,12 +400,28 @@ compared parcel-boundary/parcel-flora canonical bodies must each be non-equivale
 ungrouped, and at least one pair must differ in keyframed property set; names, delays, durations,
 easing or numeric scale endpoints alone cannot pass. Bloom iteration resolves from shorthand and
 longhand to numeric exactly `1`, rejecting any integer above `1` and `infinite`; finite fill plus the
-terminal keyframe must settle to `scale: 1`/`opacity: 1` or explicit equivalent base-rest values. The
-same indivisible case proves Vector tree and flora `.pop-motion-inner`, Storybook `image.story-tree`
-and `image.garden-flora` from a sheet defining both, local claim/orbit, reduced semantics and stable
-placement. Any AUTHOR_TEST missing an operation is invalid whether red or green. The under-claimed
-shapes from `real-ms1latuj`, `real-ms1m3h10`, stopped post-`e6e2be3f` and stopped
-post-`a7794537` cannot satisfy D.
+terminal keyframe must settle to `scale: 1`/`opacity: 1` or explicit equivalent base-rest values.
+CSS profile resolution must succeed for Vector tree/flora `.pop-motion-inner` and Storybook direct
+`image.story-tree`/`image.garden-flora` hooks from a sheet defining both; rendered DOM alone cannot
+pass. Let `t_planted` be the earliest resolved planted tree/flora start. Parcel boundary starts at
+least `t_planted + 100ms`; earliest parcel flora starts at least boundary `+ 60ms`, with at least two
+distinct deterministic per-item `:nth-*` or custom offsets; plate starts at least
+`t_planted + 180ms`. Canonical keyframes prove: anchored scale/opacity grow for planted tree/flora;
+rooted scale/opacity sprout for parcel flora; opacity/reveal and no scale for parcel boundary; and
+opacity plus vertical-only individual `translate:` settlement and no scale for plate. Any full
+`transform:`, lateral translate, second wrapper or renderer is red. The same case proves local
+claim/orbit, exactly one finite bloom announcement, reduced semantics and stable placement. Any
+AUTHOR_TEST missing an operation is invalid whether red or green. The under-claimed shapes from
+`real-ms1latuj`, `real-ms1m3h10`, stopped post-`e6e2be3f` and stopped post-`a7794537` cannot satisfy D.
+
+**Entering-delta frame-scoping red E — independent, additive, no new scope.** Executable CSS selector
+parsing requires full-motion terrain arrival rules to include exact frame equality `land`; planted
+tree/flora, plate, parcel-boundary and parcel-flora arrival rules exact `proposed`; wisp entrance exact
+`claimed`; and bloom exact `signed-proof`. A mere
+`[data-semantic-growth-frame][data-motion='full']` qualifier fails. Selector matching assertions prove
+terrain/identity arrivals cannot match claimed, signed-proof or healthy; claim entrance cannot match
+signed-proof or healthy; bloom cannot match healthy; and no arrival runs on healthy. Reduced motion
+has no matching arrival/orbit/delay and immediately renders the same accumulated final semantics.
 
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
    - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
@@ -402,16 +455,23 @@ post-`a7794537` cannot satisfy D.
      additive `scale:` plus fill-box/root origin/stagger on the existing `.pop-motion-inner`;
      the authored-choreography case additionally preserves exact `.pop-motion-inner`
      emission/targeting while rejecting a generic whole-object pop. One indivisible executable case
-     proves distinct local coast/substrate staging, independently discovered Storybook/Vector role
-     participation, tree/flora before plate/parcels, actual referenced-keyframe body non-equivalence
-     for plate/planted and directly compared ungrouped parcel-boundary/parcel-flora, local claim/orbit,
-     exactly one finite settled bloom and immediate reduced semantics. The assertion builds resolved
+     proves distinct local coast/substrate staging, CSS-resolved Vector and Storybook role
+     participation, visibly spaced tree/flora-before-parcels-before-plate choreography, actual
+     referenced-keyframe body/property distinctions for plate/planted and directly compared ungrouped
+     parcel-boundary/parcel-flora, local claim/orbit, exactly one finite settled bloom and immediate
+     reduced semantics. The assertion builds resolved
      profiles from shorthand plus precedence-winning longhands, requires one compared pair's
      keyframed property set to differ, catches shorthand counts above `1`/`infinite`, verifies terminal
-     rest, Vector `.pop-motion-inner` tree/flora and Storybook tree/flora images from a covering sheet.
+     rest, CSS profiles for Vector `.pop-motion-inner` tree/flora and Storybook direct image hooks,
+     minimum start gaps of planted→boundary `100ms`, boundary→flora `60ms` with two deterministic
+     per-item offsets, and planted→plate `180ms`. It proves anchored grow, rooted parcel-flora sprout,
+     no-scale parcel reveal and no-scale opacity/vertical-individual-translate plate settlement.
      Selector-body canonicalization, animation-name assumptions, names/delays/duration/easing or
-     numeric scale endpoints alone, grouped parcels, omitted renderer participation, class mismatches
-     and comments/prose cannot satisfy the case.
+     numeric scale endpoints alone, grouped parcels, DOM-only renderer participation, full
+     `transform:`, lateral translate, class mismatches and comments/prose cannot satisfy the case.
+     A separate selector audit proves exact entering frames land/proposed/claimed/signed-proof and
+     rejects generic full-motion frame presence, accumulated-role reanimation, any healthy arrival,
+     or delayed reduced motion.
      Transition rules and reduced-motion handling live under
      `packages/app-surface`; the view delegates to `WorldSceneView`; and its source imports no
      Studio/web module, live data/store authority, generated frame/sprite asset, Nanobanana or
