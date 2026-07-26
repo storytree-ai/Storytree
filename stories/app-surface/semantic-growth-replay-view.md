@@ -35,6 +35,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # VALUE-EQUIVALENCE FLOOR after machine-green/LOOK-red real-ms1m3h10: distinct animation names or
 # delays do not prove distinct choreography. AUTHOR_TEST compares keyframed properties/values,
 # forbids grouped parcel-boundary/parcel-flora treatment and requires one finite bloom announcement.
+# RESOLVED-ANIMATION FLOOR after the stopped post-e6e2be3f run: AUTHOR_TEST resolves shorthand and
+# longhands, canonicalizes comment-free keyframe bodies, compares real property/value trajectories,
+# and requires bloom iteration-count 1 plus an honestly settled final state.
 proof:
   command:
     file: pnpm
@@ -101,15 +104,18 @@ semantic-growth view:
    full CSS `transform:` replacement or lateral entry motion; prove distinct local coast/substrate
    staging; prove both Storybook and Vector renders expose participating tree/flora role hooks; prove
    planted tree/flora resolve before plate/parcels with ordered nonzero offsets; and prove identity
-   subrole profiles include at least two visibly, materially non-equivalent treatments that differ in
-   a keyframed property and/or trajectory/value. Animation-name-only and delay-only differences are
-   red. Parcel boundary and parcel flora have separate, non-equivalent role treatments; plate does
-   not reuse the planted
-   tree/flora whole-object pop. The same case proves localized claim entrance plus mapper orbit, then
-   exactly one finite localized bloom announcement that settles at rest rather than repeating a
-   short loop. Reduced motion exposes the identical final six-state semantics immediately. Missing
-   any member keeps D red: finite-bloom-only, selector aliases, renamed value-equivalent keyframes,
-   delayed copies or numeric scale changes alone cannot satisfy AUTHOR_TEST;
+   subrole profiles include at least two visibly, materially non-equivalent treatments. For the
+   planted tree/flora, plate, parcel-boundary, parcel-flora and bloom selectors, resolve animation
+   shorthand/longhands to name, duration, easing, iteration count, fill mode and referenced keyframe
+   body; strip comments and canonicalize each offset's declarations before comparing. Plate versus
+   planted and parcel boundary versus parcel flora must differ in at least one actual keyframed
+   property or declaration value/trajectory; distinct names, delays, durations or easing over an
+   equal canonical body are insufficient. Parcel boundary and parcel flora also cannot share one
+   grouped selector. The same case proves localized claim entrance plus mapper orbit. For bloom,
+   resolve omitted iteration count to its default `1`, require exactly `1` (literal or default), reject
+   `infinite` and every integer greater than `1`, and verify fill/terminal declarations leave the
+   proof marker in its settled final state. Reduced motion exposes the identical final six-state
+   semantics immediately. Missing any member keeps D red;
 7. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
    action trace twice and compare every semantic snapshot and transition-family trace;
 8. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
@@ -163,6 +169,11 @@ easing, grouped parcel boundary with parcel flora, allowed plate to reuse the sa
 with only a later delay, and accepted three bloom repetitions. Those are the
 generic-scale/slideshow loopholes the owner rejected. The executable red must compare actual
 keyframed properties and trajectories/values, not names or delays.
+The stopped run after `e6e2be3f` is also invalid AUTHOR_TEST. It checked plate only by unequal
+`animationName`, parcel boundary versus parcel flora only by selector separation, and bloom only by
+`not infinite`; those assertions still allow equal keyframe bodies, delay-only copies and
+`3 forwards`. No run id was present in the repository ledger/log surfaces available to this author,
+so this correction names the anchored stopped run rather than inventing one.
 
 ## Guidance
 
@@ -213,15 +224,17 @@ keyframed properties and trajectories/values, not names or delays.
   One executable authored-choreography case must prove the coherent bundle together: land locally
   forms/reveals coast/substrate; Storybook and Vector renders both expose participating tree/flora;
   planted tree/flora resolve before plate/parcels with ordered nonzero offsets; and identity subrole
-  profiles include at least two treatments that differ materially in a keyframed property and/or
-  trajectory/value using existing role-scoped scale, opacity, mask/clip reveal or transform
-  treatments. A different animation name or delay over otherwise equal opacity, scale values,
-  duration and easing is not a different treatment. Parcel boundary and parcel flora must have
-  separate non-equivalent
-  treatments, and plate must not reuse the planted tree/flora whole-object pop. The same case proves
-  local claim/orbit and exactly one finite local bloom announcement that settles at rest—multiple
-  loop-like repetitions are red—plus reduced motion immediately exposing identical final semantics.
-  If any member is absent, including when only finite bloom is asserted, AUTHOR_TEST remains red.
+  profiles include at least two treatments that differ materially in actual keyframed property or
+  declaration value/trajectory using existing role-scoped scale, opacity, mask/clip reveal or
+  transform treatments. The executable assertion resolves selector shorthands/longhands to animation
+  name, duration, easing, iteration count, fill mode and referenced keyframes, then comment-strips and
+  canonicalizes offset declarations before comparison. Different names, delays, durations or easing
+  over equal canonical keyframe bodies are not different treatments. Parcel boundary and parcel
+  flora must be ungrouped and body-non-equivalent; plate's body must be non-equivalent to planted
+  tree/flora. The same case proves local claim/orbit. Bloom resolves omitted iteration count to `1`
+  and accepts only exactly `1`, rejecting `infinite` and every integer above `1`; its fill/terminal
+  declarations leave the proof marker settled. Reduced motion immediately exposes identical final
+  semantics. If any bundle member is absent, AUTHOR_TEST remains red.
 - Keep the cursor and transition selection pure. Next clamps at healthy, Back clamps at empty,
   restart selects empty, and Replay reapplies the same ordered keys. Time controls interpolation
   only; no timeout advances the cursor and no random value influences output.
@@ -316,15 +329,18 @@ reads real `semantic-growth.css` and read-only `SceneView.tsx`, preserves exact 
 change, full CSS `transform:`, lateral entry, mismatched names or comments-only matches. That same
 case must prove every bundle member together: distinct local coast/substrate formation; participating
 tree/flora role hooks under both Storybook and Vector; planted tree/flora before plate/parcels with
-ordered nonzero offsets; at least two materially non-equivalent identity profiles that differ in
-keyframed property and/or trajectory/value; separate non-equivalent parcel-boundary and parcel-flora
-treatments; plate not reusing the planted tree/flora whole-object pop; localized claim plus mapper
-orbit; exactly one finite bloom announcement settling at rest; and reduced motion immediately
-exposing identical final semantics while preserving outer placement. The test compares keyframe
-bodies plus animation longhands; distinct names or delays over equal opacity/scale trajectories,
-duration and easing cannot pass, nor can several finite bloom repetitions masquerade as one
-announcement. Missing any member keeps D red. The bloom-only shape from `real-ms1latuj` and the
-value-equivalent renamed profiles accepted by `real-ms1m3h10` cannot satisfy AUTHOR_TEST.
+ordered nonzero offsets; at least two materially non-equivalent identity profiles; ungrouped,
+body-non-equivalent parcel-boundary and parcel-flora treatments; plate body-non-equivalent to planted
+tree/flora; localized claim plus mapper orbit; exactly one finite bloom announcement settling at
+rest; and reduced motion immediately exposing identical final semantics while preserving placement.
+For each relevant selector the test resolves animation shorthand/longhands to name, duration, easing,
+iteration count, fill mode and referenced body, strips comments, and canonicalizes declarations by
+offset. Plate/planted and parcel-boundary/parcel-flora pass only when canonical bodies differ in an
+actual keyframed property or declaration value/trajectory; distinct names, delays, durations or
+easing alone cannot pass. Bloom iteration count resolves omitted/default to `1`, must equal `1`, and
+rejects `infinite` or any integer above `1`; resolved fill and terminal declarations must produce the
+settled final proof state. Missing any member keeps D red. The under-claimed shapes from
+`real-ms1latuj`, `real-ms1m3h10` and the stopped post-`e6e2be3f` run cannot satisfy AUTHOR_TEST.
 
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
    - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
@@ -359,12 +375,12 @@ value-equivalent renamed profiles accepted by `real-ms1m3h10` cannot satisfy AUT
      the authored-choreography case additionally preserves exact `.pop-motion-inner`
      emission/targeting while rejecting a generic whole-object pop. One indivisible executable case
      proves distinct local coast/substrate staging, Storybook and Vector tree/flora participation,
-     ground-contact tree/flora before locally revealed plate/parcels, materially non-equivalent
-     identity keyframe properties/trajectories, separate parcel-boundary/parcel-flora treatments,
-     plate distinct from the planted tree/flora whole-object pop, local claim/orbit, exactly one
-     finite bloom announcement/settlement and immediate honest reduced-motion semantics. Animation
-     names or delays alone, several bloom repetitions, DOM transform-attribute equality, numeric
-     scale changes alone, class mismatches and comments/prose cannot satisfy the cases.
+     ground-contact tree/flora before locally revealed plate/parcels, canonical body-non-equivalence
+     for plate/planted and ungrouped parcel-boundary/parcel-flora, local claim/orbit, exactly one
+     finite settled bloom and immediate honest reduced-motion semantics. The assertion resolves
+     shorthand/longhands and comment-free keyframe declarations; names, delays, durations or easing
+     alone, grouped parcels, iteration count above `1`/`infinite`, DOM transform-attribute equality,
+     numeric scale changes alone, class mismatches and comments/prose cannot satisfy the cases.
      Transition rules and reduced-motion handling live under
      `packages/app-surface`; the view delegates to `WorldSceneView`; and its source imports no
      Studio/web module, live data/store authority, generated frame/sprite asset, Nanobanana or
