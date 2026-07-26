@@ -15,15 +15,23 @@ so this is born `proposed` and escalates rather than deciding.
 It re-opens nothing. ADR-0235 governs WHAT is observed and its clause 4 governs capacity; ADR-0241
 governs WHERE it is stored. Neither says what quantity a gauge plots against that capacity.
 
+Reviewed in the same increment's pre-merge `librarian-curator` pass (2026-07-26), which corrected the
+quantity count in Context (one of the three exists, not two) and added the measured fact that
+`addedInputTokens` duplicates `cumulativeInputTokens` at this boundary. The fork is untouched — still
+four candidates, still deferred, still the owner's to settle.
+
 ## Context
 
 The arc's end state asks for a per-visit circular gauge: *"the inner arc shows cumulative context
 used, its terminal thickness shows context added by that visit, and the remainder shows capacity
 left"*, with an owner-selected 500k threshold marked in red.
 
-Two of those three quantities now exist in a real trace. Increment 4 carried the SDK's declared
-`ModelUsage.contextWindow` through to the bytes, so `contextWindowCapacity` is populated for the
-first time. `cumulativeInputTokens` has been populated since increment 3.
+Exactly ONE of those three quantities now exists in a real trace. Increment 4 carried the SDK's
+declared `ModelUsage.contextWindow` through to the bytes, so `contextWindowCapacity` is populated for
+the first time — that one is genuine, and it is the capacity the gauge is drawn against. Two token
+FIELDS are also populated (`cumulativeInputTokens` since increment 3, and `addedInputTokens`
+alongside it), but neither carries the quantity its name promises. That is what the rest of this ADR
+is about.
 
 **Plotting one against the other does not produce an occupancy gauge.** Measured on this
 increment's own two `--real` builds — the trace files are the evidence, not an estimate:
@@ -56,6 +64,14 @@ Two further facts bound the options:
    that is a different surface with no adapter, and reading it is a new boundary, not a field
    addition. It carries no capacity field of its own, so capacity would still come from the runtime
    declaration increment 4 landed.
+
+**`addedInputTokens` is not a third quantity either — at this boundary it is the same number.**
+`observe-leaf-slices.ts` emits `cumulativeInputTokens: totalInputTokens` and
+`addedInputTokens: totalInputTokens` from one variable, so both fields carry the identical
+whole-slice billing total. The gauge's "context added by that visit" is therefore not observed
+either; the field that names it is a duplicate of the one beside it. This sharpens candidate B's
+cost below: the event does not hold two similar-looking token fields, it holds two identical ones,
+and adding a third named for occupancy would leave three.
 
 The naming matters because the field is already load-bearing. `cumulativeInputTokens` reads like
 occupancy, and increment 1's vocabulary pairs it with `addedInputTokens` in a way that invites the
