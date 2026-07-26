@@ -376,9 +376,6 @@ importers:
       '@storytree/agent':
         specifier: workspace:*
         version: link:../agent
-      '@storytree/context-traversal-spawn':
-        specifier: workspace:*
-        version: link:../context-traversal-spawn
       '@storytree/library':
         specifier: workspace:*
         version: link:../library

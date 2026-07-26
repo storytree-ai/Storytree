@@ -60,7 +60,7 @@ import { resolveReport } from "./resolve-report.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { SessionIdentity } from "./noticeboard.js";
 import { appendSliceUsage } from "./usage.js";
-import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
+import type { LiveRunInfo } from "./usage.js";
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C): drive a REAL node spec through
@@ -147,19 +147,27 @@ export function rel(file: string): string {
 }
 
 /**
- * The session whose traversal lane a build's spawned leaf slices belong to (ADR-0235 / ADR-0241).
+ * An observer of a finished build's per-slice leaf run accounting — the SEAM the context-traversal
+ * spawn adapter is wired onto (ADR-0235), injected via {@link NodeBuildOpts.onLeafSlices}.
  *
- * Resolution MUST match `captureInvocation` in `packages/cli/src/main.ts` — `STORYTREE_SESSION_ID`
- * first, then the worktree derivation — NOT the bare `deriveIdentity()` the build's write-claim
- * uses. A session whose CLI reads were captured under the env override would otherwise write its
- * build lane to a different file than its reads, silently breaking the one-session-one-trace
- * property increment 2's uat-2 proved. `null` (the main checkout, CI, the lobby) captures nothing.
+ * Drive deliberately does NOT import that adapter. `context-traversal-spawn` consumes
+ * `context-traversal-capture` → `context-traversal-telemetry`, and telemetry's UAT proves itself
+ * against drive's own real `createOrientationRunner` — so a direct `drive → spawn` import closes a
+ * cross-story CYCLE that `check:boundaries` refuses outright:
+ *   drive-machinery → context-traversal-spawn → context-traversal-capture
+ *                   → context-traversal-telemetry → drive-machinery
+ * Inverting it keeps the coupling one-way: drive owns the seam, and the CLI — already the declared
+ * consumer of every organism it surfaces (ADR-0074 §4) — owns the wiring and the session identity.
+ * Same shape as the `ensureDb` / `authorOverride` / `identity` seams this module already injects.
+ *
+ * Called for PASS and FAIL alike (a red slice spent context too) and only when a LIVE leaf actually
+ * ran, so a dry-run's scripted walk observes nothing. An implementation must never throw.
  */
-function traversalSessionId(): string | null {
-  const override = process.env["STORYTREE_SESSION_ID"];
-  if (override !== undefined && override.trim().length > 0) return override;
-  return deriveIdentity()?.sessionId ?? null;
-}
+export type LeafSlicesObserver = (args: {
+  readonly runId: string;
+  readonly unitId: string;
+  readonly runs: readonly LiveRunInfo[];
+}) => void;
 
 /**
  * The buildable node ids for CLI discovery: the registry ids UNION the SPEC-BORNE ids scanned from
@@ -566,16 +574,6 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
         resolved.liveAuthor.runs,
         args.signer,
       );
-      // The same slices, observed as context-traversal lanes (ADR-0235): a spawn_handoff and
-      // result_return on THIS session, and each child leaf session's own model_context on its own
-      // lane. Metadata only — counts, never payloads or results. Additive and fail-silent: it
-      // never throws, never touches the envelope or the exit code, and never moves a verdict.
-      captureBuildSpawn({
-        parentSessionId: traversalSessionId(),
-        runId: args.runId,
-        unitId: spec.id,
-        runs: resolved.liveAuthor.runs,
-      });
     }
     return {
       resolved: true,
@@ -784,14 +782,6 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
       resolved.liveAuthor.runs,
       signer,
     );
-    // The traversal twin of the usage append above (ADR-0235) — see the sibling site in `driveNode`.
-    // This is also the path `story build --real` takes, so a chained story emits every node's lanes.
-    captureBuildSpawn({
-      parentSessionId: traversalSessionId(),
-      runId,
-      unitId: spec.id,
-      runs: resolved.liveAuthor.runs,
-    });
   }
   const out: RealBuildResult = {
     result,
@@ -838,6 +828,11 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
 
 export interface NodeBuildOpts {
   dryRun: boolean;
+  /**
+   * Observe the finished build's per-slice leaf run accounting (ADR-0235). Injected by the CLI so
+   * drive never imports the traversal adapter — see {@link LeafSlicesObserver} for why.
+   */
+  onLeafSlices?: LeafSlicesObserver;
   /** `--live` — a real selected subscription leaf authors the synthetic pair through the gate. */
   live?: boolean;
   /** `--real` — Phase F: the leaf authors the node's REAL proof in a fresh git worktree. */
@@ -1199,6 +1194,14 @@ export async function nodeBuild(
       }
       result = drive.result;
       liveAuthor = drive.liveAuthor;
+    }
+
+    // The build's spawned leaf slices, handed to whatever the caller injected (ADR-0235). One site
+    // covers both arms above because each already reports its `liveAuthor` back here. Absent
+    // observer, or a walk with no live leaf, this is a no-op; the observer never throws, so capture
+    // cannot change the envelope, the exit code, or the verdict.
+    if (liveAuthor !== undefined) {
+      opts.onLeafSlices?.({ runId, unitId: spec.id, runs: liveAuthor.runs });
     }
 
     const derived = rollupStatus(spec.id, await store.readEvents());

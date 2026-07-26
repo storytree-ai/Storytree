@@ -8,7 +8,7 @@ proof_mode: UAT
 uat_witness: machine
 arc: linked-session-context-arc
 depends_on: [context-traversal-telemetry, context-traversal-capture]
-consumed_by: [drive-machinery, cli]
+consumed_by: [cli]
 decisions: [235, 241, 192]
 capabilities: [leaf-slice-spawn-observations, build-spawn-capture, multi-adapter-replay]
 ---
@@ -76,24 +76,42 @@ other.
   and its coverage domain, and both capture and replay go through increment 2's
   `appendTraversalEvents` / `readTraversalSession` / `renderTraversalSession` barrel. Increment 2's
   package is CONSUMED through its public barrel and is never edited by this story.
-- `consumed_by: [drive-machinery, cli]` — both are PROVIDER-side declarations of a real runtime
-  import of `@storytree/context-traversal-spawn`, each code-backed by a `dependencies` entry rather
-  than declaration wallpaper. `check:boundaries` needs each cross-story edge declared in one
-  direction, and provider-side is the right side here for both.
-  - **`drive-machinery`** — `@storytree/drive` imports the build capture composition at the build
-    composition site, beside the existing per-slice usage append. Declaring it here leaves the
-    `drive-machinery` spec untouched.
-  - **`cli`** — `@storytree/cli` imports the multi-adapter replay so
-    `packages/cli/src/traversal.ts` can call `showTraversalSessionAllAdapters` in place of increment
-    2's single-adapter `showTraversalSession`. That swap is the whole point of the
-    `multi-adapter-replay` capability: the hardcoded `TERMINAL_CLI_DISPATCH_COVERAGE` explicitly
-    OMITS `event:spawn_handoff`, `event:model_context`, and `event:result_return`, so once builds
-    emit, `storytree traversal show` would render those events under a declaration that denies
-    them — the ADR-0235 clause 6 dishonesty this story exists to prevent. This mirrors increment 2's
-    own `consumed_by: [cli]`, declared for exactly this reason.
-  The CLI-side line itself — the one swapped import in `traversal.ts` plus the `package.json`
-  dependency — is un-asserted connective glue (ADR-0158) in another story's building: declared as
-  this edge and reviewed in the diff, claimed by no capability here and never this story's evidence.
+- `consumed_by: [cli]` — the PROVIDER-side declaration of the ONE remaining cross-story import edge:
+  `@storytree/cli` runtime-depends on `@storytree/context-traversal-spawn`. It is code-backed (a real
+  `dependencies` entry plus the wiring in `packages/cli/src/commands.ts` and the swapped
+  `showTraversalSessionAllAdapters` call in `packages/cli/src/traversal.ts`), not declaration
+  wallpaper. Provider-side is the established side for a `cli` edge, not merely the cheaper one: the
+  CLI is the wiring HUB, and its own spec declares `depends_on: []` precisely because every spoke
+  owns its "wired into the CLI" edge (ADR-0074 §4) — increment 2's `consumed_by: [cli]` was declared
+  for exactly this reason. The replay swap is the point of the `multi-adapter-replay` capability: the
+  hardcoded `TERMINAL_CLI_DISPATCH_COVERAGE` explicitly OMITS `event:spawn_handoff`,
+  `event:model_context`, and `event:result_return`, so once builds emit, `storytree traversal show`
+  would render those events under a declaration that denies them. The CLI-side lines themselves are
+  un-asserted connective glue (ADR-0158) in another story's building: declared as this edge and
+  reviewed in the diff, claimed by no capability here and never this story's evidence.
+- **`drive-machinery` is NOT declared, and must not be — the edge would close a cross-story CYCLE.**
+  Drive reaches this story's capture through an INVERTED seam it owns (`LeafSlicesObserver` /
+  `NodeBuildOpts.onLeafSlices` in `packages/drive/src/node-build.ts`, threaded through
+  `story-build.ts`), which the CLI injects at the six build call sites; `@storytree/drive` imports
+  nothing from this package and carries no `dependencies` entry for it. **This is a structural
+  constraint of the arc, not a stylistic preference, and the next adapter will hit it the moment it
+  tries to emit from inside drive.** The loop is:
+  `drive-machinery → context-traversal-spawn → context-traversal-capture →
+  context-traversal-telemetry → drive-machinery` — it closes because increment 1 declares
+  `depends_on: [drive-machinery]` (its UAT proves the adapter against drive's real
+  `createOrientationRunner`). Every later adapter in `linked-session-context-arc` — desktop-chat,
+  direct SDK, Codex, owned-loop — inherits that ancestry through increments 1 and 2, so **any of
+  them that makes drive import it re-closes the same cycle.** The fix is this one: drive declares a
+  seam, the composition root injects the implementation, and the declared graph stays acyclic. A
+  cycle is a modelling error to resolve, never a thing to tolerate.
+- **No `artifact_edges` entry records the drive seam — mechanically it cannot.** `artifact_edges`
+  (ADR-0166) annotates a SUBSET of a story's OWN `depends_on` as deliberately code-unbacked, and
+  `check:boundaries` rejects a stray entry that is not a declared `depends_on` edge. Recording the
+  seam that way would mean first writing `depends_on: [drive-machinery]` here — a false statement
+  under the dependency test (this story is a pure package, proven offline, and needs nothing drive
+  delivers as a precondition to pass its own UAT), and a re-introduction of the very edge direction
+  the inversion removed. The seam is therefore recorded HERE, in prose, where the next adapter's
+  author reads it — deliberately visible, rather than encoded as an edge that would be untrue.
 - This story does NOT depend on `@storytree/drive`. Session identity is resolved by the CALLER and
   passed in (the increment-2 rule, ADR-0241 D9); importing `deriveIdentity()` here would make
   `drive → spawn → drive` a cycle.
@@ -163,8 +181,10 @@ The observer's input is a LOCALLY-declared structural slice-run shape, not an im
 that accounting structurally. That keeps this package off the agent organism and lets the same
 proofs run offline, with no DB, no API key, and no subscription spend.
 
-The build-side activation lines (`packages/drive/src/node-build.ts`, `story-build.ts`,
-`packages/drive/package.json`, `packages/cli/src/traversal.ts`) are un-asserted connective glue
+The activation lines — drive's own `LeafSlicesObserver` seam and `onLeafSlices` opt
+(`packages/drive/src/node-build.ts`, `story-build.ts`), and the CLI-side wiring that injects this
+package's capture and swaps the replay (`packages/cli/src/commands.ts`,
+`packages/cli/src/traversal.ts`, `packages/cli/package.json`) — are un-asserted connective glue
 (ADR-0158) in another story's building: declared as a consumed-by edge and reviewed in the diff,
 never claimed as this story's evidence. **The one-off confirmation that a real
 `node build --real` emits these lanes end to end is NOT a UAT leg of this story** — see "Explicitly
