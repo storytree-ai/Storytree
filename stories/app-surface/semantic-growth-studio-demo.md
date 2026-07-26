@@ -163,6 +163,9 @@ red attempts, but feedback ended green and the spine failed closed at CONFIRM_RE
 candidate was produced. Its concrete host-local loophole is the empty
 `const VEGETATION: SceneVegetationInput = {}`: dependency CSS can pass while the hosted fixture never
 renders planted `garden-flora`. The next red proves the fixture roles before auditing shared CSS.
+The run `real-ms1z7wip` from contract `658d724` stopped fail-closed at AUTHOR_TEST after exhausting
+the maximum 48 turns. No slices ran, no verdict was produced and no candidate was promoted. The
+available output identifies no defect, so this history records none.
 
 ## Guidance
 
