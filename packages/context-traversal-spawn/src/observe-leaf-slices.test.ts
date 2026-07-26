@@ -26,7 +26,7 @@ function harness() {
   return { nextId, now };
 }
 
-test("one authoring slice with usage emits a linked spawn_handoff / model_context / result_return triple", () => {
+test("one-slice-emits-handoff-context-return-in-order, payload-token-count-is-always-absent: one authoring slice with usage emits a linked spawn_handoff / model_context / result_return triple, and the handoff never carries a payload token count", () => {
   const { nextId, now } = harness();
   const runs: LeafSliceRun[] = [
     {
@@ -113,7 +113,7 @@ test("one authoring slice with usage emits a linked spawn_handoff / model_contex
   }
 });
 
-test("context window capacity is a pass-through of the runtime's OWN declaration, present only when byModel declares exactly one distinct positive window", () => {
+test("context-window-capacity-is-never-inferred, a-single-declared-window-is-carried-verbatim-onto-the-child-context, an-undeclared-ambiguous-or-non-positive-window-yields-absent-capacity, child-window-is-one-aggregate-observation: context window capacity is a pass-through of the runtime's OWN declaration, present only when byModel declares exactly one distinct positive window, and no slice's window accumulates into another's", () => {
   const { nextId, now } = harness();
 
   const BASE_USAGE = {
@@ -188,9 +188,24 @@ test("context window capacity is a pass-through of the runtime's OWN declaration
     undefined, // byModel present but no model declared a window
     undefined, // byModel entirely absent — nothing to attribute
   ]);
+
+  // `child-window-is-one-aggregate-observation`, second half: each authoring slice is its own
+  // independent query with its own window (ADR-0235 clause 5), so two slices' windows must never
+  // accumulate into each other. Every slice here reports the identical BASE_USAGE (10 + 0 + 0), so
+  // each child's observation must read a flat 10 — a running total across slices would read
+  // 10, 20, 30, ... instead. Asserted on both fields, which are EQUAL by the same clause.
+  const expectedFlat = runs.map(() => 10);
+  assert.deepEqual(
+    modelContextEvents.map((event) => (event.kind === "model_context" ? event.cumulativeInputTokens : -1)),
+    expectedFlat,
+  );
+  assert.deepEqual(
+    modelContextEvents.map((event) => (event.kind === "model_context" ? event.addedInputTokens : -1)),
+    expectedFlat,
+  );
 });
 
-test("contract 8: a slice declaring exactly one byModel key emits that key as modelId on the child's model_context observation", () => {
+test("model-and-agent-type-come-from-the-runtime: a slice declaring exactly one byModel key emits that key as modelId on the child's model_context observation, and none when several or no keys are declared", () => {
   const { nextId, now } = harness();
 
   const BASE_USAGE = {
@@ -266,7 +281,7 @@ test("contract 8: a slice declaring exactly one byModel key emits that key as mo
   ]);
 });
 
-test("a slice with no usage skips model_context but still links its own spawn/return edge, and a failed slice reports ok:false with no result token count", () => {
+test("a-slice-without-usage-emits-no-model-context, result-return-carries-output-tokens-and-outcome: a slice with no usage skips model_context but still links its own spawn/return edge, and a failed slice reports ok:false with no result token count", () => {
   const { nextId, now } = harness();
   const runs: LeafSliceRun[] = [
     {
@@ -334,7 +349,7 @@ test("a slice with no usage skips model_context but still links its own spawn/re
   assert.deepEqual(timestamps, [...timestamps].sort());
 });
 
-test("child session identity is composed from declared build identity alone, never from id/clock injection or array position", () => {
+test("child-session-id-is-explicit-and-deterministic: child session identity is composed from declared build identity alone, never from id/clock injection or array position", () => {
   const runs: LeafSliceRun[] = [{ phase: "AUTHOR_TEST", subtype: "success", turns: 1 }];
 
   let counterA = 100;
@@ -369,7 +384,7 @@ test("child session identity is composed from declared build identity alone, nev
   }
 });
 
-test("no authoring slices means no traversal at all", () => {
+test("zero-slices-emit-nothing-and-every-event-parses: no authoring slices means no traversal at all", () => {
   const { nextId, now } = harness();
   const events = observeLeafSlices({
     parentSessionId: PARENT_SESSION_ID,
@@ -382,7 +397,7 @@ test("no authoring slices means no traversal at all", () => {
   assert.deepEqual(events, []);
 });
 
-test("BUILD_SPAWN_BOUNDARY_COVERAGE names exactly what this adapter emits and derives every omission from the closed vocabulary", () => {
+test("coverage-is-exhaustive-over-the-closed-feature-enum: BUILD_SPAWN_BOUNDARY_COVERAGE names exactly what this adapter emits and derives every omission from the closed vocabulary", () => {
   const parsed = ContextTraversalCoverage.parse(BUILD_SPAWN_BOUNDARY_COVERAGE);
 
   assert.deepEqual(
@@ -417,7 +432,7 @@ test("BUILD_SPAWN_BOUNDARY_COVERAGE names exactly what this adapter emits and de
   assert.equal(parsed.supported.length + parsed.omitted.length, CoverageFeature.options.length);
 });
 
-test("child session id is legal as a path segment on every supported platform (regression: a colon-separated id silently drops the sink's write)", () => {
+test("child-session-id-is-a-legal-filename-segment: child session id is legal as a path segment on every supported platform (regression: a colon-separated id silently drops the sink's write)", () => {
   const { nextId, now } = harness();
   const runs: LeafSliceRun[] = [
     { phase: "AUTHOR_TEST", subtype: "success", turns: 1 },
