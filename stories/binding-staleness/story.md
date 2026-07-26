@@ -7,8 +7,10 @@ status: mapped
 proof_mode: UAT
 capabilities: [boundhash-on-verdict, change-event-store, source-drift, gate-emits-change, drift-reads-store]
 # Cross-story edge (ADR-0010 §4 / ADR-0058): this story extends and is CONSUMED BY the drive's proof
-# path — its first unit adds a field to drive-machinery's signed `Verdict` (packages/core/src/proof.ts)
-# and `gate-emits-change` edits drive-machinery's prove-it-gate (packages/orchestrator/src/prove-it-gate.ts).
+# path — its first unit adds a field to the signed `Verdict`, which now lives at
+# packages/proof-protocol/src/proof.ts (the slice was authored against packages/core/src/proof.ts;
+# @storytree/core was DISSOLVED by ADR-0068, so that path is dead — do not restore it) — and
+# `gate-emits-change` edits drive-machinery's prove-it-gate (packages/orchestrator/src/prove-it-gate.ts).
 # The drive's own UAT does not need this story's outcome (binding is purely additive/optional on the
 # gate), so the direction is binding-staleness → drive-machinery, acyclic.
 # proof-protocol: an honesty edge the ADR-0115 drift report surfaced (2026-07-05 map audit) — this
@@ -37,14 +39,19 @@ live units, never an explicit-args toy.
 **Depends on —** [`drive-machinery`](../drive-machinery/story.md)
 
 This is the story home for the offline-provable slices that wire [ADR-0016](../../docs/decisions/0016-knowledge-code-binding-and-staleness.md)'s
-**binding/staleness engine** into the proof + store path. The engine itself is LANDED
-([`packages/core/src/anchor.ts`](../../packages/core/src/anchor.ts): the re-anchorable `Anchor`, the
-`hashSpan` FNV-1a content fingerprint seam, `ChangeEvent`/`isDescribed`, and the pure
-`classifyDrift → DriftFlag`; [`packages/cli/src/drift.ts`](../../packages/cli/src/drift.ts): the
-`storytree drift` surface). But today `storytree drift` runs on **explicit `--bound`/`--change` args**
-because **no live unit carries a stored anchor**. These capabilities close that gap: a verdict learns
-WHAT code it proved (`boundHash`), the store gains a typed change-event contract, the gate emits change
-events as it (re)proves, and the CLI reads a unit's stored binding instead of demanding explicit args.
+**binding/staleness engine** into the proof + store path. The engine itself is LANDED — since
+[ADR-0068](../../docs/decisions/0068-make-the-organism-model-physical-real-story-isolation-and-th.md) dissolved `@storytree/core` it
+lives in two homes, not the one `packages/core/src/anchor.ts` this story was authored against:
+the DATA shapes in [`packages/proof-protocol/src/anchor.ts`](../../packages/proof-protocol/src/anchor.ts)
+(the re-anchorable `Anchor`, `ChangeEvent`, `DriftState`/`DriftFlag`) and the COMPUTE in
+[`packages/orchestrator/src/proof/anchor-compute.ts`](../../packages/orchestrator/src/proof/anchor-compute.ts)
+(the `hashSpan` FNV-1a content fingerprint seam, `isDescribed`, and the pure `classifyDrift → DriftFlag`);
+the operator surface is [`packages/cli/src/drift.ts`](../../packages/cli/src/drift.ts). But today
+`storytree drift` runs on **explicit `--bound`/`--change` args** because **no live unit carries a stored
+anchor**. These capabilities close that gap: a verdict learns WHAT code it proved (`boundHash`), the
+store gains a typed change-event contract, the gate emits change events as it (re)proves, and the CLI
+gains a store-reading drift path instead of demanding explicit args — though that path is still an
+exported function with no command wired to it (see the recorded gap below).
 
 ## Honest status
 
@@ -54,6 +61,34 @@ the **inner loop** — a spec-borne `proof:` block ([ADR-0057](../../docs/decisi
 makes the node buildable, and the prove-it-gate observes a genuine red→green and signs a verdict. The
 story flips toward `healthy` per-unit as each lands a signed verdict. The `proposed` pockets, recorded
 below, are the **DB-backed half** deliberately split to a parallel session.
+
+**Recorded gap (found 2026-07-26) — the `storytree drift <unit>` COMMAND was never wired.** The
+store-reading surface itself LANDED and is genuinely proven: `runDriftFromStore` in
+[`packages/cli/src/drift.ts`](../../packages/cli/src/drift.ts), covered by
+[`packages/cli/src/drift-from-store.test.ts`](../../packages/cli/src/drift-from-store.test.ts). But the
+CLI dispatcher still routes the `drift` area to the explicit-args `runDrift` ONLY — a positional
+argument is read as the rendered LABEL, not as a unit id
+([`packages/cli/src/commands.ts`](../../packages/cli/src/commands.ts), the `drift` area branch) — and
+`runDriftFromStore` has NO caller anywhere in `packages/` or `apps/`. So the frontmatter `outcome`
+sentence's `storytree drift <unit>` clause is **not yet true at the command surface**, even once all
+four reliability gates below are adopted. UAT leg 4 was corrected in this pass to claim only the
+surface that is actually proven, so the leg cannot record a false pass; wiring the dispatch — or
+amending the story `outcome` instead — is an OWNER call. Whichever way it goes it earns its own leg,
+machine-witnessed, because a dispatch assertion has a compiler.
+
+**Stale capability proof configs (found 2026-07-26, NOT repaired here).** Four of this story's
+capability specs declare `real:` arms against packages that no longer exist, so those nodes are not
+`--real`-buildable as written: [`boundhash-on-verdict`](boundhash-on-verdict.md),
+[`change-event-store`](change-event-store.md) and [`source-drift`](source-drift.md) all target
+`@storytree/core` / `packages/core/**` (dissolved by ADR-0068), and
+[`change-store-pg`](change-store-pg.md) targets `@storytree/store` / `packages/store/**` (dissolved by
+ADR-0077 — the `PgChangeStore` it proves now lives at
+[`packages/orchestrator/src/store/pg-change-store.ts`](../../packages/orchestrator/src/store/pg-change-store.ts)).
+[`drift-reads-store`](drift-reads-store.md) and [`gate-emits-change`](gate-emits-change.md) carry
+correct `real:` arms but still name `@storytree/core` in their authoring prose. None of this affects
+this story's green path — that path is Adopt over the reliability gates below, which name only live
+package suites — but it is a real defect in the capability files, and this pass's scope was this story
+file only.
 
 ## Out of scope of THIS story's offline slices (the follow-on session handled these — status noted)
 
@@ -90,9 +125,9 @@ C — a regression test against current behaviour, then the source edit); one is
 
 | # | capability | outcome | kind | depends on |
 |---|---|---|---|---|
-| 1 | [`boundhash-on-verdict`](boundhash-on-verdict.md) | The signed `Verdict` records the content-hash of the span it proved, so a verdict knows WHAT code it proved. | edit-existing `core/proof.ts` | — |
-| 2 | [`change-event-store`](change-event-store.md) | The store gains a typed append/read contract for `ChangeEvent`s, proven via a reusable parity suite (offline; the pg adapter is a parallel follow-on). | edit-existing `core/store.ts` | — |
-| 3 | [`source-drift`](source-drift.md) | A pure classifier mirrors `classifyDrift` over the `derives_from` DAG — an upstream ADR/artifact changed → source-drift. | net-new `core/source-drift.ts` | — |
+| 1 | [`boundhash-on-verdict`](boundhash-on-verdict.md) | The signed `Verdict` records the content-hash of the span it proved, so a verdict knows WHAT code it proved. | edit-existing, now `proof-protocol/proof.ts` | — |
+| 2 | [`change-event-store`](change-event-store.md) | The store gains a typed append/read contract for `ChangeEvent`s, proven via a reusable parity suite (offline; the pg adapter is a parallel follow-on). | edit-existing, now `storage-protocol/store.ts` | — |
+| 3 | [`source-drift`](source-drift.md) | A pure classifier mirrors `classifyDrift` over the `derives_from` DAG — an upstream ADR/artifact changed → source-drift. | net-new, now `orchestrator/proof/source-drift.ts` | — |
 | 4 | [`gate-emits-change`](gate-emits-change.md) | When a unit is (re)proven the gate stamps the proved span's hash onto the verdict and emits a `ChangeEvent`. | edit-existing `orchestrator/prove-it-gate.ts` | `boundhash-on-verdict`, `change-event-store` |
 | 5 | [`drift-reads-store`](drift-reads-store.md) | `storytree drift <unit>` reads the unit's stored anchor + change log from the store and classifies, instead of requiring explicit `--bound`/`--change`. | edit-existing `cli/drift.ts` | `change-event-store` |
 
@@ -118,28 +153,53 @@ becomes real and lazy.
 events as that code moves, and `storytree drift <unit>` reads the stored binding + change log and
 classifies it — refusing to re-UAT on a cosmetic/undescribed change.
 
-1. **A verdict records its code.** A signed `Verdict` carries the `boundHash` of the span it proved.
-   **Success —** the field round-trips through the schema; a verdict without it still parses (back-compat).
-   *(proven by `boundhash-on-verdict`)*
-2. **The store holds change events.** The `ChangeStore` contract appends + reads `ChangeEvent`s, held to
-   a reusable parity bar. **Success —** the parity suite is green against `InMemoryStore`.
-   *(proven by `change-event-store`)*
-3. **The gate emits as it proves.** When a unit is (re)proven with a binding, the gate stamps
-   `verdict.boundHash` and emits a `ChangeEvent`; without a binding it signs exactly as before.
-   **Success —** the orchestrator test observes both. *(proven by `gate-emits-change`)*
-4. **Drift reads the store.** `storytree drift <unit>` reads the unit's stored anchor + change log and
-   classifies fresh | stale | drifted-undescribed — no explicit `--bound`/`--change`. **Success —** the
-   three states are distinguished from `InMemoryStore` data. *(proven by `drift-reads-store`)*
-5. **Source-drift too.** A pure classifier flags an artifact whose upstream `derives_from` source changed.
-   **Success —** described change → stale, undescribed → demoted, unchanged → fresh. *(proven by `source-drift`)*
+1. **A verdict records its code.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-1)_ A
+   signed `Verdict` carries the `boundHash` of the span it proved.
+   **Success —** the field round-trips through the schema; a verdict without it still parses (back-compat),
+   asserted in `packages/proof-protocol/src/shapes.test.ts`. *(proven by `boundhash-on-verdict`)*
+2. **The store holds change events.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-2)_ The
+   `ChangeStore` contract appends + reads `ChangeEvent`s, held to a reusable parity bar. **Success —**
+   the `changeStoreParitySuite` is green against `InMemoryStore` — an empty log reads `[]`, an appended
+   event round-trips unchanged, a `unitId` filter selects only its own, and insertion order is preserved
+   (`packages/storage-protocol/src/change-event-store.test.ts`). *(proven by `change-event-store`)*
+3. **The gate emits as it proves.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-3)_ When a
+   unit is (re)proven with a binding, the gate stamps `verdict.boundHash` and emits a `ChangeEvent`;
+   without a binding it signs exactly as before. **Success —** the orchestrator test observes BOTH
+   branches — with a binding the verdict carries the bound hash and exactly one change event is emitted
+   carrying it, without one the field is absent and no event is emitted
+   (`packages/orchestrator/src/gate-emits-change.test.ts`). *(proven by `gate-emits-change`)*
+4. **Drift reads the store.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-4)_ The
+   store-reading drift path — `runDriftFromStore` in `packages/cli/src/drift.ts` — reads the unit's
+   stored anchor + change log and classifies fresh | stale | drifted-undescribed, taking no explicit
+   `--bound`/`--change` arguments. **Success —** the three states are distinguished from `InMemoryStore`
+   data, and an absent anchor is clean guidance rather than a crash
+   (`packages/cli/src/drift-from-store.test.ts`). Scoped deliberately to the store-reading PATH, not to
+   the `storytree drift <unit>` command: that command is not wired, and pretending otherwise here would
+   be a leg that can never go red — see the recorded gap under **Honest status**.
+   *(proven by `drift-reads-store`)*
+5. **Source-drift too.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-3)_ A pure classifier
+   flags an artifact whose upstream `derives_from` source changed.
+   **Success —** described change → stale, undescribed → demoted, unchanged → fresh, asserted over the
+   pure classifier in `packages/orchestrator/src/proof/source-drift.test.ts`. *(proven by `source-drift`)*
 
 End state — staleness is a real, lazy, described-change-gated signal computed from a unit's stored
 binding + change log, never a blanket re-UAT and never an explicit-args toy.
 
-> **HONEST status —** this story's own UAT is a HUMAN-witnessed ceremony (`uat_witness` undeclared →
-> human, the fail-closed default, ADR-0040): a `story build --real` builds the five capabilities and
-> WITHHOLDS this story node. Each capability earns its signed verdict through the gate; the story flips
-> toward `healthy` only when a human witnesses the integrated walkthrough above.
+> **HONEST status —** every leg above is DECIDED `machine`, adjudicated 2026-07-26 under ADR-0209 §8.
+> Before that pass they carried NO witness annotation at all, so they parsed undecided and resolved to
+> human by the fail-closed default (ADR-0106) — a default, never a judgment. Each of the five success
+> conditions is a compiling fact with a standing offline test, so none of them is the no-compiler
+> judgment gap the human rung exists for; each leg names the exact observe gate below that proves it,
+> and each of those four commands was run and read for this pass. Nothing was stranded by the
+> re-tagging: this story had zero attestation rows and zero verdict rows.
+>
+> So the story's own UAT is now machine-witnessable end to end — an adopt pass observe-and-signs all
+> five legs, and no leg awaits an operator's "I saw it work". What still holds the crown is unchanged:
+> every capability healthy, every reliability gate signed, and the recorded command-wiring gap under
+> **Honest status** settled by the owner. Separately, a `story build --real` still WITHHOLDS this story
+> node, because the frontmatter declares no story-tier machine witness and no story-tier `real:` arm —
+> a Build-path question, not a claim that the walkthrough above needs a human. This story's green path
+> is Adopt, not Build.
 
 ## Reliability Gates
 
@@ -186,21 +246,27 @@ observation proves insufficient (a real drift defect slips through), and the DB-
    signing exactly as before when it is absent (`packages/orchestrator/src/gate-emits-change.test.ts`) —
    then signs an `adopted` verdict (`storytree gate run binding-staleness#gate-3 --pg`). Adopts the
    [`source-drift`](source-drift.md) + [`gate-emits-change`](gate-emits-change.md) slices.
-4. **`storytree drift <unit>` reads the stored binding is green** _(gate: observe)_ `pnpm --filter @storytree/cli test`.
-   The spine OBSERVES the CLI suite green — `storytree drift <unit>` reads a unit's stored anchor + change
-   log from the store and classifies fresh | stale | drifted-undescribed WITHOUT explicit `--bound`/`--change`,
-   proven offline against `InMemoryStore` in `packages/cli/src/drift-from-store.test.ts` — then signs an
+4. **The store-reading drift path is green** _(gate: observe)_ `pnpm --filter @storytree/cli test`.
+   The spine OBSERVES the CLI suite green — `runDriftFromStore` reads a unit's stored anchor + change
+   log from the store and classifies fresh | stale | drifted-undescribed, taking no explicit
+   `--bound`/`--change` arguments, and an absent anchor is clean guidance rather than a crash, proven
+   offline against `InMemoryStore` in `packages/cli/src/drift-from-store.test.ts` — then signs an
    `adopted` verdict (`storytree gate run binding-staleness#gate-4 --pg`). Adopts the
-   [`drift-reads-store`](drift-reads-store.md) slice.
+   [`drift-reads-store`](drift-reads-store.md) slice's store-reading PATH. It deliberately does NOT
+   claim the `storytree drift <unit>` COMMAND: that dispatch is not wired, so no run of this suite
+   could ever go red on it — see the recorded gap under **Honest status**.
 
 Adopting all four flips the tier off `mapped`. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
 frontmatter `status:` stays `mapped`; the world's crown DERIVES green from the signed verdicts
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
 when every capability is `healthy` AND every own-proof obligation (these reliability gates) is signed
-AND the **human-witnessed** Story UAT above is attested (the story node is withheld, ADR-0040;
-[ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
-ADR-0083 Fork A + ADR-0085). No single gate greens the story.
+AND every leg of the Story UAT above carries its own signed verdict. Since the ADR-0209 §8 adjudication
+all five of those legs are MACHINE-witnessed and bound to the gates above, so the adopt pass signs them
+against those exact commands instead of waiting on an operator attestation — the story no longer has a
+human-witnessed acceptance ceremony
+([ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
+ADR-0083 Fork A + ADR-0085 + ADR-0106). No single gate greens the story.
 
 ## Proof
 
