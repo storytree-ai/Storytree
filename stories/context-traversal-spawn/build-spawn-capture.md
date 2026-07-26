@@ -83,6 +83,22 @@ metadata-only rule is a claim about what is on disk. Prove it that way: thread a
 every free-text-looking input and assert the canary against the file TEXT, not against parsed
 objects.
 
+**A `byModel` KEY is declared metadata, not a free-text input — and the current canary fixture uses
+one, which is EXPECTED TO CHANGE.** Contract 6 here already requires the child lane's bytes to carry
+"the matching `modelId`", and `leaf-slice-spawn-observations` contract 8 requires the sole `byModel`
+key to be emitted as exactly that `modelId` (the vocabulary declares it `modelId: identity.optional()`).
+A `byModel` key is therefore a runtime-declared, deliberately-emitted identity — and none of clause
+6's banned categories: no prompt, no phase-prompt body, no tool result, no file content, no
+credential, no spawn payload, no returned result content. The current test fixture nonetheless
+threads its canary through a `byModel` KEY (`` [`model-${CANARY}`] ``, with no `contextWindow`); that
+passes today ONLY because the observer does not yet emit `modelId` at all. The moment contract 8 is
+implemented where it belongs, that canary reaches the bytes and contract 5 goes red. **The fixture is
+what is wrong, not the contract — that assertion is not a fixed point.** Move the canary onto inputs
+that are genuinely never emitted in any form (`subtype`, for example, from which only the derived
+boolean `ok` ever travels out). Contract 5's STRENGTH is unchanged: the canary must still be threaded
+through EVERY genuinely free-text input, so this narrows the carrier set by exactly one declared
+field and weakens no claim.
+
 **Declared capacity survives to the BYTES, or it is not proven.** Clause 6 is a claim about what is
 on disk, and that applies to what IS carried as much as to what is not. This composition is a
 transparent carrier — it routes events, it does not author them — so the window it writes is
@@ -128,6 +144,12 @@ the barrel export line only after the source lands.
      appears nowhere in the written bytes of any trace file — no prompt, no phase-prompt body, no
      tool result, no file content, no credential, no spawn payload, no returned result content —
      asserted against the raw file text.
+   - **a `byModel` KEY is not a valid canary carrier.** It is declared metadata that contract 6 here
+     and `leaf-slice-spawn-observations` contract 8 both REQUIRE to be emitted, as `modelId` — so
+     threading the canary through one sets this contract against its own siblings. The current
+     fixture does exactly that and is EXPECTED TO CHANGE; the canary belongs on inputs never emitted
+     in any form. The asserted claim above is unchanged and undiminished — every genuinely free-text
+     input still carries it.
 6. **`a-declared-window-reaches-the-child-lane-bytes`**
    - **asserts —** capture a build whose slice run accounting declares exactly ONE distinct positive
      context window, then READ `<dir>/<childSessionId>.jsonl` back from disk through a fresh reader

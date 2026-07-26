@@ -150,6 +150,15 @@ colon-template assertions did in the previous amendment. The exhaustiveness asse
 the enum are untouched and stay as they are — they are what keep the move honest, because the
 feature cannot simply vanish from the declaration.
 
+**Contract 8's `modelId` emission is what makes a `byModel` KEY a declared, EMITTED field.** When a
+slice declares exactly one `byModel` key, that key travels OUT as `modelId` — so a `byModel` key is
+runtime-declared metadata on the wire, not an opaque free-text input. That has a consequence next
+door: `build-spawn-capture`'s canary contract 5 currently threads its canary through a `byModel` key,
+which stays green only while contract 8 is unimplemented here. Implementing contract 8 faithfully
+turns that fixture red, and the FIXTURE is what moves — see the matching note in
+`build-spawn-capture.md`. Nothing about contract 8's own claim changes; recording it here is so a
+later session does not rediscover the collision the hard way and mistake it for a contract conflict.
+
 **Fences.** Metadata only (ADR-0235 clause 6): never a prompt, a context body, a tool result, hidden
 reasoning, a credential, a spawn payload, or returned result content — token counts only. No
 causality from time or ordering. No compaction, pruning, eviction, ranking, prefetch, or traversal
