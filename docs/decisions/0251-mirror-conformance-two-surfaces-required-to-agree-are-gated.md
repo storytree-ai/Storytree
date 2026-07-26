@@ -139,6 +139,11 @@ that should run on every `pnpm gate` as **non-blocking warns**, on the measured 
 metrics refuted 3 of this audit's 4 headline findings (~75% false positive), so "a metric threshold is
 never itself a finding and a BLOCKING gate would be wrong on the measured evidence".
 
+Non-blocking **per finding** — not "the advisory family can never block". ADR-0252 D3 also puts a fixed
+drain ceiling on the total COUNT, so that family reds the gate on backlog GROWTH even though no single
+signal ever does. `pnpm check:verification-decay` (2026-07-27) is that family's first instrument and
+carries the ceiling.
+
 `check:mirror-conformance` BLOCKS. That is not a departure from ADR-0252, because it is not a metric
 sweep. ADR-0252's advisory posture is calibrated to **heuristics that locate regions** — a threshold on
 a count, which needs an adversarial second phase before it is a finding. This check makes an **exact
@@ -153,6 +158,10 @@ mirrored routes nobody added a row for — is a discovery heuristic, has a real 
 and is precisely what ADR-0252's advisory "mirror-pair drift" sweep should cover. Whoever builds it
 should treat this registry as its target: the sweep's job is to find pairs missing from `MIRRORS`,
 not to re-derive what `MIRRORS` already proves.
+
+That sweep now has a concrete home: the instrument registry in
+`packages/cli/src/check-verification-decay.ts`, where adding it is a row rather than a redesign. It is
+**not built** — only `contract-binding-drift` is — and that file says so.
 
 ## References
 

@@ -218,8 +218,14 @@ added the members-gated write-broker + the `builder` scope (a settled owner-dire
 accepted per ADR-0110). Cost detail (direct IAP integration vs classic LB ~US$20/mo) is recorded in
 ADR-0042 and lands with `cloud-run-iap`. One call is open:
 
-1. **`cloud-sql-admin-rest.md` is an orphaned node with a DEAD proof binding (raised 2026-07-26 by
-   the ADR-0209 §8 witness pass; not repaired here — re-parenting a node is a story-shape call).**
+1. **`cloud-sql-admin-rest.md` is an orphaned node with a DEAD proof binding.** *Raised 2026-07-26 by
+   the ADR-0209 §8 witness pass; since 2026-07-27 the DEAD-BINDING half is held by machinery —
+   `pnpm check:verification-decay` (ADR-0252) sweeps it as one of the five baselined
+   `contract-binding-drift` signals, so it is no longer carried only by this note and cannot be lost
+   with it. Repairing the binding should also TIGHTEN `DRAIN_CEILING` in
+   `packages/cli/src/check-verification-decay.ts` from 5 to 4 — the ceiling only ever ratchets down.
+   The ORPHANING half — nothing references this node — is not swept by anything and lives only here.
+   Neither half is repaired here, because re-parenting a node is a story-shape call.*
    `stories/studio-cloud/cloud-sql-admin-rest.md` declares `tier: contract`, `story: studio-cloud`,
    but **nothing references it**: it is absent from this story's frontmatter `capabilities:` list and
    from the Capabilities (8) table, and no capability lists it under a `## Contracts` heading — the
