@@ -29,6 +29,9 @@ decisions: [237, 93, 213, 215, 230, 70]
 # `.pop-motion-inner` placement preservation and additive scale are necessary but not sufficient.
 # AUTHOR_TEST rejects one generic whole-object pop across terrain/tree/flora/plate/parcels and proves
 # distinct, ordered local terrain-formation and identity-growth staging with honest reduced motion.
+# COHERENT-BUNDLE FLOOR after real-ms1latuj: a finite-bloom-only red is invalid. One authored
+# choreography case must assert terrain, both art paths, role staging/treatments, claim, bloom and
+# reduced settlement together before IMPLEMENT may begin.
 proof:
   command:
     file: pnpm
@@ -38,7 +41,7 @@ proof:
     sourceGlobs: ["packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/semantic-growth.css", "packages/app-surface/src/index.ts", "packages/app-surface/src/SceneView.tsx"]
   real:
     testFile: "packages/app-surface/src/SemanticGrowthWorldView.test.tsx"
-    sourceFile: "packages/app-surface/src/SemanticGrowthWorldView.tsx"
+    sourceFile: "packages/app-surface/src/semantic-growth.css"
     editsExisting: true
     scope:
       testGlobs: ["packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
@@ -89,20 +92,17 @@ semantic-growth view:
    during motion even when the DOM attribute is unchanged. Require additive individual `scale:` with
    `transform-box: fill-box`, the correct ground/root origin and stagger, or the existing
    `.pop-motion-inner` composition whose outer placement remains effective for every animation frame;
-6. add independent authored-choreography red D: retain executable proof that `SceneView` emits the
-   exact existing `.pop-motion-inner` placement-preservation seam and that shared CSS targets it,
-   with no second wrapper, full CSS `transform:` replacement or lateral entry motion. Then fail while
-   one `arrive-pop`/whole-object scale is the sole treatment for terrain, tree/flora, plate and
-   parcels. Require rendered role hooks plus source/CSS timing to prove two distinct one-shot stages:
-   land locally forms/reveals the coast/substrate at its composed geometry; proposed then grows the
-   planted tree/flora from ground contact before the plate and capability parcels resolve in a
-   restrained local stagger. At least two identity subroles must use materially distinct existing
-   reveal/timing treatments (for example grounded scale versus local opacity, mask or clip), rather
-   than selector aliases to one keyframe. Claim remains a local entrance plus mapper orbit and bloom
-   remains a local proof pulse. The test asserts ordered nonzero offsets, settled anchors and no
-   indefinite motion; comments, class names alone and numeric scale changes alone do not pass.
-   Reduced motion removes every delay/orbit/transition and exposes the identical final six-state
-   semantics immediately;
+6. add one independent authored-choreography red D that asserts the full bundle together: retain
+   read-only source proof that `SceneView` emits the exact existing `.pop-motion-inner`
+   placement-preservation seam and shared CSS targets it, with no `SceneView` change, second wrapper,
+   full CSS `transform:` replacement or lateral entry motion; prove distinct local coast/substrate
+   staging; prove both Storybook and Vector renders expose participating tree/flora role hooks; prove
+   planted tree/flora resolve before plate/parcels with ordered nonzero offsets; and prove at least
+   two identity subroles use materially distinct existing reveal/timing treatments rather than one
+   `arrive-pop`/whole-object scale. The same case proves localized claim entrance plus mapper orbit,
+   finite localized bloom, clean one-shot settlement and reduced motion exposing the identical final
+   six-state semantics immediately. Missing any member keeps D red: a finite-bloom-only assertion,
+   selector aliases, class names alone or numeric scale changes alone cannot satisfy AUTHOR_TEST;
 7. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
    action trace twice and compare every semantic snapshot and transition-family trace;
 8. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
@@ -142,6 +142,13 @@ placement corrections, asking for a fresh session to do the space justice. The n
 treats the existing inner seam as a placement floor, not a visual verdict: terrain formation and
 identity growth must read as distinct staged events, and tree/flora/plate/parcels cannot all be one
 generic whole-object pop. It does not authorize another wrapper or new motion system.
+The failed-closed run `real-ms1latuj` is invalid proof: AUTHOR_TEST asserted only that bloom was
+finite, omitting the coherent terrain, Storybook/Vector participation, identity ordering/treatment,
+claim and reduced-settlement bundle. A bloom-only one-shot red cannot satisfy authored-choreography
+red D. IMPLEMENT then correctly stopped because `proof.real.sourceFile` named
+`SemanticGrowthWorldView.tsx` while `semantic-growth.css` owns this motion correction. The real
+source seam is now that existing CSS file; `SceneView` remains a read-only proof input and neither a
+`SceneView` implementation change nor another wrapper is authorized.
 
 ## Guidance
 
@@ -187,16 +194,15 @@ generic whole-object pop. It does not authorize another wrapper or new motion sy
   scale/origin/stagger on the existing `.pop-motion-inner` composition.
 - Preserve the already-landed `.pop-motion-inner` as the placement-safe visual seam beneath the
   static mapper wrapper; `SceneView` emits that exact class and CSS targets it, with no renamed class,
-  second wrapper or comments-only evidence. That seam and additive individual `scale:` are a floor,
-  not the choreography. Source/rendered proof must reject one selector/keyframe/timing profile as the
-  sole treatment for terrain, tree/flora, plate and parcels. Land first forms or reveals its
-  coast/substrate locally; proposed then grows planted tree/flora from ground contact before plate
-  and capability parcels resolve with a restrained local stagger. Prove at least two materially
-  distinct identity treatments using the existing code-native vocabulary—role-scoped scale,
-  opacity, mask/clip reveal or an existing transform idiom as appropriate—without changing composed
-  geometry. Claim entry stays local with its mapper orbit; bloom stays a local proof pulse. Every
-  transition is one-shot and settles cleanly. Reduced motion cancels timing, concealment and orbit
-  and renders the identical final role semantics immediately while outer placement remains effective.
+  second wrapper or comments-only evidence; this is read-only proof and does not authorize a
+  `SceneView` change. That seam and additive individual `scale:` are a floor, not the choreography.
+  One executable authored-choreography case must prove the coherent bundle together: land locally
+  forms/reveals coast/substrate; Storybook and Vector renders both expose participating tree/flora;
+  planted tree/flora resolve before plate/parcels with ordered nonzero offsets; and at least two
+  identity subroles use materially distinct existing role-scoped scale, opacity, mask/clip reveal or
+  transform treatments. The same case proves local claim/orbit, finite local bloom, clean one-shot
+  settlement and reduced motion immediately exposing the identical final role semantics. If any
+  member is absent—including when only finite bloom is asserted—AUTHOR_TEST remains red.
 - Keep the cursor and transition selection pure. Next clamps at healthy, Back clamps at empty,
   restart selects empty, and Replay reapplies the same ordered keys. Time controls interpolation
   only; no timeout advances the cursor and no random value influences output.
@@ -285,18 +291,16 @@ the existing `.pop-motion-inner` composition whose outer SVG `transform="transla
 the effective placement throughout animation. Merely comparing `getAttribute('transform')`
 before/after is red.
 
-**Authored semantic-choreography red D — additive, no new scope.** The test reads real
-`SceneView.tsx` and `semantic-growth.css`, preserves executable emission/targeting of the exact
-existing `.pop-motion-inner` placement seam, and rejects a second wrapper, full CSS `transform:`,
-lateral entry, mismatched names or comments-only matches. It then fails if terrain, tree/flora,
-plate and parcels merely alias one whole-object scale/keyframe/timing profile. Rendered role hooks
-and source/CSS timing must prove land's local coast/substrate formation is a distinct stage from
-proposed identity growth; planted tree/flora resolves from ground contact before plate/parcels; and
-at least two identity subroles use materially distinct existing local reveal/timing treatments with
-ordered nonzero offsets. Claim remains local with mapper orbit; bloom remains a local proof pulse;
-all motion is one-shot and restrained. Individual scale/fill-box/root origin may satisfy an
-appropriate role but cannot alone satisfy this red. Reduced motion must remove delays, concealment,
-orbit and transition while exposing the same final role semantics and preserving outer placement.
+**Authored semantic-choreography red D — indivisible, additive, no new scope.** One executable case
+reads real `semantic-growth.css` and read-only `SceneView.tsx`, preserves exact existing
+`.pop-motion-inner` emission/targeting, and rejects a second wrapper, `SceneView` implementation
+change, full CSS `transform:`, lateral entry, mismatched names or comments-only matches. That same
+case must prove every bundle member together: distinct local coast/substrate formation; participating
+tree/flora role hooks under both Storybook and Vector; planted tree/flora before plate/parcels with
+ordered nonzero offsets; at least two materially distinct existing role treatments; localized claim
+plus mapper orbit; finite localized bloom; one-shot settlement; and reduced motion immediately
+exposing identical final semantics while preserving outer placement. Missing any member keeps D red.
+In particular, the finite-bloom-only shape attempted by `real-ms1latuj` cannot satisfy AUTHOR_TEST.
 
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
    - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
@@ -329,10 +333,11 @@ orbit and transition while exposing the same final role semantics and preserving
      full CSS `transform:` property on mapper-positioned animated elements and positively requires
      additive `scale:` plus fill-box/root origin/stagger on the existing `.pop-motion-inner`;
      the authored-choreography case additionally preserves exact `.pop-motion-inner`
-     emission/targeting while rejecting a generic whole-object pop. It proves distinct ordered
-     terrain-formation and identity-growth stages, ground-contact tree/flora before locally revealed
-     plate/parcels, at least two materially distinct identity treatments, one-shot settlement, local
-     claim/orbit and bloom pulse, and immediate honest reduced-motion semantics. DOM
+     emission/targeting while rejecting a generic whole-object pop. One indivisible executable case
+     proves distinct local coast/substrate staging, Storybook and Vector tree/flora participation,
+     ground-contact tree/flora before locally revealed plate/parcels, at least two materially distinct
+     identity treatments with ordered offsets, local claim/orbit, finite local bloom, one-shot
+     settlement and immediate honest reduced-motion semantics. A bloom-only red cannot pass. DOM
      transform-attribute equality, numeric scale changes alone, class mismatches and comments/prose
      cannot satisfy the cases.
      Transition rules and reduced-motion handling live under
