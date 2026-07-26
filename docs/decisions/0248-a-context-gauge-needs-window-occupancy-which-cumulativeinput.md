@@ -118,6 +118,16 @@ Concretely:
    totals from it as the occupancy quantity. Capacity continues to come from the runtime declaration
    increment 4 landed. Its identity-correlation problem — transcript session ids are not storytree
    session ids — is the substance of that increment's work, not a reason to prefer another source.
+   **BUILT AND LANDED 2026-07-27** by story `context-traversal-transcript`, and the
+   identity-correlation problem is solved: the join is the `cwd` each transcript records, matched on
+   the final segment of `.claude/worktrees/<name>` — mirroring `deriveIdentity()`'s own rule rather
+   than re-implementing it, so a foreign checkout and a strict-prefix worktree name are both refused.
+   Correlating that way surfaced what this ADR did not anticipate — a worktree-derived storytree
+   `sessionId` OUTLIVES any single runtime window, so one session routinely holds several transcripts
+   that each start empty — which is why `ModelContextEvent` gained an optional `windowId` beside the
+   occupancy field. The quantity itself landed as an optional `residentInputTokens`, additively; the
+   reasoning for both fields is at their definition site and in
+   `stories/context-traversal-telemetry/traversal-event-vocabulary.md`, not restated here.
 2. **`cumulativeInputTokens` is documented at its definition site as a billing total**, not an
    occupancy figure, because it currently reads as the latter.
 3. **`addedInputTokens` is DELETED, not de-duplicated.** The owner's revised visual contract replaces
@@ -151,35 +161,53 @@ real build spawns a subscription-funded leaf and therefore cannot be exercised w
 local transcript file is free and needs no credentials — the same shape as increment 2's terminal CLI
 dispatch boundary, which earned five signed machine UAT legs by spawning the real CLI and asserting on
 bytes on disk. The transcript adapter's activation is expected to be machine-provable the honest way;
-that expectation is the planning increment's to confirm, not this ADR's to assume.
+that expectation is the planning increment's to confirm, not this ADR's to assume. **Confirmed
+2026-07-27 by the increment that landed it:** all six of story `context-traversal-transcript`'s UAT
+legs are `witness: machine`, each bound explicitly to `context-traversal-transcript#gate-1`, and
+every one runs offline — no DB, no API key, no model — by spawning the real CLI against temporary
+transcript and trace directories and asserting on the bytes it wrote.
 
 ## Consequences
 
 - Increment 4 landed `contextWindowCapacity` populated from a real runtime declaration, with no gauge
   and no threshold marker. That was a smaller increment than "the gauge is unblocked" would suggest,
   and the increment log says so plainly.
-- The arc's signature visual is unblocked by this decision plus the revised visual contract, but not
-  yet built: the transcript adapter is the next observability increment after the floor rebuild.
-- `addedInputTokens` is to leave the vocabulary (not yet done — see the execution-status bullet
-  below). That is a narrowing of an ADR-0235 clause-4 field and is
+- The arc's signature visual is unblocked by this decision plus the revised visual contract. The
+  transcript adapter that supplies its quantity LANDED 2026-07-27 (story
+  `context-traversal-transcript`, D1 above); the bar itself — the fill, the playhead, the red
+  over-threshold region — is still unbuilt and is a later increment.
+- `addedInputTokens` is to leave the vocabulary (not yet done — see the D3 bullet below, which now
+  names the increment that owns it). That is a narrowing of an ADR-0235 clause-4 field and is
   recorded here rather than by amending 0235, because 0235 says a request *may* record tokens added —
   permissive, not mandatory — so removing the field contradicts nothing in it.
-- **Execution status of D2 and D3, recorded 2026-07-27 — neither is done, and the floor rebuild
-  deliberately did not do D3.** The `context-traversal-telemetry` floor rebuild (the increment that
-  re-proved the event vocabulary red→green after it was found holding zero signed verdicts) KEPT
-  `addedInputTokens` on `ModelContextEvent`. The field has live emitters in
-  `packages/context-traversal-spawn` — a different story — and dropping a key from a `.strict()`
-  shape that another package writes into belongs to the increment that owns those emitters, not to
-  the floor. The reasoning is recorded at the definition site in
-  `stories/context-traversal-telemetry/traversal-event-vocabulary.md`. **Read that re-green as D3
-  PENDING, not as D3 contradicted.** D2 is also unexecuted: as of this date no definition site
-  documents `cumulativeInputTokens` as a billing total — not the schema in
-  `packages/context-traversal-telemetry/src/traversal-events.ts`, not the emitter in
-  `observe-leaf-slices.ts`, and not either story spec. That is an open gap rather than a deliberate
-  deferral, and it leaves the misreading trap below still open.
+- **Execution status of D2, last checked 2026-07-27 — DONE at the schema definition site, with a
+  named residue.** `ModelContextEvent.cumulativeInputTokens` in
+  `packages/context-traversal-telemetry/src/traversal-events.ts` now records that it is tokens
+  PROCESSED and not window OCCUPANCY, carries the 613%/504% evidence, and says plainly not to plot it
+  against `contextWindowCapacity`; the transcript story's
+  `transcript-occupancy-ingest.md` states the same for the boundary that emits both quantities. (An
+  earlier version of this
+  bullet asserted D2 was unexecuted everywhere. That was false when written — commit `9808de2d` added
+  the schema documentation in the same commit as the assertion — and is corrected here.) D2 is still
+  NOT done at the emitter `packages/context-traversal-spawn/src/observe-leaf-slices.ts`, nor in
+  `stories/context-traversal-spawn/leaf-slice-spawn-observations.md`, nor in
+  `stories/context-traversal-telemetry/traversal-event-vocabulary.md` — each of those is its own
+  story's increment, not this ADR's to leave open indefinitely.
+- **Execution status of D3, last checked 2026-07-27 — PENDING, and it now has a named home rather
+  than an open gap.** Deleting `addedInputTokens` requires editing live emitters and assertions in
+  `packages/context-traversal-spawn` and a render fixture in `packages/context-traversal-capture` —
+  two OTHER stories' proof-bound sources — so it belongs to the DEFERRED SDK-message-stream increment
+  (candidate A above), which reworks those emitters anyway. Until then every boundary keeps the ONE
+  existing convention: the transcript adapter landed 2026-07-27 deliberately emits `addedInputTokens`
+  equal to `cumulativeInputTokens`, exactly as `observe-leaf-slices.ts` does, so the deletion
+  increment finds one uniform pattern to remove rather than two. The reasoning sits at the assignment
+  in `packages/context-traversal-transcript/src/ingest-occupancy.ts` and in that story's "Explicitly
+  outside this increment". **Read a re-green or a fresh emission of `addedInputTokens` as D3 PENDING,
+  not as D3 contradicted.**
 - Anyone reading "capacity now flows" as "the gauge can be built" would have built a gauge reading
-  613%. D2's documentation requirement is what closes that trap — and until D2 actually lands
-  (previous bullet) the trap stays open, guarded by this ADR alone rather than by the code.
+  613%. D2's documentation requirement is what closes that trap, and it is now closed at the place a
+  reader is most likely to arrive: the field's own doc comment in the vocabulary schema. The trap
+  stays open at the emitter, which is the residue named above.
 - The 500k region survives as a display-only rule on the bar: the portion of the fill beyond the
   threshold renders red, with no marker drawn. It is not a cutoff, an eviction trigger, or a claim
   about any model's window size.
@@ -199,4 +227,7 @@ that expectation is the planning increment's to confirm, not this ADR's to assum
   variable.
 - `packages/agent/src/sdk-author.ts` — `usageFromSdkResult`, which reads one aggregate result per
   slice (fact 1 above).
+- `stories/context-traversal-transcript/story.md` and `packages/context-traversal-transcript/` — D1
+  as landed on 2026-07-27: the correlation rule, the `windowId`/`residentInputTokens` fields, and the
+  D3 convention this adapter deliberately preserves.
 - `asset:linked-session-context-arc` — the end state describing the gauge.

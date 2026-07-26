@@ -178,7 +178,10 @@ The three candidates as they were stated, and their disposition:
 - **ADR-0248's transcript adapter does not need this seam.** Reading a local transcript file is free and
   credential-free, so its activation is expected to be provable the way increment 2's was — by spawning
   the real thing and asserting on bytes. ADR-0248's original claim that its candidates A and D both
-  inherit this ADR is corrected there.
+  inherit this ADR is corrected there. **Borne out 2026-07-27:** story `context-traversal-transcript`
+  landed with six `witness: machine` UAT legs bound to `context-traversal-transcript#gate-1`, all of
+  them offline — no DB, no API key, no model — spawning the real CLI and asserting on the bytes it
+  wrote. The expectation this bullet recorded is now an observation.
 - CI keeps its no-secrets posture. Nothing in this decision asks for a subscription token in CI, which
   was the only other way to reach the same proof.
 - A canned `LiveAuthor` is a fixture, and fixtures drift. D5 names that limitation rather than papering
