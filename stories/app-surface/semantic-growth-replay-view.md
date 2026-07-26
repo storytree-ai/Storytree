@@ -48,6 +48,8 @@ decisions: [237, 93, 213, 215, 230, 70]
 # cannot substitute for authored choreography. AUTHOR_TEST must extend the existing `binds the
 # studio's real growth vocabulary...` case in place—never replace/delete it—and materially change
 # that source span with the whole D resolver/renderer/property/timing bundle before authoring red E.
+# D-AND-E COMPLETION FLOOR after real-ms1rkitn: AUTHOR_TEST must contain both the in-place full D case
+# and the separate executable exact-frame E case before CONFIRM_RED. D-only and E-only are invalid.
 proof:
   command:
     file: pnpm
@@ -154,7 +156,7 @@ semantic-growth view:
    every frame's final semantics immediately with no arrival selector or delayed concealment. Do not
    author this separate E case until the named D case's source span has been extended in place with
    its complete resolver, renderer-participation, property, timing, per-item-offset and
-   exactly-one-bloom bundle;
+   exactly-one-bloom bundle; then require both D and E to exist before CONFIRM_RED;
 8. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
    action trace twice and compare every semantic snapshot and transition-family trace;
 9. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
@@ -242,6 +244,11 @@ The run `real-ms1q6ouu` from contract `a415ecc` stopped fail-closed: AUTHOR_TEST
 after 45 turns and IMPLEMENT reported success after 22 turns, but the spine failed at CONFIRM_GREEN
 because proof remained red. It produced no verdict and promoted no candidate. Its disposable
 worktree was removed and the available output identifies no defect, so this history records none.
+The signed candidate `real-ms1rkitn` at `bf101a0` is rejected and unmerged. It materially extended
+the named D case in place with the required resolver, both renderer hooks, property/timing/per-item
+assertions and exactly-one bloom, and implemented distinct CSS, but omitted separate red E entirely.
+Its selectors remain generic `[data-semantic-growth-frame][data-motion='full']`, so accumulated roles
+reanimate and no executable case proves exact entering-frame scoping. D-only proof is incomplete.
 
 ## Guidance
 
@@ -464,6 +471,8 @@ E is additive and ordered after D: it cannot count unless AUTHOR_TEST first cont
 extended-in-place named vocabulary case and that one case executes every D operation. Appending only
 E while leaving that named source span byte-unchanged—even when D-looking legacy assertions remain—
 is rejected machine proof, as shown by `real-ms1pgtt2` at `9163674` and `real-ms1pvz2l` at `99ebfcd`.
+Completion is conjunctive before CONFIRM_RED: AUTHOR_TEST must also add this separate executable E
+case after D. A complete D with no E is equally invalid, as `real-ms1rkitn` at `bf101a0` demonstrates.
 
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
    - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
