@@ -151,10 +151,60 @@ test("two-commands-share-one-session-with-distinct-visits: two spawned commands 
   for (const event of [one, two]) {
     assert.equal(event.sessionId, sessionId);
     assert.equal(event.parentVisitId, undefined, "cross-process adjacency must not create a parent edge");
-    assert.equal(event.priorVisitId, undefined, "cross-process adjacency must not create a revisit edge");
+    // These two fixtures read DIFFERENT nodes (`plan`, then `context-traversal-telemetry`), which is
+    // why neither links. Since increment 6 the reason matters: cross-process adjacency to the SAME
+    // node DOES create a revisit edge (see the sibling test below), so stating this as "adjacency
+    // never links" would be true of the value and false of the mechanism.
+    assert.equal(event.priorVisitId, undefined, "a visit to a DIFFERENT node must not become a revisit edge");
     // followedEdgeId is not even a field on a visit event's vocabulary — confirm no such key leaked in.
     assert.equal(Object.prototype.hasOwnProperty.call(event, "followedEdgeId"), false);
   }
+});
+
+// ---------------------------------------------------------------------------
+// 2b. increment 6's revisit link, asserted at the REAL-CLI boundary
+//
+// Not a contract of any capability and not a UAT leg: `revisit-link-metadata`'s five contracts prove
+// the PURE linker over caller-supplied events, which is strictly weaker than "the real CLI, run twice
+// as two separate processes, links the second read to the first". That positive case was witnessed by
+// hand and asserted NOWHERE, which is the "trustworthy seam that nothing composed" shape ADR-0243
+// records — and unlike ADR-0243's own boundary this one costs nothing to close, because this file
+// already spawns the real CLI. Strengthening a living criterion is safe; only weakening one would be
+// forgery, so this is added rather than deferred.
+// ---------------------------------------------------------------------------
+
+test("a repeat read of the SAME node across two real CLI processes links to the earlier visit", () => {
+  const dir = freshDir("revisit");
+  const sessionId = "session-revisit";
+  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, STORYTREE_SESSION_ID: sessionId };
+
+  const first = runCli(["tree", "context-traversal-capture"], env);
+  assert.equal(first.status, 0, `expected the first spawned command to exit 0: ${first.stderr}`);
+  const second = runCli(["tree", "context-traversal-capture"], env);
+  assert.equal(second.status, 0, `expected the second spawned command to exit 0: ${second.stderr}`);
+
+  const { replay, skipped } = readTraversalSession({ dir, sessionId });
+  assert.equal(skipped, 0);
+  assert.equal(replay.events.length, 2, "expected one captured visit per invocation");
+
+  const [firstEvent, secondEvent] = replay.events;
+  const one = expectVisit(firstEvent, "revisit first");
+  const two = expectVisit(secondEvent, "revisit second");
+
+  assert.equal(one.nodeId, two.nodeId, "the fixture must read the same canonical node twice");
+  assert.notEqual(one.visitId, two.visitId, "a revisit is a NEW forward visit, never a reused id");
+
+  // The link is read off the SECOND event the system produced, and it must name the FIRST event's
+  // visitId — not merely be present. A linker that emitted any non-empty string would pass a
+  // "priorVisitId is defined" check and fail this one.
+  assert.equal(
+    two.priorVisitId,
+    one.visitId,
+    "the second visit must name the first visit's id as its priorVisitId",
+  );
+  // The earlier visit itself has nothing to link back to, so the key must be absent entirely — the
+  // shape the sink writes, which is what a later reader parses.
+  assert.equal(Object.prototype.hasOwnProperty.call(one, "priorVisitId"), false);
 });
 
 // ---------------------------------------------------------------------------
