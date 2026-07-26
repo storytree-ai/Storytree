@@ -49,4 +49,5 @@ The Library is already a canonical context DAG (ADR-0161), and ceremony bodies a
 - [ADR-0156: Subagent prompts are essentials-only; the CLI serves ceremony bodies just-in-time](0156-subagent-prompts-are-essentials-only-the-cli-serves-ceremony.md)
 - [ADR-0161: The library is a node-keyed context DAG](0161-the-library-is-a-node-keyed-context-dag-agent-step-nodes-and.md)
 - [ADR-0203: Per-slice token-usage capture and the token-analytics surface](0203-per-slice-token-usage-capture-and-the-token-analytics-surfac.md)
+- [Context traversal visual contract](../design/context-traversal/README.md)
 - Arc: `linked-session-context-arc`
