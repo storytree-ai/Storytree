@@ -131,11 +131,38 @@ desktop-side unit test pinning the behaviour where the code lives.
   the mirror, but the ADR constellation's doc out-degree stays 0 until a studio-side reader lands.
   That is a studio gap, recorded here so a later session does not rediscover it as a desktop bug.
 
+## Reconciliation with ADR-0252 (authored concurrently)
+
+ADR-0252 landed on `main` (#939) while this increment was in flight, settling the same arc's open
+owner fork on the detection pass. It lists **"mirror-pair drift"** among four cheap mechanical checks
+that should run on every `pnpm gate` as **non-blocking warns**, on the measured ground that aggregate
+metrics refuted 3 of this audit's 4 headline findings (~75% false positive), so "a metric threshold is
+never itself a finding and a BLOCKING gate would be wrong on the measured evidence".
+
+`check:mirror-conformance` BLOCKS. That is not a departure from ADR-0252, because it is not a metric
+sweep. ADR-0252's advisory posture is calibrated to **heuristics that locate regions** — a threshold on
+a count, which needs an adversarial second phase before it is a finding. This check makes an **exact
+equality assertion between two implementations over the same input**: a reported divergence is a
+defect by construction, with nothing to adjudicate and no false-positive surface. Its output is not a
+score to be interpreted; it is a diff. An exact assertion that cannot be wrong should block, exactly as
+`check:boundaries` does.
+
+The two are complements, and the boundary between them is the registry: this gate proves the mirrors
+it KNOWS about, and is silent about the ones it does not. The unregistered-pair problem — finding
+mirrored routes nobody added a row for — is a discovery heuristic, has a real false-positive surface,
+and is precisely what ADR-0252's advisory "mirror-pair drift" sweep should cover. Whoever builds it
+should treat this registry as its target: the sweep's job is to find pairs missing from `MIRRORS`,
+not to re-derive what `MIRRORS` already proves.
+
 ## References
 
 - ADR-0176 — one wired backend: the desktop re-composes, never imports, `apps/studio/server`.
 - ADR-0187 dec 3 — the ADR wire signals (`load_bearing` + resolved lineage edges) folded onto `DocMeta`.
-- ADR-0195 — the affected-only PR scope this check is deliberately placed outside of.
+- ADR-0195 — the affected-only PR scope this check is deliberately placed outside of (0195 already
+  states that every `check:*` step stays unconditional, so this placement is consistent with it, not
+  an amendment to it).
+- ADR-0252 — the same arc's detection-pass decision, authored concurrently; see the reconciliation
+  section above for why an exact cross-surface assertion blocks while a metric sweep warns.
 - ADR-0249 — increment 1 of this arc: evidence that cannot be attributed to the observation that
   produced it is not evidence. The same instinct shapes this harness's `where` labelling and its
   refusal to treat a silent probe as a pass.
