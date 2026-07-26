@@ -60,6 +60,7 @@ import { resolveReport } from "./resolve-report.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { SessionIdentity } from "./noticeboard.js";
 import { appendSliceUsage } from "./usage.js";
+import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C): drive a REAL node spec through
@@ -143,6 +144,21 @@ export function repoRoot(): string {
 /** Repo-relative display path (forward slashes, stable across platforms). */
 export function rel(file: string): string {
   return path.relative(repoRoot(), file).replace(/\\/g, "/");
+}
+
+/**
+ * The session whose traversal lane a build's spawned leaf slices belong to (ADR-0235 / ADR-0241).
+ *
+ * Resolution MUST match `captureInvocation` in `packages/cli/src/main.ts` — `STORYTREE_SESSION_ID`
+ * first, then the worktree derivation — NOT the bare `deriveIdentity()` the build's write-claim
+ * uses. A session whose CLI reads were captured under the env override would otherwise write its
+ * build lane to a different file than its reads, silently breaking the one-session-one-trace
+ * property increment 2's uat-2 proved. `null` (the main checkout, CI, the lobby) captures nothing.
+ */
+function traversalSessionId(): string | null {
+  const override = process.env["STORYTREE_SESSION_ID"];
+  if (override !== undefined && override.trim().length > 0) return override;
+  return deriveIdentity()?.sessionId ?? null;
 }
 
 /**
@@ -550,6 +566,16 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
         resolved.liveAuthor.runs,
         args.signer,
       );
+      // The same slices, observed as context-traversal lanes (ADR-0235): a spawn_handoff and
+      // result_return on THIS session, and each child leaf session's own model_context on its own
+      // lane. Metadata only — counts, never payloads or results. Additive and fail-silent: it
+      // never throws, never touches the envelope or the exit code, and never moves a verdict.
+      captureBuildSpawn({
+        parentSessionId: traversalSessionId(),
+        runId: args.runId,
+        unitId: spec.id,
+        runs: resolved.liveAuthor.runs,
+      });
     }
     return {
       resolved: true,
@@ -758,6 +784,14 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
       resolved.liveAuthor.runs,
       signer,
     );
+    // The traversal twin of the usage append above (ADR-0235) — see the sibling site in `driveNode`.
+    // This is also the path `story build --real` takes, so a chained story emits every node's lanes.
+    captureBuildSpawn({
+      parentSessionId: traversalSessionId(),
+      runId,
+      unitId: spec.id,
+      runs: resolved.liveAuthor.runs,
+    });
   }
   const out: RealBuildResult = {
     result,

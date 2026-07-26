@@ -15,5 +15,9 @@
 export { observeLeafSlices, BUILD_SPAWN_BOUNDARY_COVERAGE } from "./observe-leaf-slices.js";
 export type { LeafSliceRun, LeafSliceUsage, ObserveLeafSlicesArgs } from "./observe-leaf-slices.js";
 
+// capability `build-spawn-capture`
+export { captureBuildSpawn } from "./build-capture.js";
+export type { CaptureBuildSpawnArgs } from "./build-capture.js";
+
 // capability `multi-adapter-replay`
 export { showTraversalSessionAllAdapters } from "./replay-adapters.js";

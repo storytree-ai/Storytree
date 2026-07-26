@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@storytree/agent": "workspace:*",
+    "@storytree/context-traversal-spawn": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/notice-board": "workspace:*",
     "@storytree/orchestrator": "workspace:*",
