@@ -553,4 +553,156 @@ describe('SemanticGrowthWorldView', () => {
       expect(keyframeSweepsFullTransform && !declaresAdditiveScale).toBe(false);
     }
   });
+
+  it('never announces a state by translating the whole scene, a terrain/island group or a complete flora/asset group laterally -- every semantic-growth arrival/pulse keyframe stays off the full CSS `transform` shorthand, and settled placement transforms stay identical across Next, Back, Replay and under reduced motion', () => {
+    // Guidance: "Never translate the whole world, island/terrain group, or complete sprite/flora
+    // group laterally to announce a state ... Reveal terrain where it lies; grow flora/tree from
+    // planted/root anchors ..." Machine contract "Anchored-motion red": "fails any whole-scene,
+    // whole-terrain/island or whole-flora/asset entry keyframe containing lateral translation ...
+    // also compares settled static placement transforms through forward, Back, Replay and reduced
+    // motion." Plus the "SVG transform-composition floor": "fails any semantic-growth arrival or
+    // pulse selector/keyframe that sets the full `transform:` property on mapper-positioned
+    // terrain, flora/tree, claim or bloom elements, including `transform: scale(...)`."
+    const css = readFileSync(
+      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      'utf8',
+    );
+
+    const arriveGroundBody = css.match(/@keyframes\s+arrive-ground\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const arrivePopBody = css.match(/@keyframes\s+arrive-pop\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const wispInBody = css.match(/@keyframes\s+wisp-in\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const bloomPulseBody = css.match(/@keyframes\s+bloom-pulse\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+
+    // no whole-group lateral slide as entry motion, on any of the four semantic profiles. Static
+    // SVG placement translations (the scene mapper's own ground anchors / nesting, asserted via
+    // `getAttribute('transform')` below) are untouched and are not themselves animation.
+    for (const body of [arriveGroundBody, arrivePopBody, wispInBody, bloomPulseBody]) {
+      expect(body).not.toBe('');
+      expect(body).not.toMatch(/translate[XY]?\s*\(/);
+    }
+
+    // the additive individual `scale:` property, never the full CSS `transform:` shorthand -- the
+    // shorthand visually REPLACES a mapper-positioned element's own SVG placement
+    // `transform="translate(...)"` for the sweep's duration even though `getAttribute('transform')`
+    // keeps reporting the untouched original: attribute equality alone is not proof (checked below).
+    for (const body of [arriveGroundBody, arrivePopBody, bloomPulseBody]) {
+      expect(body).not.toMatch(/transform\s*:/);
+    }
+
+    // settled placement transforms: every real SVG `transform` attribute the scene mapper stamps
+    // (ground/root anchors, nesting) must read identically whether reached by walking forward,
+    // stepping Back, or Replaying, and must not change again once reduced motion renders the same
+    // markers immediately.
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const view = render(<SemanticGrowthWorldView frames={frames} />);
+    const placementTransforms = (): string[] =>
+      [...view.container.querySelectorAll('[transform]')].map(
+        (el) => el.getAttribute('transform') ?? '',
+      );
+
+    const empty = placementTransforms();
+    for (const _key of ORDERED_KEYS.slice(1)) {
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    }
+    const healthy = placementTransforms();
+    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    const signedProof = placementTransforms();
+
+    fireEvent.click(view.getByRole('button', { name: 'Replay' }));
+    expect(placementTransforms()).toEqual(empty);
+
+    for (const _key of ORDERED_KEYS.slice(1)) {
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    }
+    expect(placementTransforms()).toEqual(healthy);
+
+    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    expect(placementTransforms()).toEqual(signedProof);
+
+    view.rerender(<SemanticGrowthWorldView frames={frames} reducedMotion />);
+    expect(placementTransforms()).toEqual(signedProof);
+  });
+
+  it("binds the studio's real growth vocabulary to the exact already-landed `.pop-motion-inner` seam -- `transform-box: fill-box`, ground-vs-root-anchor `transform-origin`, the reused Studio overshoot easing and a nonzero inter-layer stagger -- never a flat, simultaneous, centered-origin sweep", () => {
+    // Guidance / machine contract "Exact inner-wrapper vocabulary red D": "The valid outer/inner
+    // separation landed at c87382ba, but the proof still under-claimed the intended in-game
+    // vocabulary: CSS continued to use full `transform: scale`, a simultaneous flat 320ms
+    // ease-out, centered origin, no fill-box and no stagger/overshoot. The next red binds the
+    // exact landed inner seam to the already-existing Studio motion profile."
+    const css = readFileSync(
+      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      'utf8',
+    );
+    const sceneView = readFileSync(resolve(process.cwd(), 'src', 'SceneView.tsx'), 'utf8');
+
+    // the already-landed exact wrapper -- a renamed/mismatched selector or a second wrapper is red.
+    expect(sceneView).toMatch(/className:\s*'pop-motion-inner'/);
+    expect(css).toMatch(/\.pop-motion-inner/);
+
+    const arriveGroundBody = css.match(/@keyframes\s+arrive-ground\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const arrivePopBody = css.match(/@keyframes\s+arrive-pop\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const bloomPulseBody = css.match(/@keyframes\s+bloom-pulse\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const wispInBody = css.match(/@keyframes\s+wisp-in\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+
+    // every semantic-growth keyframe grows through the additive individual `scale:` channel --
+    // never the full `transform:` shorthand.
+    for (const body of [arriveGroundBody, arrivePopBody, bloomPulseBody]) {
+      expect(body).not.toBe('');
+      expect(body).not.toMatch(/transform\s*:/);
+      expect(body).toMatch(/(?:^|[^-\w])scale\s*:\s*[\d.]/);
+    }
+    // reused verbatim -- never new transform geometry.
+    expect(arriveGroundBody).toMatch(/scale\s*:\s*0\.78\b/);
+    expect(arrivePopBody).toMatch(/scale\s*:\s*0\.55\b/);
+    expect(bloomPulseBody).toMatch(/scale\s*:\s*0\.94\b/);
+    expect(bloomPulseBody).toMatch(/scale\s*:\s*1\.06\b/);
+
+    const flatRules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
+      selector: m[1] ?? '',
+      body: m[2] ?? '',
+    }));
+    const groundRules = flatRules.filter((r) => /animation(?:-name)?:\s*arrive-ground\b/.test(r.body));
+    const popRules = flatRules.filter((r) => /animation(?:-name)?:\s*arrive-pop\b/.test(r.body));
+    const bloomRules = flatRules.filter((r) => /animation(?:-name)?:\s*bloom-pulse\b/.test(r.body));
+
+    // every rule that actually plays one of these three keyframes declares `transform-box:
+    // fill-box` -- the additive `scale` channel only composes against the element's own painted
+    // geometry with this box declared.
+    for (const rules of [groundRules, popRules, bloomRules]) {
+      expect(rules.length).toBeGreaterThan(0);
+      for (const rule of rules) {
+        expect(rule.body).toMatch(/transform-box\s*:\s*fill-box/);
+      }
+    }
+
+    // ground scales from its own center; the story identity standing on it grows from its
+    // planted/root anchor -- `center bottom` -- never a shared centered origin that would make a
+    // tree appear to grow from its own middle instead of the ground it is rooted in.
+    for (const rule of groundRules) {
+      expect(rule.body).toMatch(/transform-origin\s*:\s*center\s*;/);
+    }
+    const rootedPopRules = popRules.filter(
+      (r) => r.selector.includes('.story-tree') || r.selector.includes('.garden-flora'),
+    );
+    expect(rootedPopRules.length).toBeGreaterThan(0);
+    for (const rule of rootedPopRules) {
+      expect(rule.body).toMatch(/transform-origin\s*:\s*center\s+bottom\s*;/);
+    }
+
+    // the existing brief Studio overshoot, reused verbatim -- never a new easing curve.
+    expect(css).toMatch(/cubic-bezier\(\s*0\.34\s*,\s*1\.45\s*,\s*0\.5\s*,\s*1\s*\)/);
+
+    // ground, the story identity and the proof bloom do not all enter simultaneously as one flat
+    // 320ms ease-out -- at least one layer carries a distinct nonzero `animation-delay`.
+    const delayOf = (rules: { selector: string; body: string }[]): string =>
+      rules[0]?.body.match(/animation-delay\s*:\s*([^;]+);/)?.[1]?.trim() ?? '0ms';
+    const delays = new Set([delayOf(groundRules), delayOf(popRules), delayOf(bloomRules)]);
+    expect(delays.size).toBeGreaterThan(1);
+
+    // the claim's entrance stays local opacity only -- never a scale sweep -- with its existing
+    // mapper-owned SVG orbit intact alongside it.
+    expect(wispInBody).not.toBe('');
+    expect(wispInBody).not.toMatch(/scale\s*[:(]/);
+    expect(sceneView).toMatch(/animateTransform/);
+  });
 });
