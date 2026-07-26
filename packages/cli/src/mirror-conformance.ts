@@ -33,6 +33,17 @@
 export interface MirrorSpec {
   /** Human name of the mirrored payload, e.g. `GET /api/docs`. Used in the failure report. */
   surface: string;
+  /**
+   * The `/api/*` route path this payload is served at, spelled EXACTLY as both surfaces dispatch it.
+   *
+   * Machine-readable on purpose. `check:verification-decay`'s `mirror-pair-drift` instrument reads
+   * this to know which pairs are already proven exactly here, so "what the registry covers" is
+   * DERIVED from the registry rather than held as a second list somebody keeps in step. Two lists of
+   * the same fact drifting apart is precisely the class this file exists to fence, and a discovery
+   * heuristic that scraped the route out of {@link MirrorSpec.surface}'s prose would be that class
+   * arriving inside the instrument built to detect it.
+   */
+  route: string;
   /** The surface whose payload is the reference (the one being mirrored), e.g. `studio`. */
   reference: string;
   /** The surface holding the hand-written copy, e.g. `desktop`. */
@@ -45,6 +56,65 @@ export interface MirrorSpec {
    * byte-identical.
    */
   referenceOnlyFields: readonly string[];
+}
+
+/** One surface's probe: the app dir it runs from, and the probe module it executes. */
+export interface Probe {
+  /** Repo-relative app dir — the spawn cwd, so bare specifiers resolve through THAT app. */
+  appDir: string;
+  /** Repo-relative probe module. */
+  file: string;
+}
+
+/** One registered mirrored payload: the rules, plus the two probes that produce it. */
+export interface MirrorTarget {
+  spec: MirrorSpec;
+  reference: Probe;
+  mirror: Probe;
+}
+
+/**
+ * The registry of mirrored payloads. ADD A ROW when a studio route is re-composed into another
+ * surface — that is the moment the drift class opens, and a row is the whole cost of closing it.
+ *
+ * `referenceOnlyFields` is where a DELIBERATE difference is declared. It is self-pruning (the
+ * judge fails a stale entry), so the list can only ever describe differences that are still real.
+ *
+ * IT LIVES HERE, IN THE PURE MODULE, RATHER THAN IN THE CHECK SCRIPT, so a second reader can ask
+ * what is registered without running the conformance harness — {@link file://./check-mirror-conformance.ts}
+ * executes on import, so importing it to read this list would run the whole gate. Its one such
+ * reader today is `mirror-pair-drift` in `check:verification-decay`, which locates pairs MISSING
+ * from this list. That instrument is the deliberate COMPLEMENT of this gate, never a re-derivation
+ * of it: this registry proves the pairs it knows about EXACTLY and BLOCKS, because an equality
+ * assertion between two implementations over one input has no false-positive surface; finding
+ * pairs nobody registered is a heuristic that does, and so stays advisory (ADR-0251's
+ * reconciliation with ADR-0252).
+ */
+export const MIRRORS: readonly MirrorTarget[] = [
+  {
+    spec: {
+      surface: "GET /api/docs (DocMeta[])",
+      route: "/api/docs",
+      reference: "studio",
+      mirror: "desktop",
+      key: "id",
+      // EMPTY BY DESIGN: the desktop serves the same compiled studio SPA, so every DocMeta field
+      // the studio emits has a reader on the desktop too. There is no sanctioned difference here.
+      referenceOnlyFields: [],
+    },
+    reference: { appDir: "apps/studio", file: "apps/studio/server/docsMirrorProbe.ts" },
+    mirror: { appDir: "apps/desktop", file: "apps/desktop/src/backend/docs-mirror-probe.ts" },
+  },
+];
+
+/**
+ * The route paths {@link MIRRORS} proves exactly — the set `mirror-pair-drift` treats as already
+ * covered. Derived from the registry so the two can never disagree.
+ */
+export function registeredMirrorRoutes(
+  targets: readonly MirrorTarget[] = MIRRORS,
+): ReadonlySet<string> {
+  return new Set(targets.map((t) => t.spec.route));
 }
 
 /** One conformance failure. `where` names the fixture/corpus the comparison ran over. */

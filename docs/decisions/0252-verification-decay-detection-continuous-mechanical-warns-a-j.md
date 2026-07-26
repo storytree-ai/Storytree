@@ -152,6 +152,34 @@ governs every heuristic located region, none of which blocks anything. Recorded 
 of decision 3 alone would otherwise conclude the shipped escalation VIOLATES this ADR and "fix" it by
 removing the red — the exact stale-prose harm ADR-0139 exists to prevent.
 
+**Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+decision 3's singular "the COUNT" was overtaken by the second chartered instrument landing, and is
+scoped rather than reversed.** D3 was written while exactly one instrument existed, so it says "a
+fixed drain ceiling on the COUNT" and "the ceiling", and the correction above names a single
+`DRAIN_CEILING = 5`. The ceiling is now **per instrument** (`DecayInstrument.ceiling`;
+`evaluateDecayCeiling` reds the gate when ANY instrument exceeds its OWN ceiling, while the summed
+total is still reported and never enforces). That 5 survives unchanged as `contract-binding-drift`'s
+own ceiling; `mirror-pair-drift` baselined at 10 on its own first sweep. **No ceiling was raised, and
+nothing is re-decided** — enforcement is still on the COUNT and never on the finding, still fail-closed
+on growth, still baselined on a first real sweep and tightening-only, and escalations are still
+excluded from every count.
+
+**The split is what KEEPS decision 3 true, not a departure from it**, and the evidence is measured
+rather than argued. Under one shared total: (a) a second instrument's honest baseline of 10 arrives as
+pure growth and reds the gate on landing, so the cheapest way to add one of decision 1's remaining
+chartered instruments is to weaken it until it finds little — a mechanism that pays you to look less,
+operating inside the machinery built to fence exactly that; and (b) unrelated backlogs become
+fungible — injecting an 11th mirror pair while repairing one contract binding gives 15 located against
+a summed ceiling of 15, so a single global total passes **GREEN** over a repo that just grew a new
+unobserved mirror, where per-instrument stays RED. "Growth is what reds the gate" is decision 3's
+decided property, and only the split preserves it. Two further readings point the same way: decision 3
+names `check:friction-drain` (ADR-0168 D4) as its shape, and that check's ceiling is already TWO
+independent thresholds (open-count N, oldest-age M) each redding on its own and never summed; and
+"tuned on the first real sweep" cannot be satisfied for instruments 2–4 by a number baselined on
+instrument 1's sweep, so that rule only carries meaning per instrument. Recorded here because a reader
+of decision 3's singular "the COUNT" would otherwise conclude the shipped split VIOLATES this ADR and
+"fix" it by re-summing — the exact stale-prose harm ADR-0139 exists to prevent.
+
 **Not decided here.** Which specific checks make up the cheap half beyond the four named, how a warn
 signal "crosses a line" in precise terms, and the ceiling's actual number. Those are build-time
 decisions for the increment that implements this, not owner forks. All three have since been taken in

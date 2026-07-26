@@ -96,6 +96,13 @@ export interface DecayInstrument {
   /** What it LOCATES, and — stated, never implied — the false-positive surface it carries. */
   locates: string;
   /**
+   * THIS instrument's drain ceiling — its own backlog baseline, tuned on its own first real sweep
+   * (ADR-0252 D3). See {@link evaluateDecayCeiling} for why the ceiling is per-instrument rather
+   * than one shared total. It ratchets DOWN as findings are repaired; raising it is a deliberate act
+   * whose reason belongs in the commit message.
+   */
+  ceiling: number;
+  /**
    * Produce this instrument's findings from already-loaded facts. Must never throw — and if it does,
    * {@link runDecaySweep} converts the failure into an ESCALATING finding rather than letting the
    * sweep die quietly.
@@ -246,18 +253,127 @@ export function findContractBindingDrift(
 }
 
 // ---------------------------------------------------------------------------
+// Instrument: mirror-pair drift (ADR-0252 D1, the second named cheap check)
+// ---------------------------------------------------------------------------
+
+/**
+ * One surface's SERVED route table, as enumerated from its request-dispatch sites.
+ *
+ * `routes` maps each `/api/*` path the surface dispatches on to the repo-relative file that
+ * dispatches it — the file is carried so a finding says where to look on each side, not merely that
+ * something is wrong somewhere.
+ */
+export interface SurfaceRoutes {
+  /** The surface's name, spelled as the `MIRRORS` registry spells it (`studio`, `desktop`). */
+  surface: string;
+  /** Route path → the repo-relative file whose dispatch claims it. */
+  routes: ReadonlyMap<string, string>;
+}
+
+export const MIRROR_PAIR_DRIFT = "mirror-pair-drift";
+
+/**
+ * PURE: locate `/api/*` routes that BOTH surfaces serve but which no `MIRRORS` row compares.
+ *
+ * THE BOUNDARY THIS SITS ON, and it is the whole design constraint (ADR-0251's reconciliation with
+ * ADR-0252). `check:mirror-conformance` proves the pairs in its registry EXACTLY and BLOCKS: an
+ * equality assertion between two implementations over one input has no false-positive surface, so a
+ * divergence is a defect by construction. This instrument does NOT re-derive any of that. Its target
+ * is the registry's SILENCE — the pairs nobody registered, over which drift has no observer at all.
+ * That is a discovery heuristic, it does have a real false-positive surface, and so it is advisory.
+ * Blurring the two would be both redundant and wrong-postured.
+ *
+ * WHY THE PAIRS MATTER. The desktop backend re-composes a SUBSET of the studio's `/api/*` table
+ * verbatim over its own `node:fs` and may never import the studio (ADR-0176, enforced by
+ * `check:boundaries`) — and both surfaces serve the SAME compiled studio SPA, so the same client
+ * code calls both. Duplication is the DECISION; the drift it invites is the defect. It has gone
+ * uncaught once already, measurably: commit `71f68d2b` folded `parseAdrWireSignals` into the
+ * studio's `listDocs` and left the desktop's copy alone, silently dropping `loadBearing` from 88
+ * ADRs, with nothing red anywhere — the two implementations agreed with nothing, so their
+ * disagreement had no observer. A registered pair now has one. An unregistered pair does not.
+ *
+ * ONE FINDING PER ROUTE. The repair is per-payload — a probe on each surface plus a registry row —
+ * so the ceiling counts repairs, not mentions (the granularity #949 settled).
+ *
+ * THE FALSE-POSITIVE SURFACE, stated rather than implied, because this instrument LOCATES and never
+ * adjudicates:
+ *
+ * - **Serving the same path does not prove the two payloads are REQUIRED to agree.** A route may be
+ *   deliberately narrower on one surface, or its handler may be a thin pass-through to shared
+ *   package code — where nothing is re-composed, so no drift class opens and a registry row would be
+ *   ceremony. Only an adversarial pass can tell those from a genuine unobserved mirror.
+ * - **A `pathname === '/api/x'` in a POLICY gate reads as a served route.** `guestPolicy.ts` compares
+ *   pathnames to decide access, not to serve; those paths are also served by the real route table
+ *   today, so it changes nothing now, but the rule cannot tell the two apart.
+ *
+ * AND ITS BLIND SPOTS, stated for the same reason (the arc's no-silent-caps rule): a route dispatched
+ * by PREFIX (`pathname.startsWith('/api/db/')`) or by any non-literal expression is invisible to the
+ * enumeration, so this under-reports rather than over-reports there.
+ */
+export function findMirrorPairDrift(
+  reference: SurfaceRoutes,
+  mirror: SurfaceRoutes,
+  registered: ReadonlySet<string>,
+): DecayFinding[] {
+  const findings: DecayFinding[] = [];
+  // Sorted so the report — and therefore the ceiling's view of the backlog — is stable run to run.
+  for (const route of [...reference.routes.keys()].sort()) {
+    const mirrorFile = mirror.routes.get(route);
+    if (mirrorFile === undefined) continue; // served by one surface only: no pair, no drift class
+    if (registered.has(route)) continue; // already proven EXACTLY by `check:mirror-conformance`
+    const referenceFile = reference.routes.get(route) ?? "(unknown)";
+    findings.push({
+      instrument: MIRROR_PAIR_DRIFT,
+      id: `${MIRROR_PAIR_DRIFT}:${route}`,
+      where: mirrorFile,
+      // AN OBSERVATION, NOT A VERDICT. It says two independent implementations exist and nothing
+      // compares them — never that they are REQUIRED to agree, which is exactly the question the
+      // adversarial pass answers. `/api/me` is the case that keeps this honest: the desktop serves a
+      // constant local identity where the studio serves the IAP caller's, so the two must differ in
+      // VALUE while their shape must not. An instrument that asserted "required to agree" would have
+      // adjudicated that, and been wrong about it.
+      detail:
+        `\`${route}\` is served by BOTH ${reference.surface} (${referenceFile}) and ` +
+        `${mirror.surface} (${mirrorFile}) — two independent implementations of one route — and no ` +
+        "`MIRRORS` row compares them, so any divergence between them has no observer",
+    });
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
 // The ceiling (ADR-0252 D3 — the `check:friction-drain` shape, on the COUNT)
 // ---------------------------------------------------------------------------
+
+/** One instrument's backlog, held to that instrument's own ceiling. */
+export interface InstrumentTally {
+  /** The instrument's slug. */
+  instrument: string;
+  /** Located regions attributed to it — escalations excluded. */
+  count: number;
+  /** Its own ceiling. */
+  ceiling: number;
+  /** `ok` while count ≤ ceiling; `red` the moment THIS instrument's backlog grows past its own. */
+  level: "ok" | "red";
+}
+
+/** The name and ceiling {@link evaluateDecayCeiling} needs — the judgeable part of an instrument. */
+export interface CeilingSpec {
+  name: string;
+  ceiling: number;
+}
 
 /** The sweep's outcome: advisory findings, plus the two independent things that can red the gate. */
 export interface DecayVerdict {
   /** Every finding, instrument by instrument, in run order — escalating ones included. */
   findings: readonly DecayFinding[];
-  /** The number the ceiling governs: located regions ONLY, escalations excluded. */
+  /** Per-instrument backlogs — the level that actually enforces. */
+  tallies: readonly InstrumentTally[];
+  /** Total located regions across every instrument, escalations excluded. REPORTED, never enforced. */
   count: number;
-  /** The fixed ceiling the count is held to. */
+  /** The sum of the per-instrument ceilings. REPORTED, never enforced. */
   ceiling: number;
-  /** `ok` while count ≤ ceiling; `red` the moment the BACKLOG grows past it. Says nothing about escalation. */
+  /** `red` when ANY instrument is over its OWN ceiling. Says nothing about escalation. */
   level: "ok" | "red";
   /**
    * Every finding past the escalation line (ADR-0252 D1). Non-empty reds the gate on its own, at any
@@ -267,32 +383,73 @@ export interface DecayVerdict {
 }
 
 /**
- * PURE: hold the sweep's located-region COUNT to a fixed ceiling, and surface escalations beside it.
+ * PURE: hold each instrument's located-region COUNT to ITS OWN ceiling, and surface escalations
+ * beside them.
  *
- * Advisory per finding, fail-closed on growth (ADR-0252 D3). The ceiling is TUNED ON THE FIRST REAL
- * SWEEP rather than picked in advance — set to exactly what that sweep found, so it starts GREEN on
- * an honest baseline and can only ever be tightened. Adding a finding without repairing one reds the
- * gate; that is the whole mechanism by which this list cannot decay into `check:coverage`'s
+ * Advisory per finding, fail-closed on growth (ADR-0252 D3). A ceiling is TUNED ON THAT INSTRUMENT'S
+ * FIRST REAL SWEEP rather than picked in advance — set to exactly what that sweep found, so it starts
+ * GREEN on an honest baseline and can only ever be tightened. Adding a finding without repairing one
+ * reds the gate; that is the whole mechanism by which this list cannot decay into `check:coverage`'s
  * 121-contract condition.
+ *
+ * WHY PER-INSTRUMENT AND NOT ONE SHARED TOTAL. The sweep shipped with a single global ceiling, which
+ * was right while one instrument existed and became wrong the moment a second one landed. Two defects
+ * appear at exactly that point, and both are this arc's own class:
+ *
+ * - **A shared total PRICES the arc's remaining work.** ADR-0252 charters FOUR cheap instruments. Under
+ *   one total, every new instrument arrives carrying its whole honest baseline as growth and reds the
+ *   gate on landing — so the cheapest way to add an instrument is to weaken it until it finds little.
+ *   A mechanism that pays you to look less is the failure this arc exists to fence, and it would have
+ *   been operating inside the machinery built to fence it.
+ * - **A shared total makes unrelated backlogs FUNGIBLE.** Under one number, repairing a contract
+ *   binding buys silence for a new unobserved mirror pair. The two have nothing to do with each other,
+ *   and a budget that lets one discharge the other stops measuring either.
+ *
+ * Splitting the ceiling keeps everything D3 asked for — enforcement on the COUNT and not the finding,
+ * fail-closed on growth, the `check:friction-drain` shape — and removes both. The total is still
+ * reported, because a reader wants the size of the whole backlog; it is simply never what enforces.
+ *
+ * A finding from an instrument with NO declared ceiling is held to ZERO, so it reds immediately.
+ * Fail-closed on purpose: unattributed backlog is exactly the thing that must not accumulate quietly.
  *
  * ESCALATIONS ARE NOT COUNTED, and that exclusion is load-bearing in both directions (ADR-0252 D1):
  *
- * - It keeps the ceiling honest as a measure of BACKLOG. An instrument that failed to run located
+ * - It keeps a ceiling honest as a measure of BACKLOG. An instrument that failed to run located
  *   nothing; counting its failure as one unit of backlog would say the repo grew a stale binding when
  *   what actually happened is that the sweep went blind.
- * - It keeps the escalation UNCLEARABLE BY THE CEILING. If escalations counted, raising
- *   `DRAIN_CEILING` — a legitimate, documented move for real backlog growth — would silently discharge
- *   an escalation too, and the backstop would be defeated by the routine operation of its neighbour.
- *   That is the `process:verification-decay-detection` "gaming the D3 ceiling" failure mode arriving
- *   through the front door, by accident rather than by intent.
+ * - It keeps the escalation UNCLEARABLE BY ANY CEILING. If escalations counted, raising a ceiling — a
+ *   legitimate, documented move for real backlog growth — would silently discharge an escalation too,
+ *   and the backstop would be defeated by the routine operation of its neighbour. That is the
+ *   `process:verification-decay-detection` "gaming the D3 ceiling" failure mode arriving through the
+ *   front door, by accident rather than by intent.
  */
 export function evaluateDecayCeiling(
   findings: readonly DecayFinding[],
-  ceiling: number,
+  instruments: readonly CeilingSpec[],
 ): DecayVerdict {
   const escalations = findings.filter((f) => f.escalation !== undefined);
-  const count = findings.length - escalations.length;
-  return { findings, count, ceiling, level: count > ceiling ? "red" : "ok", escalations };
+  const located = findings.filter((f) => f.escalation === undefined);
+
+  const ceilings = new Map(instruments.map((i) => [i.name, i.ceiling]));
+  // Tally every declared instrument (so a clean one still reports 0/n), plus any instrument that
+  // produced a finding without declaring a ceiling — held to 0 rather than silently uncounted.
+  const names = [...ceilings.keys()];
+  for (const f of located) if (!ceilings.has(f.instrument)) names.push(f.instrument);
+
+  const tallies: InstrumentTally[] = names.map((name) => {
+    const count = located.filter((f) => f.instrument === name).length;
+    const ceiling = ceilings.get(name) ?? 0;
+    return { instrument: name, count, ceiling, level: count > ceiling ? "red" : "ok" };
+  });
+
+  return {
+    findings,
+    tallies,
+    count: located.length,
+    ceiling: tallies.reduce((sum, t) => sum + t.ceiling, 0),
+    level: tallies.some((t) => t.level === "red") ? "red" : "ok",
+    escalations,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -358,10 +515,11 @@ export function formatDecaySweep(
   }
 
   if (verdict.count > 0) {
+    const breached = verdict.tallies.filter((t) => t.level === "red");
     const headline =
       verdict.level === "red"
-        ? `${TAG} RED — ${verdict.count} located signal(s), past the drain ceiling of ${verdict.ceiling} (${coverage}).`
-        : `${TAG} WARN — ${verdict.count} located signal(s), within the drain ceiling of ${verdict.ceiling} (${coverage}).`;
+        ? `${TAG} RED — ${verdict.count} located signal(s); ${breached.length} instrument(s) past their own drain ceiling (${coverage}).`
+        : `${TAG} WARN — ${verdict.count} located signal(s), every instrument within its own drain ceiling (${coverage}).`;
     lines.push(headline);
     lines.push(
       `${TAG}   These LOCATE regions; they do not establish defects. A metric is never itself a finding ` +
@@ -374,16 +532,25 @@ export function formatDecaySweep(
       (f) => f.instrument === inst.name && f.escalation === undefined,
     );
     if (mine.length === 0) continue;
-    lines.push(`${TAG}   ${inst.name} (${mine.length}) — ${inst.locates}`);
+    // Each instrument is scored against its OWN ceiling, so the reader can see which backlog grew
+    // rather than only that some total moved.
+    const tally = verdict.tallies.find((t) => t.instrument === inst.name);
+    const score = tally === undefined ? `${mine.length}` : `${tally.count}/${tally.ceiling}`;
+    const flag = tally?.level === "red" ? " OVER CEILING" : "";
+    lines.push(`${TAG}   ${inst.name} (${score}${flag}) — ${inst.locates}`);
     for (const f of mine) lines.push(`${TAG}     · ${f.detail}  [${f.where}]`);
   }
 
   if (verdict.level === "red") {
-    lines.push(
-      `${TAG}   Landing is blocked until the count returns to ${verdict.ceiling} or below. Repair a located ` +
-        "signal (verify it first), or — if the growth is legitimate and verified — raise the ceiling in " +
-        "`packages/cli/src/check-verification-decay.ts` with the reason recorded in the commit.",
-    );
+    for (const t of verdict.tallies.filter((x) => x.level === "red")) {
+      lines.push(
+        `${TAG}   ${t.instrument}: ${t.count} located, ceiling ${t.ceiling}. Landing is blocked until THIS ` +
+          `instrument returns to ${t.ceiling} or below — repairing another instrument's signal cannot ` +
+          "clear it. Repair a located signal (verify it first), or — if the growth is legitimate and " +
+          "verified — raise that instrument's `ceiling` in `packages/cli/src/check-verification-decay.ts` " +
+          "with the reason recorded in the commit.",
+      );
+    }
   }
   lines.push(charter);
   return { failed: verdict.level === "red" || escalated, lines };
@@ -394,10 +561,7 @@ export function formatDecaySweep(
  * fenced to itself: it becomes a finding of its own rather than taking the sweep down, because a
  * sweep that silently stops sweeping is precisely a check that cannot go red.
  */
-export function runDecaySweep(
-  instruments: readonly DecayInstrument[],
-  ceiling: number,
-): DecayVerdict {
+export function runDecaySweep(instruments: readonly DecayInstrument[]): DecayVerdict {
   const findings: DecayFinding[] = [];
   for (const inst of instruments) {
     try {
@@ -422,5 +586,5 @@ export function runDecaySweep(
       });
     }
   }
-  return evaluateDecayCeiling(findings, ceiling);
+  return evaluateDecayCeiling(findings, instruments);
 }
