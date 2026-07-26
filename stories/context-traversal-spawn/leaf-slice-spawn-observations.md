@@ -80,8 +80,17 @@ unsatisfiable. This was MEASURED, not theorised: a `:`-separated child id return
 `appendTraversalEvents` and left zero files on disk under Windows, while the same id without colons
 wrote normally. **The separator choice is free** — any character legal in a path segment on every
 supported platform (`-`, `_`, `__`) — provided the id stays derived from declared build identity
-alone, so determinism and explicit-id-only linkage are untouched. Contract 11 asserts this directly
-on the composed id; it is a permanent regression case for a real defect, not speculative breadth.
+alone, so determinism and explicit-id-only linkage are untouched. Contract 11 asserts this on the id
+the observer RETURNS; it is a permanent regression case for a real defect, not speculative breadth.
+
+**The existing colon-template assertions are EXPECTED TO CHANGE — they are not fixed points.** The
+current test file hard-codes the literal composition in three places (around lines 74, 166, and 211,
+e.g. ``assert.equal(secondSpawn.childSessionId, `${PARENT_SESSION_ID}:build:${RUN_ID}:${UNIT_ID}:IMPLEMENT`)``).
+Those assertions pin a SPELLING that amended contract 2 explicitly removes from the contract: what is
+promised is composition from the declared components (parent, runId, unitId, phase) plus byte-identical
+determinism, NOT a particular separator. When the separator changes to satisfy contract 11, those
+three assertions must be updated to the new spelling. Preserving them as-is is not compatible with
+greening this capability — an implementer who treats them as untouchable will deadlock.
 
 **What is NOT observed is asserted, not merely omitted.** `payloadTokenCount` is always absent: the
 size of the prompt handed to the child is not visible at this boundary, and a contract pins that so
@@ -164,15 +173,29 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
       supported, and explicitly omits `field:context_window_capacity` and
       `field:candidate_follow_causality`.
 11. **`child-session-id-is-a-legal-filename-segment`**
-    - **asserts —** for every observed slice, the COMPOSED child session id contains no character
-      that is illegal in a path segment on any supported platform — none of `: \ / * ? " < > |`, and
-      no control character — asserted directly on the composed id across the full fixture set (every
-      phase, unit id, and run id shape), so the id remains usable as the sink's `<sessionId>.jsonl`
-      filename. The observer must introduce no such character of its own: given a filename-safe
-      parent session id in, a filename-safe child id comes out. This is the permanent regression case
-      for a MEASURED defect — a `:`-separated child id made `appendTraversalEvents` return `false`
-      and write nothing on Windows, silently, because the sink swallows the failure — and it is what
-      makes story UAT leg 2 satisfiable at all.
+    - **asserts —** CALL `observeLeafSlices(...)` over the fixture set, then read the
+      `childSessionId` field OFF the returned `spawn_handoff` and `result_return` events — the values
+      the observer itself produced — and assert that EVERY one of them contains none of
+      `: \ / * ? " < > |` and no control character, so each is usable verbatim as the sink's
+      `<sessionId>.jsonl` filename.
+    - **the subject is the observer's OUTPUT, never a string the test builds.** A test that composes
+      an id itself, or re-derives the composition rule inside the test file, and then character-checks
+      that string does NOT satisfy this contract: it never calls the system under test, so it would
+      pass against any implementation, including the defective one. The asserted value must have
+      travelled out of `observeLeafSlices`.
+    - **every emitted event, not a sample.** The check runs over all `spawn_handoff` and
+      `result_return` events the fixture set produces — every phase, unit id, and run id shape — so
+      one safely-spelled id cannot vouch for the rest.
+    - **the fixtures' INPUT `parentSessionId` values are themselves filename-safe.** That is what
+      makes any illegal character in the output attributable to the observer's own composition, which
+      is the property under test: filename-safe parent in, filename-safe child out.
+    - **falsifiability check —** against the current source, which composes
+      `` `${parentSessionId}:build:${runId}:${unitId}:${phase}` ``, a correct test for this contract
+      MUST FAIL. A first run that comes back green is proof the test is not reading the observer's
+      output, not proof the code is safe.
+    - Permanent regression case for a MEASURED defect — a `:`-separated child id made
+      `appendTraversalEvents` return `false` and write nothing on Windows, silently, because the sink
+      swallows the failure — and it is what makes story UAT leg 2 satisfiable at all.
 
 ## Integration evidence
 
@@ -183,7 +206,8 @@ raced. Every emitted event is round-tripped through increment 1's `ContextTraver
 absence contracts (payload count, capacity) are asserted across the whole emitted set, not on a
 single happy-path fixture.
 
-The filename-safety contract is asserted on the composed id itself — a character-class check, not a
-filesystem write — so it holds identically on every platform's CI runner rather than passing
-wherever the host happens to be permissive. The write-side consequence it protects is proven next
-door, in `build-spawn-capture`'s bytes-on-disk contracts.
+The filename-safety contract is a character-class check over ids READ OFF the observer's returned
+events — not a filesystem write — so it holds identically on every platform's CI runner rather than
+passing wherever the host happens to be permissive, and it cannot be satisfied by a string the test
+composed for itself. The write-side consequence it protects is proven next door, in
+`build-spawn-capture`'s bytes-on-disk contracts.
