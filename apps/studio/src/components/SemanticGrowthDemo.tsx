@@ -55,6 +55,15 @@ const DEMO_STORY_ID = 'semantic-growth-demo';
 const DEMO_CAP_ALPHA_ID = 'semantic-growth-demo-cap-alpha';
 const DEMO_CAP_BETA_ID = 'semantic-growth-demo-cap-beta';
 
+/** The fixed COMPANION witness territory (H — sgsd-companion-witness-territory): a second story
+ *  composed through the exact same real pipeline, byte-stable across all six frames. It never
+ *  narrates the primary's health walk (no claim, no verdict/bloom) — it exists only so the demo
+ *  ALSO exercises the renderer's no-parcel `buildTerritoryFlora` path (a real procedural
+ *  `story-tree` + capability `garden-flora`), which the primary's parcels-present territory never
+ *  takes. */
+const COMPANION_STORY_ID = 'semantic-growth-demo-companion';
+const COMPANION_CAP_ID = 'semantic-growth-demo-companion-cap';
+
 /** A fixed instant, never `Date.now()`, so the walk (and its signed-proof bloom) stays
  *  byte-identical across every render/re-mount. */
 const NOW = new Date('2026-01-01T00:00:00.000Z');
@@ -93,6 +102,21 @@ function demoStory(status: WorkStatus, verdict?: TreeVerdict): TreeStory {
   };
 }
 
+/** The fixed companion story, identical on every call — never varied by frame (the primary is the
+ *  only story whose status/verdict/claims change across the walk). One capability is enough for
+ *  the real pipeline to grow its own tree + capability plant. */
+const COMPANION_STORY: TreeStory = {
+  id: COMPANION_STORY_ID,
+  title: 'Semantic growth companion',
+  outcome: 'a fixed witness territory carried alongside the primary story’s six-state walk',
+  status: 'healthy',
+  proofMode: 'UAT',
+  uatWitness: 'machine',
+  dependsOn: [],
+  consumedBy: [],
+  capabilities: [demoCapability(COMPANION_CAP_ID, 4, 'healthy')],
+};
+
 /** The unified vegetation vocabulary, PRESENT but with no fetched tree colourway (the demo
  *  performs no fetch) — the same resting shape `useVegetation` in TreeView.tsx starts every
  *  session at, before its hero-tree colourways resolve. */
@@ -103,19 +127,53 @@ const NO_CLAIMS: Map<string, ClaimActivity[]> = new Map();
 const NO_DEPARTURES: Map<string, DepartedClaim[]> = new Map();
 
 /**
- * Recursively drop every drawable of the given `kind` from a built scene (and its descendants).
- * `buildTerritoryFlora` always wraps a territory's tree + nameplate + parcel flora + claim/
- * departure wisps in one `kind: 'territory'` group — the only way to stage claimed ground with
- * no story identity yet (the `land` frame) is to grow the real per-territory scene through the
- * normal pipeline and then remove that one identity group, never by hand-deriving the ground
- * geometry or copying forest-world's internals.
+ * Recursively drop drawables of the given `kind` from a built scene (and its descendants), scoped
+ * to the territory whose id is `scopeId` — SOURCE-LOCAL / id-scoped, never a bare `(node, kind)`
+ * global strip (that would remove every territory it finds, including the companion's own
+ * identity group, which the H proof forbids).
+ *
+ * Two real uses fold through this one helper:
+ *  - `stripKind(scene, 'territory', primaryId)` drops the primary's WHOLE identity group (tree +
+ *    nameplate + parcel flora + claim/departure wisps) wherever it sits in the tree — the only way
+ *    to stage claimed ground with no story identity yet (the `land` frame) is to grow the real
+ *    per-territory scene through the normal pipeline and then remove that one identity group,
+ *    never by hand-deriving the ground geometry or copying forest-world's internals.
+ *  - `stripKind(scene, 'plate', COMPANION_STORY_ID)` drops only the nameplate NESTED inside the
+ *    companion's own `territory` group (once inside that group every `plate` descendant is
+ *    scoped-matched) — the companion is witness context, never a narrated nameplate, on every
+ *    frame.
  */
-function stripKind(node: SceneNode, kind: SceneKind): SceneNode {
+function stripKind(node: SceneNode, kind: SceneKind, scopeId: string, inScope = false): SceneNode {
   if (node.el !== 'g') return node;
+  const hereInScope = inScope || (node.kind === 'territory' && node.id === scopeId);
   return {
     ...node,
-    children: node.children.filter((c) => c.kind !== kind).map((c) => stripKind(c, kind)),
+    children: node.children
+      .filter((c) => !(c.kind === kind && (c.id === scopeId || hereInScope)))
+      .map((c) => stripKind(c, kind, scopeId, hereInScope)),
   };
+}
+
+/**
+ * Drop only the primary's real GROUND wrapper's `data-story-id`/`hex-territory[data-story-id]`
+ * identity tag — never removing the node or any of its real substrate/parcel/parcel-flora content
+ * — so the one real ground group a `land`-onward frame keeps visible never double-counts as a
+ * second clickable "territory" alongside the primary's own `territory` identity group (forest-
+ * world's shared `ground`/`territory`/`coast` kinds all fold through the SAME
+ * `hex-territory st-<status>` class + `data-story-id` stamp, ADR-0093 §4 — one story reads as one
+ * territory everywhere else on the map because there both groups always share ONE fate; the demo's
+ * `land` frame is the one place that deliberately keeps the ground while stripping the identity, so
+ * it alone must undo the extra count without touching real content). Source-local, id-scoped —
+ * never a global class/attribute rewrite, never touching app-surface/SceneView.
+ */
+function clearGroundIdentity(node: SceneNode, primaryId: string): SceneNode {
+  if (node.el !== 'g') return node;
+  const children = node.children.map((c) => clearGroundIdentity(c, primaryId));
+  if (node.kind === 'ground' && node.id === primaryId) {
+    const { id: _primaryGroundId, ...rest } = node;
+    return { ...rest, children };
+  }
+  return { ...node, children };
 }
 
 /** The claim/presence wisp for the `claimed` frame — coordination, never a proof (the ADR-0138
@@ -143,28 +201,44 @@ const DEMO_CLAIM: ClaimActivity = {
  * per render.
  */
 function buildFrames(): readonly SemanticGrowthFrame[] {
-  // The one composed, real world every claimed-land frame reuses: `buildWorld` grows its
-  // territory from `demoStory`'s id/capabilities (status-independent geometry), so the tiles,
-  // coastline, and capability-parcel layout below are the SAME real geometry across every frame
-  // — only the story object's status/verdict/claims vary per frame.
-  const baseWorld: HexWorld = buildWorld([demoStory('proposed')], { buildings: false });
-  const relaxedCells = buildRelaxedCells(baseWorld, 'mesh', {});
+  // ONE composed, real world every frame reuses — the primary AND the fixed companion both enter
+  // `buildWorld` together (H — sgsd-composed-through-real-studio-world-pipeline /
+  // sgsd-companion-witness-territory), so the tiles, coastline, and capability layout below are
+  // the SAME real geometry across every frame; only the primary story object's status/verdict/
+  // claims vary per frame — the companion's story object never changes.
+  // The primary enters FIRST (index 0) so every real per-territory layer (coast/ground/territory)
+  // draws the primary before the companion — the DOM-order fact the "signed-proof"/"healthy"
+  // regression floor above relies on (`flagged.querySelector('.hex-territory')`, unscoped, must
+  // resolve to the PRIMARY's own status, never the companion's fixed `healthy` one).
+  const baseWorld: HexWorld = buildWorld([demoStory('proposed'), COMPANION_STORY], {
+    buildings: false,
+  });
+  const companionIndex = baseWorld.territories.findIndex((t) => t.story.id === COMPANION_STORY_ID);
 
-  // Swap the composed world's one territory onto a differently-lifecycled story object without
-  // touching any of its already-grown geometry (tiles/centroid/coastline/capability spots) —
-  // exactly the fact a live `/api/tree` re-poll would vary over time.
-  const worldWithStory = (story: TreeStory): HexWorld => ({
+  const rawRelaxedCells = buildRelaxedCells(baseWorld, 'mesh', {});
+  // The SOLE allowed filtering (H): deterministic removal of the real `buildRelaxedCells` output
+  // OWNED by the fixed companion territory — never a hand-authored replacement — so the companion
+  // owns zero substrate cells and the renderer's existing NO-PARCEL `buildTerritoryFlora` path
+  // takes over for it (a real procedural `story-tree` + capability `garden-flora`). Every
+  // primary-owned cell is retained untouched.
+  const relaxedCells = rawRelaxedCells.filter((c) => c.owner !== companionIndex);
+
+  // Swap the composed world's PRIMARY territory onto a differently-lifecycled story object without
+  // touching any of its already-grown geometry (tiles/centroid/coastline/capability spots), or the
+  // companion's — exactly the fact a live `/api/tree` re-poll would vary over time for the primary
+  // only, while the companion sits byte-stable as witness context.
+  const worldWithPrimaryStory = (story: TreeStory): HexWorld => ({
     ...baseWorld,
-    territories: baseWorld.territories.map((t) => ({ ...t, story })),
+    territories: baseWorld.territories.map((t) => (t.story.id === DEMO_STORY_ID ? { ...t, story } : t)),
   });
 
   const sceneForStory = (story: TreeStory, claims: readonly ClaimActivity[] = []): SceneG => {
     const claimsByStory: Map<string, ClaimActivity[]> = claims.length
-      ? new Map([[story.id, [...claims]]])
+      ? new Map([[DEMO_STORY_ID, [...claims]]])
       : NO_CLAIMS;
     return buildScene(
       worldToScene(
-        worldWithStory(story),
+        worldWithPrimaryStory(story),
         relaxedCells,
         NOW,
         NO_BUILDS,
@@ -177,24 +251,40 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
     );
   };
 
-  // No claimed land, no story at all — its own real (empty) composition through the exact same
-  // pipeline, never a hand-filled substitute.
-  const emptyWorld: HexWorld = buildWorld([], { buildings: false });
-  const emptyRelaxedCells = buildRelaxedCells(emptyWorld, 'mesh', {});
-  const emptyScene = (): SceneG =>
-    buildScene(
-      worldToScene(
-        emptyWorld,
-        emptyRelaxedCells,
-        NOW,
-        NO_BUILDS,
-        NO_CLAIMS,
-        NO_DEPARTURES,
-        null,
-        null,
-        VEGETATION,
-      ),
-    );
+  // The companion is witness context, never a narrated nameplate — its `plate` is stripped by id
+  // on every single frame (source-local, id-scoped; see {@link stripKind}).
+  const withoutCompanionPlate = (scene: SceneNode): SceneNode =>
+    stripKind(scene, 'plate', COMPANION_STORY_ID);
+
+  // "no claimed land, no story at all" for the PRIMARY — its whole identity group AND its real
+  // ground/coast are stripped (id-scoped to the primary only), so only the companion's own
+  // territory/ground/coast remain visible. Grown through the exact same real per-territory
+  // pipeline as every other frame, never a separate hand-composed empty world.
+  const emptyScene = (): SceneNode => {
+    const scene = sceneForStory(demoStory('mapped'));
+    const noPrimaryTerritory = stripKind(scene, 'territory', DEMO_STORY_ID);
+    const noPrimaryGround = stripKind(noPrimaryTerritory, 'ground', DEMO_STORY_ID);
+    const noPrimaryCoast = stripKind(noPrimaryGround, 'coast', DEMO_STORY_ID);
+    return withoutCompanionPlate(noPrimaryCoast);
+  };
+
+  // "the plot is claimed; no story markers yet" — the real coast/ground/substrate renders through
+  // the normal per-territory pipeline (kept visible — this frame's whole point), then the
+  // primary's own `territory` identity group is stripped (id-scoped, so the companion's identity
+  // survives) and its real ground's identity tag is cleared (content stays, {@link
+  // clearGroundIdentity}) so no nameplate/tree/parcel-flora appears for the primary until
+  // `proposed`.
+  const landScene = (): SceneNode => {
+    const scene = sceneForStory(demoStory('mapped'));
+    const noPrimaryTerritory = stripKind(scene, 'territory', DEMO_STORY_ID);
+    return withoutCompanionPlate(clearGroundIdentity(noPrimaryTerritory, DEMO_STORY_ID));
+  };
+
+  // `proposed`/`claimed`/`signed-proof`/`healthy`: the primary's identity group stays — only its
+  // ground's identity tag is cleared (its real substrate/parcels/parcel-flora content untouched)
+  // so it never double-counts alongside the primary's own `territory` group.
+  const narrativeScene = (story: TreeStory, claims: readonly ClaimActivity[] = []): SceneNode =>
+    withoutCompanionPlate(clearGroundIdentity(sceneForStory(story, claims), DEMO_STORY_ID));
 
   return [
     {
@@ -202,22 +292,17 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
       model: normalizeWorldPresentationModel({ scene: emptyScene() }),
     },
     {
-      // "the plot is claimed; no story markers yet" — the real ground/coast/substrate renders
-      // through the normal per-territory pipeline, then the one `territory` identity group is
-      // stripped, so no nameplate/tree/parcel-flora appears until `proposed`.
       key: 'land',
-      model: normalizeWorldPresentationModel({
-        scene: stripKind(sceneForStory(demoStory('mapped')), 'territory'),
-      }),
+      model: normalizeWorldPresentationModel({ scene: landScene() }),
     },
     {
       key: 'proposed',
-      model: normalizeWorldPresentationModel({ scene: sceneForStory(demoStory('proposed')) }),
+      model: normalizeWorldPresentationModel({ scene: narrativeScene(demoStory('proposed')) }),
     },
     {
       key: 'claimed',
       model: normalizeWorldPresentationModel({
-        scene: sceneForStory(demoStory('proposed'), [DEMO_CLAIM]),
+        scene: narrativeScene(demoStory('proposed'), [DEMO_CLAIM]),
       }),
     },
     {
@@ -227,12 +312,12 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
       // rule) while staying honest about status.
       key: 'signed-proof',
       model: normalizeWorldPresentationModel({
-        scene: sceneForStory(demoStory('proposed', { outcome: 'pass', at: NOW.toISOString() })),
+        scene: narrativeScene(demoStory('proposed', { outcome: 'pass', at: NOW.toISOString() })),
       }),
     },
     {
       key: 'healthy',
-      model: normalizeWorldPresentationModel({ scene: sceneForStory(demoStory('healthy')) }),
+      model: normalizeWorldPresentationModel({ scene: narrativeScene(demoStory('healthy')) }),
     },
   ];
 }
