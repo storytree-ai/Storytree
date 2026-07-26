@@ -26,6 +26,27 @@
  * stays readable or stops being advisory*, against the live counter-example of `check:coverage`'s
  * 121-contract WARN backlog: the list cannot silently grow, because growth is what reds the gate.
  *
+ * THE SECOND, INDEPENDENT MECHANISM: ESCALATION (ADR-0252 D1). The deep adversarial pass is
+ * judgment-gated at arc close, and D1 records the accepted residual plainly — *a judgment gate can
+ * decline indefinitely, so the continuous half must be able to force the question*. That is what an
+ * ESCALATION is: a finding the cheap half declares it CANNOT SETTLE, which reds the gate on its own
+ * and whose only discharge is cutting the fresh-session adversarial pass (`asset:verification-decay-
+ * detection`). It is deliberately NOT the ceiling wearing a second hat:
+ *
+ * - The **ceiling** governs the SIZE of a backlog of located regions. Its remedy is a DRAIN — repair,
+ *   retire, or refute an item (or, with a recorded reason, raise it).
+ * - An **escalation** governs the cheap half's ability to answer at all. Its remedy is a PASS. Raising
+ *   `DRAIN_CEILING` can never clear one, and {@link evaluateDecayCeiling} enforces that by excluding
+ *   escalations from the count entirely — an instrument that swept nothing LOCATED nothing, so it is
+ *   not backlog, and letting it consume drain budget would invite exactly the wrong repair.
+ *
+ * This is NOT a calendar cadence. ADR-0252 D1 rejected all three offered (monthly-or-arc-close,
+ * monthly, arc-close-unconditionally), so the line is a property of the SIGNAL, never of the clock.
+ *
+ * And escalating is not adjudicating: *a metric threshold is never itself a finding* still holds in
+ * full. An escalation asserts an obligation to LOOK, never that a defect exists — the same shape D3's
+ * ceiling already has, pointed at a different failure.
+ *
  * Pure and injectable — every instrument judges FACTS handed to it, never disk. The disk enumeration
  * lives in the thin {@link file://./check-verification-decay.ts} entrypoint.
  */
@@ -48,6 +69,20 @@ export interface DecayFinding {
   where: string;
   /** What was observed, in one line. Never a verdict; an observation. */
   detail: string;
+  /**
+   * PRESENT = this finding is past the escalation line (ADR-0252 D1), and this is WHY, in one line.
+   *
+   * An instrument sets it for the narrow class it declares itself unable to settle — not for a signal
+   * it merely finds alarming. The distinction is the whole point: an ordinary finding LOCATES a region
+   * a later adversarial pass may or may not confirm, so it stays advisory; an escalating finding says
+   * *the cheap half cannot answer this at all*, which is precisely the condition the deep pass exists
+   * for and precisely the condition a judgment gate must not be allowed to decline indefinitely.
+   *
+   * ABSENT (the default) on every ordinary located region. If in doubt, leave it absent — an
+   * escalation that fires on noise trains the reader to clear it, which is the failure mode that
+   * would make it stop being a backstop.
+   */
+  escalation?: string;
 }
 
 /**
@@ -60,9 +95,35 @@ export interface DecayInstrument {
   name: string;
   /** What it LOCATES, and — stated, never implied — the false-positive surface it carries. */
   locates: string;
-  /** Produce this instrument's findings from already-loaded facts. Must never throw. */
+  /**
+   * Produce this instrument's findings from already-loaded facts. Must never throw — and if it does,
+   * {@link runDecaySweep} converts the failure into an ESCALATING finding rather than letting the
+   * sweep die quietly.
+   *
+   * An instrument MAY set {@link DecayFinding.escalation} on the narrow class it cannot settle. Most
+   * findings should not carry one.
+   */
   run: () => DecayFinding[];
 }
+
+/**
+ * The four cheap instruments ADR-0252 D1 CHARTERED, by slug — the roster the registry is measured
+ * against, so `1 of 4 registered` is a machine fact on every run rather than a source comment
+ * somebody must remember to update. Increment #949 recorded exactly this gap in prose, and prose in
+ * a source header is a finding held by hand.
+ *
+ * Deliberately REPORTED, never escalated. An unbuilt instrument is an absence, not a signal that
+ * crossed a line, and reddening the gate until three more land would block every unrelated landing
+ * for work no landing session owes. What it buys instead is honesty at the judgment gate: the
+ * orchestrator declining the deep pass at arc close is partly reading the continuous half's silence
+ * as reassurance, and silence over an instrument that never ran is not evidence.
+ */
+export const CHARTERED_INSTRUMENTS: readonly string[] = [
+  "contract-binding-drift",
+  "mirror-pair-drift",
+  "vacuous-proof",
+  "warn-list-hygiene",
+];
 
 // ---------------------------------------------------------------------------
 // Instrument: contract-binding drift (ADR-0252 D1, the fourth named cheap check)
@@ -188,33 +249,50 @@ export function findContractBindingDrift(
 // The ceiling (ADR-0252 D3 — the `check:friction-drain` shape, on the COUNT)
 // ---------------------------------------------------------------------------
 
-/** The sweep's outcome: advisory findings, plus the one thing that can red the gate. */
+/** The sweep's outcome: advisory findings, plus the two independent things that can red the gate. */
 export interface DecayVerdict {
-  /** Every located finding, instrument by instrument, in run order. */
+  /** Every finding, instrument by instrument, in run order — escalating ones included. */
   findings: readonly DecayFinding[];
-  /** `findings.length` — the number the ceiling governs. */
+  /** The number the ceiling governs: located regions ONLY, escalations excluded. */
   count: number;
   /** The fixed ceiling the count is held to. */
   ceiling: number;
-  /** `ok` while count ≤ ceiling; `red` the moment the backlog GROWS past it. */
+  /** `ok` while count ≤ ceiling; `red` the moment the BACKLOG grows past it. Says nothing about escalation. */
   level: "ok" | "red";
+  /**
+   * Every finding past the escalation line (ADR-0252 D1). Non-empty reds the gate on its own, at any
+   * ceiling — the ceiling and the escalation are separate mechanisms with separate remedies.
+   */
+  escalations: readonly DecayFinding[];
 }
 
 /**
- * PURE: hold the sweep's total finding COUNT to a fixed ceiling.
+ * PURE: hold the sweep's located-region COUNT to a fixed ceiling, and surface escalations beside it.
  *
  * Advisory per finding, fail-closed on growth (ADR-0252 D3). The ceiling is TUNED ON THE FIRST REAL
  * SWEEP rather than picked in advance — set to exactly what that sweep found, so it starts GREEN on
  * an honest baseline and can only ever be tightened. Adding a finding without repairing one reds the
  * gate; that is the whole mechanism by which this list cannot decay into `check:coverage`'s
  * 121-contract condition.
+ *
+ * ESCALATIONS ARE NOT COUNTED, and that exclusion is load-bearing in both directions (ADR-0252 D1):
+ *
+ * - It keeps the ceiling honest as a measure of BACKLOG. An instrument that failed to run located
+ *   nothing; counting its failure as one unit of backlog would say the repo grew a stale binding when
+ *   what actually happened is that the sweep went blind.
+ * - It keeps the escalation UNCLEARABLE BY THE CEILING. If escalations counted, raising
+ *   `DRAIN_CEILING` — a legitimate, documented move for real backlog growth — would silently discharge
+ *   an escalation too, and the backstop would be defeated by the routine operation of its neighbour.
+ *   That is the `process:verification-decay-detection` "gaming the D3 ceiling" failure mode arriving
+ *   through the front door, by accident rather than by intent.
  */
 export function evaluateDecayCeiling(
   findings: readonly DecayFinding[],
   ceiling: number,
 ): DecayVerdict {
-  const count = findings.length;
-  return { findings, count, ceiling, level: count > ceiling ? "red" : "ok" };
+  const escalations = findings.filter((f) => f.escalation !== undefined);
+  const count = findings.length - escalations.length;
+  return { findings, count, ceiling, level: count > ceiling ? "red" : "ok", escalations };
 }
 
 // ---------------------------------------------------------------------------
@@ -235,25 +313,66 @@ export function formatDecaySweep(
   instruments: readonly DecayInstrument[],
 ): { failed: boolean; lines: string[] } {
   const lines: string[] = [];
-  const coverage = `${instruments.length} instrument(s): ${instruments.map((i) => i.name).join(", ")}`;
+  const registered = instruments.map((i) => i.name);
+  const coverage = `${instruments.length} instrument(s): ${registered.join(", ")}`;
+  // The chartered roster, reported every run so an unswept instrument is a machine fact rather than
+  // a source comment — and so the deep pass is never declined on the strength of a silence that
+  // covers instruments which never ran (ADR-0252 D1). Reported, never escalated.
+  const unswept = CHARTERED_INSTRUMENTS.filter((name) => !registered.includes(name));
+  const charter =
+    unswept.length === 0
+      ? `${TAG}   chartered coverage: ${CHARTERED_INSTRUMENTS.length}/${CHARTERED_INSTRUMENTS.length} of ADR-0252 D1's cheap instruments are sweeping.`
+      : `${TAG}   chartered coverage: ${CHARTERED_INSTRUMENTS.length - unswept.length}/${CHARTERED_INSTRUMENTS.length} of ADR-0252 D1's cheap instruments are sweeping — NOT swept: ` +
+        `${unswept.join(", ")}. Silence over an unswept instrument is not evidence.`;
 
-  if (verdict.count === 0) {
+  const escalated = verdict.escalations.length > 0;
+
+  if (verdict.count === 0 && !escalated) {
     lines.push(`${TAG} OK — no verification-decay signal located (${coverage}).`);
+    lines.push(charter);
     return { failed: false, lines };
   }
 
-  const headline =
-    verdict.level === "red"
-      ? `${TAG} RED — ${verdict.count} located signal(s), past the drain ceiling of ${verdict.ceiling} (${coverage}).`
-      : `${TAG} WARN — ${verdict.count} located signal(s), within the drain ceiling of ${verdict.ceiling} (${coverage}).`;
-  lines.push(headline);
-  lines.push(
-    `${TAG}   These LOCATE regions; they do not establish defects. A metric is never itself a finding ` +
-      "(ADR-0252): adversarially verify before repairing, and state the failure scenario as inputs → wrong outcome.",
-  );
+  // ESCALATION FIRST, and headlined separately from the ceiling: the two conditions are independent
+  // and their remedies are different (a PASS, not a DRAIN). Reporting them under one banner is how a
+  // reader would come to believe raising the ceiling clears both.
+  if (escalated) {
+    lines.push(
+      `${TAG} ESCALATED — ${verdict.escalations.length} signal(s) past the escalation line (${coverage}). ` +
+        "The cheap half cannot settle these.",
+    );
+    for (const f of verdict.escalations) {
+      lines.push(`${TAG}     ! ${f.detail}  [${f.where}]`);
+      lines.push(`${TAG}       why it escalates: ${f.escalation ?? ""}`);
+    }
+    lines.push(
+      `${TAG}   REQUIRED RESPONSE — cut the deep adversarial pass in a FRESH SESSION (never an ` +
+        "in-session subagent of the session that landed the work): `storytree library artifact " +
+        "verification-decay-detection --pg`. ADR-0252 D1: the arc-close judgment gate can decline " +
+        "indefinitely, so this is the continuous half forcing the question.",
+    );
+    lines.push(
+      `${TAG}   Raising the drain ceiling CANNOT clear an escalation — escalations are not counted ` +
+        "against it. Nor does repairing an unrelated located signal. Restore the instrument, then run the pass.",
+    );
+  }
+
+  if (verdict.count > 0) {
+    const headline =
+      verdict.level === "red"
+        ? `${TAG} RED — ${verdict.count} located signal(s), past the drain ceiling of ${verdict.ceiling} (${coverage}).`
+        : `${TAG} WARN — ${verdict.count} located signal(s), within the drain ceiling of ${verdict.ceiling} (${coverage}).`;
+    lines.push(headline);
+    lines.push(
+      `${TAG}   These LOCATE regions; they do not establish defects. A metric is never itself a finding ` +
+        "(ADR-0252): adversarially verify before repairing, and state the failure scenario as inputs → wrong outcome.",
+    );
+  }
 
   for (const inst of instruments) {
-    const mine = verdict.findings.filter((f) => f.instrument === inst.name);
+    const mine = verdict.findings.filter(
+      (f) => f.instrument === inst.name && f.escalation === undefined,
+    );
     if (mine.length === 0) continue;
     lines.push(`${TAG}   ${inst.name} (${mine.length}) — ${inst.locates}`);
     for (const f of mine) lines.push(`${TAG}     · ${f.detail}  [${f.where}]`);
@@ -266,7 +385,8 @@ export function formatDecaySweep(
         "`packages/cli/src/check-verification-decay.ts` with the reason recorded in the commit.",
     );
   }
-  return { failed: verdict.level === "red", lines };
+  lines.push(charter);
+  return { failed: verdict.level === "red" || escalated, lines };
 }
 
 /**
@@ -288,6 +408,17 @@ export function runDecaySweep(
         id: `${inst.name}:instrument-failed`,
         where: inst.name,
         detail: `instrument failed to run (${(err as Error).message}) — it swept nothing, so it proved nothing`,
+        // THE FIRST ESCALATION LINE, and the one this sweep can observe about itself. A dead
+        // instrument is not backlog to be drained — it is the continuous half having stopped
+        // continuing, which no amount of repairing OTHER findings fixes and which the cheap half
+        // cannot settle by definition (it is the thing that would have done the settling). Before
+        // this, the failure was filed as one ordinary signal: with the ceiling at 5 and the sole
+        // instrument dead, `check:verification-decay` printed "1 located signal, within the drain
+        // ceiling" and EXITED 0 — a green gate over a blind sweep, which is the exact class this
+        // whole arc exists to fence, occurring inside the instrument built to fence it.
+        escalation:
+          "the sweep went BLIND here — this instrument observed nothing, so its silence is not " +
+          "evidence, and no repair to another finding restores what it did not look at",
       });
     }
   }

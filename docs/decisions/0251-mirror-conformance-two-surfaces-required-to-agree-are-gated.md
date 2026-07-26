@@ -139,10 +139,21 @@ that should run on every `pnpm gate` as **non-blocking warns**, on the measured 
 metrics refuted 3 of this audit's 4 headline findings (~75% false positive), so "a metric threshold is
 never itself a finding and a BLOCKING gate would be wrong on the measured evidence".
 
-Non-blocking **per finding** — not "the advisory family can never block". ADR-0252 D3 also puts a fixed
-drain ceiling on the total COUNT, so that family reds the gate on backlog GROWTH even though no single
-signal ever does. `pnpm check:verification-decay` (2026-07-27) is that family's first instrument and
-carries the ceiling.
+Non-blocking **per finding** — not "the advisory family can never block". That family in fact carries
+**three** postures, and they are worth separating because only the first is advisory. (1) A **located
+region** never blocks: it is a heuristic with a real false-positive surface, and needs the adversarial
+second phase. (2) The **backlog count** blocks: ADR-0252 D3 puts a fixed drain ceiling on the total, so
+the family reds the gate on GROWTH even though no located signal does so on its own; its remedy is a
+DRAIN. (3) An **escalation** blocks on its own, at any ceiling: ADR-0252 D1's warn-escalation backstop
+declares the narrow class the cheap half cannot settle — today, an instrument that failed to run — and
+its remedy is a PASS, not a drain. Escalations are excluded from the counted total precisely so that
+raising the ceiling can never discharge one. `pnpm check:verification-decay` (2026-07-27) is that
+family's first instrument and carries all three.
+
+Note that posture (3) sits on the same side of this ADR's boundary as `check:mirror-conformance`, and
+for the same reason: an instrument that threw did not produce a score to be interpreted, it produced a
+fact that cannot be wrong. The boundary below is *whether the signal can be wrong* — not which check
+happens to own it.
 
 `check:mirror-conformance` BLOCKS. That is not a departure from ADR-0252, because it is not a metric
 sweep. ADR-0252's advisory posture is calibrated to **heuristics that locate regions** — a threshold on

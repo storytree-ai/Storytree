@@ -17,9 +17,12 @@
  * - ADR-0252 names FOUR cheap instruments. **Only `contract-binding-drift` is implemented.**
  *   Mirror-pair drift, vacuous-proof detection, and WARN-list hygiene are NOT swept (the arc's
  *   no-silent-caps rule). The registry below is the seam that makes each a row, not a redesign.
- * - ADR-0252 D1's **warn-escalation backstop** — a warn signal "crossing a line" forcing the deep
- *   adversarial pass early — is NOT implemented. Only the D3 ceiling is. That backstop is what
- *   covers the skip risk judgment-gating introduces, so its absence is a real gap, not a detail.
+ * - ADR-0252 D1's **warn-escalation backstop** now EXISTS, with exactly ONE line declared: an
+ *   instrument that FAILED TO RUN (the sweep went blind). It reds the gate independently of the
+ *   ceiling and demands the fresh-session adversarial pass. Lines keyed to a signal's AGE or to a
+ *   count of declined arc-closes are NOT built — both need persisted per-signal state this
+ *   deliberately-stateless sweep does not have, and a clock-keyed line would smuggle back the
+ *   calendar cadence D1 rejected outright.
  *
  * On mirror-pair drift specifically, note the boundary ADR-0251 records: `check:mirror-conformance`
  * already proves the pairs in its `MIRRORS` registry EXACTLY, and blocks. The advisory instrument
@@ -228,7 +231,8 @@ function main(): void {
   const verdict = runDecaySweep(instruments, DRAIN_CEILING);
   const { failed, lines } = formatDecaySweep(verdict, instruments);
   for (const line of lines) (failed ? console.error : verdict.count > 0 ? console.warn : console.log)(line);
-  // Advisory PER FINDING; fail-closed on the COUNT alone (ADR-0252 D3).
+  // Advisory PER FINDING. Two independent fail-closed conditions: the COUNT past the ceiling
+  // (ADR-0252 D3), and any ESCALATION (D1) — which no ceiling change can clear.
   if (failed) process.exitCode = 1;
 }
 
