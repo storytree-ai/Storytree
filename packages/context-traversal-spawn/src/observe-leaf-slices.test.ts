@@ -71,7 +71,7 @@ test("one authoring slice with usage emits a linked spawn_handoff / model_contex
     ["spawn_handoff", "model_context", "result_return"],
   );
 
-  const childSessionId = `${PARENT_SESSION_ID}:build:${RUN_ID}:${UNIT_ID}:AUTHOR_TEST`;
+  const childSessionId = `${PARENT_SESSION_ID}__build__${RUN_ID}__${UNIT_ID}__AUTHOR_TEST`;
   const [spawn, context, result] = events;
 
   assert.ok(spawn?.kind === "spawn_handoff");
@@ -163,7 +163,7 @@ test("a slice with no usage skips model_context but still links its own spawn/re
     // Distinct authoring slices never share an edge identity.
     assert.notEqual(firstSpawn.edgeId, secondSpawn.edgeId);
 
-    assert.equal(secondSpawn.childSessionId, `${PARENT_SESSION_ID}:build:${RUN_ID}:${UNIT_ID}:IMPLEMENT`);
+    assert.equal(secondSpawn.childSessionId, `${PARENT_SESSION_ID}__build__${RUN_ID}__${UNIT_ID}__IMPLEMENT`);
     assert.equal(secondSpawn.agentType, "green-builder");
 
     assert.equal(secondReturn.ok, false);
@@ -208,7 +208,7 @@ test("child session identity is composed from declared build identity alone, nev
     assert.equal(spawnA.childSessionId, spawnB.childSessionId);
     assert.equal(
       spawnA.childSessionId,
-      `${PARENT_SESSION_ID}:build:${RUN_ID}:${UNIT_ID}:AUTHOR_TEST`,
+      `${PARENT_SESSION_ID}__build__${RUN_ID}__${UNIT_ID}__AUTHOR_TEST`,
     );
   }
 });
@@ -254,4 +254,55 @@ test("BUILD_SPAWN_BOUNDARY_COVERAGE names exactly what this adapter emits and de
     assert.notEqual(onSupported, onOmitted);
   }
   assert.equal(parsed.supported.length + parsed.omitted.length, CoverageFeature.options.length);
+});
+
+test("child session id is legal as a path segment on every supported platform (regression: a colon-separated id silently drops the sink's write)", () => {
+  const { nextId, now } = harness();
+  const runs: LeafSliceRun[] = [
+    { phase: "AUTHOR_TEST", subtype: "success", turns: 1 },
+    { phase: "IMPLEMENT", subtype: "success", turns: 5 },
+  ];
+
+  const events = observeLeafSlices({
+    parentSessionId: PARENT_SESSION_ID,
+    runId: RUN_ID,
+    unitId: UNIT_ID,
+    runs,
+    now,
+    nextId,
+  });
+
+  // The sink names one file per session, `<sessionId>.jsonl`, and swallows a failed write
+  // (`catch { return false }`) — a character illegal in a path segment on ANY supported platform
+  // (measured: Windows rejects `:`) makes that child's lane silently unpersistable. This is the
+  // deletion check for that regression: strip every character this exact id set contains that is
+  // reserved on Windows, POSIX, or macOS path segments, and demand nothing was stripped.
+  const illegalPathSegmentChars = /[<>:"/\\|?*\x00-\x1f]/;
+
+  const spawnHandoffs = events.filter((event) => event.kind === "spawn_handoff");
+  assert.equal(spawnHandoffs.length, 2);
+  for (const spawn of spawnHandoffs) {
+    assert.ok(spawn.kind === "spawn_handoff");
+    if (spawn.kind === "spawn_handoff") {
+      assert.equal(
+        illegalPathSegmentChars.test(spawn.childSessionId),
+        false,
+        `childSessionId ${JSON.stringify(spawn.childSessionId)} contains a character illegal in a path segment`,
+      );
+      // The id must still be composed from the declared build identity alone — never a bare
+      // opaque token — so a reader can still see which parent/run/unit/phase it names.
+      assert.ok(spawn.childSessionId.includes(PARENT_SESSION_ID));
+      assert.ok(spawn.childSessionId.includes(RUN_ID));
+      assert.ok(spawn.childSessionId.includes(UNIT_ID));
+    }
+  }
+
+  const resultReturns = events.filter((event) => event.kind === "result_return");
+  assert.equal(resultReturns.length, 2);
+  for (const result of resultReturns) {
+    assert.ok(result.kind === "result_return");
+    if (result.kind === "result_return") {
+      assert.equal(illegalPathSegmentChars.test(result.childSessionId), false);
+    }
+  }
 });
