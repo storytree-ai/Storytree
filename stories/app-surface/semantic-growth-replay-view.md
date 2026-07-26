@@ -44,10 +44,10 @@ decisions: [237, 93, 213, 215, 230, 70]
 # ENTERING-DELTA/LOOK FLOOR after real-ms1o35is: machine-green is not owner-presentable while
 # accumulated roles reanimate, Storybook snaps, or proposed roles remain near-simultaneous scale
 # aliases. Exact frame selectors, both renderer hooks and visibly separated role choreography are red.
-# D-BEFORE-E FLOOR after real-ms1pgtt2: an additive frame-scoping case cannot substitute for authored
-# choreography. AUTHOR_TEST must materially extend or replace the retained `binds the studio's real
-# growth vocabulary...` case with the whole executable D resolver/renderer/property/timing bundle,
-# while preserving every pre-9377 case/assertion, before separate red E may count.
+# CURRENT-TEST-BYTE-DIFF FLOOR after real-ms1pgtt2 and real-ms1pvz2l: an appended frame-scoping case
+# cannot substitute for authored choreography. AUTHOR_TEST must extend the existing `binds the
+# studio's real growth vocabulary...` case in place—never replace/delete it—and materially change
+# that source span with the whole D resolver/renderer/property/timing bundle before authoring red E.
 proof:
   command:
     file: pnpm
@@ -109,9 +109,10 @@ semantic-growth view:
    `transform-box: fill-box`, the correct ground/root origin and stagger, or the existing
    `.pop-motion-inner` composition whose outer placement remains effective for every animation frame;
 6. add one independent authored-choreography red D that asserts the full bundle together: retain
-   every pre-9377 case/assertion, but materially extend or replace the retained executable case whose
+   every pre-9377 case/assertion and extend in place the existing executable case whose
    title begins `binds the studio's real growth vocabulary to the exact already-landed
-   .pop-motion-inner seam`; leaving that case unchanged does not satisfy D. In that case, retain
+   .pop-motion-inner seam`; do not replace, delete or leave that case byte-unchanged. Its existing
+   source span must materially change to add the full D helper/assertions. In that case, retain
    read-only source proof that `SceneView` emits the exact existing `.pop-motion-inner`
    placement-preservation seam and shared CSS targets it, with no `SceneView` change, second wrapper,
    full CSS `transform:` replacement or lateral entry motion; prove distinct local coast/substrate
@@ -150,9 +151,10 @@ semantic-growth view:
    `[data-semantic-growth-frame][data-motion='full']` arrival selector is red. Assert no accumulated
    terrain or identity arrival selector matches `claimed`, `signed-proof` or `healthy`, no claim
    arrival matches `signed-proof`/`healthy`, and no arrival matches `healthy`. Reduced motion exposes
-   every frame's final semantics immediately with no arrival selector or delayed concealment. This
-   separate E case counts only after the materially extended/replaced D case passes its complete
-   resolver, renderer-participation, property, timing, per-item-offset and exactly-one-bloom bundle;
+   every frame's final semantics immediately with no arrival selector or delayed concealment. Do not
+   author this separate E case until the named D case's source span has been extended in place with
+   its complete resolver, renderer-participation, property, timing, per-item-offset and
+   exactly-one-bloom bundle;
 8. click visible Back/Next/Replay controls through all six frames, Back to empty, replay the same
    action trace twice and compare every semantic snapshot and transition-family trace;
 9. repeat under `prefers-reduced-motion: reduce`, compare the same semantic snapshots, assert
@@ -231,6 +233,11 @@ That retained case resolves no shorthand/longhands or referenced keyframes, prov
 direct-image CSS participation, and still permits shared `arrive-pop` at 90 ms, a 90 ms plate,
 grouped parcels without per-item offsets and infinite bloom. An E-only AUTHOR_TEST delta in that
 shape is invalid even when the focused command signs PASS.
+The signed run `real-ms1pvz2l` at `99ebfcd` is likewise rejected and unmerged. Its test diff appended
+only exact-frame red E while the named D case stayed byte-unchanged; its CSS merely added frame
+qualifiers and retained the same 90 ms shared `arrive-pop`, 90 ms plate, grouped parcels with no
+per-item offsets, absent Storybook direct-image rules and infinite bloom. Legacy assertions that
+look D-like elsewhere do not validate an appended-E-only diff.
 
 ## Guidance
 
@@ -397,11 +404,17 @@ the existing `.pop-motion-inner` composition whose outer SVG `transform="transla
 the effective placement throughout animation. Merely comparing `getAttribute('transform')`
 before/after is red.
 
-**Authored semantic-choreography red D — indivisible, additive, no new scope.** One executable case
-must materially extend or replace the retained case whose title begins `binds the studio's real
-growth vocabulary to the exact already-landed .pop-motion-inner seam`; preserving every pre-9377
-case/assertion remains mandatory, but retaining this later vocabulary case unchanged is red. The
-extended/replacement case reads real `semantic-growth.css` and read-only `SceneView.tsx`, preserves
+**Authored semantic-choreography red D — indivisible, additive, no new scope. CURRENT-TEST-BYTE-DIFF
+floor:** AUTHOR_TEST must extend in place the existing case whose title begins `binds the studio's
+real growth vocabulary to the exact already-landed .pop-motion-inner seam`; it may not replace or
+delete it, every pre-9377 case/assertion remains mandatory, and the named case's source span must
+materially differ from the gate input before any independent E case is authored. The additions
+inside that named test must build `resolvedProfile` with shorthand plus precedence-winning
+longhands, canonicalize the referenced keyframes, resolve CSS participation for Vector
+`.pop-motion-inner` and Storybook direct-image selectors, compare the required role pairs'
+keyframed property sets, enforce all exact timing gaps and per-item offsets, and resolve bloom
+iteration to exactly `1`. The extended case reads real `semantic-growth.css` and read-only
+`SceneView.tsx`, preserves
 exact existing `.pop-motion-inner` emission/targeting, and rejects a second wrapper, `SceneView`
 implementation change, full CSS `transform:`, lateral entry, mismatched names or comments-only
 matches. That same case must prove every bundle member together: distinct local coast/substrate
@@ -444,8 +457,9 @@ terrain/identity arrivals cannot match claimed, signed-proof or healthy; claim e
 signed-proof or healthy; bloom cannot match healthy; and no arrival runs on healthy. Reduced motion
 has no matching arrival/orbit/delay and immediately renders the same accumulated final semantics.
 E is additive and ordered after D: it cannot count unless AUTHOR_TEST first contains the materially
-extended/replaced named vocabulary case and that one case executes every D operation. Adding only E,
-as `real-ms1pgtt2` at `9163674` did, is rejected machine proof.
+extended-in-place named vocabulary case and that one case executes every D operation. Appending only
+E while leaving that named source span byte-unchanged—even when D-looking legacy assertions remain—
+is rejected machine proof, as shown by `real-ms1pgtt2` at `9163674` and `real-ms1pvz2l` at `99ebfcd`.
 
 1. **`sgrv-six-ordered-frames-preserve-semantic-honesty`**
    - **asserts —** only the exact ordered key set is accepted; `land` has target ground but no story
