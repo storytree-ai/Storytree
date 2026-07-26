@@ -38,6 +38,19 @@ export interface DocMeta {
   excerpt: string;
   status?: "proposed" | "accepted" | "superseded";
   decided?: string;
+  /**
+   * The ADR's frontmatter `load_bearing` tag (ADR-0086) — present ONLY for Decisions docs, and
+   * true only when the tag is explicitly `load_bearing: true`. The studio SPA this backend serves
+   * reads it through `resolveSelectionDetail` to render the Library selection card's load-bearing
+   * badge, so a desktop that omits it silently renders a different card (ADR-0187 dec 3).
+   */
+  loadBearing?: boolean;
+  /**
+   * The ADR's outbound decision-lineage edges (`supersedes` / `supersedes_in_part` / `amends`)
+   * resolved to `doc:decisions/NNNN-slug.md` pointers — present ONLY for Decisions docs carrying
+   * at least one edge that names an ADR on disk (ADR-0187 dec 3).
+   */
+  references?: string[];
 }
 
 /**
@@ -133,6 +146,51 @@ function parseDocStatus(
     : { status };
 }
 
+/** Pull the ADR numbers out of a `field: [n, m, ...]` frontmatter array line; `[]` if absent/empty. */
+function extractEdgeNumbers(block: string, field: string): number[] {
+  const re = new RegExp(`^${field}:[ \\t]*\\[([^\\]]*)\\]`, "m");
+  const list = block.match(re)?.[1];
+  if (list === undefined || list === "") return [];
+  return list
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n));
+}
+
+/**
+ * The studio-wire ADR signals: `loadBearing` reads the frontmatter's `load_bearing: true` tag
+ * (a missing tag or an explicit `false` both read as `false`), and `edges` is the deduped UNION of
+ * the ADR NUMBERS listed in `supersedes` / `supersedes_in_part` / `amends`. TOLERANT: a non-ADR
+ * filename, a missing or unterminated frontmatter block, or absent fields all yield the empty
+ * result, and this never throws.
+ *
+ * Reproduces apps/studio/server/adrWireSignals.ts `parseAdrWireSignals` verbatim — do NOT import
+ * from studio (ADR-0176's one-wired-backend rule). The two copies are held equal by
+ * `pnpm check:mirror-conformance`, which diffs this backend's `/api/docs` payload against the
+ * studio's over the same tree; that gate exists because this exact fold landed studio-side
+ * (commit 71f68d2b) and never reached here, dropping `loadBearing` from 88 ADRs and `references`
+ * from 168 with nothing anywhere going red.
+ */
+function parseAdrWireSignals(
+  filename: string,
+  raw: string,
+): { loadBearing: boolean; edges: number[] } {
+  const empty = { loadBearing: false, edges: [] };
+  if (!/^\d{4}-.*\.md$/.test(filename)) return empty;
+  if (!raw.startsWith("---\n")) return empty;
+  const end = raw.indexOf("\n---", 4);
+  if (end === -1) return empty;
+  const block = raw.slice(4, end);
+
+  const loadBearing = block.match(/^load_bearing:[ \t]*["']?(true|false)["']?[ \t]*$/m)?.[1] === "true";
+
+  const edgeSet = new Set<number>();
+  for (const field of ["supersedes", "supersedes_in_part", "amends"]) {
+    for (const n of extractEdgeNumbers(block, field)) edgeSet.add(n);
+  }
+  return { loadBearing, edges: [...edgeSet] };
+}
+
 /**
  * The first prose sentence after the H1 title — the one-line description shown on docs cards.
  * Reproduces apiRouter.ts deriveExcerpt verbatim. Empty if no sentence found.
@@ -155,8 +213,14 @@ function deriveExcerpt(markdown: string): string {
  * Recursively walk `docsDir` and return a `DocMeta[]`. Returns `[]` gracefully when the dir
  * does not exist — the studio boots fine with an empty docs list.
  */
-async function listDocs(docsDir: string): Promise<DocMeta[]> {
+export async function listDocs(docsDir: string): Promise<DocMeta[]> {
   const out: DocMeta[] = [];
+  // ADR number → its doc id (`decisions/NNNN-slug.md`), built during the walk so the wire-signal
+  // fold below can resolve each ADR's lineage-edge NUMBERS to `doc:` pointers (ADR-0187 dec 3).
+  const adrNumToId = new Map<number, string>();
+  // Per-Decisions-doc outbound edge NUMBERS, stashed during the walk and resolved after it — the
+  // number→id map is only complete once every ADR on disk has been walked.
+  const edgeNumbersById = new Map<string, number[]>();
   async function walk(dir: string): Promise<void> {
     if (!existsSync(dir)) return;
     for (const ent of await fs.readdir(dir, { withFileTypes: true })) {
@@ -177,17 +241,38 @@ async function listDocs(docsDir: string): Promise<DocMeta[]> {
           group,
           excerpt: deriveExcerpt(content),
         };
-        // Only Decisions docs carry a frontmatter status (ADR-0037).
-        const fm = group === "Decisions" ? parseDocStatus(ent.name, raw) : null;
-        if (fm !== null) {
-          meta.status = fm.status;
-          if (fm.decided !== undefined) meta.decided = fm.decided;
+        // Only Decisions docs carry frontmatter signals (ADR-0037).
+        if (group === "Decisions") {
+          const fm = parseDocStatus(ent.name, raw);
+          if (fm !== null) {
+            meta.status = fm.status;
+            if (fm.decided !== undefined) meta.decided = fm.decided;
+          }
+          // The overview's load-bearing + lineage-edge wire signals (ADR-0187 dec 3).
+          // `loadBearing` folds in now; the edge NUMBERS are stashed and resolved to `doc:`
+          // pointers after the walk (once every ADR number is known).
+          const wire = parseAdrWireSignals(ent.name, raw);
+          if (wire.loadBearing) meta.loadBearing = true;
+          if (wire.edges.length > 0) edgeNumbersById.set(relId, wire.edges);
+          const num = Number.parseInt(ent.name.slice(0, 4), 10);
+          if (Number.isFinite(num)) adrNumToId.set(num, relId);
         }
         out.push(meta);
       }
     }
   }
   await walk(docsDir);
+  // Resolve each ADR's outbound lineage-edge NUMBERS to `doc:decisions/NNNN-slug.md` pointers now
+  // that the full number→id map is known; drop any number that names no ADR on disk (tolerant).
+  for (const meta of out) {
+    const nums = edgeNumbersById.get(meta.id);
+    if (nums === undefined) continue;
+    const refs = nums
+      .map((n) => adrNumToId.get(n))
+      .filter((id): id is string => id !== undefined)
+      .map((id) => `doc:${id}`);
+    if (refs.length > 0) meta.references = refs;
+  }
   // Decisions first (ADR order by filename), then reference docs alphabetically.
   return out.sort((a, b) => {
     if (a.group !== b.group) return a.group === "Decisions" ? -1 : 1;

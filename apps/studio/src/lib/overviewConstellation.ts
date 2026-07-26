@@ -5,10 +5,22 @@
  * Five pure functions, none of which fetch (they read only the `assets`/`docs` handed in):
  *
  *   - `importanceOf(assets, docs)` — the in+out DEGREE of each node over the `references[]`
- *     graph. Degree-only THIS increment: `load_bearing` is not on the wire (neither
- *     `GuidanceAsset` nor `DocMeta` carries it) and is never read here — the weighted
- *     enrichment is increment 6's job. An ADR's out-degree is always 0 (`DocMeta` carries no
- *     `references`), so an ADR's importance is its in-degree only.
+ *     graph. Degree-only, and it stays that way: the weighted (load-bearing) enrichment this
+ *     comment once deferred to "increment 6" was RETIRED before being built (ADR-0188 retires
+ *     ADR-0187 dec 3's overview information design; the zoomed-out weighted field is not
+ *     mounted). The wire signals it needed did land and are read ELSEWHERE — `DocMeta.loadBearing`
+ *     feeds the Library selection card via `resolveSelectionDetail` (`./selectionDetail`), not
+ *     this module.
+ *
+ *     Two facts here are easy to get backwards, so state them exactly (ADR-0251 corrected the
+ *     stale version of this comment):
+ *       · `DocMeta` DOES carry `loadBearing?` and `references?` (ADR-0187 dec 3, incs 6–7).
+ *         `GuidanceAsset` carries neither. `importanceOf` reads NEITHER field on a doc.
+ *       · An ADR's out-degree is therefore always 0 because THIS FUNCTION walks only `assets`'
+ *         references — docs are seeded at 0 and their own `references` are never traversed — NOT
+ *         because the wire lacks the data. `DocMeta.references` has no reader in either surface
+ *         today (`./focusGraph`'s `buildFocusGraph` also walks `GuidanceAsset.references` only),
+ *         which is a studio-side gap, not missing data. An ADR's importance is its in-degree only.
  *   - `sizeTiers(assets, docs)` — buckets importance into exactly 3 monotonic size tiers (0..2).
  *   - `lodBand(zoom)` — maps a zoom level to one of `'far' | 'mid' | 'close'` at settled,
  *     monotonic thresholds (more zoom never reverses to a farther band).

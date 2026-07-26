@@ -274,6 +274,75 @@ test("boot-read-routes: GET /api/docs returns a bare DocMeta array from the real
   }
 });
 
+// Pins the ADR wire-signal fold (ADR-0187 dec 3) this backend must reproduce from the studio's
+// listDocs: `loadBearing` from the frontmatter `load_bearing: true` tag, and the deduped union of
+// `supersedes`/`supersedes_in_part`/`amends` NUMBERS resolved to `doc:` pointers against the walked
+// corpus. It landed studio-side in commit 71f68d2b and never reached here; because the desktop
+// serves the SAME compiled studio SPA, the Library selection card's load-bearing badge (which reads
+// DocMeta.loadBearing through resolveSelectionDetail) simply never rendered on the desktop.
+//
+// This is the desktop-side half of the proof. The cross-surface half — that this copy and the
+// studio's original agree over the real docs/ tree, which is what actually fences the drift class —
+// is `pnpm check:mirror-conformance` (packages/cli/src/check-mirror-conformance.ts).
+test("boot-read-routes: /api/docs folds the ADR wire signals (load_bearing + resolved lineage edges)", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "boot-read-routes-wire-"));
+  try {
+    await fs.mkdir(path.join(dir, "decisions"));
+    // Load-bearing, with edges reaching BOTH other ADRs (one via amends, one via supersedes) plus
+    // an edge number naming no ADR on disk — which must be dropped, not rendered broken.
+    await fs.writeFile(
+      path.join(dir, "decisions", "0187-permanent-lens.md"),
+      "---\nstatus: accepted\nload_bearing: true\namends: [185]\nsupersedes: [10, 9999]\n---\n# ADR-0187: Permanent lens\n\nThe overlay is a permanent lens.\n",
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(dir, "decisions", "0185-tech-tree-overlay.md"),
+      "---\nstatus: accepted\nload_bearing: true\n---\n# ADR-0185: Overlay\n\nThe library as a tech-tree overlay.\n",
+      "utf8",
+    );
+    // Explicit `load_bearing: false` must read the same as an absent tag: the key is OMITTED.
+    await fs.writeFile(
+      path.join(dir, "decisions", "0010-old-decision.md"),
+      "---\nstatus: superseded\nload_bearing: false\n---\n# ADR-0010: Old\n\nAn early decision.\n",
+      "utf8",
+    );
+    await fs.writeFile(path.join(dir, "open-questions.md"), "# Open questions\n\nDeferred.\n", "utf8");
+
+    const handler = createBootReadRoutes({ docsDir: dir, listComments: async () => [] });
+    await withServer(handler, async (base) => {
+      const docs = (await (await fetch(`${base}/api/docs`)).json()) as Array<Record<string, unknown>>;
+      const byId = Object.fromEntries(docs.map((d) => [d["id"] as string, d]));
+
+      const adr187 = byId["decisions/0187-permanent-lens.md"];
+      assert.equal(adr187?.["loadBearing"], true, "load_bearing: true must surface as loadBearing");
+      assert.deepEqual(
+        new Set(adr187?.["references"] as string[]),
+        new Set(["doc:decisions/0185-tech-tree-overlay.md", "doc:decisions/0010-old-decision.md"]),
+        "lineage edge NUMBERS must resolve to doc: pointers — and 9999, naming no ADR on disk, must be dropped",
+      );
+
+      assert.equal(byId["decisions/0185-tech-tree-overlay.md"]?.["loadBearing"], true);
+      assert.equal(
+        byId["decisions/0185-tech-tree-overlay.md"]?.["references"],
+        undefined,
+        "an ADR with no lineage fields must carry no references key at all",
+      );
+
+      assert.equal(
+        byId["decisions/0010-old-decision.md"]?.["loadBearing"],
+        undefined,
+        "an explicit load_bearing: false must OMIT the key, not emit false",
+      );
+
+      const ref = byId["open-questions.md"];
+      assert.equal(ref?.["loadBearing"], undefined, "a Reference doc never carries wire signals");
+      assert.equal(ref?.["references"], undefined);
+    });
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 // Pins the missing-docsDir path: a non-existent docsDir must return [] gracefully (never throws,
 // never 500). The studio boots fine with no docs; the frontend simply renders an empty list.
 test("boot-read-routes: GET /api/docs with a missing docsDir returns an empty array", async () => {
