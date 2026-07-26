@@ -33,7 +33,7 @@ export interface LeafSliceRun {
   turns: number;
   costUsd?: number;
   usage?: LeafSliceUsage;
-  byModel?: Record<string, LeafSliceUsage & { costUsd?: number }>;
+  byModel?: Record<string, LeafSliceUsage & { costUsd?: number; contextWindow?: number }>;
 }
 
 export interface ObserveLeafSlicesArgs {
@@ -70,6 +70,25 @@ function isSuccess(subtype: string): boolean {
 }
 
 /**
+ * Pass-through, never a lookup/estimate: the capacity carried onto a child's aggregate
+ * `model_context` observation is present only when this slice's `byModel` declares exactly ONE
+ * distinct positive window. Two models declaring the SAME window is unambiguous; two models
+ * declaring DIFFERENT windows is ambiguous and must never be guessed; a declared `0` or negative
+ * value is not a capacity (the vocabulary is `count.positive()`); no declaration at all leaves
+ * nothing to attribute.
+ */
+function contextWindowCapacityFor(byModel: LeafSliceRun["byModel"]): number | undefined {
+  if (byModel === undefined) return undefined;
+  const declaredWindows = new Set<number>();
+  for (const model of Object.values(byModel)) {
+    if (model.contextWindow !== undefined && model.contextWindow > 0) {
+      declaredWindows.add(model.contextWindow);
+    }
+  }
+  return declaredWindows.size === 1 ? [...declaredWindows][0] : undefined;
+}
+
+/**
  * Turn one build's authoring slices into a chronological `ContextTraversalEvent[]`: for each
  * slice, a `spawn_handoff` on the parent, an optional `model_context` on the child (only when the
  * slice reported usage), and a `result_return` on the parent — the same `edgeId` joining the
@@ -97,6 +116,7 @@ export function observeLeafSlices(args: ObserveLeafSlicesArgs): ContextTraversal
     if (run.usage !== undefined) {
       const totalInputTokens =
         run.usage.inputTokens + run.usage.cacheCreationInputTokens + run.usage.cacheReadInputTokens;
+      const contextWindowCapacity = contextWindowCapacityFor(run.byModel);
       events.push({
         kind: "model_context",
         eventId: nextId(),
@@ -104,6 +124,7 @@ export function observeLeafSlices(args: ObserveLeafSlicesArgs): ContextTraversal
         at: now().toISOString(),
         cumulativeInputTokens: totalInputTokens,
         addedInputTokens: totalInputTokens,
+        ...(contextWindowCapacity !== undefined ? { contextWindowCapacity } : {}),
       });
     }
 
@@ -138,6 +159,7 @@ const SUPPORTED_FEATURES = [
   "event:result_return",
   "field:model_tokens",
   "field:child_context_window",
+  "field:context_window_capacity",
 ] as const;
 
 const supportedSet = new Set<string>(SUPPORTED_FEATURES);

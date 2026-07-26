@@ -47,6 +47,7 @@ test("one authoring slice with usage emits a linked spawn_handoff / model_contex
           cacheReadInputTokens: 300,
           outputTokens: 150,
           costUsd: 0.12,
+          contextWindow: 200_000,
         },
       },
     },
@@ -91,8 +92,10 @@ test("one authoring slice with usage emits a linked spawn_handoff / model_contex
     // the sum of the three reported input axes (never including output tokens).
     assert.equal(context.cumulativeInputTokens, 1_500);
     assert.equal(context.addedInputTokens, 1_500);
-    // Fenced: nothing in the SDK result declares a window size at this boundary.
-    assert.equal(context.contextWindowCapacity, undefined);
+    // Pass-through, never a lookup/estimate: the runtime declared exactly one distinct positive
+    // window on this slice's sole model, so it is carried onto the child's aggregate observation
+    // verbatim.
+    assert.equal(context.contextWindowCapacity, 200_000);
   }
 
   assert.ok(result?.kind === "result_return");
@@ -108,6 +111,83 @@ test("one authoring slice with usage emits a linked spawn_handoff / model_contex
     // The same edge identity joins the handoff and the return — the lanes link by id alone.
     assert.equal(spawn.edgeId, result.edgeId);
   }
+});
+
+test("context window capacity is a pass-through of the runtime's OWN declaration, present only when byModel declares exactly one distinct positive window", () => {
+  const { nextId, now } = harness();
+
+  const BASE_USAGE = {
+    inputTokens: 10,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+    outputTokens: 5,
+  };
+
+  function slice(
+    phase: string,
+    byModel?: Record<string, { contextWindow?: number }>,
+  ): LeafSliceRun {
+    return {
+      phase,
+      subtype: "success",
+      turns: 1,
+      usage: { ...BASE_USAGE },
+      ...(byModel === undefined
+        ? {}
+        : {
+            byModel: Object.fromEntries(
+              Object.entries(byModel).map(([modelId, override]) => [
+                modelId,
+                { ...BASE_USAGE, ...override },
+              ]),
+            ),
+          }),
+    } as LeafSliceRun;
+  }
+
+  const runs: LeafSliceRun[] = [
+    slice("CAP_SINGLE", { "model-a": { contextWindow: 200_000 } }),
+    slice("CAP_SAME_TWO_MODELS", {
+      "model-a": { contextWindow: 200_000 },
+      "model-b": { contextWindow: 200_000 },
+    }),
+    slice("CAP_DIFFERENT_WINDOWS", {
+      "model-a": { contextWindow: 200_000 },
+      "model-b": { contextWindow: 1_000_000 },
+    }),
+    slice("CAP_ZERO", { "model-a": { contextWindow: 0 } }),
+    slice("CAP_NEGATIVE", { "model-a": { contextWindow: -5 } }),
+    slice("CAP_UNDECLARED", { "model-a": {} }),
+    slice("CAP_NO_BYMODEL"),
+  ];
+
+  const events = observeLeafSlices({
+    parentSessionId: PARENT_SESSION_ID,
+    runId: RUN_ID,
+    unitId: UNIT_ID,
+    runs,
+    now,
+    nextId,
+  });
+
+  for (const event of events) ContextTraversalEvent.parse(event);
+
+  const modelContextEvents = events.filter((event) => event.kind === "model_context");
+  assert.equal(modelContextEvents.length, runs.length);
+
+  const capacities = modelContextEvents.map((event) =>
+    event.kind === "model_context" ? event.contextWindowCapacity : "wrong-kind",
+  );
+
+  assert.deepEqual(capacities, [
+    200_000, // exactly one distinct positive window declared
+    200_000, // two models declare the SAME window — still unambiguous
+    undefined, // two models declare DIFFERENT windows — ambiguous, never guessed
+    undefined, // a declared 0 is not a capacity
+    undefined, // a declared negative value is not a capacity
+    undefined, // byModel present but no model declared a window
+    undefined, // byModel entirely absent — nothing to attribute
+  ]);
 });
 
 test("a slice with no usage skips model_context but still links its own spawn/return edge, and a failed slice reports ok:false with no result token count", () => {
@@ -236,14 +316,19 @@ test("BUILD_SPAWN_BOUNDARY_COVERAGE names exactly what this adapter emits and de
       "event:result_return",
       "event:spawn_handoff",
       "field:child_context_window",
+      "field:context_window_capacity",
       "field:model_tokens",
       "surface:claude_sdk",
       "surface:spawned_agent",
     ].sort(),
   );
 
-  // Explicitly-named residual omissions the node spec calls out.
-  assert.ok(parsed.omitted.includes("field:context_window_capacity"));
+  // The capacity pass-through MOVED this feature from omitted to supported: coverage declares what
+  // the adapter CAN observe, not what any one trace happens to contain — the runtime-declared window
+  // is carried through whenever attribution is unambiguous, even though many individual slices still
+  // carry no capacity at all.
+  assert.ok(parsed.supported.includes("field:context_window_capacity"));
+  // Still explicitly omitted: no causality is ever inferred from time or ordering.
   assert.ok(parsed.omitted.includes("field:candidate_follow_causality"));
 
   // Deletion check on the coverage export itself: every feature in the closed domain sits on
