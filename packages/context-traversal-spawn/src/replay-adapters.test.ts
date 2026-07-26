@@ -101,7 +101,7 @@ function writeMixedFixture(dir: string, sessionId: string): void {
   assert.equal(ok, true, "fixture events must be schema-valid and actually land on disk");
 }
 
-test("every rendered event kind in a mixed terminal+build-spawn session is supported by at least one declared adapter", () => {
+test("every-rendered-event-kind-is-supported-by-a-declared-adapter: every rendered event kind in a mixed terminal+build-spawn session is supported by at least one declared adapter", () => {
   const dir = makeTempDir();
   const sessionId = "session-mixed-coverage";
   try {
@@ -134,7 +134,7 @@ test("every rendered event kind in a mixed terminal+build-spawn session is suppo
   }
 });
 
-test("the rendered body names both adapter declarations in full, never merged or one-sided", () => {
+test("both-adapter-declarations-render-supported-and-omitted: the rendered body names both adapter declarations in full, never merged or one-sided", () => {
   const dir = makeTempDir();
   const sessionId = "session-both-adapters";
   try {
@@ -164,7 +164,7 @@ test("the rendered body names both adapter declarations in full, never merged or
   }
 });
 
-test("capacity still renders honestly unknown when the latest model_context carries none, while its token observation still renders", () => {
+test("capacity-still-renders-honestly-unknown: capacity still renders honestly unknown when the latest model_context carries none, while its token observation still renders", () => {
   const dir = makeTempDir();
   const sessionId = "session-capacity-unknown";
   try {
@@ -189,7 +189,7 @@ test("capacity still renders honestly unknown when the latest model_context carr
   }
 });
 
-test("a corrupt line replays every good event, reports the skipped count, and never throws", () => {
+test("a-corrupt-line-renders-a-partial-notice-without-throwing: a corrupt line replays every good event, reports the skipped count, and never throws", () => {
   const dir = makeTempDir();
   const sessionId = "session-corrupt-line";
   try {
@@ -202,6 +202,43 @@ test("a corrupt line replays every good event, reports the skipped count, and ne
     assert.ok(result.body.includes("partial replay: 1 event line(s) skipped (unreadable or corrupt)"));
     // The good events from the same file still replay in full alongside the partial notice.
     assert.ok(result.body.includes("[front-matter] visit=visit-1"));
+    assert.ok(result.body.includes("[spawn-handoff] edge=edge-1"));
+    assert.ok(result.body.includes("[result-return] edge=edge-1"));
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("a-corrupt-line-renders-a-partial-notice-without-throwing: a DUPLICATE-IDENTITY line is skipped and counted too, not only an unparseable one", () => {
+  // The contract names three corruption shapes — malformed, truncated, and duplicate-identity — but
+  // the sibling above only ever exercised the unparseable one. Duplicate identity is a genuinely
+  // DIFFERENT branch of the reader (a seen-eventId/seen-visitId check, not a JSON/schema failure),
+  // so labelling the sibling with this contract id while that branch went unasserted would have
+  // repeated increment 5's contract-5 finding: a contract label sitting over a test that does not
+  // prove its whole claim.
+  const dir = makeTempDir();
+  const sessionId = "session-duplicate-identity";
+  try {
+    writeMixedFixture(dir, sessionId);
+    const lines = fs
+      .readFileSync(sessionFilePath(dir, sessionId), { encoding: "utf8" })
+      .split("\n")
+      .filter((line) => line.trim().length > 0);
+    const firstLine = lines[0];
+    assert.ok(firstLine !== undefined, "the fixture must have written at least one event line");
+    // Byte-for-byte the line the sink itself wrote: a schema-VALID event whose only defect is that
+    // its identity has already been replayed. An unparseable line could not test this branch.
+    fs.appendFileSync(sessionFilePath(dir, sessionId), `${firstLine}\n`, { encoding: "utf8" });
+
+    const result = showTraversalSessionAllAdapters(sessionId, { dir });
+
+    assert.equal(result.ok, true);
+    assert.ok(
+      result.body.includes("partial replay: 1 event line(s) skipped (unreadable or corrupt)"),
+      "a replayed duplicate identity must be counted as skipped, not silently rendered twice",
+    );
+    // Every good event still replays exactly once — the duplicate is dropped, not the original.
+    assert.equal(result.body.split("[front-matter] visit=visit-1").length - 1, 1);
     assert.ok(result.body.includes("[spawn-handoff] edge=edge-1"));
     assert.ok(result.body.includes("[result-return] edge=edge-1"));
   } finally {
