@@ -16,8 +16,9 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { observeCliInvocation, TERMINAL_CLI_DISPATCH_COVERAGE } from "./observe-cli.js";
+import { observeCliInvocation } from "./observe-cli.js";
 import { renderTraversalSession, renderTraversalSessions } from "./query-render.js";
+import { linkRevisits, REVISIT_LINK_COVERAGE } from "./revisit-links.js";
 import {
   appendTraversalEvents,
   listTraversalSessions,
@@ -96,7 +97,13 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   if (events.length === 0) return;
 
   const dir = input.dir ?? resolveTraversalDir();
-  appendTraversalEvents(events, { dir, sessionId });
+  // A revisit link needs the session's EARLIER visits, which live only in the trace already on disk
+  // (each invocation is its own process). Read them back through the sink's tolerant reader — a
+  // missing or partly-corrupt file replays as whatever IS readable, so a bad line costs at most a
+  // link, never the append. Ordering, never `at`: `readTraversalSession` returns append order, which
+  // is the only "earlier" this producer is allowed to know (ADR-0235).
+  const { replay } = readTraversalSession({ dir, sessionId });
+  appendTraversalEvents(linkRevisits(events, replay.events), { dir, sessionId });
 }
 
 /**
@@ -104,12 +111,14 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
  *
  * The sink persists events only, never coverage declarations, so this composition — the only place
  * that knows which adapter captured through the terminal CLI — declares `terminal-cli-dispatch`'s
- * coverage for the render itself.
+ * coverage for the render itself. It declares the COMPOSED coverage, not `observe-cli.ts`'s base:
+ * the base honestly describes the bare argv observer, which emits no `field:prior_visit_id`, while
+ * what this composition actually writes to disk does (`captureCliInvocation` above).
  */
 export function showTraversalSession(sessionId: string, opts?: TraversalQueryOptions): RenderedEnvelope {
   const dir = opts?.dir ?? resolveTraversalDir();
   const { replay, skipped } = readTraversalSession({ dir, sessionId });
-  return renderTraversalSession({ ...replay, coverage: [TERMINAL_CLI_DISPATCH_COVERAGE] }, { skipped });
+  return renderTraversalSession({ ...replay, coverage: [REVISIT_LINK_COVERAGE] }, { skipped });
 }
 
 /**

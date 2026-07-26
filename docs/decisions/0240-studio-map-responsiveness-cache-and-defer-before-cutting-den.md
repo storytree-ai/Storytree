@@ -32,8 +32,10 @@ stories / 196 capabilities) measured where the time actually goes:
 
 This refines, and does not repeat, the earlier finding that the map is CPU/DOM-bound rather than
 GPU-bound: the prior pass (the `SceneView` memo, stable scene identity, idle-frozen age ticker)
-already fixed pan and idle rebuilds, and that work is intact in `@storytree/app-surface`. What
-remains is boot, re-entry, and the unbounded density that was parked as the follow-on.
+already prevents the expensive scene re-walk on a camera update and freezes idle rebuilds, and that
+work is intact in `@storytree/app-surface`. It did not coalesce raw pointer input, so the
+studio-local frame coalescer can remove redundant camera commits while retaining that protection.
+Boot, re-entry, and the unbounded density remain the separately sequenced follow-ons.
 
 The forces: the cheap fixes are studio-local and behaviour-preserving; the fix that actually *scales*
 (a density budget / LOD) touches the shared scene graph, which drags the web-engine sync-and-pin

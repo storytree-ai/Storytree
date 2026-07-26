@@ -1,0 +1,18 @@
+{
+  "kind": "friction",
+  "id": "adr-premise-falsified-by-code-survives-a-document-checking-curation-pass",
+  "title": "An ADR premise that only the CODE can falsify survived two librarian passes and blocked a decision for three increments",
+  "description": "Curation passes check an ADR's claims against other documents; a premise falsifiable only by reading the seam it describes passes through untouched.",
+  "schemaVersion": 3,
+  "references": [],
+  "provenance": {
+    "branch": "claude/objective-brattain-12a616",
+    "date": "2026-07-26",
+    "source": "retro"
+  },
+  "createdAt": "2026-07-27",
+  "updatedAt": "2026-07-26T15:01:42.584Z",
+  "statement": "Two load-bearing premises in a `proposed` ADR were false in ways only the source code could reveal, and both survived two `librarian-curator` passes that verified the ADR against other documents — leaving a fork looking like a genuine trade for three increments when it was not one.",
+  "evidence": "ADR-0243 stated \"That cannot run in CI, and it is not free\" and priced its candidate A at \"a scripted `liveAuthor` is one short step from a scripted verdict, which is what ADR-0020 exists to prevent\". Its own Status records two curation passes (increments 3 and 4, both 2026-07-26) which corrected what ADR-0184 converted and what posture increment 3 shipped — document-to-document checks — and left both premises standing. Both fall to two file reads: the leaf is subscription-funded (ADR-0030/0232) and `.github/workflows/ci.yml` says \"Tests are offline (no DB / no API key), so CI needs no secrets\", so the barrier is a credential posture, not cost; and `packages/drive/src/node-build.ts:567` decides the verdict via `proveUnit` while `:570-577` reads `liveAuthor.runs` afterwards with no path back, with `resolve-prove-spec.ts:489` leaving `liveAuthor` undefined only because the agent's constructor is its sole producer. The falsification was triggered by the owner asking two plain questions — \"when you said paid cost are you talking about the inner loop?\" and \"Why is an agent needed here in CI?\" — not by any pass.",
+  "impact": "Increments 3, 4 and 5 each shipped no activation leg of any witness kind and each re-escalated the same fork to the owner, on the strength of a trade that did not exist. Cost is three increments of deferred work plus the owner attention spent re-reading the fork three times; the eventual decision needed one grep and two file reads. Who hits it next: any session curating a `proposed` ADR whose premises are claims about how the code behaves, which is most architectural ADRs."
+}

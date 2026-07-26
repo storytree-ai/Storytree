@@ -18,7 +18,7 @@ import {
   readTraversalSession,
   renderTraversalSession,
   resolveTraversalDir,
-  TERMINAL_CLI_DISPATCH_COVERAGE,
+  REVISIT_LINK_COVERAGE,
 } from "@storytree/context-traversal-capture";
 import type { TraversalRenderEnvelope, TraversalQueryOptions } from "@storytree/context-traversal-capture";
 
@@ -28,6 +28,12 @@ import { BUILD_SPAWN_BOUNDARY_COVERAGE } from "./observe-leaf-slices.js";
  * Replay one captured session declaring the union of every installed adapter's coverage
  * (currently the terminal CLI dispatch adapter and the build spawn boundary adapter). Reads only —
  * this composition writes nothing.
+ *
+ * The terminal declaration is the COMPOSED `REVISIT_LINK_COVERAGE`, not `observe-cli.ts`'s base
+ * constant: since increment 6 the terminal composition links same-node revisits, so it really does
+ * emit `field:prior_visit_id`. This is the one render the CLI actually calls, and declaring the base
+ * here printed `field:prior_visit_id` under `omitted` on a trace that visibly carried it — the same
+ * self-denial ADR-0235 clause 6 forbids, and the same shape as the capacity render #933 corrected.
  */
 export function showTraversalSessionAllAdapters(
   sessionId: string,
@@ -36,7 +42,7 @@ export function showTraversalSessionAllAdapters(
   const dir = opts?.dir ?? resolveTraversalDir();
   const { replay, skipped } = readTraversalSession({ dir, sessionId });
   return renderTraversalSession(
-    { ...replay, coverage: [TERMINAL_CLI_DISPATCH_COVERAGE, BUILD_SPAWN_BOUNDARY_COVERAGE] },
+    { ...replay, coverage: [REVISIT_LINK_COVERAGE, BUILD_SPAWN_BOUNDARY_COVERAGE] },
     { skipped },
   );
 }

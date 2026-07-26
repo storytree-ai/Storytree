@@ -34,7 +34,7 @@
 // live store answers. All "randomness" (tile growth, crown-blob jitter, road
 // bows) is hashed from ids so the world renders identically every time.
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
@@ -1669,6 +1669,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   const dragRef = useRef<{ x: number; y: number; moved: boolean; lastX: number; lastY: number } | null>(
     null,
   );
+  // Pointermoves can arrive substantially faster than the display refreshes. Accumulate their deltas
+  // behind one animation-frame commit, then flush the trailing movement at gesture end.
+  const panFrameRef = useRef<number | null>(null);
+  const pendingPanRef = useRef({ dx: 0, dy: 0 });
+  // Guards against a callback that arrives after cancellation, so an old frame cannot consume a newer
+  // gesture's pending delta.
+  const panFrameGenerationRef = useRef(0);
   const suppressClickRef = useRef(false);
   // True for the instant between a per-node onClick (SceneView) handling a clean tap and that click
   // bubbling to the viewport — so the viewport's coordinate-hit-test FALLBACK never double-handles a
@@ -1821,6 +1828,53 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   );
 
   // Drag → pan. Pointer capture keeps the gesture even if it leaves the frame.
+  const commitPendingPan = useCallback((): void => {
+    const { dx, dy } = pendingPanRef.current;
+    pendingPanRef.current = { dx: 0, dy: 0 };
+    if (dx !== 0 || dy !== 0) {
+      // Commit the camera and disable programmatic easing together, once per coalesced frame.
+      // Do not retire the fitted-view flag until a camera move actually lands: a cancelled queued
+      // drag must still let a later resize re-fit the untouched view.
+      atFitRef.current = false;
+      setAnimate(false);
+      setCam((c) => (c ? panBy(c, dx, dy) : c));
+    }
+  }, []);
+
+  const queuePan = useCallback(
+    (dx: number, dy: number): void => {
+      pendingPanRef.current.dx += dx;
+      pendingPanRef.current.dy += dy;
+      if (panFrameRef.current !== null) return;
+      const generation = ++panFrameGenerationRef.current;
+      panFrameRef.current = requestAnimationFrame(() => {
+        // A cancelled rAF should not be able to consume a newer gesture's pending movement.
+        if (panFrameGenerationRef.current !== generation) return;
+        panFrameRef.current = null;
+        commitPendingPan();
+      });
+    },
+    [commitPendingPan],
+  );
+
+  const flushPendingPan = useCallback((): void => {
+    if (panFrameRef.current !== null) {
+      cancelAnimationFrame(panFrameRef.current);
+      panFrameRef.current = null;
+      panFrameGenerationRef.current += 1;
+    }
+    commitPendingPan();
+  }, [commitPendingPan]);
+
+  const cancelPendingPan = useCallback((): void => {
+    if (panFrameRef.current !== null) cancelAnimationFrame(panFrameRef.current);
+    panFrameRef.current = null;
+    panFrameGenerationRef.current += 1;
+    pendingPanRef.current = { dx: 0, dy: 0 };
+  }, []);
+
+  useEffect(() => cancelPendingPan, [cancelPendingPan]);
+
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     // Start each gesture fresh: clear any suppression a prior drag left set when
@@ -1860,20 +1914,33 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     const dy = e.clientY - d.lastY;
     d.lastX = e.clientX;
     d.lastY = e.clientY;
-    atFitRef.current = false; // manual pan — preserve this view across a later resize
-    setAnimate(false);
-    setCam((c) => (c ? panBy(c, dx, dy) : c));
-  }, []);
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    queuePan(dx, dy);
+  }, [queuePan]);
+  const finishDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
     if (d?.moved) suppressClickRef.current = true; // a drag must not register as a click
+    // Pointer-up is the trailing edge of the burst: land its latest accumulated delta now.
+    flushPendingPan();
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
       /* capture may already be gone */
     }
     dragRef.current = null;
-  }, []);
+  }, [flushPendingPan]);
+  const onPointerUp = finishDrag;
+  const onPointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (d?.moved) suppressClickRef.current = true;
+    // A cancellation is not a completed gesture: discard, rather than land, any queued movement.
+    cancelPendingPan();
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* capture may already be gone */
+    }
+    dragRef.current = null;
+  }, [cancelPendingPan]);
 
   // WASD / arrows → pan (the div is tabIndex={0}). Arrow keys preventDefault so
   // the page never scrolls; modifier-held or input-focused keystrokes pass through.
@@ -2158,6 +2225,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     handledRef.current = true;
     selectStoryRef.current(storyId, capId);
   }, []);
+  // This callback stays stable while the camera moves, so the camera-neutral chrome can retain its
+  // memoized territory/stamp output across every coalesced pan commit.
+  const onStampClickStable = useCallback((id: string): void => {
+    setHighlightShared(id);
+  }, []);
   const worldPresentationModel = useMemo<WorldPresentationModel | null>(
     () =>
       scene
@@ -2327,6 +2399,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
             onKeyDown={onKeyDown}
             onClick={(e) => {
               if (!renderScene) {
@@ -2433,7 +2506,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                 <StudioWorldChrome
                   world={world}
                   hidden={hidden}
-                  onStampClick={(id) => setHighlightShared(id)}
+                  onStampClick={onStampClickStable}
                   buildings={buildings}
                 />
               </>
@@ -3079,7 +3152,7 @@ function StoryStamp({
  * The `depends_on` roads and the static layers are already in the scene; the Shared-Islands panel,
  * session dock and settings gear are React `<div>`s outside the `<svg>` and are untouched.
  */
-export function StudioWorldChrome({
+export const StudioWorldChrome = memo(function StudioWorldChrome({
   world,
   hidden,
   onStampClick,
@@ -3143,7 +3216,7 @@ export function StudioWorldChrome({
         })}
     </g>
   );
-}
+});
 
 /**
  * The claimed-land GROUND layer for every territory in `world`, back-to-front so extrusions
