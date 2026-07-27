@@ -49,6 +49,7 @@ import { PgClaimStore } from "@storytree/notice-board/store";
 import type { ClaimRequest, ClaimResult } from "@storytree/notice-board";
 import { PgWorkStore } from "@storytree/orchestrator/store";
 
+import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 import { renderAgentPrompt } from "@storytree/library/store";
 import { phaseActivityWriter } from "./phase-activity.js";
 import { effectiveVerdictStore, ensureLiveDb } from "./db-control.js";
@@ -136,9 +137,21 @@ function verdictFate(persisted: boolean): string {
     : "the verdict landed in an in-memory store and is gone";
 }
 
-/** The repo root, resolved from this file's location (packages/cli/src → four dirs up). */
+/**
+ * The repo root the build driver builds, worktrees, and promotes against — a PARAMETER (ADR-0246),
+ * not a derivation from this file's location. This is the site that matters most for ADR-0246 D5
+ * (the proof leg is in scope): it feeds `storiesDir`, `createBuildWorktree`, and the promotion, so
+ * without it a `--real` build can only ever prove storytree's own tree.
+ *
+ * `STORYTREE_REPO_ROOT` wins; unset, it derives four dirs up as before. Note that the per-call
+ * `NodeBuildOpts.repoRoot` / `StoryBuildOpts.repoRoot` injections already override this for tests —
+ * this changes only the default they fall back to.
+ */
 export function repoRoot(): string {
-  return path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+  return resolveRepoRoot({
+    env: process.env[REPO_ROOT_ENV],
+    derived: path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", ".."),
+  }).root;
 }
 
 /** Repo-relative display path (forward slashes, stable across platforms). */

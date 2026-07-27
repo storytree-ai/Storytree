@@ -25,6 +25,12 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ReliabilityGate, ResolvedWitnessKind, UatTestCriterion } from '@storytree/library';
+// A RUNTIME import, so it must survive the vite config-load trap: vite.config.ts loads devApi.ts →
+// this file through Node's plain ESM loader, where the root barrel's `./schema.js`-style specifiers
+// do not resolve (only the .ts files exist). Hence the dedicated `/repo-root` LEAF subpath — that
+// module imports nothing at all, so Node loads it directly. Do NOT collapse this to
+// `@storytree/library`: `pnpm gate` does not run `vite build`, so only CI Build catches the break.
+import { REPO_ROOT_ENV, resolveRepoRoot } from '@storytree/library/repo-root';
 import type { Attestation, Verdict } from '@storytree/proof-protocol';
 // Type-only (fully erased under verbatimModuleSyntax — no runtime import, so it never hits the
 // vite config-load trap the lazy `loadOrchestrator()` below avoids): the sign-time trust guard's
@@ -110,9 +116,22 @@ export interface Paths {
   attestationsFile: string;
 }
 
-/** Resolve every repo path the API serves from, given the studio app root. */
-export function resolveStudioPaths(studioRoot: string): Paths {
-  const repoRoot = path.resolve(studioRoot, '..', '..');
+/**
+ * Resolve every repo path the API serves from, given the studio app root.
+ *
+ * The repo root is a PARAMETER (ADR-0246, `foreign-project-forest-arc` inc 1): an explicit
+ * `repoRootOverride` wins, then `STORYTREE_REPO_ROOT`, then the studio-root derivation this used to
+ * do unconditionally. That is the seam a forest for a project that is NOT storytree needs — `docs/`
+ * and `stories/` belong to the project being described, while `dataDir` deliberately stays anchored
+ * to `studioRoot`, because the Library seed (`knowledge.json`) is storytree's METHOD corpus and
+ * ships with the app rather than with the user's repo (ADR-0244 D3).
+ */
+export function resolveStudioPaths(studioRoot: string, repoRootOverride?: string): Paths {
+  const { root: repoRoot } = resolveRepoRoot({
+    explicit: repoRootOverride,
+    env: process.env[REPO_ROOT_ENV],
+    derived: path.resolve(studioRoot, '..', '..'),
+  });
   const dataDir = path.join(studioRoot, 'data');
   return {
     repoRoot,

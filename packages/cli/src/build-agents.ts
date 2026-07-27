@@ -12,8 +12,10 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
+import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 import { loadCorpus } from "@storytree/library/store";
 
 import {
@@ -25,8 +27,20 @@ import {
   essentialsGateViolations,
 } from "@storytree/library/store";
 
-/** Repo root: packages/cli/src/build-agents.ts → four dirs up (the build-claude-md.ts pattern). */
-const repoRoot = path.resolve(process.cwd(), "..", "..");
+/**
+ * The repo root — a PARAMETER (ADR-0246), not a derivation. `STORYTREE_REPO_ROOT` points the agent
+ * renderer at another project's harness directories; unset, it derives from this file's location
+ * (packages/cli/src/build-agents.ts → four dirs up, the build-claude-md.ts pattern).
+ *
+ * NOTE: the fallback used to be `process.cwd()` + two dirs up, which only agreed with the comment
+ * above because both `pnpm build:agents` and `pnpm check:agents` run under
+ * `pnpm --filter @storytree/cli exec` (cwd = packages/cli). Invoked from anywhere else it wrote the
+ * generated agent views into the wrong tree. Module-relative is the honest fallback.
+ */
+const repoRoot = resolveRepoRoot({
+  env: process.env[REPO_ROOT_ENV],
+  derived: path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", ".."),
+}).root;
 const targets = [
   {
     label: ".claude/agents",
