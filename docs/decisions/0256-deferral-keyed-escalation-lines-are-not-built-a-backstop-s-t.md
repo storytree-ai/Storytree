@@ -1,5 +1,6 @@
 ---
 status: proposed
+amends: [252]
 arc: verification-integrity-arc
 ---
 # ADR-0256: Deferral-keyed escalation lines are not built: a backstop's trigger must be observable in-run
@@ -12,6 +13,11 @@ because the outcome is a decision NOT to build a chartered mechanism, and a "not
 in a source comment reads as pending work to the next session — which is exactly what happened four
 times. **Proposed, not accepted**: the owner has not directed this in conversation (ADR-0110), and the
 residual it makes permanent is owner-facing. Flip to `accepted` only on owner direction.
+
+The `amends: [252]` edge is **strictly additive** and binds only on acceptance: this takes a fork
+ADR-0252's *"Not decided here"* section explicitly declined to take, and reverses nothing ADR-0252
+decided. It is declared now, while `proposed`, so the reviewer sees exactly which open half moves —
+D1's two unbuilt escalation lines, and nothing else.
 
 ## Context
 
