@@ -33,11 +33,11 @@
  * and whose only discharge is cutting the fresh-session adversarial pass (`asset:verification-decay-
  * detection`). It is deliberately NOT the ceiling wearing a second hat:
  *
- * - The **ceiling** governs the SIZE of a backlog of located regions. Its remedy is a DRAIN — repair,
- *   retire, or refute an item (or, with a recorded reason, raise it).
+ * - A **ceiling** governs the SIZE of one instrument's backlog of located regions. Its remedy is a
+ *   DRAIN — repair, retire, or refute an item (or, with a recorded reason, raise that instrument's).
  * - An **escalation** governs the cheap half's ability to answer at all. Its remedy is a PASS. Raising
- *   `DRAIN_CEILING` can never clear one, and {@link evaluateDecayCeiling} enforces that by excluding
- *   escalations from the count entirely — an instrument that swept nothing LOCATED nothing, so it is
+ *   a ceiling can never clear one, and {@link evaluateDecayCeiling} enforces that by excluding
+ *   escalations from every count entirely — an instrument that swept nothing LOCATED nothing, so it is
  *   not backlog, and letting it consume drain budget would invite exactly the wrong repair.
  *
  * This is NOT a calendar cadence. ADR-0252 D1 rejected all three offered (monthly-or-arc-close,
