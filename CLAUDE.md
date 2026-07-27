@@ -175,11 +175,12 @@ file conflicts).
   The Cloud SQL connector is all three at once, so `--pg` writes, `--store pg`, and live/`--real`
   builds are **structurally** impossible there — **don't try to tunnel or forward around it.** They
   now **refuse instantly** with that explanation rather than hanging ~8 min (ADR-0250 D2). Still fine
-  remotely: the REST **control plane** (`db:status`, the activation flip; `gcloud` not required,
-  ADR-0063), every read command (in-memory seed), and the whole offline gate. **This caveat is
+  remotely: every read command (in-memory seed) and the whole offline gate — but **the REST control
+  plane is gone too now** (`db:status` / the activation flip): the `storytree-remote-dev` identity was
+  retired 2026-07-27, so a remote session holds no GCP credential at all (ADR-0254 D4). **This caveat is
   remote-only. On a laptop / direct-network session the DB is reachable — do NOT infer "unreachable"
   from your environment; PROBE it** (see the Cloud SQL bullet's probe-don't-assume rule). Full detail
-  and the settled fork: ADR-0250 / ADR-0089.
+  and the settled fork: ADR-0250 / ADR-0089; the closing owner answers: ADR-0254.
 - Install: `corepack enable pnpm` · `pnpm install`
 - **Fresh worktree?** A new git worktree has NO `node_modules` of its own — but a `SessionStart` hook
   now **auto-provisions** it: `node packages/cli/provision-worktree.mjs --hook` runs `pnpm install` once
