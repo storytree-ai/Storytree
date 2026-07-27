@@ -148,14 +148,21 @@ second service, never the studio's ad-hoc asset API — under D2's guard and D3'
   they are offline-only by D1 of ADR-0250, and starting an instance they cannot dial has no use.
 - D3 states a requirement the code does not yet fully meet (generic default actors). Recorded as a known
   gap rather than fixed here, to keep this change to the decision it is.
-- If the `storytree-remote-dev` Cloud SQL user row is ever needed again, it must be re-provisioned. The
-  fact ADR-0250 recorded to save future work — that the DB-side grant already existed — is now stale by
-  the owner's choice, which is the right trade for removing the key.
+- The `SessionStart` credential bootstrap (`scripts/remote-session-setup.sh`) can no longer do its job:
+  a disabled SA mints no JWT, so the Secret Manager fetch that hydrates `CLAUDE_CODE_OAUTH_TOKEN` on a
+  pod fails. It is made to degrade to the same no-op as an absent key rather than exit non-zero, so the
+  expected steady state is not an ERROR on every remote session. The script is kept, not deleted, so
+  the mechanism is ready if an identity is ever re-provisioned.
 
 **Neutral**
 
 - Nothing about a laptop session changes. No grant is created, no scope is provisioned, and no code path
-  behaves differently except the two corrected messages.
+  behaves differently except the corrected messages and the softened bootstrap.
+- The **IAM identity** is disabled, but the **Cloud SQL user row survives** — measured 2026-07-27,
+  `storytree-remote-dev@storytree-498613.iam` still lists as a `CLOUD_IAM_SERVICE_ACCOUNT` on the
+  instance. So ADR-0250's "the DB-side grant already exists" fact still holds; what a future bridge
+  would have to restore is the identity, not the grant. Nothing can authenticate as it meanwhile.
+  Whether to drop the row as well is a separate, reversible cleanup and an owner call.
 
 ## References
 

@@ -10,6 +10,13 @@
 #
 # No-op (exit 0) outside pods (CLAUDE_CODE_REMOTE != true) and on pods without the key env var,
 # so laptops and credential-less pods boot untouched.
+#
+# RETIRED IDENTITY (ADR-0254 D4): the owner disabled storytree-remote-dev on 2026-07-27, so on a pod
+# whose environment config still carries the stale key this bootstrap is EXPECTED to fail at step 4 —
+# a disabled SA mints no token, so Secret Manager is unreachable. That is now a normal steady state,
+# not an incident, and it degrades to the same no-op as an absent key. Kept rather than deleted so
+# the mechanism is ready if an identity is ever re-provisioned (remote sessions are offline-only
+# regardless — ADR-0250 D1).
 
 set -u
 
@@ -53,6 +60,9 @@ fi
 # 4) Fetch the Claude OAuth token from Secret Manager — fresh every session, never cached in the
 #    pod snapshot. gcloud when present; otherwise a zero-dependency Node fallback (built-in
 #    crypto signs the SA JWT, built-in fetch talks to the REST API).
+# stderr is dropped for the same reason the gcloud branch above drops it: since ADR-0254 D4 this call
+# is EXPECTED to fail, and a raw Node/OpenSSL stack trace on every remote boot reads as a crash. The
+# caller names the secret and the operation in a one-line warning, which is the actionable part.
 fetch_secret_rest() {
   ST_ADC_FILE="${ADC_FILE}" ST_PROJECT="${PROJECT_ID}" ST_SECRET="${SECRET_NAME}" \
     node --input-type=module -e '
@@ -85,7 +95,18 @@ fetch_secret_rest() {
       if (!secretRes.ok) throw new Error(`secret access failed: HTTP ${secretRes.status}`);
       const { payload } = await secretRes.json();
       process.stdout.write(Buffer.from(payload.data, "base64").toString("utf8"));
-    '
+    ' 2>/dev/null
+}
+
+# A credential that no longer mints a token is equivalent to no credential at all — the case the
+# early `-z` check above already handles by no-opping. Since ADR-0254 D4 retired the identity that
+# IS the steady state, so it must degrade the same way: warn and exit 0. A SessionStart hook that
+# exits non-zero would put an ERROR on every remote session for a condition that is expected and
+# that the reader cannot fix.
+bootstrap_unavailable() {
+  warn "WARNING: $* — skipping credential bootstrap (live --pg / SDK-leaf paths unavailable this session)"
+  warn "Expected since storytree-remote-dev was retired (ADR-0254 D4); remote sessions are offline-only anyway (ADR-0250 D1)"
+  exit 0
 }
 
 OAUTH_TOKEN=""
@@ -93,11 +114,10 @@ if command -v gcloud >/dev/null 2>&1; then
   OAUTH_TOKEN="$(gcloud secrets versions access latest --secret="${SECRET_NAME}" --project="${PROJECT_ID}" 2>/dev/null || true)"
 fi
 if [ -z "${OAUTH_TOKEN}" ]; then
-  OAUTH_TOKEN="$(fetch_secret_rest)" || { warn "ERROR: could not fetch secret ${SECRET_NAME} from Secret Manager"; exit 1; }
+  OAUTH_TOKEN="$(fetch_secret_rest)" || bootstrap_unavailable "could not fetch secret ${SECRET_NAME} from Secret Manager"
 fi
 if [ -z "${OAUTH_TOKEN}" ]; then
-  warn "ERROR: secret ${SECRET_NAME} came back empty"
-  exit 1
+  bootstrap_unavailable "secret ${SECRET_NAME} came back empty"
 fi
 
 # 5) Write ~/.storytree/secrets.json in the exact shape packages/cli/src/secrets.ts hydrates
