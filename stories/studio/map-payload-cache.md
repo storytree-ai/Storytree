@@ -135,7 +135,10 @@ boot's serialisation order is untouched (stage 4). Sharing a file with a sibling
 - **Prove it as an integration test.** Add `apps/studio/src/App.payload-cache.test.tsx` (Vitest +
   jsdom), mounting the real App with the REAL `TreeView` and controlled Studio API responses — a
   probe stand-in for the map would hollow every paint contract, so only the non-participating global
-  chrome may be stubbed. Its test titles carry every contract id below. Keep the generic real-build
+  chrome may be stubbed. Its test titles carry every contract id below, each as ONE plain string
+  literal with the declared id leading it — never a concatenation and never a locally-invented id.
+  The coverage scan is a static AST scan (ADR-0126), so a title assembled with `+` reads as UNCOVERED
+  even when the id is the first thing in it. Keep the generic real-build
   catalog companion `packages/cli/src/node-build.test.ts` in lockstep so its exact
   buildable-capability catalog includes `map-payload-cache`; that catalog assertion is discoverability
   regression evidence, not another implementation surface.
