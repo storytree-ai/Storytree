@@ -14,8 +14,8 @@
  *
  * NOT DONE HERE, so nobody reads this as complete:
  *
- * - ADR-0252 names FOUR cheap instruments. **`contract-binding-drift` and `mirror-pair-drift` are
- *   implemented; `vacuous-proof` and `warn-list-hygiene` are NOT swept** (the arc's no-silent-caps
+ * - ADR-0252 names FOUR cheap instruments. **`contract-binding-drift`, `mirror-pair-drift` and
+ *   `vacuous-proof` are implemented; `warn-list-hygiene` is NOT swept** (the arc's no-silent-caps
  *   rule — and the sweep reports its own chartered coverage on every run rather than leaving it to
  *   this comment). The registry below is the seam that makes each a row, not a redesign.
  * - ADR-0252 D1's **warn-escalation backstop** now EXISTS, with exactly ONE line declared: an
@@ -26,6 +26,10 @@
  *   calendar cadence D1 rejected outright.
  * - `mirror-pair-drift` locates unregistered pairs; it does NOT repair any. Registering a pair means
  *   authoring a probe on each surface and a `MIRRORS` row, which is a separate increment per payload.
+ * - `vacuous-proof` locates options-form-skipped tests; it repairs none, and it does NOT close the
+ *   underlying gap. The one-line fix — teach ADR-0126's `analyzeObservedTests` to parse the options
+ *   form — is a STORY-SHAPE call, not a code edit: it would move every contract those tests vouch for
+ *   into `check:coverage`'s WARN backlog, which is a decision about the work, not about this sweep.
  *
  * On mirror-pair drift specifically, note the boundary ADR-0251 records: `check:mirror-conformance`
  * already proves the pairs in its `MIRRORS` registry EXACTLY, and blocks. The advisory instrument
@@ -37,20 +41,24 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadNodeSpec } from "@storytree/orchestrator";
+import { extractVouchingTestNames, loadNodeSpec } from "@storytree/orchestrator";
 
 import { registeredMirrorRoutes } from "./mirror-conformance.js";
 import {
   CONTRACT_BINDING_DRIFT,
   MIRROR_PAIR_DRIFT,
+  VACUOUS_PROOF,
   findContractBindingDrift,
   findMirrorPairDrift,
+  findOptionsFormSkips,
+  findVacuousProof,
   formatDecaySweep,
   runDecaySweep,
   type BoundTarget,
   type DecayInstrument,
   type ProofBinding,
   type SurfaceRoutes,
+  type TestFileFacts,
   type WorkspaceFacts,
 } from "./verification-decay.js";
 
@@ -81,6 +89,13 @@ const CEILINGS = {
    * registers. Register a pair (a probe on each surface plus a row), lower this number.
    */
   [MIRROR_PAIR_DRIFT]: 10,
+  /**
+   * Baselined 2026-07-27 at the 7 test FILES that sweep located across 424 test files and 4043
+   * observed tests — each holding one or more options-form-skipped tests the repo's own classifier
+   * reports as running and asserting. Make a file's skip VISIBLE (the `store.test.ts` idiom), lower
+   * this number.
+   */
+  [VACUOUS_PROOF]: 7,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -300,6 +315,60 @@ function loadProofBindings(storiesDir: string, root: string): ProofBinding[] {
 }
 
 // ---------------------------------------------------------------------------
+// Test-file facts (the vacuous-proof facts)
+// ---------------------------------------------------------------------------
+
+/** The workspace parents holding every test file `pnpm -r test` runs. */
+const TEST_ROOT_DIRS = ["packages", "apps"] as const;
+
+/** Recursively collect `*.test.ts` / `*.test.tsx` under `absDir`, skipping `node_modules`. */
+function walkTestFiles(absDir: string): string[] {
+  const out: string[] = [];
+  try {
+    for (const entry of readdirSync(absDir, { withFileTypes: true })) {
+      if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+      const full = path.join(absDir, entry.name);
+      if (entry.isDirectory()) out.push(...walkTestFiles(full));
+      else if (entry.isFile() && /\.test\.tsx?$/.test(entry.name)) out.push(full);
+    }
+  } catch {
+    // An unreadable directory contributes no files; an EMPTY total is caught by the caller.
+  }
+  return out;
+}
+
+/**
+ * Load every test file's facts.
+ *
+ * THROWS rather than returning an empty list, for the reason `loadSurfaceRoutes` does: a repo with no
+ * test files yields no findings, so a broken enumeration reports a perfectly clean sweep.
+ * {@link runDecaySweep} turns the throw into an ESCALATION (the sweep went blind), which no ceiling
+ * can clear. A file that fails to PARSE is likewise not silently clean — it is dropped from
+ * `optionsSkipped` only, and a parse failure across the whole corpus surfaces as the empty-total throw.
+ */
+function loadTestFileFacts(root: string): TestFileFacts[] {
+  const facts: TestFileFacts[] = [];
+  for (const dir of TEST_ROOT_DIRS) {
+    for (const file of walkTestFiles(path.join(root, dir))) {
+      const rel = path.relative(root, file).replace(/\\/g, "/");
+      const source = readFileSync(file, "utf8");
+      const optionsSkipped = findOptionsFormSkips(source, rel);
+      // Only files with an options-form skip can ever produce a finding, so the classifier — the
+      // expensive half — runs on those alone.
+      if (optionsSkipped.size === 0) {
+        facts.push({ path: rel, optionsSkipped, vouching: new Set() });
+        continue;
+      }
+      facts.push({ path: rel, optionsSkipped, vouching: new Set(extractVouchingTestNames(source)) });
+    }
+  }
+  if (facts.length === 0) {
+    throw new Error(`no test files found under ${TEST_ROOT_DIRS.join(", ")}`);
+  }
+  return facts;
+}
+
+// ---------------------------------------------------------------------------
 // The sweep
 // ---------------------------------------------------------------------------
 
@@ -335,6 +404,22 @@ function main(): void {
           loadSurfaceRoutes(MIRROR_SURFACE),
           registeredMirrorRoutes(),
         ),
+    },
+    {
+      name: VACUOUS_PROOF,
+      ceiling: CEILINGS[VACUOUS_PROOF],
+      locates:
+        "a test SKIPPED BY THE OPTIONS FORM (`test(name, { skip: !DB }, fn)`) that the repo's own " +
+        "classifier — `analyzeObservedTests`, which `check:coverage` reads — reports as running and " +
+        "substantively asserting, because it parses only the `.skip`/`.todo` MODIFIER. A proof that " +
+        "cannot fail is not a proof (ADR-0211/0249), and here nothing can tell that it did not run. " +
+        "FALSE POSITIVE: an invisible skip only misleads something if something reads it — a test " +
+        "whose name matches no declared contract makes nothing read covered, and this deliberately " +
+        "does not consult the story corpus, so it over-reports there; and skipping offline is usually " +
+        "CORRECT (these are mostly live-DB tests), so the finding is never `this should not skip`. " +
+        "BLIND TO: an imperative runtime skip in the body (`t.skip(…)`) and a skip value built " +
+        "outside the options literal.",
+      run: () => findVacuousProof(loadTestFileFacts(repoRoot)),
     },
   ];
 
