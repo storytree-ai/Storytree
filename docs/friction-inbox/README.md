@@ -7,8 +7,11 @@ of the disk shelf the ADR-0168 proposal recommended before the owner chose the L
 ## Why it exists
 
 Filing friction normally writes the live shared store: `storytree friction new --file <doc.json> --pg`.
-But a **remote 443-only session** (Claude Code on the web) cannot open the Postgres data socket
-(port 3307 is blocked by the 443-only egress), and an **offline docs session** has no DB at all. So a
+But a **remote session** (Claude Code on the web) cannot open the Postgres data socket, and an
+**offline docs session** has no DB at all. The remote fence is **not a blocked port** (ADR-0250
+corrected that framing): the agent proxy CONNECT-tunnels arbitrary ports, but it re-terminates TLS and
+resets on any non-443 port, and its policy lists client-mTLS, non-443 HTTPS, and raw-TCP databases as
+unsupported — the Cloud SQL connector is all three, so no tunnel or port forward can ever reach it. So a
 session that cannot reach the live store runs `storytree friction new` **without `--pg`**, and the CLI
 stages the **same validated doc JSON** here — `docs/friction-inbox/<id>.json` — for the session's PR.
 Session-end never acquires a hard DB dependency (the ADR-0162 bar).

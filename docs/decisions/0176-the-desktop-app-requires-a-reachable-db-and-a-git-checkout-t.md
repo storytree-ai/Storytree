@@ -53,10 +53,14 @@ Two facts made "require it" cheap and safe:
   (`setActivationPolicy("ALWAYS")` — ADR-0063 / ADR-0021, no gcloud, works on the desktop), and **poll
   until it accepts connections or a bounded 420 s ceiling**, then refuse with a clear reason. Its
   `ensureDbUp` core is pure over injected effects (fake-clock unit-tested).
-- The Cloud SQL data socket (port 3307) the probe needs is reachable from a real desktop machine; only
-  **REMOTE web/VM sessions** (443-only egress, ADR-0063) can't open it — and those never run the
-  desktop Electron sidecar. So a hard DB requirement is naturally **scoped to the real desktop app** and
-  cannot brick remote sessions or the DB-free CI.
+- The Cloud SQL data socket the probe needs is reachable from a real desktop machine; only
+  **REMOTE web/VM sessions** can't open it — and those never run the desktop Electron sidecar. So a
+  hard DB requirement is naturally **scoped to the real desktop app** and cannot brick remote sessions
+  or the DB-free CI. *(Correction, 2026-07-27 per ADR-0139: this read "port 3307 … (443-only egress,
+  ADR-0063)". The scoping conclusion stands, the mechanism was wrong —
+  [ADR-0250](0250-remote-sessions-are-offline-only-the-fence-is-tls-re-termina.md) measured that the
+  proxy CONNECT-tunnels arbitrary ports and the real fence is TLS re-termination plus a policy that
+  excludes client-mTLS / raw-TCP databases, so no port forward can ever reach it.)*
 
 ## Decision
 

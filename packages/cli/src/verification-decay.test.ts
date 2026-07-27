@@ -16,6 +16,7 @@ import {
   findWarnListHygiene,
   formatDecaySweep,
   isInsideDir,
+  requireObserved,
   runDecaySweep,
   type DecayFinding,
   type DecayInstrument,
@@ -822,6 +823,70 @@ describe("the escalation backstop (ADR-0252 D1): the continuous half can force t
     const { failed, lines } = formatDecaySweep(runDecaySweep(instruments), instruments);
     assert.equal(failed, false);
     assert.match(lines.join("\n"), /OK/);
+  });
+});
+
+describe("requireObserved: an empty enumeration is a BLIND instrument, never a clean one", () => {
+  const inst = (name: string, run: () => DecayFinding[], ceiling = 5): DecayInstrument => ({
+    name,
+    ceiling,
+    locates: `what ${name} locates`,
+    run,
+  });
+
+  it("THE RED: a loader that enumerated NOTHING escalates instead of reporting a clean sweep", () => {
+    // Inputs → wrong outcome, MEASURED on the pre-change code against the real
+    // `pnpm check:verification-decay` by pointing `storiesDir` at a path that does not exist:
+    // `loadProofBindings` returned [], `findContractBindingDrift` produced 0 findings, and the sweep
+    // printed "WARN — 23 located signal(s), every instrument within its own drain ceiling" plus
+    // "chartered coverage: 4/4 … are sweeping" and EXITED 0. The located count went DOWN (28 → 23), so
+    // an instrument that read zero specs made the repo look cleaner. Blinding any of the three GUARDED
+    // loaders the same way printed ESCALATED and exited 1 — same failure, opposite verdicts.
+    const instruments = [
+      inst(CONTRACT_BINDING_DRIFT, () => {
+        requireObserved(0, "no unit spec parsed under stories");
+        return [];
+      }),
+    ];
+    const verdict = runDecaySweep(instruments);
+    const { failed, lines } = formatDecaySweep(verdict, instruments);
+
+    assert.equal(failed, true, "an instrument that observed nothing must never exit green");
+    assert.equal(verdict.escalations.length, 1);
+    assert.match(lines.join("\n"), /ESCALATED/);
+  });
+
+  it("carries the empty enumeration's own message into the report, so it says WHAT went blind", () => {
+    const instruments = [
+      inst(MIRROR_PAIR_DRIFT, () => {
+        requireObserved(0, "studio: no /api/* dispatch found in apps/studio/server");
+        return [];
+      }),
+    ];
+    const text = formatDecaySweep(runDecaySweep(instruments), instruments).lines.join("\n");
+    assert.match(text, /no \/api\/\* dispatch found in apps\/studio\/server/);
+    assert.match(text, /proved nothing/);
+  });
+
+  it("THE FALSE-POSITIVE GUARD: observing facts and finding NOTHING WRONG is healthy and stays green", () => {
+    // The distinction the threshold turns on. `observed` counts the ENUMERATION, never the findings —
+    // an instrument that read 400 specs and found no drift is exactly what a repaired repo looks like,
+    // and redding there would fire the backstop on the state the sweep exists to certify.
+    const instruments = [
+      inst(CONTRACT_BINDING_DRIFT, () => {
+        requireObserved(400, "unreachable");
+        return [];
+      }),
+    ];
+    const verdict = runDecaySweep(instruments);
+    assert.deepEqual(verdict.escalations, []);
+    assert.equal(formatDecaySweep(verdict, instruments).failed, false);
+  });
+
+  it("does not throw for any non-zero enumeration, however small", () => {
+    // One observed fact is a sweep that ran. The rule is blindness, not thinness.
+    assert.doesNotThrow(() => requireObserved(1, "x"));
+    assert.throws(() => requireObserved(0, "x"), /proved nothing/);
   });
 });
 
