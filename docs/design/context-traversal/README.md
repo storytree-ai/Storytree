@@ -4,21 +4,23 @@ Status: owner-approved design reference for arc `linked-session-context-arc`.
 
 Revised 2026-07-27 by owner direction in conversation: the per-node gauge is retired in favour of a
 single playhead bar, nodes become plain marks, and revisit loop-back lines are dropped. See
-[Revision 2026-07-27](#revision-2026-07-27) for what changed and what that means for the two reference
-artifacts below.
+[Revision 2026-07-27](#revision-2026-07-27) for what changed. Both reference artifacts below were
+regenerated against that revision on 2026-07-27 and now conform.
 
 ## Canonical references
 
 - [Playable narrow-panel mock](session-traversal-playback.html) — normative composition and interaction reference.
 - [Static reference image](session-traversal-playback.png) — review fallback and visual-regression anchor.
 
-The HTML reference is authoritative when the two differ. The image captures its initial full-trace state at a narrow story-details-panel width.
+The HTML reference is authoritative when the two differ — with no exception outstanding. The image
+captures the full-trace state at a narrow story-details-panel width.
 
-**Exception, pending regeneration:** the HTML and image both predate the 2026-07-27 revision and still
-render per-node gauges, a bottom-of-circle danger marker, and revisit loop-backs. For those three
-clauses the prose below is authoritative and the artifacts are stale. Regenerating them is part of the
-increment that implements the revision; once regenerated, the HTML resumes being authoritative for
-everything.
+**The red is not visible in either artifact, and that is honest rather than missing.** The recorded
+reference trace peaks at 240.9k, so its fill never reaches the 500k threshold and never turns red.
+The rule is shown in the legend as an example fill, which marks nothing on the bar itself; it was
+also exercised directly against the live render (forcing a 720k reading through the same path puts a
+red segment starting at the threshold and nowhere else). A future artifact drawn from a trace that
+does cross 500k should show the red on the bar and drop the legend example.
 
 ## Product composition
 
@@ -87,6 +89,14 @@ The trace's occupancy series is load-bearing beyond composition: it **recedes** 
 239.8k → 229.6k, with per-visit `added` falling to 0 on those visits). That is the evidence in ADR-0248
 that the bar needs a quantity which can fall, and that no existing token field can supply it.
 
+The series was re-derived on 2026-07-27 by running the shipped host-transcript extractor
+(`readTranscriptWindow`, story `context-traversal-transcript`) over the same recorded session, which
+confirms the numbers the mock draws are `residentInputTokens` and not a re-labelled billing total:
+180 parent observations, a 457.9-minute horizon, a 240.9k maximum, three receding steps, and
+five-minute bucket maxima that match the mock's column exactly. The mock's per-visit `added` column
+was dropped in the regeneration, since a single bar needs one quantity and ADR-0248 D3 deletes that
+field.
+
 ## Implementation acceptance
 
 A visual implementation is conformant only when:
@@ -114,3 +124,11 @@ Owner-directed in conversation, and the reason ADR-0248 could be settled:
    200k, where a 500k marker had no meaning.
 4. **Revisit loop-backs are not drawn.** The animation carries branching; the data still records the
    link.
+
+Regenerated 2026-07-27. Correction to this file's own earlier account of what was stale: the previous
+artifacts rendered per-node gauges and a bottom-of-circle danger marker, but they never drew a revisit
+loop-back at all, so clause 4 was already satisfied and cost the regeneration nothing. What changed is
+clauses 1–3 plus two things they made possible — a search visit is now drawn as a magnifying glass
+*instead of* a circle rather than layered over a gauge ring, and the marks shrank from 6.8/5.2 to
+3.4/2.8 units, which is the panel room the revision was after. Depth still renders as a single column:
+that waits on `parentVisitId` and followed-edge metadata, which no adapter emits yet.
