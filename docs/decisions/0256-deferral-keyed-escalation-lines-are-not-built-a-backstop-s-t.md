@@ -1,5 +1,6 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-07-27
 amends: [252]
 arc: verification-integrity-arc
 ---
@@ -7,17 +8,24 @@ arc: verification-integrity-arc
 
 ## Status
 
-proposed (2026-07-27) — a build-time fork ADR-0252 D1 left open and explicitly did NOT settle, taken
-here after four increments carried it forward unchanged. Recorded as an ADR rather than in source
-because the outcome is a decision NOT to build a chartered mechanism, and a "not built" that lives only
-in a source comment reads as pending work to the next session — which is exactly what happened four
-times. **Proposed, not accepted**: the owner has not directed this in conversation (ADR-0110), and the
-residual it makes permanent is owner-facing. Flip to `accepted` only on owner direction.
+accepted (2026-07-27) — **ratified by the owner in conversation** on 2026-07-27 ("accept ADR-0256"),
+after being presented as `proposed` with the residual it makes permanent stated plainly. Owner
+direction in conversation IS the ratification (ADR-0110); no second end-of-flow ask.
 
-The `amends: [252]` edge is **strictly additive** and binds only on acceptance: this takes a fork
-ADR-0252's *"Not decided here"* section explicitly declined to take, and reverses nothing ADR-0252
-decided. It is declared now, while `proposed`, so the reviewer sees exactly which open half moves —
-D1's two unbuilt escalation lines, and nothing else.
+This settles a build-time fork ADR-0252 D1 left open and explicitly did NOT settle, taken here after
+four increments carried it forward unchanged. Recorded as an ADR rather than in source because the
+outcome is a decision NOT to build a chartered mechanism, and a "not built" that lives only in a source
+comment reads as pending work to the next session — which is exactly what happened four times.
+
+**What the owner ratified is the RESIDUAL, not merely the reasoning.** The consequence below is the
+substance of the decision: a signal that merely sits unexamined now escalates nothing, permanently and
+by choice, and the obligation to cut the deep pass rests on judgment rather than on machinery for every
+class except a blind instrument. That is an owner-level acceptance because it is the owner who carries
+it, which is why this was not flipped green by the session that wrote it.
+
+The `amends: [252]` edge is **strictly additive** and now binds: this takes a fork ADR-0252's
+*"Not decided here"* section explicitly declined to take, and reverses nothing ADR-0252 decided —
+D1's two unbuilt escalation lines move, and nothing else.
 
 ## Context
 

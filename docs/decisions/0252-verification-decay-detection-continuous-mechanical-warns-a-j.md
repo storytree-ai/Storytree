@@ -216,10 +216,10 @@ deciding property is the DIRECTION of the record — a record written to CLEAR a
 one written to TRIGGER a condition is fail-OPEN, and both candidates need a trigger-record written by
 the party the backstop fences — so they are not expensive, they are structurally incapable of being
 backstops. **Nothing in this ADR is re-decided**: ADR-0256 takes a decision this section explicitly
-declined to take, which is why its edge is `amends` and not `supersedes`. Note it is `proposed`, so the
-fork is settled *pending owner ratification*; the consequence it makes explicit is that this section's
-stated residual becomes **permanent and owner-facing** rather than pending, which is why it is the
-owner's to ratify.
+declined to take, which is why its edge is `amends` and not `supersedes`. ADR-0256 was **ratified by
+the owner on 2026-07-27** and is `accepted`, so the fork is settled outright: this section's stated
+residual is now **permanent and owner-accepted** rather than pending. Read it as a closed decision, not
+as a backlog item to pick up.
 
 **Unblocks.** This was the last named blocker on the `verification-integrity-arc`'s close. What
 remained *at decision time* was implementation only — the process artifact, the cheap checks, the
