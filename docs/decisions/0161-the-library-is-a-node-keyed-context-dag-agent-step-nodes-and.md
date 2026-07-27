@@ -71,9 +71,20 @@ serves.* The readiness review (2026-07-05) established the precise seam:
 3. **Un-defer ADR-0154's process-graph follow-on into this arc, under a standing owner.** ADR-0154
    deferred the process branch-edges + derived `next:` graph to avoid coupling a governance fix to a
    CLI restructure. That precondition is now met — the process tier has a standing librarian charter
-   and a backfilled, coverage-gated set (10 processes, `check:surface-coverage` clean). The follow-on
-   becomes the second half of this arc, built on the shared emitter from (2). librarian-curator owns
-   keeping the process graph a current projection (extending its ADR-0154 charter).
+   and a backfilled, coverage-gated set (**as measured on 2026-07-05:** 10 processes,
+   `check:surface-coverage` clean). The follow-on becomes the second half of this arc, built on the
+   shared emitter from (2). librarian-curator owns keeping the process graph a current projection
+   (extending its ADR-0154 charter).
+
+   **Corrected in place 2026-07-27 — the clause is date-stamped because the sweep is no longer clean;
+   the decision it supports is unaffected.** Nine days later ADR-0195 added the operator-facing root
+   script `ci:affected` with no `process` behind it, and the orphan list has read 1 continuously since
+   (13 processes / 67 entrypoints at time of writing). The precondition this un-defer rested on was the
+   *standing charter plus a gated tier*, not a permanently-zero worklist, so the un-defer stands —
+   but the parenthetical must not be read as current state. That the drift sat un-drained for thirteen
+   days across every local and CI gate run is the measured evidence that bounded
+   `check:surface-coverage` at a drain ceiling (see the ADR-0154 D2 correction and
+   `packages/cli/src/surface-coverage-drain.ts`, which cites this line as its baseline).
 
 4. **ADR-0156's way-of-working graduates its own `process`.** Per ADR-0154's charter (a load-bearing
    way-of-working ADR carries a current `process`), ADR-0156 — how a subagent gets context — graduates
