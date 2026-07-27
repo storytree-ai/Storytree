@@ -33,12 +33,14 @@
  *   underlying gap. The one-line fix — teach ADR-0126's `analyzeObservedTests` to parse the options
  *   form — is a STORY-SHAPE call, not a code edit: it would move every contract those tests vouch for
  *   into `check:coverage`'s WARN backlog, which is a decision about the work, not about this sweep.
- * - `warn-list-hygiene` locates advisory worklists that no exit code bounds. ONE of the six is now
- *   bounded — `check:graduation-worklist`, at the drain ceiling in `graduation-drain.ts` — and the
- *   other FIVE are not. Giving one a ceiling, or establishing that a drift-shaped list cannot
- *   accumulate and needs none, stays a per-check decision about that check's remedy, made one check
- *   per increment against that check's REAL output; this sweep reads source and cannot see a list's
- *   size, so it can never make the call itself. Note the interaction the remaining five inherit:
+ * - `warn-list-hygiene` locates advisory worklists that no exit code bounds. TWO of the six are now
+ *   bounded — `check:graduation-worklist` (`graduation-drain.ts`) and `check:surface-coverage`
+ *   (`surface-coverage-drain.ts`) — and the other FOUR are not: `check:agents-sync`,
+ *   `check:corpus-sync`, `check:corpus-content`, and `check:coverage`. Giving one a ceiling, or
+ *   establishing that a drift-shaped list cannot accumulate and needs none, stays a per-check decision
+ *   about that check's remedy, made one check per increment against that check's REAL output; this
+ *   sweep reads source and cannot see a list's size, so it can never make the call itself. Note the
+ *   interaction the remaining four inherit:
  *   teaching `analyzeObservedTests` the options form would move contracts into `check:coverage`'s
  *   worklist, which is itself growth in the largest list this instrument locates — so whoever bounds
  *   `check:coverage` must account for that growth in the ceiling's recorded reason rather than set a
@@ -125,8 +127,14 @@ const CEILINGS = {
    * because it is not a hypothetical — ADR-0168 D4 cites THIS queue as the measured rot that justified
    * the friction ceiling ("grew 31→58 in one session and drained nothing"), then bounded the sibling
    * and left this one WARN-only.
+   *
+   * TIGHTENED 5 → 4 (2026-07-27): `check:surface-coverage` was bounded at a two-axis drain ceiling
+   * (`surface-coverage-drain.ts`). Its rot was measured the same way — a differential control over the
+   * real gate code with only its inputs varied showed the sweep CLEAN at `bedf6dba^`, then `orphans=1`
+   * the moment ADR-0195 added `ci:affected` with no process behind it, and still 1 thirteen days later.
+   * A WARN-backed worklist that no exit code bounds does not get drained.
    */
-  [WARN_LIST_HYGIENE]: 5,
+  [WARN_LIST_HYGIENE]: 4,
 } as const;
 
 // ---------------------------------------------------------------------------

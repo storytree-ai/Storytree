@@ -1,16 +1,37 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-07-26
 amends: [200]
 ---
 # ADR-0245: Cross-session signalling addresses the shared primary checkout, not a session
 
 ## Status
 
-proposed (2026-07-26) — researched and designed in an agent session after the 2026-07-26 incident
-below; the owner has **not** directed this decision, so it stays `proposed` (ADR-0110's design-time
-ratification does not apply — there was no design conversation). The `amends: [200]` edge binds only
-on acceptance; it is declared here so the reviewer sees exactly which parts of ADR-0200 move
-(D3's `check:declared` SKIP arm, and D4's *surface enumeration* — never D4's principle).
+accepted (2026-07-26) — born `proposed` from agent research after the incident below, then
+**ratified by the owner with an explicit scope split** (ADR-0110: design-time alignment is
+ratification):
+
+> "yes build D5.2. If theres no current push surface from the db due to harness constraints then
+> thats fine we can leave this until anthropic and codex provide us with a solution"
+
+So this ADR is accepted **in two speeds**, and the distinction is load-bearing — do not read the
+green status as "all six decisions are built":
+
+- **D1, D2, D5, D6 are accepted AND D5.2 is BUILT** (`check:declared`'s lobby arm). The reasoning
+  that the addressable entity is the *checkout* rather than a session (D2) is what D5.2 rests on,
+  so it is ratified with it.
+- **D3 and D4 — the push/delivery half — are accepted as ANALYSIS but deliberately PARKED, not
+  built.** The owner's call is that a genuine push surface is a harness capability we do not have:
+  no hook, gate, or CLI can invoke an MCP tool, `send_message` cannot see a Codex session
+  (ADR-0232), and nothing interrupts a running session mid-turn. Rather than ship hook-based
+  nudges that would be the weakest part of the design, we wait for Anthropic and/or Codex to
+  provide a real channel. **This is a deferral, not a rejection** — D3's evaluation table stands as
+  the record of what was ruled out and why, so a future revisit starts from the finding, not from
+  scratch. Re-opening it needs no new ADR unless the conclusion changes.
+
+The `amends: [200]` edge is now BINDING, and only for what shipped: ADR-0200 D3's `check:declared`
+SKIP arm no longer returns silently for a dirty primary checkout. ADR-0200 D4's cursor-once
+principle is untouched (nothing was added to the ledger, and no scheduled notification exists).
 
 ## Context
 
@@ -105,6 +126,10 @@ a place, not a session, is what makes the signal deliverable at all.
 
 ### D3 — The channel is the existing hook family; the ledger is untouched
 
+> **PARKED by the owner (2026-07-26) — analysis accepted, nothing built.** The evaluation below
+> stands as the record of what was ruled out and why; the hook wiring it recommends is deliberately
+> NOT implemented, pending a real push surface from the harness. See Status.
+
 Honest evaluation of the four candidates:
 
 | Option | Reaches the offender? | Verdict |
@@ -159,6 +184,10 @@ That is an affordance for the orchestrator, not a component.
 
 ### D4 — Delivery: what actually arrives, and when
 
+> **PARKED by the owner (2026-07-26) — analysis accepted, nothing built.** This section is the
+> honest statement of the limitation that caused the park: without harness support there is no
+> push. The one row that DID ship is the last one — `pnpm gate`, via D5.2. See Status.
+
 A running session reads only what enters its context. **Without harness changes there is no way to
 interrupt a session mid-turn.** Ranked by latency, honestly:
 
@@ -185,6 +214,8 @@ wrong-headed hard block would be worse than the problem. So the ratchet is gradu
 existing WARN-then-FAIL precedents:
 
 1. **WARN (hooks, D3)** — advisory, offline, fail-silent, cursor-once. Never blocks.
+   **PARKED — not built** (see Status). The ratchet therefore currently has one rung, not two: a
+   dirty lobby is silent until the gate. That is the accepted cost of the park.
 2. **FAIL (`check:declared`)** — close the SKIP that fails open (Context fact 2). When
    `deriveIdentity()` is null **and** the cwd is the primary checkout of a repo that has a
    `.claude/worktrees/` directory **and** the tree is dirty, FAIL with the `worktree create` ceremony
@@ -193,6 +224,14 @@ existing WARN-then-FAIL precedents:
    This is the single highest-value change in the ADR: it reuses an existing fail-closed gate,
    needs no new machinery, and lands the refusal at the boundary that matters — before the merge
    ceremony, where ADR-0200 D3 already put the wall.
+
+   > **BUILT (2026-07-26).** `evaluateLobby` + `evaluateLobbyFromGit` in
+   > `packages/cli/src/check-declared.ts`, with the fingerprint as a strict conjunction
+   > (primary checkout AND `.claude/worktrees/` present AND tree dirty) and six offline table-tests
+   > in `check-declared.test.ts`. Proven end-to-end on a synthetic fixture: dirty+managed → exit 1
+   > with the guidance; dirty without `.claude/worktrees/` (the CI/plain-clone shape) → silent
+   > exit 0; managed but clean → silent exit 0. `.claude/worktrees/` is untracked, which is what
+   > makes it a safe CI discriminator.
 3. **Never automatic remediation.** No auto-stash, no auto-move, no auto-commit of another session's
    work. Attribution is unprovable (D1) and the action is destructive; the fix is always the
    ceremony, run by whoever owns the work.

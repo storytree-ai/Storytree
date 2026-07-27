@@ -113,11 +113,14 @@ jobs:
         run: pnpm check:agents
 
       # Process↔entrypoint bijection (ADR-0154): every `process` names a real CLI/pnpm entrypoint in
-      # its `surfaces`, and every operator-facing entrypoint has a process behind it. ADVISORY — it
-      # WARNs (the backfill worklist) but ALWAYS exits 0, so it never blocks the gate. DB-free (reads
-      # the seed + root package.json), so unlike the local-only DB-backed sync checks it runs in CI
-      # too, honouring ADR-0154's "runs local + CI".
-      - name: Surface coverage (advisory)
+      # its `surfaces`, and every operator-facing entrypoint has a process behind it. It WARNs within
+      # its drain ceiling (the backfill worklist) and REDS above it on either axis — bounded
+      # 2026-07-27 by `verification-integrity-arc` (ADR-0252 D3), because thirteen days of green CI
+      # passed over a bijection that had been broken since ADR-0195. Ceiling + baselines:
+      # packages/cli/src/surface-coverage-drain.ts. DB-free (reads the seed + root package.json), so
+      # unlike the local-only DB-backed sync checks it runs in CI too, honouring ADR-0154's
+      # "runs local + CI".
+      - name: Surface coverage (bijection drain ceiling)
         run: pnpm check:surface-coverage
 
       # Clone the PINNED web submodule so the grounding check validates the exact vendored site.

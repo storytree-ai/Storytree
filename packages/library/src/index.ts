@@ -36,6 +36,11 @@ export * from "./oq-gating.js";
 // route, plan status, ADR status, stateless-kind defaults) maps onto ONE `open|active|archived`
 // triad. Pure, browser-safe — the single place this mapping lives.
 export * from "./lifecycle.js";
+// ADR-0246 (`foreign-project-forest-arc` inc 1): the repo root as a PARAMETER — the pure
+// explicit > env > module-derived precedence every root-reading site now shares. Deliberately in the
+// browser-safe root barrel (no `node:`), because the studio server cannot statically import
+// `@storytree/library/store` without breaking `vite build`, and it must reach the same decision.
+export * from "./repo-root.js";
 
 // The cross-cutting knowledge tier (ADR-0017) — the library's namesake competence: schema-
 // validated, versioned knowledge documents. Moved out of `@storytree/core` (ADR-0068 step 4) so

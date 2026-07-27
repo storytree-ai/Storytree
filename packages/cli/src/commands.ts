@@ -12,6 +12,8 @@ import {
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
   knownFieldsForKind,
+  REPO_ROOT_ENV,
+  resolveRepoRoot,
 } from "@storytree/library";
 import type { UatTestCriterion, ReliabilityGate } from "@storytree/library";
 import {
@@ -206,9 +208,16 @@ function idTitleRows(docs: readonly StoredDoc[]): string[] {
 import { dashboard } from "@storytree/drive";
 export { dashboard };
 
-/** The repo root, resolved from this file's location (packages/cli/src -> three dirs up). */
+/**
+ * The repo root — a PARAMETER (ADR-0246), not a derivation from this file's location.
+ * `STORYTREE_REPO_ROOT` points the CLI at another project's checkout; unset, it falls back to the
+ * module-location derivation (packages/cli/src -> four dirs up), which is storytree's own loop.
+ */
 function repoRoot(): string {
-  return path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+  return resolveRepoRoot({
+    env: process.env[REPO_ROOT_ENV],
+    derived: path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", ".."),
+  }).root;
 }
 
 /**

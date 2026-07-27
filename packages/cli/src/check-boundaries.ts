@@ -47,6 +47,7 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadNodeSpec } from "@storytree/orchestrator";
+import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 
 import {
   checkBoundaries,
@@ -61,7 +62,12 @@ import {
   type VirtualStorySource,
 } from "./boundaries.js";
 
-const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+// The repo root is a PARAMETER (ADR-0246) — `STORYTREE_REPO_ROOT` points the boundary check at
+// another project's workspace; unset, the module-location derivation (three dirs up) applies.
+const repoRoot = resolveRepoRoot({
+  env: process.env[REPO_ROOT_ENV],
+  derived: fileURLToPath(new URL("../../../", import.meta.url)),
+}).root;
 const STORYTREE_SCOPE = "@storytree/";
 
 function readJson(path: string): Record<string, unknown> {

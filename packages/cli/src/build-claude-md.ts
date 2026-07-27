@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
+import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 import { loadCorpus } from "@storytree/library/store";
 
 import { renderAgentDigest } from "@storytree/library/store";
@@ -21,8 +22,15 @@ import { syncClaudeRegion } from "./claude-region.js";
 
 const AGENT = "session-orchestrator";
 
-/** Repo root: packages/cli/src/build-claude-md.ts → four dirs up (the commands.ts repoRoot pattern). */
-const repoRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+/**
+ * The repo root — a PARAMETER (ADR-0246), not a derivation. `STORYTREE_REPO_ROOT` points the
+ * CLAUDE.md renderer at another project's checkout; unset, it derives from this file's location
+ * (packages/cli/src/build-claude-md.ts → four dirs up, the commands.ts repoRoot pattern).
+ */
+const repoRoot = resolveRepoRoot({
+  env: process.env[REPO_ROOT_ENV],
+  derived: path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", ".."),
+}).root;
 const claudePath = path.join(repoRoot, "CLAUDE.md");
 
 function fail(message: string): never {
