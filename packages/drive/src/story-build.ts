@@ -418,7 +418,13 @@ export async function storyBuild(
   }
 
   // Load the story spec, then every capability it lists.
-  const storiesDir = opts.storiesDir ?? path.join(repoRoot(), "stories");
+  //
+  // ADR-0246 inc 2: this defaults under `rootDir`, NOT the module `repoRoot()`. It read the module
+  // derivation until now, so a caller that passed `opts.repoRoot` (a foreign project) had its
+  // worktree and promotion cut from that repo while its story/capability specs were still read out
+  // of storytree's own `stories/` — a build that proved the wrong tree's nodes in the right tree's
+  // worktree. `opts.storiesDir` still wins, so the split remains available deliberately.
+  const storiesDir = opts.storiesDir ?? path.join(rootDir, "stories");
   const storyFile = findNodeSpecFile(storiesDir, storyId);
   if (storyFile === null) {
     return {
@@ -540,7 +546,7 @@ export async function storyBuild(
     for (const n of driveOrder) {
       const r = resolveBuildConfig(n)?.config.real;
       if (r === undefined) continue;
-      const resolvedDeps = resolveAddDepsGroup(r);
+      const resolvedDeps = resolveAddDepsGroup(r, rootDir);
       if (!resolvedDeps.ok) return resolvedDeps.refusal;
       if (resolvedDeps.group !== null) addDepsGroups.push(resolvedDeps.group);
     }
@@ -828,7 +834,7 @@ export async function storyBuild(
     const header = [
       `story build ${story.id} — ${mode.toUpperCase()}`,
       "",
-      `spec:        ${rel(storyFile)}`,
+      `spec:        ${rel(storyFile, rootDir)}`,
       `run:         ${runId}`,
       `signer:      ${signer.signer}`,
       `store:       ${storeChoice.label}`,

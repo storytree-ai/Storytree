@@ -4,9 +4,14 @@
 // every API request needs a verified identity (IAP header / local override),
 // guests read + comment, admins edit assets, nobody gets db control. No Vite at
 // runtime; repo paths resolve from this module's location so the container's
-// preserved workspace layout works regardless of CWD.
+// preserved workspace layout works regardless of CWD — unless a root is given
+// (ADR-0246, `foreign-project-forest-arc` inc 2), which is how this server is
+// pointed at a project that is NOT storytree.
 //
 // Run: `pnpm --filter studio serve` (after `pnpm --filter studio build`).
+//      `pnpm --filter studio serve -- --repo-root <path>` serves THAT repo's
+//      docs/ and stories/ — /api/tree reads paths.storiesDir, so the tree that
+//      comes back is the foreign project's.
 // Env: PORT (Cloud Run's contract, default 8080) · STORYTREE_STUDIO_STORE
 // (pg default) · STORYTREE_STUDIO_ADMINS (comma-separated admin emails) ·
 // STORYTREE_STUDIO_DEV_IDENTITY (local guarded-mode trial only).
@@ -31,6 +36,27 @@ import { identityFromRequest } from './identity';
 import type { CodeStamp } from './codeStamp';
 
 const STUDIO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * `--repo-root <path>` (ADR-0246, `foreign-project-forest-arc` inc 2) — the EXPLICIT repo root, the
+ * highest-precedence source in `resolveStudioPaths`.
+ *
+ * Cloud Run starts this with no args, so the hosted deployment is unchanged and keeps falling
+ * through to `STORYTREE_REPO_ROOT` and then the studio-root derivation. The flag exists because a
+ * process-global env var is the wrong granularity for an operator serving one foreign forest from a
+ * checkout that also holds storytree's own — a flag scopes the choice to THIS invocation.
+ *
+ * Returns undefined for a missing flag, a trailing `--repo-root` with no value, or a blank value —
+ * `resolveRepoRoot` treats all three as unset rather than as the filesystem root.
+ */
+export function parseRepoRootFlag(argv: readonly string[]): string | undefined {
+  const i = argv.indexOf('--repo-root');
+  if (i === -1) return undefined;
+  const value = argv[i + 1];
+  if (value === undefined || value.startsWith('--')) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
 
 // ---------- static serving (dist/, hash-routed SPA) ----------
 
@@ -212,7 +238,7 @@ function isMain(): boolean {
 }
 
 if (isMain()) {
-  const paths = resolveStudioPaths(STUDIO_ROOT);
+  const paths = resolveStudioPaths(STUDIO_ROOT, parseRepoRootFlag(process.argv.slice(2)));
   const backend = createBackend({
     assetsFile: paths.assetsFile,
     knowledgeFile: paths.knowledgeFile,
