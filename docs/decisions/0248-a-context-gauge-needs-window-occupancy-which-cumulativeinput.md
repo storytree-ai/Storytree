@@ -73,12 +73,22 @@ either; the field that names it is a duplicate of the one beside it.
 
 The visual contract carries a committed reference trace, shaped from metadata extracted from recorded
 session `02b6a304-6b29-41d0-9276-b9ce7b8958e3`. Its `parent` series is the decisive evidence, because
-**it recedes**: 240.9k → 228.1k, and again 239.8k → 229.6k, with the per-visit `added` value falling
-to 0 on exactly those visits.
+**it recedes**: 240.9k → 228.1k, and again 239.8k → 229.6k.
 
 That is a stronger disqualifier than the 613% ratio. A billing total is monotonic by construction — it
 can only ever rise. The approved picture requires a quantity that can fall. **No existing field can
 draw it, and no re-scaling of an existing field can either.**
+
+**That evidence was re-derived from a shipped instrument on 2026-07-27**, when the reference artifacts
+were regenerated against the owner's revision. Running D1's landed extractor (`readTranscriptWindow`,
+story `context-traversal-transcript`) over the same recorded session reproduces what the mock draws —
+180 parent observations, a 457.9-minute horizon, a 240.9k maximum, and the same receding steps — so
+this decision rests on `residentInputTokens` as the adapter it chose actually reads them, not on a
+hand-shaped mock quantity. One correction to the paragraph above, whose original wording also cited
+the per-visit `added` value falling to 0 on those visits: that column was DROPPED from the mock in the
+same regeneration, because a single bar needs one quantity and D3 deletes the field. The recession is
+therefore the whole of the evidence rather than half of it, which weakens nothing — `added` was a
+duplicate of the monotonic total and never an independent witness.
 
 The same trace half-proves a source. Its series was extracted from a host transcript, which is
 candidate D's surface; that surface demonstrably yields a quantity of the right kind and shape. What it
@@ -182,8 +192,10 @@ seam widened to reach its activation — that remains the honest difference betw
   and the increment log says so plainly.
 - The arc's signature visual is unblocked by this decision plus the revised visual contract. The
   transcript adapter that supplies its quantity LANDED 2026-07-27 (story
-  `context-traversal-transcript`, D1 above); the bar itself — the fill, the playhead, the red
-  over-threshold region — is still unbuilt and is a later increment.
+  `context-traversal-transcript`, D1 above), and the canonical reference artifacts were regenerated
+  against the revision on the same day, so the bar — the fill, the playhead, the red over-threshold
+  portion — now exists as an owner-approved REFERENCE drawn from that trace. No product surface
+  renders it: the implementation is still unbuilt and is a later increment.
 - `addedInputTokens` is to leave the vocabulary (not yet done — see the D3 bullet below, which now
   names the increment that owns it). That is a narrowing of an ADR-0235 clause-4 field and is
   recorded here rather than by amending 0235, because 0235 says a request *may* record tokens added —
