@@ -1192,4 +1192,88 @@ describe('SemanticGrowthWorldView', () => {
       expect(reducedRules.length).toBe(0);
     }
   });
+
+  it('makes the land arrival read as a slow, deliberate emergence -- its resolved duration bounded 700ms through 1000ms and strictly longer than every proposed-frame identity arrival (tree, flora, plate, parcel boundary, parcel flora) -- never sharing their brisk ~300ms cadence', () => {
+    // Guidance: "The `land` delta alone makes the primary island emerge from nothing, slowly and
+    // at its existing world anchors, through the shared `semantic-growth.css` renderer: its
+    // resolved arrival duration is bounded from 700ms through 1000ms and is longer than every
+    // proposed identity arrival." A source/CSS read that resolves the actual APPLIED
+    // animation-duration (shorthand + longhand cascade, later rule wins) per role -- never a raw
+    // substring match on the literal text "320ms" -- so it stays correct however the declaration
+    // is spelled or reordered.
+    function stripKeyframes(source: string): string {
+      return source.replace(/@keyframes\s+[\w-]+\s*\{[\s\S]*?\n\}\n*/g, '');
+    }
+    function splitDecls(body: string): string[] {
+      return body
+        .split(';')
+        .map((d) => d.trim())
+        .filter((d) => d.length > 0);
+    }
+    function toMs(value: string | undefined): number {
+      if (value === undefined) return 0;
+      const m = /^(-?\d*\.?\d+)(m?s)$/i.exec(value.trim());
+      if (!m) return 0;
+      const n = Number(m[1]);
+      return (m[2] ?? 'ms').toLowerCase() === 's' ? n * 1000 : n;
+    }
+    function shorthandDurationToken(value: string): string | undefined {
+      for (const tok of value.trim().split(/\s+/)) {
+        if (/^-?\d*\.?\d+m?s$/i.test(tok)) return tok;
+      }
+      return undefined;
+    }
+    function endsWithSelectorSuffix(selector: string, suffix: string): boolean {
+      if (selector === suffix) return true;
+      if (!selector.endsWith(suffix)) return false;
+      const before = selector[selector.length - suffix.length - 1];
+      return before === undefined || before === ' ' || before === '>' || before === '~' || before === '+';
+    }
+    function resolvedDurationMs(nonKeyframeCss: string, suffix: string): number {
+      let shorthand: string | undefined;
+      let longhand: string | undefined;
+      let matched = false;
+      for (const m of nonKeyframeCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const selectors = (m[1] ?? '').split(',').map((s) => s.trim());
+        if (!selectors.some((s) => endsWithSelectorSuffix(s, suffix))) continue;
+        for (const decl of splitDecls(m[2] ?? '')) {
+          const idx = decl.indexOf(':');
+          if (idx < 0) continue;
+          const prop = decl.slice(0, idx).trim();
+          const value = decl.slice(idx + 1).trim();
+          if (prop === 'animation') {
+            matched = true;
+            const dur = shorthandDurationToken(value);
+            if (dur) shorthand = dur;
+          } else if (prop === 'animation-duration') {
+            matched = true;
+            longhand = value;
+          } else if (prop === 'animation-name') {
+            matched = true;
+          }
+        }
+      }
+      if (!matched) throw new Error(`no animation rule found for selector suffix "${suffix}"`);
+      return toMs(longhand ?? shorthand);
+    }
+
+    const css = readFileSync(resolve(process.cwd(), 'src', 'semantic-growth.css'), 'utf8');
+    const nonKeyframeCss = stripKeyframes(css);
+
+    const landDurationMs = resolvedDurationMs(nonKeyframeCss, '.coast-fill-group');
+
+    const identityDurationsMs = [
+      resolvedDurationMs(nonKeyframeCss, '.story-tree .pop-motion-inner'),
+      resolvedDurationMs(nonKeyframeCss, '.garden-flora .pop-motion-inner'),
+      resolvedDurationMs(nonKeyframeCss, '.world-plate .pop-motion-inner'),
+      resolvedDurationMs(nonKeyframeCss, '.parcel'),
+      resolvedDurationMs(nonKeyframeCss, '.parcel-flora'),
+    ];
+
+    expect(landDurationMs).toBeGreaterThanOrEqual(700);
+    expect(landDurationMs).toBeLessThanOrEqual(1000);
+    for (const identityDurationMs of identityDurationsMs) {
+      expect(landDurationMs).toBeGreaterThan(identityDurationMs);
+    }
+  });
 });

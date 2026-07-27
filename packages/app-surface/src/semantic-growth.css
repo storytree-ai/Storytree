@@ -84,7 +84,11 @@
  * element already carries its own static SVG placement `transform` attribute (its ground/root
  * anchor), and the full `transform:` shorthand would REPLACE that attribute for the sweep's
  * duration even though `getAttribute('transform')` keeps reporting the untouched original. The
- * additive `scale` channel composes on top of it instead, so the placement anchor never moves. */
+ * additive `scale` channel composes on top of it instead, so the placement anchor never moves.
+ * The primary island's emergence reads slow and deliberate -- its resolved duration below stays
+ * bounded 700ms through 1000ms and strictly longer than every proposed-frame identity arrival
+ * (tree/flora/plate/parcel-boundary/parcel-flora sit around 280ms-320ms) -- never sharing their
+ * brisk cadence. */
 @keyframes arrive-ground {
   /* the studio's existing scale(0.78) -> scale(1) ground-arrival profile, reused verbatim and
    * now expressed via the additive `scale` property. */
@@ -101,7 +105,7 @@
 [data-semantic-growth-frame='land'][data-motion='full'] .coast-fill-group,
 [data-semantic-growth-frame='land'][data-motion='full'] .relaxed-tile,
 [data-semantic-growth-frame='land'][data-motion='full'] .hex-tile {
-  animation: arrive-ground 320ms cubic-bezier(0.34, 1.45, 0.5, 1);
+  animation: arrive-ground 850ms cubic-bezier(0.34, 1.45, 0.5, 1);
   animation-delay: 0ms;
   transform-box: fill-box;
   transform-origin: center;
