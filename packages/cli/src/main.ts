@@ -10,7 +10,7 @@ import {
   PgLibraryStore,
   PgAdrStore,
 } from "@storytree/library/store";
-import { captureCliInvocation } from "@storytree/context-traversal-capture";
+import { captureCliInvocation, resolveAgentDescent } from "@storytree/context-traversal-capture";
 import { digestOverlapDeltas, type OverlapDelta } from "@storytree/notice-board";
 import { PgClaimStore } from "@storytree/notice-board/store";
 import { PgWorkStore, PgAttestationStore } from "@storytree/orchestrator/store";
@@ -123,14 +123,19 @@ async function attachDeltaFooter(
  * the worktree derivation, which is null in the main checkout and in CI. A null identity captures
  * nothing — silently, since an uninstrumented run is a normal outcome, not an error.
  */
-function captureInvocation(argv: readonly string[], ok: boolean): void {
+async function captureInvocation(argv: readonly string[], ok: boolean, store: Store): Promise<void> {
   try {
     const override = process.env["STORYTREE_SESSION_ID"];
     const sessionId =
       override !== undefined && override.trim().length > 0
         ? override
         : (deriveIdentity()?.sessionId ?? null);
-    captureCliInvocation({ argv, ok, sessionId });
+    // An `agents <name>` essentials render resolves the agent's floor refs BY EXPLICIT ID, so each
+    // one is a genuine within-process descent (ADR-0235 clause 2). Resolving needs an async store
+    // read, and `captureCliInvocation` is contractually synchronous — so it happens here, inside the
+    // existing try/catch and before `close()`. Every other dispatch shape resolves to [].
+    const agentRefIds = await resolveAgentDescent(argv, store);
+    captureCliInvocation({ argv, ok, sessionId, agentRefIds });
   } catch {
     // Telemetry never breaks a command — the envelope is the payload, the trace is a courtesy.
   }
@@ -170,7 +175,7 @@ export async function main(): Promise<void> {
     // ADR-0200 D4: the cursor-once delta footer rides the render the agent already reads.
     process.stdout.write(formatEnvelope(await attachDeltaFooter(env, pullDeltas)));
     process.exitCode = env.ok ? 0 : 1;
-    captureInvocation(argv, env.ok);
+    await captureInvocation(argv, env.ok, store);
   } finally {
     await close();
   }

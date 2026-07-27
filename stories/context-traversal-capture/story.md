@@ -17,6 +17,7 @@ capabilities:
     traversal-session-query,
     terminal-capture-activation,
     revisit-link-metadata,
+    agent-ref-descent,
   ]
 proof:
   command:
@@ -89,6 +90,7 @@ zod-only because the studio bundles it.
 | 3 | [`traversal-session-query`](traversal-session-query.md) | A captured session renders as a chronological replay that states its own coverage, unknowns, and skipped lines. | `traversal-trace-sink` |
 | 4 | [`terminal-capture-activation`](terminal-capture-activation.md) | The real terminal CLI process captures its own reads additively and replays them on demand. | `traversal-trace-sink`, `terminal-boundary-observations`, `traversal-session-query` |
 | 5 | [`revisit-link-metadata`](revisit-link-metadata.md) | A visit to a node this session already read carries the earlier visit's id, and carries none when it does not. | `traversal-trace-sink`, `terminal-boundary-observations` |
+| 6 | [`agent-ref-descent`](agent-ref-descent.md) | Each floor ref the agents render resolves becomes a child visit naming the agent's visit as its parent, and no other CLI shape descends anything. | `traversal-trace-sink`, `terminal-boundary-observations` |
 
 The graph is acyclic: the sink and the observation table consume only increment 1's vocabulary; the
 query consumes the sink's reader; the activation composes all three.
@@ -138,6 +140,16 @@ uncertainty and every ADR-0241 honesty rule intact.
    `STORYTREE_TRAVERSAL=off`, and again with no resolvable session identity. **Success —** no trace
    file is created in either run, and each command's envelope and exit code are byte-identical to the
    same command run with capture entirely absent.
+6. **A real `agents` render writes a depth, not a flat column.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real
+   CLI binary (`node packages/cli/launch.mjs agents <a-real-agent-id>`) into a fresh temporary
+   directory, offline and without `--pg`, then spawn `traversal show <sessionId>` against the same
+   directory. **Success —** the replay's FIRST event is a `full_payload_read` of that agent carrying
+   NO `parentVisitId` key at all, followed by at least one `front_matter_read` whose `parentVisitId`
+   equals that agent visit's `visitId`; the rendered body names the child's parent link; and the
+   rendered coverage block shows `field:parent_visit_id` under `supported` and NOT under `omitted`.
+   The pure capability proves the descent over caller-supplied events, which is strictly weaker than
+   "the real CLI, spawned, writes a parent-linked child visit and renders it" — this leg closes that
+   gap at a boundary where spawning is free.
 
 ## Evidence
 

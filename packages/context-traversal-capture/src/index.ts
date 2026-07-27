@@ -26,6 +26,12 @@ export {
 } from "./observe-cli.js";
 
 export { linkRevisits, REVISIT_LINK_COVERAGE } from "./revisit-links.js";
+export {
+  AGENT_DESCENT_COVERAGE,
+  descendAgentRefs,
+  resolveAgentDescent,
+} from "./descend-agent-refs.js";
+export type { AgentDescentDeps, AgentDocStore } from "./descend-agent-refs.js";
 
 export {
   renderTraversalSessions,
