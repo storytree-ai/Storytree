@@ -478,6 +478,26 @@ function spriteKeyFor(node: SceneNode): { kind: string; status?: SceneStatus } |
 }
 
 /**
+ * A sprite replaces its whole wrapper's ARTWORK, never the semantic descendants the scene composed
+ * onto that wrapper for reasons the sprite sheet knows nothing about — today, the signed-proof bloom
+ * (`bloom-anchor` > `bloom-crown`/`bloom-plant`, composed to `.world-bloom` by {@link composeClass})
+ * `buildTree`/`buildPlant` splice in as a direct sibling child alongside the trunk/crown geometry a
+ * sprite swap discards. Collect those preserved descendants (a shallow per-`g` walk, stopping at the
+ * first `bloom-anchor` found along each branch — a bloom never nests a second bloom) so the caller can
+ * render them ALONGSIDE the sprite `<image>` instead of silently dropping them.
+ */
+function collectPreservedDescendants(node: SceneNode, out: SceneNode[]): void {
+  if (node.el !== 'g') return;
+  for (const child of node.children) {
+    if (child.kind === 'bloom-anchor') {
+      out.push(child);
+    } else {
+      collectPreservedDescendants(child, out);
+    }
+  }
+}
+
+/**
  * Render `node` as a sprite `<image>` when `ctx.spriteSheet` covers its key — `null` when there is no
  * sheet, no usable key, or the sheet doesn't cover this node (the caller falls through to vector). The
  * image is positioned by {@link spritePlacement} and carries the wrapper's OWN `transform` untouched
@@ -485,7 +505,9 @@ function spriteKeyFor(node: SceneNode): { kind: string; status?: SceneStatus } |
  * what draws there. Interactivity (the click handlers + delegation `data-*` hooks a vector `flora` node
  * would carry) is preserved so a sprite-swapped capability plant stays clickable. Text/tooltips/a11y
  * stay in the DOM: a `title` rides along as an accessible `<title>` child of the `<image>`, exactly as
- * the vector path does.
+ * the vector path does. Semantic descendants the replaced node owned (the signed-proof bloom) are
+ * preserved as vector siblings of the image — see {@link collectPreservedDescendants}; renderer choice
+ * may change artwork, it must never erase proof-bloom semantics.
  */
 function trySprite(
   node: SceneNode,
@@ -529,7 +551,19 @@ function trySprite(
   }
   const kids: React.ReactNode[] = [];
   if (node.title) kids.push(React.createElement('title', { key: '__title' }, node.title));
-  return React.createElement('image', props, ...kids);
+  const image = React.createElement('image', props, ...kids);
+
+  const preserved: SceneNode[] = [];
+  collectPreservedDescendants(node, preserved);
+  if (preserved.length === 0) return image;
+  return React.createElement(
+    React.Fragment,
+    { key },
+    image,
+    ...preserved.map((preservedNode, index) =>
+      renderNode(preservedNode, `__preserved-${index}`, storyId, ctx),
+    ),
+  );
 }
 
 /** The lit lane is ONE EDGE WIDE — capped at the width of a usage-1 road — and never more
@@ -807,10 +841,29 @@ function renderNode(
     // At the world root, sink the hit layer to the back so its rects catch clicks without covering
     // the island tiles / plants on top (see hitsLayerToBack).
     const children = node.kind === 'world' ? hitsLayerToBack(node.children) : node.children;
+    const rendered: React.ReactNode[] = [];
     children.forEach((c, i) => {
       const el = renderNode(c, i, childStory, ctx);
-      if (el) kids.push(el);
+      if (el) rendered.push(el);
     });
+    if (node.kind === 'tree' || node.kind === 'flora' || node.kind === 'plate') {
+      // Motion-safe inner wrapper (semantic-growth.css `arrive-pop`): `tree`/`flora`/`plate` are
+      // the mapper-POSITIONED wrappers above — the `if (node.transform) props.transform =
+      // node.transform;` line above already stamped this node's own SVG placement `transform`
+      // (its ground/root anchor). A CSS `arrive-pop` sweep must never bind to THIS class directly
+      // (the full `transform` shorthand would replace that placement attribute for the sweep's
+      // duration): binding the scale sweep to this dedicated INNER `<g class="pop-motion-inner">`
+      // instead keeps the outer placement wrapper's transform attribute completely static while
+      // the sweep still scales everything the outer wrapper draws. Named WITHOUT "arrive" so it
+      // never collides with the unrelated island-arrival `.arrive-island` staging class (a plain
+      // `[class*="arrive"]` selector elsewhere must still find zero matches on a steady-state
+      // board with no island arriving).
+      kids.push(
+        React.createElement('g', { key: '__pop-motion-inner', className: 'pop-motion-inner' }, ...rendered),
+      );
+    } else {
+      kids.push(...rendered);
+    }
     // ADR-0242: the selection's lit lanes ride on top of the finished fill pass.
     if (node.kind === 'trail-fill-pass') kids.push(...litLaneNodes(children, ctx));
   } else if (node.el === 'text') {
