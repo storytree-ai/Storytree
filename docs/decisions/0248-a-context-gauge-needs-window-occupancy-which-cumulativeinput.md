@@ -157,7 +157,7 @@ The candidates as they were stated, and their disposition:
 
 **Neither A nor D inherits ADR-0243.** The claim in this ADR's original Consequences that both do was
 wrong, and is corrected here. ADR-0243's difficulty is specific to a boundary that only fires when a
-real build spawns a subscription-funded leaf and therefore cannot be exercised where CI runs. Reading a
+real build spawns a subscription-funded leaf, so nothing CI can run makes that spawn happen. Reading a
 local transcript file is free and needs no credentials — the same shape as increment 2's terminal CLI
 dispatch boundary, which earned five signed machine UAT legs by spawning the real CLI and asserting on
 bytes on disk. The transcript adapter's activation is expected to be machine-provable the honest way;
@@ -166,6 +166,14 @@ that expectation is the planning increment's to confirm, not this ADR's to assum
 legs are `witness: machine`, each bound explicitly to `context-traversal-transcript#gate-1`, and
 every one runs offline — no DB, no API key, no model — by spawning the real CLI against temporary
 transcript and trace directories and asserting on the bytes it wrote.
+
+**Do not read the contrast above as "the spawn boundary is unprovable in CI" — that is narrower than it
+sounds, and increment 9 closed it.** What CI cannot do is make a real subscription-funded spawn happen;
+it can now prove that boundary's ACTIVATION offline, because ADR-0243 D1's `liveAuthorOverride`
+accounting seam landed 2026-07-27 and made the composition site reachable without an agent. Story
+`drive-machinery`'s `leaf-slices-observer-activation` and `context-traversal-spawn`'s UAT leg 6 are that
+proof. The disposition here is unaffected: D still does not INHERIT ADR-0243, because it never needed a
+seam widened to reach its activation — that remains the honest difference between the two boundaries.
 
 ## Consequences
 

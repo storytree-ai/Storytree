@@ -23,7 +23,11 @@ to how an adapter's *activation* is proven.
 
 Two `librarian-curator` passes reached this body while it was `proposed` (increments 3 and 4,
 2026-07-26), correcting what ADR-0184 actually converted, what posture increment 3 actually shipped, and
-recording ADR-0247's landing against candidate B.
+recording ADR-0247's landing against candidate B. A third pass reached it after acceptance (increment 9,
+2026-07-27), correcting the clauses this decision's own execution overtook: the pre-decision seam
+reading in Context correction 2, D1's scope where execution narrowed it (the bytes half deferred on a
+cycle fence this decision did not know about), and the Consequences bullet that predicted the landing.
+The decision itself is unchanged.
 
 ## Context
 
@@ -61,10 +65,15 @@ inference that proving activation needs an agent is **not**.
 
 Reading the seam directly:
 
-- `packages/orchestrator/src/resolve-prove-spec.ts:489` — `if (opts.authorOverride !== undefined) {
-  author = opts.authorOverride; }`. The `else` branch is the only code that ever constructs a
-  `LiveAuthor` (`new ClaudeAgentAuthor(...)` / `new CodexPhaseAuthor(...)`). An override therefore
-  leaves `liveAuthor` undefined by construction.
+- `packages/orchestrator/src/resolve-prove-spec.ts` (`:518` as of 2026-07-27) — `if
+  (opts.authorOverride !== undefined) { author = opts.authorOverride; }`. The `else` branch was, when
+  this was written, the only code that ever produced a `LiveAuthor` (`new ClaudeAgentAuthor(...)` /
+  `new CodexPhaseAuthor(...)`), so an override left `liveAuthor` undefined by construction.
+  *(Overtaken by this ADR's own D1, landed 2026-07-27 — no supersession edge is implied: the
+  `authorOverride` branch now populates
+  `liveAuthor` from a `liveAuthorOverride` sibling option, and supplying that option WITHOUT
+  `authorOverride` is refused fail-closed naming both. The reading above is the pre-decision state
+  that the argument rests on, not the current one.)*
 - `packages/drive/src/node-build.ts:567` — `await proveUnit(resolved.spec)` decides the verdict, by
   running the real test command and observing RED then GREEN.
 - `packages/drive/src/node-build.ts:570-577` — the accounting branch reads `resolved.liveAuthor.runs`
@@ -117,7 +126,8 @@ witness tier and made the split explicitly binary, with D1 stating the test dire
 and `human` only when the judgment is irreducible.
 
 "Did the glue get called?" has a compiler and lacked only a harness. Correction 2 shows the harness was
-one `else`-branch away.
+one `else`-branch away. **Borne out 2026-07-27:** the harness was built at exactly that branch and the
+leg is signed — see Consequences.
 
 The owner raised, fairly, that signing an end-to-end journey is exactly what human UAT is for. It is;
 the narrower rule governs the *witness label*, which is reserved for judgments only a person can make.
@@ -135,8 +145,23 @@ the owner's signature is not spent on it.
 
 1. **Add a `liveAuthorOverride` (or equivalent sibling of `authorOverride`) that supplies a canned
    `LiveAuthor`** whose `runs` are scripted. This makes the drive-side composition site reachable from
-   an offline test, so the activation leg asserts that the observer was actually called and wrote the
-   expected bytes.
+   an offline test, so the activation leg asserts that the observer was actually called.
+   *(Narrowed 2026-07-27, as landed. This clause originally ended "called and wrote the expected
+   bytes", and it meant it — the bytes half was a genuine part of D1's scope, not a slip, and D5 does
+   not cover it (D5 governs SHAPE drift, a different axis). It was DEFERRED, on a structural fact this
+   decision did not know when it was written: `packages/context-traversal-spawn` may not import
+   `@storytree/drive`, because `drive-machinery → context-traversal-spawn → context-traversal-capture
+   → context-traversal-telemetry → drive-machinery` is a cycle `check:boundaries` refuses. So the two
+   halves cannot live in one place — the CALL is provable in `packages/drive` with a spy observer and
+   zero traversal import, while BYTES would need `packages/cli`, the only legal composer, where the
+   composing code already exists and a capability over it would need a vacuous source or a
+   manufactured red. Bytes-from-run-accounting is separately already proven red→green on
+   `context-traversal-spawn`'s own signed `--real` verdicts (`build-spawn-capture`). Recorded, not
+   hidden: `stories/context-traversal-spawn/story.md`, "Explicitly outside this increment" item (b).
+   Left as an in-place narrowing rather than a superseding ADR because the DECISION — a live-spend-only
+   adapter earns a machine activation leg through an injected-accounting seam — is executed exactly as
+   written; what moved is how much one leg asserts, and that scope now lives where scope belongs, in
+   the story spec.)*
 2. **The leg is `machine`.** Per ADR-0247 D1 the condition has a compiler; per correction 2 it now has
    a harness. No operator attestation is taken for it, and none should be offered — that would spend a
    signature on a harness gap, which `human-witness-is-a-judgment-gap-not-cost` refuses.
@@ -170,9 +195,16 @@ The three candidates as they were stated, and their disposition:
 
 - Increments 3, 4 and 5 of `linked-session-context-arc` landed with `context-traversal-spawn`'s
   capabilities machine-proven on signed `--real` verdicts and **no activation leg of any witness kind**,
-  recorded in the story's *Explicitly outside this increment* section. That gap is now closeable by a
-  scoped increment rather than by an owner interruption, and the story's spec should be updated when it
-  lands.
+  recorded in the story's *Explicitly outside this increment* section. **Closed 2026-07-27 by increment
+  9**, which executed this decision: the `liveAuthorOverride` seam and its fail-closed refusal landed in
+  `resolve-prove-spec.ts` with the D6 asymmetry documented in JSDoc at the seam, the passthrough landed
+  in `packages/drive` (`node-build.ts`, `story-build.ts`), and story `drive-machinery` gained two
+  capabilities on signed `--real` verdicts — `live-author-accounting-override` (the D3 refusal test) and
+  `leaf-slices-observer-activation` (the activation proof). `context-traversal-spawn` now carries UAT
+  leg 6, `witness: machine` with no operator attestation per D2, bound to a new
+  `context-traversal-spawn#gate-2` (`pnpm --filter @storytree/drive test`); the story's *Explicitly
+  outside this increment* bullet was rewritten to name the three things that remain outside. What this
+  bullet predicted — a scoped increment rather than an owner interruption — is now an observation.
 - The arc's remaining adapters (direct SDK, Codex, owned-loop, desktop-chat) are unblocked for their
   activation legs.
 - **ADR-0248's transcript adapter does not need this seam.** Reading a local transcript file is free and
@@ -201,10 +233,15 @@ The three candidates as they were stated, and their disposition:
 - `asset:human-witness-is-a-judgment-gap-not-cost` — the rule that refuses candidate B here.
 - `asset:a-live-only-guarantee-is-an-honesty-gap` — the standing preference for a cheap offline
   red→green with the live run as a smoke test; this decision is that shape.
-- `stories/context-traversal-spawn/story.md` — the increments that hit this wall; its *Explicitly
-  outside this increment* section is where the missing activation leg is recorded.
-- `packages/orchestrator/src/resolve-prove-spec.ts:489` — the `authorOverride` / `liveAuthor`
-  asymmetry, and the one branch that makes an agent look mandatory.
+- `stories/context-traversal-spawn/story.md` — the increments that hit this wall; since increment 9 it
+  carries the activation leg (UAT leg 6, gate 2), and its *Explicitly outside this increment* section
+  now records only the three things that remain outside.
+- `packages/orchestrator/src/resolve-prove-spec.ts` (`:518` as of 2026-07-27) — the `authorOverride` /
+  `liveAuthor` asymmetry, and the one branch that made an agent look mandatory; since D1 landed, also
+  the `liveAuthorOverride` option and its fail-closed refusal.
+- `packages/drive/src/leaf-slices-activation.test.ts` and
+  `packages/orchestrator/src/live-author-override.test.ts` — the activation leg and the D3 refusal test
+  this decision required.
 - `packages/drive/src/node-build.ts:567` (verdict) and `:570-577` (accounting) — the two independent
   outputs of one build, and why the accounting side is safe to inject.
 - `.github/workflows/ci.yml` — the no-secrets posture that is the actual barrier.
