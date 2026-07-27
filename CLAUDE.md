@@ -183,7 +183,9 @@ file conflicts).
   **But read that precisely (ADR-0258): what cannot work is the CONNECTOR, not "database access".**
   Client-mTLS cannot survive a TLS-terminating proxy *by construction* — while ordinary **HTTPS on 443
   is unaffected**, which is why the hosted studio and `/api/write-broker` are reachable from a remote
-  session. Today's block is that the CLI speaks `pg` and nothing speaks HTTP to a store; the inner loop
+  session. Today's block is that every caller still dials `pg` — an `HttpStore` + wire contract now
+  exist (ADR-0259 inc 1, `packages/storage-protocol`) but are wired to no caller and no deployed
+  server, so **nothing has changed operationally yet**; the inner loop
   itself (leaf + spine) needs **no** DB — `--real` refuses on a DB-less machine because ADR-0060/0081
   make it always persist, not because the sandbox stops it. They
   now **refuse instantly** with that explanation rather than hanging ~8 min (ADR-0250 D2). Still fine

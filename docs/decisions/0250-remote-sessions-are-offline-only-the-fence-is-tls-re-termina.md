@@ -105,10 +105,15 @@ not its reputation.
   write set" — which is the right shape and a genuine option, but it is **not** blocked on
   infrastructure, and it inherits ADR-0089 D4's guard (no proof-bearing writes through a thin bridge)
   and ADR-0117's attribution wall (signer ≡ IAP-authenticated caller).
-- **Both A and B share the same unbuilt client-side half:** the CLI speaks `pg` directly through
-  `createPool`; nothing in it speaks HTTP to a store. Either path needs a second store implementation
-  behind the `Store` seam plus a wire contract to keep in sync with `pg-store.ts` — precisely the
-  drift cost ADR-0089 named as "the main reason to defer", and it has not gotten cheaper.
+- **Both A and B shared the same unbuilt client-side half:** the CLI speaks `pg` directly through
+  `createPool`, and at the time of this decision nothing in the repo spoke HTTP to a store. Either
+  path therefore needed a second store implementation behind the `Store` seam plus a wire contract to
+  keep in sync with `pg-store.ts` — precisely the drift cost ADR-0089 named as "the main reason to
+  defer". *(No longer current: that client half was built on 2026-07-27 under
+  [ADR-0259](0259-every-client-reaches-the-store-through-an-http-front-door-di.md) — `store-wire.ts`
+  plus `HttpStore` in `packages/storage-protocol`, held to the same `storeParitySuite` as the other
+  backends. It migrated no caller and stood up no server, so the fork below is untouched; the cost
+  weighed here is now paid rather than pending.)*
 - **And both turn on a question this session is not entitled to settle:** whether a *non-human*
   identity — a service account whose private key sits in plaintext in an ephemeral container's env —
   should hold library write scope. That is a change to who can authenticate and an access-widening
