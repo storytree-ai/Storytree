@@ -446,8 +446,8 @@ describe("the escalation backstop (ADR-0252 D1): the continuous half can force t
   });
 
   it("CANNOT be cleared by raising the ceiling — the two mechanisms are independent", () => {
-    // The load-bearing property. Raising DRAIN_CEILING is a legitimate documented move for real
-    // backlog growth; if it also discharged escalations, the backstop would be defeated by the
+    // The load-bearing property. Raising an instrument's ceiling is a legitimate documented move for
+    // real backlog growth; if it also discharged escalations, the backstop would be defeated by the
     // routine operation of its neighbour — the "gaming the D3 ceiling" failure mode arriving by
     // accident. Proved at an absurd ceiling so no arithmetic coincidence can carry it.
     const instruments = [blind(CONTRACT_BINDING_DRIFT, Number.MAX_SAFE_INTEGER)];
