@@ -143,9 +143,9 @@ function verdictFate(persisted: boolean): string {
  * (the proof leg is in scope): it feeds `storiesDir`, `createBuildWorktree`, and the promotion, so
  * without it a `--real` build can only ever prove storytree's own tree.
  *
- * `STORYTREE_REPO_ROOT` wins; unset, it derives four dirs up as before. Note that the per-call
- * `NodeBuildOpts.repoRoot` / `StoryBuildOpts.repoRoot` injections already override this for tests —
- * this changes only the default they fall back to.
+ * `STORYTREE_REPO_ROOT` wins; unset, it derives four dirs up as before. The per-call
+ * `NodeBuildOpts.repoRoot` / `StoryBuildOpts.repoRoot` injections override this — they are the
+ * `explicit` source, and this function is only the default they fall back to.
  */
 export function repoRoot(): string {
   return resolveRepoRoot({
@@ -154,9 +154,15 @@ export function repoRoot(): string {
   }).root;
 }
 
-/** Repo-relative display path (forward slashes, stable across platforms). */
-export function rel(file: string): string {
-  return path.relative(repoRoot(), file).replace(/\\/g, "/");
+/**
+ * Repo-relative display path (forward slashes, stable across platforms).
+ *
+ * `root` is the ADR-0246 inc 2 explicit override: a build driving a caller-supplied root must render
+ * its paths against THAT root, or the envelope reports a foreign spec as `../../../../<repo>/stories/…`
+ * while claiming to be repo-relative. Omitted, it falls back to {@link repoRoot} as before.
+ */
+export function rel(file: string, root?: string): string {
+  return path.relative(root ?? repoRoot(), file).replace(/\\/g, "/");
 }
 
 /**
@@ -437,12 +443,16 @@ export function resolveDbProofEnv():
  * `pnpm add --filter` target for a spine-driven dependency add. Reads `packages/<dir>/package.json`'s
  * `name` (the honest source, not a path-convention guess). Returns null when the source file is not
  * under a workspace package (an addDeps node must live in one).
+ *
+ * `root` is the ADR-0246 inc 2 explicit override — the `package.json` that names the `--filter`
+ * target belongs to the repo being BUILT, not to whichever checkout this module was loaded from.
+ * Omitted, it falls back to {@link repoRoot} as before.
  */
-export function workspacePackageForSource(sourceFile: string): string | null {
+export function workspacePackageForSource(sourceFile: string, root?: string): string | null {
   const m = /^packages\/([^/]+)\//.exec(sourceFile.replace(/\\/g, "/"));
   if (m === null || m[1] === undefined) return null;
   try {
-    const pkgPath = path.join(repoRoot(), "packages", m[1], "package.json");
+    const pkgPath = path.join(root ?? repoRoot(), "packages", m[1], "package.json");
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { name?: unknown };
     return typeof pkg.name === "string" ? pkg.name : null;
   } catch {
@@ -455,13 +465,18 @@ export function workspacePackageForSource(sourceFile: string): string | null {
  * {@link AddDepsGroup} (target package + declared specs) when it does, or a fail-closed refusal when
  * the target package can't be derived from `sourceFile` (an addDeps node must live in a workspace
  * package — the spine needs a `--filter` target so the dep lands in the right `package.json`).
+ *
+ * `root` is the ADR-0246 inc 2 explicit override, forwarded to {@link workspacePackageForSource};
+ * omitted, that falls back to {@link repoRoot}. Optional so the `cli` gate driver's existing call
+ * is unchanged.
  */
 export function resolveAddDepsGroup(
   real: RealProofConfig,
+  root?: string,
 ): { ok: true; group: AddDepsGroup | null } | { ok: false; refusal: Envelope } {
   const deps = real.addDeps;
   if (deps === undefined || deps.length === 0) return { ok: true, group: null };
-  const packageName = workspacePackageForSource(real.sourceFile);
+  const packageName = workspacePackageForSource(real.sourceFile, root);
   if (packageName === null) {
     return {
       ok: false,
@@ -898,6 +913,19 @@ export interface NodeBuildOpts {
   /** Injectable for tests; defaults to `<repoRoot>/stories`. */
   storiesDir?: string;
   /**
+   * The repo this build reads, worktrees, and promotes against (ADR-0246,
+   * `foreign-project-forest-arc` inc 2) — the `explicit` source of {@link resolveRepoRoot}, so it
+   * beats `STORYTREE_REPO_ROOT` and the module-location derivation alike. Defaults to
+   * {@link repoRoot}.
+   *
+   * This is the D5-critical injection: without it a caller that is not a shell — the desktop
+   * backend, the studio worker, a test — has no way to point a build at a repo that is not
+   * storytree, because a process-global env var is the wrong granularity for a server that may
+   * serve more than one root over its lifetime. `StoryBuildOpts.repoRoot` is the same seam one
+   * level up; the two are deliberately named and typed alike.
+   */
+  repoRoot?: string;
+  /**
    * Injectable for tests (ADR-0121): the worktree identity the write-claim is taken under.
    * Default = `deriveIdentity()` (null in a plain checkout → no claim). A build run never writes
    * session presence (ADR-0199), so identity here feeds ONLY the claim.
@@ -987,7 +1015,11 @@ export async function nodeBuild(
     };
   }
 
-  const storiesDir = opts.storiesDir ?? path.join(repoRoot(), "stories");
+  // ADR-0246 inc 2: one root for the whole build — spec resolution, the `--real` worktree cut, and
+  // the promotion all read THIS, so a caller-supplied root cannot be honoured by one leg and
+  // silently ignored by another (the bug this increment fixed in story-build).
+  const rootDir = opts.repoRoot ?? repoRoot();
+  const storiesDir = opts.storiesDir ?? path.join(rootDir, "stories");
   const specFile = findNodeSpecFile(storiesDir, unitId);
   if (specFile === null) {
     return {
@@ -1057,7 +1089,7 @@ export async function nodeBuild(
   // node's sourceFile). Fail-closed BEFORE any worktree if the package can't be derived.
   let addDepsGroup: AddDepsGroup | null = null;
   if (real && realConfig !== undefined) {
-    const resolvedDeps = resolveAddDepsGroup(realConfig);
+    const resolvedDeps = resolveAddDepsGroup(realConfig, rootDir);
     if (!resolvedDeps.ok) return resolvedDeps.refusal;
     addDepsGroup = resolvedDeps.group;
   }
@@ -1156,7 +1188,7 @@ export async function nodeBuild(
     if (real) {
       // The REAL walk: a fresh DETACHED git worktree of this repo (the node's real source at
       // real paths); the spine commits the authored files before the GATE reads the real tree.
-      worktree = await createBuildWorktree(repoRoot(), {
+      worktree = await createBuildWorktree(rootDir, {
         ...(realConfig?.install === true ? { install: true } : {}),
         ...(addDepsGroup !== null ? { addDeps: [addDepsGroup] } : {}),
       });
@@ -1178,7 +1210,7 @@ export async function nodeBuild(
           runId,
           signer: signer.signer,
           phasePrompts,
-          repoRoot: repoRoot(),
+          repoRoot: rootDir,
           runtime,
           ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
           ...(opts.model !== undefined ? { model: opts.model } : {}),
@@ -1209,7 +1241,7 @@ export async function nodeBuild(
       if (!drive.resolved) {
         return {
           ok: false,
-          body: `${drive.reason}\n(spec loaded fine: ${rel(specFile)})`,
+          body: `${drive.reason}\n(spec loaded fine: ${rel(specFile, rootDir)})`,
           next: drive.registered.map((id) => `storytree node build ${id} --dry-run`),
         };
       }
@@ -1229,7 +1261,7 @@ export async function nodeBuild(
     const header = [
       `node build ${spec.id} — ${mode.toUpperCase()}`,
       "",
-      `spec:        ${rel(specFile)}`,
+      `spec:        ${rel(specFile, rootDir)}`,
       `proof mode:  ${spec.proofMode} → ${mapProofMode(spec.proofMode)}`,
       `run:         ${runId}`,
       `signer:      ${signer.signer}`,
@@ -1335,6 +1367,16 @@ export async function nodeBuild(
 export interface NodeResolveOpts {
   /** Injectable for tests; defaults to `<repoRoot>/stories`. */
   storiesDir?: string;
+  /**
+   * The repo whose tree is being resolved (ADR-0246, `foreign-project-forest-arc` inc 2) — the
+   * `explicit` source, beating `STORYTREE_REPO_ROOT` and the module derivation. Defaults to
+   * {@link repoRoot}.
+   *
+   * This is the FREE, read-only way to point storytree at a project that is not storytree and get
+   * that project's node back: no worktree, no leaf, no spend. It is the cheapest honest check that a
+   * foreign root actually reaches spec resolution.
+   */
+  repoRoot?: string;
 }
 
 /**
@@ -1348,7 +1390,8 @@ export interface NodeResolveOpts {
  * id, a malformed spec, or a node with no proof config refuses cleanly, naming what is wrong.
  */
 export function nodeResolve(unitId: string | undefined, opts: NodeResolveOpts = {}): Envelope {
-  const storiesDir = opts.storiesDir ?? defaultStoriesDir();
+  const rootDir = opts.repoRoot ?? repoRoot();
+  const storiesDir = opts.storiesDir ?? path.join(rootDir, "stories");
   const discover = (): string[] =>
     buildableNodeIds(storiesDir).buildable.map((id) => `storytree node resolve ${id}`);
 
@@ -1373,14 +1416,14 @@ export function nodeResolve(unitId: string | undefined, opts: NodeResolveOpts = 
   } catch (e) {
     return {
       ok: false,
-      body: `node spec ${rel(specFile)} failed to load:\n${(e as Error).message}`,
+      body: `node spec ${rel(specFile, rootDir)} failed to load:\n${(e as Error).message}`,
       next: [`storytree node resolve ${unitId}`],
     };
   }
 
   const report = resolveReport(spec);
   const head = [
-    `spec:          ${rel(specFile)}`,
+    `spec:          ${rel(specFile, rootDir)}`,
     `tier:          ${report.tier}`,
     `proof mode:    ${report.proofModeWord} → ${report.proofMode}`,
   ];
@@ -1396,7 +1439,7 @@ export function nodeResolve(unitId: string | undefined, opts: NodeResolveOpts = 
         "",
         `node "${report.id}" has no proof config — it cannot be driven through the gate, even dry.`,
         "Declare how to prove it by either:",
-        `  - authoring a 'proof:' block in its spec (${rel(specFile)}) — ADR-0057 keystone A; or`,
+        `  - authoring a 'proof:' block in its spec (${rel(specFile, rootDir)}) — ADR-0057 keystone A; or`,
         "  - adding an entry to the test-command registry (packages/orchestrator/src/test-command-registry.ts).",
       ].join("\n"),
       next: [`storytree node resolve ${report.id}   (re-run after declaring how to prove it)`],

@@ -23,7 +23,22 @@ import { installDevServerResilience } from './devServerResilience';
 // Re-exported for the existing integration tests (the route table's real home).
 export { handleHealth, handleActivity, handleClaims, type HealthDeps } from './apiRouter';
 
-export function storytreeDataApi(): Plugin {
+/** Options for {@link storytreeDataApi}. */
+export interface StorytreeDataApiOptions {
+  /**
+   * The EXPLICIT repo root this dev API serves `docs/` and `stories/` from (ADR-0246,
+   * `foreign-project-forest-arc` inc 2) — highest precedence in `resolveStudioPaths`, ahead of
+   * `STORYTREE_REPO_ROOT` and the Vite-root derivation.
+   *
+   * Omitted (storytree's own `vite.config.ts`), resolution is exactly as before. It exists so an
+   * embedder mounting this API for a project that is NOT storytree can name the root in config
+   * instead of exporting a process-global env var — `/api/tree` reads `paths.storiesDir`, so this is
+   * what decides whose tree comes back.
+   */
+  repoRoot?: string;
+}
+
+export function storytreeDataApi(options: StorytreeDataApiOptions = {}): Plugin {
   let paths: Paths;
   let backend: LibraryBackend;
   let codeProbe: () => Promise<CodeStamp | null>;
@@ -32,7 +47,7 @@ export function storytreeDataApi(): Plugin {
   return {
     name: 'storytree-data-api',
     configResolved(config) {
-      paths = resolveStudioPaths(config.root);
+      paths = resolveStudioPaths(config.root, options.repoRoot);
       // The pg pool (if store='pg') is built lazily on first use; this just picks the impl.
       backend = createBackend({
         assetsFile: paths.assetsFile,
