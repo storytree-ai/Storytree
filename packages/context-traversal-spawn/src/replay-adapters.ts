@@ -18,7 +18,7 @@ import {
   readTraversalSession,
   renderTraversalSession,
   resolveTraversalDir,
-  REVISIT_LINK_COVERAGE,
+  AGENT_DESCENT_COVERAGE,
 } from "@storytree/context-traversal-capture";
 import type { TraversalRenderEnvelope, TraversalQueryOptions } from "@storytree/context-traversal-capture";
 
@@ -29,11 +29,14 @@ import { BUILD_SPAWN_BOUNDARY_COVERAGE } from "./observe-leaf-slices.js";
  * (currently the terminal CLI dispatch adapter and the build spawn boundary adapter). Reads only —
  * this composition writes nothing.
  *
- * The terminal declaration is the COMPOSED `REVISIT_LINK_COVERAGE`, not `observe-cli.ts`'s base
- * constant: since increment 6 the terminal composition links same-node revisits, so it really does
- * emit `field:prior_visit_id`. This is the one render the CLI actually calls, and declaring the base
- * here printed `field:prior_visit_id` under `omitted` on a trace that visibly carried it — the same
- * self-denial ADR-0235 clause 6 forbids, and the same shape as the capacity render #933 corrected.
+ * The terminal declaration is the OUTERMOST composed constant — now `AGENT_DESCENT_COVERAGE`, which
+ * composes `REVISIT_LINK_COVERAGE`, which composes `observe-cli.ts`'s base. Each layer adds the field
+ * the wired composition genuinely emits: increment 6 added `field:prior_visit_id` (same-node
+ * revisits), and increment 11 adds `field:parent_visit_id` (an `agents <name>` render's floor-ref
+ * descent). This is the one render the CLI actually calls, and declaring an inner layer here printed
+ * a field under `omitted` on a trace that visibly carried it — the self-denial ADR-0235 clause 6
+ * forbids, and the shape both the capacity render (#933) and the prior-visit render (#944) had to
+ * correct. When a further layer is composed, this import moves to it.
  */
 export function showTraversalSessionAllAdapters(
   sessionId: string,
@@ -42,7 +45,7 @@ export function showTraversalSessionAllAdapters(
   const dir = opts?.dir ?? resolveTraversalDir();
   const { replay, skipped } = readTraversalSession({ dir, sessionId });
   return renderTraversalSession(
-    { ...replay, coverage: [REVISIT_LINK_COVERAGE, BUILD_SPAWN_BOUNDARY_COVERAGE] },
+    { ...replay, coverage: [AGENT_DESCENT_COVERAGE, BUILD_SPAWN_BOUNDARY_COVERAGE] },
     { skipped },
   );
 }

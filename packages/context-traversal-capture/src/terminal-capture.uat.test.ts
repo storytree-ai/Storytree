@@ -18,6 +18,12 @@
  *   3. a-spawned-write-command-leaves-no-canary-bytes
  *   4. traversal-show-renders-the-captured-session
  *   5. capture-off-leaves-a-byte-identical-envelope
+ *
+ * It also carries the story's sixth UAT leg (`stories/context-traversal-capture/story.md`), which
+ * belongs to no capability's contract list: an `agents <name>` render's floor-ref descent, proven on
+ * the REAL CLI. `agent-ref-descent`'s own contracts prove the descent over caller-supplied events,
+ * which is strictly weaker than "the real CLI, spawned, writes a parent-linked child visit and
+ * renders it" — the gap is closed here because this file already spawns the CLI for free.
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -348,4 +354,71 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
   assert.equal(noIdResult.status, baseline.status, "an unresolved identity must not change the exit code");
   assert.equal(noIdResult.stdout, baseline.stdout, "an unresolved identity must not change the envelope");
   assert.deepEqual(listDir(noIdDir), [], "an unresolved identity must create no trace file");
+});
+
+// ---------------------------------------------------------------------------
+// 6. a real `agents` render writes a depth, not a flat column
+// ---------------------------------------------------------------------------
+
+test("an-agents-render-writes-a-parent-linked-descent: a real spawned `agents <name>` leaves child visits naming the agent visit as parent", () => {
+  const dir = freshDir("contract6");
+  const sessionId = "session-contract6";
+  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, STORYTREE_SESSION_ID: sessionId };
+  const agentId = "librarian-curator";
+
+  // `agents <name>` fails its envelope (`ok: false`) on ANY dangling floor ref, and capture is
+  // success-only — so a dangling manifest would make this leg fail for a reason unrelated to the
+  // descent. Asserting exit 0 first makes that distinction visible instead of silent.
+  const result = runCli(["agents", agentId], env);
+  assert.equal(result.status, 0, `expected the spawned agents render to exit 0: ${result.stderr}`);
+
+  const { replay } = readTraversalSession({ dir, sessionId });
+  assert.ok(replay.events.length >= 2, "an agents render must write the agent visit AND at least one child");
+
+  const parent = expectVisit(replay.events[0], "the agent's own visit");
+  assert.equal(parent.kind, "full_payload_read", "the agent itself is read at full-payload strength");
+  assert.equal(parent.nodeId, agentId);
+  assert.equal(parent.surfaceId, "agents");
+  // The parent is a root: it descends from nothing, so the KEY is absent — the shape on disk, read
+  // back from bytes a process that has already exited wrote.
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(parent, "parentVisitId"),
+    false,
+    "the agent's own visit must carry no parentVisitId key at all",
+  );
+
+  const children = replay.events.slice(1).map((event, i) => expectVisit(event, `child ${i}`));
+  assert.ok(children.length >= 1, "at least one floor ref must descend");
+  for (const child of children) {
+    assert.equal(child.kind, "front_matter_read", "a floor ref is read at front-matter strength only");
+    assert.equal(
+      child.parentVisitId,
+      parent.visitId,
+      "each child must name the agent's visitId — not merely carry some parentVisitId",
+    );
+    assert.notEqual(child.visitId, parent.visitId, "a child is a NEW visit, never a reused id");
+    assert.equal(child.surfaceId, "agents", "the ref was read THROUGH the agents surface");
+  }
+
+  // The RENDER must show what the trace carries. Asserted on the rendered body of a second real
+  // process, and BEFORE the coverage-block comparison below, so this pin reports its own defect
+  // rather than being masked by a neighbouring mismatch.
+  const shown = runCli(["traversal", "show", sessionId], env);
+  assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
+  const firstChild = children[0];
+  assert.ok(firstChild !== undefined, "expected at least one child to assert the render on");
+  assert.ok(
+    shown.stdout.includes(`node=${firstChild.nodeId} surface=agents (descended from visit=${parent.visitId})`),
+    "the rendered child line must name the parent visit it descended from",
+  );
+
+  // ...and the coverage block must not DENY the field the same body just displayed (ADR-0235
+  // clause 6) — the self-denial this arc has had to correct twice.
+  const coverageLine = shown.stdout
+    .split("\n")
+    .find((line) => line.includes("coverage: adapter=terminal-cli-dispatch"));
+  assert.ok(coverageLine !== undefined, "the terminal adapter's coverage block must render");
+  const [supportedHalf, omittedHalf] = coverageLine.split(" omitted=");
+  assert.ok(supportedHalf?.includes("field:parent_visit_id"), "parent links are emitted, so they must be SUPPORTED");
+  assert.ok(!omittedHalf?.includes("field:parent_visit_id"), "a render may not deny a field it produces");
 });

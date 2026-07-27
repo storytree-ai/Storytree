@@ -107,9 +107,15 @@ package scaffold already exists — add nothing to `package.json`.
      `nodeId` alone, and against one that keys on position alone.
 4. **`linking-is-idempotent-and-never-self-referential`**
    - **asserts —** running `linkRevisits` over an already-linked batch returns the same links, no
-     returned event names its own `visitId` as `priorVisitId`, and every returned event PARSES (the
-     vocabulary's `superRefine` rejects self-reference, so a parse of the real output is the
-     assertion). **Falsifiability —** a first run that comes back green is the diagnosis, not the
+     returned event names its own `visitId` as `priorVisitId`, and every returned event PARSES.
+     (Corrected 2026-07-27: this clause used to say the vocabulary's `superRefine` rejects
+     self-reference, so that a parse WAS the assertion. It does not — `traversal-events.ts` has no
+     `superRefine` at all, and its three `.refine()` calls guard spawn-edge validity and coverage
+     exhaustiveness, never `priorVisitId`, so a self-referential visit parses fine. The test's own
+     non-self-reference assertion is direct — `revisit-links.test.ts:124` and `:141` compare
+     `priorVisitId` against the event's own `visitId` — and was always the real pin; only this
+     rationale was wrong, so no assertion changed and the signed verdict is untouched.)
+     **Falsifiability —** a first run that comes back green is the diagnosis, not the
      result: this assertion must fail against an implementation that appends the observed batch to its
      own prior list before searching, which would make a single visit link to itself.
 5. **`composed-coverage-declares-prior-visit-links-and-stays-exhaustive`**

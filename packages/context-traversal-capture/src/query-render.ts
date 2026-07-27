@@ -38,10 +38,18 @@ function renderVisitLine(event: ContextVisitEvent): string {
   const strength = readStrengthLabel(event.kind);
   const surface = event.surfaceId ?? "unknown-surface";
   const base = `  [${strength}] visit=${event.visitId} node=${event.nodeId} surface=${surface}`;
-  if (event.priorVisitId !== undefined) {
-    return `${base} (revisit of visit=${event.priorVisitId})`;
+  // Both links are rendered when both are present, and each ONLY because the field is actually on
+  // the event — never inferred from adjacency, ordering, or timestamp proximity (ADR-0235 clause 3).
+  // A descent is the DEPTH axis (this visit hangs beneath an earlier one); a revisit is the TIME
+  // axis (this visit repeats an earlier one). They are independent, so neither may hide the other.
+  const suffixes: string[] = [];
+  if (event.parentVisitId !== undefined) {
+    suffixes.push(`(descended from visit=${event.parentVisitId})`);
   }
-  return base;
+  if (event.priorVisitId !== undefined) {
+    suffixes.push(`(revisit of visit=${event.priorVisitId})`);
+  }
+  return suffixes.length > 0 ? `${base} ${suffixes.join(" ")}` : base;
 }
 
 function renderEventLine(event: ContextTraversalEvent): string {
