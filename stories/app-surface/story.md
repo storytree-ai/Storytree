@@ -1,8 +1,8 @@
 ---
 id: "app-surface"
 tier: story
-title: "The shared app surface — Studio's real forest scene and persistent semantic island growth"
-outcome: "Studio renders its real forest through `@storytree/app-surface` and can stage one persistent anchored 2.5D island scene whose deterministic semantic timeline and reduced-motion mode reach the same honest settled hierarchy with the current Storybook and Vector art policy intact."
+title: "The shared app surface — Studio's real forest scene and persistent island-and-tree growth"
+outcome: "Studio renders its real forest through `@storytree/app-surface` and can stage one persistent 2.5D island revealing in place before its story tree enters and settles from the planted anchor, with reduced motion reaching the identical final hierarchy under the current Storybook and Vector art policy."
 status: proposed
 proof_mode: UAT
 # Mixed witness: deterministic model/view, Studio adoption, art/selector parity, semantic replay,
@@ -17,12 +17,12 @@ consumed_by: []
 decisions: [237, 93, 213, 215, 230, 70]
 ---
 
-# The shared app surface — Studio's real forest scene and persistent semantic island growth
+# The shared app surface — Studio's real forest scene and persistent island-and-tree growth
 
 **Outcome —** Studio renders its real forest through `@storytree/app-surface` and can stage a
-single persistent anchored 2.5D island scene. Ordered semantic events cue deterministic island
-reveal, contents settlement and route draw; normal and reduced motion reach the identical honest
-settled hierarchy with the current Storybook and Vector art policy intact.
+single persistent 2.5D island revealing in place before its story tree enters and settles from the
+planted anchor. Normal and reduced motion reach the identical final hierarchy with the current
+Storybook and Vector art policy intact.
 
 This story carries the landed extraction increment of `chapter2-real-app-surface-arc` plus its
 owner-directed next increment: the real Studio scene first crossed the shared package boundary,
@@ -43,7 +43,11 @@ surface through the six honest meanings:
 Those meanings no longer select independent scene snapshots. They cue the shared product timeline
 over one island-local hierarchy:
 
-`nothing → island reveal → contents settle → route draw`.
+`nothing → island reveal → story-tree entrance → story-tree settled`.
+
+The current minimum-to-green journey ends with that story tree settled. Pathways, wisps and product
+UI unrelated to the story node remain unchanged regressions; they are not choreography obligations
+for this increment.
 
 The fold is owner-directed after ADR-0192's packages-forward gate exposed the standalone-successor
 shape as false ownership: a new story could not claim either the existing `packages/app-surface`
@@ -69,18 +73,21 @@ query-gated witness host.
   and bulk CSS stay in Studio for later extraction. This story moves only the world-scene slice and
   any scene-local styling inseparable from that mapper.
 - **Motion belongs to the shared product.** The public semantic-growth view accepts one stable
-  `WorldPresentationModel`, ordered semantic events and explicit island-local anchors, delegates one
-  persistent scene to `WorldSceneView`, and loads its own app-owned motion stylesheet. Consumers
-  never select product DOM or replace `model.scene` to animate.
-- **Hierarchy and anchors stay stable.** Terrain, contents, claim/proof and route endpoints retain
-  island-local ancestry, semantic ids, painter order and settled coordinates. The route draws from
-  primary-island anchors through the existing lane renderer; no companion island is fabricated.
+  `WorldPresentationModel`, ordered semantic events and the story tree's planted anchor, delegates
+  one persistent scene to `WorldSceneView`, and loads its own app-owned motion stylesheet.
+  Consumers never select product DOM or replace `model.scene` to animate.
+- **Hierarchy and the planted anchor stay stable.** Terrain and the story tree retain island-local
+  ancestry, semantic ids, painter order and settled coordinates. The tree enters visibly from its
+  existing ground-contact anchor; no companion island is fabricated.
 - **Replay is semantic and deterministic.** Next, Back, restart and Replay fold stable semantic keys
-  into the exact `nothing → island reveal → contents settle → route draw` tracks. Time may
-  interpolate but never creates/skips a state. Claimed/presence remains distinct from proof, and
-  healthy presentation appears only last.
+  into the exact `nothing → island reveal → story-tree entrance → story-tree settled` tracks.
+  Time may interpolate but never creates/skips a state. Healthy presentation appears only last.
 - **Reduced motion preserves meaning.** `prefers-reduced-motion` removes interpolation, orbit and
-  delayed concealment while reaching the same hierarchy, states, anchors, art and route.
+  delayed concealment while reaching the same hierarchy, states, planted anchor, art and settled
+  story tree.
+- **Keep this increment on the story node.** Do not author or prove wisp motion, pathway drawing,
+  legend, inspector, chat or unrelated chrome choreography. Existing behaviour remains covered by
+  the package/Studio regression suites.
 - **Host only the witness.** Exact query flag `semanticGrowth=demo` mounts one static representative
   fixture plus Back/Next/Replay in Studio. The clean route stays unchanged; the host is not a Chapter
   2 controller, production route, live-data adapter or permanent navigation entry.
@@ -94,7 +101,7 @@ query-gated witness host.
 |---|---|---|---|
 | 1 | [`app-surface-world-view`](app-surface-world-view.md) | A deterministic typed world model/events seam and the real React scene mapper, sprite policy and existing trail/arrival selectors live in the shared package. | — |
 | 2 | [`studio-app-surface-adapter`](studio-app-surface-adapter.md) | `TreeView` folds its existing world state/actions into the shared model and mounts the shared world view while surrounding product UI stays in Studio. | `app-surface-world-view` |
-| 3 | [`semantic-growth-replay-view`](semantic-growth-replay-view.md) | The shared view folds six semantic meanings into one persistent anchored scene and deterministic reveal/settle/route timeline with equivalent reduced motion. | `studio-app-surface-adapter` |
+| 3 | [`semantic-growth-replay-view`](semantic-growth-replay-view.md) | The shared view folds six semantic meanings into one persistent scene whose island reveals before its story tree enters and settles from the planted anchor, with equivalent reduced motion. | `studio-app-surface-adapter` |
 | 4 | [`semantic-growth-studio-demo`](semantic-growth-studio-demo.md) | An explicit Studio query flag mounts one primary-island persistent-scene fixture and its controls solely to stage the operator witness. | `semantic-growth-replay-view` |
 
 Dependency graph: `app-surface-world-view → studio-app-surface-adapter →
@@ -121,7 +128,7 @@ and live actions while importing the public shared view. The real consuming edge
 
 **Goal —** Studio shows the same forest scene through the shared world package and stages one
 persistent, deterministic and reversible island-growth timeline whose reduced-motion rendering
-preserves the same honest semantic states, hierarchy, anchors and route.
+preserves the same honest semantic states, hierarchy, planted anchor and settled story tree.
 
 1. **The world presentation is deterministic and authority-free.** _(witness: machine)_
    _(proof-gate: app-surface#gate-1)_ Fold and render the same representative world fixture twice.
@@ -150,28 +157,28 @@ preserves the same honest semantic states, hierarchy, anchors and route.
    anchors/depth order, `trailRevealPlan` and `arrivalGrowPlan` match their existing behaviour.
 4. **The hosted Studio persistent scene and timeline read as one coherent product surface.**
    _(witness: human)(detail: app-surface#uat-4)_ Stand up and verify the clean forest-map deep-link plus
-   `?semanticGrowth=demo#/tree`. Walk the default Storybook scene, select a story and observe its
-   existing arrival/trail treatment; then walk forward, Back and Replay through the six semantic
+   `?semanticGrowth=demo#/tree`. Walk forward, Back and Replay through the six semantic
    meanings and the four visible tracks, sample `?semanticGrowth=demo&artStyle=vector#/tree`, and
    enable the operating-system reduced-motion setting. **Success —** the operator judges that one
-   island owns its reveal, its contents settle in place, and its route draws from that island at the
-   right moment; the original shared scene is visually unregressed; replay is coherent; reduced
-   motion is calm without losing meaning. The persistence, anchor, renderer, art and exact-state
+   island owns a legible, deliberately paced reveal and the story tree visibly enters from its
+   planted anchor before settling instead of teleporting; replay is coherent; reduced motion is
+   calm without losing the settled tree. The persistence, anchor, renderer, art and exact-state
    claims remain compiled sibling legs 2, 3 and 5–7 rather than being laundered into the human
-   judgment. Surrounding chrome is not migrated or re-attested; an agent never signs this leg.
+   judgment. Wisps, pathways and unrelated UI are not walked or re-attested; an agent never signs
+   this leg.
 5. **The semantic walk exposes exactly six honest states.** _(witness: machine)_
    _(proof-gate: app-surface#gate-3)_ Mount the public semantic-growth view with one stable model and
    six ordered semantic events, then advance from empty to healthy. **Success —** observed keys are
    exactly `empty`, `land`, `proposed`, `claimed`, `signed-proof`, `healthy`; they cue exactly
-   `nothing`, `island-reveal`, `contents-settle`, `route-draw`; claim/presence never carries
-   bloom/verdict identity and healthy presentation appears only at the terminal state. One island
-   root and its representative children retain DOM identity, hierarchy, painter order and anchors.
+   `nothing`, `island-reveal`, `story-tree-entrance`, `story-tree-settled`; healthy presentation
+   appears only at the terminal state. One island root and its terrain/story-tree children retain
+   DOM identity, hierarchy, painter order and the planted anchor.
 6. **Back, Replay and reduced motion preserve semantics.** _(witness: machine)_
    _(proof-gate: app-surface#gate-3)_ Walk backward and replay the same action trace in full and
    reduced motion. **Success —** semantic keys, timeline cues and settled output are deterministic;
    the public view itself loads the app-owned motion stylesheet; `prefers-reduced-motion` removes
-   interpolation/orbit/delayed concealment without changing semantic state, hierarchy, anchors, art
-   or final route.
+   interpolation/orbit/delayed concealment without changing semantic state, hierarchy, art, planted
+   anchor or settled story tree.
 7. **The witness deep-link is isolated from clean Studio.** _(witness: machine)_
    _(proof-gate: app-surface#gate-4)_ Exercise clean Studio and
    `?semanticGrowth=demo#/tree`. **Success —** clean Studio mounts no demo and retains its current
