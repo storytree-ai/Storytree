@@ -17,23 +17,32 @@
  * - ADR-0252 names FOUR cheap instruments and **all four now sweep** — the registry below is the seam
  *   that made each a row rather than a redesign. Chartered coverage is REPORTED on every run rather
  *   than asserted here, so this comment can never be the thing that goes stale about it.
- * - ADR-0252 D1's **warn-escalation backstop** now EXISTS, with exactly ONE line declared: an
- *   instrument that FAILED TO RUN (the sweep went blind). It reds the gate independently of the
- *   ceiling and demands the fresh-session adversarial pass. Lines keyed to a signal's AGE or to a
- *   count of declined arc-closes are NOT built — both need persisted per-signal state this
- *   deliberately-stateless sweep does not have, and a clock-keyed line would smuggle back the
- *   calendar cadence D1 rejected outright.
+ * - ADR-0252 D1's **warn-escalation backstop** EXISTS, with exactly ONE line declared: an instrument
+ *   that FAILED TO RUN (the sweep went blind). It reds the gate independently of the ceiling and
+ *   demands the fresh-session adversarial pass. The two DEFERRAL-KEYED lines — a signal's AGE, and a
+ *   count of arc-closes that declined the pass — are **decided against, not deferred** (ADR-0256): both
+ *   fire only on a record written to TRIGGER them, and a trigger-record is fail-OPEN, because the party
+ *   that must write it is the party the backstop fences. This line stays the only one because a blind
+ *   instrument is observed by the sweep, about itself, in the same run — there is no input to omit.
+ *   Do not re-open this as unbuilt work; ADR-0256 names what would change the answer.
+ *   THE RESIDUAL IS THEREFORE PERMANENT AND OWNER-FACING: the skip risk is covered for the
+ *   blind-instrument class only, and a signal that merely sits unexamined escalates nothing.
  * - `mirror-pair-drift` locates unregistered pairs; it does NOT repair any. Registering a pair means
  *   authoring a probe on each surface and a `MIRRORS` row, which is a separate increment per payload.
  * - `vacuous-proof` locates options-form-skipped tests; it repairs none, and it does NOT close the
  *   underlying gap. The one-line fix — teach ADR-0126's `analyzeObservedTests` to parse the options
  *   form — is a STORY-SHAPE call, not a code edit: it would move every contract those tests vouch for
  *   into `check:coverage`'s WARN backlog, which is a decision about the work, not about this sweep.
- * - `warn-list-hygiene` locates advisory worklists that no exit code bounds; it BOUNDS NONE. Giving one
- *   a ceiling — or establishing that a drift-shaped list cannot accumulate and needs none — is a
- *   per-check decision about that check's remedy, not an edit this sweep can make. Note the
- *   interaction it inherits: teaching `analyzeObservedTests` the options form would move contracts into
- *   `check:coverage`'s worklist, which is itself growth in the largest list this instrument locates.
+ * - `warn-list-hygiene` locates advisory worklists that no exit code bounds. ONE of the six is now
+ *   bounded — `check:graduation-worklist`, at the drain ceiling in `graduation-drain.ts` — and the
+ *   other FIVE are not. Giving one a ceiling, or establishing that a drift-shaped list cannot
+ *   accumulate and needs none, stays a per-check decision about that check's remedy, made one check
+ *   per increment against that check's REAL output; this sweep reads source and cannot see a list's
+ *   size, so it can never make the call itself. Note the interaction the remaining five inherit:
+ *   teaching `analyzeObservedTests` the options form would move contracts into `check:coverage`'s
+ *   worklist, which is itself growth in the largest list this instrument locates — so whoever bounds
+ *   `check:coverage` must account for that growth in the ceiling's recorded reason rather than set a
+ *   number the right repair would breach.
  *
  * On mirror-pair drift specifically, note the boundary ADR-0251 records: `check:mirror-conformance`
  * already proves the pairs in its `MIRRORS` registry EXACTLY, and blocks. The advisory instrument
@@ -59,6 +68,7 @@ import {
   findVacuousProof,
   findWarnListHygiene,
   formatDecaySweep,
+  requireObserved,
   runDecaySweep,
   type BoundTarget,
   type DecayInstrument,
@@ -109,8 +119,14 @@ const CEILINGS = {
    * steps `pnpm gate` runs — each printing a per-item WARN worklist that no exit code bounds. Bound a
    * worklist (a ceiling compared against its count, the `check:friction-drain` shape), or establish
    * that one cannot accumulate, and lower this number.
+   *
+   * TIGHTENED 6 → 5 on the same day: `check:graduation-worklist` was bounded at a drain ceiling
+   * (`graduation-drain.ts`), so the sweep no longer locates it. It was the right one to bound first
+   * because it is not a hypothetical — ADR-0168 D4 cites THIS queue as the measured rot that justified
+   * the friction ceiling ("grew 31→58 in one session and drained nothing"), then bounded the sibling
+   * and left this one WARN-only.
    */
-  [WARN_LIST_HYGIENE]: 6,
+  [WARN_LIST_HYGIENE]: 5,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -175,9 +191,7 @@ function loadSurfaceRoutes(source: { surface: string; dirs: readonly string[] })
       }
     }
   }
-  if (routes.size === 0) {
-    throw new Error(`${source.surface}: no /api/* dispatch found in ${source.dirs.join(", ")}`);
-  }
+  requireObserved(routes.size, `${source.surface}: no /api/* dispatch found in ${source.dirs.join(", ")}`);
   return { surface: source.surface, routes };
 }
 
@@ -290,18 +304,38 @@ function filteredPackages(command: { file: string; args: readonly string[] } | u
 /**
  * Load every unit spec's proof binding, projected to the workspace targets it names: the `real` arm's
  * test/source files, and the package each declared `pnpm` command filters. A malformed spec is
- * skipped — an advisory sweep never throws out of the gate — and a spec with no proof block names
+ * skipped — an advisory sweep never throws out of one bad file — and a spec with no proof block names
  * nothing.
+ *
+ * THROWS when it PARSED NOTHING, via {@link requireObserved}, for the reason its three sibling loaders
+ * do. This was the one loader that did not, and the gap was measured rather than reasoned: with
+ * `stories/` unenumerable the real check reported `WARN — 23 located signal(s), every instrument
+ * within its own drain ceiling`, claimed `chartered coverage: 4/4 … are sweeping`, and EXITED 0 —
+ * a smaller, greener number over an instrument that read zero specs. Blinding any GUARDED loader the
+ * same way ESCALATED and exited 1.
+ *
+ * THE THRESHOLD IS PARSED SPECS, and the two neighbouring quantities are deliberately not it:
+ *
+ * - NOT the count of spec FILES. Files that all fail `loadNodeSpec` — the frontmatter-schema-change
+ *   case — mean the instrument opened everything and understood none of it. It observed nothing.
+ * - NOT the count of BINDINGS. A corpus whose specs parse but declare no proof blocks was fully
+ *   observed and genuinely has nothing to judge; redding there would fire on a healthy repo, which is
+ *   how an escalation stops being a backstop.
+ *
+ * Zero parsed covers both blind cases at once (no files ⇒ none parsed) while admitting the healthy one.
  */
 function loadProofBindings(storiesDir: string, root: string): ProofBinding[] {
   const bindings: ProofBinding[] = [];
-  for (const file of walkSpecFiles(storiesDir)) {
+  const specFiles = walkSpecFiles(storiesDir);
+  let parsed = 0;
+  for (const file of specFiles) {
     let spec: ReturnType<typeof loadNodeSpec>;
     try {
       spec = loadNodeSpec(file);
     } catch {
       continue;
     }
+    parsed++;
     const cfg = spec.buildConfig;
     if (cfg === undefined) continue;
 
@@ -326,6 +360,11 @@ function loadProofBindings(storiesDir: string, root: string): ProofBinding[] {
       targets,
     });
   }
+  requireObserved(
+    parsed,
+    `no unit spec parsed under ${path.relative(root, storiesDir).replace(/\\/g, "/") || storiesDir} ` +
+      `(${specFiles.length} spec file(s) found)`,
+  );
   return bindings;
 }
 
@@ -377,9 +416,7 @@ function loadTestFileFacts(root: string): TestFileFacts[] {
       facts.push({ path: rel, optionsSkipped, vouching: new Set(extractVouchingTestNames(source)) });
     }
   }
-  if (facts.length === 0) {
-    throw new Error(`no test files found under ${TEST_ROOT_DIRS.join(", ")}`);
-  }
+  requireObserved(facts.length, `no test files found under ${TEST_ROOT_DIRS.join(", ")}`);
   return facts;
 }
 
@@ -441,7 +478,7 @@ function loadGateChecks(root: string): GateCheckFacts[] {
   if (gate === undefined) throw new Error("the root package.json declares no `gate` script");
 
   const names = [...new Set([...gate.matchAll(GATE_CHECK)].map((m) => m[1]).filter((n) => n !== undefined))];
-  if (names.length === 0) throw new Error("the `gate` script runs no `check:*` steps");
+  requireObserved(names.length, "the `gate` script runs no `check:*` steps");
 
   const checks: GateCheckFacts[] = [];
   for (const script of names) {

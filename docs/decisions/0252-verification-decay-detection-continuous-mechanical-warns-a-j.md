@@ -204,6 +204,23 @@ pass, are **NOT built**: both need persisted per-signal state this deliberately-
 not have. The residual is therefore real and worth stating plainly — the skip risk is covered for the
 blind-instrument class only, and a signal that merely sits unexamined still escalates nothing.
 
+**Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+the two unbuilt lines above are a fork now TAKEN, not work still pending — read
+[ADR-0256](0256-deferral-keyed-escalation-lines-are-not-built-a-backstop-s-t.md) before treating them
+as a backlog.** The facts above are unchanged and remain true: the backstop still declares exactly one
+line, and the age-keyed and decline-count-keyed lines are still not built. What is corrected is the
+*reading* the words "partly built" and "**NOT built**" invite — that the remaining two are queued
+implementation. They were carried forward unchanged across four increments (#955, #956, #963, #965) on
+exactly that reading. ADR-0256 settles the fork, and settles it **against** building either: the
+deciding property is the DIRECTION of the record — a record written to CLEAR a condition is fail-closed,
+one written to TRIGGER a condition is fail-OPEN, and both candidates need a trigger-record written by
+the party the backstop fences — so they are not expensive, they are structurally incapable of being
+backstops. **Nothing in this ADR is re-decided**: ADR-0256 takes a decision this section explicitly
+declined to take, which is why its edge is `amends` and not `supersedes`. Note it is `proposed`, so the
+fork is settled *pending owner ratification*; the consequence it makes explicit is that this section's
+stated residual becomes **permanent and owner-facing** rather than pending, which is why it is the
+owner's to ratify.
+
 **Unblocks.** This was the last named blocker on the `verification-integrity-arc`'s close. What
 remained *at decision time* was implementation only — the process artifact, the cheap checks, the
 ceiling, and the three-or-four durable guardrails still held for the `guidance-curator`. The CURRENT

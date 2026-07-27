@@ -43,6 +43,15 @@
  * This is NOT a calendar cadence. ADR-0252 D1 rejected all three offered (monthly-or-arc-close,
  * monthly, arc-close-unconditionally), so the line is a property of the SIGNAL, never of the clock.
  *
+ * AND THERE IS EXACTLY ONE LINE ON PURPOSE (ADR-0256). The two deferral-keyed lines D1 left open — a
+ * signal's AGE, and a count of arc-closes that declined the pass — are decided AGAINST rather than
+ * deferred. Both fire only on a persisted record written to TRIGGER them, and the direction is what
+ * decides it: a record written to CLEAR a condition is fail-closed (omit it and the gate stays red),
+ * while a record written to TRIGGER one is fail-OPEN (omit it and it never fires) — and the party who
+ * would write it is the party the backstop fences. The blind-instrument line has no such input: it is
+ * observed by the sweep, about itself, in the same run, so there is nothing to omit. The residual is
+ * permanent and stated plainly in ADR-0256: a signal that merely sits unexamined escalates nothing.
+ *
  * And escalating is not adjudicating: *a metric threshold is never itself a finding* still holds in
  * full. An escalation asserts an obligation to LOOK, never that a defect exists — the same shape D3's
  * ceiling already has, pointed at a different failure.
@@ -115,6 +124,46 @@ export interface DecayInstrument {
    * findings should not carry one.
    */
   run: () => DecayFinding[];
+}
+
+/**
+ * PURE: assert that a fact loader actually OBSERVED something, and throw — loudly, into
+ * {@link runDecaySweep}'s escalation path — when it did not.
+ *
+ * THE RULE IT NAMES: **an empty enumeration is a BLIND instrument, never a clean one.** Every
+ * instrument here judges facts that a loader enumerated from disk, and every one of them is
+ * subtractive: findings can only come from facts. So a loader that returns nothing produces zero
+ * findings, and zero findings is exactly what a healthy repo produces. The two are indistinguishable
+ * at the point where it matters, and the sweep's own report resolves the ambiguity the wrong way —
+ * it prints a SMALLER located count, "every instrument within its own drain ceiling", "chartered
+ * coverage 4/4 … are sweeping", and exits 0. A broken enumeration reads as a cleaner repo.
+ *
+ * WHY THIS IS A NAMED HELPER AND NOT A FOURTH HAND-WRITTEN `if`. It was three hand-written ones, and
+ * the fourth was missing: `loadProofBindings` had no guard while `loadSurfaceRoutes`,
+ * `loadTestFileFacts`, and `loadGateChecks` all had theirs. Measured on the pre-change code by
+ * blinding each loader in turn against the REAL check — same failure, opposite verdicts:
+ *
+ * - blinding a GUARDED loader → `ESCALATED — 1 signal(s) past the escalation line`, exit 1.
+ * - blinding `loadProofBindings` → `WARN — 23 located signal(s), every instrument within its own
+ *   drain ceiling`, `chartered coverage: 4/4 … are sweeping`, exit **0** — with
+ *   `contract-binding-drift` having read zero specs, and its whole section absent from the report.
+ *
+ * That is the can-never-go-red class this arc exists to fence, occurring inside the backstop built to
+ * fence it — and it was invisible precisely because the guard was a convention repeated at each site
+ * rather than a rule with a name. It is still a convention (nothing MECHANICALLY forces a new loader
+ * to call this), which is stated rather than glossed; what changes is that the rule now has one
+ * spelling, one place to read why, and a visible absence.
+ *
+ * COUNT WHAT WAS OBSERVED, NOT WHAT WAS FOUND. `observed` is the size of the ENUMERATION — spec files
+ * parsed, routes dispatched, test files read — never the number of findings. An instrument that read
+ * 400 specs and found nothing wrong is healthy and must stay silent; only one that read nothing at all
+ * has proved nothing. Passing a finding count here would red the gate on exactly the repo state the
+ * sweep exists to certify.
+ */
+export function requireObserved(observed: number, what: string): void {
+  if (observed === 0) {
+    throw new Error(`${what} — the enumeration observed nothing, so this instrument proved nothing`);
+  }
 }
 
 /**

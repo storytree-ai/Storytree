@@ -156,9 +156,13 @@ stale-spec trap gains a mechanical gate.
 
 **Paid / accepted knowingly.**
 
-- **Remote (web/VM) sessions cannot read or write plans** — the 3307 egress block (ADR-0063)
-  applies to all live-store data. Planning and plan-consumption are local-session activities; this
-  is a stated property, not an outage.
+- **Remote (web/VM) sessions cannot read or write plans** — the remote-session fence applies to all
+  live-store data. *(Correction, 2026-07-27 per ADR-0139: this read "the 3307 egress block
+  (ADR-0063)". The conclusion stands, the mechanism was wrong — [ADR-0250](0250-remote-sessions-are-offline-only-the-fence-is-tls-re-termina.md)
+  measured that the proxy CONNECT-tunnels arbitrary ports and the real fence is TLS re-termination
+  plus a policy that excludes client-mTLS / raw-TCP databases. Naming a port sent sessions down
+  port-shaped dead ends.)* Planning and plan-consumption are local-session activities; this is a
+  stated property, not an outage.
 - Plans do not survive outside the DB (no git history, no seed). Disposable by design; the arc's
   increment log is the durable record.
 - Two new kinds to model (KIND_SPECS + schemas + renderer + studio), plus the ephemeral-class
