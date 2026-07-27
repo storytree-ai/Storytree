@@ -9,7 +9,7 @@ uat_witness: machine
 arc: linked-session-context-arc
 depends_on: [context-traversal-telemetry, context-traversal-capture]
 consumed_by: [cli]
-decisions: [235, 241, 192]
+decisions: [235, 241, 243, 192]
 capabilities: [leaf-slice-spawn-observations, build-spawn-capture, multi-adapter-replay]
 ---
 
@@ -127,7 +127,8 @@ other.
 **Goal —** Prove that one build's spawned authoring slices become linked parent/child lanes that
 persist as bytes, carry metadata only, keep the child's window honest by carrying exactly the
 capacity the runtime declared and nothing when it declared none, and replay under a coverage
-statement that admits what it does not observe.
+statement that admits what it does not observe — and that the boundary those lanes come from is
+actually WIRED: a build CALLS an installed observer, rather than a seam nothing composes.
 
 1. **One authoring slice becomes a linked parent/child lane triple.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Observe one
    build authoring slice's run accounting through the story-owned observer. **Success —** exactly
@@ -176,6 +177,23 @@ statement that admits what it does not observe.
    or omitted — declaring `field:context_window_capacity` SUPPORTED (coverage states what the adapter
    CAN observe, not what any one trace happens to contain) and `field:candidate_follow_causality`
    explicitly OMITTED; and a corrupt line yields a partial-read notice instead of a throw.
+6. **A build's spawn boundary actually reaches an installed observer.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-2)_ Drive an
+   offline `--real` build chain with a canned live author supplied through the `liveAuthorOverride`
+   accounting seam (ADR-0243 D1) and a spy observer installed at drive's `onLeafSlices` opt.
+   **Success —** the observer is CALLED — once per built node, carrying that node's own unit id and
+   run accounting deep-equal to the canned per-slice entries that went in — so a seam nothing
+   composes, a passthrough that drops the option, and one that synthesises accounting of its own
+   each go RED rather than passing silently; with the option omitted the observer stays silent, so
+   the pre-ADR-0243 status quo is the falsifier for a passthrough that fabricates a `LiveAuthor`;
+   and the canned accounting buys reachability and NO authority — the same rosy accounting yields a
+   PASS against a passing implementation and a HALT/FAIL against a failing one, and it dies in the
+   injected in-memory store rather than reaching `events.usage_event` or `events.verdict`
+   (ADR-0243 D3/D4). **No operator attestation is taken for this leg and none is offered:** the
+   condition has a compiler and now has a harness, so a signature here would be spent on a harness
+   gap, which `human-witness-is-a-judgment-gap-not-cost` refuses (ADR-0243 D2). Its limitation is
+   named rather than papered (ADR-0243 D5) — a canned `LiveAuthor` is a FIXTURE and fixtures drift:
+   this leg proves the CALL happens; that a real SDK run still produces the assumed shape stays
+   covered by the compile-time `keyof ModelUsage` pin plus any real build the owner runs.
 
 ## Evidence
 
@@ -198,21 +216,29 @@ package's capture and swaps the replay (`packages/cli/src/commands.ts`,
 `packages/cli/src/traversal.ts`, `packages/cli/package.json`) — are un-asserted connective glue
 (ADR-0158) in another story's building: declared as a consumed-by edge and reviewed in the diff,
 never claimed as this story's evidence. **The one-off confirmation that a real
-`node build --real` emits these lanes end to end is NOT a UAT leg of this story** — see "Explicitly
-outside this increment": it is escalated to the owner, unsigned, alongside the open design fork about
-how a boundary that only emits under live subscription spend can earn a machine leg at all
-(ADR-0243, `proposed`).
+`node build --real` writes these lanes end to end is still NOT a UAT leg of this story** — see
+"Explicitly outside this increment" for exactly what remains outside and why.
+
+Leg 6 is the one exception, and it is deliberately narrower than that: it asserts that a build's
+spawn boundary CALLS an installed observer with the build's own per-slice run accounting, not that
+bytes appear at the end of a live run. Its evidence is another package's suite —
+`pnpm --filter @storytree/drive test`, story `drive-machinery`'s capability
+`leaf-slices-observer-activation` (`packages/drive/src/leaf-slices-activation.test.ts`) — reached
+through Reliability Gate 2 below rather than through an import this story is structurally forbidden
+to declare. That leg exists because ADR-0243 (accepted 2026-07-27) decided the `liveAuthorOverride`
+accounting seam; before it the same question had no harness and was escalated to the owner unsigned.
 
 ## Reliability Gates
 
-Every UAT leg above is `witness: machine`, and each is bound to `context-traversal-spawn#gate-1` by
-an explicit `_(proof-gate: …)_` annotation — the binding the resolver looks up VERBATIM, with no
-first-observe fallback and no inference from ordering. The gate is what makes those legs
-machine-provable at all: without it a machine leg has no command to resolve to, refuses operator
+Every UAT leg above is `witness: machine`, and each is bound to its gate by an explicit
+`_(proof-gate: …)_` annotation — legs 1–5 to `context-traversal-spawn#gate-1`, leg 6 to
+`context-traversal-spawn#gate-2` — the binding the resolver looks up VERBATIM, with no first-observe
+fallback and no inference from ordering. The gates are what make those legs
+machine-provable at all: without one a machine leg has no command to resolve to, refuses operator
 attestation (ADR-0082 d.2), and the story's UAT can never green. Increment 2 of this arc lost a whole
 cycle to exactly that omission; this section is the fix, authored up front rather than retrofitted.
 
-The gate carries NO `(covers:)` list, deliberately. All three capabilities are driven red→green by
+Neither gate carries a `(covers:)` list, deliberately. All three capabilities are driven red→green by
 the spine and earn their own signed `--real` verdicts; a coverage list here would let an adopt pass
 green a capability that never went red, which is the inverse theater ADR-0085 / ADR-0097 ban.
 
@@ -227,18 +253,64 @@ green a capability that never went red, which is the inverse theater ADR-0085 / 
    honestly unknown for an event that carries none) — all offline, no DB and no API key —
    then signs an `adopted` verdict (`storytree adopt context-traversal-spawn --pg`, which
    observe-and-signs this gate and the five legs bound to it).
+2. **A build's spawn boundary actually calls the observer** _(gate: observe)_
+   `pnpm --filter @storytree/drive test`. The machine witness for UAT leg 6 — and the one gate here
+   whose command runs ANOTHER package's suite. That is structural, not an oversight, and the next
+   reader must not "fix" it: **`packages/context-traversal-spawn` may not import
+   `@storytree/drive`.** The import would close the cycle
+   `drive-machinery → context-traversal-spawn → context-traversal-capture →
+   context-traversal-telemetry → drive-machinery`, which `check:boundaries` refuses and which the
+   *Declared boundaries* section above sets out at length. So the activation proof lives where the
+   composition site lives — `packages/drive`, story `drive-machinery`'s capability
+   `leaf-slices-observer-activation` (`packages/drive/src/leaf-slices-activation.test.ts`) — with a
+   SPY observer and ZERO traversal import, reachable offline only because ADR-0243 D1's
+   `liveAuthorOverride` accounting seam populates the `liveAuthor` that composition site reads.
+   This gate is how a cycle-free leg still reaches THIS story's UAT: the leg binds by its
+   `_(proof-gate: …)_` annotation, which needs no dependency edge, so the proof arrives without the
+   `depends_on: [drive-machinery]` that would re-close the loop. A gate whose command runs another
+   package's suite has precedent in `drive-machinery`'s own gates 4–7. The spine observes it green
+   at a clean committed HEAD — no DB, no API key, no model, no subscription spend — then signs an
+   `adopted` verdict (`storytree adopt context-traversal-spawn --pg`, which observe-and-signs this
+   gate and the one leg bound to it). It carries NO `(covers:)` list: it exists for leg 6 alone, and
+   a covers-entry would let an adopt pass green a capability that never went red (ADR-0085 /
+   ADR-0097). `leaf-slices-observer-activation` is `drive-machinery`'s capability and earns its own
+   signed `--real` verdict there — this story observes that suite, it does not adopt that capability.
 
 ## Explicitly outside this increment
 
-- **The live activation witness.** Confirming that a real `node build --real` / `story build --real`
-  writes these lanes is an owner-facing escalation, not a leg of this story: `resolveProveSpec` does
-  not set `liveAuthor` for an author override, so no offline drive test can exercise the glue end to
-  end, and the boundary emits only under live subscription spend. It is neither machine-provable in
-  CI today nor a judgment gap, so it is NOT labelled a human leg to stand in for a missing harness
-  (`human-witness-is-a-judgment-gap-not-cost`). The open design fork — how an adapter whose emission
-  requires live spend earns its activation leg (injected seam, operator attestation, or recorded
-  fixture) — is reserved as ADR-0243, deliberately `proposed` and awaiting the owner. It is not
-  settled here, and `decisions:` above lists only the ADRs that DECIDE this story.
+- **The live activation witness — now narrowed by ADR-0243, no longer an open fork.** ADR-0243 is
+  **accepted** (2026-07-27), and its correction 2 falsified the reachability claim this bullet used
+  to rest on. `resolveProveSpec`'s `else`-branch was the only obstacle: the agent's constructor is
+  the SOLE PRODUCER of a `LiveAuthor`, not a requirement of the observer, which reads plain data
+  (turns, tokens, model) and never asks who produced it. So the activation IS machine-proven, at the
+  DRIVE seam, by story `drive-machinery`'s capability `leaf-slices-observer-activation`
+  (`packages/drive/src/leaf-slices-activation.test.ts`) through the `liveAuthorOverride` accounting
+  seam ADR-0243 D1 decided — that is UAT leg 6 above, bound to gate 2. Three named things stay
+  outside this story, and nothing beyond them:
+  - **(a) The CLI's ONE injection line.** `onLeafSlices: captureBuildLeafSlices` in
+    `nodeStoryBuildOpts` (`packages/cli/src/commands.ts:1454`) — un-asserted connective glue
+    (ADR-0158) in the CLI's own building, reviewed in the diff and claimed by no capability.
+  - **(b) The end-to-end BYTES assertion,** deferred with its reason stated rather than hidden:
+    bytes-from-run-accounting is ALREADY proven red→green on signed `--real` verdicts by this
+    story's own `build-spawn-capture` (UAT legs 2 and 3 LIST the trace directory and read the file
+    contents back), and the only package that may legally compose drive with the spawn adapter is
+    `packages/cli`, where the composing code already exists — a capability over it would need a
+    vacuous source or a manufactured red, and both are worse than a named gap.
+  - **(c) Two sibling composition sites.** `packages/drive/src/node-build.ts:1204` (inside
+    `runNodeBuild`, offline-unreachable without materially enlarging `NodeBuildOpts`) and
+    `packages/drive/src/story-build.ts:737` (the live-smoke arm, which needs a real leaf). Both are
+    fed by the SAME single object literal as (a) — that single-sourcing is what bounds the residual
+    to one reviewed line rather than a class of failure.
+
+  ADR-0243 D5's limitation is kept visible rather than papered: a canned `LiveAuthor` is a FIXTURE
+  and fixtures drift. Leg 6 proves the CALL happens; that a real SDK run still produces the assumed
+  shape stays covered by the compile-time `keyof ModelUsage` pin plus any real build the owner runs.
+  No operator attestation is offered for any of this (ADR-0243 D2): with the harness closed, a
+  signature would be spent on nothing a person must judge
+  (`human-witness-is-a-judgment-gap-not-cost`). ADR-0243 is now listed in `decisions:` above for
+  this reason and no other: it governs the ACTIVATION, but the activation is now one of THIS story's
+  acceptance criteria — leg 6 exists, is `machine`, and takes no operator signature because
+  ADR-0243 decided each of those three things. Nothing else in this story turns on it.
 - Any context-window capacity lookup table, default capacity, model-id → capacity map, or estimate,
   in any layer. The ban is unchanged; only its justification is corrected. This boundary DOES declare
   a window size — the leaf's per-slice run accounting carries a runtime-declared context window — so
