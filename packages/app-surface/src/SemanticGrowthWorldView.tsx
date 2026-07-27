@@ -87,6 +87,74 @@ function withoutOrbit(node: SceneNode): SceneNode {
   } as SceneNode;
 }
 
+function anchoredTransform(
+  point: SemanticGrowthPoint,
+  parent: SemanticGrowthPoint,
+): string {
+  return `translate(${(point.x - parent.x).toFixed(3)} ${(point.y - parent.y).toFixed(3)})`;
+}
+
+/**
+ * Bind the shared renderer's existing semantic bodies to the island-local anchors. This is one
+ * deterministic scene rewrite performed before rendering: it neither creates another renderer
+ * nor changes with the timeline cursor.
+ */
+function withSemanticAnchors(
+  node: SceneNode,
+  anchors: SemanticGrowthAnchors,
+  parent: SemanticGrowthPoint = { x: 0, y: 0 },
+  sceneRoot = true,
+): SceneNode {
+  if (node.el !== 'g') return node;
+  const parsed = sceneRoot ? null : parseSimpleTransform(node.transform);
+  const own = {
+    x: parent.x + (parsed?.tx ?? 0),
+    y: parent.y + (parsed?.ty ?? 0),
+  };
+
+  if (node.kind === 'tree') {
+    const anchored = { ...node, transform: anchoredTransform(anchors.contents, parent) };
+    return {
+      ...anchored,
+      children: anchored.children.map((child) =>
+        withSemanticAnchors(child, anchors, anchors.contents, false)),
+    } as SceneNode;
+  }
+
+  if (node.kind === 'bloom-anchor') {
+    const anchored = { ...node, transform: anchoredTransform(anchors.proof, parent) };
+    return {
+      ...anchored,
+      children: anchored.children.map((child) =>
+        withSemanticAnchors(child, anchors, anchors.proof, false)),
+    } as SceneNode;
+  }
+
+  if (node.kind === 'claim-wisp') {
+    const { phase: _phase, ...stationary } = node;
+    let bodyAnchored = false;
+    return {
+      ...stationary,
+      children: node.children.map((child) => {
+        if (!bodyAnchored && child.el === 'g') {
+          bodyAnchored = true;
+          return {
+            ...child,
+            transform: anchoredTransform(anchors.claim, own),
+          } as SceneNode;
+        }
+        return withSemanticAnchors(child, anchors, own, false);
+      }),
+    } as SceneNode;
+  }
+
+  return {
+    ...node,
+    children: node.children.map((child) =>
+      withSemanticAnchors(child, anchors, own, false)),
+  } as SceneNode;
+}
+
 function browserPrefersReducedMotion(): boolean {
   return typeof window !== 'undefined'
     && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -160,13 +228,17 @@ export function SemanticGrowthWorldView({
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
   const event = semanticEvents[cursor]!;
   const track = trackFor(event.key);
+  const anchoredScene = React.useMemo(
+    () => withSemanticAnchors(sourceModel.scene, anchors),
+    [sourceModel.scene, anchors],
+  );
   const model = React.useMemo<WorldPresentationModel>(
     () => ({
       ...sourceModel,
-      scene: reduce ? withoutOrbit(sourceModel.scene) : sourceModel.scene,
+      scene: reduce ? withoutOrbit(anchoredScene) : anchoredScene,
       laneMotion: track === 'route-draw' && !reduce ? 'draw' : 'none',
     }),
-    [sourceModel, reduce, track],
+    [sourceModel, anchoredScene, reduce, track],
   );
   const viewBox = React.useMemo(() => representativeViewBox(sourceModel), [sourceModel]);
   const islandRef = React.useRef<SVGGElement>(null);

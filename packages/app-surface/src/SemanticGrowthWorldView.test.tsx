@@ -266,6 +266,13 @@ describe('SemanticGrowthWorldView', () => {
 
     expect(model.scene).toBe(model.scene);
     expect(anchorElements.size).toBe(6);
+    expect(held.claim.querySelector('animateTransform')).toBeNull();
+    expect(held.claim.querySelector('g')?.getAttribute('transform')).toBe(
+      'translate(8.000 -9.000)',
+    );
+    expect(
+      held.proof.parentElement?.getAttribute('transform'),
+    ).toBe('translate(0.000 -10.000)');
     expect(
       [...anchorElements.entries()].map(([name, anchor]) => ({
         name,
@@ -322,6 +329,12 @@ describe('SemanticGrowthWorldView', () => {
       />,
     );
     const held = persistentElements(view.container);
+    const statusSubline = view.container.querySelector('.world-plate-sub');
+    expect(statusSubline).toBeTruthy();
+    const persistentScene = view.container.querySelector(
+      '[data-semantic-growth-island] > :not(.semantic-growth-anchors)',
+    );
+    expect(persistentScene).toBeTruthy();
     const track = (): string | null =>
       view.container
         .querySelector('[data-semantic-growth-track]')
@@ -332,6 +345,7 @@ describe('SemanticGrowthWorldView', () => {
     };
 
     expect(track()).toBe('nothing');
+    expect(hidden(persistentScene!)).toBe(true);
     expect(hidden(held.terrain)).toBe(true);
     expect(hidden(held.contents)).toBe(true);
     expect(hidden(held.claim)).toBe(true);
@@ -340,6 +354,7 @@ describe('SemanticGrowthWorldView', () => {
 
     fireEvent.click(view.getByRole('button', { name: 'Next' }));
     expect(track()).toBe('island-reveal');
+    expect(hidden(persistentScene!)).toBe(false);
     expect(hidden(held.terrain)).toBe(false);
     expect(hidden(held.contents)).toBe(true);
     expect(hidden(held.route)).toBe(true);
@@ -354,11 +369,13 @@ describe('SemanticGrowthWorldView', () => {
       expect(track()).toBe('contents-settle');
       expect(hidden(held.terrain)).toBe(false);
       expect(hidden(held.contents)).toBe(false);
+      expect(hidden(statusSubline!)).toBe(true);
       expect(hidden(held.route)).toBe(true);
     }
 
     fireEvent.click(view.getByRole('button', { name: 'Next' }));
     expect(track()).toBe('route-draw');
+    expect(hidden(statusSubline!)).toBe(false);
     expect(hidden(held.route)).toBe(false);
     expect(held.route.classList.contains('is-drawing')).toBe(true);
     expect(held.route.getAttribute('d')).toBe(

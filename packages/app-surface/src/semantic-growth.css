@@ -81,6 +81,12 @@
 
 /* The scene graph is persistent from the first event. These rules reveal its existing semantic
  * roles in place; they never remove groups or substitute a frame-specific scene. */
+[data-semantic-growth-track='nothing'] [data-semantic-growth-island] > :not(.semantic-growth-anchors) {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none;
+}
+
 [data-semantic-growth-frame='empty'] .coast-fill-group,
 [data-semantic-growth-frame='empty'] .relaxed-tile,
 [data-semantic-growth-frame='empty'] .hex-tile,
@@ -126,6 +132,13 @@
   pointer-events: none;
 }
 
+[data-semantic-growth-frame='proposed'] .world-plate-sub,
+[data-semantic-growth-frame='claimed'] .world-plate-sub,
+[data-semantic-growth-frame='signed-proof'] .world-plate-sub {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
 [data-semantic-growth-track='island-reveal'] .coast-fill-group,
 [data-semantic-growth-track='island-reveal'] .relaxed-tile,
 [data-semantic-growth-track='island-reveal'] .hex-tile,
@@ -141,6 +154,7 @@
 [data-semantic-growth-track='route-draw'] .story-tree,
 [data-semantic-growth-track='route-draw'] .garden-flora,
 [data-semantic-growth-track='route-draw'] .world-plate,
+[data-semantic-growth-track='route-draw'] .world-plate-sub,
 [data-semantic-growth-track='route-draw'] .world-claim-wisp,
 [data-semantic-growth-track='route-draw'] .world-bloom,
 [data-semantic-growth-track='route-draw'] .trail-lane,
