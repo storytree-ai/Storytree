@@ -66,10 +66,20 @@ free text (ADR-0235 clause 6, enforced on bytes by ADR-0241 D4).
 **Observation is success-only.** `ok: false` emits zero events, so a refused or failed command never
 appears as a read that happened.
 
-**No causality at this boundary.** No emitted event carries `parentVisitId`, `priorVisitId`, or
-`followedEdgeId`. Two commands in sequence are two independent forward visits; a revisit is a new
-forward visit, not a backward jump (ADR-0235 clause 2/3). Canonical `nodeId` stays separate from the
-chronological `visitId` supplied by `nextVisitId`.
+**No causality in THIS PURE OBSERVER.** No event `observeCliInvocation` emits carries `parentVisitId`,
+`priorVisitId`, or `followedEdgeId`. Two commands in sequence are two independent forward visits; a
+revisit is a new forward visit, not a backward jump (ADR-0235 clause 2/3). Canonical `nodeId` stays
+separate from the chronological `visitId` supplied by `nextVisitId`.
+
+> Scoped 2026-07-27 (a correction to this paragraph's reach, not to any contract below). Read
+> boundary-wide, the sentence above is now false: later increments COMPOSE onto this observer, and
+> what the terminal boundary writes to disk carries two of those fields — `priorVisitId` from
+> `revisit-links.ts` and `parentVisitId` from `descend-agent-refs.ts`, both under the same adapter id
+> `terminal-cli-dispatch`. This capability's own claim is unchanged and still true: the BARE argv
+> observer infers nothing from ordering, adjacency, or timestamps, and its base coverage constant
+> honestly declares both fields omitted. The composed declaration is the honest one for anything the
+> CLI actually renders (`AGENT_DESCENT_COVERAGE`; see `terminal-capture.ts`'s `showTraversalSession`).
+> Do not "fix" `observe-cli.ts` or its green test to match — the layering is deliberate.
 
 **Coverage stays exhaustive and honest.** `CoverageFeature` is a closed enum whose validator refuses
 any feature that is neither supported nor omitted — that exhaustiveness check is what makes a
