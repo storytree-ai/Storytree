@@ -210,8 +210,22 @@ export interface RealResolveOptions extends BaseResolveOptions {
   /**
    * Injected leaf for OFFLINE wiring tests (a scripted {@link OwnedLoopAuthor}); defaults to the
    * live {@link ClaudeAgentAuthor}. The executor seam (ADR-0030 §2), used as the test seam here.
+   * Deliberately leaves `liveAuthor` unset on the resolved result: an override is not a live leaf,
+   * so no cost/violation reporting and no usage accounting is claimed for it (D6).
    */
   authorOverride?: PhaseAuthor;
+  /**
+   * ADR-0243 D1 — the accounting-only widening: a canned {@link LiveAuthor} (a genuine
+   * `ClaudeAgentAuthor`/`CodexPhaseAuthor` with test-pushed `SdkRunInfo` entries, never actually
+   * driven) returned as `result.liveAuthor` alongside an `authorOverride` authoring leaf, so an
+   * offline caller can exercise the accounting path (cost/violation reporting) without a real live
+   * leaf ever authoring anything. Meaningless without `authorOverride` (there is no override
+   * authoring leaf for this accounting to ride alongside) and refused fail-closed when supplied
+   * alone. This is a TEST-INJECTION seam with NO argv surface — no CLI flag, no env var reaches it,
+   * so together with the in-memory store every offline caller uses, this is where ADR-0243 D4's
+   * fence lives on the real path.
+   */
+  liveAuthorOverride?: LiveAuthor;
   /**
    * DB-backed proof env (ADR-0064): the spine-supplied env the worktree proof spawns with when the
    * node declares `real.db: true` — at minimum a `STORYTREE_DB_NAME` pointing at a DISPOSABLE test
@@ -484,10 +498,26 @@ function resolveReal(
       : undefined;
   const feedbackCommands = feedbackCommandsFor(realProofCmd, proofDisplay, typecheckCmd);
 
+  // ADR-0243 D1: liveAuthorOverride is meaningless without an authorOverride authoring leaf — it
+  // would silently claim a live leaf ran when nothing did. Refused fail-closed, naming both option
+  // names literally, before any leaf construction happens.
+  if (opts.liveAuthorOverride !== undefined && opts.authorOverride === undefined) {
+    return {
+      ok: false,
+      reason:
+        `node "${spec.id}": liveAuthorOverride was supplied without authorOverride — ` +
+        `liveAuthorOverride is a test-only accounting widening for an overridden authoring leaf; ` +
+        `supplying it alone would silently claim a live leaf ran. Supply authorOverride alongside ` +
+        `liveAuthorOverride, or omit liveAuthorOverride.`,
+      registered: realBuildableNodeIds(),
+    };
+  }
+
   let author: PhaseAuthor;
   let liveAuthor: LiveAuthor | undefined;
   if (opts.authorOverride !== undefined) {
     author = opts.authorOverride;
+    liveAuthor = opts.liveAuthorOverride;
   } else {
     if ((opts.runtime ?? "claude") === "codex") {
       if (opts.maxBudgetUsd !== undefined) {
