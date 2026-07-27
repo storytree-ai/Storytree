@@ -140,6 +140,16 @@ uncertainty and every ADR-0241 honesty rule intact.
    `STORYTREE_TRAVERSAL=off`, and again with no resolvable session identity. **Success —** no trace
    file is created in either run, and each command's envelope and exit code are byte-identical to the
    same command run with capture entirely absent.
+6. **A real `agents` render writes a depth, not a flat column.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real
+   CLI binary (`node packages/cli/launch.mjs agents <a-real-agent-id>`) into a fresh temporary
+   directory, offline and without `--pg`, then spawn `traversal show <sessionId>` against the same
+   directory. **Success —** the replay's FIRST event is a `full_payload_read` of that agent carrying
+   NO `parentVisitId` key at all, followed by at least one `front_matter_read` whose `parentVisitId`
+   equals that agent visit's `visitId`; the rendered body names the child's parent link; and the
+   rendered coverage block shows `field:parent_visit_id` under `supported` and NOT under `omitted`.
+   The pure capability proves the descent over caller-supplied events, which is strictly weaker than
+   "the real CLI, spawned, writes a parent-linked child visit and renders it" — this leg closes that
+   gap at a boundary where spawning is free.
 
 ## Evidence
 

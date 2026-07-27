@@ -204,12 +204,24 @@ test("each-resolved-ref-becomes-a-front-matter-child-naming-the-agent-visit-as-p
   const [parentBack, firstChildRaw, secondChildRaw] = result;
   const parentEvent = expectVisit(parentBack, "parent passthrough");
   assert.equal(parentEvent.visitId, "visit-agent");
+  // the parent comes back UNCHANGED: same read strength, and no parent link stamped onto it. The
+  // absence claim is made on the JSON round-trip, because that is the shape the sink writes — an
+  // in-memory `undefined` would satisfy a key-presence check while still serialising the key away.
+  assert.equal(parentEvent.kind, "full_payload_read");
+  const parentOnDisk: unknown = JSON.parse(JSON.stringify(parentEvent));
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(parentOnDisk, "parentVisitId"),
+    false,
+    "the agent's own visit must carry no parentVisitId key at all",
+  );
 
   const one = expectVisit(firstChildRaw, "first child");
   assert.equal(one.kind, "front_matter_read");
   assert.equal(one.nodeId, "rule-1");
   assert.equal(one.sessionId, "session-a");
   assert.equal(one.parentVisitId, "visit-agent");
+  // a child was read THROUGH the agents surface, so it reports that surface and not "unknown".
+  assert.equal(one.surfaceId, "agents");
   assertParses(one);
 
   const two = expectVisit(secondChildRaw, "second child");
@@ -217,8 +229,35 @@ test("each-resolved-ref-becomes-a-front-matter-child-naming-the-agent-visit-as-p
   assert.equal(two.nodeId, "rule-2");
   assert.equal(two.sessionId, "session-a");
   assert.equal(two.parentVisitId, "visit-agent");
+  assert.equal(two.surfaceId, "agents");
   assert.notEqual(two.visitId, one.visitId);
   assertParses(two);
+});
+
+test("each-resolved-ref-becomes-a-front-matter-child-naming-the-agent-visit-as-parent: the parent is found by SURFACE, not by being the first visit", () => {
+  // The agent visit is identified by `surfaceId === "agents"`, never by position. A full-payload
+  // visit on no surface at all is therefore NOT a parent — which is what separates this producer
+  // from one that simply adopts the first visit event in the batch.
+  const surfacelessParent: ContextTraversalEvent = {
+    kind: "full_payload_read",
+    eventId: "event:visit-agent",
+    sessionId: "session-a",
+    at: AT,
+    visitId: "visit-agent",
+    nodeId: "my-agent",
+  };
+  const deps: AgentDescentDeps = {
+    sessionId: "session-a",
+    nextVisitId: () => "visit-child-1",
+    now: () => new Date(AT),
+  };
+
+  // no agents-surface visit is present, so nothing descends — the batch passes through untouched.
+  assert.deepEqual(descendAgentRefs([surfacelessParent], ["rule-1"], deps), [surfacelessParent]);
+
+  // and a visit on a DIFFERENT surface is likewise not an agent visit.
+  const treeVisit: ContextTraversalEvent = { ...surfacelessParent, surfaceId: "tree" };
+  assert.deepEqual(descendAgentRefs([treeVisit], ["rule-1"], deps), [treeVisit]);
 });
 
 // ---------------------------------------------------------------------------

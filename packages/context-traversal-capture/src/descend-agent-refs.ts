@@ -115,8 +115,14 @@ function findAgentVisit(observed: readonly ContextTraversalEvent[]): ContextVisi
 /**
  * Turn each resolved floor-ref id into a `front_matter_read` child visit naming the agent's own
  * visit as `parentVisitId`. A no-op — `observed` passes through unchanged — when no agent visit is
- * present in `observed` (nothing to be a parent). `parentVisitId` is set via a conditional spread so
- * an absent field is never written as `undefined` (`exactOptionalPropertyTypes`).
+ * present in `observed` (nothing to be a parent).
+ *
+ * A child inherits the agent visit's `surfaceId`: the ref was read THROUGH the agents surface, as
+ * part of rendering that agent, so claiming any other surface (or none) would misreport where the
+ * read happened — and `renderVisitLine` would print `surface=unknown-surface` for every child. It is
+ * carried by a conditional spread, so when the parent has no `surfaceId` the key is absent on the
+ * child rather than written as `undefined` (`exactOptionalPropertyTypes`, and the sink writes
+ * `JSON.stringify`).
  */
 export function descendAgentRefs(
   observed: readonly ContextTraversalEvent[],
@@ -135,6 +141,7 @@ export function descendAgentRefs(
       at: deps.now().toISOString(),
       visitId,
       nodeId,
+      ...(agentVisit.surfaceId !== undefined ? { surfaceId: agentVisit.surfaceId } : {}),
       parentVisitId: agentVisit.visitId,
     };
   });
