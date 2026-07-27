@@ -81,15 +81,17 @@ The exported surface is therefore part of the contract, not a free choice. Expor
   {`library_artifact_list`, `library_dashboard`}, `resultNodeIds`); `CandidateSetEvent`
   (`candidateSetId`, `surfaceId`, non-empty `candidateNodeIds`); `FollowedEdgeEvent` (`edgeId`,
   `candidateSetId`, `fromVisitId`, `toVisitId`); `ModelContextEvent` (optional `modelId`,
-  `cumulativeInputTokens`, `addedInputTokens`, optional positive `contextWindowCapacity`);
+  optional `windowId`, `cumulativeInputTokens`, `addedInputTokens`, optional
+  `residentInputTokens`, optional positive `contextWindowCapacity`);
   `SpawnHandoffEvent` and `ResultReturnEvent` (`edgeId`, `parentSessionId`, `childSessionId`, plus
   `agentType`/`payloadTokenCount` and `resultTokenCount`/`ok` respectively).
 - `CoverageFeature` — a zod enum whose options are the closed feature domain, covering the runtime
   surfaces (`surface:create_orientation_runner`, `surface:direct_cli`, `surface:claude_sdk`,
   `surface:codex`, `surface:owned_loop`, `surface:spawned_agent`, `surface:agents`,
-  `surface:noticeboard`), one `event:<kind>` per event kind, and the fields
-  `field:surface_id`, `field:parent_visit_id`, `field:prior_visit_id`, `field:model_tokens`,
-  `field:context_window_capacity`, `field:candidate_follow_causality`, `field:child_context_window`.
+  `surface:noticeboard`, `surface:host_transcript`), one `event:<kind>` per event kind, and the
+  fields `field:surface_id`, `field:parent_visit_id`, `field:prior_visit_id`, `field:model_tokens`,
+  `field:resident_input_tokens`, `field:window_id`, `field:context_window_capacity`,
+  `field:candidate_follow_causality`, `field:child_context_window`.
 - `ContextTraversalCoverage` — a strict `{ adapterId, supported, omitted }` schema over that enum,
   plus a type of the same name.
 - `ContextVisitEvent` / `ContextModelEvent` types, and the `isContextVisitEvent` narrowing guard.
@@ -106,6 +108,20 @@ causality — identity and time originate at the adapter.
 
 `ModelContextEvent.addedInputTokens` is retained deliberately even though ADR-0248 D3 deletes it:
 that deletion has live emitters in another story and belongs to the increment that owns them.
+
+**Vocabulary extended 2026-07-27 by story `context-traversal-transcript` (ADR-0248 D1), additively.**
+`ModelContextEvent` gained optional `residentInputTokens` (window OCCUPANCY at one request — the
+quantity the arc's playhead bar plots, and the one that can FALL) and optional `windowId` (which
+window an observation belongs to, since a worktree-derived `sessionId` outlives any single runtime
+window); `CoverageFeature` gained `surface:host_transcript`, `field:resident_input_tokens`, and
+`field:window_id`. Every one of the six contracts below still holds unchanged: the added event
+fields are optional, and contract 5's exhaustiveness is asserted over `CoverageFeature.options`
+rather than a hand-listed subset, so every existing adapter — all of which compute `omitted` from
+that same enum — absorbed the three new features with no source change. This capability's signed
+verdict was deliberately NOT re-run for the edit: a `--real` rebuild of an already-green unit risks
+permanently under-claiming it, and the edit adds no behaviour this capability's own contracts
+describe. What asserts the new fields is the extending story's own suite, which round-trips them
+through `ContextTraversalEvent` onto bytes on disk.
 
 ## Contracts
 

@@ -2247,9 +2247,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "traversal") {
-    // The captured-trace read surface (ADR-0235 / ADR-0241). Reads local JSONL only — offline-safe,
-    // never `--pg`. The composition lives in `@storytree/context-traversal-capture`; this branch is
-    // declared glue (ADR-0158) and is claimed by no capability.
+    // The captured-trace surface (ADR-0235 / ADR-0241). Local JSONL only — offline-safe, never
+    // `--pg`: `list`/`show` read it, and `ingest` (ADR-0248 D1) reads this session's host
+    // transcripts and appends their occupancy to the same local trace. The compositions live in
+    // `@storytree/context-traversal-capture`, `-spawn`, and `-transcript`; this branch is declared
+    // glue (ADR-0158) and is claimed by no capability.
     if (help) return traversalHelp();
     return traversalCommand(sub, third);
   }

@@ -42,6 +42,7 @@ The Library is already a canonical context DAG (ADR-0161), and ceremony bodies a
 - Metadata minimization reduces privacy and storage risk, but query paths still need normal access control, retention, and schema-version handling.
 - The 500k danger region provides a common visual cue without constraining execution. Its predictive value must be tested against observed outcomes rather than treated as a universal model boundary.
 - No session self-compaction, arbitrary context cutoff, or silent idle-time removal is authorized by this decision.
+- **Clause 1's "ambiently" is qualified by one adapter, recorded 2026-07-27.** The host-transcript boundary (`surface:host_transcript`, built under ADR-0248 D1) READS a surface the host harness writes rather than emitting at a runtime boundary of ours, because that harness has not flushed the current request while our process is running — an ambient hook at dispatch would observe a file missing exactly the request that triggered it. It is therefore an explicit, idempotent `storytree traversal ingest <session>` instead. Clause 1's substance is untouched: the model still performs no telemetry bookkeeping, because the transcript is machine-written and nothing is self-reported. The reasoning lives at `packages/cli/src/traversal.ts`. This adapter also satisfies clause 6 in its own envelope rather than through the shared replay renderer, which does not yet know it — an honest partial, not a missing declaration.
 
 ## References
 
