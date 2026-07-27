@@ -80,8 +80,14 @@ The precise, durable claim — the one sessions should reason from:
 > TLS-terminating proxy. It **can** reach an HTTPS endpoint on 443.
 
 ADR-0250 D1 remains correct about the connector and about the futility of tunnelling. What is corrected
-is the inference drawn from it. "Remote sessions are offline-only" is true of today's *client* — the CLI
-speaks `pg` and nothing speaks HTTP to a store — not of the environment's reach.
+is the inference drawn from it. "Remote sessions are offline-only" is true of today's *client*, not of
+the environment's reach: every caller dials Postgres directly through `createPool`.
+
+*(Narrowed 2026-07-27: a `Store`-conformant HTTP client now exists — the wire contract plus `HttpStore`
+in `packages/storage-protocol`, built as increment 1 of
+[ADR-0259](0259-every-client-reaches-the-store-through-an-http-front-door-di.md) and held to the shared
+`storeParitySuite`. No caller uses it and no server is deployed behind it, so the client-side claim above
+still holds operationally; what is no longer true is that nothing in the repo speaks HTTP to a store.)*
 
 ### D3 — Name exactly what a remote session cannot have
 

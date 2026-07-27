@@ -3,10 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The universal browser-safe base seam (ADR-0068 step 5): the narrow Store/ChangeStore document-event store contract, the InMemoryStore reference impl, and StoredDoc/StoreEvent/DeleteDocOpts/retiredEventDoc. The reusable node:test parity suites live behind the ./parity subpath so the main entry carries NO node: import — browser-safe. ADR-0017.",
+  "description": "The universal browser-safe base seam (ADR-0068 step 5): the narrow Store/ChangeStore document-event store contract, the InMemoryStore reference impl, and StoredDoc/StoreEvent/DeleteDocOpts/retiredEventDoc — plus the seam's HTTP transport (ADR-0259): the wire contract + HttpStore, the client half of the front door. The reusable node:test parity suites live behind the ./parity subpath and the contract's server half behind ./http-server, so the main entry carries NO node: import — browser-safe. ADR-0017.",
   "exports": {
     ".": "./src/index.ts",
-    "./parity": "./src/store-parity.ts"
+    "./parity": "./src/store-parity.ts",
+    "./http-server": "./src/http-store-server.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

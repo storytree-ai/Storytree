@@ -57,6 +57,12 @@ model-events), never by importing another organism's source.
   shared `./parity` suite a real backend is held to, and `StoredDoc`/`StoreEvent`/`DeleteDocOpts`/
   `retiredEventDoc`. A contract, not a database — the second root (depends only on proof-protocol). The
   `node:test` parity suites live behind the `./parity` subpath so the main entry carries no `node:` import.
+  It also owns the seam's **HTTP transport** (ADR-0259 — every client that is not the server reaches the
+  store through a front door; `pg` is a server-side privilege): the wire contract (`store-wire.ts`) and
+  `HttpStore`, held to the same `storeParitySuite` as `InMemoryStore`/`PgLibraryStore`, both pure/browser-safe
+  in the main entry; the contract's server half (`handleStoreRequest`) sits behind the `./http-server`
+  subpath. **Adding the backend migrated nobody** — every existing caller still dials `createPool`, and
+  proof-bearing writes through a door stay GATED (ADR-0259 D5: needs an ADR-0081 amendment + an ADR-0252 review).
 - **`packages/library`** — the library organism: the work-hierarchy schema (`schema.ts`, story /
   capability / contract, `Tier`/`Status`/`Unit`) and the knowledge-document schema (`knowledge.ts`,
   `knowledge-render.ts`, `knowledge-sources.ts`, `migrations.ts`, `library-doc.ts`,
@@ -177,7 +183,9 @@ file conflicts).
   **But read that precisely (ADR-0258): what cannot work is the CONNECTOR, not "database access".**
   Client-mTLS cannot survive a TLS-terminating proxy *by construction* — while ordinary **HTTPS on 443
   is unaffected**, which is why the hosted studio and `/api/write-broker` are reachable from a remote
-  session. Today's block is that the CLI speaks `pg` and nothing speaks HTTP to a store; the inner loop
+  session. Today's block is that every caller still dials `pg` — an `HttpStore` + wire contract now
+  exist (ADR-0259 inc 1, `packages/storage-protocol`) but are wired to no caller and no deployed
+  server, so **nothing has changed operationally yet**; the inner loop
   itself (leaf + spine) needs **no** DB — `--real` refuses on a DB-less machine because ADR-0060/0081
   make it always persist, not because the sandbox stops it. They
   now **refuse instantly** with that explanation rather than hanging ~8 min (ADR-0250 D2). Still fine

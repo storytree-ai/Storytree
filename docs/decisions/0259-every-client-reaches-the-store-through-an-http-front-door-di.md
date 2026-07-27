@@ -114,8 +114,13 @@ review. **This ADR does not lift that gate.**
 
 **Bad / accepted costs**
 
-- The client half is genuinely unbuilt: an `HttpStore` plus a wire contract, and the broker's write set
-  extended past assets (`/api/claims` is GET-only; there is no ADR-allocation endpoint).
+- The client half was genuinely unbuilt at decision time: an `HttpStore` plus a wire contract, and the
+  broker's write set extended past assets (`/api/claims` is GET-only; there is no ADR-allocation
+  endpoint). *(Increment 1 landed the first part on 2026-07-27 — the wire contract, `HttpStore`, and a
+  pure `handleStoreRequest` server half in `packages/storage-protocol`, held to the shared
+  `storeParitySuite`. It migrated nobody: every caller still dials `createPool`, no server is deployed
+  behind the door, and the broker's write set is still assets-only. What remains is the wiring and the
+  deployment, not the contract.)*
 - Every store call gains a network hop. Reads already run offline on the seed, so the cost lands mostly
   on writes, but it is real.
 - A door per forest is more deployment surface than one shared instance — the price of ADR-0244 D6/D7's
@@ -142,4 +147,6 @@ review. **This ADR does not lift that gate.**
 - [ADR-0064](0064-widen-the-inner-loop-proof-envelope-db-backed-proofs-spine-d.md) — db-backed proofs,
   the D3 exception.
 - `packages/storage-protocol/src/store.ts` — the six-method seam and its parity suite.
+- `packages/storage-protocol/src/{store-wire,http-store,http-store-server}.ts` — increment 1: the wire
+  contract, the `HttpStore` client, and the pure server half. Unwired; see the cost note above.
 - `apps/desktop/electron/backend-entry.ts`, `apps/studio/server/` — the two doors that already exist.
