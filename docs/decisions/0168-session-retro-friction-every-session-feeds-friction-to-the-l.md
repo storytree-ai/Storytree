@@ -267,8 +267,17 @@ Batch adjudication is never "owner-directed in this conversation," so a friction
 **The alignment check (friction → ADR):** before the draft leaves the adjudicator — (a) survey
 `storytree adr list --load-bearing` and name every touched decision in the new ADR's Context; (b)
 corpus-investigator verifies the friction's factual claims against live sources; (c) declare
-`amends`/`supersedes`/`supersedes_in_part` edges up front (`adr-health` enforces mechanically); (d) a
+`amends`/`supersedes` edges up front (`adr-health` enforces mechanically); (d) a
 contradiction with an accepted load-bearing ADR halts as an owner escalation — never drafted around.
+
+*Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+(c) listed a third edge type, `supersedes_in_part`, which [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)
+§4 had already RETIRED — edges are binary. The prose was not merely stale but actively wrong about the
+mechanism it cited: `adr-health` does not enforce that edge, it **FAILS the gate on it**
+(`supersedes-in-part-retired`, `packages/cli/src/adr-health.ts`), so an adjudicator following (c)
+literally would author an ADR the merge refuses. The name is removed rather than annotated. **Nothing
+is re-decided** — D5's alignment check is unchanged in every other respect; a partial overtake is an
+`amends` edge plus an in-place correction of the overtaken target.*
 
 ### D6 — Rollback, and the self-sealing hazard
 
