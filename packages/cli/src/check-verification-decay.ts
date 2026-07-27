@@ -14,10 +14,9 @@
  *
  * NOT DONE HERE, so nobody reads this as complete:
  *
- * - ADR-0252 names FOUR cheap instruments. **`contract-binding-drift`, `mirror-pair-drift` and
- *   `vacuous-proof` are implemented; `warn-list-hygiene` is NOT swept** (the arc's no-silent-caps
- *   rule — and the sweep reports its own chartered coverage on every run rather than leaving it to
- *   this comment). The registry below is the seam that makes each a row, not a redesign.
+ * - ADR-0252 names FOUR cheap instruments and **all four now sweep** — the registry below is the seam
+ *   that made each a row rather than a redesign. Chartered coverage is REPORTED on every run rather
+ *   than asserted here, so this comment can never be the thing that goes stale about it.
  * - ADR-0252 D1's **warn-escalation backstop** now EXISTS, with exactly ONE line declared: an
  *   instrument that FAILED TO RUN (the sweep went blind). It reds the gate independently of the
  *   ceiling and demands the fresh-session adversarial pass. Lines keyed to a signal's AGE or to a
@@ -30,6 +29,11 @@
  *   underlying gap. The one-line fix — teach ADR-0126's `analyzeObservedTests` to parse the options
  *   form — is a STORY-SHAPE call, not a code edit: it would move every contract those tests vouch for
  *   into `check:coverage`'s WARN backlog, which is a decision about the work, not about this sweep.
+ * - `warn-list-hygiene` locates advisory worklists that no exit code bounds; it BOUNDS NONE. Giving one
+ *   a ceiling — or establishing that a drift-shaped list cannot accumulate and needs none — is a
+ *   per-check decision about that check's remedy, not an edit this sweep can make. Note the
+ *   interaction it inherits: teaching `analyzeObservedTests` the options form would move contracts into
+ *   `check:coverage`'s worklist, which is itself growth in the largest list this instrument locates.
  *
  * On mirror-pair drift specifically, note the boundary ADR-0251 records: `check:mirror-conformance`
  * already proves the pairs in its `MIRRORS` registry EXACTLY, and blocks. The advisory instrument
@@ -48,14 +52,18 @@ import {
   CONTRACT_BINDING_DRIFT,
   MIRROR_PAIR_DRIFT,
   VACUOUS_PROOF,
+  WARN_LIST_HYGIENE,
   findContractBindingDrift,
   findMirrorPairDrift,
   findOptionsFormSkips,
   findVacuousProof,
+  findWarnListHygiene,
   formatDecaySweep,
   runDecaySweep,
   type BoundTarget,
   type DecayInstrument,
+  type GateCheckFacts,
+  type GateCheckSource,
   type ProofBinding,
   type SurfaceRoutes,
   type TestFileFacts,
@@ -96,6 +104,13 @@ const CEILINGS = {
    * this number.
    */
   [VACUOUS_PROOF]: 7,
+  /**
+   * Baselined 2026-07-27 at the 6 advisory gate checks that sweep located across the 21 `check:*`
+   * steps `pnpm gate` runs — each printing a per-item WARN worklist that no exit code bounds. Bound a
+   * worklist (a ceiling compared against its count, the `check:friction-drain` shape), or establish
+   * that one cannot accumulate, and lower this number.
+   */
+  [WARN_LIST_HYGIENE]: 6,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -369,6 +384,91 @@ function loadTestFileFacts(root: string): TestFileFacts[] {
 }
 
 // ---------------------------------------------------------------------------
+// Gate-check facts (the warn-list-hygiene facts)
+// ---------------------------------------------------------------------------
+
+/**
+ * The `check:*` scripts the `gate` script ACTUALLY RUNS, read from the gate script itself.
+ *
+ * A REGISTRY, NOT A SECOND LIST — the same discipline `mirror-pair-drift` uses in deriving its
+ * coverage from the real `MIRRORS` registry. A hand-kept list of "which checks are advisory" would be
+ * two spellings of one fact drifting apart, which is the class this whole sweep exists to fence.
+ */
+const GATE_CHECK = /pnpm\s+(check:[\w-]+)/g;
+/** `pnpm --filter @storytree/cli exec node --import tsx src/foo.ts [--flag]` */
+const CLI_ENTRY = /src\/([\w-]+\.ts)\b/;
+/** `node scripts/foo.mjs` */
+const SCRIPT_ENTRY = /(scripts\/[\w-]+\.mjs)\b/;
+/** A sibling module in the same directory — `import { x } from "./foo.js"`. */
+const LOCAL_IMPORT = /from\s+"\.\/([\w-]+)\.js"/g;
+
+/** The npm scripts table, read once. An unreadable/!object `scripts` yields none. */
+function loadScripts(root: string): Record<string, string> {
+  const parsed: unknown = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+  const scripts = (parsed as { scripts?: unknown }).scripts;
+  if (typeof scripts !== "object" || scripts === null) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(scripts as Record<string, unknown>)) {
+    if (typeof value === "string") out[key] = value;
+  }
+  return out;
+}
+
+/** The repo-relative entry file a check's command runs, or `undefined` for a shape not recognised. */
+function checkEntryFile(command: string | undefined): string | undefined {
+  if (command === undefined) return undefined;
+  const cli = CLI_ENTRY.exec(command);
+  if (cli?.[1] !== undefined) return `packages/cli/src/${cli[1]}`;
+  const script = SCRIPT_ENTRY.exec(command);
+  return script?.[1];
+}
+
+/**
+ * Enumerate every `check:*` step in `pnpm gate`, with the sources that produce its output: the entry
+ * plus ONE HOP of its sibling imports (this repo splits advisory checks entrypoint/judge, and the
+ * printed lines live in the judge).
+ *
+ * THROWS on an empty roster AND on a check whose entry cannot be resolved or read, for the reason
+ * {@link loadSurfaceRoutes} and {@link loadTestFileFacts} do: a check this cannot see contributes no
+ * findings, so a broken resolution would report a clean sweep over a check it never opened.
+ * {@link runDecaySweep} turns the throw into an ESCALATION (the sweep went blind) — the honest answer,
+ * and the one no ceiling can clear. A novel command shape is cheap to teach the resolver; silently
+ * skipping it is exactly the under-reporting this arc fences.
+ */
+function loadGateChecks(root: string): GateCheckFacts[] {
+  const scripts = loadScripts(root);
+  const gate = scripts["gate"];
+  if (gate === undefined) throw new Error("the root package.json declares no `gate` script");
+
+  const names = [...new Set([...gate.matchAll(GATE_CHECK)].map((m) => m[1]).filter((n) => n !== undefined))];
+  if (names.length === 0) throw new Error("the `gate` script runs no `check:*` steps");
+
+  const checks: GateCheckFacts[] = [];
+  for (const script of names) {
+    const entryFile = checkEntryFile(scripts[script]);
+    if (entryFile === undefined) {
+      throw new Error(`${script}: cannot resolve an entry file from its command`);
+    }
+    const entryAbs = path.join(root, entryFile);
+    if (!existsSync(entryAbs)) throw new Error(`${script}: entry ${entryFile} does not exist`);
+
+    const entryText = readFileSync(entryAbs, "utf8");
+    const sources: GateCheckSource[] = [{ path: entryFile, text: entryText }];
+    if (entryFile.startsWith("packages/cli/src/")) {
+      for (const match of entryText.matchAll(LOCAL_IMPORT)) {
+        const rel = `packages/cli/src/${match[1]}.ts`;
+        const abs = path.join(root, rel);
+        // A sibling that does not resolve to a `.ts` is a type-only or generated import, not a
+        // renderer — it contributes no output and is not a blind spot.
+        if (existsSync(abs)) sources.push({ path: rel, text: readFileSync(abs, "utf8") });
+      }
+    }
+    checks.push({ script, entryFile, sources });
+  }
+  return checks;
+}
+
+// ---------------------------------------------------------------------------
 // The sweep
 // ---------------------------------------------------------------------------
 
@@ -420,6 +520,22 @@ function main(): void {
         "BLIND TO: an imperative runtime skip in the body (`t.skip(…)`) and a skip value built " +
         "outside the options literal.",
       run: () => findVacuousProof(loadTestFileFacts(repoRoot)),
+    },
+    {
+      name: WARN_LIST_HYGIENE,
+      ceiling: CEILINGS[WARN_LIST_HYGIENE],
+      locates:
+        "an advisory `check:*` step in `pnpm gate` whose printed WARN output is a per-item WORKLIST " +
+        "(its size tracks a collection) while no source implementing it sets a non-zero exit code — so " +
+        "no size that list reaches ever fails anything. ADR-0252 names the live counter-example: " +
+        "`check:coverage`'s 121-contract WARN backlog. FALSE POSITIVE: a worklist that is a DRIFT " +
+        "between two surfaces drains to zero with one idempotent command and may need no ceiling at " +
+        "all (`check:agents-sync` / `check:corpus-sync` read 0 today); and SIZE is what makes a list " +
+        "unreadable, which this cannot see — it reads source, not a run, so a 1-item worklist and a " +
+        "121-item one are indistinguishable here. BLIND TO: output rendered more than one local import " +
+        "away or in another package; a check mixing a BLOCKING rule with an advisory worklist (it " +
+        "reads as bounded because the exit path exists); and gate steps that are not `check:*` scripts.",
+      run: () => findWarnListHygiene(loadGateChecks(repoRoot)),
     },
   ];
 

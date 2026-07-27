@@ -39,6 +39,14 @@ rows are written by sessions only" becomes "presence rows are not written at all
 lifecycle machinery for the presence rows this ADR retires (they remained operative until the arc's
 final increment landed the retirement on 2026-07-17, PRs #760–#766; their bodies stay as history).
 
+**Correction ([ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Decision 3's
+primary-checkout lobby and claim-before-worktree ceremony stand, but the admitted fail-open gap is
+overtaken. The lobby is mechanically read-only to every agent harness; generic writes require a
+recognised repository-minted worktree with matching live claim and branch, and an unavailable
+ledger refuses writes. SessionStart nudges and `check:declared` remain feedback/defence in depth,
+not the first enforcement point.
+
 ## Context
 
 After ADR-0199 removed the build's presence write, the review it shipped with
