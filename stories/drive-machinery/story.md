@@ -5,7 +5,7 @@ title: "The drive machinery"
 outcome: "The spine drives any registered node through a genuine red→green proof and lands the proven commit through the merge gate."
 status: proposed
 proof_mode: UAT
-capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, oq-hygiene-gate, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption]
+capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, oq-hygiene-gate, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption, live-author-accounting-override, leaf-slices-observer-activation]
 # Story-level edge (ADR-0010 §4, code-import-evidenced; ADR-0036): the drive consumes the
 # library story's store connection seam — createPool/closePool/applySchema in
 # packages/drive/src/node-build.ts:41-44 (events.work_event/verdict are its OWN tables), and the
@@ -39,8 +39,11 @@ consumed_by: [cli]
 # of Story UAT legs 3/4/7 (184 — leg 4 landed as the observe ancestry gate-5, leg 3 as the
 # live-artifact witnessable-verdict gate-6, leg 7 as the cold-start dogfood-probe witness gate-7
 # (dogfood-probe.run.ts / dogfood-witness.check.ts); all three legs now machine — no human UAT leg
-# remains), and the ChatGPT-funded Codex live leaf beside the Claude compatibility default (232).
-decisions: [5, 20, 30, 31, 35, 37, 57, 59, 60, 112, 180, 184, 232]
+# remains), and the ChatGPT-funded Codex live leaf beside the Claude compatibility default (232), and the
+# accounting-only `liveAuthorOverride` widening of the resolver's author seam that lets a
+# live-spend-only adapter earn a MACHINE activation leg with no agent and no credentials (243 —
+# capabilities 22 and 23).
+decisions: [5, 20, 30, 31, 35, 37, 57, 59, 60, 112, 180, 184, 232, 243]
 ---
 
 # The drive machinery
@@ -113,7 +116,7 @@ and this story's frontmatter carries the `agent` edge in `depends_on`. The coupl
 documented prose — it is a first-class declared, world-visible edge (the boundary gate, ADR-0074,
 now sees the spine↔leaf seam).
 
-## Capabilities (21)
+## Capabilities (23)
 
 Listed roots-first (a capability appears after everything it depends on). `mapped` = a real
 passing offline suite observationally verifies the dominant behaviour; the Proof blockquote in
@@ -142,6 +145,8 @@ each file pins the `proposed` pockets.
 | 19 | [`uat-machine-proof-binding`](uat-machine-proof-binding.md) | The Story UAT parser carries each explicit proof-gate annotation into the strict per-leg model without dropping or inventing a binding. | proposed | — |
 | 20 | [`uat-machine-gate-resolution`](uat-machine-gate-resolution.md) | Each parsed machine UAT leg resolves only to its named command-bearing observe gate, with every missing or ineligible binding refused. | proposed | `uat-machine-proof-binding` |
 | 21 | [`uat-bound-command-adoption`](uat-bound-command-adoption.md) | `runAdopt` observes and signs each machine UAT leg only through the command supplied by that leg's resolved proof-gate binding. | proposed | `build-drive-cli`, `uat-machine-gate-resolution` |
+| 22 | [`live-author-accounting-override`](live-author-accounting-override.md) | An offline caller can supply the resolved live author for accounting, and supplying it without an author override is refused fail-closed. | proposed | `prove-spec-resolution` |
+| 23 | [`leaf-slices-observer-activation`](leaf-slices-observer-activation.md) | An offline real chain invokes the leaf-slices observer once per node with that node's own run accounting, and a canned live author still cannot move a verdict. | proposed | `live-author-accounting-override`, `story-real-chain` |
 
 ## Dependency graph (code-derived)
 
@@ -250,6 +255,24 @@ coupling) and marked.
   - `adopt.ts` extends the existing `runAdopt` drive entry and consumes the exact resolved command
     before signing a machine UAT id. Its literal edit-existing REAL pair is `adopt.{ts,test.ts}`.
     These three increments replace the earlier six-file unit whose spotlight proved only parsing.
+- `live-author-accounting-override` → `prove-spec-resolution` *(authored `proposed`, ADR-0243 D1/D3/D6)*
+  - extends the resolution layer the same way `spec-borne-proof-config` does: it widens
+    `RealResolveOptions` with an accounting-only `liveAuthorOverride?: LiveAuthor` (the EXISTING
+    exported union, `resolve-prove-spec.ts:233`) consumed inside the `opts.authorOverride !== undefined`
+    branch at `:489-490`, and documents the deliberate `authorOverride`/`liveAuthor` asymmetry at the
+    seam. Its literal edit-existing REAL pair is `resolve-prove-spec.ts` +
+    `live-author-override.test.ts`. No new class, no widened shared type.
+- `leaf-slices-observer-activation` → `live-author-accounting-override`, `story-real-chain`
+  *(authored `proposed`, ADR-0243 D1/D3/D4)*
+  - `node-build.ts` gains `RealBuildArgs.liveAuthorOverride` (spread into the `resolveOptions`
+    literal) and `story-build.ts` gains the per-node `StoryBuildOpts.liveAuthorOverride` factory,
+    resolved ONCE per node beside the existing `authorOverride` resolution — which is what makes the
+    chain's `--real` composition site (`story-build.ts:701`,
+    `opts.onLeafSlices?.({ runId, unitId, runs })`) reachable from an offline test. It cannot compile
+    before the resolver accepts the option, and it drives `story-real-chain`'s offline chain to reach
+    the site. The observer stays a seam drive OWNS: `packages/drive` imports nothing from any
+    `@storytree/context-traversal-*` package (that would close the `check:boundaries` cycle), and the
+    proof injects a SPY.
 
 **Cross-story:** the `library` edge (the store-connection seam + the OQ loader's library stores),
 the `storage-protocol` + `proof-protocol` root-port edges (ADR-0075), and the **`agent`** edge — the
@@ -421,6 +444,15 @@ Capabilities 19–21 — parser
 while their separate signed REAL verdicts derive proof health (ADR-0020). They are intentionally not
 folded into the three brownfield capability-covering observe gates: each was driven red→green through
 its own literal REAL pair.
+Capabilities 22–23 — [`live-author-accounting-override`](live-author-accounting-override.md) and
+[`leaf-slices-observer-activation`](leaf-slices-observer-activation.md), the ADR-0243 accounting seam —
+are held to the same rule and are deliberately absent from every `(covers:)` list above. Each earns
+its own signed `--real` verdict; adding either to a gate's covers list would let an observe-and-sign
+`adopt` pass green a capability that never went red (ADR-0085 / ADR-0097). Note that gate-1 and
+gate-3 nonetheless RUN their test files (they run the whole orchestrator and drive suites), which is
+exactly why both capabilities declare an explicit `proofCommand` over the whole package suite: a new
+resolver option or drive passthrough that breaks a sibling test is caught inside the gate rather than
+after it.
 
 Distinct from `## UAT Test Criteria` above (the part-scripted/part-attested drive-a-node-to-a-landed-proof
 journey): the gates are the author's **expandable floor**, GROWING a `_(gate: build-tests)_` regression
