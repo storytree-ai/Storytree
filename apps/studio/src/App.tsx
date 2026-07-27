@@ -5,6 +5,7 @@ import { deriveLoadState, type LoadState } from './lib/loadState';
 import { useDevStoreOverride, type DevOverride } from './lib/devStoreOverride';
 import { getDesktopAuth } from './lib/desktopAuth';
 import { notifyStoreRecovered } from './lib/poll';
+import { evictIfCodeHeadMismatch, readPayloadCache, writeDocsCache } from './lib/payloadCache';
 import { useRoute } from './lib/route';
 import type { Comment, DocMeta, GuidanceAsset, MeInfo } from './types';
 import { Sidebar } from './components/Sidebar';
@@ -41,7 +42,25 @@ export function App(): React.JSX.Element {
   const [storePhase, setStorePhase] = useState<StorePhase>('unknown');
   const [startingSince, setStartingSince] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
-  const [docs, setDocs] = useState<DocMeta[]>([]);
+  // map-payload-cache (ADR-0240 decision 2 stage 2): the server code stamp StoreBanner's single
+  // poller already fetches (`/api/health`'s `code.head`), lifted up so the payload cache can stamp
+  // entries it writes and evict one recorded under a different head — never a second poller. Held
+  // as REFS (not React state) and handed straight to TreeView as the SAME objects, so the write
+  // callbacks below (and TreeView's own) always read the truly-latest value at write time with no
+  // render/commit propagation lag to race against the network responses that trigger the writes.
+  const codeHeadRef = useRef<string>('');
+  // Set once this boot's own health probe evicts an existing entry recorded under a different
+  // head — see {@link evictIfCodeHeadMismatch}'s doc comment for why writes are held off for the
+  // rest of THIS boot once that happens (never un-set; a fresh reload starts a fresh boot).
+  const cacheEvictedThisBootRef = useRef(false);
+  const onCodeHead = useCallback((head: string): void => {
+    codeHeadRef.current = head;
+    if (evictIfCodeHeadMismatch(head)) cacheEvictedThisBootRef.current = true;
+  }, []);
+  // map-payload-cache: seed docs from the last visit's persisted /api/docs payload — validated
+  // synchronously (guards 1 + 3) — so it's not left empty during the window before /api/docs
+  // resolves; loadDocs (below) always re-fetches and reconciles regardless.
+  const [docs, setDocs] = useState<DocMeta[]>(() => readPayloadCache()?.docs ?? []);
   const [assets, setAssets] = useState<GuidanceAsset[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -85,13 +104,34 @@ export function App(): React.JSX.Element {
     return () => window.clearInterval(id);
   }, [startingSince]);
 
+  // The MUTABLE corpus reads (assets/comments) — unchanged from before this unit: whatever
+  // residual boot wait they cost stays exactly as it is today (map-payload-cache never touches
+  // them; see the node spec). `status` is this pair's readiness gate alone now — see `loadDocs`
+  // below for why /api/docs was split out of it.
   const loadInitial = useCallback(async (): Promise<void> => {
     try {
-      const [d, a, c] = await Promise.all([api.listDocs(), api.listAssets(), api.listComments()]);
-      setDocs(d);
+      const [a, c] = await Promise.all([api.listAssets(), api.listComments()]);
       setAssets(a);
       setComments(c);
       setStatus('ready');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setStatus('error');
+    }
+  }, []);
+
+  // map-payload-cache: /api/docs is the OTHER read-only boot payload (with /api/tree) this cache
+  // persists — and it must never withhold the map's first paint the way it used to as part of the
+  // old all-or-nothing corpus Promise.all. Fetched in its own effect, independent of `status`, so
+  // a slow/deferred docs response can never delay the tree route from mounting and painting from
+  // its own cache. Still requested on every boot, exactly as today (ADR-0240 decision 3) — the
+  // write merges onto whatever TREE half TreeView's own reloadTree already wrote (or will write),
+  // regardless of arrival order.
+  const loadDocs = useCallback(async (): Promise<void> => {
+    try {
+      const d = await api.listDocs();
+      setDocs(d);
+      if (!cacheEvictedThisBootRef.current) writeDocsCache(d, codeHeadRef.current);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus('error');
@@ -106,8 +146,11 @@ export function App(): React.JSX.Element {
 
   // Only members load the corpus — gated on membership resolving.
   useEffect(() => {
-    if (meStatus === 'ready' && isMember) void loadInitial();
-  }, [meStatus, isMember, loadInitial]);
+    if (meStatus === 'ready' && isMember) {
+      void loadInitial();
+      void loadDocs();
+    }
+  }, [meStatus, isMember, loadInitial, loadDocs]);
 
   // The single honest decision for which load/store-down screen to show (incident 2026-06-27).
   // A dev-only `?devLoadState=…` override (inert in prod) swaps in synthetic inputs so the owner
@@ -122,7 +165,9 @@ export function App(): React.JSX.Element {
   const onStoreRecovered = useCallback((): void => {
     // Membership may have been unresolvable while the store was down — re-resolve it, then re-pull
     // whatever the outage cost (the whole initial load if it failed, else the mutable collections).
+    // /api/docs is independent of `status` now (map-payload-cache) — always worth re-pulling.
     void loadMe();
+    void loadDocs();
     if (status === 'error') {
       setStatus('loading');
       void loadInitial();
@@ -131,7 +176,7 @@ export function App(): React.JSX.Element {
       void refreshComments();
     }
     notifyStoreRecovered();
-  }, [status, loadMe, loadInitial, refreshAssets, refreshComments]);
+  }, [status, loadMe, loadInitial, loadDocs, refreshAssets, refreshComments]);
 
   // Hud's posture discriminator (ADR-0204): the injected desktop bridge means `desktop`; a
   // production browser with no bridge is a real hosted/IAP deploy (`hosted`); a bridge-less DEV
@@ -170,6 +215,7 @@ export function App(): React.JSX.Element {
               onRecovered={onStoreRecovered}
               canWake={(dev?.me ?? me)?.canWakeDb === true}
               onPhase={onStorePhase}
+              onCodeHead={onCodeHead}
             />
           }
           onRetry={() => void loadMe()}
@@ -200,7 +246,11 @@ export function App(): React.JSX.Element {
                         aria-hidden={route.name !== 'tree'}
                         inert={route.name !== 'tree'}
                       >
-                        <TreeView focus={route.name === 'tree' ? route.focus : null} />
+                        <TreeView
+                          focus={route.name === 'tree' ? route.focus : null}
+                          codeHeadRef={codeHeadRef}
+                          cacheWriteSuppressedRef={cacheEvictedThisBootRef}
+                        />
                       </div>
                     )}
                     {route.name !== 'tree' && <RouteView route={route} />}
