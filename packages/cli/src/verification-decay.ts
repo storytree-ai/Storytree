@@ -535,6 +535,218 @@ export function findVacuousProof(files: readonly TestFileFacts[]): DecayFinding[
 }
 
 // ---------------------------------------------------------------------------
+// Instrument: warn-list hygiene (ADR-0252 D1, the first named cheap check)
+// ---------------------------------------------------------------------------
+
+/** One source file behind a gate check — its entry, or a local module the entry imports. */
+export interface GateCheckSource {
+  /** Repo-relative, forward-slashed. */
+  path: string;
+  /** The file's text. */
+  text: string;
+}
+
+/**
+ * One `check:*` script wired into `pnpm gate`, projected to the sources that PRODUCE ITS OUTPUT.
+ *
+ * The set is the entry plus the local modules it imports, because this repo's advisory checks are
+ * split entrypoint/judge — `check-coverage.ts` prints, and `coverage-gate.ts` builds every line. A
+ * rule that read only the entry would see no output at all in exactly the checks that matter.
+ */
+export interface GateCheckFacts {
+  /** The npm script name as the `gate` script spells it, e.g. `check:coverage`. */
+  script: string;
+  /** Repo-relative entry file — where a ceiling would be declared, so where the report points. */
+  entryFile: string;
+  /** Entry + one hop of local imports: everything that builds this check's printed output. */
+  sources: readonly GateCheckSource[];
+}
+
+/** What the source says about one gate check's advisory shape. */
+export interface WarnListShape {
+  /** Some printed literal carries a `WARN` level — the check is advisory, not merely chatty. */
+  warns: boolean;
+  /** Some source sets a NON-ZERO exit code: this check CAN fail, so something bounds it. */
+  canFail: boolean;
+  /**
+   * Evidence that the printed output's SIZE tracks a collection, one phrase per witness. Empty means
+   * the output is a fixed number of lines about a single fact — nothing that can accumulate.
+   */
+  witnesses: readonly string[];
+}
+
+export const WARN_LIST_HYGIENE = "warn-list-hygiene";
+
+/** A printed line, recognised by the `${TAG}` / `[check:` prefix every check in this repo uses. */
+const OUTPUT_LITERAL = /\$\{TAG\}|\[check:/;
+/** An interpolated item COUNT — the check stating, in its own output, how many things it found. */
+const COUNT_INTERPOLATION = /\$\{[^}]*\.(?:length|size)\b/;
+/** Array methods that iterate a collection, alongside `for…of`. */
+const LOOPING_METHODS = new Set(["forEach", "map", "flatMap"]);
+
+/** The literal's own source text, or `undefined` for anything that is not a string/template. */
+function literalText(node: ts.Node, sf: ts.SourceFile): string | undefined {
+  if (ts.isTemplateExpression(node) || ts.isStringLiteralLike(node)) return node.getText(sf);
+  return undefined;
+}
+
+/** Is this expression the numeric literal `0` (an exit code that does NOT fail)? */
+function isZeroLiteral(node: ts.Expression): boolean {
+  return ts.isNumericLiteral(node) && node.text === "0";
+}
+
+/**
+ * PURE: read one gate check's advisory shape out of its sources.
+ *
+ * Every fact is taken from the AST rather than from raw text, and that is load-bearing rather than
+ * fastidious: `adr-health.ts` contains the exact string `WARN —` in a COMMENT, so a text scan would
+ * call a blocking check advisory. Only a printed LITERAL counts.
+ *
+ * TWO INDEPENDENT WITNESSES of the same property — the printed output's size tracks a collection —
+ * and either alone is sufficient, because this repo writes worklists both ways. A check may state the
+ * count on its headline and join the items onto one line (`check:corpus-sync`), or emit one line per
+ * item with no count anywhere (`check:surface-coverage`). Requiring BOTH was measured against the
+ * corpus and drops four genuine worklists; requiring EITHER keeps them and still excludes every
+ * single-fact WARN.
+ */
+export function analyzeGateCheck(sources: readonly GateCheckSource[]): WarnListShape {
+  let warns = false;
+  let canFail = false;
+  const witnesses: string[] = [];
+  const seen = new Set<string>();
+
+  for (const source of sources) {
+    if (!source.path.endsWith(".ts") && !source.path.endsWith(".tsx")) continue;
+    const sf = ts.createSourceFile(source.path, source.text, ts.ScriptTarget.Latest, true);
+    let loopDepth = 0;
+
+    const visit = (node: ts.Node): void => {
+      // --- the level: a printed literal carrying WARN ---
+      const text = literalText(node, sf);
+      if (text !== undefined && /WARN/.test(text)) warns = true;
+
+      // --- the bound: any non-zero exit anywhere in the implementation ---
+      if (ts.isCallExpression(node) && node.expression.getText(sf) === "process.exit") {
+        const arg = node.arguments[0];
+        if (arg === undefined || !isZeroLiteral(arg)) canFail = true;
+      }
+      if (
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        node.left.getText(sf) === "process.exitCode" &&
+        !isZeroLiteral(node.right)
+      ) {
+        canFail = true;
+      }
+
+      // --- witness 1: a printed line states an item COUNT ---
+      if (text !== undefined && OUTPUT_LITERAL.test(text) && COUNT_INTERPOLATION.test(text)) {
+        const phrase = `a printed line states an item COUNT (${source.path})`;
+        if (!seen.has(phrase)) {
+          seen.add(phrase);
+          witnesses.push(phrase);
+        }
+      }
+
+      // --- witness 2: a printed line is emitted PER ITEM of a collection ---
+      const isLoop =
+        ts.isForOfStatement(node) ||
+        (ts.isCallExpression(node) &&
+          ts.isPropertyAccessExpression(node.expression) &&
+          LOOPING_METHODS.has(node.expression.name.text));
+      if (isLoop) loopDepth++;
+      if (loopDepth > 0 && ts.isCallExpression(node)) {
+        const arg = node.arguments[0];
+        const argText = arg === undefined ? undefined : literalText(arg, sf);
+        if (argText !== undefined && OUTPUT_LITERAL.test(argText)) {
+          const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+          const phrase = `a printed line is emitted PER ITEM of a collection (${source.path}:${line})`;
+          if (!seen.has(phrase)) {
+            seen.add(phrase);
+            witnesses.push(phrase);
+          }
+        }
+      }
+
+      ts.forEachChild(node, visit);
+      if (isLoop) loopDepth--;
+    };
+    visit(sf);
+  }
+
+  return { warns, canFail, witnesses };
+}
+
+/**
+ * PURE: locate advisory gate checks that print a per-item WORKLIST which no size can ever fail.
+ *
+ * THE CLASS, and it is the one ADR-0252 D1 named this instrument for. The arc's own guardrail is *an
+ * advisory list stays readable or stops being advisory*, and the ADR names the live counter-example
+ * outright: `check:coverage` "already carries a 121-contract WARN backlog with known noise in it". An
+ * unbounded advisory list is this shape's KNOWN failure mode, not a hypothetical one — the channel
+ * accumulates until readers stop reading it, and then a real signal arriving in it is indistinguishable
+ * from the noise it arrives beside.
+ *
+ * THE RULE IS THE CONJUNCTION, and all three halves are load-bearing:
+ *
+ * - **It WARNs** — the output carries an advisory level, so it is a channel a reader is expected to
+ *   read, not silent bookkeeping.
+ * - **No source sets a non-zero exit** — there is no path by which the list's SIZE fails anything. This
+ *   is what excludes the two checks that already bound their worklists: `check:friction-drain`
+ *   (ADR-0168 D4) and this sweep itself, both of which compare a count to a ceiling and exit 1.
+ * - **The printed output's size tracks a COLLECTION** — the tightening that carries the measurement.
+ *   Without it the rule flags `check:node-version`, `check:dist-drift` and `check:deploy-health`, whose
+ *   WARN reports ONE fact (the Node version, the published installer hash, the newest deploy run).
+ *   Nothing there can accumulate, so a ceiling would be ceremony. Measured: 9 signals without this
+ *   half, 6 with it, and the 3 it removes are exactly those three.
+ *
+ * ONE FINDING PER CHECK. The repair is per-check — give that worklist a bound, or establish it needs
+ * none — so the ceiling counts repairs, not printed lines (the granularity #949 settled).
+ *
+ * THE FALSE-POSITIVE SURFACE, stated rather than implied, because this LOCATES and never adjudicates:
+ *
+ * - **A worklist that is a DRIFT between two surfaces drains to zero with one idempotent command** and
+ *   may need no ceiling at all — `check:agents-sync` and `check:corpus-sync` both read 0 today, and
+ *   their whole remedy is a single `sync-*` invocation. Whether such a list can accumulate is a
+ *   judgment about the remedy, which only an adversarial pass makes.
+ * - **SIZE is what makes a list unreadable, and this rule cannot see size.** It reads source, not a
+ *   run, so a two-item worklist and a 121-item one are indistinguishable here. `check:surface-coverage`
+ *   lists 1 item today. The finding is never "this list is too long" — only that no size fails.
+ *
+ * AND ITS BLIND SPOTS, for the same reason (the arc's no-silent-caps rule) — it under-reports rather
+ * than over-reports at each:
+ *
+ * - A check whose output is rendered more than ONE local import away, or in another workspace package,
+ *   is invisible to the source projection.
+ * - A check that mixes a BLOCKING rule with an advisory worklist reads as bounded, because the exit
+ *   path exists somewhere in the file — `check:boundaries` is exactly that shape.
+ * - Gate steps that are not `check:*` scripts (`pnpm -r test`, `pnpm -r typecheck`) are not read.
+ */
+export function findWarnListHygiene(checks: readonly GateCheckFacts[]): DecayFinding[] {
+  const findings: DecayFinding[] = [];
+  // Sorted so the report — and the ceiling's view of the backlog — is stable run to run.
+  for (const check of [...checks].sort((a, b) => a.script.localeCompare(b.script))) {
+    const shape = analyzeGateCheck(check.sources);
+    if (!shape.warns || shape.canFail || shape.witnesses.length === 0) continue;
+    findings.push({
+      instrument: WARN_LIST_HYGIENE,
+      id: `${WARN_LIST_HYGIENE}:${check.script}`,
+      where: check.entryFile,
+      // AN OBSERVATION, NOT A VERDICT. Three mechanical facts stated side by side: the check prints a
+      // WARN, its printed output's size tracks a collection, and nothing in its implementation sets a
+      // non-zero exit. It does NOT say the list is too long, does not say it has rotted, and does not
+      // say it needs a ceiling — whether this worklist can accumulate at all depends on its remedy,
+      // which is the adversarial pass's question, not this one's.
+      detail:
+        `\`${check.script}\` prints an advisory WARN worklist whose printed size tracks a collection ` +
+        `(${shape.witnesses.join("; ")}), and no source implementing it sets a non-zero exit code — ` +
+        "so no size that list reaches fails anything",
+    });
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
 // The ceiling (ADR-0252 D3 — the `check:friction-drain` shape, on the COUNT)
 // ---------------------------------------------------------------------------
 
