@@ -59,6 +59,8 @@ function snap(overrides: Partial<WorktreeSnapshot> & { name: string }): Worktree
     branch: `claude/${overrides.name}`,
     merged: true,
     dirty: false,
+    locked: false,
+    lockReason: null,
     mtimeMs: IDLE_MTIME,
     ...overrides,
   };
@@ -99,6 +101,33 @@ test("KEEP: a worktree whose session holds a live claim on the ledger (--pg, ADR
   const v = classifyWorktree(snap({ name: "busy" }), policy({ liveSessions: new Set(["busy"]) }));
   assert.equal(v.decision, "keep");
   assert.match(v.reason, /live session/);
+});
+
+test("KEEP: a `git worktree lock`ed worktree is kept though merged + clean + idle", () => {
+  // A lock is an explicit "do not touch" — the harness takes one for a live claude session, a human
+  // takes one to park a worktree. Before this branch existed the ONLY thing holding a locked
+  // worktree back was the (broken) idle clock, so fixing the clock would have reaped the lock.
+  const v = classifyWorktree(snap({ name: "parked", locked: true }), policy());
+  assert.equal(v.decision, "keep");
+  assert.match(v.reason, /locked \(git worktree lock\)/);
+});
+
+test("KEEP: a locked worktree surfaces git's lock reason so the keep is legible", () => {
+  const v = classifyWorktree(
+    snap({ name: "art-factory", locked: true, lockReason: "claude session art-factory (pid 56740)" }),
+    policy(),
+  );
+  assert.equal(v.decision, "keep");
+  assert.match(v.reason, /claude session art-factory \(pid 56740\)/);
+});
+
+test("KEEP: a lock outranks --include-detached (a locked detached gate is still kept)", () => {
+  const v = classifyWorktree(
+    snap({ name: "adr-gate", detached: true, branch: null, locked: true }),
+    policy({ includeDetached: true }),
+  );
+  assert.equal(v.decision, "keep");
+  assert.match(v.reason, /locked/);
 });
 
 test("KEEP: a dirty tree is kept (uncommitted changes)", () => {
@@ -204,8 +233,47 @@ test("parseWorktreeList: parses branch + detached records, strips refs/heads/", 
   ].join("\n");
   const parsed = parseWorktreeList(porcelain);
   assert.equal(parsed.length, 3);
-  assert.deepEqual(parsed[1], { path: wt("feature"), branch: "claude/feature", detached: false });
-  assert.deepEqual(parsed[2], { path: wt("gate"), branch: null, detached: true });
+  assert.deepEqual(parsed[1], {
+    path: wt("feature"),
+    branch: "claude/feature",
+    detached: false,
+    locked: false,
+    lockReason: null,
+  });
+  assert.deepEqual(parsed[2], {
+    path: wt("gate"),
+    branch: null,
+    detached: true,
+    locked: false,
+    lockReason: null,
+  });
+});
+
+test("parseWorktreeList: reads git's `locked` flag, with and without a reason", () => {
+  const porcelain = [
+    `worktree ${wt("bare-lock")}`,
+    "HEAD 1111111",
+    "branch refs/heads/claude/bare-lock",
+    "locked",
+    "",
+    `worktree ${wt("session-lock")}`,
+    "HEAD 2222222",
+    "branch refs/heads/claude/session-lock",
+    // The real shape the harness writes.
+    "locked claude session art-factory-story-split (pid 56740)",
+    "",
+    `worktree ${wt("unlocked")}`,
+    "HEAD 3333333",
+    "branch refs/heads/claude/unlocked",
+    "",
+  ].join("\n");
+  const parsed = parseWorktreeList(porcelain);
+  assert.equal(parsed.length, 3);
+  assert.equal(parsed[0]?.locked, true);
+  assert.equal(parsed[0]?.lockReason, null);
+  assert.equal(parsed[1]?.locked, true);
+  assert.equal(parsed[1]?.lockReason, "claude session art-factory-story-split (pid 56740)");
+  assert.equal(parsed[2]?.locked, false);
 });
 
 // ---------------------------------------------------------------------------
@@ -213,8 +281,11 @@ test("parseWorktreeList: parses branch + detached records, strips refs/heads/", 
 // ---------------------------------------------------------------------------
 
 interface FakeConfig {
-  /** basename → registered entry (branch|detached). Rendered into `worktree list --porcelain`. */
-  readonly registered: Record<string, { branch: string | null; detached?: boolean }>;
+  /** basename → registered entry (branch|detached|locked). Rendered into `worktree list --porcelain`. */
+  readonly registered: Record<
+    string,
+    { branch: string | null; detached?: boolean; locked?: string | true }
+  >;
   /** basenames on disk under the worktrees dir (superset of registered names). */
   readonly onDisk: string[];
   /** basenames whose HEAD is an ancestor of origin/main. */
@@ -248,6 +319,7 @@ function makeIo(cfg: FakeConfig): FakeIo {
       `worktree ${wt(name)}`,
       "HEAD abc1234",
       e.detached ? "detached" : `branch refs/heads/${e.branch ?? name}`,
+      ...(e.locked === undefined ? [] : [e.locked === true ? "locked" : `locked ${e.locked}`]),
       "",
     ]),
   ].join("\n");
@@ -342,6 +414,24 @@ test("gatherSnapshots: registered-under-managed + orphans; the primary is ignore
   assert.ok(!byName.has(path.basename(PRIMARY)), "the primary is never a snapshot");
 });
 
+test("gatherSnapshots: git's lock flag reaches the snapshot (registered only; orphans cannot be locked)", () => {
+  const io = makeIo({
+    registered: {
+      parked: { branch: "claude/parked", locked: "claude session parked (pid 1234)" },
+      "merged-idle": { branch: "claude/merged-idle" },
+    },
+    onDisk: ["parked", "merged-idle", "orphan-old"],
+    merged: new Set(["parked", "merged-idle"]),
+  });
+  const byName = new Map(
+    gatherSnapshots(io, { primaryRoot: PRIMARY, worktreesDir: WT_DIR }).map((s) => [s.name, s]),
+  );
+  assert.equal(byName.get("parked")?.locked, true);
+  assert.equal(byName.get("parked")?.lockReason, "claude session parked (pid 1234)");
+  assert.equal(byName.get("merged-idle")?.locked, false);
+  assert.equal(byName.get("orphan-old")?.locked, false);
+});
+
 // ---------------------------------------------------------------------------
 // pruneWorktrees — dry-run / force / cap / hook
 // ---------------------------------------------------------------------------
@@ -398,6 +488,38 @@ test("--force --yes reaps: registered via git worktree remove, orphan via rm, th
   assert.deepEqual(io.gitRemoved, [wt("merged-idle")], "the registered reap goes through git");
   assert.deepEqual(io.removed, [wt("orphan-old")], "the orphan reap goes through rm");
   assert.equal(io.pruneCalled, true, "dangling admin entries pruned after removal");
+});
+
+test("--force --yes NEVER removes a locked worktree, even merged + clean + idle", () => {
+  // The end-to-end guard for the arc's second defect: `nonhuman-library-write-scope` was locked,
+  // merged, clean and present, and the ONLY thing holding it back was the broken idle clock.
+  // Fixing the clock without this branch would have reaped a deliberate lock on the first run.
+  const io = makeIo({
+    registered: {
+      parked: { branch: "claude/parked", locked: "deliberate hold" },
+      "merged-idle": { branch: "claude/merged-idle" },
+    },
+    onDisk: ["parked", "merged-idle"],
+    merged: new Set(["parked", "merged-idle"]),
+  });
+  const env = pruneWorktrees({ ...baseOpts, force: true, yes: true }, { io, now: () => NOW });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /Reaped 1/);
+  assert.deepEqual(io.gitRemoved, [wt("merged-idle")], "only the unlocked worktree is removed");
+  assert.ok(
+    !io.removed.includes(wt("parked")) && !io.gitRemoved.includes(wt("parked")),
+    "a locked worktree must survive --force --yes",
+  );
+});
+
+test("the dry run explains a locked keep rather than silently omitting it", () => {
+  const io = makeIo({
+    registered: { parked: { branch: "claude/parked", locked: "deliberate hold" } },
+    onDisk: ["parked"],
+    merged: new Set(["parked"]),
+  });
+  const env = pruneWorktrees(baseOpts, { io, now: () => NOW });
+  assert.match(env.body, /keep {2}parked .* locked \(git worktree lock\) — deliberate hold/);
 });
 
 test("--cap bounds the number reaped and reports the remainder", () => {
