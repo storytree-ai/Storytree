@@ -6,16 +6,20 @@ import {
   CONTRACT_BINDING_DRIFT,
   MIRROR_PAIR_DRIFT,
   VACUOUS_PROOF,
+  WARN_LIST_HYGIENE,
+  analyzeGateCheck,
   evaluateDecayCeiling,
   findContractBindingDrift,
   findMirrorPairDrift,
   findOptionsFormSkips,
   findVacuousProof,
+  findWarnListHygiene,
   formatDecaySweep,
   isInsideDir,
   runDecaySweep,
   type DecayFinding,
   type DecayInstrument,
+  type GateCheckFacts,
   type ProofBinding,
   type SurfaceRoutes,
   type TestFileFacts,
@@ -412,6 +416,163 @@ describe("vacuous-proof: what it must NOT flag (the false-positive guards)", () 
   });
 });
 
+// ---------------------------------------------------------------------------
+// warn-list hygiene
+// ---------------------------------------------------------------------------
+
+/** Assemble a gate check from source lines — the entry, plus any extra "imported" renderer. */
+function check(script: string, entryLines: readonly string[], judge?: readonly string[]): GateCheckFacts {
+  const entryFile = `packages/cli/src/${script.replace(":", "-")}.ts`;
+  const sources = [{ path: entryFile, text: entryLines.join("\n") }];
+  if (judge !== undefined) sources.push({ path: `packages/cli/src/${script}-gate.ts`, text: judge.join("\n") });
+  return { script, entryFile, sources };
+}
+
+const TAG_DECL = 'const TAG = "[check:demo]";';
+/** The `check:corpus-sync` shape: a WARN headline that states its own item count. */
+const COUNTED_WARN = [
+  TAG_DECL,
+  "function main(): void {",
+  "  console.warn(`${TAG} WARN — ${diff.missing.length} artifact(s) are missing; run the sync.`);",
+  "}",
+];
+/** The `check:surface-coverage` shape: a WARN headline with no count, one printed line per item. */
+const PER_ITEM_WARN = [
+  TAG_DECL,
+  "const lines: string[] = [];",
+  "lines.push(`${TAG} WARN — the bijection has gaps. Advisory only.`);",
+  "for (const orphan of report.orphans) lines.push(`${TAG}     ${orphan}`);",
+];
+
+describe("warn-list-hygiene: what it locates", () => {
+  it("flags an advisory check whose WARN states an item count and which can never fail", () => {
+    const findings = findWarnListHygiene([check("check:demo", COUNTED_WARN)]);
+    assert.equal(findings.length, 1);
+    const found = findings[0];
+    assert.ok(found !== undefined);
+    assert.equal(found.instrument, WARN_LIST_HYGIENE);
+    assert.equal(found.id, `${WARN_LIST_HYGIENE}:check:demo`);
+    // The report points at the ENTRY file — where a ceiling would be declared.
+    assert.equal(found.where, "packages/cli/src/check-demo.ts");
+    assert.match(found.detail, /states an item COUNT/);
+  });
+
+  it("flags a check whose only witness is a line emitted PER ITEM — no count anywhere", () => {
+    const findings = findWarnListHygiene([check("check:demo", PER_ITEM_WARN)]);
+    assert.equal(findings.length, 1, "either witness alone is sufficient evidence of a worklist");
+    assert.match(findings[0]?.detail ?? "", /PER ITEM of a collection/);
+  });
+
+  it("reads the RENDERER, not only the entry — this repo splits advisory checks entrypoint/judge", () => {
+    // The entry prints nothing itself; every line is built in the imported judge (`check:coverage`).
+    const entry = [TAG_DECL, "for (const line of runGate().lines) console.warn(line);"];
+    const findings = findWarnListHygiene([check("check:demo", entry, COUNTED_WARN)]);
+    assert.equal(findings.length, 1, "a rule reading only the entry sees no output in the checks that matter");
+  });
+
+  it("orders findings by script so the ceiling's view of the backlog is stable run to run", () => {
+    const findings = findWarnListHygiene([
+      check("check:zebra", COUNTED_WARN),
+      check("check:alpha", COUNTED_WARN),
+    ]);
+    assert.deepEqual(
+      findings.map((f) => f.id),
+      [`${WARN_LIST_HYGIENE}:check:alpha`, `${WARN_LIST_HYGIENE}:check:zebra`],
+    );
+  });
+});
+
+describe("warn-list-hygiene: what it must NOT flag (the false-positive guards)", () => {
+  it("does not flag a check that CAN fail — a bounded worklist is the repair, not the defect", () => {
+    // The `check:friction-drain` / `check:verification-decay` shape: a ceiling that exits non-zero.
+    const bounded = [...COUNTED_WARN, "if (verdict.level === \"red\") process.exitCode = 1;"];
+    assert.deepEqual(findWarnListHygiene([check("check:demo", bounded)]), []);
+  });
+
+  it("does not flag a check that fails via process.exit(1)", () => {
+    const bounded = [...COUNTED_WARN, "if (report.breached) process.exit(1);"];
+    assert.deepEqual(findWarnListHygiene([check("check:demo", bounded)]), []);
+  });
+
+  it("still flags a check whose only exit is process.exit(0) — that bounds nothing", () => {
+    const unbounded = [...COUNTED_WARN, "process.exit(0);"];
+    assert.equal(findWarnListHygiene([check("check:demo", unbounded)]).length, 1);
+  });
+
+  it("does not flag a SINGLE-FACT warn — nothing there can accumulate", () => {
+    // The measured false positives of the untightened rule: `check:node-version`, `check:dist-drift`,
+    // `check:deploy-health` each WARN about ONE fact, so a ceiling would be ceremony.
+    const singleFact = [TAG_DECL, "console.warn(`${TAG} WARN — ${message}`);"];
+    assert.deepEqual(findWarnListHygiene([check("check:demo", singleFact)]), []);
+  });
+
+  it("does not flag a check that never carries a WARN level", () => {
+    const silent = [TAG_DECL, "console.log(`${TAG} OK — ${items.length} item(s) scanned.`);"];
+    assert.deepEqual(findWarnListHygiene([check("check:demo", silent)]), []);
+  });
+
+  it("does not read WARN out of a COMMENT — only a printed literal sets the level", () => {
+    // Load-bearing, not fastidious: `adr-health.ts` carries the exact string `WARN —` in a comment,
+    // so a raw-text scan would call a blocking check advisory.
+    const prose = [
+      "// Every state here is a WARN — see ADR-0252 for why this one blocks instead.",
+      TAG_DECL,
+      "console.log(`${TAG} ${items.length} item(s) scanned.`);",
+    ];
+    assert.deepEqual(findWarnListHygiene([check("check:demo", prose)]), []);
+  });
+
+  it("does not treat a loop over NON-output literals as a per-item witness", () => {
+    const noisy = [
+      TAG_DECL,
+      "console.warn(`${TAG} WARN — something happened`);",
+      "for (const x of xs) debug(`plain ${x}`);",
+    ];
+    assert.deepEqual(findWarnListHygiene([check("check:demo", noisy)]), []);
+  });
+});
+
+describe("warn-list-hygiene: it LOCATES and never adjudicates", () => {
+  it("states only what is mechanical — never that the list is too long or needs a ceiling", () => {
+    // The equivalent of `mirror-pair-drift`'s "required to agree" guard and `vacuous-proof`'s
+    // "falsely covered" guard. Whether a worklist can accumulate depends on its remedy, which is the
+    // adversarial pass's question: `check:agents-sync` drains to zero on one idempotent command.
+    const detail = findWarnListHygiene([check("check:demo", COUNTED_WARN)])[0]?.detail ?? "";
+    for (const adjudication of [
+      /too long/i,
+      /unreadable/i,
+      /nobody reads/i,
+      /has rotted/i,
+      /needs a ceiling/i,
+      /must have a ceiling/i,
+      /should fail/i,
+    ]) {
+      assert.doesNotMatch(detail, adjudication);
+    }
+  });
+
+  it("never escalates an ordinary located signal", () => {
+    // The escalation line is reserved for the class the cheap half CANNOT settle (a blind sweep).
+    for (const f of findWarnListHygiene([check("check:demo", COUNTED_WARN)])) {
+      assert.equal(f.escalation, undefined);
+    }
+  });
+});
+
+describe("analyzeGateCheck: the three facts, read from the AST", () => {
+  it("separates the level, the bound, and the witnesses", () => {
+    const shape = analyzeGateCheck(check("check:demo", COUNTED_WARN).sources);
+    assert.equal(shape.warns, true);
+    assert.equal(shape.canFail, false);
+    assert.equal(shape.witnesses.length, 1);
+  });
+
+  it("collects BOTH witnesses when a check reports a count and enumerates its items", () => {
+    const shape = analyzeGateCheck(check("check:demo", [...COUNTED_WARN, ...PER_ITEM_WARN]).sources);
+    assert.equal(shape.witnesses.length, 2, "the coverage/surface-coverage shape carries both");
+  });
+});
+
 describe("the drain ceiling: advisory per finding, fail-closed on the COUNT", () => {
   const f = (n: number, instrument = CONTRACT_BINDING_DRIFT): DecayFinding[] =>
     Array.from({ length: n }, (_, i) => ({ instrument, id: `${instrument}${i}`, where: "w", detail: "d" }));
@@ -690,7 +851,7 @@ describe("chartered coverage: an unswept instrument is a machine fact, not a sou
     assert.equal(CHARTERED_INSTRUMENTS.length, 4);
     // The exported slugs must stay JOINED to the roster: an instrument registered under a name the
     // roster does not carry would sweep while still being reported as NOT swept.
-    for (const slug of [CONTRACT_BINDING_DRIFT, MIRROR_PAIR_DRIFT, VACUOUS_PROOF]) {
+    for (const slug of [CONTRACT_BINDING_DRIFT, MIRROR_PAIR_DRIFT, VACUOUS_PROOF, WARN_LIST_HYGIENE]) {
       assert.ok(CHARTERED_INSTRUMENTS.includes(slug), `roster is missing ${slug}`);
     }
   });
