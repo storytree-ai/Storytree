@@ -4,7 +4,7 @@ tier: capability
 story: app-surface
 arc: chapter2-real-app-surface-arc
 title: "The shared world view plays and replays one honest semantic growth sequence"
-outcome: "A public app-surface growth view presents the six supplied world frames at one representative world framing and applies their deltas through the app's existing arrival, growth, claim and bloom transforms with deterministic Next, Back, Replay and reduced-motion rendering."
+outcome: "A public app-surface growth view presents the six supplied world frames at one representative world framing and applies their deltas through the app's existing arrival, growth, claim and bloom transforms: land alone emerges slowly and in place from nothing through the shared CSS renderer, while identity arrivals remain separately timed, with deterministic Next, Back, Replay and reduced-motion rendering."
 status: proposed
 proof_mode: integration-test
 depends_on: [studio-app-surface-adapter]
@@ -355,6 +355,13 @@ reanimate and no executable case proves exact entering-frame scoping. D-only pro
   Exact legacy scale values or one shared pop keyframe are not the contract. Do not group the roles
   under one settle/pop treatment, remount the whole scene to fake motion, add an animation
   framework/game engine/raster sequence, or create a parallel transform vocabulary.
+- The `land` delta alone makes the primary island emerge from nothing, slowly and at its existing
+  world anchors, through the shared `semantic-growth.css` renderer: its resolved arrival duration is
+  bounded from **700 ms through 1000 ms** and is longer than every proposed identity arrival. Coast
+  and substrate may form together only as that one land delta; tree/flora, plate and parcels remain
+  absent until `proposed` and keep their separately authored timings. This is not a new asset or
+  renderer seam. Reduced motion performs no timed emergence and instead exposes the same settled
+  land immediately.
 - Never translate the whole world, island/terrain group, or complete sprite/flora group laterally to
   announce a state. Keep every composed world coordinate and settled ground-contact transform stable.
   Reveal terrain where it lies; grow flora/tree from planted/root anchors; introduce the claim only
@@ -499,7 +506,11 @@ case after D. A complete D with no E is equally invalid, as `real-ms1rkitn` at `
      entrance/orbit and bloom-pulse hooks/profiles. An independent executable motion test reads the
      real CSS/source, rejects `semantic-growth-settle` grouping over `.hex-territory`,
      `.world-wisp`/`.world-claim-wisp`, `.world-bloom` and `.arrive-island`, and positively asserts
-     the named per-delta selector/keyframe wiring. A separate source/CSS case rejects whole-group
+     the named per-delta selector/keyframe wiring. The `land` selector alone resolves to a bounded
+     700--1000 ms in-place emergence, longer than every proposed identity arrival; the test rejects
+     a land profile outside that range, identity entering on land, or a land-duration alias of an
+     identity arrival, and proves reduced mode exposes settled land without timed concealment. A
+     separate source/CSS case rejects whole-group
      lateral translation and proves stable world anchors, in-place terrain growth, root-anchored
      flora/tree scale, localized claim entrance/orbit and localized bloom pulse. It also rejects the
      full CSS `transform:` property on mapper-positioned animated elements and positively requires

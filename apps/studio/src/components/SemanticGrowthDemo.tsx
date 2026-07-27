@@ -33,6 +33,8 @@ import {
   type SceneVegetationInput,
 } from '@storytree/forest-world';
 import {
+  neighbourHighlightPlan,
+  laneLayout,
   normalizeWorldPresentationModel,
   SemanticGrowthWorldView,
   type SemanticGrowthFrame,
@@ -92,7 +94,12 @@ function demoStory(status: WorkStatus, verdict?: TreeVerdict): TreeStory {
     status,
     proofMode: 'UAT',
     uatWitness: 'machine',
-    dependsOn: [],
+    // sgsd-primary-selection-reuses-drawn-route-lanes: a real `depends_on` edge onto the fixed
+    // companion, so the composed world's REAL trail network (`buildWorld` -> `storyEdges` ->
+    // `routeTrails`) actually routes a road between the two territories — never an invented
+    // lane. The companion is the dependency (`from`), the primary the dependent (`to`); the
+    // companion never narrates the primary's health walk regardless of this edge.
+    dependsOn: [COMPANION_STORY_ID],
     consumedBy: [],
     capabilities: [
       demoCapability(DEMO_CAP_ALPHA_ID, 6, capStatus),
@@ -215,6 +222,17 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
   });
   const companionIndex = baseWorld.territories.findIndex((t) => t.story.id === COMPANION_STORY_ID);
 
+  // sgsd-primary-selection-reuses-drawn-route-lanes: the primary's one-hop selection plan +
+  // laid-out lane, derived from the composed world's REAL trail network with the SAME shared
+  // helpers the live map uses — never a demo-local path, segment renderer, or CSS animation.
+  // Computed once (the network is fixed across every frame); threaded onto only the frames
+  // where the primary's own identity narrates (see {@link narrativeModel} below).
+  const neighbourPlan = neighbourHighlightPlan(baseWorld.trails, DEMO_STORY_ID);
+  const primaryLanes = laneLayout(baseWorld.trails, neighbourPlan, {
+    hand: 'auto',
+    roundabouts: true,
+  });
+
   const rawRelaxedCells = buildRelaxedCells(baseWorld, 'mesh', {});
   // The SOLE allowed filtering (H): deterministic removal of the real `buildRelaxedCells` output
   // OWNED by the fixed companion territory — never a hand-authored replacement — so the companion
@@ -286,6 +304,20 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
   const narrativeScene = (story: TreeStory, claims: readonly ClaimActivity[] = []): SceneNode =>
     withoutCompanionPlate(clearGroundIdentity(sceneForStory(story, claims), DEMO_STORY_ID));
 
+  // Only once the primary's own identity narrates (`proposed` onward) does its real drawn route
+  // reach the shared renderer as a lit lane — `empty`/`land` carry no primary identity yet, so
+  // they stay off the real one-hop plan/layout entirely (`neighbours`/`lanes` default null).
+  const narrativeModel = (
+    story: TreeStory,
+    claims: readonly ClaimActivity[] = [],
+  ): ReturnType<typeof normalizeWorldPresentationModel> =>
+    normalizeWorldPresentationModel({
+      scene: narrativeScene(story, claims),
+      neighbours: neighbourPlan,
+      lanes: primaryLanes,
+      laneMotion: 'draw',
+    });
+
   return [
     {
       key: 'empty',
@@ -297,13 +329,11 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
     },
     {
       key: 'proposed',
-      model: normalizeWorldPresentationModel({ scene: narrativeScene(demoStory('proposed')) }),
+      model: narrativeModel(demoStory('proposed')),
     },
     {
       key: 'claimed',
-      model: normalizeWorldPresentationModel({
-        scene: narrativeScene(demoStory('proposed'), [DEMO_CLAIM]),
-      }),
+      model: narrativeModel(demoStory('proposed'), [DEMO_CLAIM]),
     },
     {
       // Still `proposed`/non-healthy — a signed verdict alone never flips authored status (the
@@ -311,13 +341,11 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
       // frame carries the real signed-proof bloom (a fresh pass verdict, `verdictBloom`'s own
       // rule) while staying honest about status.
       key: 'signed-proof',
-      model: normalizeWorldPresentationModel({
-        scene: narrativeScene(demoStory('proposed', { outcome: 'pass', at: NOW.toISOString() })),
-      }),
+      model: narrativeModel(demoStory('proposed', { outcome: 'pass', at: NOW.toISOString() })),
     },
     {
       key: 'healthy',
-      model: normalizeWorldPresentationModel({ scene: narrativeScene(demoStory('healthy')) }),
+      model: narrativeModel(demoStory('healthy')),
     },
   ];
 }
