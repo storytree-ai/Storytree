@@ -57,6 +57,12 @@ model-events), never by importing another organism's source.
   shared `./parity` suite a real backend is held to, and `StoredDoc`/`StoreEvent`/`DeleteDocOpts`/
   `retiredEventDoc`. A contract, not a database — the second root (depends only on proof-protocol). The
   `node:test` parity suites live behind the `./parity` subpath so the main entry carries no `node:` import.
+  It also owns the seam's **HTTP transport** (ADR-0259 — every client that is not the server reaches the
+  store through a front door; `pg` is a server-side privilege): the wire contract (`store-wire.ts`) and
+  `HttpStore`, held to the same `storeParitySuite` as `InMemoryStore`/`PgLibraryStore`, both pure/browser-safe
+  in the main entry; the contract's server half (`handleStoreRequest`) sits behind the `./http-server`
+  subpath. **Adding the backend migrated nobody** — every existing caller still dials `createPool`, and
+  proof-bearing writes through a door stay GATED (ADR-0259 D5: needs an ADR-0081 amendment + an ADR-0252 review).
 - **`packages/library`** — the library organism: the work-hierarchy schema (`schema.ts`, story /
   capability / contract, `Tier`/`Status`/`Unit`) and the knowledge-document schema (`knowledge.ts`,
   `knowledge-render.ts`, `knowledge-sources.ts`, `migrations.ts`, `library-doc.ts`,
