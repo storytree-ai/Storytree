@@ -51,8 +51,9 @@ A librarian verdict can **park** a reviewed memory, and the park is a **lease, n
 4. **The counter counts only live candidates.** `check:graduation-worklist` WARNs on: candidates
    with no park record (new), parked candidates whose content hash no longer matches (changed), and
    parked candidates past their lease (expired). The WARN is therefore normally **zero** and
-   meaningful when it isn't. It stays advisory/local-only (never a block), exactly as ADR-0095 D7
-   positioned it.
+   meaningful when it isn't. It stays **local-only** (machine-local ledger; CI SKIPs it), exactly as
+   ADR-0095 D7 positioned it. *(This clause originally read "advisory/local-only (never a block)";
+   see the correction below — the counting rule decided here is untouched.)*
 
 This **amends ADR-0095**: D7's librarian pass gains the park ceremony and the inverted expiry
 re-review; the deletion rule is refined from "deletion follows graduation" to "deletion follows
@@ -74,6 +75,26 @@ without an explicit reviewed verdict.
   waiting a lease period to converge.
 - The `graduation-synthesist`'s adjudication seat (ADR-0168 D5) is unchanged — parking is a
   librarian curation verdict about *memory residence*, not a friction adjudication.
+
+**Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+D4's "never a block" was overtaken and is removed; the decision itself is untouched.**
+`check:graduation-worklist` is now **fail-closed at a drain ceiling** — live-candidate count > **N=4**
+or oldest lease-expired candidate > **M=21d**, two independent axes never summed, the
+[ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) D4 `check:friction-drain`
+shape (`packages/cli/src/graduation-drain.ts`). **Nothing decided here is re-decided.** What this ADR
+decided is the *park ceremony* and the *counting rule* — verdict, reason, content hash, review date,
+lease; count only new / changed / lease-expired — and every part of that stands unchanged; the ceiling
+is applied to the number this ADR taught the counter to produce. "Never a block" was a restatement of
+ADR-0095 D7's positioning rather than a fork this ADR took, and the authority to bound the queue came
+later and from elsewhere: [ADR-0252](0252-verification-decay-detection-continuous-mechanical-warns-a-j.md)
+D1 charters the `warn-list-hygiene` instrument precisely to locate advisory worklists that no exit code
+bounds, and D3 supplies the ceiling as their remedy. The dependency runs the *other* way from a
+reversal: a ceiling on this queue would have been permanently red before the park lease, and is only
+honest **because** this ADR made the normal count zero. Recorded rather than left, because a reader of
+D4 alone would meet a red `check:graduation-worklist` and conclude the ceiling violates this ADR — the
+exact stale-prose harm ADR-0139 exists to prevent. Fail-open on the substrate is preserved: an absent
+or unreadable park ledger reports the would-be breach and exits 0, so a missing machine-local file can
+never block a landing.
 
 ## References
 
