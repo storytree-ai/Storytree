@@ -173,7 +173,13 @@ file conflicts).
   that the proxy **re-terminates TLS and resets TLS on any non-443 port**, and its own policy lists
   **client-mTLS / non-443 HTTPS / raw-TCP databases** as unsupported — *report, do not work around*.
   The Cloud SQL connector is all three at once, so `--pg` writes, `--store pg`, and live/`--real`
-  builds are **structurally** impossible there — **don't try to tunnel or forward around it.** They
+  builds are **structurally** impossible there — **don't try to tunnel or forward around it.**
+  **But read that precisely (ADR-0258): what cannot work is the CONNECTOR, not "database access".**
+  Client-mTLS cannot survive a TLS-terminating proxy *by construction* — while ordinary **HTTPS on 443
+  is unaffected**, which is why the hosted studio and `/api/write-broker` are reachable from a remote
+  session. Today's block is that the CLI speaks `pg` and nothing speaks HTTP to a store; the inner loop
+  itself (leaf + spine) needs **no** DB — `--real` refuses on a DB-less machine because ADR-0060/0081
+  make it always persist, not because the sandbox stops it. They
   now **refuse instantly** with that explanation rather than hanging ~8 min (ADR-0250 D2). Still fine
   remotely: every read command (in-memory seed) and the whole offline gate — but **the REST control
   plane is gone too now** (`db:status` / the activation flip): the `storytree-remote-dev` identity was
