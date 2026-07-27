@@ -14,6 +14,12 @@ decisions: [237, 93, 213, 215, 230, 70]
 # must first prove one mounted WorldSceneView/SceneView, stable island-local identity and explicit
 # anchors, ordered deterministic timeline cues, no companion dependency, replay and reduced-motion
 # equivalence. The existing renderer, art policy and regression suite remain the proof wall.
+# REJECTED SIGNED CANDIDATE real-ms2zlkut @ 9a2c232: one appended compatibility-overload test is
+# under-proof. It casts around the public type, checks text/selector presence only, never retains
+# Element references, never walks Back, never exercises reduced motion, defines no anchors, carries
+# no route, and leaves the full stable scene visible at `empty`. AUTHOR_TEST must add the complete
+# three-case executable bundle below before CONFIRM_RED; a single all-in-one or source-regex case is
+# invalid even if it makes the current proof command red.
 proof:
   command:
     file: pnpm
@@ -125,6 +131,31 @@ then prove those exact nodes remain connected and identical through Next, Back a
 text, comments, equal serialized snapshots or unchanged SVG `transform` attributes alone do not
 prove persistence.
 
+**Three-case AUTHOR_TEST completion floor.** Before implementation, the focused test file must add
+all three independent executable cases below; each must fail current HEAD for its named behavioural
+reason. One case, a type cast, comments, source regex or simple `querySelector(...).toBeTruthy()`
+cannot substitute for the bundle.
+
+1. **Persistent hierarchy + explicit anchors.** Mount the proposed public API with one stable model,
+   six semantic events and explicit island-local terrain, contents, claim/proof and route endpoint
+   anchors. Retain actual `Element` references for the primary island root, representative terrain,
+   planted content and lane path at `nothing`. Walk every key and assert strict reference identity
+   (`toBe`), connection, ancestry, semantic ids and inspectable anchor coordinates at every stop.
+   The current source has no anchors and must fail this case.
+2. **Four-track visibility + route ownership.** Prove exact cue order. At `nothing`, the persistent
+   nodes remain mounted but island pixels/contents/route are concealed by shared track state; at
+   `island-reveal`, terrain reveals while contents and route remain concealed; at
+   `contents-settle`, primary-island contents reveal/settle while the lane remains concealed; only
+   `route-draw` exposes the same already-mounted lane with the existing `.trail-lane.is-drawing`
+   treatment. Assert both route endpoints equal declared primary-island anchors and no companion or
+   fabricated neighbour is present. Merely changing a root data attribute while all content stays
+   visible is red.
+3. **Back/Replay + reduced settlement.** Walk forward, Back to `nothing`, Replay, then the same trace
+   under reduced motion. Retained hierarchy/route references and anchors must remain identical.
+   Reduced motion must expose each cue's settled visibility immediately, carry no interpolating
+   class/orbit/delay, and finish with the same semantic key, hierarchy, ids/status classes, art,
+   anchor coordinates and route geometry as normal motion.
+
 ## Implementation boundary
 
 The smallest green may reshape `SemanticGrowthWorldView` and its co-located CSS and public exports.
@@ -147,6 +178,9 @@ provable unit.
      descendants keep the same DOM identity, semantic ids, ancestry, painter order and explicit
      anchor coordinates throughout. No complete-scene array, scene replacement, group stripping,
      companion story or remount key participates.
+   - **asserts —** persistence does not mean premature visibility: `nothing` conceals island pixels,
+     `island-reveal` reveals terrain only, `contents-settle` reveals island-local contents, and
+     `route-draw` alone exposes the already-mounted primary-anchored lane.
 2. **`sgrv-back-restart-replay-are-deterministic`**
    - **asserts —** equal model/event/action traces yield equal semantic keys, cue phases, track
      targets and settled output. Back reverses toward `nothing`; Replay resets to `nothing` and
@@ -173,4 +207,7 @@ green cannot sign LOOK.
 PR #958 proved the six semantic meanings, shared renderer participation, deterministic controls and
 reduced-motion state equivalence. PR #961 added an 850 ms land profile and reused the shared lane
 renderer. Both are useful scaffolding; the #961 owner LOOK rejected their snapshot/companion
-composition, which this current contract replaces.
+composition, which this current contract replaces. Signed real run `real-ms2zlkut` at `9a2c232`
+is also rejected proof residue: it introduced a stable-model overload and track attribute but did
+not establish the anchors, visibility staging, route ownership, retained reference identity or
+reduced-motion equivalence required here, so its branch was not merged.
