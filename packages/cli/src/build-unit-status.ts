@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { SIGNING_EVENT_KIND, Verdict } from "@storytree/proof-protocol";
+import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 import { rollupStatus } from "@storytree/orchestrator";
 import { createPool, closePool } from "@storytree/library/store";
 import { PgWorkStore } from "@storytree/orchestrator/store";
@@ -95,8 +96,15 @@ export function renderUnitStatusFile(rows: readonly UnitStatusRow[]): string {
   );
 }
 
-/** Repo root: packages/cli/src/build-unit-status.ts → four dirs up (the build-claude-md.ts pattern). */
-const repoRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+/**
+ * The repo root — a PARAMETER (ADR-0246), not a derivation. `STORYTREE_REPO_ROOT` points the
+ * unit-status view at another project's checkout; unset, it derives from this file's location
+ * (packages/cli/src/build-unit-status.ts → four dirs up, the build-claude-md.ts pattern).
+ */
+const repoRoot = resolveRepoRoot({
+  env: process.env[REPO_ROOT_ENV],
+  derived: path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", ".."),
+}).root;
 const statusPath = path.join(repoRoot, "apps", "studio", "data", "unit-status.json");
 const toLf = (s: string): string => s.replace(/\r\n/g, "\n");
 
