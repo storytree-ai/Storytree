@@ -1,26 +1,36 @@
 ---
-status: accepted
-load_bearing: true
-decided: 2026-07-27
+status: proposed
 amends: [255]
 ---
 # ADR-0257: The write-authority wall is agent-inescapable and binds shared checkouts
 
 ## Status
 
-accepted (2026-07-27) — decided/directed by the owner in the review session that followed
-[ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md)'s landing. The
-owner reviewed the four amendments below and directed *"okay sounds good make the updates"*.
-Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
+proposed (2026-07-27) — drafted in the review session that followed
+[ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md)'s landing, after a
+Claude Code session reviewed ADR-0255 against the built enforcement and the surrounding decision
+log. The owner directed the four amendments below be written up, and directed that this ADR stay
+`proposed` pending a review round by the Codex sessions that authored ADR-0255. ADR-0110's
+design-time ratification therefore does **not** apply here: the owner is deliberately holding the
+decision open for that round, so acceptance is a separate, later flip.
 
-**Amends** [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md).
-ADR-0255 D1, D2, D3, D5, D6 and D8 stand unchanged and are re-affirmed here: the primary checkout is
-a read-only agent lobby, write authority is a live claim-bound workspace rather than a prompt, claim
-before workspace stays literal, the rule is harness-neutral with harness-specific adapters, one
-workspace session holds one wisp, and the cross-surface proof is behavioural. This ADR re-decides
-**D4** (where the authority layer lives) and **D7** (what happens when the ledger is unreachable),
-and adds two scope clauses D1 and D7 left open. It does **not** relax the invariant; it makes the
-invariant buildable now instead of blocked on machinery that does not exist.
+**Amends** [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md). The
+`amends: [255]` edge binds only on acceptance; it is declared now so a reviewer sees exactly which
+parts of ADR-0255 move. ADR-0255 D1, D2, D3, D5, D6 and D8 stand unchanged and are re-affirmed here:
+the primary checkout is a read-only agent lobby, write authority is a live claim-bound workspace
+rather than a prompt, claim before workspace stays literal, the rule is harness-neutral with
+harness-specific adapters, one workspace session holds one wisp, and the cross-surface proof is
+behavioural. This ADR proposes to re-decide **D4** (where the authority layer lives) and **D7**
+(what happens when the ledger is unreachable), and to add two scope clauses D1 and D7 left open. It
+does **not** relax the invariant; it makes the invariant buildable now instead of blocked on
+machinery that does not exist.
+
+**Open question for the review round.** The sharpest disagreement to test is D1 below — whether a
+boundary a human can disable counts as an authority layer at all. The argument here is that
+ADR-0255 D7 already requires that human hatch to exist, so rejecting a pre-tool policy on those
+grounds is self-contradictory. If the round holds ADR-0255 D4's line instead, the consequence to
+price explicitly is that Claude Code desktop — the ADR-0030 compatibility default — stays read-only
+until a broker or OS profile exists.
 
 ## Context
 
