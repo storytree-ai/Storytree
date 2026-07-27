@@ -63,3 +63,16 @@ test("the refusal names the mechanism, the ADR, and the override — not a port 
   // It must point somewhere useful rather than just refusing.
   assert.match(message, /laptop/);
 });
+
+test("the refusal no longer offers the REST control plane — that identity was retired (ADR-0254 D4)", () => {
+  const message = dataPlaneRefusal({}, remoteMarker);
+  assert.ok(message !== null);
+  // Splitting on the blocked list is what makes this precise: the control plane must appear as a
+  // LOSS, never in the still-available list. A bare `match`/`doesNotMatch` on the whole message
+  // cannot tell those two apart.
+  const [available, blocked] = message.split("Blocked:");
+  assert.ok(available !== undefined && blocked !== undefined);
+  assert.doesNotMatch(available, /control plane/);
+  assert.match(blocked, /control plane/);
+  assert.match(blocked, /ADR-0254/);
+});
