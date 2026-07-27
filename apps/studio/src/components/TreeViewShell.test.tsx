@@ -520,6 +520,72 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     expect(svg!.getAttribute('viewBox')).not.toBe('0 0 100 100');
   });
 
+  // sgsd-primary-selection-reuses-drawn-route-lanes (semantic-growth-studio-demo): "its primary
+  // selection reuses the existing drawn route lanes while the clean Studio route remains
+  // unchanged." Once the primary story's own identity narrates (`proposed` onward), the fixture
+  // must derive that frame's one-hop selection with the SAME real helpers the live map uses —
+  // `neighbourHighlightPlan` + `laneLayout` (both from `@storytree/app-surface`) over the world's
+  // real trail network — and hand the result through as `WorldPresentationModel.neighbours` /
+  // `.lanes` / `.laneMotion`, never a demo-local path, segment renderer, or CSS animation. That
+  // real route must therefore reach the shared `SceneView` as `litRouteLanes` and render its
+  // existing `.trail-lane.is-drawing` treatment. A frame with no primary identity yet (`empty`,
+  // `land`) must carry no invented lane at all.
+  it('sgsd-primary-selection-reuses-drawn-route-lanes: the primary\'s real trail route reaches the shared renderer as a lit, drawing lane once its identity narrates, and no frame invents one', async () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
+      'utf8',
+    );
+
+    // 1) The real one-hop neighbour plan + lane-layout helpers are actually imported from the
+    // shared app-surface seam (never re-derived locally) and actually called — an unused import
+    // would still leave the live route unreused.
+    expect(source).toMatch(
+      /import\s*\{[\s\S]*?\bneighbourHighlightPlan\b[\s\S]*?\}\s*from '@storytree\/app-surface'/,
+    );
+    expect(source).toMatch(
+      /import\s*\{[\s\S]*?\blaneLayout\b[\s\S]*?\}\s*from '@storytree\/app-surface'/,
+    );
+    expect(source).toMatch(/\bneighbourHighlightPlan\s*\(/);
+    expect(source).toMatch(/\blaneLayout\s*\(/);
+    // No demo-local lane rendering — that class name belongs to the shared renderer alone.
+    expect(source).not.toMatch(/trail-lane/);
+
+    window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
+    const flagged = await renderTree();
+    const nav = flagged.querySelector('nav[aria-label="Semantic growth controls"]');
+    expect(nav).toBeTruthy();
+    const nextButton = Array.from(nav!.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Next',
+    );
+    expect(nextButton).toBeTruthy();
+
+    // `empty`: no primary identity at all -> no invented lane.
+    expect(flagged.querySelector('.trail-lane')).toBeNull();
+
+    // `land`: real claimed ground, still no primary identity -> still no invented lane.
+    await act(async () => {
+      nextButton!.click();
+    });
+    expect(
+      flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
+    ).toBe('land');
+    expect(flagged.querySelector('.trail-lane')).toBeNull();
+
+    // `proposed` onward: the primary's identity narrates, and its real drawn route reaches the
+    // shared renderer as a lit, one-shot-drawing lane — sourced from the real trail network, never
+    // invented, never a static ink lane.
+    for (const key of ['proposed', 'claimed', 'signed-proof', 'healthy']) {
+      await act(async () => {
+        nextButton!.click();
+      });
+      expect(
+        flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
+      ).toBe(key);
+      const litLane = flagged.querySelector('.trail-lane.is-drawing');
+      expect(litLane, `lit drawing lane missing @ ${key}`).toBeTruthy();
+    }
+  });
+
   // H — sgsd-companion-witness-territory (semantic-growth-studio-demo): the fixture must ALSO compose
   // a second, FIXED "companion" territory through the SAME real Studio pipeline as the primary — its
   // real draw tiles enter `buildRelaxedCells` alongside the primary's, and ONLY the companion's OWNED

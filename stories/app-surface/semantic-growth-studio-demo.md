@@ -4,7 +4,7 @@ tier: capability
 story: app-surface
 arc: chapter2-real-app-surface-arc
 title: "A query-gated Studio demo stages the semantic-growth witness"
-outcome: "An explicit `?semanticGrowth=demo` Studio flag mounts the public semantic-growth view over one six-frame fixture composed through Studio's real world geometry, substrate, parcels, vegetation and representative framing while the clean Studio route remains unchanged."
+outcome: "An explicit `?semanticGrowth=demo` Studio flag mounts the public semantic-growth view over one six-frame fixture composed through Studio's real world geometry, substrate, parcels, vegetation and representative framing; its primary selection reuses the existing drawn route lanes while the clean Studio route remains unchanged."
 status: proposed
 proof_mode: integration-test
 depends_on: [semantic-growth-replay-view]
@@ -251,6 +251,13 @@ frame, so it misses that invariant breach. The correction makes H prove every fr
   The sole allowed filtering is deterministic removal of real `buildRelaxedCells` output owned by
   the fixed companion territory to exercise the renderer's existing no-parcel path; it must retain
   every primary-owned cell and never synthesize a replacement.
+- From that same composed world's real trail network, supply each selected primary frame's existing
+  `WorldPresentationModel.neighbours`, `lanes` and `laneMotion: 'draw'`: derive the primary's
+  one-hop plan with the existing neighbour-plan helper and its route layout with the existing
+  lane-layout helper, never a demo-local path, segment renderer or CSS animation. The selected
+  primary's real routes therefore reach shared `SceneView` as `litRouteLanes` and render the
+  existing `.trail-lane.is-drawing` treatment; frames without a primary selection carry no invented
+  lane. The fixture owns only this model input, not route drawing or motion.
 - Add one fail-closed composition red in addition to the retained tests. Its executable/source
   assertions must cover every part of the composition boundary together: real source calls
   `buildWorld`, `buildRelaxedCells`, `worldToScene` and `buildScene`; source has no custom
@@ -498,6 +505,9 @@ Studio-owned animation rule or second renderer fails this floor.
      retains that real ground but no primary tree/plate/flora identity; primary proposed is
      non-healthy; primary claimed adds real presence without proof identity; primary signed-proof
      remains proposed/non-healthy while carrying the proof bloom; only primary healthy appears last.
+     The fixture derives its selected primary's `neighbours` and route `lanes` from that same real
+     trail network and supplies `laneMotion: 'draw'`; rendered proof observes the shared
+     `litRouteLanes` output with `.trail-lane.is-drawing`, not a fixture-local road or animation.
      Its transition trace is ground-arrival, flora-growth, claim-orbit and bloom
      rather than one generic scene-settle animation or whole-group lateral slide; settled world
      anchors remain equal through forward, Back, Replay and reduced motion, and source/computed proof
