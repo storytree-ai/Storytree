@@ -76,15 +76,22 @@ serves.* The readiness review (2026-07-05) established the precise seam:
    shared emitter from (2). librarian-curator owns keeping the process graph a current projection
    (extending its ADR-0154 charter).
 
-   **Corrected in place 2026-07-27 — the clause is date-stamped because the sweep is no longer clean;
-   the decision it supports is unaffected.** Nine days later ADR-0195 added the operator-facing root
-   script `ci:affected` with no `process` behind it, and the orphan list has read 1 continuously since
-   (13 processes / 67 entrypoints at time of writing). The precondition this un-defer rested on was the
-   *standing charter plus a gated tier*, not a permanently-zero worklist, so the un-defer stands —
-   but the parenthetical must not be read as current state. That the drift sat un-drained for thirteen
-   days across every local and CI gate run is the measured evidence that bounded
+   **Corrected in place 2026-07-27, extended 2026-07-28 — the clause is date-stamped because the sweep
+   went dirty and has since been drained; the decision it supports is unaffected either way.** Nine days
+   after this ADR, ADR-0195 added the operator-facing root script `ci:affected` with no `process` behind
+   it, and the orphan list read 1 continuously from 2026-07-14 to 2026-07-28 (13 processes / 67
+   entrypoints at the 2026-07-27 measurement). The precondition this un-defer rested on was the
+   *standing charter plus a gated tier*, not a permanently-zero worklist, so the un-defer stood
+   throughout — but the 2026-07-05 parenthetical must not be read as current state. That the drift sat
+   un-drained for thirteen days across every local and CI gate run is the measured evidence that bounded
    `check:surface-coverage` at a drain ceiling (see the ADR-0154 D2 correction and
    `packages/cli/src/surface-coverage-drain.ts`, which cites this line as its baseline).
+
+   **DRAINED 2026-07-28.** `process:affected-pr-test-scope` was authored from ADR-0195 under ADR-0154's
+   charter, and the sweep is CLEAN again — **14 processes / 67 entrypoints, unresolved 0 / orphans 0** —
+   with the orphan ceiling tightened 1 → 0 in the same unit, so the state this clause describes cannot
+   silently recur. Neither the 2026-07-05 nor the 2026-07-27 count is current; run
+   `pnpm check:surface-coverage` for the live numbers rather than calibrating to any figure here.
 
 4. **ADR-0156's way-of-working graduates its own `process`.** Per ADR-0154's charter (a load-bearing
    way-of-working ADR carries a current `process`), ADR-0156 — how a subagent gets context — graduates

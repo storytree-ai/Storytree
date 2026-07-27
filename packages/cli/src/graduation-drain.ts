@@ -29,7 +29,10 @@
 // real, available, and already in the operating discipline: the pre-merge librarian pass graduates the
 // genuinely durable and PARKS the keepers with a reason (ADR-0202), which is exactly what moves a
 // candidate out of `live`. 100 of this machine's 104 candidates are parked, so the remedy is a DRAIN
-// that demonstrably works, not an exhortation (ADR-0256: a ceiling's remedy must be a drain).
+// that demonstrably works, not an exhortation (ADR-0252 D3: a ceiling's remedy is a drain, never a
+// raise — corrected 2026-07-28, this cited ADR-0256, which decides something else entirely: that
+// deferral-keyed ESCALATION lines are not built. A reader following the old pointer landed on the
+// wrong decision).
 //
 // TWO LIMITATIONS, STATED RATHER THAN DISCOVERED LATER — both are real, both were observed, and the
 // repair for each is to close the gap, NEVER to raise N (raising a ceiling to accommodate the work in

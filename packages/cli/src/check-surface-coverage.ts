@@ -19,6 +19,13 @@
 // levels are UNCHANGED — RED is layered above them, so this check is strictly stronger than before
 // and never quieter.
 //
+// BOTH AXES ARE NOW AT ZERO (tightened 2026-07-28, after `pnpm ci:affected` was drained by authoring
+// `process:affected-pr-test-scope` from ADR-0195). There is no headroom left: any orphan, or any
+// dangling `surfaces` ref, reds the gate on its first appearance. Against a usable process tier the
+// WARN level is therefore unreachable — the formatter still prints its WARN lines, but the RED block
+// below always follows them, so what a reader sees and what the exit code does agree. WARN survives
+// only on the fail-OPEN substrate path, where the "not enforced" line is printed directly beneath it.
+//
 // Reachability policy is unchanged and now matters more: the catch-all below still SKIPs and exits 0
 // on any unexpected error, and a breach computed against a seed carrying no usable `process` tier is
 // reported but NOT enforced (fail-closed on the gaps, fail-open on the substrate).

@@ -103,6 +103,14 @@ declared dependency edge, which pnpm's graph cannot see —
 ## References
 
 - ADR-0022 (approval-gated trunk / auto-merge-on-green) — amended by this ADR.
+- **`process:affected-pr-test-scope`** (`storytree library artifact affected-pr-test-scope --pg`) —
+  the Library `process` deriving from this decision, authored 2026-07-28 under ADR-0154's charter (a
+  load-bearing way-of-working ADR carries a current `process`). *Added 2026-07-28 in place; nothing
+  here is re-decided.* This ADR remains the deciding policy and wins on any disagreement — the process
+  makes no new policy (ADR-0034 §2 reference-don't-restate). Until it existed, `pnpm ci:affected` was
+  the sole orphan on `check:surface-coverage`, un-drained for thirteen days; authoring it returned that
+  sweep to clean and let its orphan ceiling tighten to 0 (see ADR-0161's DRAINED note and
+  `packages/cli/src/surface-coverage-drain.ts`).
 - `packages/cli/src/ci-affected.ts` (rules), `ci-affected-main.ts` (CI shell),
   `ci-affected.test.ts` (the pinned classification behaviour), `.github/workflows/ci.yml`
   (`Affected scope (PRs only)` step).
