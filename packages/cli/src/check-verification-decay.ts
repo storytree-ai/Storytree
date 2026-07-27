@@ -33,11 +33,16 @@
  *   underlying gap. The one-line fix — teach ADR-0126's `analyzeObservedTests` to parse the options
  *   form — is a STORY-SHAPE call, not a code edit: it would move every contract those tests vouch for
  *   into `check:coverage`'s WARN backlog, which is a decision about the work, not about this sweep.
- * - `warn-list-hygiene` locates advisory worklists that no exit code bounds; it BOUNDS NONE. Giving one
- *   a ceiling — or establishing that a drift-shaped list cannot accumulate and needs none — is a
- *   per-check decision about that check's remedy, not an edit this sweep can make. Note the
- *   interaction it inherits: teaching `analyzeObservedTests` the options form would move contracts into
- *   `check:coverage`'s worklist, which is itself growth in the largest list this instrument locates.
+ * - `warn-list-hygiene` locates advisory worklists that no exit code bounds. ONE of the six is now
+ *   bounded — `check:graduation-worklist`, at the drain ceiling in `graduation-drain.ts` — and the
+ *   other FIVE are not. Giving one a ceiling, or establishing that a drift-shaped list cannot
+ *   accumulate and needs none, stays a per-check decision about that check's remedy, made one check
+ *   per increment against that check's REAL output; this sweep reads source and cannot see a list's
+ *   size, so it can never make the call itself. Note the interaction the remaining five inherit:
+ *   teaching `analyzeObservedTests` the options form would move contracts into `check:coverage`'s
+ *   worklist, which is itself growth in the largest list this instrument locates — so whoever bounds
+ *   `check:coverage` must account for that growth in the ceiling's recorded reason rather than set a
+ *   number the right repair would breach.
  *
  * On mirror-pair drift specifically, note the boundary ADR-0251 records: `check:mirror-conformance`
  * already proves the pairs in its `MIRRORS` registry EXACTLY, and blocks. The advisory instrument
@@ -114,8 +119,14 @@ const CEILINGS = {
    * steps `pnpm gate` runs — each printing a per-item WARN worklist that no exit code bounds. Bound a
    * worklist (a ceiling compared against its count, the `check:friction-drain` shape), or establish
    * that one cannot accumulate, and lower this number.
+   *
+   * TIGHTENED 6 → 5 on the same day: `check:graduation-worklist` was bounded at a drain ceiling
+   * (`graduation-drain.ts`), so the sweep no longer locates it. It was the right one to bound first
+   * because it is not a hypothetical — ADR-0168 D4 cites THIS queue as the measured rot that justified
+   * the friction ceiling ("grew 31→58 in one session and drained nothing"), then bounded the sibling
+   * and left this one WARN-only.
    */
-  [WARN_LIST_HYGIENE]: 6,
+  [WARN_LIST_HYGIENE]: 5,
 } as const;
 
 // ---------------------------------------------------------------------------

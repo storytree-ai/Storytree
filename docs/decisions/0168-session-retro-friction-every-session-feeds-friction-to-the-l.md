@@ -293,8 +293,9 @@ graduated rule self-sealing: sessions obey it and questioning it reads as defect
 - **Machine, blocking:** the `friction new` capture validator (evidence, cap, refs) + schema
   strictness; the drain ceiling (where the store is reachable); `adr-health` edges on the ADR route;
   inbox-staging schema in the gate.
-- **Machine, WARN:** drain-age advisories below the ceiling; the existing `check:graduation-worklist`
-  (unchanged).
+- **Machine, WARN:** drain-age advisories below the ceiling. (`check:graduation-worklist` sat here
+  when this ADR landed — unchanged BY it. It has since moved to the blocking row above; see the
+  correction under D8.)
 - **Adjudicator/librarian judgment:** the seven questions, routing, reinforce-vs-new calls,
   tombstoning, **owner-escalation judgment** — worth is never arithmetic.
 - **Owner-held:** ratifying friction-born ADRs and whatever else the adjudicator escalates;
@@ -303,10 +304,32 @@ graduated rule self-sealing: sessions obey it and questioning it reads as defect
 ### D8 — What stays unchanged
 
 `friction-analyst` (per-run) is untouched as a producer. `check:graduation-worklist` and the
-ADR-0095 memory-graduation path are unchanged (memory and friction are different sources feeding the
-same judgment; the synthesist reads both). ADR-0032 §5's anti-gaming deferral is **reaffirmed**:
+ADR-0095 memory-graduation path are unchanged **by this ADR** (memory and friction are different
+sources feeding the same judgment; the synthesist reads both) — see the correction below for what
+happened to that check afterwards. ADR-0032 §5's anti-gaming deferral is **reaffirmed**:
 this ADR answers observed slop with structure-only mechanics; no forge-resistance, no cite-integrity
 machinery, no worth-thresholds.
+
+**Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+`check:graduation-worklist` is no longer WARN-only, so D7's enforcement map and D8's present-tense
+"unchanged" were overtaken; both are scoped rather than reversed.** That check is now **fail-closed
+at a drain ceiling** of exactly this D4 shape — two independent axes, never summed: live-candidate
+count > **N=4** (baselined on its own first real sweep) and oldest lease-expired candidate > **M=21d**
+(inherited from D4). The pure judge is `packages/cli/src/graduation-drain.ts`; the disk/ledger-reading
+shell is `packages/cli/src/check-graduation-worklist.ts`. **Nothing in this ADR is re-decided.** D8's
+claim was always a *scope* statement — that ADR-0168 itself did not touch the memory path — and that
+stays true: the change was authorised elsewhere, by [ADR-0252](0252-verification-decay-detection-continuous-mechanical-warns-a-j.md)
+D1's `warn-list-hygiene` instrument (which locates advisory worklists no exit code bounds) taking D3's
+ceiling remedy, and this queue was the first one bounded. The irony is deliberate and worth recording:
+D4's own evidence names THIS worklist as the measured rot that justified the friction ceiling — it
+"surfaced 31 mostly-event-specific candidates on every gate run — grown to 58 within the design
+session itself — a WARN that fires constantly and drains nothing" — and then this ADR bounded the
+*sibling* queue and left the cited one WARN-only. D4's lesson ("a WARN-backed worklist with no drain
+obligation rots") now applies to the queue it was learned from. What made that affordable is
+[ADR-0202](0202-parked-memory-leases-the-graduation-worklist-counts-only-new.md)'s park lease: only
+once the count is normally zero can a ceiling be honest rather than permanently red. Recorded here
+because a reader of D7's table alone would place a blocking check in the WARN row and "fix" the red
+by removing it — the exact stale-prose harm ADR-0139 exists to prevent.
 
 ## Success measures — how we know it's working (the north star is effectiveness, not inbox health)
 
