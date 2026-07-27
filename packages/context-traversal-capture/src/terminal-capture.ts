@@ -16,9 +16,10 @@
  */
 import { randomUUID } from "node:crypto";
 
+import { AGENT_DESCENT_COVERAGE, descendAgentRefs } from "./descend-agent-refs.js";
 import { observeCliInvocation } from "./observe-cli.js";
 import { renderTraversalSession, renderTraversalSessions } from "./query-render.js";
-import { linkRevisits, REVISIT_LINK_COVERAGE } from "./revisit-links.js";
+import { linkRevisits } from "./revisit-links.js";
 import {
   appendTraversalEvents,
   listTraversalSessions,
@@ -47,6 +48,12 @@ export interface CaptureCliInvocationInput {
   readonly now?: () => Date;
   /** Injected id source for visit identity. */
   readonly nextId?: () => string;
+  /**
+   * The floor-ref ids an `agents <name>` essentials render resolved, in render order — resolved by
+   * the CALLER (it needs an async store read, and this entry point is contractually synchronous).
+   * Empty or absent for every other dispatch shape, which is the normal case.
+   */
+  readonly agentRefIds?: readonly string[];
 }
 
 /** Where the query composition reads a captured session from. */
@@ -96,6 +103,15 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   });
   if (events.length === 0) return;
 
+  // DESCEND first, then LINK: the descent mints the child visits, and linking afterwards lets a
+  // repeat `agents <name>` name the earlier occurrence of BOTH the agent visit and each of its
+  // children. Linking first would leave every child unlinked, since none existed yet.
+  const descended = descendAgentRefs(events, input.agentRefIds ?? [], {
+    sessionId,
+    nextVisitId: nextId,
+    now,
+  });
+
   const dir = input.dir ?? resolveTraversalDir();
   // A revisit link needs the session's EARLIER visits, which live only in the trace already on disk
   // (each invocation is its own process). Read them back through the sink's tolerant reader — a
@@ -103,7 +119,7 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   // link, never the append. Ordering, never `at`: `readTraversalSession` returns append order, which
   // is the only "earlier" this producer is allowed to know (ADR-0235).
   const { replay } = readTraversalSession({ dir, sessionId });
-  appendTraversalEvents(linkRevisits(events, replay.events), { dir, sessionId });
+  appendTraversalEvents(linkRevisits(descended, replay.events), { dir, sessionId });
 }
 
 /**
@@ -111,14 +127,16 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
  *
  * The sink persists events only, never coverage declarations, so this composition — the only place
  * that knows which adapter captured through the terminal CLI — declares `terminal-cli-dispatch`'s
- * coverage for the render itself. It declares the COMPOSED coverage, not `observe-cli.ts`'s base:
- * the base honestly describes the bare argv observer, which emits no `field:prior_visit_id`, while
- * what this composition actually writes to disk does (`captureCliInvocation` above).
+ * coverage for the render itself. It declares the OUTERMOST composed coverage, not
+ * `observe-cli.ts`'s base: the base honestly describes the bare argv observer, which emits neither
+ * `field:prior_visit_id` nor `field:parent_visit_id`, while what this composition actually writes to
+ * disk emits both (`captureCliInvocation` above links revisits AND descends an `agents <name>`
+ * render's floor refs).
  */
 export function showTraversalSession(sessionId: string, opts?: TraversalQueryOptions): RenderedEnvelope {
   const dir = opts?.dir ?? resolveTraversalDir();
   const { replay, skipped } = readTraversalSession({ dir, sessionId });
-  return renderTraversalSession({ ...replay, coverage: [REVISIT_LINK_COVERAGE] }, { skipped });
+  return renderTraversalSession({ ...replay, coverage: [AGENT_DESCENT_COVERAGE] }, { skipped });
 }
 
 /**

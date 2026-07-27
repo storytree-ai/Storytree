@@ -58,8 +58,12 @@ that is the primary way the shape is read, not a static diagram that happens to 
   by query or drill-down; they are not drawn as loop-back lines in the overview.
 - Time never runs backwards in the playback. Depth into the Library DAG is the axis that moves both
   ways: a descent indents, a return to a shallower node comes back. This requires deterministic
-  `parentVisitId` and followed-edge metadata; where those are absent the traversal honestly renders as
-  a single column rather than an inferred tree.
+  `parentVisitId`, and nothing else — a causal FORK additionally needs followed-edge metadata (next
+  bullet), but plain depth does not. Where parent links are absent the traversal honestly renders as a
+  single column rather than an inferred tree. (Narrowed 2026-07-27: this clause used to require
+  `parentVisitId` AND followed-edge metadata for depth, which reads as "no tree may ever be drawn" —
+  followed-edge has no producer and is not expected to gain one, while `parentVisitId` now has one.
+  The conjunction was wrong; the honesty rule it guards is unchanged.)
 - A causal knowledge fork is shown only when deterministic offered/followed-edge metadata exists. Temporal proximity is not evidence of a fork.
 - Parent and subagents occupy linked lanes. A child receives a payload from the parent, runs an independent context window and inner loop, then returns a result to the parent.
 - Color and compact icons identify stable agent types, not individual instances. The approved initial types are primary, general-purpose, Explore, and librarian-curator.
@@ -83,7 +87,7 @@ The mock is shaped from metadata extracted from recorded session `02b6a304-6b29-
 - Children: five spawned agents, 208 combined tool calls.
 - Child types represented: Explore, general-purpose, and librarian-curator.
 - Spawn and result-return lanes are observable in the source trace.
-- Causal knowledge forks are intentionally absent because the source trace predates deterministic `parentVisitId`, candidate, and followed-edge metadata.
+- Causal knowledge forks are intentionally absent because the source trace predates deterministic `parentVisitId`, candidate, and followed-edge metadata. `parentVisitId` has since gained a producer (below); candidate and followed-edge metadata still have none.
 
 The trace's occupancy series is load-bearing beyond composition: it **recedes** (240.9k → 228.1k, and
 239.8k → 229.6k, with per-visit `added` falling to 0 on those visits). That is the evidence in ADR-0248
@@ -130,5 +134,20 @@ artifacts rendered per-node gauges and a bottom-of-circle danger marker, but the
 loop-back at all, so clause 4 was already satisfied and cost the regeneration nothing. What changed is
 clauses 1–3 plus two things they made possible — a search visit is now drawn as a magnifying glass
 *instead of* a circle rather than layered over a gauge ring, and the marks shrank from 6.8/5.2 to
-3.4/2.8 units, which is the panel room the revision was after. Depth still renders as a single column:
-that waits on `parentVisitId` and followed-edge metadata, which no adapter emits yet.
+3.4/2.8 units, which is the panel room the revision was after.
+
+**Depth: half the metadata now exists, and these artifacts still show none of it — deliberately.**
+Narrowed 2026-07-27: `parentVisitId` gained its first producer anywhere in the repo (capability
+`agent-ref-descent`, story `context-traversal-capture`). `storytree agents <name>` renders each floor
+ref's one-line assertion by resolving that ref's explicit id inside one process, so each resolved ref
+is recorded as a child visit naming the agent's visit as its parent — a within-process containment
+fact, not a correlation. Depth on that surface genuinely moves: down one level, then back.
+
+These two artifacts are nonetheless NOT redrawn, and must not be. Their reference trace is recorded
+session `02b6a304`, which predates the emission entirely and contains no `agents` invocation at all —
+so an indented tree drawn over it would be inferred depth, which the honesty clause above forbids and
+which would forge the arc's own reference evidence. They stay a single column because *their* trace is
+one. A future artifact drawn from a trace that does carry parent links should show the descent.
+
+Followed-edge metadata still has no producer, and is not expected to gain one: being offered and later
+read does not entail being followed, and ADR-0235 clause 3 already refuses temporal proximity as proof.

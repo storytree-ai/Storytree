@@ -12,6 +12,14 @@ accepted (2026-07-02) — decided/directed by the owner in conversation on 2026-
 owner asked whether anchoring could be enforced at worktree/branch creation; this ADR records why
 that altitude was rejected and what was chosen instead.
 
+**Correction ([ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the nudge and
+landing-time `check:declared` wall stand as feedback and defence in depth. The rejection of a
+creation gate is overtaken for GENERIC WRITES by the repository-minted claim-first ceremony already
+built in ADR-0200: the primary checkout is now a mechanically read-only agent lobby, and a separate
+cross-harness pre-write authority guard refuses mutation before the late gate. Ambient noticeboard
+hooks remain never-blocking; the authority guard is a different surface.
+
 ## Context
 
 ADR-0142 made `noticeboard declare --node` take the work-time story claim — the wisp. But lighting

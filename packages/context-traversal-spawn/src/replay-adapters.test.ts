@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { appendTraversalEvents, REVISIT_LINK_COVERAGE } from "@storytree/context-traversal-capture";
+import { appendTraversalEvents, AGENT_DESCENT_COVERAGE } from "@storytree/context-traversal-capture";
 import { CoverageFeature } from "@storytree/context-traversal-telemetry";
 import type { CoverageFeature as CoverageFeatureValue } from "@storytree/context-traversal-telemetry";
 
@@ -111,7 +111,7 @@ test("every-rendered-event-kind-is-supported-by-a-declared-adapter: every render
     assert.equal(result.ok, true);
 
     const unionSupported = new Set<string>([
-      ...REVISIT_LINK_COVERAGE.supported,
+      ...AGENT_DESCENT_COVERAGE.supported,
       ...BUILD_SPAWN_BOUNDARY_COVERAGE.supported,
     ]);
 
@@ -150,19 +150,25 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
     // trace visibly carried (ADR-0235 clause 6). Found by walking the real CLI, not by any test.
     const renderedTerminal = result.body
       .split("\n")
-      .find((line) => line.includes(`coverage: adapter=${REVISIT_LINK_COVERAGE.adapterId}`));
+      .find((line) => line.includes(`coverage: adapter=${AGENT_DESCENT_COVERAGE.adapterId}`));
     assert.ok(renderedTerminal !== undefined, "the terminal coverage line must render");
     const [renderedSupported, renderedOmitted] = renderedTerminal.split(" omitted=");
-    assert.ok(
-      renderedSupported?.includes("field:prior_visit_id"),
-      "the terminal adapter links same-node revisits, so its rendered declaration must SUPPORT field:prior_visit_id",
-    );
-    assert.ok(
-      !renderedOmitted?.includes("field:prior_visit_id"),
-      "field:prior_visit_id must not also render as omitted — a render may not deny a field it produces",
-    );
+    // The pin tracks the OUTERMOST composed constant, and grows with it: each composition layer adds
+    // a field the wired terminal really emits, and every one of them must render as supported and
+    // NOT as omitted. Naming them individually (rather than looping the constant) keeps the pin
+    // falsifiable against a render that silently drops back to an inner layer.
+    for (const field of ["field:prior_visit_id", "field:parent_visit_id"]) {
+      assert.ok(
+        renderedSupported?.includes(field),
+        `the wired terminal adapter emits ${field}, so its rendered declaration must SUPPORT it`,
+      );
+      assert.ok(
+        !renderedOmitted?.includes(field),
+        `${field} must not also render as omitted — a render may not deny a field it produces`,
+      );
+    }
 
-    const terminalLine = `coverage: adapter=${REVISIT_LINK_COVERAGE.adapterId} supported=[${REVISIT_LINK_COVERAGE.supported.join(", ")}] omitted=[${REVISIT_LINK_COVERAGE.omitted.join(", ")}]`;
+    const terminalLine = `coverage: adapter=${AGENT_DESCENT_COVERAGE.adapterId} supported=[${AGENT_DESCENT_COVERAGE.supported.join(", ")}] omitted=[${AGENT_DESCENT_COVERAGE.omitted.join(", ")}]`;
     const buildLine = `coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId} supported=[${BUILD_SPAWN_BOUNDARY_COVERAGE.supported.join(", ")}] omitted=[${BUILD_SPAWN_BOUNDARY_COVERAGE.omitted.join(", ")}]`;
 
     assert.ok(
@@ -177,7 +183,7 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
     // Both declarations carry a non-empty omitted side in the real vocabulary — a render that
     // dropped the omitted half of either would still pass a naive "adapter=... appears" check but
     // fail these.
-    assert.ok(REVISIT_LINK_COVERAGE.omitted.length > 0);
+    assert.ok(AGENT_DESCENT_COVERAGE.omitted.length > 0);
     assert.ok(BUILD_SPAWN_BOUNDARY_COVERAGE.omitted.length > 0);
   } finally {
     removeTempDir(dir);
@@ -274,7 +280,7 @@ test("a session with no captured file at all replays empty, with no coverage-blo
 
     assert.equal(result.ok, true);
     assert.ok(result.body.includes("(no events observed)"));
-    assert.ok(result.body.includes(`coverage: adapter=${REVISIT_LINK_COVERAGE.adapterId}`));
+    assert.ok(result.body.includes(`coverage: adapter=${AGENT_DESCENT_COVERAGE.adapterId}`));
     assert.ok(result.body.includes(`coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId}`));
   } finally {
     removeTempDir(dir);
