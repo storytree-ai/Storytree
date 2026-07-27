@@ -28,13 +28,7 @@ export interface SemanticGrowthPoint {
 export interface SemanticGrowthAnchors {
   readonly islandId: string;
   readonly terrain: SemanticGrowthPoint;
-  readonly contents: SemanticGrowthPoint;
-  readonly claim: SemanticGrowthPoint;
-  readonly proof: SemanticGrowthPoint;
-  readonly route: {
-    readonly from: SemanticGrowthPoint;
-    readonly to: SemanticGrowthPoint;
-  };
+  readonly storyTree: SemanticGrowthPoint;
 }
 
 export interface SemanticGrowthWorldViewProps {
@@ -66,25 +60,11 @@ function assertAnchors(anchors: SemanticGrowthAnchors): void {
   }
   const points = [
     anchors.terrain,
-    anchors.contents,
-    anchors.claim,
-    anchors.proof,
-    anchors.route.from,
-    anchors.route.to,
+    anchors.storyTree,
   ];
   if (points.some(({ x, y }) => !Number.isFinite(x) || !Number.isFinite(y))) {
     throw new Error('Semantic growth anchors require finite coordinates.');
   }
-}
-
-/** Remove only motion metadata, retaining the source scene's real semantic markers. */
-function withoutOrbit(node: SceneNode): SceneNode {
-  const { phase: _phase, ...stationary } = node;
-  if (node.el !== 'g') return stationary as SceneNode;
-  return {
-    ...stationary,
-    children: node.children.map(withoutOrbit),
-  } as SceneNode;
 }
 
 function anchoredTransform(
@@ -113,38 +93,11 @@ function withSemanticAnchors(
   };
 
   if (node.kind === 'tree') {
-    const anchored = { ...node, transform: anchoredTransform(anchors.contents, parent) };
+    const anchored = { ...node, transform: anchoredTransform(anchors.storyTree, parent) };
     return {
       ...anchored,
       children: anchored.children.map((child) =>
-        withSemanticAnchors(child, anchors, anchors.contents, false)),
-    } as SceneNode;
-  }
-
-  if (node.kind === 'bloom-anchor') {
-    const anchored = { ...node, transform: anchoredTransform(anchors.proof, parent) };
-    return {
-      ...anchored,
-      children: anchored.children.map((child) =>
-        withSemanticAnchors(child, anchors, anchors.proof, false)),
-    } as SceneNode;
-  }
-
-  if (node.kind === 'claim-wisp') {
-    const { phase: _phase, ...stationary } = node;
-    let bodyAnchored = false;
-    return {
-      ...stationary,
-      children: node.children.map((child) => {
-        if (!bodyAnchored && child.el === 'g') {
-          bodyAnchored = true;
-          return {
-            ...child,
-            transform: anchoredTransform(anchors.claim, own),
-          } as SceneNode;
-        }
-        return withSemanticAnchors(child, anchors, own, false);
-      }),
+        withSemanticAnchors(child, anchors, anchors.storyTree, false)),
     } as SceneNode;
   }
 
@@ -189,13 +142,17 @@ function representativeViewBox(model: WorldPresentationModel): string {
   ].join(' ');
 }
 
-type SemanticGrowthTrack = 'nothing' | 'island-reveal' | 'contents-settle' | 'route-draw';
+type SemanticGrowthTrack =
+  | 'nothing'
+  | 'island-reveal'
+  | 'story-tree-entrance'
+  | 'story-tree-settled';
 
 function trackFor(key: SemanticGrowthFrameKey): SemanticGrowthTrack {
   if (key === 'empty') return 'nothing';
   if (key === 'land') return 'island-reveal';
-  if (key === 'healthy') return 'route-draw';
-  return 'contents-settle';
+  if (key === 'proposed') return 'story-tree-entrance';
+  return 'story-tree-settled';
 }
 
 function anchorEntries(anchors: SemanticGrowthAnchors): readonly [
@@ -204,11 +161,7 @@ function anchorEntries(anchors: SemanticGrowthAnchors): readonly [
 ][] {
   return [
     ['terrain', anchors.terrain],
-    ['contents', anchors.contents],
-    ['claim', anchors.claim],
-    ['proof', anchors.proof],
-    ['route-from', anchors.route.from],
-    ['route-to', anchors.route.to],
+    ['story-tree', anchors.storyTree],
   ];
 }
 
@@ -235,23 +188,12 @@ export function SemanticGrowthWorldView({
   const model = React.useMemo<WorldPresentationModel>(
     () => ({
       ...sourceModel,
-      scene: reduce ? withoutOrbit(anchoredScene) : anchoredScene,
-      laneMotion: track === 'route-draw' && !reduce ? 'draw' : 'none',
+      scene: anchoredScene,
+      laneMotion: 'none',
     }),
-    [sourceModel, anchoredScene, reduce, track],
+    [sourceModel, anchoredScene],
   );
   const viewBox = React.useMemo(() => representativeViewBox(sourceModel), [sourceModel]);
-  const islandRef = React.useRef<SVGGElement>(null);
-
-  // SceneView already owns the route path. Annotate that existing path with its explicit local
-  // ownership contract instead of drawing a companion route or introducing another renderer.
-  React.useLayoutEffect(() => {
-    const route = islandRef.current?.querySelector('.trail-lane');
-    if (!route) return;
-    route.setAttribute('data-route-owner', anchors.islandId);
-    route.setAttribute('data-route-from', `${anchors.route.from.x},${anchors.route.from.y}`);
-    route.setAttribute('data-route-to', `${anchors.route.to.x},${anchors.route.to.y}`);
-  }, [anchors, model]);
 
   const select = (nextCursor: number, callback?: (key: SemanticGrowthFrameKey) => void): void => {
     const bounded = Math.max(0, Math.min(FRAME_KEYS.length - 1, nextCursor));
@@ -267,11 +209,7 @@ export function SemanticGrowthWorldView({
     >
       <svg viewBox={viewBox} aria-label={`Semantic growth: ${event.key}`}>
         <g
-          ref={islandRef}
           data-semantic-growth-island={anchors.islandId}
-          data-route-owner={anchors.islandId}
-          data-route-from={`${anchors.route.from.x},${anchors.route.from.y}`}
-          data-route-to={`${anchors.route.to.x},${anchors.route.to.y}`}
         >
           {events ? (
             <WorldSceneView model={model} events={events} />

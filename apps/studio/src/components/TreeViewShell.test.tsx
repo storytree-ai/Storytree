@@ -127,27 +127,27 @@ describe('semantic-growth Studio witness', () => {
     expect(semanticRoot(flagged).getAttribute('data-semantic-growth-frame')).toBe('land');
   });
 
-  it('retains one island-local hierarchy and explicit anchors while semantic events cue the four tracks', async () => {
+  it('retains one island and planted story tree while semantic events cue the corrected four tracks', async () => {
     window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
     const container = await renderTree();
     const held = {
       island: container.querySelector('[data-semantic-growth-island="semantic-growth-demo"]'),
       terrain: container.querySelector('.coast-fill-group'),
-      contents: container.querySelector('.story-tree'),
-      claim: container.querySelector('.world-claim-wisp'),
-      proof: container.querySelector('.world-bloom'),
-      route: container.querySelector('.trail-lane'),
+      tree: container.querySelector('.story-tree'),
     };
     for (const element of Object.values(held)) expect(element).toBeTruthy();
-    expect(container.querySelectorAll('[data-semantic-growth-anchor]')).toHaveLength(6);
+    expect(
+      [...container.querySelectorAll('[data-semantic-growth-anchor]')]
+        .map((anchor) => anchor.getAttribute('data-semantic-growth-anchor')),
+    ).toEqual(['terrain', 'story-tree']);
 
     const expectedTracks = [
       'nothing',
       'island-reveal',
-      'contents-settle',
-      'contents-settle',
-      'contents-settle',
-      'route-draw',
+      'story-tree-entrance',
+      'story-tree-settled',
+      'story-tree-settled',
+      'story-tree-settled',
     ];
     for (let index = 0; index < ORDERED_KEYS.length; index += 1) {
       const root = semanticRoot(container);
@@ -155,22 +155,17 @@ describe('semantic-growth Studio witness', () => {
       expect(root.getAttribute('data-semantic-growth-track')).toBe(expectedTracks[index]);
       expect(container.querySelector('[data-semantic-growth-island]')).toBe(held.island);
       expect(container.querySelector('.coast-fill-group')).toBe(held.terrain);
-      expect(container.querySelector('.story-tree')).toBe(held.contents);
-      expect(container.querySelector('.world-claim-wisp')).toBe(held.claim);
-      expect(container.querySelector('.world-bloom')).toBe(held.proof);
-      expect(container.querySelector('.trail-lane')).toBe(held.route);
+      expect(container.querySelector('.story-tree')).toBe(held.tree);
       if (index < ORDERED_KEYS.length - 1) fireEvent.click(control(container, 'Next'));
     }
 
-    expect(held.route!.classList.contains('is-drawing')).toBe(true);
     fireEvent.click(control(container, 'Back'));
-    expect(container.querySelector('.trail-lane')).toBe(held.route);
-    expect(held.route!.classList.contains('is-drawing')).toBe(false);
+    expect(container.querySelector('.story-tree')).toBe(held.tree);
     fireEvent.click(control(container, 'Replay'));
-    expect(container.querySelector('.story-tree')).toBe(held.contents);
+    expect(container.querySelector('.story-tree')).toBe(held.tree);
   });
 
-  it('owns its route on the primary island and never introduces a companion story or renderer', async () => {
+  it('keeps wisps, pathways, proof ornaments and unrelated fixture UI out of the story-tree witness', async () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
       'utf8',
@@ -178,6 +173,7 @@ describe('semantic-growth Studio witness', () => {
     expect(source).not.toMatch(/COMPANION|stripKind|buildFrames|SemanticGrowthFrame/);
     expect(source).not.toMatch(/<SceneView\b|<WorldSceneView\b|<path\b/);
     expect(source).toMatch(/<SemanticGrowthWorldView\b/);
+    expect(source).not.toMatch(/LaneLayout|DEMO_CLAIM|\blanes\b|laneMotion|verdict:/);
 
     window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
     const container = await renderTree();
@@ -186,11 +182,11 @@ describe('semantic-growth Studio witness', () => {
         .map((element) => element.getAttribute('data-story-id')),
     );
     expect(storyIds).toEqual(new Set(['semantic-growth-demo']));
-    const route = container.querySelector('.trail-lane');
-    expect(route).toBeTruthy();
-    expect(route!.getAttribute('data-route-owner')).toBe('semantic-growth-demo');
-    expect(route!.getAttribute('data-route-from')).toMatch(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/);
-    expect(route!.getAttribute('data-route-to')).toMatch(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/);
+    expect(container.querySelector('.world-claim-wisp')).toBeNull();
+    expect(container.querySelector('.world-bloom')).toBeNull();
+    expect(container.querySelector('.trail-lane')).toBeNull();
+    expect(container.querySelector('.parcel')).toBeNull();
+    expect(container.querySelector('.parcel-flora')).toBeNull();
   });
 
   it('composes the fixture through the real Studio world pipeline and stays bounded by the map host', async () => {
@@ -208,8 +204,7 @@ describe('semantic-growth Studio witness', () => {
     const container = await renderTree();
     expect(container.querySelector('.tree-layout > .world-frame')).toBeTruthy();
     expect(container.querySelectorAll('.relaxed-tile, .relaxed-cell').length).toBeGreaterThan(0);
-    expect(container.querySelectorAll('.parcel').length).toBeGreaterThan(1);
-    expect(container.querySelectorAll('.parcel-flora').length).toBeGreaterThan(0);
+    expect(container.querySelector('.story-tree')).toBeTruthy();
     expect(container.querySelector('svg')?.getAttribute('viewBox')).not.toBe('0 0 100 100');
   });
 
@@ -218,8 +213,8 @@ describe('semantic-growth Studio witness', () => {
       name: 'storybook',
       label: 'Storybook',
       sprites: {
-        'tree:healthy': {
-          href: '/art-sheets/storybook/tree-healthy.svg',
+        'tree:proposed': {
+          href: '/art-sheets/storybook/tree-proposed.svg',
           w: 40,
           h: 60,
           anchorX: 0.5,
@@ -231,7 +226,7 @@ describe('semantic-growth Studio witness', () => {
     const island = view.container.querySelector('[data-semantic-growth-island]');
     const tree = view.container.querySelector('image.story-tree');
     expect(island).toBeTruthy();
-    expect(tree?.getAttribute('href')).toBe('/art-sheets/storybook/tree-healthy.svg');
+    expect(tree?.getAttribute('href')).toBe('/art-sheets/storybook/tree-proposed.svg');
     for (const _key of ORDERED_KEYS.slice(1)) {
       fireEvent.click(control(view.container, 'Next'));
       expect(view.container.querySelector('[data-semantic-growth-island]')).toBe(island);

@@ -1,62 +1,12 @@
 /*
- * semantic-growth.css — the ONE semantic transition vocabulary `SemanticGrowthWorldView` owns
- * inside `@storytree/app-surface` (co-located beside its component, per the node spec: "Motion
- * rules live beside it in the package, not in website code").
+ * The shared semantic-growth witness has one visual subject: the story node.
  *
- * These rules stage transform/opacity around what `WorldSceneView`/`SceneView` already render —
- * they never fork `SceneView`, sprite resolution, scene construction, or `@storytree/forest-world`.
- * They layer over the existing hooks by class name only, one NAMED profile per semantic role —
- * never one shared settle grouping (a single keyframe covering every role would erase the
- * distinction the node spec draws between them). Each profile is qualified by the EXACT entering
- * frame key its role first appears on — never a frame-key-less generic full-motion prefix, which
- * would fire on every frame regardless of role:
- *   - terrain (the claimed plot itself), entering at `land`:
- *       `arrive-ground`  scale 0.78 -> 1   on `.coast-fill-group` / `.relaxed-tile` / `.hex-tile`
- *   - the story identity (tree / flora / nameplate) planted on the ground, entering at `proposed`:
- *       `arrive-pop`     scale 0.55 -> 1   on `.story-tree` / `.garden-flora` (vector, via their
- *                                            `.pop-motion-inner` seam) and the Storybook direct
- *                                            `image.story-tree` / `image.garden-flora` hooks
- *   - the nameplate settles with its own translate-only profile, also entering at `proposed`:
- *       `plate-settle`   translate Y only  on `.world-plate .pop-motion-inner`
- *   - forest-parcels ground reveal, entering at `proposed` — opacity/reveal only, never a scale:
- *       `parcel-boundary-reveal`           on `.parcel`
- *   - forest-parcels placed flora, entering at `proposed` — rooted scale + opacity sprout, staggered
- *     per item:
- *       `parcel-flora-sprout`             on `.parcel-flora`
- *   - the claim/presence wisp (a session working the story), entering at `claimed` — rides
- *     ALONGSIDE its existing SVG `animateTransform` orbit (SceneView.tsx), never replaced by it:
- *       `wisp-in`                          on `.world-claim-wisp`
- *   - the signed-proof bloom (the real proof identity, never a claim), entering at `signed-proof` —
- *     a single finite pulse, never an infinite loop:
- *       `bloom-pulse`    0.94 <-> 1.06 -> 1  on `.world-bloom`
- * Each profile is wired ONLY to its own role's selector, qualified by its own entering frame key —
- * never re-grouped with another role's classes under the same animation name, so a family's
- * identity stays legible in the stylesheet itself.
- *
- * For every mapper-positioned SVG element (one that carries its own static SVG placement
- * `transform` attribute — the ground/root anchor `SceneView.tsx` stamps), these rules NEVER animate
- * the full CSS `transform` shorthand (`transform: scale(...)` / `transform: translate(...)` would
- * REPLACE that placement attribute for the sweep's duration even though `getAttribute('transform')`
- * keeps reporting the untouched original). They use the additive individual `scale`/`translate`
- * properties instead (paired with `transform-box: fill-box` where scale is used), or bind to the
- * dedicated inner `.pop-motion-inner` wrapper while the outer mapper-authored placement wrapper
- * stays static.
- *
- * Wiring this stylesheet into a consumer (Studio or otherwise) is deliberately deferred — this
- * increment only authors the vocabulary in place beside `SemanticGrowthWorldView`.
- *
- * Reduced motion: `[data-motion="reduced"]` (set by `SemanticGrowthWorldView` from the browser's
- * `prefers-reduced-motion` signal, or an explicit prop override) suppresses every spatial
- * transform/scale/orbit and every delayed/hidden reveal below so the same scene/model markers
- * render at their resting state immediately — never a different cursor or model, only motion.
+ * One persistent SceneView stays mounted while semantic events expose two authored deltas:
+ * the island emerges in place, then the existing story tree grows from its planted anchor.
+ * Claim wisps, proof ornaments, paths, parcels, flora and nameplates remain renderer regression
+ * surfaces; they are deliberately absent from this witness's choreography.
  */
 
-/* The public root participates in a definite host-height/min-height chain: `height: 100%`
- * fills a sized host, and `min-height` is the floor when the host itself is auto-height,
- * so the svg's `max-height: 100%` below always resolves against a DEFINITE ancestor box —
- * never an indefinite (auto) one that would let the svg (and the controls after it) grow
- * past the supplied host. A flex column reserves the nav row as its own flex item so the
- * svg sizes into the remaining space instead of the nav being pushed out of view. */
 [data-semantic-growth-frame] {
   display: flex;
   flex-direction: column;
@@ -79,9 +29,23 @@
   flex: 0 0 auto;
 }
 
-/* The scene graph is persistent from the first event. These rules reveal its existing semantic
- * roles in place; they never remove groups or substitute a frame-specific scene. */
+/* `nothing` conceals pixels, not hierarchy. */
 [data-semantic-growth-track='nothing'] [data-semantic-growth-island] > :not(.semantic-growth-anchors) {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none;
+}
+
+/* This witness stages the island and its story node only. Secondary renderer vocabulary stays
+ * mounted but never competes for the operator's attention or owns semantic-growth motion. */
+[data-semantic-growth-frame] .garden-flora,
+[data-semantic-growth-frame] .world-plate,
+[data-semantic-growth-frame] .world-claim-wisp,
+[data-semantic-growth-frame] .world-bloom,
+[data-semantic-growth-frame] .parcel,
+[data-semantic-growth-frame] .parcel-flora,
+[data-semantic-growth-frame] .trail-lane,
+[data-semantic-growth-frame] .trail-lane-hub {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none;
@@ -91,106 +55,33 @@
 [data-semantic-growth-frame='empty'] .relaxed-tile,
 [data-semantic-growth-frame='empty'] .hex-tile,
 [data-semantic-growth-frame='empty'] .story-tree,
-[data-semantic-growth-frame='empty'] .garden-flora,
-[data-semantic-growth-frame='empty'] .world-plate,
-[data-semantic-growth-frame='empty'] .world-claim-wisp,
-[data-semantic-growth-frame='empty'] .world-bloom,
-[data-semantic-growth-frame='empty'] .trail-lane,
-[data-semantic-growth-frame='empty'] .trail-lane-hub,
-[data-semantic-growth-frame='land'] .story-tree,
-[data-semantic-growth-frame='land'] .garden-flora,
-[data-semantic-growth-frame='land'] .world-plate,
-[data-semantic-growth-frame='land'] .world-claim-wisp,
-[data-semantic-growth-frame='land'] .world-bloom,
-[data-semantic-growth-frame='land'] .trail-lane,
-[data-semantic-growth-frame='land'] .trail-lane-hub,
-[data-semantic-growth-frame='proposed'] .world-claim-wisp,
-[data-semantic-growth-frame='proposed'] .world-bloom,
-[data-semantic-growth-frame='proposed'] .trail-lane,
-[data-semantic-growth-frame='proposed'] .trail-lane-hub,
-[data-semantic-growth-frame='claimed'] .world-bloom,
-[data-semantic-growth-frame='claimed'] .trail-lane,
-[data-semantic-growth-frame='claimed'] .trail-lane-hub,
-[data-semantic-growth-frame='signed-proof'] .trail-lane,
-[data-semantic-growth-frame='signed-proof'] .trail-lane-hub {
+[data-semantic-growth-frame='land'] .story-tree {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none;
-}
-
-[data-semantic-growth-frame='empty'] .parcel,
-[data-semantic-growth-frame='land'] .parcel {
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none;
-}
-
-[data-semantic-growth-frame='empty'] .parcel-flora,
-[data-semantic-growth-frame='land'] .parcel-flora {
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none;
-}
-
-[data-semantic-growth-frame='proposed'] .world-plate-sub,
-[data-semantic-growth-frame='claimed'] .world-plate-sub,
-[data-semantic-growth-frame='signed-proof'] .world-plate-sub {
-  opacity: 0 !important;
-  visibility: hidden !important;
 }
 
 [data-semantic-growth-track='island-reveal'] .coast-fill-group,
 [data-semantic-growth-track='island-reveal'] .relaxed-tile,
 [data-semantic-growth-track='island-reveal'] .hex-tile,
-[data-semantic-growth-track='contents-settle'] .coast-fill-group,
-[data-semantic-growth-track='contents-settle'] .relaxed-tile,
-[data-semantic-growth-track='contents-settle'] .hex-tile,
-[data-semantic-growth-track='contents-settle'] .story-tree,
-[data-semantic-growth-track='contents-settle'] .garden-flora,
-[data-semantic-growth-track='contents-settle'] .world-plate,
-[data-semantic-growth-track='route-draw'] .coast-fill-group,
-[data-semantic-growth-track='route-draw'] .relaxed-tile,
-[data-semantic-growth-track='route-draw'] .hex-tile,
-[data-semantic-growth-track='route-draw'] .story-tree,
-[data-semantic-growth-track='route-draw'] .garden-flora,
-[data-semantic-growth-track='route-draw'] .world-plate,
-[data-semantic-growth-track='route-draw'] .world-plate-sub,
-[data-semantic-growth-track='route-draw'] .world-claim-wisp,
-[data-semantic-growth-track='route-draw'] .world-bloom,
-[data-semantic-growth-track='route-draw'] .trail-lane,
-[data-semantic-growth-track='route-draw'] .trail-lane-hub {
+[data-semantic-growth-track='story-tree-entrance'] .coast-fill-group,
+[data-semantic-growth-track='story-tree-entrance'] .relaxed-tile,
+[data-semantic-growth-track='story-tree-entrance'] .hex-tile,
+[data-semantic-growth-track='story-tree-entrance'] .story-tree,
+[data-semantic-growth-track='story-tree-settled'] .coast-fill-group,
+[data-semantic-growth-track='story-tree-settled'] .relaxed-tile,
+[data-semantic-growth-track='story-tree-settled'] .hex-tile,
+[data-semantic-growth-track='story-tree-settled'] .story-tree {
   opacity: 1;
   visibility: visible;
 }
 
-[data-semantic-growth-track='contents-settle'] .parcel,
-[data-semantic-growth-track='route-draw'] .parcel {
-  opacity: 1;
-  visibility: visible;
-}
-
-[data-semantic-growth-track='contents-settle'] .parcel-flora,
-[data-semantic-growth-track='route-draw'] .parcel-flora {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* --- terrain: the claimed plot itself, entering at `land`. ----------------------------------- */
-/* Additive individual `scale` property (never the `transform` shorthand): a mapper-positioned
- * element already carries its own static SVG placement `transform` attribute (its ground/root
- * anchor), and the full `transform:` shorthand would REPLACE that attribute for the sweep's
- * duration even though `getAttribute('transform')` keeps reporting the untouched original. The
- * additive `scale` channel composes on top of it instead, so the placement anchor never moves.
- * The primary island's emergence reads slow and deliberate -- its resolved duration below stays
- * bounded 700ms through 1000ms and strictly longer than every proposed-frame identity arrival
- * (tree/flora/plate/parcel-boundary/parcel-flora sit around 280ms-320ms) -- never sharing their
- * brisk cadence. */
-@keyframes arrive-ground {
-  /* the studio's existing scale(0.78) -> scale(1) ground-arrival profile, reused verbatim and
-   * now expressed via the additive `scale` property. */
+/* The island is deliberately slower than the tree. Both profiles use additive `scale`, never the
+ * full CSS transform shorthand, so mapper-authored SVG placement remains authoritative. */
+@keyframes island-emerge {
   from {
     opacity: 0;
-    scale: 0.78;
+    scale: 0.76;
   }
   to {
     opacity: 1;
@@ -201,19 +92,19 @@
 [data-semantic-growth-frame='land'][data-motion='full'] .coast-fill-group,
 [data-semantic-growth-frame='land'][data-motion='full'] .relaxed-tile,
 [data-semantic-growth-frame='land'][data-motion='full'] .hex-tile {
-  animation: arrive-ground 850ms cubic-bezier(0.34, 1.45, 0.5, 1);
-  animation-delay: 0ms;
+  animation: island-emerge 1400ms cubic-bezier(0.22, 0.82, 0.28, 1);
   transform-box: fill-box;
   transform-origin: center;
 }
 
-/* --- the story identity (tree / flora / nameplate): entering at `proposed`. ------------------- */
-@keyframes arrive-pop {
-  /* the studio's existing scale(0.55) -> scale(1) pop-arrival profile, reused verbatim and now
-   * expressed via the additive `scale` property. */
+@keyframes story-tree-enter {
   from {
     opacity: 0;
-    scale: 0.55;
+    scale: 0.28;
+  }
+  72% {
+    opacity: 1;
+    scale: 1.03;
   }
   to {
     opacity: 1;
@@ -221,199 +112,24 @@
   }
 }
 
-/* `.story-tree` / `.garden-flora` each carry their OWN static SVG placement `transform` attribute
- * — the ground/root anchor SceneView stamps from the scene's real geometry (`if (node.transform)
- * props.transform = node.transform;`). Binding the sweep to the dedicated INNER
- * `.pop-motion-inner` wrapper (SceneView.tsx) instead of the placement-carrying class itself —
- * plus the additive `scale` channel above — means the sweep can never replace that outer placement
- * attribute mid-sweep. A Storybook sprite swap renders the SAME semantic role directly as
- * `image.story-tree` / `image.garden-flora` (no inner wrapper — `trySprite` stamps the wrapper's
- * OWN placement transform straight onto the `<image>`) so the identical profile is wired to that
- * hook too — renderer choice changes artwork never the semantic growth vocabulary.
- *
- * The story identity grows from its planted/root anchor (`center bottom`) — never a shared
- * centered origin that would make a tree appear to grow from its own middle instead of the ground
- * it is rooted in. */
+/* Vector has an inner visual seam so its outer placement group stays still. Storybook renders the
+ * same semantic role directly as an image; the additive property composes with that image's SVG
+ * placement transform. Both grow from the bottom-centre planted anchor. */
 [data-semantic-growth-frame='proposed'][data-motion='full'] .story-tree .pop-motion-inner,
-[data-semantic-growth-frame='proposed'][data-motion='full'] .garden-flora .pop-motion-inner,
-[data-semantic-growth-frame='proposed'][data-motion='full'] image.story-tree,
-[data-semantic-growth-frame='proposed'][data-motion='full'] image.garden-flora {
-  animation: arrive-pop 320ms cubic-bezier(0.34, 1.45, 0.5, 1);
-  animation-delay: 90ms;
+[data-semantic-growth-frame='proposed'][data-motion='full'] image.story-tree {
+  animation: story-tree-enter 900ms cubic-bezier(0.2, 0.78, 0.28, 1);
+  animation-delay: 140ms;
+  animation-fill-mode: both;
   transform-box: fill-box;
   transform-origin: center bottom;
 }
 
-/* --- the nameplate: also entering at `proposed` — but settling never scaling. ------------------ */
-/* Guidance: "plate uses opacity plus vertical-only individual `translate:` settle with no scale on
- * its existing `.pop-motion-inner`." This rule is declared as `arrive-pop` first — the studio's
- * shared pop-arrival family the nameplate has always belonged to — and then in the very next rule
- * below (same selector — equal specificity — later in the cascade) the `animation-name` alone is
- * overridden to the dedicated `plate-settle` profile — ordinary CSS cascade not a duplicate
- * timeline: only `animation-name` (+ fill-mode) is redeclared so duration/delay/easing above still
- * apply. The REAL applied motion for the nameplate is `plate-settle` (translate-only no scale). */
-[data-semantic-growth-frame='proposed'][data-motion='full'] .world-plate .pop-motion-inner {
-  animation: arrive-pop 320ms ease-out;
-  animation-delay: 300ms;
-  transform-box: fill-box;
-}
-
-@keyframes plate-settle {
-  from {
-    opacity: 0;
-    translate: 0 -8px;
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
-  }
-}
-
-[data-semantic-growth-frame='proposed'][data-motion='full'] .world-plate .pop-motion-inner {
-  animation-name: plate-settle;
-  animation-fill-mode: forwards;
-}
-
-/* --- forest-parcels ground reveal: entering at `proposed` -- opacity/reveal only -- no scale. --- */
-@keyframes parcel-boundary-reveal {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-[data-semantic-growth-frame='proposed'][data-motion='full'] .parcel {
-  animation-name: parcel-boundary-reveal;
-  animation-duration: 280ms;
-  animation-timing-function: ease-out;
-  animation-delay: 200ms;
-  animation-fill-mode: forwards;
-}
-
-/* --- forest-parcels placed flora: entering at `proposed` -- rooted scale + opacity sprout. ----- */
-@keyframes parcel-flora-sprout {
-  from {
-    opacity: 0;
-    scale: 0.5;
-  }
-  to {
-    opacity: 1;
-    scale: 1;
-  }
-}
-
-[data-semantic-growth-frame='proposed'][data-motion='full'] .parcel-flora {
-  animation-name: parcel-flora-sprout;
-  animation-duration: 320ms;
-  animation-timing-function: cubic-bezier(0.34, 1.45, 0.5, 1);
-  animation-delay: 260ms;
-  animation-fill-mode: forwards;
-  transform-box: fill-box;
-  transform-origin: center bottom;
-}
-
-/* per-item stagger: at least two deterministic delays among placed parcel flora -- each landing at
- * least 60ms after the parcel boundary's own reveal delay (200ms) -- never simultaneous sprouting. */
-[data-semantic-growth-frame='proposed'][data-motion='full'] .parcel-flora:nth-child(2n) {
-  animation-delay: 260ms;
-}
-
-[data-semantic-growth-frame='proposed'][data-motion='full'] .parcel-flora:nth-child(2n + 1) {
-  animation-delay: 300ms;
-}
-
-/* --- the claim/presence wisp: entering at `claimed`, rides ALONGSIDE its existing SVG
-   animateTransform orbit. ------------------------------------------------------------------------ */
-@keyframes wisp-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-[data-semantic-growth-frame='claimed'][data-motion='full'] .world-claim-wisp {
-  animation: wisp-in 320ms ease-out;
-}
-
-/* --- the signed-proof bloom: entering at `signed-proof` -- a single finite pulse, never a claim
-   and never an infinite loop. ---------------------------------------------------------------------- */
-@keyframes bloom-pulse {
-  0% {
-    scale: 0.94;
-    opacity: 0.85;
-  }
-  45% {
-    scale: 1.06;
-  }
-  75% {
-    scale: 0.94;
-  }
-  100% {
-    scale: 1;
-    opacity: 1;
-  }
-}
-
-[data-semantic-growth-frame='signed-proof'][data-motion='full'] .world-bloom {
-  animation-name: bloom-pulse;
-  animation-duration: 900ms;
-  animation-timing-function: ease-in-out;
-  animation-delay: 160ms;
-  animation-iteration-count: 1;
-  animation-fill-mode: forwards;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-/* proposed -> claimed -> healthy: ease the territory colourway across frames instead of a snap.
- * Applies whenever motion is full -- regardless of which frame is current (a colourway ease is not
- * an entering-role arrival so it carries no frame-key qualifier). */
-[data-motion='full'] .st-proposed,
-[data-motion='full'] .st-claimed,
-[data-motion='full'] .st-healthy {
-  transition:
-    opacity 320ms ease-out,
-    transform 320ms ease-out,
-    fill 320ms ease-out;
-}
-
-/* Reduced motion: no spatial translation/scale/orbit -- no delayed hidden content -- every marker
- * (ground -- story identity -- claim -- bloom -- territory colourway) renders at rest immediately.
- * The cursor/model are never affected -- only this staging.
- *
- * Scoped to the same named hooks the full-motion rules above animate — NEVER a universal `*`
- * selector. A blanket `transform: none` would override every STATIC SVG `transform` attribute
- * the scene mapper stamps for placement/anchors/nesting (a tree's ground anchor -- an island's
- * nesting group -- …) not just this vocabulary's own sweeps/scale/orbit — exactly what the node
- * spec forbids. Cancelling `animation`/`transition` here is sufficient: the full-motion rules
- * above are themselves gated to `[data-motion='full']` so under `reduced` they never match in
- * the first place: this block only guards against a delayed/hidden starting keyframe (`opacity:
- * 0`) ever being the resting state without touching `transform` at all.
- *
- * Split across two rules purely so `.parcel` and `.parcel-flora` are never comma-listed inside the
- * SAME selector group -- a forest-parcels boundary/flora pairing this vocabulary keeps distinct
- * everywhere else too -- both rules share the identical cancelling body. */
+/* Reduced motion changes interpolation only. The same event exposes the same terrain/tree pixels
+ * at their final geometry immediately; no static placement transform is reset. */
 [data-semantic-growth-frame][data-motion='reduced'] .coast-fill-group,
 [data-semantic-growth-frame][data-motion='reduced'] .relaxed-tile,
 [data-semantic-growth-frame][data-motion='reduced'] .hex-tile,
-[data-semantic-growth-frame][data-motion='reduced'] .story-tree,
-[data-semantic-growth-frame][data-motion='reduced'] .garden-flora,
-[data-semantic-growth-frame][data-motion='reduced'] .world-plate,
-[data-semantic-growth-frame][data-motion='reduced'] .parcel,
-[data-semantic-growth-frame][data-motion='reduced'] .world-claim-wisp,
-[data-semantic-growth-frame][data-motion='reduced'] .world-bloom,
-[data-semantic-growth-frame][data-motion='reduced'] .st-proposed,
-[data-semantic-growth-frame][data-motion='reduced'] .st-claimed,
-[data-semantic-growth-frame][data-motion='reduced'] .st-healthy {
-  animation:none !important;
-  transition: none !important;
-}
-
-[data-semantic-growth-frame][data-motion='reduced'] .parcel-flora {
-  animation:none !important;
+[data-semantic-growth-frame][data-motion='reduced'] .story-tree {
+  animation: none !important;
   transition: none !important;
 }

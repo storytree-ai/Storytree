@@ -9,7 +9,6 @@ import {
 import {
   normalizeWorldPresentationModel,
   SemanticGrowthWorldView,
-  type LaneLayout,
   type SemanticGrowthAnchors,
   type SemanticGrowthEvent,
 } from '@storytree/app-surface';
@@ -18,7 +17,6 @@ import type {
   BuildActivity,
   ClaimActivity,
   DepartedClaim,
-  TreeCapability,
   TreeStory,
 } from '../types.js';
 import type { SpriteStyleSheet } from '../lib/sprite-sheet.js';
@@ -27,6 +25,7 @@ const DEMO_STORY_ID = 'semantic-growth-demo';
 const NOW = new Date('2026-01-01T00:00:00.000Z');
 const VEGETATION: SceneVegetationInput = {};
 const NO_BUILDS: Map<string, BuildActivity[]> = new Map();
+const NO_CLAIMS: Map<string, ClaimActivity[]> = new Map();
 const NO_DEPARTURES: Map<string, DepartedClaim[]> = new Map();
 
 const SEMANTIC_EVENTS: readonly SemanticGrowthEvent[] = [
@@ -38,45 +37,19 @@ const SEMANTIC_EVENTS: readonly SemanticGrowthEvent[] = [
   { key: 'healthy' },
 ];
 
-function demoCapability(id: string, testCount: number): TreeCapability {
-  return {
-    id,
-    title: id,
-    outcome: `${id} — representative semantic-growth capability`,
-    status: 'healthy',
-    proofMode: 'contract',
-    dependsOn: [],
-    testCount,
-  };
-}
-
 function demoStory(): TreeStory {
   return {
     id: DEMO_STORY_ID,
     title: 'Semantic growth witness',
-    outcome: 'witnesses one persistent island through the shared app-surface timeline',
-    status: 'healthy',
+    outcome: 'witnesses one persistent island and one planted story tree',
+    status: 'proposed',
     proofMode: 'UAT',
     uatWitness: 'machine',
     dependsOn: [],
     consumedBy: [],
-    capabilities: [
-      demoCapability('semantic-growth-demo-cap-alpha', 6),
-      demoCapability('semantic-growth-demo-cap-beta', 5),
-    ],
-    verdict: { outcome: 'pass', at: NOW.toISOString() },
+    capabilities: [],
   };
 }
-
-const DEMO_CLAIM: ClaimActivity = {
-  unitId: DEMO_STORY_ID,
-  kind: 'claim',
-  sessionId: 'semantic-growth-demo-session',
-  branch: 'claude/demo-real',
-  intent: 'real',
-  grade: 'work',
-  at: NOW.toISOString(),
-};
 
 interface Fixture {
   readonly model: ReturnType<typeof normalizeWorldPresentationModel>;
@@ -86,14 +59,13 @@ interface Fixture {
 function buildFixture(): Fixture {
   const world = buildWorld([demoStory()], { buildings: false });
   const relaxedCells = buildRelaxedCells(world, 'mesh', {});
-  const claims = new Map<string, ClaimActivity[]>([[DEMO_STORY_ID, [DEMO_CLAIM]]]);
   const scene = buildScene(
     worldToScene(
       world,
       relaxedCells,
       NOW,
       NO_BUILDS,
-      claims,
+      NO_CLAIMS,
       NO_DEPARTURES,
       null,
       null,
@@ -101,50 +73,13 @@ function buildFixture(): Fixture {
     ),
   );
   const territory = world.territories[0]!;
-  const anchors: SemanticGrowthAnchors = {
-    islandId: DEMO_STORY_ID,
-    terrain: territory.centroid,
-    contents: territory.treeSpot,
-    claim: {
-      x: territory.treeSpot.x + territory.radius * 0.35,
-      y: territory.treeSpot.y - territory.radius * 0.2,
-    },
-    proof: {
-      x: territory.treeSpot.x,
-      y: territory.treeSpot.y - territory.radius * 0.5,
-    },
-    route: {
-      from: {
-        x: territory.centroid.x - territory.radius * 0.55,
-        y: territory.centroid.y + territory.radius * 0.2,
-      },
-      to: {
-        x: territory.centroid.x + territory.radius * 0.75,
-        y: territory.centroid.y + territory.radius * 0.35,
-      },
-    },
-  };
-  const { from, to } = anchors.route;
-  const lanes: LaneLayout = {
-    hand: 1,
-    netTurn: 0,
-    hubs: [],
-    lanes: [{
-      key: `down:${DEMO_STORY_ID}:local`,
-      dir: 'down',
-      other: DEMO_STORY_ID,
-      d: `M ${from.x} ${from.y} L ${to.x} ${to.y}`,
-      width: 2,
-      length: Math.hypot(to.x - from.x, to.y - from.y),
-    }],
-  };
   return {
-    anchors,
-    model: normalizeWorldPresentationModel({
-      scene,
-      lanes,
-      laneMotion: 'draw',
-    }),
+    anchors: {
+      islandId: DEMO_STORY_ID,
+      terrain: territory.centroid,
+      storyTree: territory.treeSpot,
+    },
+    model: normalizeWorldPresentationModel({ scene }),
   };
 }
 
