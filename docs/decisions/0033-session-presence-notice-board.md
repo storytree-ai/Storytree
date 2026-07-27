@@ -47,6 +47,14 @@ heartbeats, not presence rows. Decision 4's named-deferred claims are now the co
 per ADR-0138/0200; the earlier 0121 correction stands). This is overtaken-machinery correction, not a
 re-decision.
 
+**Correction ([ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Decision 3's
+never-blocking contract continues to govern ambient noticeboard automation — SessionStart nudges,
+statusline reads and heartbeat refreshes never become the write wall. ADR-0255 introduces a
+SEPARATE, harness-neutral write-authority guard which blocks before a generic agent tool mutates the
+primary checkout or an unclaimed workspace. A blocking authority check is not a presence/ambient
+hook and therefore does not revive the V1 stop-loop scar this ADR prevents.
+
 ## Date
 
 2026-06-11

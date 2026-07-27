@@ -22,6 +22,13 @@ build below), so this builds it for the build surface. ADR-0033's advisory prese
 place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)). Resolves
 open-questions §3 (b) claim granularity and (c) the conflict-resolution ceremony for the build surface.
 
+**Correction ([ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's
+build-scoped claim and dry-run/offline mechanics stand. Its non-worktree build no-op does NOT grant
+generic agent write authority outside a claim-bound workspace: ADR-0255 generalises
+claim-before-worktree to every agent source write and makes the primary checkout read-only across
+harnesses.
+
 ## Context
 
 The system advertises parallel multi-session work — different sessions iterate different artifacts and
