@@ -9,23 +9,39 @@ import {
   collectDefBounds,
   parseSimpleTransform,
   wrapperContentBounds,
-  type Bounds,
 } from './sprite-sizing.js';
-// The public view itself imports/loads its co-located motion stylesheet, so a consumer
-// cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
 
 const FRAME_KEYS = ['empty', 'land', 'proposed', 'claimed', 'signed-proof', 'healthy'] as const;
 
 export type SemanticGrowthFrameKey = (typeof FRAME_KEYS)[number];
 
-export interface SemanticGrowthFrame {
+export interface SemanticGrowthEvent {
   readonly key: SemanticGrowthFrameKey;
-  readonly model: WorldPresentationModel;
+}
+
+export interface SemanticGrowthPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+export interface SemanticGrowthAnchors {
+  readonly islandId: string;
+  readonly terrain: SemanticGrowthPoint;
+  readonly contents: SemanticGrowthPoint;
+  readonly claim: SemanticGrowthPoint;
+  readonly proof: SemanticGrowthPoint;
+  readonly route: {
+    readonly from: SemanticGrowthPoint;
+    readonly to: SemanticGrowthPoint;
+  };
 }
 
 export interface SemanticGrowthWorldViewProps {
-  readonly frames: readonly SemanticGrowthFrame[];
+  /** One persistent composed scene. Semantic events cue tracks; they never replace this model. */
+  readonly model: WorldPresentationModel;
+  readonly semanticEvents: readonly SemanticGrowthEvent[];
+  readonly anchors: SemanticGrowthAnchors;
   readonly reducedMotion?: boolean;
   readonly events?: WorldPresentationEvents;
   readonly onNext?: (key: SemanticGrowthFrameKey) => void;
@@ -33,14 +49,31 @@ export interface SemanticGrowthWorldViewProps {
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
 }
 
-function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
-  if (frames.length !== FRAME_KEYS.length) {
-    throw new Error('Semantic growth requires exactly six ordered frames.');
+function assertSemanticEvents(events: readonly SemanticGrowthEvent[]): void {
+  if (events.length !== FRAME_KEYS.length) {
+    throw new Error('Semantic growth requires exactly six ordered semantic events.');
   }
   for (let index = 0; index < FRAME_KEYS.length; index += 1) {
-    if (frames[index]?.key !== FRAME_KEYS[index]) {
-      throw new Error('Semantic growth frames must be unique and ordered.');
+    if (events[index]?.key !== FRAME_KEYS[index]) {
+      throw new Error('Semantic growth events must be unique and ordered.');
     }
+  }
+}
+
+function assertAnchors(anchors: SemanticGrowthAnchors): void {
+  if (!anchors.islandId.trim()) {
+    throw new Error('Semantic growth anchors require an island owner.');
+  }
+  const points = [
+    anchors.terrain,
+    anchors.contents,
+    anchors.claim,
+    anchors.proof,
+    anchors.route.from,
+    anchors.route.to,
+  ];
+  if (points.some(({ x, y }) => !Number.isFinite(x) || !Number.isFinite(y))) {
+    throw new Error('Semantic growth anchors require finite coordinates.');
   }
 }
 
@@ -55,108 +88,138 @@ function withoutOrbit(node: SceneNode): SceneNode {
 }
 
 function browserPrefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  return typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 }
 
 const fmt = (n: number): string => n.toFixed(1);
-
-/** The host's normal contain-style view of the composed world bounds, as a fallback ONLY for a
- *  world so empty (no measurable coast/ground/story geometry across every supplied frame) that
- *  there is nothing real to frame — never the everyday framing. */
 const FALLBACK_VIEW_BOX = '0 0 100 100';
-
-/** Ordinary breathing room around the composed world's real geometry (coast, substrate, standing
- *  objects) — a fraction of the measured span on each side, not a fixed pixel margin, so a small
- *  plot and a sprawling one both read with the same proportionate air around them. */
 const FRAMING_PAD_RATIO = 0.12;
 
-function unionBounds(a: Bounds | null, b: Bounds | null): Bounds | null {
-  if (!a) return b;
-  if (!b) return a;
-  return {
-    minX: Math.min(a.minX, b.minX),
-    minY: Math.min(a.minY, b.minY),
-    maxX: Math.max(a.maxX, b.maxX),
-    maxY: Math.max(a.maxY, b.maxY),
-  };
-}
-
-/**
- * One deterministic representative world framing, held stable across the whole walk (the node
- * spec: "hold it stable through the whole walk ... not a crop around the current tree, or a
- * frame-by-frame camera jump"). Derived from the composed bounds of EVERY supplied frame's real
- * scene geometry (coast/ground/story/claim/bloom — reusing the sprite-sizing measurer this
- * package already carries, never re-deriving scene geometry by hand), so it reflects where this
- * particular world actually sits rather than a fixed magic default. Depends only on the ordered
- * `frames` prop, never the walk's current cursor.
- */
-function representativeViewBox(frames: readonly SemanticGrowthFrame[]): string {
-  let bounds: Bounds | null = null;
-  for (const entry of frames) {
-    const scene = entry.model.scene;
-    const defBounds = collectDefBounds(scene);
-    const content = wrapperContentBounds(scene, defBounds);
-    if (!content) continue;
-    const offset = parseSimpleTransform(scene.transform);
-    const tx = offset?.tx ?? 0;
-    const ty = offset?.ty ?? 0;
-    bounds = unionBounds(bounds, {
-      minX: content.minX + tx,
-      maxX: content.maxX + tx,
-      minY: content.minY + ty,
-      maxY: content.maxY + ty,
-    });
-  }
-  if (!bounds) return FALLBACK_VIEW_BOX;
-  const width = bounds.maxX - bounds.minX;
-  const height = bounds.maxY - bounds.minY;
+/** Frame one scene once; the cursor never changes the camera or scene graph. */
+function representativeViewBox(model: WorldPresentationModel): string {
+  const scene = model.scene;
+  const defBounds = collectDefBounds(scene);
+  const content = wrapperContentBounds(scene, defBounds);
+  if (!content) return FALLBACK_VIEW_BOX;
+  const offset = parseSimpleTransform(scene.transform);
+  const tx = offset?.tx ?? 0;
+  const ty = offset?.ty ?? 0;
+  const minX = content.minX + tx;
+  const maxX = content.maxX + tx;
+  const minY = content.minY + ty;
+  const maxY = content.maxY + ty;
+  const width = maxX - minX;
+  const height = maxY - minY;
   const padX = width * FRAMING_PAD_RATIO;
   const padY = height * FRAMING_PAD_RATIO;
   return [
-    fmt(bounds.minX - padX),
-    fmt(bounds.minY - padY),
+    fmt(minX - padX),
+    fmt(minY - padY),
     fmt(width + padX * 2),
     fmt(height + padY * 2),
   ].join(' ');
 }
 
+type SemanticGrowthTrack = 'nothing' | 'island-reveal' | 'contents-settle' | 'route-draw';
+
+function trackFor(key: SemanticGrowthFrameKey): SemanticGrowthTrack {
+  if (key === 'empty') return 'nothing';
+  if (key === 'land') return 'island-reveal';
+  if (key === 'healthy') return 'route-draw';
+  return 'contents-settle';
+}
+
+function anchorEntries(anchors: SemanticGrowthAnchors): readonly [
+  string,
+  SemanticGrowthPoint,
+][] {
+  return [
+    ['terrain', anchors.terrain],
+    ['contents', anchors.contents],
+    ['claim', anchors.claim],
+    ['proof', anchors.proof],
+    ['route-from', anchors.route.from],
+    ['route-to', anchors.route.to],
+  ];
+}
+
 export function SemanticGrowthWorldView({
-  frames,
+  model: sourceModel,
+  semanticEvents,
+  anchors,
   reducedMotion,
   events,
   onNext,
   onBack,
   onReplay,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
-  assertFrames(frames);
+  assertSemanticEvents(semanticEvents);
+  assertAnchors(anchors);
   const [cursor, setCursor] = React.useState(0);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
-  const frame = frames[cursor]!;
+  const event = semanticEvents[cursor]!;
+  const track = trackFor(event.key);
   const model = React.useMemo<WorldPresentationModel>(
-    () => (reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model),
-    [frame.model, reduce],
+    () => ({
+      ...sourceModel,
+      scene: reduce ? withoutOrbit(sourceModel.scene) : sourceModel.scene,
+      laneMotion: track === 'route-draw' && !reduce ? 'draw' : 'none',
+    }),
+    [sourceModel, reduce, track],
   );
-  // Held stable through the whole walk — derived from every supplied frame's composed geometry,
-  // never the current cursor (see representativeViewBox).
-  const viewBox = React.useMemo(() => representativeViewBox(frames), [frames]);
+  const viewBox = React.useMemo(() => representativeViewBox(sourceModel), [sourceModel]);
+  const islandRef = React.useRef<SVGGElement>(null);
+
+  // SceneView already owns the route path. Annotate that existing path with its explicit local
+  // ownership contract instead of drawing a companion route or introducing another renderer.
+  React.useLayoutEffect(() => {
+    const route = islandRef.current?.querySelector('.trail-lane');
+    if (!route) return;
+    route.setAttribute('data-route-owner', anchors.islandId);
+    route.setAttribute('data-route-from', `${anchors.route.from.x},${anchors.route.from.y}`);
+    route.setAttribute('data-route-to', `${anchors.route.to.x},${anchors.route.to.y}`);
+  }, [anchors, model]);
 
   const select = (nextCursor: number, callback?: (key: SemanticGrowthFrameKey) => void): void => {
     const bounded = Math.max(0, Math.min(FRAME_KEYS.length - 1, nextCursor));
     setCursor(bounded);
-    callback?.(frames[bounded]!.key);
+    callback?.(semanticEvents[bounded]!.key);
   };
 
   return (
     <section
-      data-semantic-growth-frame={frame.key}
+      data-semantic-growth-frame={event.key}
+      data-semantic-growth-track={track}
       data-motion={reduce ? 'reduced' : 'full'}
     >
-      <svg viewBox={viewBox} aria-label={`Semantic growth: ${frame.key}`}>
-        {events ? (
-          <WorldSceneView model={model} events={events} />
-        ) : (
-          <WorldSceneView model={model} />
-        )}
+      <svg viewBox={viewBox} aria-label={`Semantic growth: ${event.key}`}>
+        <g
+          ref={islandRef}
+          data-semantic-growth-island={anchors.islandId}
+          data-route-owner={anchors.islandId}
+          data-route-from={`${anchors.route.from.x},${anchors.route.from.y}`}
+          data-route-to={`${anchors.route.to.x},${anchors.route.to.y}`}
+        >
+          {events ? (
+            <WorldSceneView model={model} events={events} />
+          ) : (
+            <WorldSceneView model={model} />
+          )}
+          <g className="semantic-growth-anchors" aria-hidden="true">
+            {anchorEntries(anchors).map(([name, point]) => (
+              <circle
+                key={name}
+                data-semantic-growth-anchor={name}
+                data-anchor-x={point.x}
+                data-anchor-y={point.y}
+                cx={point.x}
+                cy={point.y}
+                r="0"
+              />
+            ))}
+          </g>
+        </g>
       </svg>
       <nav aria-label="Semantic growth controls">
         <button type="button" onClick={() => select(cursor - 1, onBack)}>Back</button>

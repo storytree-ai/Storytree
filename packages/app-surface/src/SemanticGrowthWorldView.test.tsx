@@ -13,6 +13,7 @@ import {
 import { normalizeWorldPresentationModel, WorldSceneView } from './WorldSceneView.js';
 import { SemanticGrowthWorldView } from './SemanticGrowthWorldView.js';
 import * as AppSurfacePackageRoot from './index.js';
+import type { LaneLayout } from './laneLayout.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 
 // Guidance: "The public view itself imports/loads its co-located motion stylesheet, so a
@@ -27,7 +28,12 @@ vi.mock('./semantic-growth.css', () => {
   return {};
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document.head
+    .querySelectorAll('[data-test-semantic-growth-css]')
+    .forEach((node) => node.remove());
+});
 
 const ORDERED_KEYS = [
   'empty',
@@ -45,55 +51,8 @@ const NO_TRAILS: SceneTrailsInput = {
   dropped: [],
 };
 
-function frameModel(key: (typeof ORDERED_KEYS)[number]) {
-  const input: SceneInput = {
-    offset: { x: 0, y: 0 },
-    width: 100,
-    height: 100,
-    empties: [],
-    relaxedCells: [],
-    drawTiles: [],
-    wheatSets: [new Set()],
-    trails: NO_TRAILS,
-    territories: [
-      {
-        id: 'semantic-growth',
-        status: 'proposed',
-        caps: 1,
-        centroid: { x: 50, y: 50 },
-        radius: 24,
-        treeSpot: { x: 50, y: 45 },
-        labelY: 76,
-        coastPaths: ['M 20 20 L 80 20 L 50 80 Z'],
-        decor: [],
-        plants: [],
-        treeTitle: `Growth frame: ${key}`,
-        wisps:
-          key === 'claimed'
-            ? [{ runId: 'semantic-growth', title: 'A real work wisp', phase: 'IMPLEMENT' }]
-            : [],
-        plate: {
-          w: 60,
-          h: 30,
-          rx: 7,
-          idY: 13,
-          subY: 25,
-          idText: 'semantic-growth',
-          subText: key,
-          title: `Growth frame: ${key}`,
-        },
-      },
-    ],
-  };
-
-  return normalizeWorldPresentationModel({ scene: buildScene(input) });
-}
-
-/** Like {@link frameModel} but with the territory's real geometry (coast/centroid/tree/plate)
- * placed around a caller-chosen region -- so two frame sets can carry genuinely different
- * COMPOSED WORLD BOUNDS while both still walking the same six ordered semantic keys. Used only
- * to prove the representative framing actually derives from the world's real geometry, never a
- * fixed magic default shared by every world regardless of where it actually sits. */
+/** Place one persistent territory around a caller-chosen region, proving the representative
+ * framing derives from the scene's real geometry rather than a fixed magic default. */
 function frameModelAt(
   key: (typeof ORDERED_KEYS)[number],
   region: { readonly cx: number; readonly cy: number },
@@ -143,11 +102,381 @@ function frameModelAt(
   return normalizeWorldPresentationModel({ scene: buildScene(input) });
 }
 
+const PERSISTENT_EVENTS = ORDERED_KEYS.map((key) => ({ key }));
+
+const PERSISTENT_ANCHORS = {
+  islandId: 'semantic-growth',
+  terrain: { x: 50, y: 50 },
+  contents: { x: 50, y: 45 },
+  claim: { x: 58, y: 41 },
+  proof: { x: 50, y: 35 },
+  route: {
+    from: { x: 35, y: 58 },
+    to: { x: 72, y: 63 },
+  },
+} as const;
+
+function anchorsAt(region: { readonly cx: number; readonly cy: number }) {
+  return {
+    islandId: 'semantic-growth',
+    terrain: { x: region.cx, y: region.cy },
+    contents: { x: region.cx, y: region.cy - 5 },
+    claim: { x: region.cx + 8, y: region.cy - 9 },
+    proof: { x: region.cx, y: region.cy - 15 },
+    route: {
+      from: { x: region.cx - 15, y: region.cy + 8 },
+      to: { x: region.cx + 22, y: region.cy + 13 },
+    },
+  } as const;
+}
+
+function persistentGrowthModel() {
+  const input: SceneInput = {
+    offset: { x: 0, y: 0 },
+    width: 100,
+    height: 100,
+    empties: [],
+    relaxedCells: [],
+    drawTiles: [],
+    wheatSets: [new Set()],
+    trails: NO_TRAILS,
+    territories: [
+      {
+        id: PERSISTENT_ANCHORS.islandId,
+        status: 'healthy',
+        caps: 1,
+        centroid: PERSISTENT_ANCHORS.terrain,
+        radius: 24,
+        treeSpot: PERSISTENT_ANCHORS.contents,
+        labelY: 76,
+        coastPaths: ['M 20 20 L 80 20 L 50 80 Z'],
+        decor: [],
+        plants: [],
+        treeTitle: 'Persistent semantic-growth island',
+        wisps: [
+          {
+            runId: 'semantic-growth-claim',
+            title: 'A real claim, distinct from proof',
+            phase: 'IMPLEMENT',
+          },
+        ],
+        claims: [
+          {
+            key: 'semantic-growth-claim',
+            title: 'A real island-local claim',
+            colourState: 'authoring',
+          },
+        ],
+        bloom: { ageRatio: 0.5, outcome: 'pass' },
+        plate: {
+          w: 60,
+          h: 30,
+          rx: 7,
+          idY: 13,
+          subY: 25,
+          idText: PERSISTENT_ANCHORS.islandId,
+          subText: 'healthy',
+          title: 'Persistent semantic-growth island',
+        },
+      },
+    ],
+  };
+  const route = PERSISTENT_ANCHORS.route;
+  const lanes: LaneLayout = {
+    hand: 1,
+    netTurn: 0,
+    hubs: [],
+    lanes: [
+      {
+        key: `down:${PERSISTENT_ANCHORS.islandId}`,
+        dir: 'down',
+        other: PERSISTENT_ANCHORS.islandId,
+        d: `M ${route.from.x} ${route.from.y} L ${route.to.x} ${route.to.y}`,
+        width: 2,
+        length: Math.hypot(route.to.x - route.from.x, route.to.y - route.from.y),
+      },
+    ],
+  };
+  return normalizeWorldPresentationModel({
+    scene: buildScene(input),
+    lanes,
+    laneMotion: 'draw',
+  });
+}
+
+function installSemanticGrowthCss(): void {
+  const style = document.createElement('style');
+  style.dataset.testSemanticGrowthCss = '';
+  style.textContent = readFileSync(
+    resolve(process.cwd(), 'src', 'semantic-growth.css'),
+    'utf8',
+  );
+  document.head.append(style);
+}
+
+function persistentElements(container: HTMLElement): {
+  island: Element;
+  terrain: Element;
+  contents: Element;
+  claim: Element;
+  proof: Element;
+  route: Element;
+} {
+  const island = container.querySelector(
+    `[data-semantic-growth-island="${PERSISTENT_ANCHORS.islandId}"]`,
+  );
+  const terrain = container.querySelector('.coast-fill-group');
+  const contents = container.querySelector('.story-tree');
+  const claim = container.querySelector('.world-claim-wisp');
+  const proof = container.querySelector('.world-bloom');
+  const route = container.querySelector('.trail-lane');
+  expect(island).toBeTruthy();
+  expect(terrain).toBeTruthy();
+  expect(contents).toBeTruthy();
+  expect(claim).toBeTruthy();
+  expect(proof).toBeTruthy();
+  expect(route).toBeTruthy();
+  return {
+    island: island!,
+    terrain: terrain!,
+    contents: contents!,
+    claim: claim!,
+    proof: proof!,
+    route: route!,
+  };
+}
+
 describe('SemanticGrowthWorldView', () => {
-  it('plays the supplied semantic sequence deterministically, clamps navigation, and renders its real scene immediately without motion when reduced', () => {
-    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+  it('case 1/3 — persistent hierarchy + explicit anchors: one stable model and six semantic events retain the exact island, terrain, content, claim, proof and route Elements through every step', () => {
+    const model = persistentGrowthModel();
     const view = render(
-      <SemanticGrowthWorldView frames={frames} />,
+      <SemanticGrowthWorldView
+        model={model}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={PERSISTENT_ANCHORS}
+      />,
+    );
+    const held = persistentElements(view.container);
+    const anchorElements = new Map(
+      [...view.container.querySelectorAll('[data-semantic-growth-anchor]')].map((anchor) => [
+        anchor.getAttribute('data-semantic-growth-anchor'),
+        anchor,
+      ]),
+    );
+
+    expect(model.scene).toBe(model.scene);
+    expect(anchorElements.size).toBe(6);
+    expect(
+      [...anchorElements.entries()].map(([name, anchor]) => ({
+        name,
+        x: Number(anchor.getAttribute('data-anchor-x')),
+        y: Number(anchor.getAttribute('data-anchor-y')),
+      })),
+    ).toEqual([
+      { name: 'terrain', ...PERSISTENT_ANCHORS.terrain },
+      { name: 'contents', ...PERSISTENT_ANCHORS.contents },
+      { name: 'claim', ...PERSISTENT_ANCHORS.claim },
+      { name: 'proof', ...PERSISTENT_ANCHORS.proof },
+      { name: 'route-from', ...PERSISTENT_ANCHORS.route.from },
+      { name: 'route-to', ...PERSISTENT_ANCHORS.route.to },
+    ]);
+
+    for (const key of ORDERED_KEYS) {
+      expect(
+        view.container
+          .querySelector('[data-semantic-growth-frame]')
+          ?.getAttribute('data-semantic-growth-frame'),
+      ).toBe(key);
+      const current = persistentElements(view.container);
+      for (const name of Object.keys(held) as (keyof typeof held)[]) {
+        expect(current[name]).toBe(held[name]);
+        expect(current[name].isConnected).toBe(true);
+        expect(held.island.contains(current[name])).toBe(true);
+      }
+      for (const [name, anchor] of anchorElements) {
+        expect(
+          view.container.querySelector(`[data-semantic-growth-anchor="${name}"]`),
+        ).toBe(anchor);
+        expect(anchor.isConnected).toBe(true);
+        expect(held.island.contains(anchor)).toBe(true);
+      }
+      if (key !== 'healthy') {
+        fireEvent.click(view.getByRole('button', { name: 'Next' }));
+      }
+    }
+
+    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    expect(persistentElements(view.container).island).toBe(held.island);
+    fireEvent.click(view.getByRole('button', { name: 'Replay' }));
+    expect(persistentElements(view.container).route).toBe(held.route);
+  });
+
+  it('case 2/3 — four-track visibility + route ownership: shared CSS conceals mounted pixels until their cue and route-draw alone exposes the existing primary-local SceneView lane', () => {
+    installSemanticGrowthCss();
+    const model = persistentGrowthModel();
+    const view = render(
+      <SemanticGrowthWorldView
+        model={model}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={PERSISTENT_ANCHORS}
+      />,
+    );
+    const held = persistentElements(view.container);
+    const track = (): string | null =>
+      view.container
+        .querySelector('[data-semantic-growth-track]')
+        ?.getAttribute('data-semantic-growth-track') ?? null;
+    const hidden = (element: Element): boolean => {
+      const style = getComputedStyle(element);
+      return style.opacity === '0' && style.visibility === 'hidden';
+    };
+
+    expect(track()).toBe('nothing');
+    expect(hidden(held.terrain)).toBe(true);
+    expect(hidden(held.contents)).toBe(true);
+    expect(hidden(held.claim)).toBe(true);
+    expect(hidden(held.proof)).toBe(true);
+    expect(hidden(held.route)).toBe(true);
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    expect(track()).toBe('island-reveal');
+    expect(hidden(held.terrain)).toBe(false);
+    expect(hidden(held.contents)).toBe(true);
+    expect(hidden(held.route)).toBe(true);
+
+    for (const key of ['proposed', 'claimed', 'signed-proof'] as const) {
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+      expect(
+        view.container
+          .querySelector('[data-semantic-growth-frame]')
+          ?.getAttribute('data-semantic-growth-frame'),
+      ).toBe(key);
+      expect(track()).toBe('contents-settle');
+      expect(hidden(held.terrain)).toBe(false);
+      expect(hidden(held.contents)).toBe(false);
+      expect(hidden(held.route)).toBe(true);
+    }
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    expect(track()).toBe('route-draw');
+    expect(hidden(held.route)).toBe(false);
+    expect(held.route.classList.contains('is-drawing')).toBe(true);
+    expect(held.route.getAttribute('d')).toBe(
+      `M ${PERSISTENT_ANCHORS.route.from.x} ${PERSISTENT_ANCHORS.route.from.y} L ${PERSISTENT_ANCHORS.route.to.x} ${PERSISTENT_ANCHORS.route.to.y}`,
+    );
+    expect(held.route.getAttribute('data-route-owner')).toBe(PERSISTENT_ANCHORS.islandId);
+    expect(held.route.getAttribute('data-route-from')).toBe(
+      `${PERSISTENT_ANCHORS.route.from.x},${PERSISTENT_ANCHORS.route.from.y}`,
+    );
+    expect(held.route.getAttribute('data-route-to')).toBe(
+      `${PERSISTENT_ANCHORS.route.to.x},${PERSISTENT_ANCHORS.route.to.y}`,
+    );
+    expect(view.container.querySelectorAll('[data-story-id]').length).toBeGreaterThan(0);
+    expect(
+      new Set(
+        [...view.container.querySelectorAll('[data-story-id]')].map((node) =>
+          node.getAttribute('data-story-id'),
+        ),
+      ),
+    ).toEqual(new Set([PERSISTENT_ANCHORS.islandId]));
+  });
+
+  it('case 3/3 — Back/Replay + reduced settlement: both traces retain hierarchy and anchors; reduced cues settle immediately without orbit/delay and finish semantically identical', () => {
+    installSemanticGrowthCss();
+    const model = persistentGrowthModel();
+    const view = render(
+      <SemanticGrowthWorldView
+        model={model}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={PERSISTENT_ANCHORS}
+      />,
+    );
+    const held = persistentElements(view.container);
+    const anchors = [...view.container.querySelectorAll('[data-semantic-growth-anchor]')];
+    const key = (): string | null =>
+      view.container
+        .querySelector('[data-semantic-growth-frame]')
+        ?.getAttribute('data-semantic-growth-frame') ?? null;
+    const track = (): string | null =>
+      view.container
+        .querySelector('[data-semantic-growth-track]')
+        ?.getAttribute('data-semantic-growth-track') ?? null;
+
+    for (const expected of ORDERED_KEYS.slice(1)) {
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+      expect(key()).toBe(expected);
+    }
+    expect(track()).toBe('route-draw');
+    const normalTerminal = {
+      key: key(),
+      islandClass: held.island.getAttribute('class'),
+      storyClass: held.contents.getAttribute('class'),
+      storyId: held.contents.getAttribute('data-story-id'),
+      artHref: held.contents.getAttribute('href'),
+      route: held.route.getAttribute('d'),
+      routeOwner: held.route.getAttribute('data-route-owner'),
+      anchors: anchors.map((anchor) => [
+        anchor.getAttribute('data-semantic-growth-anchor'),
+        anchor.getAttribute('data-anchor-x'),
+        anchor.getAttribute('data-anchor-y'),
+      ]),
+    };
+
+    for (const expected of [...ORDERED_KEYS].reverse().slice(1)) {
+      fireEvent.click(view.getByRole('button', { name: 'Back' }));
+      expect(key()).toBe(expected);
+      expect(persistentElements(view.container).island).toBe(held.island);
+    }
+    expect(track()).toBe('nothing');
+    fireEvent.click(view.getByRole('button', { name: 'Replay' }));
+    expect(key()).toBe('empty');
+    expect(persistentElements(view.container).route).toBe(held.route);
+    for (const expected of ORDERED_KEYS.slice(1)) {
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+      expect(key()).toBe(expected);
+    }
+
+    view.rerender(
+      <SemanticGrowthWorldView
+        model={model}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={PERSISTENT_ANCHORS}
+        reducedMotion
+      />,
+    );
+    expect(persistentElements(view.container).island).toBe(held.island);
+    expect(persistentElements(view.container).route).toBe(held.route);
+    expect(view.container.querySelector('animateTransform')).toBeNull();
+    expect(held.route.classList.contains('is-drawing')).toBe(false);
+    expect(
+      view.container
+        .querySelector('[data-semantic-growth-frame]')
+        ?.getAttribute('data-motion'),
+    ).toBe('reduced');
+    expect({
+      key: key(),
+      islandClass: held.island.getAttribute('class'),
+      storyClass: held.contents.getAttribute('class'),
+      storyId: held.contents.getAttribute('data-story-id'),
+      artHref: held.contents.getAttribute('href'),
+      route: held.route.getAttribute('d'),
+      routeOwner: held.route.getAttribute('data-route-owner'),
+      anchors: anchors.map((anchor) => [
+        anchor.getAttribute('data-semantic-growth-anchor'),
+        anchor.getAttribute('data-anchor-x'),
+        anchor.getAttribute('data-anchor-y'),
+      ]),
+    }).toEqual(normalTerminal);
+  });
+
+  it('plays the supplied semantic sequence deterministically, clamps navigation, and renders its real scene immediately without motion when reduced', () => {
+    const model = persistentGrowthModel();
+    const view = render(
+      <SemanticGrowthWorldView
+        model={model}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={PERSISTENT_ANCHORS}
+      />,
     );
 
     const currentKey = (): string | null =>
@@ -179,7 +508,9 @@ describe('SemanticGrowthWorldView', () => {
 
     view.rerender(
       <SemanticGrowthWorldView
-        frames={frames}
+        model={model}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={PERSISTENT_ANCHORS}
         reducedMotion
       />,
     );
@@ -195,7 +526,9 @@ describe('SemanticGrowthWorldView', () => {
     expect(() =>
       render(
         <SemanticGrowthWorldView
-          frames={[...frames.slice(0, 5), frames[4]! ]}
+          model={model}
+          semanticEvents={[...PERSISTENT_EVENTS.slice(0, 5), PERSISTENT_EVENTS[4]!]}
+          anchors={PERSISTENT_ANCHORS}
         />,
       ),
     ).toThrow(/six|duplicate|ordered/i);
@@ -344,11 +677,13 @@ describe('SemanticGrowthWorldView', () => {
       spriteSheet: storybookSheet,
     });
 
-    const frames = ORDERED_KEYS.map((key) =>
-      key === 'signed-proof' ? { key, model: signedProofModel } : { key, model: frameModel(key) },
+    const view = render(
+      <SemanticGrowthWorldView
+        model={signedProofModel}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={PERSISTENT_ANCHORS}
+      />,
     );
-
-    const view = render(<SemanticGrowthWorldView frames={frames} />);
     for (const key of ORDERED_KEYS.slice(1, 5)) {
       fireEvent.click(view.getByRole('button', { name: 'Next' }));
     }
@@ -376,11 +711,14 @@ describe('SemanticGrowthWorldView', () => {
     const readViewBox = (container: HTMLElement): string | null =>
       container.querySelector('svg')?.getAttribute('viewBox') ?? null;
 
-    const nearFrames = ORDERED_KEYS.map((key) => ({
-      key,
-      model: frameModelAt(key, { cx: 50, cy: 50 }),
-    }));
-    const nearView = render(<SemanticGrowthWorldView frames={nearFrames} />);
+    const nearRegion = { cx: 50, cy: 50 };
+    const nearView = render(
+      <SemanticGrowthWorldView
+        model={frameModelAt('healthy', nearRegion)}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={anchorsAt(nearRegion)}
+      />,
+    );
     const nearInitial = readViewBox(nearView.container);
     expect(nearInitial).toBeTruthy();
     for (const key of ORDERED_KEYS.slice(1)) {
@@ -393,11 +731,14 @@ describe('SemanticGrowthWorldView', () => {
     expect(readViewBox(nearView.container)).toBe(nearInitial);
     nearView.unmount();
 
-    const farFrames = ORDERED_KEYS.map((key) => ({
-      key,
-      model: frameModelAt(key, { cx: 520, cy: 420 }),
-    }));
-    const farView = render(<SemanticGrowthWorldView frames={farFrames} />);
+    const farRegion = { cx: 520, cy: 420 };
+    const farView = render(
+      <SemanticGrowthWorldView
+        model={frameModelAt('healthy', farRegion)}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={anchorsAt(farRegion)}
+      />,
+    );
     const farInitial = readViewBox(farView.container);
     expect(farInitial).toBeTruthy();
     for (const key of ORDERED_KEYS.slice(1)) {
@@ -593,8 +934,14 @@ describe('SemanticGrowthWorldView', () => {
     // (ground/root anchors, nesting) must read identically whether reached by walking forward,
     // stepping Back, or Replaying, and must not change again once reduced motion renders the same
     // markers immediately.
-    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
-    const view = render(<SemanticGrowthWorldView frames={frames} />);
+    const model = persistentGrowthModel();
+    const view = render(
+      <SemanticGrowthWorldView
+        model={model}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={PERSISTENT_ANCHORS}
+      />,
+    );
     const placementTransforms = (): string[] =>
       [...view.container.querySelectorAll('[transform]')].map(
         (el) => el.getAttribute('transform') ?? '',
@@ -619,7 +966,14 @@ describe('SemanticGrowthWorldView', () => {
     fireEvent.click(view.getByRole('button', { name: 'Back' }));
     expect(placementTransforms()).toEqual(signedProof);
 
-    view.rerender(<SemanticGrowthWorldView frames={frames} reducedMotion />);
+    view.rerender(
+      <SemanticGrowthWorldView
+        model={model}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={PERSISTENT_ANCHORS}
+        reducedMotion
+      />,
+    );
     expect(placementTransforms()).toEqual(signedProof);
   });
 

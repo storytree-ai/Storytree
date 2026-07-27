@@ -48,7 +48,9 @@ export {
 } from './trailReveal.js';
 export {
   SemanticGrowthWorldView,
-  type SemanticGrowthFrame,
+  type SemanticGrowthAnchors,
+  type SemanticGrowthEvent,
   type SemanticGrowthFrameKey,
+  type SemanticGrowthPoint,
   type SemanticGrowthWorldViewProps,
 } from './SemanticGrowthWorldView.js';
