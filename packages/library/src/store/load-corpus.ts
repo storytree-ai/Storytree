@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Pool } from "pg";
 import type { Store } from "@storytree/storage-protocol";
@@ -6,6 +7,7 @@ import { createPool, closePool } from "./connection.js";
 import { applySchema } from "./migrate.js";
 import { PgLibraryStore } from "./pg-store.js";
 import { libraryTemplates } from "../templates.js";
+import { REPO_ROOT_ENV, resolveRepoRoot } from "../repo-root.js";
 
 /**
  * The corpus migration (ADR-0017 / ADR-0019 Phase 2, ADR-0021): seed the runtime store from the
@@ -37,10 +39,17 @@ interface CommentLike {
   [k: string]: unknown;
 }
 
-/** Resolve a path inside `apps/studio/data/` relative to the repo root (this file's location). */
+/**
+ * Resolve a path inside `apps/studio/data/` relative to the repo root — a PARAMETER (ADR-0246), not
+ * this file's own location. `STORYTREE_REPO_ROOT` repoints the seed at another checkout; unset, the
+ * module-location derivation (four dirs up from `packages/library/src/store/`) applies as before.
+ */
 function dataPath(file: string): string {
-  // packages/library/src/store/load-corpus.ts -> repo root is four dirs up.
-  return fileURLToPath(new URL(`../../../../apps/studio/data/${file}`, import.meta.url));
+  const { root } = resolveRepoRoot({
+    env: process.env[REPO_ROOT_ENV],
+    derived: fileURLToPath(new URL("../../../../", import.meta.url)),
+  });
+  return join(root, "apps", "studio", "data", file);
 }
 
 export interface LoadCorpusResult {

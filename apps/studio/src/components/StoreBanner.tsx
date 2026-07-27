@@ -53,6 +53,7 @@ export function StoreBanner({
   onRecovered,
   canWake = false,
   onPhase,
+  onCodeHead,
 }: {
   onRecovered: () => void;
   /**
@@ -69,6 +70,14 @@ export function StoreBanner({
    * doesn't lift the phase keeps working unchanged.
    */
   onPhase?: (phase: StorePhase) => void;
+  /**
+   * Lift the already-fetched server code stamp (`/api/health`'s `code.head`) up (ADR-0240 decision
+   * 2 stage 2, map-payload-cache guard 2): App uses it to evict a payload-cache entry recorded
+   * under a different server head, and to stamp entries it writes — served by THIS banner's single
+   * poller, never a second one. Fires whenever a health response carries a `code.head`. Optional —
+   * the local dev banner that doesn't lift it keeps working unchanged.
+   */
+  onCodeHead?: (head: string) => void;
 }): React.JSX.Element | null {
   const [phase, setPhase] = useState<StorePhase>('unknown');
   const [startError, setStartError] = useState('');
@@ -102,6 +111,9 @@ export function StoreBanner({
     try {
       const health = await api.health();
       healthFailures.current = 0; // the studio server answered — whatever the DB says
+      // map-payload-cache guard 2: lift the server code stamp up on every resolved health probe,
+      // regardless of phase, so App can evict a payload-cache entry written under a different head.
+      if (health.code?.head !== undefined) onCodeHead?.(health.code.head);
       // Code stamp first, before any phase branch returns: a moved checkout must surface
       // for the json store and during DB outages alike — and clear when a restarted server
       // answers with a fresh stamp.
@@ -153,7 +165,7 @@ export function StoreBanner({
     } finally {
       inFlight.current = false;
     }
-  }, [onRecovered]);
+  }, [onRecovered, onCodeHead]);
 
   // Lift the phase up so App's load-state machine can react to it (STARTING / TAKING-LONGER /
   // SERVER-LOST) without a second poller. Runs after each phase change.

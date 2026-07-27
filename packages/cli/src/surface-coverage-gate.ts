@@ -9,9 +9,16 @@
  *   (a) every entrypoint a process NAMES in its `surfaces` resolves to a real entrypoint, and
  *   (b) every operator-facing entrypoint has SOME process behind it (else it is an orphan),
  *
- * and prints both gaps. It NEVER blocks (advisory, like its siblings): "which commands do we need?"
- * is a judgement the gate must not adjudicate — it only asserts the bijection holds over what exists.
- * The orphan list IS the process-tier backfill worklist.
+ * and prints both gaps. "Which commands do we need?" is a judgement the gate must not adjudicate — it
+ * only asserts the bijection holds over what exists. The orphan list IS the process-tier backfill
+ * worklist.
+ *
+ * BOUNDED AT A DRAIN CEILING since 2026-07-27 (`verification-integrity-arc`, ADR-0252 D3, in ADR-0168
+ * D4's shape). It was WARN-only and exited 0 at every gap count — so when ADR-0195 added the
+ * `ci:affected` script with no process behind it, the bijection broke on `main` and stayed broken for
+ * thirteen days without failing anything. The ceiling itself, the measured evidence, and both axes'
+ * baselines live in `surface-coverage-drain.ts`; this module is unchanged in what it COMPUTES, and the
+ * OK/WARN levels below are unchanged — RED is layered above them by the thin shell.
  *
  * ─── The `surfaces`-names-an-entrypoint convention (ADR-0154 left the grammar to this unit) ───
  * A `process`'s `surfaces` prose names each enacting entrypoint as a BACKTICK span. A span is read as
@@ -189,9 +196,10 @@ export function classifySurfaceCoverage(input: {
 }
 
 /**
- * PURE: render the sweep as advisory console lines + a `warn` flag. WARN names both gap lists (the
- * backfill worklist); OK reports the covered counts. NEVER throws or exits — the caller prints and
- * always exits 0 (WARN-only, like `check:coverage`).
+ * PURE: render the sweep as console lines + a `warn` flag. WARN names both gap lists (the backfill
+ * worklist); OK reports the covered counts. NEVER throws or exits — the caller prints, then applies
+ * the drain ceiling (`surface-coverage-drain.ts`) to decide the exit code. These two levels are
+ * UNCHANGED by that ceiling: RED is layered above them, never a band opened beneath.
  */
 export function formatSurfaceCoverage(report: SurfaceCoverageReport): { warn: boolean; lines: string[] } {
   if (report.clean) {
@@ -204,8 +212,8 @@ export function formatSurfaceCoverage(report: SurfaceCoverageReport): { warn: bo
     };
   }
   const lines = [
-    `${TAG} WARN — the process↔entrypoint bijection has gaps (ADR-0154). Advisory only — this is the ` +
-      "process-tier backfill worklist, never a block.",
+    `${TAG} WARN — the process↔entrypoint bijection has gaps (ADR-0154). This is the process-tier ` +
+      "backfill worklist; it reds the gate above its drain ceiling (surface-coverage-drain.ts).",
   ];
   if (report.unresolved.length > 0) {
     lines.push(
@@ -233,9 +241,18 @@ export interface SurfaceCoverageDeps {
   loadInputs: () => { processes: ProcessSurfaces[]; entrypoints: Entrypoint[] };
 }
 
-/** The injectable gate runner: load → classify → format. Pure-by-injection. */
-export function runSurfaceCoverageGate(deps: SurfaceCoverageDeps): { warn: boolean; lines: string[] } {
-  return formatSurfaceCoverage(classifySurfaceCoverage(deps.loadInputs()));
+/**
+ * The injectable gate runner: load → classify → format. Pure-by-injection. The classified `report` is
+ * returned alongside the rendered lines so the shell can apply the drain ceiling to the same sweep
+ * without re-running it (`surface-coverage-drain.ts`).
+ */
+export function runSurfaceCoverageGate(deps: SurfaceCoverageDeps): {
+  warn: boolean;
+  lines: string[];
+  report: SurfaceCoverageReport;
+} {
+  const report = classifySurfaceCoverage(deps.loadInputs());
+  return { ...formatSurfaceCoverage(report), report };
 }
 
 // ---------------------------------------------------------------------------

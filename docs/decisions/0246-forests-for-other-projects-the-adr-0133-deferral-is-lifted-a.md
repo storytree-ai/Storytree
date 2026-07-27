@@ -155,6 +155,12 @@ or a child ADR under this arc, not here:
 - ADR-0244 — the distribution posture; D3 (history cut from a user build), D6 (local-only mode / the
   `createPool` mode fork), D7 (API seam scoped to the contributor deployment), D8 (the Cloud SQL grant
   constraint).
+- ADR-0259 — every client reaches the store through an HTTP front door, `pg` is a server-side
+  privilege. Its D1 names *"a foreign project's tooling"* as a door client and its D2 has the door
+  ship with the forest, so the door is the store-access seam this arc's tree work sits on — and its
+  `HttpStore` is a prerequisite shared with the remote-session thread. (Added as a reference under
+  ADR-0086 in-place curation, 2026-07-27; ADR-0259 already carries this arc's `arc:` stamp, so the
+  omission was in this body only.)
 - ADR-0093 — the shared render core fenced to the look, which D4 relies on.
 - ADR-0020 / ADR-0040 — green comes only from a signed verdict, which is why D5 is inside the arc.
 - ADR-0110 — owner-directed decisions are born `accepted`.

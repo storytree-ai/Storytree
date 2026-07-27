@@ -38,6 +38,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, use
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
+import { readPayloadCache, writeTreeCache } from '../lib/payloadCache';
 import { anyRecentLanding, isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
 import { useBuildActivity, useClaimActivity } from '../lib/buildActivity';
 import { claimColourState } from '../lib/claimColour';
@@ -1486,8 +1487,54 @@ function layoutSubdag(story: TreeStory): SubLayout {
 // feedback). 10px comfortably clears click jitter while staying responsive for an intentional drag.
 const DRAG_SLOP = 10;
 
-export function TreeView({ focus }: { focus: string | null }): React.JSX.Element {
-  const [stories, setStories] = useState<TreeStory[] | null>(null);
+export function TreeView({
+  focus,
+  codeHeadRef: codeHeadRefFromApp,
+  cacheWriteSuppressedRef: cacheWriteSuppressedRefFromApp,
+}: {
+  focus: string | null;
+  /**
+   * map-payload-cache (ADR-0240 decision 2 stage 2): the server code stamp App lifted from
+   * StoreBanner's single `/api/health` poller (`code.head`), so a successful reloadTree can stamp
+   * the tree half of the payload cache entry it writes. Handed down as the SAME ref object App's
+   * own write callback reads (never a reactive prop snapshot) so a write here always sees the
+   * truly-latest value at write time, with no render/commit lag to race against the network
+   * response that triggers the write. Optional — every existing caller that doesn't wire the cache
+   * (tests, the Semantic Growth demo composition) keeps working unchanged; a write under an
+   * unresolved ('') head just means guard 2 evicts it on the next boot instead of matching, never
+   * a crash.
+   */
+  codeHeadRef?: { current: string };
+  /**
+   * map-payload-cache: true once THIS boot's own health probe has evicted an existing cache entry
+   * recorded under a different server head (App tracks it — see `evictIfCodeHeadMismatch`'s doc
+   * comment). Suppresses `reloadTree`'s own re-write for the rest of this boot so a same-boot
+   * revalidation can't quietly re-establish an entry the boot itself just distrusted — the SAME ref
+   * object App's own write guard reads, for the same no-propagation-lag reason as `codeHeadRef`.
+   * Optional — every existing caller that doesn't wire the cache keeps working unchanged.
+   */
+  cacheWriteSuppressedRef?: { current: boolean };
+}): React.JSX.Element {
+  // map-payload-cache: seed the FIRST paint from a validated cache entry (guards 1 + 3, decided
+  // synchronously here, before any network response — see payloadCache.ts) rather than starting
+  // blank and showing "Growing the world…" while /api/tree is in flight. Read exactly once, up
+  // front, so the two pieces of state below agree on the same snapshot.
+  const initialCacheRef = useRef<ReturnType<typeof readPayloadCache> | undefined>(undefined);
+  if (initialCacheRef.current === undefined) initialCacheRef.current = readPayloadCache();
+  const initialCache = initialCacheRef.current;
+
+  const [stories, setStories] = useState<TreeStory[] | null>(() =>
+    initialCache ? presentStories(initialCache.stories) : null,
+  );
+  // Cached paint is never cached TRUTH (ADR-0240 decision 3): true while the current paint came
+  // from the cache and hasn't yet been confirmed by a successful reloadTree — cleared on success,
+  // and deliberately left set on a failed revalidation (the cached world stays painted, never
+  // silently promoted to confirmed, never replaced by an error screen).
+  const [cacheProvisional, setCacheProvisional] = useState<boolean>(() => initialCache !== null);
+  // Read without adding a reloadTree dependency (which would re-fire the mount effect on every
+  // update) — kept current every render, read inside the fetch's .then/.catch closures.
+  const storiesRef = useRef<TreeStory[] | null>(stories);
+  storiesRef.current = stories;
   // The shared `now` ticker (lib/poll.ts): ages build/claim wisps and verdict blooms between
   // polls with zero fetches. Self-reported session presence is RETIRED (ADR-0200 D7) — the
   // claim ledger is the one coordination + observability layer; the ticker outlived the
@@ -1545,8 +1592,24 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
         setStories(presentStories(p.stories));
         setSeedBuilds(p.builds ?? []);
         setSeedClaims(p.claims ?? []);
+        // map-payload-cache: paint, then ALWAYS revalidate (ADR-0240 decision 3) — a resolved
+        // fetch always reconciles the painted view and clears the provisional mark. Persist the
+        // RAW (pre-presentStories) stories, matching what /api/tree actually served, so a future
+        // boot's presentStories() derives from the same input the network would have.
+        setCacheProvisional(false);
+        if (!cacheWriteSuppressedRefFromApp?.current) {
+          writeTreeCache(p.stories, codeHeadRefFromApp?.current ?? '');
+        }
       })
-      .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)));
+      .catch((e: unknown) => {
+        // A revalidation failure must never silently promote a cached paint to confirmed, and
+        // must never replace it with an error screen (ADR-0240 decision 3) — cacheProvisional (if
+        // set) simply stays true. Only a COLD failure (nothing painted yet, cache or otherwise)
+        // surfaces the existing error path.
+        if (storiesRef.current === null) {
+          setLoadError(e instanceof Error ? e.message : String(e));
+        }
+      });
   }, []);
 
   // A desktop forest-map Build click seeds the terminal (map-build-seeds-terminal → this glue →
@@ -2394,7 +2457,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     // Full-bleed (owner feedback 2026-07-13): no `pad` ring and no session-counter toolbar — the
     // map is the whole content area. The claim ledger stays reachable through a story panel's
     // claim rows → the session dock (the counter was owner-cited clutter).
-    <div className="tree-wrap">
+    <div className="tree-wrap" data-cache-provisional={cacheProvisional ? 'true' : undefined}>
       <div className="tree-layout">
         <SharedIslandsPanel
           islands={sharedIslands}
