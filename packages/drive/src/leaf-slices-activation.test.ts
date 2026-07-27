@@ -1,0 +1,255 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { rm } from "node:fs/promises";
+
+import { InMemoryStore } from "@storytree/storage-protocol";
+import type { SdkRunInfo } from "@storytree/agent";
+import { USAGE_EVENT_KIND } from "@storytree/proof-protocol";
+import type { UsageEventDoc } from "@storytree/proof-protocol";
+import {
+  createBuildWorktree,
+  findNodeSpecFile,
+  loadNodeSpec,
+  resolveBuildConfig,
+  resolveSignerFromEnv,
+} from "@storytree/orchestrator";
+import type { NodeSpec } from "@storytree/orchestrator";
+
+import { storyBuild } from "./story-build.js";
+import { buildNodeReal, renderLeafPhasePrompts } from "./node-build.js";
+import type { LiveAuthor } from "./node-build.js";
+import {
+  fixtureRepo,
+  fixtureStories,
+  scriptedAuthors,
+  scopeFor,
+  cannedLiveAuthor,
+  cannedRun,
+} from "./real-chain-fixture.js";
+
+/**
+ * leaf-slices-observer-activation (capability): a REAL build actually calls its leaf-slices
+ * observer with that node's OWN run accounting.
+ *
+ * This is a REGRESSION test against the CURRENT `story-build.ts` / `node-build.ts` behaviour: at
+ * HEAD, `story build --real` and `buildNodeReal` have no `liveAuthorOverride` seam at all — a
+ * caller cannot widen a genuinely-authored `--real` node's accounting with a canned
+ * {@link SdkRunInfo} array the way `resolveProveSpec`'s `RealResolveOptions.liveAuthorOverride`
+ * (ADR-0243 D1, already built in `@storytree/orchestrator`) allows. Every assertion below that
+ * depends on `liveAuthorOverride` actually reaching `resolveProveSpec` fails against today's drive
+ * — a behaviour assertion (the observer never fires, or the usage event never lands), never a
+ * missing-symbol import: `StoryBuildOpts`/`RealBuildArgs` are structural types, so handing them an
+ * extra property is not a compile error under `tsx` (the proof command strips types).
+ */
+
+/** Type helper: `.doc` off a raw StoreEvent, narrowed for the usage-accounting assertion. */
+function asUsageDoc(doc: unknown): UsageEventDoc {
+  return doc as UsageEventDoc;
+}
+
+test("the-leaf-slices-observer-fires-with-the-canned-run-accounting: a --real chain with a liveAuthorOverride invokes onLeafSlices with that node's EXACT canned runs", async () => {
+  const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
+  const repo = await fixtureRepo(false);
+  const runs: SdkRunInfo[] = [cannedRun({ costUsd: 0.25 })];
+  const calls: { runId: string; unitId: string; runs: readonly SdkRunInfo[] }[] = [];
+  try {
+    const env = await storyBuild("fix-story", {
+      dryRun: false,
+      real: true,
+      actor: "tester@example.com",
+      storiesDir: stories,
+      repoRoot: repo.root,
+      verdictStore: "memory", // internal test seam (ADR-0081): in-memory store, no DB
+      promote: false,
+      authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a") }),
+      liveAuthorOverride: () => cannedLiveAuthor(runs),
+      onLeafSlices: (args) => calls.push(args as never),
+    } as never);
+
+    assert.equal(env.ok, true, env.body);
+    assert.equal(calls.length, 1, "onLeafSlices must fire exactly once for the one real node in the chain");
+    assert.equal(calls[0]?.unitId, "cap-a", "the observed unit must be the node that actually built");
+    assert.deepEqual(
+      calls[0]?.runs,
+      runs,
+      "the observer must receive that node's OWN canned run accounting, unmodified",
+    );
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+    await rm(repo.root, { recursive: true, force: true });
+  }
+});
+
+test("no-live-author-override-leaves-the-observer-silent: authorOverride alone (no liveAuthorOverride) never invokes onLeafSlices — no fabricated accounting is claimed", async () => {
+  const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
+  const repo = await fixtureRepo(false);
+  const calls: unknown[] = [];
+  try {
+    const env = await storyBuild("fix-story", {
+      dryRun: false,
+      real: true,
+      actor: "tester@example.com",
+      storiesDir: stories,
+      repoRoot: repo.root,
+      verdictStore: "memory",
+      promote: false,
+      authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a") }),
+      onLeafSlices: (args) => calls.push(args),
+    });
+
+    assert.equal(env.ok, true, env.body);
+    assert.equal(
+      calls.length,
+      0,
+      "with no liveAuthorOverride, the accounting-only widening never fires — the observer stays silent",
+    );
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+    await rm(repo.root, { recursive: true, force: true });
+  }
+});
+
+test("a-canned-live-author-cannot-move-a-verdict: a canned success-shaped run accounting cannot turn a genuinely FAILING node into a signed pass", async () => {
+  const stories = await fixtureStories([{ id: "cap-bad", dependsOn: [] }]);
+  const repo = await fixtureRepo(false);
+  const calls: { unitId: string; runs: readonly SdkRunInfo[] }[] = [];
+  try {
+    const env = await storyBuild("fix-story", {
+      dryRun: false,
+      real: true,
+      actor: "tester@example.com",
+      storiesDir: stories,
+      repoRoot: repo.root,
+      verdictStore: "memory",
+      promote: false,
+      authorOverride: scriptedAuthors({ "cap-bad": scopeFor("cap-bad") }),
+      liveAuthorOverride: () => cannedLiveAuthor([cannedRun({ subtype: "success", costUsd: 99 })]),
+      onLeafSlices: (args) => calls.push(args as never),
+    } as never);
+
+    // cap-bad's authored impl does NOT satisfy its own test — the chain must HALT regardless of the
+    // canned author's "success" accounting claim.
+    assert.equal(env.ok, false, "a genuinely failing node must still HALT the chain");
+    assert.match(env.body, /HALT/, `expected a HALT outcome, got:\n${env.body}`);
+    // The accounting is still reported (PASS and FAIL alike) — it just never gates the verdict.
+    assert.equal(calls.length, 1, "the observer still fires for a failing slice — accounting is not proof");
+    assert.equal(calls[0]?.runs[0]?.subtype, "success", "the canned run still claims success");
+    assert.equal(calls[0]?.runs[0]?.costUsd, 99, "the canned cost still rides through");
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+    await rm(repo.root, { recursive: true, force: true });
+  }
+});
+
+test("the-canned-accounting-dies-in-the-injected-store: buildNodeReal appends the canned run's usage into the CALLER's own store, never a shared/real one", async () => {
+  const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
+  const repo = await fixtureRepo(false);
+  const store = new InMemoryStore();
+  const worktree = await createBuildWorktree(repo.root, {});
+  try {
+    const specFile = findNodeSpecFile(stories, "cap-a");
+    assert.ok(specFile !== null, "the fixture cap-a spec must resolve");
+    const spec: NodeSpec = loadNodeSpec(specFile as string);
+    const resolved = resolveBuildConfig(spec);
+    assert.ok(resolved !== null && resolved.config.real !== undefined, "cap-a must carry a real: arm");
+    const buildConfig = resolved!.config;
+    const signer = resolveSignerFromEnv({ flag: "tester@example.com" });
+    assert.equal(signer.ok, true, "the fixture signer must resolve");
+    const prompts = await renderLeafPhasePrompts();
+    assert.equal(prompts.ok, true, "the Library leaf prompts must render");
+    const author = scriptedAuthors({ "cap-a": scopeFor("cap-a") })(spec, worktree.root);
+    assert.ok(author !== undefined, "the scripted author must resolve for cap-a");
+    const runs: SdkRunInfo[] = [cannedRun({ costUsd: 0.42 })];
+    const canned: LiveAuthor = cannedLiveAuthor(runs);
+
+    const built = await buildNodeReal({
+      spec,
+      worktree,
+      baseSha: worktree.headSha,
+      buildConfig,
+      realConfig: buildConfig.real!,
+      store,
+      runId: "leaf-slices-store-test",
+      signer: (signer as { ok: true; signer: string }).signer,
+      phasePrompts: (prompts as { ok: true; prompts: never }).prompts,
+      repoRoot: repo.root,
+      promote: false,
+      authorOverride: author,
+      liveAuthorOverride: canned,
+    } as never);
+
+    assert.equal(built.result.ok, true, "the real red→green must still pass on its own merits");
+
+    const events = await store.readEvents();
+    const usageDocs = events
+      .filter((e) => e.kind === USAGE_EVENT_KIND)
+      .map((e) => asUsageDoc(e.doc))
+      .filter((d) => d.unitId === "cap-a" && d.runId === "leaf-slices-store-test");
+
+    assert.equal(
+      usageDocs.length,
+      1,
+      "the canned run's accounting must be appended into the CALLER-injected store, and only there",
+    );
+    assert.equal(
+      usageDocs[0]?.costUsd,
+      0.42,
+      "the exact canned cost must ride through into the persisted usage doc",
+    );
+  } finally {
+    await worktree.remove();
+    await rm(stories, { recursive: true, force: true });
+    await rm(repo.root, { recursive: true, force: true });
+  }
+});
+
+test("each-chained-node-reports-its-own-slices: a two-node --real chain reports EACH node's own canned accounting once, never swapped or reused", async () => {
+  const stories = await fixtureStories([
+    { id: "cap-a", dependsOn: [] },
+    { id: "cap-b", dependsOn: ["cap-a"] },
+  ]);
+  const repo = await fixtureRepo(false);
+  const perNodeRuns: Record<string, SdkRunInfo[]> = {
+    "cap-a": [cannedRun({ costUsd: 0.11 })],
+    "cap-b": [cannedRun({ costUsd: 0.22 })],
+  };
+  const factoryCalls: string[] = [];
+  const liveAuthorOverride = (spec: NodeSpec): LiveAuthor | undefined => {
+    factoryCalls.push(spec.id);
+    const runs = perNodeRuns[spec.id];
+    return runs === undefined ? undefined : cannedLiveAuthor(runs);
+  };
+  const calls: { unitId: string; runs: readonly SdkRunInfo[] }[] = [];
+  try {
+    const env = await storyBuild("fix-story", {
+      dryRun: false,
+      real: true,
+      actor: "tester@example.com",
+      storiesDir: stories,
+      repoRoot: repo.root,
+      verdictStore: "memory",
+      promote: false,
+      authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a"), "cap-b": scopeFor("cap-b") }),
+      liveAuthorOverride,
+      onLeafSlices: (args) => calls.push(args as never),
+    } as never);
+
+    assert.equal(env.ok, true, env.body);
+    assert.equal(calls.length, 2, "the observer must fire exactly once per chained node");
+    const byId = new Map(calls.map((c) => [c.unitId, c.runs]));
+    assert.deepEqual(byId.get("cap-a"), perNodeRuns["cap-a"], "cap-a must report ONLY its own canned run");
+    assert.deepEqual(
+      byId.get("cap-b"),
+      perNodeRuns["cap-b"],
+      "cap-b must report ITS OWN canned run, never cap-a's",
+    );
+    assert.deepEqual(
+      factoryCalls,
+      ["cap-a", "cap-b"],
+      "the stateful liveAuthorOverride factory must be resolved exactly ONCE per node, in chain order",
+    );
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+    await rm(repo.root, { recursive: true, force: true });
+  }
+});

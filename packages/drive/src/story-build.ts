@@ -290,6 +290,14 @@ export interface StoryBuildOpts {
    */
   authorOverride?: (spec: NodeSpec, worktreeRoot: string) => PhaseAuthor | undefined;
   /**
+   * ADR-0243 D1 — the accounting-only widening, resolved per-node alongside `authorOverride`: a
+   * canned {@link LiveAuthor} (see `node-build.ts`'s `RealBuildArgs.liveAuthorOverride`) reported as
+   * that node's `built.liveAuthor`, so `onLeafSlices` fires with the canned run accounting instead of
+   * a genuine live leaf's. Resolved ONCE per node, next to `authorOverride` — a stateful factory must
+   * not be called twice. Meaningless without a matching `authorOverride` for the same node.
+   */
+  liveAuthorOverride?: (spec: NodeSpec, worktreeRoot: string) => LiveAuthor | undefined;
+  /**
    * Promote a green `--real` chain (default true). Tests that exercise the chain WITHOUT touching a
    * remote pass `false` (drive + sign + commit, no branch/push); the promotion path is proven
    * separately against a fixture bare-origin repo.
@@ -676,6 +684,7 @@ export async function storyBuild(
           }
           // Resolve the test-only scripted leaf ONCE (a stateful factory must not be called twice).
           const override = opts.authorOverride?.(spec, worktree.root);
+          const liveOverride = opts.liveAuthorOverride?.(spec, worktree.root);
           const built = await buildNodeReal({
             spec,
             worktree,
@@ -691,6 +700,7 @@ export async function storyBuild(
             runtime,
             ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
             ...(override !== undefined ? { authorOverride: override } : {}),
+            ...(liveOverride !== undefined ? { liveAuthorOverride: liveOverride } : {}),
             ...(opts.model !== undefined ? { model: opts.model } : {}),
             // ADR-0130: a slice draws the remaining total when `--budget` is set; unbounded otherwise.
             ...(remainingUsd !== undefined ? { budgetUsd: remainingUsd } : {}),

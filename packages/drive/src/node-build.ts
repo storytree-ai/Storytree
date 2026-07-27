@@ -706,6 +706,13 @@ export interface RealBuildArgs {
   /** Offline test seam: a scripted {@link PhaseAuthor}; defaults to the live SDK leaf. */
   authorOverride?: PhaseAuthor;
   /**
+   * ADR-0243 D1 — the accounting-only widening: a canned {@link LiveAuthor} reported as
+   * `result.liveAuthor` alongside `authorOverride`'s scripted authoring, so an offline caller can
+   * exercise the leaf-slices observer without a real live leaf ever authoring anything. Meaningless
+   * without `authorOverride` (the resolver refuses it fail-closed when supplied alone).
+   */
+  liveAuthorOverride?: LiveAuthor;
+  /**
    * Promote a signed pass (default true). The story chain passes `false`: it drives + signs +
    * commits each node into the shared worktree, then promotes ONCE at the stacked HEAD (so a halt
    * never leaves a pushed partial story). `false` also skips the per-node typecheck/regression
@@ -748,6 +755,7 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
     signerInputs: { flag: signer },
     phasePrompts: args.phasePrompts,
     ...(args.authorOverride !== undefined ? { authorOverride: args.authorOverride } : {}),
+    ...(args.liveAuthorOverride !== undefined ? { liveAuthorOverride: args.liveAuthorOverride } : {}),
     ...(args.dbProofEnv !== undefined ? { dbProofEnv: args.dbProofEnv } : {}),
     ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
     ...(args.model !== undefined ? { model: args.model } : {}),
