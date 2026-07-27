@@ -20,6 +20,7 @@
  *   - the primary checkout and the CURRENT worktree are NEVER reaped (force cannot override);
  *   - a worktree whose session holds a live claim on the ledger (--pg, ADR-0200 D6) is kept — its
  *     basename is the session id (ADR-0033);
+ *   - a `git worktree lock`ed worktree is kept (an explicit "do not touch" — harness or human);
  *   - a dirty tree (uncommitted changes) is kept;
  *   - a registered worktree is reaped only when its HEAD is merged into origin/main AND it is idle
  *     (mtime older than the threshold — the offline proxy for "no live session", which the notice
@@ -60,6 +61,14 @@ export interface WorktreeSnapshot {
   readonly merged: boolean;
   /** Uncommitted changes present (best-effort for orphans; false when unknowable). */
   readonly dirty: boolean;
+  /**
+   * `git worktree lock` is held on this worktree (registered only; an orphan cannot be locked).
+   * A lock is a DELIBERATE "do not touch this" — the harness takes one for a live claude session,
+   * and a human takes one to park a worktree — so it is an unconditional keep.
+   */
+  readonly locked: boolean;
+  /** The reason git recorded with the lock (`locked <reason>`), or null for a bare lock. */
+  readonly lockReason: string | null;
   /** Newest activity-proxy mtime in ms; 0 when nothing could be stat'd (treated as very old). */
   readonly mtimeMs: number;
 }
@@ -120,6 +129,23 @@ export function classifyWorktree(s: WorktreeSnapshot, policy: PrunePolicy): Work
   // A live session is authoritative (--pg): its session id IS this worktree's basename (ADR-0033).
   if (policy.liveSessions.has(s.name)) return keep("live session on the notice board (--pg)");
 
+  // `git worktree lock` is an explicit "do not touch": the harness holds one for a live claude
+  // session and a human holds one to park a worktree deliberately. Reaping through a lock would
+  // destroy exactly the worktree someone asked us to leave alone, so it outranks merged/idle.
+  // Release it with `git worktree unlock <path>`.
+  //
+  // KNOWN LIMITATION (open owner fork, worktree-reaper-integrity-arc). This keep has no expiry and
+  // nothing in this repo releases it: locks are taken by the Claude Code harness, and its reason
+  // reads `claude session <name> (pid N)`. That PID is NOT liveness-checked here, so a lock left by
+  // a crashed session keeps its worktree forever — measured 2026-07-27, all 5 locks on the dev box
+  // named DEAD pids. Those 5 were already being kept before this branch existed (by the poisoned
+  // clock, silently), so naming the reason is strictly better than the accident it replaces — but
+  // it is a permanent-keep class that only grows. Resolving it (probe the pid, age the lock out, or
+  // accept the drift) is an owner decision, deliberately NOT made here.
+  if (s.locked) {
+    return keep(`locked (git worktree lock)${s.lockReason !== null ? ` — ${s.lockReason}` : ""}`);
+  }
+
   // Uncommitted work is never thrown away.
   if (s.dirty) return keep("uncommitted changes present");
 
@@ -173,6 +199,28 @@ export interface WorktreeIo {
   removeDir(dir: string): void;
 }
 
+/**
+ * The admin files read as activity signals, relative to `.git/worktrees/<name>/`.
+ *
+ * THE RULE THAT DEFINES THIS SET: a signal may only be written by an operation IN THIS WORKTREE.
+ * Anything that repo-wide git housekeeping rewrites is measuring the REPO's last maintenance, not
+ * this worktree's last use, and silently resets the idle clock on every worktree at once.
+ *
+ * `logs/HEAD` — the per-worktree REFLOG — was in this set and broke exactly that way: git's auto-gc
+ * (`gc.auto` defaults to 6700, reached often on a busy repo) runs `reflog expire --all`, which
+ * rewrites EVERY worktree's reflog in a single pass. Measured 2026-07-27: all 76 worktrees carried
+ * an IDENTICAL `logs/HEAD` mtime, so every one of them read as "active" at once and 59 merged-and-
+ * clean worktrees were held back by `merged but active < 48h ago`. The damage was not that those 59
+ * were all overdue — it is that NO worktree could EVER age past the threshold, because each gc reset
+ * the whole registry's clock before any of them could. `.claude/worktrees/` grew to ~93 GB. Reflogs
+ * are excluded for good — do not re-add `logs/**` here (`worktree-idle-signal.test.ts` fails if you
+ * do).
+ *
+ * HEAD / index / ORIG_HEAD all pass the rule: git writes them only for ops in this worktree
+ * (checkout, commit, merge, rebase), and gc/repack/fetch leave them alone.
+ */
+export const ADMIN_ACTIVITY_SIGNALS: readonly string[] = ["HEAD", "index", "ORIG_HEAD"];
+
 /** Read the newest mtime among a small FIXED set of activity signals — never a tree walk. */
 function defaultStatMtimeMs(dir: string): number {
   const mtimeOr0 = (p: string): number => {
@@ -183,14 +231,15 @@ function defaultStatMtimeMs(dir: string): number {
     }
   };
   let newest = Math.max(mtimeOr0(dir), mtimeOr0(path.join(dir, ".git")));
-  // A worktree's `.git` is a FILE ("gitdir: <admin>"); the admin dir's HEAD/index/logs track git ops
-  // (commit, checkout, fetch) — a precise "recently used" signal with no node_modules walk.
+  // A worktree's `.git` is a FILE ("gitdir: <admin>"); the admin dir's HEAD/index/ORIG_HEAD track
+  // git ops IN THIS WORKTREE — a precise "recently used" signal with no node_modules walk. See
+  // ADMIN_ACTIVITY_SIGNALS for why the reflog is deliberately absent.
   try {
     const gitfile = readFileSync(path.join(dir, ".git"), "utf8");
     const m = /^gitdir:\s*(.+)$/m.exec(gitfile);
     if (m && m[1] !== undefined) {
       const admin = m[1].trim();
-      for (const f of ["HEAD", "index", "ORIG_HEAD", path.join("logs", "HEAD")]) {
+      for (const f of ADMIN_ACTIVITY_SIGNALS) {
         newest = Math.max(newest, mtimeOr0(path.join(admin, f)));
       }
     }
@@ -252,26 +301,55 @@ interface RegisteredEntry {
   readonly path: string;
   readonly branch: string | null;
   readonly detached: boolean;
+  readonly locked: boolean;
+  readonly lockReason: string | null;
 }
 
 /** Parse `git worktree list --porcelain` into per-worktree records. */
 export function parseWorktreeList(porcelain: string): RegisteredEntry[] {
   const out: RegisteredEntry[] = [];
-  let cur: { path?: string; branch: string | null; detached: boolean } | null = null;
+  type Cur = {
+    path?: string;
+    branch: string | null;
+    detached: boolean;
+    locked: boolean;
+    lockReason: string | null;
+  };
+  let cur: Cur | null = null;
   const flush = (): void => {
-    if (cur?.path !== undefined) out.push({ path: cur.path, branch: cur.branch, detached: cur.detached });
+    if (cur?.path !== undefined) {
+      out.push({
+        path: cur.path,
+        branch: cur.branch,
+        detached: cur.detached,
+        locked: cur.locked,
+        lockReason: cur.lockReason,
+      });
+    }
     cur = null;
   };
   for (const raw of porcelain.split(/\r?\n/)) {
     const line = raw.trimEnd();
     if (line.startsWith("worktree ")) {
       flush();
-      cur = { path: line.slice("worktree ".length), branch: null, detached: false };
+      cur = {
+        path: line.slice("worktree ".length),
+        branch: null,
+        detached: false,
+        locked: false,
+        lockReason: null,
+      };
     } else if (cur !== null && line.startsWith("branch ")) {
       // e.g. "branch refs/heads/claude/foo" → "claude/foo".
       cur.branch = line.slice("branch ".length).replace(/^refs\/heads\//, "");
     } else if (cur !== null && line === "detached") {
       cur.detached = true;
+    } else if (cur !== null && (line === "locked" || line.startsWith("locked "))) {
+      // Porcelain emits a bare "locked", or "locked <reason>" when one was given
+      // (e.g. `locked claude session art-factory-story-split (pid 56740)`).
+      cur.locked = true;
+      const reason = line.slice("locked".length).trim();
+      cur.lockReason = reason.length > 0 ? reason : null;
     }
   }
   flush();
@@ -379,6 +457,8 @@ export function gatherSnapshots(io: WorktreeIo, ctx: GatherContext): WorktreeSna
       branch: entry.branch,
       merged,
       dirty: false, // deferred — confirmed on reap candidates only
+      locked: entry.locked,
+      lockReason: entry.lockReason,
       mtimeMs: io.statMtimeMs(entry.path),
     });
   }
@@ -394,6 +474,8 @@ export function gatherSnapshots(io: WorktreeIo, ctx: GatherContext): WorktreeSna
       branch: null,
       merged: false,
       dirty: false, // deferred (a husk is never dirty — see worktreeDirty)
+      locked: false, // git no longer tracks an orphan, so it cannot hold a lock
+      lockReason: null,
       mtimeMs: io.statMtimeMs(full),
     });
   }
@@ -611,7 +693,12 @@ export function worktreeHelp(): Envelope {
       "  --pg                 consult the notice board: a worktree with a live session is kept",
       "",
       "NEVER reaped: the primary checkout, the current worktree, unmerged branches, dirty trees,",
+      "worktrees held by `git worktree lock` (release with `git worktree unlock <path>`),",
       "or (without --include-detached) detached-HEAD gate worktrees.",
+      "",
+      "IDLE SIGNAL: newest mtime across the worktree dir, its .git file, and the admin",
+      "HEAD/index/ORIG_HEAD. Reflogs are deliberately EXCLUDED — `git gc` rewrites every",
+      "worktree's logs/HEAD in one pass, which used to reset the idle clock repo-wide.",
     ].join("\n"),
     next: [
       'storytree worktree create --node <story> --intent "<what>" --pg',
