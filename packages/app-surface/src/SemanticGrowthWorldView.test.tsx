@@ -1647,4 +1647,128 @@ describe('SemanticGrowthWorldView', () => {
       expect(landDurationMs).toBeGreaterThan(identityDurationMs);
     }
   });
+
+  it('owner correction 1/3 — retains one planted story tree and exposes only terrain plus story-tree anchors throughout the six-event walk', () => {
+    const view = render(
+      <SemanticGrowthWorldView
+        model={persistentGrowthModel()}
+        semanticEvents={PERSISTENT_EVENTS}
+        anchors={PERSISTENT_ANCHORS}
+      />,
+    );
+    const island = view.container.querySelector('[data-semantic-growth-island]');
+    const tree = view.container.querySelector('.story-tree');
+    expect(island).toBeTruthy();
+    expect(tree).toBeTruthy();
+
+    const anchorNames = (): string[] =>
+      [...view.container.querySelectorAll('[data-semantic-growth-anchor]')]
+        .map((anchor) => anchor.getAttribute('data-semantic-growth-anchor') ?? '');
+
+    expect(anchorNames()).toEqual(['terrain', 'story-tree']);
+    for (const key of ORDERED_KEYS.slice(1)) {
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+      expect(
+        view.container.querySelector('[data-semantic-growth-frame]')
+          ?.getAttribute('data-semantic-growth-frame'),
+      ).toBe(key);
+      expect(view.container.querySelector('[data-semantic-growth-island]')).toBe(island);
+      expect(view.container.querySelector('.story-tree')).toBe(tree);
+      expect(tree?.closest('[data-semantic-growth-island]')).toBe(island);
+      expect(anchorNames()).toEqual(['terrain', 'story-tree']);
+    }
+  });
+
+  it('owner correction 2/3 — gives island and planted tree distinct perceptible profiles while secondary world furniture owns no semantic-growth animation', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src', 'semantic-growth.css'), 'utf8');
+    const withoutKeyframes = css.replace(/@keyframes\s+[\w-]+\s*\{[\s\S]*?\n\}\n*/g, '');
+
+    const durationFor = (selectorFragment: string): number => {
+      const rule = [...withoutKeyframes.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .find((match) => (match[1] ?? '').includes(selectorFragment)
+          && /animation(?:-duration)?\s*:/.test(match[2] ?? ''));
+      expect(rule, `animation rule for ${selectorFragment}`).toBeTruthy();
+      const body = rule?.[2] ?? '';
+      const token =
+        /animation-duration\s*:\s*([\d.]+m?s)/.exec(body)?.[1]
+        ?? /animation\s*:[^;]*?\s([\d.]+m?s)(?:\s|;)/.exec(body)?.[1];
+      expect(token, `duration for ${selectorFragment}`).toBeTruthy();
+      const numeric = Number.parseFloat(token ?? '0');
+      return token?.endsWith('ms') ? numeric : numeric * 1000;
+    };
+
+    const islandMs = durationFor('.coast-fill-group');
+    const treeMs = durationFor('.story-tree');
+    expect(islandMs).toBeGreaterThanOrEqual(1200);
+    expect(treeMs).toBeGreaterThanOrEqual(700);
+    expect(islandMs).toBeGreaterThan(treeMs);
+
+    for (const excluded of [
+      '.garden-flora',
+      '.world-plate',
+      '.parcel',
+      '.parcel-flora',
+      '.world-claim-wisp',
+      '.world-bloom',
+      '.trail-lane',
+      '.trail-lane-hub',
+    ]) {
+      const animated = [...withoutKeyframes.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter((match) => (match[1] ?? '').includes(excluded))
+        .some((match) => /animation(?:-name|-duration)?\s*:\s*(?!none\b)/.test(match[2] ?? ''));
+      expect(animated, `${excluded} must not own semantic-growth motion`).toBe(false);
+    }
+  });
+
+  it('owner correction 3/3 — folds six meanings into nothing, island reveal, tree entrance and settled tree with replay/reduced equivalence', () => {
+    const expectedTracks = [
+      'nothing',
+      'island-reveal',
+      'story-tree-entrance',
+      'story-tree-settled',
+      'story-tree-settled',
+      'story-tree-settled',
+    ];
+    const walk = (reducedMotion: boolean) => {
+      const view = render(
+        <SemanticGrowthWorldView
+          model={persistentGrowthModel()}
+          semanticEvents={PERSISTENT_EVENTS}
+          anchors={PERSISTENT_ANCHORS}
+          reducedMotion={reducedMotion}
+        />,
+      );
+      const tree = view.container.querySelector('.story-tree');
+      const island = view.container.querySelector('[data-semantic-growth-island]');
+      const observed: string[] = [];
+      for (let index = 0; index < ORDERED_KEYS.length; index += 1) {
+        const root = view.container.querySelector('[data-semantic-growth-track]');
+        observed.push(root?.getAttribute('data-semantic-growth-track') ?? '');
+        expect(view.container.querySelector('.story-tree')).toBe(tree);
+        expect(view.container.querySelector('[data-semantic-growth-island]')).toBe(island);
+        if (index < ORDERED_KEYS.length - 1) {
+          fireEvent.click(view.getByRole('button', { name: 'Next' }));
+        }
+      }
+      fireEvent.click(view.getByRole('button', { name: 'Replay' }));
+      expect(
+        view.container.querySelector('[data-semantic-growth-track]')
+          ?.getAttribute('data-semantic-growth-track'),
+      ).toBe('nothing');
+      expect(view.container.querySelector('.story-tree')).toBe(tree);
+      return {
+        observed,
+        treeTransform: tree?.getAttribute('transform'),
+        islandTransform: island?.getAttribute('transform'),
+      };
+    };
+
+    const full = walk(false);
+    cleanup();
+    const reduced = walk(true);
+    expect(full.observed).toEqual(expectedTracks);
+    expect(reduced.observed).toEqual(expectedTracks);
+    expect(reduced.treeTransform).toBe(full.treeTransform);
+    expect(reduced.islandTransform).toBe(full.islandTransform);
+  });
 });
