@@ -20,6 +20,12 @@ decisions: [237, 93, 213, 215, 230, 70]
 # no route, and leaves the full stable scene visible at `empty`. AUTHOR_TEST must add the complete
 # three-case executable bundle below before CONFIRM_RED; a single all-in-one or source-regex case is
 # invalid even if it makes the current proof command red.
+# REJECTED SIGNED CANDIDATE real-ms30c2f4 @ 5396d95: three named cases are still under-proof and the
+# package typecheck is RED. The component still accepts/selects six frame models; its tests only
+# reuse one by fixture convention. "Visibility" is asserted only through boolean data attributes
+# while every pixel stays visible. Anchors are current-frame-derived string ids, omit terrain/
+# contents/claim/proof coordinates, and route to fabricated `garden-cove`. A hand-built route to an
+# absent neighbour is the rejected trick in a new costume. This branch is not merged.
 proof:
   command:
     file: pnpm
@@ -68,6 +74,10 @@ The product-motion timeline is exactly:
 
 Several semantic events may resolve to the same timeline track. Time affects interpolation only; it
 never invents, skips or owns semantic state.
+
+The public contract must make persistence structural: exactly one `model` plus semantic events and
+explicit anchors. Retaining a `frames`-only implementation and merely passing the same model six
+times in a test is red because a consumer can still supply six snapshots.
 
 ## One provable journey
 
@@ -141,15 +151,18 @@ cannot substitute for the bundle.
    anchors. Retain actual `Element` references for the primary island root, representative terrain,
    planted content and lane path at `nothing`. Walk every key and assert strict reference identity
    (`toBe`), connection, ancestry, semantic ids and inspectable anchor coordinates at every stop.
-   The current source has no anchors and must fail this case.
+   The current source has no anchors and must fail this case. Anchors carry inspectable coordinates
+   for terrain, contents, claim, proof and both route endpoints; string story ids alone are red.
 2. **Four-track visibility + route ownership.** Prove exact cue order. At `nothing`, the persistent
    nodes remain mounted but island pixels/contents/route are concealed by shared track state; at
    `island-reveal`, terrain reveals while contents and route remain concealed; at
    `contents-settle`, primary-island contents reveal/settle while the lane remains concealed; only
    `route-draw` exposes the same already-mounted lane with the existing `.trail-lane.is-drawing`
    treatment. Assert both route endpoints equal declared primary-island anchors and no companion or
-   fabricated neighbour is present. Merely changing a root data attribute while all content stays
-   visible is red.
+   fabricated neighbour is present. The second route endpoint may be an island-local frontier point;
+   it may not name an absent story. Merely changing root data attributes while all content stays
+   visible is red: the test must resolve real shared CSS participation or visibility and fail while
+   terrain/content/route pixels all remain exposed.
 3. **Back/Replay + reduced settlement.** Walk forward, Back to `nothing`, Replay, then the same trace
    under reduced motion. Retained hierarchy/route references and anchors must remain identical.
    Reduced motion must expose each cue's settled visibility immediately, carry no interpolating
@@ -210,4 +223,7 @@ renderer. Both are useful scaffolding; the #961 owner LOOK rejected their snapsh
 composition, which this current contract replaces. Signed real run `real-ms2zlkut` at `9a2c232`
 is also rejected proof residue: it introduced a stable-model overload and track attribute but did
 not establish the anchors, visibility staging, route ownership, retained reference identity or
-reduced-motion equivalence required here, so its branch was not merged.
+reduced-motion equivalence required here, so its branch was not merged. Signed run
+`real-ms30c2f4` at `5396d95` is likewise rejected and unmerged: despite three named cases it left
+the frames-only contract intact, asserted metadata instead of visual concealment, fabricated a
+missing-neighbour route id, omitted the coordinate anchor vocabulary, and ended typecheck-red.
