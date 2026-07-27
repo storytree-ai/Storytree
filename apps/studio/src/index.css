@@ -1457,6 +1457,32 @@ a.stat:hover {
   flex: 1 1 auto;
   min-height: 0;
 }
+/* map-payload-cache (ADR-0240 decision 3): "cached paint is never cached truth". While the world is
+   painted from a persisted entry and the revalidation has not yet resolved, SAY SO — otherwise a
+   crown restored from the last visit is indistinguishable from a freshly-confirmed one, and the
+   operator reads stale proof state as current. `data-cache-provisional` alone is machine-observable
+   but invisible; this is what makes it honest to a human. It clears when the revalidation resolves
+   and deliberately PERSISTS when one fails (TreeView leaves the flag set). Never interactive — the
+   map underneath is pan/drag heavy, so the badge must not swallow a pointer. */
+.tree-wrap[data-cache-provisional='true'] .tree-layout::after {
+  content: 'Showing your last visit — checking for changes…';
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  pointer-events: none;
+  padding: 4px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  background: var(--warn-weak);
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+
 /* the world is the full-bleed base; the Shared Islands panel floats over it (ADR-0088) */
 .tree-layout > .world-frame {
   width: 100%;

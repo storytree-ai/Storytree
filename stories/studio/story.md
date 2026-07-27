@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -23,7 +23,11 @@ depends_on: [library, drive-machinery, notice-board, forest-world, studio-member
 # extraction that re-pointed the build/secrets seam off cli onto @storytree/drive (112), the
 # garden-composition fold that added the baked-kit import (221), the art-factory split that
 # makes that import a declared cross-story edge (222), the shared app-surface extraction (237), and
-# map route retention before caching or density work (240).
+# map route retention before caching or density work (240). ADR-0240's staged order is being taken
+# one increment at a time: stage 1 is `map-route-retention` (retain the map across SPA routes),
+# stage 2 is `map-payload-cache` (persist and paint the two READ-ONLY payloads, stamped and
+# paint-then-revalidate). Stages 3-5 (server memoization, boot de-serialisation, the density budget)
+# are not authored yet and add no new deciding ADR here — 240 already covers the sequence.
 decisions: [8, 36, 38, 100, 112, 221, 222, 237, 240]
 ---
 
@@ -70,7 +74,7 @@ build/secrets seam re-pointed off `cli` onto `@storytree/drive` by ADR-0112) —
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
 
-## Capabilities (12)
+## Capabilities (13)
 
 Listed roots-first (a capability appears after everything it depends on).
 
@@ -88,6 +92,7 @@ Listed roots-first (a capability appears after everything it depends on).
 | 10 | [`verified-attribution`](verified-attribution.md) | Comment attribution derives from the verified `/api/me` identity everywhere: the composer presents the verified identity read-only (`operator` fallback in the open dev posture) and the post relies on the server stamp, and the localStorage operator store (`lib/operator.ts`) retires (ADR-0204 D4). | `dev-server-persistence-backbone` |
 | 11 | [`coalesced-camera-pan`](coalesced-camera-pan.md) | An operator's forest drag commits the latest camera position at most once per display frame. | — |
 | 12 | [`map-route-retention`](map-route-retention.md) | An operator returns to the same live forest map after a SPA hash-route transition. | — |
+| 13 | [`map-payload-cache`](map-payload-cache.md) | An operator who reloads the studio sees the forest paint from the last visit's persisted payloads instead of waiting on a cold server walk. | — |
 
 ## Dependency graph (code-derived)
 
@@ -95,7 +100,7 @@ These are **within-story** edges, **read off the real source** (static analysis 
 imports / data-flow between capabilities), never hand-drawn from UAT need (ADR-0010 §3):
 A → B means A's code actually couples to B's code inside the one organism. The graph is
 acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, `chat-panel`,
-`coalesced-camera-pan`, and `map-route-retention` are the roots. (Cross-story edges are NOT in this graph — they are boundary interfaces, declared in
+`coalesced-camera-pan`, `map-route-retention`, and `map-payload-cache` are the roots. (Cross-story edges are NOT in this graph — they are boundary interfaces, declared in
 §"Cross-story boundary" below and encoded as frontmatter `depends_on` — ADR-0010 §4.)
 
 - `read-corpus` → `dev-server-persistence-backbone`
@@ -136,6 +141,15 @@ acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, `chat-panel`,
     `coalesced-camera-pan`, `hud-chrome`, or any other named capability. It retains the existing Studio
     map instance without changing its controller, route parser, terminal owner, or `@storytree/app-surface`
     seam, so it adds no in-story or cross-story dependency.
+- `map-payload-cache` → (no within-story edge — a SIXTH root)
+  - Its own new module (`src/lib/payloadCache.ts`) plus the boot/tree-load call sites it wires are
+    NEIGHBOURING slices in `App.tsx` / `TreeView.tsx` / `StoreBanner.tsx`, not imports from
+    `map-route-retention`, `coalesced-camera-pan`, or `dev-server-persistence-backbone` — the same
+    same-file-adjacency-is-not-an-edge call `coalesced-camera-pan` makes. Nor is it a UAT-need edge: a
+    full browser RELOAD keeps nothing in memory, so route retention's delivered outcome is not a
+    precondition of this capability's proof, and retention passes with no cache present. It reads
+    `/api/health`'s existing `code.head` through the banner's existing poll and adds no package import,
+    so it adds no in-story or cross-story dependency.
 
 ## Cross-story boundary (ADR-0010 §4)
 

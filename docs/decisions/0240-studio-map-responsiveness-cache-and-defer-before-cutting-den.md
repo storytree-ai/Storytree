@@ -9,6 +9,16 @@ arc: studio-map-responsiveness-arc
 
 accepted (2026-07-25) — decided/directed by the owner in conversation on 2026-07-25. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**Corrected in place 2026-07-27 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md), after stages 1 and 2 landed.**
+Every decision below STANDS unchanged — the felt cost is re-computation and re-mounting, cache and
+defer first and cut density last, cached paint is never cached truth, the density budget is
+sequenced here and not designed here. What building stages 1–2 overtook is two CONSEQUENCES: one
+that called the early increments "behaviour-preserving", and one whose prescribed staleness guard
+turns out to be insufficient on its own. A third bullet is added for a stage boundary stage 2
+necessarily crossed. All three are corrected in the Consequences below — truth-maintenance, not a
+re-decision. What landed and when is the arc's increment log
+(`storytree arc show studio-map-responsiveness-arc --pg`), never tracked here.
+
 ## Context
 
 The owner reported that the studio's forest map "takes a while to render" and asked whether in-app
@@ -63,11 +73,32 @@ dance and changes what the owner sees on the map.
 
 ## Consequences
 
-- The first increments are studio-local and behaviour-preserving, so they can land through the
-  ordinary gate without an owner look — the map should simply stop rebuilding.
-- Persisting payloads client-side introduces a staleness surface that did not exist before. It must
-  be version-stamped against the server's code stamp (already exposed on `/api/health` for the
-  version-skew banner), or a schema-changing merge will paint a stale shape into a new client.
+- The first increments are studio-local and land through the ordinary gate without an owner look —
+  the map should simply stop rebuilding. *(Corrected in place per ADR-0139: "behaviour-preserving"
+  was too strong, and decision 3 is why. A cached first paint is only honest if it SAYS it is
+  provisional, so stage 2 necessarily added an operator-visible badge over the map — "Showing your
+  last visit — checking for changes…" — which clears on a successful revalidation and deliberately
+  persists on a failed one. It still landed through the ordinary gate. The correction is the
+  expectation, not the gate: a stage on this path should expect to add a visible state, not assume
+  invisibility.)*
+- Persisting payloads client-side introduces a staleness surface that did not exist before: it has
+  to be version-stamped, or a schema-changing merge will paint a stale shape into a new client.
+  *(Corrected in place per ADR-0139: the guard this bullet prescribed — "version-stamp it against
+  the server's code stamp, already exposed on `/api/health` for the version-skew banner" — cannot
+  do that job by itself,
+  because `code.head` arrives only after a network round-trip, i.e. after the very first paint it
+  would have to gate. As built, the PRE-PAINT guards are a client stamp that moves with the bundle
+  plus a structural shape check, both decidable synchronously; the server code stamp is the
+  post-hoc EVICTOR that discards an entry recorded under a different head, and a boot that catches
+  its own entry stale that way stops re-writing for the rest of that boot. Any later stage that
+  persists something client-side needs the same split — a synchronous guard for the paint, the
+  server stamp for eviction.)*
+- *(Recorded in place per ADR-0139, after stage 2.)* The stages are sequenced, not sealed. Stage 2
+  necessarily took the `/api/docs` third of stage 4's de-serialisation with it: a cache that seeds
+  the docs payload cannot sit behind the all-or-nothing boot `Promise.all` that withheld it, so
+  `/api/docs` is now fetched in its own effect, independent of the readiness gate. What stage 4
+  still owns is the remaining pair — the map mounts only once `/api/assets` (the 561 KB it does not
+  need) and `/api/comments` resolve.
 - Server-side memoization of the `stories/` and `docs/` walks means an edit on disk is no longer
   guaranteed to be visible on the next request; invalidation has to key on directory mtime, and the
   dev loop is where that will bite first.
@@ -83,3 +114,7 @@ dance and changes what the owner sees on the map.
 - `apps/studio/src/App.tsx` (the boot gate), `apps/studio/server/apiRouter.ts` (`readTree`, `listDocs`),
   `apps/studio/src/components/TreeView.tsx` (the world/scene memos), `@storytree/app-surface`
   (`SceneView`, already memoized).
+- `apps/studio/src/lib/payloadCache.ts` — what stage 2 built: the persisted entry and its three
+  guards (client stamp / server code stamp / structural shape), and what it deliberately never
+  persists (the mutable reads, and the `builds`/`claims` coordination seeds — ADR-0128/ADR-0138
+  wisps are never restored from a previous load).
