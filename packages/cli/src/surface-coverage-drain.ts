@@ -14,13 +14,18 @@
 //   bedf6dba^ (2026-07-13)  processes=12 entrypoints=63  unresolved=0 orphans=0  clean=TRUE
 //   bedf6dba  (2026-07-14)  processes=12 entrypoints=64  unresolved=0 orphans=1  clean=false
 //   HEAD      (2026-07-27)  processes=13 entrypoints=67  unresolved=0 orphans=1  clean=false
+//   DRAINED   (2026-07-28)  processes=14 entrypoints=67  unresolved=0 orphans=0  clean=TRUE
 //
 // ADR-0161 (2026-07-05) recorded this sweep CLEAN — "a backfilled, coverage-gated set (10 processes,
 // `check:surface-coverage` clean)". On 2026-07-14 ADR-0195 added the operator-facing root script
 // `ci:affected` to `package.json` and authored no `process` for it. The orphan worklist went 0 → 1,
-// the gate printed WARN, exited 0, CI stayed green, and the PR merged. Thirteen days later it is the
-// same single un-drained item. The bijection this gate exists to assert has been broken on `main`
-// continuously since, and no run of `pnpm gate` — local or CI — has ever failed on it.
+// the gate printed WARN, exited 0, CI stayed green, and the PR merged. Thirteen days later it was the
+// same single un-drained item. The bijection this gate exists to assert was broken on `main`
+// continuously from that day, and no run of `pnpm gate` — local or CI — ever failed on it. On
+// 2026-07-28 it was DRAINED rather than accommodated: `process:affected-pr-test-scope` was authored
+// from ADR-0195 (per ADR-0154's charter that a load-bearing way-of-working ADR carries a current
+// `process`), the real sweep returned to `clean=TRUE`, and the orphan ceiling was tightened to 0 in
+// the same unit — a ceiling left above the real count is exactly the slack this gate exists to remove.
 //
 // TWO INDEPENDENT AXES, each redding on its own and NEVER summed (the `check:friction-drain` shape).
 // This gate does not have to invent its second axis: it already computes two gap lists that mean
@@ -52,7 +57,9 @@
 // should be authored — that judgement stays ADR-0154's librarian-curator charter, exactly as before. A
 // breach is discharged by a drain that is real and already in the operating discipline: author the
 // missing `process` in the seed and `sync-corpus --pg` it live, fix the stale `surfaces` ref, or
-// retire the entrypoint (ADR-0256: a ceiling's remedy must be a drain, not an exhortation).
+// retire the entrypoint (ADR-0252 D3: a ceiling's remedy is a drain, never a raise — corrected
+// 2026-07-28, this cited ADR-0256, which decides something else entirely: that deferral-keyed
+// ESCALATION lines are not built. Same mis-citation as `graduation-drain.ts` carried; both fixed).
 //
 // ONE LIMITATION, STATED RATHER THAN DISCOVERED LATER. The orphan ceiling is baselined over the
 // CURRENTLY orphan-checked population — root `package.json` scripts that are not gate/generator
@@ -76,28 +83,38 @@ export interface SurfaceCoverageDrainConfig {
 }
 
 /**
- * THE CEILINGS, both BASELINED on this check's first real sweep rather than picked in advance — the
- * sweep of 2026-07-27 found `unresolved=0, orphans=1` (13 processes, 67 entrypoints). Setting each
- * axis to exactly what that run found ships the ceiling GREEN on an honest baseline (a breach is
+ * THE CEILINGS, both BASELINED on a real sweep rather than picked in advance, and both now at ZERO —
+ * the sweep of 2026-07-28 found `unresolved=0, orphans=0` (14 processes, 67 entrypoints). Setting each
+ * axis to exactly what a real run found ships the ceiling GREEN on an honest baseline (a breach is
  * strictly `>`), so it can only ever be TIGHTENED as the tier is backfilled.
  *
  * `unresolvedCeiling: 0` is the real, honest baseline and not an aspiration: no sampled revision of
  * this repo has ever carried a dangling `surfaces` ref. It is also the axis that most deserves zero —
  * an unresolved ref is a broken pointer in a published artifact, repaired by editing one prose span.
  *
- * `orphanCeiling: 1` admits exactly today's un-drained item, `pnpm ci:affected` (ADR-0195). It is
- * deliberately NOT set to 0: shipping red on a pre-existing backlog would price the next session
- * toward weakening the check instead of draining it. Author `ci:affected`'s process, lower this to 0.
+ * `orphanCeiling: 0` since 2026-07-28. It shipped at 1 the day before, admitting exactly the one
+ * un-drained item `pnpm ci:affected` (ADR-0195) — deliberately not 0 then, because shipping red on a
+ * pre-existing backlog prices the next session toward weakening the check instead of draining it. That
+ * drain has now happened: `process:affected-pr-test-scope` was authored from ADR-0195 and the real
+ * sweep is clean, so the ceiling is TIGHTENED to the new real count in the same unit. This is the
+ * wanted direction and the only honest resting place for a drained list — a ceiling left at 1 over a
+ * count of 0 is one free un-drained entrypoint of slack, silently re-admitting the exact drift this
+ * gate was bounded to catch. There is now ZERO headroom on either axis: the next orphan, or the next
+ * dangling ref, reds the gate. That is the fail-closed-on-growth design, not an oversight.
  *
- * NO WARN BAND IS ADDED. `check:surface-coverage` already WARNs at a single gap of either kind, and
- * opening a band beneath a ceiling would make small counts print OK — QUIETER than today. RED is
- * layered strictly ABOVE the existing OK/WARN levels and changes neither, so this check is stronger
- * than before and never weaker (gaming a ceiling by softening the check under it is the named failure
- * mode on `process:verification-decay-detection`).
+ * NO WARN BAND WAS EVER OPENED, and at 0/0 the WARN level is simply UNREACHABLE against a usable
+ * process tier — every gap of either kind is now a breach. That is strictly louder, never quieter:
+ * `formatSurfaceCoverage` is untouched and still WARNs at a single gap, so its lines print exactly as
+ * before, now followed by the RED breach rather than a bare exit 0. WARN survives only on the
+ * fail-open path, where a breach computed against an UNUSABLE tier is reported and suppressed, and the
+ * shell prints its "drain ceiling not enforced" line directly beneath — so a reader is never left with
+ * WARN prose that its exit code contradicts (the shape friction
+ * `gate-check-prose-is-untested-so-bounding-one-contradicts-itself` names). Softening the check
+ * beneath its ceiling is the named gaming failure mode on `process:verification-decay-detection`.
  */
 export const DEFAULT_SURFACE_COVERAGE_DRAIN_CONFIG: SurfaceCoverageDrainConfig = {
   unresolvedCeiling: 0,
-  orphanCeiling: 1,
+  orphanCeiling: 0,
 };
 
 /**
