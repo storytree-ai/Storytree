@@ -1,7 +1,9 @@
 // The data-plane reachability refusal (ADR-0250, amending ADR-0089).
 //
-// A Claude Code REMOTE session (the web/VM container) can reach the Cloud SQL Admin REST *control*
-// plane over 443 but can NEVER open a Postgres *data* connection. ADR-0089 first attributed that to
+// A Claude Code REMOTE session (the web/VM container) can NEVER open a Postgres *data* connection.
+// (It could once still reach the Cloud SQL Admin REST *control* plane over 443; that went away with
+// the `storytree-remote-dev` identity, retired 2026-07-27 — ADR-0254 D4.) ADR-0089 first attributed
+// the data-plane failure to
 // a port block; the 2026-07-26 re-measurement corrected the mechanism (ADR-0250): the agent proxy
 // DOES CONNECT-tunnel arbitrary ports, but it re-terminates TLS, and TLS on any non-443 port is
 // reset. The Cloud SQL connector needs client-mTLS on 3307 — which the proxy's own policy lists as
@@ -72,9 +74,12 @@ export function dataPlaneRefusal(env: EnvLike, probe: DataPlaneProbe): string | 
     "re-terminates TLS and resets TLS on any non-443 port. The Cloud SQL connector needs client-mTLS",
     "on port 3307, which the proxy's own policy lists as unsupported — report, do not work around.",
     "",
-    "Still available here: the Cloud SQL Admin REST control plane (db:status / db:up, ADR-0063), the",
-    "whole offline gate (pnpm -r typecheck, pnpm -r test), and every read command (they run on the",
-    "in-memory seed). Blocked: --pg writes, --store pg, and live/--real builds that persist verdicts.",
+    "Still available here: the whole offline gate (pnpm -r typecheck, pnpm -r test) and every read",
+    "command — they run on the in-memory seed.",
+    "",
+    "Blocked: --pg writes, --store pg, and live/--real builds that persist verdicts. Since the",
+    "storytree-remote-dev identity was retired (ADR-0254 D4) this session holds no GCP credential at",
+    "all, so the Cloud SQL Admin REST control plane (db:status / db:up) is gone too.",
     "",
     "Do this work from a laptop/direct-network session (ADR-0089 D1).",
     `If this environment's egress has since changed, set ${ALLOW_DATA_PLANE_ENV}=1 to dial anyway.`,
