@@ -130,13 +130,60 @@
       grid-template-columns: auto minmax(0, 1fr) auto;
       gap: 8px;
       align-items: center;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
     #long-session-trace-playback .trace-clock {
       color: var(--muted-foreground);
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
+
+    /*
+      The ONE playhead occupancy bar. It reads context RESIDENT in the window at the playhead, so it
+      rises and falls with the trace; the portion of the FILL past the owner-selected 500k threshold
+      is red, and no marker, tick, or region is drawn for the threshold itself.
+    */
+    #long-session-trace-playback .occupancy {
+      margin-bottom: 6px;
+    }
+    #long-session-trace-playback .occupancy-track {
+      position: relative;
+      height: 8px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--background);
+      overflow: hidden;
+    }
+    #long-session-trace-playback .occupancy-fill {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 0;
+      transition: width 140ms linear, left 140ms linear;
+    }
+    #long-session-trace-playback .occupancy-safe {
+      left: 0;
+      background: var(--viz-series-1);
+    }
+    #long-session-trace-playback .occupancy-over {
+      background: var(--destructive);
+    }
+    #long-session-trace-playback .occupancy-readout {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 3px;
+      color: var(--muted-foreground);
+      font-variant-numeric: tabular-nums;
+    }
+    #long-session-trace-playback .occupancy-value {
+      color: var(--foreground);
+    }
+    #long-session-trace-playback .occupancy-value.is-over {
+      color: var(--destructive);
+    }
+
     #long-session-trace-playback .trace-map {
       display: block;
       width: 100%;
@@ -191,45 +238,27 @@
       opacity: 1;
       pointer-events: auto;
     }
-    #long-session-trace-playback .trace-node .window-ring {
-      fill: var(--background);
-      stroke: var(--muted-foreground);
-      stroke-width: 0.9;
+    /* A context visit is a PLAIN MARK: identity, read strength and agent type, never a token readout. */
+    #long-session-trace-playback .visit-mark {
+      fill: var(--lane-color);
+      stroke: var(--background);
+      stroke-width: 0.8;
     }
-    #long-session-trace-playback .trace-node:hover .window-ring,
-    #long-session-trace-playback .trace-node.is-selected .window-ring {
-      stroke: var(--foreground);
-      stroke-width: 1.8;
-    }
-    #long-session-trace-playback .gauge-track {
-      fill: var(--background);
-      stroke: var(--border);
-    }
-    #long-session-trace-playback .gauge-safe,
-    #long-session-trace-playback .gauge-added {
+    #long-session-trace-playback .visit-search {
       fill: none;
-      stroke: var(--viz-series-1);
-      stroke-linecap: round;
-    }
-    #long-session-trace-playback .gauge-danger-zone {
-      fill: none;
-      stroke: var(--destructive);
-      opacity: 1;
-    }
-    #long-session-trace-playback .gauge-danger-used {
-      fill: none;
-      stroke: var(--destructive);
-      stroke-linecap: round;
-    }
-    #long-session-trace-playback .trace-node.child .gauge-safe,
-    #long-session-trace-playback .trace-node.child .gauge-added {
       stroke: var(--lane-color);
+      stroke-width: 1.3;
+      stroke-linecap: round;
     }
-    #long-session-trace-playback .search-lens {
+    #long-session-trace-playback .visit-halo {
       fill: none;
       stroke: var(--foreground);
-      stroke-width: 1;
-      stroke-linecap: round;
+      stroke-width: 1.2;
+      opacity: 0;
+    }
+    #long-session-trace-playback .trace-node:hover .visit-halo,
+    #long-session-trace-playback .trace-node.is-selected .visit-halo {
+      opacity: 1;
     }
     #long-session-trace-playback .lane-icon {
       opacity: 0;
@@ -278,14 +307,14 @@
       padding-top: 8px;
     }
     #long-session-trace-playback .type-keys,
-    #long-session-trace-playback .gauge-key {
+    #long-session-trace-playback .occupancy-keys {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 7px 12px;
     }
     #long-session-trace-playback .type-key,
-    #long-session-trace-playback .gauge-key-item {
+    #long-session-trace-playback .occupancy-key-item {
       display: inline-flex;
       align-items: center;
       gap: 5px;
@@ -315,28 +344,22 @@
       width: 12px;
       height: 12px;
     }
-    #long-session-trace-playback .mini-gauge {
-      width: 25px;
-      height: 25px;
-      transform: rotate(-90deg);
+    /* Legend swatch only — it shows what an over-threshold FILL looks like, and marks nothing. */
+    #long-session-trace-playback .mini-bar {
+      display: inline-flex;
+      width: 34px;
+      height: 7px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
     }
-    #long-session-trace-playback .mini-gauge circle {
-      fill: none;
+    #long-session-trace-playback .mini-bar-safe {
+      width: 60%;
+      background: var(--viz-series-1);
     }
-    #long-session-trace-playback .mini-track {
-      stroke: var(--border);
-      stroke-width: 3;
-    }
-    #long-session-trace-playback .mini-used {
-      stroke: var(--viz-series-1);
-      stroke-width: 3;
-      stroke-dasharray: 31 69;
-    }
-    #long-session-trace-playback .mini-danger {
-      stroke: var(--destructive);
-      stroke-width: 4;
-      stroke-dasharray: 2 98;
-      stroke-dashoffset: -50;
+    #long-session-trace-playback .mini-bar-over {
+      width: 22%;
+      background: var(--destructive);
     }
     #long-session-trace-playback .overview.is-hidden {
       display: none;
@@ -372,7 +395,8 @@
       font-weight: 400;
     }
     @media (prefers-reduced-motion: reduce) {
-      #long-session-trace-playback .trace-node {
+      #long-session-trace-playback .trace-node,
+      #long-session-trace-playback .occupancy-fill {
         transition: none;
       }
     }
@@ -404,10 +428,22 @@
       <output class="trace-clock text-small" id="long-trace-clock">00:00 / 07:39</output>
     </div>
 
+    <div class="occupancy">
+      <div class="occupancy-track" id="long-trace-occupancy" role="img"
+           aria-label="Context resident in the session window at the playhead">
+        <div class="occupancy-fill occupancy-safe" id="long-trace-occupancy-safe"></div>
+        <div class="occupancy-fill occupancy-over" id="long-trace-occupancy-over"></div>
+      </div>
+      <div class="occupancy-readout text-small" aria-live="off">
+        <span class="occupancy-value" id="long-trace-occupancy-value">— resident</span>
+        <span>session window · 1m mock scale</span>
+      </div>
+    </div>
+
     <div data-tooltip="Idle spans are folded; double-click a footprint to inspect">
       <svg class="trace-map" id="long-trace-map" viewBox="0 0 360 580" role="img" aria-labelledby="long-trace-title long-trace-desc">
         <title id="long-trace-title">Recorded seven-hour StoryTree session traversal</title>
-        <desc id="long-trace-desc">A playback of metadata extracted from a recorded StoryTree session. Each footprint is a one-million-token circular gauge with a red zone above five hundred thousand tokens. Five child-agent lanes receive payloads from and return results to the parent, with color and icon shared by agent type. Confirmed idle gaps are visibly folded.</desc>
+        <desc id="long-trace-desc">A playback of metadata extracted from a recorded StoryTree session. Context visits are plain marks carrying identity and agent type; search visits use a magnifying glass. One bar above the traversal carries context resident in the session window at the playhead, and the portion of its fill past five hundred thousand tokens is red. Five child-agent lanes receive payloads from and return results to the parent, advancing alongside it only while they genuinely ran. Confirmed idle gaps are visibly folded.</desc>
         <g id="long-trace-axis" aria-hidden="true"></g>
         <g id="long-trace-band-layer" aria-hidden="true"></g>
         <g id="long-trace-edge-layer" aria-hidden="true"></g>
@@ -426,18 +462,14 @@
         <span class="type-key"><span class="type-icon explore"><i data-lucide="compass" aria-hidden="true"></i></span>explore</span>
         <span class="type-key"><span class="type-icon curator"><i data-lucide="library" aria-hidden="true"></i></span>curator</span>
       </div>
-      <div class="gauge-key">
-        <span class="gauge-key-item">
-          <svg class="mini-gauge" viewBox="0 0 25 25" role="img" aria-label="Example context gauge">
-            <circle class="mini-track" cx="12.5" cy="12.5" r="9" pathLength="100"></circle>
-            <circle class="mini-danger" cx="12.5" cy="12.5" r="9" pathLength="100"></circle>
-            <circle class="mini-used" cx="12.5" cy="12.5" r="9" pathLength="100"></circle>
-          </svg>
-          used
+      <div class="occupancy-keys">
+        <span class="occupancy-key-item">
+          <span class="mini-bar" role="img" aria-label="Example occupancy fill running past the threshold">
+            <span class="mini-bar-safe"></span><span class="mini-bar-over"></span>
+          </span>
+          resident context, red past 500k
         </span>
-        <span class="gauge-key-item"><span class="text-destructive">●</span>500k dumb zone</span>
-        <span class="gauge-key-item">○ 1m window</span>
-        <span class="gauge-key-item"><i data-lucide="search" aria-hidden="true"></i>search</span>
+        <span class="occupancy-key-item"><i data-lucide="search" aria-hidden="true"></i>search</span>
       </div>
     </div>
 
@@ -472,13 +504,18 @@
       const root = document.getElementById('long-session-trace-playback');
       const svgNS = 'http://www.w3.org/2000/svg';
       const duration = 458.5;
-      const windowCapacity = 1000;
-      const dumbThreshold = 500;
+      // The bar's scale is the MOCK's own reference ceiling, never a claim about any model's window.
+      const windowScale = 1000;
+      const overflowThreshold = 500;
       const parentX = 106;
       const playButton = document.getElementById('long-trace-play');
       const playLabel = document.getElementById('long-trace-play-label');
       const range = document.getElementById('long-trace-range');
       const clock = document.getElementById('long-trace-clock');
+      const occupancySafe = document.getElementById('long-trace-occupancy-safe');
+      const occupancyOver = document.getElementById('long-trace-occupancy-over');
+      const occupancyValue = document.getElementById('long-trace-occupancy-value');
+      const occupancyTrack = document.getElementById('long-trace-occupancy');
       const axisLayer = document.getElementById('long-trace-axis');
       const bandLayer = document.getElementById('long-trace-band-layer');
       const edgeLayer = document.getElementById('long-trace-edge-layer');
@@ -517,31 +554,35 @@
         [457,458.5,535,552,'active']
       ];
 
+      // Columns: elapsed minutes, tool calls, model turns, RESIDENT context (thousands), search.
+      // `resident` is the quantity ADR-0248 settled on — context resident in the window for the
+      // request, which can FALL (see 227.5 -> 232.5 and 242.5 -> 257.5 below). It is the same
+      // figure the shipped host-transcript adapter reports as `residentInputTokens`.
       const parent = [
-        [2.5,29,17,95.8,95.8,1],
-        [7.5,4,6,126.8,31.0,0],
-        [12.5,8,7,141.6,14.8,0],
-        [22.5,12,11,155.9,14.2,0],
-        [27.5,1,1,169.8,13.9,0],
-        [67.5,8,8,114.3,0,1],
-        [127.5,3,3,136.7,22.3,0],
-        [132.5,10,9,156.3,19.6,0],
-        [137.5,26,26,179.3,23.0,0],
-        [142.5,23,22,194.7,15.4,0],
-        [147.5,17,17,209.5,14.7,0],
-        [152.5,7,7,217.3,7.8,1],
-        [157.5,14,14,233.4,16.1,1],
-        [187.5,3,3,235.5,2.1,0],
-        [227.5,2,2,240.9,5.4,0],
-        [232.5,2,3,228.1,0,0],
-        [237.5,1,2,229.0,0.9,0],
-        [242.5,14,16,239.8,10.9,0],
-        [257.5,1,2,229.6,0,0],
-        [262.5,1,1,232.4,2.8,0],
-        [457.5,0,1,233.3,1.0,0]
+        [2.5,29,17,95.8,1],
+        [7.5,4,6,126.8,0],
+        [12.5,8,7,141.6,0],
+        [22.5,12,11,155.9,0],
+        [27.5,1,1,169.8,0],
+        [67.5,8,8,114.3,1],
+        [127.5,3,3,136.7,0],
+        [132.5,10,9,156.3,0],
+        [137.5,26,26,179.3,0],
+        [142.5,23,22,194.7,0],
+        [147.5,17,17,209.5,0],
+        [152.5,7,7,217.3,1],
+        [157.5,14,14,233.4,1],
+        [187.5,3,3,235.5,0],
+        [227.5,2,2,240.9,0],
+        [232.5,2,3,228.1,0],
+        [237.5,1,2,229.0,0],
+        [242.5,14,16,239.8,0],
+        [257.5,1,2,229.6,0],
+        [262.5,1,1,232.4,0],
+        [457.5,0,1,233.3,0]
       ].map((row, index) => ({
         id:`p${index}`, lane:'parent', t:row[0], calls:row[1], turns:row[2],
-        used:row[3], added:row[4], search:Boolean(row[5]), x:parentX,
+        resident:row[3], search:Boolean(row[4]), x:parentX,
         name:'Parent activity burst'
       }));
 
@@ -549,31 +590,31 @@
         {
           id:'explore', x:184, color:'var(--viz-series-2)', start:2.1, end:6.3,
           name:'Map current pathway pipeline', type:'Explore', calls:45, turns:36, max:94.4,
-          bins:[[3,77.5,77.5,1],[5,92.2,14.7,0],[6.3,94.4,2.1,0]]
+          bins:[[3,77.5,1],[5,92.2,0],[6.3,94.4,0]]
         },
         {
           id:'pathfinding', x:220, color:'var(--viz-series-3)', start:2.4, end:8.0,
           name:'Research pathfinding algorithms', type:'general-purpose', calls:18, turns:11, max:72.4,
-          bins:[[3,58.5,58.5,1],[5,71.1,12.5,1],[8,72.4,1.3,0]]
+          bins:[[3,58.5,1],[5,71.1,1],[8,72.4,0]]
         },
         {
           id:'aesthetics', x:256, color:'var(--viz-series-3)', start:2.7, end:8.3,
           name:'Research trail aesthetics + caves', type:'general-purpose', calls:27, turns:9, max:80.8,
-          bins:[[3,61.1,61.1,1],[5,79.1,17.9,1],[8.3,80.8,1.8,0]]
+          bins:[[3,61.1,1],[5,79.1,1],[8.3,80.8,0]]
         },
         {
           id:'curator', x:214, color:'var(--viz-series-4)', start:133.5, end:137.2,
           name:'Librarian pre-merge curation pass', type:'librarian-curator', calls:15, turns:11, max:93.1,
-          bins:[[133.5,69.1,69.1,1],[135,91.2,22.2,1],[137.2,93.1,1.9,0]]
+          bins:[[133.5,69.1,1],[135,91.2,1],[137.2,93.1,0]]
         },
         {
           id:'adapter', x:272, color:'var(--viz-series-3)', start:135.4, end:155.7,
           name:'Adapt web repo to trails', type:'general-purpose', calls:103, turns:99, max:193.0,
           bins:[
-            [135.4,65.1,65.1,0],[137,120.7,55.5,0],[139,130.9,10.2,0],
-            [141,139.9,9.0,0],[143,149.7,9.8,0],[145,158.0,8.3,0],
-            [147,169.4,11.4,0],[149,177.5,8.1,0],[151,183.6,6.1,0],
-            [153,188.4,4.8,0],[155.7,193.0,4.5,0]
+            [135.4,65.1,0],[137,120.7,0],[139,130.9,0],
+            [141,139.9,0],[143,149.7,0],[145,158.0,0],
+            [147,169.4,0],[149,177.5,0],[151,183.6,0],
+            [153,188.4,0],[155.7,193.0,0]
           ]
         }
       ];
@@ -589,6 +630,43 @@
         const hours = Math.floor(rounded / 60).toString().padStart(2,'0');
         const mins = (rounded % 60).toString().padStart(2,'0');
         return `${hours}:${mins}`;
+      }
+
+      /**
+       * Occupancy at the playhead: the most recent PARENT observation at or before `time`. It is
+       * held, never interpolated — between observations the window's occupancy is simply the last
+       * thing observed. Child windows are never summed in (no merged parent/child accounting);
+       * a child's own occupancy stays in its drill-down.
+       */
+      function occupancyAt(time) {
+        let current = null;
+        for (const datum of parent) {
+          if (datum.t > time) break;
+          current = datum;
+        }
+        return current;
+      }
+
+      function renderOccupancy(time) {
+        const observed = occupancyAt(time);
+        if (observed === null) {
+          occupancySafe.style.width = '0%';
+          occupancyOver.style.width = '0%';
+          occupancyValue.textContent = '— resident';
+          occupancyValue.classList.remove('is-over');
+          occupancyTrack.setAttribute('aria-label','No context observation yet at the playhead');
+          return;
+        }
+        const resident = observed.resident;
+        const safe = Math.max(0, Math.min(resident, overflowThreshold));
+        const over = Math.max(0, Math.min(resident, windowScale) - overflowThreshold);
+        occupancySafe.style.width = `${(safe / windowScale) * 100}%`;
+        occupancyOver.style.left = `${(overflowThreshold / windowScale) * 100}%`;
+        occupancyOver.style.width = `${(over / windowScale) * 100}%`;
+        occupancyValue.textContent = `${resident.toFixed(1)}k resident`;
+        occupancyValue.classList.toggle('is-over', over > 0);
+        occupancyTrack.setAttribute('aria-label',
+          `${resident.toFixed(1)}k tokens resident in the session window at ${formatTime(time)}`);
       }
 
       function makeLine(x1,y1,x2,y2,className) {
@@ -607,67 +685,45 @@
         renderedEdges.push({path,start,end,length});
       }
 
+      /**
+       * One context visit, drawn as a PLAIN MARK — no ring, no arc, no per-visit token readout.
+       * A search visit is the only non-circular mark and uses a small magnifying glass.
+       */
       function createFootprint(datum, color, radius) {
         const y = yFor(datum.t);
         const group = document.createElementNS(svgNS,'g');
-        const track = document.createElementNS(svgNS,'circle');
-        const dangerZone = document.createElementNS(svgNS,'circle');
-        const safeArc = document.createElementNS(svgNS,'circle');
-        const dangerArc = document.createElementNS(svgNS,'circle');
-        const addedArc = document.createElementNS(svgNS,'circle');
-        const usedPercent = Math.max(0,Math.min(100,(datum.used/windowCapacity)*100));
-        const safePercent = Math.min((dumbThreshold/windowCapacity)*100,usedPercent);
-        const dangerPercent = Math.max(0,usedPercent-((dumbThreshold/windowCapacity)*100));
-        const addedPercent = Math.max(0,Math.min(usedPercent,(datum.added/windowCapacity)*100));
-        const previousPercent = Math.max(0,usedPercent-addedPercent);
-        const rotation = `rotate(-90 ${datum.x} ${y})`;
+        const halo = document.createElementNS(svgNS,'circle');
         group.setAttribute('class',`trace-node ${datum.lane==='parent'?'parent':'child'}`);
         group.setAttribute('role','img');
         group.setAttribute('aria-label',`${datum.name} at ${formatTime(datum.t)}`);
         group.style.setProperty('--lane-color',color);
-        [track,dangerZone,safeArc,dangerArc,addedArc].forEach((circle)=>{
-          circle.setAttribute('cx',datum.x);
-          circle.setAttribute('cy',y);
-          circle.setAttribute('r',radius);
-          circle.setAttribute('pathLength','100');
-        });
-        track.setAttribute('class','window-ring gauge-track');
-        track.setAttribute('stroke-width','1.2');
-        dangerZone.setAttribute('class','gauge-danger-zone');
-        dangerZone.setAttribute('stroke-width','2.2');
-        dangerZone.setAttribute('stroke-dasharray','1.5 98.5');
-        dangerZone.setAttribute('stroke-dashoffset','-50');
-        dangerZone.setAttribute('transform',rotation);
-        safeArc.setAttribute('class','gauge-safe');
-        safeArc.setAttribute('stroke-width','1.8');
-        safeArc.setAttribute('stroke-dasharray',`${safePercent} ${100-safePercent}`);
-        safeArc.setAttribute('transform',rotation);
-        dangerArc.setAttribute('class','gauge-danger-used');
-        dangerArc.setAttribute('stroke-width','2');
-        dangerArc.setAttribute('stroke-dasharray',`${dangerPercent} ${100-dangerPercent}`);
-        dangerArc.setAttribute('stroke-dashoffset','-50');
-        dangerArc.setAttribute('transform',rotation);
-        addedArc.setAttribute('class',usedPercent>dumbThreshold/windowCapacity*100?'gauge-danger-used':'gauge-added');
-        addedArc.setAttribute('stroke-width','3');
-        addedArc.setAttribute('stroke-dasharray',`${addedPercent} ${100-addedPercent}`);
-        addedArc.setAttribute('stroke-dashoffset',`${-previousPercent}`);
-        addedArc.setAttribute('transform',rotation);
+        halo.setAttribute('class','visit-halo');
+        halo.setAttribute('cx',datum.x);
+        halo.setAttribute('cy',y);
+        halo.setAttribute('r',radius+2.6);
         const title = document.createElementNS(svgNS,'title');
         title.textContent = datum.name;
-        group.append(title,track,dangerZone,safeArc,dangerArc,addedArc);
+        group.append(title,halo);
         if (datum.search) {
           const lens = document.createElementNS(svgNS,'circle');
           const handle = document.createElementNS(svgNS,'line');
-          lens.setAttribute('class','search-lens');
-          lens.setAttribute('cx',datum.x-0.7);
-          lens.setAttribute('cy',y-0.7);
-          lens.setAttribute('r',1.7);
-          handle.setAttribute('class','search-lens');
-          handle.setAttribute('x1',datum.x+0.6);
-          handle.setAttribute('y1',y+0.6);
-          handle.setAttribute('x2',datum.x+2.6);
-          handle.setAttribute('y2',y+2.6);
+          lens.setAttribute('class','visit-search');
+          lens.setAttribute('cx',datum.x-0.5);
+          lens.setAttribute('cy',y-0.5);
+          lens.setAttribute('r',radius*0.85);
+          handle.setAttribute('class','visit-search');
+          handle.setAttribute('x1',datum.x+radius*0.45);
+          handle.setAttribute('y1',y+radius*0.45);
+          handle.setAttribute('x2',datum.x+radius*1.5);
+          handle.setAttribute('y2',y+radius*1.5);
           group.append(lens,handle);
+        } else {
+          const mark = document.createElementNS(svgNS,'circle');
+          mark.setAttribute('class','visit-mark');
+          mark.setAttribute('cx',datum.x);
+          mark.setAttribute('cy',y);
+          mark.setAttribute('r',radius);
+          group.append(mark);
         }
         group.addEventListener('click',()=>selectDatum(datum,group));
         group.addEventListener('dblclick',()=>openDatum(datum));
@@ -744,7 +800,7 @@
           const mode=(to.t-from.t)>10?' wait':'';
           addAnimatedEdge(makeLine(from.x,yFor(from.t),to.x,yFor(to.t),`parent-edge${mode}`),from.t,to.t);
         }
-        parent.forEach((datum)=>createFootprint(datum,'var(--viz-series-1)',6.8));
+        parent.forEach((datum)=>createFootprint(datum,'var(--viz-series-1)',3.4));
 
         children.forEach((child) => {
           const startY=yFor(child.start),endY=yFor(child.end);
@@ -769,7 +825,7 @@
 
           const bins=child.bins.map((row,index)=>({
             id:`${child.id}-${index}`,lane:child.id,t:Math.max(child.start,Math.min(child.end,row[0])),
-            used:row[1],added:row[2],search:Boolean(row[3]),x:child.x,
+            resident:row[1],search:Boolean(row[2]),x:child.x,
             name:child.name,childType:child.type,calls:child.calls,turns:child.turns,
             childStart:child.start,childEnd:child.end,max:child.max
           }));
@@ -779,7 +835,7 @@
             line.setAttribute('stroke',child.color);
             addAnimatedEdge(line,from.t,to.t);
           }
-          bins.forEach((datum)=>createFootprint(datum,child.color,5.2));
+          bins.forEach((datum)=>createFootprint(datum,child.color,2.8));
 
           const join=makeLine(child.x,endY,parentX,endY,'handoff');
           join.setAttribute('stroke',child.color);
@@ -792,6 +848,7 @@
         const current=Math.max(0,Math.min(duration,Number(time)));
         range.value=current;
         clock.textContent=`${formatTime(current)} / 07:39`;
+        renderOccupancy(current);
         const y=yFor(current);
         playhead.querySelector('line').setAttribute('y1',y);
         playhead.querySelector('line').setAttribute('y2',y);
@@ -851,7 +908,7 @@
         group.classList.add('is-selected');
         selectedDatum=datum;
         const identity=datum.lane==='parent'?'Parent':datum.name;
-        selectionCopy.textContent=`${formatTime(datum.t)} · ${identity} · ${datum.used.toFixed(1)}k`;
+        selectionCopy.textContent=`${formatTime(datum.t)} · ${identity} · ${datum.resident.toFixed(1)}k resident`;
         selection.classList.add('is-visible');
       }
 
@@ -865,11 +922,10 @@
               ['Aggregation','Five-minute parent burst'],
               ['Model turns',String(datum.turns)],
               ['Tool calls',String(datum.calls)],
-              ['Observed context',`${datum.used.toFixed(1)}k tokens`],
-              ['Context increase',`${datum.added.toFixed(1)}k tokens`],
-              ['Gauge used',`${((datum.used/windowCapacity)*100).toFixed(1)}%`],
-              ['Dumb-zone threshold','500k tokens'],
-              ['Window scale','1m mock ceiling']
+              ['Resident context',`${datum.resident.toFixed(1)}k tokens`],
+              ['Bar fill',`${((datum.resident/windowScale)*100).toFixed(1)}%`],
+              ['Overflow threshold','500k tokens, display only'],
+              ['Window scale','1m mock scale']
             ]
           : [
               ['Child agent',datum.name],
@@ -878,11 +934,11 @@
               ['Child duration',`${(datum.childEnd-datum.childStart).toFixed(1)} minutes`],
               ['Inner-loop turns',String(datum.turns)],
               ['Tool calls',String(datum.calls)],
-              ['Observed context',`${datum.used.toFixed(1)}k tokens`],
+              ['Resident context',`${datum.resident.toFixed(1)}k tokens`],
               ['Observed peak',`${datum.max.toFixed(1)}k tokens`],
-              ['Gauge used',`${((datum.used/windowCapacity)*100).toFixed(1)}%`],
-              ['Dumb-zone threshold','500k tokens'],
-              ['Window scale','1m mock ceiling']
+              ['Own window','Child, never summed into the parent bar'],
+              ['Overflow threshold','500k tokens, display only'],
+              ['Window scale','1m mock scale']
             ];
         detailRows.replaceChildren();
         rows.forEach(([label,value])=>{

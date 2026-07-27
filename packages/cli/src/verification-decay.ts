@@ -48,8 +48,12 @@
  * ceiling already has, pointed at a different failure.
  *
  * Pure and injectable — every instrument judges FACTS handed to it, never disk. The disk enumeration
- * lives in the thin {@link file://./check-verification-decay.ts} entrypoint.
+ * lives in the thin {@link file://./check-verification-decay.ts} entrypoint. (A rule that parses
+ * SOURCE TEXT is still pure and belongs here — {@link findOptionsFormSkips} takes a string and returns
+ * facts, exactly as ADR-0126's own extractors do. What must not live here is reading a file.)
  */
+
+import ts from "typescript";
 
 // ---------------------------------------------------------------------------
 // The finding + instrument vocabulary
@@ -336,6 +340,195 @@ export function findMirrorPairDrift(
         `\`${route}\` is served by BOTH ${reference.surface} (${referenceFile}) and ` +
         `${mirror.surface} (${mirrorFile}) — two independent implementations of one route — and no ` +
         "`MIRRORS` row compares them, so any divergence between them has no observer",
+    });
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
+// Instrument: vacuous proof (ADR-0252 D1, the third named cheap check)
+// ---------------------------------------------------------------------------
+
+/**
+ * One test file, projected to the two facts this instrument compares.
+ *
+ * The second set is READ FROM THE REPO'S OWN CLASSIFIER rather than re-derived, and that is the whole
+ * design: the finding is precisely *the classifier cannot see this*, so re-implementing "substantive
+ * assertion" here would make the instrument compare its own opinion against itself and answer a
+ * different question than the one that matters. Same discipline as `mirror-pair-drift` deriving its
+ * coverage from the real `MIRRORS` registry instead of a hand-kept second list.
+ */
+export interface TestFileFacts {
+  /** Repo-relative path of the test file — where the repair is made. */
+  path: string;
+  /**
+   * Declarations carrying an OPTIONS-FORM skip/todo — `test(name, { skip: !DB }, fn)` — as declared
+   * name → the skip expression verbatim, so the report quotes back what gates the test. A literal
+   * `skip: false` never appears here: it skips nothing.
+   */
+  optionsSkipped: ReadonlyMap<string, string>;
+  /**
+   * The names `analyzeObservedTests` (ADR-0126, the classifier `check:coverage` reads) reports as
+   * VOUCHING — running AND substantively asserting.
+   */
+  vouching: ReadonlySet<string>;
+}
+
+export const VACUOUS_PROOF = "vacuous-proof";
+
+/** The test/suite call roots whose second argument may be an options object (mirrors ADR-0126). */
+const TEST_CALL_ROOTS = new Set(["describe", "test", "it"]);
+/** Options keys that mean "this declaration does not execute". */
+const SKIP_OPTION_KEYS = new Set(["skip", "todo"]);
+
+/**
+ * The leftmost root identifier of a call's callee — `test` for `test(…)`, `describe` for
+ * `describe.each([…])(…)`. Enough to recognise a test declaration; the full member walk ADR-0126 does
+ * is unnecessary because this rule reads the OPTIONS argument, never a modifier.
+ */
+function calleeRoot(expr: ts.Expression): string | undefined {
+  let node: ts.Expression = expr;
+  for (;;) {
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) node = node.expression;
+    else if (ts.isCallExpression(node)) node = node.expression;
+    else if (ts.isParenthesizedExpression(node) || ts.isNonNullExpression(node)) node = node.expression;
+    else break;
+  }
+  return ts.isIdentifier(node) ? node.text : undefined;
+}
+
+/**
+ * The name a declaration declares — its first string-literal-like argument. Deliberately IDENTICAL to
+ * ADR-0126's `testCallName`, including the template-with-substitutions case: these names are JOINED
+ * against `extractVouchingTestNames`'s output, so a different spelling here would silently fail to
+ * match and the instrument would under-report while still looking healthy.
+ */
+function declaredName(arg: ts.Expression | undefined): string | null {
+  if (arg === undefined) return null;
+  if (ts.isStringLiteralLike(arg)) return arg.text;
+  if (ts.isTemplateExpression(arg)) {
+    return arg.head.text + arg.templateSpans.map((s) => s.literal.text).join("");
+  }
+  return null;
+}
+
+/**
+ * PURE: every OPTIONS-FORM skip declared in one test file's SOURCE — `test(name, { skip: <expr> }, fn)`
+ * — as declared name → the skip property verbatim, so the report quotes back what gates the test.
+ * Static: it reads the source, never executes it. An unparseable file yields no entries (fail-closed
+ * toward silence here, and the empty-corpus case is caught by the caller's enumeration).
+ *
+ * A literal `skip: false` / `todo: false` is EXCLUDED, and that exclusion is load-bearing rather than
+ * tidiness: `nvidia-trellis.test.ts` writes `skip: liveEnabled ? false : "credential-gated: …"`, so in
+ * this corpus the value is an expression far more often than a bare `true`. Treating the mere presence
+ * of the key as a skip would flag a test that always runs — a false positive in an instrument whose
+ * whole claim is that it reports only what it can defend.
+ */
+export function findOptionsFormSkips(source: string, filePath: string): Map<string, string> {
+  const found = new Map<string, string>();
+  const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const root = calleeRoot(node.expression);
+      const options = node.arguments[1];
+      const name = declaredName(node.arguments[0]);
+      if (
+        root !== undefined &&
+        TEST_CALL_ROOTS.has(root) &&
+        name !== null &&
+        options !== undefined &&
+        ts.isObjectLiteralExpression(options)
+      ) {
+        for (const prop of options.properties) {
+          if (!ts.isPropertyAssignment(prop)) continue;
+          const key =
+            ts.isIdentifier(prop.name) || ts.isStringLiteralLike(prop.name) ? prop.name.text : undefined;
+          if (key === undefined || !SKIP_OPTION_KEYS.has(key)) continue;
+          if (prop.initializer.kind === ts.SyntaxKind.FalseKeyword) continue; // skips nothing
+          if (!found.has(name)) found.set(name, prop.getText(sf).replace(/\s+/g, " "));
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
+}
+
+/**
+ * PURE: locate tests that are SKIPPED IN A FORM THIS REPO'S OWN SKIP DETECTION CANNOT SEE, while
+ * carrying a substantive assertion — so every static observer reads them as running and asserting.
+ *
+ * THE CLASS, and it is this arc's founding one (ADR-0211 / ADR-0249): *a proof that cannot fail is not
+ * a proof.* A test that never executes cannot fail. The defect is not the skip — a `.live.test.ts`
+ * that needs a real database SHOULD skip offline — it is that the skip is INVISIBLE, so a proof that
+ * did not run is indistinguishable from one that did.
+ *
+ * WHY THE INVISIBILITY IS MECHANICAL, not speculative. `analyzeObservedTests` derives `skipped` from
+ * the `.skip`/`.todo` MODIFIER on the call (`test.skip(name, fn)`). `node:test` also accepts the
+ * OPTIONS form — `test(name, { skip: true }, fn)`, `describe(name, { skip: !DB }, fn)` — which is a
+ * second argument, not a modifier, and the classifier does not read it. Such a test therefore reports
+ * `skipped: false`; if its body asserts, it reports `vouches: true`. Running and asserting, to every
+ * static reader in the repo. It never runs.
+ *
+ * MEASURED, NOT REASONED — the class is live in this repo today. `stories/wisp-as-story-claim/
+ * claim-store-work-time.md` declares the contract `release-claims-by-branch-clears-the-branch`; its
+ * only test is `test("release-claims-by-branch-clears-the-branch: …", { skip: !DB }, …)` in
+ * `packages/notice-board/src/store/claim-store-release-by-branch.live.test.ts`. Run `pnpm
+ * check:coverage` with `STORYTREE_DB_LIVE` unset — the default for the whole offline gate and for CI —
+ * and it prints `claim-store-work-time: 2/3 uncovered`, naming the OTHER two. That contract reads
+ * COVERED, and the proof it is covered by did not execute.
+ *
+ * ONE FINDING PER FILE, listing the tests. The ceiling counts REPAIRS, and the repair is the file's
+ * live-gating IDIOM, not each test: `claim-store-grades.live.test.ts` has four such tests and one fix
+ * between them. (`store.test.ts` already shows the visible idiom — `if (LIVE) { suite() } else {
+ * test(…, { skip: true }, () => {}) }` — an empty placeholder that asserts nothing, so no observer can
+ * mistake it for a proof.) Counting mentions would let a single file consume four units of a budget
+ * meant to measure backlog — the granularity #949 settled.
+ *
+ * THE BOUNDARY, and it is the same complement `mirror-pair-drift` sits on. `check:coverage` CONSUMES
+ * `analyzeObservedTests`; this instrument locates the blind spot in that classifier's input. It does
+ * not re-derive coverage, does not judge whether a contract is proven, and is silent on every test the
+ * classifier can already see is skipped — a `.skip` modifier is visible, so it is not this class.
+ *
+ * THE FALSE-POSITIVE SURFACE, stated rather than implied. The two OBSERVATIONS are mechanically
+ * certain; the CONSEQUENCE is not, and that is what keeps this advisory:
+ *
+ * - **An invisible skip only misleads something if something reads it.** A skipped test whose name
+ *   matches no declared contract makes nothing read covered — invisible, but harmless today. This rule
+ *   deliberately does NOT check the story corpus for a matching contract: the invisibility is the
+ *   durable property, while the contract link is incidental and can arrive later, and reaching into
+ *   `check:coverage`'s registered-`real.testFile` scope is exactly the re-derivation the boundary
+ *   above forbids. So it over-reports here, on purpose.
+ * - **Skipping offline is usually CORRECT.** Most of these are live-DB tests that cannot run without a
+ *   database. The finding is never "this should not skip" — only that nothing can tell that it did.
+ *
+ * AND ITS BLIND SPOTS, for the same reason (the arc's no-silent-caps rule): an IMPERATIVE runtime skip
+ * inside the body (`t.skip("git not available")`) is invisible to this rule as well as to the
+ * classifier, and a `skip` value built somewhere other than the options literal is not read. It
+ * under-reports there rather than over-reporting.
+ */
+export function findVacuousProof(files: readonly TestFileFacts[]): DecayFinding[] {
+  const findings: DecayFinding[] = [];
+  // Sorted so the report — and the ceiling's view of the backlog — is stable run to run.
+  for (const file of [...files].sort((a, b) => a.path.localeCompare(b.path))) {
+    const hidden = [...file.optionsSkipped.entries()].filter(([name]) => file.vouching.has(name));
+    if (hidden.length === 0) continue;
+    const quoted = hidden.map(([name, expr]) => `"${name}" (\`${expr}\`)`);
+    findings.push({
+      instrument: VACUOUS_PROOF,
+      id: `${VACUOUS_PROOF}:${file.path}`,
+      where: file.path,
+      // AN OBSERVATION, NOT A VERDICT. Two mechanical facts stated side by side: the declaration
+      // carries an options-form skip, and the repo's own classifier reports that same name as running
+      // and substantively asserting. It does NOT say the skip is wrong, and it does NOT say any
+      // contract is falsely covered — whether anything is misled depends on the story corpus, which is
+      // the adversarial pass's question, not this one's.
+      detail:
+        `${hidden.length} test(s) declare an OPTIONS-FORM skip that \`analyzeObservedTests\` — the ` +
+        "classifier `check:coverage` reads — does not parse, and it reports the same names as running " +
+        `and substantively asserting: ${quoted.join("; ")}. No static observer in this repo ` +
+        "distinguishes them from tests that execute",
     });
   }
   return findings;

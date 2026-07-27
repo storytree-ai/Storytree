@@ -5,9 +5,12 @@ import {
   CHARTERED_INSTRUMENTS,
   CONTRACT_BINDING_DRIFT,
   MIRROR_PAIR_DRIFT,
+  VACUOUS_PROOF,
   evaluateDecayCeiling,
   findContractBindingDrift,
   findMirrorPairDrift,
+  findOptionsFormSkips,
+  findVacuousProof,
   formatDecaySweep,
   isInsideDir,
   runDecaySweep,
@@ -15,6 +18,7 @@ import {
   type DecayInstrument,
   type ProofBinding,
   type SurfaceRoutes,
+  type TestFileFacts,
   type WorkspaceFacts,
 } from "./verification-decay.js";
 
@@ -238,6 +242,173 @@ describe("mirror-pair-drift: what it must NOT flag (the false-positive guards)",
       findMirrorPairDrift(surface("studio", {}), surface("desktop", {}), new Set()),
       [],
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// vacuous-proof (ADR-0252 D1's third cheap instrument)
+// ---------------------------------------------------------------------------
+
+/** A test file's facts: options-form skips, and the names the repo's own classifier calls vouching. */
+function testFile(
+  filePath: string,
+  optionsSkipped: Record<string, string>,
+  vouching: readonly string[],
+): TestFileFacts {
+  return {
+    path: filePath,
+    optionsSkipped: new Map(Object.entries(optionsSkipped)),
+    vouching: new Set(vouching),
+  };
+}
+
+describe("findOptionsFormSkips: reading the skip form the repo's own classifier cannot see", () => {
+  it("reads the options form on test / it / describe, quoting the gate back", () => {
+    const skips = findOptionsFormSkips(
+      [
+        'test("a runs", () => { assert.ok(x); });',
+        'test("b is gated", { skip: !DB }, () => { assert.ok(x); });',
+        'it("c is gated", { todo: "pending" }, () => { assert.ok(x); });',
+        'describe("d is gated", { skip: true }, () => {});',
+      ].join("\n"),
+      "x.test.ts",
+    );
+    assert.deepEqual([...skips.keys()], ["b is gated", "c is gated", "d is gated"]);
+    assert.equal(skips.get("b is gated"), "skip: !DB");
+  });
+
+  it("does NOT read a literal `skip: false` as a skip — it skips nothing", () => {
+    // The false-positive this exclusion prevents: `nvidia-trellis.test.ts` writes
+    // `skip: liveEnabled ? false : "…"`, so in this corpus the value is an EXPRESSION far more often
+    // than a bare `true`. A rule keyed on the key's mere presence would flag a test that always runs.
+    const skips = findOptionsFormSkips(
+      'test("always runs", { skip: false, concurrency: 2 }, () => { assert.ok(x); });',
+      "x.test.ts",
+    );
+    assert.deepEqual([...skips.keys()], []);
+  });
+
+  it("does NOT read the `.skip` MODIFIER — that form is already VISIBLE to the classifier", () => {
+    // The boundary: this instrument's subject is the INVISIBLE skip. `test.skip(…)` is exactly what
+    // `analyzeObservedTests` does parse, so flagging it would re-derive what ADR-0126 already sees.
+    const skips = findOptionsFormSkips(
+      ['test.skip("modifier", () => { assert.ok(x); });', 'it.todo("todo modifier");'].join("\n"),
+      "x.test.ts",
+    );
+    assert.deepEqual([...skips.keys()], []);
+  });
+
+  it("ignores an options object on a call that is not a test declaration", () => {
+    const skips = findOptionsFormSkips(
+      'request("/api/x", { skip: true }, () => {});\nconfigure("y", { skip: !DB });',
+      "x.test.ts",
+    );
+    assert.deepEqual([...skips.keys()], []);
+  });
+});
+
+describe("vacuous-proof: what it locates", () => {
+  it("locates a test skipped by the options form that the classifier calls vouching", () => {
+    const findings = findVacuousProof([
+      testFile("packages/a/src/x.live.test.ts", { "c-one: does the thing": "skip: !DB" }, [
+        "c-one: does the thing",
+      ]),
+    ]);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.instrument, VACUOUS_PROOF);
+    assert.equal(findings[0]?.where, "packages/a/src/x.live.test.ts");
+    assert.equal(findings[0]?.id, `${VACUOUS_PROOF}:packages/a/src/x.live.test.ts`);
+    assert.match(findings[0]?.detail ?? "", /c-one: does the thing/);
+    assert.match(findings[0]?.detail ?? "", /skip: !DB/);
+  });
+
+  it("emits ONE finding per FILE listing every test — the ceiling counts repairs, not mentions", () => {
+    // `claim-store-grades.live.test.ts` holds four of these and they share ONE repair: the file's
+    // live-gating idiom. Counting mentions would let a single file eat four units of a budget that is
+    // meant to measure backlog (the granularity #949 settled).
+    const findings = findVacuousProof([
+      testFile(
+        "packages/a/src/grades.live.test.ts",
+        { one: "skip: !DB", two: "skip: !DB", three: "skip: !DB", four: "skip: !DB" },
+        ["one", "two", "three", "four"],
+      ),
+    ]);
+    assert.equal(findings.length, 1);
+    assert.match(findings[0]?.detail ?? "", /^4 test\(s\)/);
+  });
+
+  it("orders findings by path so the ceiling's view of the backlog is stable run to run", () => {
+    const findings = findVacuousProof([
+      testFile("packages/z/src/z.test.ts", { z: "skip: !DB" }, ["z"]),
+      testFile("packages/a/src/a.test.ts", { a: "skip: !DB" }, ["a"]),
+    ]);
+    assert.deepEqual(
+      findings.map((f) => f.where),
+      ["packages/a/src/a.test.ts", "packages/z/src/z.test.ts"],
+    );
+  });
+});
+
+describe("vacuous-proof: what it must NOT flag (the false-positive guards)", () => {
+  it("does NOT flag the VISIBLE placeholder idiom — options-skipped but asserting nothing", () => {
+    // `store.test.ts`'s honest shape: `if (LIVE) { suite() } else { test(…, { skip: true }, () => {}) }`.
+    // The classifier reports it NOT vouching, so it can never make a contract read covered — nothing
+    // is misled, and flagging it would price the very idiom that fixes this class. This is the
+    // tightening that keeps both halves of the rule load-bearing.
+    assert.deepEqual(
+      findVacuousProof([
+        testFile("packages/a/src/store.test.ts", { "parity (skipped: set DB_LIVE=1)": "skip: true" }, []),
+      ]),
+      [],
+    );
+  });
+
+  it("does NOT flag a vouching test that carries no options-form skip", () => {
+    assert.deepEqual(
+      findVacuousProof([testFile("packages/a/src/x.test.ts", {}, ["c-one", "c-two"])]),
+      [],
+    );
+  });
+
+  it("does NOT flag an options-form skip whose name the classifier does not call vouching", () => {
+    // Both halves are required. Only the INTERSECTION is the class: skipped AND read as running.
+    assert.deepEqual(
+      findVacuousProof([
+        testFile("packages/a/src/x.test.ts", { gated: "skip: !DB" }, ["some other test"]),
+      ]),
+      [],
+    );
+  });
+
+  it("is silent on a clean corpus", () => {
+    assert.deepEqual(findVacuousProof([testFile("packages/a/src/x.test.ts", {}, [])]), []);
+  });
+
+  it("OBSERVES and never adjudicates — the detail claims no contract is falsely covered", () => {
+    // The wording guard PR #956 had to learn the hard way. The adjudication this instrument is tempted
+    // into is "so that contract is not really proven" — but whether ANYTHING is misled depends on the
+    // story corpus, which this rule deliberately does not consult (an invisible skip on a test naming
+    // no contract misleads nobody). It states two mechanical facts and stops.
+    const detail =
+      findVacuousProof([testFile("packages/a/src/x.test.ts", { g: "skip: !DB" }, ["g"])])[0]?.detail ?? "";
+    for (const adjudication of ["falsely covered", "not proven", "is not a proof", "should not skip"]) {
+      assert.ok(!detail.includes(adjudication), `detail must not adjudicate: "${adjudication}"`);
+    }
+    assert.match(detail, /does not parse/);
+    assert.match(detail, /No static observer in this repo distinguishes them/);
+  });
+
+  it("never ESCALATES — it is an ordinary located region with a real false-positive surface", () => {
+    // The escalation line is for the class the cheap half CANNOT SETTLE (a blind instrument). A
+    // heuristic that over-reports by design is the definition of an ordinary finding, and an
+    // escalation that fires on one would train the reader to clear it.
+    const findings = findVacuousProof([
+      testFile("packages/a/src/x.test.ts", { g: "skip: !DB" }, ["g"]),
+      testFile("packages/b/src/y.test.ts", { h: "skip: true" }, ["h"]),
+    ]);
+    assert.equal(findings.length, 2);
+    for (const f of findings) assert.equal(f.escalation, undefined);
+    assert.deepEqual(evaluateDecayCeiling(findings, [{ name: VACUOUS_PROOF, ceiling: 2 }]).escalations, []);
   });
 });
 
@@ -517,6 +688,10 @@ describe("chartered coverage: an unswept instrument is a machine fact, not a sou
 
   it("the roster is exactly ADR-0252 D1's four cheap instruments", () => {
     assert.equal(CHARTERED_INSTRUMENTS.length, 4);
-    assert.ok(CHARTERED_INSTRUMENTS.includes(CONTRACT_BINDING_DRIFT));
+    // The exported slugs must stay JOINED to the roster: an instrument registered under a name the
+    // roster does not carry would sweep while still being reported as NOT swept.
+    for (const slug of [CONTRACT_BINDING_DRIFT, MIRROR_PAIR_DRIFT, VACUOUS_PROOF]) {
+      assert.ok(CHARTERED_INSTRUMENTS.includes(slug), `roster is missing ${slug}`);
+    }
   });
 });
