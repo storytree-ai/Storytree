@@ -31,20 +31,23 @@
  *   authoring a probe on each surface and a `MIRRORS` row, which is a separate increment per payload.
  * - `vacuous-proof` locates options-form-skipped tests; it repairs none, and it does NOT close the
  *   underlying gap. The one-line fix — teach ADR-0126's `analyzeObservedTests` to parse the options
- *   form — is a STORY-SHAPE call, not a code edit: it would move every contract those tests vouch for
- *   into `check:coverage`'s WARN backlog, which is a decision about the work, not about this sweep.
- * - `warn-list-hygiene` locates advisory worklists that no exit code bounds. TWO of the six are now
- *   bounded — `check:graduation-worklist` (`graduation-drain.ts`) and `check:surface-coverage`
- *   (`surface-coverage-drain.ts`) — and the other FOUR are not: `check:agents-sync`,
- *   `check:corpus-sync`, `check:corpus-content`, and `check:coverage`. Giving one a ceiling, or
- *   establishing that a drift-shaped list cannot accumulate and needs none, stays a per-check decision
- *   about that check's remedy, made one check per increment against that check's REAL output; this
- *   sweep reads source and cannot see a list's size, so it can never make the call itself. Note the
- *   interaction the remaining four inherit:
- *   teaching `analyzeObservedTests` the options form would move contracts into `check:coverage`'s
- *   worklist, which is itself growth in the largest list this instrument locates — so whoever bounds
- *   `check:coverage` must account for that growth in the ceiling's recorded reason rather than set a
- *   number the right repair would breach.
+ *   form — is still a call about the WORK rather than about this sweep, but its cost is no longer
+ *   unmeasured: it moves exactly ONE contract into `check:coverage`'s backlog
+ *   (`release-claims-by-branch-clears-the-branch`), because only one of the 7 located files is a
+ *   scanned capability's registered `real.testFile`. `coverage-drain.ts` records that number as the
+ *   one sanctioned re-baseline of its ceiling. (This bullet read "it would move every contract those
+ *   tests vouch for" until 2026-07-28; that estimate was never measured and it deferred bounding
+ *   `check:coverage` behind three other increments. ADR-0126 carries the same correction.)
+ * - `warn-list-hygiene` locates advisory worklists that no exit code bounds. FOUR of the six are now
+ *   bounded — `check:graduation-worklist` (`graduation-drain.ts`), `check:surface-coverage`
+ *   (`surface-coverage-drain.ts`), `check:corpus-content` (`corpus-content-drain.ts`) and
+ *   `check:coverage` (`coverage-drain.ts`) — and the other TWO are not: `check:agents-sync` and
+ *   `check:corpus-sync`. Giving one a ceiling, or establishing that a drift-shaped list cannot
+ *   accumulate and needs none, stays a per-check decision about that check's remedy, made one check
+ *   per increment against that check's REAL output; this sweep reads source and cannot see a list's
+ *   size, so it can never make the call itself. Both survivors read 0 today and drain on one
+ *   idempotent command, which is this instrument's own stated false positive — so establishing that
+ *   they need NO ceiling, with evidence, is a legitimate way for this number to reach 0.
  *
  * On mirror-pair drift specifically, note the boundary ADR-0251 records: `check:mirror-conformance`
  * already proves the pairs in its `MIRRORS` registry EXACTLY, and blocks. The advisory instrument
@@ -144,8 +147,26 @@ const CEILINGS = {
    * classification, and a control against the live store showed why they may not be summed — draining
    * one value-drift while one body degrades leaves the sum at exactly 14 while a schema-floor fault
    * appears.
+   *
+   * TIGHTENED 3 → 2 (2026-07-28): `check:coverage` was bounded at a two-axis drain ceiling
+   * (`coverage-drain.ts`) — the list ADR-0252 itself names as this instrument's live counter-example.
+   * Its rot was measured the same way, a differential control over the real binary with only its
+   * inputs varied (`stories/**` and the test files they bind, replayed from git while the check code
+   * stayed pinned at HEAD): 66 unproven contracts on the day the check landed, 121 a month later,
+   * exit 0 at all nine sampled points. It is the only bounded worklist in this arc whose measured
+   * history is MONOTONE growth. The known classifier conflict was measured rather than feared —
+   * teaching `analyzeObservedTests` the options form moves the backlog by exactly +1 contract, which
+   * `coverage-drain.ts` records at the number as the one sanctioned re-baseline. Its two axes had to
+   * be earned rather than inherited, and its substrate guard points BOTH ways: an absent spec corpus
+   * deflates to a false clean, an absent test-file tree inflates — so neither sibling's direction was
+   * copied.
+   *
+   * The two remaining located worklists are the `sync` pair. Both read 0 today and drain on one
+   * idempotent command, and this instrument's own stated false positive is that such a list may
+   * correctly need NO ceiling — so establishing that, with evidence, is a legitimate way for this
+   * number to reach 0.
    */
-  [WARN_LIST_HYGIENE]: 3,
+  [WARN_LIST_HYGIENE]: 2,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -583,8 +604,9 @@ function main(): void {
       locates:
         "an advisory `check:*` step in `pnpm gate` whose printed WARN output is a per-item WORKLIST " +
         "(its size tracks a collection) while no source implementing it sets a non-zero exit code — so " +
-        "no size that list reaches ever fails anything. ADR-0252 names the live counter-example: " +
-        "`check:coverage`'s 121-contract WARN backlog. FALSE POSITIVE: a worklist that is a DRIFT " +
+        "no size that list reaches ever fails anything. ADR-0252 named `check:coverage`'s 121-contract " +
+        "WARN backlog as this instrument's live counter-example; it was BOUNDED on 2026-07-28 " +
+        "(`coverage-drain.ts`) and is no longer located here. FALSE POSITIVE: a worklist that is a DRIFT " +
         "between two surfaces drains to zero with one idempotent command and may need no ceiling at " +
         "all (`check:agents-sync` / `check:corpus-sync` read 0 today); and SIZE is what makes a list " +
         "unreadable, which this cannot see — it reads source, not a run, so a 1-item worklist and a " +
