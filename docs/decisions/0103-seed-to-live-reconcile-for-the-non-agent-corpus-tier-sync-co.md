@@ -68,6 +68,32 @@ Add a deliberate seed→live reconcile for the non-agent tier, parallel to `sync
    (seed artifact missing from live), never live-only artifacts or content drift, both of which are
    *expected* under live-canonical. Local-only (CI's verify job is DB-free); always exits 0.
 
+   **Correction (2026-07-28 — [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)
+   pass): "WARN-only" / "always exits 0" no longer hold and are scoped, not reversed.**
+   `check:corpus-sync` was bounded at a drain ceiling (`packages/cli/src/sync-drain.ts`,
+   `missingCeiling: 0`), so `check-corpus-sync.ts` now sets a non-zero exit when the migration gap grows
+   past it — where the shell previously exited 0 unconditionally. This is
+   [ADR-0252](0252-verification-decay-detection-continuous-mechanical-warns-a-j.md) D3 applied in
+   [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) D4's shape — the
+   enforcement posture is the LATER ADR's to set, and **nothing in this ADR is re-decided**: the
+   migrate-only policy (upsert-if-absent, never overwrite, never delete), the one-directional scope, the
+   `agent`-kind exclusion and the WARN prose are all unchanged, and the OK/WARN/SKIP lines are
+   byte-identical. **Advisory PER MISSING ARTIFACT survives** — no individual id blocks a landing, as
+   decision 3 of ADR-0252 requires; only GROWTH of the count reds the gate. **The local-only /
+   SKIP-offline half is untouched**: no DB or creds still SKIPs at exit 0, so CI stays DB-free.
+   The ceiling is affordable at ZERO *because* of this ADR's migrate-only invariant: the drain is one
+   idempotent command with no per-item judgement, so unlike a policy whose remedy must be weighed, there
+   is nothing here to be lenient about. For the same reason nothing is suppressed — every measured way
+   to inflate this list is repaired by the very command the WARN already names. The guard runs at the
+   other end instead: the `ok` verdict is WITHHELD when the seed file contributed no units at all,
+   because `libraryTemplates()` supplies 13 code-derived artifacts no seed file can remove, so an empty
+   `knowledge.json` would otherwise print a clean line over a population the seed never supplied.
+   The measured evidence this ADR could not have had: replayed across ten committed seed revisions this
+   list reached SIX while exiting 0, and five of those ids are still absent from live today — they left
+   the SEED rather than draining through the command the WARN names. A reader of "always exits 0" alone
+   would conclude the shipped exit code VIOLATES this ADR and "fix" it by removing the red — the exact
+   stale-prose harm ADR-0139 exists to prevent.
+
 The graduation ceremony for a non-agent kind therefore gains one explicit step: after the seed edit,
 `pnpm storytree library sync-corpus --pg` (DB up) carries it into the live tier; `check:corpus-sync`
 nags if it is forgotten.

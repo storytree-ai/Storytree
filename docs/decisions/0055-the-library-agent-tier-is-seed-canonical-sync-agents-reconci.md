@@ -76,6 +76,29 @@ live agent tier equal the seed on demand.
   is a WARN, not a block, because live-DB agent drift only stales a **human-facing projection** (the
   studio / `storytree agents --pg`): everything that RUNS — the CLAUDE.md region, `.claude/agents`, the
   live leaf prompts — renders from the **seed** and is already hard-gated by `check:claude`/`check:agents`.
+
+  **Correction (2026-07-28 — [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)
+  pass): "WARN-only" / "never fails" no longer hold and are scoped, not reversed.**
+  `check:agents-sync` was bounded at a drain ceiling (`packages/cli/src/sync-drain.ts`,
+  `driftCeiling: 0`), so `check-agents-sync.ts` now sets a non-zero exit when the drift worklist
+  (`missing` + `extra`) grows past it — where the shell previously exited 0 unconditionally. This is
+  [ADR-0252](0252-verification-decay-detection-continuous-mechanical-warns-a-j.md) D3 applied in
+  [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) D4's shape — the
+  enforcement posture is the LATER ADR's to set, and **nothing in this ADR is re-decided**: the
+  seed-canonical agent tier, `sync-agents`'s overwrite-and-delete policy, its fence to `kind: "agent"`,
+  and the gate step's WARN prose are all unchanged, and the OK/WARN/SKIP lines it prints are
+  byte-identical.
+  **The reasoning in this bullet survives intact and still binds the ceiling.** "Drift only stales a
+  human-facing projection" is exactly why no INDIVIDUAL drifted id blocks a landing, as decision 3 of
+  ADR-0252 requires; only GROWTH of the count reds the gate. **The local-gate-not-CI half is
+  untouched** — the step still SKIPs at exit 0 with no DB, absent creds, or an unreadable seed, so CI's
+  `verify` job stays DB-free and an offline gate is unaffected.
+  One guard is worth naming because it is keyed on THIS ADR's seed-canonical policy rather than on the
+  count: when the seed contributes NO agents at all, the breach is computed and reported but NOT
+  enforced, because `sync-agents --pg` deletes every live agent absent from the seed — so redding there
+  would hand the next session a failing gate whose sanctioned remedy wipes the live agent tier.
+  A reader of "WARN-only" alone would otherwise conclude the shipped exit code VIOLATES this ADR and
+  "fix" it by removing the red — the exact stale-prose harm ADR-0139 exists to prevent.
 - **A genuinely automatic close is still future work** — a DB→seed export (then the seed is generated,
   never hand-edited, and this whole agent-tier exception disappears) or making the live store the agent
   edit surface; both are larger and named as later work.
