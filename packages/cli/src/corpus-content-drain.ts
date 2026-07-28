@@ -17,6 +17,7 @@
 //
 //   seed @ 5d8977f8 (2026-06-27, the check's own landing commit)  value-drift=122  exit 0
 //   seed @ 3f391af6 (2026-07-05)                                  value-drift=18   exit 0
+//   seed @ 33f6e690 (2026-07-06)                                  value-drift=18   exit 0
 //   seed @ 4e41f743 (2026-07-11)                                  value-drift=18   exit 0
 //   seed @ 5bceb525 (2026-07-14)                                  value-drift=14   exit 0
 //   seed @ 55a4649d (2026-07-18)                                  value-drift=15   exit 0
@@ -114,7 +115,7 @@ export interface CorpusContentDrainConfig {
  * new population's first real sweep with the reason recorded here. Raising it to accommodate work
  * being landed is the named gaming failure mode on `process:verification-decay-detection`.
  *
- * `degradedLiveCeiling: 0` is the real, honest baseline and not an aspiration: every one of the eight
+ * `degradedLiveCeiling: 0` is the real, honest baseline and not an aspiration: every one of the nine
  * sampled seed revisions in the header's control read `degraded-live=0`, so this axis has been at zero
  * across the check's entire life. It is also the axis that most deserves zero. A degraded live body is
  * not an editorial difference — it is an artifact stored below the schema floor, which the exporter
