@@ -75,9 +75,9 @@ function appData(overrides: Partial<AppData> = {}): AppData {
     docIds: new Set(),
     docTitles: new Map(),
     assets: [],
-    comments: [],
+    assetsStatus: 'ready',
+    assetsError: '',
     me: { email: null, role: null, status: null, member: false },
-    refreshComments: vi.fn(),
     refreshAssets: vi.fn(),
     ...overrides,
   };

@@ -48,9 +48,9 @@ const appData: AppData = {
   docIds: new Set(),
   docTitles: new Map(),
   assets: [],
-  comments: [],
+  assetsStatus: 'ready',
+  assetsError: '',
   me: { email: 'owner@example.com', role: 'admin', status: 'active', member: true },
-  refreshComments: async () => {},
   refreshAssets: async () => {},
 };
 
