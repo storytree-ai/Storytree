@@ -57,7 +57,8 @@ import {
   type HealthProbe,
   type StudioStore,
 } from './libraryBackend';
-import { HttpError, sendJson } from './httpUtil';
+import { HttpError, sendJson, sendJsonValidated } from './httpUtil';
+import { memoizeCorpusWalk } from './corpusMemo';
 import { parseAdrWireSignals } from './adrWireSignals';
 import { handleDb } from './dbControl';
 import { handleDbWake, type DbWaker } from './dbWake';
@@ -1709,13 +1710,16 @@ export async function handleAdopt(
 }
 
 async function handleDocs(
-  _req: IncomingMessage,
+  req: IncomingMessage,
   res: ServerResponse,
   url: URL,
   paths: Paths,
 ): Promise<void> {
   if (url.pathname === '/api/docs') {
-    return sendJson(res, 200, await listDocs(paths.docsDir));
+    // map-server-memo (ADR-0240 stage 3): the walk is memoized by the docs corpus's on-disk
+    // fingerprint; the sender adds the no-cache/ETag validator pair over the actual response bytes.
+    const { value } = await memoizeCorpusWalk(paths.docsDir, () => listDocs(paths.docsDir));
+    return sendJsonValidated(req, res, 200, value);
   }
   if (url.pathname === '/api/docs/content') {
     const id = url.searchParams.get('id') ?? '';
@@ -2033,9 +2037,16 @@ export async function handleApiRequest(
       await handleDocs(req, res, url, ctx.paths);
     } else if (url.pathname === '/api/tree') {
       if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
-      const { payload, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = await readTree(
-        ctx.paths.storiesDir,
+      // map-server-memo (ADR-0240 stage 3): the FILE WALK alone is memoized by the stories corpus's
+      // on-disk fingerprint. The live enrichment below (verdicts, in-flight builds, open questions)
+      // is recomputed on EVERY request — nothing about the corpus on disk says whether a verdict was
+      // signed a second ago, so a file fingerprint can never be its freshness authority. The clone
+      // `memoizeCorpusWalk` hands back is mutated in place below; that mutation can never reach what
+      // is stored, so a later unchanged-corpus request is never served yesterday's live proof state.
+      const { value: treeWalk } = await memoizeCorpusWalk(ctx.paths.storiesDir, () =>
+        readTree(ctx.paths.storiesDir),
       );
+      const { payload, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = treeWalk;
       // Advisory enrichments (ADR-0048): no call ever throws — null
       // (json store / DB down) just means the tree renders without that layer.
       // Run in parallel so a down DB costs one 4s budget, not three. `builds`
@@ -2108,7 +2119,7 @@ export async function handleApiRequest(
         }
       }
       if (builds && builds.length > 0) payload.builds = builds;
-      sendJson(res, 200, payload);
+      sendJsonValidated(req, res, 200, payload);
     } else if (url.pathname === '/api/activity') {
       await handleActivity(req, res, ctx.backend);
     } else if (url.pathname === '/api/claims') {
