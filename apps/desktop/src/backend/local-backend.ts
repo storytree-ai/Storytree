@@ -106,8 +106,8 @@ export interface LocalBackendBackend {
   /**
    * EVERY live claim row, all units, all grades (ADR-0200 D7 — the session dock's
    * claims-grouped-by-session view): the raw claim docs from events.node_claim (PgClaimStore.listLiveClaims,
-   * staleness-filtered in SQL). Distinct from {@link inFlightClaims} (which folds to a map-wisp and drops
-   * the grade): this stays the raw shape so the `/api/claims` handler folds it through the pure
+   * staleness-filtered in SQL). Distinct from {@link inFlightClaims} (which folds each row to a map-wisp
+   * activity, grade and all): this stays the raw shape so the `/api/claims` handler folds it through the pure
    * `groupClaimsBySession`. Optional like {@link inFlightClaims}: a narrow stub may omit it, and
    * `/api/claims` falls back to `{ sessions: null }` (advisory absence, never an over-claim). Production
    * wires it (electron/backend-entry.ts) over PgClaimStore.listLiveClaims.
