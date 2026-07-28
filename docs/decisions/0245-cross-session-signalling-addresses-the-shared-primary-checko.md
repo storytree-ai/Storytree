@@ -33,6 +33,36 @@ The `amends: [200]` edge is now BINDING, and only for what shipped: ADR-0200 D3'
 SKIP arm no longer returns silently for a dirty primary checkout. ADR-0200 D4's cursor-once
 principle is untouched (nothing was added to the ledger, and no scheduled notification exists).
 
+**Reconciled with ADR-0255 / ADR-0257 by the librarian pass, 2026-07-28 — this ADR is NOT
+superseded.** [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md)
+(accepted 2026-07-27, owner-directed) decided the same hazard independently and without citing this
+ADR; that missing edge is now recorded there as `amends: [… 245]`, and
+[ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) proposes to harden
+it further. The honest relationship is **complementary defence in depth, differently keyed**, not
+duplication:
+
+- **This ADR is the GATE-TIME arm** — keyed on **dirty**, it refuses the *landing* once the shared
+  checkout already carries uncommitted work. It is BUILT (D5.2) and is the only enforcement of this
+  hazard that exists today.
+- **ADR-0255 is the WRITE-TIME arm** — keyed on an *agent write attempt*, it aims to stop the
+  checkout becoming dirty at all, via a claim-bound authority boundary. It is **not built**: no
+  pre-tool write policy or filesystem/broker wall exists in this repo yet, and ADR-0257 §Context
+  records the same.
+
+What ADR-0255 amends here is **D5's ranking, not D5's machinery**: the merge gate is no longer "the
+boundary that matters" (this ADR's D5.2 wording) but the late backstop behind a write-time wall.
+D5.2 itself stands and stays built — ADR-0255 D4 names `check:declared` as part of its feedback
+layer and its Consequences keep "the late gate ... as defence in depth", and its Rejected
+alternatives reject the gate only as *the authority boundary*. Two reasons the gate arm remains
+load-bearing even once the wall lands: ADR-0255 D7 preserves an explicit **human** recovery path (a
+human editing the primary checkout directly is not an agent harness, so no pre-tool policy observes
+it), and ADR-0255 D8's proof bar is behavioural and unmet, so until it is met this arm is the whole
+ratchet. **Removing or disabling D5.2 would be an owner decision, not a curator one.**
+
+D1/D2's reasoning — the fault is a *condition of the checkout*, never an accusable session — is
+adopted by ADR-0255 D1 (which addresses the checkout, not an identity) and survives intact. D3/D4
+remain owner-parked as above; ADR-0255/0257 do not revive them.
+
 ## Context
 
 **The incident (2026-07-26).** A session about to land an ADR found the primary checkout dirty with
@@ -286,6 +316,11 @@ the seam; the story/capability decomposition to build it is the `story-author`'s
   git surgery on the primary checkout; why a hard lobby block is unsafe.
 - [ADR-0232](0232-add-a-chatgpt-subscription-codex-prove-it-leaf.md) — the second agent runtime the
   harness transport cannot see.
+- [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md) — the write-time
+  arm of the same hazard: the primary checkout as a read-only lobby with claim-bound write
+  authority. It amends this ADR's D5 ranking, not its machinery (see Status).
+- [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) — `proposed`;
+  proposes to harden ADR-0255's wall to agent-inescapable and to bind it to shared checkouts.
 - [ADR-0162](0162-manage-session-onboarding-cost-optimize-the-cost-centers-the.md) — the per-turn startup budget the `UserPromptSubmit` probe
   must respect.
 - Friction (the adjudicated inputs, routed to this ADR):

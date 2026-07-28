@@ -2,7 +2,7 @@
 status: accepted
 load_bearing: true
 decided: 2026-07-27
-amends: [33, 121, 143, 200]
+amends: [33, 121, 143, 200, 245]
 ---
 # ADR-0255: The primary checkout is a read-only agent lobby — write authority is claim-bound and harness-neutral
 
@@ -24,6 +24,28 @@ boundary for writes. **Amends**
 [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md): the primary
 checkout lobby becomes mechanically read-only to agent harnesses, and the claim-gated workspace
 ceremony applies across harnesses rather than only to Storytree-owned spawners.
+
+**Amends** [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md)
+*(edge recorded by the librarian pass on 2026-07-28 — this ADR was authored without citing it, and
+both ADRs independently amend ADR-0200 for the same hazard; the edge below is a record of what this
+body already effects, not a new decision)*. ADR-0245 diagnosed the same fault — uncommitted work in
+the shared primary checkout — and shipped the only enforcement of it that exists today: its **D5.2
+gate-time backstop**, `check:declared`'s lobby arm. **That arm stands and stays built.** D4 below
+already places it in the feedback layer, and "Rejected alternatives" rejects the merge gate only as
+*the authority boundary*, never as defence in depth — "the late gate remains defence in depth" is
+this ADR's own words. What is amended is ADR-0245 D5's **ranking**: the gate is no longer "the
+boundary that matters", it is the late backstop behind a write-time wall. ADR-0245 D1/D2 are adopted
+unchanged and remain load-bearing here — the fault is a *condition of a checkout*, never an accusable
+session, which is why D1 above addresses the checkout rather than an identity. ADR-0245 D3/D4 (the
+push/delivery half) stay owner-parked and are untouched.
+
+The two arms are **complementary and differently keyed**, and neither substitutes for the other:
+this ADR's wall keys on *an agent write attempt* and prevents the checkout becoming dirty at all;
+ADR-0245 D5.2 keys on *dirty* and refuses the landing once it already is. The residual cases the
+wall cannot cover are exactly what keeps the gate arm live — D7 preserves an explicit human
+recovery/maintenance path (a human editing the primary checkout is not an agent harness and no
+pre-tool policy sees it), and until the authority layer is built and behaviourally proved under D8,
+ADR-0245 D5.2 is the *only* rung on the ratchet.
 
 ## Context
 
@@ -219,6 +241,9 @@ projections of one rule.
   claim-gated workspace ceremony and primary lobby this ADR hardens.
 - [ADR-0212](0212-one-wisp-per-session-merge-the-build-wisp-into-the-claim-lif.md) — one logical
   session/wisp.
+- [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) — the same hazard
+  treated at the gate; its D5.2 lobby arm is the built late backstop this wall sits in front of, and
+  its D1/D2 checkout-not-session reasoning is adopted here (amended edge, see Status).
 - `packages/cli/src/worktree-create.ts` — current claim-first repository worktree mint.
 - `packages/drive/src/noticeboard.ts` — current `.claude/worktrees`-specific identity derivation.
 - `packages/cli/src/check-declared.ts` — current late gate and fail-open skip arms.

@@ -66,6 +66,20 @@ owner-directed calls. Four parts:
    verify job is DB-free), classifying each drift as *degraded-live* (restore seed→live) vs
    *value-drift* (resolve on the live edit surface). This makes "Corpus integrity" measurable instead
    of silently-green.
+   **Correction (2026-07-28 — ADR-0139 pass): "WARN-only" no longer holds and is scoped, not
+   reversed.** `check:corpus-content` was bounded at a two-axis drain ceiling
+   (`packages/cli/src/corpus-content-drain.ts`), so it now sets a non-zero exit when either axis is
+   breached — `valueDrift` past 14 or any `degradedLive` at all, both baselined on the real 2026-07-28
+   sweep. This is [ADR-0252](0252-verification-decay-detection-continuous-mechanical-warns-a-j.md) D3
+   applied in [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) D4's
+   shape — the enforcement posture is the LATER ADR's to set, and **nothing in this ADR is
+   re-decided**: the reconciliation, its two-way classification, and its remedies are unchanged, and
+   the OK/WARN lines it prints are byte-identical. **Advisory PER DRIFT survives** — no individual
+   drift blocks a landing, exactly as decision 3 of ADR-0252 requires; only GROWTH of the count reds
+   the gate. The "SKIP-offline / mirroring `check:corpus-sync`" half is untouched and still true (see
+   the Consequences bullet below): with no DB or creds the check SKIPs at exit 0, so CI stays DB-free.
+   A reader of "WARN-only" alone would otherwise conclude the shipped exit code VIOLATES this ADR and
+   "fix" it by removing the red — the exact stale-prose harm ADR-0139 exists to prevent.
 3. **A live→seed export** (finding 2) — the inverse of `sync-corpus`. **Owner decision (a): OVERWRITE
    seed bodies for live-edited artifacts**, plus add live-only artifacts; never delete seed-only or
    `agent`-kind (those stay seed-canonical, ADR-0055). The migrate-only symmetry FLIPS here: because

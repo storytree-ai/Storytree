@@ -104,6 +104,28 @@ test("diffCorpusContent: classifies value-drift vs degraded-live; ignores seed-o
   assert.equal(diff.clean, false);
   // An agent body differing would NOT appear (out of scope).
   assert.ok(![...byId.keys()].some((id) => seedDocs.find((d) => d.id === id)?.kind === "agent"));
+  // Both sides carry the whole export scope, so every seed artifact was genuinely compared.
+  assert.equal(diff.comparedLive, diff.compared, "a full live tier compares the whole seed scope");
+});
+
+test("diffCorpusContent: a missing live tier reports CLEAN — only `comparedLive` distinguishes it", async () => {
+  // The false-clean this field exists for. A seed id with no live row is SKIPPED, not flagged, so a
+  // live store that is empty or truncated diffs to zero drift while `compared` still reports the full
+  // seed scope. `check:corpus-content`'s drain ceiling reads `comparedLive` precisely so it can refuse
+  // to certify an OK that was measured against nothing.
+  const { docs: seedDocs } = await realSeed();
+
+  const empty = diffCorpusContent(seedDocs, []);
+  assert.equal(empty.clean, true, "an empty live store diffs CLEAN");
+  assert.ok(empty.compared > 0, "…while the seed-scope denominator is unchanged");
+  assert.equal(empty.comparedLive, 0, "…and only the compared-live population reveals it");
+
+  // A TRUNCATED tier is the same shape: the count tracks what was actually matched.
+  const scope = seedDocs.filter(isExportableLiveDoc);
+  const truncated = diffCorpusContent(seedDocs, scope.slice(0, 3));
+  assert.equal(truncated.clean, true);
+  assert.equal(truncated.comparedLive, 3, "the compared-live count follows the live tier, not the seed");
+  assert.equal(truncated.compared, empty.compared, "the seed-scope denominator is blind to it");
 });
 
 test("computeExportedSeed: overwrites value-drift, ADDS live-only, SKIPS degraded, never deletes / touches agents", async () => {
