@@ -133,8 +133,19 @@ const CEILINGS = {
    * real gate code with only its inputs varied showed the sweep CLEAN at `bedf6dba^`, then `orphans=1`
    * the moment ADR-0195 added `ci:affected` with no process behind it, and still 1 thirteen days later.
    * A WARN-backed worklist that no exit code bounds does not get drained.
+   *
+   * TIGHTENED 4 → 3 (2026-07-28): `check:corpus-content` was bounded at a two-axis drain ceiling
+   * (`corpus-content-drain.ts`). It was the right one to bound next because it is the only remaining
+   * located worklist that demonstrably ACCUMULATES — the two `sync` checks read 0 today and drain on
+   * one idempotent command, and `check:coverage` carries a known conflict. Its rot was measured the
+   * same way: a differential control over the real binary with only its seed input varied found it
+   * printing a 122-item worklist and exiting 0 on the very day the check landed, then wandering
+   * 18 → 14 → 16 → 14 over the next month with nothing ever failing. Its two axes are ADR-0120's own
+   * classification, and a control against the live store showed why they may not be summed — draining
+   * one value-drift while one body degrades leaves the sum at exactly 14 while a schema-floor fault
+   * appears.
    */
-  [WARN_LIST_HYGIENE]: 4,
+  [WARN_LIST_HYGIENE]: 3,
 } as const;
 
 // ---------------------------------------------------------------------------
