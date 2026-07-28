@@ -120,10 +120,8 @@ function Test-Checkout {
   $remote = (git -C $CheckoutDir remote get-url origin 2>$null)
   return ($remote -match 'storytree-ai/Storytree')
 }
-# pnpm writes node_modules/.modules.yaml only when an install COMPLETES - the same FRESH-checkout
+# pnpm writes node_modules/.modules.yaml only when an install COMPLETES - the same provisioned
 # marker packages/cli/provision-worktree.mjs keys on. Absence => fresh or truncated => re-provision.
-# (Presence alone is not currency: the hook additionally re-installs when pnpm-lock.yaml has advanced
-# past node_modules. This installer does a fresh clone, so it only needs the fresh half.)
 function Test-Provisioned {
   return (Test-Path (Join-Path $CheckoutDir 'node_modules\.modules.yaml'))
 }
