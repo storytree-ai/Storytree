@@ -136,7 +136,11 @@ obvious failure mode.
 or a child ADR under this arc, not here:
 
 - **fresh-tree authoring vs brownfield mapping** as the first increment — ADR-0133 §5 names both, and
-  they have different first users;
+  they have different first users. **SETTLED by [ADR-0261](0261-fork-a-settled-fresh-tree-authoring-is-the-foreign-forest-s.md)**
+  (accepted, 2026-07-28, owner-directed): fresh-tree authoring first, brownfield mapping chartered as
+  its own arc when reached. That ADR also promotes fork (c) to the critical path and fences fork (b)
+  off it. Recorded in place under ADR-0086 — D6 routing a fork to a child ADR is D6 working as
+  designed, not a re-decision, so there is no `amends` edge;
 - **what replaces ADR-integer `decisions:` refs** for a project that has no `docs/decisions/`;
 - **whether `repo-manifest.json` and the boundary checks become per-project or optional** outside
   storytree.
