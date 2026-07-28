@@ -41,6 +41,11 @@ import {
 import type { SpawnSurfaceDeps, LandingSurfaceDeps, InspectSurfaceDeps } from "@storytree/drive";
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
+import {
+  IN_FLIGHT_CLAIMS_SQL,
+  claimRowsToActivity,
+  type DesktopClaimRow,
+} from "../src/backend/claim-activity.js";
 import { createCodeStampProbe, gitHead } from "../src/apply/code-stamp.js";
 import { createRuntimeStatusProbe, fetchOriginBestEffort } from "../src/apply/runtime-status.js";
 import { RUNTIME_ROOT_ENV } from "../src/apply/runtime-root.js";
@@ -161,11 +166,7 @@ const GATE_PHASES: ReadonlySet<string> = new Set([
 // The three ADR-0138 §5 subagent colour-states — guards the advisory `doc->>'colourState'` read so a
 // malformed value (or the §5-forbidden "green"/"bloom") can never reach the build wisp's role tint.
 const COLOUR_STATES: ReadonlySet<string> = new Set(["authoring", "proving", "supplementing"]);
-// The claim stale-reclaim window (ADR-0138 §5) — mirrors CLAIM_STALE_RECLAIM_MS in
-// @storytree/notice-board and the studio inFlightActivity fold (re-composed here, the surface
-// boundary): a claim whose heartbeat aged out belongs to a crashed holder, so the wisp self-heals
-// rather than orbiting forever.
-const CLAIM_STALE_RECLAIM_MS = 2 * 60 * 60 * 1_000; // 2 h
+// (The claim stale-reclaim window moved to src/backend/claim-activity.ts with the fold that uses it.)
 
 // Race an advisory read against a short timeout; null on ANY failure (the PgBackend pattern),
 // each failure logged once per streak to stderr (the CI-proven core, src/backend/advisory.ts).
@@ -476,12 +477,16 @@ async function main(): Promise<void> {
         }
         return out;
       }),
-    // In-flight story CLAIMS (ADR-0138): every live events.node_claim row folded into a
+    // In-flight story CLAIMS (ADR-0138 / ADR-0200 D7): every live events.node_claim row folded into a
     // claimed-but-not-proven map activity (`kind: "claim"`) — the coordination wisp layer, sibling to
-    // inFlightBuilds. `unit_id` is the PRIMARY KEY so at most one row per unit (no DISTINCT ON needed).
-    // A stale claim (heartbeat aged past CLAIM_STALE_RECLAIM_MS) is dropped so a crashed holder's wisp
-    // self-heals. §5 honesty wall: `kind: "claim"` is NEVER a proven-green bloom. Mirrors the studio
-    // PgBackend.inFlightClaims + its claimsToActivity fold (re-composed here, the surface boundary).
+    // inFlightBuilds. The PK is COMPOSITE `(unit_id, session_id)` under the graded ledger (ADR-0200 D2 —
+    // shared exploring/waiting rows coexist with the one work row), so a unit may fold to several wisps
+    // (one per session); still no DISTINCT ON — each live row IS current state. The SQL + the fold (stale
+    // drop, §5 `kind: "claim"`, grade normalisation) are the pure src/backend/claim-activity.ts module,
+    // red-green in claim-activity.test.ts — the studio's inFlightClaims + claimsToActivity re-composed
+    // there rather than imported (the surface boundary). Keeping BOTH halves in that one module is what
+    // stops the SELECT drifting from the reader again: it shipped without `grade`, so every claim reached
+    // the map grade-less and the frontend's `?? 'work'` default made hovers/queues orbit the whole island.
     // claim-wisp-cold-start (FIX 2b): the CLAIMS read alone gets a softer per-read budget — a larger
     // timeout + one retry — so a just-taken claim survives a DB cold-start that exceeds the shared 4s
     // (the fresh wisp is not silently dropped). The other four reads keep the shared 4s so /api/tree
@@ -490,40 +495,8 @@ async function main(): Promise<void> {
       advisory(
         "in-flight-claims",
         async () => {
-        const res = await pool.query(
-          `SELECT unit_id, session_id, branch, intent, claimed_at, heartbeat_at
-             FROM events.node_claim`,
-        );
-        const now = Date.now();
-        const out: {
-          unitId: string;
-          kind: "claim";
-          sessionId: string;
-          branch: string;
-          intent: string;
-          at: string;
-        }[] = [];
-        for (const raw of res.rows) {
-          const row = raw as {
-            unit_id: string;
-            session_id: string;
-            branch: string;
-            intent: string;
-            claimed_at: Date | string;
-            heartbeat_at: Date | string;
-          };
-          const hbAt = toIso(row.heartbeat_at);
-          if (now - new Date(hbAt).getTime() > CLAIM_STALE_RECLAIM_MS) continue; // stale — self-heals
-          out.push({
-            unitId: row.unit_id,
-            kind: "claim",
-            sessionId: row.session_id,
-            branch: row.branch,
-            intent: row.intent,
-            at: toIso(row.claimed_at),
-          });
-        }
-        return out;
+          const res = await pool.query(IN_FLIGHT_CLAIMS_SQL);
+          return claimRowsToActivity(res.rows as DesktopClaimRow[], new Date());
         },
         { timeoutMs: 15_000, retryOnce: true },
       ),
