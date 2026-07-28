@@ -53,8 +53,9 @@ Grounded in the checkout at `8afabd5c`, not assumed:
   (`packages/library/src/store/load-corpus.ts:41`), `packages/cli/src/build-agents.ts:29`,
   `packages/cli/src/build-claude-md.ts:25`. `/api/tree` takes no project parameter and its payload
   carries no project field.
-  **Corrected in place (ADR-0086 / ADR-0139, 2026-07-28) — the headline claim holds, the enumeration
-  does not.** That list is one search idiom's hits presented as an inventory, and it was already
+  **Corrected in place (ADR-0086 / ADR-0139, 2026-07-28) — the headline claim was true at `8afabd5c`
+  and the enumeration was not; both are now history, see the second correction below.** That list is
+  one search idiom's hits presented as an inventory, and it was already
   incomplete at `8afabd5c`, in two distinct ways. *(a) Sites missed:* `repoRoot()` at
   `packages/drive/src/node-build.ts:141` — the D5-critical one, since it feeds `storiesDir`,
   `createBuildWorktree` and the promotion, so leaving it derived would have meant a `--real` build
@@ -68,6 +69,15 @@ Grounded in the checkout at `8afabd5c`, not assumed:
   1 with no caller able to reach it until increment 2 added `serve.ts --repo-root` and the
   `storytreeDataApi({ repoRoot })` option. Re-derive before consuming this block as a worklist. The
   Decision below is unchanged; only this measurement is corrected.
+  **Second correction (ADR-0086 / ADR-0139, 2026-07-28) — the headline claim is now overtaken too, so
+  do not read this bullet as current state.** Increments 1 and 2 of this arc closed it: `resolveRepoRoot`
+  + `REPO_ROOT_ENV` in `@storytree/library` (precedence explicit > env > module-derived) now back eight
+  sites — the six listed above plus `build-unit-status.ts` and the D5-critical `node-build.ts`
+  (PR #977) — and the parameter became drivable per call rather than env-only, via `NodeBuildOpts.repoRoot`
+  / `NodeResolveOpts.repoRoot`, `storyBuild`'s single `rootDir` for both spec resolution and the worktree
+  cut, and the studio's `serve.ts --repo-root` / `storytreeDataApi({ repoRoot })` (PR #984). Two things
+  named in this block are still open by choice: the seven further `packages/cli` sites stay derived, and
+  `/api/tree` still takes no project parameter (that is project IDENTITY, and it runs into D6 fork (b)).
 - **The render core is already project-agnostic, and is proven so.** `SceneInput` / `buildScene`
   (`packages/forest-world/src/scene.ts`) have no store, node, or React dependency, and the public
   website drives the same geometry from its own locally-declared `Story` / `Capability` types
