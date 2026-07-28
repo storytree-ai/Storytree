@@ -13,6 +13,20 @@ incident and the forensic review that followed. The owner directed: *"Land the A
 this needs to work across both surfaces"* — Claude Code and Codex. Design-time alignment IS the
 ratification (ADR-0110); no second end-of-flow ask.
 
+> **Amended by [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md)**
+> (accepted, 2026-07-28) — the write-authority wall stands, hardened at D1, D4 and D7 and made
+> concrete at D5. Every decision below still holds except where an inline note says otherwise.
+> **D1** narrows to *shared* checkouts: the lobby filesystem wall binds wherever more than one agent
+> session can reach a durable checkout, while D2's claim rule keeps binding every writer including a
+> single-tenant one. **D4** re-decides the composition: a fail-closed pre-tool policy is mandatory on
+> every harness, and is sufficient *alone* only where that harness proves complete write-path
+> coverage — otherwise a filesystem boundary or broker stays part of the current minimum, and the
+> human maintenance profile must be one the agent cannot request, approve or activate.
+> **D7** gains a narrow, tamper-evident, expiring claim-receipt exception to offline-read-only.
+> **D2, D3, D5, D6 and D8 stand unchanged** — including D5's harness-neutrality, which ADR-0257
+> *instantiates* rather than amends by making the Codex adapter concrete (see the note at D5).
+> Nothing in either ADR is built yet.
+
 **Amends** [ADR-0033](0033-session-presence-notice-board.md): its never-blocking contract continues
 to govern ambient noticeboard automation, but a separate write-authority guard is blocking by
 design. **Amends** [ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md):
@@ -99,6 +113,14 @@ projections of one rule.
    "`cwd` is primary and `HEAD` is `main`" incident formulation: changing branches must never reopen
    the lobby as an accidental workspace.
 
+   *(Amended by [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) D6:
+   this filesystem wall binds every **shared** checkout — the developer machine's primary checkout
+   and any long-lived host more than one agent session can reach — and not a single-tenant
+   disposable container, which cannot strand a co-tenant's filesystem. That is a narrowing of **this
+   decision only**: D2 below still binds the single-tenant writer, which needs its one noticeboard
+   claim and still appears as one session/wisp. An isolated filesystem is not a coordination
+   exemption.)*
+
 2. **Write authority is a live claim-bound workspace, not a prompt.** A repository write is
    authorised only when its canonical target is inside a recognised repository-minted worktree
    whose derived session id and branch match a live claim in the one noticeboard ledger. At least
@@ -133,6 +155,16 @@ projections of one rule.
      that each deployed runtime provides. A platform that cannot supply that boundary is
      read-only until it can.
 
+   *(Amended by [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) D1:
+   the bar is stated as the strongest agent-inescapable composition each harness actually provides.
+   The fail-closed pre-tool policy is **mandatory on every** supported interactive harness — not one
+   of two interchangeable options — and it is sufficient as the semantic decision layer *alone* only
+   where that harness proves complete coverage of every local write path. Where it does not, a
+   filesystem boundary or broker is part of the **current minimum**, not a future improvement. The
+   human recovery hatch of D7 is narrowed in kind rather than removed: a human may enter a separately
+   selected maintenance profile, but the agent cannot request, approve or activate it — a human
+   escape hatch and an agent-selectable one are different threat models.)*
+
 5. **The rule is harness-neutral; adapters are harness-specific.**
    - Claude Code consumes the shared repository policy through its blocking pre-tool boundary plus
      the existing `.claude` orientation surfaces.
@@ -143,6 +175,18 @@ projections of one rule.
      claim-and-workspace authority. The harness name never grants an exception.
    The exact vendor configuration syntax may evolve; the repository invariant and refusal
    semantics do not.
+
+   *(**Stands unchanged** — [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md)
+   says so in as many words, and its D2/D3/D7/D8 INSTANTIATE this decision rather than amend it,
+   exercising the "exact vendor configuration syntax may evolve" clause directly above. What those
+   decisions add: the Codex bullet is made concrete and delivered from the **managed** layer, not
+   repository `.codex` config — `requirements.toml` pinning hooks on, `allow_managed_hooks_only`, an
+   administrator-defined permission profile with `:danger-full-access` omitted, and a managed
+   `PreToolUse` hook that canonicalises targets and validates repository/worktree/branch/claim before
+   every documented local tool route. Managed hooks and the managed filesystem profile are required
+   **together**: the hook is the live claim decision, the profile is the containment, and neither
+   substitutes for the other. Codex-native worktrees under `$CODEX_HOME` are not authorised by naming
+   or convenience, and shared `.git` common-directory access stays brokered or exactly scoped.)*
 
 6. **One workspace session, one wisp, with harness provenance.** The repository-minted worktree
    basename remains the logical `sessionId` and therefore the one claim/wisp identity across
@@ -159,6 +203,18 @@ projections of one rule.
    maintenance is an explicit human/elevated operation outside the normal agent writer profile,
    auditable as such. An agent cannot infer that authority from urgency, an owner-authored prompt
    or the existence of stranded work.
+
+   *(Amended by [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) D5:
+   "offline means read-only" gains one narrow exception, because refusing every write whenever the
+   ledger is unavailable collides with the fixed ADR-0114 01:00–07:00 database sleep window. A
+   workspace minted while the ledger was reachable carries a **tamper-evident, expiring claim
+   receipt** — issued by the claim authority after the claim succeeds, signed with material the
+   writer cannot reach, read-only to the writer, and carrying a finite `expiresAt`. While the ledger
+   is unreachable, a matching unexpired receipt admits **only its recorded scope**; missing, deleted,
+   malformed, forged, expired or mismatched receipts still refuse, and an unreachable ledger **never**
+   permits a new mint. This degrades an already-granted authority; it never manufactures one. The
+   receipt is unbuilt — `worktree create` does not stamp one today — so until it exists, this
+   decision's unqualified read-only rule is what actually holds.)*
 
 8. **The cross-surface proof is behavioural.** This decision is not green until the supported
    Claude and Codex surfaces both prove:
@@ -193,7 +249,10 @@ projections of one rule.
 **Bad / accepted**
 
 - Offline agent authoring is deliberately unavailable. This is stricter than the current
-  `check:declared` skip arms and will interrupt work when the ledger is down.
+  `check:declared` skip arms and will interrupt work when the ledger is down. *(Amended by ADR-0257
+  D5, see D7 above: an already-minted workspace holding a valid unexpired receipt keeps writing
+  within its recorded scope through the nightly sleep window. A **new** mint still refuses offline,
+  and this bullet reads unqualified until the receipt is built.)*
 - Git worktree creation, commits and landing touch shared Git metadata. The permission profile needs
   carefully bounded metadata access or a brokered actuator; a broad `.git` write grant would reopen
   the escape this ADR closes.
@@ -244,6 +303,11 @@ projections of one rule.
 - [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) — the same hazard
   treated at the gate; its D5.2 lobby arm is the built late backstop this wall sits in front of, and
   its D1/D2 checkout-not-session reasoning is adopted here (amended edge, see Status).
+- [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) — accepted
+  2026-07-28; **amends this ADR** at **D1, D4 and D7**, and **instantiates D5** without changing it
+  (see the Status blockquote and the inline notes). Read it alongside this one: it makes the
+  authority bar agent-inescapable, makes the Codex adapter concrete, narrows the checkout wall to
+  shared checkouts, and adds the expiring claim receipt.
 - `packages/cli/src/worktree-create.ts` — current claim-first repository worktree mint.
 - `packages/drive/src/noticeboard.ts` — current `.claude/worktrees`-specific identity derivation.
 - `packages/cli/src/check-declared.ts` — current late gate and fail-open skip arms.
