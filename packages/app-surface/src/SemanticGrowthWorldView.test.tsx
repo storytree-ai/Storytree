@@ -141,23 +141,44 @@ function track(container: HTMLElement): string | null {
     ?.getAttribute('data-semantic-growth-track') ?? null;
 }
 
-function durationFor(css: string, selectorFragment: string): number {
-  const withoutKeyframes = css.replace(/@keyframes\s+[\w-]+\s*\{[\s\S]*?\n\}\n*/g, '');
-  const rule = [...withoutKeyframes.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-    .find((match) => (match[1] ?? '').includes(selectorFragment)
-      && /animation(?:-duration)?\s*:/.test(match[2] ?? ''));
-  if (!rule) throw new Error(`missing animation rule for ${selectorFragment}`);
-  const body = rule[2] ?? '';
-  const token =
-    /animation-duration\s*:\s*([\d.]+m?s)/.exec(body)?.[1]
-    ?? /animation\s*:[^;]*?\s([\d.]+m?s)(?:\s|;)/.exec(body)?.[1];
-  if (!token) throw new Error(`missing animation duration for ${selectorFragment}`);
-  const numeric = Number.parseFloat(token);
-  return token.endsWith('ms') ? numeric : numeric * 1000;
+interface GrowthRig {
+  readonly root: SVGGElement;
+  readonly trunk: SVGPathElement;
+  readonly branches: readonly SVGPathElement[];
+  readonly canopy: readonly SVGCircleElement[];
+  readonly matureArt: SVGElement;
+}
+
+function growthRig(container: HTMLElement): GrowthRig {
+  const root = container.querySelector<SVGGElement>('g.story-tree');
+  const trunk = root?.querySelector<SVGPathElement>('[data-tree-growth-part="trunk"]');
+  const branches = [
+    ...(root?.querySelectorAll<SVGPathElement>('[data-tree-growth-part="branch"]') ?? []),
+  ];
+  const canopy = [
+    ...(root?.querySelectorAll<SVGCircleElement>('[data-tree-growth-part="canopy"]') ?? []),
+  ];
+  const matureArt = root?.querySelector<SVGElement>('[data-tree-mature-art]');
+  expect(root).toBeTruthy();
+  expect(trunk).toBeTruthy();
+  expect(branches.length).toBeGreaterThanOrEqual(2);
+  expect(canopy.length).toBeGreaterThanOrEqual(4);
+  expect(matureArt).toBeTruthy();
+  return {
+    root: root!,
+    trunk: trunk!,
+    branches,
+    canopy,
+    matureArt: matureArt!,
+  };
+}
+
+function visibleParts(parts: readonly SVGElement[]): number {
+  return parts.filter((part) => getComputedStyle(part).visibility === 'visible').length;
 }
 
 describe('SemanticGrowthWorldView', () => {
-  it('case 1/3 — one persistent island retains one planted story tree and exactly two inspectable anchors through every semantic event', () => {
+  it('case 1/3 — one persistent island retains one planted trunk/branch/canopy rig and exactly two inspectable anchors through every semantic event', () => {
     const view = render(
       <SemanticGrowthWorldView
         model={persistentModel()}
@@ -167,10 +188,9 @@ describe('SemanticGrowthWorldView', () => {
     );
     const island = view.container.querySelector('[data-semantic-growth-island]');
     const terrain = view.container.querySelector('.coast-fill-group');
-    const tree = view.container.querySelector('.story-tree');
+    const rig = growthRig(view.container);
     expect(island).toBeTruthy();
     expect(terrain).toBeTruthy();
-    expect(tree).toBeTruthy();
 
     const anchorSnapshot = (): [string | null, string | null, string | null][] =>
       [...view.container.querySelectorAll('[data-semantic-growth-anchor]')]
@@ -191,8 +211,17 @@ describe('SemanticGrowthWorldView', () => {
       ).toBe(key);
       expect(view.container.querySelector('[data-semantic-growth-island]')).toBe(island);
       expect(view.container.querySelector('.coast-fill-group')).toBe(terrain);
-      expect(view.container.querySelector('.story-tree')).toBe(tree);
-      expect(tree?.closest('[data-semantic-growth-island]')).toBe(island);
+      expect(view.container.querySelector('g.story-tree')).toBe(rig.root);
+      expect(view.container.querySelector('[data-tree-growth-part="trunk"]')).toBe(rig.trunk);
+      expect([
+        ...view.container.querySelectorAll('[data-tree-growth-part="branch"]'),
+      ]).toEqual(rig.branches);
+      expect([
+        ...view.container.querySelectorAll('[data-tree-growth-part="canopy"]'),
+      ]).toEqual(rig.canopy);
+      expect(view.container.querySelector('[data-tree-mature-art]')).toBe(rig.matureArt);
+      expect(rig.root.closest('[data-semantic-growth-island]')).toBe(island);
+      expect(rig.root.getAttribute('transform')).toBe('translate(50.000 45.000)');
       expect(anchorSnapshot()).toEqual([
         ['terrain', '50', '50'],
         ['story-tree', '50', '45'],
@@ -203,7 +232,7 @@ describe('SemanticGrowthWorldView', () => {
     }
   }, 30_000);
 
-  it('case 2/3 — reveals the island slowly, grows only the planted story tree, and leaves secondary world furniture out of the choreography', () => {
+  it('case 2/3 — visibly progresses trunk, forked branches and canopy clusters before the mature tree handoff', () => {
     installSemanticGrowthCss();
     const view = render(
       <SemanticGrowthWorldView
@@ -213,7 +242,7 @@ describe('SemanticGrowthWorldView', () => {
       />,
     );
     const terrain = view.container.querySelector('.coast-fill-group') as SVGElement;
-    const tree = view.container.querySelector('.story-tree') as SVGElement;
+    const rig = growthRig(view.container);
     const secondary = [
       '.garden-flora',
       '.world-plate',
@@ -223,38 +252,83 @@ describe('SemanticGrowthWorldView', () => {
     ].map((selector) => view.container.querySelector(selector) as SVGElement);
     expect(secondary.every(Boolean)).toBe(true);
 
+    expect(rig.trunk.getAttribute('pathLength')).toBe('1');
+    expect(rig.trunk.getAttribute('d')).toMatch(/^M\s*0(?:\.0+)?\s*0(?:\.0+)?\b/);
+    expect(new Set(rig.branches.map((branch) => branch.getAttribute('d'))).size)
+      .toBe(rig.branches.length);
+    expect(rig.branches.every((branch) => branch.getAttribute('pathLength') === '1')).toBe(true);
+    expect(new Set(rig.canopy.map((cluster) =>
+      `${cluster.getAttribute('cx')}:${cluster.getAttribute('cy')}`,
+    )).size).toBe(rig.canopy.length);
+
+    const topology = [
+      rig.trunk,
+      ...rig.branches,
+      ...rig.canopy,
+    ];
+    const participation: number[] = [];
+
     expect(track(view.container)).toBe('nothing');
-    expect(getComputedStyle(tree).visibility).toBe('hidden');
+    expect(getComputedStyle(terrain).visibility).toBe('hidden');
+    participation.push(visibleParts(topology));
     fireEvent.click(view.getByRole('button', { name: 'Next' }));
     expect(track(view.container)).toBe('island-reveal');
     expect(getComputedStyle(terrain).visibility).toBe('visible');
-    expect(getComputedStyle(tree).visibility).toBe('hidden');
+    participation.push(visibleParts(topology));
     fireEvent.click(view.getByRole('button', { name: 'Next' }));
-    expect(track(view.container)).toBe('story-tree-entrance');
-    expect(getComputedStyle(tree).visibility).toBe('visible');
+    expect(track(view.container)).toBe('trunk-growth');
+    expect(getComputedStyle(rig.trunk).visibility).toBe('visible');
+    expect(visibleParts(rig.branches)).toBe(0);
+    expect(visibleParts(rig.canopy)).toBe(0);
+    expect(getComputedStyle(rig.matureArt).visibility).toBe('hidden');
+    participation.push(visibleParts(topology));
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    expect(track(view.container)).toBe('branch-growth');
+    expect(visibleParts(rig.branches)).toBe(rig.branches.length);
+    expect(visibleParts(rig.canopy)).toBe(0);
+    expect(getComputedStyle(rig.matureArt).visibility).toBe('hidden');
+    participation.push(visibleParts(topology));
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    expect(track(view.container)).toBe('canopy-accumulation');
+    expect(visibleParts(rig.canopy)).toBe(rig.canopy.length);
+    expect(getComputedStyle(rig.matureArt).visibility).toBe('hidden');
+    participation.push(visibleParts(topology));
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    expect(track(view.container)).toBe('mature-tree');
+    expect(getComputedStyle(rig.matureArt).visibility).toBe('visible');
+    participation.push(visibleParts(topology));
+
+    expect(participation.slice(0, 5)).toEqual([
+      0,
+      0,
+      1,
+      1 + rig.branches.length,
+      topology.length,
+    ]);
 
     for (const element of secondary) {
       expect(getComputedStyle(element).visibility).toBe('hidden');
     }
 
     const css = readFileSync(resolve(process.cwd(), 'src', 'semantic-growth.css'), 'utf8');
-    const islandMs = durationFor(css, '.coast-fill-group');
-    const treeMs = durationFor(css, '.story-tree');
-    expect(islandMs).toBeGreaterThanOrEqual(1200);
-    expect(treeMs).toBeGreaterThanOrEqual(700);
-    expect(islandMs).toBeGreaterThan(treeMs);
+    expect(css).toMatch(/\[data-tree-growth-part=['"]trunk['"]\][^{}]*\{[^}]*stroke-dashoffset/is);
+    expect(css).toMatch(/\[data-tree-growth-part=['"]branch['"]\][^{}]*\{[^}]*stroke-dashoffset/is);
+    expect(css).toMatch(/\[data-tree-growth-part=['"]canopy['"]\][^{}]*\{[^}]*(?:clip-path|scale)/is);
+    expect(css).not.toMatch(/@keyframes\s+story-tree-enter/i);
+    expect(css).not.toMatch(/\.story-tree\s+\.pop-motion-inner[^{}]*\{[^}]*animation/is);
+    expect(css).not.toMatch(/image\.story-tree[^{}]*\{[^}]*animation/is);
     expect(css).not.toMatch(/@keyframes\s+(?:wisp|bloom|plate|parcel|flora)/i);
-    expect(css).not.toMatch(/transform\s*:\s*(?:scale|translate)/i);
   }, 30_000);
 
-  it('case 3/3 — Back, Replay and reduced motion preserve the same scene while six meanings fold into island/tree tracks', () => {
+  it('case 3/3 — Back, Replay and reduced motion preserve the same rig while six meanings fold into completed topology', () => {
+    installSemanticGrowthCss();
     const expectedTracks = [
       'nothing',
       'island-reveal',
-      'story-tree-entrance',
-      'story-tree-settled',
-      'story-tree-settled',
-      'story-tree-settled',
+      'trunk-growth',
+      'branch-growth',
+      'canopy-accumulation',
+      'mature-tree',
     ];
 
     const walk = (reducedMotion: boolean) => {
@@ -267,26 +341,43 @@ describe('SemanticGrowthWorldView', () => {
         />,
       );
       const island = view.container.querySelector('[data-semantic-growth-island]');
-      const tree = view.container.querySelector('.story-tree');
+      const rig = growthRig(view.container);
       const observed: string[] = [];
       for (let index = 0; index < ORDERED_KEYS.length; index += 1) {
         observed.push(track(view.container) ?? '');
         expect(view.container.querySelector('[data-semantic-growth-island]')).toBe(island);
-        expect(view.container.querySelector('.story-tree')).toBe(tree);
+        expect(view.container.querySelector('g.story-tree')).toBe(rig.root);
+        expect(view.container.querySelector('[data-tree-growth-part="trunk"]')).toBe(rig.trunk);
+        expect([
+          ...view.container.querySelectorAll('[data-tree-growth-part="branch"]'),
+        ]).toEqual(rig.branches);
+        expect([
+          ...view.container.querySelectorAll('[data-tree-growth-part="canopy"]'),
+        ]).toEqual(rig.canopy);
         if (index < ORDERED_KEYS.length - 1) {
           fireEvent.click(view.getByRole('button', { name: 'Next' }));
         }
       }
-      fireEvent.click(view.getByRole('button', { name: 'Back' }));
-      expect(track(view.container)).toBe('story-tree-settled');
+      const terminalTopology = rig.root.innerHTML;
+      for (let index = ORDERED_KEYS.length - 1; index > 0; index -= 1) {
+        fireEvent.click(view.getByRole('button', { name: 'Back' }));
+      }
+      expect(track(view.container)).toBe('nothing');
       fireEvent.click(view.getByRole('button', { name: 'Replay' }));
       expect(track(view.container)).toBe('nothing');
       expect(view.container.querySelector('[data-semantic-growth-island]')).toBe(island);
-      expect(view.container.querySelector('.story-tree')).toBe(tree);
+      expect(view.container.querySelector('g.story-tree')).toBe(rig.root);
+      expect(view.container.querySelector('[data-tree-growth-part="trunk"]')).toBe(rig.trunk);
+      if (reducedMotion) {
+        expect(getComputedStyle(rig.trunk).animationName).toBe('none');
+        expect(getComputedStyle(rig.branches[0]!).animationName).toBe('none');
+        expect(getComputedStyle(rig.canopy[0]!).animationName).toBe('none');
+      }
       return {
         observed,
         islandHtml: island?.innerHTML,
-        treeTransform: tree?.getAttribute('transform'),
+        treeTransform: rig.root.getAttribute('transform'),
+        terminalTopology,
       };
     };
 
@@ -297,6 +388,7 @@ describe('SemanticGrowthWorldView', () => {
     expect(reduced.observed).toEqual(expectedTracks);
     expect(reduced.islandHtml).toBe(full.islandHtml);
     expect(reduced.treeTransform).toBe(full.treeTransform);
+    expect(reduced.terminalTopology).toBe(full.terminalTopology);
   }, 30_000);
 
   it('loads its co-located stylesheet, exports the player publicly and rejects unordered semantic events', () => {

@@ -862,14 +862,31 @@ describe('SceneView — the sprite art-style render mode', () => {
     return container;
   }
 
+  function expectGrowthRig(root: HTMLElement): void {
+    const tree = root.querySelector('g.story-tree');
+    const trunk = tree?.querySelector('[data-tree-growth-part="trunk"]');
+    const branches = tree?.querySelectorAll('[data-tree-growth-part="branch"]') ?? [];
+    const canopy = tree?.querySelectorAll('[data-tree-growth-part="canopy"]') ?? [];
+    expect(tree).toBeTruthy();
+    expect(trunk?.getAttribute('pathLength')).toBe('1');
+    expect(branches.length).toBeGreaterThanOrEqual(2);
+    expect(canopy.length).toBeGreaterThanOrEqual(4);
+    expect(new Set([...branches].map((branch) => branch.getAttribute('data-tree-growth-index'))).size)
+      .toBe(branches.length);
+    expect(new Set([...canopy].map((cluster) => cluster.getAttribute('data-tree-growth-index'))).size)
+      .toBe(canopy.length);
+  }
+
   it('is fully inert with no sprite sheet — vector renders exactly as before (byte-identical default)', () => {
     const root = renderTree();
     expect(root.querySelector('.story-tree')).toBeTruthy();
     expect(root.querySelector('.story-trunk')).toBeTruthy();
     expect(root.querySelector('image')).toBeNull();
+    expect(root.querySelector('[data-tree-mature-art]')).toBeTruthy();
+    expectGrowthRig(root);
   });
 
-  it('swaps a covered kind:status for an `<image>` FITTED to the vector body it replaces, with NO child recursion', () => {
+  it('keeps one planted tree root and growth rig when mature vector art swaps to a fitted sprite', () => {
     const sheet: SpriteStyleSheet = {
       name: 'test-sheet',
       label: 'Stub A',
@@ -882,7 +899,8 @@ describe('SceneView — the sprite art-style render mode', () => {
     expect(img).toBeTruthy();
     expect(img?.getAttribute('href')).toBe('/art-sheets/test-sheet/tree-healthy.svg');
     // the wrapper's OWN ground-anchor transform rides unchanged.
-    expect(img?.getAttribute('transform')).toBe('translate(10.0 20.0)');
+    expect(root.querySelector('g.story-tree')?.getAttribute('transform')).toBe('translate(10.0 20.0)');
+    expect(img?.getAttribute('transform')).toBeNull();
     // DERIVED sizing (sprite-sizing.ts): the content box is x ∈ [−10,10], y ∈ [−60,3] → height 63,
     // width 63·(40/60) = 42, centred on x 0 (x −21), bottom-aligned at y 3 (y = 3 − 63 = −60). The
     // manifest's 40×60 is an aspect ratio here, NOT the rendered size.
@@ -890,11 +908,12 @@ describe('SceneView — the sprite art-style render mode', () => {
     expect(img?.getAttribute('y')).toBe('-60.0');
     expect(img?.getAttribute('width')).toBe('42.0');
     expect(img?.getAttribute('height')).toBe('63.0');
-    // NO recursion into the wrapper's vector children — the sprite REPLACES the whole object.
-    // The semantic class intentionally survives ON the image for hit-testing; no vector `<g>` survives.
-    expect(root.querySelector('g.story-tree')).toBeNull();
-    expect(img?.classList.contains('story-tree')).toBe(true);
+    // The sprite still replaces mature vector pixels. Only the renderer-owned growth rig survives
+    // beside it under the same stable semantic tree root.
+    expect(root.querySelector('g.story-tree')).toBeTruthy();
+    expect(img?.hasAttribute('data-tree-mature-art')).toBe(true);
     expect(root.querySelector('.story-trunk')).toBeNull();
+    expectGrowthRig(root);
   });
 
   it('the artScale world-setting dial multiplies the fitted size around the same ground line', () => {
