@@ -397,3 +397,11 @@ The interactive session agent: the outer loop that turns an owner's intent into 
   (`gh run view --job=<id> --log-failed`), fix it, and push — never leave a red PR sitting unmerged.
   **First suspect a stale branch:** `git fetch origin && git merge origin/main`, re-gate, push (a
   branch many commits behind `main` is the usual reason a local-green PR is CI-red).
+  **Then `pnpm install` again BEFORE you trust the re-gate.** If that merge brought a new workspace
+  package or dependency, your `node_modules` is now stale and the gate fails as `TS2307` on a package
+  you never touched, `ERR_MODULE_NOT_FOUND`, or `'tsc' is not recognized` — none of which name the
+  real cause. The SessionStart provision hook does NOT cover this: it compares `pnpm-lock.yaml`
+  against `node_modules/.pnpm/lock.yaml` at session START only, so a merge you perform mid-session is
+  invisible to it until the next session. And the install reassures you wrongly — it prints
+  "Already up to date" / "Lockfile is up to date" while still creating the missing links (that line is
+  about *resolution*, not linking), so never read it as "the install changed nothing".
