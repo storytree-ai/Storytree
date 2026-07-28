@@ -537,7 +537,8 @@ describe("warn-list-hygiene: it LOCATES and never adjudicates", () => {
   it("states only what is mechanical — never that the list is too long or needs a ceiling", () => {
     // The equivalent of `mirror-pair-drift`'s "required to agree" guard and `vacuous-proof`'s
     // "falsely covered" guard. Whether a worklist can accumulate depends on its remedy, which is the
-    // adversarial pass's question: `check:agents-sync` drains to zero on one idempotent command.
+    // adversarial pass's question — and the answer is not inferable from the source this rule reads:
+    // `check:agents-sync` looked like a list that could not accumulate and was measured otherwise.
     const detail = findWarnListHygiene([check("check:demo", COUNTED_WARN)])[0]?.detail ?? "";
     for (const adjudication of [
       /too long/i,

@@ -11,7 +11,7 @@ import { ReviewEditor } from './ReviewEditor';
 import { ReviewToggle } from './ReviewToggle';
 
 export function AssetView({ id }: { id: string }): React.JSX.Element {
-  const { assets, refreshAssets } = useAppData();
+  const { assets, assetsStatus, assetsError, refreshAssets } = useAppData();
   const arcDisplay = useArcDisplay(); // the `arc` kind chip shows "epic" by default (ADR-0183 D1)
   const asset = assets.find((a) => a.id === id);
   // "Sources": the unit's `references` grouped by the type of thing each points at, resolved live
@@ -26,6 +26,20 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
   );
 
   if (!asset) {
+    // map-boot-independence: a Library route mounts before `/api/assets` resolves — while it's
+    // still pending, the initial empty `assets` array must never be presented as the honest
+    // "doesn't exist" answer, and a genuine fetch failure must be distinguishable from both.
+    if (assetsStatus === 'loading') {
+      return <p className="muted pad">Loading the Library corpus…</p>;
+    }
+    if (assetsStatus === 'error') {
+      return (
+        <div className="pad error-box">
+          <h2>Trouble reaching the Library corpus</h2>
+          <p className="muted">Couldn’t load the Library corpus — {assetsError}</p>
+        </div>
+      );
+    }
     return (
       <div className="pad error-box">
         <h2>Artifact not found</h2>

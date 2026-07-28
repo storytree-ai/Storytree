@@ -9,19 +9,26 @@ arc: studio-map-responsiveness-arc
 
 accepted (2026-07-25) — decided/directed by the owner in conversation on 2026-07-25. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
-**Corrected in place 2026-07-27 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md), after stages 1 and 2 landed — and again 2026-07-28, after stage 3.**
+**Corrected in place 2026-07-27 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md), after stages 1 and 2 landed — again 2026-07-28, after stage 3 — and a third time 2026-07-28, after stage 4.**
 Every decision below STANDS unchanged — the felt cost is re-computation and re-mounting, cache and
 defer first and cut density last, cached paint is never cached truth, the density budget is
-sequenced here and not designed here. What building stages 1–3 overtook is three CONSEQUENCES: one
-that called the early increments "behaviour-preserving", and two whose prescribed staleness guard
-turns out to be insufficient as literally written. One further bullet is added for a stage boundary
-stage 2 necessarily crossed. All are corrected in the Consequences below — truth-maintenance, not a
-re-decision. Worth naming once, because the next stage will also prescribe guards: the two
-insufficient guards failed the SAME way — each named a key that cannot observe the thing it is meant
-to gate (a server code stamp that arrives only after the paint it would have gated; a directory
-mtime that does not move when file content changes). A guard prescribed at design time should be
-asked what it can actually see before it is written down as the answer. What landed and when is the
-arc's increment log (`storytree arc show studio-map-responsiveness-arc --pg`), never tracked here.
+sequenced here and not designed here. What building stages 1–4 overtook is four CONSEQUENCES: one
+that called the early increments "behaviour-preserving", two whose prescribed staleness guard turns
+out to be insufficient as literally written, and one that prescribed the wrong TREATMENT for a
+payload whose role it had never checked. Two further bullets are added — for a stage boundary stage
+2 necessarily crossed, and for the honesty window stage 4 found that deferral opens. All are
+corrected in the Consequences below — truth-maintenance, not a re-decision.
+
+Worth naming once, because the next stage will also prescribe mechanisms: all three insufficient
+prescriptions failed the SAME way, and stage 4 sharpens what that way is. The first two named a
+guard that could not OBSERVE the thing it was meant to gate — a server code stamp that arrives only
+after the paint it would have gated; a directory mtime that does not move when file content changes.
+The third named a treatment, "defer", for a payload whose actual ROLE was never checked, and which
+turned out to have no reader at all — so the honest move was deletion, not deferral. The common root
+is prescribing a mechanism without first asking what it can SEE or what it is FOR. On this path a
+design-time prescription is best read as a hypothesis to probe against the code before it is written
+down as the answer. What landed and when is the arc's increment log (`storytree arc show
+studio-map-responsiveness-arc --pg`), never tracked here.
 
 ## Context
 
@@ -102,7 +109,33 @@ dance and changes what the owner sees on the map.
   the docs payload cannot sit behind the all-or-nothing boot `Promise.all` that withheld it, so
   `/api/docs` is now fetched in its own effect, independent of the readiness gate. What stage 4
   still owns is the remaining pair — the map mounts only once `/api/assets` (the 561 KB it does not
-  need) and `/api/comments` resolve.
+  need) and `/api/comments` resolve. *(Corrected in place per ADR-0139, after stage 4: calling that
+  a PAIR was the error, because it assumed both payloads wanted the same treatment — "defer" — when
+  only one of them did. `/api/assets` held exactly as prescribed: measured at 574,609 bytes (the
+  "561 KB" above, exactly) with no first-paint reader — its only consumers are the Library routes
+  `AssetView` and `AssetEditor`, plus `TreeView`'s `libraryAssets` memo used at two call sites both
+  inside the Library drawer canvas — so it was deferred. `/api/comments` was not a deferral
+  candidate at all: it was a DEAD fetch. Nothing in `apps/studio/src` ever destructured `comments`
+  from `useAppData()`; its only helper, `openCount`, had zero callers; and the "sidebar badges" the
+  collection was documented as feeding retired with the per-category rail (ADR-0185 decision 6) —
+  `Sidebar.tsx` is now a single static link, while the live comment surfaces own their own data
+  (`InlineCommentThread` fetches per topic, `ReviewBlocks` polls its own feed). So it was REMOVED —
+  the boot fetch, the `AppData` collection, its refresher, and `openCount` — not deferred.
+  Deferring it would have kept a boot round-trip and left a context field that is permanently
+  empty: a field that lies. Its payload also measures 2 bytes (`[]`), but that size is
+  store-dependent and is NOT what decides the treatment — the zero-reader finding is, and that
+  finding does not vary by store. The `/api/comments` route, `api.listComments()`, and every
+  per-topic comment surface are untouched.)*
+- *(Recorded in place per ADR-0139, after stage 4.)* A DEFERRAL opens an honesty window the same way
+  a CACHE does — decision 3's failure mode reaches this path through deferral too, not only through
+  caching, which is not obvious from decision 3 as written. Deferring `/api/assets` created a window
+  in which the shared context carries `assets: []` while the truth is "not loaded yet", and three
+  surfaces would have rendered that as a genuinely empty Library corpus. Stage 4 closed it with an
+  explicit `assetsStatus`/`assetsError` on the context, and one property of that shape is
+  load-bearing for any later stage that defers a payload: the status must be REQUIRED, never
+  optional. Optionality was tried and is a trap — an absent status reads as `undefined`, which falls
+  through every `=== 'loading'` / `=== 'error'` check straight into the "genuinely empty" branch,
+  silently reintroducing the dishonesty for any consumer constructed without it.
 - Server-side memoization of the `stories/` and `docs/` walks means an edit on disk is no longer
   guaranteed to be visible on the next request — and the dev loop is where that will bite first.
   *(Corrected in place per ADR-0139: that premise stands, but the guard this bullet prescribed —
@@ -143,3 +176,10 @@ dance and changes what the owner sees on the map.
   structured-cloned); and `sendJsonValidated`, the opt-in `no-cache` + `ETag` sender — opt-in
   because `sendJson` is the one JSON sender for every route, and `no-cache` rather than `max-age`
   so a client always asks (decision 3).
+- `apps/studio/src/App.tsx` (the boot composition) and `apps/studio/src/lib/appData.ts` — what stage
+  4 built: `/api/assets` and `/api/docs` now gated only on membership resolving, never on each other
+  and never on the map, which issues its own `/api/tree` fetch as soon as `TreeView` mounts; the
+  REQUIRED `assetsStatus`/`assetsError` on the shared context that keep "not yet loaded"
+  distinguishable from "resolved and genuinely empty"; and the removal of the dead `/api/comments`
+  boot fetch together with its collection, its refresher, and `openCount` — the route and the
+  per-topic comment surfaces deliberately untouched.

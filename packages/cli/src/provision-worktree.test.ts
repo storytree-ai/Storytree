@@ -20,6 +20,7 @@ import { test } from "node:test";
 
 import {
   needsProvision,
+  lockfileAdvanced,
   provisionWorktree,
   exitCode,
   unprovisionedContext,
@@ -28,15 +29,30 @@ import {
 
 const SCRIPT = fileURLToPath(new URL("../provision-worktree.mjs", import.meta.url));
 
-/** A throwaway worktree root. `provisioned` seeds pnpm's install-complete marker (.modules.yaml). */
-function makeTmpRoot(provisioned: boolean): string {
+/**
+ * A throwaway worktree root. `provisioned` seeds pnpm's install-complete marker (.modules.yaml);
+ * `lock` seeds the lockfile PAIR this build reads — `wanted` is the tracked `pnpm-lock.yaml` and
+ * `current` is pnpm's `node_modules/.pnpm/lock.yaml` copy of whatever the last install ran against.
+ * Real files on a real disk: `lockfileAdvanced` is deliberately NOT injectable, so the tests drive the
+ * same code the hook runs rather than a stub of it.
+ */
+function makeTmpRoot(provisioned: boolean, lock?: { wanted?: string; current?: string }): string {
   const dir = mkdtempSync(join(tmpdir(), "st-provision-"));
   if (provisioned) {
     mkdirSync(join(dir, "node_modules"), { recursive: true });
     writeFileSync(join(dir, "node_modules", ".modules.yaml"), "hoistPattern:\n  - '*'\n");
   }
+  if (lock?.wanted !== undefined) writeFileSync(join(dir, "pnpm-lock.yaml"), lock.wanted);
+  if (lock?.current !== undefined) {
+    mkdirSync(join(dir, "node_modules", ".pnpm"), { recursive: true });
+    writeFileSync(join(dir, "node_modules", ".pnpm", "lock.yaml"), lock.current);
+  }
   return dir;
 }
+
+/** Two lockfile bodies that differ the way a real advance does: a new importer / dependency entry. */
+const LOCK_OLD = "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      zod: 3.23.8\n";
+const LOCK_NEW = `${LOCK_OLD}  packages/new-organism:\n    dependencies:\n      zod: 3.23.8\n`;
 
 test("needsProvision: an installed worktree is skipped, a fresh one is flagged", () => {
   const installed = makeTmpRoot(true);
@@ -47,6 +63,113 @@ test("needsProvision: an installed worktree is skipped, a fresh one is flagged",
   } finally {
     rmSync(installed, { recursive: true, force: true });
     rmSync(fresh, { recursive: true, force: true });
+  }
+});
+
+// ── the lockfile-advance detector (the stale-worktree half) ──────────────────────────────────────
+// REGRESSION: a worktree provisioned once and then reused went stale as `main` gained packages, and
+// the old presence-only marker no-op'd right past it — so the session met a `TS2307` /
+// `ERR_MODULE_NOT_FOUND` naming a dependency it never touched. These drive the REAL filesystem.
+
+test("lockfileAdvanced: an install against an OLDER lockfile than the checkout now has is stale", () => {
+  const root = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_OLD });
+  try {
+    assert.equal(lockfileAdvanced(root), true, "wanted != current ⇒ the lockfile advanced under it");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("lockfileAdvanced: a worktree installed against the current lockfile is NOT stale", () => {
+  const root = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_NEW });
+  try {
+    assert.equal(lockfileAdvanced(root), false, "identical lockfiles ⇒ nothing to do");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("lockfileAdvanced: a CRLF-only skew is not an advance (a Windows checkout must not loop)", () => {
+  const root = makeTmpRoot(true, { wanted: LOCK_NEW.replace(/\n/g, "\r\n"), current: LOCK_NEW });
+  try {
+    assert.equal(lockfileAdvanced(root), false, "line endings alone never mean the deps changed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("lockfileAdvanced: FAILS OPEN when either lockfile is missing (absence is not staleness)", () => {
+  const noCurrent = makeTmpRoot(true, { wanted: LOCK_NEW });
+  const noWanted = makeTmpRoot(true, { current: LOCK_NEW });
+  const neither = makeTmpRoot(true);
+  try {
+    assert.equal(lockfileAdvanced(noCurrent), false, "no pnpm snapshot ⇒ nothing to compare against");
+    assert.equal(lockfileAdvanced(noWanted), false, "no lockfile ⇒ not a pnpm root");
+    assert.equal(lockfileAdvanced(neither), false, "neither present ⇒ never reinstall on a guess");
+  } finally {
+    for (const d of [noCurrent, noWanted, neither]) rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test("provisionWorktree: a STALE worktree reinstalls instead of no-opping, and says so", () => {
+  const root = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_OLD });
+  try {
+    const calls: string[] = [];
+    const logs: string[] = [];
+    const res = provisionWorktree({
+      root,
+      log: (m) => logs.push(m),
+      install: (r) => {
+        calls.push(r);
+        return { ok: true, code: 0 };
+      },
+    });
+    assert.deepEqual(calls, [root], "the stale worktree is reinstalled at its own root");
+    assert.deepEqual(res, { provisioned: true, ok: true, code: 0, reason: "refreshed" });
+    assert.match(logs.join("\n"), /STALE/, "the log names the condition, not a generic 'fresh worktree'");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// COUNTERWEIGHT — this must stay green, and it is what a vacuous "just always install" fix would
+// break. It PASSED before the fix (the presence marker already no-op'd here), so it can only fail by
+// over-reach, never by the regression above going green.
+test("provisionWorktree: a provisioned worktree on the CURRENT lockfile is still a no-op", () => {
+  const root = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_NEW });
+  try {
+    let called = false;
+    const res = provisionWorktree({
+      root,
+      install: () => {
+        called = true;
+        return { ok: true, code: 0 };
+      },
+    });
+    assert.equal(called, false, "an up-to-date worktree must still pay nothing at SessionStart");
+    assert.equal(res.reason, "already-provisioned");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("provisionWorktree: a failed REFRESH retries, then reports refresh-failed (not install-failed)", () => {
+  const root = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_OLD });
+  try {
+    let calls = 0;
+    const res = provisionWorktree({
+      root,
+      install: () => {
+        calls += 1;
+        return { ok: false, code: 5 };
+      },
+    });
+    assert.equal(calls, 2, "the stale path retries from the warm store exactly like the fresh one");
+    assert.equal(res.ok, false);
+    assert.equal(res.code, 5);
+    assert.equal(res.reason, "refresh-failed", "the reason distinguishes stale from never-provisioned");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -155,6 +278,23 @@ test("unprovisionedContext: a valid SessionStart additionalContext payload namin
   assert.ok(ctx.includes(root), "names the worktree root so install runs in the right place");
 });
 
+test("unprovisionedContext: the STALE wording names the real cause, not the never-provisioned one", () => {
+  const root = "/tmp/some-worktree-root";
+  const ctx: string = JSON.parse(unprovisionedContext(root, true)).hookSpecificOutput.additionalContext;
+  assert.match(ctx, /STALE/, "names the condition outright");
+  assert.match(ctx, /older `pnpm-lock\.yaml`/i, "says WHY: installed against an older lockfile");
+  assert.match(ctx, /pnpm install/, "still gives the one-step fix");
+  assert.ok(ctx.includes(root), "names the worktree root");
+  // The whole point of the distinction: the misleading symptoms are named up front, so the agent does
+  // not spend the session debugging the dependency the error blamed.
+  for (const symptom of ["ERR_MODULE_NOT_FOUND", "TS2307", "tsc is not recognized"]) {
+    assert.ok(ctx.includes(symptom), `warns about the opaque symptom ${symptom}`);
+  }
+  const freshCtx: string = JSON.parse(unprovisionedContext(root)).hookSpecificOutput.additionalContext;
+  assert.doesNotMatch(freshCtx, /STALE/, "the fresh-worktree wording is unchanged in kind");
+  assert.notEqual(ctx, freshCtx, "the two conditions do not share one generic message");
+});
+
 test("hookStdout: emits the signal only on a hook-mode failure, silent otherwise", () => {
   const root = "/tmp/wt";
   assert.equal(hookStdout({ ok: true }, root, true), "", "healthy provision ⇒ no context noise");
@@ -162,6 +302,20 @@ test("hookStdout: emits the signal only on a hook-mode failure, silent otherwise
   const out = hookStdout({ ok: false }, root, true);
   assert.notEqual(out, "", "hook-mode failure ⇒ emits the agent signal");
   assert.equal(out, unprovisionedContext(root), "the emitted payload IS the unprovisioned context");
+});
+
+test("hookStdout: a refresh-failed result selects the stale wording", () => {
+  const root = "/tmp/wt";
+  assert.equal(
+    hookStdout({ ok: false, reason: "refresh-failed" }, root, true),
+    unprovisionedContext(root, true),
+    "the stale failure carries the stale message",
+  );
+  assert.equal(
+    hookStdout({ ok: false, reason: "install-failed" }, root, true),
+    unprovisionedContext(root, false),
+    "the fresh failure keeps the never-provisioned message",
+  );
 });
 
 test("exitCode: --hook swallows failure (never breaks the session); standalone propagates it", () => {
@@ -176,6 +330,22 @@ test("entry: `node provision-worktree.mjs --root <provisioned>` fast-paths to ex
     const res = spawnSync(process.execPath, [SCRIPT, "--root", root], { encoding: "utf8" });
     assert.equal(res.status, 0, `a provisioned root must exit 0; stderr: ${res.stderr}`);
     assert.doesNotMatch(res.stderr ?? "", /running pnpm install/, "must not attempt install on a provisioned root");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// End-to-end through the REAL entry (no injected installer): a worktree carrying matching lockfiles —
+// the shape of every healthy reused worktree — must still take the silent no-op path. This is the
+// spawn-level counterweight: it is what goes red if the new check ever misreads a current worktree as
+// stale and starts running a real `pnpm install` at every SessionStart.
+test("entry: a provisioned root on the CURRENT lockfile still fast-paths, silently", () => {
+  const root = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_NEW });
+  try {
+    const res = spawnSync(process.execPath, [SCRIPT, "--root", root, "--hook"], { encoding: "utf8" });
+    assert.equal(res.status, 0, `a current root must exit 0; stderr: ${res.stderr}`);
+    assert.doesNotMatch(res.stderr ?? "", /running pnpm install/, "no install on an up-to-date worktree");
+    assert.equal(res.stdout ?? "", "", "a healthy worktree emits NO agent context");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

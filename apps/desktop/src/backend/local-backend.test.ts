@@ -361,6 +361,55 @@ test("local-backend: GET /api/activity is advisory for claims — { claims: null
   });
 });
 
+// GET /api/activity ALSO surfaces claim DEPARTURES (ADR-0200 D7 wisp-out legibility) — the third
+// layer on the SAME wire the studio serves (`{builds, claims, departures}`). Without it a released
+// claim vanishes from the desktop map indistinguishably from a lost one, which is the exact friction
+// the departure fade exists to close.
+test("local-backend: GET /api/activity surfaces claim departures { builds, claims, departures } from the seam", async () => {
+  const departures = [
+    { unitId: "desktop", sessionId: "s-departed", grade: "work", ageMs: 48_000, at: TS },
+  ];
+  const backend = overlayBackend({ inFlightDepartures: async () => departures });
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend,
+    store: "pg",
+  });
+
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/activity`);
+    assert.equal(res.status, 200, "activity must be 200");
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.deepEqual(
+      body["departures"],
+      departures,
+      "{ departures } is the backend's inFlightDepartures result, served verbatim",
+    );
+    assert.equal(body["builds"], null, "builds is independently advisory-null here");
+    assert.equal(body["claims"], null, "claims is independently advisory-null here");
+  });
+});
+
+// Departures are advisory exactly like claims: a narrow seam that omits inFlightDepartures answers
+// { departures: null } — a courtesy read is silently absent, never a 500 and never a missing key.
+test("local-backend: GET /api/activity is advisory for departures — { departures: null } when the seam omits it", async () => {
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend: stubBackend(), // no inFlightDepartures → departures: null
+    store: "pg",
+  });
+
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/activity`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.ok("departures" in body, "the key is always present — absence is null, never a missing key");
+    assert.equal(body["departures"], null, "{ departures: null } is the honest advisory-absent answer");
+  });
+});
+
 // PRESENCE IS RETIRED (ADR-0200 D7): /api/presence is no longer a route — it falls through to the
 // 404 'unknown endpoint', and the tree payload no longer weaves a `sessions` block. The claim
 // ledger (/api/claims below) is the one coordination + observability surface.

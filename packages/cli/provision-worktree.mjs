@@ -26,7 +26,16 @@
 //     rediscovery cost is gone: either it self-heals, or the agent is told before its first tool-call.
 //     (Residual: a hard SessionStart TIMEOUT kills this process before it can emit — that case still
 //     self-heals on the NEXT session, whose retry runs against a now-warm store.)
-import { existsSync, realpathSync } from "node:fs";
+//   - CURRENT, not merely PRESENT (the second friction this closes): the original marker asked only
+//     "did an install ever COMPLETE here?" (`node_modules/.modules.yaml` exists), so a worktree
+//     provisioned once and then reused stayed a no-op forever while `main` moved under it. When a new
+//     workspace package or third-party dependency lands and the session merges `main` in, node_modules
+//     is now stale against the lockfile it is supposed to satisfy — and the failure surfaces as an
+//     OPAQUE error naming the wrong culprit (`TS2307` on a dependency this session never touched,
+//     `ERR_MODULE_NOT_FOUND`, `tsc is not recognized`). `lockfileAdvanced` closes that: the install is
+//     re-run when the lockfile has moved past the one node_modules was built from. At one or two live
+//     worktrees this was a rare annoyance; at the ~49 registered here it is routine.
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -51,6 +60,44 @@ export function thisWorktreeRoot() {
  */
 export function needsProvision(root) {
   return !existsSync(join(root, "node_modules", ".modules.yaml"));
+}
+
+/**
+ * pnpm keeps TWO lockfiles: the WANTED one (`pnpm-lock.yaml`, tracked by git — what this checkout now
+ * says node_modules should contain) and the CURRENT one (`node_modules/.pnpm/lock.yaml`, pnpm's own
+ * byte copy of the lockfile the last COMPLETED install actually ran against). They are the same file
+ * on a worktree installed against today's lockfile, and they DIVERGE exactly when the lockfile has
+ * advanced underneath a provisioned worktree — the friction this closes.
+ *
+ * Verified empirically before it was relied on (both halves matter):
+ *   - STABLE: across all 39 provisioned worktrees registered on the dev box, wanted == current, byte
+ *     for byte. So this does NOT fire spuriously. On Windows that holds because `.gitattributes` pins
+ *     `* text=auto eol=lf`, so the checked-out lockfile is LF even under `core.autocrlf=true` — it is a
+ *     repo guarantee, not luck, and the CRLF fold below is the insurance for if that ever changes. The
+ *     fold cannot mask a real advance, which alters content and not merely newlines, and it costs
+ *     nothing on the fast path (it runs only once the bytes are already known to differ).
+ *   - CONVERGENT: planting an older lockfile as the current one and running `pnpm install` rewrote it
+ *     back to match in ~2 s. A reinstall therefore CLEARS the condition that triggered it — this can
+ *     never latch into reinstall-every-session, and a false positive costs about two seconds.
+ *
+ * FAILS OPEN by construction: a missing/unreadable file on either side returns false (no reinstall).
+ * Absence is not evidence of staleness, and an unreadable marker must not be able to spin the hook.
+ */
+export function lockfileAdvanced(root) {
+  const wanted = join(root, "pnpm-lock.yaml");
+  const current = join(root, "node_modules", ".pnpm", "lock.yaml");
+  if (!existsSync(wanted) || !existsSync(current)) return false;
+  try {
+    const a = readFileSync(wanted);
+    const b = readFileSync(current);
+    // Fast path: identical bytes (the overwhelmingly common case) — no string allocation at all.
+    if (a.equals(b)) return false;
+    // Differ: fold CRLF before calling it an advance, so a line-ending skew alone is never "stale".
+    const fold = (/** @type {Buffer} */ buf) => buf.toString("utf8").replace(/\r\n/g, "\n");
+    return fold(a) !== fold(b);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -84,28 +131,42 @@ export function runPnpmInstall(root) {
 }
 
 /**
- * Provision a worktree unless it already is. Idempotent: a provisioned root is a no-op fast path
- * (`install` is never called). A failed attempt RETRIES `retries` more times (default 1) — a truncated
- * install leaves `node_modules/.pnpm` warm, so the retry links fast — before giving up. `install` is
- * injectable so the contract is proven without spawning a real pnpm. Returns a result object; the entry
- * runner decides how to exit AND whether to signal the agent (see `unprovisionedContext`).
+ * Provision a worktree unless it already is AND is still current. Two conditions call for an install:
+ * the worktree is FRESH (no completed install) or STALE (the lockfile advanced past the node_modules
+ * that was built from it). Anything else is a no-op fast path (`install` is never called), which is what
+ * keeps this safe to run at EVERY SessionStart. A failed attempt RETRIES `retries` more times (default
+ * 1) — a truncated install leaves `node_modules/.pnpm` warm, so the retry links fast — before giving up.
+ * `install` is injectable so the contract is proven without spawning a real pnpm. Returns a result
+ * object; the entry runner decides how to exit AND whether to signal the agent (`unprovisionedContext`).
+ *
+ * The two paths differ only in their `reason` (and the prose they log/emit), never in what they run: a
+ * stale worktree needs exactly the same `pnpm install` a fresh one does. Keeping the reason distinct is
+ * what lets the agent-visible signal name the ACTUAL condition instead of the generic one — the whole
+ * point of this fix is that the failure used to surface under the wrong culprit's name.
  *
  * @param {{ root?: string, install?: (root: string) => { ok: boolean, code: number }, log?: (msg: string) => void, retries?: number }} [opts]
  */
 export function provisionWorktree(opts = {}) {
   const { install = runPnpmInstall, log = () => {}, retries = 1 } = opts;
   const target = opts.root ?? thisWorktreeRoot();
-  if (!needsProvision(target)) {
+  const fresh = needsProvision(target);
+  // Only ask the staleness question when an install DID complete — on a fresh worktree there is no
+  // installed state for the lockfile to have advanced past, and `fresh` already forces the install.
+  const stale = !fresh && lockfileAdvanced(target);
+  if (!fresh && !stale) {
     return { provisioned: false, ok: true, code: 0, reason: "already-provisioned" };
   }
+  const condition = fresh
+    ? `fresh worktree at ${target}`
+    : `worktree at ${target} is STALE — pnpm-lock.yaml has advanced past the node_modules built from it`;
   const attempts = Math.max(1, retries + 1);
   let last = { ok: false, code: 1 };
   for (let i = 1; i <= attempts; i++) {
-    log(`[provision-worktree] fresh worktree at ${target} — running pnpm install (attempt ${i}/${attempts})…`);
+    log(`[provision-worktree] ${condition} — running pnpm install (attempt ${i}/${attempts})…`);
     last = install(target);
     if (last.ok) {
-      log("[provision-worktree] pnpm install complete — worktree ready.");
-      return { provisioned: true, ok: true, code: 0, reason: "installed" };
+      log(`[provision-worktree] pnpm install complete — worktree ${fresh ? "ready" : "refreshed"}.`);
+      return { provisioned: true, ok: true, code: 0, reason: fresh ? "installed" : "refreshed" };
     }
     if (i < attempts) {
       log(`[provision-worktree] attempt ${i} failed (exit ${last.code}); retrying from the warm store…`);
@@ -115,25 +176,44 @@ export function provisionWorktree(opts = {}) {
     `[provision-worktree] pnpm install FAILED after ${attempts} attempt(s) (exit ${last.code}); ` +
       `signalling the agent to run 'pnpm install' here.`,
   );
-  return { provisioned: true, ok: false, code: last.code || 1, reason: "install-failed" };
+  return {
+    provisioned: true,
+    ok: false,
+    code: last.code || 1,
+    reason: fresh ? "install-failed" : "refresh-failed",
+  };
 }
 
 /**
  * The `SessionStart` `additionalContext` payload that tells the AGENT — the one hook output channel it
- * reads (stdout on exit 0; stderr is invisible to it) — that this worktree is under-provisioned and how
- * to fix it in one step. Emitted by the `--hook` entry ONLY when provisioning ultimately failed, so a
- * healthy fresh-worktree session stays silent (no context noise). Pure/string-returning so it is unit
- * tested without spawning pnpm or a session.
+ * reads (stdout on exit 0; stderr is invisible to it) — that this worktree's dependencies are not usable
+ * and how to fix it in one step. Emitted by the `--hook` entry ONLY when the install ultimately failed,
+ * so a healthy session stays silent (no context noise). Pure/string-returning so it is unit tested
+ * without spawning pnpm or a session.
+ *
+ * `stale` picks which CONDITION the message names, and that distinction is the point rather than a
+ * nicety: the two failures present identically at the tool call (a module that will not resolve) but
+ * have different causes, and the stale one is the actively misleading half — it blames a dependency the
+ * session never touched. Naming the cause up front is what stops the agent debugging the wrong file.
  *
  * @param {string} root Absolute worktree root, named in the message so the agent runs install in the right place.
+ * @param {boolean} [stale] True when node_modules is present but built from an older lockfile.
  */
-export function unprovisionedContext(root) {
-  const text =
-    `This git worktree is NOT fully provisioned — its automatic \`pnpm install\` (the SessionStart ` +
-    `provision hook) did not complete. BEFORE any \`pnpm storytree …\`, \`tsx\`, \`pnpm gate\`, \`pnpm -r\`, ` +
-    `or Studio command, run \`pnpm install\` in the worktree root (${root}). It is idempotent and links ` +
-    `fast from the warm pnpm store. (This heads-up replaces discovering it later as a cryptic ` +
-    `ERR_MODULE_NOT_FOUND.)`;
+export function unprovisionedContext(root, stale = false) {
+  const symptoms =
+    `(Skipping it surfaces later as a cryptic \`ERR_MODULE_NOT_FOUND\`, a \`TS2307\` on a package this ` +
+    `session never touched, or \`tsc is not recognized\` — errors that name the wrong culprit.)`;
+  const text = stale
+    ? `This git worktree's node_modules is STALE: it was installed against an OLDER \`pnpm-lock.yaml\` ` +
+      `than the one now checked out here — a new workspace package or third-party dependency landed on ` +
+      `\`main\` since this worktree was provisioned — and the automatic refresh (the SessionStart ` +
+      `provision hook) did not complete. BEFORE any \`pnpm storytree …\`, \`tsx\`, \`pnpm gate\`, ` +
+      `\`pnpm -r\`, or Studio command, run \`pnpm install\` in the worktree root (${root}). It is ` +
+      `idempotent and links fast from the warm pnpm store. ${symptoms}`
+    : `This git worktree is NOT fully provisioned — its automatic \`pnpm install\` (the SessionStart ` +
+      `provision hook) did not complete. BEFORE any \`pnpm storytree …\`, \`tsx\`, \`pnpm gate\`, ` +
+      `\`pnpm -r\`, or Studio command, run \`pnpm install\` in the worktree root (${root}). It is ` +
+      `idempotent and links fast from the warm pnpm store. ${symptoms}`;
   return JSON.stringify({
     hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: text },
   });
@@ -141,15 +221,17 @@ export function unprovisionedContext(root) {
 
 /**
  * What the `--hook` entry writes to STDOUT for a provision result: the agent-visible additionalContext
- * when (and only when) provisioning FAILED in hook mode, else "" — a healthy fresh-worktree session and
- * every non-hook invocation stay silent. Pure, so the emit gating is unit tested without a session.
+ * when (and only when) the install FAILED in hook mode, else "" — a healthy session and every non-hook
+ * invocation stay silent. The result's own `reason` selects which condition the message names, so the
+ * caller never has to re-derive staleness. Pure, so the emit gating is unit tested without a session.
  *
- * @param {{ ok: boolean }} result
+ * @param {{ ok: boolean, reason?: string }} result
  * @param {string} root
  * @param {boolean} hookMode
  */
 export function hookStdout(result, root, hookMode) {
-  return hookMode && !result.ok ? unprovisionedContext(root) : "";
+  if (!hookMode || result.ok) return "";
+  return unprovisionedContext(root, result.reason === "refresh-failed");
 }
 
 /**

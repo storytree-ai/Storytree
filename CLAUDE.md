@@ -131,18 +131,26 @@ file conflicts).
   the inverse of the live-canonical default above. After editing an agent in the seed, reconcile the
   live store: `pnpm db:up && pnpm storytree library sync-agents --pg` (upserts every seed agent,
   deletes any live agent absent from the seed; agent-kind only, idempotent) — else `storytree agents
-  --pg` and the studio go stale. Don't hand-reconcile with a throwaway script. `pnpm gate` ends with a
-  best-effort `check:agents-sync` that **WARNs** (never blocks) if the live tier drifted while the DB
-  is up — your nudge to run the sync; it SKIPs silently offline (CI is DB-free, so it's local-only).
+  --pg` and the studio go stale. Don't hand-reconcile with a throwaway script. `pnpm gate` ends with
+  `check:agents-sync`, which WARNs if the live tier drifted while the DB is up and — since 2026-07-28 —
+  **BLOCKS the local gate** on any drift at all (a zero drain ceiling, ADR-0252 D3; the measured reason
+  is in `packages/cli/src/sync-drain.ts`). The remedy is the sync command above, never a raised ceiling.
+  It still SKIPs silently offline, with no creds, or on an unreadable seed (CI is DB-free, so it's
+  local-only), and it never blocks when the seed itself holds no agents — there the sync would delete
+  the live tier.
 - **GRADUATED A NON-AGENT ARTIFACT INTO THE SEED? migrate it live (ADR-0103):** the ADR-0095
   graduation flow writes a new principle/definition into `knowledge.json` (so the offline agent
   renderer picks it up), which leaves it **seed-only** — invisible to `--pg`, and a `> MISSING REF`
   for any agent that cites it against the live store / studio. Carry it across: `pnpm db:up && pnpm
   storytree library sync-corpus --pg`. This is the INVERSE of `sync-agents`: **migrate-only** — it
   upserts only seed non-agent artifacts ABSENT from live, and (unlike `load-corpus --force`) never
-  overwrites a live edit or deletes a live-only artifact; idempotent. `pnpm gate` ends with a
-  best-effort `check:corpus-sync` that **WARNs** (never blocks, local-only) if a seed artifact is
-  missing from live — your nudge to run it.
+  overwrites a live edit or deletes a live-only artifact; idempotent. `pnpm gate` ends with
+  `check:corpus-sync`, which WARNs if a seed artifact is missing from live and — since 2026-07-28 —
+  **BLOCKS the local gate** on any such gap (a zero drain ceiling, ADR-0252 D3; the measured reason is
+  in `packages/cli/src/sync-drain.ts` — this list had reached 6 while exiting 0, and five of those
+  artifacts never migrated). Graduating into the seed and not syncing now fails your gate; the remedy is
+  the one idempotent command above. Still local-only: it SKIPs offline, with no creds, or on an
+  unreadable seed.
 - **EXPLORE (read, offline OK):** `storytree library` (dashboard) · `… artifact <id>` ·
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023). Read commands run offline (in-memory seed); no DB needed.
@@ -196,13 +204,19 @@ file conflicts).
   from your environment; PROBE it** (see the Cloud SQL bullet's probe-don't-assume rule). Full detail
   and the settled fork: ADR-0250 / ADR-0089; the closing owner answers: ADR-0254.
 - Install: `corepack enable pnpm` · `pnpm install`
-- **Fresh worktree?** A new git worktree has NO `node_modules` of its own — but a `SessionStart` hook
-  now **auto-provisions** it: `node packages/cli/provision-worktree.mjs --hook` runs `pnpm install` once
-  on a fresh worktree and no-ops on an already-installed one (ADR-0162 inc 3), so you normally find it
-  ready. If that first attempt fails it **retries once from the warm store**, and if the worktree is
-  *still* unprovisioned it **injects an explicit "run `pnpm install` here" heads-up into your context**
-  (a `SessionStart` signal) — so an under-provisioned worktree is announced up front, not rediscovered
-  mid-work as a cryptic `ERR_MODULE_NOT_FOUND`. If you see that heads-up (or a hard SessionStart timeout
+- **Fresh worktree — or a REUSED one that main moved under?** A new git worktree has NO `node_modules`
+  of its own — but a `SessionStart` hook now **auto-provisions** it:
+  `node packages/cli/provision-worktree.mjs --hook` runs `pnpm install` when the worktree is either
+  **fresh** (no completed install) or **stale** — `pnpm-lock.yaml` has advanced past the node_modules
+  built from it, which is what happens when a new workspace package or dependency lands on `main` and
+  you merge it in (ADR-0162 inc 3). It no-ops on an up-to-date worktree, so you normally find it ready.
+  **Don't hand-diagnose the stale case**: it used to surface mid-work as a `TS2307` /
+  `ERR_MODULE_NOT_FOUND` / `tsc is not recognized` naming a dependency you never touched — the hook now
+  refreshes it before your first tool-call (~2 s from the warm store).
+  If that first attempt fails it **retries once from the warm store**, and if the worktree is
+  *still* unusable it **injects an explicit "run `pnpm install` here" heads-up into your context**
+  (a `SessionStart` signal, naming which of the two conditions it hit) — so a broken worktree is
+  announced up front, not rediscovered mid-work. If you see that heads-up (or a hard SessionStart timeout
   swallowed the whole thing), run `pnpm install` here first (the gate / `pnpm storytree …` / `tsx` all
   fail without it). Either way, invoke the CLI as **`pnpm storytree …`** (not a
   bare `node --import tsx packages/cli/src/main.ts` — tsx resolves only through the workspace, so the
@@ -336,7 +350,7 @@ cross-PR CI check fail any duplicate before it sits on `main`.
 
 The interactive session agent: the outer loop that turns an owner's intent into landed work — orient, build one unit to green, run the merge ceremony, escalate the rest.
 
-**Role.** orchestrator is the human-facing session loop (ADR-0030: the human owns the outer loop) that turns an owner's intent into landed work. It orients on the three surfaces — the story tree (the work), the notice board (the sessions), the library (the knowledge) — searched just-in-time; decides the unit; decomposes it into provable units — or, when the unit is an arc increment with a ready plan (ADR-0183), CONSUMES the plan instead of re-decomposing: freshness-checked mechanically first, drift routed back to the planner, lanes taken via the existing claim machinery — and routes them through the prove-it-gate — the inner loop is one tool, not the whole job (asset:orchestrate-route-supplement) — supplementing the non-leaf glue with its own subagents and delegating the red→green mechanics to the leaf and the spine; keeps the working tree honest; and BEFORE each merge ceremony runs a librarian-curator pass — curate AND graduate (ADR-0095 D7, generalising ADR-0067's after-green spawn; the sequence is green unit → librarian pass → merge): keep the DECISION LOG honest — every accepted ADR true in full: correct overtaken content in place, supersede-and-replace only on a genuine re-decision, rehome durable guidance out of ADR bodies (ADR-0139) — AND graduate durable agent-memory into the Library (extract the durable essence into 'able' artifacts, derive definitions / principles for agent guidance, then delete the graduated memory — ADR-0095). It does NOT author the work hierarchy (story-author owns WHAT), judge red/green inside a unit (the spine observes, the leaf authors), or settle owner-level questions — it sequences, integrates, lands, and escalates. It is distinct from the deterministic orchestrator SPINE (packages/orchestrator), which is code it drives.
+**Role.** orchestrator is the human-facing session loop (ADR-0030: the human owns the outer loop) that turns an owner's intent into landed work. It orients on the three surfaces — the story tree (the work), the notice board (the sessions), the library (the knowledge) — searched just-in-time; decides the unit; decomposes it into provable units — or, when the unit is an arc increment with a ready plan (ADR-0183), CONSUMES the plan instead of re-decomposing: freshness-checked mechanically first, drift routed back to the planner, lanes taken via the existing claim machinery — and routes them through the prove-it-gate — the inner loop is one tool, not the whole job (asset:orchestrate-route-supplement) — supplementing the non-leaf glue with its own subagents and delegating the red→green mechanics to the leaf and the spine; keeps the working tree honest; and BEFORE each merge ceremony runs a librarian-curator pass — curate AND graduate (ADR-0095 D7, generalising ADR-0067's after-green spawn; the sequence is green unit → librarian pass → open the PR → CI merges, so the pass must finish before `gh pr create`): keep the DECISION LOG honest — every accepted ADR true in full: correct overtaken content in place, supersede-and-replace only on a genuine re-decision, rehome durable guidance out of ADR bodies (ADR-0139) — AND graduate durable agent-memory into the Library (extract the durable essence into 'able' artifacts, derive definitions / principles for agent guidance, then delete the graduated memory — ADR-0095). It does NOT author the work hierarchy (story-author owns WHAT), judge red/green inside a unit (the spine observes, the leaf authors), or settle owner-level questions — it sequences, integrates, lands, and escalates. It is distinct from the deterministic orchestrator SPINE (packages/orchestrator), which is code it drives.
 
 **Outcome.** Every unit it takes on reaches one of two honest end-states: LANDED on main — green through `pnpm gate`, committed, pushed, and merged by CI via a non-draft PR — or explicitly HELD / ESCALATED with the reason stated. Never: a finished green unit parked in draft, red or WIP work on a non-draft PR, a manual `gh pr merge`, or a silent skip of the gate.
 
@@ -346,7 +360,7 @@ The interactive session agent: the outer loop that turns an owner's intent into 
 2. Build to green — **route** the provable units to the inner loop chained in dependency order (`story build --real`, or sequenced `node build --real` across merges; cross-package work sequenced via `depends_on`, never atomic), and **supplement** the non-leaf glue (DB/SQL, deps, visual/UI, config/wiring) with your own subagents — yourself only as a last resort; when the inner loop genuinely can't prove a piece, raise it as a capability gap rather than force-fitting or skipping it. Keep the working tree clean; iterate edit → gate.
 3. Gate — `pnpm gate` must pass with nothing red or WIP in the diff.
 4. Session retro (ADR-0168 D1) — review the session for friction — *what fought you, at what cost, with what evidence* — and file **at most 3** distilled `friction` items via `storytree friction new` (distilled, not raw — the ReasoningBank cap-3 finding; the evidence must SUPPORT the claim, `asset:friction-justification-bar`, at capture too). **'Nothing to report' is a first-class, FREE outcome** — no marker, no penalty. This CAPTURES, it does not adjudicate — routing is the librarian pass / the graduation-synthesist. Capture is DISCIPLINE (this generated workflow region), never a per-session gate: a compliance gate would price the ceremony toward retro theater, and the backstop is the D4 drain ceiling (`check:friction-drain`), not this step.
-5. Librarian pass (ADR-0095 D7) — BEFORE the merge ceremony, spawn the **librarian-curator** to curate AND graduate (the sequence is green unit → retro → librarian pass → merge, generalising ADR-0067's after-green spawn): keep the decision log honest — every accepted ADR true in full: correct overtaken content in place, supersede-and-replace only on a genuine re-decision, rehome durable guidance out of ADR bodies (status stays a projection of the `## Status` prose; the `load_bearing` set retires at the end of the consolidation pass, ADR-0139) — AND graduate durable agent-memory into the Library (extract the durable essence, derive definitions / principles that flow into agent guidance, then delete the graduated memory — ADR-0095 D4/D6/D8). The librarian pass also runs the bounded routine friction drain (the deeper adjudication is the graduation-synthesist's, ADR-0168 D5).
+5. Librarian pass (ADR-0095 D7) — BEFORE the merge ceremony, spawn the **librarian-curator** to curate AND graduate (the sequence is green unit → retro → librarian pass → open the PR → CI merges: the pass must FINISH before `gh pr create`, not merely 'before the merge' — under ADR-0022 the session does not perform the merge, and a green PR automerges in minutes, so an already-open PR is past the last moment the session controls and the pass strands on a dead branch; generalising ADR-0067's after-green spawn): keep the decision log honest — every accepted ADR true in full: correct overtaken content in place, supersede-and-replace only on a genuine re-decision, rehome durable guidance out of ADR bodies (status stays a projection of the `## Status` prose; the `load_bearing` set retires at the end of the consolidation pass, ADR-0139) — AND graduate durable agent-memory into the Library (extract the durable essence, derive definitions / principles that flow into agent guidance, then delete the graduated memory — ADR-0095 D4/D6/D8). The librarian pass also runs the bounded routine friction drain (the deeper adjudication is the graduation-synthesist's, ADR-0168 D5).
 6. Land — run the merge ceremony: commit → push → **non-draft** PR → stop. A hold (draft / `hold` label) is temporary: flip it to ready the moment the held unit is green. Landed an arc increment? APPEND the arc's increment-log entry (date, PR#, outcome — what landed, halted, or was re-planned) as part of the ceremony — the log is the durable residue that survives plan pruning (ADR-0183 D1) — and flip the consumed plan's `status` to `consumed` (a drifted one to `superseded`); the arc is never otherwise edited when children land (D3).
 7. Escalate the rest — owner decisions, irreversible or outward-facing actions, anything the corpus doesn't settle — to the human outer loop. At an **operator-attested** leg (a look/feel/live/spend verdict only the owner can sign, ADR-0070 stage 2), don't hand back a raw command: STAND UP the experience, VERIFY it serves, and hand the owner a confirmed-working URL + the minimal what-to-walk (`asset:stage-the-attestation-experience`) — the owner still signs. Never self-exempt from the gate or the ceremony.
 
@@ -391,3 +405,11 @@ The interactive session agent: the outer loop that turns an owner's intent into 
   (`gh run view --job=<id> --log-failed`), fix it, and push — never leave a red PR sitting unmerged.
   **First suspect a stale branch:** `git fetch origin && git merge origin/main`, re-gate, push (a
   branch many commits behind `main` is the usual reason a local-green PR is CI-red).
+  **Then `pnpm install` again BEFORE you trust the re-gate.** If that merge brought a new workspace
+  package or dependency, your `node_modules` is now stale and the gate fails as `TS2307` on a package
+  you never touched, `ERR_MODULE_NOT_FOUND`, or `'tsc' is not recognized` — none of which name the
+  real cause. The SessionStart provision hook does NOT cover this: it compares `pnpm-lock.yaml`
+  against `node_modules/.pnpm/lock.yaml` at session START only, so a merge you perform mid-session is
+  invisible to it until the next session. And the install reassures you wrongly — it prints
+  "Already up to date" / "Lockfile is up to date" while still creating the missing links (that line is
+  about *resolution*, not linking), so never read it as "the install changed nothing".

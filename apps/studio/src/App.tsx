@@ -7,7 +7,7 @@ import { getDesktopAuth } from './lib/desktopAuth';
 import { notifyStoreRecovered } from './lib/poll';
 import { evictIfCodeHeadMismatch, readPayloadCache, writeDocsCache } from './lib/payloadCache';
 import { useRoute } from './lib/route';
-import type { Comment, DocMeta, GuidanceAsset, MeInfo } from './types';
+import type { DocMeta, GuidanceAsset, MeInfo } from './types';
 import { Sidebar } from './components/Sidebar';
 import { StoreBanner, type StorePhase } from './components/StoreBanner';
 import { Hud, type HudPosture } from './components/Hud';
@@ -61,14 +61,16 @@ export function App(): React.JSX.Element {
   // synchronously (guards 1 + 3) — so it's not left empty during the window before /api/docs
   // resolves; loadDocs (below) always re-fetches and reconciles regardless.
   const [docs, setDocs] = useState<DocMeta[]>(() => readPayloadCache()?.docs ?? []);
+  // map-boot-independence (ADR-0240 decision 2 stage 4): assets are the corpus read the map's own
+  // boot no longer waits on. `assetsStatus`/`assetsError` let the Library-route consumers
+  // (AssetView, AssetEditor) distinguish "not yet loaded" from a genuinely empty/failed corpus.
   const [assets, setAssets] = useState<GuidanceAsset[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [error, setError] = useState<string>('');
-
-  const refreshComments = useCallback(async (): Promise<void> => {
-    setComments(await api.listComments());
-  }, []);
+  const [assetsStatus, setAssetsStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [assetsError, setAssetsError] = useState<string>('');
+  // `/api/comments` was a DEAD boot fetch (established by probe — no reader anywhere in
+  // apps/studio/src), so it is gone entirely along with the collection and its refresher; see
+  // appData.ts's header for the full finding. The route, `api.listComments()`, and every per-topic
+  // comment surface are untouched.
   const refreshAssets = useCallback(async (): Promise<void> => {
     setAssets(await api.listAssets());
   }, []);
@@ -104,37 +106,36 @@ export function App(): React.JSX.Element {
     return () => window.clearInterval(id);
   }, [startingSince]);
 
-  // The MUTABLE corpus reads (assets/comments) — unchanged from before this unit: whatever
-  // residual boot wait they cost stays exactly as it is today (map-payload-cache never touches
-  // them; see the node spec). `status` is this pair's readiness gate alone now — see `loadDocs`
-  // below for why /api/docs was split out of it.
-  const loadInitial = useCallback(async (): Promise<void> => {
+  // The one MUTABLE corpus read this unit still fetches during boot (comments no longer are — see
+  // the note above). map-boot-independence: this never gates the map's own /api/tree fetch or its
+  // first paint — `assetsStatus` is read only by the Library-route consumers that display assets.
+  const loadAssets = useCallback(async (): Promise<void> => {
     try {
-      const [a, c] = await Promise.all([api.listAssets(), api.listComments()]);
+      const a = await api.listAssets();
       setAssets(a);
-      setComments(c);
-      setStatus('ready');
+      setAssetsStatus('ready');
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setStatus('error');
+      setAssetsError(e instanceof Error ? e.message : String(e));
+      setAssetsStatus('error');
     }
   }, []);
 
   // map-payload-cache: /api/docs is the OTHER read-only boot payload (with /api/tree) this cache
   // persists — and it must never withhold the map's first paint the way it used to as part of the
-  // old all-or-nothing corpus Promise.all. Fetched in its own effect, independent of `status`, so
-  // a slow/deferred docs response can never delay the tree route from mounting and painting from
-  // its own cache. Still requested on every boot, exactly as today (ADR-0240 decision 3) — the
-  // write merges onto whatever TREE half TreeView's own reloadTree already wrote (or will write),
-  // regardless of arrival order.
+  // old all-or-nothing corpus Promise.all. Fetched in its own effect, independent of the assets
+  // read, so a slow/deferred docs response can never delay the tree route from mounting and
+  // painting from its own cache. Still requested on every boot, exactly as today (ADR-0240
+  // decision 3) — the write merges onto whatever TREE half TreeView's own reloadTree already wrote
+  // (or will write), regardless of arrival order.
   const loadDocs = useCallback(async (): Promise<void> => {
     try {
       const d = await api.listDocs();
       setDocs(d);
       if (!cacheEvictedThisBootRef.current) writeDocsCache(d, codeHeadRef.current);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setStatus('error');
+      // Independent of the map and of the assets read — never blocks either. Logged so a docs
+      // fetch failure isn't silently swallowed even though nothing here blanks the UI for it.
+      console.error('failed to load /api/docs', e);
     }
   }, []);
 
@@ -144,13 +145,15 @@ export function App(): React.JSX.Element {
 
   const isMember = me?.member === true && me.storeUnreachable !== true;
 
-  // Only members load the corpus — gated on membership resolving.
+  // Only members load the corpus — gated on membership resolving. map-boot-independence: this is
+  // now the ONLY thing assets/docs wait on — neither is entangled with the map's own /api/tree
+  // fetch, which TreeView issues itself as soon as it mounts (gated only by `treeMounted`/route).
   useEffect(() => {
     if (meStatus === 'ready' && isMember) {
-      void loadInitial();
+      void loadAssets();
       void loadDocs();
     }
-  }, [meStatus, isMember, loadInitial, loadDocs]);
+  }, [meStatus, isMember, loadAssets, loadDocs]);
 
   // The single honest decision for which load/store-down screen to show (incident 2026-06-27).
   // A dev-only `?devLoadState=…` override (inert in prod) swaps in synthetic inputs so the owner
@@ -164,19 +167,18 @@ export function App(): React.JSX.Element {
 
   const onStoreRecovered = useCallback((): void => {
     // Membership may have been unresolvable while the store was down — re-resolve it, then re-pull
-    // whatever the outage cost (the whole initial load if it failed, else the mutable collections).
-    // /api/docs is independent of `status` now (map-payload-cache) — always worth re-pulling.
+    // whatever the outage cost (the assets load if it failed, else just a fresh read).
+    // /api/docs is independent of assets/membership (map-payload-cache) — always worth re-pulling.
     void loadMe();
     void loadDocs();
-    if (status === 'error') {
-      setStatus('loading');
-      void loadInitial();
-    } else if (status === 'ready') {
+    if (assetsStatus === 'error') {
+      setAssetsStatus('loading');
+      void loadAssets();
+    } else if (assetsStatus === 'ready') {
       void refreshAssets();
-      void refreshComments();
     }
     notifyStoreRecovered();
-  }, [status, loadMe, loadInitial, loadDocs, refreshAssets, refreshComments]);
+  }, [assetsStatus, loadMe, loadAssets, loadDocs, refreshAssets]);
 
   // Hud's posture discriminator (ADR-0204): the injected desktop bridge means `desktop`; a
   // production browser with no bridge is a real hosted/IAP deploy (`hosted`); a bridge-less DEV
@@ -194,12 +196,12 @@ export function App(): React.JSX.Element {
       docIds: new Set(docs.map((d) => d.id)),
       docTitles: new Map(docs.map((d) => [d.id, d.title])),
       assets,
-      comments,
+      assetsStatus,
+      assetsError,
       me: me ?? ANON_ME,
-      refreshComments,
       refreshAssets,
     }),
-    [docs, assets, comments, me, refreshComments, refreshAssets],
+    [docs, assets, assetsStatus, assetsError, me, refreshAssets],
   );
 
   return (
@@ -226,35 +228,29 @@ export function App(): React.JSX.Element {
                   rail is noise there, so hide it and let the canvas fill the width. */}
               {route.name !== 'tree' && <Sidebar />}
               <main className="content">
-                {status === 'loading' && <p className="muted pad">Loading the corpus…</p>}
-                {status === 'error' && (
-                  <div className="pad error-box">
-                    <h2>Couldn’t reach the studio data API</h2>
-                    <p className="muted">{error}</p>
-                    <p className="muted">
-                      If the live store is stopped, use the Start DB button in the banner above.
-                    </p>
+                {/* map-boot-independence (ADR-0240 decision 2 stage 4): the map's own /api/tree
+                    fetch (inside TreeView) and the Library routes below both mount as soon as
+                    membership has resolved (this whole `app` load-screen branch already implies
+                    that) — neither waits on `/api/assets`, which no part of the map reads. */}
+                {treeMounted && (
+                  <div
+                    className="tree-route"
+                    data-testid="tree-route"
+                    data-parked={route.name !== 'tree' || undefined}
+                    aria-hidden={route.name !== 'tree'}
+                    inert={route.name !== 'tree'}
+                  >
+                    <TreeView
+                      focus={route.name === 'tree' ? route.focus : null}
+                      codeHeadRef={codeHeadRef}
+                      cacheWriteSuppressedRef={cacheEvictedThisBootRef}
+                    />
                   </div>
                 )}
-                {status === 'ready' && (
-                  <>
-                    {treeMounted && (
-                      <div
-                        className="tree-route"
-                        data-testid="tree-route"
-                        data-parked={route.name !== 'tree' || undefined}
-                        aria-hidden={route.name !== 'tree'}
-                        inert={route.name !== 'tree'}
-                      >
-                        <TreeView
-                          focus={route.name === 'tree' ? route.focus : null}
-                          codeHeadRef={codeHeadRef}
-                          cacheWriteSuppressedRef={cacheEvictedThisBootRef}
-                        />
-                      </div>
-                    )}
-                    {route.name !== 'tree' && <RouteView route={route} />}
-                  </>
+                {route.name !== 'tree' && (
+                  <div className="library-route" data-testid="library-route">
+                    <RouteView route={route} />
+                  </div>
                 )}
               </main>
               </div>

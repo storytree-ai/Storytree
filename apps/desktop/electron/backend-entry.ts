@@ -27,6 +27,7 @@ import {
   PgCommentStore,
   renderStoredDoc,
 } from "@storytree/library/store";
+import { DEPARTURE_WINDOW_MS, foldDepartures } from "@storytree/notice-board";
 import { PgClaimStore } from "@storytree/notice-board/store";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import { loadLocalSecrets } from "@storytree/drive/secrets";
@@ -505,6 +506,16 @@ async function main(): Promise<void> {
     // which the /api/claims handler folds through the pure groupClaimsBySession. Advisory (null on any
     // failure), the SAME contract as activeSessions — mirrors the studio PgBackend.sessionClaims
     // (re-composed here, the surface boundary — no apps/studio/server import, ADR-0100).
+    // Recent claim DEPARTURES (ADR-0200 D7 — wisp-out legibility): the window-bounded `released` read
+    // over events.claim_event, folded by the pure `foldDepartures`. A released claim renders as "someone
+    // just left" for DEPARTURE_WINDOW_MS instead of vanishing indistinguishably from a lost/stale claim
+    // (the friction-released-build-wisp-reads-as-lost-claim item). Mirrors the studio
+    // PgBackend.inFlightDepartures — the store's already-tested SQL + the shared fold, no hand-rolled
+    // query. Advisory like every read here: a courtesy layer, silently absent when the store can't answer.
+    inFlightDepartures: async () =>
+      advisory("in-flight-departures", async () =>
+        foldDepartures(await claimLedger.recentDepartures(DEPARTURE_WINDOW_MS), new Date()),
+      ),
     sessionClaims: async () => advisory("session-claims", async () => claimLedger.listLiveClaims()),
   };
 

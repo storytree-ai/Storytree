@@ -39,6 +39,12 @@ export * from "./noticeboard.js";
 // the noticeboard IS the claim ledger; declare/done live in ./noticeboard.js as the claim-taking
 // anchor ceremony + bulk release (presence retired, ADR-0200 D7).
 export * from "./noticeboard-claims.js";
+// The fail-closed write-authority DECISION (ADR-0255 D2, hardened by ADR-0257 D1/D3) — increment 1
+// of the session-isolation wall. The harness-neutral semantic layer a Claude `PreToolUse` boundary
+// and a Codex managed hook each project: canonicalise the target, classify it against the repo
+// topology, and refuse unless it lands in a git-known worktree whose branch matches a live claim.
+// Not yet installed as a wall — the adapters and their containment are later increments.
+export * from "./write-authority.js";
 // The ambient session surface (statusline glance + claim heartbeat + the SessionStart nudge +
 // the never-blocking-hooks audit) — ledger-sourced since the presence retirement (ADR-0200 D5/D7).
 export * from "./ambient-presence.js";
