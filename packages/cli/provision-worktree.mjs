@@ -71,9 +71,11 @@ export function needsProvision(root) {
  *
  * Verified empirically before it was relied on (both halves matter):
  *   - STABLE: across all 39 provisioned worktrees registered on the dev box, wanted == current, byte
- *     for byte. So this does NOT fire spuriously — including on Windows, where a `core.autocrlf`
- *     checkout could in principle have skewed the two (it does not here; the CRLF fold below is belt
- *     and braces, and cannot mask a real dependency change, which alters content and not just newlines).
+ *     for byte. So this does NOT fire spuriously. On Windows that holds because `.gitattributes` pins
+ *     `* text=auto eol=lf`, so the checked-out lockfile is LF even under `core.autocrlf=true` — it is a
+ *     repo guarantee, not luck, and the CRLF fold below is the insurance for if that ever changes. The
+ *     fold cannot mask a real advance, which alters content and not merely newlines, and it costs
+ *     nothing on the fast path (it runs only once the bytes are already known to differ).
  *   - CONVERGENT: planting an older lockfile as the current one and running `pnpm install` rewrote it
  *     back to match in ~2 s. A reinstall therefore CLEARS the condition that triggered it — this can
  *     never latch into reinstall-every-session, and a false positive costs about two seconds.
