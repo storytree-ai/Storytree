@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -26,8 +26,11 @@ depends_on: [library, drive-machinery, notice-board, forest-world, studio-member
 # map route retention before caching or density work (240). ADR-0240's staged order is being taken
 # one increment at a time: stage 1 is `map-route-retention` (retain the map across SPA routes),
 # stage 2 is `map-payload-cache` (persist and paint the two READ-ONLY payloads, stamped and
-# paint-then-revalidate). Stages 3-5 (server memoization, boot de-serialisation, the density budget)
-# are not authored yet and add no new deciding ADR here — 240 already covers the sequence.
+# paint-then-revalidate), stage 3 is `map-server-memo` (memoize the `stories/` and `docs/` walks
+# behind a fingerprint that moves on a content edit, and add `no-cache` + `ETag` validators to the
+# two read routes — what makes the always-revalidate stage 2 mandated actually cheap). Stages 4-5
+# (boot de-serialisation, the density budget) are not authored yet, and no stage adds a new deciding
+# ADR here — 240 already covers the sequence.
 decisions: [8, 36, 38, 100, 112, 221, 222, 237, 240]
 ---
 
@@ -74,7 +77,7 @@ build/secrets seam re-pointed off `cli` onto `@storytree/drive` by ADR-0112) —
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
 
-## Capabilities (13)
+## Capabilities (14)
 
 Listed roots-first (a capability appears after everything it depends on).
 
@@ -93,6 +96,7 @@ Listed roots-first (a capability appears after everything it depends on).
 | 11 | [`coalesced-camera-pan`](coalesced-camera-pan.md) | An operator's forest drag commits the latest camera position at most once per display frame. | — |
 | 12 | [`map-route-retention`](map-route-retention.md) | An operator returns to the same live forest map after a SPA hash-route transition. | — |
 | 13 | [`map-payload-cache`](map-payload-cache.md) | An operator who reloads the studio sees the forest paint from the last visit's persisted payloads instead of waiting on a cold server walk. | — |
+| 14 | [`map-server-memo`](map-server-memo.md) | An operator's repeated studio load is answered without re-reading a corpus that has not changed on disk. | — |
 
 ## Dependency graph (code-derived)
 
@@ -100,7 +104,8 @@ These are **within-story** edges, **read off the real source** (static analysis 
 imports / data-flow between capabilities), never hand-drawn from UAT need (ADR-0010 §3):
 A → B means A's code actually couples to B's code inside the one organism. The graph is
 acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, `chat-panel`,
-`coalesced-camera-pan`, `map-route-retention`, and `map-payload-cache` are the roots. (Cross-story edges are NOT in this graph — they are boundary interfaces, declared in
+`coalesced-camera-pan`, `map-route-retention`, `map-payload-cache`, and `map-server-memo` are the
+roots. (Cross-story edges are NOT in this graph — they are boundary interfaces, declared in
 §"Cross-story boundary" below and encoded as frontmatter `depends_on` — ADR-0010 §4.)
 
 - `read-corpus` → `dev-server-persistence-backbone`
@@ -150,6 +155,18 @@ acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, `chat-panel`,
     precondition of this capability's proof, and retention passes with no cache present. It reads
     `/api/health`'s existing `code.head` through the banner's existing poll and adds no package import,
     so it adds no in-story or cross-story dependency.
+- `map-server-memo` → (no within-story edge — a SEVENTH root)
+  - Its own new module (`server/corpusMemo.ts`) imports neither `readTree` nor `listDocs`; the two read
+    routes call both, as they already do. The one edge a reader would reasonably question is
+    `read-corpus`, which owns the doc handlers (`listDocs` / `handleDocs`) this increment wires a memo
+    and a validator INTO — the honest call is that this is the same same-file-adjacency-is-not-an-edge
+    reading `coalesced-camera-pan` and `map-payload-cache` already make, and it holds here for a
+    stronger reason: the increment is required to leave `listDocs`'s exported signature and its returned
+    VALUE unchanged (the `docsMirrorProbe` / `check:mirror-conformance` diff depends on that), so it
+    consumes nothing read-corpus produces and changes nothing read-corpus renders. Nor is it a UAT-need
+    edge: the proof drives a temp-dir corpus through the routes and asserts freshness and validators, so
+    read-corpus's delivered outcome is not a precondition of it. It adds no package import, so no
+    cross-story edge either.
 
 ## Cross-story boundary (ADR-0010 §4)
 

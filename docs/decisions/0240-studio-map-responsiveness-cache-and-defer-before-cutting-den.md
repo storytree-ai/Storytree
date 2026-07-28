@@ -9,15 +9,19 @@ arc: studio-map-responsiveness-arc
 
 accepted (2026-07-25) — decided/directed by the owner in conversation on 2026-07-25. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
-**Corrected in place 2026-07-27 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md), after stages 1 and 2 landed.**
+**Corrected in place 2026-07-27 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md), after stages 1 and 2 landed — and again 2026-07-28, after stage 3.**
 Every decision below STANDS unchanged — the felt cost is re-computation and re-mounting, cache and
 defer first and cut density last, cached paint is never cached truth, the density budget is
-sequenced here and not designed here. What building stages 1–2 overtook is two CONSEQUENCES: one
-that called the early increments "behaviour-preserving", and one whose prescribed staleness guard
-turns out to be insufficient on its own. A third bullet is added for a stage boundary stage 2
-necessarily crossed. All three are corrected in the Consequences below — truth-maintenance, not a
-re-decision. What landed and when is the arc's increment log
-(`storytree arc show studio-map-responsiveness-arc --pg`), never tracked here.
+sequenced here and not designed here. What building stages 1–3 overtook is three CONSEQUENCES: one
+that called the early increments "behaviour-preserving", and two whose prescribed staleness guard
+turns out to be insufficient as literally written. One further bullet is added for a stage boundary
+stage 2 necessarily crossed. All are corrected in the Consequences below — truth-maintenance, not a
+re-decision. Worth naming once, because the next stage will also prescribe guards: the two
+insufficient guards failed the SAME way — each named a key that cannot observe the thing it is meant
+to gate (a server code stamp that arrives only after the paint it would have gated; a directory
+mtime that does not move when file content changes). A guard prescribed at design time should be
+asked what it can actually see before it is written down as the answer. What landed and when is the
+arc's increment log (`storytree arc show studio-map-responsiveness-arc --pg`), never tracked here.
 
 ## Context
 
@@ -100,8 +104,23 @@ dance and changes what the owner sees on the map.
   still owns is the remaining pair — the map mounts only once `/api/assets` (the 561 KB it does not
   need) and `/api/comments` resolve.
 - Server-side memoization of the `stories/` and `docs/` walks means an edit on disk is no longer
-  guaranteed to be visible on the next request; invalidation has to key on directory mtime, and the
-  dev loop is where that will bite first.
+  guaranteed to be visible on the next request — and the dev loop is where that will bite first.
+  *(Corrected in place per ADR-0139: that premise stands, but the guard this bullet prescribed —
+  "invalidation has to key on directory mtime" — cannot observe what it is meant to gate. A
+  directory's mtime does NOT move when a contained file's CONTENT changes; only an add, a remove, or
+  a rename moves it. Probed on the real filesystem before any code was written, and the shipped test
+  `map-server-memo-revalidates-on-a-content-edit` pins it: it asserts the containing directory's
+  `mtimeMs` is unchanged across the very edit it then requires to be visible. So a directory-mtime
+  key would have missed exactly the dev-loop edit this bullet names — edit `stories/<x>/story.md`,
+  refresh the map. As built the validator is a STAT-ONLY recursive walk — relative path + mtime +
+  size per file, no read and no parse — which does move on a content edit and is still cheap:
+  stat-walking `docs/`'s 380 files measures 22.5 ms against 63.1 ms merely to READ its 299 markdown
+  files, before `listDocs` parses anything. Two further properties are load-bearing for any later
+  stage that memoizes. The fingerprint must be observed BEFORE the expensive walk: taken after, an
+  edit landing mid-walk stores pre-edit content under a post-edit key and serves it as fresh. And a
+  memoized payload must be handed back as a DEFENSIVE COPY, because the `/api/tree` handler mutates
+  its payload in place with live verdicts and build wisps — which would otherwise be written into
+  the memo and served back as if they were file-borne state, breaking decision 3.)*
 - The density increment will require a web-engine sync and pin bump, and an owner attestation of the
   look, so it should not be attempted opportunistically inside a caching increment.
 - The map remains SVG. Nothing here proposes a renderer change; the measured DOM cost (~70 ms for
@@ -118,3 +137,9 @@ dance and changes what the owner sees on the map.
   guards (client stamp / server code stamp / structural shape), and what it deliberately never
   persists (the mutable reads, and the `builds`/`claims` coordination seeds — ADR-0128/ADR-0138
   wisps are never restored from a previous load).
+- `apps/studio/server/corpusMemo.ts` and `apps/studio/server/httpUtil.ts` — what stage 3 built: the
+  stat-only `fingerprintDir`, and `memoizeCorpusWalk` (one entry per directory path, the fingerprint
+  observed before the walk and stored paired with the value it describes, every value handed back
+  structured-cloned); and `sendJsonValidated`, the opt-in `no-cache` + `ETag` sender — opt-in
+  because `sendJson` is the one JSON sender for every route, and `no-cache` rather than `max-age`
+  so a client always asks (decision 3).
