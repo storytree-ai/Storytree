@@ -103,7 +103,11 @@ function fixtureStore(
 
 function libraryArtifactVisitEvent(
   overrides: Partial<{ visitId: string; nodeId: string; sessionId: string; at: string }> = {},
-): ContextTraversalEvent {
+  // Declared as the VISIT type rather than the whole `ContextTraversalEvent` union: this helper only
+  // ever returns a `full_payload_read`, so the union was both less accurate and type-illegal to
+  // spread — a value typed as the union widens to members like `search` that carry no `visitId`.
+  // `ContextVisitEvent` is assignable to the union everywhere this fixture is passed.
+): ContextVisitEvent {
   return {
     kind: "full_payload_read",
     eventId: `event:${overrides.visitId ?? "visit-render"}`,
@@ -273,7 +277,12 @@ test("the-candidate-set-names-the-visit-that-rendered-it-and-never-replaces-it",
 
   // a batch holding no library-artifact visit appends nothing.
   assert.deepEqual(emitCandidateSet([], ["a"], deps), []);
-  const treeVisit: ContextTraversalEvent = { ...artifactVisit, surfaceId: "tree" };
+  // Annotated as the VISIT type, not the whole `ContextTraversalEvent` union: an object literal
+  // checked against a union gets excess-property-checked against every member, and `followed_edge`
+  // carries no `surfaceId`, so the union annotation is what makes this line type-illegal. The value
+  // and the assertion below are unchanged — `ContextVisitEvent` is simply the more precise type, and
+  // is assignable to the union `emitCandidateSet` accepts.
+  const treeVisit: ContextVisitEvent = { ...artifactVisit, surfaceId: "tree" };
   assert.deepEqual(emitCandidateSet([treeVisit], ["a"], deps), [treeVisit]);
 
   // re-running emitCandidateSet over its OWN output with the same offeredIds appends nothing new —
