@@ -62,7 +62,7 @@ function labelFor(spec: EditorFieldSpec): string {
 }
 
 export function AssetEditor({ mode, id }: AssetEditorProps): React.JSX.Element {
-  const { assets, refreshAssets } = useAppData();
+  const { assets, assetsStatus, assetsError, refreshAssets } = useAppData();
   const arcDisplay = useArcDisplay(); // option label only — the option VALUE stays `arc` (ADR-0183 D1)
   const existing = mode === 'edit' ? assets.find((a) => a.id === id) : undefined;
   const [form, setForm] = useState<FormState>(EMPTY);
@@ -196,6 +196,19 @@ export function AssetEditor({ mode, id }: AssetEditorProps): React.JSX.Element {
   }
 
   if (mode === 'edit' && !existing) {
+    // map-boot-independence: same not-yet-loaded / genuinely-missing / errored distinction as
+    // AssetView — a Library route mounts before `/api/assets` resolves.
+    if (assetsStatus === 'loading') {
+      return <p className="muted pad">Loading the Library corpus…</p>;
+    }
+    if (assetsStatus === 'error') {
+      return (
+        <div className="pad error-box">
+          <h2>Trouble reaching the Library corpus</h2>
+          <p className="muted">Couldn’t load the Library corpus — {assetsError}</p>
+        </div>
+      );
+    }
     return (
       <div className="pad error-box">
         <h2>Artifact not found</h2>
