@@ -7,6 +7,8 @@ import {
   classifyGateCoverage,
   runCoverageGate,
   loadRealBuildCoverageUnits,
+  projectCoverageGaps,
+  sweepRealBuildCoverage,
   type GateCoverageUnit,
 } from "./coverage-gate.js";
 
@@ -33,6 +35,7 @@ const COVERED: GateCoverageUnit = {
     "deploy-health-no-signal-classifies-unknown: no completed run reads UNVERIFIED",
   ],
   testFiles: ["packages/cli/src/deploy-health.test.ts"],
+  testFilePresent: true,
 };
 
 // The documented drop: four declared contracts, only one named by a test (ADR-0122 context).
@@ -47,6 +50,7 @@ const UNDER_COVERED: GateCoverageUnit = {
   ],
   testNames: ["fr-ready-when-broker-accepts-builder: a reachable broker reports ready"],
   testFiles: ["apps/desktop/src/backend/forest-readiness.test.ts"],
+  testFilePresent: true,
 };
 
 test("RED: a real-build capability that drops a contract makes the gate WARN and names it", () => {
@@ -78,7 +82,7 @@ test("empty sweep (no real-build capability declares contracts) is a clean OK", 
 
 test("classifyGateCoverage: a capability with no contracts is vacuously covered, never under-covered", () => {
   const report = classifyGateCoverage([
-    { unitId: "x", tier: "capability", contractIds: [], testNames: [], testFiles: [] },
+    { unitId: "x", tier: "capability", contractIds: [], testNames: [], testFiles: [], testFilePresent: true },
   ]);
   assert.equal(report.clean, true);
   assert.equal(report.underCovered.length, 0);
@@ -122,4 +126,44 @@ test("end-to-end over the REAL corpus: the disk loader filters to real-build cap
     health.testFiles.some((f) => f.includes("deploy-health.test.ts")),
     "deploy-health-signal's scanned surface should be its registered real-build test file",
   );
+});
+
+// ---------------------------------------------------------------------------
+// The drain-ceiling projection (the axis split — `coverage-drain.ts` evaluates it)
+// ---------------------------------------------------------------------------
+
+test("projectCoverageGaps: a capability with NO test file on disk routes wholly to `unbound`, never to `uncovered`", () => {
+  // This is the property that makes the uncovered axis immune to a deficient checkout, so it is
+  // asserted rather than assumed: measured, an absent test-file tree drives `uncovered` to 0 and
+  // `unbound` to every scanned capability. If a missing file leaked into `uncovered`, a broken
+  // checkout could manufacture a breach on the axis that is enforced unconditionally.
+  const gaps = projectCoverageGaps(
+    classifyGateCoverage([{ ...UNDER_COVERED, testFilePresent: false }, COVERED]),
+  );
+  assert.deepEqual(gaps.uncovered, [], "no contract of an unbound capability counts as an authoring gap");
+  assert.deepEqual(gaps.unbound, ["shared-forest-connection"]);
+  assert.equal(gaps.scanned, 2, "both capabilities were still scanned");
+});
+
+test("projectCoverageGaps: an under-covered capability WITH its file present yields qualified contract ids", () => {
+  const gaps = projectCoverageGaps(classifyGateCoverage([UNDER_COVERED, COVERED]));
+  assert.deepEqual(gaps.unbound, []);
+  assert.deepEqual(gaps.uncovered, [
+    "shared-forest-connection/fr-fails-closed-with-guidance-when-unbrokered",
+    "shared-forest-connection/fr-bounded-never-hangs",
+    "shared-forest-connection/fr-write-brokers-not-direct",
+  ]);
+});
+
+test("sweepRealBuildCoverage: carries the spec-file count out, so `scanned: 0` is distinguishable from an unread corpus", () => {
+  const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+  const real = sweepRealBuildCoverage(path.join(repoRoot, "stories"), repoRoot);
+  assert.ok(real.specFilesWalked > 0, "the real corpus walks spec files");
+  assert.ok(real.units.length > 0);
+
+  // An absent stories tree: the sweep reports zero WALKED, which is what lets the ceiling withhold its
+  // `ok` instead of certifying the "nothing to check" OK that this state prints.
+  const absent = sweepRealBuildCoverage(path.join(repoRoot, "stories-does-not-exist"), repoRoot);
+  assert.equal(absent.specFilesWalked, 0);
+  assert.deepEqual(absent.units, []);
 });

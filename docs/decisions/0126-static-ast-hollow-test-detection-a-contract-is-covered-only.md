@@ -122,9 +122,25 @@ a false-hollow would erode trust, so the line is drawn to avoid it.
   check:verification-decay` (ADR-0252 D1), which is where the current count lives.
   **The skip itself is usually CORRECT** — these are mostly live-DB proofs that cannot run without a
   database (ADR-0064) — so the defect is the INVISIBILITY, never "this should not skip", and the fix
-  is either the visible idiom (`store.test.ts`) or teaching this classifier the options form. The
-  latter is a STORY-SHAPE call, not a patch: it would move every contract those tests vouch for into
-  `check:coverage`'s WARN backlog. A related residual is unchanged by that fix — an IMPERATIVE runtime
+  is either the visible idiom (`store.test.ts`) or teaching this classifier the options form.
+  **Correction (2026-07-28, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+  this sentence read "The latter is a STORY-SHAPE call, not a patch: it would move every contract those
+  tests vouch for into `check:coverage`'s WARN backlog", and the cost it asserts was never measured.**
+  Measured on 2026-07-28 by re-running the real sweep with every options-form-skipped test name removed:
+  the backlog moves 119 → 120 uncovered contracts, and the capability count not at all. **Exactly ONE
+  contract** — `release-claims-by-branch-clears-the-branch` on `claim-store-work-time`. The reason is
+  this ADR's own text two paragraphs up: of the 7 files the `vacuous-proof` instrument locates, only
+  `claim-store-release-by-branch.live.test.ts` is a live capability's registered `real.testFile`; the
+  other six bind no capability's `real.testFile` or name no declared contract, which the instrument's
+  own stated false positive already predicted ("a test whose name matches no declared contract makes
+  nothing read covered"). So the fix is a PATCH plus a one-line ceiling re-baseline in the same commit,
+  not a story-shape call — the number is recorded in advance at `DEFAULT_COVERAGE_DRAIN_CONFIG`
+  (`packages/cli/src/coverage-drain.ts`), which names this as the one legitimate upward move of the
+  `uncovered` ceiling. **Nothing is re-decided**: ADR-0126 chose the static-AST path and shipped the
+  modifier-only classifier, and neither changes. What is corrected is an unmeasured cost estimate that
+  was re-quoted rather than re-derived, and on that reading deferred bounding `check:coverage` — the
+  worklist ADR-0252 names as its own live counter-example — behind three other increments. A related
+  residual is unchanged by that fix — an IMPERATIVE runtime
   skip in the body (`t.skip(…)`) is invisible to the AST for the same reason, and is not counted here.
 
 ## References

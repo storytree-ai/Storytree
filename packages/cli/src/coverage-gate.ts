@@ -38,6 +38,12 @@ const TAG = "[check:coverage]";
 export interface GateCoverageUnit extends CoverageUnit {
   /** The capability id (the spec's frontmatter id). */
   unitId: string;
+  /**
+   * Whether the registered `real.testFile` actually EXISTS on disk. False means there is no proof
+   * surface at all, so every contract reads uncovered for a reason that has nothing to do with
+   * authoring — the `unbound` axis of {@link import("./coverage-drain.js").evaluateCoverageDrain}.
+   */
+  testFilePresent: boolean;
 }
 
 /** One scanned capability's gate outcome — the per-contract classification projected to id lists. */
@@ -52,6 +58,8 @@ export interface GateCoverageResult {
   uncovered: string[];
   /** The test file(s) scanned for this capability (honest provenance). */
   testFiles: string[];
+  /** Whether the registered `real.testFile` exists on disk — see {@link GateCoverageUnit.testFilePresent}. */
+  testFilePresent: boolean;
 }
 
 /** The whole-corpus gate sweep result. */
@@ -62,6 +70,29 @@ export interface GateCoverageReport {
   underCovered: GateCoverageResult[];
   /** True iff nothing is under-covered (OK); false iff ≥1 capability drops a contract (WARN). */
   clean: boolean;
+}
+
+/**
+ * The drain-ceiling projection of a sweep ({@link import("./coverage-drain.js").CoverageGaps} plus the
+ * substrate observables). PURE: the two axes are split HERE rather than in the ceiling, because which
+ * bucket a capability falls into is a fact the sweep read off disk.
+ *
+ * `uncovered` deliberately EXCLUDES capabilities whose test file is missing — those route wholly to
+ * `unbound`. That split is what makes the authoring axis immune to a deficient checkout (measured: an
+ * absent test-file tree drives `uncovered` to 0 and `unbound` to every scanned capability).
+ */
+export function projectCoverageGaps(report: GateCoverageReport): {
+  uncovered: string[];
+  unbound: string[];
+  scanned: number;
+} {
+  const uncovered: string[] = [];
+  const unbound: string[] = [];
+  for (const u of report.underCovered) {
+    if (u.testFilePresent) uncovered.push(...u.uncovered.map((c) => `${u.unitId}/${c}`));
+    else unbound.push(u.unitId);
+  }
+  return { uncovered, unbound, scanned: report.scanned.length };
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +118,7 @@ export function classifyGateCoverage(units: readonly GateCoverageUnit[]): GateCo
       covered: report.covered,
       uncovered: report.uncovered,
       testFiles: u.testFiles,
+      testFilePresent: u.testFilePresent,
     };
   });
   const underCovered = scanned.filter((s) => s.uncovered.length > 0);
@@ -179,8 +211,22 @@ function walkSpecFiles(absDir: string): string[] {
  * with no authored test IS under-covered). Paths are resolved against `repoRoot`.
  */
 export function loadRealBuildCoverageUnits(storiesDir: string, repoRoot: string): GateCoverageUnit[] {
+  return sweepRealBuildCoverage(storiesDir, repoRoot).units;
+}
+
+/**
+ * {@link loadRealBuildCoverageUnits} plus the substrate observable the drain ceiling needs: how many
+ * spec files were WALKED. Zero walked and zero scanned are different states that the check's "nothing
+ * to check" OK cannot distinguish (measured: an absent `stories/` tree and an empty one both reach it),
+ * so the count is carried out rather than reconstructed.
+ */
+export function sweepRealBuildCoverage(
+  storiesDir: string,
+  repoRoot: string,
+): { units: GateCoverageUnit[]; specFilesWalked: number } {
   const units: GateCoverageUnit[] = [];
-  for (const file of walkSpecFiles(storiesDir)) {
+  const specFiles = walkSpecFiles(storiesDir);
+  for (const file of specFiles) {
     let spec: ReturnType<typeof loadNodeSpec>;
     try {
       spec = loadNodeSpec(file);
@@ -190,8 +236,9 @@ export function loadRealBuildCoverageUnits(storiesDir: string, repoRoot: string)
     const testFile = spec.buildConfig?.real?.testFile;
     if (testFile === undefined || spec.contracts.length === 0) continue;
     const abs = path.join(repoRoot, testFile);
+    const testFilePresent = existsSync(abs);
     let testNames: string[] = [];
-    if (existsSync(abs)) {
+    if (testFilePresent) {
       try {
         // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so a contract
         // named only by an `assert(true)` reads uncovered (not falsely covered).
@@ -206,7 +253,8 @@ export function loadRealBuildCoverageUnits(storiesDir: string, repoRoot: string)
       contractIds: spec.contracts.map((c) => c.id),
       testNames,
       testFiles: [testFile.replace(/\\/g, "/")],
+      testFilePresent,
     });
   }
-  return units;
+  return { units, specFilesWalked: specFiles.length };
 }

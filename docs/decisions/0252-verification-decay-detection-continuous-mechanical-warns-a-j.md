@@ -41,8 +41,11 @@ single per-unit test. That is a direct argument for a sweep that looks ACROSS su
 test within one.
 
 Against that sits the arc's own guardrail — *an advisory list stays readable or stops being advisory* —
-and the live counter-example: `check:coverage` already carries a 121-contract WARN backlog with known
-noise in it. An unbounded advisory list is this shape's known failure mode, not a hypothetical one.
+and the live counter-example AT THIS DECISION: `check:coverage` carries a 121-contract WARN backlog with
+known noise in it, and no size that list reaches fails anything. An unbounded advisory list is this
+shape's known failure mode, not a hypothetical one. (That counter-example was itself bounded on
+2026-07-28 under decision 3 below — the backlog is unchanged, the unboundedness is gone; see the
+correction in Consequences.)
 
 Verification decay also accrues over weeks, so a deep pass on every merge would burn heavily on nothing.
 
@@ -74,9 +77,12 @@ session. Two reasons, both load-bearing:
 
 **2. Shape — the cheap half lives in `pnpm gate` as non-blocking warns.**
 
-Alongside `check:agents-sync`, `check:corpus-sync`, and `check:coverage`, which already carry exactly
-this warn-not-block pattern. Every session sees it with no new invocation to remember. The accepted cost
-is added noise in a gate output that is already noisy — which decision 3 exists to bound.
+Alongside `check:agents-sync`, `check:corpus-sync`, and — at this decision — `check:coverage`, which
+already carry exactly this warn-not-block pattern. (`check:coverage` has since gained decision 3's own
+ceiling and is no longer purely warn-not-block; the other two still are. The precedent this sentence
+cites is the gate-resident WARN, which is unchanged.) Every session sees it with no new invocation to
+remember. The accepted cost is added noise in a gate output that is already noisy — which decision 3
+exists to bound.
 
 **3. Enforcement — advisory per finding, with a fixed drain ceiling on the COUNT.**
 
@@ -86,7 +92,8 @@ surface. The narrow escalation class decision 1 provides for is not a located re
 against this ceiling, and does red the gate on its own; see the second correction below.) But the gate
 **FAILs when the backlog count grows past a fixed ceiling** — the same shape as
 `check:friction-drain` (ADR-0168 D4). This is the concrete answer to the arc's guardrail: the list
-cannot silently grow into `check:coverage`'s condition, because growth is what reds the gate.
+cannot silently grow into the condition `check:coverage` was in when this was decided — a WARN no size
+ever fails — because growth is what reds the gate.
 
 **The ceiling is tuned on the first real sweep, not picked in advance** — set just above whatever that
 sweep actually finds, so it starts GREEN and any subsequent growth reds it. This gives an honest
@@ -180,6 +187,32 @@ instrument 1's sweep, so that rule only carries meaning per instrument. Recorded
 of decision 3's singular "the COUNT" would otherwise conclude the shipped split VIOLATES this ADR and
 "fix" it by re-summing — the exact stale-prose harm ADR-0139 exists to prevent.
 
+**Correction (2026-07-28, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+this ADR's own live counter-example — `check:coverage` — was DRAINED by the machinery this ADR built,
+and its three present-tense mentions are scoped to decision time rather than removed.** The Context
+named "`check:coverage` already carries a 121-contract WARN backlog" as the live proof that an unbounded
+advisory list is not a hypothetical failure mode; decision 2 listed it among the checks that "already
+carry exactly this warn-not-block pattern"; decision 3 promised the new list "cannot silently grow into
+`check:coverage`'s condition"; and the References line called it "the live counter-example". On
+2026-07-28 `check:coverage` was bounded under decision 3 itself — the FOURTH worklist bounded under the
+`warn-list-hygiene` instrument, after `check:graduation-worklist`, `check:surface-coverage` and
+`check:corpus-content` — on a two-axis ceiling (`uncoveredCeiling: 119`, `unboundCeiling: 1`,
+`packages/cli/src/coverage-drain.ts`), baselined on a real sweep so it ships GREEN, with a non-zero exit
+on breach in `check-coverage.ts` where the shell previously exited 0 unconditionally.
+
+**Nothing is re-decided, and the evidence is deliberately KEPT rather than deleted.** The measurement
+that made this the arc's motivating example is still true and still load-bearing for decision 3's
+reasoning: replayed against nine historical input trees the backlog ran 66 → 121 across the check's
+first month and the exit code was 0 at every point, the only bounded worklist in this arc whose measured
+history is monotone growth. What is corrected is only the present tense: the 121-contract WARN backlog
+is unchanged and still prints (no warn band was opened beneath the ceiling), but its UNBOUNDEDNESS is
+gone, so a reader calibrating today would otherwise go looking for a live unbounded list and find a
+bounded one. Two concrete harms this forestalls, both the shape ADR-0139 exists to prevent: a reader of
+decision 2 could conclude the shipped red VIOLATES this ADR's warn-not-block shape and "fix" it by
+removing the exit code; and a reader of decision 3 could read its guardrail promise as still unmet and
+re-open work that has landed. Decision 3 is unchanged in every respect — advisory per located finding,
+fail-closed on growth, per-instrument ceilings baselined on a first real sweep and tightening-only.
+
 **Not decided here.** Which specific checks make up the cheap half beyond the four named, how a warn
 signal "crosses a line" in precise terms, and the ceiling's actual number. Those are build-time
 decisions for the increment that implements this, not owner forks. All three have since been taken in
@@ -236,4 +269,6 @@ never this ADR: an ADR is a decision record, not a work tracker (ADR-0183 D1).
 - ADR-0168 D4 — `check:friction-drain`, the drain-ceiling pattern decision 3 mirrors.
 - ADR-0110 — owner direction in conversation IS ratification; why this ADR is born `accepted`.
 - ADR-0095 D7 / the `librarian-curator` process artifact — the mould decision 4 adopts.
-- `check:coverage` (121-contract WARN backlog) — the live counter-example motivating the ceiling.
+- `check:coverage` (121-contract WARN backlog, UNBOUNDED at decision time) — the live counter-example
+  motivating the ceiling; itself bounded on 2026-07-28 as the fourth worklist under `warn-list-hygiene`
+  (`packages/cli/src/coverage-drain.ts`). See the correction in Consequences.
