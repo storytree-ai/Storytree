@@ -10,7 +10,11 @@ import {
   PgLibraryStore,
   PgAdrStore,
 } from "@storytree/library/store";
-import { captureCliInvocation, resolveAgentDescent } from "@storytree/context-traversal-capture";
+import {
+  captureCliInvocation,
+  resolveAgentDescent,
+  resolveArtifactOffers,
+} from "@storytree/context-traversal-capture";
 import { digestOverlapDeltas, type OverlapDelta } from "@storytree/notice-board";
 import { PgClaimStore } from "@storytree/notice-board/store";
 import { PgWorkStore, PgAttestationStore } from "@storytree/orchestrator/store";
@@ -135,7 +139,12 @@ async function captureInvocation(argv: readonly string[], ok: boolean, store: St
     // read, and `captureCliInvocation` is contractually synchronous — so it happens here, inside the
     // existing try/catch and before `close()`. Every other dispatch shape resolves to [].
     const agentRefIds = await resolveAgentDescent(argv, store);
-    captureCliInvocation({ argv, ok, sessionId, agentRefIds });
+    // A `library artifact <id>` render PRINTS its onward refs as a Sources block — that block IS the
+    // offer set (ADR-0260 D1), already computed by the renderer. Resolving it needs the same async
+    // store read `agentRefIds` does, so it is resolved HERE and passed in. It is recorded whether or
+    // not anything follows it (D2); which offer was ANSWERED is D3's increment, not this one.
+    const offeredIds = await resolveArtifactOffers(argv, store);
+    captureCliInvocation({ argv, ok, sessionId, agentRefIds, offeredIds });
   } catch {
     // Telemetry never breaks a command — the envelope is the payload, the trace is a courtesy.
   }

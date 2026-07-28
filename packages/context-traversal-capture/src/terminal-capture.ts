@@ -16,8 +16,14 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { AGENT_DESCENT_COVERAGE, descendAgentRefs } from "./descend-agent-refs.js";
+import { descendAgentRefs } from "./descend-agent-refs.js";
 import { observeCliInvocation } from "./observe-cli.js";
+import {
+  emitCandidateSet,
+  renderCoverageCaveats,
+  OFFER_CANDIDATE_SET_CAVEATS,
+  OFFER_CANDIDATE_SET_COVERAGE,
+} from "./offer-candidate-sets.js";
 import { renderTraversalSession, renderTraversalSessions } from "./query-render.js";
 import { linkRevisits } from "./revisit-links.js";
 import {
@@ -54,6 +60,13 @@ export interface CaptureCliInvocationInput {
    * Empty or absent for every other dispatch shape, which is the normal case.
    */
   readonly agentRefIds?: readonly string[];
+  /**
+   * The onward artifact ids a `library artifact <id>` render OFFERED in its Sources block, in
+   * authored order — resolved by the CALLER for the same reason `agentRefIds` is (it needs an async
+   * store read, and this entry point is contractually synchronous). Empty or absent for every other
+   * dispatch shape, which is the normal case.
+   */
+  readonly offeredIds?: readonly string[];
 }
 
 /** Where the query composition reads a captured session from. */
@@ -112,6 +125,17 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
     now,
   });
 
+  // RECORD THE OFFER, then link — and record it here, at the render, rather than anywhere later
+  // (ADR-0260 D2). This call is handed only what THIS invocation observed plus what THIS render
+  // offered; it can see nothing the session does next, which is what makes an offer with no follow
+  // impossible to lose. Deferring it until something followed would silently rebuild the containment
+  // tree ADR-0260 exists to replace.
+  const offered = emitCandidateSet(descended, input.offeredIds ?? [], {
+    sessionId,
+    nextVisitId: nextId,
+    now,
+  });
+
   const dir = input.dir ?? resolveTraversalDir();
   // A revisit link needs the session's EARLIER visits, which live only in the trace already on disk
   // (each invocation is its own process). Read them back through the sink's tolerant reader — a
@@ -119,7 +143,7 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   // link, never the append. Ordering, never `at`: `readTraversalSession` returns append order, which
   // is the only "earlier" this producer is allowed to know (ADR-0235).
   const { replay } = readTraversalSession({ dir, sessionId });
-  appendTraversalEvents(linkRevisits(descended, replay.events), { dir, sessionId });
+  appendTraversalEvents(linkRevisits(offered, replay.events), { dir, sessionId });
 }
 
 /**
@@ -131,12 +155,22 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
  * `observe-cli.ts`'s base: the base honestly describes the bare argv observer, which emits neither
  * `field:prior_visit_id` nor `field:parent_visit_id`, while what this composition actually writes to
  * disk emits both (`captureCliInvocation` above links revisits AND descends an `agents <name>`
- * render's floor refs).
+ * render's floor refs, AND records a `library artifact` render's offer).
+ *
+ * The declaration carries its CAVEATS too, not just the supported/omitted lists (ADR-0260 D7 under
+ * ADR-0235 clause 6). The closed feature enum can say `event:candidate_set` is emitted and
+ * `field:candidate_follow_causality` is not; it cannot say WHY the picture will be thin — that `doc:`
+ * offers can never be observed as followed, and that follow-completeness depends on agents re-using
+ * the offered command form. ADR-0260 D4 forbids ever repairing those gaps by inference, so stating
+ * them here is the only mitigation there is: a reader who sees a tidy tree must be able to see, in
+ * the same body, what it cannot show.
  */
 export function showTraversalSession(sessionId: string, opts?: TraversalQueryOptions): RenderedEnvelope {
   const dir = opts?.dir ?? resolveTraversalDir();
   const { replay, skipped } = readTraversalSession({ dir, sessionId });
-  return renderTraversalSession({ ...replay, coverage: [AGENT_DESCENT_COVERAGE] }, { skipped });
+  const rendered = renderTraversalSession({ ...replay, coverage: [OFFER_CANDIDATE_SET_COVERAGE] }, { skipped });
+  const caveats = renderCoverageCaveats(OFFER_CANDIDATE_SET_CAVEATS);
+  return { ...rendered, body: `${rendered.body}\n\ncoverage-caveats:\n${caveats}` };
 }
 
 /**

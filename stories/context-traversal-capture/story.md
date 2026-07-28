@@ -9,7 +9,7 @@ uat_witness: machine
 arc: linked-session-context-arc
 depends_on: [context-traversal-telemetry]
 consumed_by: [cli]
-decisions: [235, 241]
+decisions: [235, 241, 260]
 capabilities:
   [
     traversal-trace-sink,
@@ -18,6 +18,7 @@ capabilities:
     terminal-capture-activation,
     revisit-link-metadata,
     agent-ref-descent,
+    artifact-offer-candidate-sets,
   ]
 proof:
   command:
@@ -91,9 +92,17 @@ zod-only because the studio bundles it.
 | 4 | [`terminal-capture-activation`](terminal-capture-activation.md) | The real terminal CLI process captures its own reads additively and replays them on demand. | `traversal-trace-sink`, `terminal-boundary-observations`, `traversal-session-query` |
 | 5 | [`revisit-link-metadata`](revisit-link-metadata.md) | A visit to a node this session already read carries the earlier visit's id, and carries none when it does not. | `traversal-trace-sink`, `terminal-boundary-observations` |
 | 6 | [`agent-ref-descent`](agent-ref-descent.md) | Each floor ref the agents render resolves becomes a child visit naming the agent's visit as its parent, and no other CLI shape descends anything. | `traversal-trace-sink`, `terminal-boundary-observations` |
+| 7 | [`artifact-offer-candidate-sets`](artifact-offer-candidate-sets.md) | A library artifact read records every onward artifact its Sources block offered as a candidate set at render time, whether or not anything follows it. | `traversal-trace-sink`, `terminal-boundary-observations` |
 
 The graph is acyclic: the sink and the observation table consume only increment 1's vocabulary; the
 query consumes the sink's reader; the activation composes all three.
+
+Capability 7 is this story's first contribution to a DIFFERENT arc (`context-decision-tree-arc`,
+ADR-0260) rather than to `linked-session-context-arc`, whose worklist is complete. It lands here
+because the boundary it observes is this story's boundary — the terminal CLI's `library artifact`
+read — and an arc is an initiative overlay, not a hierarchy edge (ADR-0183). It records what a read
+OFFERED; recording which offer was ANSWERED (`followed_edge`, and the offer id travelling in argv)
+is ADR-0260 D3's own increment and is deliberately absent here.
 
 ## Declared boundaries
 
@@ -150,6 +159,20 @@ uncertainty and every ADR-0241 honesty rule intact.
    The pure capability proves the descent over caller-supplied events, which is strictly weaker than
    "the real CLI, spawned, writes a parent-linked child visit and renders it" — this leg closes that
    gap at a boundary where spawning is free.
+7. **A real artifact read records the branches it did NOT take.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real
+   CLI binary (`node packages/cli/launch.mjs library artifact plan`) into a fresh temporary directory,
+   offline and without `--pg`, and run NOTHING after it — so nothing in the session ever follows what
+   that read offered. Then spawn `traversal show <sessionId>` against the same directory.
+   **Success —** the replay holds exactly one visit and exactly one `candidate_set` whose
+   `candidateSetId` names that visit and whose `candidateNodeIds` are the artifact's four real
+   authored refs in authored order (the `doc:` one kept prefix-and-all); NOT ONE of those four ids
+   appears as the `nodeId` of any visit in the trace, so every recorded offer is a branch this session
+   did not take; the rendered body names the offer and its count; the coverage block shows
+   `event:candidate_set` under `supported` and NOT `omitted`, while `event:followed_edge` and
+   `field:candidate_follow_causality` stay under `omitted`; and the body carries both ADR-0260 D7
+   caveats. This is the load-bearing leg for ADR-0260 D2: an implementation that recorded offers
+   lazily — only once something followed — would leave this trace with no candidate set at all and
+   would still pass every other leg above.
 
 ## Evidence
 
@@ -168,7 +191,8 @@ consumed-by edge and reviewed in the diff, never claimed as this story's evidenc
 
 ## Reliability Gates
 
-Every UAT leg above is `witness: machine`, and each is bound to `context-traversal-capture#gate-1`
+Every UAT leg above is `witness: machine`, and each — including leg 7, added by
+`context-decision-tree-arc`'s first build increment — is bound to `context-traversal-capture#gate-1`
 by an explicit `_(proof-gate: …)_` annotation — the binding the resolver looks up VERBATIM, with no
 first-observe fallback and no inference from ordering or `(covers:)`. The gate is what makes those
 legs machine-provable at all: without it a machine leg has no command to resolve to, refuses
@@ -187,8 +211,11 @@ an adoption standing in for a red that never happened.
    bytes), the argv read-allowlist (owner prose never recorded), the replay renderers (read strength
    distinct, coverage always printed, capacity honestly unknown), and the standing UAT that SPAWNS
    the real `node packages/cli/launch.mjs` process to prove production emits — all offline, no DB and
-   no API key — then signs an `adopted` verdict
-   (`storytree adopt context-traversal-capture --pg`, which observe-and-signs this gate and the five
+   no API key — plus the render-time offer recording (`artifact-offer-candidate-sets`), whose arrival
+   re-proved this gate deliberately rather than around it (ADR-0260 D6: emitting `candidate_set`
+   genuinely broke three of these legs' event-count assertions, which now count VISITS where they
+   were always making a claim about reads) — then signs an `adopted` verdict
+   (`storytree adopt context-traversal-capture --pg`, which observe-and-signs this gate and the seven
    legs bound to it).
 
 ## Explicitly outside this increment
