@@ -204,13 +204,19 @@ file conflicts).
   from your environment; PROBE it** (see the Cloud SQL bullet's probe-don't-assume rule). Full detail
   and the settled fork: ADR-0250 / ADR-0089; the closing owner answers: ADR-0254.
 - Install: `corepack enable pnpm` · `pnpm install`
-- **Fresh worktree?** A new git worktree has NO `node_modules` of its own — but a `SessionStart` hook
-  now **auto-provisions** it: `node packages/cli/provision-worktree.mjs --hook` runs `pnpm install` once
-  on a fresh worktree and no-ops on an already-installed one (ADR-0162 inc 3), so you normally find it
-  ready. If that first attempt fails it **retries once from the warm store**, and if the worktree is
-  *still* unprovisioned it **injects an explicit "run `pnpm install` here" heads-up into your context**
-  (a `SessionStart` signal) — so an under-provisioned worktree is announced up front, not rediscovered
-  mid-work as a cryptic `ERR_MODULE_NOT_FOUND`. If you see that heads-up (or a hard SessionStart timeout
+- **Fresh worktree — or a REUSED one that main moved under?** A new git worktree has NO `node_modules`
+  of its own — but a `SessionStart` hook now **auto-provisions** it:
+  `node packages/cli/provision-worktree.mjs --hook` runs `pnpm install` when the worktree is either
+  **fresh** (no completed install) or **stale** — `pnpm-lock.yaml` has advanced past the node_modules
+  built from it, which is what happens when a new workspace package or dependency lands on `main` and
+  you merge it in (ADR-0162 inc 3). It no-ops on an up-to-date worktree, so you normally find it ready.
+  **Don't hand-diagnose the stale case**: it used to surface mid-work as a `TS2307` /
+  `ERR_MODULE_NOT_FOUND` / `tsc is not recognized` naming a dependency you never touched — the hook now
+  refreshes it before your first tool-call (~2 s from the warm store).
+  If that first attempt fails it **retries once from the warm store**, and if the worktree is
+  *still* unusable it **injects an explicit "run `pnpm install` here" heads-up into your context**
+  (a `SessionStart` signal, naming which of the two conditions it hit) — so a broken worktree is
+  announced up front, not rediscovered mid-work. If you see that heads-up (or a hard SessionStart timeout
   swallowed the whole thing), run `pnpm install` here first (the gate / `pnpm storytree …` / `tsx` all
   fail without it). Either way, invoke the CLI as **`pnpm storytree …`** (not a
   bare `node --import tsx packages/cli/src/main.ts` — tsx resolves only through the workspace, so the
@@ -399,3 +405,11 @@ The interactive session agent: the outer loop that turns an owner's intent into 
   (`gh run view --job=<id> --log-failed`), fix it, and push — never leave a red PR sitting unmerged.
   **First suspect a stale branch:** `git fetch origin && git merge origin/main`, re-gate, push (a
   branch many commits behind `main` is the usual reason a local-green PR is CI-red).
+  **Then `pnpm install` again BEFORE you trust the re-gate.** If that merge brought a new workspace
+  package or dependency, your `node_modules` is now stale and the gate fails as `TS2307` on a package
+  you never touched, `ERR_MODULE_NOT_FOUND`, or `'tsc' is not recognized` — none of which name the
+  real cause. The SessionStart provision hook does NOT cover this: it compares `pnpm-lock.yaml`
+  against `node_modules/.pnpm/lock.yaml` at session START only, so a merge you perform mid-session is
+  invisible to it until the next session. And the install reassures you wrongly — it prints
+  "Already up to date" / "Lockfile is up to date" while still creating the missing links (that line is
+  about *resolution*, not linking), so never read it as "the install changed nothing".

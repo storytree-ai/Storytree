@@ -152,17 +152,34 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
   dispatcher + drive lazy-load refactor — isolate a red→green test before touching it (it flows through
   every command and the gate).
 - [x] **3. BOOT worktree pre-provisioning** (Phase 1, S–M) — the harness owns worktree creation (no
-  reachable `git worktree add` wrapper), so the closest hook is the first `SessionStart` in the fresh
+  reachable `git worktree add` wrapper), so the closest hook is the first `SessionStart` in the
   worktree. Added `packages/cli/provision-worktree.mjs` — bare-node ESM (zero deps: it runs BEFORE
-  node_modules exists), idempotent via pnpm's `node_modules/.modules.yaml` completion marker (a
-  provisioned worktree is a near-zero no-op, so it is safe to run at every SessionStart), pnpm→corepack
-  fallback, fail-safe in `--hook` mode (always exit 0, the `presence-hook.sh` contract, so a slow/failed
-  install never breaks the session) — and wired it into `.claude/settings.json` SessionStart. A fresh
-  worktree now `pnpm install`s once, up front and unattended, OFF the agent's onboarding tool-call path,
-  removing the +15–35 s mid-onboarding blocker for the ~1-in-5 fresh-worktree sessions. A
-  `provision-worktree.test.ts` proves the contract with an injected installer (idempotent no-op /
-  fresh→install-once / failure→non-zero exit / `--hook` swallows failure); `provision-worktree.d.mts`
-  types the surface for the TS test (per `scripts/studio.d.mts`). _(PR: #618.)_
+  node_modules exists), pnpm→corepack fallback, fail-safe in `--hook` mode (always exit 0, the
+  `presence-hook.sh` contract, so a slow/failed install never breaks the session) — and wired it into
+  `.claude/settings.json` SessionStart. A fresh worktree now `pnpm install`s once, up front and
+  unattended, OFF the agent's onboarding tool-call path, removing the +15–35 s mid-onboarding blocker
+  for the ~1-in-5 fresh-worktree sessions.
+  **The install trigger is TWO conditions, not one** (corrected in place per ADR-0139 when the
+  staleness fix landed; the original shipped only the first — `git log -p` has the prior wording):
+  the worktree is **fresh** — no completed install, pnpm's `node_modules/.modules.yaml`
+  marker absent — **or stale** (`lockfileAdvanced`): the tracked `pnpm-lock.yaml` differs from
+  `node_modules/.pnpm/lock.yaml`, pnpm's byte copy of the lockfile the last completed install actually
+  ran against. Presence was never currency, and the original conflated them: a worktree provisioned
+  once and then reused stayed a no-op forever while `main` moved under it, so a landed workspace
+  package or third-party dep left node_modules stale — surfacing mid-work as an opaque error naming
+  the wrong culprit (`TS2307` on an untouched dep / `ERR_MODULE_NOT_FOUND` / `tsc is not recognized`),
+  which is why the four friction items in `## References` all adjudicated `→ tool` against this file.
+  So it is an **up-to-date** worktree — not merely a provisioned one — that is the near-zero no-op
+  making this safe to run at every SessionStart; the reasons (`refreshed` / `refresh-failed`) and the
+  failure heads-up now name WHICH condition fired. A `provision-worktree.test.ts` proves the contract
+  with an injected installer (idempotent no-op / fresh→install-once / stale→refresh / failure→non-zero
+  exit / `--hook` swallows failure); `provision-worktree.d.mts` types the surface for the TS test (per
+  `scripts/studio.d.mts`).
+  **Scope fence — SessionStart only.** The hook cannot see a mid-session `git merge origin/main` (which
+  the CLAUDE.md CI-red guidance actively instructs), so that path still leaves node_modules stale with
+  no signal until the next session: "re-install after a mid-session main merge before trusting a red
+  gate" stands unchanged. What this closes is inheriting staleness from a PREVIOUS session.
+  _(PR: #618; the `lockfileAdvanced` staleness correction landed separately — `git log -S lockfileAdvanced`.)_
 - [x] **4. SOURCE engine-map — DECISION GATE** (validate-first) — **closed WON'T-DO** (2026-07-06). Ran
   ADR-0024's blind-reconstruction test (three tool-blind definers, neutral preamble, judged against the
   real engine + the existing CLAUDE.md package tour). Result: the SOURCE re-read is **not real waste**, so
@@ -217,3 +234,10 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
 - ADR-0024 (blind-reconstruction test; §8 exempts code from the pull-based corpus) · ADR-0135 (retired
   `glossary.md` — the stale-prose lesson for any generated engine map).
 - ADR-0032 (signal → Library graduation loop — the remediation path for breach signals).
+- ADR-0220 (SessionStart worktree self-repair — runs BEFORE this provision hook, so the provisioner
+  meets a real checkout).
+- The four friction items that drove item 3's staleness correction, all adjudicated `→ tool` against
+  `provision-worktree.mjs`: `friction-worktree-provision-noop-misses-lockfile-advance` ("detect
+  lockfile-newer-than-node_modules and re-install") · `a-provisioned-worktree-goes-stale-as-main-gains-packages`
+  (×2) · `worktree-predates-new-package-opaque-gate-red` · `friction-worktree-stale-deps-ts2307` (×3).
+  Memory `post-merge-relink-gate-ts2307` is the occurrence log and holds the residual mid-session case.
