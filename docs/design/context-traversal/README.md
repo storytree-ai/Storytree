@@ -62,8 +62,10 @@ that is the primary way the shape is read, not a static diagram that happens to 
   bullet), but plain depth does not. Where parent links are absent the traversal honestly renders as a
   single column rather than an inferred tree. (Narrowed 2026-07-27: this clause used to require
   `parentVisitId` AND followed-edge metadata for depth, which reads as "no tree may ever be drawn" —
-  followed-edge has no producer and is not expected to gain one, while `parentVisitId` now has one.
-  The conjunction was wrong; the honesty rule it guards is unchanged.)
+  at the time followed-edge had no producer, while `parentVisitId` had just gained one. The
+  conjunction was wrong; the honesty rule it guards is unchanged. Corrected 2026-07-28: the reason
+  given for the narrowing was overtaken by ADR-0260, which decided followed-edge WILL gain a producer
+  — the narrowing itself stands on its own merit, since depth has never needed a fork.)
 - A causal knowledge fork is shown only when deterministic offered/followed-edge metadata exists. Temporal proximity is not evidence of a fork.
 - Parent and subagents occupy linked lanes. A child receives a payload from the parent, runs an independent context window and inner loop, then returns a result to the parent.
 - Color and compact icons identify stable agent types, not individual instances. The approved initial types are primary, general-purpose, Explore, and librarian-curator.
@@ -87,7 +89,7 @@ The mock is shaped from metadata extracted from recorded session `02b6a304-6b29-
 - Children: five spawned agents, 208 combined tool calls.
 - Child types represented: Explore, general-purpose, and librarian-curator.
 - Spawn and result-return lanes are observable in the source trace.
-- Causal knowledge forks are intentionally absent because the source trace predates deterministic `parentVisitId`, candidate, and followed-edge metadata. `parentVisitId` has since gained a producer (below); candidate and followed-edge metadata still have none.
+- Causal knowledge forks are intentionally absent because the source trace predates deterministic `parentVisitId`, candidate, and followed-edge metadata. `parentVisitId` has since gained a producer, and as of 2026-07-28 so has `candidate_set` (both below); followed-edge has none yet, and ADR-0260 D3 settles how it will get one. **The absence here is a property of the source trace, not of the repo** — these artifacts must not be redrawn to show either (see below).
 
 The trace's occupancy series is load-bearing beyond composition: it **recedes** (240.9k → 228.1k, and
 239.8k → 229.6k, with per-visit `added` falling to 0 on those visits). That is the evidence in ADR-0248
@@ -149,5 +151,21 @@ so an indented tree drawn over it would be inferred depth, which the honesty cla
 which would forge the arc's own reference evidence. They stay a single column because *their* trace is
 one. A future artifact drawn from a trace that does carry parent links should show the descent.
 
-Followed-edge metadata still has no producer, and is not expected to gain one: being offered and later
-read does not entail being followed, and ADR-0235 clause 3 already refuses temporal proximity as proof.
+**Candidate sets: corrected 2026-07-28, and the same do-not-redraw reasoning applies.** This section
+previously closed by recording that followed-edge metadata had no producer "and is not expected to gain
+one". Both halves are now overtaken, and by a decision rather than by drift — ADR-0260 settled that an
+offer carries an identity and the answering command names it, so a followed edge becomes constructible
+without the temporal proximity ADR-0235 clause 3 refuses. Concretely:
+
+- `candidate_set` **has a producer** as of 2026-07-28 (capability `artifact-offer-candidate-sets`, same
+  story). A `storytree library artifact <id>` read records the onward artifacts its Sources block
+  printed, at RENDER time and whether or not anything follows — ADR-0260 D2, which is load-bearing: an
+  offer emitted only once something followed it would rebuild the containment tree while looking correct.
+- `followed_edge` **still has no producer, but is now expected to gain one** — ADR-0260 D3, the offer id
+  travelling in argv. Its absence today is unbuilt work, no longer a standing refusal.
+
+These artifacts are still NOT redrawn to show either, for exactly the reason given above: recorded
+session `02b6a304` predates both emissions, so drawing offers or forks over it would be inferred, not
+observed — and would forge the arc's own reference evidence. They stay a single column because *their*
+trace is one. What ADR-0260 changes is what a FUTURE artifact, drawn from a trace that carries the
+metadata, is allowed to show — never what this one may be back-filled with.
