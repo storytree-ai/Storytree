@@ -19,6 +19,7 @@ capabilities:
     revisit-link-metadata,
     agent-ref-descent,
     artifact-offer-candidate-sets,
+    offer-follow-edges,
   ]
 proof:
   command:
@@ -93,16 +94,18 @@ zod-only because the studio bundles it.
 | 5 | [`revisit-link-metadata`](revisit-link-metadata.md) | A visit to a node this session already read carries the earlier visit's id, and carries none when it does not. | `traversal-trace-sink`, `terminal-boundary-observations` |
 | 6 | [`agent-ref-descent`](agent-ref-descent.md) | Each floor ref the agents render resolves becomes a child visit naming the agent's visit as its parent, and no other CLI shape descends anything. | `traversal-trace-sink`, `terminal-boundary-observations` |
 | 7 | [`artifact-offer-candidate-sets`](artifact-offer-candidate-sets.md) | A library artifact read records every onward artifact its Sources block offered as a candidate set at render time, whether or not anything follows it. | `traversal-trace-sink`, `terminal-boundary-observations` |
+| 8 | [`offer-follow-edges`](offer-follow-edges.md) | A read invoked with an offer id on the command line stamps that edge on its own visit and records it; a read invoked without one records no edge at all. | `traversal-trace-sink`, `terminal-boundary-observations`, `artifact-offer-candidate-sets` |
 
 The graph is acyclic: the sink and the observation table consume only increment 1's vocabulary; the
 query consumes the sink's reader; the activation composes all three.
 
-Capability 7 is this story's first contribution to a DIFFERENT arc (`context-decision-tree-arc`,
-ADR-0260) rather than to `linked-session-context-arc`, whose worklist is complete. It lands here
-because the boundary it observes is this story's boundary — the terminal CLI's `library artifact`
-read — and an arc is an initiative overlay, not a hierarchy edge (ADR-0183). It records what a read
-OFFERED; recording which offer was ANSWERED (`followed_edge`, and the offer id travelling in argv)
-is ADR-0260 D3's own increment and is deliberately absent here.
+Capabilities 7 and 8 are this story's contributions to a DIFFERENT arc (`context-decision-tree-arc`,
+ADR-0260) rather than to `linked-session-context-arc`, whose worklist is complete. They land here
+because the boundary they observe is this story's boundary — the terminal CLI's `library artifact`
+read — and an arc is an initiative overlay, not a hierarchy edge (ADR-0183). Capability 7 records
+what a read OFFERED; capability 8 records which offer a later read ANSWERED, and could not have
+landed first: `FollowedEdgeEvent.candidateSetId` is required and non-optional, so a followed edge is
+uninstantiable until a candidate set exists.
 
 ## Declared boundaries
 

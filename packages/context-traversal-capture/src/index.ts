@@ -34,9 +34,14 @@ export {
 export type { AgentDescentDeps, AgentDocStore } from "./descend-agent-refs.js";
 
 export {
+  candidateSetIdOf,
   emitCandidateSet,
+  isOfferableArtifactRead,
+  offerIdOf,
   renderCoverageCaveats,
   resolveArtifactOffers,
+  CANDIDATE_SET_PREFIX,
+  LIBRARY_ARTIFACT_SURFACE,
   OFFER_CANDIDATE_SET_CAVEATS,
   OFFER_CANDIDATE_SET_COVERAGE,
 } from "./offer-candidate-sets.js";
