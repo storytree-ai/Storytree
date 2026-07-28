@@ -1,12 +1,15 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-07-27
 arc: context-decision-tree-arc
 ---
 # ADR-0260: A followed edge needs an offer it can be joined to, and ordering cannot supply it
 
 ## Status
 
-proposed — raised 2026-07-27 for the owner, who asked why a recorded traversal renders as a chain rather than a decision tree. The question is real and the answer is not a scheduling matter: the arc that produced those traces closed its worklist without ever being able to draw a decision point. This ADR states why, lays out the candidate attribution rules with their honest costs, and asks the owner to choose. It deliberately decides nothing.
+accepted (2026-07-27) — decided/directed by the owner in conversation on 2026-07-27, choosing candidate B ("offers carry an ID") from the four presented. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
+
+Raised the same day, after the owner asked why a recorded traversal renders as a chain rather than a decision tree. The question was real and the answer was not a scheduling matter: the arc that produced those traces closed its worklist without ever being able to draw a decision point. This ADR was filed `proposed` at the owner's direction so the fork could be compared in writing before being settled; the comparison is kept below under *What was weighed*, because the two refusals it records are the fence around the decision.
 
 ## Context
 
@@ -43,7 +46,23 @@ Two riders, and the first is the more serious. Five of those eight offers are `d
 
 ## Decision
 
-None. This ADR presents the fork. The candidates below are the attribution rules available, strongest constraint first.
+**Offers carry an identity, and the answering command names it.** Candidate B below, chosen by the owner on 2026-07-27.
+
+1. **A read surface that presents onward artifacts emits a `candidate_set` event carrying the ids it offered.** The Sources block is the offer; the renderer already computes that list, so this is a recording change rather than a new derivation.
+
+2. **The offer is recorded whether or not anything follows it.** A candidate set is emitted at render time, independently of what the session does next. This is the load-bearing half: the branches *not* taken exist in the telemetry only because the offer was recorded when it was made, and an implementation that emitted offers lazily — only once something followed — would reproduce the containment tree this decision exists to replace.
+
+3. **The identity travels in argv, not through the trace.** The printed follow-up commands name the offer they came from, and the answering process declares the edge by stamping `followedEdgeId` on its own visit. The variant considered and **refused** is the CLI silently resolving the "most recent" candidate set from the session's own trace: "the most recent set containing this node" is precisely the recency inference this decision declines, so that variant is candidate C wearing candidate B's clothes. If the id is not on the command line, there is no edge.
+
+4. **Under-reporting is the accepted failure mode, and inference may never repair it.** An agent that types the bare command produces a read with no `followedEdgeId`, and that visit draws as no decision point. No downstream pass, renderer, or backfill may fill the gap by correlation. A thin tree is the honest cost of a bypassed mechanism.
+
+5. **ADR-0235 clause 3 stands unamended.** This decision trades in explicit ids rather than temporal proximity, so it never engages the clause. Clause 3 continues to fence out candidate C, and narrowing it remains a deliberate act needing its own ADR — not a side effect of this one.
+
+6. **The signed-UAT cost is paid, not avoided.** Emitting `candidate_set` couples the two event-count assertions #944 identified (`terminal-capture.uat.test.ts:112` and `:137`), so the increment that lands it re-proves that capability deliberately rather than working around the assertions.
+
+7. **Two gaps are declared in adapter coverage, per ADR-0235 clause 6.** That `doc:` follows are unobservable, and that trace completeness depends on agents using the offered command form. Both must be visible in the coverage declaration rather than inferred later from a thin picture.
+
+### What was weighed
 
 **Candidate A — within-process offers only.** Emit both events only where a single process renders the offer and performs the read, stamping `followedEdgeId` on the visit directly.
 
@@ -51,11 +70,11 @@ None. This ADR presents the fork. The candidates below are the attribution rules
 - Cheapest to build and impossible to get wrong.
 - **Records machine-resolved descent, not agent choice.** A renderer that resolves every ref it finds did not choose — it took all of them. This draws the containment tree we already have, with better labels. It does not answer the owner's question.
 
-**Candidate B — the offer's identity travels to the follow.** A candidate set is recorded with its id, and a later invocation *carries* that id back — the `next:` hints become commands that name the offer they came from, so the answering process declares the edge explicitly.
+**Candidate B — the offer's identity travels to the follow. CHOSEN.** A candidate set is recorded with its id, and a later invocation *carries* that id back — the printed follow-ups become commands that name the offer they came from, so the answering process declares the edge explicitly.
 
-- Deterministic where the id survives, and the failure mode is **under**-reporting: an agent that types the bare command produces a read with no edge, which draws as no decision point rather than a wrong one. That asymmetry matters — the surface stays honest when the mechanism is bypassed.
-- Costs a change to the agent-facing command surface, which is a behavioural ask on every agent, not just a schema addition. It also makes the trace's completeness depend on agents using the offered form, which is a soft dependency of a kind the corpus has been careful to avoid elsewhere.
-- Open sub-question: whether the id rides in argv, or the CLI resolves it from the session's own recent trace. The second is invisible to the agent but is a correlation in disguise, and would need its own honesty rule.
+- Deterministic where the id survives, and the failure mode is **under**-reporting: an agent that types the bare command produces a read with no edge, which draws as no decision point rather than a wrong one. That asymmetry is what decided it — the surface stays honest when the mechanism is bypassed.
+- Costs a change to the agent-facing command surface, which is a behavioural ask on every agent, not just a schema addition. It also makes the trace's completeness depend on agents using the offered form, which is a soft dependency of a kind the corpus has been careful to avoid elsewhere. Accepted with eyes open, and mitigated only by D7's coverage declaration — not by inference.
+- Its open sub-question is settled by D3: the id rides in **argv**. Trace-side resolution was refused as candidate C in disguise.
 
 **Candidate C — join on "this node was in a recent candidate set".** No new plumbing; attribute a read to the most recent set that offered that node.
 
@@ -64,19 +83,19 @@ None. This ADR presents the fork. The candidates below are the attribution rules
 
 **Candidate D — the model declares its own choices.** Refused on its face: ADR-0235 clause 1 and the founding intent of `linked-session-context-arc` both exist to avoid spending model context on self-reporting, and a model-authored path diary is a named anti-goal of the visual contract.
 
-**The secondary question the owner should answer alongside the primary one:** whether ADR-0235 clause 3 is stricter than this use needs. It was written against *temporal proximity* as evidence. Candidate B is not proximity — it is an explicit id — so it arguably never engages clause 3 at all. But a permissive reading of clause 3 is also how candidate C gets smuggled in later, and the clause is currently doing useful work. Narrowing it should be a deliberate act with its own wording, not a side effect of adopting B.
+**The secondary question, settled with the primary one:** whether ADR-0235 clause 3 is stricter than this use needs. It was written against *temporal proximity* as evidence; this decision is an explicit id, so it never engages the clause. Clause 3 therefore stands unamended (D5) and keeps doing its work of fencing out candidate C. Narrowing it would still be available later as a deliberate act with its own wording — it is simply not needed here, and adopting it as a side effect would have been the expensive mistake.
 
 ## Consequences
 
-**If A is chosen:** cheap and safe, and the arc should be re-scoped or closed, because it will not deliver decision points. Better to say that up front than to build A and discover the tree still has no forks.
+**The arc has a real build, spanning three surfaces.** The telemetry schema (unblocking `candidate_set`, including the signed-UAT re-proof #944 identified), the CLI envelope (offers acquire ids and the printed follow-ups carry them), and the playback (drawing unfollowed branches). None of the three is optional: offers without a rendered follow-up form produce ids nobody can return, and edges without a playback change produce data nobody can see.
 
-**If B is chosen:** the arc has a real build, spanning the telemetry schema (unblocking `candidate_set`, including the signed-UAT re-proof #944 identified), the CLI envelope (offers become identified), and the playback (drawing unfollowed branches). The completeness of any trace becomes a function of agent behaviour, which is a new class of dependency for this telemetry and should be stated in the adapter's coverage declaration per clause 6 rather than left implicit.
+**Trace completeness becomes a function of agent behaviour**, which is a new class of dependency for this telemetry. Every previous adapter observed a boundary that fired whether or not anyone cooperated; this one records fully only when agents use the offered command form. That is why D4 forbids repairing the gap by inference and D7 forces it into the coverage declaration — the mitigation is honesty about the hole, not a heuristic that hides it.
 
-**If C is chosen:** ADR-0235 clause 3 must be superseded, not narrowed, and the visual contract's "causal forks appear only when deterministic metadata proves that multiple offered branches were followed" clause must change with it. The cost is that every drawn fork becomes a probabilistic claim, and the surface loses the property that what it shows is what was observed.
+**The agent-facing command surface changes**, so this decision reaches guidance as well as code. Rendered follow-ups that carry an offer id are only useful if agents actually run them, which makes this partly a corpus/guidance change rather than purely an adapter change. Sequencing that guidance alongside the emission is the first increment's problem, not a later cleanup.
 
-**Whichever is chosen**, the Sources block is where the offer already lives, so `candidate_set` emission is a recording change at a surface that already computes the list — not a new derivation. The cost #944 identified (re-proving two signed UAT event-count assertions) is unchanged and is the honest price of that increment.
+**Candidate C is now fenced twice.** ADR-0235 clause 3 rules out temporal proximity, and D3 rules out the trace-side resolution that would have reintroduced it under this decision's own name. A future proposal to correlate reads to offers must supersede both.
 
-**A `doc:` follow stays invisible** under every candidate here, because reading an ADR is a file read rather than an allowlisted CLI command — and on the sample above that is five of eight offers. Any tree drawn from this telemetry will therefore over-report how often a session stayed within the asset graph, which is a distortion of exactly the quantity the arc exists to show. It belongs in the adapter's clause-6 coverage declaration rather than being discovered later from a suspiciously tidy picture, and closing it is a candidate increment in its own right.
+**A `doc:` follow stays invisible**, because reading an ADR is a file read rather than an allowlisted CLI command — and on the sample above that is five of eight offers. Any tree drawn from this telemetry will therefore over-report how often a session stayed within the asset graph, which is a distortion of exactly the quantity the arc exists to show. It belongs in the D7 coverage declaration rather than being discovered later from a suspiciously tidy picture, and closing it is a candidate increment in its own right.
 
 **Not in scope, deliberately.** Acting on the resulting evidence — ranking, prefetch, or any change to what context is pulled — stays outside `context-decision-tree-arc`, on the same line ADR-0235 clause 7 holds.
 
