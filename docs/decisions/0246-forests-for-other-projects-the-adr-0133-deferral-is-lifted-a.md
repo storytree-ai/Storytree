@@ -53,6 +53,21 @@ Grounded in the checkout at `8afabd5c`, not assumed:
   (`packages/library/src/store/load-corpus.ts:41`), `packages/cli/src/build-agents.ts:29`,
   `packages/cli/src/build-claude-md.ts:25`. `/api/tree` takes no project parameter and its payload
   carries no project field.
+  **Corrected in place (ADR-0086 / ADR-0139, 2026-07-28) — the headline claim holds, the enumeration
+  does not.** That list is one search idiom's hits presented as an inventory, and it was already
+  incomplete at `8afabd5c`, in two distinct ways. *(a) Sites missed:* `repoRoot()` at
+  `packages/drive/src/node-build.ts:141` — the D5-critical one, since it feeds `storiesDir`,
+  `createBuildWorktree` and the promotion, so leaving it derived would have meant a `--real` build
+  could still only ever prove storytree's own tree — and `packages/cli/src/build-unit-status.ts:99`;
+  seven further sites in `packages/cli` (`doctor`, `guide`, `graduate`, `web-engine`,
+  `check-dist-drift`, `check-web-grounding`, `web-experience-check`) share the identical
+  `path.resolve(fileURLToPath(import.meta.url), "..", …)` idiom and remain derived by choice, being
+  storytree's own tooling rather than a foreign project's. *(b) A dimension missed:* it measured
+  where a root is DERIVED and never who could SET one, so parameterising a listed site can land the
+  parameter caller-less — which is what happened to `resolveStudioPaths`, parameterised in increment
+  1 with no caller able to reach it until increment 2 added `serve.ts --repo-root` and the
+  `storytreeDataApi({ repoRoot })` option. Re-derive before consuming this block as a worklist. The
+  Decision below is unchanged; only this measurement is corrected.
 - **The render core is already project-agnostic, and is proven so.** `SceneInput` / `buildScene`
   (`packages/forest-world/src/scene.ts`) have no store, node, or React dependency, and the public
   website drives the same geometry from its own locally-declared `Story` / `Capability` types
@@ -161,6 +176,15 @@ or a child ADR under this arc, not here:
   `HttpStore` is a prerequisite shared with the remote-session thread. (Added as a reference under
   ADR-0086 in-place curation, 2026-07-27; ADR-0259 already carries this arc's `arc:` stamp, so the
   omission was in this body only.)
+- ADR-0087 — spec-borne write scope. Its validator (`scopeGlobBoundIssue`,
+  `packages/orchestrator/src/proof-config.ts`) admits only globs rooted at `packages/`, `apps/`,
+  `stories/`, or `docs/` — storytree's own monorepo shape, hard-coded — so a foreign project laid
+  out as `src/` resolves its repo root correctly and then fails spec load with `over-broad scope
+  glob`. Measured 2026-07-28 while building increment 2 and pinned executably at
+  `packages/drive/src/repo-root-drivable.test.ts` (that test goes red when the fork is settled,
+  which is the signal). It is the same class as D6 fork (c) without being literally
+  `repo-manifest.json` or `check:boundaries`, so fork (c) is wider than its own wording — RECORDED
+  here under ADR-0086 in-place curation, deliberately NOT settled.
 - ADR-0093 — the shared render core fenced to the look, which D4 relies on.
 - ADR-0020 / ADR-0040 — green comes only from a signed verdict, which is why D5 is inside the arc.
 - ADR-0110 — owner-directed decisions are born `accepted`.
