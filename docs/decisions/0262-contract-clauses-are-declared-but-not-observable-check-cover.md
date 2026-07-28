@@ -1,5 +1,6 @@
 ---
 status: proposed
+amends: [122]
 arc: verification-integrity-arc
 ---
 # ADR-0262: Contract clauses are declared but not observable: check:coverage stays name-granular until a clause carries identity
@@ -10,6 +11,17 @@ proposed (2026-07-28) — the owner directed the INVESTIGATION, not its outcome:
 report asked whether `check:coverage` should count a contract's clauses rather than its test name, and
 directed that if clause counting needs a schema change, the fork be recorded rather than guessed. It
 does. This records the measured answer and the fork; the resolution is the owner's to ratify.
+
+**Amends** [ADR-0122](0122-per-contract-coverage-check-map-each-declared-contract-to-an.md) — the
+`amends: [122]` edge binds only on acceptance. ADR-0122's decision stands entire: a structural gate
+check maps each declared contract to an OBSERVED test by the naming convention, with no new signer.
+This adds to it twice and overturns neither — it holds that mapping's GRANULARITY against a
+clause-granular escalation (decisions 1 and 3), and it widens `parseContracts`, the unit 0122's
+decision enumerates, past the declared contract ids its first slice parsed (decision 2). The same
+additive shape as 0122's other two amenders,
+[ADR-0126](0126-static-ast-hollow-test-detection-a-contract-is-covered-only.md) (the vouching input)
+and [ADR-0127](0127-record-per-contract-coverage-on-the-signed-verdict-shape-adr.md) (the verdict
+axis).
 
 ## Context
 
@@ -70,8 +82,8 @@ counted as ONE clause. The segmenter under-counts in exactly the place the frict
 Building a clause-granular ratio on top of this would replace a name-granular ratio the check CAN
 observe with a clause-granular one whose numerator is inferred and whose denominator is guessed — the
 defect class this arc exists to close, re-introduced by the instrument meant to close it. It is the
-same shape as ADR-0249's lesson one level up: there, evidence of unknown provenance was not
-fail-closed; here, a denominator with no matching observation is not a measurement.
+same shape as ADR-0249's lesson one level up: there, a cross-check against evidence of unknown
+provenance was not fail-closed; here, a denominator with no matching observation is not a measurement.
 
 ## Decision
 
@@ -79,7 +91,9 @@ fail-closed; here, a denominator with no matching observation is not a measureme
 contract". Its ceiling axes (`uncoveredCeiling: 119` / `unboundCeiling: 1`, ADR-0252 D3) are unchanged,
 and its existing footer already discloses the granularity it has ("COVERED = a SUBSTANTIVE test NAMES
 the contract … A substantive-but-irrelevant assertion still reads covered"). No new list, no new warn
-band, no re-baseline.
+band, no re-baseline. The same granularity rides the SIGNED VERDICT — ADR-0127's
+`Verdict.contractCoverage` records covered/uncovered declared contract ids at sign time — so this holds
+one granularity across both surfaces, not just the gate's.
 
 **2. The declared obligations are PARSED and no longer discarded.** `ContractDecl` gains
 `obligations: ObligationDecl[]` — the labelled sub-bullets, label normalised, wrapped continuation
@@ -96,7 +110,10 @@ refusal in `contracts.ts` so a later session finds the reason at the code, not o
 
 **4. Making clause coverage REAL requires clause IDENTITY, and that is the open fork this ADR does not
 take.** A clause becomes observable the same way a contract already is: it carries an id an author can
-put in a test name. The candidate routes, none costed here:
+put in a test name. Note what the fork crosses: ADR-0127 attests these same declared-contract ids on
+the PUBLISHED `Verdict` shape (`Verdict.contractCoverage`), and records that changing that shape is an
+owner call (the owner-fork-bar). Route (a) therefore moves the verdict shape as well as the check;
+route (b) leaves it untouched. The candidate routes, none costed here:
 
 - **(a) Clause ids in the authoring format** — sub-ids under a contract (`<contract-id>/<clause>`),
   named by tests the way contract ids are today. Exact and observable; a schema change plus a
@@ -104,8 +121,9 @@ put in a test name. The candidate routes, none costed here:
 - **(b) Split the contract instead** — if a contract declares four obligations, it is arguably four
   contracts. Needs no new schema at all; it is a story-author discipline question, and it moves the
   `check:coverage` denominator by construction, so its ceiling interaction must be measured first.
-- **(c) A semantic reviewer** — the follow-on ADR-0122 / ADR-0020 §4 already name for the adjacent gap
-  (a substantive-but-irrelevant assertion reading covered). Judges relevance rather than counting;
+- **(c) A semantic reviewer** — the follow-on ADR-0122 R4 named as the escalation from name-presence,
+  and that ADR-0126 then aimed at the adjacent gap its vouching input leaves (a
+  substantive-but-irrelevant assertion reading covered). Judges relevance rather than counting;
   outside what a static sweep can do, and priced accordingly.
 
 **5. The sibling friction item `contract-without-a-falsifiability-clause-…` is NAMED, not folded in.**
@@ -146,8 +164,15 @@ observed — the ADR-0251 absent-vs-falsy rule applied one tier down.
   `contract-without-a-falsifiability-clause-under-authors-the-leafs-test` (decision 5),
   `zero-contract-coverage-lets-an-unimplemented-contract-ship-on-a-signed-pass` (the cluster's cost).
 - ADR-0020 §3 — a signed green attests ONE authored test, not every enumerated contract (the gap).
-- ADR-0122 / ADR-0126 — the coverage check and its hollow-test AST; the semantic reviewer follow-on.
-- ADR-0249 — evidence of unknown provenance is not fail-closed (the same shape, one tier up).
+- ADR-0122 — **amended**: its name-granular contract→test mapping is held (decisions 1/3) and the
+  `parseContracts` unit its decision enumerates is widened (decision 2); nothing it decided is
+  overturned.
+- ADR-0126 — the vouching (hollow-test AST) input to that same mapping; the ADR that names the
+  substantive-but-irrelevant gap decision 4(c) routes to ADR-0122 R4's semantic reviewer.
+- ADR-0127 — the same declared-contract-id granularity attested on the signed `Verdict`
+  (`contractCoverage`), which is why decision 4's fork crosses the published verdict shape.
+- ADR-0249 — a cross-check against evidence of unknown provenance is not fail-closed (the same shape,
+  one tier up).
 - ADR-0251 — an ABSENT key is distinguished from a falsy value.
 - ADR-0252 D3 — advisory warns with a drain ceiling; why decision 5 is not folded in.
 - Code: `packages/library/src/contracts.ts` (the parse + the recorded refusal),
