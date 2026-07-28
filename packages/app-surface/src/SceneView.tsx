@@ -498,6 +498,91 @@ function collectPreservedDescendants(node: SceneNode, out: SceneNode[]): void {
 }
 
 /**
+ * One renderer-owned construction rig for a story tree.
+ *
+ * The mature vector/sprite artwork remains the product tree. This stable local geometry only makes
+ * its construction observable to the semantic-growth witness: a trunk rises from the existing
+ * ground anchor, branches leave real fork points on that trunk, then canopy clusters collect around
+ * their tips. It is inert outside that witness (semantic-growth.css owns its visibility/timeline).
+ */
+function treeGrowthRig(node: SceneNode, ctx: SceneCtx): React.JSX.Element | null {
+  if (node.el !== 'g' || node.kind !== 'tree') return null;
+  const bounds = wrapperContentBounds(node, ctx.defBounds);
+  if (!bounds) return null;
+
+  const width = Math.max(12, bounds.maxX - bounds.minX);
+  const height = Math.max(24, bounds.maxY - bounds.minY);
+  const centerX = 0;
+  const baseY = 0;
+  const trunkTopY = bounds.minY + height * 0.28;
+  const forkLowY = baseY - height * 0.4;
+  const forkHighY = baseY - height * 0.58;
+  const left = centerX - width * 0.34;
+  const right = centerX + width * 0.34;
+  const upperLeft = centerX - width * 0.24;
+  const upperRight = centerX + width * 0.24;
+  const branchTipY = bounds.minY + height * 0.42;
+  const upperTipY = bounds.minY + height * 0.25;
+  const canopyR = Math.max(3, width * 0.18);
+
+  const branches = [
+    `M ${fmt(centerX)} ${fmt(forkLowY)} C ${fmt(centerX - width * 0.08)} ${fmt(forkLowY - height * 0.08)} ${fmt(left + width * 0.08)} ${fmt(branchTipY + height * 0.04)} ${fmt(left)} ${fmt(branchTipY)}`,
+    `M ${fmt(centerX)} ${fmt(forkLowY - height * 0.05)} C ${fmt(centerX + width * 0.08)} ${fmt(forkLowY - height * 0.11)} ${fmt(right - width * 0.08)} ${fmt(branchTipY)} ${fmt(right)} ${fmt(branchTipY - height * 0.03)}`,
+    `M ${fmt(centerX)} ${fmt(forkHighY)} C ${fmt(centerX - width * 0.05)} ${fmt(forkHighY - height * 0.06)} ${fmt(upperLeft + width * 0.05)} ${fmt(upperTipY + height * 0.04)} ${fmt(upperLeft)} ${fmt(upperTipY)}`,
+    `M ${fmt(centerX)} ${fmt(forkHighY - height * 0.04)} C ${fmt(centerX + width * 0.05)} ${fmt(forkHighY - height * 0.08)} ${fmt(upperRight - width * 0.05)} ${fmt(upperTipY + height * 0.02)} ${fmt(upperRight)} ${fmt(upperTipY - height * 0.02)}`,
+  ];
+  const canopy = [
+    [centerX, bounds.minY + height * 0.17, canopyR * 1.08],
+    [left, branchTipY, canopyR],
+    [right, branchTipY - height * 0.03, canopyR * 1.02],
+    [upperLeft, upperTipY, canopyR * 0.92],
+    [upperRight, upperTipY - height * 0.02, canopyR * 0.94],
+    [centerX, bounds.minY + height * 0.39, canopyR * 1.12],
+  ] as const;
+
+  return React.createElement(
+    'g',
+    {
+      key: '__tree-growth-rig',
+      className: 'tree-growth-rig',
+      'aria-hidden': 'true',
+      style: { display: 'none' },
+    },
+    React.createElement('path', {
+      key: 'trunk',
+      className: 'tree-growth-trunk',
+      'data-tree-growth-part': 'trunk',
+      d: `M ${fmt(centerX)} ${fmt(baseY)} C ${fmt(centerX - width * 0.03)} ${fmt(baseY - height * 0.22)} ${fmt(centerX + width * 0.025)} ${fmt(trunkTopY + height * 0.12)} ${fmt(centerX)} ${fmt(trunkTopY)}`,
+      pathLength: 1,
+    }),
+    ...branches.map((d, index) =>
+      React.createElement('path', {
+        key: `branch-${index}`,
+        className: 'tree-growth-branch',
+        'data-tree-growth-part': 'branch',
+        'data-tree-growth-index': index,
+        d,
+        pathLength: 1,
+      }),
+    ),
+    React.createElement(
+      'g',
+      { key: 'canopy', className: 'tree-growth-canopy crown-lo' },
+      ...canopy.map(([cx, cy, r], index) =>
+        React.createElement('circle', {
+          key: `canopy-${index}`,
+          'data-tree-growth-part': 'canopy',
+          'data-tree-growth-index': index,
+          cx: fmt(cx),
+          cy: fmt(cy),
+          r: fmt(r),
+        }),
+      ),
+    ),
+  );
+}
+
+/**
  * Render `node` as a sprite `<image>` when `ctx.spriteSheet` covers its key — `null` when there is no
  * sheet, no usable key, or the sheet doesn't cover this node (the caller falls through to vector). The
  * image is positioned by {@link spritePlacement} and carries the wrapper's OWN `transform` untouched
@@ -551,10 +636,38 @@ function trySprite(
   }
   const kids: React.ReactNode[] = [];
   if (node.title) kids.push(React.createElement('title', { key: '__title' }, node.title));
-  const image = React.createElement('image', props, ...kids);
-
   const preserved: SceneNode[] = [];
   collectPreservedDescendants(node, preserved);
+
+  if (node.el === 'g' && node.kind === 'tree') {
+    const matureProps: Record<string, unknown> = {
+      ...props,
+      key: '__mature-art',
+      className: 'tree-mature-art',
+      'data-tree-mature-art': 'storybook',
+    };
+    delete matureProps.transform;
+    delete matureProps.onClick;
+    delete matureProps['data-story-id'];
+    const wrapperProps: Record<string, unknown> = {
+      key,
+      className: cls,
+      ...handlersFor(node, ctx, storyId),
+    };
+    if (node.transform) wrapperProps.transform = node.transform;
+    if (storyId) wrapperProps['data-story-id'] = storyId;
+    return React.createElement(
+      'g',
+      wrapperProps,
+      treeGrowthRig(node, ctx),
+      React.createElement('image', matureProps, ...kids),
+      ...preserved.map((preservedNode, index) =>
+        renderNode(preservedNode, `__preserved-${index}`, storyId, ctx),
+      ),
+    );
+  }
+
+  const image = React.createElement('image', props, ...kids);
   if (preserved.length === 0) return image;
   return React.createElement(
     React.Fragment,
@@ -846,8 +959,21 @@ function renderNode(
       const el = renderNode(c, i, childStory, ctx);
       if (el) rendered.push(el);
     });
-    if (node.kind === 'tree' || node.kind === 'flora' || node.kind === 'plate') {
-      // Motion-safe inner wrapper (semantic-growth.css `arrive-pop`): `tree`/`flora`/`plate` are
+    if (node.kind === 'tree') {
+      kids.push(treeGrowthRig(node, ctx));
+      kids.push(
+        React.createElement(
+          'g',
+          {
+            key: '__pop-motion-inner',
+            className: 'pop-motion-inner tree-mature-art',
+            'data-tree-mature-art': 'vector',
+          },
+          ...rendered,
+        ),
+      );
+    } else if (node.kind === 'flora' || node.kind === 'plate') {
+      // Motion-safe inner wrapper (semantic-growth.css `arrive-pop`): `flora`/`plate` are
       // the mapper-POSITIONED wrappers above — the `if (node.transform) props.transform =
       // node.transform;` line above already stamped this node's own SVG placement `transform`
       // (its ground/root anchor). A CSS `arrive-pop` sweep must never bind to THIS class directly

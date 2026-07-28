@@ -51,6 +51,14 @@
   pointer-events: none;
 }
 
+.tree-growth-rig {
+  display: none;
+}
+
+[data-semantic-growth-frame] .tree-growth-rig {
+  display: inline !important;
+}
+
 [data-semantic-growth-frame='empty'] .coast-fill-group,
 [data-semantic-growth-frame='empty'] .relaxed-tile,
 [data-semantic-growth-frame='empty'] .hex-tile,
@@ -64,20 +72,28 @@
 [data-semantic-growth-track='island-reveal'] .coast-fill-group,
 [data-semantic-growth-track='island-reveal'] .relaxed-tile,
 [data-semantic-growth-track='island-reveal'] .hex-tile,
-[data-semantic-growth-track='story-tree-entrance'] .coast-fill-group,
-[data-semantic-growth-track='story-tree-entrance'] .relaxed-tile,
-[data-semantic-growth-track='story-tree-entrance'] .hex-tile,
-[data-semantic-growth-track='story-tree-entrance'] .story-tree,
-[data-semantic-growth-track='story-tree-settled'] .coast-fill-group,
-[data-semantic-growth-track='story-tree-settled'] .relaxed-tile,
-[data-semantic-growth-track='story-tree-settled'] .hex-tile,
-[data-semantic-growth-track='story-tree-settled'] .story-tree {
+[data-semantic-growth-track='trunk-growth'] .coast-fill-group,
+[data-semantic-growth-track='trunk-growth'] .relaxed-tile,
+[data-semantic-growth-track='trunk-growth'] .hex-tile,
+[data-semantic-growth-track='trunk-growth'] .story-tree,
+[data-semantic-growth-track='branch-growth'] .coast-fill-group,
+[data-semantic-growth-track='branch-growth'] .relaxed-tile,
+[data-semantic-growth-track='branch-growth'] .hex-tile,
+[data-semantic-growth-track='branch-growth'] .story-tree,
+[data-semantic-growth-track='canopy-accumulation'] .coast-fill-group,
+[data-semantic-growth-track='canopy-accumulation'] .relaxed-tile,
+[data-semantic-growth-track='canopy-accumulation'] .hex-tile,
+[data-semantic-growth-track='canopy-accumulation'] .story-tree,
+[data-semantic-growth-track='mature-tree'] .coast-fill-group,
+[data-semantic-growth-track='mature-tree'] .relaxed-tile,
+[data-semantic-growth-track='mature-tree'] .hex-tile,
+[data-semantic-growth-track='mature-tree'] .story-tree {
   opacity: 1;
   visibility: visible;
 }
 
-/* The island is deliberately slower than the tree. Both profiles use additive `scale`, never the
- * full CSS transform shorthand, so mapper-authored SVG placement remains authoritative. */
+/* Island formation stays independent from tree construction. Its additive scale never touches the
+ * tree's mapper-authored ground transform. */
 @keyframes island-emerge {
   from {
     opacity: 0;
@@ -97,14 +113,82 @@
   transform-origin: center;
 }
 
-@keyframes story-tree-enter {
+/* The rig is persistent and addressable. A phase changes how much of its local topology
+ * participates; the mature tree wrapper itself is never scaled into existence. */
+[data-semantic-growth-frame] [data-tree-growth-part='trunk'],
+[data-semantic-growth-frame] [data-tree-growth-part='branch'] {
+  fill: none;
+  stroke: var(--story-trunk, #71513a);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  visibility: hidden;
+}
+
+[data-semantic-growth-frame] [data-tree-growth-part='trunk'] {
+  stroke-width: 5.2;
+}
+
+[data-semantic-growth-frame] [data-tree-growth-part='branch'] {
+  stroke-width: 3.4;
+}
+
+[data-semantic-growth-frame] [data-tree-growth-part='canopy'] {
+  opacity: 0;
+  scale: 0;
+  visibility: hidden;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+[data-semantic-growth-frame] [data-tree-mature-art] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+[data-semantic-growth-track='trunk-growth'] [data-tree-growth-part='trunk'],
+[data-semantic-growth-track='branch-growth'] [data-tree-growth-part='trunk'],
+[data-semantic-growth-track='canopy-accumulation'] [data-tree-growth-part='trunk'],
+[data-semantic-growth-track='mature-tree'] [data-tree-growth-part='trunk'],
+[data-semantic-growth-track='branch-growth'] [data-tree-growth-part='branch'],
+[data-semantic-growth-track='canopy-accumulation'] [data-tree-growth-part='branch'],
+[data-semantic-growth-track='mature-tree'] [data-tree-growth-part='branch'] {
+  stroke-dashoffset: 0;
+  opacity: 1;
+  visibility: visible;
+}
+
+[data-semantic-growth-track='canopy-accumulation'] [data-tree-growth-part='canopy'],
+[data-semantic-growth-track='mature-tree'] [data-tree-growth-part='canopy'] {
+  opacity: 1;
+  scale: 1;
+  visibility: visible;
+}
+
+[data-semantic-growth-track='mature-tree'] [data-tree-mature-art] {
+  opacity: 1;
+  visibility: visible;
+}
+
+@keyframes tree-path-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes tree-canopy-collect {
   from {
     opacity: 0;
-    scale: 0.28;
+    scale: 0;
   }
   72% {
     opacity: 1;
-    scale: 1.03;
+    scale: 1.06;
   }
   to {
     opacity: 1;
@@ -112,24 +196,74 @@
   }
 }
 
-/* Vector has an inner visual seam so its outer placement group stays still. Storybook renders the
- * same semantic role directly as an image; the additive property composes with that image's SVG
- * placement transform. Both grow from the bottom-centre planted anchor. */
-[data-semantic-growth-frame='proposed'][data-motion='full'] .story-tree .pop-motion-inner,
-[data-semantic-growth-frame='proposed'][data-motion='full'] image.story-tree {
-  animation: story-tree-enter 900ms cubic-bezier(0.2, 0.78, 0.28, 1);
-  animation-delay: 140ms;
-  animation-fill-mode: both;
-  transform-box: fill-box;
-  transform-origin: center bottom;
+@keyframes mature-tree-settle {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-/* Reduced motion changes interpolation only. The same event exposes the same terrain/tree pixels
- * at their final geometry immediately; no static placement transform is reset. */
+[data-semantic-growth-frame='proposed'][data-motion='full'] [data-tree-growth-part='trunk'] {
+  animation: tree-path-draw 1100ms cubic-bezier(0.3, 0.72, 0.26, 1);
+  animation-fill-mode: both;
+}
+
+[data-semantic-growth-frame='claimed'][data-motion='full'] [data-tree-growth-part='branch'] {
+  animation: tree-path-draw 1250ms cubic-bezier(0.3, 0.72, 0.26, 1);
+  animation-fill-mode: both;
+}
+
+[data-semantic-growth-frame='claimed'][data-motion='full'] [data-tree-growth-index='1'] {
+  animation-delay: 100ms;
+}
+
+[data-semantic-growth-frame='claimed'][data-motion='full'] [data-tree-growth-index='2'] {
+  animation-delay: 220ms;
+}
+
+[data-semantic-growth-frame='claimed'][data-motion='full'] [data-tree-growth-index='3'] {
+  animation-delay: 320ms;
+}
+
+[data-semantic-growth-frame='signed-proof'][data-motion='full'] [data-tree-growth-part='canopy'] {
+  animation: tree-canopy-collect 1050ms cubic-bezier(0.2, 0.74, 0.24, 1);
+  animation-fill-mode: both;
+}
+
+[data-semantic-growth-frame='signed-proof'][data-motion='full'] [data-tree-growth-index='1'] {
+  animation-delay: 120ms;
+}
+
+[data-semantic-growth-frame='signed-proof'][data-motion='full'] [data-tree-growth-index='2'] {
+  animation-delay: 240ms;
+}
+
+[data-semantic-growth-frame='signed-proof'][data-motion='full'] [data-tree-growth-index='3'] {
+  animation-delay: 360ms;
+}
+
+[data-semantic-growth-frame='signed-proof'][data-motion='full'] [data-tree-growth-index='4'] {
+  animation-delay: 480ms;
+}
+
+[data-semantic-growth-frame='signed-proof'][data-motion='full'] [data-tree-growth-index='5'] {
+  animation-delay: 600ms;
+}
+
+[data-semantic-growth-frame='healthy'][data-motion='full'] [data-tree-mature-art] {
+  animation: mature-tree-settle 520ms ease-out both;
+}
+
+/* Reduced motion changes interpolation only. Each cue exposes its completed local topology
+ * immediately and preserves the same mature tree at the same planted coordinate. */
 [data-semantic-growth-frame][data-motion='reduced'] .coast-fill-group,
 [data-semantic-growth-frame][data-motion='reduced'] .relaxed-tile,
 [data-semantic-growth-frame][data-motion='reduced'] .hex-tile,
-[data-semantic-growth-frame][data-motion='reduced'] .story-tree {
+[data-semantic-growth-frame][data-motion='reduced'] .story-tree,
+[data-semantic-growth-frame][data-motion='reduced'] [data-tree-growth-part],
+[data-semantic-growth-frame][data-motion='reduced'] [data-tree-mature-art] {
   animation: none !important;
   transition: none !important;
 }

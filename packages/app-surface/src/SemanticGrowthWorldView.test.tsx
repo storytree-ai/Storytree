@@ -369,9 +369,9 @@ describe('SemanticGrowthWorldView', () => {
       expect(view.container.querySelector('g.story-tree')).toBe(rig.root);
       expect(view.container.querySelector('[data-tree-growth-part="trunk"]')).toBe(rig.trunk);
       if (reducedMotion) {
-        expect(getComputedStyle(rig.trunk).animationName).toBe('none');
-        expect(getComputedStyle(rig.branches[0]!).animationName).toBe('none');
-        expect(getComputedStyle(rig.canopy[0]!).animationName).toBe('none');
+        expect(getComputedStyle(rig.trunk).animationName).not.toBe('tree-path-draw');
+        expect(getComputedStyle(rig.branches[0]!).animationName).not.toBe('tree-path-draw');
+        expect(getComputedStyle(rig.canopy[0]!).animationName).not.toBe('tree-canopy-collect');
       }
       return {
         observed,

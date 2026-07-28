@@ -145,14 +145,18 @@ function representativeViewBox(model: WorldPresentationModel): string {
 type SemanticGrowthTrack =
   | 'nothing'
   | 'island-reveal'
-  | 'story-tree-entrance'
-  | 'story-tree-settled';
+  | 'trunk-growth'
+  | 'branch-growth'
+  | 'canopy-accumulation'
+  | 'mature-tree';
 
 function trackFor(key: SemanticGrowthFrameKey): SemanticGrowthTrack {
   if (key === 'empty') return 'nothing';
   if (key === 'land') return 'island-reveal';
-  if (key === 'proposed') return 'story-tree-entrance';
-  return 'story-tree-settled';
+  if (key === 'proposed') return 'trunk-growth';
+  if (key === 'claimed') return 'branch-growth';
+  if (key === 'signed-proof') return 'canopy-accumulation';
+  return 'mature-tree';
 }
 
 function anchorEntries(anchors: SemanticGrowthAnchors): readonly [

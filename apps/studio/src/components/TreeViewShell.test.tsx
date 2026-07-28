@@ -127,15 +127,25 @@ describe('semantic-growth Studio witness', () => {
     expect(semanticRoot(flagged).getAttribute('data-semantic-growth-frame')).toBe('land');
   });
 
-  it('retains one island and planted story tree while semantic events cue the corrected four tracks', async () => {
+  it('retains one island and planted tree rig while semantic events cue trunk, branches and canopy', async () => {
     window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
     const container = await renderTree();
     const held = {
       island: container.querySelector('[data-semantic-growth-island="semantic-growth-demo"]'),
       terrain: container.querySelector('.coast-fill-group'),
-      tree: container.querySelector('.story-tree'),
+      tree: container.querySelector('g.story-tree'),
+      trunk: container.querySelector('[data-tree-growth-part="trunk"]'),
+      branches: [...container.querySelectorAll('[data-tree-growth-part="branch"]')],
+      canopy: [...container.querySelectorAll('[data-tree-growth-part="canopy"]')],
+      matureArt: container.querySelector('[data-tree-mature-art]'),
     };
-    for (const element of Object.values(held)) expect(element).toBeTruthy();
+    expect(held.island).toBeTruthy();
+    expect(held.terrain).toBeTruthy();
+    expect(held.tree).toBeTruthy();
+    expect(held.trunk).toBeTruthy();
+    expect(held.branches.length).toBeGreaterThanOrEqual(2);
+    expect(held.canopy.length).toBeGreaterThanOrEqual(4);
+    expect(held.matureArt).toBeTruthy();
     expect(
       [...container.querySelectorAll('[data-semantic-growth-anchor]')]
         .map((anchor) => anchor.getAttribute('data-semantic-growth-anchor')),
@@ -144,10 +154,10 @@ describe('semantic-growth Studio witness', () => {
     const expectedTracks = [
       'nothing',
       'island-reveal',
-      'story-tree-entrance',
-      'story-tree-settled',
-      'story-tree-settled',
-      'story-tree-settled',
+      'trunk-growth',
+      'branch-growth',
+      'canopy-accumulation',
+      'mature-tree',
     ];
     for (let index = 0; index < ORDERED_KEYS.length; index += 1) {
       const root = semanticRoot(container);
@@ -155,14 +165,21 @@ describe('semantic-growth Studio witness', () => {
       expect(root.getAttribute('data-semantic-growth-track')).toBe(expectedTracks[index]);
       expect(container.querySelector('[data-semantic-growth-island]')).toBe(held.island);
       expect(container.querySelector('.coast-fill-group')).toBe(held.terrain);
-      expect(container.querySelector('.story-tree')).toBe(held.tree);
+      expect(container.querySelector('g.story-tree')).toBe(held.tree);
+      expect(container.querySelector('[data-tree-growth-part="trunk"]')).toBe(held.trunk);
+      expect([...container.querySelectorAll('[data-tree-growth-part="branch"]')])
+        .toEqual(held.branches);
+      expect([...container.querySelectorAll('[data-tree-growth-part="canopy"]')])
+        .toEqual(held.canopy);
+      expect(container.querySelector('[data-tree-mature-art]')).toBe(held.matureArt);
       if (index < ORDERED_KEYS.length - 1) fireEvent.click(control(container, 'Next'));
     }
 
     fireEvent.click(control(container, 'Back'));
-    expect(container.querySelector('.story-tree')).toBe(held.tree);
+    expect(container.querySelector('g.story-tree')).toBe(held.tree);
     fireEvent.click(control(container, 'Replay'));
-    expect(container.querySelector('.story-tree')).toBe(held.tree);
+    expect(container.querySelector('g.story-tree')).toBe(held.tree);
+    expect(container.querySelector('[data-tree-growth-part="trunk"]')).toBe(held.trunk);
   });
 
   it('keeps wisps, pathways, proof ornaments and unrelated fixture UI out of the story-tree witness', async () => {
@@ -208,7 +225,7 @@ describe('semantic-growth Studio witness', () => {
     expect(container.querySelector('svg')?.getAttribute('viewBox')).not.toBe('0 0 100 100');
   });
 
-  it('uses the same persistent hierarchy with the supplied Storybook sprite sheet', () => {
+  it('uses the same persistent topology rig with supplied Storybook art and explicit Vector art', () => {
     const sheet: SpriteStyleSheet = {
       name: 'storybook',
       label: 'Storybook',
@@ -224,13 +241,36 @@ describe('semantic-growth Studio witness', () => {
     };
     const view = render(<SemanticGrowthDemo spriteSheet={sheet} artScale={1} />);
     const island = view.container.querySelector('[data-semantic-growth-island]');
-    const tree = view.container.querySelector('image.story-tree');
+    const tree = view.container.querySelector('g.story-tree');
+    const trunk = tree?.querySelector('[data-tree-growth-part="trunk"]');
+    const branches = [...(tree?.querySelectorAll('[data-tree-growth-part="branch"]') ?? [])];
+    const canopy = [...(tree?.querySelectorAll('[data-tree-growth-part="canopy"]') ?? [])];
+    const matureArt = tree?.querySelector('image[data-tree-mature-art="storybook"]');
     expect(island).toBeTruthy();
-    expect(tree?.getAttribute('href')).toBe('/art-sheets/storybook/tree-proposed.svg');
+    expect(tree).toBeTruthy();
+    expect(trunk).toBeTruthy();
+    expect(branches.length).toBeGreaterThanOrEqual(2);
+    expect(canopy.length).toBeGreaterThanOrEqual(4);
+    expect(matureArt?.getAttribute('href')).toBe('/art-sheets/storybook/tree-proposed.svg');
     for (const _key of ORDERED_KEYS.slice(1)) {
       fireEvent.click(control(view.container, 'Next'));
       expect(view.container.querySelector('[data-semantic-growth-island]')).toBe(island);
-      expect(view.container.querySelector('image.story-tree')).toBe(tree);
+      expect(view.container.querySelector('g.story-tree')).toBe(tree);
+      expect(view.container.querySelector('[data-tree-growth-part="trunk"]')).toBe(trunk);
+      expect([...view.container.querySelectorAll('[data-tree-growth-part="branch"]')])
+        .toEqual(branches);
+      expect([...view.container.querySelectorAll('[data-tree-growth-part="canopy"]')])
+        .toEqual(canopy);
     }
+
+    cleanup();
+    const vector = render(<SemanticGrowthDemo spriteSheet={null} artScale={1} />);
+    const vectorTree = vector.container.querySelector('g.story-tree');
+    expect(vectorTree?.querySelector('[data-tree-mature-art="vector"]')).toBeTruthy();
+    expect(vectorTree?.querySelector('[data-tree-growth-part="trunk"]')).toBeTruthy();
+    expect(vectorTree?.querySelectorAll('[data-tree-growth-part="branch"]').length)
+      .toBe(branches.length);
+    expect(vectorTree?.querySelectorAll('[data-tree-growth-part="canopy"]').length)
+      .toBe(canopy.length);
   });
 });

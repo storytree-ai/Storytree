@@ -864,10 +864,12 @@ describe('SceneView — the sprite art-style render mode', () => {
 
   function expectGrowthRig(root: HTMLElement): void {
     const tree = root.querySelector('g.story-tree');
+    const rig = tree?.querySelector('.tree-growth-rig');
     const trunk = tree?.querySelector('[data-tree-growth-part="trunk"]');
     const branches = tree?.querySelectorAll('[data-tree-growth-part="branch"]') ?? [];
     const canopy = tree?.querySelectorAll('[data-tree-growth-part="canopy"]') ?? [];
     expect(tree).toBeTruthy();
+    expect(rig?.getAttribute('style')).toMatch(/display:\s*none/);
     expect(trunk?.getAttribute('pathLength')).toBe('1');
     expect(branches.length).toBeGreaterThanOrEqual(2);
     expect(canopy.length).toBeGreaterThanOrEqual(4);
