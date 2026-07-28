@@ -38,16 +38,16 @@
  *   one sanctioned re-baseline of its ceiling. (This bullet read "it would move every contract those
  *   tests vouch for" until 2026-07-28; that estimate was never measured and it deferred bounding
  *   `check:coverage` behind three other increments. ADR-0126 carries the same correction.)
- * - `warn-list-hygiene` locates advisory worklists that no exit code bounds. FOUR of the six are now
+ * - `warn-list-hygiene` locates advisory worklists that no exit code bounds, and ALL SIX are now
  *   bounded — `check:graduation-worklist` (`graduation-drain.ts`), `check:surface-coverage`
- *   (`surface-coverage-drain.ts`), `check:corpus-content` (`corpus-content-drain.ts`) and
- *   `check:coverage` (`coverage-drain.ts`) — and the other TWO are not: `check:agents-sync` and
- *   `check:corpus-sync`. Giving one a ceiling, or establishing that a drift-shaped list cannot
- *   accumulate and needs none, stays a per-check decision about that check's remedy, made one check
- *   per increment against that check's REAL output; this sweep reads source and cannot see a list's
- *   size, so it can never make the call itself. Both survivors read 0 today and drain on one
- *   idempotent command, which is this instrument's own stated false positive — so establishing that
- *   they need NO ceiling, with evidence, is a legitimate way for this number to reach 0.
+ *   (`surface-coverage-drain.ts`), `check:corpus-content` (`corpus-content-drain.ts`), `check:coverage`
+ *   (`coverage-drain.ts`) and the `sync` pair `check:agents-sync` / `check:corpus-sync`
+ *   (`sync-drain.ts`) — so this instrument locates nothing and its ceiling is 0. Read that as DRAINED,
+ *   not as switched off: it still sweeps every `check:*` step in `pnpm gate` on every run, and a new
+ *   advisory worklist that no exit code bounds reds the gate the first time it appears. Whether a given
+ *   worklist needs a ceiling stays a per-check decision about that check's REMEDY, made against that
+ *   check's real output; this sweep reads source and cannot see a list's size, so it can never make the
+ *   call itself. (This bullet read "the other TWO are not" until 2026-07-28.)
  *
  * On mirror-pair drift specifically, note the boundary ADR-0251 records: `check:mirror-conformance`
  * already proves the pairs in its `MIRRORS` registry EXACTLY, and blocks. The advisory instrument
@@ -161,12 +161,29 @@ const CEILINGS = {
    * deflates to a false clean, an absent test-file tree inflates — so neither sibling's direction was
    * copied.
    *
-   * The two remaining located worklists are the `sync` pair. Both read 0 today and drain on one
-   * idempotent command, and this instrument's own stated false positive is that such a list may
-   * correctly need NO ceiling — so establishing that, with evidence, is a legitimate way for this
-   * number to reach 0.
+   * TIGHTENED 2 → 0 (2026-07-28): the `sync` pair — `check:agents-sync` and `check:corpus-sync` — were
+   * both bounded at a drain ceiling (`sync-drain.ts`), and this instrument now locates NOTHING. THE
+   * ANSWER WAS NOT THE ONE THE FALSE POSITIVE PREDICTED, and that is worth recording rather than
+   * quietly overwriting. The standing reading was that a drift-shaped worklist "drains to zero with one
+   * idempotent command and may need no ceiling at all", which both halves of the evidence supported:
+   * both read 0 on the day they were examined, and both drain on a single `sync-*` call. Measured, that
+   * does not settle it — what a list reads today is not what it can reach, and a cheap drain is not a
+   * drain that RUNS. Nothing schedules either command, both checks are WARN-only and local-only, and
+   * the seed→live gap is OPENED by a different ceremony (ADR-0095 graduation) than the one that closes
+   * it. The differential control found `check:corpus-sync` printing a SIX-item worklist while exiting
+   * 0, with five of those ids still absent from the live store a month later — they left the SEED
+   * rather than draining — and `check:agents-sync` printing three, then two, then one, exit 0 at every
+   * point. Both ceilings are therefore ZERO, affordable because each drain is one idempotent command
+   * with no per-item judgement, and because each check already SKIPs wherever that command could not
+   * run.
+   *
+   * ZERO HERE MEANS THIS INSTRUMENT IS DRAINED, NOT DISABLED. It still sweeps all 21 `check:*` steps on
+   * every run; it simply finds no advisory worklist that no exit code bounds. A NEW unbounded worklist
+   * — a new advisory check, or a ceiling removed from an existing one — reds the gate on its first
+   * appearance. That is the resting place ADR-0252 D3 describes, and it is the only one of the four
+   * chartered instruments to reach it.
    */
-  [WARN_LIST_HYGIENE]: 2,
+  [WARN_LIST_HYGIENE]: 0,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -607,8 +624,11 @@ function main(): void {
         "no size that list reaches ever fails anything. ADR-0252 named `check:coverage`'s 121-contract " +
         "WARN backlog as this instrument's live counter-example; it was BOUNDED on 2026-07-28 " +
         "(`coverage-drain.ts`) and is no longer located here. FALSE POSITIVE: a worklist that is a DRIFT " +
-        "between two surfaces drains to zero with one idempotent command and may need no ceiling at " +
-        "all (`check:agents-sync` / `check:corpus-sync` read 0 today); and SIZE is what makes a list " +
+        "between two surfaces drains with one idempotent command and MAY need no ceiling — but that has " +
+        "now been tested and did not hold. The two candidates (`check:agents-sync` / `check:corpus-sync`) " +
+        "were measured printing worklists of 3 and 6 while exiting 0, because nothing schedules the " +
+        "drain, so both were bounded instead (`sync-drain.ts`, 2026-07-28). A cheap drain is not a drain " +
+        "that runs; the question is the check's REMEDY, not its size today. And SIZE is what makes a list " +
         "unreadable, which this cannot see — it reads source, not a run, so a 1-item worklist and a " +
         "121-item one are indistinguishable here. BLIND TO: output rendered more than one local import " +
         "away or in another package; a check mixing a BLOCKING rule with an advisory worklist (it " +

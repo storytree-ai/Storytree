@@ -741,8 +741,10 @@ export function analyzeGateCheck(sources: readonly GateCheckSource[]): WarnListS
  * - **It WARNs** — the output carries an advisory level, so it is a channel a reader is expected to
  *   read, not silent bookkeeping.
  * - **No source sets a non-zero exit** — there is no path by which the list's SIZE fails anything. This
- *   is what excludes the two checks that already bound their worklists: `check:friction-drain`
- *   (ADR-0168 D4) and this sweep itself, both of which compare a count to a ceiling and exit 1.
+ *   is what excludes every check that has bound its worklist: `check:friction-drain` (ADR-0168 D4) and
+ *   this sweep itself when the rule was written, and since 2026-07-28 the six it located as well, each
+ *   now comparing a count to a ceiling and exiting 1. Draining the instrument is exactly this exclusion
+ *   being earned one check at a time — it is not a list of permanent exemptions.
  * - **The printed output's size tracks a COLLECTION** — the tightening that carries the measurement.
  *   Without it the rule flags `check:node-version`, `check:dist-drift` and `check:deploy-health`, whose
  *   WARN reports ONE fact (the Node version, the published installer hash, the newest deploy run).
@@ -754,10 +756,13 @@ export function analyzeGateCheck(sources: readonly GateCheckSource[]): WarnListS
  *
  * THE FALSE-POSITIVE SURFACE, stated rather than implied, because this LOCATES and never adjudicates:
  *
- * - **A worklist that is a DRIFT between two surfaces drains to zero with one idempotent command** and
- *   may need no ceiling at all — `check:agents-sync` and `check:corpus-sync` both read 0 today, and
- *   their whole remedy is a single `sync-*` invocation. Whether such a list can accumulate is a
- *   judgment about the remedy, which only an adversarial pass makes.
+ * - **A worklist that is a DRIFT between two surfaces drains with one idempotent command** and may need
+ *   no ceiling at all. Whether such a list can accumulate is a judgment about the REMEDY, which only an
+ *   adversarial pass makes — and when that pass was actually run against the two candidates
+ *   (`check:agents-sync`, `check:corpus-sync`, 2026-07-28) the false positive did NOT hold: both had
+ *   demonstrably printed multi-item worklists while exiting 0, because nothing schedules the drain, and
+ *   both were bounded (`sync-drain.ts`). The clause stays, because the reasoning is still the right
+ *   reasoning; what it no longer carries is a standing example.
  * - **SIZE is what makes a list unreadable, and this rule cannot see size.** It reads source, not a
  *   run, so a two-item worklist and a 121-item one are indistinguishable here. `check:surface-coverage`
  *   lists 1 item today. The finding is never "this list is too long" — only that no size fails.

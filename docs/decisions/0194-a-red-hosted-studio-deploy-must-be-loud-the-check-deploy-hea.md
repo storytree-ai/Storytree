@@ -42,6 +42,19 @@ report — when the deploy is red, the banner code is exactly what didn't deploy
    `pnpm gate`, in the established ADR-0055 posture (`check:agents-sync` precedent): **WARN loudly,
    never block, always exit 0**; SKIP in one quiet line when `gh` / auth / network are absent
    (offline gates unaffected); not wired into CI (CI runs pre-merge — the wrong side of the gap).
+
+   **Correction (2026-07-28 — [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)
+   pass): the CITED PRECEDENT moved; this decision did not.** `check:deploy-health` is unchanged and
+   still WARNs loudly, never blocks, and always exits 0 — that is this ADR's decision and it stands. But
+   `check:agents-sync`, named here as the posture being reused, was bounded at a drain ceiling on
+   2026-07-28 (`packages/cli/src/sync-drain.ts`) and now sets a non-zero exit on breach, so ADR-0055 is
+   no longer an example of "always exit 0". The half this ADR actually borrowed is intact and still
+   exemplified there: a best-effort gate-TAIL step that WARNs loudly and SKIPs in one quiet line when
+   its inputs are absent. Whether this check should likewise gain a ceiling is a separate question under
+   [ADR-0252](0252-verification-decay-detection-continuous-mechanical-warns-a-j.md) D3, decided against
+   this check's own output and remedy — not inherited from the precedent, and not settled here. (Noted
+   because a session calibrating from ADR-0055 would otherwise find a redding check and read this ADR as
+   either stale or violated.)
 2. **Mechanism.** The check shells
    `gh run list --workflow deploy-studio.yml --branch main` (bounded timeout) and hands the
    newest-first run list to a **pure classifier** — the provable contract,
@@ -86,7 +99,8 @@ network probe.
 - Library friction item `friction-deploy-studio-red-is-silent` (routed → tool, 2026-07-14 board
   drain) — the incident evidence.
 - `.github/workflows/deploy-studio.yml` (ADR-0046/0061) — the watched workflow.
-- ADR-0055 (`check:agents-sync`) — the best-effort WARN-only gate-tail posture this reuses.
+- ADR-0055 (`check:agents-sync`) — the best-effort WARN-only gate-tail posture this reuses (as it stood
+  at this decision; that check gained a drain ceiling on 2026-07-28 — see the correction under D1).
 - ADR-0042 — the member-facing hosted studio whose staleness is the blast radius.
 - ADR-0192 — hosted-story landlord rule + `hostedStories` register (governs the unit's home).
 - `stories/studio-cloud/deploy-health-signal.md` — the capability this ADR decides.

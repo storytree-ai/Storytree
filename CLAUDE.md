@@ -131,18 +131,26 @@ file conflicts).
   the inverse of the live-canonical default above. After editing an agent in the seed, reconcile the
   live store: `pnpm db:up && pnpm storytree library sync-agents --pg` (upserts every seed agent,
   deletes any live agent absent from the seed; agent-kind only, idempotent) — else `storytree agents
-  --pg` and the studio go stale. Don't hand-reconcile with a throwaway script. `pnpm gate` ends with a
-  best-effort `check:agents-sync` that **WARNs** (never blocks) if the live tier drifted while the DB
-  is up — your nudge to run the sync; it SKIPs silently offline (CI is DB-free, so it's local-only).
+  --pg` and the studio go stale. Don't hand-reconcile with a throwaway script. `pnpm gate` ends with
+  `check:agents-sync`, which WARNs if the live tier drifted while the DB is up and — since 2026-07-28 —
+  **BLOCKS the local gate** on any drift at all (a zero drain ceiling, ADR-0252 D3; the measured reason
+  is in `packages/cli/src/sync-drain.ts`). The remedy is the sync command above, never a raised ceiling.
+  It still SKIPs silently offline, with no creds, or on an unreadable seed (CI is DB-free, so it's
+  local-only), and it never blocks when the seed itself holds no agents — there the sync would delete
+  the live tier.
 - **GRADUATED A NON-AGENT ARTIFACT INTO THE SEED? migrate it live (ADR-0103):** the ADR-0095
   graduation flow writes a new principle/definition into `knowledge.json` (so the offline agent
   renderer picks it up), which leaves it **seed-only** — invisible to `--pg`, and a `> MISSING REF`
   for any agent that cites it against the live store / studio. Carry it across: `pnpm db:up && pnpm
   storytree library sync-corpus --pg`. This is the INVERSE of `sync-agents`: **migrate-only** — it
   upserts only seed non-agent artifacts ABSENT from live, and (unlike `load-corpus --force`) never
-  overwrites a live edit or deletes a live-only artifact; idempotent. `pnpm gate` ends with a
-  best-effort `check:corpus-sync` that **WARNs** (never blocks, local-only) if a seed artifact is
-  missing from live — your nudge to run it.
+  overwrites a live edit or deletes a live-only artifact; idempotent. `pnpm gate` ends with
+  `check:corpus-sync`, which WARNs if a seed artifact is missing from live and — since 2026-07-28 —
+  **BLOCKS the local gate** on any such gap (a zero drain ceiling, ADR-0252 D3; the measured reason is
+  in `packages/cli/src/sync-drain.ts` — this list had reached 6 while exiting 0, and five of those
+  artifacts never migrated). Graduating into the seed and not syncing now fails your gate; the remedy is
+  the one idempotent command above. Still local-only: it SKIPs offline, with no creds, or on an
+  unreadable seed.
 - **EXPLORE (read, offline OK):** `storytree library` (dashboard) · `… artifact <id>` ·
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023). Read commands run offline (in-memory seed); no DB needed.

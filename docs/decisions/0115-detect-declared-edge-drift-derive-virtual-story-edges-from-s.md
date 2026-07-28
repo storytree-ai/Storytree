@@ -85,6 +85,18 @@ periodic human / `librarian-curator` review.
    prints the drift list without failing the gate — the `pnpm gate` `check:agents-sync` / `check:corpus-sync`
    precedent (best-effort, never blocks). A declared-but-unbacked edge is frequently LEGITIMATE (a real
    build-artifact or IoC honesty edge), so blocking on it would be wrong; the report is a review nudge.
+
+   **Correction (2026-07-28 — [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)
+   pass): the CITED PRECEDENT moved; this decision did not.** Both checks named here as "best-effort,
+   never blocks" were bounded at drain ceilings on 2026-07-28 (`packages/cli/src/sync-drain.ts`, both at
+   zero) and now set a non-zero exit on breach, so neither is still an example of a gate step that never
+   blocks. **This decision stands unchanged**, and its reasoning is untouched: a declared-but-unbacked
+   edge is frequently LEGITIMATE, so no individual finding may block — which is also, exactly, what those
+   two checks still do (they red on GROWTH of the count, never on any one item, per
+   [ADR-0252](0252-verification-decay-detection-continuous-mechanical-warns-a-j.md) D3). Read the
+   precedent as citing advisory-per-finding, which holds, rather than always-exit-0, which no longer
+   does. Whether this report should itself gain a ceiling once it exists is a later question under
+   ADR-0252 D3, decided against its own output — not inherited here.
 4. **Scope OUT the genuinely undecidable cases, explicitly.** The report classifies an unbacked declared
    edge but does not pretend to settle it: an **IoC seam's** provider identity is statically undecidable
    (injection's whole purpose), and a **subprocess/build-artifact** target lives outside the type system.
