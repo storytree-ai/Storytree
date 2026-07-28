@@ -100,6 +100,18 @@ export interface CorpusContentDiff {
   readonly drifted: readonly CorpusContentDrift[];
   /** Export-scope seed ids compared. */
   readonly compared: number;
+  /**
+   * Export-scope seed ids that actually HAD a live counterpart — the population a body comparison was
+   * genuinely performed over. It is `compared` minus the seed ids live carries nothing for.
+   *
+   * Separate from {@link compared} because the two diverge exactly when the result stops being
+   * evidence, and the difference is invisible in `drifted`: a seed id with no live row is SKIPPED, not
+   * flagged, so a live store that is empty or truncated yields `drifted: []`, `clean: true` — a FALSE
+   * clean rather than a false alarm. Measured on the authoring checkout: an empty live store took
+   * `drifted` 14 → 0 with `compared` still reading 160. A caller that reports "clean" without also
+   * reading this number cannot tell a genuinely reconciled corpus from one nothing was compared against.
+   */
+  readonly comparedLive: number;
   readonly clean: boolean;
 }
 
@@ -112,9 +124,13 @@ export function diffCorpusContent(seed: readonly StoredDoc[], live: readonly Sto
   const liveById = new Map(live.filter((d) => isExportScopeKind(d.kind)).map((d) => [d.id, d]));
   const seedScope = seed.filter((d) => isExportScopeKind(d.kind));
   const drifted: CorpusContentDrift[] = [];
+  let comparedLive = 0;
   for (const s of seedScope) {
     const l = liveById.get(s.id);
     if (!l) continue;
+    // Counted BEFORE the equality test: this is the population a comparison happened over, whether or
+    // not it drifted. It is what tells a caller that a `clean` result was measured against something.
+    comparedLive++;
     const eb = exportableBody(l);
     // Compare against what the export WOULD write (the upcast structured body, or the raw body if the
     // live doc is degraded) so a v(n)→v2 upcast that already equals the seed is not flagged as drift.
@@ -122,7 +138,7 @@ export function diffCorpusContent(seed: readonly StoredDoc[], live: readonly Sto
     drifted.push({ id: s.id, kind: s.kind, cls: eb ? "value-drift" : "degraded-live" });
   }
   drifted.sort((a, b) => a.id.localeCompare(b.id));
-  return { drifted, compared: seedScope.length, clean: drifted.length === 0 };
+  return { drifted, compared: seedScope.length, comparedLive, clean: drifted.length === 0 };
 }
 
 /** Convenience: diff the SEED corpus against a live `target` store (read-only). */
