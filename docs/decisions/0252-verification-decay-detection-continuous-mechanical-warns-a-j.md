@@ -78,10 +78,16 @@ session. Two reasons, both load-bearing:
 **2. Shape — the cheap half lives in `pnpm gate` as non-blocking warns.**
 
 Alongside `check:agents-sync`, `check:corpus-sync`, and — at this decision — `check:coverage`, which
-already carry exactly this warn-not-block pattern. (`check:coverage` has since gained decision 3's own
-ceiling and is no longer purely warn-not-block; the other two still are. The precedent this sentence
-cites is the gate-resident WARN, which is unchanged.) Every session sees it with no new invocation to
-remember. The accepted cost is added noise in a gate output that is already noisy — which decision 3
+already carry exactly this warn-not-block pattern. (**Updated 2026-07-28 — all THREE have since gained
+decision 3's own ceiling, so none is purely warn-not-block any more.** `check:coverage` was bounded on
+2026-07-28 (`coverage-drain.ts`), and `check:agents-sync` / `check:corpus-sync` on the same day
+(`sync-drain.ts`, both at zero) — the fifth and sixth worklists bounded under D1's `warn-list-hygiene`
+instrument, which now locates nothing. This parenthetical read "the other two still are" until that
+landing. The precedent this sentence cites is the **gate-resident WARN**, and THAT is unchanged in all
+three: every one of them still prints its advisory line, still SKIPs offline, and still blocks on no
+individual finding — only on GROWTH past its own ceiling, exactly as decision 3 requires. Nothing in
+this decision is re-decided; the cheap half still lives in `pnpm gate`.) Every session sees it with no
+new invocation to remember. The accepted cost is added noise in a gate output that is already noisy — which decision 3
 exists to bound.
 
 **3. Enforcement — advisory per finding, with a fixed drain ceiling on the COUNT.**

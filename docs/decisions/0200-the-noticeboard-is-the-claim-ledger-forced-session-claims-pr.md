@@ -146,8 +146,14 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
    (decided 2026-07-18): the three grades and the by-default render STAND, but the render families
    change — "hover" gains a small local orbit (see the D2 note above), and the build layer stops being
    a drawable of its own, so a story's live build phase folds onto that story's work-claim wisp as
-   MOTION. The honesty wall named here is explicitly preserved by ADR-0212. Decision only: not yet
-   built.]* The
+   MOTION. ADR-0212 also makes the lifecycle FOUR-stage: a released claim gets a *finish* stage — the
+   departing drawable that drifts upward and fades — which is where the `departures` half of the
+   `/api/activity` wire and the "wisp-out legibility" citations throughout the render code land. The
+   honesty wall named here is explicitly preserved by ADR-0212 (a fade is never a proof). BUILT as of
+   ADR-0212 increment 2 (PR #828, 2026-07-18): the exploring orbit (see the D2 note) and the
+   build-phase fold onto the work-claim drawable both shipped. `scene.ts` still *defines* `buildWisps`
+   for the marketing website, which has not yet migrated — deleting that layer is ADR-0212
+   increment 3.]* The
    studio dock becomes claims-grouped-by-session; `/api/presence` retires. The CLI board renders
    the ledger. All render legs are **owner-attested before the old machinery is deleted**: the
    retirement sweep (presence store + parity, the hooks' auto-declare, the ADR-0079 reaper,
