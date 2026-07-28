@@ -7,7 +7,7 @@ import { getDesktopAuth } from './lib/desktopAuth';
 import { notifyStoreRecovered } from './lib/poll';
 import { evictIfCodeHeadMismatch, readPayloadCache, writeDocsCache } from './lib/payloadCache';
 import { useRoute } from './lib/route';
-import type { Comment, DocMeta, GuidanceAsset, MeInfo } from './types';
+import type { DocMeta, GuidanceAsset, MeInfo } from './types';
 import { Sidebar } from './components/Sidebar';
 import { StoreBanner, type StorePhase } from './components/StoreBanner';
 import { Hud, type HudPosture } from './components/Hud';
@@ -67,15 +67,10 @@ export function App(): React.JSX.Element {
   const [assets, setAssets] = useState<GuidanceAsset[]>([]);
   const [assetsStatus, setAssetsStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [assetsError, setAssetsError] = useState<string>('');
-  // `/api/comments` is a DEAD boot fetch (established by probe — no reader anywhere in
-  // apps/studio/src) and is never called during boot any more; `comments`/`refreshComments` stay
-  // on AppData only because out-of-scope test fixtures still construct that literal shape (see
-  // appData.ts's header comment) — nothing here ever populates `comments` from a network call.
-  const [comments] = useState<Comment[]>([]);
-  const refreshComments = useCallback(async (): Promise<void> => {
-    // Intentionally a no-op: no live surface reads this collection (see appData.ts).
-  }, []);
-
+  // `/api/comments` was a DEAD boot fetch (established by probe — no reader anywhere in
+  // apps/studio/src), so it is gone entirely along with the collection and its refresher; see
+  // appData.ts's header for the full finding. The route, `api.listComments()`, and every per-topic
+  // comment surface are untouched.
   const refreshAssets = useCallback(async (): Promise<void> => {
     setAssets(await api.listAssets());
   }, []);
@@ -203,12 +198,10 @@ export function App(): React.JSX.Element {
       assets,
       assetsStatus,
       assetsError,
-      comments,
       me: me ?? ANON_ME,
-      refreshComments,
       refreshAssets,
     }),
-    [docs, assets, assetsStatus, assetsError, comments, me, refreshComments, refreshAssets],
+    [docs, assets, assetsStatus, assetsError, me, refreshAssets],
   );
 
   return (
