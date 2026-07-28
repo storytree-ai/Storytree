@@ -104,6 +104,15 @@ export interface LocalBackendBackend {
    */
   inFlightClaims?: () => Promise<unknown[] | null>;
   /**
+   * Recent claim DEPARTURES (ADR-0200 D7 — wisp-out legibility): claims released inside the departure
+   * window, so a session that just left reads as a fading wisp rather than vanishing indistinguishably
+   * from a lost claim. The third layer on the `/api/activity` wire, beside {@link inFlightBuilds} and
+   * {@link inFlightClaims}, and optional exactly like them: a narrow stub may omit it and the route
+   * answers `departures: null` (advisory absence). Production wires it (electron/backend-entry.ts) over
+   * PgClaimStore.recentDepartures + the pure `foldDepartures`.
+   */
+  inFlightDepartures?: () => Promise<unknown[] | null>;
+  /**
    * EVERY live claim row, all units, all grades (ADR-0200 D7 — the session dock's
    * claims-grouped-by-session view): the raw claim docs from events.node_claim (PgClaimStore.listLiveClaims,
    * staleness-filtered in SQL). Distinct from {@link inFlightClaims} (which folds each row to a map-wisp
@@ -240,16 +249,20 @@ export function createLocalBackend(
         if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
         sendJson(res, 200, await buildTreePayload(deps));
       } else if (url.pathname === "/api/activity") {
-        // The map-activity wisp layer, polled by the world — `{ builds, claims }` (each advisory: null
-        // when the backend can't answer). Builds (ADR-0048) + story claims (ADR-0138) ride the SAME
-        // wire; a claim carries `kind: "claim"` (the §5 honesty wall) so it renders distinct from a
-        // proven-green bloom. Mirrors the studio's GET /api/activity (handleActivity).
+        // The map-activity wisp layer, polled by the world — `{ builds, claims, departures }` (each
+        // advisory: null when the backend can't answer). Builds (ADR-0048), story claims (ADR-0138) and
+        // claim departures (ADR-0200 D7) ride the SAME wire; a claim carries `kind: "claim"` (the §5
+        // honesty wall) so it renders distinct from a proven-green bloom, and a departure is a
+        // coordination trace, never a proof either. Mirrors the studio's GET /api/activity
+        // (handleActivity) — all three keys, so a released claim fades out here as it does there rather
+        // than vanishing indistinguishably from a lost one. Run in parallel: a down DB costs one budget.
         if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
-        const [builds, claims] = await Promise.all([
+        const [builds, claims, departures] = await Promise.all([
           deps.backend.inFlightBuilds(),
           deps.backend.inFlightClaims?.() ?? Promise.resolve(null),
+          deps.backend.inFlightDepartures?.() ?? Promise.resolve(null),
         ]);
-        sendJson(res, 200, { builds, claims });
+        sendJson(res, 200, { builds, claims, departures });
       } else if (url.pathname === "/api/claims") {
         // The claim-ledger DOCK view (ADR-0200 D7): every live claim row folded by session through the
         // pure `groupClaimsBySession` so the desktop session dock renders "who's doing what, grouped by
