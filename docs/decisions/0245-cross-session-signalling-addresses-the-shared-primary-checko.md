@@ -37,9 +37,10 @@ principle is untouched (nothing was added to the ledger, and no scheduled notifi
 superseded.** [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md)
 (accepted 2026-07-27, owner-directed) decided the same hazard independently and without citing this
 ADR; that missing edge is now recorded there as `amends: [… 245]`, and
-[ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) proposes to harden
-it further. The honest relationship is **complementary defence in depth, differently keyed**, not
-duplication:
+[ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) hardens it further
+(**accepted 2026-07-28**, owner-ratified — it amends ADR-0255, not this ADR, and does not touch this
+ADR's machinery). The honest relationship is **complementary defence in depth, differently keyed**,
+not duplication:
 
 - **This ADR is the GATE-TIME arm** — keyed on **dirty**, it refuses the *landing* once the shared
   checkout already carries uncommitted work. It is BUILT (D5.2) and is the only enforcement of this
@@ -319,8 +320,10 @@ the seam; the story/capability decomposition to build it is the `story-author`'s
 - [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md) — the write-time
   arm of the same hazard: the primary checkout as a read-only lobby with claim-bound write
   authority. It amends this ADR's D5 ranking, not its machinery (see Status).
-- [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) — `proposed`;
-  proposes to harden ADR-0255's wall to agent-inescapable and to bind it to shared checkouts.
+- [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) — accepted
+  2026-07-28; hardens ADR-0255's wall to agent-inescapable and binds it to shared checkouts.
+  **Accepted, still unbuilt** — its D9 proof bar is behavioural, so D5.2 below remains the only live
+  enforcement of this hazard.
 - [ADR-0162](0162-manage-session-onboarding-cost-optimize-the-cost-centers-the.md) — the per-turn startup budget the `UserPromptSubmit` probe
   must respect.
 - Friction (the adjudicated inputs, routed to this ADR):

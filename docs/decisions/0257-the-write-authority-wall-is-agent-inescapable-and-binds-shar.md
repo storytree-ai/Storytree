@@ -1,34 +1,51 @@
 ---
-status: proposed
+status: accepted
+load_bearing: true
+decided: 2026-07-28
 amends: [255]
 ---
 # ADR-0257: The write-authority wall is agent-inescapable and binds shared checkouts
 
 ## Status
 
-proposed (2026-07-27) — drafted in the Claude Code review that followed
+accepted (2026-07-28) — **ratified by the owner on 2026-07-28.** The owner reviewed the five-day
+friction report (2026-07-23 → 07-28), whose sixteen-item "concurrency & shared state" cluster is
+exactly this ADR's subject, and approved every recommendation in it, naming this acceptance
+explicitly. The separate owner action this ADR was deliberately held for has therefore happened, and
+the Codex review round it was held through is complete.
+
+Drafted `proposed` (2026-07-27) in the Claude Code review that followed
 [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md)'s landing, then
 revised by the Codex review the owner requested before acceptance. The Codex review agrees with the
 four amendments' intent and makes the Codex adapter concrete; it also corrects three overclaims in
 the first draft. A Codex hook is not by itself a complete filesystem boundary, the existing Codex
 phase hook is seed code rather than an interactive-session wall, and `worktree create` does not yet
-stamp a claim receipt.
+stamp a claim receipt. **Those three corrections survive acceptance** and are the standing guard
+against re-introducing the overclaims — an implementer citing a green status here must still not
+read them as solved.
 
-The owner asked Codex to make these recommendations directly so implementation can proceed without
-another cross-harness prose round. This ADR deliberately remains `proposed`: the review is complete,
-but acceptance is a separate owner action, and the behavioural proof remains build work rather than
-something an ADR can declare green.
+**Accepted is not built.** What went green on 2026-07-28 is *what the wall must be*, not that any of
+it exists. D1–D9 are enforced nowhere today: no managed Codex profile, no interactive claim hook, no
+receipt stamped by `worktree create`. D9's proof bar is behavioural build work an ADR cannot declare
+green. Until it is met, the only live enforcement of this hazard remains
+[ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) D5.2's gate-time
+lobby arm, which this ADR sits in front of rather than replaces.
 
 **Amends** [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md). The
-`amends: [255]` edge binds only on acceptance. ADR-0255 D2, D3, D5, D6 and D8 stand: repository
-writes are claim-bound, claim-before-workspace remains literal, the invariant is harness-neutral,
-one workspace session holds one wisp, and proof is behavioural. This ADR proposes to:
+`amends: [255]` edge **now binds** (it bound on acceptance, 2026-07-28). ADR-0255 D2, D3, D5, D6 and
+D8 stand: repository writes are claim-bound, claim-before-workspace remains literal, the invariant is
+harness-neutral, one workspace session holds one wisp, and proof is behavioural. This ADR:
 
-- re-decide D4 as the strongest agent-inescapable composition each supported harness actually
+- re-decides D4 as the strongest agent-inescapable composition each supported harness actually
   provides;
-- re-decide D7 with a tamper-evident, expiring claim receipt;
-- narrow D1's checkout wall to shared checkouts without narrowing D2's coordination rule; and
-- bind the Codex adapter to managed hooks **and** a managed filesystem permission profile.
+- re-decides D7 with a tamper-evident, expiring claim receipt;
+- narrows D1's checkout wall to shared checkouts without narrowing D2's coordination rule; and
+- binds the Codex adapter to managed hooks **and** a managed filesystem permission profile.
+
+The first three amendments are recorded in place at ADR-0255 D1, D4 and D7. The fourth is **not** an
+amendment: ADR-0255 D5 already required a constrained Codex filesystem profile *and* a managed
+pre-tool policy, and expressly allowed the vendor syntax to evolve — D2/D3/D7/D8 below INSTANTIATE
+that decision rather than change it, and ADR-0255 D5 carries a note saying so.
 
 ## Context
 
