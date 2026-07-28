@@ -116,17 +116,27 @@ review. **This ADR does not lift that gate.**
 
 - The client half was genuinely unbuilt at decision time: an `HttpStore` plus a wire contract, and the
   broker's write set extended past assets (`/api/claims` is GET-only; there is no ADR-allocation
-  endpoint). *(Increment 1 landed the first part on 2026-07-27 — the wire contract, `HttpStore`, and a
+  endpoint). *(**PR #983** landed the first part on 2026-07-27 — the wire contract, `HttpStore`, and a
   pure `handleStoreRequest` server half in `packages/storage-protocol`, held to the shared
   `storeParitySuite`. It migrated nobody: every caller still dials `createPool`, no server is deployed
   behind the door, and the broker's write set is still assets-only. What remains is the wiring and the
-  deployment, not the contract.)*
+  deployment, not the contract. Cited by PR rather than by increment number — corrected in place
+  2026-07-28 under ADR-0086 / ADR-0139, because this ADR carries the `foreign-project-forest-arc` stamp
+  and that arc's increment log numbers its own stream, in which increment 1 is the repo-root
+  parameterisation of PR #977. The door work and the tree work are two streams under one `arc:` stamp,
+  so an increment number alone is ambiguous here.)*
 - Every store call gains a network hop. Reads already run offline on the seed, so the cost lands mostly
   on writes, but it is real.
 - A door per forest is more deployment surface than one shared instance — the price of ADR-0244 D6/D7's
   tenancy, already accepted there.
 - Repo-root parameterisation is a measured, unscoped prerequisite shared with `distribution-posture-arc`;
-  it lands once, under whichever arc reaches it first.
+  it lands once, under whichever arc reaches it first. *(Corrected in place 2026-07-28 under
+  ADR-0086 / ADR-0139 — no longer unscoped, and no longer a prerequisite in waiting.
+  `foreign-project-forest-arc` reached it first and landed it: the root became a parameter with
+  explicit > env > module-derived precedence across eight sites (PR #977), then drivable per call by the
+  build drivers and the studio server (PR #984). Per ADR-0246 D2, `distribution-posture-arc` consumes
+  that result rather than re-landing it. The decision above is unchanged; only this cost note is
+  corrected.)*
 
 **Neutral**
 
