@@ -259,8 +259,16 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
   and claim-gated workspace ceremony.
 - [ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md) —
   claim-before-worktree and hard refusal.
-- [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) — the earlier
-  shared-primary-checkout treatment that still needs a curator fold/supersession decision.
+- [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) — the **gate-time
+  arm** of the same shared-primary-checkout hazard. *Curated 2026-07-28: the fold/supersession
+  question this entry used to leave open is now answered — ADR-0245 is **accepted** (owner-directed,
+  2026-07-26), it is **not** superseded, and ADR-0255 now carries the missing `amends: [… 245]`
+  edge. Its D5.2 arm — `evaluateLobby` / `evaluateLobbyFromGit` in
+  `packages/cli/src/check-declared.ts` — is **BUILT and is the only enforcement of this hazard that
+  exists today**, so it is the live backstop this ADR's wall would sit in front of, not legacy to
+  fold away. The two are keyed differently on purpose: ADR-0245 keys on a **dirty** checkout at the
+  landing gate; ADR-0255/0257 key on an **agent write attempt** before mutation. Its D3/D4 push half
+  is owner-parked and out of scope here.*
 - [Codex hooks](https://learn.chatgpt.com/docs/hooks.md) — managed hook delivery, tool coverage and
   the documented boundary caveat.
 - [Codex permissions](https://learn.chatgpt.com/docs/permissions.md) — managed filesystem profiles
