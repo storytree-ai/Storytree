@@ -87,6 +87,30 @@ function listDir(dir: string): string[] {
   }
 }
 
+/**
+ * The VISIT events of a replay, in order.
+ *
+ * Since ADR-0260 D1 a trace legitimately carries non-visit events too: a `library artifact <id>`
+ * read records the offer its Sources block printed as a `candidate_set` beside the visit. The
+ * event-count assertions below therefore count VISITS rather than raw events — they were always
+ * making a claim about reads, and a raw total silently conflates "how many reads happened" with
+ * "how many events exist". Where a leg's real claim IS about the raw total (contract 3: a write
+ * appends NOTHING of any kind), it says so explicitly rather than filtering.
+ */
+function visitsOf(events: readonly ContextTraversalEvent[]): ContextVisitEvent[] {
+  return events.filter((event): event is ContextVisitEvent => isContextVisitEvent(event));
+}
+
+/** The `candidate_set` events of a replay, in order. */
+function candidateSetsOf(
+  events: readonly ContextTraversalEvent[],
+): Extract<ContextTraversalEvent, { kind: "candidate_set" }>[] {
+  return events.filter(
+    (event): event is Extract<ContextTraversalEvent, { kind: "candidate_set" }> =>
+      event.kind === "candidate_set",
+  );
+}
+
 /** Narrows a raw event to a visit event (front_matter_read | full_payload_read) or fails loudly. */
 function expectVisit(event: ContextTraversalEvent | undefined, context: string): ContextVisitEvent {
   assert.notEqual(event, undefined, `${context}: expected an event, got none`);
@@ -115,9 +139,10 @@ test("a-spawned-read-command-writes-a-replayable-visit: a real spawned CLI read 
   // what proves durability across a real process boundary rather than an in-memory hold.
   const { replay, skipped } = readTraversalSession({ dir, sessionId });
   assert.equal(skipped, 0);
-  assert.equal(replay.events.length, 1, "expected exactly one captured event");
+  const visits = visitsOf(replay.events);
+  assert.equal(visits.length, 1, "expected exactly one captured visit");
 
-  const event = expectVisit(replay.events[0], "contract1");
+  const event = expectVisit(visits[0], "contract1");
   assert.equal(event.kind, "full_payload_read");
   assert.equal(event.nodeId, "plan");
   assert.equal(event.sessionId, sessionId);
@@ -140,9 +165,10 @@ test("two-commands-share-one-session-with-distinct-visits: two spawned commands 
 
   const { replay, skipped } = readTraversalSession({ dir, sessionId });
   assert.equal(skipped, 0);
-  assert.equal(replay.events.length, 2, "expected exactly two captured events across both invocations");
+  const visits = visitsOf(replay.events);
+  assert.equal(visits.length, 2, "expected exactly two captured visits across both invocations");
 
-  const [firstEvent, secondEvent] = replay.events;
+  const [firstEvent, secondEvent] = visits;
   const one = expectVisit(firstEvent, "contract2 first");
   const two = expectVisit(secondEvent, "contract2 second");
 
@@ -191,9 +217,10 @@ test("a repeat read of the SAME node across two real CLI processes links to the 
 
   const { replay, skipped } = readTraversalSession({ dir, sessionId });
   assert.equal(skipped, 0);
-  assert.equal(replay.events.length, 2, "expected one captured visit per invocation");
+  const visits = visitsOf(replay.events);
+  assert.equal(visits.length, 2, "expected one captured visit per invocation");
 
-  const [firstEvent, secondEvent] = replay.events;
+  const [firstEvent, secondEvent] = visits;
   const one = expectVisit(firstEvent, "revisit first");
   const two = expectVisit(secondEvent, "revisit second");
 
@@ -229,7 +256,7 @@ test("a-spawned-write-command-leaves-no-canary-bytes: a spawned write-shaped com
   const readResult = runCli(["library", "artifact", "plan"], env);
   assert.equal(readResult.status, 0, `expected the seeding read to exit 0: ${readResult.stderr}`);
   const afterRead = readTraversalSession({ dir, sessionId });
-  assert.equal(afterRead.replay.events.length, 1, "expected the seeding read to leave exactly one event");
+  assert.equal(visitsOf(afterRead.replay.events).length, 1, "expected the seeding read to leave exactly one visit");
 
   // Offline (no --pg), `noticeboard declare` refuses outright — a write-shaped command whose argv
   // carries owner prose (the canary), which must never reach the trace bytes.
@@ -240,7 +267,15 @@ test("a-spawned-write-command-leaves-no-canary-bytes: a spawned write-shaped com
   assert.notEqual(writeResult.status, 0, "the offline write command must itself refuse (non-zero exit)");
 
   const afterWrite = readTraversalSession({ dir, sessionId });
-  assert.equal(afterWrite.replay.events.length, 1, "the write attempt must append no new event");
+  // This leg's claim really IS about the RAW total, so it is asserted as one: the write must append
+  // no event of ANY kind. Comparing against the seeded total rather than a hard-coded number keeps
+  // the claim exact as the read side legitimately gains events (a `library artifact` read now also
+  // records its offer, ADR-0260 D1) — the point was never "one event", it was "the write added none".
+  assert.equal(
+    afterWrite.replay.events.length,
+    afterRead.replay.events.length,
+    "the write attempt must append no new event of any kind",
+  );
 
   const filePath = path.join(dir, `${sessionId}.jsonl`);
   const raw = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
@@ -373,9 +408,13 @@ test("an-agents-render-writes-a-parent-linked-descent: a real spawned `agents <n
   assert.equal(result.status, 0, `expected the spawned agents render to exit 0: ${result.stderr}`);
 
   const { replay } = readTraversalSession({ dir, sessionId });
-  assert.ok(replay.events.length >= 2, "an agents render must write the agent visit AND at least one child");
+  const agentVisits = visitsOf(replay.events);
+  assert.ok(agentVisits.length >= 2, "an agents render must write the agent visit AND at least one child");
+  // The `agents` surface renders no Sources block, so it offers nothing and records no candidate set
+  // — stated rather than assumed, since this leg indexes positionally into the trace below.
+  assert.deepEqual(candidateSetsOf(replay.events), [], "an agents render offers nothing to record");
 
-  const parent = expectVisit(replay.events[0], "the agent's own visit");
+  const parent = expectVisit(agentVisits[0], "the agent's own visit");
   assert.equal(parent.kind, "full_payload_read", "the agent itself is read at full-payload strength");
   assert.equal(parent.nodeId, agentId);
   assert.equal(parent.surfaceId, "agents");
@@ -387,7 +426,7 @@ test("an-agents-render-writes-a-parent-linked-descent: a real spawned `agents <n
     "the agent's own visit must carry no parentVisitId key at all",
   );
 
-  const children = replay.events.slice(1).map((event, i) => expectVisit(event, `child ${i}`));
+  const children = agentVisits.slice(1);
   assert.ok(children.length >= 1, "at least one floor ref must descend");
   for (const child of children) {
     assert.equal(child.kind, "front_matter_read", "a floor ref is read at front-matter strength only");
@@ -421,4 +460,101 @@ test("an-agents-render-writes-a-parent-linked-descent: a real spawned `agents <n
   const [supportedHalf, omittedHalf] = coverageLine.split(" omitted=");
   assert.ok(supportedHalf?.includes("field:parent_visit_id"), "parent links are emitted, so they must be SUPPORTED");
   assert.ok(!omittedHalf?.includes("field:parent_visit_id"), "a render may not deny a field it produces");
+});
+
+// ---------------------------------------------------------------------------
+// 7. a real artifact read records the branches it did NOT take
+// ---------------------------------------------------------------------------
+
+test("an-artifact-read-records-the-branches-not-taken: a real spawned `library artifact <id>` leaves a candidate_set naming every offered id, followed or not", () => {
+  const dir = freshDir("contract7");
+  const sessionId = "session-contract7";
+  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, STORYTREE_SESSION_ID: sessionId };
+
+  // ONE invocation, and nothing after it. Whatever this read offered, nothing in this session ever
+  // follows — which is the whole point: ADR-0260 D2 records the offer at RENDER time, so the branches
+  // not taken exist in the telemetry precisely because they were recorded when they were offered.
+  const result = runCli(["library", "artifact", "plan"], env);
+  assert.equal(result.status, 0, `expected the spawned read to exit 0: ${result.stderr}`);
+
+  const { replay, skipped } = readTraversalSession({ dir, sessionId });
+  assert.equal(skipped, 0);
+
+  const visits = visitsOf(replay.events);
+  assert.equal(visits.length, 1, "one read is one visit");
+  const renderVisit = expectVisit(visits[0], "the rendering visit");
+
+  const candidateSets = candidateSetsOf(replay.events);
+  assert.equal(candidateSets.length, 1, "the render must record exactly one offer");
+  const offer = candidateSets[0];
+  assert.ok(offer !== undefined, "expected the recorded offer");
+
+  // The offer is joinable to the render that made it — by an id carried on the event, never by
+  // adjacency or timestamp proximity (ADR-0235 clause 3).
+  assert.ok(
+    offer.candidateSetId.includes(renderVisit.visitId),
+    `expected candidateSetId ${offer.candidateSetId} to name visit ${renderVisit.visitId}`,
+  );
+  assert.equal(offer.surfaceId, "library-artifact");
+
+  // The recorded ids are the artifact's REAL authored refs, read independently of the traversal that
+  // produced them — the arc's own closing condition. `plan` carries four, and the `doc:` one is kept
+  // prefix-and-all because an ADR file has no canonical Library node to be visited.
+  assert.deepEqual(
+    [...offer.candidateNodeIds],
+    [
+      "doc:decisions/0183-arcs-contain-plans-the-initiative-overlay-upstream-of-storie.md",
+      "arc",
+      "anchor-implementation-surface",
+      "orchestrate-route-supplement",
+    ],
+    "every offered ref must be recorded, in authored order",
+  );
+
+  // THE D2 PIN, at the real boundary: not one of those four ids was ever visited in this session, and
+  // all four are on the record anyway. An implementation that emitted offers lazily — only once
+  // something followed — would leave this trace with NO candidate set at all, and would still pass
+  // every other assertion in this file.
+  const visitedNodeIds = new Set(visits.map((visit) => visit.nodeId));
+  const neverFollowed = offer.candidateNodeIds.filter((id) => !visitedNodeIds.has(id));
+  assert.deepEqual(
+    [...neverFollowed],
+    [...offer.candidateNodeIds],
+    "every recorded offer must be a branch this session did not take",
+  );
+
+  // The RENDER must show what the trace carries, and must not deny it.
+  const shown = runCli(["traversal", "show", sessionId], env);
+  assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
+  assert.ok(
+    shown.stdout.includes(`[candidate-set] set=${offer.candidateSetId} surface=library-artifact candidates=4`),
+    "the rendered body must name the recorded offer and how many artifacts were on the table",
+  );
+
+  const coverageLine = shown.stdout
+    .split("\n")
+    .find((line) => line.includes("coverage: adapter=terminal-cli-dispatch"));
+  assert.ok(coverageLine !== undefined, "the terminal adapter's coverage block must render");
+  const [supportedHalf, omittedHalf] = coverageLine.split(" omitted=");
+  assert.ok(supportedHalf?.includes("event:candidate_set"), "offers are emitted, so they must be SUPPORTED");
+  assert.ok(!omittedHalf?.includes("event:candidate_set"), "a render may not deny an event it produces");
+  // ...and it must still deny what it genuinely cannot see. `followed_edge` has no producer until
+  // ADR-0260 D3, and claiming it here would be the inverse dishonesty.
+  assert.ok(omittedHalf?.includes("event:followed_edge"), "which offer was ANSWERED is not observed yet");
+  assert.ok(
+    omittedHalf?.includes("field:candidate_follow_causality"),
+    "offer→follow causality is not observed yet",
+  );
+
+  // ADR-0260 D7: both gaps must be visible in the same body, because D4 forbids ever repairing them
+  // by inference. A tidy-looking tree that never states what it cannot show is the failure mode.
+  assert.match(shown.stdout, /coverage-caveats:/, "the declaration must surface its caveats");
+  assert.ok(
+    shown.stdout.includes("doc-refs-are-offered-but-follows-are-unobservable"),
+    "the `doc:` blind spot must be declared — it is the MAJORITY of a typical offer set",
+  );
+  assert.ok(
+    shown.stdout.includes("follow-completeness-depends-on-the-offered-command-form"),
+    "the behavioural dependency must be declared — it is a new class for this telemetry",
+  );
 });

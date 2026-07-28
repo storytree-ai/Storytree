@@ -34,6 +34,15 @@ export {
 export type { AgentDescentDeps, AgentDocStore } from "./descend-agent-refs.js";
 
 export {
+  emitCandidateSet,
+  renderCoverageCaveats,
+  resolveArtifactOffers,
+  OFFER_CANDIDATE_SET_CAVEATS,
+  OFFER_CANDIDATE_SET_COVERAGE,
+} from "./offer-candidate-sets.js";
+export type { CoverageCaveat, OfferDeps, OfferDocStore } from "./offer-candidate-sets.js";
+
+export {
   renderTraversalSessions,
   renderTraversalSession,
   type TraversalRenderEnvelope,
