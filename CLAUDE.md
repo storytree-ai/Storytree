@@ -428,3 +428,8 @@ The interactive session agent: the outer loop that turns an owner's intent into 
   invisible to it until the next session. And the install reassures you wrongly — it prints
   "Already up to date" / "Lockfile is up to date" while still creating the missing links (that line is
   about *resolution*, not linking), so never read it as "the install changed nothing".
+  **To ASK rather than guess, run `pnpm storytree doctor`:** its `dependencies-current` probe compares
+  the two lockfiles directly and WARNs when `node_modules` was built from an older one. It is the only
+  honest answer available mid-session — the hook has already had its say and the install's own output
+  won't tell you. (Its neighbour `checkout-provisioned` answers a *different*, weaker question — that
+  an install once completed here — so read the two separately.)

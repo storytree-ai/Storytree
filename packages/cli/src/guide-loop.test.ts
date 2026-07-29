@@ -31,6 +31,7 @@ const HEALTHY: DoctorObservations = {
   gitPresent: true,
   nodeMajor: NODE_MAJOR_FLOOR,
   provisioned: true,
+  dependencyCurrency: "current",
   remoteReachable: true,
   seedReadable: true,
   claudeCliPresent: true,

@@ -21,6 +21,7 @@ import { test } from "node:test";
 import {
   needsProvision,
   lockfileAdvanced,
+  lockfilePair,
   provisionWorktree,
   exitCode,
   unprovisionedContext,
@@ -70,6 +71,15 @@ test("needsProvision: an installed worktree is skipped, a fresh one is flagged",
 // REGRESSION: a worktree provisioned once and then reused went stale as `main` gained packages, and
 // the old presence-only marker no-op'd right past it — so the session met a `TS2307` /
 // `ERR_MODULE_NOT_FOUND` naming a dependency it never touched. These drive the REAL filesystem.
+
+// The pair is EXPORTED because a second reader (`storytree doctor`'s dependency-currency probe) must
+// screen for presence itself — `lockfileAdvanced` fails open, so "false" there does not mean "current".
+// Pinning the two paths here is what keeps the two readers asking about the same files.
+test("lockfilePair: names the tracked lockfile and pnpm's copy of the one the last install ran against", () => {
+  const { wanted, current } = lockfilePair(join("/wt"));
+  assert.equal(wanted, join("/wt", "pnpm-lock.yaml"));
+  assert.equal(current, join("/wt", "node_modules", ".pnpm", "lock.yaml"));
+});
 
 test("lockfileAdvanced: an install against an OLDER lockfile than the checkout now has is stale", () => {
   const root = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_OLD });
