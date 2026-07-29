@@ -118,22 +118,34 @@ async function main(): Promise<void> {
     );
     for (const b of drain.breaches) console.error(`${TAG}   ${b}`);
     console.error(
-      `${TAG}   Landing is blocked until the ADR-0120 reconciliation backlog is drained back below`,
+      `${TAG}   Landing is blocked until the ADR-0120 reconciliation backlog is drained back to`,
     );
     console.error(
-      `${TAG}   V=${CEILING.valueDriftCeiling} / D=${CEILING.degradedLiveCeiling}. For VALUE-DRIFT, resolve by direction: export live→seed with`,
+      `${TAG}   V=${CEILING.valueDriftCeiling} / D=${CEILING.degradedLiveCeiling}. For VALUE-DRIFT, resolve by DIRECTION — do not assume live is newer:`,
     );
     console.error(
-      `${TAG}   \`pnpm storytree library export-corpus --pg --write\` where live is canonical (it is`,
+      `${TAG}   where LIVE is canonical, \`pnpm storytree library export-corpus --pg --write\` (one command;`,
     );
     console.error(
-      `${TAG}   ALL-OR-NOTHING across every drifted artifact — a librarian judgement, not a reflex), or`,
+      `${TAG}   since ADR-0263 it carries only the durable tier, so at a drained backlog that is just the`,
     );
     console.error(
-      `${TAG}   re-edit on the live surface where the seed is. For DEGRADED-LIVE the seed is canonical by`,
+      `${TAG}   artifact you edited — but it IS all-or-nothing, so it also sweeps any sibling's drift).`,
     );
     console.error(
-      `${TAG}   construction — restore it per artifact: \`storytree library artifact edit <id> --file <seed> --pg\`.`,
+      `${TAG}   Where the SEED is canonical, re-edit on the live surface instead: \`sync-corpus\` is`,
+    );
+    console.error(
+      `${TAG}   migrate-only, so a seed edit can never reach live and the seed CAN be the newer side.`,
+    );
+    console.error(
+      `${TAG}   On drift you did not author, spawn librarian-curator to call direction per artifact.`,
+    );
+    console.error(
+      `${TAG}   For DEGRADED-LIVE the seed is canonical by construction — restore it per artifact:`,
+    );
+    console.error(
+      `${TAG}   \`storytree library artifact edit <id> --file <seed> --pg\`.`,
     );
     console.error(
       `${TAG}   (Accumulation only — this never decides WHICH side of a drift is canonical.)`,

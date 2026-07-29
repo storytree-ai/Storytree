@@ -77,14 +77,31 @@
 // already in the operating discipline: export live→seed where live is canonical, or restore seed→live
 // where it is not (ADR-0252 D3: a ceiling's remedy is a drain, never a raise).
 //
-// ONE LIMITATION, STATED RATHER THAN DISCOVERED LATER. The sanctioned value-drift drain is
-// ALL-OR-NOTHING: `storytree library export-corpus --pg --write` rewrites every drifted seed body in
-// one act, and there is no per-artifact verb in the live→seed direction (the seed→live direction has
-// one — `artifact edit <id> --file <seed> --pg`). So a session that breaches V by one cannot discharge
-// only its own item through a sanctioned command; it must either run the batched export over all of
-// them, which is a librarian judgement across every drifted artifact, or edit that one seed entry by
-// hand. This is why V is baselined at the real count rather than at zero, and it is the reason a
-// future increment may find the honest repair is a per-artifact export verb rather than a lower V.
+// THE ALL-OR-NOTHING LIMITATION — STATED HERE, THEN RESOLVED, AND THE RESOLUTION WAS NOT THE ONE THIS
+// HEADER PREDICTED. The sanctioned value-drift drain is a single act: `storytree library export-corpus
+// --pg --write` rewrites every drifted seed body at once, and there is no per-artifact verb in the
+// live→seed direction (the seed→live direction has one — `artifact edit <id> --file <seed> --pg`). So
+// a session that breached V by one could not discharge only its own item; it had to run the batched
+// export over all of them — a librarian judgement across every drifted artifact — or hand-edit one
+// seed entry. That is why V shipped baselined at the real count rather than at zero, and this header
+// predicted "a future increment may find the honest repair is a per-artifact export verb rather than a
+// lower V."
+//
+// It was not the verb. It was the POPULATION (ADR-0263, 2026-07-29). The export scope was a DENYLIST —
+// every structured kind except agent/template/ephemeral — so `friction` (2026-07-06), `arc`
+// (2026-07-11) and `uat-criterion` (2026-07-18), all introduced AFTER `export-corpus.ts` (2026-06-27),
+// enrolled in the seed export silently, by default. Measured: the batch the drain required was 13
+// updates + 236 additions (+6074/-108 lines, `knowledge.json` 584 KB → 2.17 MB), of which 222 were
+// transient artifacts the seed has never carried. THAT is what made the batch unrunnable, not the
+// verb's granularity. Narrowing the scope to the durable tier took the same drain to 13 updates + 14
+// additions (+390/-108) — a diff a librarian can read per-artifact — and it was then run: 11 artifacts
+// live-canonical, 2 (`stack-claude-agent-sdk`, `stack-pi-coding-agent`) MIXED and repaired live first,
+// because a blanket export would have deleted four corpus-unique, code-verified facts an ADR-0232-era
+// rewrite had dropped. The narrowing moved V by exactly ZERO on the way through (13 before, 13 after —
+// all 13 drifted were durable-tier), which is what distinguishes it from gaming the measure.
+//
+// A per-artifact export verb is therefore NOT needed and should not be built on this reasoning: at a
+// drained backlog, "all" IS "the one thing this session changed".
 //
 // PURE by construction: no `node:` import, no filesystem, no clock, no `pg`. The live read lives in
 // the shell `check-corpus-content.ts`, which also sets the exit code.
@@ -98,22 +115,33 @@ export interface CorpusContentDrainConfig {
 }
 
 /**
- * THE CEILINGS, both BASELINED on a real sweep rather than picked in advance — the run of 2026-07-28
- * against the live store found `value-drift=14, degraded-live=0` over 160 export-scope seed artifacts,
- * all 160 present live. Setting each axis to exactly what a real run found ships the ceiling GREEN on
- * an honest baseline (a breach is strictly `>`), so it can only ever be TIGHTENED as the list drains.
+ * THE CEILINGS, both BASELINED on a real sweep rather than picked in advance — the run of 2026-07-29
+ * against the live store, AFTER the drain, found `value-drift=0, degraded-live=0` over 174
+ * export-scope seed artifacts, all 174 present live. Setting each axis to exactly what a real run
+ * found ships the ceiling GREEN on an honest baseline (a breach is strictly `>`), so it can only ever
+ * be TIGHTENED. This one has been: `valueDriftCeiling` was 14 from 2026-07-28 to 2026-07-29 and is now
+ * ZERO, which is the resting place the previous baseline named and could not yet reach.
  *
- * `valueDriftCeiling: 14` is deliberately NOT zero, and the reason is the all-or-nothing drain stated
- * in the header rather than any tolerance for drift. Shipping red on a pre-existing backlog whose only
- * sanctioned remedy is a batched librarian call across all 14 artifacts would price the next session
- * toward weakening the check instead of draining it. What 14 buys is the property the check has never
- * had: the FIFTEENTH unreconciled artifact fails the gate. The differential control above shows why
- * that matters — this list has been at 18, and at 122, with nothing failing. Zero headroom is the
- * wanted resting place and the drain is the only honest route to it (ADR-0252 D3), never a raise: the
- * one legitimate upward move is a genuinely enlarged measured POPULATION — the export SCOPE widening
- * to admit kinds it excludes today (`agent`, `template`, the ephemeral kinds) — re-baselined on that
- * new population's first real sweep with the reason recorded here. Raising it to accommodate work
- * being landed is the named gaming failure mode on `process:verification-decay-detection`.
+ * `valueDriftCeiling: 0` — ZERO HEADROOM, reached by draining and never by a raise (ADR-0252 D3). The
+ * previous 14 was not a tolerance for drift; it was the size of a backlog whose only sanctioned remedy
+ * was a batch export that would also have written 222 transient artifacts into the seed. ADR-0263
+ * removed that coupling (see the header), the backlog was drained to zero, and the ceiling follows the
+ * measurement down. What zero buys is what 14 bought, one artifact earlier: the FIRST unreconciled
+ * artifact fails the gate. The differential control above shows why that matters — this list has been
+ * at 18, and at 122, with nothing failing.
+ *
+ * **The remedy for a breach is one command**, and that is what makes zero affordable rather than
+ * punitive: `storytree library export-corpus --pg --write`, which at a drained backlog carries only
+ * the artifact this session actually edited. If a breach ever costs more than that, the cause is a
+ * SIBLING's undrained edit, not this ceiling — drain it, or route it back to that session.
+ *
+ * **A raise is never the discharge.** The one legitimate upward move is a genuinely enlarged measured
+ * POPULATION — the export SCOPE widening to admit kinds it excludes today (ADR-0263's table:
+ * `agent`, `template`, `plan`, `friction`, `arc`, `uat-criterion`) — re-baselined on that new
+ * population's first real sweep with the reason recorded here. Note that narrowing the scope was
+ * measured NOT to move this axis at all (13 before, 13 after), so scope changes are not a lever on
+ * this number in either direction. Raising it to accommodate work being landed is the named gaming
+ * failure mode on `process:verification-decay-detection`.
  *
  * `degradedLiveCeiling: 0` is the real, honest baseline and not an aspiration: every one of the nine
  * sampled seed revisions in the header's control read `degraded-live=0`, so this axis has been at zero
@@ -121,18 +149,21 @@ export interface CorpusContentDrainConfig {
  * not an editorial difference — it is an artifact stored below the schema floor, which the exporter
  * REFUSES to propagate, so it cannot drain in the same direction as its sibling and will sit there
  * indefinitely. Its remedy is per-artifact and already sanctioned
- * (`artifact edit <id> --file <seed> --pg`), so unlike V there is nothing here to be lenient about,
- * and it has happened before — a version-floor regression is exactly this shape. The next one reds the
- * gate on its first appearance.
+ * (`artifact edit <id> --file <seed> --pg`), and it has happened before — a version-floor regression is
+ * exactly this shape. The next one reds the gate on its first appearance. The two axes now hold the
+ * same number for DIFFERENT reasons, and they are still evaluated independently and never summed:
+ * V is zero because its backlog was drained, D because it never had one.
  *
- * NO WARN BAND WAS OPENED BENEATH EITHER CEILING. `check:corpus-content`'s formatter is untouched: it
- * still WARNs on a single drift of either kind and still prints every id, so nothing that printed
- * before prints more quietly now — the RED block is layered ABOVE the existing WARN, never in place of
- * it. Softening the check beneath its ceiling is the named gaming failure mode on
+ * WITH BOTH CEILINGS AT ZERO THERE IS NO BAND LEFT BENEATH THEM, so the `warn` level now reports only
+ * the substrate shortfall (`unverified`) — a sweep that compared fewer live rows than the seed scope.
+ * That is the intended end state, not a softening: `check:corpus-content`'s formatter is untouched, it
+ * still prints every drifted id exactly as before, and what changed is that the same finding now
+ * carries a non-zero exit instead of a WARN. Nothing prints more quietly than it did. Softening the
+ * check beneath its ceiling is the named gaming failure mode on
  * `process:verification-decay-detection`.
  */
 export const DEFAULT_CORPUS_CONTENT_DRAIN_CONFIG: CorpusContentDrainConfig = {
-  valueDriftCeiling: 14,
+  valueDriftCeiling: 0,
   degradedLiveCeiling: 0,
 };
 
