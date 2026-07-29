@@ -48,6 +48,17 @@ export {
 export type { CoverageCaveat, OfferDeps, OfferDocStore } from "./offer-candidate-sets.js";
 
 export {
+  emitFollowedEdge,
+  parseOfferFollow,
+  planOfferIdentity,
+  renderOfferFollowUps,
+  FOLLOW_OFFER_EDGE_CAVEATS,
+  FOLLOW_OFFER_EDGE_COVERAGE,
+  OFFER_FLAG,
+} from "./follow-offer-edges.js";
+export type { FollowDeps, FollowedOffer, OfferIdentity } from "./follow-offer-edges.js";
+
+export {
   renderTraversalSessions,
   renderTraversalSession,
   type TraversalRenderEnvelope,
@@ -55,6 +66,7 @@ export {
 
 export {
   captureCliInvocation,
+  isTraversalCaptureEnabled,
   showTraversalSession,
   listTraversalSessionsRendered,
   type CaptureCliInvocationInput,

@@ -106,10 +106,17 @@ on its own command line, with no trace read anywhere. Parsing is therefore: the 
 will not record leaves an id an agent can return, minting an edge that names a candidate set which
 never existed. So an offer id is planned only where a candidate set will actually be recorded: the
 argv must satisfy `isOfferableArtifactRead` (the same predicate the sibling offers on — mirror it,
-never widen it), and `mintVisitId` must not be called otherwise. Two other capture preconditions
-deliberately need NO gate here, and the reason is symmetry: an absent session identity and
-`STORYTREE_TRAVERSAL=off` suppress the FOLLOW's capture exactly as they suppress the OFFER's, so
-neither can produce an edge pointing at an offer that was never recorded.
+never widen it), and `mintVisitId` must not be called otherwise.
+
+Two other capture preconditions — an absent session identity, and `STORYTREE_TRAVERSAL=off` — are the
+CALLER's to check, and they are not optional. (An earlier draft of this paragraph argued they needed
+no gate at all, on the grounds that both suppress the FOLLOW's capture exactly as they suppress the
+OFFER's, so neither could produce an edge naming an unrecorded offer. That argument is about what gets
+RECORDED and says nothing about what gets PRINTED — and printing is half of D3. The story's standing
+UAT leg 5 falsified it immediately: an opted-out run still printed a fresh, per-invocation offer id,
+which both broke ADR-0241 D3's opt-out-clean envelope and handed out an id nothing had recorded.) So
+`main.ts` asks all three questions before it plans an id: the shape, `isTraversalCaptureEnabled()`, and
+a resolvable session identity.
 
 **`renderOfferFollowUps` prints a command per FOLLOWABLE offer, in authored order.** Map each raw ref
 through `offerIdOf` (so the id printed on the command line is byte-identical to the id recorded in

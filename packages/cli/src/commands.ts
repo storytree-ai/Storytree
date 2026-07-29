@@ -95,6 +95,7 @@ import { nodeBuild, nodeHelp, nodeResolve, specView } from "@storytree/drive";
 import { orchestrate } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
+import { renderOfferFollowUps } from "@storytree/context-traversal-capture";
 import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
 import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
@@ -265,8 +266,16 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
   };
 }
 
-/** `storytree library artifact <id>` — print one artifact to stdout. */
-export async function viewArtifact(store: Store, id: string): Promise<Envelope> {
+/**
+ * `storytree library artifact <id>` — print one artifact to stdout.
+ *
+ * `offerId` is the identity of the offer this render is about to record (ADR-0260 D3). When present,
+ * every followable ref in the Sources block also gets a `next:` command CARRYING that id, so an agent
+ * that takes one of those branches hands the offer's identity back on its own command line and the
+ * answering read can declare the edge. Absent, the nav is exactly what it always was — and the
+ * resulting reads record no edges, which is D4's accepted under-report rather than a defect.
+ */
+export async function viewArtifact(store: Store, id: string, offerId?: string): Promise<Envelope> {
   const stored = await store.getDoc(id);
   if (!stored) {
     return {
@@ -315,6 +324,11 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
       if (derived.next && derived.next.length > 0) next = [...derived.next];
     }
   }
+  // The Sources block IS the offer (ADR-0260 D1), and D3 makes the offer's identity travel: one
+  // pasteable follow-up per FOLLOWABLE ref, each naming the candidate set it came from. A `doc:` ref
+  // gets none — it resolves to a file, not to a CLI read — which is the declared coverage caveat
+  // rather than a hole to paper over with a command that could not run.
+  if (offerId !== undefined) next = [...next, ...renderOfferFollowUps(offerId, a.references)];
   return { ok: true, body: lines.join("\n"), next };
 }
 
@@ -1073,6 +1087,16 @@ export interface RunDeps {
   /** Recorded as the event `actor` on writes (per-session attribution). Defaults to "cli". */
   readonly actor?: string;
   /**
+   * The offer id THIS invocation's `library artifact <id>` render will record (ADR-0260 D3), so the
+   * follow-up commands it prints can name it and a later read can answer it. Pre-minted in `main.ts`
+   * — the render has to print the id before capture writes it, and both must be the SAME id.
+   *
+   * Absent for every shape that will record no offer, so a printed follow-up never carries an id
+   * naming a candidate set nothing recorded. Absent in tests too, which is why `viewArtifact` renders
+   * its ordinary nav unchanged when it is missing.
+   */
+  readonly offerId?: string;
+  /**
    * The session seam (ADR-0033, presence RETIRED by ADR-0200 D7): `identity` is injectable for
    * tests — when ABSENT it is derived from the enclosing worktree. `claims` (ADR-0142) is the
    * write-claim store: `declare --node` takes the work-time claim (the wisp), `done` bulk-releases
@@ -1728,6 +1752,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "include-detached"?: boolean;
     "threshold-hours"?: string;
     runtime?: string;
+    "from-offer"?: string;
   };
   try {
     const parsed = parseArgs({
@@ -1798,6 +1823,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         "threshold-hours": { type: "string" },
         // `storytree desktop install-shortcut --runtime <path>` — the pinned-main runtime worktree (ADR-0181).
         runtime: { type: "string" },
+        // `storytree library artifact <id> --from-offer <candidateSetId>` — the offer an answering
+        // read is declaring it followed (ADR-0260 D3). Registered so the flag parses; the VALUE is
+        // read from argv by the capture boundary in `main.ts`, never from here.
+        "from-offer": { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -2620,7 +2649,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         next: ["storytree library artifact <id>"],
       };
     }
-    return viewArtifact(deps.store, third);
+    return viewArtifact(deps.store, third, deps.offerId);
   }
 
   return {

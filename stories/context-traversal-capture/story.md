@@ -150,8 +150,15 @@ uncertainty and every ADR-0241 honesty rule intact.
    reports context capacity as unknown, and prints the adapter's supported/omitted coverage block.
 5. **Capture is additive and opt-out-clean.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Re-run the same read command with
    `STORYTREE_TRAVERSAL=off`, and again with no resolvable session identity. **Success —** no trace
-   file is created in either run, and each command's envelope and exit code are byte-identical to the
-   same command run with capture entirely absent.
+   file is created in either run, and each command's envelope PAYLOAD and exit code are
+   byte-identical to the same command run with capture entirely absent. The payload is what
+   "byte-identical" now means, and the narrowing is ADR-0260 D3's declared cost rather than a
+   loosened assertion: a run that RECORDS an offer also PRINTS follow-up commands carrying that
+   offer's id, and the id is a fresh visit id each time, so whole-stdout equality no longer holds even
+   between two capture-on runs. The leg therefore also pins the half that keeps the change honest —
+   the offer-carrying lines appear ONLY where an offer is genuinely recorded, and never on a run that
+   captured nothing, since a printed id naming a candidate set that does not exist is an id an agent
+   can return into a forged edge.
 6. **A real `agents` render writes a depth, not a flat column.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real
    CLI binary (`node packages/cli/launch.mjs agents <a-real-agent-id>`) into a fresh temporary
    directory, offline and without `--pg`, then spawn `traversal show <sessionId>` against the same
@@ -176,6 +183,23 @@ uncertainty and every ADR-0241 honesty rule intact.
    caveats. This is the load-bearing leg for ADR-0260 D2: an implementation that recorded offers
    lazily — only once something followed — would leave this trace with no candidate set at all and
    would still pass every other leg above.
+8. **A real followed command declares its edge, and a bare one declares none.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In one
+   temporary directory and one session, spawn the real CLI three times, offline and without `--pg`:
+   the offering read (`library artifact plan`); then the follow-up command that read PRINTED, run
+   verbatim as an agent would paste it; then a BARE read of a different node the same offer put on
+   the table. **Success —** the id printed on the follow-up command is byte-identical to the
+   `candidateSetId` the offering read recorded (two OS processes, no shared memory — the string on
+   the command line is the only thing the second knows about the first); the answering visit carries
+   a `followedEdgeId` equal to the `edgeId` of exactly ONE recorded `followed_edge`, whose
+   `candidateSetId` is that printed id, whose `fromVisitId` is the offering visit and whose
+   `toVisitId` is the answering visit; all three reads record their own offer, so the chain continues
+   past one hop; `traversal show` draws the edge and declares `event:followed_edge` and
+   `field:candidate_follow_causality` under `supported` and NOT `omitted`, alongside all three
+   ADR-0260 D7 caveats. And the load-bearing half — the BARE read carries NO `followedEdgeId` and
+   adds NO second edge, even though the trace it ran against visibly holds a recent candidate set
+   offering the very node it read. That is exactly the join a recency-resolving implementation would
+   make, and ADR-0260 D3 refuses it: if the id is not on the command line, there is no edge. The
+   missing edge is D4's accepted under-report, and no pass may ever correlate it away.
 
 ## Evidence
 
@@ -194,8 +218,8 @@ consumed-by edge and reviewed in the diff, never claimed as this story's evidenc
 
 ## Reliability Gates
 
-Every UAT leg above is `witness: machine`, and each — including leg 7, added by
-`context-decision-tree-arc`'s first build increment — is bound to `context-traversal-capture#gate-1`
+Every UAT leg above is `witness: machine`, and each — including legs 7 and 8, added by
+`context-decision-tree-arc`'s first and second build increments — is bound to `context-traversal-capture#gate-1`
 by an explicit `_(proof-gate: …)_` annotation — the binding the resolver looks up VERBATIM, with no
 first-observe fallback and no inference from ordering or `(covers:)`. The gate is what makes those
 legs machine-provable at all: without it a machine leg has no command to resolve to, refuses
@@ -217,8 +241,11 @@ an adoption standing in for a red that never happened.
    no API key — plus the render-time offer recording (`artifact-offer-candidate-sets`), whose arrival
    re-proved this gate deliberately rather than around it (ADR-0260 D6: emitting `candidate_set`
    genuinely broke three of these legs' event-count assertions, which now count VISITS where they
-   were always making a claim about reads) — then signs an `adopted` verdict
-   (`storytree adopt context-traversal-capture --pg`, which observe-and-signs this gate and the seven
+   were always making a claim about reads), and the offer-answering edge (`offer-follow-edges`),
+   whose arrival re-proved this gate a second time rather than around it (ADR-0260 D3 makes the
+   offer's id part of the RENDERED surface, so leg 5's "byte-identical envelope" narrowed to the
+   envelope's payload — the claim it was always making) — then signs an `adopted` verdict
+   (`storytree adopt context-traversal-capture --pg`, which observe-and-signs this gate and the eight
    legs bound to it).
 
 ## Explicitly outside this increment

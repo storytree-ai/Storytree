@@ -119,6 +119,25 @@ function libraryArtifactVisitEvent(
   return { ...base, followedEdgeId: overrides.followedEdgeId };
 }
 
+/**
+ * A `candidate_set` event offering `candidateNodeIds` — the fixture contract 3 needs in order to
+ * present `emitFollowedEdge` with the exact input a recency-joining implementation would seize on.
+ */
+function candidateSetEvent(
+  candidateSetId: string,
+  candidateNodeIds: [string, ...string[]],
+): ContextTraversalEvent {
+  return {
+    kind: "candidate_set",
+    eventId: `event:${candidateSetId}`,
+    sessionId: "session-a",
+    at: AT,
+    candidateSetId,
+    surfaceId: LIBRARY_ARTIFACT_SURFACE,
+    candidateNodeIds,
+  };
+}
+
 function harnessFollowDeps(overrides: { sessionId?: string } = {}): FollowDeps {
   return {
     sessionId: overrides.sessionId ?? "session-a",
@@ -243,6 +262,36 @@ test("the-offer-id-travels-in-argv-and-is-never-resolved-from-the-trace", () => 
 
   // never throws — an empty argv is a legitimate input and returns a value, not an exception.
   assert.deepEqual(parseOfferFollow([]), { argv: [], followed: null });
+
+  // THE REFUSAL ITSELF, against the strongest possible temptation. This batch is exactly what a
+  // recency-joining implementation would seize on: a read of node `x`, sitting beside a candidate set
+  // that visibly OFFERED `x`. "The most recent set containing this node" is precisely the recency
+  // inference ADR-0260 D3 declines (candidate C wearing candidate B's clothes) and ADR-0235 clause 3
+  // already fenced out. The bare argv carries no offer id, so there is no edge — and the whole batch
+  // must come back untouched, asserted on the JSON round-trip so it describes the BYTES the sink
+  // would write rather than an in-memory identity.
+  const readOfX = libraryArtifactVisitEvent({ visitId: "visit-answer", nodeId: "x" });
+  const temptingOffer = candidateSetEvent("candidate-set:visit-render", ["x", "z"]);
+  const temptingBatch: ContextTraversalEvent[] = [readOfX, temptingOffer];
+  const refused = emitFollowedEdge(temptingBatch, bare.followed, harnessFollowDeps());
+
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(refused)),
+    JSON.parse(JSON.stringify(temptingBatch)),
+    "a bare command beside an offer of the very node it read must record NO edge and stamp NOTHING",
+  );
+  assert.equal(
+    refused.filter((event) => event.kind === "followed_edge").length,
+    0,
+    "no followed_edge may be fabricated from a candidate set the command line never named",
+  );
+  assert.equal(
+    expectVisit(refused[0], "the unstamped read").followedEdgeId,
+    undefined,
+    "the read's own visit must carry no followedEdgeId — the key absent, never present-and-undefined",
+  );
+  // and the input batch itself was never mutated in place.
+  assert.equal(readOfX.followedEdgeId, undefined);
 });
 
 // ---------------------------------------------------------------------------

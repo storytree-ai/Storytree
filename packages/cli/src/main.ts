@@ -1,4 +1,5 @@
 #!/usr/bin/env -S tsx
+import { randomUUID } from "node:crypto";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -12,6 +13,9 @@ import {
 } from "@storytree/library/store";
 import {
   captureCliInvocation,
+  isTraversalCaptureEnabled,
+  parseOfferFollow,
+  planOfferIdentity,
   resolveAgentDescent,
   resolveArtifactOffers,
 } from "@storytree/context-traversal-capture";
@@ -122,29 +126,55 @@ async function attachDeltaFooter(
  * what the command produced. It is SYNCHRONOUS and never awaits a network or DB path — `main` runs
  * on EVERY invocation, including the gate's own internal calls (ADR-0162 startup budget).
  *
- * Identity resolves HERE and is passed in: `STORYTREE_SESSION_ID` wins (the secrets-hydration
- * precedent, and the seam a future spawned-agent adapter inherits a parent session through), else
- * the worktree derivation, which is null in the main checkout and in CI. A null identity captures
- * nothing — silently, since an uninstrumented run is a normal outcome, not an error.
+ * Identity resolves in {@link resolveCaptureSessionId} and is passed in: `STORYTREE_SESSION_ID` wins
+ * (the secrets-hydration precedent, and the seam a future spawned-agent adapter inherits a parent
+ * session through), else the worktree derivation, which is null in the main checkout and in CI. A
+ * null identity captures nothing — silently, since an uninstrumented run is a normal outcome, not an
+ * error. It resolves in `main` rather than here because the offer-id plan (ADR-0260 D3) needs the
+ * same answer BEFORE the render; it is still exactly ONE derivation per invocation.
  */
-async function captureInvocation(argv: readonly string[], ok: boolean, store: Store): Promise<void> {
+function resolveCaptureSessionId(): string | null {
   try {
     const override = process.env["STORYTREE_SESSION_ID"];
-    const sessionId =
-      override !== undefined && override.trim().length > 0
-        ? override
-        : (deriveIdentity()?.sessionId ?? null);
+    if (override !== undefined && override.trim().length > 0) return override;
+    return deriveIdentity()?.sessionId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function captureInvocation(
+  argv: readonly string[],
+  readArgv: readonly string[],
+  ok: boolean,
+  store: Store,
+  sessionId: string | null,
+  offerVisitId: string | undefined,
+): Promise<void> {
+  try {
     // An `agents <name>` essentials render resolves the agent's floor refs BY EXPLICIT ID, so each
     // one is a genuine within-process descent (ADR-0235 clause 2). Resolving needs an async store
     // read, and `captureCliInvocation` is contractually synchronous — so it happens here, inside the
     // existing try/catch and before `close()`. Every other dispatch shape resolves to [].
-    const agentRefIds = await resolveAgentDescent(argv, store);
+    //
+    // Both resolutions run against `readArgv` — this invocation's argv with any `--from-offer` flag
+    // stripped. A read that ANSWERS an offer is still a read, and still offers onward artifacts of
+    // its own; resolving against the raw argv would break the chain after exactly one hop.
+    const agentRefIds = await resolveAgentDescent(readArgv, store);
     // A `library artifact <id>` render PRINTS its onward refs as a Sources block — that block IS the
     // offer set (ADR-0260 D1), already computed by the renderer. Resolving it needs the same async
     // store read `agentRefIds` does, so it is resolved HERE and passed in. It is recorded whether or
-    // not anything follows it (D2); which offer was ANSWERED is D3's increment, not this one.
-    const offeredIds = await resolveArtifactOffers(argv, store);
-    captureCliInvocation({ argv, ok, sessionId, agentRefIds, offeredIds });
+    // not anything follows it (D2); which offer this read ANSWERED rides in its own argv (D3) and is
+    // parsed inside `captureCliInvocation`, from the raw argv passed below.
+    const offeredIds = await resolveArtifactOffers(readArgv, store);
+    captureCliInvocation({
+      argv,
+      ok,
+      sessionId,
+      agentRefIds,
+      offeredIds,
+      ...(offerVisitId !== undefined ? { offerVisitId } : {}),
+    });
   } catch {
     // Telemetry never breaks a command — the envelope is the payload, the trace is a courtesy.
   }
@@ -166,6 +196,25 @@ export async function main(): Promise<void> {
   // ~/.storytree/secrets.json when the env doesn't already carry them — env always wins
   // (CURSOR_API_KEY hydration retired with the Cursor leaf — ADR-0198).
   loadLocalSecrets();
+  // ADR-0260 D3 — the offer's identity travels in ARGV, so the render has to know the id BEFORE it
+  // prints, and capture has to record that same id afterwards. The rendering visit's id is therefore
+  // pre-minted here and handed to both halves: `run` prints follow-up commands carrying
+  // `candidate-set:<visitId>`, and `captureCliInvocation` records the offer under that very id. A
+  // `candidate_set` event has no `visitId` field, so the id IS the join — mint it in two places and
+  // the printed id names a visit that never existed.
+  //
+  // An id is planned ONLY where this invocation will really record the offer it names, so a render
+  // can never hand out a dangling id an agent could return: `planOfferIdentity` refuses every shape
+  // that records no offer (a `--pg` read, `artifact list`, any non-artifact area), and the two
+  // capture preconditions are checked alongside it. Those two also keep ADR-0241 D3 intact for a run
+  // that captures nothing — with capture opted out, or no resolvable identity, the envelope is
+  // byte-identical to a capture-absent one, because nothing was recorded to point at.
+  const { argv: readArgv } = parseOfferFollow(argv);
+  const captureSessionId = resolveCaptureSessionId();
+  const offer =
+    captureSessionId !== null && isTraversalCaptureEnabled()
+      ? planOfferIdentity(readArgv, randomUUID)
+      : null;
   const usePg = argv.includes("--pg");
   const { store, claims, ledger, verdicts, uatStore, attestations, adr, pullDeltas, close } = await buildStore(usePg);
   try {
@@ -180,11 +229,12 @@ export async function main(): Promise<void> {
       attestations,
       adr,
       ...(actor !== undefined ? { actor } : {}),
+      ...(offer !== null ? { offerId: offer.candidateSetId } : {}),
     });
     // ADR-0200 D4: the cursor-once delta footer rides the render the agent already reads.
     process.stdout.write(formatEnvelope(await attachDeltaFooter(env, pullDeltas)));
     process.exitCode = env.ok ? 0 : 1;
-    await captureInvocation(argv, env.ok, store);
+    await captureInvocation(argv, readArgv, env.ok, store, captureSessionId, offer?.visitId);
   } finally {
     await close();
   }
