@@ -700,6 +700,16 @@ code {
   color: inherit;
   font-size: inherit;
 }
+/* A link (or reference) the doc INDEX couldn't resolve because the index itself is still loading
+   or failed to load — NOT a link the author pointed outside the corpus, and not a doc that is
+   genuinely absent. Visibly distinct (dotted, muted) rather than tooltip-only, so the degradation
+   can't pass for a working link; the `title` carries the reason and any error message. */
+.doc-unresolved {
+  border-bottom: 1px dotted var(--border-strong);
+  color: var(--muted);
+  cursor: help;
+  text-decoration: none;
+}
 /* ```mermaid fenced blocks render as an SVG diagram (ADR-0096), so they sit on the page
    background — centred, never inside the dark <pre> code box. */
 .markdown .mermaid-diagram {
