@@ -2,19 +2,27 @@
  * "Sources" — the grouped-by-type render of a unit's structured `references`
  * (docs/research/library-sources-unification.md).
  *
- * A unit cites related material with opaque `doc:<relpath>` / `asset:<id>` pointers. To read well,
- * we group them by the TYPE of thing they point at (Definitions vs Decisions vs …) rather than
- * dumping a flat list. This is a *live view*: it is computed from `references` at render time
- * (studio, CLI, …), never baked into the stored body — so it never goes stale when a cited
+ * A unit cites related material with opaque `doc:<relpath>` / `asset:<id>` / `node:<id>` pointers.
+ * To read well, we group them by the TYPE of thing they point at (Definitions vs Decisions vs …)
+ * rather than dumping a flat list. This is a *live view*: it is computed from `references` at render
+ * time (studio, CLI, …), never baked into the stored body — so it never goes stale when a cited
  * artifact is recategorized or retitled.
  *
- * The `doc:` classification and the group ORDER are corpus-free and owned here. Resolving an
- * `asset:<id>` to its category needs the corpus, so {@link groupSources} takes a `resolveAsset`
+ * The `doc:` / `node:` classification and the group ORDER are corpus-free and owned here. Resolving
+ * an `asset:<id>` to its category needs the corpus, so {@link groupSources} takes a `resolveAsset`
  * callback — each call site fills it from its own corpus view (the studio from `useAppData`, the
  * CLI from the store, build steps from the loaded corpus). Pure + offline.
  */
 
-/** The fixed display order of Source groups; empty groups are omitted at render time. */
+import { NODE_REF_PREFIX } from "./oq-gating.js";
+
+/**
+ * The fixed display order of Source groups; empty groups are omitted at render time.
+ *
+ * "Story nodes" sits between the library kinds and the out-of-library pointers: a `node:<id>` ref
+ * points at the work tree, not at knowledge. It is placed BEFORE "Decisions (ADRs)" deliberately —
+ * the tail `[Decisions (ADRs), Docs & references, Other]` is a pinned invariant.
+ */
 export const SOURCE_GROUP_ORDER = [
   "Definitions",
   "Principles",
@@ -23,6 +31,7 @@ export const SOURCE_GROUP_ORDER = [
   "Tech stack",
   "Templates",
   "Open questions",
+  "Story nodes",
   "Decisions (ADRs)",
   "Docs & references",
   "Other",
@@ -88,6 +97,12 @@ export function groupSources(
     } else if (ref.startsWith("doc:")) {
       const rel = ref.slice("doc:".length);
       add(rel.startsWith("decisions/") ? "Decisions (ADRs)" : "Docs & references", { ref, label: rel });
+    } else if (ref.startsWith(NODE_REF_PREFIX)) {
+      // ADR-0107 D2's third token: a pointer at the story / capability node being proven. Named
+      // in that ADR's own costs as the gap this view had ("will show a `node:` ref ungrouped until
+      // that view learns the token"). Corpus-free like the `doc:` arm — the node id IS the label;
+      // the work tree is not the library's to resolve.
+      add("Story nodes", { ref, label: ref.slice(NODE_REF_PREFIX.length) });
     } else {
       add("Other", { ref, label: ref });
     }

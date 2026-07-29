@@ -145,6 +145,30 @@ test("referential-integrity skips doc: resolution when no docExists is injected"
   assert.equal(find(results, "referential-integrity").level, "PASS");
 });
 
+test("referential-integrity WARNs on a dangling node: pointer (ADR-0107 D2's third token)", () => {
+  // A `node:<id>` ref used to fall through every arm and be silently ignored, so a citation of a
+  // retired story dangled invisibly. WARN, not FAIL — like doc:, it points OUT of the library.
+  const a = stored(validDefinitionBody({ id: "a", references: ["node:no-such-story"] }));
+  const results = libraryHealth([a], { ...BASE_OPTS, nodeExists: () => false });
+  const r = find(results, "referential-integrity");
+  assert.equal(r.level, "WARN");
+  assert.ok(r.lines.some((l) => l.includes("node:no-such-story")));
+  assert.deepEqual(gateFailures(results), [], "still WARN-class — never a gate break");
+});
+
+test("referential-integrity PASSes a resolving node: pointer, and skips it with no resolver", () => {
+  const a = stored(validDefinitionBody({ id: "a", references: ["node:cli"] }));
+  assert.equal(
+    find(libraryHealth([a], { ...BASE_OPTS, nodeExists: () => true }), "referential-integrity").level,
+    "PASS",
+  );
+  assert.equal(
+    find(libraryHealth([a], BASE_OPTS), "referential-integrity").level,
+    "PASS",
+    "no nodeExists injected => node: resolution is skipped, never failed",
+  );
+});
+
 test("worstLevel / gateFailures / levelCounts agree on a FAIL-class break", () => {
   // A missing required field -> schema-conformance FAIL (a GATE check).
   const bad = validDefinitionBody();

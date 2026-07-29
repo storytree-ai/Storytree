@@ -51,11 +51,14 @@ async function fileNew(
   s: InMemoryStore,
   doc: Record<string, unknown>,
   dirs: { inboxDir: string; docsDir: string },
-  opts: { writable?: boolean; extra?: string[] } = {},
+  opts: { writable?: boolean; extra?: string[]; over?: Record<string, unknown> } = {},
 ) {
   const argv = ["friction", "new", "--json", JSON.stringify(doc), ...(opts.extra ?? [])];
-  return run(argv, { store: s, ...(opts.writable ? { writable: true } : {}), friction: frictionDeps(dirs) });
+  return run(argv, { store: s, ...(opts.writable ? { writable: true } : {}), friction: frictionDeps(dirs, opts.over ?? {}) });
 }
+
+/** The injected `node:<id>` resolver (ADR-0107 D2) — only `cli` is a real node in these tests. */
+const NODE_RESOLVER = { nodeExists: (id: string) => id === "cli" };
 
 // ---------------------------------------------------------------------------
 // the concrete-evidence floor (ADR-0168 D3)
@@ -137,6 +140,114 @@ test("new refuses an unresolvable reference; a resolvable one passes", async () 
   await s.upsertDoc({ id: "real-principle", kind: "principle", doc: { id: "real-principle", kind: "principle", title: "R" } });
   const good = await fileNew(s, frictionDoc("f-goodref", { references: ["asset:real-principle"] }), dirs, { writable: true });
   assert.equal(good.ok, true, good.body);
+});
+
+// ---------------------------------------------------------------------------
+// the three `friction-capture-surface-is-itself-high-friction` defects (route `tool`)
+// ---------------------------------------------------------------------------
+
+test("defect 1: a validation refusal names the friction arm's real defect, not stamped keys", async () => {
+  // The item's reproduction: `summary` where commonShape requires `description`. The raw LibraryDoc
+  // union throw blamed [summary, statement, evidence, impact, kind, provenance, schemaVersion] —
+  // three of which the CLI stamps at capture and three of which the kind REQUIRES.
+  const s = store();
+  const dirs = tempDirs();
+  const doc = frictionDoc("f-summary");
+  doc["summary"] = doc["description"];
+  delete doc["description"];
+
+  const env = await fileNew(s, doc, dirs, { writable: true });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /friction artifact schema/);
+  assert.match(env.body, /missing required field\(s\): description/);
+  assert.match(env.body, /field\(s\) this kind does not have: summary/);
+  for (const key of ["kind", "provenance", "schemaVersion", "statement", "evidence", "impact"]) {
+    assert.ok(
+      !new RegExp(`does not have:[^\\n]*\\b${key}\\b`).test(env.body),
+      `"${key}" must not be blamed — the caller cannot remove it or the kind requires it:\n${env.body}`,
+    );
+  }
+  // And it says which fields it stamps, so "just remove kind" is never the reader's conclusion.
+  assert.match(env.body, /the CLI stamps kind, provenance, createdAt, updatedAt, schemaVersion for you/);
+  assert.equal(await s.getDoc("f-summary"), null, "still fail-closed — nothing written");
+});
+
+test("defect 2: a node:<id> reference resolves (ADR-0107 D2), and a dangling one is still refused", async () => {
+  const s = store();
+  const dirs = tempDirs();
+
+  // Before this, `node:` fell to the else-arm and was rejected as "not an asset:/doc: pointer" —
+  // so a friction item about a capability could not cite that capability.
+  const good = await fileNew(s, frictionDoc("f-node", { references: ["node:cli"] }), dirs, {
+    writable: true,
+    over: NODE_RESOLVER,
+  });
+  assert.equal(good.ok, true, good.body);
+  const stored = (await s.getDoc("f-node"))?.doc as Record<string, unknown>;
+  assert.deepEqual(stored["references"], ["node:cli"], "the token round-trips unchanged");
+
+  // The ADR-0168 D3 floor is unchanged in strength: a node that does not exist is still refused.
+  const bad = await fileNew(s, frictionDoc("f-ghostnode", { references: ["node:no-such-story"] }), dirs, {
+    writable: true,
+    over: NODE_RESOLVER,
+  });
+  assert.equal(bad.ok, false);
+  assert.match(bad.body, /no such story\/capability node/);
+  assert.equal(await s.getDoc("f-ghostnode"), null);
+});
+
+test("defect 2: a genuinely bad token names all three accepted reference forms", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  const env = await fileNew(s, frictionDoc("f-badtoken", { references: ["https://example.com/x"] }), dirs, {
+    writable: true,
+    over: NODE_RESOLVER,
+  });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /not an asset:<id>, doc:<path> or node:<id> pointer/);
+});
+
+test("defect 3: route --reason and reinforce --evidence read a value from @path", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("f-atpath"), dirs, { writable: true });
+
+  // Real newlines and a `->` — the exact pair that, as a quoted shell argument, flattened to a
+  // literal \n and escaped quoting badly enough to truncate the value and drop a stray file.
+  const reason = "question 1 -> the evidence supports it.\n\nquestion 2 -> a fence is cheaper.\n";
+  const reasonFile = path.join(dirs.docsDir, "reason.txt");
+  writeFileSync(reasonFile, reason, "utf8");
+  const routed = await run(
+    ["friction", "route", "f-atpath", "--route", "tool", "--reason", `@${reasonFile}`, "--pg"],
+    { store: s, writable: true, friction: frictionDeps(dirs) },
+  );
+  assert.equal(routed.ok, true, routed.body);
+  const afterRoute = (await s.getDoc("f-atpath"))?.doc as Record<string, unknown>;
+  assert.equal(afterRoute["routeReason"], reason.trim(), "the multi-line reason survives verbatim");
+
+  const evidence = "recurred on PR #1008:\n  packages/cli/src/friction.ts -> still flattened\n";
+  const evidenceFile = path.join(dirs.docsDir, "evidence.txt");
+  writeFileSync(evidenceFile, evidence, "utf8");
+  const reinforced = await run(
+    ["friction", "reinforce", "f-atpath", "--evidence", `@${evidenceFile}`, "--pg"],
+    { store: s, writable: true, friction: frictionDeps(dirs) },
+  );
+  assert.equal(reinforced.ok, true, reinforced.body);
+  const afterReinforce = Friction.safeParse((await s.getDoc("f-atpath"))?.doc);
+  assert.ok(afterReinforce.success);
+  assert.equal(afterReinforce.data.reinforcedBy?.[0]?.evidence, evidence.trim());
+});
+
+test("defect 3: a missing @path file is guidance, not a throw", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("f-nofile"), dirs, { writable: true });
+  const env = await run(
+    ["friction", "route", "f-nofile", "--route", "tool", "--reason", `@${path.join(dirs.docsDir, "gone.txt")}`, "--pg"],
+    { store: s, writable: true, friction: frictionDeps(dirs) },
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /could not read a @file value/);
 });
 
 test("new stamps provenance + kind and files a schema-valid live item", async () => {

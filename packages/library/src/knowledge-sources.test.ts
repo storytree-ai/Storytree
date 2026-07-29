@@ -58,6 +58,21 @@ test("no references -> no groups", () => {
   assert.deepEqual(groupSources([], resolve), []);
 });
 
+test("a node: ref groups under Story nodes, labelled by its node id", () => {
+  // ADR-0107 D2's third reference token. Before this it fell to "Other" as a raw pointer — the gap
+  // ADR-0107's own Consequences named ("will show a `node:` ref ungrouped until that view learns
+  // the token"). Corpus-free: the node id is the label; the work tree is not the library's to resolve.
+  const groups = groupSources(["node:map-server-memo", "asset:red-green"], resolve);
+  assert.deepEqual(
+    groups.map((g) => g.group),
+    ["Principles", "Story nodes"],
+    "Story nodes sits after the library kinds",
+  );
+  assert.deepEqual(groups.find((g) => g.group === "Story nodes")?.items, [
+    { ref: "node:map-server-memo", label: "map-server-memo" },
+  ]);
+});
+
 test("SOURCE_GROUP_ORDER ends with the two doc buckets then Other", () => {
   assert.deepEqual(SOURCE_GROUP_ORDER.slice(-3), [
     "Decisions (ADRs)",
