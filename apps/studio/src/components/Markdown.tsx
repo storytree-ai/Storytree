@@ -3,8 +3,9 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mermaid from 'mermaid';
 import { useAppData } from '../lib/appData';
+import { unresolvedDocReason } from '../lib/docsIndex';
 import { docHref } from '../lib/route';
-import { mermaidSource, resolveDocHref, slugify } from '../lib/markdown';
+import { isInCorpusDocHref, mermaidSource, resolveDocHref, slugify } from '../lib/markdown';
 
 interface MarkdownProps {
   children: string;
@@ -78,7 +79,12 @@ function nodeToText(node: ReactNode): string {
  * Renders markdown. Headings get stable slug ids (so in-corpus `#slug` links resolve).
  */
 export function Markdown({ children, baseDocId = '' }: MarkdownProps): React.JSX.Element {
-  const { docIds } = useAppData();
+  const { docIds, docsStatus, docsError } = useAppData();
+  // While the doc index is pending or failed, `docIds` is not an answer about the corpus — so an
+  // in-corpus-SHAPED link that doesn't resolve is unresolved, not external. Marked rather than
+  // silently rendered as an inert plain link, which is indistinguishable from a link the author
+  // simply pointed outside the corpus (lib/docsIndex.ts).
+  const unresolvedReason = unresolvedDocReason(docsStatus);
 
   function heading(level: 1 | 2 | 3 | 4) {
     return function Heading({ children: kids }: { children?: ReactNode }): React.JSX.Element {
@@ -115,6 +121,18 @@ export function Markdown({ children, baseDocId = '' }: MarkdownProps): React.JSX
       if (/^[a-z]+:\/\//i.test(href)) {
         return (
           <a href={href} target="_blank" rel="noreferrer noopener">
+            {kids}
+          </a>
+        );
+      }
+      if (unresolvedReason && isInCorpusDocHref(href)) {
+        return (
+          <a
+            href={href}
+            className="doc-unresolved"
+            data-docs-status={docsStatus}
+            title={`This link couldn’t be resolved — ${unresolvedReason}${docsError ? ` (${docsError})` : ''}.`}
+          >
             {kids}
           </a>
         );

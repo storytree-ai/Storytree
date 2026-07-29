@@ -206,9 +206,11 @@ export async function main(): Promise<void> {
   // An id is planned ONLY where this invocation will really record the offer it names, so a render
   // can never hand out a dangling id an agent could return: `planOfferIdentity` refuses every shape
   // that records no offer (a `--pg` read, `artifact list`, any non-artifact area), and the two
-  // capture preconditions are checked alongside it. Those two also keep ADR-0241 D3 intact for a run
-  // that captures nothing — with capture opted out, or no resolvable identity, the envelope is
-  // byte-identical to a capture-absent one, because nothing was recorded to point at.
+  // capture preconditions are checked alongside it. Those two also keep ADR-0241 **D2** intact for a
+  // run that captures nothing — with capture opted out, or no resolvable identity, the envelope is
+  // byte-identical to a capture-absent one, because nothing was recorded to point at. (D2 is the
+  // opt-out-clean envelope; D3's envelope clause is the narrower promise that no telemetry FAILURE
+  // may alter one. ADR-0241's own Consequences make that split explicitly — don't cite D3 here.)
   const { argv: readArgv } = parseOfferFollow(argv);
   const captureSessionId = resolveCaptureSessionId();
   const offer =

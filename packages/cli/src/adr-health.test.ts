@@ -13,6 +13,7 @@ import {
   adrHealth,
   adrGateFailures,
   extractPathTokens,
+  loadDeadAdrLinks,
   loadRetiredInPartEdges,
   loadStoryDecisions,
   type AdrHealthInputs,
@@ -39,6 +40,7 @@ function inputs(partial: Partial<AdrHealthInputs>): AdrHealthInputs {
     adrs: [],
     parseErrors: [],
     retiredInPartEdges: [],
+    deadAdrLinks: [],
     stories: [],
     guardrails: [],
     pathExists: () => true,
@@ -168,6 +170,25 @@ test("supersedes-in-part-retired: a retired supersedes_in_part edge now FAILs an
   assert.match(line, /ADR-0010/);
 });
 
+test("adr-link-integrity: an unresolvable ADR cross-link FAILs and GATES", () => {
+  // 0 dead links -> PASS (the post-repair steady state this ships at)
+  assert.equal(levelOf(adrHealth(inputs({ deadAdrLinks: [] })), "adr-link-integrity"), "PASS");
+  // a body cross-link naming a renamed-away file (raw-scanned + pre-computed by loadDeadAdrLinks) ->
+  // FAIL, and it GATES: shipped fail-closed at zero, so the FIRST new dead link reds the gate.
+  const dirty = adrHealth(
+    inputs({
+      deadAdrLinks: [
+        "ADR-0126 (0126-x.md) links to `0110-old-slug.md`, which does not exist — repoint it by NUMBER to `0110-new-slug.md`.",
+      ],
+    }),
+  );
+  assert.equal(levelOf(dirty, "adr-link-integrity"), "FAIL");
+  assert.ok(
+    adrGateFailures(dirty).some((r) => r.name === "adr-link-integrity"),
+    "a dead ADR cross-link gates the merge",
+  );
+});
+
 test("extractPathTokens: backticked repo paths only, line suffixes dropped", () => {
   const tokens = extractPathTokens(
     "see `packages/cli/src/health.ts:84-102` and `apps/studio` but not prose/paths or `claim-conflict-refused`",
@@ -181,6 +202,7 @@ test("REPO gate: every ADR parses, edges and story decisions hold, no green-flip
   const { adrs, parseErrors } = loadAdrMetas(path.join(REPO_ROOT, "docs", "decisions"));
   assert.ok(adrs.length >= 37, `expected the full ADR corpus, parsed ${adrs.length}`);
   const retiredInPartEdges = loadRetiredInPartEdges(path.join(REPO_ROOT, "docs", "decisions"));
+  const deadAdrLinks = loadDeadAdrLinks(path.join(REPO_ROOT, "docs", "decisions"));
   const stories = loadStoryDecisions(path.join(REPO_ROOT, "stories"));
   assert.ok(stories.length >= 5, `expected the story seed, parsed ${stories.length}`);
 
@@ -201,6 +223,7 @@ test("REPO gate: every ADR parses, edges and story decisions hold, no green-flip
     adrs,
     parseErrors,
     retiredInPartEdges,
+    deadAdrLinks,
     stories,
     guardrails,
     pathExists: (rel) => existsSync(path.join(REPO_ROOT, rel)),
@@ -217,9 +240,69 @@ test("REPO gate: every ADR parses, edges and story decisions hold, no green-flip
   }
   // ADR-0139 endgame: the accepted set carries NO retired supersedes_in_part edge (0, on the real repo).
   assert.deepEqual(retiredInPartEdges, [], "no ADR frontmatter carries the retired supersedes_in_part edge");
+  // Link rot is drained and stays drained: the rename backlog (13 dead targets / 24 occurrences,
+  // 2026-07-29) was repaired to ZERO alongside this check, so this is fail-closed at zero — the first
+  // new dead cross-link reds the gate instead of joining a backlog.
+  assert.deepEqual(deadAdrLinks, [], "every relative ADR cross-link resolves on disk");
 });
 
 // --- (c) loadRetiredInPartEdges (the raw frontmatter scan behind the gate) ----------------------
+
+test("loadDeadAdrLinks: flags a cross-link to a renamed-away ADR and names the by-number destination", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "adr-links-"));
+  try {
+    // The real repo's shape: 0110 was re-slugged, and a sibling still links the OLD filename.
+    writeFileSync(path.join(dir, "0110-ratification.md"), "---\nstatus: accepted\n---\n# ADR-0110\n");
+    writeFileSync(
+      path.join(dir, "0126-hollow-test-detection.md"),
+      "---\nstatus: accepted\n---\n# ADR-0126\n" +
+        // dead: renamed away. Also linked TWICE, to prove per-file collapse to one line.
+        "- [ADR-0110](0110-ratification-record-t.md) — the owner's call\n" +
+        "See [0110](0110-ratification-record-t.md) again.\n" +
+        // live: resolves, must not be flagged
+        "- [ADR-0110](0110-ratification.md) — the same record, correctly linked\n" +
+        // out-of-directory links are a different class and are deliberately NOT covered
+        "- [survey](../research/agentic-foundation-survey.md)\n" +
+        // a bare filename in prose is not a link
+        "The file 0110-ratification-record-t.md was renamed.\n",
+    );
+    // `./` prefix and `#anchor` shapes must not slip the net
+    writeFileSync(
+      path.join(dir, "0127-per-contract-coverage.md"),
+      "---\nstatus: accepted\n---\n# ADR-0127\n" +
+        "- [ADR-0068](./0068-old-organism-slug.md#decision) — the published verdict SHAPE\n",
+    );
+    // a number that exists on NO file -> the drop-or-repoint guidance, not a bogus destination
+    writeFileSync(
+      path.join(dir, "0200-claim-ledger.md"),
+      "---\nstatus: accepted\n---\n# ADR-0200\n[ADR-0999](0999-never-written.md)\n",
+    );
+    writeFileSync(path.join(dir, "README.md"), "[x](0110-ratification-record-t.md)\n");
+
+    const hits = loadDeadAdrLinks(dir);
+    assert.equal(hits.length, 3, `one line per (file, dead target); got:\n${hits.join("\n")}`);
+
+    const h0126 = hits.find((h) => h.startsWith("ADR-0126")) ?? "";
+    assert.match(h0126, /0110-ratification-record-t\.md/, "names the dead target");
+    assert.match(h0126, /repoint it by NUMBER to `0110-ratification\.md`/, "names the destination");
+
+    // `./` + `#anchor` is caught, and the anchor is stripped before resolution
+    const h0127 = hits.find((h) => h.startsWith("ADR-0127")) ?? "";
+    assert.match(h0127, /0068-old-organism-slug\.md/);
+    assert.match(h0127, /no decision record carries number 0068/);
+
+    const h0200 = hits.find((h) => h.startsWith("ADR-0200")) ?? "";
+    assert.match(h0200, /no decision record carries number 0999 — drop the link or name a real record/);
+
+    // a clean directory yields nothing
+    rmSync(path.join(dir, "0126-hollow-test-detection.md"));
+    rmSync(path.join(dir, "0127-per-contract-coverage.md"));
+    rmSync(path.join(dir, "0200-claim-ledger.md"));
+    assert.deepEqual(loadDeadAdrLinks(dir), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("loadRetiredInPartEdges: detects the retired key in FRONTMATTER only, not body prose (ADR-0139)", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "adr-retired-"));

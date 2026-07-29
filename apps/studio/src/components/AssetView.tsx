@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
+import { NODE_REF_PREFIX } from '@storytree/library';
 import { groupSources } from '@storytree/library/sources';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
+import { unresolvedDocReason } from '../lib/docsIndex';
 import { formatDateTime } from '../lib/format';
 import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
-import { assetEditHref, assetHref, docHref, libraryHref, navigate } from '../lib/route';
+import { assetEditHref, assetHref, docHref, libraryHref, navigate, treeFocusHref } from '../lib/route';
 import { ASSET_CATEGORY_GLOSS } from '../types';
 import { Markdown } from './Markdown';
 import { ReviewEditor } from './ReviewEditor';
@@ -127,15 +129,32 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
   );
 }
 
-function RefLink({ refStr }: { refStr: string }): React.JSX.Element {
-  const { docIds, docTitles, assets } = useAppData();
+/**
+ * One "Sources" citation, rendered as a link into whatever it points at. Exported for direct
+ * testing: the three reference tokens (`doc:` / `asset:` / ADR-0107 D2's `node:`) each resolve to a
+ * different surface, and only `node:` leaves the Library for the map.
+ */
+export function RefLink({ refStr }: { refStr: string }): React.JSX.Element {
+  const { docIds, docTitles, docsStatus, docsError, assets } = useAppData();
   if (refStr.startsWith('doc:')) {
     const docId = refStr.slice('doc:'.length);
-    return docIds.has(docId) ? (
-      <a href={docHref(docId)}>{docTitles.get(docId) ?? docId}</a>
-    ) : (
-      <span className="muted">{refStr} (unknown doc)</span>
-    );
+    if (docIds.has(docId)) return <a href={docHref(docId)}>{docTitles.get(docId) ?? docId}</a>;
+    // "(unknown doc)" is an assertion about the corpus, and the doc INDEX is what backs it — so it
+    // holds only once `/api/docs` has resolved. While the index is pending or failed, this
+    // reference is unresolved, not unknown (lib/docsIndex.ts).
+    const unresolvedReason = unresolvedDocReason(docsStatus);
+    if (unresolvedReason) {
+      return (
+        <span
+          className="muted doc-unresolved"
+          data-docs-status={docsStatus}
+          {...(docsError ? { title: docsError } : {})}
+        >
+          {refStr} (unresolved — {unresolvedReason})
+        </span>
+      );
+    }
+    return <span className="muted">{refStr} (unknown doc)</span>;
   }
   if (refStr.startsWith('asset:')) {
     const assetId = refStr.slice('asset:'.length);
@@ -145,6 +164,12 @@ function RefLink({ refStr }: { refStr: string }): React.JSX.Element {
     ) : (
       <span className="muted">{refStr} (unknown asset)</span>
     );
+  }
+  // ADR-0107 D2's `node:<id>` — the proving-process anchor. It points at the work tree, not the
+  // Library, so it deep-links to that node on the map (the gap ADR-0107's own Consequences named).
+  if (refStr.startsWith(NODE_REF_PREFIX)) {
+    const nodeId = refStr.slice(NODE_REF_PREFIX.length);
+    return <a href={treeFocusHref(nodeId)}>{nodeId}</a>;
   }
   return <span>{refStr}</span>;
 }

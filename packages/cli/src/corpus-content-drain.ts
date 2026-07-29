@@ -100,8 +100,37 @@
 // rewrite had dropped. The narrowing moved V by exactly ZERO on the way through (13 before, 13 after —
 // all 13 drifted were durable-tier), which is what distinguishes it from gaming the measure.
 //
-// A per-artifact export verb is therefore NOT needed and should not be built on this reasoning: at a
-// drained backlog, "all" IS "the one thing this session changed".
+// THAT NARROWING IS REAL, BUT IT DOES NOT MAKE THE EXPORT EQUAL TO THIS CHECK'S FINDING — corrected
+// 2026-07-30 (librarian pass, ADR-0139 in-place correction). This header previously concluded "a
+// per-artifact export verb is therefore NOT needed: at a drained backlog, 'all' IS the one thing this
+// session changed." The premise is FALSE, and the two functions disagree by construction:
+//
+//   - `diffCorpusContent` (export-corpus.ts) iterates the SEED scope and does `const l =
+//     liveById.get(s.id); if (!l) continue;` — so an artifact present LIVE and absent from the SEED is
+//     invisible to this check on BOTH axes. It is not value-drift and not degraded-live; it is
+//     nothing.
+//   - `computeExportedSeed` (export-corpus.ts) loops over ALL LIVE docs and APPENDS every live-only
+//     export-scope doc to the seed (`created`).
+//
+// So the export writes a strict SUPERSET of what this check names, and the gap is exactly the
+// live-only population. MEASURED 2026-07-30 against the live store: `check:corpus-content` printed
+// `OK — every seed body matches live across 177 export-scope artifacts` and exited 0, while
+// `export-corpus --pg` (dry run) in the same shell reported `0 update(s) + 1 addition(s)` —
+// `oq-diff-view-altitude`, an open-question the owner had RETIRED under ADR-0267 D5 and whose seed row
+// `origin/main` had already dropped. A blind `--write` on a GREEN check would have written that
+// retirement back out of existence — the fourth resurrection of that id (`events.library_event` seq
+// 2694/2696/2702 deleted, 2695/2698/2742 created).
+//
+// THE OPERATIONAL RULE: a green `check:corpus-content` is NOT a promise that `export-corpus --write`
+// is a no-op or that it will carry only your edit. Read the dry run (`export-corpus --pg`, no
+// `--write`) before writing, and make the per-artifact direction call on any `added (live-only)` id
+// you did not author — a live-only export-scope artifact can be a graduation that never reached the
+// seed (export it) or an artifact deliberately retired live (do NOT export it; drop the live row).
+// `process:library-edit-ceremony` owns that judgement.
+//
+// WHAT THIS CORRECTION DOES NOT DECIDE: whether a per-artifact export verb should exist. The old
+// conclusion above was reasoning FROM the false premise, so it is withdrawn rather than inverted —
+// the question is simply open, and settling it is not this header's to do.
 //
 // PURE by construction: no `node:` import, no filesystem, no clock, no `pg`. The live read lives in
 // the shell `check-corpus-content.ts`, which also sets the exit code.
@@ -131,9 +160,19 @@ export interface CorpusContentDrainConfig {
  * at 18, and at 122, with nothing failing.
  *
  * **The remedy for a breach is one command**, and that is what makes zero affordable rather than
- * punitive: `storytree library export-corpus --pg --write`, which at a drained backlog carries only
- * the artifact this session actually edited. If a breach ever costs more than that, the cause is a
- * SIBLING's undrained edit, not this ceiling — drain it, or route it back to that session.
+ * punitive: `storytree library export-corpus --pg --write`. At a drained backlog the UPDATE half of
+ * that batch is just the artifact this session edited. If the update half ever costs more than that,
+ * the cause is a SIBLING's undrained edit, not this ceiling — drain it, or route it back to that
+ * session.
+ *
+ * **But "one command" is not "only your artifact" — READ THE DRY RUN FIRST.** The export also
+ * ADDS every live-only export-scope artifact (`computeExportedSeed`'s append pass), and this check
+ * cannot see one: `diffCorpusContent` iterates the SEED scope and skips any id live carries but seed
+ * does not, so a live-only artifact is neither value-drift nor degraded-live. The export therefore
+ * writes a strict SUPERSET of what a breach here names, and a GREEN verdict is no evidence that
+ * `--write` is a no-op (measured 2026-07-30: clean over 177, one pending live-only addition — see the
+ * header). Run `export-corpus --pg` without `--write`, and make the per-artifact direction call on
+ * any `added (live-only)` id you did not author.
  *
  * **A raise is never the discharge.** The one legitimate upward move is a genuinely enlarged measured
  * POPULATION — the export SCOPE widening to admit kinds it excludes today (ADR-0263's table:

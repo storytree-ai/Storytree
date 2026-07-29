@@ -67,7 +67,15 @@ change an exit code, alter an envelope, or block a command. `main.ts` runs on EV
 including the gate's own internal calls, so the append must be synchronous, must never await a network
 or DB path, and must not regress the ADR-0162 startup budget. Anything that can throw or hang does not
 belong in `main.ts`. With `STORYTREE_TRAVERSAL=off`, or when no session identity resolves, no file is
-created and the envelope is byte-identical to an uninstrumented run (ADR-0241 D2).
+created and the envelope is clean (ADR-0241 D2). **Read "clean" precisely — it is no longer
+whole-stdout invariance.** ADR-0260 D3 put a per-invocation offer id on the rendered surface, so a
+capture-ON run prints follow-up command lines a capture-absent run does not, and two capture-ON runs
+of the same command do not match each other either. What D2 promises, and what the UAT pins, is the
+two-part split: the command's own **payload** and exit code are byte-identical whatever capture does,
+and the **offer-carrying lines appear only where an offer is genuinely recorded** — never under
+`STORYTREE_TRAVERSAL=off`, never without a resolvable identity. That second half is load-bearing, not
+cosmetic: a printed id naming a candidate set nothing recorded is an id an agent can return into a
+forged edge.
 
 **The `STORYTREE_SESSION_ID` override is required, not a convenience.** `deriveIdentity()` matches
 `.claude/worktrees/<name>` and returns null in the main checkout and in CI, so without the override
@@ -110,9 +118,16 @@ silence it is the wrong fix (ADR-0154).
      read-strength distinction, capacity stated as unknown, and the supported/omitted coverage block;
      the same command over a corrupt trace still exits 0 and states its skipped count.
 5. **`capture-off-leaves-a-byte-identical-envelope`**
-   - **asserts —** with `STORYTREE_TRAVERSAL=off`, and again with no resolvable session identity, no
-     trace file is created and the command's stdout and exit code are byte-identical to the same
-     command run with the trace directory unset.
+   - **asserts —** the ADR-0241 D2 envelope split, against a capture-absent baseline. With
+     `STORYTREE_TRAVERSAL=off`, and again with no resolvable session identity: no trace file is
+     created, the exit code is unchanged, the command's **payload** (stdout with the offer-carrying
+     lines removed) is byte-identical to the baseline, and **no offer line is printed at all**. A
+     third, capture-ON variant pins the other direction — offer lines MUST appear on a run that
+     records an offer, while the payload still matches the baseline.
+   - **the contract name is older than the contract.** Whole-stdout equality stopped holding when
+     ADR-0260 D3 landed the per-invocation offer id; it does not hold between two capture-ON runs
+     either. The assertion is on the payload plus the offer-line rule — do not "repair" a failure here
+     by re-tightening it to whole-stdout, and do not read the name as the claim.
 
 ## Integration evidence
 

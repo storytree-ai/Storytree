@@ -7,8 +7,9 @@
  * capture/adjudication verbs and the offline inbox fallback:
  *
  *   - `new`        file a friction item, fail-closed (ADR-0168 D3): evidence present AND concrete, ≤3
- *                  per branch/date (the ReasoningBank cap-3 fence), `references` resolve, NO route at
- *                  capture (capture never classifies — route is set only at adjudication).
+ *                  per branch/date (the ReasoningBank cap-3 fence), `references` resolve (all three
+ *                  tokens: `asset:` / `doc:` / ADR-0107 D2's `node:`), NO route at capture (capture
+ *                  never classifies — route is set only at adjudication).
  *   - `migrate`    the D2 migrate step — TRANSPORT, not capture: file the `docs/friction-inbox/`
  *                  staged items live with their ORIGINAL provenance (attribution and worklist age
  *                  survive), no cap-3 (the cap was paid at capture, on the item's own branch/date),
@@ -25,8 +26,9 @@
  * `pnpm gate` / `pnpm -r test` (offline-checkable) by {@link validateInboxDir}, fail-closed on a
  * malformed file.
  *
- * Every seam (branch, clock, the inbox + docs dirs) is injected via {@link FrictionContext} so the
- * whole surface is offline-testable without git, a real clock, or the real repo tree.
+ * Every seam (branch, clock, the inbox + docs dirs, the `node:` resolver) is injected via
+ * {@link FrictionContext} so the whole surface is offline-testable without git, a real clock, or the
+ * real repo tree.
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
@@ -34,7 +36,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
-import { upcastAndValidate, Friction, FrictionRoute } from "@storytree/library";
+import { explainDocValidationError, upcastAndValidate, Friction, FrictionRoute, NODE_REF_PREFIX } from "@storytree/library";
 
 import type { Envelope } from "./envelope.js";
 import { lifecycleOf, type FrictionLifecycle } from "./friction-lifecycle.js";
@@ -58,10 +60,24 @@ export interface FrictionContext {
   readonly inboxDir: string;
   /** The `docs/` dir, for resolving `doc:` references. */
   readonly docsDir: string;
+  /**
+   * Resolve a `node:<id>` reference (ADR-0107 D2) to a story / capability node spec. Injected the
+   * way {@link import("@storytree/drive").HealthOpts.docExists} is, so this module stays free of the
+   * stories/ layout. OMIT to accept a well-formed `node:` token WITHOUT an existence check — the
+   * fail-OPEN arm for a caller that cannot see the story tree, never a silent rejection.
+   */
+  readonly nodeExists?: ((nodeId: string) => boolean) | undefined;
 }
 
 /** The cap on friction items one branch may file on one date (ADR-0168: ReasoningBank cap-3). */
 const CAP_PER_BRANCH_DATE = 3;
+
+/**
+ * The capture fields `friction new` STAMPS on the author's behalf (step 3 below). Named in the
+ * validation refusal because the old message blamed exactly these — the author cannot remove a key
+ * the CLI adds after they hand the doc over, so being told to is a dead end.
+ */
+const STAMPED_FIELDS = ["kind", "provenance", "createdAt", "updatedAt", "schemaVersion"] as const;
 
 /**
  * The structural evidence floor (ADR-0168 D3): does the text carry at least one CONCRETE citation
@@ -260,11 +276,24 @@ export async function newFriction(
 
   // 4) Validate the shape (Friction schema: required statement/evidence/impact, .strict()). This
   //    catches an evidence-FREE item (Markdown is .min(1)) before the concreteness floor below.
+  //    The refusal is read back through `explainDocValidationError` against the FRICTION arm alone:
+  //    the raw `LibraryDoc` union throw reports the rendered-asset arm too, which calls the three
+  //    fields stamped at step 3 — and the required statement/evidence/impact triple — "unrecognized
+  //    keys", i.e. it blames the author for fields they cannot remove and never names the real
+  //    defect (`friction-capture-surface-is-itself-high-friction`, route `tool`).
   let valid: Record<string, unknown>;
   try {
     valid = upcastAndValidate(doc) as Record<string, unknown>;
   } catch (e) {
-    return { ok: false, body: `friction item failed validation:\n${(e as Error).message}`, next: ["storytree library artifact template-friction"] };
+    return {
+      ok: false,
+      body: [
+        `friction item failed validation:\n${explainDocValidationError(doc, e)}`,
+        "",
+        `(the CLI stamps ${STAMPED_FIELDS.join(", ")} for you — supply id/title/description + statement/evidence/impact, plus optional references.)`,
+      ].join("\n"),
+      next: ["storytree library artifact template-friction"],
+    };
   }
   if (valid["kind"] !== "friction") {
     return { ok: false, body: `this is the friction surface — the doc validated as "${String(valid["kind"])}". File a friction item (kind: friction).`, next: ["storytree friction --help"] };
@@ -297,8 +326,9 @@ export async function newFriction(
     };
   }
 
-  // 7) References must resolve (ADR-0168 D3): asset:<id> against the corpus, doc:<path> against docs/.
-  const unresolved = await unresolvedReferences(valid, deps.store, ctx.docsDir);
+  // 7) References must resolve (ADR-0168 D3): asset:<id> against the corpus, doc:<path> against
+  //    docs/, node:<id> against the story tree (ADR-0107 D2).
+  const unresolved = await unresolvedReferences(valid, deps.store, ctx);
   if (unresolved.length > 0) {
     return {
       ok: false,
@@ -341,11 +371,20 @@ export async function newFriction(
   };
 }
 
-/** The subset of `references` that fail to resolve (asset:<id> → corpus, doc:<path> → docs/, else bad). */
+/**
+ * The subset of `references` that fail to resolve — the ADR-0168 D3 floor, unchanged in strength.
+ *
+ * All THREE corpus reference tokens are accepted (`knowledge.ts` `commonShape.references`):
+ * `asset:<id>` → the live corpus, `doc:<path>` → `docs/`, and `node:<id>` → a story / capability
+ * node spec (ADR-0107 D2, the proving-process anchor; the shared prefix is `oq-gating.ts`'s
+ * {@link NODE_REF_PREFIX}). `node:` used to fall to the else-arm and be refused as "not an
+ * asset:<id> or doc:<path> pointer", so a friction item about a capability could not cite that
+ * capability — the same asset-or-doc assumption ADR-0107 already overturned everywhere else.
+ */
 async function unresolvedReferences(
   doc: Record<string, unknown>,
   store: Store,
-  docsDir: string,
+  ctx: Pick<FrictionContext, "docsDir" | "nodeExists">,
 ): Promise<string[]> {
   const refs = Array.isArray(doc["references"]) ? (doc["references"] as unknown[]).filter((r): r is string => typeof r === "string") : [];
   const bad: string[] = [];
@@ -355,9 +394,15 @@ async function unresolvedReferences(
       if (!(await store.getDoc(target))) bad.push(`${ref} (no such artifact)`);
     } else if (ref.startsWith("doc:")) {
       const rel = ref.slice("doc:".length);
-      if (!existsSync(path.join(docsDir, rel))) bad.push(`${ref} (no such doc)`);
+      if (!existsSync(path.join(ctx.docsDir, rel))) bad.push(`${ref} (no such doc)`);
+    } else if (ref.startsWith(NODE_REF_PREFIX)) {
+      const nodeId = ref.slice(NODE_REF_PREFIX.length);
+      if (nodeId === "") bad.push(`${ref} (a node: pointer needs a story/capability id)`);
+      // No resolver injected => accept the token's shape; a caller that cannot see stories/ must
+      // not turn a valid reference into a refusal.
+      else if (ctx.nodeExists?.(nodeId) === false) bad.push(`${ref} (no such story/capability node)`);
     } else {
-      bad.push(`${ref} (not an asset:<id> or doc:<path> pointer)`);
+      bad.push(`${ref} (not an asset:<id>, doc:<path> or node:<id> pointer)`);
     }
   }
   return bad;
@@ -430,11 +475,19 @@ export async function migrateFriction(
   for (const name of names) {
     const full = path.join(ctx.inboxDir, name);
     // Schema fail-closed — the same standard the gate's validateInboxDir holds the committed dir to.
+    let staged: unknown;
+    try {
+      staged = JSON.parse(readFileSync(full, "utf8"));
+    } catch (e) {
+      refused.push({ file: name, reason: `unreadable staged doc: ${(e as Error).message}` });
+      continue;
+    }
     let valid: Record<string, unknown>;
     try {
-      valid = upcastAndValidate(JSON.parse(readFileSync(full, "utf8"))) as Record<string, unknown>;
+      valid = upcastAndValidate(staged) as Record<string, unknown>;
     } catch (e) {
-      refused.push({ file: name, reason: `invalid staged doc: ${(e as Error).message}` });
+      // Read back against the ONE arm the staged doc means, not the whole LibraryDoc union dump.
+      refused.push({ file: name, reason: `invalid staged doc — ${explainDocValidationError(staged, e)}` });
       continue;
     }
     if (valid["kind"] !== "friction") {
@@ -464,7 +517,7 @@ export async function migrateFriction(
       refused.push({ file: name, reason: "evidence is not concrete (ADR-0168 D3) — fix the staged doc before migrating" });
       continue;
     }
-    const unresolved = await unresolvedReferences(valid, deps.store, ctx.docsDir);
+    const unresolved = await unresolvedReferences(valid, deps.store, ctx);
     if (unresolved.length > 0) {
       refused.push({ file: name, reason: `references do not resolve live: ${unresolved.join(", ")}` });
       continue;
@@ -539,7 +592,7 @@ export async function reinforceFriction(
   try {
     valid = upcastAndValidate(base) as Record<string, unknown>;
   } catch (e) {
-    return { ok: false, body: `reinforcement would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree library artifact ${id}`] };
+    return { ok: false, body: `reinforcement would make "${id}" invalid:\n${explainDocValidationError(base, e)}`, next: [`storytree library artifact ${id}`] };
   }
   const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? "cli" });
   // The tombstone nudge keys on the ROUTE detail, not the (ADR-0196-collapsed) lifecycle: every
@@ -594,7 +647,7 @@ export async function routeFriction(
   try {
     valid = upcastAndValidate(base) as Record<string, unknown>;
   } catch (e) {
-    return { ok: false, body: `routing would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree library artifact ${id}`] };
+    return { ok: false, body: `routing would make "${id}" invalid:\n${explainDocValidationError(base, e)}`, next: [`storytree library artifact ${id}`] };
   }
   const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? "cli" });
   return {
@@ -721,6 +774,12 @@ export function frictionHelp(): Envelope {
       "        edit-existing|nothing) + the justification. `nothing` archives with a reason.",
       "  storytree friction list",
       "        the worklist: open → archived (route says where, ADR-0196), with age + reinforcement count (read-only).",
+      "",
+      "--reason and --evidence take `@path` to read the value from a FILE (the `--set field=@path`",
+      "convention) — use it for anything multi-line or carrying shell metacharacters; a quoted",
+      "argument flattens newlines and can be truncated by the shell.",
+      "references accept asset:<id> (a Library artifact), doc:<path> (under docs/), and node:<id>",
+      "(a story/capability, ADR-0107 D2 — how an item cites the capability it fought).",
       "",
       "capture never classifies — the adjudicator (graduation-synthesist; librarian-curator until",
       "it is built) routes items through the ADR-0168 D5 justification gate.",

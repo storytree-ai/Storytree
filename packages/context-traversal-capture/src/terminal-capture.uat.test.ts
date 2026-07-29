@@ -361,10 +361,13 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
   //
   // What the leg was ALWAYS claiming is that opting out changes nothing an agent depends on. That
   // splits cleanly in two, and both halves are asserted below: the command's own PAYLOAD is
-  // byte-identical whatever capture does (ADR-0241 D3, intact), and the offer-carrying lines appear
-  // ONLY where an offer is genuinely recorded — never on a run that captures nothing, which would be
-  // an id naming a candidate set that does not exist. Comparing the payloads rather than tuning a
-  // fixture is the honest repair: the claim did not move, the surface underneath it did.
+  // byte-identical whatever capture does, and the offer-carrying lines appear ONLY where an offer is
+  // genuinely recorded — never on a run that captures nothing, which would be an id naming a
+  // candidate set that does not exist. Together those two ARE ADR-0241 **D2**'s opt-out-clean
+  // envelope, intact. (D2 is the clause this leg pins; D3's envelope promise is the narrower one that
+  // no telemetry FAILURE may alter an envelope, which an opted-out run never engages. ADR-0241's own
+  // Consequences make that split — don't re-file this leg under D3.) Comparing the payloads rather
+  // than tuning a fixture is the honest repair: the claim did not move, the surface underneath it did.
   const OFFER_LINE = ` ${OFFER_FLAG} `;
   const payloadOf = (stdout: string): string =>
     stdout

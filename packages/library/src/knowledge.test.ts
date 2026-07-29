@@ -11,6 +11,7 @@ import {
 } from "./knowledge.js";
 import { renderBody, generateTemplate } from "./knowledge-render.js";
 import { validateLibraryDoc } from "./library-doc.js";
+import { CURRENT_SCHEMA_VERSION, upcast } from "./migrations.js";
 
 /**
  * KIND_SPECS ↔ zod parity (ADR-0018 one-table-three-consumers; ADR-0029 Q4 drift guard).
@@ -438,6 +439,33 @@ test("arc kind (ADR-0183 D1): the increment log validates and fails closed", () 
   assert.throws(() => validateLibraryDoc(onAPrinciple), "increments on a non-arc kind must be rejected");
 });
 
+test("arc kind (ADR-0239 D1): the stored lifecycle flag defaults to active and is enum-fenced", () => {
+  // OPTIONAL-WITH-DEFAULT (the `plan.status` precedent): an arc authored before the field validates
+  // unchanged and parses as `active`. This is what makes ADR-0239 D1 a zero-migration change — no
+  // CURRENT_SCHEMA_VERSION bump, and every one of the live arcs keeps validating.
+  const born = validateLibraryDoc(minimalDoc("arc")) as { lifecycle?: string };
+  assert.equal(born.lifecycle, "active", "an unstated lifecycle parses as active — an arc is born in flight");
+
+  // The closing transition round-trips.
+  const closed = validateLibraryDoc({ ...minimalDoc("arc"), lifecycle: "closed" }) as { lifecycle?: string };
+  assert.equal(closed.lifecycle, "closed");
+
+  // Enum-fenced: free prose and plan's wider vocabulary both fail closed (an arc has two states —
+  // ADR-0196 D1's table gives it no `open` column, and D2 judged the five-state enum over-modelled).
+  for (const bad of ["done", "archived", "retired", "consumed", "", "CLOSED"]) {
+    assert.throws(
+      () => validateLibraryDoc({ ...minimalDoc("arc"), lifecycle: bad }),
+      `lifecycle "${bad}" must be rejected — the enum is the fence against a free-prose state`,
+    );
+  }
+
+  // lifecycle is arc-only: no other kind grows a second status surface off it (ADR-0196 D4).
+  const onAPrinciple = { ...minimalDoc("principle"), lifecycle: "closed" };
+  assert.throws(() => validateLibraryDoc(onAPrinciple), "lifecycle on a non-arc kind must be rejected");
+  const onAPlan = { ...minimalDoc("plan"), lifecycle: "closed" };
+  assert.throws(() => validateLibraryDoc(onAPlan), "lifecycle on a plan must be rejected");
+});
+
 test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum-fenced", () => {
   // The minimal plan (objective + decomposition + arcRef + anchor) validates; status defaults to draft.
   const parsed = validateLibraryDoc(minimalDoc("plan")) as { status?: string; arcRef?: string };
@@ -495,11 +523,70 @@ test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum
     ".extend() must preserve .strict(): an unknown top-level plan field is still rejected",
   );
 
-  // The lifecycle fields are plan-only: a non-plan kind must reject them.
+  // `arcRef` is carried by exactly TWO kinds — plan (ADR-0183 D3) and open-question (ADR-0267 D4).
+  // Every OTHER kind still rejects it, so the containment edge cannot sprout on an arbitrary
+  // artifact and quietly widen what an arc claims to contain.
   const arcRefOnAPrinciple = { ...minimalDoc("principle"), arcRef: "asset:parity-arc" };
-  assert.throws(() => validateLibraryDoc(arcRefOnAPrinciple), "arcRef on a non-plan kind must be rejected");
+  assert.throws(() => validateLibraryDoc(arcRefOnAPrinciple), "arcRef on a principle must be rejected");
   const anchorOnAnArc = { ...minimalDoc("arc"), anchor: { sha: "0123abc", date: "2026-07-11" } };
   assert.throws(() => validateLibraryDoc(anchorOnAnArc), "anchor on a non-plan kind must be rejected");
+});
+
+test("open-question kind (ADR-0267 D4): an OPTIONAL arcRef nests the question inside an arc", () => {
+  // OPTIONAL, unlike `plan.arcRef` which is required. This is what makes it a zero-migration change:
+  // every open-question doc authored before the field still validates, so there is no
+  // CURRENT_SCHEMA_VERSION bump (the `Arc.increments` / `Agent.stepRefs` precedent).
+  const unstamped = validateLibraryDoc(minimalDoc("open-question")) as { arcRef?: string };
+  assert.equal(unstamped.arcRef, undefined, "a question can be raised before any arc owns it");
+
+  // The stamp round-trips.
+  const stamped = validateLibraryDoc({
+    ...minimalDoc("open-question"),
+    arcRef: "asset:arc-orientation-surface-arc",
+  }) as { arcRef?: string };
+  assert.equal(stamped.arcRef, "asset:arc-orientation-surface-arc");
+
+  // Same typed `asset:` pointer as the plan's — `doc:`/ADR refs and bare prose fail closed, so the
+  // derived query on the arc side never has to interpret a free-form parent.
+  for (const bad of ["doc:decisions/0267.md", "arc-orientation-surface-arc", "asset:", ""]) {
+    assert.throws(
+      () => validateLibraryDoc({ ...minimalDoc("open-question"), arcRef: bad }),
+      `arcRef "${bad}" must be rejected — the containment edge is a typed asset: pointer`,
+    );
+  }
+
+  // .extend() preserved .strict(): an unknown top-level field is still refused.
+  assert.throws(
+    () => validateLibraryDoc({ ...minimalDoc("open-question"), notInTheSpec: "drift" }),
+    ".extend() must preserve .strict() on the open-question kind",
+  );
+
+  // The question does NOT gain the plan's other lifecycle fields — only the containment edge moved.
+  assert.throws(
+    () => validateLibraryDoc({ ...minimalDoc("open-question"), anchor: { sha: "0123abc", date: "2026-07-11" } }),
+    "anchor is plan-only — an open question is not git-anchored",
+  );
+});
+
+test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops on an arcRef", () => {
+  // ADR-0267's Consequences ask for exactly this re-verification rather than taking the
+  // stepRefs/increments precedent on faith. The pin must NOT have moved, and an already-current
+  // stamped question must survive the upcaster with its edge intact.
+  assert.equal(CURRENT_SCHEMA_VERSION, 3, "adding an optional field must not bump the schema version");
+  const stamped = {
+    ...minimalDoc("open-question"),
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    arcRef: "asset:arc-orientation-surface-arc",
+  };
+  const upcasted = upcast({ ...stamped }) as { arcRef?: string };
+  assert.equal(upcasted.arcRef, "asset:arc-orientation-surface-arc", "no migration may strip the edge");
+
+  // And a LAGGING (pre-pin) stamped question is forward-migrated rather than rejected.
+  const lagging: Record<string, unknown> = { ...stamped, schemaVersion: 0 };
+  const migrated = upcast(lagging) as { arcRef?: string; schemaVersion?: number };
+  assert.equal(migrated.schemaVersion, CURRENT_SCHEMA_VERSION);
+  assert.equal(migrated.arcRef, "asset:arc-orientation-surface-arc");
+  assert.doesNotThrow(() => validateLibraryDoc(migrated));
 });
 
 test("EPHEMERAL_KINDS (ADR-0183 D2): plan is ephemeral, every member is a real kind, arcs are not", () => {

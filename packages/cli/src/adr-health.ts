@@ -26,6 +26,15 @@ import type { CheckResult } from "./health.js";
  *                            `loadRetiredInPartEdges` raw-scans frontmatter and this FAILs on any hit
  *                            (GATE). The former `supersede-in-part-note` incoming-note check (the
  *                            partial-edge analogue of check 3) retired alongside the edge.
+ *   3c adr-link-integrity  — every relative `](NNNN-slug.md)` cross-link between decision records
+ *                            resolves to a file on disk (GATE). The rot class this closes is the
+ *                            RENAME: an ADR's slug changes, and every sibling that linked the old
+ *                            filename silently points at nothing (measured 2026-07-29 at 13 dead
+ *                            targets / 24 occurrences, ~5.5% of 234 distinct targets). Frontmatter
+ *                            edges (check 2) are number-keyed and were never affected — this is the
+ *                            PROSE half of the same "a claim about a decision must resolve" rule.
+ *                            `loadDeadAdrLinks` raw-scans the bodies and pre-computes the FAIL lines,
+ *                            naming the by-number destination so the repair is mechanical.
  *   4 story-decisions      — every story `decisions` entry resolves, and none names a FULLY
  *                            superseded ADR as deciding (GATE)
  *   5 green-flip           — a `healthy` story whose deciding ADR is still `proposed` (GATE;
@@ -45,6 +54,7 @@ export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
   "adr-edge-integrity",
   "supersede-consistency",
   "supersedes-in-part-retired",
+  "adr-link-integrity",
   "story-decisions",
   "green-flip",
   "load-bearing-live",
@@ -72,6 +82,11 @@ export interface AdrHealthInputs {
    * frontmatter still carries the ADR-0139-retired `supersedes_in_part` key (`loadRetiredInPartEdges`).
    */
   readonly retiredInPartEdges: string[];
+  /**
+   * Pre-computed FAIL lines for `adr-link-integrity` — one per (decision file, unresolvable
+   * `](NNNN-slug.md)` cross-link target) pair (`loadDeadAdrLinks`).
+   */
+  readonly deadAdrLinks: string[];
   readonly stories: StoryDecisionsView[];
   readonly guardrails: GuardrailView[];
   /** Resolve a repo-relative path (file OR directory) on disk. */
@@ -98,7 +113,8 @@ function result(name: string, failLines: string[], cleanNote: string, warn = fal
 }
 
 export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
-  const { adrs, parseErrors, retiredInPartEdges, stories, guardrails, pathExists } = inputs;
+  const { adrs, parseErrors, retiredInPartEdges, deadAdrLinks, stories, guardrails, pathExists } =
+    inputs;
   const byNumber = new Map(adrs.map((a) => [a.number, a]));
   const results: CheckResult[] = [];
 
@@ -175,6 +191,16 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
       retiredInPartEdges,
       "no ADR carries a retired supersedes_in_part edge (ADR-0139)",
     ),
+  );
+
+  // 3c adr-link-integrity (GATE) — the PROSE half of check 2. Frontmatter edges are number-keyed, so a
+  // rename can never break them; a body cross-link names the FILE, so renaming an ADR silently rots
+  // every sibling that linked its old slug. Nothing caught that class before, and it had reached 13
+  // dead targets across 24 occurrences (2026-07-29). Repaired to zero and shipped fail-closed AT zero:
+  // the set is empty as this lands, so the first new dead link reds the gate rather than joining a
+  // backlog. `loadDeadAdrLinks` pre-computes the lines and names the by-number destination.
+  results.push(
+    result("adr-link-integrity", deadAdrLinks, "every relative ADR cross-link resolves on disk"),
   );
 
   // 4 story-decisions
@@ -276,6 +302,67 @@ export function loadRetiredInPartEdges(decisionsDir: string): string[] {
       found.push(
         `ADR-${m[1]} (${file}) carries a retired \`supersedes_in_part\` frontmatter edge — ` +
           `correct the target in place or fully supersede it (ADR-0139).`,
+      );
+    }
+  }
+  return found;
+}
+
+/**
+ * A relative sibling cross-link between decision records: `](0110-slug.md)`. Tolerates a `./` prefix
+ * and a `#anchor` suffix so neither shape can slip the gate — only the filename is resolved. Anchored
+ * on `](` so a bare filename mentioned in prose is never treated as a link.
+ */
+const ADR_CROSS_LINK = /\]\((?:\.\/)?(\d{4}-[A-Za-z0-9._-]*\.md)(?:#[^)\s]*)?\)/g;
+
+/**
+ * Raw-scan every decision record's BODY for relative `](NNNN-slug.md)` cross-links that resolve to no
+ * file, returning one pre-computed FAIL line per (source file, dead target) — the view the
+ * `adr-link-integrity` gate reads.
+ *
+ * The rot class is the RENAME. `supersedes` / `amends` edges are number-keyed, so check 2 has always
+ * held them; a prose cross-link names the FILE, so re-slugging an ADR leaves every sibling that linked
+ * the old name pointing at nothing, silently and forever. Because an ADR's NUMBER is the stable
+ * identity (the first four digits, kept unique by `adr-number-unique`), the correct destination is
+ * always the on-disk file carrying that number — so each line names it, making the repair mechanical
+ * rather than a slug guess.
+ *
+ * Repeats of the same dead target within one file collapse to a single line (the fix is one
+ * find/replace in that file). Scans every `NNNN-*.md`; a link out of the directory (`../research/x.md`,
+ * `../../stories/y/story.md`) is a different, judgement-bearing class and is deliberately NOT covered.
+ */
+export function loadDeadAdrLinks(decisionsDir: string): string[] {
+  const entries = readdirSync(decisionsDir).sort();
+  const onDisk = new Set(entries);
+  const adrFiles = entries.filter((f) => /^\d{4}-.*\.md$/.test(f));
+  const byNumber = new Map<string, string[]>();
+  for (const f of adrFiles) {
+    const num = f.slice(0, 4);
+    const arr = byNumber.get(num);
+    if (arr) arr.push(f);
+    else byNumber.set(num, [f]);
+  }
+
+  const found: string[] = [];
+  for (const file of adrFiles) {
+    const content = readFileSync(path.join(decisionsDir, file), "utf8");
+    const reported = new Set<string>();
+    for (const m of content.matchAll(ADR_CROSS_LINK)) {
+      const target = m[1];
+      if (target === undefined || onDisk.has(target) || reported.has(target)) continue;
+      reported.add(target);
+      const num = target.slice(0, 4);
+      const candidates = byNumber.get(num) ?? [];
+      const first = candidates[0];
+      const fix =
+        candidates.length === 1 && first !== undefined
+          ? `repoint it by NUMBER to \`${first}\``
+          : candidates.length === 0
+            ? `no decision record carries number ${num} — drop the link or name a real record`
+            : `number ${num} is carried by ${candidates.length} files (${candidates.join(", ")}) — resolve adr-number-unique first`;
+      found.push(
+        `ADR-${file.slice(0, 4)} (${file}) links to \`${target}\`, which does not exist — ${fix}. ` +
+          "Change the link TARGET only; the link text and surrounding prose stay untouched (ADR-0139 truth-maintenance).",
       );
     }
   }

@@ -8,10 +8,12 @@ import { parseArgs } from "node:util";
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import {
   upcastAndValidate,
+  explainDocValidationError,
   groupSources,
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
   knownFieldsForKind,
+  NODE_REF_PREFIX,
   REPO_ROOT_ENV,
   resolveRepoRoot,
 } from "@storytree/library";
@@ -30,7 +32,7 @@ import type { SeedEntry } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
-import { arcCommand, arcHelp, arcEdit, arcIncrementAdd, type ArcWriteDeps } from "./arc.js";
+import { arcCommand, arcHelp, arcEdit, arcIncrementAdd, arcClose, arcScopeOf, type ArcWriteDeps } from "./arc.js";
 import { planCommand, planHelp, type CountCommitsSince } from "./plan.js";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import { CLI_AREAS } from "./cli-areas.js";
@@ -232,7 +234,9 @@ function repoRoot(): string {
  */
 export async function libraryCheck(store: Store): Promise<Envelope> {
   const docs = await store.queryDocs();
-  const docsDir = path.join(repoRoot(), "docs");
+  const root = repoRoot();
+  const docsDir = path.join(root, "docs");
+  const storiesDir = path.join(root, "stories");
   const results = libraryHealth(docs, {
     currentSchemaVersion: CURRENT_SCHEMA_VERSION,
     retiredFields: RETIRED_FIELDS,
@@ -244,6 +248,9 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
         return false;
       }
     },
+    // The `node:<id>` resolver (ADR-0107 D2) — the sibling of docExists, so a citation of a story
+    // that no longer exists surfaces as a WARN instead of being silently ignored.
+    nodeExists: (nodeId) => findNodeSpecFile(storiesDir, nodeId) !== null,
   });
   const { fail, warn } = levelCounts(results);
   const gateFails = gateFailures(results);
@@ -424,7 +431,9 @@ export async function newArtifact(
     // validate — so a doc still carrying a retired field (e.g. seeAlso) is upcast, not rejected.
     valid = upcastAndValidate(parsed);
   } catch (e) {
-    return { ok: false, body: `doc failed validation:\n${(e as Error).message}`, next: [] };
+    // Read the refusal back against the ONE arm the doc means, never the whole LibraryDoc union
+    // dump (which blames the other arm for every field this one requires).
+    return { ok: false, body: `doc failed validation:\n${explainDocValidationError(parsed, e)}`, next: [] };
   }
 
   const { id, kind } = idKindOf(valid as Record<string, unknown>);
@@ -470,6 +479,10 @@ const UNSETTABLE_FIELDS: ReadonlySet<string> = new Set(["kind", "schemaVersion",
  * structured kind is rejected with a CLEAR message (via {@link knownFieldsForKind}) instead of the
  * opaque `.strict()` union dump. Note: a structured field that is an ARRAY of objects (an arc's
  * `increments`) still cannot be appended via `--set` — that is what `storytree arc increment add` is for.
+ *
+ * One field is refused BY POLICY rather than by shape: an arc's `lifecycle` (ADR-0239 D2). It is a
+ * valid field the schema would accept, but closure must be written from the prose that justifies it,
+ * so it belongs to `storytree arc close` alone. See the guard in the `--set` loop below.
  */
 export async function editArtifact(
   deps: RunDeps,
@@ -554,12 +567,64 @@ export async function editArtifact(
           next: [`storytree library artifact ${id}`],
         };
       }
+      // ADR-0239 D2 — an arc's `lifecycle` is NOT a free flip. The schema would happily take it (it
+      // is a real field, so the unknown-field guard above lets it through), but closure is a
+      // projection of prose that supports it: `arc close` appends the terminal increment stating the
+      // end-state condition met AND sets the flag in the same atomic write. A bare `--set` here
+      // would record the state with no evidence behind it — the exact move ADR-0084/0086 forbid for
+      // an ADR status, refused for the same reason.
+      if (kindStr === "arc" && field === "lifecycle") {
+        return {
+          ok: false,
+          body: [
+            "an arc's lifecycle is not a free flip — closure is written FROM EVIDENCE, in one verb:",
+            `  storytree arc close ${id} --outcome "<the end-state condition this landing met>" --pg`,
+            "which appends the terminal increment and sets lifecycle: closed in a single write (ADR-0239 D2).",
+            "Re-opening a closed arc (closed → active) is OWNER-only, mirroring ADR-0084's human-only un-deciding.",
+          ].join("\n"),
+          next: [`storytree arc show ${id} --pg`, `storytree arc close ${id} --outcome "…" --pg`],
+        };
+      }
       // `field=@path` reads the value from a file (long/multi-line prose, no shell mangling).
       let value: string;
       try {
         value = await resolveAtPathValue(s.slice(i + 1));
       } catch (e) {
         return { ok: false, body: `could not read --set ${field}=${s.slice(i + 1)}: ${(e as Error).message}`, next: [] };
+      }
+      // The arc containment edge — `arcRef`, on a plan (ADR-0183 D3) or on an open question
+      // (ADR-0267 D4). It is the edge a DERIVED arc view is assembled from, so a DANGLING one is
+      // worse than an absent one: the arc surface silently omits the child while the child claims a
+      // parent, and a surface the owner cannot trust is the thing ADR-0267 exists to build. Hence
+      // two affordances here, both aimed at that. (1) A BARE arc id is accepted and normalised to
+      // the `asset:` pointer the schema's regex demands — the prefix is a wire detail, and a bare id
+      // would otherwise fail with an opaque regex dump. (2) The target must EXIST and be an arc, so
+      // a typo is refused at the write instead of persisting an edge that renders nowhere. An empty
+      // value REMOVES the stamp (the field is optional), which is the remedy for a mis-stamp without
+      // resorting to a whole-doc `--json` replace.
+      if (field === "arcRef") {
+        const wanted = value.trim();
+        if (wanted === "") {
+          delete base[field];
+          changed.push(`${field} (cleared)`);
+          continue;
+        }
+        const arcId = wanted.startsWith("asset:") ? wanted.slice("asset:".length) : wanted;
+        const target = await deps.store.getDoc(arcId);
+        if (!target || target.kind !== "arc") {
+          return {
+            ok: false,
+            body: [
+              target
+                ? `"${arcId}" is a ${target.kind}, not an arc — arcRef must point at an arc.`
+                : `no arc "${arcId}" — refusing to stamp a containment edge at an arc that does not exist.`,
+              "A dangling arcRef renders nowhere: the arc's derived view would omit this child while the child claims a parent.",
+              "Arcs are live-canonical — if this is an offline run, re-run with --pg.",
+            ].join("\n"),
+            next: ["storytree arc list --pg", `storytree library artifact ${id}`],
+          };
+        }
+        value = `asset:${arcId}`;
       }
       base[field] = refListFields.has(field)
         ? value.split(/[\s,]+/).filter((v) => v !== "")
@@ -578,7 +643,7 @@ export async function editArtifact(
   } catch (e) {
     return {
       ok: false,
-      body: `edit would make "${id}" invalid:\n${(e as Error).message}`,
+      body: `edit would make "${id}" invalid:\n${explainDocValidationError(nextDoc, e)}`,
       next: [`storytree library artifact ${id}`],
     };
   }
@@ -834,6 +899,10 @@ export async function treeFocus(store: Store, id: string | undefined): Promise<E
       const t = byId.get(tid);
       firstLibraryNeighbour ??= tid;
       outbound.push(`  → ${tid}${t ? `  ${fieldOf(t, "title")}  [${t.kind}]` : "  (missing target)"}   (library)`);
+    } else if (r.startsWith(NODE_REF_PREFIX)) {
+      // ADR-0107 D2's proving-process anchor: an edge OUT of the library at a story / capability.
+      // Not a "source" — reading it means `storytree tree <id>`, not opening a doc.
+      outbound.push(`  → ${r.slice(NODE_REF_PREFIX.length)}   (story node — storytree tree ${r.slice(NODE_REF_PREFIX.length)})`);
     } else {
       outbound.push(`  → ${r}   (source — surfaced on demand)`);
     }
@@ -1209,17 +1278,23 @@ export interface RunDeps {
     readonly now?: string;
     readonly inboxDir?: string;
     readonly docsDir?: string;
+    readonly nodeExists?: (nodeId: string) => boolean;
   };
 }
 
 /** Assemble the friction capture context, deriving the git/clock/path defaults the tests inject. */
 function makeFrictionContext(deps: RunDeps): FrictionContext {
   const root = repoRoot();
+  const storiesDir = path.join(root, "stories");
   return {
     branch: deps.friction?.branch ?? currentBranch(),
     now: deps.friction?.now ?? new Date().toISOString(),
     inboxDir: deps.friction?.inboxDir ?? path.join(root, "docs", "friction-inbox"),
     docsDir: deps.friction?.docsDir ?? path.join(root, "docs"),
+    // The `node:<id>` resolver (ADR-0107 D2), fs-backed here so `friction.ts` stays free of the
+    // stories/ layout — the `docExists` injection pattern. `findNodeSpecFile` is the ONE place that
+    // knows a story is `<id>/story.md` and a capability is `<story>/<id>.md`.
+    nodeExists: deps.friction?.nodeExists ?? ((nodeId) => findNodeSpecFile(storiesDir, nodeId) !== null),
   };
 }
 
@@ -1724,6 +1799,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     amends?: string;
     arc?: string;
     "end-state"?: string;
+    all?: boolean;
+    closed?: boolean;
     date?: string;
     pr?: string;
     threshold?: string;
@@ -1791,8 +1868,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         supersedes: { type: "string" },
         amends: { type: "string" },
         arc: { type: "string" },
-        // `storytree arc edit` / `arc increment add` — the first-class arc write verbs (long prose via @path).
+        // `storytree arc edit` / `arc increment add` / `arc close` — the first-class arc write verbs
+        // (long prose via @path).
         "end-state": { type: "string" },
+        // `storytree arc list --all | --closed` — widen past the default active-only worklist
+        // (ADR-0239 D3). `--all` wins when both are passed.
+        all: { type: "boolean", default: false },
+        closed: { type: "boolean", default: false },
         date: { type: "string" },
         pr: { type: "string" },
         threshold: { type: "string" },
@@ -2218,11 +2300,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // frontmatter `arc:` stamps on disk — the upward view is never authored on the arc.
     if (help) return arcHelp();
 
-    // The WRITE verbs (arc edit / arc increment add) go through the validated write path — a
-    // first-class replacement for the raw store one-shot (the ADR-0168 arc-edit friction). Long
+    // The WRITE verbs (arc edit / arc increment add / arc close) go through the validated write path
+    // — a first-class replacement for the raw store one-shot (the ADR-0168 arc-edit friction). Long
     // prose (--intent/--end-state/--outcome) accepts `@path` to read from a file so shell quoting
     // never mangles multi-line values into a literal `\n`.
-    if (sub === "edit" || sub === "increment") {
+    if (sub === "edit" || sub === "increment" || sub === "close") {
       const writeDeps: ArcWriteDeps = {
         store: deps.store,
         writable: deps.writable === true,
@@ -2246,6 +2328,15 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           ...(resolved.endState !== undefined ? { endState: resolved.endState } : {}),
         });
       }
+      // The landing-log write (ADR-0183 D1) and the CLOSING write (ADR-0239 D2) share every flag —
+      // `close` is `increment add` plus the atomic `lifecycle: closed` flip in the same upsert.
+      if (sub === "close") {
+        return arcClose(writeDeps, third, {
+          ...(values.date !== undefined ? { date: values.date } : {}),
+          ...(values.pr !== undefined ? { pr: values.pr } : {}),
+          ...(resolved.outcome !== undefined ? { outcome: resolved.outcome } : {}),
+        });
+      }
       // `arc increment add <id>` (canonical) or the shorthand `arc increment <id>` — both append one.
       const incId = third === "add" ? fourth : third;
       return arcIncrementAdd(writeDeps, incId, {
@@ -2255,12 +2346,18 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       });
     }
 
-    return arcCommand(sub, third, {
-      store: deps.store,
-      decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
-      storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
-      pg: values.pg === true,
-    });
+    return arcCommand(
+      sub,
+      third,
+      {
+        store: deps.store,
+        decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
+        storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
+        pg: values.pg === true,
+      },
+      // ADR-0239 D3 — the list is a worklist: active-only unless explicitly widened.
+      arcScopeOf({ all: values.all === true, closed: values.closed === true }),
+    );
   }
 
   if (area === "plan") {
@@ -2476,15 +2573,32 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(values.file !== undefined ? { file: values.file } : {}),
       }, ctx);
     }
-    if (sub === "reinforce") {
-      return reinforceFriction(deps, third, {
-        ...(values.evidence !== undefined ? { evidence: values.evidence } : {}),
-      }, ctx);
-    }
-    if (sub === "route") {
+    // The two prose flags accept `@path` (the `--set field=@path` / `arc edit --intent @path`
+    // convention, resolved at the dispatch site exactly as arc's are). Without it a multi-line
+    // justification flattens to a literal `\n` through the pnpm forwarder, and a `->` inside the
+    // string escapes shell quoting badly enough to truncate the value and drop a stray redirect
+    // file into the worktree — the `friction-capture-surface-is-itself-high-friction` item, defect 3.
+    if (sub === "reinforce" || sub === "route") {
+      let evidence: string | undefined;
+      let reason: string | undefined;
+      try {
+        if (values.evidence !== undefined) evidence = await resolveAtPathValue(values.evidence);
+        if (values.reason !== undefined) reason = await resolveAtPathValue(values.reason);
+      } catch (e) {
+        return {
+          ok: false,
+          body: `could not read a @file value: ${(e as Error).message}`,
+          next: ["storytree friction --help"],
+        };
+      }
+      if (sub === "reinforce") {
+        return reinforceFriction(deps, third, {
+          ...(evidence !== undefined ? { evidence } : {}),
+        }, ctx);
+      }
       return routeFriction(deps, third, {
         ...(values.route !== undefined ? { route: values.route } : {}),
-        ...(values.reason !== undefined ? { reason: values.reason } : {}),
+        ...(reason !== undefined ? { reason } : {}),
       }, ctx);
     }
     if (sub === "list") {

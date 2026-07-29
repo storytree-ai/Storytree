@@ -243,6 +243,42 @@ test("tree focus shows inbound intra-library edges (back-edge scan)", async () =
   assert.match(env.body, /← trunk/);
 });
 
+test("a node: ref renders as a Story node through the REAL binary, on both artifact surfaces", async () => {
+  // Composed OUTWARD deliberately: `groupSources` and `treeFocus` are each unit-tested, but the
+  // render an operator actually sees is the CLI dispatch composing them, and a green package suite
+  // can hide a dishonest live render. This drives `run(...)` — the same entry the binary calls.
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "cites-a-node",
+    kind: "definition",
+    doc: {
+      id: "cites-a-node",
+      kind: "definition",
+      title: "Cites a node",
+      description: "an artifact attached to a story's proving process (ADR-0107 D2)",
+      whatItIs: "A definition that carries a node: reference.",
+      whyItMatters: "It proves the token survives the render.",
+      references: ["node:cli", "asset:edit-first-curation"],
+      createdAt: "2026-07-29T00:00:00.000Z",
+      updatedAt: "2026-07-29T00:00:00.000Z",
+    },
+  });
+
+  // `library artifact <id>` — the Sources block groups it, rather than dumping it under "Other".
+  const view = await run(["library", "artifact", "cites-a-node"], { store });
+  assert.equal(view.ok, true, view.body);
+  assert.match(view.body, /Story nodes:\r?\n\s+- cli {2}\(node:cli\)/);
+
+  // `library tree focus <id>` — an outbound edge labelled a story node, NOT a "source".
+  const focus = await run(["library", "tree", "focus", "cites-a-node"], { store });
+  assert.equal(focus.ok, true, focus.body);
+  assert.match(focus.body, /→ cli {3}\(story node — storytree tree cli\)/);
+  assert.ok(
+    !/node:cli {3}\(source — surfaced on demand\)/.test(focus.body),
+    `a node: ref must not be labelled a source:\n${focus.body}`,
+  );
+});
+
 test("tree focus on a missing id is guidance, not a throw", async () => {
   const env = await run(["library", "tree", "focus", "ghost"], { store: await seeded() });
   assert.equal(env.ok, false);
@@ -312,6 +348,105 @@ test("artifact edit --set patches a field and re-persists", async () => {
   assert.match(env.body, /updated edit-first-curation \(set description\)/);
   const got = await store.getDoc("edit-first-curation");
   assert.equal((got?.doc as { description?: string }).description, "patched by test");
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0267 D4 — stamping an open question into an arc through `artifact edit --set arcRef=…`.
+// The edge is what a DERIVED arc surface is assembled from, so the write path has to protect it:
+// a dangling ref would leave the arc view silently omitting a child that claims a parent, which is
+// exactly the untrustworthiness the arc surface exists to remove.
+// ---------------------------------------------------------------------------
+
+/** Seed one arc + one unstamped open question into a store the edit path can write to. */
+async function seededForStamping(): Promise<InMemoryStore> {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "surface-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "surface-arc",
+      title: "The arc surface",
+      description: "d",
+      references: [],
+      createdAt: "2026-07-29",
+      updatedAt: "2026-07-29",
+    },
+  });
+  await store.upsertDoc({
+    id: "oq-blocked",
+    kind: "open-question",
+    doc: {
+      kind: "open-question",
+      id: "oq-blocked",
+      title: "What qualifies as blocked?",
+      description: "d",
+      stakes: "s",
+      statement: "s",
+      context: "c",
+      options: "a | b",
+      references: [],
+      createdAt: "2026-07-30",
+      updatedAt: "2026-07-30",
+    },
+  });
+  return store;
+}
+
+test("artifact edit --set arcRef stamps a question to an arc, accepting a BARE arc id", async () => {
+  const store = await seededForStamping();
+  // The bare id is the ergonomic half: `asset:` is a wire detail, and without the coercion this
+  // would fail on the schema's regex with an opaque union dump instead of just working.
+  const env = await run(["library", "artifact", "edit", "oq-blocked", "--set", "arcRef=surface-arc"], {
+    store,
+    writable: true,
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.equal((await store.getDoc("oq-blocked"))?.doc && ((await store.getDoc("oq-blocked"))!.doc as { arcRef?: string }).arcRef, "asset:surface-arc");
+
+  // The explicit pointer form is accepted unchanged.
+  const explicit = await run(
+    ["library", "artifact", "edit", "oq-blocked", "--set", "arcRef=asset:surface-arc"],
+    { store, writable: true },
+  );
+  assert.equal(explicit.ok, true, explicit.body);
+});
+
+test("artifact edit --set arcRef REFUSES a dangling edge rather than persisting it", async () => {
+  const store = await seededForStamping();
+  const env = await run(["library", "artifact", "edit", "oq-blocked", "--set", "arcRef=no-such-arc"], {
+    store,
+    writable: true,
+  });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /no arc "no-such-arc"/);
+  assert.match(env.body, /renders nowhere/);
+  // Nothing was written — a refused stamp must not half-land.
+  assert.equal(((await store.getDoc("oq-blocked"))!.doc as { arcRef?: string }).arcRef, undefined);
+
+  // Pointing it at a real id of the WRONG kind is refused for the same reason.
+  const wrongKind = await run(["library", "artifact", "edit", "oq-blocked", "--set", "arcRef=oq-blocked"], {
+    store,
+    writable: true,
+  });
+  assert.equal(wrongKind.ok, false);
+  assert.match(wrongKind.body, /is a open-question, not an arc/);
+});
+
+test("artifact edit --set arcRef= (empty) CLEARS the stamp — a mis-stamp is reversible", async () => {
+  const store = await seededForStamping();
+  await run(["library", "artifact", "edit", "oq-blocked", "--set", "arcRef=surface-arc"], {
+    store,
+    writable: true,
+  });
+  const cleared = await run(["library", "artifact", "edit", "oq-blocked", "--set", "arcRef="], {
+    store,
+    writable: true,
+  });
+  assert.equal(cleared.ok, true, cleared.body);
+  assert.match(cleared.body, /cleared/);
+  // The field is REMOVED, not blanked — an empty string would fail the AssetRef regex on next write.
+  assert.ok(!Object.hasOwn((await store.getDoc("oq-blocked"))!.doc as object, "arcRef"));
 });
 
 test("artifact edit on a missing id is guidance", async () => {
@@ -479,4 +614,126 @@ test("artifact edit --set on an unknown field is refused with a clear message, n
   assert.match(env.body, /editable fields: .*statement/);
   const got = await store.getDoc("edit-first-curation");
   assert.equal((got?.doc as { bogusField?: string }).bogusField, undefined, "not persisted");
+});
+
+test("artifact edit --set lifecycle on an arc is REFUSED — closure is not a free flip (ADR-0239 D2)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "a-live-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "a-live-arc",
+      title: "A live initiative",
+      description: "d",
+      intent: "Deliver it.",
+      endState: "It is delivered.",
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+
+  // `lifecycle` IS a real arc field, so the unknown-field guard lets it through — the refusal is a
+  // deliberate policy one: the state is a projection of the prose that supports it (ADR-0084/0086).
+  const env = await run(["library", "artifact", "edit", "a-live-arc", "--set", "lifecycle=closed"], {
+    store,
+    writable: true,
+  });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /not a free flip/);
+  assert.match(env.body, /storytree arc close a-live-arc --outcome/);
+  assert.match(env.body, /OWNER-only/);
+  const got = (await store.getDoc("a-live-arc"))?.doc as { lifecycle?: string };
+  assert.notEqual(got.lifecycle, "closed", "the flip was not persisted");
+
+  // The refusal is scoped to that ONE field — an arc's ordinary fields still edit as before.
+  const ok = await run(["library", "artifact", "edit", "a-live-arc", "--set", "description=sharper"], {
+    store,
+    writable: true,
+  });
+  assert.equal(ok.ok, true);
+});
+
+test("arc close through the dispatcher writes the terminal increment and the flip (ADR-0239 D2)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "closing-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "closing-arc",
+      title: "An initiative reaching its end",
+      description: "d",
+      intent: "Deliver it.",
+      endState: "It is delivered.",
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+
+  const env = await run(
+    ["arc", "close", "closing-arc", "--outcome", "it is delivered — the end state is met", "--pr", "#1012", "--pg"],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, true, env.body);
+  const doc = (await store.getDoc("closing-arc"))?.doc as {
+    lifecycle?: string;
+    increments?: Array<Record<string, unknown>>;
+  };
+  assert.equal(doc.lifecycle, "closed");
+  assert.equal(doc.increments?.length, 1);
+  assert.equal(doc.increments?.[0]?.["pr"], "#1012");
+});
+
+test("arc list --all / --closed parse as flags and widen the default worklist (ADR-0239 D3)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "shipped-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "shipped-arc",
+      title: "A shipped initiative",
+      description: "d",
+      intent: "Ship it.",
+      endState: "Shipped.",
+      lifecycle: "closed",
+      increments: [{ date: "2026-07-25", outcome: "shipped; the end state is met" }],
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-25",
+    },
+  });
+
+  await store.upsertDoc({
+    id: "running-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "running-arc",
+      title: "A running initiative",
+      description: "d",
+      intent: "Keep shipping.",
+      endState: "Not yet.",
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+
+  const def = await run(["arc", "list", "--pg"], { store, writable: true });
+  assert.equal(def.ok, true);
+  assert.match(def.body, /running-arc/);
+  assert.doesNotMatch(def.body, /shipped-arc/);
+  assert.match(def.body, /\(1 closed — --all\)/);
+
+  const all = await run(["arc", "list", "--all", "--pg"], { store, writable: true });
+  assert.equal(all.ok, true, all.body);
+  assert.match(all.body, /shipped-arc/);
+
+  const closed = await run(["arc", "list", "--closed", "--pg"], { store, writable: true });
+  assert.equal(closed.ok, true, closed.body);
+  assert.match(closed.body, /shipped-arc/);
 });

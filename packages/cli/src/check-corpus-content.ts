@@ -76,9 +76,21 @@ async function main(): Promise<void> {
       // Reports the population actually COMPARED, not the seed scope. Those diverge exactly when the
       // claim stops being true: a seed id with no live row is skipped, so an absent or truncated live
       // tier reaches this branch with nothing having been matched.
+      //
+      // AND THE OTHER DIRECTION IS NOT MEASURED AT ALL, which is why the caveat below is printed on
+      // the GREEN path rather than only on a breach. `diffCorpusContent` walks the SEED scope, so an
+      // id the LIVE store carries and the seed does not is skipped silently — it is neither
+      // value-drift nor degraded-live. `computeExportedSeed` meanwhile APPENDS every such id. So this
+      // OK is a true statement about seed bodies and NOT a statement that `export-corpus --write`
+      // would be a no-op. Measured 2026-07-30: clean over 177 here, one pending live-only addition in
+      // the same shell — an owner-retired artifact a blind --write would have put back in the seed.
       console.log(
         `${TAG} OK — every seed body matches live across ${diff.comparedLive} export-scope artifacts` +
           (diff.comparedLive === diff.compared ? "." : ` (of ${diff.compared} in the seed).`),
+      );
+      console.log(
+        `${TAG}   (Seed-scope only: a LIVE-ONLY artifact is not measured here, but IS swept by ` +
+          "`export-corpus --write`. Dry-run before writing.)",
       );
     } else {
       console.warn(
@@ -127,10 +139,22 @@ async function main(): Promise<void> {
       `${TAG}   where LIVE is canonical, \`pnpm storytree library export-corpus --pg --write\` (one command;`,
     );
     console.error(
-      `${TAG}   since ADR-0263 it carries only the durable tier, so at a drained backlog that is just the`,
+      `${TAG}   since ADR-0263 it carries only the durable tier, so at a drained backlog the UPDATES are`,
     );
     console.error(
-      `${TAG}   artifact you edited — but it IS all-or-nothing, so it also sweeps any sibling's drift).`,
+      `${TAG}   just the artifact you edited — but it IS all-or-nothing: it also sweeps any sibling's`,
+    );
+    console.error(
+      `${TAG}   drift, AND it ADDS every live-only artifact, which this check cannot see at all).`,
+    );
+    console.error(
+      `${TAG}   So DRY-RUN FIRST: \`pnpm storytree library export-corpus --pg\` (no --write). A live-only`,
+    );
+    console.error(
+      `${TAG}   id is invisible here — the diff walks the SEED scope — but the export APPENDS it, and it`,
+    );
+    console.error(
+      `${TAG}   may be an artifact deliberately RETIRED live, which --write would resurrect in the seed.`,
     );
     console.error(
       `${TAG}   Where the SEED is canonical, re-edit on the live surface instead: \`sync-corpus\` is`,

@@ -1,5 +1,5 @@
 import type { StoredDoc } from "@storytree/storage-protocol";
-import { upcastAndValidate, KIND_SPECS } from "@storytree/library";
+import { upcastAndValidate, KIND_SPECS, NODE_REF_PREFIX } from "@storytree/library";
 
 /**
  * The Library health checks — ONE pure, testable module surfaced three ways (design §4,
@@ -12,7 +12,7 @@ import { upcastAndValidate, KIND_SPECS } from "@storytree/library";
  *   2 retired-field       — no doc carries a field a past migration removed (denylist) (GATE)
  *   3 version-floor       — no doc below CURRENT_SCHEMA_VERSION (GATE)
  *   4 referential-integ.  — asset:<id> resolves to a live id (FAIL on break); doc:<path> via
- *                           docExists (WARN) (WARN-class)
+ *                           docExists and node:<id> via nodeExists (WARN) (WARN-class)
  *   5 count-reconciliation — structured-kind docs == opts.generatedAssetCount (WARN-class)
  *
  * The function stays node-light: filesystem (`docExists`) and the generated-asset count are INJECTED
@@ -37,6 +37,11 @@ export interface HealthOpts {
   readonly retiredFields: string[];
   /** Resolve a `doc:<relpath>` pointer on disk (relative to docs/). Omit to skip doc: resolution. */
   readonly docExists?: (relpath: string) => boolean;
+  /**
+   * Resolve a `node:<id>` pointer to a story / capability node spec (ADR-0107 D2). Omit to skip
+   * node: resolution — the same fail-open posture as {@link HealthOpts.docExists}.
+   */
+  readonly nodeExists?: (nodeId: string) => boolean;
 }
 
 /**
@@ -163,13 +168,23 @@ function versionFloor(docs: readonly StoredDoc[], current: number): CheckResult 
 }
 
 // 4. referential-integrity -----------------------------------------------------------------------
+/**
+ * All THREE corpus reference tokens are checked: `asset:<id>` against the live projection (a real
+ * graph break — FAIL), `doc:<relpath>` via the injected `docExists` (softer, a doc can move — WARN),
+ * and `node:<id>` via the injected `nodeExists` (ADR-0107 D2's proving-process anchor — also WARN,
+ * because like a doc it points OUT of the library at a tree this check does not own). A `node:` ref
+ * used to fall through every arm and be silently ignored, so a retired story left its citations
+ * dangling invisibly. Both out-of-library resolvers are OPTIONAL — omit one and that token is
+ * skipped, never failed.
+ */
 function referentialIntegrity(
   docs: readonly StoredDoc[],
   docExists: ((relpath: string) => boolean) | undefined,
+  nodeExists: ((nodeId: string) => boolean) | undefined,
 ): CheckResult {
   const liveIds = new Set(docs.map((d) => d.id));
   const danglingAsset: string[] = [];
-  const danglingDoc: string[] = [];
+  const danglingOut: string[] = [];
   for (const d of docs) {
     const body = bodyOf(d);
     for (const ref of [...refsOf(body), ...refListRefsOf(d, body)]) {
@@ -178,18 +193,21 @@ function referentialIntegrity(
         if (!liveIds.has(id)) danglingAsset.push(`${d.id} -> ${ref} (no such artifact)`);
       } else if (ref.startsWith("doc:") && docExists !== undefined) {
         const rel = ref.slice("doc:".length);
-        if (!docExists(rel)) danglingDoc.push(`${d.id} -> ${ref} (no such file under docs/)`);
+        if (!docExists(rel)) danglingOut.push(`${d.id} -> ${ref} (no such file under docs/)`);
+      } else if (ref.startsWith(NODE_REF_PREFIX) && nodeExists !== undefined) {
+        const nodeId = ref.slice(NODE_REF_PREFIX.length);
+        if (!nodeExists(nodeId)) danglingOut.push(`${d.id} -> ${ref} (no such story/capability node)`);
       }
     }
   }
-  const all = [...danglingAsset, ...danglingDoc];
-  // dangling asset: is a real graph break (FAIL); dangling doc: is softer, a doc can move (WARN).
+  const all = [...danglingAsset, ...danglingOut];
+  // dangling asset: is a real graph break (FAIL); a dangling doc:/node: is softer (WARN).
   const level: CheckLevel =
     danglingAsset.length > 0 ? "FAIL" : all.length > 0 ? "WARN" : "PASS";
   return {
     name: "referential-integrity",
     level,
-    lines: all.length > 0 ? all : ["every asset:/doc: pointer resolves"],
+    lines: all.length > 0 ? all : ["every asset:/doc:/node: pointer resolves"],
   };
 }
 
@@ -206,7 +224,7 @@ export function libraryHealth(docs: StoredDoc[], opts: HealthOpts): CheckResult[
     schemaConformance(docs),
     retiredField(docs, opts.retiredFields),
     versionFloor(docs, opts.currentSchemaVersion),
-    referentialIntegrity(docs, opts.docExists),
+    referentialIntegrity(docs, opts.docExists, opts.nodeExists),
   ];
 }
 

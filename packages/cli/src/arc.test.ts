@@ -6,7 +6,16 @@ import path from "node:path";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 
-import { arcCommand, arcEdit, arcIncrementAdd, storyArcStamps, type ArcViewDeps, type ArcWriteDeps } from "./arc.js";
+import {
+  arcClose,
+  arcCommand,
+  arcEdit,
+  arcIncrementAdd,
+  arcScopeOf,
+  storyArcStamps,
+  type ArcViewDeps,
+  type ArcWriteDeps,
+} from "./arc.js";
 
 // The derived arc view (ADR-0183 D3): every containment edge lives on the CHILD — a plan's
 // `arcRef`, an ADR's frontmatter `arc:` stamp, a story's frontmatter `arc:` stamp — and the arc
@@ -139,12 +148,177 @@ test("arc show derives plans (arcRef), ADRs (frontmatter stamp), and stories (fr
   }
 });
 
+test("arc show surfaces the open questions the arc is waiting on (ADR-0267 D4)", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await seededStore();
+    await store.upsertDoc({
+      id: "oq-blocked-meaning",
+      kind: "open-question",
+      doc: {
+        kind: "open-question",
+        id: "oq-blocked-meaning",
+        title: "What exactly qualifies as blocked?",
+        description: "d",
+        stakes: "The surface cannot render a blocked state until this is settled.",
+        statement: "s",
+        context: "c",
+        arcRef: "asset:map-arc",
+        references: [],
+        createdAt: "2026-07-30",
+        updatedAt: "2026-07-30",
+      },
+    });
+    // A question owned by NO arc — the derived view must not sweep it in.
+    await store.upsertDoc({
+      id: "oq-orphan",
+      kind: "open-question",
+      doc: {
+        kind: "open-question",
+        id: "oq-orphan",
+        title: "An unowned question",
+        description: "d",
+        stakes: "",
+        statement: "s",
+        context: "c",
+        references: [],
+        createdAt: "2026-07-30",
+        updatedAt: "2026-07-30",
+      },
+    });
+
+    const res = await arcCommand("show", "map-arc", depsFor(store, fx));
+    assert.equal(res.ok, true);
+    assert.match(res.body, /## Open questions {2}\(derived: open-question\.arcRef → map-arc\)/);
+    assert.match(res.body, /- oq-blocked-meaning {2}— What exactly qualifies as blocked\?/);
+    // The stakes line rides along: ADR-0267 treats questions as part of the PAYLOAD, so the reader
+    // can act without a re-onboarding round-trip rather than merely learning a question exists.
+    assert.match(res.body, /why it matters: The surface cannot render a blocked state/);
+    assert.doesNotMatch(res.body, /oq-orphan/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc show says so honestly when an arc is waiting on nothing", async () => {
+  const fx = diskFixture();
+  try {
+    const res = await arcCommand("show", "map-arc", depsFor(await seededStore(), fx));
+    assert.equal(res.ok, true);
+    assert.match(res.body, /\(none — this arc is not waiting on the owner\)/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
 test("arc list summarises every arc with its increment count", async () => {
   const fx = diskFixture();
   try {
     const res = await arcCommand("list", undefined, depsFor(await seededStore(), fx));
     assert.equal(res.ok, true);
     assert.match(res.body, /map-arc {2}2 increment\(s\), last 2026-07-05/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0239 D3 — `arc list` is a WORKLIST: active by default, widened by --all / --closed.
+// This is what makes the rot self-correcting: an arc nobody closed keeps showing up.
+// ---------------------------------------------------------------------------
+
+/** Add one already-closed arc to the seeded store (the shape the D5 backfill produces). */
+async function withClosedArc(store: InMemoryStore): Promise<InMemoryStore> {
+  await store.upsertDoc({
+    id: "done-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "done-arc",
+      title: "A delivered initiative",
+      description: "d",
+      intent: "Deliver the thing.",
+      endState: "The thing is delivered.",
+      lifecycle: "closed",
+      increments: [{ date: "2026-07-25", pr: "#767", outcome: "THE ARC'S END STATE IS REACHED" }],
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-25",
+    },
+  });
+  return store;
+}
+
+test("arcScopeOf resolves the widening flags — active by default, --all wins over --closed", () => {
+  assert.equal(arcScopeOf({}), "active");
+  assert.equal(arcScopeOf({ all: false, closed: false }), "active");
+  assert.equal(arcScopeOf({ closed: true }), "closed");
+  assert.equal(arcScopeOf({ all: true }), "all");
+  assert.equal(arcScopeOf({ all: true, closed: true }), "all", "--all wins when both are passed");
+});
+
+test("arc list hides closed arcs by default and footers the count; --all / --closed widen it", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await withClosedArc(await seededStore());
+
+    // DEFAULT: the live worklist only, with the muted footer pointing at the rest.
+    const active = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.equal(active.ok, true);
+    assert.match(active.body, /1 active arc\(s\)/);
+    assert.match(active.body, /map-arc/);
+    assert.doesNotMatch(active.body, /done-arc/, "a closed arc is out of the default worklist");
+    assert.match(active.body, /\(1 closed — --all\)/);
+    assert.ok((active.next ?? []).some((n) => n.includes("arc list --all")), "the footer's flag is an offered next");
+
+    // --all: everything, with the closed one TAGGED (never the old blind list).
+    const all = await arcCommand("list", undefined, depsFor(store, fx), "all");
+    assert.match(all.body, /2 arc\(s\)/);
+    assert.match(all.body, /done-arc.*\[closed\] A delivered initiative/);
+    assert.match(all.body, /map-arc/);
+    assert.doesNotMatch(all.body, /map-arc {2}.*\[closed\]/, "an active arc carries no tag");
+    assert.doesNotMatch(all.body, /— --all\)/, "no footer once everything is shown");
+
+    // --closed: the archive view.
+    const closed = await arcCommand("list", undefined, depsFor(store, fx), "closed");
+    assert.match(closed.body, /1 closed arc\(s\)/);
+    assert.match(closed.body, /done-arc/);
+    assert.doesNotMatch(closed.body, /map-arc/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc list is honest when a scope filters everything out", async () => {
+  const fx = diskFixture();
+  try {
+    const onlyClosed = await withClosedArc(new InMemoryStore());
+    const active = await arcCommand("list", undefined, depsFor(onlyClosed, fx));
+    assert.equal(active.ok, true, "an empty worklist is a real answer, not a failure");
+    assert.match(active.body, /none — all 1 arc\(s\) here are closed/);
+
+    // The mirror case: nothing closed yet, asked for the archive.
+    const noneClosed = await seededStore();
+    const closed = await arcCommand("list", undefined, depsFor(noneClosed, fx), "closed");
+    assert.equal(closed.ok, true);
+    assert.match(closed.body, /none — no arc here has been closed yet/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc show renders a CLOSED arc and states its lifecycle (only the LIST filters)", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await withClosedArc(await seededStore());
+
+    const done = await arcCommand("show", "done-arc", depsFor(store, fx));
+    assert.equal(done.ok, true, "a closed arc is always readable");
+    assert.match(done.body, /lifecycle: closed/);
+    assert.match(done.body, /THE ARC'S END STATE IS REACHED/);
+
+    const live = await arcCommand("show", "map-arc", depsFor(store, fx));
+    assert.match(live.body, /lifecycle: active \(in flight\)/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
@@ -273,4 +447,155 @@ test("arc increment add refuses offline, without --outcome, and on a wrong kind"
   const wrongKind = await arcIncrementAdd(writeDeps(store), "map-arc-plan-1", { outcome: "x" });
   assert.equal(wrongKind.ok, false);
   assert.match(wrongKind.body, /is a plan, not an arc/);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0239 D4 — the closure reminder rides the tool OUTPUT, not any agent prompt. Zero context for
+// every session that is not landing an arc increment; the question arrives at the one moment the
+// session can answer it, next to the arc's own stored end state.
+// ---------------------------------------------------------------------------
+
+test("arc increment add echoes the arc's end state and offers `arc close` as a next (D4)", async () => {
+  const store = await seededStore();
+  const res = await arcIncrementAdd(writeDeps(store), "map-arc", { outcome: "increment 5 landed", pr: "#900" });
+  assert.equal(res.ok, true);
+
+  // The end state is echoed back from the STORED doc — the judgment is made from data, not memory.
+  assert.match(res.body, /this arc's end state: Owner sees pathways\./);
+
+  const closeNext = (res.next ?? []).find((n) => n.startsWith("storytree arc close"));
+  assert.ok(closeNext, "the close verb is offered at the point of use");
+  assert.match(closeNext, /storytree arc close map-arc --outcome "…" --pg/);
+  // The conditional is load-bearing: nothing here asserts the end state WAS met.
+  assert.match(closeNext, /\(if this landing met the end state\)/);
+});
+
+test("arc increment add on an ALREADY-closed arc offers no close hint", async () => {
+  const store = await withClosedArc(await seededStore());
+  const res = await arcIncrementAdd(writeDeps(store), "done-arc", { outcome: "a late footnote" });
+  assert.equal(res.ok, true, "appending to a closed arc still works — closure is not a write lock");
+  assert.doesNotMatch(res.body, /this arc's end state/);
+  assert.ok(!(res.next ?? []).some((n) => n.startsWith("storytree arc close")), "no close hint on a closed arc");
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0239 D2 — `arc close`: ONE verb, atomically the terminal increment AND the lifecycle flip.
+// ---------------------------------------------------------------------------
+
+test("arc close appends the terminal increment AND flips lifecycle in one write", async () => {
+  const store = await seededStore();
+  const res = await arcClose(writeDeps(store), "map-arc", {
+    pr: "#1012",
+    outcome: "the owner sees pathways on the map — the end state is met",
+  });
+  assert.equal(res.ok, true);
+  assert.match(res.body, /closed arc map-arc — 2026-07-20 {2}#1012 {2}the owner sees pathways/);
+  assert.match(res.body, /lifecycle: closed/);
+
+  const doc = (await store.getDoc("map-arc"))?.doc as { lifecycle?: string; increments: Array<Record<string, unknown>> };
+  assert.equal(doc.lifecycle, "closed");
+  // The prose that JUSTIFIES the flip landed with it — that is the whole point of one verb.
+  assert.equal(doc.increments.length, 3, "the terminal increment was appended, not replaced");
+  assert.deepEqual(doc.increments[2], {
+    date: "2026-07-20",
+    pr: "#1012",
+    outcome: "the owner sees pathways on the map — the end state is met",
+  });
+});
+
+test("arc close defaults the date to today and works without a PR", async () => {
+  const store = await seededStore();
+  const res = await arcClose(writeDeps(store), "map-arc", { outcome: "owner-attested; the end state is met" });
+  assert.equal(res.ok, true);
+  const doc = (await store.getDoc("map-arc"))?.doc as { lifecycle?: string; increments: Array<Record<string, unknown>> };
+  const terminal = doc.increments[doc.increments.length - 1];
+  assert.equal(terminal?.date, "2026-07-20"); // NOW's date part
+  assert.ok(!("pr" in (terminal ?? {})), "an arc can close on an owner attestation, with no PR of its own");
+  assert.equal(doc.lifecycle, "closed");
+});
+
+test("arc close REFUSES without --outcome — no closure without the prose that justifies it", async () => {
+  const store = await seededStore();
+  const noOutcome = await arcClose(writeDeps(store), "map-arc", {});
+  assert.equal(noOutcome.ok, false);
+  assert.match(noOutcome.body, /needs --outcome/);
+  assert.match(noOutcome.body, /projection of the prose that supports it/);
+  // NOTHING was written — not the increment, and above all not the state.
+  const doc = (await store.getDoc("map-arc"))?.doc as { lifecycle?: string; increments: unknown[] };
+  assert.notEqual(doc.lifecycle, "closed");
+  assert.equal(doc.increments.length, 2);
+});
+
+test("arc close refuses offline, on a missing id, on a wrong kind, and on an already-closed arc", async () => {
+  const store = await withClosedArc(await seededStore());
+
+  const offline = await arcClose(writeDeps(store, false, false), "map-arc", { outcome: "x" });
+  assert.equal(offline.ok, false);
+  assert.match(offline.body, /writes to the shared store — run with --pg/);
+
+  const missing = await arcClose(writeDeps(store), "nope", { outcome: "x" });
+  assert.equal(missing.ok, false);
+  assert.match(missing.body, /no arc "nope"/);
+
+  const wrongKind = await arcClose(writeDeps(store), "map-arc-plan-1", { outcome: "x" });
+  assert.equal(wrongKind.ok, false);
+  assert.match(wrongKind.body, /is a plan, not an arc/);
+
+  // Re-closing is a no-op refusal, and the message names the owner-only re-open (ADR-0084 mirror).
+  const again = await arcClose(writeDeps(store), "done-arc", { outcome: "again" });
+  assert.equal(again.ok, false);
+  assert.match(again.body, /already closed/);
+  assert.match(again.body, /OWNER-only/);
+  const doc = (await store.getDoc("done-arc"))?.doc as { increments: unknown[] };
+  assert.equal(doc.increments.length, 1, "a refused re-close appends nothing");
+});
+
+test("a closed arc leaves the default worklist end-to-end (D2 write → D3 filter)", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await seededStore();
+    // A second, still-live arc, so the post-close worklist is non-empty and the footer is exercised.
+    await store.upsertDoc({
+      id: "zz-live-arc",
+      kind: "arc",
+      doc: {
+        kind: "arc",
+        id: "zz-live-arc",
+        title: "Still in flight",
+        description: "d",
+        intent: "Keep going.",
+        endState: "Not yet.",
+        references: [],
+        createdAt: "2026-07-01",
+        updatedAt: "2026-07-01",
+      },
+    });
+    const before = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.match(before.body, /2 active arc\(s\)/);
+    assert.match(before.body, /map-arc/);
+
+    await arcClose(writeDeps(store), "map-arc", { outcome: "the end state is met" });
+
+    const after = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.match(after.body, /1 active arc\(s\)/);
+    assert.doesNotMatch(after.body, /map-arc {2}\d+ increment/, "the closed arc is out of the worklist");
+    assert.match(after.body, /zz-live-arc/, "the arc still in flight stays in the worklist");
+    assert.match(after.body, /\(1 closed — --all\)/);
+    const all = await arcCommand("list", undefined, depsFor(store, fx), "all");
+    assert.match(all.body, /map-arc.*\[closed\]/, "--all still shows it");
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc help advertises the close verb and the list filters", async () => {
+  const fx = diskFixture();
+  try {
+    const help = await arcCommand(undefined, undefined, depsFor(new InMemoryStore(), fx));
+    assert.match(help.body, /storytree arc close <id> --outcome/);
+    assert.match(help.body, /--all\|--closed/);
+    assert.match(help.body, /Re-opening is OWNER-only/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
 });

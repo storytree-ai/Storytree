@@ -66,15 +66,30 @@ fan-out point — no agent-spawns-agent) and ADR-0005 (the **spine**, not an own
 owns fan-out/fan-in scheduling; explicitly defers isolation/claims/id allocation
 here; ADR-0011). ADR-0003 also notes concurrency-safe id allocation must extend to v2's
 **own ADR/decision-number namespace** (the ADR-0025 generalisation; motivated by
-v1's two-0021 / gap-0009 collisions). **Still open:** (a) whether the owned loop's code
-*edits* still use a git branch/worktree per node; (b) claim granularity /
-**write-ownership** scope shape; (c) the conflict-resolution ceremony on refusal;
-(d) the concurrency-safe scheme for v2's own ADR-number namespace.
+v1's two-0021 / gap-0009 collisions). **As originally posed, four sub-questions were left open:**
+(a) whether the owned loop's code *edits* still use a git branch/worktree per node; (b) claim
+granularity / **write-ownership** scope shape; (c) the conflict-resolution ceremony on refusal;
+(d) the concurrency-safe scheme for v2's own ADR-number namespace. **Only (d) is still open** — see
+the arrows below.
 → **(a) reframed by [ADR-0012](decisions/0012-tool-execution-pluggable-sandbox.md)**: tool
 execution (the owned loop's `bash`/edits — pi is dropped, ADR-0011) runs behind a pluggable
 `ToolExecutor` **sandbox seam** — a *borrowed* backend (virtual / git worktree / container),
 distinct from ADR-0009's DBOS coordination isolation; the concrete backend stays deferred to
 need.
+→ **(b) and (c) RESOLVED by
+[ADR-0121](decisions/0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md)**, which
+answers both by name: **granularity is per-unit** (a claim on the node being built) and the
+**ceremony on refusal is a hard refusal** of the second concurrent build — ADR-0009's typed claim
+*enacted* on plain Postgres (`events.node_claim` / `events.claim_event`) rather than on the DBOS
+substrate ADR-0019 deferred. ADR-0121 scopes that answer to the **build surface**; two later ADRs
+widen it without re-opening the question:
+[ADR-0200](decisions/0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md) makes the
+noticeboard **itself** the deterministic claim ledger (graded exploring / waiting / work; advisory
+session-presence retired), and
+[ADR-0255](decisions/0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md) generalises
+claim-bound write authority past the build surface to **every agent source write**, making the primary
+checkout a read-only lobby. Do not read this section as recording a live gap in claim scope or in the
+refusal ceremony — it does not.
 *Terms:* session branch, branch-per-session isolation, worktree-isolation, claims,
 session-claims, CrossSessionCoordination.
 

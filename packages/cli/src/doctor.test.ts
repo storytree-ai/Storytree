@@ -1,12 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
   runDoctor,
   formatDoctorReport,
   doctorCommand,
+  dependencyCurrency,
   probeHostedRead,
   classifyHostedReadStatus,
   HOSTED_READ_REFUSED_DETAIL,
@@ -23,6 +26,10 @@ import {
  *     marker in `infra/install.ps1` (the single source of the repair steps — no drift).
  *   • D3 never-handle-credentials: the `claude-login` probe carries NO `fixStep` (its fix is a dev
  *     action storytree instructs, never an installer step it executes).
+ *
+ * And one invariant of doctor's own: a probe claims EXACTLY what it observed. The presence/currency
+ * split (`checkout-provisioned` vs `dependencies-current`) is where that is proven — see the
+ * regression block below for what a presence probe wording itself as a currency verdict cost.
  */
 
 /** A fully-healthy environment — every probe PASSes. */
@@ -30,6 +37,7 @@ const HEALTHY: DoctorObservations = {
   gitPresent: true,
   nodeMajor: NODE_MAJOR_FLOOR,
   provisioned: true,
+  dependencyCurrency: "current",
   remoteReachable: true,
   seedReadable: true,
   claudeCliPresent: true,
@@ -43,6 +51,7 @@ const BROKEN: DoctorObservations = {
   gitPresent: false,
   nodeMajor: null,
   provisioned: false,
+  dependencyCurrency: "unknown",
   remoteReachable: false,
   seedReadable: false,
   claudeCliPresent: false,
@@ -94,6 +103,127 @@ test("a behind checkout WARNs (a freshness pull, not a broken invariant)", () =>
   assert.match(p?.detail ?? "", /3 commit/);
 });
 
+// --- dependency currency: presence is not currency ----------------------------------------------
+// REGRESSION. `checkout-provisioned` observes only `node_modules/.modules.yaml` — that an install
+// once COMPLETED here — yet reported "workspace dependencies are installed", a claim about WHICH
+// dependencies that presence cannot support. A checkout installed against an OLDER pnpm-lock.yaml
+// than it now has passed that probe, so doctor asserted the workspace was fine when the wrong deps
+// were linked — in exactly the scenario doctor is run to disambiguate (a dev hits TS2307 on a package
+// they never touched and asks doctor which half is broken). The split below is the fix: probe 3 keeps
+// its own question, and the currency claim moves to a probe that actually observes it.
+
+test("RED: a provisioned checkout on an OLDER lockfile is reported STALE, not 'dependencies installed'", () => {
+  const report = runDoctor({ ...HEALTHY, dependencyCurrency: "stale" });
+  const currency = report.probes.find((p) => p.name === "dependencies-current")!;
+  assert.equal(currency.level, "WARN", "stale deps must surface, not hide behind the presence probe");
+  assert.match(currency.detail, /OLDER pnpm-lock\.yaml/, "the detail names the actual condition");
+  // The other half of the regression: presence still PASSes (it is genuinely true), so this exact
+  // report shape — a PASS on provisioned beside a WARN on currency — is what used to be unreachable.
+  const provisioned = report.probes.find((p) => p.name === "checkout-provisioned")!;
+  assert.equal(provisioned.level, "PASS", "an install DID complete here — probe 3's question is unchanged");
+  assert.match(provisioned.detail, /\.modules\.yaml/, "probe 3's detail states the marker it observed");
+});
+
+test("the provisioned PASS detail no longer claims anything about WHICH dependencies are installed", () => {
+  const provisioned = runDoctor(HEALTHY).probes.find((p) => p.name === "checkout-provisioned")!;
+  // It may say an install is present; it may not say the dependencies are (the currency claim).
+  assert.doesNotMatch(
+    provisioned.detail,
+    /dependencies are installed/,
+    "presence must not be worded as a verdict on the dependencies themselves",
+  );
+});
+
+test("stale deps WARN and never FAIL — a refresh is not a broken install (the freshness precedent)", () => {
+  for (const dependencyCurrency of ["stale", "unknown"] as const) {
+    const report = runDoctor({ ...HEALTHY, dependencyCurrency });
+    const probe = report.probes.find((p) => p.name === "dependencies-current")!;
+    assert.equal(probe.level, "WARN", `${dependencyCurrency} must WARN`);
+    assert.equal(report.ok, true, `${dependencyCurrency} must not fail an otherwise-healthy checkout`);
+    assert.ok(probe.fixHint !== undefined, `${dependencyCurrency} must carry a fix hint`);
+    // NO fixStep: install.ps1's Test-Provisioned is presence-based, so re-running @step:provision would
+    // report "already satisfied" and install nothing. Naming it would be a FALSE repair vocabulary.
+    assert.equal(probe.fixStep, undefined, "no installer step repairs staleness — the fix is instructed");
+  }
+});
+
+test("the stale fix hint gives the one-step fix AND names the symptom that misattributes it", () => {
+  const probe = runDoctor({ ...HEALTHY, dependencyCurrency: "stale" }).probes.find(
+    (p) => p.name === "dependencies-current",
+  )!;
+  assert.match(probe.fixHint ?? "", /pnpm install/, "the one-step fix");
+  assert.match(probe.fixHint ?? "", /TS2307|ERR_MODULE_NOT_FOUND/, "names the error that blames the wrong package");
+});
+
+test("a current checkout PASSes — the healthy case pays no new noise", () => {
+  const probe = runDoctor(HEALTHY).probes.find((p) => p.name === "dependencies-current")!;
+  assert.equal(probe.level, "PASS");
+  assert.equal(probe.fixHint, undefined);
+});
+
+test("the three currency states read differently (an undetermined probe is not a pass)", () => {
+  const detailOf = (dependencyCurrency: DoctorObservations["dependencyCurrency"]): string =>
+    runDoctor({ ...HEALTHY, dependencyCurrency }).probes.find((p) => p.name === "dependencies-current")!.detail;
+  const details = (["current", "stale", "unknown"] as const).map(detailOf);
+  assert.equal(new Set(details).size, 3, "each state must be distinguishable in the report");
+});
+
+// The OBSERVATION half, against real files on a real disk — `lockfileAdvanced` is deliberately not
+// injectable (provision-worktree.test.ts's pattern), so these drive the same code the shell runs.
+
+/** A throwaway checkout: `.modules.yaml` marks a completed install, `lock` seeds the lockfile pair. */
+function makeCheckout(provisioned: boolean, lock?: { wanted?: string; current?: string }): string {
+  const dir = mkdtempSync(join(tmpdir(), "st-doctor-deps-"));
+  if (provisioned) {
+    mkdirSync(join(dir, "node_modules"), { recursive: true });
+    writeFileSync(join(dir, "node_modules", ".modules.yaml"), "hoistPattern:\n  - '*'\n");
+  }
+  if (lock?.wanted !== undefined) writeFileSync(join(dir, "pnpm-lock.yaml"), lock.wanted);
+  if (lock?.current !== undefined) {
+    mkdirSync(join(dir, "node_modules", ".pnpm"), { recursive: true });
+    writeFileSync(join(dir, "node_modules", ".pnpm", "lock.yaml"), lock.current);
+  }
+  return dir;
+}
+
+const LOCK_OLD = "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      zod: 3.23.8\n";
+const LOCK_NEW = `${LOCK_OLD}  packages/new-organism:\n    dependencies:\n      zod: 3.23.8\n`;
+
+test("dependencyCurrency: the lockfile advancing under a provisioned checkout reads as stale", () => {
+  const root = makeCheckout(true, { wanted: LOCK_NEW, current: LOCK_OLD });
+  try {
+    assert.equal(dependencyCurrency(root, true), "stale");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dependencyCurrency: a checkout installed against today's lockfile reads as current", () => {
+  const root = makeCheckout(true, { wanted: LOCK_NEW, current: LOCK_NEW });
+  try {
+    assert.equal(dependencyCurrency(root, true), "current");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// THE TRAP, and the reason currency is a union rather than a boolean. `lockfileAdvanced` FAILS OPEN —
+// a missing lockfile on either side returns false — which is right for the hook it was written for
+// ("never reinstall on a guess") and would be a LIE here: a checkout with no dependencies at all would
+// read as "current", reproducing the over-claim this whole probe exists to remove.
+test("dependencyCurrency: an unprovisioned checkout is UNKNOWN — never 'current' via the fail-open", () => {
+  const bare = makeCheckout(false, { wanted: LOCK_NEW });
+  const noSnapshot = makeCheckout(true, { wanted: LOCK_NEW }); // provisioned, but nothing to compare to
+  const noLockfile = makeCheckout(true, { current: LOCK_NEW }); // not a pnpm root
+  try {
+    assert.equal(dependencyCurrency(bare, false), "unknown", "no install ⇒ nothing is known about the deps");
+    assert.equal(dependencyCurrency(noSnapshot, true), "unknown", "no pnpm snapshot ⇒ not comparable");
+    assert.equal(dependencyCurrency(noLockfile, true), "unknown", "no lockfile ⇒ not comparable");
+  } finally {
+    for (const d of [bare, noSnapshot, noLockfile]) rmSync(d, { recursive: true, force: true });
+  }
+});
+
 // --- ADR-0207 D3: never handle credentials ------------------------------------------------------
 test("D3: the claude-login probe detects-and-instructs — it carries NO installer fixStep", () => {
   const report = runDoctor(BROKEN);
@@ -140,7 +270,15 @@ test("doctorCommand shapes an ok:true envelope on a healthy env", async () => {
 
 test("formatDoctorReport renders one greppable line per probe plus a fix line under each non-PASS", () => {
   const text = formatDoctorReport(runDoctor(BROKEN));
-  for (const name of ["git", "node", "checkout-provisioned", "seed-readable", "claude-cli", "claude-login"]) {
+  for (const name of [
+    "git",
+    "node",
+    "checkout-provisioned",
+    "dependencies-current",
+    "seed-readable",
+    "claude-cli",
+    "claude-login",
+  ]) {
     assert.ok(text.includes(name), `report should name the ${name} probe`);
   }
   assert.match(text, /fix:/, "a failing report must print fix hints");

@@ -3090,6 +3090,7 @@
       "asset:reference-dont-restate",
       "asset:glossary-wins",
       "asset:doc-vs-implementation-precedence",
+      "asset:authoritative-source-beats-derived",
       "asset:guidance-quality",
       "asset:pair-the-fence-with-the-affordance",
       "asset:example-carries-the-discriminator"
@@ -3110,6 +3111,7 @@
       "asset:reference-dont-restate",
       "asset:glossary-wins",
       "asset:doc-vs-implementation-precedence",
+      "asset:authoritative-source-beats-derived",
       "asset:guidance-quality",
       "asset:live-store-is-the-edit-surface",
       "asset:never-bypass-the-gate",
@@ -3230,6 +3232,7 @@
     "rules": [
       "asset:friction-justification-bar",
       "asset:signal-and-noise",
+      "asset:authoritative-source-beats-derived",
       "asset:edit-first-curation",
       "asset:stateless-vs-stateful-graduation",
       "asset:reference-dont-restate",
@@ -3246,6 +3249,7 @@
       "asset:friction-adjudication",
       "asset:friction-justification-bar",
       "asset:signal-and-noise",
+      "asset:authoritative-source-beats-derived",
       "asset:stateless-vs-stateful-graduation",
       "asset:edit-first-curation",
       "asset:reference-dont-restate",
