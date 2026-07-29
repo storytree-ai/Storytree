@@ -11,12 +11,12 @@ arc: chapter2-real-app-surface-arc
 accepted (2026-07-29) — decided/directed by the owner in conversation on 2026-07-29. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
 **Amends [ADR-0237](0237-chapter-2-is-a-scripted-mode-of-the-real-app-share-product-u.md):**
-its shared app surface, semantic-event control, persistent-scene posture, current-art-first sequence
-and conditional manifest-art fallback stand. D5 is narrowed for tree and plant growth: silhouette
-change does not first earn authored raster frames or several reconstructed key poses. The first
-implementation is one deterministic, addressable trunk/branch/canopy topology in the existing
-renderer. Replaceable art may finish that topology only after it is structurally proved and
-owner-witnessed.
+its shared app surface, semantic-event control, persistent-scene posture and conditional
+manifest-art fallback stand. D5 is narrowed for tree and plant growth: silhouette change does not
+first earn authored raster frames or several reconstructed key poses, and the current mature sprite
+is not a required terminal handoff. The implementation is one deterministic, addressable
+trunk/branch/canopy topology rendered with the safe layered-SVG vocabulary. Replaceable art may
+finish that topology without becoming its state model.
 
 ## Context
 
@@ -58,8 +58,9 @@ not a second renderer or a new art pipeline.
 ## Decision
 
 **Tree and plant growth uses one persistent, deterministic topology rig in the existing
-`SceneView`.** The rig is structural product behaviour; selected Storybook/Vector art and any later
-textures are replaceable finish.
+`SceneView`.** The rig is structural product behaviour. It is rendered through layered SVG
+path-length growth, support-centred masks/clips and local canopy paint-on; selected Storybook/Vector
+art and any later textures are replaceable finish, not a second growth method.
 
 ### D1 — One rooted, addressable topology
 
@@ -73,6 +74,20 @@ parts are addressable under that identity:
 The topology is deterministic. A fixed model/seed/parameter set produces the same part identities,
 geometry, depth order and mature silhouette on every render and replay. Random regeneration,
 remounting, per-replay variation and independently generated poses are forbidden.
+
+Capability count is an explicit topology input. A story with more capabilities grows a visibly
+larger, denser tree:
+
+- each capability deterministically claims a stable canopy/green-patch slot and supporting tip;
+- canopy extent and patch density never decrease as capabilities are added;
+- trunk and major-branch thickness/spread may increase through bounded monotonic functions; and
+- adding one capability preserves the identities and attachment points already assigned to earlier
+  capabilities instead of re-rolling the tree.
+
+The semantic mapping may aggregate several capability slots into one rendered patch at high counts,
+but the full capability-to-slot mapping remains addressable for inspection. A bounded level-of-detail
+policy caps SVG/DOM work and keeps the tree inside its island parcel; visual scale must not grow
+without limit.
 
 The rig belongs to the existing app-surface renderer. It is not a website, Studio-fixture or
 Chapter-2-local implementation, and it does not require a second scene model.
@@ -88,36 +103,41 @@ maps those events onto tree-local tracks:
 
 - trunk extent grows upward from the root;
 - branch paths extend parent-first from already-visible forks;
-- canopy and leaves paint, clip or scale outward at their supporting tips; and
-- the selected mature art settles only after the structural topology is established.
+- capability-backed canopy and leaves paint, clip or scale outward at their supporting tips; and
+- any selected finish settles only after the structural topology is established.
 
 Leaves do not fly into the tree. The whole tree does not translate, pop, overshoot or scale from its
 centre. Full CSS `transform` animation must not replace the mapper's planted placement transform.
 Path length, masks/clips, opacity and additive local scale/translate are permitted when they retain
-ground contact and component ownership.
+ground contact and component ownership. Authored SVG silhouettes, texture clips and canopy shapes
+may improve the finish, but their reveals are driven by the rig's parent-first tracks and named
+support points; they do not own topology, clocks or replay state.
 
 Back and Replay reapply the identical rig and checkpoints. Reduced motion removes interpolation,
 delay, orbit and concealment while exposing the completed topology for each semantic cue at the
 same root and final placement.
 
-### D3 — Existing art policy is the terminal handoff
+### D3 — Existing art is optional finish, not a terminal contract
 
-The rig participates in both existing renderer modes. Vector mode may expose the structural geometry
-directly. Storybook mode retains that same hidden/addressable rig during growth, then reveals or
-crossfades the existing selected sprite only as the terminal mature-art handoff at the same anchor.
-The mature sprite is not evidence that trunk/branch/canopy growth occurred.
+The rig participates in both existing renderer modes. Vector mode may expose the layered structural
+geometry directly. Storybook mode may texture or replace those same layers, or crossfade to one
+compatible mature sprite at the same anchor. That handoff is optional: the current selected sprite
+does not need to be preserved, and the layered rig may remain the mature presentation when it
+produces the stronger LOOK.
 
-The first implementation adds no generated art, frame sequence, sprite sheet, manifest resolver or
-new art default. It proves topology and controls through
+The first implementation adds no frame sequence, independently posed trees, new manifest resolver or
+asset-local animation clock. It proves topology, capability scaling and controls through
 `semantic-growth-replay-view`, then returns to the owner for the LOOK verdict required by ADR-0070.
+Generated, commissioned or painted texture/components may be tried behind the same slots; no existing
+final art is protected from replacement.
 
 ### D4 — Art is a bounded, replaceable follow-on
 
 If the machine-green rig is structurally honest but visually too schematic, a later bounded
-increment may add:
+art pass may add:
 
 - tileable or clipped bark, foliage, grass and earth textures;
-- stable canopy/leaf clusters with explicit support-point and depth metadata; and
+- stable authored canopy/leaf silhouettes with explicit support-point and depth metadata; and
 - optional flower, fruit or ground-detail accents attached to named sockets.
 
 Nano Banana or another generative model may supply author-time texture, colour or concept direction
@@ -125,14 +145,17 @@ through ADR-0219/0230's existing pipeline. It does not generate runtime state, a
 independent per-frame trees, major-branch cutouts or a sprite sheet for growth. Purchased or
 commissioned art fits the same slots.
 
-The art layer cannot change topology, root, perspective, lighting or silhouette between replay
-states. If a proposed finish requires those changes, it is a new bounded art decision rather than
-an implicit widening of this one.
+The art layer cannot change topology, root, perspective, capability mapping or attachment between
+replay states. Generated trunk/major-branch cutouts, pivoted structural components and independent
+pose silhouettes remain excluded. If a proposed finish requires those changes, it is a new bounded
+art decision rather than an implicit widening of this one.
 
 ### D5 — Explicitly rejected
 
 - Several independently authored tree key poses reconstructed at runtime.
 - A component sheet whose trunk/major branches must be cropped and reassembled into each pose.
+- A layered-SVG asset rig that authors a separate fixed topology per tree or cannot derive stable
+  capability-backed patches from the shared procedural model.
 - Whole-tree or whole-scene snapshots, companion islands, remount keys or asset-local timelines.
 - Whole-tree scale/fade, renamed pop/overshoot, incoming foliage particles or unrelated group timing
   presented as growth.
@@ -150,6 +173,8 @@ an implicit widening of this one.
   failures observed after PR #961.
 - The layered SVG techniques that looked convincing remain available without making every pose a
   separately authored asset.
+- Capability count has a visible, inspectable and monotonic relationship to canopy density and
+  bounded tree stature.
 - Storybook, Vector and later replacement art share one behaviour contract and one mature anchor.
 - Art can improve independently after the structural increment is green and witnessed.
 
@@ -159,12 +184,15 @@ an implicit widening of this one.
   settled tracks. Both renderer modes need executable preservation proof.
 - A procedural rig can look mathematical or schematic. Its parameters and asymmetry need art
   direction, and the owner still holds the LOOK verdict.
-- The terminal transition into mature Storybook art can expose silhouette mismatch. It must be tuned
+- Capability scaling needs a stable slot allocator and level-of-detail thresholds so a large story
+  remains readable and performant without reassigning earlier capabilities.
+- An optional transition into mature Storybook art can expose silhouette mismatch. It must be tuned
   at one anchor; it cannot be hidden with a scene swap.
 - Texture finish still needs crop/mask and depth metadata, but only after the smaller structural
   substrate proves which assets are actually needed.
-- This decision does not attest or ship production art. It authorizes the ready
-  `chapter2-tree-topology-growth-rig-20260728` plan as the next implementation direction.
+- This decision does not attest or ship production art. The previously ready
+  `chapter2-tree-topology-growth-rig-20260728` plan drifted before implementation and must be
+  superseded, not repaired, against this capability-scaling refinement.
 
 ## References
 
@@ -180,5 +208,6 @@ an implicit widening of this one.
   [`semantic-growth.css`](../../packages/app-surface/src/semantic-growth.css) — the existing shared
   renderer/player seams the rig extends.
 - Story `semantic-growth-replay-view` — the existing behaviour contract.
-- Plan `chapter2-tree-topology-growth-rig-20260728` — fresh ready implementation choreography.
+- Plan `chapter2-tree-topology-growth-rig-20260728` — prior choreography; now drifted and awaiting a
+  superseding plan.
 - Arc `chapter2-real-app-surface-arc` — owner comparison outcome and increment history.
