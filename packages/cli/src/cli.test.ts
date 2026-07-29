@@ -38,6 +38,47 @@ test("artifact <id> prints the artifact with its id and body", async () => {
   assert.match(env.body, /[Ee]dit/);
 });
 
+test("artifact <id> given an offerId prints a follow-up command per FOLLOWABLE ref, each carrying it", async () => {
+  // The CLI-side half of ADR-0260 D3 (glue, ADR-0158 — the proof lives in the capability's own file
+  // pair). `offerId` is pre-minted in main.ts so the id PRINTED here is the id capture RECORDS.
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "offering-thing",
+    kind: "definition",
+    doc: {
+      kind: "definition",
+      id: "offering-thing",
+      title: "Offering Thing",
+      description: "offers two assets and one doc",
+      body: "b",
+      references: ["asset:merge-ceremony", "doc:decisions/0260-a-thing.md", "asset:arc"],
+    },
+  });
+
+  const withOffer = await run(["library", "artifact", "offering-thing"], {
+    store,
+    offerId: "candidate-set:visit-x",
+  });
+  assert.equal(withOffer.ok, true);
+  assert.deepEqual(withOffer.next, [
+    "storytree library tree focus offering-thing   (its local DAG)",
+    "storytree library artifact edit offering-thing   (coming soon)",
+    // the ordinary nav is untouched and the offer follow-ups are APPENDED — one per followable ref,
+    // in authored order, each naming the same offer. The `doc:` ref gets none: it resolves to a file,
+    // not to a CLI read, so there is no command that could follow it (the declared D7 caveat).
+    "storytree library artifact merge-ceremony --from-offer candidate-set:visit-x",
+    "storytree library artifact arc --from-offer candidate-set:visit-x",
+  ]);
+
+  // Without one — every test, and every run that will record no offer — the nav is exactly what it
+  // always was. A follow-up carrying an id nothing recorded is an id an agent can return.
+  const withoutOffer = await run(["library", "artifact", "offering-thing"], { store });
+  assert.deepEqual(withoutOffer.next, [
+    "storytree library tree focus offering-thing   (its local DAG)",
+    "storytree library artifact edit offering-thing   (coming soon)",
+  ]);
+});
+
 test("artifact <id> for a process DERIVES its next: from branch-edges (ADR-0161 process graph)", async () => {
   // Fixture-only (inc 7b): no real process carries branchEdges yet. A body-bearing process doc renders
   // through viewArtifact's pass-through path; branchEdges ride along and drive the derived next:.

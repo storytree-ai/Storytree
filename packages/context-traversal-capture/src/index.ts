@@ -34,13 +34,29 @@ export {
 export type { AgentDescentDeps, AgentDocStore } from "./descend-agent-refs.js";
 
 export {
+  candidateSetIdOf,
   emitCandidateSet,
+  isOfferableArtifactRead,
+  offerIdOf,
   renderCoverageCaveats,
   resolveArtifactOffers,
+  CANDIDATE_SET_PREFIX,
+  LIBRARY_ARTIFACT_SURFACE,
   OFFER_CANDIDATE_SET_CAVEATS,
   OFFER_CANDIDATE_SET_COVERAGE,
 } from "./offer-candidate-sets.js";
 export type { CoverageCaveat, OfferDeps, OfferDocStore } from "./offer-candidate-sets.js";
+
+export {
+  emitFollowedEdge,
+  parseOfferFollow,
+  planOfferIdentity,
+  renderOfferFollowUps,
+  FOLLOW_OFFER_EDGE_CAVEATS,
+  FOLLOW_OFFER_EDGE_COVERAGE,
+  OFFER_FLAG,
+} from "./follow-offer-edges.js";
+export type { FollowDeps, FollowedOffer, OfferIdentity } from "./follow-offer-edges.js";
 
 export {
   renderTraversalSessions,
@@ -50,6 +66,7 @@ export {
 
 export {
   captureCliInvocation,
+  isTraversalCaptureEnabled,
   showTraversalSession,
   listTraversalSessionsRendered,
   type CaptureCliInvocationInput,
