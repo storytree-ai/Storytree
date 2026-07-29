@@ -103,7 +103,11 @@ ever fails — because growth is what reds the gate.
 
 **The ceiling is tuned on the first real sweep, not picked in advance** — set just above whatever that
 sweep actually finds, so it starts GREEN and any subsequent growth reds it. This gives an honest
-baseline rather than an arbitrary number, and the ceiling can only ever be tightened.
+baseline rather than an arbitrary number, and the ceiling can only ever be tightened **within a fixed
+measurement aperture** — [ADR-0269](0269-a-drain-ceiling-rises-only-when-the-measured-population-enla.md)
+amends this clause, so that an instrument whose aperture genuinely ENLARGES is re-baselined on the new
+population's first real sweep under an evidence bar that ADR-0269 owns. Raising a ceiling to absorb
+findings that accumulated under an UNCHANGED aperture remains forbidden. See the fourth correction below.
 
 **4. Home — a Library `process` artifact, in the librarian-curator mould.**
 

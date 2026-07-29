@@ -11,6 +11,22 @@ arc: verification-integrity-arc
 accepted (2026-07-29) — decided/directed by the owner in conversation on 2026-07-29. Design-time
 alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**Provenance, recorded by the librarian pass (2026-07-30) so the ratification claim above is true in
+full (ADR-0139).** What the owner directed is that this rule gets its own ADR rather than riding as a
+*reading* of ADR-0252 — that is the fork the escalation put to them, and it is settled. The DECISION
+CONTENT below is the authoring session's derivation from that direction, and one clause goes beyond
+restating the rule the escalation described: **clause 6 (no owner gate on each application) is an
+authored design choice, not an owner instruction.** It is flagged rather than removed, because
+removing it would be a re-decision and not a curator's move. It is defensible — it preserves the
+pre-existing default (a first-sweep baseline has never needed sign-off) and its stated reasoning is
+the ADR's own central argument. It is also the clause with the widest failure mode, and the reason is
+in this ADR's own Consequences: **nothing here is enforced by code**, so clauses 1–5 rest on the author's
+honesty and a reader who may never come, and clause 6 removes the one remaining human checkpoint over
+that unenforced loosening. The disanalogy it leans on is real: a NEW instrument's baseline arrives as a
+visible new check, whereas an aperture re-baseline is one number moving inside an existing file.
+**Standing open point for the owner** — keep clause 6 as written, or require sign-off on an aperture
+re-baseline (accepting the disincentive that reintroduces). Until the owner rules, clause 6 governs.
+
 It settles a question a librarian correction explicitly refused to settle. ADR-0252's decision 3 says
 flatly that a drain ceiling "can only ever be tightened"; on 2026-07-29 `mirror-pair-drift`'s ceiling
 moved UPWARD, 10 → 11, and the correction recorded that as a *projection* of the same decision's

@@ -91,7 +91,10 @@ export interface GraduationDrainConfig {
  * N=4 is BASELINED, not chosen: the first real sweep of this check found exactly 4 live candidates
  * (2 new, 2 changed, 0 lease-expired) against 100 parked. Setting N to what that run found ships the
  * ceiling GREEN on an honest baseline — a breach is strictly `> N` — so it can only ever be tightened
- * as the queue drains, and it was never picked in advance to accommodate a backlog.
+ * as the queue drains, WITHIN A FIXED MEASUREMENT APERTURE (ADR-0269, which amends ADR-0252 D3), and
+ * it was never picked in advance to accommodate a backlog. Widening what the candidate engine SCANS
+ * (a memory tier it did not read, a candidate shape it could not parse) is the one legitimate upward
+ * move, under ADR-0269's evidence bar; absorbing un-reviewed candidates is not.
  *
  * M=21d is INHERITED from ADR-0168 D4's friction age ceiling, and it is the one constant here not
  * derived from this sweep — there are 0 lease-expired candidates today, so this axis had nothing to

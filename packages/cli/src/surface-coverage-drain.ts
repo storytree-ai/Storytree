@@ -86,7 +86,10 @@ export interface SurfaceCoverageDrainConfig {
  * THE CEILINGS, both BASELINED on a real sweep rather than picked in advance, and both now at ZERO —
  * the sweep of 2026-07-28 found `unresolved=0, orphans=0` (14 processes, 67 entrypoints). Setting each
  * axis to exactly what a real run found ships the ceiling GREEN on an honest baseline (a breach is
- * strictly `>`), so it can only ever be TIGHTENED as the tier is backfilled.
+ * strictly `>`), so it can only ever be TIGHTENED as the tier is backfilled — WITHIN A FIXED
+ * MEASUREMENT APERTURE (ADR-0269, which amends ADR-0252 D3). Widening what this sweep SCANS (a new
+ * entrypoint class, a `surfaces` form it could not parse) is the one legitimate upward move, under
+ * ADR-0269's evidence bar; absorbing un-drained orphans is not, and stays forbidden.
  *
  * `unresolvedCeiling: 0` is the real, honest baseline and not an aspiration: no sampled revision of
  * this repo has ever carried a dangling `surfaces` ref. It is also the axis that most deserves zero —
