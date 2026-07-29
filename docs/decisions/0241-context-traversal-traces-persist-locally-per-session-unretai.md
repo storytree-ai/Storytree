@@ -109,11 +109,27 @@ needs no separate owner fork.
 - A per-line version pin costs a few bytes per event and removes whole-file migrations.
 - Default-on means the owner's own read patterns are recorded locally from the moment this lands.
   That is the arc's stated intent, matches ADR-0203, and is opt-out with one environment variable.
+- **D3's "never alters an envelope" is a claim about telemetry FAILURE, and under capture-ON it no
+  longer implies whole-stdout invariance — narrowed 2026-07-29** when ADR-0260 D3 landed (capability
+  `offer-follow-edges`). An offering read now PRINTS a pasteable follow-up command per followable
+  ref, carrying `--from-offer <candidateSetId>`, and that id is a fresh visit id per invocation — so
+  whole-stdout equality no longer holds even between two capture-on runs of the same command. This is
+  ADR-0260 D3's declared cost ("the agent-facing command surface changes"), not a weakened rule, and
+  nothing above is re-decided. What survives is twofold, and is now machine-pinned by the story's
+  standing UAT leg 5: the command's own **payload** and exit code stay byte-identical whatever
+  capture does, and the offer-carrying lines appear **only** where an offer is genuinely recorded —
+  never under `STORYTREE_TRAVERSAL=off`, never without a resolvable session identity — so **D2's
+  opt-out-clean envelope stands unchanged**. That second half is load-bearing rather than cosmetic: a
+  printed id naming a candidate set nothing recorded is an id an agent can return into a forged edge,
+  and an early draft of the capability argued those two capture preconditions needed no gate at all,
+  reasoning only about what gets RECORDED and never about what gets PRINTED. Leg 5 falsified it on
+  the first run.
 
 ## References
 
 - [ADR-0235: Record context traversal at deterministic runtime boundaries](0235-record-context-traversal-at-deterministic-runtime-boundaries.md)
 - [ADR-0203: Per-slice token-usage capture and the token-analytics surface](0203-per-slice-token-usage-capture-and-the-token-analytics-surfac.md)
+- [ADR-0260: A followed edge needs an offer it can be joined to](0260-a-followed-edge-needs-an-offer-it-can-be-joined-to-and-order.md) — D3 puts the offer's id on the rendered surface, narrowing D3's envelope claim above to the payload.
 - [ADR-0114: The hosted DB sleeps on a fixed 01:00–07:00 Sydney window](0114-hosted-db-sleeps-on-a-fixed-1am-7am-sydney-window-replacing.md)
 - [ADR-0162: Manage session onboarding cost](0162-manage-session-onboarding-cost-optimize-the-cost-centers-the.md)
 - Plan: `linked-session-context-plan-3` · Arc: `linked-session-context-arc`

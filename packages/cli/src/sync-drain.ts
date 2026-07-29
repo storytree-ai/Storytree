@@ -182,10 +182,19 @@ export interface AgentsSyncDrainConfig {
  * `driftCeiling: 0` is ZERO, and unlike its four predecessors that needed no leniency argument — it is
  * the honest baseline, not an aspiration. The reason zero is affordable here is the drain: ONE
  * idempotent command (`pnpm storytree library sync-agents --pg`) with NO per-item judgement, because
- * ADR-0055 makes the seed canonical for this tier by construction. That is what separates it from
- * `corpus-content-drain.ts`'s `valueDriftCeiling: 14`, whose drain is an all-or-nothing librarian call
- * across every drifted artifact and where zero headroom would price the next session toward weakening
- * the check. Nothing here is a judgement call, so nothing here needs headroom.
+ * ADR-0055 makes the seed canonical for this tier by construction. Nothing here is a judgement call,
+ * so nothing here needs headroom.
+ *
+ * (This paragraph used to contrast that with `corpus-content-drain.ts`'s `valueDriftCeiling: 14`,
+ * "whose drain is an all-or-nothing librarian call across every drifted artifact and where zero
+ * headroom would price the next session toward weakening the check". **That contrast no longer holds
+ * and is corrected rather than deleted** — ADR-0263 narrowed the seed export scope to the durable
+ * tier, which shrank the batch from 13 updates + 236 additions to 13 + 14; the backlog was then
+ * drained and that ceiling is now ZERO too. The DISTINCTION it drew is still real and still worth
+ * knowing: this tier needs no per-item judgement, that one does — a drifted corpus artifact still
+ * requires deciding WHICH SIDE is canonical, and the drain of 2026-07-29 found 2 of 13 where live was
+ * not simply newer. What changed is only that a judgement-bearing drain turned out to be affordable at
+ * zero once its batch was the size of one session's own edit.)
  *
  * The ceiling also cannot fire where its drain is unavailable: the check SKIPs (exit 0) with no creds
  * or an unreachable store, which is every environment that could not run the sync anyway.
