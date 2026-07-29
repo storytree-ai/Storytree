@@ -148,6 +148,69 @@ test("arc show derives plans (arcRef), ADRs (frontmatter stamp), and stories (fr
   }
 });
 
+test("arc show surfaces the open questions the arc is waiting on (ADR-0267 D4)", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await seededStore();
+    await store.upsertDoc({
+      id: "oq-blocked-meaning",
+      kind: "open-question",
+      doc: {
+        kind: "open-question",
+        id: "oq-blocked-meaning",
+        title: "What exactly qualifies as blocked?",
+        description: "d",
+        stakes: "The surface cannot render a blocked state until this is settled.",
+        statement: "s",
+        context: "c",
+        arcRef: "asset:map-arc",
+        references: [],
+        createdAt: "2026-07-30",
+        updatedAt: "2026-07-30",
+      },
+    });
+    // A question owned by NO arc — the derived view must not sweep it in.
+    await store.upsertDoc({
+      id: "oq-orphan",
+      kind: "open-question",
+      doc: {
+        kind: "open-question",
+        id: "oq-orphan",
+        title: "An unowned question",
+        description: "d",
+        stakes: "",
+        statement: "s",
+        context: "c",
+        references: [],
+        createdAt: "2026-07-30",
+        updatedAt: "2026-07-30",
+      },
+    });
+
+    const res = await arcCommand("show", "map-arc", depsFor(store, fx));
+    assert.equal(res.ok, true);
+    assert.match(res.body, /## Open questions {2}\(derived: open-question\.arcRef → map-arc\)/);
+    assert.match(res.body, /- oq-blocked-meaning {2}— What exactly qualifies as blocked\?/);
+    // The stakes line rides along: ADR-0267 treats questions as part of the PAYLOAD, so the reader
+    // can act without a re-onboarding round-trip rather than merely learning a question exists.
+    assert.match(res.body, /why it matters: The surface cannot render a blocked state/);
+    assert.doesNotMatch(res.body, /oq-orphan/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc show says so honestly when an arc is waiting on nothing", async () => {
+  const fx = diskFixture();
+  try {
+    const res = await arcCommand("show", "map-arc", depsFor(await seededStore(), fx));
+    assert.equal(res.ok, true);
+    assert.match(res.body, /\(none — this arc is not waiting on the owner\)/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
 test("arc list summarises every arc with its increment count", async () => {
   const fx = diskFixture();
   try {

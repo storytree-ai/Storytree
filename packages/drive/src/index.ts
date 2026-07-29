@@ -12,6 +12,9 @@ export * from "./envelope.js";
 export * from "./secrets.js";
 export * from "./adr-frontmatter.js";
 export * from "./adr-metas.js";
+// The derived arc → children join (ADR-0183 D3 / ADR-0267 D4): ONE rollup the cli renders and the
+// studio server serves, so the two surfaces can never disagree about what an arc contains.
+export * from "./arc-rollup.js";
 export * from "./node-build.js";
 // Per-slice token-usage persistence (accounting, never proof): the SdkRunInfo → UsageEventDoc
 // mapping + the advisory append the build paths run after proveUnit.

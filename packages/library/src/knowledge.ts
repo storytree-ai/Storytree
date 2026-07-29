@@ -925,7 +925,20 @@ export const TechStack = buildKindSchema("techstack");
 export const Process = buildKindSchema("process").extend({
   branchEdges: z.array(ProcessBranchEdge).optional(),
 });
-export const OpenQuestion = buildKindSchema("open-question");
+// The `open-question` kind (ADR-0267 D4) carries one structured field OUTSIDE its KIND_SPECS body
+// table: `arcRef`, the arc the question is waiting on. ADR-0183 D3's containment rule puts the edge
+// on the CHILD, so the arc's question view is DERIVED by query — deliberately NOT an authored
+// question-list field on the arc, which would need editing every time a question is raised or
+// closed (precisely the rot D3 exists to prevent). Mirrors `Plan.arcRef` — same `AssetRef` shape,
+// so `doc:`/prose refs still fail closed — but OPTIONAL where the plan's is required: a question can
+// be raised before any arc owns it, and every EXISTING open-question doc must still validate. So
+// there is NO `CURRENT_SCHEMA_VERSION` bump and zero migration (the `Arc.increments` /
+// `Agent.stepRefs` precedent, re-verified against migrations.ts as ADR-0267's Consequences asked:
+// all three registered migrations only DROP fields, so each no-ops on a doc without `arcRef`).
+// `.extend()` preserves `.strict()` and the `kind` literal, so the discriminated union is unaffected.
+export const OpenQuestion = buildKindSchema("open-question").extend({
+  arcRef: AssetRef.optional(),
+});
 // The `agent` kind carries one structured field OUTSIDE its KIND_SPECS body table: `stepRefs`, the
 // workflow-step → refs association (ADR-0156 §4 / ADR-0161). It is metadata, not a rendered body
 // section — so it lives on the schema like `references` does, never in KIND_SPECS. OPTIONAL, so every

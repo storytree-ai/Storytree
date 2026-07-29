@@ -583,6 +583,40 @@ export async function editArtifact(
       } catch (e) {
         return { ok: false, body: `could not read --set ${field}=${s.slice(i + 1)}: ${(e as Error).message}`, next: [] };
       }
+      // The arc containment edge — `arcRef`, on a plan (ADR-0183 D3) or on an open question
+      // (ADR-0267 D4). It is the edge a DERIVED arc view is assembled from, so a DANGLING one is
+      // worse than an absent one: the arc surface silently omits the child while the child claims a
+      // parent, and a surface the owner cannot trust is the thing ADR-0267 exists to build. Hence
+      // two affordances here, both aimed at that. (1) A BARE arc id is accepted and normalised to
+      // the `asset:` pointer the schema's regex demands — the prefix is a wire detail, and a bare id
+      // would otherwise fail with an opaque regex dump. (2) The target must EXIST and be an arc, so
+      // a typo is refused at the write instead of persisting an edge that renders nowhere. An empty
+      // value REMOVES the stamp (the field is optional), which is the remedy for a mis-stamp without
+      // resorting to a whole-doc `--json` replace.
+      if (field === "arcRef") {
+        const wanted = value.trim();
+        if (wanted === "") {
+          delete base[field];
+          changed.push(`${field} (cleared)`);
+          continue;
+        }
+        const arcId = wanted.startsWith("asset:") ? wanted.slice("asset:".length) : wanted;
+        const target = await deps.store.getDoc(arcId);
+        if (!target || target.kind !== "arc") {
+          return {
+            ok: false,
+            body: [
+              target
+                ? `"${arcId}" is a ${target.kind}, not an arc — arcRef must point at an arc.`
+                : `no arc "${arcId}" — refusing to stamp a containment edge at an arc that does not exist.`,
+              "A dangling arcRef renders nowhere: the arc's derived view would omit this child while the child claims a parent.",
+              "Arcs are live-canonical — if this is an offline run, re-run with --pg.",
+            ].join("\n"),
+            next: ["storytree arc list --pg", `storytree library artifact ${id}`],
+          };
+        }
+        value = `asset:${arcId}`;
+      }
       base[field] = refListFields.has(field)
         ? value.split(/[\s,]+/).filter((v) => v !== "")
         : value;

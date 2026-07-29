@@ -17,7 +17,12 @@ capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus
 # ADR-0237 increment 1: Studio is the first consumer of `@storytree/app-surface`; the shared package
 # owns the world-scene slice while Studio retains TreeView's controller and surrounding chrome, so
 # the consumer-side `app-surface` edge is declared here.
-depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory, app-surface]
+# ADR-0267: the arc surface's read path needs the `Store` SEAM itself, not the rendered asset wire —
+# `LibraryBackend.docStore()` hands the live store to the shared arc rollup so the studio and
+# `storytree arc show` derive one join. That makes `storage-protocol` a declared edge here. It is a
+# TYPE-only import today (the runtime value is the pg store the backend already builds), but
+# check:boundaries reads the code graph, not the emit, and a type edge is still a real coupling.
+depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory, app-surface, storage-protocol]
 # Deciding ADRs (ADR-0037 §2): UI-drives-agents (8), the story world (36, recalibrated by 38),
 # the app brought into the boundary scan as a consuming surface (100), the drive-package
 # extraction that re-pointed the build/secrets seam off cli onto @storytree/drive (112), the

@@ -1102,6 +1102,17 @@ function loadNoticeBoard(): Promise<NoticeBoardModule> {
   return (noticeBoardModulePromise ??= import('@storytree/notice-board'));
 }
 
+// @storytree/drive's ROOT barrel re-exports the build drivers, which import @storytree/library — so
+// it hits the SAME vite config-load trap as the two above and is loaded lazily on first use, past
+// config-load. (The `@storytree/drive/build-worker` SUBPATH imported statically at the top of this
+// file is a different, leaf-shaped entry and is safe.) This is the arc rollup's home: the derived
+// arc → children join the CLI's `arc show` renders, shared rather than re-implemented (ADR-0267).
+type DriveModule = typeof import('@storytree/drive');
+let driveModulePromise: Promise<DriveModule> | null = null;
+function loadDrive(): Promise<DriveModule> {
+  return (driveModulePromise ??= import('@storytree/drive'));
+}
+
 const isWorkStatus = (s: string): s is WorkStatus =>
   ['proposed', 'building', 'healthy', 'unhealthy', 'mapped', 'retired'].includes(s);
 
@@ -1578,6 +1589,55 @@ export async function handleActivity(
  * since the dock fetches it only while open, not on the world's poll cadence. Exported for the
  * integration test (the handleActivity pattern).
  */
+/**
+ * `GET /api/arcs` → `{ arcs: ArcRollup[] }` · `GET /api/arcs/<id>` → one `ArcRollup`.
+ *
+ * The studio's arc read (ADR-0267). Every value here comes from `deriveArcRollup` in
+ * `@storytree/drive` — the SAME join `storytree arc show` renders — so the map surface and the CLI
+ * can never disagree about what an arc contains. This handler adds routing, the method check, and
+ * the honest store-absent answer; it derives nothing of its own.
+ *
+ * Read-only by decision, not by omission: ADR-0267 D6 ships no write path this round ("no in-surface
+ * answering of questions, no comment affordance, no edit"), so a non-GET is refused rather than
+ * quietly ignored. Two-way is a named, deferred follow-on.
+ *
+ * Arcs and plans are LIVE-canonical (ADR-0023 / ADR-0183 D2), so a backend with no document store —
+ * the offline json one — genuinely has no arcs to serve. That returns `arcs: null` rather than an
+ * empty list, because "the store isn't here" and "there are no arcs" are different facts and a
+ * surface built to restore context must not blur them into a confident empty state.
+ */
+export async function handleArcs(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  ctx: { paths: Paths; backend: Pick<LibraryBackend, 'docStore'> },
+): Promise<void> {
+  if ((req.method ?? 'GET') !== 'GET') {
+    throw new HttpError(405, 'method not allowed — the arc surface is read-only this round (ADR-0267 D6)');
+  }
+  const store = await (ctx.backend.docStore?.() ?? Promise.resolve(null));
+  const rest = url.pathname.slice('/api/arcs'.length).replace(/^\//, '');
+  const id = rest === '' ? null : decodeURIComponent(rest);
+  if (store === null) {
+    if (id !== null) throw new HttpError(503, 'the arc view needs the live store — arcs are live-canonical (ADR-0183)');
+    sendJson(res, 200, { arcs: null });
+    return;
+  }
+  const { loadArcRollup, loadArcRollups } = await loadDrive();
+  const deps = {
+    store,
+    decisionsDir: path.join(ctx.paths.docsDir, 'decisions'),
+    storiesDir: ctx.paths.storiesDir,
+  };
+  if (id === null) {
+    sendJson(res, 200, { arcs: await loadArcRollups(deps) });
+    return;
+  }
+  const rollup = await loadArcRollup(deps, id);
+  if (rollup === null) throw new HttpError(404, `no arc "${id}"`);
+  sendJson(res, 200, rollup);
+}
+
 export async function handleClaims(
   req: IncomingMessage,
   res: ServerResponse,
@@ -2122,6 +2182,8 @@ export async function handleApiRequest(
       sendJsonValidated(req, res, 200, payload);
     } else if (url.pathname === '/api/activity') {
       await handleActivity(req, res, ctx.backend);
+    } else if (url.pathname === '/api/arcs' || url.pathname.startsWith('/api/arcs/')) {
+      await handleArcs(req, res, url, ctx);
     } else if (url.pathname === '/api/claims') {
       await handleClaims(req, res, ctx.backend);
     } else if (url.pathname === '/api/build') {

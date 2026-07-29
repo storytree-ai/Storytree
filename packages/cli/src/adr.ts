@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { parseAdrFrontmatter, type AdrMeta, type AdrStatus } from "@storytree/drive";
+import { extractAdrTitle, loadTitledAdrMetas, type AdrMeta, type AdrStatus } from "@storytree/drive";
 import type { Envelope } from "./envelope.js";
 
 /**
@@ -308,11 +308,10 @@ export interface AdrListFilter {
   status?: AdrStatus;
 }
 
-/** PURE: the text after `# ADR-NNNN:` (the decision's H1 title); "" when there is no such heading. */
-export function extractAdrTitle(content: string): string {
-  const m = /^#\s+ADR-\d{4}:\s*(.+?)\s*$/m.exec(content);
-  return m && m[1] !== undefined ? m[1] : "";
-}
+// The title extractor moved to `@storytree/drive` (next to `parseAdrFrontmatter`, its natural home)
+// when the arc rollup began needing ADR titles too — one implementation, re-exported here so this
+// module's existing importers and suite keep their path.
+export { extractAdrTitle };
 
 /**
  * PURE: filter + format the listing rows. Derived `superseded by` back-edges are computed from the
@@ -347,29 +346,19 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
   return rows;
 }
 
-/** Read + parse every `NNNN-*.md` in the decisions dir into a listing; parse failures are collected. */
+/**
+ * Read + parse every `NNNN-*.md` in the decisions dir into a listing; parse failures are collected.
+ *
+ * A thin RESHAPE over drive's {@link loadTitledAdrMetas} — the one fs scan of `docs/decisions`, which
+ * the arc rollup shares (`@storytree/drive`'s `arc-rollup.ts`). This view keeps its nested
+ * `{meta, title}` shape because {@link renderAdrList} is written against it.
+ */
 export function loadAdrListings(decisionsDir: string): {
   listings: AdrListing[];
   parseErrors: string[];
 } {
-  const listings: AdrListing[] = [];
-  const parseErrors: string[] = [];
-  let files: string[];
-  try {
-    files = readdirSync(decisionsDir).sort();
-  } catch {
-    return { listings, parseErrors };
-  }
-  for (const file of files) {
-    if (!/^\d{4}-.*\.md$/.test(file)) continue;
-    try {
-      const content = readFileSync(path.join(decisionsDir, file), "utf8");
-      listings.push({ meta: parseAdrFrontmatter(file, content), title: extractAdrTitle(content) || file });
-    } catch (err) {
-      parseErrors.push(err instanceof Error ? err.message : String(err));
-    }
-  }
-  return { listings, parseErrors };
+  const { adrs, parseErrors } = loadTitledAdrMetas(decisionsDir);
+  return { listings: adrs.map(({ title, ...meta }) => ({ meta, title })), parseErrors };
 }
 
 const STATUS_WORDS: ReadonlySet<string> = new Set(["proposed", "accepted", "superseded"]);
