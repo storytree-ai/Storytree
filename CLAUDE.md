@@ -24,7 +24,7 @@ artifact <term>`).
 world — and an `accepted` ADR can have a body that is partly overtaken while it stays green (the
 canonical trap: ADR-0011 §5 "DBOS/Postgres durable execution stands" is dead, overtaken by ADR-0019;
 **do not** revert wording toward "DBOS stands"). Don't hand-track this — **query the live decision
-log:** `storytree adr list --load-bearing` (★ the curated calibrate-to-these set, ADR-0086) and
+log:** `storytree adr list --load-bearing` (★ the curated calibrate-to-these set, ADR-0139) and
 `storytree adr list --current` (every accepted, non-superseded ADR, with its reversal edges printed
 inline). The list is derived from `docs/decisions/` on disk, so it can never drift; it is **no longer
 hand-maintained here**.
@@ -157,8 +157,15 @@ file conflicts).
   **BLOCKS on the first drifted artifact** (V=0 / D=0, `packages/cli/src/corpus-content-drain.ts`) —
   for every session, including one that touched no artifact. The remedy is one command, never a raised
   ceiling: `pnpm storytree library export-corpus --pg --write`, then commit the `knowledge.json` diff.
-  At a drained backlog that carries only the artifact you edited (the batch was 236 additions wide until
-  ADR-0263 narrowed the export scope to the durable tier; it is now ~14). **Scope matters here:** only
+  At a drained backlog the UPDATE half of that batch is just the artifact you edited (it was 236
+  additions wide until ADR-0263 narrowed the export scope to the durable tier). **A green
+  `check:corpus-content` does NOT mean `--write` is a no-op, so DRY-RUN FIRST** (`export-corpus --pg`,
+  no `--write`): the check iterates the SEED scope and skips any id live carries but the seed does not,
+  so a **live-only** artifact is invisible to it on both axes — while the export APPENDS every live-only
+  export-scope artifact. Measured 2026-07-30: the check printed `OK … across 177` and exited 0 while the
+  dry run reported one pending addition (`oq-diff-view-altitude` — an open-question the owner had
+  RETIRED under ADR-0267 D5, whose seed row main had already dropped). Blind-writing on a green check
+  would have resurrected it into the committed seed. **Scope matters here:** only
   `definition` / `principle` / `pattern` / `guardrail` / `techstack` / `process` / `open-question` /
   `proposal` are seed-scope (`SEED_SCOPE_KINDS`) — editing a `friction`, `arc`, `uat-criterion` or `plan`
   live is FREE and creates no drift. **Direction is NOT auto-inferred**: because `sync-corpus` is
@@ -327,25 +334,38 @@ foundation was ported *conceptually* from it (see `docs/research/agentic-foundat
 
 `docs/decisions/` is the append-only decision HISTORY. Every ADR carries **structured YAML
 frontmatter** (`status` proposed/accepted/superseded · `decided` · outgoing
-`supersedes`/`amends` edges · the `load_bearing` current-state tag; ADR-0037 / 0086;
+`supersedes`/`amends` edges · the `load_bearing` current-state tag; ADR-0037, and ADR-0086 as
+superseded history — **the live decision is [ADR-0139](docs/decisions/0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)**;
 `supersedes_in_part` was RETIRED by ADR-0139 — a partial redefinition/reversal is an `amends`
 edge, the schema rejects the old key on new ADRs) — CI validates it (`adr-health` in
-`@storytree/cli`).
+`@storytree/cli`). ADR-0139 also retires the `load_bearing` tag itself at the end of the
+consolidation pass (active ⟺ load-bearing); until then it remains the worklist marker the query below
+filters on.
 
-**The current-state / load-bearing set is a CLI query, not a list hand-kept here (ADR-0086):**
-`storytree adr list --load-bearing` (★ the curated calibrate-to-these set) · `--current` (every
-accepted, non-superseded ADR + edges) · `--status <s>`. It reads `docs/decisions/` on disk — offline,
-no DB — so it can never drift from the files. When you land or overtake a decision, **spawn the
-`librarian-curator`** to keep status / edges / the `load_bearing` set honest.
+**The current-state / load-bearing set is a CLI query, not a list hand-kept here (ADR-0139, restating
+ADR-0086 §A):** `storytree adr list --load-bearing` (★ the curated calibrate-to-these set) ·
+`--current` (every accepted, non-superseded ADR + edges) · `--status <s>`. It reads `docs/decisions/`
+on disk — offline, no DB — so it can never drift from the files. When you land or overtake a decision,
+**spawn the `librarian-curator`** to keep status / edges / the `load_bearing` set honest.
 
 **Status is a projection of the `## Status` prose, never an invented flip.** An agent MAY flip an ADR
 `proposed → accepted` (the green flip) once the decision is made and the prose supports it (ADR-0084);
-the **`librarian-curator` MAY also flip an ADR to `superseded`** as curation (ADR-0086 — record the
-`supersedes` edge on the superseding ADR, or the gate goes red). Still HUMAN-only: `accepted →
-proposed` (un-deciding). **Modifying a decided ADR is copy-on-write** — a substantive re-decision is a
-NEW ADR (allocated below) that supersedes the old, the old body kept as superseded history, never an
-in-place body edit (ADR-0086); status flips, edge fixes, typos, and the `load_bearing` tag stay
-in-place.
+the **`librarian-curator` MAY also flip an ADR to `superseded`** as curation (ADR-0139 §C, restating
+ADR-0086 — record the `supersedes` edge on the superseding ADR, or the gate goes red). Still
+HUMAN-only: `accepted → proposed` (un-deciding).
+
+**Every `accepted` ADR must be TRUE IN FULL, and the operation is chosen by INTENT (ADR-0139, which
+supersedes ADR-0086's copy-on-write line).** When a claim in a decided ADR is overtaken, ask *did the
+DECISION change?*
+- **No → CORRECT IN PLACE.** Edit the body to remove or fix the overtaken prose. This is the mandated
+  move, not a violation: git is the archive (`git log -p` / `-S` recovers the prior text), so no new
+  ADR and no superseded shell is left behind. An accepted ADR is **not** allowed to sit green carrying
+  dead prose.
+- **Yes → SUPERSEDE-AND-REPLACE.** A genuine re-decision is a NEW ADR (allocated below) that
+  `supersedes` the old; the old flips to `superseded` and is KEPT as a browsable file.
+
+Status flips, edge fixes, typos, and the `load_bearing` tag also stay in-place. When in doubt, treat
+it as a re-decision (copy-on-write) or surface it — never silently rewrite what was decided.
 
 **New ADR? Don't hand-pick the number — allocate it: `pnpm storytree adr new --title "..." --pg`**
 (ADR-0050; `pnpm db:up` first). It reserves the next number ATOMICALLY from the store and scaffolds
