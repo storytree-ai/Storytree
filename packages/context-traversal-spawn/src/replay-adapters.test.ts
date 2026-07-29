@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { appendTraversalEvents, OFFER_CANDIDATE_SET_COVERAGE } from "@storytree/context-traversal-capture";
+import { appendTraversalEvents, FOLLOW_OFFER_EDGE_COVERAGE } from "@storytree/context-traversal-capture";
 import { CoverageFeature } from "@storytree/context-traversal-telemetry";
 import type { CoverageFeature as CoverageFeatureValue } from "@storytree/context-traversal-telemetry";
 
@@ -111,7 +111,7 @@ test("every-rendered-event-kind-is-supported-by-a-declared-adapter: every render
     assert.equal(result.ok, true);
 
     const unionSupported = new Set<string>([
-      ...OFFER_CANDIDATE_SET_COVERAGE.supported,
+      ...FOLLOW_OFFER_EDGE_COVERAGE.supported,
       ...BUILD_SPAWN_BOUNDARY_COVERAGE.supported,
     ]);
 
@@ -150,14 +150,24 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
     // trace visibly carried (ADR-0235 clause 6). Found by walking the real CLI, not by any test.
     const renderedTerminal = result.body
       .split("\n")
-      .find((line) => line.includes(`coverage: adapter=${OFFER_CANDIDATE_SET_COVERAGE.adapterId}`));
+      .find((line) => line.includes(`coverage: adapter=${FOLLOW_OFFER_EDGE_COVERAGE.adapterId}`));
     assert.ok(renderedTerminal !== undefined, "the terminal coverage line must render");
     const [renderedSupported, renderedOmitted] = renderedTerminal.split(" omitted=");
     // The pin tracks the OUTERMOST composed constant, and grows with it: each composition layer adds
     // a field the wired terminal really emits, and every one of them must render as supported and
     // NOT as omitted. Naming them individually (rather than looping the constant) keeps the pin
     // falsifiable against a render that silently drops back to an inner layer.
-    for (const field of ["field:prior_visit_id", "field:parent_visit_id", "event:candidate_set"]) {
+    for (const field of [
+      "field:prior_visit_id",
+      "field:parent_visit_id",
+      "event:candidate_set",
+      // ADR-0260 D3's producer: an offer-carrying read declares the edge it answered, so the edge
+      // event and the causality field arrive TOGETHER. They moved off the omitted pin below in the
+      // same commit that wired the producer — the inverse dishonesty is claiming a producer exists
+      // OR denying one that does, and only walking the real binary distinguishes the two.
+      "event:followed_edge",
+      "field:candidate_follow_causality",
+    ]) {
       assert.ok(
         renderedSupported?.includes(field),
         `the wired terminal adapter emits ${field}, so its rendered declaration must SUPPORT it`,
@@ -168,30 +178,32 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
       );
     }
     // The inverse dishonesty is pinned too: what this adapter genuinely CANNOT see must stay denied.
-    // `followed_edge` has no producer until ADR-0260 D3, so a declaration claiming it would be as
-    // wrong as one denying `event:candidate_set` above — and a pin that only checked the supported
-    // side would miss it.
-    for (const unobserved of ["event:followed_edge", "field:candidate_follow_causality"]) {
+    // No CLI boundary observes a model's own context window or a child's, so a declaration claiming
+    // either would be as wrong as one denying `event:followed_edge` above — and a pin that only
+    // checked the supported side would miss it.
+    for (const unobserved of ["field:resident_input_tokens", "field:child_context_window"]) {
       assert.ok(
         renderedOmitted?.includes(unobserved),
-        `${unobserved} has no producer, so the declaration must still OMIT it`,
+        `${unobserved} has no producer at this boundary, so the declaration must still OMIT it`,
       );
       assert.ok(
         !renderedSupported?.includes(unobserved),
-        `${unobserved} must not render as supported — nothing emits it yet`,
+        `${unobserved} must not render as supported — nothing at this adapter emits it`,
       );
     }
 
-    // ADR-0260 D7: the two declared gaps ride with the declaration in this render too, since this is
-    // the one the CLI actually calls.
+    // ADR-0260 D7: every declared gap rides with the declaration in this render too, since this is
+    // the one the CLI actually calls. The command-form gap keeps its stable id while its NOTE got
+    // sharper (a bare command now loses an edge outright), and D4's asymmetry joined it.
     for (const caveatId of [
       "doc-refs-are-offered-but-follows-are-unobservable",
       "follow-completeness-depends-on-the-offered-command-form",
+      "an-unanswered-visit-and-a-bypassed-mechanism-are-indistinguishable",
     ]) {
       assert.ok(result.body.includes(caveatId), `the declaration must surface caveat ${caveatId}`);
     }
 
-    const terminalLine = `coverage: adapter=${OFFER_CANDIDATE_SET_COVERAGE.adapterId} supported=[${OFFER_CANDIDATE_SET_COVERAGE.supported.join(", ")}] omitted=[${OFFER_CANDIDATE_SET_COVERAGE.omitted.join(", ")}]`;
+    const terminalLine = `coverage: adapter=${FOLLOW_OFFER_EDGE_COVERAGE.adapterId} supported=[${FOLLOW_OFFER_EDGE_COVERAGE.supported.join(", ")}] omitted=[${FOLLOW_OFFER_EDGE_COVERAGE.omitted.join(", ")}]`;
     const buildLine = `coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId} supported=[${BUILD_SPAWN_BOUNDARY_COVERAGE.supported.join(", ")}] omitted=[${BUILD_SPAWN_BOUNDARY_COVERAGE.omitted.join(", ")}]`;
 
     assert.ok(
@@ -206,7 +218,7 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
     // Both declarations carry a non-empty omitted side in the real vocabulary — a render that
     // dropped the omitted half of either would still pass a naive "adapter=... appears" check but
     // fail these.
-    assert.ok(OFFER_CANDIDATE_SET_COVERAGE.omitted.length > 0);
+    assert.ok(FOLLOW_OFFER_EDGE_COVERAGE.omitted.length > 0);
     assert.ok(BUILD_SPAWN_BOUNDARY_COVERAGE.omitted.length > 0);
   } finally {
     removeTempDir(dir);
@@ -303,7 +315,7 @@ test("a session with no captured file at all replays empty, with no coverage-blo
 
     assert.equal(result.ok, true);
     assert.ok(result.body.includes("(no events observed)"));
-    assert.ok(result.body.includes(`coverage: adapter=${OFFER_CANDIDATE_SET_COVERAGE.adapterId}`));
+    assert.ok(result.body.includes(`coverage: adapter=${FOLLOW_OFFER_EDGE_COVERAGE.adapterId}`));
     assert.ok(result.body.includes(`coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId}`));
   } finally {
     removeTempDir(dir);
