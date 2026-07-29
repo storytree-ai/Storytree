@@ -107,9 +107,9 @@ ADR-0126 / ADR-0020).
   extractor (`extractVouchingTestNames`) the GATE-time seam reuses, so the axis is hollow-aware.
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) §4 — the signed-verdict honesty floor
   this records onto, unchanged.
-- [ADR-0068](0068-dissolve-the-core-god-package-into-organisms.md) §3 — the published verdict SHAPE
+- [ADR-0068](0068-make-the-organism-model-physical-real-story-isolation-and-th.md) §3 — the published verdict SHAPE
   (`@storytree/proof-protocol`) this additively extends.
-- [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification-record-t.md) — the owner's
+- [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — the owner's
   design-time direction is the ratification (born accepted).
 - Code: `packages/proof-protocol/src/proof.ts` (`ContractCoverageAxis` + `Verdict.contractCoverage`),
   `packages/orchestrator/src/prove-it-gate.ts` (the GATE-time seam + stamp),

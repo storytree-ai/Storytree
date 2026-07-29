@@ -126,7 +126,7 @@ inner-loop expansion.
 
 - [ADR-0069](0069-parameterise-the-forest-world-geometry-as-a-procedural-pipel.md) — the procedural
   geometry authoring model `frontend-builder` follows (this ADR's sibling: role + proof vs. authoring).
-- [ADR-0007](0007-proof-modes-and-the-evidence-chain.md) — `operator-attested`, the fourth proof mode
+- [ADR-0007](0007-proof-model.md) — `operator-attested`, the fourth proof mode
   the Stage-2 visual verdict uses.
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) — the prove-it-gate / spine-observes-red-green
   that Stage 1 reuses and the visual-attestation phase (Gap A) extends.

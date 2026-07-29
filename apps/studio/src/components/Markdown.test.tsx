@@ -8,7 +8,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 
-vi.mock('../lib/appData', () => ({ useAppData: () => ({ docIds: new Set<string>() }) }));
+const appData = vi.hoisted(() => ({
+  docIds: new Set<string>(),
+  docsStatus: 'ready' as 'loading' | 'ready' | 'error',
+  docsError: '',
+}));
+vi.mock('../lib/appData', () => ({ useAppData: () => appData }));
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -22,7 +27,12 @@ beforeEach(() => {
   mermaidMock.initialize.mockClear();
   mermaidMock.render.mockClear();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  appData.docIds = new Set<string>();
+  appData.docsStatus = 'ready';
+  appData.docsError = '';
+});
 
 describe('Markdown — mermaid rendering', () => {
   it('renders a ```mermaid fence as an inline SVG, not a code listing', async () => {
@@ -54,5 +64,60 @@ describe('Markdown — mermaid rendering', () => {
     await waitFor(() => expect(container.querySelector('.mermaid-diagram svg')).toBeTruthy());
     expect(screen.getByText('Before.')).toBeTruthy();
     expect(screen.getByText('After.')).toBeTruthy();
+  });
+});
+
+// An in-corpus link resolves against the doc INDEX. When the index hasn't loaded, an unresolved
+// link is not "a link the author pointed outside the corpus" — but it used to render identically
+// to one, which is the silent half of a failed /api/docs.
+describe('Markdown — in-corpus links against an unresolved doc index', () => {
+  it('links normally when the index is resolved and holds the target', () => {
+    appData.docIds = new Set(['decisions/0240-map.md']);
+    const { container } = render(
+      <Markdown baseDocId="decisions/0139-x.md">{'See [0240](0240-map.md).'}</Markdown>,
+    );
+
+    const link = screen.getByText('0240').closest('a');
+    expect(link?.getAttribute('href')).toBe('#/doc/decisions%2F0240-map.md');
+    expect(container.querySelector('.doc-unresolved')).toBeNull();
+  });
+
+  it('leaves an unresolved link unmarked when the index IS resolved — genuinely not in the corpus', () => {
+    const { container } = render(<Markdown>{'See [elsewhere](../outside/thing.md).'}</Markdown>);
+
+    expect(screen.getByText('elsewhere').closest('a')).toBeTruthy();
+    expect(container.querySelector('.doc-unresolved')).toBeNull();
+  });
+
+  it('marks an unresolved in-corpus link while the index is still loading', () => {
+    appData.docsStatus = 'loading';
+    const { container } = render(<Markdown>{'See [that doc](other.md).'}</Markdown>);
+
+    const marked = container.querySelector('.doc-unresolved');
+    expect(marked).toBeTruthy();
+    expect(marked?.getAttribute('data-docs-status')).toBe('loading');
+    expect(marked?.getAttribute('title')).toContain('the document index is still loading');
+  });
+
+  it('marks an unresolved in-corpus link when the index failed, and names the failure', () => {
+    appData.docsStatus = 'error';
+    appData.docsError = 'HTTP 500';
+    const { container } = render(<Markdown>{'See [that doc](other.md).'}</Markdown>);
+
+    const marked = container.querySelector('.doc-unresolved');
+    expect(marked?.getAttribute('data-docs-status')).toBe('error');
+    expect(marked?.getAttribute('title')).toContain('the document index failed to load');
+    expect(marked?.getAttribute('title')).toContain('HTTP 500');
+  });
+
+  it('never marks an external link or a page anchor — neither resolves against the index', () => {
+    appData.docsStatus = 'error';
+    const { container } = render(
+      <Markdown>{'[out](https://example.com) and [here](#a-heading).'}</Markdown>,
+    );
+
+    expect(container.querySelector('.doc-unresolved')).toBeNull();
+    expect(screen.getByText('out').closest('a')?.getAttribute('target')).toBe('_blank');
+    expect(screen.getByText('here').closest('a')?.getAttribute('href')).toBe('#a-heading');
   });
 });

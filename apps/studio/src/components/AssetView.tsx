@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { groupSources } from '@storytree/library/sources';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
+import { unresolvedDocReason } from '../lib/docsIndex';
 import { formatDateTime } from '../lib/format';
 import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
 import { assetEditHref, assetHref, docHref, libraryHref, navigate } from '../lib/route';
@@ -128,14 +129,26 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
 }
 
 function RefLink({ refStr }: { refStr: string }): React.JSX.Element {
-  const { docIds, docTitles, assets } = useAppData();
+  const { docIds, docTitles, docsStatus, docsError, assets } = useAppData();
   if (refStr.startsWith('doc:')) {
     const docId = refStr.slice('doc:'.length);
-    return docIds.has(docId) ? (
-      <a href={docHref(docId)}>{docTitles.get(docId) ?? docId}</a>
-    ) : (
-      <span className="muted">{refStr} (unknown doc)</span>
-    );
+    if (docIds.has(docId)) return <a href={docHref(docId)}>{docTitles.get(docId) ?? docId}</a>;
+    // "(unknown doc)" is an assertion about the corpus, and the doc INDEX is what backs it — so it
+    // holds only once `/api/docs` has resolved. While the index is pending or failed, this
+    // reference is unresolved, not unknown (lib/docsIndex.ts).
+    const unresolvedReason = unresolvedDocReason(docsStatus);
+    if (unresolvedReason) {
+      return (
+        <span
+          className="muted doc-unresolved"
+          data-docs-status={docsStatus}
+          {...(docsError ? { title: docsError } : {})}
+        >
+          {refStr} (unresolved — {unresolvedReason})
+        </span>
+      );
+    }
+    return <span className="muted">{refStr} (unknown doc)</span>;
   }
   if (refStr.startsWith('asset:')) {
     const assetId = refStr.slice('asset:'.length);

@@ -28,6 +28,13 @@ export function thisWorktreeRoot(): string;
 export function needsProvision(root: string): boolean;
 
 /**
+ * The two lockfiles `lockfileAdvanced` compares: `wanted` is the tracked `pnpm-lock.yaml`, `current`
+ * is pnpm's `node_modules/.pnpm/lock.yaml` copy of the lockfile the last completed install ran
+ * against. Exported so a second reader asks about the same files rather than re-deriving the paths.
+ */
+export function lockfilePair(root: string): { wanted: string; current: string };
+
+/**
  * True when `root`'s `pnpm-lock.yaml` differs from `node_modules/.pnpm/lock.yaml` — pnpm's copy of the
  * lockfile the last completed install ran against — i.e. the lockfile advanced under a provisioned
  * worktree. Fails OPEN (false) when either file is missing or unreadable.

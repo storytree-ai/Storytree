@@ -20,7 +20,7 @@ other kind stays live-canonical, so ADR-0023 stands.
 [ADR-0017](0017-cross-cutting-knowledge-tier.md) / [ADR-0023](0023-library-cli-choose-your-own-adventure.md)
 made the shared Cloud SQL store the source of truth for artifact **state**, edited live via
 `storytree library artifact edit … --pg`. The **agent tier is different**:
-[ADR-0051](0051-agent-renderer-shapes-claude-md.md) and
+[ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) and
 [ADR-0052](0052-render-delegatable-agents-to-claude-agents-subagent-files.md) made agents an
 **authored-in-the-seed, rendered-offline** asset — `storytree agents <name>`, the generated CLAUDE.md
 operating-discipline region, and the `.claude/agents/*.md` subagent files all assemble from the seed
@@ -110,7 +110,7 @@ live agent tier equal the seed on demand.
 - [ADR-0023](0023-library-cli-choose-your-own-adventure.md) — the Library CLI / live-store-is-the-edit-surface
   stance (amended here for the agent kind).
 - [ADR-0017](0017-cross-cutting-knowledge-tier.md) — the live Library tier as the source of artifact state.
-- [ADR-0051](0051-agent-renderer-shapes-claude-md.md) / [ADR-0052](0052-render-delegatable-agents-to-claude-agents-subagent-files.md)
+- [ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) / [ADR-0052](0052-render-delegatable-agents-to-claude-agents-subagent-files.md)
   — agents authored in the seed and rendered offline (why the tier is seed-canonical).
 - [ADR-0053](0053-cli-builds-its-guidance-prose-from-the-library.md) — flagged the seed↔live agent-tier
   reconciliation as owner-held; this ADR closes it.

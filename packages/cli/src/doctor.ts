@@ -2,12 +2,19 @@
  * `storytree doctor` — the explorer-onboarding setup checker (ADR-0207 D6, the bottom layer).
  *
  * A deterministic, READ-ONLY, OFFLINE-CAPABLE CLI that probes each setup invariant a fresh explorer
- * environment must satisfy — git/Node present, the checkout provisioned, the repo fetchable, the seed
- * readable, the Claude CLI present + logged in, the checkout current, the D4 hosted live read
- * reachable — and emits machine-readable
+ * environment must satisfy — git/Node present, the checkout provisioned, its dependencies current, the
+ * repo fetchable, the seed readable, the Claude CLI present + logged in, the checkout current, the D4
+ * hosted live read reachable — and emits machine-readable
  * results plus a fix hint per failing probe. It is the keystone of D6: D1's installer VERIFIES with it,
  * and D6's conversational guide WRAPS it (run doctor → explain a failure → propose the fix → dev
  * confirms → re-run the idempotent installer step → re-doctor).
+ *
+ * A probe asserts EXACTLY what it observed, never a stronger-sounding neighbour. `checkout-provisioned`
+ * and `dependencies-current` are split for this reason: the first sees a completed install, the second
+ * sees WHICH lockfile it ran against, and a report that answered the second with the first would tell a
+ * dev "dependencies are installed" when the wrong ones are — in precisely the situation doctor is run
+ * to disambiguate. Whenever a probe cannot support a claim, the honest answer is a narrower detail or
+ * a WARN, never a PASS that reads better.
  *
  * Two load-bearing invariants from ADR-0207 live here:
  *   • D6 REPAIR-VOCABULARY: a fixable probe's fix is NOT new machinery — it is an idempotent D1
@@ -40,6 +47,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { lockfileAdvanced, lockfilePair } from "../provision-worktree.mjs";
 import type { Envelope } from "./envelope.js";
 
 /** The Node major-version floor the workspace engine requires (mirrors install.ps1 Test-Node24). */
@@ -86,6 +94,8 @@ export interface DoctorObservations {
   readonly nodeMajor: number | null;
   /** The checkout is provisioned: `node_modules/.modules.yaml` exists (the pnpm-complete marker). */
   readonly provisioned: boolean;
+  /** Whether the installed dependencies are the ones the checked-out lockfile asks for. */
+  readonly dependencyCurrency: DependencyCurrency;
   /** The read-only remote answers (`git ls-remote`): true reachable, false refused, null undetermined (offline). */
   readonly remoteReachable: boolean | null;
   /** The offline seed corpus (`apps/studio/data/knowledge.json`) reads and parses. */
@@ -111,6 +121,20 @@ export interface DoctorObservations {
 
 /** The four distinguishable outcomes of the D4 hosted-live-read probe. */
 export type HostedReadState = "ok" | "refused" | "unconfigured" | "unreachable";
+
+/**
+ * Whether `node_modules` holds the dependencies the CHECKED-OUT lockfile asks for — the question
+ * `provisioned` (an install COMPLETED here, once) cannot answer. Three states, not a boolean, because
+ * the undeterminable case must not collapse into either verdict:
+ *   • `current` — an install completed AND it ran against the lockfile now checked out.
+ *   • `stale`   — an install completed, but the lockfile has ADVANCED past it (a package or dependency
+ *                 landed on `main` and was merged in since). The deps present are the wrong ones.
+ *   • `unknown` — there is no comparable pair: the checkout is unprovisioned, or a lockfile is missing
+ *                 or unreadable. Reporting this as `current` would be the very over-claim this probe
+ *                 exists to remove — `lockfileAdvanced` FAILS OPEN (`false`) on exactly these shapes,
+ *                 which is right for the hook's question ("should I reinstall?") and wrong for ours.
+ */
+export type DependencyCurrency = "current" | "stale" | "unknown";
 
 /**
  * The `hosted-read` probe's detail for the CONCRETE refusal — the one hosted-read state that is
@@ -163,9 +187,12 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
   }
 
   // 3. checkout-provisioned — pnpm install completed (node_modules/.modules.yaml). Installer @step:provision.
+  // The PASS detail states PRESENCE and nothing more: this probe observes only that an install once
+  // COMPLETED here, which is the right question for the installer's fresh-clone flow but says nothing
+  // about WHICH lockfile it ran against. Whether those deps are the ones now wanted is probe 4's.
   probes.push(
     obs.provisioned
-      ? { name: "checkout-provisioned", level: "PASS", detail: "workspace dependencies are installed" }
+      ? { name: "checkout-provisioned", level: "PASS", detail: "a completed pnpm install is present (node_modules/.modules.yaml)" }
       : {
           name: "checkout-provisioned",
           level: "FAIL",
@@ -175,7 +202,49 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
         },
   );
 
-  // 4. repo-fetchable — the read-only remote answers. Undetermined offline => WARN (offline-capable).
+  // 4. dependencies-current — the installed deps are the ones the CHECKED-OUT lockfile asks for.
+  // Deliberately a SECOND probe rather than a widening of probe 3: presence and currency are different
+  // questions with different remedies, and probe 3's is exactly right for the fresh-clone flow it was
+  // built for (a clone the installer just provisioned is current by construction, so this PASSes there).
+  //
+  // The gap it closes is the one doctor exists for. When a new workspace package or dependency lands on
+  // `main` and a session merges it in, node_modules is silently the wrong one — and the failure surfaces
+  // as `TS2307` on a package this session never touched, `ERR_MODULE_NOT_FOUND`, or `tsc is not
+  // recognized`, none of which name the real cause. The SessionStart provision hook auto-refreshes this
+  // at session START only, so a merge performed MID-session is invisible to it; `pnpm install` then
+  // reassures wrongly ("Already up to date" is about resolution, not linking). Running doctor and being
+  // told "dependencies are installed" was, until this probe, the last place that trail went cold.
+  //
+  // WARN, never FAIL: stale deps are a refresh, not a broken install (the `checkout-current` freshness
+  // precedent), so this can never fail a fresh clone or a healthy explorer. And NO fixStep — re-running
+  // @step:provision would NOT repair it, because install.ps1's own `Test-Provisioned` is presence-based
+  // and would report "already satisfied" without installing. Naming it as the fix would be a false entry
+  // in the D6 repair vocabulary, so the fix is a direct instruction (the claude-login precedent).
+  if (obs.dependencyCurrency === "current") {
+    probes.push({
+      name: "dependencies-current",
+      level: "PASS",
+      detail: "installed dependencies match the checked-out pnpm-lock.yaml",
+    });
+  } else if (obs.dependencyCurrency === "stale") {
+    probes.push({
+      name: "dependencies-current",
+      level: "WARN",
+      detail: "node_modules was installed against an OLDER pnpm-lock.yaml than the one checked out",
+      fixHint:
+        "run `pnpm install` in the checkout to relink against the current lockfile — it is idempotent and fast from the warm pnpm store. Until then a build can fail as TS2307 / ERR_MODULE_NOT_FOUND naming a package you never touched.",
+    });
+  } else {
+    probes.push({
+      name: "dependencies-current",
+      level: "WARN",
+      detail: "dependency currency not determined (no lockfile pair to compare)",
+      fixHint:
+        "provision the checkout first (`pnpm install`); currency is only comparable once an install has completed and pnpm has recorded the lockfile it ran against.",
+    });
+  }
+
+  // 5. repo-fetchable — the read-only remote answers. Undetermined offline => WARN (offline-capable).
   if (obs.remoteReachable === true) {
     probes.push({ name: "repo-fetchable", level: "PASS", detail: "the read-only remote is reachable" });
   } else if (obs.remoteReachable === false) {
@@ -196,7 +265,7 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
     });
   }
 
-  // 5. seed-readable — the offline corpus parses (the zero-credential read path). Fix: re-provision/clone.
+  // 6. seed-readable — the offline corpus parses (the zero-credential read path). Fix: re-provision/clone.
   probes.push(
     obs.seedReadable
       ? { name: "seed-readable", level: "PASS", detail: "the offline seed corpus reads and parses" }
@@ -209,7 +278,7 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
         },
   );
 
-  // 6. claude-cli — the dev's own agent CLI is installed. Installer @step:claude-cli.
+  // 7. claude-cli — the dev's own agent CLI is installed. Installer @step:claude-cli.
   probes.push(
     obs.claudeCliPresent
       ? { name: "claude-cli", level: "PASS", detail: "the Claude Code CLI is installed" }
@@ -222,7 +291,7 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
         },
   );
 
-  // 7. claude-login — a logged-in CLI is DETECTED (existence only, D3). The fix is a DEV ACTION, never
+  // 8. claude-login — a logged-in CLI is DETECTED (existence only, D3). The fix is a DEV ACTION, never
   // an installer step storytree runs: no fixStep (storytree instructs; it never executes-and-captures).
   probes.push(
     obs.claudeLoggedIn
@@ -236,7 +305,7 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
         },
   );
 
-  // 8. checkout-current — HEAD vs origin/main freshness. Undetermined offline => WARN; behind => WARN
+  // 9. checkout-current — HEAD vs origin/main freshness. Undetermined offline => WARN; behind => WARN
   // (a freshness pull, not a broken invariant). Pre-D5 the app runs from the checkout, so "app version
   // vs checkout HEAD" reduces to "is the checkout up to date"; the packaged-binary comparison lands with D5.
   if (obs.checkoutBehind === null) {
@@ -257,7 +326,7 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
     probes.push({ name: "checkout-current", level: "PASS", detail: "checkout is up to date with origin/main" });
   }
 
-  // 9. hosted-read — the D4 live read through the IAP-gated hosted studio. NEVER a FAIL: D4 makes the
+  // 10. hosted-read — the D4 live read through the IAP-gated hosted studio. NEVER a FAIL: D4 makes the
   // offline checkout + in-memory seed the zero-credential FALLBACK, so an unreachable hosted read
   // DEGRADES exploring rather than breaking it (and doctor itself must stay offline-capable). Only the
   // concrete `refused` is owner-escalatable — the same "can't conclude access is gone offline" rule
@@ -368,6 +437,29 @@ function checkoutBehind(checkoutDir: string): number | null {
   }
 }
 
+/**
+ * Are the installed dependencies the ones the checked-out lockfile asks for? Reuses the SessionStart
+ * provisioner's detector ({@link lockfileAdvanced}) rather than a second implementation of staleness,
+ * so the hook and the doctor can never disagree about what "stale" means.
+ *
+ * The presence screen in front of it is load-bearing, not defensive duplication. `lockfileAdvanced`
+ * FAILS OPEN — an unprovisioned checkout, or one missing either lockfile, returns `false` — which is
+ * correct for the hook (never reinstall on a guess) and would be a lie here: it reads as "current"
+ * for a checkout that has no dependencies at all. Screening those shapes into `unknown` first is what
+ * keeps this probe from reproducing the very over-claim it exists to remove. The paths come from
+ * {@link lockfilePair} so both readers name the same two files. Never throws.
+ *
+ * EXPORTED, unlike its sibling observation gatherers, for the same reason {@link
+ * classifyHostedReadStatus} is: the screen is policy, not plumbing, and `lockfileAdvanced` is
+ * deliberately not injectable — so the only honest proof runs it against real lockfile pairs on disk.
+ */
+export function dependencyCurrency(checkoutDir: string, provisioned: boolean): DependencyCurrency {
+  if (!provisioned) return "unknown";
+  const { wanted, current } = lockfilePair(checkoutDir);
+  if (!existsSync(wanted) || !existsSync(current)) return "unknown";
+  return lockfileAdvanced(checkoutDir) ? "stale" : "current";
+}
+
 /** The seed corpus reads and parses (a real array). Never throws. */
 function seedReadable(checkoutDir: string): boolean {
   try {
@@ -432,10 +524,12 @@ export async function gatherObservations(checkoutDir: string): Promise<DoctorObs
 
 /** The synchronous, purely-local half of the sweep (everything but the D4 network probe). */
 function gatherLocalObservations(checkoutDir: string): Omit<DoctorObservations, "hostedRead"> {
+  const provisioned = existsSync(path.join(checkoutDir, "node_modules", ".modules.yaml"));
   return {
     gitPresent: commandPresent("git"),
     nodeMajor: nodeMajor(),
-    provisioned: existsSync(path.join(checkoutDir, "node_modules", ".modules.yaml")),
+    provisioned,
+    dependencyCurrency: dependencyCurrency(checkoutDir, provisioned),
     remoteReachable: remoteReachable(checkoutDir),
     seedReadable: seedReadable(checkoutDir),
     claudeCliPresent: commandPresent("claude"),
@@ -452,8 +546,8 @@ export function doctorHelp(): Envelope {
       "storytree doctor — the explorer-onboarding setup check (ADR-0207 D6).",
       "",
       "  storytree doctor",
-      "      probe each setup invariant (git/Node, checkout provisioned, repo fetchable, seed",
-      "      readable, Claude CLI present + logged in, checkout current) and print a fix hint per",
+      "      probe each setup invariant (git/Node, checkout provisioned, dependencies current, repo",
+      "      fetchable, seed readable, Claude CLI present + logged in, checkout current) and print a fix hint per",
       "      failure. Read-only and offline-capable — it never writes, and never handles your",
       "      Claude credential (it only detects a logged-in CLI). Exits non-zero on any failure.",
     ].join("\n"),

@@ -14,7 +14,7 @@ so you get it with every session."* This builds the agent↔runtime binding **[A
 deliberately deferred** ("a later build may have `storytree agents <name>` read its role's `agent`
 unit… that binding is ADR-0011 territory and out of scope here") — so it **amends ADR-0029**. It
 applies [ADR-0030](0030-all-in-on-claude-agent-sdk.md) (pull-based, harness-agnostic context),
-[ADR-0023](0023-agent-library-cli.md) (the CLI is the context surface), and
+[ADR-0023](0023-library-cli-choose-your-own-adventure.md) (the CLI is the context surface), and
 [ADR-0034](0034-process-artifacts-ways-of-working.md) (the ceremonies an agent points at).
 
 **Update 2026-06-14 — Decision 4 (the SDK-leaf binding) is now BUILT.** The renderer + CLAUDE.md slice
@@ -128,7 +128,7 @@ the one thing that escaped it. The fix is to make every runtime surface a **gene
   (§7); this builds the binding it deferred.
 - [ADR-0034](0034-process-artifacts-ways-of-working.md) — the `process` ceremonies the orchestrator points at.
 - [ADR-0022](0022-ci-green-gate-and-auto-merge.md) — auto-merge-on-green (the rule the slip missed).
-- [ADR-0030](0030-all-in-on-claude-agent-sdk.md) / [ADR-0023](0023-agent-library-cli.md) — the leaf
+- [ADR-0030](0030-all-in-on-claude-agent-sdk.md) / [ADR-0023](0023-library-cli-choose-your-own-adventure.md) — the leaf
   runtime and the pull-based context surface.
 - `packages/cli/src/commands.ts` (the `agents` stub), `packages/core/src/knowledge.ts` (the `agent`
   KIND_SPEC), `apps/studio/data/build-corpus.mjs` (the generated-view pattern), `CLAUDE.md`.
