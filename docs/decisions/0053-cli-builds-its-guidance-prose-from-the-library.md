@@ -12,7 +12,7 @@ where possible, injected on demand like a choose-your-own-adventure story"* — 
 instruction we carry, the less reliably sessions follow it. This generalises
 [ADR-0023](0023-library-cli-choose-your-own-adventure.md) from *"the Library commands pull from the
 Library"* to *"**all** CLI guidance prose is library-sourced and pulled on demand"*, and reuses the
-render-from-the-library mechanism [ADR-0051](0051-agent-renderer-shapes-claude-md.md) built for agent
+render-from-the-library mechanism [ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) built for agent
 prompts.
 
 **Amends** [ADR-0023](0023-library-cli-choose-your-own-adventure.md) — extends its choose-your-own-
@@ -37,7 +37,7 @@ stale copies, and no consumer knows which copy is canonical. Two more forces:
   observation: the more fixed prose we push at a session up front, the less of it actually shapes
   behaviour ([`pull-based-context-architecture`](0011-own-the-agent-loop-and-context-engineering.md)).
   Guidance the agent *pulls* at the step that needs it lands; guidance dumped in a help string does not.
-- **[ADR-0051](0051-agent-renderer-shapes-claude-md.md) already proved the mechanism.** The agent
+- **[ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) already proved the mechanism.** The agent
   renderer assembles an agent's system prompt by INJECTING the content its library refs point at, and
   CLAUDE.md's operating-discipline region is a *generated view* of a library artifact. The same
   render-from-the-library primitive (`renderStoredDoc`) should source the CLI's doctrine prose.
@@ -117,7 +117,7 @@ Inventory of hard-coded prose in `packages/cli/src/` against the Library:
 - [ADR-0023](0023-library-cli-choose-your-own-adventure.md) — the Library CLI as a choose-your-own-
   adventure, just-in-time interface (amended here).
 - [ADR-0029](0029-agents-as-library-artifact-category.md) §7 — reference-don't-restate.
-- [ADR-0051](0051-agent-renderer-shapes-claude-md.md) — the agent renderer; render-from-the-library
+- [ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) — the agent renderer; render-from-the-library
   for prompts (the precedent generalised here).
 - [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md) — pull-based, just-in-time context.
 - [ADR-0017](0017-cross-cutting-knowledge-tier.md) — the Library tier as the durable DRY layer.

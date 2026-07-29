@@ -34,6 +34,11 @@ const appData: AppData = {
   docs: [],
   docIds: new Set(['decisions/0107-oq-gate.md']),
   docTitles: new Map([['decisions/0107-oq-gate.md', 'ADR-0107']]),
+  // `docsStatus: 'ready'` matters: a doc: ref only asserts "unknown doc" once the index has
+  // RESOLVED — while pending it renders "unresolved" instead. Spelled out so the doc: case below
+  // is testing the resolved arm deliberately, not by accident.
+  docsStatus: 'ready',
+  docsError: '',
   assets: [asset],
   assetsStatus: 'ready',
   assetsError: '',

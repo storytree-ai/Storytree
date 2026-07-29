@@ -15,12 +15,22 @@ const data = vi.hoisted(() => ({
     { id: 'decisions/0097-brownfield.md', title: 'Brownfield go-green', group: 'Decisions', excerpt: '', status: 'accepted' },
     { id: 'open-questions.md', title: 'Open questions', group: 'Reference', excerpt: '' },
   ] as DocMeta[],
+  // The doc-index readiness this section resolves against — driven per-test below, because
+  // "(no doc found)" is only TRUE once the index has resolved.
+  docsStatus: 'ready' as 'loading' | 'ready' | 'error',
+  docsError: '',
 }));
-vi.mock('../lib/appData', () => ({ useAppData: () => ({ docs: data.docs }) }));
+vi.mock('../lib/appData', () => ({
+  useAppData: () => ({ docs: data.docs, docsStatus: data.docsStatus, docsError: data.docsError }),
+}));
 
 import { RelevantAdrs, adrNumberOf } from './TreeView';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  data.docsStatus = 'ready';
+  data.docsError = '';
+});
 
 describe('adrNumberOf', () => {
   it('extracts the 4-digit number from a Decisions doc id', () => {
@@ -63,5 +73,38 @@ describe('RelevantAdrs', () => {
     render(<RelevantAdrs decisions={[999]} />);
     expect(screen.getByText('ADR-0999')).toBeTruthy();
     expect(screen.getByText(/no doc found/)).toBeTruthy();
+  });
+
+  // "(no doc found)" asserts the ADR does not exist. That is only true once the doc index has
+  // RESOLVED — said over an index that never loaded, a real ADR reads as a missing one, which is
+  // the dishonesty a failed /api/docs used to reach silently (only a console.error stood behind it).
+  it('says the index is still loading — not "no doc found" — while /api/docs is in flight', () => {
+    data.docsStatus = 'loading';
+    render(<RelevantAdrs decisions={[999]} />);
+
+    expect(screen.getByText('ADR-0999')).toBeTruthy();
+    expect(screen.queryByText(/no doc found/)).toBeNull();
+    expect(screen.getByText(/the document index is still loading/)).toBeTruthy();
+  });
+
+  it('says the index failed — not "no doc found" — when /api/docs rejected, carrying the reason', () => {
+    data.docsStatus = 'error';
+    data.docsError = 'HTTP 500';
+    const { container } = render(<RelevantAdrs decisions={[999]} />);
+
+    expect(screen.getByText('ADR-0999')).toBeTruthy();
+    expect(screen.queryByText(/no doc found/)).toBeNull();
+    expect(screen.getByText(/the document index failed to load/)).toBeTruthy();
+    expect(container.querySelector('.doc-unresolved')?.getAttribute('title')).toBe('HTTP 500');
+  });
+
+  it('still LINKS a resolvable ADR while the index is unresolved — the note is only for the gap', () => {
+    // A cache-seeded index (map-payload-cache) resolves ids before /api/docs answers; only the
+    // ids it CANNOT resolve are in question, so a hit must still render as a working link.
+    data.docsStatus = 'loading';
+    render(<RelevantAdrs decisions={[17, 999]} />);
+
+    expect(screen.getByText('The library tier').closest('a')).toBeTruthy();
+    expect(screen.getByText(/the document index is still loading/)).toBeTruthy();
   });
 });

@@ -35,7 +35,7 @@ ADR's centrepiece (ADR-0045 corrected in place per
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)). **Amends
 [ADR-0041](0041-possibly-dead-wisps-park-in-the-dock.md)** — the wisp gains a new `building` band
 above `fresh`. **Applies [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) /
-[ADR-0030](0030-claude-agent-sdk-live-runtime.md)** — the signal is sourced from the prove-it-gate's
+[ADR-0030](0030-all-in-on-claude-agent-sdk.md)** — the signal is sourced from the prove-it-gate's
 phase walk and the leaf executor it drives.
 
 *Numbering note:* 0046 is the latest on `main`; 0047 is taken by open draft PR #109
