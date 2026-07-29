@@ -8,7 +8,9 @@ import { z } from "zod";
  * and the frontmatter transcribes it — never an invented write. ADR-0084 widened WHO may perform that
  * transcription: an AGENT (not only a human) may flip an ADR `proposed → accepted` (the green flip).
  * ADR-0086 widened it further: the `librarian-curator` may also flip an ADR to `superseded` as part of
- * curation (still a projection of the `## Status` prose, never invented). Edges are OUTGOING only and
+ * curation (still a projection of the `## Status` prose, never invented) — ADR-0086 is itself now
+ * SUPERSEDED by ADR-0139, which restates and keeps that supersede authority in force, so cite 0139 as
+ * the live rule and 0086 only as its origin. Edges are OUTGOING only and
  * BINARY (`supersedes` = full / `amends` = strictly additive); incoming notes stay prose in the target
  * file, derived — never double-entered.
  *
@@ -18,7 +20,10 @@ import { z } from "zod";
  *
  * `load_bearing` (ADR-0086) is the editorial CURRENT-STATE tag: the small curated set of ADRs a new
  * session must calibrate to. It replaces the hand-maintained `CLAUDE.md` list — surfaced by
- * `storytree adr list --load-bearing`, gate-checked so a non-accepted ADR can never carry it.
+ * `storytree adr list --load-bearing`, gate-checked so a non-accepted ADR can never carry it. It is
+ * a TRANSITIONAL field: ADR-0139 retires the tag (active ⟺ load-bearing — every accepted ADR is
+ * current-state by definition) at the end of the consolidation pass, until which it survives as the
+ * worklist marker for that pass.
  */
 export const AdrStatus = z.enum(["proposed", "accepted", "superseded"]);
 export type AdrStatus = z.infer<typeof AdrStatus>;

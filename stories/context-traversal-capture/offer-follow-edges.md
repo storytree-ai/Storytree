@@ -112,9 +112,11 @@ Two other capture preconditions — an absent session identity, and `STORYTREE_T
 CALLER's to check, and they are not optional. (An earlier draft of this paragraph argued they needed
 no gate at all, on the grounds that both suppress the FOLLOW's capture exactly as they suppress the
 OFFER's, so neither could produce an edge naming an unrecorded offer. That argument is about what gets
-RECORDED and says nothing about what gets PRINTED — and printing is half of D3. The story's standing
-UAT leg 5 falsified it immediately: an opted-out run still printed a fresh, per-invocation offer id,
-which both broke ADR-0241 D3's opt-out-clean envelope and handed out an id nothing had recorded.) So
+RECORDED and says nothing about what gets PRINTED — and printing is half of the envelope. The story's
+standing UAT leg 5 falsified it immediately: an opted-out run still printed a fresh, per-invocation
+offer id, which both broke ADR-0241 **D2**'s opt-out-clean envelope and handed out an id nothing had
+recorded. The clause is D2, not D3: D3's envelope promise is only that no telemetry FAILURE alters
+one, which an opted-out run never engages — ADR-0241's own Consequences draw that line.) So
 `main.ts` asks all three questions before it plans an id: the shape, `isTraversalCaptureEnabled()`, and
 a resolvable session identity.
 

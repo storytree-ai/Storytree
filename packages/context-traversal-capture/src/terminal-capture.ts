@@ -101,7 +101,8 @@ interface RenderedEnvelope {
  *
  * Exported because the CLI must ask the SAME question BEFORE it renders (ADR-0260 D3): a render that
  * printed an offer id under `STORYTREE_TRAVERSAL=off` would hand out an id nothing recorded, and would
- * also break ADR-0241 D3's opt-out-clean envelope for a trace that was never written.
+ * also break ADR-0241 **D2**'s opt-out-clean envelope for a trace that was never written. (D2 is the
+ * opt-out clause; D3's envelope promise covers only telemetry FAILURE.)
  */
 export function isTraversalCaptureEnabled(override?: boolean): boolean {
   if (override !== undefined) return override;
@@ -111,8 +112,10 @@ export function isTraversalCaptureEnabled(override?: boolean): boolean {
 /**
  * Ambient capture of one terminal invocation's allowlisted READS.
  *
- * Additive and fail-silent (ADR-0241 D3): with capture off, or no resolvable session identity,
- * this is a silent no-op — no directory is resolved, no file is created. Otherwise it observes the
+ * Opt-out-clean (ADR-0241 D2): with capture off, or no resolvable session identity,
+ * this is a silent no-op — no directory is resolved, no file is created. Additive and fail-silent
+ * (ADR-0241 D3) is the separate promise that no telemetry FAILURE may change a caller's control flow,
+ * exit code, or envelope. Otherwise it observes the
  * invocation through the pure `terminal-cli-dispatch` adapter and appends whatever it finds
  * (possibly zero events) through the sink. Never throws — the sink itself never throws, and every
  * step here is synchronous.
