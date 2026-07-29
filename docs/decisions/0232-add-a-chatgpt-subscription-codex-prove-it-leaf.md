@@ -110,9 +110,9 @@ the current phase. Only the spine can promote one exact replica file into the re
 
 ## References
 
-- [ADR-0020](0020-prove-it-gate-build-the-spine-side-red-green-machine.md)
+- [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md)
 - [ADR-0030](0030-all-in-on-claude-agent-sdk.md)
-- [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification-record-th.md)
+- [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md)
 - [ADR-0130](0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md)
 - [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)
 - [ADR-0178](0178-render-delegatable-library-agents-to-native-cursor-subagent.md)

@@ -131,7 +131,7 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
 
 **Bad / accepted costs**
 - Story-grain hard-refuse **serialises** same-story work; a second session on a sibling capability waits.
-  Accepted at inner-circle scale ([ADR-0133](0133-inner-circle-desktop-is-the-priority-finish-storytrees-tree-f.md));
+  Accepted at inner-circle scale ([ADR-0133](0133-inner-circle-desktop-is-the-priority-finish-storytree-s-tree.md));
   capability grain is the named scale-up.
 - "Forced" is guidance + the spawn-gate, not a runtime session-start wall, so the guarantee is only as
   strong as the spawn being the choke point — true for every path except ADR-authoring (which has no

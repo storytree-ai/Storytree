@@ -151,7 +151,7 @@ a false-hollow would erode trust, so the line is drawn to avoid it.
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) §4 — the reward-hacking guards ("no
   `assert(true)` / skipped-test equivalents" as lint rules) this realizes one tier down, on the coverage
   check.
-- [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification-record-t.md) — the owner's
+- [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — the owner's
   design-time direction is the ratification (born accepted).
 - [ADR-0252](0252-verification-decay-detection-continuous-mechanical-warns-a-j.md) D1 — the
   `vacuous-proof` instrument that MEASURED this ADR's options-form blind spot and reports its current

@@ -63,11 +63,23 @@ export function needsProvision(root) {
 }
 
 /**
- * pnpm keeps TWO lockfiles: the WANTED one (`pnpm-lock.yaml`, tracked by git — what this checkout now
- * says node_modules should contain) and the CURRENT one (`node_modules/.pnpm/lock.yaml`, pnpm's own
- * byte copy of the lockfile the last COMPLETED install actually ran against). They are the same file
- * on a worktree installed against today's lockfile, and they DIVERGE exactly when the lockfile has
- * advanced underneath a provisioned worktree — the friction this closes.
+ * The lockfile PAIR the staleness question is asked over: `wanted` is `pnpm-lock.yaml` (tracked by
+ * git — what this checkout now says node_modules should contain) and `current` is
+ * `node_modules/.pnpm/lock.yaml` (pnpm's own byte copy of the lockfile the last COMPLETED install
+ * actually ran against). Exported so a SECOND reader — `storytree doctor`'s dependency-currency probe,
+ * which must distinguish "provably current" from `lockfileAdvanced`'s fail-open `false` and therefore
+ * has to check presence itself — asks about the same two files instead of re-deriving the paths.
+ * pnpm's layout gets exactly one definition here; a drift between the two readers is then impossible.
+ */
+export function lockfilePair(root) {
+  return { wanted: join(root, "pnpm-lock.yaml"), current: join(root, "node_modules", ".pnpm", "lock.yaml") };
+}
+
+/**
+ * True when the lockfile has ADVANCED underneath a provisioned worktree — i.e. the two files of
+ * {@link lockfilePair} disagree. They are the same file on a worktree installed against today's
+ * lockfile, and they diverge exactly when a new package/dependency landed on `main` and was merged
+ * in — the friction this closes.
  *
  * Verified empirically before it was relied on (both halves matter):
  *   - STABLE: across all 39 provisioned worktrees registered on the dev box, wanted == current, byte
@@ -84,8 +96,7 @@ export function needsProvision(root) {
  * Absence is not evidence of staleness, and an unreadable marker must not be able to spin the hook.
  */
 export function lockfileAdvanced(root) {
-  const wanted = join(root, "pnpm-lock.yaml");
-  const current = join(root, "node_modules", ".pnpm", "lock.yaml");
+  const { wanted, current } = lockfilePair(root);
   if (!existsSync(wanted) || !existsSync(current)) return false;
   try {
     const a = readFileSync(wanted);

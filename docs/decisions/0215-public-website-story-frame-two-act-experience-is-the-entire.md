@@ -83,7 +83,7 @@ revivable** — not a permanent "no inbound path" decision; add it back when the
 Brochure substance that was worth keeping lives in research salvage docs
 ([`docs/research/retired-web-info-pages-2026-07.md`](../research/retired-web-info-pages-2026-07.md),
 plus the earlier roadmap/landscape salvage docs) — revivable material, not live pages. **Keystatic
-stays retired** (0167 already superseded [ADR-0101](0101-host-the-keystatic-cms-editor-on-cloud-run.md);
+stays retired** (0167 already superseded [ADR-0101](0101-hosted-login-protected-website-content-editor-cloud-run-keys.md);
 no reopen).
 
 ### D4 — Diorama / boundary
@@ -154,7 +154,7 @@ deep-link — there is no anchor URL that lands mid-walk as a first-class entry.
   [0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md),
   [0086](0086-librarian-curated-adr-lifecycle-supersede-authority-copy-on.md),
   [0093](0093-shared-forest-world-render-core-for-studio-and-the-public-we.md),
-  [0101](0101-host-the-keystatic-cms-editor-on-cloud-run.md) (already superseded by 0167),
+  [0101](0101-hosted-login-protected-website-content-editor-cloud-run-keys.md) (already superseded by 0167),
   [0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md),
   [0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md),
   [0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).

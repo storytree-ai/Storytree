@@ -38,6 +38,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, use
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
+import { unresolvedDocReason } from '../lib/docsIndex';
 import { readPayloadCache, writeTreeCache } from '../lib/payloadCache';
 import { anyRecentLanding, isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
 import { useBuildActivity, useClaimActivity } from '../lib/buildActivity';
@@ -4715,9 +4716,15 @@ export function adrNumberOf(docId: string): number | null {
  * nothing when the story declares no decisions. A `<details>` disclosure COLLAPSED by default (owner
  * steer 2026-06-24): governance reference that sits quietly at the foot, opened on demand. Exported for
  * the jsdom render test.
+ *
+ * The unresolved branch is `docsStatus`-aware (lib/docsIndex.ts). "(no doc found)" is an assertion
+ * that the ADR does not exist, and it is only true once the index has RESOLVED — said over an index
+ * that is still loading or that failed outright, it is the most confidently wrong thing on this
+ * surface, since a genuine ADR reads as a missing one.
  */
 export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.Element | null {
-  const { docs } = useAppData();
+  const { docs, docsStatus, docsError } = useAppData();
+  const unresolvedReason = unresolvedDocReason(docsStatus);
   if (decisions.length === 0) return null;
   const byNum = new Map<number, DocMeta>();
   for (const d of docs) {
@@ -4744,6 +4751,14 @@ export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.
                     <span className={`adr-status-chip adr-${doc.status}`}> {doc.status}</span>
                   )}
                 </a>
+              ) : unresolvedReason ? (
+                <span
+                  className="muted doc-unresolved"
+                  data-docs-status={docsStatus}
+                  {...(docsError ? { title: docsError } : {})}
+                >
+                  <code>{label}</code> (unresolved — {unresolvedReason})
+                </span>
               ) : (
                 <span className="muted">
                   <code>{label}</code> (no doc found)
