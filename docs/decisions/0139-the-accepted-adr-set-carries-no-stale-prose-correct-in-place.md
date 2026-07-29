@@ -93,7 +93,7 @@ check is removed.
 
 **5. Durable guidance is REHOMED out of ADR bodies into Library artifacts.** Cross-cutting guidance
 buried in an ADR body is extracted into the right `principle` / `definition` / `pattern` artifact (the
-[ADR-0095](0095-graduate-durable-agent-memory-into-the-library.md) graduation mechanism, applied to ADR
+[ADR-0095](0095-agent-memory-graduates-into-the-library-as-a-signal-sourc.md) graduation mechanism, applied to ADR
 bodies), leaving a lean ADR that records the *decision and its rationale* and links to the rehomed
 artifact. This does not move the ADR into the Library — the ADR stays the source decision record
 (ADR-0037 "ADRs = source; artifacts = derived"); it moves the *derived guidance* to the surface an
@@ -110,7 +110,7 @@ librarian's editorial call. Until the pass completes the tag stays useful as the
 
 **7. The librarian enforces this as a standing pass.** Restating and extending 0086 §B/§C: the
 `session-orchestrator` spawns the `librarian-curator` before each merge ceremony
-([ADR-0095](0095-graduate-durable-agent-memory-into-the-library.md) D7), and that pass now also keeps
+([ADR-0095](0095-agent-memory-graduates-into-the-library-as-a-signal-sourc.md) D7), and that pass now also keeps
 the accepted set TRUE — correct stale content in place, supersede on re-decision, rehome durable
 content — so the corpus is kept in shape every loop, not in one-off sweeps. The librarian's authority
 to flip `→ superseded` and the transcribe-not-invent honesty invariant (0086 §C) are unchanged; status
@@ -163,7 +163,7 @@ projection of the prose, never inventing a flip; `accepted → proposed` un-deci
   `supersedes_in_part`) and the ADR-health suite.
 - [ADR-0017](0017-cross-cutting-knowledge-tier.md) — ADRs = source, artifacts = derived (preserved;
   rehoming moves derived guidance, not the decision record).
-- [ADR-0095](0095-graduate-durable-agent-memory-into-the-library.md) — the graduation mechanism
+- [ADR-0095](0095-agent-memory-graduates-into-the-library-as-a-signal-sourc.md) — the graduation mechanism
   (memory → Library), here applied to ADR bodies; and D7, the pre-merge librarian pass this folds into.
 - [ADR-0050](0050-adr-number-allocation.md) — atomic ADR-number allocation (a re-decision allocates
   through it).

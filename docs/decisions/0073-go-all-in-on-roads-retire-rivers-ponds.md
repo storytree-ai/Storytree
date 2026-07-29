@@ -97,7 +97,7 @@ selectors.
 
 5. **Two-stage proof** ([ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)):
    the gear binding contract (`worldSettings.test.ts`) and the routing/road geometry
-   (`riverGeometry.test.ts`) are proven **red→green** ([ADR-0020](0020-red-green-on-the-owned-loop.md));
+   (`riverGeometry.test.ts`) are proven **red→green** ([ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md));
    the **appearance** is **owner-attested** — built behind the work, surfaced as a hosted deep-link,
    never self-signed. Roads ships as the bare `#/tree` default on landing (the owner directed the
    all-in); the owner's nod confirms the look and flips this ADR to `accepted`.
