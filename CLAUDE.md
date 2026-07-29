@@ -151,6 +151,21 @@ file conflicts).
   artifacts never migrated). Graduating into the seed and not syncing now fails your gate; the remedy is
   the one idempotent command above. Still local-only: it SKIPs offline, with no creds, or on an
   unreadable seed.
+- **EDITED A DURABLE-TIER ARTIFACT LIVE? export it in the SAME PR (ADR-0120/0263):** the third seed
+  ceremony is the live→seed direction, and since 2026-07-29 it carries a **ZERO** ceiling like its two
+  siblings above. `pnpm gate` runs `check:corpus-content`, a BODY-level seed↔live diff, and it now
+  **BLOCKS on the first drifted artifact** (V=0 / D=0, `packages/cli/src/corpus-content-drain.ts`) —
+  for every session, including one that touched no artifact. The remedy is one command, never a raised
+  ceiling: `pnpm storytree library export-corpus --pg --write`, then commit the `knowledge.json` diff.
+  At a drained backlog that carries only the artifact you edited (the batch was 236 additions wide until
+  ADR-0263 narrowed the export scope to the durable tier; it is now ~14). **Scope matters here:** only
+  `definition` / `principle` / `pattern` / `guardrail` / `techstack` / `process` / `open-question` /
+  `proposal` are seed-scope (`SEED_SCOPE_KINDS`) — editing a `friction`, `arc`, `uat-criterion` or `plan`
+  live is FREE and creates no drift. **Direction is NOT auto-inferred**: because `sync-corpus` is
+  migrate-only, a seed edit can never reach live, so the SEED is sometimes the correct side — three cases
+  found so far, two of them MIXED. On any drift you did not author, spawn `librarian-curator` for the
+  per-artifact direction call rather than blind-exporting. SKIPs offline / with no creds, so CI stays
+  DB-free.
 - **EXPLORE (read, offline OK):** `storytree library` (dashboard) · `… artifact <id>` ·
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023). Read commands run offline (in-memory seed); no DB needed.

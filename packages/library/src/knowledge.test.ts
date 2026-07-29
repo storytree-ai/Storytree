@@ -1,7 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { EPHEMERAL_KINDS, KIND_SPECS, Knowledge, knownFieldsForKind, type KnowledgeKind } from "./knowledge.js";
+import {
+  EPHEMERAL_KINDS,
+  KIND_SPECS,
+  Knowledge,
+  SEED_SCOPE_KINDS,
+  knownFieldsForKind,
+  type KnowledgeKind,
+} from "./knowledge.js";
 import { renderBody, generateTemplate } from "./knowledge-render.js";
 import { validateLibraryDoc } from "./library-doc.js";
 
@@ -495,12 +502,42 @@ test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum
   assert.throws(() => validateLibraryDoc(anchorOnAnArc), "anchor on a non-plan kind must be rejected");
 });
 
-test("EPHEMERAL_KINDS (ADR-0183 D2): plan is ephemeral, every member is a real kind, arcs are durable", () => {
+test("EPHEMERAL_KINDS (ADR-0183 D2): plan is ephemeral, every member is a real kind, arcs are not", () => {
   assert.ok(EPHEMERAL_KINDS.has("plan"), "plan is the first ephemeral kind");
-  assert.ok(!EPHEMERAL_KINDS.has("arc"), "arc is durable — curated in the ceremonies like any kind");
+  // An arc is NOT ephemeral — it is durable live state that outlives the plans it contains. That is a
+  // separate question from whether the SEED carries it, which SEED_SCOPE_KINDS answers (ADR-0263):
+  // arc is durable AND out of seed scope, and the two constants must not be conflated.
+  assert.ok(!EPHEMERAL_KINDS.has("arc"), "arc is durable live state, not disposable choreography");
   for (const kind of EPHEMERAL_KINDS) {
     assert.ok(Object.hasOwn(KIND_SPECS, kind), `ephemeral kind ${kind} must be a KIND_SPECS key`);
   }
+});
+
+test("SEED_SCOPE_KINDS (ADR-0263): a closed allowlist over real kinds, disjoint from the excluded tiers", () => {
+  // Every member is a real kind — a typo here would silently drop a whole tier out of the seed.
+  for (const kind of SEED_SCOPE_KINDS) {
+    assert.ok(Object.hasOwn(KIND_SPECS, kind), `seed-scope kind ${kind} must be a KIND_SPECS key`);
+  }
+  // No ephemeral kind may also be seed-scope — the two sets are contradictory by construction.
+  for (const kind of EPHEMERAL_KINDS) {
+    assert.ok(!SEED_SCOPE_KINDS.has(kind), `${kind} is ephemeral, so it can never be seed-scope`);
+  }
+  // The agent tier is seed-CANONICAL (ADR-0055) and owned by sync-agents, never by the corpus export.
+  assert.ok(!SEED_SCOPE_KINDS.has("agent"), "agent is owned by sync-agents, not the corpus ceremonies");
+
+  // THE CLOSED-LIST PROPERTY. Every kind is either in the allowlist or has a recorded reason to be
+  // out. A NEW kind added to KIND_SPECS lands in `unruled` and fails here — which is the point: the
+  // denylist this replaced enrolled friction/arc/uat-criterion into the seed export silently, because
+  // defaulting to IN means nobody has to decide. Ruling on a kind is one line in each place.
+  const excludedWithReason = new Set(["agent", "plan", "friction", "arc", "uat-criterion"]);
+  const unruled = (Object.keys(KIND_SPECS) as KnowledgeKind[]).filter(
+    (k) => !SEED_SCOPE_KINDS.has(k) && !excludedWithReason.has(k),
+  );
+  assert.deepEqual(
+    unruled,
+    [],
+    `every kind must be ruled IN (SEED_SCOPE_KINDS) or OUT (with a reason in ADR-0263's table); unruled: ${unruled.join(", ")}`,
+  );
 });
 
 test("renderBody: an unknown kind throws a DIAGNOSTIC error, not `specs is not iterable`", () => {
