@@ -112,9 +112,12 @@ const CEILINGS = {
    * registers. Register a pair (a probe on each surface plus a row), lower this number.
    *
    * RE-BASELINED 10 → 11 (2026-07-29), and the direction is the point: this is the ONE legitimate
-   * upward move `asset:verification-decay-detection` names — an instrument whose MEASURED POPULATION
-   * genuinely enlarges is re-baselined on the first real sweep of that new population, with the
-   * reason recorded AT the number. THE TELL THAT SEPARATES IT FROM GAMING IS THAT **WHAT** IS
+   * upward move — an instrument whose MEASURED POPULATION genuinely enlarges is re-baselined on the
+   * first real sweep of that new population, with the reason recorded AT the number. **ADR-0269 is
+   * the governing policy** (it amends ADR-0252's flat tightening-only clause, scoping it to a fixed
+   * measurement APERTURE, and owns the evidence bar this note discharges); the process artifact
+   * `verification-decay-detection` is a view of that decision, never its source (ADR-0034 §2). THIS
+   * ENTRY IS THE RECORD ADR-0269 4(f) REQUIRES. THE TELL THAT SEPARATES IT FROM GAMING IS THAT **WHAT** IS
    * COUNTED CHANGED, NOT MERELY **HOW MANY**: no pair was reclassified, no finding was excused, and
    * the ceiling did not move to accommodate a backlog that grew under it. `MIRROR_SURFACE` walked
    * only `apps/desktop/src/backend` and never `apps/desktop/electron`, so two routes the desktop

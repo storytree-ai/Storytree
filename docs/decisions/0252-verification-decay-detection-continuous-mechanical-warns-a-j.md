@@ -193,11 +193,19 @@ deliberately isolated rather than netted, because a drain and a discovery are no
 first real sweep" and "tightening-only" only pull apart when the population itself changes, and the
 argument is the same one the per-instrument split above rests on: a number baselined on one population
 cannot carry meaning for a different one. A ceiling raised to absorb items landed under an UNCHANGED
-population remains the gaming move, and is still forbidden. **NOTE for the owner:** this
-population-enlargement rule is currently written down only in `process:verification-decay-detection`
-and at the ceiling in code, not in any ADR — under ADR-0034 §2 a process makes no new policy, so it
-holds here as a reading of THIS decision. If the owner reads it as new policy instead, it wants its
-own ADR; a librarian correction cannot settle that.
+population remains the gaming move, and is still forbidden.
+
+**SETTLED — the population-enlargement rule now has its own ADR, and this clause is SCOPED by it.**
+When the correction above was written, the rule lived only in `process:verification-decay-detection`
+and at the ceiling in code; under [ADR-0034](0034-process-artifacts-ways-of-working.md) §2 a process
+makes no new policy, so it could only hold as a reading of THIS decision, and a librarian correction
+could not settle whether it was instead new policy. The owner directed the ADR on 2026-07-29:
+[ADR-0269](0269-a-drain-ceiling-rises-only-when-the-measured-population-enla.md) **amends** this one.
+Decision 3's tightening-only clause stands in full **within a fixed measurement aperture**; an
+instrument whose aperture genuinely enlarges is re-baselined on the new population's first real sweep,
+under an evidence bar (differential measurement, drains and discoveries never netted, symmetric
+lowering when an aperture narrows) that ADR-0269 owns. Read that ADR, not this paragraph, for the
+governing rule.
 
 **The split is what KEEPS decision 3 true, not a departure from it**, and the evidence is measured
 rather than argued. Under one shared total: (a) a second instrument's honest baseline of 10 arrives as
