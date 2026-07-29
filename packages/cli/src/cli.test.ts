@@ -516,3 +516,125 @@ test("artifact edit --set on an unknown field is refused with a clear message, n
   const got = await store.getDoc("edit-first-curation");
   assert.equal((got?.doc as { bogusField?: string }).bogusField, undefined, "not persisted");
 });
+
+test("artifact edit --set lifecycle on an arc is REFUSED — closure is not a free flip (ADR-0239 D2)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "a-live-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "a-live-arc",
+      title: "A live initiative",
+      description: "d",
+      intent: "Deliver it.",
+      endState: "It is delivered.",
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+
+  // `lifecycle` IS a real arc field, so the unknown-field guard lets it through — the refusal is a
+  // deliberate policy one: the state is a projection of the prose that supports it (ADR-0084/0086).
+  const env = await run(["library", "artifact", "edit", "a-live-arc", "--set", "lifecycle=closed"], {
+    store,
+    writable: true,
+  });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /not a free flip/);
+  assert.match(env.body, /storytree arc close a-live-arc --outcome/);
+  assert.match(env.body, /OWNER-only/);
+  const got = (await store.getDoc("a-live-arc"))?.doc as { lifecycle?: string };
+  assert.notEqual(got.lifecycle, "closed", "the flip was not persisted");
+
+  // The refusal is scoped to that ONE field — an arc's ordinary fields still edit as before.
+  const ok = await run(["library", "artifact", "edit", "a-live-arc", "--set", "description=sharper"], {
+    store,
+    writable: true,
+  });
+  assert.equal(ok.ok, true);
+});
+
+test("arc close through the dispatcher writes the terminal increment and the flip (ADR-0239 D2)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "closing-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "closing-arc",
+      title: "An initiative reaching its end",
+      description: "d",
+      intent: "Deliver it.",
+      endState: "It is delivered.",
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+
+  const env = await run(
+    ["arc", "close", "closing-arc", "--outcome", "it is delivered — the end state is met", "--pr", "#1012", "--pg"],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, true, env.body);
+  const doc = (await store.getDoc("closing-arc"))?.doc as {
+    lifecycle?: string;
+    increments?: Array<Record<string, unknown>>;
+  };
+  assert.equal(doc.lifecycle, "closed");
+  assert.equal(doc.increments?.length, 1);
+  assert.equal(doc.increments?.[0]?.["pr"], "#1012");
+});
+
+test("arc list --all / --closed parse as flags and widen the default worklist (ADR-0239 D3)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "shipped-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "shipped-arc",
+      title: "A shipped initiative",
+      description: "d",
+      intent: "Ship it.",
+      endState: "Shipped.",
+      lifecycle: "closed",
+      increments: [{ date: "2026-07-25", outcome: "shipped; the end state is met" }],
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-25",
+    },
+  });
+
+  await store.upsertDoc({
+    id: "running-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "running-arc",
+      title: "A running initiative",
+      description: "d",
+      intent: "Keep shipping.",
+      endState: "Not yet.",
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+
+  const def = await run(["arc", "list", "--pg"], { store, writable: true });
+  assert.equal(def.ok, true);
+  assert.match(def.body, /running-arc/);
+  assert.doesNotMatch(def.body, /shipped-arc/);
+  assert.match(def.body, /\(1 closed — --all\)/);
+
+  const all = await run(["arc", "list", "--all", "--pg"], { store, writable: true });
+  assert.equal(all.ok, true, all.body);
+  assert.match(all.body, /shipped-arc/);
+
+  const closed = await run(["arc", "list", "--closed", "--pg"], { store, writable: true });
+  assert.equal(closed.ok, true, closed.body);
+  assert.match(closed.body, /shipped-arc/);
+});

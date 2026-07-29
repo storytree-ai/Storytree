@@ -32,7 +32,7 @@ import type { SeedEntry } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
-import { arcCommand, arcHelp, arcEdit, arcIncrementAdd, type ArcWriteDeps } from "./arc.js";
+import { arcCommand, arcHelp, arcEdit, arcIncrementAdd, arcClose, arcScopeOf, type ArcWriteDeps } from "./arc.js";
 import { planCommand, planHelp, type CountCommitsSince } from "./plan.js";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import { CLI_AREAS } from "./cli-areas.js";
@@ -479,6 +479,10 @@ const UNSETTABLE_FIELDS: ReadonlySet<string> = new Set(["kind", "schemaVersion",
  * structured kind is rejected with a CLEAR message (via {@link knownFieldsForKind}) instead of the
  * opaque `.strict()` union dump. Note: a structured field that is an ARRAY of objects (an arc's
  * `increments`) still cannot be appended via `--set` — that is what `storytree arc increment add` is for.
+ *
+ * One field is refused BY POLICY rather than by shape: an arc's `lifecycle` (ADR-0239 D2). It is a
+ * valid field the schema would accept, but closure must be written from the prose that justifies it,
+ * so it belongs to `storytree arc close` alone. See the guard in the `--set` loop below.
  */
 export async function editArtifact(
   deps: RunDeps,
@@ -561,6 +565,24 @@ export async function editArtifact(
               : []),
           ].join("\n"),
           next: [`storytree library artifact ${id}`],
+        };
+      }
+      // ADR-0239 D2 — an arc's `lifecycle` is NOT a free flip. The schema would happily take it (it
+      // is a real field, so the unknown-field guard above lets it through), but closure is a
+      // projection of prose that supports it: `arc close` appends the terminal increment stating the
+      // end-state condition met AND sets the flag in the same atomic write. A bare `--set` here
+      // would record the state with no evidence behind it — the exact move ADR-0084/0086 forbid for
+      // an ADR status, refused for the same reason.
+      if (kindStr === "arc" && field === "lifecycle") {
+        return {
+          ok: false,
+          body: [
+            "an arc's lifecycle is not a free flip — closure is written FROM EVIDENCE, in one verb:",
+            `  storytree arc close ${id} --outcome "<the end-state condition this landing met>" --pg`,
+            "which appends the terminal increment and sets lifecycle: closed in a single write (ADR-0239 D2).",
+            "Re-opening a closed arc (closed → active) is OWNER-only, mirroring ADR-0084's human-only un-deciding.",
+          ].join("\n"),
+          next: [`storytree arc show ${id} --pg`, `storytree arc close ${id} --outcome "…" --pg`],
         };
       }
       // `field=@path` reads the value from a file (long/multi-line prose, no shell mangling).
@@ -1743,6 +1765,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     amends?: string;
     arc?: string;
     "end-state"?: string;
+    all?: boolean;
+    closed?: boolean;
     date?: string;
     pr?: string;
     threshold?: string;
@@ -1810,8 +1834,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         supersedes: { type: "string" },
         amends: { type: "string" },
         arc: { type: "string" },
-        // `storytree arc edit` / `arc increment add` — the first-class arc write verbs (long prose via @path).
+        // `storytree arc edit` / `arc increment add` / `arc close` — the first-class arc write verbs
+        // (long prose via @path).
         "end-state": { type: "string" },
+        // `storytree arc list --all | --closed` — widen past the default active-only worklist
+        // (ADR-0239 D3). `--all` wins when both are passed.
+        all: { type: "boolean", default: false },
+        closed: { type: "boolean", default: false },
         date: { type: "string" },
         pr: { type: "string" },
         threshold: { type: "string" },
@@ -2237,11 +2266,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // frontmatter `arc:` stamps on disk — the upward view is never authored on the arc.
     if (help) return arcHelp();
 
-    // The WRITE verbs (arc edit / arc increment add) go through the validated write path — a
-    // first-class replacement for the raw store one-shot (the ADR-0168 arc-edit friction). Long
+    // The WRITE verbs (arc edit / arc increment add / arc close) go through the validated write path
+    // — a first-class replacement for the raw store one-shot (the ADR-0168 arc-edit friction). Long
     // prose (--intent/--end-state/--outcome) accepts `@path` to read from a file so shell quoting
     // never mangles multi-line values into a literal `\n`.
-    if (sub === "edit" || sub === "increment") {
+    if (sub === "edit" || sub === "increment" || sub === "close") {
       const writeDeps: ArcWriteDeps = {
         store: deps.store,
         writable: deps.writable === true,
@@ -2265,6 +2294,15 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           ...(resolved.endState !== undefined ? { endState: resolved.endState } : {}),
         });
       }
+      // The landing-log write (ADR-0183 D1) and the CLOSING write (ADR-0239 D2) share every flag —
+      // `close` is `increment add` plus the atomic `lifecycle: closed` flip in the same upsert.
+      if (sub === "close") {
+        return arcClose(writeDeps, third, {
+          ...(values.date !== undefined ? { date: values.date } : {}),
+          ...(values.pr !== undefined ? { pr: values.pr } : {}),
+          ...(resolved.outcome !== undefined ? { outcome: resolved.outcome } : {}),
+        });
+      }
       // `arc increment add <id>` (canonical) or the shorthand `arc increment <id>` — both append one.
       const incId = third === "add" ? fourth : third;
       return arcIncrementAdd(writeDeps, incId, {
@@ -2274,12 +2312,18 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       });
     }
 
-    return arcCommand(sub, third, {
-      store: deps.store,
-      decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
-      storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
-      pg: values.pg === true,
-    });
+    return arcCommand(
+      sub,
+      third,
+      {
+        store: deps.store,
+        decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
+        storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
+        pg: values.pg === true,
+      },
+      // ADR-0239 D3 — the list is a worklist: active-only unless explicitly widened.
+      arcScopeOf({ all: values.all === true, closed: values.closed === true }),
+    );
   }
 
   if (area === "plan") {

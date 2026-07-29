@@ -8,8 +8,9 @@ proof_mode: UAT
 # Machine-judged: a pure SEAM has no UAT journey (ADR-0085) — its green is an `observe` reliability
 # gate (the port's own parity suite), observe-and-signed into an `adopted` verdict. No DB, no API key.
 uat_witness: machine
-# Lightweight + expandable (ADR-0074 §3, the port shape): the narrow seam + its in-memory reference
-# are the unit; no sub-capabilities yet. The list grows one case per real defect.
+# Lightweight + expandable (ADR-0074 §3, the port shape): the narrow seam, its in-memory reference,
+# and the seam's own HTTP transport (ADR-0259) are ONE unit; no sub-capabilities yet. The list grows
+# one case per real defect.
 capabilities: []
 # Root organism (ADR-0075): storage-protocol is a NEAR-root — it depends only on the proof-protocol
 # root (declared below, a foundational→foundational edge). The cli HUB imports it; declared
@@ -18,8 +19,9 @@ depends_on: [proof-protocol]
 consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the seam extraction (68); ports as root organisms (74/75); the
 # role-not-position rename base→storage-protocol (78); author-defined story green + mapped-as-bootstrap
-# (83); the brownfield reliability gates + observe-and-sign that flip it (85).
-decisions: [68, 74, 75, 78, 83, 85]
+# (83); the brownfield reliability gates + observe-and-sign that flip it (85); the HTTP front door that
+# made the seam's own transport this port's job — contract only, no caller migrated (259).
+decisions: [68, 74, 75, 78, 83, 85, 259]
 ---
 
 # The storage-protocol port — the universal document-event storage seam
@@ -35,9 +37,12 @@ the whole graph rests on, depending only on the proof-protocol root.
 [ADR-0078](../../docs/decisions/0078-rename-root-ports-role-not-position.md)) is the universal,
 browser-safe **storage seam** (ADR-0068 step 5): the narrow `Store` / `ChangeStore` contract — the
 *verbs* any store must offer (`upsertDoc` / `getDoc` / `queryDocs` / `deleteDoc` / `appendEvent` /
-`readEvents`) — the `InMemoryStore` reference implementation, and the `StoredDoc` / `StoreEvent` /
-`DeleteDocOpts` / `retiredEventDoc` shapes. It defines what *storing* means; it never says where data
-lives.
+`readEvents`) — the `InMemoryStore` reference implementation, the `StoredDoc` / `StoreEvent` /
+`DeleteDocOpts` / `retiredEventDoc` shapes, and — since
+[ADR-0259](../../docs/decisions/0259-every-client-reaches-the-store-through-an-http-front-door-di.md) —
+the seam's own **HTTP transport**: the wire contract both halves share (`store-wire.ts`), the
+`HttpStore` client, and the pure `handleStoreRequest` server half. It defines what *storing* means; it
+never says where data lives.
 
 It is a **contract, not a database.** The real Postgres implementation lives elsewhere (the library's
 node-only store substrate, ADR-0077; drive-machinery, notice-board, and studio-members each implement
@@ -47,10 +52,32 @@ devices that plug into it — so code written against the socket keeps working w
 executable spec: a real Postgres store is "correct" precisely because it passes the same `./parity`
 suite the in-memory one does.
 
+**The HTTP front door — built and parity-proven, wired to nobody.** ADR-0259 D1 makes an HTTP door the
+store transport for every client that is not the server, with direct `pg` a **server-side privilege**
+held only by the process behind the door. A door is just another backend behind the same six verbs, so
+the transport belongs to the seam rather than to any one app: `store-wire.ts` is the contract BOTH
+halves decode against (six routes, one per seam method — reads GET, writes POST — with ids kept out of
+path segments so no TLS-terminating proxy can rewrite them, and an absent doc answered `200 {doc:null}`
+so `404` stays readable as "the door is not mounted here"); `HttpStore` is the client half, browser-safe
+over `fetch` / `URLSearchParams` / JSON with the transport injectable; and `handleStoreRequest` is a
+pure, transport-agnostic server half — explicitly NOT an authorization layer, which the mounting door
+supplies. All of it is held to the same `storeParitySuite` as `InMemoryStore`, run over a real loopback
+socket, so the new backend is *demonstrated* equivalent rather than reviewed-equivalent.
+
+**What that increment did NOT do (PR #983, 2026-07-27) — read this before citing D1 as current state.**
+It migrated nobody. Every caller in this repo still dials `createPool`; no server is deployed behind the
+door; the broker's write set is still assets-only; and proof-bearing writes through a door remain GATED
+(ADR-0259 D5 — a door must RE-VERIFY signature and source anchor, behind an ADR-0081 amendment and an
+ADR-0252 verification-integrity review that ADR does not lift). So `pg` has **not** actually become
+server-side-only: D1 is the *target*, and what this port holds today is the contract, not the migration.
+The wiring and the deployment are separate work, which is why the transport landing added no edge here.
+
 The contract is **opinionated**: every write does two things atomically (ADR-0017) — append to the
 append-only event history AND update the current-state projection — so every store in the system
-remembers the same disciplined, event-sourced way. The `node:test` parity suites live behind the
-`./parity` subpath so the main entry carries **no `node:` import** and stays browser-bundleable.
+remembers the same disciplined, event-sourced way. Everything the main entry publishes stays pure — the
+seam, `InMemoryStore`, the wire contract, `HttpStore` — so it carries **no `node:` import** and stays
+browser-bundleable; the two things a browser never needs live behind subpaths: the `node:test` parity
+suites at `./parity`, and the door's server half at `./http-server`.
 
 storage-protocol is the **second root node**: `proof-protocol` is the bottom sink (it depends on
 nothing); storage-protocol sits one rung above it, reading only the `ChangeEvent` type from
@@ -72,8 +99,14 @@ storage-protocol MUST stay browser-bundleable (the studio bundles the in-memory 
 types), so its ONLY dependency is the `proof-protocol` root (a real, declared **foundational →
 foundational** edge). ADR-0075's **foundational-minimality rule** the gate enforces — a foundational
 port may only depend on other foundational ports — holds because both storage-protocol and
-proof-protocol are foundational. The `node:test` parity machinery is quarantined behind `./parity` so
-the main entry never imports `node:*`.
+proof-protocol are foundational.
+
+The floor **survived** the ADR-0259 transport rather than being bent by it: the dependency list is still
+`proof-protocol` alone — the wire decoders are hand-rolled instead of zod, and the client takes an
+injectable `fetch` instead of an HTTP dependency — so both new pure modules sit in the main entry. What
+a browser never needs is quarantined behind a subpath, and there are now **two** such subpaths: the
+`node:test` parity machinery at `./parity`, and the door's server half (`handleStoreRequest`) at
+`./http-server`. The main entry still imports no `node:*`.
 
 ## Reliability Gates
 
@@ -86,18 +119,21 @@ human attestation). The list is the **expandable floor** — start by adopting t
 suite, and add a `_(gate: build-tests)_` gate (a genuine red→green regression leg) the moment that
 observation proves insufficient (a real defect slips through a backend).
 
-1. **The seam + its `InMemoryStore` parity are green** _(gate: observe)_ `pnpm --filter
-   @storytree/storage-protocol test`. The spine runs it at a clean committed HEAD and OBSERVES it green
-   — the `Store`/`ChangeStore` seam and the `InMemoryStore` reference satisfy the shared `./parity`
-   contract offline (no DB, no API key) — then signs an `adopted` verdict
+1. **The seam, its `InMemoryStore` reference, and the HTTP transport are parity-green** _(gate: observe)_
+   `pnpm --filter @storytree/storage-protocol test`. The spine runs it at a clean committed HEAD and
+   OBSERVES it green — the `Store`/`ChangeStore` seam, the `InMemoryStore` reference, AND the ADR-0259
+   transport (`HttpStore` driven over a real loopback socket with `handleStoreRequest` behind it, so
+   both halves of the wire contract are covered at once) all satisfy the shared `./parity` contract
+   offline (no DB, no API key, no deployed door) — then signs an `adopted` verdict
    (`storytree gate run storage-protocol#gate-1 --pg`). Adopting this gate flips the port off `mapped`;
    the world's crown derives green from the signed verdict (ADR-0040), no faked red required.
 
 ## Proof
 
 **Status off `mapped` is EARNED, not authored.** `packages/storage-protocol` has a real, passing,
-offline suite (the seam + `InMemoryStore` parity, the executable spec a real Postgres backend is held
-to) — that observational green is brownfield `mapped`. The port leaves `mapped` exactly when its
+offline suite — the seam, its `InMemoryStore` reference and the ADR-0259 HTTP transport all held to the
+one `./parity` contract, which is also the executable spec a real Postgres backend answers to — and that
+observational green is brownfield `mapped`. The port leaves `mapped` exactly when its
 `observe` reliability gate above is **adopted**: the spine observes the parity suite green at a clean
 committed HEAD and signs an `adopted` machine verdict
 ([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)).
@@ -106,6 +142,6 @@ crown DERIVES green from the signed verdict.
 
 ## Open modeling calls (for the owner)
 
-1. **Capability granularity.** Kept to ZERO sub-capabilities (the narrow seam + its reference impl is
-   one unit; ADR-0074 §3 lightweight-and-expandable). Split `Store` vs `ChangeStore` only if a real
-   defect makes one worth proving on its own.
+1. **Capability granularity.** Kept to ZERO sub-capabilities (the narrow seam, its reference impl and
+   the seam's own transport are one unit; ADR-0074 §3 lightweight-and-expandable). Split `Store` vs
+   `ChangeStore` only if a real defect makes one worth proving on its own.
