@@ -10,6 +10,11 @@ arc: arc-orientation-surface-arc
 accepted (2026-07-29) — decided/directed by the owner in conversation on 2026-07-29. Design-time
 alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**Extended in place (2026-07-30) with D6 and D7** — two further decisions from the *same* design
+conversation that reached this ADR after D1–D5 had landed. Additive: nothing in D1–D5 is retracted.
+D6 does overtake one item this ADR had listed as undecided; that entry is corrected in place per
+ADR-0139 rather than by a superseding ADR, because this is one decision event, not a re-decision.
+
 ## Context
 
 The forest map's primary top-drawer slot is currently the **Library lens**. ADR-0185 dec 6 retired
@@ -106,17 +111,61 @@ would make the question a seed artifact missing from live, which `check:corpus-s
 drain ceiling since 2026-07-28 (ADR-0252 D3) — fails the local gate on, and which
 `sync-corpus --pg` would silently resurrect.
 
+### D6 — The surface is READ-ONLY this round; two-way is deferred, not rejected
+
+The owner: *"i think it should just all be a read surface for now, once i get a feel for this then we
+can look at it being two way, for now i would prompt you (claude code or some other agent harness to
+answer the questions or get more info)"*.
+
+So this round ships **no write path**: no in-surface answering of questions, no comment affordance,
+no edit. Answering happens the way it happens today — the owner prompts an agent harness.
+
+**Two-way is an explicitly deferred follow-on, not a rejected option**, and the owner stated its
+trigger: once they have a feel for the read surface. A later session must not read "read-only" as a
+settled principle about what this surface may ever be; it is a staging decision with a named
+re-open condition.
+
+Note this **overtakes** one of the items this ADR originally listed as undecided — "whether questions
+get answered in the surface or only found there" is now answered (found there, answered elsewhere).
+Corrected in place per ADR-0139 rather than by a superseding ADR: same conversation, same decision
+event, nothing reversed.
+
+### D7 — What the surface must show
+
+From the top panel over the forest, for the arcs in play:
+
+- which arcs are **currently running**, and **where they are at**;
+- which are **waiting** — meaning they have open questions;
+- which are **blocked**;
+- clicking an arc reaches its open questions, to read them (read-only, per D6).
+
+**`waiting` and `blocked` are DISTINCT states and must not be collapsed.** The owner named them
+separately. `waiting` has a definition here — the arc has open questions. `blocked` deliberately does
+**not**: what qualifies as blocked is left to the mock round rather than over-specified now. A
+session that quietly makes `blocked` a synonym for `waiting`, or that invents a `blocked` predicate
+to close the gap, has exceeded this decision.
+
+D7 is what makes ADR-0239 load-bearing rather than merely adjacent: "currently running" is not
+answerable while arc closure is prose in `endState` (see Consequences).
+
 ### What is deliberately NOT decided here
 
 Recorded as open, to be settled by later increments of `arc-orientation-surface-arc`:
 
-- **The UI shape** of the arc surface.
-- **How multiple arcs are visualised** together.
-- **Whether questions are answered in the surface or only found there** — i.e. whether the surface
-  is read-only orientation or also an answering affordance.
+- **The UI shape** of the arc surface — the visual design, and **how multiple arcs are laid out**
+  together. This is the owner's next deliverable: mock options.
+- **What `blocked` means** (D7) — named as a distinct state, deliberately not defined here.
+- **Whether the orchestrator should be required to author an open-question briefing at escalation
+  time.** Today agents escalate in chat rather than authoring an `open-question`, which is why the
+  kind holds so few. This is arguably the higher-leverage half of D7 — it governs whether the read
+  surface has anything worth reading — and it is unsettled.
 
-The owner's next request is mock options for exactly these. This ADR settles the slot and the
-topology; it does not settle the picture.
+*(Struck from this list by D6: "whether questions are answered in the surface or only found there"
+was originally recorded here as open. The owner settled it in the same conversation — read-only this
+round. Corrected in place per ADR-0139.)*
+
+This ADR settles the slot, the topology, the read/write posture, and the state vocabulary; it does
+not settle the picture.
 
 ## Consequences
 
@@ -134,12 +183,21 @@ topology; it does not settle the picture.
 - **`arcRef` on `open-question` is a schema change** — a `.extend()` on the kind, mirroring
   `Plan`. It is additive and optional, so on the `stepRefs`/`increments` precedent it needs no
   `CURRENT_SCHEMA_VERSION` bump; that must be re-verified against `migrations.ts` when it is built.
-- **This ADR is blocked on ADR-0239 for a usable surface.** `storytree arc list --pg` currently
-  returns 22 arcs with **no live/closed distinction** — finished arcs render identically to live
-  ones. An orientation surface that opens on 22 undifferentiated arcs, most of them done, restores
-  no context; it manufactures the confusion it exists to remove. ADR-0239 (arc closure as stored
-  state) proposes the fix and is **still `proposed`, awaiting the owner** — it is a known
-  dependency of this arc, out of scope here, and the owner ratifying it is on the critical path.
+- **D7 rests on ADR-0239, which the owner RATIFIED on 2026-07-29 — the decision fork is settled,
+  the implementation is not.** `storytree arc list --pg` returns 22 arcs with **no live/closed
+  distinction**: finished arcs render identically to live ones, because closure is prose in
+  `endState`. A surface that opens on 22 undifferentiated arcs, most of them done, restores no
+  context — it manufactures the confusion it exists to remove — so D7's "currently running" is
+  simply not answerable until 0239 lands. ADR-0239 supplies exactly what D7 needs: a stored `arc`
+  `lifecycle` enum, an `arc close` verb, and default active-only filtering in `arc list`.
+
+  *Recorded precisely, because the repo and the decision disagree right now:* the owner's
+  ratification is reported from the design conversation, and the **status flip had not reached
+  `origin/main` when this was written** — `git show origin/main:docs/decisions/0239-…` still read
+  `status: proposed`, and no `claude/ratify-adr-0239` branch existed on the remote (checked twice,
+  2026-07-29 and 2026-07-30). The flip and the implementation are chipped separately. Treat 0239 as
+  **decided and in flight**: build against it, but re-check its landed status before depending on
+  the verb or the filter existing.
 - **The infrastructure gap is real and is another session's job.** There is no arc view in the
   studio beyond a flat artifact card, and the derived arc → children join is CLI-only. Building
   the join into the studio's read path is companion work, not part of this decision.
@@ -163,7 +221,9 @@ topology; it does not settle the picture.
 - [ADR-0204](0204-retire-the-studio-banner-full-bleed-forest-with-a-hud-avatar.md) — the forest map
   is the landing surface; **not** overturned by D2.
 - [ADR-0239](0239-arc-closure-is-stored-state-an-arc-lifecycle-field-written-f.md) — arc closure as
-  stored state; `proposed`, and a known dependency of this arc's surface.
+  stored state (`lifecycle` enum + `arc close` + default active-only `arc list`). **Owner-ratified
+  2026-07-29**; the status flip and implementation are in flight (see Consequences). It is what makes
+  D7's "currently running" answerable.
 - [ADR-0023](0023-library-cli-choose-your-own-adventure.md) — the pull-based Library model, whose
   agent-facing CLI surface D3 leaves untouched.
 - `arc-orientation-surface-arc` — the arc this ADR was produced by.
