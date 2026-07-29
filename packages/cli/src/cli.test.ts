@@ -243,6 +243,42 @@ test("tree focus shows inbound intra-library edges (back-edge scan)", async () =
   assert.match(env.body, /← trunk/);
 });
 
+test("a node: ref renders as a Story node through the REAL binary, on both artifact surfaces", async () => {
+  // Composed OUTWARD deliberately: `groupSources` and `treeFocus` are each unit-tested, but the
+  // render an operator actually sees is the CLI dispatch composing them, and a green package suite
+  // can hide a dishonest live render. This drives `run(...)` — the same entry the binary calls.
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "cites-a-node",
+    kind: "definition",
+    doc: {
+      id: "cites-a-node",
+      kind: "definition",
+      title: "Cites a node",
+      description: "an artifact attached to a story's proving process (ADR-0107 D2)",
+      whatItIs: "A definition that carries a node: reference.",
+      whyItMatters: "It proves the token survives the render.",
+      references: ["node:cli", "asset:edit-first-curation"],
+      createdAt: "2026-07-29T00:00:00.000Z",
+      updatedAt: "2026-07-29T00:00:00.000Z",
+    },
+  });
+
+  // `library artifact <id>` — the Sources block groups it, rather than dumping it under "Other".
+  const view = await run(["library", "artifact", "cites-a-node"], { store });
+  assert.equal(view.ok, true, view.body);
+  assert.match(view.body, /Story nodes:\r?\n\s+- cli {2}\(node:cli\)/);
+
+  // `library tree focus <id>` — an outbound edge labelled a story node, NOT a "source".
+  const focus = await run(["library", "tree", "focus", "cites-a-node"], { store });
+  assert.equal(focus.ok, true, focus.body);
+  assert.match(focus.body, /→ cli {3}\(story node — storytree tree cli\)/);
+  assert.ok(
+    !/node:cli {3}\(source — surfaced on demand\)/.test(focus.body),
+    `a node: ref must not be labelled a source:\n${focus.body}`,
+  );
+});
+
 test("tree focus on a missing id is guidance, not a throw", async () => {
   const env = await run(["library", "tree", "focus", "ghost"], { store: await seeded() });
   assert.equal(env.ok, false);

@@ -16,6 +16,7 @@ import path from "node:path";
 
 import { findNodeSpecFile } from "@storytree/orchestrator";
 import type { Store } from "@storytree/storage-protocol";
+import { NODE_REF_PREFIX } from "@storytree/library";
 import { renderStoredDoc, renderAgentEssentials, renderAgentStep } from "@storytree/library/store";
 
 import { emitNodeEnvelope, type Envelope } from "./envelope.js";
@@ -82,13 +83,18 @@ export async function artifactView(store: Store, id: string | undefined): Promis
   if (refs.length > 0) {
     lines.push("", "references:", ...refs.map((r) => `  - ${r}`));
   }
+  // The `next:` doors this artifact's citations open. `asset:` refs stay inside the Library;
+  // `node:<id>` refs (ADR-0107 D2) open the work tree instead — an artifact attached to a story's
+  // proving process could name that story but never offer a way to reach it.
+  const doors: string[] = [];
+  for (const r of refs) {
+    if (r.startsWith("asset:")) doors.push(`storytree library artifact ${r.slice("asset:".length)}`);
+    else if (r.startsWith(NODE_REF_PREFIX)) doors.push(`storytree tree ${r.slice(NODE_REF_PREFIX.length)}`);
+  }
   return {
     ok: true,
     body: lines.join("\n"),
-    next: refs
-      .filter((r) => r.startsWith("asset:"))
-      .slice(0, 5)
-      .map((r) => `storytree library artifact ${r.slice("asset:".length)}`),
+    next: doors.slice(0, 5),
   };
 }
 

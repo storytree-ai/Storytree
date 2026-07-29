@@ -113,6 +113,15 @@ the proof compute ignorant of OQ doc shapes and the library ignorant of proof.
   `applyUatCrowns` / `applyCapCoverage` that withholds a `pass` crown on the live tree when a story has
   an open gating OQ; wired into the `/api/tree` handler (loads the live open-questions advisory-only,
   null on failure never throws), with tests in `uatCrowns.test.ts`.
+- **The token's READ surfaces** — landed later, once six sites were found still assuming
+  `asset:`-or-`doc:` only; all now share `NODE_REF_PREFIX` from `oq-gating.ts` rather than re-testing
+  the literal. `packages/library/src/knowledge-sources.ts` (`groupSources` gives `node:` refs their own
+  "Story nodes" group), `apps/studio/src/components/AssetView.tsx` (`RefLink` deep-links to the node on
+  the map), `packages/cli/src/friction.ts` (accepts a `node:` reference, and still refuses a DANGLING
+  one — ADR-0168 D3's resolve-floor is unchanged), `packages/drive/src/health.ts` (a dangling node ref
+  WARNs), and `packages/drive/src/orientation-reads.ts` + `packages/cli/src/commands.ts` (a `storytree
+  tree <id>` door). This is what discharged the studio-Sources grouping cost this ADR originally
+  surfaced below.
 
 **Bad / costs / follow-on (surfaced, not buried).**
 - **The terminal `story build` green line is not yet gated.** The studio crown (the owner-facing world,
@@ -122,8 +131,7 @@ the proof compute ignorant of OQ doc shapes and the library ignorant of proof.
   gate there is a cheap honesty follow-up.
 - **No raise-side ergonomics yet.** An agent attaches an OQ by writing `node:<id>` into its references
   by hand (`artifact new --file --pg`); a `storytree oq raise --node <id>` affordance that stamps the
-  token is unbuilt. The studio "Sources" view groups `doc:`/`asset:` refs and will show a `node:` ref
-  ungrouped until that view learns the token (cosmetic, out of scope).
+  token is unbuilt.
 - **Mis-attachment is the standing risk** — an OQ that *should* gate but carries no `node:<id>` ref
   won't, and one wrongly tagged blocks a story it shouldn't. Mitigated by the retire-to-resolve path
   (a wrong tag is cleared by the same lifecycle) and the read-time, never-red posture (a mistake only

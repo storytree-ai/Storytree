@@ -81,4 +81,5 @@ export {
   LibraryDoc,
   validateLibraryDoc,
   upcastAndValidate,
+  explainDocValidationError,
 } from "./library-doc.js";
