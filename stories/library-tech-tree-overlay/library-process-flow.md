@@ -109,20 +109,26 @@ exists to communicate.
 So branch targets join the **downstream** frontier: centre on the left, stations to the right, flow
 reading left→right. This is the one call the implementation must not get backwards.
 
-## Contracts
+## Contracts (4)
 
-- **`lpf-branch-target-renders-downstream`** — a `process` centre carrying `branchEdges` yields, for
-  each in-corpus target, a `FocusNode` with `side: 'downstream'` and a `FocusEdge` from the centre to
-  it. At HEAD neither the node nor the edge is returned.
-- **`lpf-branch-edge-carries-its-label`** — the `FocusEdge` produced from a branch edge carries that
-  edge's authored `label` verbatim; an edge authored without a label carries none rather than an
-  empty string.
-- **`lpf-branch-edge-is-kind-tagged`** — a branch-derived edge is distinguishable from a
-  reference-derived one by an explicit kind tag, so the look leg can style them apart without
-  re-deriving provenance from the node pair.
-- **`lpf-no-branch-edges-yields-none`** — a `process` asset with no `branchEdges` (every other process
-  in the corpus today) contributes no branch edges and no branch nodes: absent, never an empty-array
-  artifact. This is the back-compat contract — sixteen of seventeen processes are in this state.
+The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest,
+`apps/studio/src/lib/processFlowEdges.test.ts`), importing `buildFocusGraph` from `./focusGraph`. Per
+ADR-0122 each contract id is the LEAD of a distinctly-named test, so `storytree coverage` reports 4/4
+against the ONE `real.testFile`. None is an APPEARANCE assertion — the drawn label and any branch-edge
+stroke treatment are the story's operator-attested UAT leg (ADR-0070).
+
+1. **`lpf-branch-target-renders-downstream`** — a `process` centre carrying `branchEdges` yields, for
+   each in-corpus target, a `FocusNode` with `side: 'downstream'` and a `FocusEdge` from the centre to
+   it. At HEAD neither the node nor the edge is returned.
+2. **`lpf-branch-edge-carries-its-label`** — the `FocusEdge` produced from a branch edge carries that
+   edge's authored `label` verbatim; an edge authored without a label carries none rather than an
+   empty string.
+3. **`lpf-branch-edge-is-kind-tagged`** — a branch-derived edge is distinguishable from a
+   reference-derived one by an explicit kind tag, so the look leg can style them apart without
+   re-deriving provenance from the node pair.
+4. **`lpf-no-branch-edges-yields-none`** — a `process` asset with no `branchEdges` (every other process
+   in the corpus today) contributes no branch edges and no branch nodes: absent, never an empty-array
+   artifact. This is the back-compat contract — sixteen of seventeen processes are in this state.
 
 ## Out of scope
 
