@@ -66,9 +66,25 @@ export interface Probe {
   file: string;
 }
 
-/** One registered mirrored payload: the rules, plus the two probes that produce it. */
+/**
+ * Which shared input set a mirror's two probes run over — and, with it, the SHAPE they print.
+ * The two travel together because they are one protocol: {@link file://./check-mirror-conformance.ts}
+ * builds the inputs, passes them as argv, and decodes what comes back.
+ *
+ * - `docs-trees` — argv is docs DIRECTORIES; each probe prints `DocMeta[]` per directory, already
+ *   the comparable entry array.
+ * - `activity-fixtures` — argv is fixture JSON PATHS (raw `events.node_claim` rows + a fixed `now`);
+ *   each probe prints the route's response body VERBATIM, which
+ *   {@link projectActivityPayload} turns into entries. The projection lives here, on the third
+ *   party, so the two probes cannot drift in how they reshape what they measured.
+ */
+export type MirrorInputSet = "docs-trees" | "activity-fixtures";
+
+/** One registered mirrored payload: the rules, the input protocol, plus the two probes. */
 export interface MirrorTarget {
   spec: MirrorSpec;
+  /** The shared input set both probes run over, and the payload shape they print. */
+  inputs: MirrorInputSet;
   reference: Probe;
   mirror: Probe;
 }
@@ -102,8 +118,58 @@ export const MIRRORS: readonly MirrorTarget[] = [
       // the studio emits has a reader on the desktop too. There is no sanctioned difference here.
       referenceOnlyFields: [],
     },
+    inputs: "docs-trees",
     reference: { appDir: "apps/studio", file: "apps/studio/server/docsMirrorProbe.ts" },
     mirror: { appDir: "apps/desktop", file: "apps/desktop/src/backend/docs-mirror-probe.ts" },
+  },
+  {
+    // THE SECOND ROW, and the one the registry's own advisory sibling had been naming for weeks:
+    // `mirror-pair-drift` in `check:verification-decay` listed `/api/activity` as an unregistered
+    // pair while the pair drifted TWICE in the real corpus — the desktop's re-composed SELECT
+    // shipped without ADR-0200's `grade` column (fixed in #993, and the reason
+    // apps/desktop/src/backend/claim-activity.ts exists), then its route shipped without the
+    // `departures` key the studio serves (fixed in 6dbc1b80). Both were found by a human reading
+    // the map, which is precisely the observer this row replaces.
+    //
+    // WHAT IT PROVES, and what it does not — stated precisely, because a fence whose reach is
+    // assumed is worse than one whose reach is written down.
+    //
+    // The `claims` layer is folded on each side from RAW `events.node_claim` rows by that surface's
+    // OWN re-composed fold (`claimsToActivity` / `claimRowsToActivity`), over one shared fixture and
+    // a fixed `now`. So what is asserted is that THE TWO FOLDS AGREE — a fold that stops carrying a
+    // field, normalises a grade differently, or drops a stale row on a different threshold goes red.
+    // That is the cross-surface half of the grade defect, and it is the half no observer had.
+    //
+    // It is NOT the whole of that defect, and the difference matters: `grade` originally went missing
+    // in the desktop's SELECT, upstream of the fold. A fixture supplies rows directly, so this row
+    // cannot see a column leaving a query. That half is fenced INSIDE each surface instead — the
+    // desktop derives `IN_FLIGHT_CLAIMS_SQL` from `CLAIM_ROW_COLUMNS`, so its SELECT and its reader
+    // cannot drift apart again (claim-activity.ts's own header records why). The two fences are
+    // complementary, and neither covers the other.
+    //
+    // `builds` and `departures` ride the fixture ALREADY FOLDED, so for those two this proves the
+    // route emits the KEY and passes the value through unchanged — the departures-shaped defect —
+    // but NOT that the two folds agree. `departures` needs no such proof (both surfaces call the SAME
+    // `foldDepartures` from @storytree/notice-board — shared code, no drift class). `builds` DOES,
+    // and cannot get it here: the desktop's fold is inline inside a `pg` query closure in
+    // apps/desktop/electron/backend-entry.ts and cannot be reached without a database, while this
+    // gate runs in CI. Extracting it to a pure module — the shape `claim-activity.ts` already
+    // took — is what would close that half.
+    spec: {
+      surface: "GET /api/activity ({builds, claims, departures})",
+      route: "/api/activity",
+      reference: "studio",
+      mirror: "desktop",
+      // The projection's synthetic key (`layer:<name>` / `<layer>#<index>`), not a payload field —
+      // see `projectActivityPayload`.
+      key: "_key",
+      // EMPTY BY DESIGN: both surfaces serve this wire to the SAME compiled world renderer, which
+      // reads every layer from either. A difference here is a defect, never a deliberate narrowing.
+      referenceOnlyFields: [],
+    },
+    inputs: "activity-fixtures",
+    reference: { appDir: "apps/studio", file: "apps/studio/server/activityMirrorProbe.ts" },
+    mirror: { appDir: "apps/desktop", file: "apps/desktop/src/backend/activity-mirror-probe.ts" },
   },
 ];
 
@@ -132,6 +198,58 @@ export type Divergence =
 
 /** A decoded payload entry — an arbitrary JSON record keyed by the spec's `key` field. */
 export type Entry = Record<string, unknown>;
+
+/** The projection's key field — synthetic, so it can never collide with a payload's own `key`. */
+export const ACTIVITY_KEY = "_key";
+
+/**
+ * PURE: project a `GET /api/activity` response body — `{builds, claims, departures}`, each an array
+ * or `null` — into comparable {@link Entry} rows.
+ *
+ * WHY THE THIRD PARTY PROJECTS, and not the probes. Each probe prints the body VERBATIM; this turns
+ * it into entries. Putting the reshaping in the two probes would have handed each surface its own
+ * copy of it, and a projection that drifted could mask the very divergence the harness is asserting
+ * — the class the whole file exists to fence, arriving inside its own instrument.
+ *
+ * ONE ENTRY PER ROW, NOT ONE PER LAYER, so {@link compareMirrors} compares each activity's fields by
+ * NAME. A layer compared as one blob would be JSON-string-compared, which makes object KEY ORDER —
+ * not a semantic difference in JSON — a red gate, and would report a whole-layer mismatch where the
+ * real defect is one field on one row. Per-row entries report `grade: studio="exploring"
+ * desktop="(absent)"`, which names the ADR-0200 defect exactly.
+ *
+ * PLUS ONE `layer:<name>` MARKER PER KEY, which is what catches the `departures` class. Rows alone
+ * cannot: a layer the mirror omits ENTIRELY and a layer it serves EMPTY both contribute zero rows,
+ * so the two would agree. The marker carries the key's presence, its `shape` (`array` / `null` — the
+ * advisory-absence distinction both surfaces promise) and its row count, so an omitted key is a
+ * missing entry and a `null`-for-`[]` swap is a field divergence.
+ */
+export function projectActivityPayload(body: unknown): Entry[] {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error(`activity payload must be a JSON object, got ${render(body)}`);
+  }
+  const out: Entry[] = [];
+  // Sorted so the entry order is the payload's key SET, never its key ORDER — the latter is not a
+  // semantic difference, and `compareMirrors` compares order.
+  for (const layer of Object.keys(body as Record<string, unknown>).sort()) {
+    const value = (body as Record<string, unknown>)[layer];
+    out.push({
+      [ACTIVITY_KEY]: `layer:${layer}`,
+      shape: value === null ? "null" : Array.isArray(value) ? "array" : typeof value,
+      rows: Array.isArray(value) ? value.length : null,
+    });
+    if (!Array.isArray(value)) continue;
+    value.forEach((row, i) => {
+      const fields =
+        row !== null && typeof row === "object" && !Array.isArray(row)
+          ? (row as Record<string, unknown>)
+          : { value: row };
+      // The synthetic key is written LAST so a payload that happened to carry `_key` cannot
+      // displace it and collapse two rows onto one entry.
+      out.push({ ...fields, [ACTIVITY_KEY]: `${layer}#${i}` });
+    });
+  }
+  return out;
+}
 
 /** JSON-compare one field value; `undefined` for an absent key (distinct from an explicit null). */
 function render(value: unknown): string {
