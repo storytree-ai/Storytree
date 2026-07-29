@@ -7,9 +7,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  ACTIVITY_KEY,
   compareMirrors,
   formatDivergences,
   MIRRORS,
+  projectActivityPayload,
   registeredMirrorRoutes,
   REPORT_LIMIT,
   type Entry,
@@ -147,6 +149,92 @@ test("the registry exposes its routes as DATA, so a second reader never scrapes 
   for (const m of MIRRORS) {
     assert.match(m.spec.route, /^\/api\/[a-z/-]+$/, `${m.spec.surface} has an unusable route`);
     assert.ok(m.spec.surface.includes(m.spec.route), "the human label must name the route it registers");
+  }
+});
+
+// ---------- projectActivityPayload: the `/api/activity` projection ----------
+
+const ACTIVITY_SPEC: MirrorSpec = {
+  surface: "GET /api/activity",
+  route: "/api/activity",
+  reference: "studio",
+  mirror: "desktop",
+  key: ACTIVITY_KEY,
+  referenceOnlyFields: [],
+};
+
+const claim = (sessionId: string, grade: string): Entry => ({
+  unitId: "cli",
+  kind: "claim",
+  sessionId,
+  grade,
+});
+
+test("the activity projection emits one marker per layer plus one entry per row", () => {
+  const entries = projectActivityPayload({
+    claims: [claim("s-1", "work")],
+    builds: null,
+    departures: [],
+  });
+  // Keys SORTED, so the entry order is the payload's key SET and never its key ORDER.
+  assert.deepEqual(entries.map((e) => e[ACTIVITY_KEY]), [
+    "layer:builds",
+    "layer:claims",
+    "claims#0",
+    "layer:departures",
+  ]);
+  assert.deepEqual(entries[0], { [ACTIVITY_KEY]: "layer:builds", shape: "null", rows: null });
+  assert.deepEqual(entries[1], { [ACTIVITY_KEY]: "layer:claims", shape: "array", rows: 1 });
+});
+
+test("a layer the mirror omits ENTIRELY diverges even at zero rows — the `departures` class", () => {
+  // The real 6dbc1b80 defect: the desktop route served `{builds, claims}` while the studio served
+  // `{builds, claims, departures}`. Rows alone cannot catch it — an omitted layer and an EMPTY one
+  // both contribute zero rows — which is the whole reason each layer carries a marker entry.
+  const studio = projectActivityPayload({ builds: [], claims: [], departures: [] });
+  const desktop = projectActivityPayload({ builds: [], claims: [] });
+
+  const divergences = compareMirrors(studio, desktop, ACTIVITY_SPEC, "advisory-absence");
+  assert.deepEqual(divergences, [
+    { kind: "missing-entry", where: "advisory-absence", key: "layer:departures" },
+  ]);
+});
+
+test("a field a row drops is reported per row, by name — the ADR-0200 `grade` class", () => {
+  // The originating defect: the desktop's re-composed fold reached the wire without `grade`, so
+  // every exploring/waiting claim rendered as a whole-island work orbit.
+  const studio = projectActivityPayload({ claims: [claim("s-1", "exploring"), claim("s-2", "waiting")] });
+  const desktop = projectActivityPayload({
+    claims: [{ unitId: "cli", kind: "claim", sessionId: "s-1" }, { unitId: "cli", kind: "claim", sessionId: "s-2" }],
+  });
+
+  const divergences = compareMirrors(studio, desktop, ACTIVITY_SPEC, "populated");
+  assert.deepEqual(divergences, [
+    { kind: "field", where: "populated", key: "claims#0", field: "grade", reference: '"exploring"', mirror: "(absent)" },
+    { kind: "field", where: "populated", key: "claims#1", field: "grade", reference: '"waiting"', mirror: "(absent)" },
+  ]);
+});
+
+test("`null` and `[]` are distinguished — the advisory-absence promise is not `[]`", () => {
+  const studio = projectActivityPayload({ claims: null });
+  const desktop = projectActivityPayload({ claims: [] });
+
+  const divergences = compareMirrors(studio, desktop, ACTIVITY_SPEC, "advisory-absence");
+  assert.deepEqual(divergences, [
+    { kind: "field", where: "advisory-absence", key: "layer:claims", field: "shape", reference: '"null"', mirror: '"array"' },
+    { kind: "field", where: "advisory-absence", key: "layer:claims", field: "rows", reference: "null", mirror: "0" },
+  ]);
+});
+
+test("a row carrying its own `_key` cannot displace the synthetic one and collapse two entries", () => {
+  const entries = projectActivityPayload({ claims: [{ [ACTIVITY_KEY]: "spoofed" }, { [ACTIVITY_KEY]: "spoofed" }] });
+  assert.deepEqual(entries.map((e) => e[ACTIVITY_KEY]), ["layer:claims", "claims#0", "claims#1"]);
+});
+
+test("a payload that is not a JSON object is a THROW, never a silently empty projection", () => {
+  // Fail-closed: an empty projection would compare two nothings and pass.
+  for (const bad of [null, [], "{}", 7]) {
+    assert.throws(() => projectActivityPayload(bad), /must be a JSON object/);
   }
 });
 

@@ -177,6 +177,28 @@ nothing is re-decided** — enforcement is still on the COUNT and never on the f
 on growth, still baselined on a first real sweep and tightening-only, and escalations are still
 excluded from every count.
 
+**Correction (2026-07-30, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+`mirror-pair-drift`'s ceiling has since moved UPWARD, 10 → 11, and this ADR's flat "the ceiling can
+only ever be tightened" is SCOPED rather than reversed.** The number above is left as the historical
+first-sweep baseline it describes; the live number lives at the ceiling in
+`packages/cli/src/check-verification-decay.ts` and is not restated here. The move is not the gaming
+this ADR fences, and the tell is that **WHAT is counted changed, not merely HOW MANY**: `MIRROR_SURFACE`
+had walked only `apps/desktop/src/backend`, so two routes the desktop genuinely serves from
+`apps/desktop/electron` had never entered the population at all. Widening the surface produced a
+measurement of a LARGER WORLD (10 baseline, −1 for `/api/activity` registered — a real repair, and this
+instrument's first recorded drain — and +2 newly VISIBLE, not newly broken), and the two effects were
+deliberately isolated rather than netted, because a drain and a discovery are not interchangeable.
+
+**This is a projection of the first-sweep rule, not an exception carved out of it.** "Tuned on the
+first real sweep" and "tightening-only" only pull apart when the population itself changes, and the
+argument is the same one the per-instrument split above rests on: a number baselined on one population
+cannot carry meaning for a different one. A ceiling raised to absorb items landed under an UNCHANGED
+population remains the gaming move, and is still forbidden. **NOTE for the owner:** this
+population-enlargement rule is currently written down only in `process:verification-decay-detection`
+and at the ceiling in code, not in any ADR — under ADR-0034 §2 a process makes no new policy, so it
+holds here as a reading of THIS decision. If the owner reads it as new policy instead, it wants its
+own ADR; a librarian correction cannot settle that.
+
 **The split is what KEEPS decision 3 true, not a departure from it**, and the evidence is measured
 rather than argued. Under one shared total: (a) a second instrument's honest baseline of 10 arrives as
 pure growth and reds the gate on landing, so the cheapest way to add one of decision 1's remaining

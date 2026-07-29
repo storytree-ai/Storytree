@@ -110,8 +110,36 @@ const CEILINGS = {
    * Baselined 2026-07-27 at the 10 route pairs that sweep located — every `/api/*` path served by
    * BOTH the studio server and the desktop backend except `/api/docs`, the one pair `MIRRORS`
    * registers. Register a pair (a probe on each surface plus a row), lower this number.
+   *
+   * RE-BASELINED 10 → 11 (2026-07-29), and the direction is the point: this is the ONE legitimate
+   * upward move `asset:verification-decay-detection` names — an instrument whose MEASURED POPULATION
+   * genuinely enlarges is re-baselined on the first real sweep of that new population, with the
+   * reason recorded AT the number. THE TELL THAT SEPARATES IT FROM GAMING IS THAT **WHAT** IS
+   * COUNTED CHANGED, NOT MERELY **HOW MANY**: no pair was reclassified, no finding was excused, and
+   * the ceiling did not move to accommodate a backlog that grew under it. `MIRROR_SURFACE` walked
+   * only `apps/desktop/src/backend` and never `apps/desktop/electron`, so two routes the desktop
+   * genuinely serves — `/api/attestations` and `/api/uat/attest`, both mounted in
+   * `electron/backend-entry.ts`, the first of them self-documented there as re-composing the studio
+   * payload with no studio import — had never entered the count at all. The instrument was sitting at
+   * a ceiling of ten while its real population was eleven: a guard measuring a smaller world than the
+   * one it guards.
+   *
+   * MEASURED, not predicted, and the two effects were isolated deliberately so the number is
+   * attributable rather than a net figure nobody can decompose:
+   *   10  the standing baseline
+   *   −1  `/api/activity` REGISTERED — a real repair (probe pair + `MIRRORS` row), and the first
+   *       drain this instrument has ever recorded; measured alone, before the sweep widened
+   *   +2  `/api/attestations`, `/api/uat/attest` — newly VISIBLE, not newly broken; unobserved on
+   *       every day this instrument reported a complete sweep
+   *   =11 the first real sweep of the enlarged population
+   *
+   * A DRAIN AND A DISCOVERY ARE NOT INTERCHANGEABLE, which is why they are not netted here.
+   * `check:mirror-conformance` is a BLOCKING gate step; this instrument is advisory and deliberately
+   * excluded from CI. So the −1 actually FENCES a route — a divergence in `/api/activity` now reds a
+   * gate — while the +2 only makes two long-standing unobserved pairs visible. Widening the sweep
+   * bought discovery, not enforcement; only a `MIRRORS` row buys enforcement.
    */
-  [MIRROR_PAIR_DRIFT]: 10,
+  [MIRROR_PAIR_DRIFT]: 11,
   /**
    * Baselined 2026-07-27 at the 7 test FILES that sweep located across 424 test files and 4043
    * observed tests — each holding one or more options-form-skipped tests the repo's own classifier
@@ -197,9 +225,22 @@ const CEILINGS = {
  * Whole DIRECTORIES rather than a hand-listed set of route files, deliberately — a list of files to
  * scan is a second thing somebody must keep in step, and a new route file nobody added to it would be
  * invisible to a sweep that still reported full coverage.
+ *
+ * THE DESKTOP IS TWO DIRECTORIES, and reading only the first was this instrument's own blind spot —
+ * a guard measuring a smaller world than the one it guards. The desktop serves `/api/*` from BOTH
+ * `src/backend` (the headless, node:test-provable factory) and `electron/` (the mounts that need the
+ * live pool — `backend-entry.ts` mounts `/api/attestations` and `/api/uat/attest`, and its own
+ * comment says it re-composes the studio's payload with no studio import: a mirror by its author's
+ * description, invisible to the sweep that was supposed to find it). The split is a WIRING boundary,
+ * not a re-composition boundary, so scanning one dir dropped real pairs while the instrument still
+ * reported a complete sweep. Adding the dir is what put them in view — see the `MIRROR_PAIR_DRIFT`
+ * ceiling note, which records that the POPULATION changed, not merely the count.
  */
 const REFERENCE_SURFACE = { surface: "studio", dirs: ["apps/studio/server"] };
-const MIRROR_SURFACE = { surface: "desktop", dirs: ["apps/desktop/src/backend"] };
+const MIRROR_SURFACE = {
+  surface: "desktop",
+  dirs: ["apps/desktop/src/backend", "apps/desktop/electron"],
+};
 
 /**
  * Every `/api/*` path a source file DISPATCHES on. Both spellings are read, and both matter:

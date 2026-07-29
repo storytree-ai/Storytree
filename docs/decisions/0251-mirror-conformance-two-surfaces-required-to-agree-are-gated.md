@@ -122,11 +122,20 @@ desktop-side unit test pinning the behaviour where the code lives.
   pay. `desktop-backend-mirrors-studio-routes-subset` records that a future desktop 404 is most likely
   a newly-added studio fetch — this ADR extends that from "route present" to "payload equal".
 - The gate spends two `tsx` process spawns (~2-4s). Accepted: it runs once per gate, not per test.
-- **What this does NOT cover.** Only `GET /api/docs` is registered today. The other mirrored reads
-  (`/api/me`, `/api/docs/content`, `/api/comments`, and the `local-backend.ts` seam routes) are
-  unregistered, so their drift is still ungated. `/api/docs` was chosen because it is where drift was
+- **What this does NOT cover.** Registration is deliberately incremental, so the unregistered
+  remainder stays ungated. `/api/docs` was registered first because it is where drift was
   demonstrated; the registry exists so the rest is an increment, not a redesign. Stating the gap
   explicitly is the arc's no-silent-caps rule.
+  **Corrected 2026-07-30 (per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+  this bullet read "Only `GET /api/docs` is registered today" and then hand-listed the remainder as
+  "`/api/me`, `/api/docs/content`, `/api/comments`, and the `local-backend.ts` seam routes" — both
+  halves are overtaken and are replaced rather than renumbered.** `GET /api/activity` is now the
+  second `MIRRORS` row (probe pair on each surface plus a row, the cost this ADR charges), and it is
+  the first drain `mirror-pair-drift` has recorded. The remainder is deliberately NOT re-listed here:
+  `pnpm check:verification-decay` prints the live unregistered list on every run and derives it from
+  the registry itself, so that sweep — never this bullet — is where a reader learns what is still
+  uncovered. A hand-list here would be exactly the "two lists of one fact drifting apart" class this
+  ADR exists to fence, which is why the original one went stale.
 - **`DocMeta.references` still has no reader** — in either surface. The fold is now consistent across
   the mirror, but the ADR constellation's doc out-degree stays 0 until a studio-side reader lands.
   That is a studio gap, recorded here so a later session does not rediscover it as a desktop bug.
@@ -187,7 +196,21 @@ registry MOVED from `check-mirror-conformance.ts` (which runs `main()` on import
 without running the whole gate) into the pure `packages/cli/src/mirror-conformance.ts`, and
 `MirrorSpec` gained a machine-readable `route`. Decision 4's `referenceOnlyFields` allowlist moved with
 it; nothing about the allowlist's self-pruning rule changed. Its first sweep located **10** unregistered
-pairs — every route both surfaces serve except `/api/docs`. **Nothing in this section is re-decided**:
+pairs.
+
+**Correction (2026-07-30, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+that sentence continued "— every route both surfaces serve except `/api/docs`", and that clause is
+REMOVED rather than renumbered, because the defect it hides is not the count.** It asserted a
+completeness the instrument did not have: `MIRROR_SURFACE` walked only `apps/desktop/src/backend` and
+never `apps/desktop/electron`, so `/api/attestations` and `/api/uat/attest` — both mounted in
+`electron/backend-entry.ts`, the first self-documented there as re-composing the studio's payload with
+no studio import, a mirror by its own author's description — sat outside the measured population on
+that first sweep and on every sweep until the surface was widened. The instrument was guarding a
+smaller world than the one it reported on, while printing a complete-coverage line. The current count
+is not restated here either: `packages/cli/src/check-verification-decay.ts` holds it at the ceiling
+with the re-baseline decomposed at the number, which is the only place it is stated.
+
+**Nothing in this section is re-decided**:
 the boundary still holds exactly — this gate proves its registered pairs by exact assertion and BLOCKS,
 that sweep locates unregistered pairs as a heuristic and stays advisory — and the registry is still
 the sweep's target, never its re-derivation.
