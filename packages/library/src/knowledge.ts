@@ -873,6 +873,18 @@ export const PlanStatus = z.enum(["draft", "ready", "consumed", "superseded", "r
 export type PlanStatus = z.infer<typeof PlanStatus>;
 
 /**
+ * The stored closure state of an `arc` (ADR-0239 D1): `active` while the initiative is in flight,
+ * `closed` once a terminal increment records that the observable `endState` condition was met.
+ * TWO values, not `plan`'s five — an arc has no `open` state (ADR-0196 D1's table gives `arc` an
+ * `active`/`archived` row only), and D2 of that same ADR already judged the wider enum surface-level
+ * over-engineering. Vocabulary follows ADR-0196 D2 verbatim ("a stored `lifecycle` field"), and the
+ * mapping onto the universal triad stays in the ONE projection (`lifecycleOf`, ADR-0196 D4).
+ * Enum-fenced at the schema so a free-prose state can never be written (the `PlanStatus` precedent).
+ */
+export const ArcLifecycle = z.enum(["active", "closed"]);
+export type ArcLifecycle = z.infer<typeof ArcLifecycle>;
+
+/**
  * Build a per-kind zod object from its field spec table. Required fields are `Markdown`;
  * optional fields are `Markdown.optional()`; `refList` fields are `asset:` ref arrays
  * (required => non-empty). The `kind` literal discriminates the union.
@@ -951,8 +963,16 @@ export const Friction = buildKindSchema("friction").extend({
 // preserves `.strict()` and the `kind` literal; a NEW kind touches no existing doc, so there is no
 // `CURRENT_SCHEMA_VERSION` bump and zero migration (the ADR-0168 friction precedent, re-verified:
 // every registered migration is a per-doc transform that no-ops on a fresh arc/plan doc).
+// ...and, since ADR-0239 D1, one more: `lifecycle`, the stored closure flag. Same schema-level shape
+// (never a KIND_SPECS body field, so it does not round-trip through markdown) and
+// OPTIONAL-WITH-DEFAULT like `plan`'s `status` — every arc authored before this field validates
+// unchanged, so there is NO `CURRENT_SCHEMA_VERSION` bump and no migration. It closes ADR-0196 D2's
+// deferral: the arc-close write finally has a field to land in, so the `archived` half of that ADR's
+// arc row stops being unreachable by construction. The flip is never free — `storytree arc close`
+// writes it in the SAME atomic write as the terminal increment that justifies it (D2).
 export const Arc = buildKindSchema("arc").extend({
   increments: z.array(ArcIncrement).optional(),
+  lifecycle: ArcLifecycle.default("active"),
 });
 // The `plan` kind (ADR-0183 D2/D3) carries three structured fields beyond its KIND_SPECS table:
 // `arcRef` is REQUIRED — a plan is born citing its arc (D3: the containment edge lives on the

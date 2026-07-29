@@ -14,8 +14,8 @@ import type { Envelope } from "./envelope.js";
  * so the upward view is derived-from-source (the `adr list` pattern) and can never drift from the
  * children. The arc is ceremony-light by construction: rapid plan churn touches only plan rows.
  *
- *   storytree arc list [--pg]        every arc: intent + increment count
- *   storytree arc show <id> [--pg]   one arc: intent / end state / increment log + derived children
+ *   storytree arc list [--pg]        the ACTIVE arcs: intent + increment count (--all / --closed widen it)
+ *   storytree arc show <id> [--pg]   one arc: lifecycle / intent / end state / increments + derived children
  *
  * Arcs are LIVE-canonical (ADR-0023) and plans are live-ONLY (ADR-0183 D2), so the offline seed
  * store shows neither — run with --pg for the real view. The ADR/story stamps are read from disk
@@ -88,7 +88,32 @@ function planArcOf(stored: StoredDoc): string | null {
   return ref.startsWith("asset:") ? ref.slice("asset:".length) : null;
 }
 
-async function arcList(deps: ArcViewDeps): Promise<Envelope> {
+/**
+ * PURE: an arc's stored closure state (ADR-0239 D1), read defensively off an untyped doc. Only the
+ * exact `"closed"` the schema enum fences is closure — an absent, empty, or unrecognised value is an
+ * arc still IN FLIGHT, so a doc this code doesn't understand stays in the worklist instead of
+ * silently vanishing from it (`lifecycleOf`'s fail-open arc branch, applied at the render surface).
+ */
+export function arcIsClosed(stored: StoredDoc): boolean {
+  return (stored.doc as Record<string, unknown>)["lifecycle"] === "closed";
+}
+
+/**
+ * Which arcs `storytree arc list` renders (ADR-0239 D3). `active` is the DEFAULT and the point of
+ * the decision: the list is a worklist, so a finished initiative leaves it and an unclosed one keeps
+ * showing up — which is what makes the rot self-correcting (an omission is visible weekly rather
+ * than at audit time, the failure that produced ADR-0239).
+ */
+export type ArcScope = "active" | "closed" | "all";
+
+/** Resolve the scope from the two widening flags — `--all` wins over `--closed`. */
+export function arcScopeOf(opts: { all?: boolean | undefined; closed?: boolean | undefined }): ArcScope {
+  if (opts.all === true) return "all";
+  if (opts.closed === true) return "closed";
+  return "active";
+}
+
+async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
   const arcs = await deps.store.queryDocs({ kind: "arc" });
   if (arcs.length === 0) {
     return {
@@ -100,18 +125,45 @@ async function arcList(deps: ArcViewDeps): Promise<Envelope> {
     };
   }
   const sorted = [...arcs].sort((a, b) => a.id.localeCompare(b.id));
-  const width = Math.max(1, ...sorted.map((d) => d.id.length));
-  const rows = sorted.map((d) => {
+  const closedCount = sorted.filter((d) => arcIsClosed(d)).length;
+  const shown =
+    scope === "all" ? sorted : sorted.filter((d) => arcIsClosed(d) === (scope === "closed"));
+  const width = Math.max(1, ...shown.map((d) => d.id.length));
+  const rows = shown.map((d) => {
     const doc = d.doc as Record<string, unknown>;
     const increments = Array.isArray(doc["increments"]) ? (doc["increments"] as IncrementRow[]) : [];
     const last = increments[increments.length - 1];
     const lastNote = last ? `last ${last.date ?? "?"}${last.pr !== undefined ? ` ${last.pr}` : ""}` : "no landings yet";
-    return `  ${d.id.padEnd(width)}  ${increments.length} increment(s), ${lastNote}  — ${str(d, "title")}`;
+    // The state tag rides every closed row so `--all` / `--closed` are never the old blind list;
+    // under the default scope no closed arc is shown, so it never appears there.
+    const tag = arcIsClosed(d) ? "[closed] " : "";
+    return `  ${d.id.padEnd(width)}  ${increments.length} increment(s), ${lastNote}  — ${tag}${str(d, "title")}`;
   });
+
+  const label = scope === "all" ? "arc(s)" : `${scope} arc(s)`;
+  const header = `storytree arc — ${shown.length} ${label}`;
+  // The muted footer (D3): the closed arcs are not hidden, they are one flag away.
+  const footer =
+    scope === "active" && closedCount > 0 ? ["", `  (${closedCount} closed — --all)`] : [];
+  const body =
+    shown.length === 0
+      ? [
+          header,
+          "",
+          scope === "active"
+            ? `  (none — all ${closedCount} arc(s) here are closed; --all or --closed to see them)`
+            : "  (none — no arc here has been closed yet)",
+        ].join("\n")
+      : [header, "", ...rows, ...footer].join("\n");
+
+  const pgFlag = deps.pg ? " --pg" : "";
   return {
     ok: true,
-    body: [`storytree arc — ${sorted.length} arc(s)`, "", ...rows].join("\n"),
-    next: sorted.slice(0, 3).map((d) => `storytree arc show ${d.id}${deps.pg ? " --pg" : ""}`),
+    body,
+    next: [
+      ...shown.slice(0, 3).map((d) => `storytree arc show ${d.id}${pgFlag}`),
+      ...(scope === "active" && closedCount > 0 ? [`storytree arc list --all${pgFlag}`] : []),
+    ],
   };
 }
 
@@ -140,7 +192,15 @@ async function arcShow(deps: ArcViewDeps, id: string | undefined): Promise<Envel
     };
   }
 
-  const lines: string[] = [`# ${str(stored, "title")}    [arc]`, `id: ${id}`, ""];
+  // `arc show` renders ANY arc regardless of lifecycle (ADR-0239 D3 — only the LIST filters) and
+  // states which it is, so a closed initiative is readable without being mistaken for live work.
+  const closed = arcIsClosed(stored);
+  const lines: string[] = [
+    `# ${str(stored, "title")}    [arc]`,
+    `id: ${id}`,
+    `lifecycle: ${closed ? "closed — its end state was met; it is out of the default arc list" : "active (in flight)"}`,
+    "",
+  ];
   const intent = str(stored, "intent");
   if (intent) lines.push(`**The intent.** ${intent}`, "");
   const endState = str(stored, "endState");
@@ -349,10 +409,116 @@ export async function arcIncrementAdd(
   const count = Array.isArray((valid as Record<string, unknown>)["increments"])
     ? ((valid as Record<string, unknown>)["increments"] as unknown[]).length
     : 0;
+
+  // ADR-0239 D4 — the closure reminder lives HERE, in the output of the command the situation forces
+  // you to run, not in any agent prompt or the generated CLAUDE.md region. Cost: zero context for
+  // every session that is not landing an arc increment, which is almost all of them (the ADR-0023
+  // pull model applied to a ceremony step). The session that just appended an increment reads the
+  // closure question at the exact moment it can answer it, against the arc's OWN stored end state —
+  // echoed back so the judgment is made from data, not memory. It never asserts the end state was
+  // met; the "(if …)" is load-bearing, since that call is irreducibly the session's.
+  const validDoc = valid as Record<string, unknown>;
+  const endState = typeof validDoc["endState"] === "string" ? validDoc["endState"] : "";
+  const alreadyClosed = validDoc["lifecycle"] === "closed";
+  const closureHint = !alreadyClosed && endState !== "" ? `\n\nthis arc's end state: ${endState}` : "";
+
   return {
     ok: true,
-    body: `appended increment to arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${outcome}\n(${count} increment(s) now).`,
-    next: [`storytree arc show ${saved.id} --pg`],
+    body:
+      `appended increment to arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${outcome}\n(${count} increment(s) now).` +
+      closureHint,
+    next: [
+      `storytree arc show ${saved.id} --pg`,
+      ...(alreadyClosed
+        ? []
+        : [`storytree arc close ${saved.id} --outcome "…" --pg  (if this landing met the end state)`]),
+    ],
+  };
+}
+
+/**
+ * `storytree arc close <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` — the
+ * ONE closing verb (ADR-0239 D2): it appends the terminal increment AND sets `lifecycle: closed` in
+ * a SINGLE validated upsert, so the state and the prose that justifies it can never be written apart.
+ *
+ * `--outcome` is REQUIRED and that is the whole design: an arc cannot go closed without a terminal
+ * increment stating the observable `endState` condition it met. This is the ADR-0084/0086 discipline
+ * applied unchanged — a status is a projection of prose that supports it, never a free flip — which
+ * is also why `library artifact edit --set lifecycle=closed` is refused at the generic edit surface.
+ *
+ * Re-opening (`closed → active`) is deliberately NOT a verb here: it is owner-only, mirroring
+ * ADR-0084's human-only `accepted → proposed` un-deciding. An agent may recognise that an end state
+ * was met; deciding it was NOT is the owner's call.
+ */
+export async function arcClose(
+  deps: ArcWriteDeps,
+  id: string | undefined,
+  opts: { date?: string | undefined; pr?: string | undefined; outcome?: string | undefined },
+): Promise<Envelope> {
+  if (!deps.writable) return arcNotWritable("close");
+  if (id === undefined) {
+    return {
+      ok: false,
+      body: "arc close needs an id: storytree arc close <id> --outcome <text|@file> [--pr <ref>] --pg",
+      next: ["storytree arc list --pg"],
+    };
+  }
+  const outcome = opts.outcome?.trim();
+  if (outcome === undefined || outcome === "") {
+    return {
+      ok: false,
+      body: [
+        "arc close needs --outcome — the terminal increment stating the observable end-state condition this arc met.",
+        "An arc never goes closed without it: the state is a projection of the prose that supports it (ADR-0239 D2 / ADR-0084).",
+        "(long prose: --outcome @path reads from a file).",
+      ].join("\n"),
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  const found = await loadArcForWrite(deps, id);
+  if ("error" in found) return found.error;
+
+  const base = found.doc;
+  if (base["lifecycle"] === "closed") {
+    return {
+      ok: false,
+      body: [
+        `arc ${id} is already closed — nothing to do (this verb is not an increment append).`,
+        "Re-opening a closed arc is OWNER-only (ADR-0239 D2, mirroring ADR-0084's human-only un-deciding):",
+        "if its end state was NOT met, escalate that call rather than flipping it back.",
+      ].join("\n"),
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+
+  const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
+  const pr = opts.pr?.trim();
+  const increment: Record<string, unknown> = { date, outcome, ...(pr !== undefined && pr !== "" ? { pr } : {}) };
+
+  const priorIncrements = Array.isArray(base["increments"]) ? [...(base["increments"] as unknown[])] : [];
+  base["increments"] = [...priorIncrements, increment];
+  base["lifecycle"] = "closed";
+  base["updatedAt"] = deps.now;
+
+  let valid: unknown;
+  try {
+    valid = upcastAndValidate(base);
+  } catch (e) {
+    return { ok: false, body: `close would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree arc show ${id} --pg`] };
+  }
+  // ONE upsert — the terminal increment and the flip land together or not at all.
+  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? "cli" });
+  const count = Array.isArray((valid as Record<string, unknown>)["increments"])
+    ? ((valid as Record<string, unknown>)["increments"] as unknown[]).length
+    : 0;
+  return {
+    ok: true,
+    body: [
+      `closed arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${outcome}`,
+      `(${count} increment(s); lifecycle: closed).`,
+      "It drops out of `storytree arc list` (--all / --closed still show it) and reads as archived on the library shelves.",
+    ].join("\n"),
+    next: [`storytree arc show ${saved.id} --pg`, "storytree arc list --pg"],
   };
 }
 
@@ -362,13 +528,17 @@ export function arcHelp(): Envelope {
     body: [
       "storytree arc — the derived initiative view (ADR-0183): an arc reveals its plans / stories / ADRs by query.",
       "",
-      "  storytree arc list [--pg]        every arc: intent + increment log summary",
-      "  storytree arc show <id> [--pg]   one arc: intent / end state / increments + derived children",
+      "  storytree arc list [--all|--closed] [--pg]   the ACTIVE arcs (ADR-0239 D3): intent + increment log summary",
+      "  storytree arc show <id> [--pg]               one arc, closed or not: lifecycle / intent / end state / increments",
       "",
       "edit an arc (validated write path — no fragile store one-shot; long prose via @path reads from a file):",
       "  storytree arc edit <id> [--intent <text|@file>] [--end-state <text|@file>] --pg",
       "  storytree arc increment add <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
       "        APPEND one landing to the increment log (ADR-0183 D1) — the merge-ceremony residue.",
+      "  storytree arc close <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
+      "        The terminal increment AND lifecycle: closed, in one write (ADR-0239 D2). --outcome is",
+      "        required — an arc never closes without prose stating the end-state condition it met, and",
+      "        a bare `library artifact edit --set lifecycle=closed` is refused. Re-opening is OWNER-only.",
       "",
       "Every containment edge lives on the CHILD (plan.arcRef; ADR/story frontmatter `arc:` stamps via",
       "`storytree adr new --arc <id>`), so this view is derived-from-source and can never drift.",
@@ -378,18 +548,20 @@ export function arcHelp(): Envelope {
       "storytree arc list --pg",
       "storytree arc show <id> --pg",
       "storytree arc increment add <id> --outcome \"<what landed>\" --pr <ref> --pg",
+      "storytree arc close <id> --outcome \"<the end-state condition met>\" --pg",
     ],
   };
 }
 
-/** Dispatch the `arc` area: `list` | `show <id>` | help. */
+/** Dispatch the `arc` area: `list [--all|--closed]` | `show <id>` | help. */
 export async function arcCommand(
   sub: string | undefined,
   third: string | undefined,
   deps: ArcViewDeps,
+  scope: ArcScope = "active",
 ): Promise<Envelope> {
   if (sub === undefined || sub === "help") return arcHelp();
-  if (sub === "list") return arcList(deps);
+  if (sub === "list") return arcList(deps, scope);
   if (sub === "show") return arcShow(deps, third);
   return {
     ok: false,

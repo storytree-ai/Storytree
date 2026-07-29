@@ -180,6 +180,14 @@ export interface GuidanceAsset {
    * no migration; present only for a `plan` doc once the wire crosses it.
    */
   status?: string;
+  /**
+   * An `arc` doc's `lifecycle` wire mirror (ADR-0239 D1) — the same crossing as {@link
+   * GuidanceAsset.status}, for the same reason: it is schema metadata `extractFields` never sees.
+   * Without it `lifecycleOf`'s `arc` branch has nothing to read here and the shelves' `archived`
+   * state stays unreachable for arcs, which is the thing ADR-0239 exists to end. Optional /
+   * absent-by-default, so every existing reader is unaffected.
+   */
+  lifecycle?: string;
   createdAt: string;
   updatedAt: string;
 }
