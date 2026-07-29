@@ -68,18 +68,29 @@ owner-directed calls. Four parts:
    of silently-green.
    **Correction (2026-07-28 — ADR-0139 pass): "WARN-only" no longer holds and is scoped, not
    reversed.** `check:corpus-content` was bounded at a two-axis drain ceiling
-   (`packages/cli/src/corpus-content-drain.ts`), so it now sets a non-zero exit when either axis is
-   breached — `valueDrift` past 14 or any `degradedLive` at all, both baselined on the real 2026-07-28
-   sweep. This is [ADR-0252](0252-verification-decay-detection-continuous-mechanical-warns-a-j.md) D3
+   (`packages/cli/src/corpus-content-drain.ts`, which holds the live numbers — never restated here),
+   so it now sets a non-zero exit when either axis is breached. This is
+   [ADR-0252](0252-verification-decay-detection-continuous-mechanical-warns-a-j.md) D3
    applied in [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) D4's
    shape — the enforcement posture is the LATER ADR's to set, and **nothing in this ADR is
    re-decided**: the reconciliation, its two-way classification, and its remedies are unchanged, and
-   the OK/WARN lines it prints are byte-identical. **Advisory PER DRIFT survives** — no individual
-   drift blocks a landing, exactly as decision 3 of ADR-0252 requires; only GROWTH of the count reds
-   the gate. The "SKIP-offline / mirroring `check:corpus-sync`" half is untouched and still true (see
-   the Consequences bullet below): with no DB or creds the check SKIPs at exit 0, so CI stays DB-free.
-   A reader of "WARN-only" alone would otherwise conclude the shipped exit code VIOLATES this ADR and
-   "fix" it by removing the red — the exact stale-prose harm ADR-0139 exists to prevent.
+   the OK/WARN lines it prints are byte-identical. The "SKIP-offline / mirroring `check:corpus-sync`"
+   half is untouched and still true (see the Consequences bullet below): with no DB or creds the check
+   SKIPs at exit 0, so CI stays DB-free. A reader of "WARN-only" alone would otherwise conclude the
+   shipped exit code VIOLATES this ADR and "fix" it by removing the red — the exact stale-prose harm
+   ADR-0139 exists to prevent.
+   **Correction (2026-07-29 — ADR-0139 pass): both ceilings are now ZERO, and the "no individual
+   drift blocks a landing" half of the note above is retired as FALSE.** That clause was true only
+   while `valueDriftCeiling` was 14 — headroom that existed because the backlog's only sanctioned
+   remedy was a batch export carrying 222 transient artifacts, not because drift was tolerated.
+   [ADR-0263](0263-narrow-the-live-to-seed-export-scope-to-the-durable-tier-an.md) removed that
+   coupling, the backlog was drained, and the ceiling followed the measurement down to `V=0, D=0`
+   (tightening-only, as ADR-0252 D3 requires). **So the FIRST unreconciled artifact now reds the gate**
+   — a session that leaves a durable-tier live edit unexported blocks every other session until it runs
+   `storytree library export-corpus --pg --write`. Nothing here is re-decided either: the classification
+   and the per-artifact direction judgement are still ADR-0120's and still not a gate's to make; only
+   the accumulation the later ADRs bound has reached zero. This note exists because "no individual drift
+   blocks a landing" would otherwise read as licence to defer the export.
 3. **A live→seed export** (finding 2) — the inverse of `sync-corpus`. **Owner decision (a): OVERWRITE
    seed bodies for live-edited artifacts**, plus add live-only artifacts; never delete seed-only or
    `agent`-kind (those stay seed-canonical, ADR-0055). The migrate-only symmetry FLIPS here: because
@@ -88,6 +99,21 @@ owner-directed calls. Four parts:
    validates at/above the current schema version — a degraded/below-floor live body is refused (writing
    it would corrupt the canonical seed) and reported for a seed→live restore instead. This protects the
    one case the owner's directive did not anticipate, without contradicting it.
+   **Amended (2026-07-29 — [ADR-0263](0263-narrow-the-live-to-seed-export-scope-to-the-durable-tier-an.md)):
+   "add live-only artifacts" is now scoped to the DURABLE TIER, and the qualifier matters.** As shipped,
+   the scope was a DENYLIST — every structured kind except `agent` — so "add live-only artifacts" meant
+   *every* non-agent kind, and this prose naming only the `agent` exclusion is what a reader would take
+   it to mean. Three kinds introduced after this ADR (`friction` 2026-07-06, `arc` 2026-07-11,
+   `uat-criterion` 2026-07-18) therefore enrolled in the seed export silently, by default: measured at
+   236 additions on 2026-07-29, 222 of them transient artifacts the seed has never carried. ADR-0263
+   flips the predicate to an explicit ALLOWLIST (`SEED_SCOPE_KINDS` in
+   `packages/library/src/knowledge.ts`) covering the durable tier only — definition, principle, pattern,
+   guardrail, techstack, process, open-question, proposal. **Nothing in this decision is re-decided:**
+   owner call (a)'s conflict policy — live-edited bodies OVERWRITE the seed, seed-only and `agent`-kind
+   are never deleted — is unchanged and still governs every kind that remains in scope, as is the
+   non-degradation safety floor. What moved is WHICH KINDS the export covers, which was never an
+   owner-level call; ADR-0263 grounds each exclusion in a decision already on the record, including this
+   ADR's OWN decision 4 (the work-hierarchy tier stays out of the knowledge tier) for `uat-criterion`.
 4. **A unit-status export** (finding 1) — **owner decision (b): a SEPARATE generated status file**
    (`apps/studio/data/unit-status.json`), not folded into `knowledge.json`. It is a clearly-`@generated`
    view derived from the signed verdicts (`rollupStatus` over `events.verdict`), regenerated like

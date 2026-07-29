@@ -17,13 +17,14 @@
 import { randomUUID } from "node:crypto";
 
 import { descendAgentRefs } from "./descend-agent-refs.js";
-import { observeCliInvocation } from "./observe-cli.js";
 import {
-  emitCandidateSet,
-  renderCoverageCaveats,
-  OFFER_CANDIDATE_SET_CAVEATS,
-  OFFER_CANDIDATE_SET_COVERAGE,
-} from "./offer-candidate-sets.js";
+  emitFollowedEdge,
+  parseOfferFollow,
+  FOLLOW_OFFER_EDGE_CAVEATS,
+  FOLLOW_OFFER_EDGE_COVERAGE,
+} from "./follow-offer-edges.js";
+import { observeCliInvocation } from "./observe-cli.js";
+import { emitCandidateSet, renderCoverageCaveats } from "./offer-candidate-sets.js";
 import { renderTraversalSession, renderTraversalSessions } from "./query-render.js";
 import { linkRevisits } from "./revisit-links.js";
 import {
@@ -67,6 +68,18 @@ export interface CaptureCliInvocationInput {
    * dispatch shape, which is the normal case.
    */
   readonly offeredIds?: readonly string[];
+  /**
+   * The visit id this invocation's `library artifact <id>` render must use — PRE-MINTED by the CLI
+   * (ADR-0260 D3) so the offer id it already PRINTED in its own follow-up commands is the offer id
+   * recorded here. A candidate set has no `visitId` field, so `candidate-set:<visitId>` is the only
+   * carrier of which visit made the offer: mint it here instead and the printed id names a visit that
+   * does not exist, which is an id nobody can return.
+   *
+   * Consumed once, by the FIRST visit this invocation observes — which for the offerable
+   * `library artifact <id>` shape is the render visit itself, the only shape the CLI plans one for
+   * (`planOfferIdentity`). Absent for every other shape, which is the normal case.
+   */
+  readonly offerVisitId?: string;
 }
 
 /** Where the query composition reads a captured session from. */
@@ -85,8 +98,12 @@ interface RenderedEnvelope {
 /**
  * Whether capture is enabled for this invocation: an explicit `enabled` override wins, else
  * `STORYTREE_TRAVERSAL=off` opts out, else capture is on by default.
+ *
+ * Exported because the CLI must ask the SAME question BEFORE it renders (ADR-0260 D3): a render that
+ * printed an offer id under `STORYTREE_TRAVERSAL=off` would hand out an id nothing recorded, and would
+ * also break ADR-0241 D3's opt-out-clean envelope for a trace that was never written.
  */
-function isCaptureEnabled(override: boolean | undefined): boolean {
+export function isTraversalCaptureEnabled(override?: boolean): boolean {
   if (override !== undefined) return override;
   return process.env[TRAVERSAL_TOGGLE_ENV] !== "off";
 }
@@ -101,17 +118,35 @@ function isCaptureEnabled(override: boolean | undefined): boolean {
  * step here is synchronous.
  */
 export function captureCliInvocation(input: CaptureCliInvocationInput): void {
-  if (!isCaptureEnabled(input.enabled)) return;
+  if (!isTraversalCaptureEnabled(input.enabled)) return;
   if (input.sessionId === null) return;
 
   const sessionId = input.sessionId;
   const now = input.now ?? (() => new Date());
   const nextId = input.nextId ?? (() => randomUUID());
 
-  const events = observeCliInvocation(input.argv, {
+  // The FIRST visit takes the CLI's pre-minted id when there is one, so the offer id this invocation
+  // already printed is the one it records (see `offerVisitId` above). Every later visit mints fresh.
+  let pendingVisitId = input.offerVisitId;
+  const nextVisitId = (): string => {
+    if (pendingVisitId !== undefined) {
+      const preMinted = pendingVisitId;
+      pendingVisitId = undefined;
+      return preMinted;
+    }
+    return nextId();
+  };
+
+  // The offer id an ANSWERING read carries rides in its own argv (ADR-0260 D3) — never resolved from
+  // the trace. Stripping it here is load-bearing rather than tidy: `observeCliInvocation`'s allowlist
+  // refuses any trailing token, so leaving the flag in place would make a followed read observe NO
+  // VISIT AT ALL — the mechanism would delete the very read it exists to attribute.
+  const { argv: readArgv, followed } = parseOfferFollow(input.argv);
+
+  const events = observeCliInvocation(readArgv, {
     ok: input.ok,
     sessionId,
-    nextVisitId: nextId,
+    nextVisitId,
     now,
   });
   if (events.length === 0) return;
@@ -121,18 +156,25 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   // children. Linking first would leave every child unlinked, since none existed yet.
   const descended = descendAgentRefs(events, input.agentRefIds ?? [], {
     sessionId,
-    nextVisitId: nextId,
+    nextVisitId,
     now,
   });
+
+  // DECLARE THE EDGE FIRST, then record what THIS read offers — the order the trace reads in: how we
+  // got here, then what is now on the table. `followed` is null unless this invocation's own command
+  // line named an offer, and this call is handed nothing else: no prior events, no reader, no trace
+  // directory. A read that answered an offer without saying so records no edge, and no later pass may
+  // correlate that gap away (ADR-0260 D4) — a thin tree is the honest cost.
+  const answered = emitFollowedEdge(descended, followed, { sessionId, now });
 
   // RECORD THE OFFER, then link — and record it here, at the render, rather than anywhere later
   // (ADR-0260 D2). This call is handed only what THIS invocation observed plus what THIS render
   // offered; it can see nothing the session does next, which is what makes an offer with no follow
   // impossible to lose. Deferring it until something followed would silently rebuild the containment
   // tree ADR-0260 exists to replace.
-  const offered = emitCandidateSet(descended, input.offeredIds ?? [], {
+  const offered = emitCandidateSet(answered, input.offeredIds ?? [], {
     sessionId,
-    nextVisitId: nextId,
+    nextVisitId,
     now,
   });
 
@@ -155,21 +197,22 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
  * `observe-cli.ts`'s base: the base honestly describes the bare argv observer, which emits neither
  * `field:prior_visit_id` nor `field:parent_visit_id`, while what this composition actually writes to
  * disk emits both (`captureCliInvocation` above links revisits AND descends an `agents <name>`
- * render's floor refs, AND records a `library artifact` render's offer).
+ * render's floor refs, AND records a `library artifact` render's offer, AND declares the edge an
+ * offer-carrying read answered).
  *
  * The declaration carries its CAVEATS too, not just the supported/omitted lists (ADR-0260 D7 under
- * ADR-0235 clause 6). The closed feature enum can say `event:candidate_set` is emitted and
- * `field:candidate_follow_causality` is not; it cannot say WHY the picture will be thin — that `doc:`
- * offers can never be observed as followed, and that follow-completeness depends on agents re-using
- * the offered command form. ADR-0260 D4 forbids ever repairing those gaps by inference, so stating
- * them here is the only mitigation there is: a reader who sees a tidy tree must be able to see, in
- * the same body, what it cannot show.
+ * ADR-0235 clause 6). The closed feature enum can say `event:followed_edge` is emitted; it cannot say
+ * WHY the picture will still be thin — that `doc:` offers can never be observed as followed, that a
+ * follow is recorded only when the agent re-uses the offered form CARRYING the offer id, and that an
+ * unanswered offer is indistinguishable from a bypassed mechanism. ADR-0260 D4 forbids ever repairing
+ * those gaps by inference, so stating them here is the only mitigation there is: a reader who sees a
+ * tidy tree must be able to see, in the same body, what it cannot show.
  */
 export function showTraversalSession(sessionId: string, opts?: TraversalQueryOptions): RenderedEnvelope {
   const dir = opts?.dir ?? resolveTraversalDir();
   const { replay, skipped } = readTraversalSession({ dir, sessionId });
-  const rendered = renderTraversalSession({ ...replay, coverage: [OFFER_CANDIDATE_SET_COVERAGE] }, { skipped });
-  const caveats = renderCoverageCaveats(OFFER_CANDIDATE_SET_CAVEATS);
+  const rendered = renderTraversalSession({ ...replay, coverage: [FOLLOW_OFFER_EDGE_COVERAGE] }, { skipped });
+  const caveats = renderCoverageCaveats(FOLLOW_OFFER_EDGE_CAVEATS);
   return { ...rendered, body: `${rendered.body}\n\ncoverage-caveats:\n${caveats}` };
 }
 

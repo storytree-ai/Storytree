@@ -43,21 +43,36 @@ export interface CoverageCaveat {
 }
 
 const ASSET_PREFIX = "asset:";
-const LIBRARY_ARTIFACT_SURFACE = "library-artifact";
+
+/** The surface id a `library artifact <id>` render's visit carries (`observe-cli.ts:21`). */
+export const LIBRARY_ARTIFACT_SURFACE = "library-artifact";
+
+/**
+ * The prefix every candidate-set id carries. The id shape is `candidate-set:<rendering visitId>`,
+ * and that is load-bearing rather than cosmetic: `CandidateSetEvent` has no `visitId` field, so the
+ * id is the ONLY carrier of which visit made the offer — which is what lets a later answering read
+ * name the edge's `fromVisitId` from the id alone, with no trace lookup (ADR-0260 D3).
+ */
+export const CANDIDATE_SET_PREFIX = "candidate-set:";
+
+/** The candidate-set id for a render whose visit is `visitId`. The one place the shape is minted. */
+export function candidateSetIdOf(visitId: string): string {
+  return `${CANDIDATE_SET_PREFIX}${visitId}`;
+}
 
 /**
  * Does this argv match the bare `library artifact <id>` dispatch shape `observeCliInvocation`
  * already observes a visit for (`observe-cli.ts:95-103`)? Mirrored exactly, never widened: the
  * `list` sub-verb, a missing id, and any trailing token (flags, sub-verbs) all observe no visit.
  */
-function isBareLibraryArtifactDispatch(argv: readonly string[]): argv is readonly [string, string, string] {
+export function isOfferableArtifactRead(argv: readonly string[]): argv is readonly [string, string, string] {
   if (argv.length !== 3) return false;
   const [area, sub, id] = argv;
   return area === "library" && sub === "artifact" && id !== "list";
 }
 
 /** The offer id for one raw reference: `asset:` stripped, everything else kept verbatim. */
-function offerIdOf(ref: string): string {
+export function offerIdOf(ref: string): string {
   if (ref.startsWith(ASSET_PREFIX)) return ref.slice(ASSET_PREFIX.length);
   return ref;
 }
@@ -72,7 +87,7 @@ export async function resolveArtifactOffers(
   argv: readonly string[],
   store: OfferDocStore,
 ): Promise<readonly string[]> {
-  if (!isBareLibraryArtifactDispatch(argv)) return [];
+  if (!isOfferableArtifactRead(argv)) return [];
   const [, , id] = argv;
 
   let found: { readonly id: string; readonly kind: string; readonly doc: unknown } | null;
@@ -125,7 +140,7 @@ export function emitCandidateSet(
   if (renderVisit === undefined) return [...observed];
   if (offeredIds.length === 0) return [...observed];
 
-  const candidateSetId = `candidate-set:${renderVisit.visitId}`;
+  const candidateSetId = candidateSetIdOf(renderVisit.visitId);
   const alreadyRecorded = observed.some(
     (event) => event.kind === "candidate_set" && event.candidateSetId === candidateSetId,
   );

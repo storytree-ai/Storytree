@@ -34,16 +34,36 @@ const ids = (n: number, p = "a"): string[] => Array.from({ length: n }, (_, i) =
 // RED — each axis, on its own
 // ---------------------------------------------------------------------------
 
-test("RED: the value-drift axis breaches alone — the FIFTEENTH unreconciled artifact reds (V=14)", () => {
-  const v = evaluateCorpusContentDrain({ valueDrift: ids(15), degradedLive: [] }, FULL);
+/**
+ * The ceiling as it shipped on 2026-07-28, kept as an explicit config so the measured reasoning below
+ * still runs after the axis was tightened to zero (ADR-0263 drain, 2026-07-29). The numbers in those
+ * tests are evidence about the ceiling's SHAPE — split vs summed — which is independent of its value.
+ */
+const BASELINE_2026_07_28 = { valueDriftCeiling: 14, degradedLiveCeiling: 0 } as const;
+
+test("RED: the value-drift axis breaches alone — at V=0 the FIRST unreconciled artifact reds", () => {
+  const v = evaluateCorpusContentDrain({ valueDrift: ids(1), degradedLive: [] }, FULL);
   assert.equal(v.level, "red");
-  assert.equal(v.valueDriftCount, 15);
+  assert.equal(v.valueDriftCount, 1);
   assert.equal(v.breaches.length, 1, "only the value-drift axis breached");
-  assert.match(v.breaches[0] ?? "", /15 artifact\(s\) carry a live body differing from seed/);
-  assert.match(v.breaches[0] ?? "", /V=14/);
+  assert.match(v.breaches[0] ?? "", /1 artifact\(s\) carry a live body differing from seed/);
+  assert.match(v.breaches[0] ?? "", /V=0/);
   // The breach NAMES the items, so the drain is actionable from the gate output alone.
-  assert.match(v.breaches[0] ?? "", /a-0, a-1/);
+  assert.match(v.breaches[0] ?? "", /a-0/);
   assert.equal(v.unverified, undefined);
+
+  // The "strictly above" boundary still holds at any ceiling — pinned against the historical one so a
+  // future re-baseline cannot silently turn `>` into `>=`.
+  assert.equal(
+    evaluateCorpusContentDrain({ valueDrift: ids(14), degradedLive: [] }, FULL, BASELINE_2026_07_28).level,
+    "warn",
+    "AT the ceiling is not a breach",
+  );
+  assert.equal(
+    evaluateCorpusContentDrain({ valueDrift: ids(15), degradedLive: [] }, FULL, BASELINE_2026_07_28).level,
+    "red",
+    "one PAST the ceiling is",
+  );
 });
 
 test("RED: the degraded-live axis breaches alone — ONE below-floor body reds (D=0), and is named", () => {
@@ -65,10 +85,14 @@ test("the two axes are INDEPENDENT and never summed — the measured hiding case
   // degraded-live=1, and the SUM is STILL 14. A summed ceiling of 14 sees nothing on either side of
   // that change; the split pair must red, because the more severe class would otherwise hide inside
   // the noisier one's headroom.
-  const before = evaluateCorpusContentDrain({ valueDrift: ids(14), degradedLive: [] }, FULL);
+  const before = evaluateCorpusContentDrain({ valueDrift: ids(14), degradedLive: [] }, FULL, BASELINE_2026_07_28);
   assert.equal(before.level, "warn", "the baseline sits AT V and must stay green");
 
-  const after = evaluateCorpusContentDrain({ valueDrift: ids(13), degradedLive: ["deep-modules"] }, FULL);
+  const after = evaluateCorpusContentDrain(
+    { valueDrift: ids(13), degradedLive: ["deep-modules"] },
+    FULL,
+    BASELINE_2026_07_28,
+  );
   assert.equal(before.valueDriftCount + before.degradedLiveCount, 14);
   assert.equal(after.valueDriftCount + after.degradedLiveCount, 14, "the SUM is unchanged — a summed ceiling is blind");
   assert.equal(after.level, "red", "the split ceilings catch what the sum cannot");
@@ -87,34 +111,46 @@ test("the two axes are INDEPENDENT and never summed — the measured hiding case
   assert.equal(both.breaches.length, 2);
 });
 
-// ---------------------------------------------------------------------------
-// FALSE-POSITIVE GUARDS — what the ceiling must NOT fire on
-// ---------------------------------------------------------------------------
-
-test("GUARD: the baselined sweep (14 value-drift, 0 degraded) is WARN, not RED — the ceiling ships green", () => {
-  // The ceiling equals what the real run of 2026-07-28 found, so it must sit quiet on it. A ceiling
-  // that red on its own baseline would price the next session toward loosening it rather than draining.
-  const v = evaluateCorpusContentDrain({ valueDrift: ids(14), degradedLive: [] }, FULL);
-  assert.equal(v.level, "warn");
+test("the drained baseline (0 value-drift, 0 degraded) is OK — the ceiling ships green on its own sweep", () => {
+  // A ceiling that red on its own baseline would price the next session toward loosening it rather
+  // than draining. The 2026-07-29 run after the ADR-0263 drain found 0/0 over 174 export-scope
+  // artifacts, all 174 present live — so the baseline must read OK, not merely not-red.
+  const v = evaluateCorpusContentDrain({ valueDrift: [], degradedLive: [] }, { compared: 174, comparedLive: 174 });
+  assert.equal(v.level, "ok");
   assert.deepEqual(v.breaches, []);
   assert.equal(v.unverified, undefined);
 });
 
-test("GUARD: the ceilings are the BASELINED numbers — V=14 (all-or-nothing drain), D=0 (zero headroom)", () => {
-  assert.equal(CEILING.valueDriftCeiling, 14);
+// ---------------------------------------------------------------------------
+// FALSE-POSITIVE GUARDS — what the ceiling must NOT fire on
+// ---------------------------------------------------------------------------
+
+test("GUARD: the ceilings are the DRAINED baseline — V=0 and D=0, both zero headroom", () => {
+  // TIGHTENING-ONLY (ADR-0252 D3). V was 14 from 2026-07-28 until the ADR-0263 drain took the real
+  // count to zero on 2026-07-29; the ceiling follows the measurement DOWN and may never follow it up.
+  // A future edit that RAISES either number is the named gaming failure mode, and this pin is what
+  // makes such an edit fail rather than pass quietly.
+  assert.equal(CEILING.valueDriftCeiling, 0);
   assert.equal(CEILING.degradedLiveCeiling, 0);
-  // One more of either kind fails, which is the whole property the check has never had.
-  assert.equal(evaluateCorpusContentDrain({ valueDrift: ids(15), degradedLive: [] }, FULL).level, "red");
+  // A single artifact of either kind now fails — the property the check has never had until now.
+  assert.equal(evaluateCorpusContentDrain({ valueDrift: ids(1), degradedLive: [] }, FULL).level, "red");
   assert.equal(evaluateCorpusContentDrain({ valueDrift: [], degradedLive: ["x"] }, FULL).level, "red");
 });
 
 test("GUARD: no WARN BAND was opened beneath the ceilings — a drift is never QUIETER than before bounding", () => {
   // The failure mode this pins: a ceiling that made counts under it print OK would leave the check
-  // quieter than before it was bounded. Every non-zero drift count under V must still be WARN, exactly
-  // as it printed before — RED is layered ABOVE that, never in place of it.
+  // quieter than before it was bounded. At V=0 there is no band left to soften — every drift is RED —
+  // so the guard now pins the stronger property directly.
   for (const n of [1, 7, 13, 14]) {
     const v = evaluateCorpusContentDrain({ valueDrift: ids(n), degradedLive: [] }, FULL);
-    assert.equal(v.level, "warn", `${n} value-drift must still WARN, never OK`);
+    assert.equal(v.level, "red", `${n} value-drift must RED at a zero ceiling, never OK`);
+    assert.equal(v.breaches.length, 1);
+  }
+  // …and the band-preserving property still holds wherever a ceiling IS non-zero, so a future
+  // re-baseline onto a widened population cannot quietly turn sub-ceiling drift into OK.
+  for (const n of [1, 7, 13, 14]) {
+    const v = evaluateCorpusContentDrain({ valueDrift: ids(n), degradedLive: [] }, FULL, BASELINE_2026_07_28);
+    assert.equal(v.level, "warn", `${n} value-drift under a non-zero ceiling must still WARN, never OK`);
     assert.deepEqual(v.breaches, []);
   }
   // A clean, fully compared corpus is the ONLY thing that reads OK.
@@ -160,9 +196,21 @@ test("SUBSTRATE: a breach is ENFORCED whatever the population — the counts are
 });
 
 test("SUBSTRATE: a fully compared population reports no shortfall — the guard is silent when it should be", () => {
-  const v = evaluateCorpusContentDrain({ valueDrift: ids(3), degradedLive: [] }, FULL);
-  assert.equal(v.unverified, undefined);
-  assert.equal(v.level, "warn");
+  // The subject here is `unverified`, which is a property of the POPULATION alone and must not move
+  // when a ceiling is re-baselined — so it is asserted under both the current zero ceiling and a
+  // non-zero one. (This test previously pinned `level: "warn"` under the default and so quietly
+  // depended on V being non-zero; that coupling is what the second assertion removes.)
+  const atZero = evaluateCorpusContentDrain({ valueDrift: ids(3), degradedLive: [] }, FULL);
+  assert.equal(atZero.unverified, undefined, "a full population raises no shortfall, whatever the ceiling");
+  assert.equal(atZero.level, "red", "…and at V=0 the drift itself reds");
+
+  const underCeiling = evaluateCorpusContentDrain(
+    { valueDrift: ids(3), degradedLive: [] },
+    FULL,
+    BASELINE_2026_07_28,
+  );
+  assert.equal(underCeiling.unverified, undefined);
+  assert.equal(underCeiling.level, "warn", "sub-ceiling drift over a full population is WARN, not OK");
 });
 
 // ---------------------------------------------------------------------------
