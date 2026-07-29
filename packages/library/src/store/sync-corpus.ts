@@ -1,8 +1,7 @@
 import type { Store } from "@storytree/storage-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { EPHEMERAL_KINDS } from "../knowledge.js";
+import { SEED_SCOPE_KINDS } from "../knowledge.js";
 import { loadCorpus } from "./load-corpus.js";
-import { AGENT_KIND } from "./sync-agents.js";
 
 /**
  * Reconcile the Library's NON-AGENT tier from the SEED to a target store — the migration step that
@@ -39,12 +38,14 @@ function sortedIds(docs: { id: string }[]): string[] {
 }
 
 /**
- * The seed-ceremony scope: everything except the seed-canonical `agent` tier (owned by
- * {@link reconcileAgents}'s own sync) and the EPHEMERAL kinds (`plan`, ADR-0183 D2 — live-only by
- * design, never in the seed, so a live plan is neither a migration gap nor drift).
+ * The seed-ceremony scope — the SAME {@link SEED_SCOPE_KINDS} allowlist the live→seed `export-corpus`
+ * uses (ADR-0263). Both directions deriving from one constant is what makes ADR-0183 D2's requirement
+ * — that EVERY seed ceremony ignore an out-of-scope kind — hold by construction instead of by
+ * remembering it twice in two near-duplicate filters. An out-of-scope live artifact is neither a
+ * migration gap nor drift, in either direction.
  */
 function seedScope(docs: { kind: string }[]): { id: string; kind: string; doc: unknown }[] {
-  return docs.filter((d) => d.kind !== AGENT_KIND && !EPHEMERAL_KINDS.has(d.kind)) as {
+  return docs.filter((d) => SEED_SCOPE_KINDS.has(d.kind)) as {
     id: string;
     kind: string;
     doc: unknown;
