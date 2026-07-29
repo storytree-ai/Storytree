@@ -441,6 +441,45 @@ test("lte-plan-arcref-surface: a plan doc's arcRef surfaces on the GuidanceAsset
   assert.equal(rendered.arcRef, "asset:example-arc");
 });
 
+test("ADR-0267 D4: an open question's arcRef surfaces on the wire with NO renderer change", () => {
+  // The typed-edge projection is kind-AGNOSTIC — it reads `arcRef` off the doc rather than
+  // switching on `plan`. So the containment edge ADR-0267 D4 adds to the open-question kind reaches
+  // the studio's GuidanceAsset wire for free. This test pins that: if someone later narrows the
+  // projection to plan-only, the arc surface would silently stop seeing which questions are stamped.
+  const question = {
+    kind: "open-question",
+    id: "oq-blocked-meaning",
+    title: "What exactly qualifies as blocked?",
+    description: "ADR-0267 D7 names blocked but declines to define it",
+    references: [],
+    stakes: "The surface cannot render a blocked state until this is settled.",
+    statement: "What qualifies an arc as blocked?",
+    context: "D7 names it as distinct from waiting.",
+    options: "a | b",
+    arcRef: "asset:arc-orientation-surface-arc",
+    createdAt: "2026-07-30T00:00:00Z",
+    updatedAt: "2026-07-30T00:00:00Z",
+  };
+  const rendered = renderStoredDoc({
+    id: "oq-blocked-meaning",
+    kind: "open-question",
+    doc: question,
+    createdAt: "2026-07-30T00:00:00Z",
+    updatedAt: "2026-07-30T00:00:00Z",
+  });
+  assert.equal(rendered.arcRef, "asset:arc-orientation-surface-arc");
+  // An UNSTAMPED question omits it entirely (absent-by-default, never an empty string).
+  const { arcRef: _dropped, ...unstamped } = question;
+  const renderedUnstamped = renderStoredDoc({
+    id: "oq-orphan",
+    kind: "open-question",
+    doc: { ...unstamped, id: "oq-orphan" },
+    createdAt: "2026-07-30T00:00:00Z",
+    updatedAt: "2026-07-30T00:00:00Z",
+  });
+  assert.equal(renderedUnstamped.arcRef, undefined);
+});
+
 test("lte-optional-edges-omitted-when-absent: a structured doc with no typed-edge field omits all three, never an empty array", () => {
   const agentNoStepRefs = {
     kind: "agent",

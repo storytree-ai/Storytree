@@ -1,11 +1,14 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import path from "node:path";
-
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { upcastAndValidate } from "@storytree/library";
+import { arcIsClosed, loadArcRollup, storyArcStamps, type ArcRollup } from "@storytree/drive";
 
-import { loadAdrListings } from "./adr.js";
 import type { Envelope } from "./envelope.js";
+
+// The arc → children JOIN is not here: it lives in `@storytree/drive`'s `arc-rollup.ts`, which the
+// studio server shares (ADR-0267's Consequences: the derived join must stop being CLI-only). This
+// module OWNS the rendering — turning that rollup into an ADR-0023 envelope — and the arc write
+// verbs. Re-exported so the existing importers (`worktree-create.ts`, the suites) keep their path.
+export { arcIsClosed, storyArcStamps };
 
 /**
  * `storytree arc` — the DERIVED initiative view (ADR-0183 D3): an arc reveals its plans, stories,
@@ -45,57 +48,6 @@ function str(stored: StoredDoc, key: string): string {
   const doc = stored.doc as Record<string, unknown>;
   const v = doc[key];
   return typeof v === "string" ? v : "";
-}
-
-/**
- * PURE: the `arc:` stamps across a stories tree — `stories/<dir>/story.md` frontmatter carrying
- * `arc: <id>` (ADR-0183 D3: the story-side provenance stamp). Stories without the stamp are simply
- * absent; a missing/unreadable file never throws (the view stays derivable on a partial checkout).
- */
-export function storyArcStamps(storiesDir: string): { story: string; arc: string }[] {
-  const out: { story: string; arc: string }[] = [];
-  let dirs: string[];
-  try {
-    dirs = readdirSync(storiesDir, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
-      .sort();
-  } catch {
-    return out;
-  }
-  for (const dir of dirs) {
-    const file = path.join(storiesDir, dir, "story.md");
-    if (!existsSync(file)) continue;
-    let content: string;
-    try {
-      content = readFileSync(file, "utf8");
-    } catch {
-      continue;
-    }
-    if (!content.startsWith("---")) continue;
-    const end = content.indexOf("\n---", 3);
-    if (end === -1) continue;
-    const fm = content.slice(0, end);
-    const m = /^arc:\s*["']?([A-Za-z0-9_-]+)["']?\s*$/m.exec(fm);
-    if (m && m[1] !== undefined) out.push({ story: dir, arc: m[1] });
-  }
-  return out;
-}
-
-/** The arc a plan doc cites (`arcRef: "asset:<id>"`), or null when unreadable. */
-function planArcOf(stored: StoredDoc): string | null {
-  const ref = str(stored, "arcRef");
-  return ref.startsWith("asset:") ? ref.slice("asset:".length) : null;
-}
-
-/**
- * PURE: an arc's stored closure state (ADR-0239 D1), read defensively off an untyped doc. Only the
- * exact `"closed"` the schema enum fences is closure — an absent, empty, or unrecognised value is an
- * arc still IN FLIGHT, so a doc this code doesn't understand stays in the worklist instead of
- * silently vanishing from it (`lifecycleOf`'s fail-open arc branch, applied at the render surface).
- */
-export function arcIsClosed(stored: StoredDoc): boolean {
-  return (stored.doc as Record<string, unknown>)["lifecycle"] === "closed";
 }
 
 /**
@@ -192,64 +144,83 @@ async function arcShow(deps: ArcViewDeps, id: string | undefined): Promise<Envel
     };
   }
 
+  // The JOIN is drive's (`deriveArcRollup`) — the studio server reads the SAME value, so the two
+  // surfaces cannot disagree about what an arc contains. Everything below is presentation only.
+  const rollup = await loadArcRollup(deps, id);
+  /* c8 ignore next */
+  if (rollup === null) return { ok: false, body: `no arc "${id}".`, next: ["storytree arc list --pg"] };
+  return { ok: true, body: renderArcRollup(rollup, deps.pg).join("\n"), next: arcShowNext(rollup, deps.pg) };
+}
+
+/**
+ * PURE: an {@link ArcRollup} as the `arc show` body. Split out of {@link arcShow} so the rendering
+ * is testable without a store, and so the join above it stays I/O-only.
+ */
+export function renderArcRollup(rollup: ArcRollup, pg: boolean): string[] {
   // `arc show` renders ANY arc regardless of lifecycle (ADR-0239 D3 — only the LIST filters) and
   // states which it is, so a closed initiative is readable without being mistaken for live work.
-  const closed = arcIsClosed(stored);
+  const closed = rollup.lifecycle === "closed";
   const lines: string[] = [
-    `# ${str(stored, "title")}    [arc]`,
-    `id: ${id}`,
+    `# ${rollup.title}    [arc]`,
+    `id: ${rollup.id}`,
     `lifecycle: ${closed ? "closed — its end state was met; it is out of the default arc list" : "active (in flight)"}`,
     "",
   ];
-  const intent = str(stored, "intent");
-  if (intent) lines.push(`**The intent.** ${intent}`, "");
-  const endState = str(stored, "endState");
-  if (endState) lines.push("## End state", "", endState, "");
+  if (rollup.intent) lines.push(`**The intent.** ${rollup.intent}`, "");
+  if (rollup.endState) lines.push("## End state", "", rollup.endState, "");
 
   // The durable residue: the append-at-landing increment log (ADR-0183 D1).
-  const doc = stored.doc as Record<string, unknown>;
-  const increments = Array.isArray(doc["increments"]) ? (doc["increments"] as IncrementRow[]) : [];
   lines.push("## Increment log");
-  if (increments.length === 0) lines.push("  (no landings yet)");
-  for (const inc of increments) {
+  if (rollup.increments.length === 0) lines.push("  (no landings yet)");
+  for (const inc of rollup.increments) {
     lines.push(`  - ${inc.date ?? "?"}${inc.pr !== undefined ? `  ${inc.pr}` : ""}  ${inc.outcome ?? ""}`.trimEnd());
   }
 
   // Derived children (D3: every edge lives on the CHILD; this view is a query, never authored).
-  const plans = (await deps.store.queryDocs({ kind: "plan" })).filter((p) => planArcOf(p) === id);
-  lines.push("", `## Plans  (derived: plan.arcRef → ${id})`);
-  if (plans.length === 0) {
-    lines.push(deps.pg ? "  (none)" : "  (none visible OFFLINE — plans are live-only, ADR-0183 D2; try --pg)");
+  lines.push("", `## Plans  (derived: plan.arcRef → ${rollup.id})`);
+  if (rollup.plans.length === 0) {
+    lines.push(pg ? "  (none)" : "  (none visible OFFLINE — plans are live-only, ADR-0183 D2; try --pg)");
   }
-  for (const p of [...plans].sort((a, b) => a.id.localeCompare(b.id))) {
-    const pd = p.doc as Record<string, unknown>;
-    const status = typeof pd["status"] === "string" ? (pd["status"] as string) : "?";
-    const anchor = pd["anchor"] as Record<string, unknown> | undefined;
-    const sha = anchor && typeof anchor["sha"] === "string" ? (anchor["sha"] as string).slice(0, 9) : "?";
-    lines.push(`  - ${p.id}  [${status}]  anchor ${sha}  — ${str(p, "title")}`);
+  for (const p of rollup.plans) {
+    lines.push(`  - ${p.id}  [${p.status}]  anchor ${p.anchorSha}  — ${p.title}`);
   }
 
-  const { listings } = loadAdrListings(deps.decisionsDir);
-  const adrs = listings.filter((l) => l.meta.arc === id);
-  lines.push("", `## ADRs  (derived: frontmatter arc: ${id})`);
-  if (adrs.length === 0) lines.push("  (none)");
-  for (const l of adrs) {
-    lines.push(`  - ADR-${String(l.meta.number).padStart(4, "0")}  ${l.meta.status.padEnd(10)} ${l.title}`);
+  // The questions the arc is waiting on (ADR-0267 D4): an `arcRef` on the QUESTION, derived by
+  // query here — never an authored question-list on the arc (ADR-0183 D3's containment rule).
+  lines.push("", `## Open questions  (derived: open-question.arcRef → ${rollup.id})`);
+  if (rollup.questions.length === 0) {
+    lines.push(
+      pg
+        ? "  (none — this arc is not waiting on the owner)"
+        : "  (none visible OFFLINE — questions are live-canonical; try --pg)",
+    );
+  }
+  for (const q of rollup.questions) {
+    lines.push(`  - ${q.id}  — ${q.title}`);
+    // The stakes line is why the question rides here at all (ADR-0267: questions are "part of the
+    // payload", so the reader can answer without a re-onboarding round-trip).
+    if (q.stakes) lines.push(`      why it matters: ${q.stakes}`);
   }
 
-  const stories = storyArcStamps(deps.storiesDir).filter((s) => s.arc === id);
-  lines.push("", `## Stories  (derived: story frontmatter arc: ${id})`);
-  if (stories.length === 0) lines.push("  (none)");
-  for (const s of stories) lines.push(`  - ${s.story}`);
+  lines.push("", `## ADRs  (derived: frontmatter arc: ${rollup.id})`);
+  if (rollup.adrs.length === 0) lines.push("  (none)");
+  for (const a of rollup.adrs) {
+    lines.push(`  - ADR-${String(a.number).padStart(4, "0")}  ${a.status.padEnd(10)} ${a.title}`);
+  }
 
-  return {
-    ok: true,
-    body: lines.join("\n"),
-    next: [
-      ...plans.slice(0, 2).map((p) => `storytree plan check ${p.id} --pg`),
-      `storytree library artifact ${id}${deps.pg ? " --pg" : ""}`,
-    ],
-  };
+  lines.push("", `## Stories  (derived: story frontmatter arc: ${rollup.id})`);
+  if (rollup.stories.length === 0) lines.push("  (none)");
+  for (const s of rollup.stories) lines.push(`  - ${s}`);
+
+  return lines;
+}
+
+/** The ADR-0023 `next:` offers for one arc — its plans' freshness checks, then the artifact itself. */
+function arcShowNext(rollup: ArcRollup, pg: boolean): string[] {
+  return [
+    ...rollup.plans.slice(0, 2).map((p) => `storytree plan check ${p.id}${pg ? " --pg" : ""}`),
+    `storytree library artifact ${rollup.id}${pg ? " --pg" : ""}`,
+  ];
 }
 
 // ---------------------------------------------------------------------------

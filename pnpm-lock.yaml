@@ -89,6 +89,9 @@ importers:
       '@storytree/proof-protocol':
         specifier: workspace:*
         version: link:../../packages/proof-protocol
+      '@storytree/storage-protocol':
+        specifier: workspace:*
+        version: link:../../packages/storage-protocol
       '@storytree/studio-members':
         specifier: workspace:*
         version: link:../../packages/studio-members

@@ -25,6 +25,10 @@ import path from 'node:path';
 import type { UserDoc } from '@storytree/studio-members';
 import type { ClaimDocT, DepartedClaim } from '@storytree/notice-board';
 import type { Attestation, Verdict } from '@storytree/proof-protocol';
+// Type-only: the document-store seam the arc rollup reads through (see LibraryBackend.docStore).
+// `@storytree/storage-protocol`'s main entry is pure/browser-safe, but a TYPE import cannot emit a
+// runtime require either way — which is what keeps `vite build`'s plain-ESM config load happy.
+import type { Store } from '@storytree/storage-protocol';
 import {
   type AssetCategory,
   type BuildActivity,
@@ -104,6 +108,24 @@ export interface LibraryBackend {
 
   /** Cheap connectivity + schema-skew probe for /api/health. Never throws. */
   health(): Promise<HealthProbe>;
+
+  /**
+   * The raw document store behind this backend, for reads that need STORED docs rather than the
+   * rendered {@link GuidanceAsset} wire shape.
+   *
+   * Its reason for existing is the arc rollup (ADR-0267): the derived arc → children join lives in
+   * `@storytree/drive` and is shared VERBATIM with `storytree arc show`, so the server must hand it
+   * the same `Store` the CLI does. Rebuilding the join from `listAssets()` instead would fork it —
+   * the exact outcome ADR-0267's Consequences call out ("the derived arc → children join is
+   * CLI-only") — and the wire shape could not carry it anyway: an arc's `increments` and `lifecycle`
+   * are schema-level extras that `renderStoredDoc` does not project.
+   *
+   * OPTIONAL, and `null` is a first-class answer: implemented only by the pg backend. Arcs and plans
+   * are LIVE-canonical (ADR-0023 / ADR-0183 D2), so the json backend genuinely has none — the arc
+   * routes then refuse with "needs the live store", mirroring the CLI's `--pg`-only refusal and
+   * {@link signUatVerdict}'s established idiom.
+   */
+  docStore?(): Promise<Store | null>;
 
   /**
    * Latest signed verdict per unit from `events.verdict`, for the tree view's glyphs
@@ -689,6 +711,15 @@ export class PgBackend implements LibraryBackend {
       attestations: this.#attestations,
       work: this.#work,
     };
+  }
+
+  /**
+   * The live `PgLibraryStore` — the SAME `Store` implementation the CLI drives under `--pg`, handed
+   * to the shared arc rollup so the studio and `storytree arc show` read one join (ADR-0267).
+   */
+  async docStore(): Promise<Store | null> {
+    const { library } = await this.#ready();
+    return library;
   }
 
   async listAssets(): Promise<GuidanceAsset[]> {

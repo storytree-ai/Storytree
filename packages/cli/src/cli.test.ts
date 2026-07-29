@@ -350,6 +350,105 @@ test("artifact edit --set patches a field and re-persists", async () => {
   assert.equal((got?.doc as { description?: string }).description, "patched by test");
 });
 
+// ---------------------------------------------------------------------------
+// ADR-0267 D4 — stamping an open question into an arc through `artifact edit --set arcRef=…`.
+// The edge is what a DERIVED arc surface is assembled from, so the write path has to protect it:
+// a dangling ref would leave the arc view silently omitting a child that claims a parent, which is
+// exactly the untrustworthiness the arc surface exists to remove.
+// ---------------------------------------------------------------------------
+
+/** Seed one arc + one unstamped open question into a store the edit path can write to. */
+async function seededForStamping(): Promise<InMemoryStore> {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "surface-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "surface-arc",
+      title: "The arc surface",
+      description: "d",
+      references: [],
+      createdAt: "2026-07-29",
+      updatedAt: "2026-07-29",
+    },
+  });
+  await store.upsertDoc({
+    id: "oq-blocked",
+    kind: "open-question",
+    doc: {
+      kind: "open-question",
+      id: "oq-blocked",
+      title: "What qualifies as blocked?",
+      description: "d",
+      stakes: "s",
+      statement: "s",
+      context: "c",
+      options: "a | b",
+      references: [],
+      createdAt: "2026-07-30",
+      updatedAt: "2026-07-30",
+    },
+  });
+  return store;
+}
+
+test("artifact edit --set arcRef stamps a question to an arc, accepting a BARE arc id", async () => {
+  const store = await seededForStamping();
+  // The bare id is the ergonomic half: `asset:` is a wire detail, and without the coercion this
+  // would fail on the schema's regex with an opaque union dump instead of just working.
+  const env = await run(["library", "artifact", "edit", "oq-blocked", "--set", "arcRef=surface-arc"], {
+    store,
+    writable: true,
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.equal((await store.getDoc("oq-blocked"))?.doc && ((await store.getDoc("oq-blocked"))!.doc as { arcRef?: string }).arcRef, "asset:surface-arc");
+
+  // The explicit pointer form is accepted unchanged.
+  const explicit = await run(
+    ["library", "artifact", "edit", "oq-blocked", "--set", "arcRef=asset:surface-arc"],
+    { store, writable: true },
+  );
+  assert.equal(explicit.ok, true, explicit.body);
+});
+
+test("artifact edit --set arcRef REFUSES a dangling edge rather than persisting it", async () => {
+  const store = await seededForStamping();
+  const env = await run(["library", "artifact", "edit", "oq-blocked", "--set", "arcRef=no-such-arc"], {
+    store,
+    writable: true,
+  });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /no arc "no-such-arc"/);
+  assert.match(env.body, /renders nowhere/);
+  // Nothing was written — a refused stamp must not half-land.
+  assert.equal(((await store.getDoc("oq-blocked"))!.doc as { arcRef?: string }).arcRef, undefined);
+
+  // Pointing it at a real id of the WRONG kind is refused for the same reason.
+  const wrongKind = await run(["library", "artifact", "edit", "oq-blocked", "--set", "arcRef=oq-blocked"], {
+    store,
+    writable: true,
+  });
+  assert.equal(wrongKind.ok, false);
+  assert.match(wrongKind.body, /is a open-question, not an arc/);
+});
+
+test("artifact edit --set arcRef= (empty) CLEARS the stamp — a mis-stamp is reversible", async () => {
+  const store = await seededForStamping();
+  await run(["library", "artifact", "edit", "oq-blocked", "--set", "arcRef=surface-arc"], {
+    store,
+    writable: true,
+  });
+  const cleared = await run(["library", "artifact", "edit", "oq-blocked", "--set", "arcRef="], {
+    store,
+    writable: true,
+  });
+  assert.equal(cleared.ok, true, cleared.body);
+  assert.match(cleared.body, /cleared/);
+  // The field is REMOVED, not blanked — an empty string would fail the AssetRef regex on next write.
+  assert.ok(!Object.hasOwn((await store.getDoc("oq-blocked"))!.doc as object, "arcRef"));
+});
+
 test("artifact edit on a missing id is guidance", async () => {
   const env = await run(["library", "artifact", "edit", "ghost", "--set", "title=x"], {
     store: await seeded(),
