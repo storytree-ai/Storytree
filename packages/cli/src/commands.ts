@@ -8,10 +8,12 @@ import { parseArgs } from "node:util";
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import {
   upcastAndValidate,
+  explainDocValidationError,
   groupSources,
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
   knownFieldsForKind,
+  NODE_REF_PREFIX,
   REPO_ROOT_ENV,
   resolveRepoRoot,
 } from "@storytree/library";
@@ -232,7 +234,9 @@ function repoRoot(): string {
  */
 export async function libraryCheck(store: Store): Promise<Envelope> {
   const docs = await store.queryDocs();
-  const docsDir = path.join(repoRoot(), "docs");
+  const root = repoRoot();
+  const docsDir = path.join(root, "docs");
+  const storiesDir = path.join(root, "stories");
   const results = libraryHealth(docs, {
     currentSchemaVersion: CURRENT_SCHEMA_VERSION,
     retiredFields: RETIRED_FIELDS,
@@ -244,6 +248,9 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
         return false;
       }
     },
+    // The `node:<id>` resolver (ADR-0107 D2) — the sibling of docExists, so a citation of a story
+    // that no longer exists surfaces as a WARN instead of being silently ignored.
+    nodeExists: (nodeId) => findNodeSpecFile(storiesDir, nodeId) !== null,
   });
   const { fail, warn } = levelCounts(results);
   const gateFails = gateFailures(results);
@@ -424,7 +431,9 @@ export async function newArtifact(
     // validate — so a doc still carrying a retired field (e.g. seeAlso) is upcast, not rejected.
     valid = upcastAndValidate(parsed);
   } catch (e) {
-    return { ok: false, body: `doc failed validation:\n${(e as Error).message}`, next: [] };
+    // Read the refusal back against the ONE arm the doc means, never the whole LibraryDoc union
+    // dump (which blames the other arm for every field this one requires).
+    return { ok: false, body: `doc failed validation:\n${explainDocValidationError(parsed, e)}`, next: [] };
   }
 
   const { id, kind } = idKindOf(valid as Record<string, unknown>);
@@ -634,7 +643,7 @@ export async function editArtifact(
   } catch (e) {
     return {
       ok: false,
-      body: `edit would make "${id}" invalid:\n${(e as Error).message}`,
+      body: `edit would make "${id}" invalid:\n${explainDocValidationError(nextDoc, e)}`,
       next: [`storytree library artifact ${id}`],
     };
   }
@@ -890,6 +899,10 @@ export async function treeFocus(store: Store, id: string | undefined): Promise<E
       const t = byId.get(tid);
       firstLibraryNeighbour ??= tid;
       outbound.push(`  → ${tid}${t ? `  ${fieldOf(t, "title")}  [${t.kind}]` : "  (missing target)"}   (library)`);
+    } else if (r.startsWith(NODE_REF_PREFIX)) {
+      // ADR-0107 D2's proving-process anchor: an edge OUT of the library at a story / capability.
+      // Not a "source" — reading it means `storytree tree <id>`, not opening a doc.
+      outbound.push(`  → ${r.slice(NODE_REF_PREFIX.length)}   (story node — storytree tree ${r.slice(NODE_REF_PREFIX.length)})`);
     } else {
       outbound.push(`  → ${r}   (source — surfaced on demand)`);
     }
@@ -1265,17 +1278,23 @@ export interface RunDeps {
     readonly now?: string;
     readonly inboxDir?: string;
     readonly docsDir?: string;
+    readonly nodeExists?: (nodeId: string) => boolean;
   };
 }
 
 /** Assemble the friction capture context, deriving the git/clock/path defaults the tests inject. */
 function makeFrictionContext(deps: RunDeps): FrictionContext {
   const root = repoRoot();
+  const storiesDir = path.join(root, "stories");
   return {
     branch: deps.friction?.branch ?? currentBranch(),
     now: deps.friction?.now ?? new Date().toISOString(),
     inboxDir: deps.friction?.inboxDir ?? path.join(root, "docs", "friction-inbox"),
     docsDir: deps.friction?.docsDir ?? path.join(root, "docs"),
+    // The `node:<id>` resolver (ADR-0107 D2), fs-backed here so `friction.ts` stays free of the
+    // stories/ layout — the `docExists` injection pattern. `findNodeSpecFile` is the ONE place that
+    // knows a story is `<id>/story.md` and a capability is `<story>/<id>.md`.
+    nodeExists: deps.friction?.nodeExists ?? ((nodeId) => findNodeSpecFile(storiesDir, nodeId) !== null),
   };
 }
 
@@ -2554,15 +2573,32 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(values.file !== undefined ? { file: values.file } : {}),
       }, ctx);
     }
-    if (sub === "reinforce") {
-      return reinforceFriction(deps, third, {
-        ...(values.evidence !== undefined ? { evidence: values.evidence } : {}),
-      }, ctx);
-    }
-    if (sub === "route") {
+    // The two prose flags accept `@path` (the `--set field=@path` / `arc edit --intent @path`
+    // convention, resolved at the dispatch site exactly as arc's are). Without it a multi-line
+    // justification flattens to a literal `\n` through the pnpm forwarder, and a `->` inside the
+    // string escapes shell quoting badly enough to truncate the value and drop a stray redirect
+    // file into the worktree — the `friction-capture-surface-is-itself-high-friction` item, defect 3.
+    if (sub === "reinforce" || sub === "route") {
+      let evidence: string | undefined;
+      let reason: string | undefined;
+      try {
+        if (values.evidence !== undefined) evidence = await resolveAtPathValue(values.evidence);
+        if (values.reason !== undefined) reason = await resolveAtPathValue(values.reason);
+      } catch (e) {
+        return {
+          ok: false,
+          body: `could not read a @file value: ${(e as Error).message}`,
+          next: ["storytree friction --help"],
+        };
+      }
+      if (sub === "reinforce") {
+        return reinforceFriction(deps, third, {
+          ...(evidence !== undefined ? { evidence } : {}),
+        }, ctx);
+      }
       return routeFriction(deps, third, {
         ...(values.route !== undefined ? { route: values.route } : {}),
-        ...(values.reason !== undefined ? { reason: values.reason } : {}),
+        ...(reason !== undefined ? { reason } : {}),
       }, ctx);
     }
     if (sub === "list") {
