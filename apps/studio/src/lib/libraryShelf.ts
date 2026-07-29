@@ -53,7 +53,11 @@ export function buildCategoryShelf(assets: GuidanceAsset[], docs: DocMeta[]): Sh
   const stateCounts = new Map<AssetCategory, LifecycleCounts>();
   for (const asset of assets) {
     counts.set(asset.category, (counts.get(asset.category) ?? 0) + 1);
-    const state = lifecycleOf(asset.category, { route: asset.fields?.route, status: asset.status });
+    const state = lifecycleOf(asset.category, {
+      route: asset.fields?.route,
+      status: asset.status,
+      lifecycle: asset.lifecycle,
+    });
     const entryCounts = stateCounts.get(asset.category) ?? emptyLifecycleCounts();
     entryCounts[state] += 1;
     stateCounts.set(asset.category, entryCounts);
@@ -122,7 +126,11 @@ export function listScopedBrowseResults(
   const filtered = assets.filter(
     (asset) =>
       asset.category === category &&
-      lifecycleOf(category, { route: asset.fields?.route, status: asset.status }) === state,
+      lifecycleOf(category, {
+        route: asset.fields?.route,
+        status: asset.status,
+        lifecycle: asset.lifecycle,
+      }) === state,
   );
   return listCategoryResults(category, filtered, []);
 }
@@ -149,7 +157,11 @@ export function filterResultsByState(
     const asset = assetById.get(result.id);
     return (
       asset !== undefined &&
-      lifecycleOf(asset.category, { route: asset.fields?.route, status: asset.status }) === state
+      lifecycleOf(asset.category, {
+        route: asset.fields?.route,
+        status: asset.status,
+        lifecycle: asset.lifecycle,
+      }) === state
     );
   });
 }
