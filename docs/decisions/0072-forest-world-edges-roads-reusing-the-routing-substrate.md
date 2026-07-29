@@ -85,7 +85,7 @@ should change. The open question this ADR settles: do we *delete* the water/pond
    **THE only world** — no `?world=` selector and no water path.)* As originally shipped, a new world
    selector (`?world=roads`) turned roads on; the water world stayed byte-identical when off and
    remained the bare `#/tree` default until the owner attested the roads look. The geometry of any new
-   road-specific pure helper is proven red→green ([ADR-0020](0020-red-green-on-the-owned-loop.md) /
+   road-specific pure helper is proven red→green ([ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) /
    spine-observed); the *appearance* is owner-attested ([ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)) —
    no self-signed visual verdict.
 
