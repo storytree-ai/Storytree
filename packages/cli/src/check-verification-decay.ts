@@ -96,8 +96,14 @@ const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
  * building it — and unrelated backlogs become fungible, so repairing a stale binding buys silence for
  * an unobserved mirror pair.
  *
- * Each starts GREEN on an honest baseline and can only ever be tightened: repair a signal, lower that
- * instrument's number. RAISING one is a deliberate act, and the reason belongs in the commit message.
+ * Each starts GREEN on an honest baseline and can only ever be tightened WITHIN A FIXED MEASUREMENT
+ * APERTURE: repair a signal, lower that instrument's number. The ONE legitimate upward move is a
+ * genuine enlargement of what the instrument SCANS (ADR-0269, which amends ADR-0252 D3's flat
+ * tightening-only clause) — never a raise that absorbs findings accumulated under an unchanged
+ * aperture, which stays the gaming move. RAISING one is a deliberate act whose full decomposition
+ * belongs AT the number, in that instrument's own comment (ADR-0269 4(f)) — not in the commit message,
+ * where the next reader of this file will not find it. A NARROWING aperture must LOWER the ceiling by
+ * the measured amount in the same landing (ADR-0269 5), or the exception becomes a ratchet.
  */
 const CEILINGS = {
   /**
@@ -112,9 +118,12 @@ const CEILINGS = {
    * registers. Register a pair (a probe on each surface plus a row), lower this number.
    *
    * RE-BASELINED 10 → 11 (2026-07-29), and the direction is the point: this is the ONE legitimate
-   * upward move `asset:verification-decay-detection` names — an instrument whose MEASURED POPULATION
-   * genuinely enlarges is re-baselined on the first real sweep of that new population, with the
-   * reason recorded AT the number. THE TELL THAT SEPARATES IT FROM GAMING IS THAT **WHAT** IS
+   * upward move — an instrument whose MEASURED POPULATION genuinely enlarges is re-baselined on the
+   * first real sweep of that new population, with the reason recorded AT the number. **ADR-0269 is
+   * the governing policy** (it amends ADR-0252's flat tightening-only clause, scoping it to a fixed
+   * measurement APERTURE, and owns the evidence bar this note discharges); the process artifact
+   * `verification-decay-detection` is a view of that decision, never its source (ADR-0034 §2). THIS
+   * ENTRY IS THE RECORD ADR-0269 4(f) REQUIRES. THE TELL THAT SEPARATES IT FROM GAMING IS THAT **WHAT** IS
    * COUNTED CHANGED, NOT MERELY **HOW MANY**: no pair was reclassified, no finding was excused, and
    * the ceiling did not move to accommodate a backlog that grew under it. `MIRROR_SURFACE` walked
    * only `apps/desktop/src/backend` and never `apps/desktop/electron`, so two routes the desktop

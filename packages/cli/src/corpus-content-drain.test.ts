@@ -126,10 +126,13 @@ test("the drained baseline (0 value-drift, 0 degraded) is OK — the ceiling shi
 // ---------------------------------------------------------------------------
 
 test("GUARD: the ceilings are the DRAINED baseline — V=0 and D=0, both zero headroom", () => {
-  // TIGHTENING-ONLY (ADR-0252 D3). V was 14 from 2026-07-28 until the ADR-0263 drain took the real
-  // count to zero on 2026-07-29; the ceiling follows the measurement DOWN and may never follow it up.
-  // A future edit that RAISES either number is the named gaming failure mode, and this pin is what
-  // makes such an edit fail rather than pass quietly.
+  // TIGHTENING-ONLY WITHIN A FIXED MEASUREMENT APERTURE (ADR-0252 D3 as amended by ADR-0269). V was 14
+  // from 2026-07-28 until the ADR-0263 drain took the real count to zero on 2026-07-29; the ceiling
+  // follows the measurement DOWN, and follows it UP only on a genuine enlargement of what the sweep
+  // SCANS — never to absorb drift that accumulated under an unchanged aperture, which stays the named
+  // gaming failure mode. This pin is what makes EITHER edit deliberate rather than quiet: a raise that
+  // absorbs drift fails here as it always did, and a legitimate aperture re-baseline has to come here
+  // and record its decomposition (ADR-0269 4(f)), which is the audit surface working as intended.
   assert.equal(CEILING.valueDriftCeiling, 0);
   assert.equal(CEILING.degradedLiveCeiling, 0);
   // A single artifact of either kind now fails — the property the check has never had until now.

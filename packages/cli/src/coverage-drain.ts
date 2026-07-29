@@ -137,7 +137,9 @@ export interface CoverageDrainConfig {
  * over 281 spec files found `uncovered=119, unbound=1` across the 112 scanned real-build capabilities
  * (121 contracts in the WARN as printed, of which 2 hang off the one unbound capability). Setting each
  * axis to exactly what a real run found ships the ceiling GREEN on an honest baseline (a breach is
- * strictly `>`), so it can only ever be TIGHTENED as the backlog drains.
+ * strictly `>`), so it can only ever be TIGHTENED as the backlog drains — WITHIN A FIXED MEASUREMENT
+ * APERTURE (ADR-0269, which amends ADR-0252 D3). The pre-recorded raise below is the one exception,
+ * and it is an aperture enlargement rather than a backlog absorption.
  *
  * `uncoveredCeiling: 119` is deliberately NOT zero, and not because 119 unproven contracts are
  * acceptable. Shipping red on a backlog that took a month to accumulate, whose drain is 119 separate
@@ -152,7 +154,9 @@ export interface CoverageDrainConfig {
  * `analyzeObservedTests`, which parses only the `.skip`/`.todo` MODIFIER and NOT the options form
  * (`test(name, { skip: !DB }, fn)`) — the defect the `vacuous-proof` instrument locates in 7 test files.
  * Teaching it the options form ENLARGES what this sweep can observe, which is the one legitimate upward
- * move (ADR-0252 D3), and the enlargement was MEASURED rather than feared: recomputing the sweep with
+ * move (ADR-0269, which amends ADR-0252 D3 — that clause alone grants no upward move at all), and the
+ * enlargement was MEASURED rather than feared, which is the differential control ADR-0269 4(b)
+ * requires: recomputing the sweep with
  * every options-form-skipped name removed moves `uncovered` 119 → 120 and `unbound` not at all. Exactly
  * ONE contract — `release-claims-by-branch-clears-the-branch` on `claim-store-work-time`, whose sole
  * vouching test is `skip: !DB` in `claim-store-release-by-branch.live.test.ts`. The other six located

@@ -847,7 +847,9 @@ export interface DecayVerdict {
  *
  * Advisory per finding, fail-closed on growth (ADR-0252 D3). A ceiling is TUNED ON THAT INSTRUMENT'S
  * FIRST REAL SWEEP rather than picked in advance — set to exactly what that sweep found, so it starts
- * GREEN on an honest baseline and can only ever be tightened. Adding a finding without repairing one
+ * GREEN on an honest baseline and can only ever be tightened WITHIN A FIXED MEASUREMENT APERTURE — an
+ * instrument whose aperture genuinely enlarges is re-baselined on the new population's first real
+ * sweep, under ADR-0269's evidence bar (it amends ADR-0252 D3). Adding a finding without repairing one
  * reds the gate; that is the whole mechanism by which this list cannot decay into `check:coverage`'s
  * 121-contract condition.
  *
