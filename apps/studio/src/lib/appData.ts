@@ -10,6 +10,12 @@
 // check straight into the "genuinely empty" branch — reintroducing exactly the dishonesty this
 // unit exists to prevent (ADR-0240 decision 3), silently, for any AppData built without it.
 //
+// `docsStatus`/`docsError` are the SAME shape for the SAME reason, one payload over (see
+// lib/docsIndex.ts): `/api/docs` is fetched independently too, so `docs` is observably empty (or
+// seeded from the previous visit's cache) before it resolves, and a failed fetch used to leave no
+// surface at all — just a `console.error`, while every consumer rendered a fallback that reads as
+// the truth. Required for the same reason as the assets pair, and the trap is the same one.
+//
 // The `comments` collection and its refresher were REMOVED here, not deferred. Established by
 // probe: nothing in apps/studio/src ever read them. `openCount` — their only helper — had no
 // callers; the "sidebar badges" this header used to describe retired with the per-category rail
@@ -19,11 +25,16 @@
 
 import { createContext, useContext } from 'react';
 import type { DocMeta, GuidanceAsset, MeInfo } from '../types';
+import type { DocsStatus } from './docsIndex';
 
 export interface AppData {
   docs: DocMeta[];
   docIds: Set<string>;
   docTitles: Map<string, string>;
+  /** Whether `docs`/`docIds`/`docTitles` reflect a resolved `/api/docs` yet. Required — see header. */
+  docsStatus: DocsStatus;
+  /** The failure message when `docsStatus === 'error'` — an empty string otherwise. */
+  docsError: string;
   assets: GuidanceAsset[];
   /** Whether `assets` reflects a resolved `/api/assets` response yet. Required — see header. */
   assetsStatus: 'loading' | 'ready' | 'error';

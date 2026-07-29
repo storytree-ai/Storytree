@@ -57,6 +57,13 @@ export interface FocusNode {
 export interface FocusEdge {
   from: string;
   to: string;
+  /** The authored branch label (a `process` asset's `branchEdges[].label`), when present. Absent
+   *  for an ordinary reference edge, or an unlabelled branch edge. */
+  label?: string;
+  /** Present + `'branch'` for an edge derived from a `process` asset's `branchEdges` (library-typed-
+   *  edges / ADR-0266, the library-process-flow capability) — distinguishes it from an ordinary
+   *  reference edge, which never carries a `kind`. */
+  kind?: 'branch';
 }
 
 /** A parent node whose next-hop fan overflowed `FAN_CAP` and was collapsed. */
@@ -197,6 +204,26 @@ export function buildFocusGraph({
   expandFrontier([centre.id], referencesOf, 'upstream');
   expandFrontier([centre.id], (id) => downstreamOf.get(id) ?? [], 'downstream');
 
+  // A `process` centre's authored branchEdges become downstream flow edges (library-process-flow,
+  // ADR-0266 / library-typed-edges): one hop from the centre only, mirroring the one-level-each-way
+  // rule above — never a further BFS iteration. Absent branchEdges contributes nothing (never an
+  // empty-array artifact).
+  const branchEdgeRecords: { target: string; label: string | undefined }[] = [];
+  const centreAsset = assetById.get(centre.id);
+  if (centreAsset?.branchEdges) {
+    for (const be of centreAsset.branchEdges) {
+      const target = resolveRef(be.ref);
+      if (target === centre.id || !metaFor(target)) continue;
+      if (!includedIds.has(target)) {
+        includedIds.add(target);
+        sideOf.set(target, 'downstream');
+        const meta = metaFor(target);
+        if (meta) metaOf.set(target, meta);
+      }
+      branchEdgeRecords.push({ target, label: be.label });
+    }
+  }
+
   const graph = new dagre.graphlib.Graph();
   // Wider ranks so the border-anchored bezier edges + arrowheads have room to read (the vine idiom).
   graph.setGraph({ rankdir: 'LR', nodesep: 28, ranksep: 120, marginx: 16, marginy: 16 });
@@ -213,6 +240,12 @@ export function buildFocusGraph({
       graph.setEdge(ref, id);
       edges.push({ from: ref, to: id });
     }
+  }
+  for (const { target, label } of branchEdgeRecords) {
+    graph.setEdge(centre.id, target);
+    const edge: FocusEdge = { from: centre.id, to: target, kind: 'branch' };
+    if (label !== undefined) edge.label = label;
+    edges.push(edge);
   }
 
   dagre.layout(graph);

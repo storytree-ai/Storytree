@@ -77,6 +77,13 @@ export interface RenderedAsset {
    * branches, carry none.
    */
   status?: string;
+  /**
+   * An `arc` doc's `lifecycle` (ADR-0239 D1) — the same crossing as {@link status}, for the same
+   * reason: it is `.extend()` schema metadata, so `extractFields` never surfaces it and it would
+   * otherwise fall on the floor at the wire boundary, leaving `lifecycleOf`'s new `arc` branch with
+   * nothing to read on any browser surface. Structured branch only, present only when stored.
+   */
+  lifecycle?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -243,6 +250,7 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     branchEdges?: ProcessBranchEdge[];
     arcRef?: string;
     status?: string;
+    lifecycle?: string;
   };
   return {
     id: knowledge.id ?? stored.id,
@@ -262,6 +270,9 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
       : {}),
     ...(typeof typedEdges.status === "string" && typedEdges.status
       ? { status: typedEdges.status }
+      : {}),
+    ...(typeof typedEdges.lifecycle === "string" && typedEdges.lifecycle
+      ? { lifecycle: typedEdges.lifecycle }
       : {}),
     createdAt: stored.createdAt,
     updatedAt: stored.updatedAt,

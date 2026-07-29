@@ -146,7 +146,7 @@ in the repo.
 ## References
 
 - [ADR-0001](0001-foundational-stack.md) — the PixiJS engine pick, corrected in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).
-- [ADR-0006](0006-event-store-observability-surface.md), [ADR-0010](0010-three-tier-work-hierarchy.md) §3–4,
+- [ADR-0006](0006-event-store-observability-surface.md), [ADR-0010](0010-organism-model-story-bounded-context.md) §3–4,
   [ADR-0019](0019-library-tier-name-and-defer-dbos.md) (the named-deferred pattern),
   [ADR-0023](0023-library-cli-choose-your-own-adventure.md), [ADR-0030](0030-all-in-on-claude-agent-sdk.md),
   [ADR-0033](0033-session-presence-notice-board.md) (glyph + presence semantics reused verbatim).

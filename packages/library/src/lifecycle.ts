@@ -16,6 +16,8 @@ export type Lifecycle = "open" | "active" | "archived";
 export interface LifecycleDoc {
   route?: string | null | undefined;
   status?: string | null | undefined;
+  /** An `arc`'s stored closure flag (ADR-0239 D1): absent/`active` → active, `closed` → archived. */
+  lifecycle?: string | null | undefined;
 }
 
 /**
@@ -60,7 +62,13 @@ export function lifecycleOf(kind: string, doc: LifecycleDoc): Lifecycle {
       return "open";
 
     case "arc":
-      return "active";
+      // ADR-0239 D1 — the stored closure flag, read through THIS projection and no other (D4 of
+      // ADR-0196: a second ad-hoc status surface is the failure that ADR exists to end). Before the
+      // field existed this branch was a hardcoded `"active"`, honouring ADR-0196 D2's deferral of the
+      // write; now that `arc close` writes the transition, `closed` is finally witnessable. An arc
+      // with no stored field is still in flight, so absent degrades to `active` — the projection
+      // never invents an `archived` it cannot read.
+      return doc.lifecycle === "closed" ? "archived" : "active";
 
     default:
       // Every durable kind (definition/principle/pattern/guardrail/techstack/process/agent/

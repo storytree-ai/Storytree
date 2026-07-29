@@ -4086,6 +4086,96 @@
     "schemaVersion": 3
   },
   {
+    "id": "software-factory-line",
+    "kind": "process",
+    "steps": "```mermaid\nflowchart LR\n  I[\"1 Intent\"] --> C[\"2 Claim\"] --> P[\"3 Prove\"] --> S[\"4 Sign\"] --> G[\"5 Gate\"] --> L[\"6 Land\"] --> R[\"7 Learn\"]\n  R -.->|\"retools the next run\"| I\n```\n\nEach station below names the ceremony that owns its steps. Where a station has no ceremony, that is stated rather than hidden — two of the seven do not have one yet.\n\n1. **Intent** — decide the unit and record the fork before building it. An arc carries the initiative, a plan carries disposable choreography, and the work decomposes into story › capability › contract. A design fork reserves an ADR whose number is allocated atomically from the store, born `accepted` when the owner directed the decision in conversation. *No process artifact yet.*\n\n2. **Claim** — take the unit on the notice board and isolate the work. The board is the claim ledger: a session is born claimed or claims deliberately, a second session is refused the same unit, and an unclaimed session cannot reach the merge ceremony at all. Work happens in a worktree cut from `origin/main`. *No process artifact yet.*\n\n3. **Prove** — the inner loop, where agent output is never taken on trust. A live leaf authors inside a fail-closed per-phase write fence while the deterministic spine observes the result at each boundary:\n\n```mermaid\nflowchart LR\n  A[\"AUTHOR_TEST (writes test only)\"] --> RD{{\"CONFIRM_RED (spine observes)\"}}\n  RD --> IM[\"IMPLEMENT (writes source only)\"]\n  IM --> GR{{\"CONFIRM_GREEN (spine observes)\"}}\n  GR --> GA[\"GATE (suite + typecheck walls)\"]\n```\n\n   The leaf cannot write the fix before the red is observed, and cannot edit the test once implementing. A proof command that could pass vacuously produces no red, so the node halts — and halt is never a pass, which strands every node behind it rather than continuing quietly. A type-only change is the same trap by another route: `tsx` strips types, so the runtime proof sees green and CONFIRM_RED refuses, correctly. → `asset:prove-and-promote-ceremony`, and `asset:type-only-red-needs-runtime-witness` when the intended red is type-level\n\n4. **Sign** — a signed pass is promoted, never evaporated. The spine commits the authored work itself, signs a verdict anchored to that exact commit, and persists it. A red package suite or failing typecheck withholds the push. Persisting a dry-run verdict is refused outright, and the promotion merges non-squash so the attested commit stays an ancestor of `main`. → `asset:prove-and-promote-ceremony`; the human-witness branch is `asset:stage-the-attestation-experience`\n\n5. **Gate** — the wider surface the package-scoped proof cannot see. `pnpm gate` runs the check wall: repo boundaries, generated-view fidelity, cross-surface conformance, library reconciliation, and the proof-integrity checks that watch the proof layer itself. The local gate is deliberately wider than CI — the store-dependent and judgment-shaped checks impose a drain obligation on the session rather than a barrier on the trunk, because a heuristic that blocks the trunk was measured wrong about the specific defect roughly three times in four. → `asset:verification-decay-detection` for the half of this wall that watches the proof layer\n\n6. **Land** — open a non-draft PR, then stop. CI re-runs the gate against the merge of the branch with `main`, then merges and deletes the branch; a session never merges manually, because no branch protection exists and a manual merge would land pre-CI. → `asset:merge-ceremony`, with `asset:affected-pr-test-scope` for what CI re-runs\n\n7. **Learn** — the return edge, and the reason this is a factory rather than a pipeline. Before the PR opens, the session runs a retro capturing at most three justified friction items, then a librarian pass that keeps the decision log honest and graduates durable session memory into Library artifacts. Those artifacts render into `CLAUDE.md` and the native agent definitions, so what one session learned the hard way is what the next session boots believing. → `asset:friction-adjudication`, `asset:library-edit-ceremony`, `asset:retire-realized-proposal`\n\nTwo ceremonies cut across every station rather than sitting at one: `asset:subagent-context-pull` when a station is delegated, and `asset:attempt-privileged-actions-approve-inline` when a station needs a privileged action.",
+    "title": "The software factory line",
+    "trigger": "You need the SHAPE of the loop rather than one ceremony's steps: orienting at the start of a session, deciding which station a change belongs to, or auditing which stations carry a mechanical guardrail and which rest on convention. Also the entry point when a station's ceremony is known but its neighbours are not — read the map, then follow the branch edge to the ceremony that owns the steps.\n\nNot the trigger for actually running a station. Each station's own ceremony carries its trigger, and this map defers to it.",
+    "surfaces": "**Library only — this map reads, and writes nothing.** It is looked up with `storytree library artifact software-factory-line` (the station walk and both diagrams) and its outbound station edges are walked with `storytree library tree focus software-factory-line`. In the studio the same body renders with its mermaid diagrams drawn, and its branch edges are navigable in the Library canvas.\n\nIt touches no other surface itself. Every surface the loop actually reads or writes — the story tree, the notice board, the shared store, repo and CI — belongs to the station ceremony that owns it, reached through the branch edges rather than restated here.",
+    "createdAt": "2026-07-29T12:36:16.474Z",
+    "statement": "The whole delivery loop in one place: seven stations from owner intent to landed code, plus the return edge that feeds what a run learned back into the agents that run the next one. This artifact is the MAP — it indexes each station's ceremony through its branch edges and restates none of them.",
+    "updatedAt": "2026-07-29T12:36:16.474Z",
+    "provenance": "Authored 2026-07-29 under ADR-0266 as the first process artifact in the corpus to carry branchEdges — the field ADR-0154 chartered and ADR-0161 dec 5 un-deferred, whose wire library-typed-edges built and signed (commit 3c69dd21) and whose gate check:process-graph had until now run green over an empty graph. The station walk was assembled from the live decision log rather than from prose: the load-bearing ADR set, the ceremony artifacts, packages/orchestrator/src/phase-machine.ts, the pnpm gate script, and .github/workflows/ci.yml.",
+    "references": [
+      "asset:software-factory",
+      "asset:prove-it-gate",
+      "asset:never-bypass-the-gate",
+      "doc:decisions/0266-the-software-factory-is-a-master-process-a-branch-edged-stat.md",
+      "doc:decisions/0020-red-green-enforcement-on-the-owned-loop.md",
+      "doc:decisions/0022-ci-green-gate-and-auto-merge.md",
+      "doc:decisions/0161-the-library-is-a-node-keyed-context-dag-agent-step-nodes-and.md"
+    ],
+    "branchEdges": [
+      {
+        "ref": "asset:prove-and-promote-ceremony",
+        "label": "stations 3-4 — the inner loop and the signed promotion"
+      },
+      {
+        "ref": "asset:type-only-red-needs-runtime-witness",
+        "label": "station 3 — when the intended red is type-level"
+      },
+      {
+        "ref": "asset:stage-the-attestation-experience",
+        "label": "stations 3-4 — the operator-attested leg"
+      },
+      {
+        "ref": "asset:verification-decay-detection",
+        "label": "station 5 — the half of the wall that watches the proof layer"
+      },
+      {
+        "ref": "asset:merge-ceremony",
+        "label": "station 6 — commit, non-draft PR, and stop"
+      },
+      {
+        "ref": "asset:affected-pr-test-scope",
+        "label": "station 6 — what CI re-runs on the merge result"
+      },
+      {
+        "ref": "asset:friction-adjudication",
+        "label": "station 7 — adjudicate the captured signal"
+      },
+      {
+        "ref": "asset:library-edit-ceremony",
+        "label": "station 7 — write the durable tier"
+      },
+      {
+        "ref": "asset:retire-realized-proposal",
+        "label": "station 7 — lifecycle hygiene"
+      },
+      {
+        "ref": "asset:subagent-context-pull",
+        "label": "cross-cutting — delegating a station to a subagent"
+      },
+      {
+        "ref": "asset:attempt-privileged-actions-approve-inline",
+        "label": "cross-cutting — a privileged action inside any station"
+      }
+    ],
+    "description": "The birds-eye map of the whole delivery loop: seven stations from owner intent to landed code plus the return edge, indexing each station's ceremony through its branch edges and restating none of them.",
+    "failureModes": "- **The map drifts into a confident, wrong picture.** Nothing checks that the station walk still describes the loop. A station can change — a gate check lands, a ceremony is re-decided — and this body will keep asserting the old shape with no test going red. A wrong map is worse than no map, because it is trusted. This is the accepted cost recorded in ADR-0266, and the structural mitigation is that the map restates no doctrine (below), so the drift surface is the station list and the diagrams, not the rules.\n\n- **Reading the map as the doctrine.** It indexes; it does not define. Where this body and a station's ceremony disagree, the ceremony wins — it is the artifact under curation, and this one is a projection of it. Copying a ceremony's steps up into this map would create a second copy required to agree with the first, which by ADR-0251 would need a conformance test rather than a convention.\n\n- **Renaming a station artifact without fixing the edge.** This is the one failure the machine does catch: `check:process-graph` fails the gate when a branch edge no longer resolves, and refuses a cycle. Before this map existed the check had no input at all and ran green vacuously, so the first real consequence of a bad rename now arrives at the local gate instead of silently.\n\n- **Reading the two missing stations as \"no ceremony needed\".** Intent and Claim have no process artifact. That is a gap in the corpus, not a statement that those stations are ceremony-free — each has real steps and real guardrails today, carried only by the `session-orchestrator` agent's generated workflow. Honest by absence (ADR-0128), with the absence as the worklist.\n\n- **Trusting the station list without re-reading the shelf.** This map's own first edit is the cautionary case: it was authored naming *three* stations as ceremony-less, and by the time it was verified the same afternoon, two processes had landed on `main` — `type-only-red-needs-runtime-witness` (station 3) and `verification-decay-detection` (station 5) — making the count two. A branch edge that resolves proves the target exists; nothing proves the map still knows about a target it never linked. Re-read `storytree library artifact list process` before trusting a coverage claim here.\n\n- **Assuming the branch edges index every process.** They deliberately do not. The environment and ops processes — `db-control`, `launch-studio`, `launch-desktop`, `desktop-e2e-conventions`, `website-release` — are not stations of this loop and are reachable through `storytree library artifact list process`, not through this map.",
+    "verification": "**Two halves, and only one of them is checked.**\n\nThe EDGES are deterministic. `check:process-graph` (in `pnpm gate`) runs the library compute `processGraphViolations` over this artifact's `branchEdges` and fails the build on any violation: every edge must resolve to a real artifact, and no cycle may form. Until this map was authored no process in the corpus carried a branch edge, so that gate ran green over an empty graph — its own header records the state as \"a NO-OP today ... exactly as intended\". This artifact is its first real input. `check:surface-coverage` separately asserts that the entrypoints named in Surfaces resolve against the real CLI surface.\n\nThe BODY is not checked, and no mechanism is proposed to check it. Nothing verifies that the seven stations are still the seven stations, that a diagram matches the phase machine it draws, or that a guardrail described here still exists. A reader who needs certainty should follow the branch edge to the station ceremony, whose own Verification section states what is machine-enforced there and what is convention. Stated explicitly rather than left as an assumption, per this kind's own instruction to say so when nothing checks it.",
+    "schemaVersion": 3
+  },
+  {
+    "id": "software-factory",
+    "kind": "definition",
+    "title": "software factory",
+    "oneLine": "A delivery loop whose output includes a revision of its own operating instructions — storytree's whole cycle from owner intent to landed code, named for the return edge that makes it self-retooling rather than merely repeatable.",
+    "whatItIs": "A production system for software in which the run and the retooling are the same loop. A run turns owner intent into code landed on `main`; it also produces friction, decisions, and graduated Library artifacts that rewrite the instructions — `CLAUDE.md`, the native agent definitions, the corpus — that the *next* run boots from. Remove that return edge and what remains is a pipeline: repeatable, but no better on its hundredth run than its first.\n\nIts quality does not come from inspecting finished work. It comes from **fixtures that make the wrong part impossible to produce**: a per-phase write fence so a leaf cannot edit its test while implementing, a spine that observes red and green itself rather than accepting an agent's report, a claim ledger that refuses a second concurrent build of one unit, and CI owning the merge so a session cannot land unverified work. The gate wall is final inspection, and it is the least interesting of the three layers.\n\nThe station-by-station flow — what hands on to what, and which guardrail sits where — lives in `asset:software-factory-line`, which indexes the station ceremonies rather than restating them.",
+    "createdAt": "2026-07-29T12:21:14.130Z",
+    "updatedAt": "2026-07-29T12:21:14.130Z",
+    "provenance": "Authored 2026-07-29 under ADR-0266, on the owner's direction to rename the delivery loop from \"the SDLC\" to \"the software factory\" — the term used for self-perpetuating AI systems. The differentia (the return edge, not the phase list) is the owner's own framing of why the rename is more than cosmetic.",
+    "references": [
+      "asset:software-factory-line",
+      "asset:merge-ceremony",
+      "asset:prove-and-promote-ceremony",
+      "doc:decisions/0266-the-software-factory-is-a-master-process-a-branch-edged-stat.md"
+    ],
+    "description": "The delivery loop whose output includes a revision of its own operating instructions — named for the return edge that makes it self-retooling rather than merely repeatable.",
+    "whatItIsNot": "**Not an SDLC.** A software development lifecycle names the phases work passes through — the work moves, the process holds still. The distinguishing claim here is the opposite one: the process is what changes, run over run, as a product of the runs themselves. The term is retired for this system; nothing in the corpus is named \"SDLC\".\n\n**Not a CI/CD pipeline.** CI is one station of seven (`asset:merge-ceremony`, station 6). A pipeline does not rewrite its own configuration from what it learned on the last build, and it has no station upstream of code at all — no arc, no claim, no signed verdict.\n\n**Not the orchestrator spine.** `packages/orchestrator` is *code* that enacts one station: it drives the phase machine, observes red and green, and signs the verdict. The factory is the whole loop including the parts no code runs — the owner's decisions, the librarian pass, the operator-attested legs. Conflating them reads the spine's guarantees as covering ground it never touches.\n\n**Not the story tree.** The tree is the *work* — story, capability, contract. The factory is how work moves through proof and landing. A healthy tree is an output; the factory is what produced it.",
+    "schemaVersion": 3
+  },
+  {
     "id": "price-the-deferral",
     "why": "Quoting is free and measuring is not, so an unmeasured estimate propagates verbatim between increments and hardens with each retelling, while the corpus's own slow-growth and owner-fork discipline actively reward deferring and nothing else prices it. Twice on one arc the measurement inverted the prose. A coupling risk that deferred the arc's highest-value worklist for three increments moved the backlog by exactly one contract, not the 121 the prose implied, and the refutation had been sitting in the instrument's own false-positive paragraph since before the estimate was carried forward twice more. A caveat naming two checks as possibly needing no ceiling read as settled for four consecutive increments; measured, both needed one — one of them printing a six-item worklist at exit 0, five of whose ids had never drained at all.",
     "kind": "principle",

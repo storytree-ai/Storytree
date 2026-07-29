@@ -18,6 +18,7 @@ const HEALTHY: DoctorObservations = {
   gitPresent: true,
   nodeMajor: NODE_MAJOR_FLOOR,
   provisioned: true,
+  dependencyCurrency: "current",
   remoteReachable: true,
   seedReadable: true,
   claudeCliPresent: true,
@@ -37,7 +38,9 @@ test("GREEN: a healthy report yields NO escalation (nothing needs the owner)", (
 
 test("a report whose ONLY failures are installer-repairable yields NO escalation (that's the repair loop's job)", () => {
   // git + node + provision missing — all fixable by re-running an installer step, so NOT owner-escalation.
-  const blob = buildEscalationBlob(runDoctor({ ...HEALTHY, gitPresent: false, nodeMajor: null, provisioned: false }));
+  const blob = buildEscalationBlob(
+    runDoctor({ ...HEALTHY, gitPresent: false, nodeMajor: null, provisioned: false, dependencyCurrency: "unknown" }),
+  );
   assert.equal(blob.needed, false, "local tooling gaps are self-repairable, never an owner escalation");
   assert.equal(blob.unmet.length, 0);
 });
@@ -77,7 +80,13 @@ test("the blob carries redacted full environment context and preserves probe ord
 
 test("triedRepairs carries the installer @steps the dev already re-ran (from the repair plan)", () => {
   // A broken env with BOTH self-repairable failures and an owner-side one.
-  const obs: DoctorObservations = { ...HEALTHY, gitPresent: false, provisioned: false, claudeLoggedIn: false };
+  const obs: DoctorObservations = {
+    ...HEALTHY,
+    gitPresent: false,
+    provisioned: false,
+    dependencyCurrency: "unknown",
+    claudeLoggedIn: false,
+  };
   const report = runDoctor(obs);
   const blob = buildEscalationBlob(report, { plan: planRepairs(report) });
   assert.equal(blob.needed, true);

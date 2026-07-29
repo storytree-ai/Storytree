@@ -608,6 +608,7 @@ function toGuidanceAsset(rendered: {
   branchEdges?: { ref: string; label?: string | undefined }[];
   arcRef?: string;
   status?: string;
+  lifecycle?: string;
   createdAt: string;
   updatedAt: string;
 }): GuidanceAsset {
@@ -629,6 +630,9 @@ function toGuidanceAsset(rendered: {
     ...(rendered.arcRef ? { arcRef: rendered.arcRef } : {}),
     // A plan doc's lifecycle status rides the wire like arcRef (ADR-0196 D3, absent-by-default).
     ...(rendered.status ? { status: rendered.status } : {}),
+    // An arc doc's stored closure flag rides it the same way (ADR-0239 D1) — without this the
+    // shelves' `archived` state is unreachable for arcs, which is the rot ADR-0239 exists to end.
+    ...(rendered.lifecycle ? { lifecycle: rendered.lifecycle } : {}),
     createdAt: rendered.createdAt,
     updatedAt: rendered.updatedAt,
   };

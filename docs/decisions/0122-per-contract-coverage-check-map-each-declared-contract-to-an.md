@@ -103,7 +103,7 @@ Built as three pure units + a CLI surface, mirroring the adoption feature's laye
 - [ADR-0097](0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md) /
   [ADR-0098](0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md) — the
   capability-level coverage guarantee + classifier this extends one tier down (contract→test).
-- [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification-record-t.md) — owner's
+- [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — owner's
   design-time decision is the ratification (born accepted).
 - Code: `packages/library/src/contracts.ts`, `packages/orchestrator/src/proof/contract-coverage.ts`,
   `packages/cli/src/coverage.ts`, `packages/orchestrator/src/node-spec.ts` (the `contracts` field).

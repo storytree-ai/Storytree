@@ -438,6 +438,33 @@ test("arc kind (ADR-0183 D1): the increment log validates and fails closed", () 
   assert.throws(() => validateLibraryDoc(onAPrinciple), "increments on a non-arc kind must be rejected");
 });
 
+test("arc kind (ADR-0239 D1): the stored lifecycle flag defaults to active and is enum-fenced", () => {
+  // OPTIONAL-WITH-DEFAULT (the `plan.status` precedent): an arc authored before the field validates
+  // unchanged and parses as `active`. This is what makes ADR-0239 D1 a zero-migration change — no
+  // CURRENT_SCHEMA_VERSION bump, and every one of the live arcs keeps validating.
+  const born = validateLibraryDoc(minimalDoc("arc")) as { lifecycle?: string };
+  assert.equal(born.lifecycle, "active", "an unstated lifecycle parses as active — an arc is born in flight");
+
+  // The closing transition round-trips.
+  const closed = validateLibraryDoc({ ...minimalDoc("arc"), lifecycle: "closed" }) as { lifecycle?: string };
+  assert.equal(closed.lifecycle, "closed");
+
+  // Enum-fenced: free prose and plan's wider vocabulary both fail closed (an arc has two states —
+  // ADR-0196 D1's table gives it no `open` column, and D2 judged the five-state enum over-modelled).
+  for (const bad of ["done", "archived", "retired", "consumed", "", "CLOSED"]) {
+    assert.throws(
+      () => validateLibraryDoc({ ...minimalDoc("arc"), lifecycle: bad }),
+      `lifecycle "${bad}" must be rejected — the enum is the fence against a free-prose state`,
+    );
+  }
+
+  // lifecycle is arc-only: no other kind grows a second status surface off it (ADR-0196 D4).
+  const onAPrinciple = { ...minimalDoc("principle"), lifecycle: "closed" };
+  assert.throws(() => validateLibraryDoc(onAPrinciple), "lifecycle on a non-arc kind must be rejected");
+  const onAPlan = { ...minimalDoc("plan"), lifecycle: "closed" };
+  assert.throws(() => validateLibraryDoc(onAPlan), "lifecycle on a plan must be rejected");
+});
+
 test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum-fenced", () => {
   // The minimal plan (objective + decomposition + arcRef + anchor) validates; status defaults to draft.
   const parsed = validateLibraryDoc(minimalDoc("plan")) as { status?: string; arcRef?: string };

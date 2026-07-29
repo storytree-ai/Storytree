@@ -161,7 +161,10 @@ THE PER-KIND MAPPING IS ADR-0196 D1 VERBATIM — NO INVENTED CLOSED STATES. Bran
 - `open-question` / `proposal` → `open` (unanswered / under consideration).
 - `arc` → `active` (in flight). D2: an arc's CLOSED-state write lands only when a surface needs to WRITE the
   transition — this projection returns the in-flight default and NEVER invents an `archived` an absent field
-  can't witness.
+  can't witness. **SINCE ADR-0239 the surface exists and the deferral is discharged:** `storytree arc close`
+  writes a stored `lifecycle` field, so this branch now reads it — `closed` → `archived`, absent/`active`/
+  anything else → `active`. The never-invent rule is UNCHANGED and is exactly why absence still means in
+  flight; what changed is that `archived` is finally witnessable rather than unreachable by construction.
 - durable kinds — `definition`, `principle`, `pattern`, `guardrail`, `techstack`, `process`, `agent`, `template`
   → `active` (the evergreen default; soft-retire is a future WRITE, not a projected state).
 
