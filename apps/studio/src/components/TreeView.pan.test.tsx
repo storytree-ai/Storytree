@@ -58,6 +58,8 @@ const APP_DATA: AppData = {
   docs: [],
   docIds: new Set(),
   docTitles: new Map(),
+  docsStatus: 'ready',
+  docsError: '',
   assets: [],
   assetsStatus: 'ready',
   assetsError: '',

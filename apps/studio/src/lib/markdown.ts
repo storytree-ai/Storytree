@@ -83,6 +83,19 @@ function normalizePosix(p: string): string {
 }
 
 /**
+ * Whether `href` is SHAPED like an in-corpus doc link — a relative path, rather than an external
+ * URL, a same-page anchor, or a mailto. Says nothing about whether the target exists: answering
+ * THAT needs the doc index, and keeping the two questions apart is what lets a caller tell "this
+ * link points outside the corpus" from "the index hasn't loaded, so I can't resolve it yet".
+ */
+export function isInCorpusDocHref(href: string): boolean {
+  if (/^[a-z]+:\/\//i.test(href) || href.startsWith('#') || href.startsWith('mailto:')) {
+    return false;
+  }
+  return (href.split('#')[0] ?? '') !== '';
+}
+
+/**
  * Resolve a markdown link href to a known doc id (so in-corpus cross-links
  * navigate inside the studio), or null if it isn't an in-corpus doc.
  * Tries the link relative to the current doc's dir, then docs-root-relative.
@@ -92,9 +105,7 @@ export function resolveDocHref(
   baseDocId: string,
   knownIds: Set<string>,
 ): string | null {
-  if (/^[a-z]+:\/\//i.test(href) || href.startsWith('#') || href.startsWith('mailto:')) {
-    return null;
-  }
+  if (!isInCorpusDocHref(href)) return null;
   const h = href.split('#')[0] ?? '';
   if (!h) return null;
   const baseDir = baseDocId.includes('/') ? baseDocId.slice(0, baseDocId.lastIndexOf('/')) : '';

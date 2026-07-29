@@ -73,6 +73,8 @@ function appData(overrides: Partial<AppData> = {}): AppData {
     docs: [],
     docIds: new Set(),
     docTitles: new Map(),
+    docsStatus: 'ready',
+    docsError: '',
     assets: [],
     assetsStatus: 'ready',
     assetsError: '',

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import { AppDataContext, type AppData } from './lib/appData';
+import type { DocsStatus } from './lib/docsIndex';
 import { deriveLoadState, type LoadState } from './lib/loadState';
 import { useDevStoreOverride, type DevOverride } from './lib/devStoreOverride';
 import { getDesktopAuth } from './lib/desktopAuth';
@@ -61,6 +62,11 @@ export function App(): React.JSX.Element {
   // synchronously (guards 1 + 3) — so it's not left empty during the window before /api/docs
   // resolves; loadDocs (below) always re-fetches and reconciles regardless.
   const [docs, setDocs] = useState<DocMeta[]>(() => readPayloadCache()?.docs ?? []);
+  // …and the readiness of that index, for the consumers that resolve an id against it. A cache
+  // seed is NOT a resolved index: it starts `loading` either way, because a doc absent from a
+  // previous visit's snapshot is exactly the id whose absence we can't yet vouch for.
+  const [docsStatus, setDocsStatus] = useState<DocsStatus>('loading');
+  const [docsError, setDocsError] = useState<string>('');
   // map-boot-independence (ADR-0240 decision 2 stage 4): assets are the corpus read the map's own
   // boot no longer waits on. `assetsStatus`/`assetsError` let the Library-route consumers
   // (AssetView, AssetEditor) distinguish "not yet loaded" from a genuinely empty/failed corpus.
@@ -131,11 +137,23 @@ export function App(): React.JSX.Element {
     try {
       const d = await api.listDocs();
       setDocs(d);
+      setDocsStatus('ready');
+      setDocsError('');
       if (!cacheEvictedThisBootRef.current) writeDocsCache(d, codeHeadRef.current);
     } catch (e) {
-      // Independent of the map and of the assets read — never blocks either. Logged so a docs
-      // fetch failure isn't silently swallowed even though nothing here blanks the UI for it.
+      // Independent of the map and of the assets read — never blocks either, and NOTHING here
+      // blanks the UI (re-coupling the content area to this payload is exactly what stage 4
+      // removed). The honest surface is `docsStatus`/`docsError` on the context: the consumers
+      // that resolve an id against the index read them and say "the index didn't load" instead of
+      // "that doc doesn't exist". The console line stays as the developer's copy of the same fact.
+      //
+      // A refresh that fails after a good index landed reports `error` too, exactly as the assets
+      // pair does. Slightly imprecise — we still hold the last resolved index — but it errs toward
+      // "can't vouch for this", which is the safe direction; the defect being fixed here erred the
+      // other way, toward false confidence.
       console.error('failed to load /api/docs', e);
+      setDocsError(e instanceof Error ? e.message : String(e));
+      setDocsStatus('error');
     }
   }, []);
 
@@ -170,6 +188,7 @@ export function App(): React.JSX.Element {
     // whatever the outage cost (the assets load if it failed, else just a fresh read).
     // /api/docs is independent of assets/membership (map-payload-cache) — always worth re-pulling.
     void loadMe();
+    if (docsStatus === 'error') setDocsStatus('loading');
     void loadDocs();
     if (assetsStatus === 'error') {
       setAssetsStatus('loading');
@@ -178,7 +197,7 @@ export function App(): React.JSX.Element {
       void refreshAssets();
     }
     notifyStoreRecovered();
-  }, [assetsStatus, loadMe, loadAssets, loadDocs, refreshAssets]);
+  }, [assetsStatus, docsStatus, loadMe, loadAssets, loadDocs, refreshAssets]);
 
   // Hud's posture discriminator (ADR-0204): the injected desktop bridge means `desktop`; a
   // production browser with no bridge is a real hosted/IAP deploy (`hosted`); a bridge-less DEV
@@ -195,13 +214,15 @@ export function App(): React.JSX.Element {
       docs,
       docIds: new Set(docs.map((d) => d.id)),
       docTitles: new Map(docs.map((d) => [d.id, d.title])),
+      docsStatus,
+      docsError,
       assets,
       assetsStatus,
       assetsError,
       me: me ?? ANON_ME,
       refreshAssets,
     }),
-    [docs, assets, assetsStatus, assetsError, me, refreshAssets],
+    [docs, docsStatus, docsError, assets, assetsStatus, assetsError, me, refreshAssets],
   );
 
   return (
