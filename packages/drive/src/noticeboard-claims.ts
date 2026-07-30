@@ -93,17 +93,29 @@ function describeHolder(holder: ClaimDocT): string {
   return `${holder.sessionId} (branch ${holder.branch}, intent "${holder.intent}")`;
 }
 
+/** One board line per claim row — the `claims` verb's rendering, shared with the refusal arm. */
+function renderBoardLines(rows: ClaimDocT[], now: Date): string[] {
+  return rows.map((c) => {
+    const intent = c.intent.trim().length > 0 ? `"${c.intent}"` : "(none)";
+    return `  - [${claimGrade(c)}]  ${c.sessionId}  ${formatAge(c.claimedAt, now)}  branch=${c.branch}  intent ${intent}`;
+  });
+}
+
 /**
  * The session's position in the unit's waiting line (1-based) + the line's length, read from the
  * ledger's queue-order view (`claimsFor` sorts ascending by claimed_at — ADR-0200 D2). Null when
- * the session has no waiting row (e.g. the read raced a promotion).
+ * the session has no waiting row (e.g. the read raced a promotion) — and null when NO work claim
+ * is held on the unit at all: with no holder there IS no line, and rendering "position 1 of 1"
+ * against nothing was the measured fiction ADR-0270 D3.1 retires.
  */
 async function queuePosition(
   store: ClaimLedgerStoreLike,
   unitId: string,
   sessionId: string,
 ): Promise<{ position: number; length: number } | null> {
-  const waiting = (await store.claimsFor(unitId)).filter((c) => claimGrade(c) === "waiting");
+  const rows = await store.claimsFor(unitId);
+  if (!rows.some((c) => claimGrade(c) === "work")) return null;
+  const waiting = rows.filter((c) => claimGrade(c) === "waiting");
   const idx = waiting.findIndex((c) => c.sessionId === sessionId);
   if (idx === -1) return null;
   return { position: idx + 1, length: waiting.length };
@@ -175,14 +187,10 @@ export async function claimLedgerCommand(
         ],
       };
     }
-    const now = deps.now();
-    const lines = [`Claims on "${unitId}" (queue order, ADR-0200 D2):`];
-    for (const c of rows) {
-      const intent = c.intent.trim().length > 0 ? `"${c.intent}"` : "(none)";
-      lines.push(
-        `  - [${claimGrade(c)}]  ${c.sessionId}  ${formatAge(c.claimedAt, now)}  branch=${c.branch}  intent ${intent}`,
-      );
-    }
+    const lines = [
+      `Claims on "${unitId}" (queue order, ADR-0200 D2):`,
+      ...renderBoardLines(rows, deps.now()),
+    ];
     return {
       ok: true,
       body: lines.join("\n"),
@@ -240,12 +248,25 @@ export async function claimLedgerCommand(
     const result = await store.take(req);
     if ("queued" in result) return renderQueued(store, unitId, sessionId, result.heldBy);
     if (!result.acquired) {
+      // The refusal site carries the whole board (ADR-0270 D3.2): disjointness is read from the
+      // ledger here, never established by hand-inspecting the holder's unpushed branch.
+      const rows = await store.claimsFor(unitId);
+      const board = rows.length > 0 ? renderBoardLines(rows, deps.now()) : ["  (no rows — the read raced a release)"];
       return {
         ok: false,
-        body:
-          `Work claim on "${unitId}" REFUSED — HELD by ${describeHolder(result.heldBy)}. ` +
-          "Join the line instead: a waiting claim queues you behind the holder (ADR-0200 D2).",
+        body: [
+          `Work claim on "${unitId}" REFUSED — HELD by ${describeHolder(result.heldBy)}.`,
+          "",
+          "The unit's claim board (queue order, ADR-0200 D2):",
+          ...board,
+          "",
+          "Disjoint from the holder? Narrow your claim to the capability you are actually writing",
+          "(ADR-0270 D1) and proceed, or queue behind them with a waiting claim (ADR-0200 D2).",
+          "Resolve it from this board on your own judgment — a claim conflict is not an owner question",
+          "(ADR-0270 D2).",
+        ].join("\n"),
         next: [
+          `storytree noticeboard claim <capability-id> --grade work --pg`,
           `storytree noticeboard claim ${unitId} --grade waiting --pg`,
           `storytree noticeboard claims ${unitId} --pg`,
         ],
@@ -263,8 +284,27 @@ export async function claimLedgerCommand(
       };
     }
     if (grade === "waiting") {
-      const pos = await queuePosition(store, unitId, sessionId);
-      const where = pos !== null ? ` (position ${pos.position} of ${pos.length} in the line)` : "";
+      const rows = await store.claimsFor(unitId);
+      const holderHeld = rows.some((c) => claimGrade(c) === "work");
+      if (!holderHeld) {
+        // No holder ⇒ no line. The old rendering ("position 1 of 1") was the fiction ADR-0270
+        // retires: a waiting row against nothing reads as queued while nothing blocks the session.
+        return {
+          ok: true,
+          body:
+            `Waiting claim taken on "${unitId}" — but NO work claim is held here: nothing blocks ` +
+            "you (ADR-0270 D3.1). If you are building this unit, take the work slot (upgrade); if " +
+            "you meant a narrower surface, claim the capability you are actually writing instead " +
+            "(ADR-0270 D1).",
+          next: [
+            `storytree noticeboard upgrade ${unitId} --pg`,
+            `storytree noticeboard claims ${unitId} --pg`,
+          ],
+        };
+      }
+      const waiting = rows.filter((c) => claimGrade(c) === "waiting");
+      const idx = waiting.findIndex((c) => c.sessionId === sessionId);
+      const where = idx !== -1 ? ` (position ${idx + 1} of ${waiting.length} in the line)` : "";
       return {
         ok: true,
         body: `Waiting claim taken on "${unitId}" — queued for the work slot${where}.`,

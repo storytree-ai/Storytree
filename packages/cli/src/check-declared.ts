@@ -87,10 +87,11 @@ export function evaluateDeclared(input: {
     verdict: "fail",
     message:
       `${TAG} FAIL — session "${input.sessionId}" holds NO live claim: an unclaimed session cannot reach ` +
-      "the merge ceremony (ADR-0200 D3). Claim your unit: " +
-      'pnpm storytree noticeboard claim <story-id> --grade exploring --intent "<why>" --pg, or anchor with ' +
-      'pnpm storytree noticeboard declare --working-on "<what>" --node <story-id> --pg, or be born claimed via ' +
-      'pnpm storytree worktree create --node <story-id> --intent "<what>" --pg.',
+      "the merge ceremony (ADR-0200 D3). Claim the capability you are writing — the story only for " +
+      "cross-capability work (ADR-0270 D1): " +
+      'pnpm storytree noticeboard claim <unit-id> --grade exploring --intent "<why>" --pg, or anchor with ' +
+      'pnpm storytree noticeboard declare --working-on "<what>" --node <unit-id> --pg, or be born claimed via ' +
+      'pnpm storytree worktree create --node <unit-id> --intent "<what>" --pg.',
   };
 }
 
@@ -132,7 +133,7 @@ export function evaluateLobby(input: {
       "A session working in the primary checkout has NO worktree identity, so it cannot hold a claim,",
       "is invisible on the notice board, and its uncommitted work can be swept into an unrelated",
       "session's commit or red another session's gate. Move this work to a managed worktree:",
-      '  pnpm storytree worktree create --node <story-id> --intent "<what>" --pg',
+      '  pnpm storytree worktree create --node <unit-id> --intent "<what>" --pg',
       "",
       "If the work is NOT yours, leave it exactly as it is: attribution is unprovable from an",
       "uncommitted tree, and stashing or committing a stranger's work destroys it. Steer the owning",

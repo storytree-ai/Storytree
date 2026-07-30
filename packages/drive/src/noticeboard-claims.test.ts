@@ -204,6 +204,18 @@ test("claim --grade waiting: maps to a waiting request (intent optional) and rep
   assert.match(env.body, /position 2 of 2/);
 });
 
+test("claim --grade waiting with NO work holder: no queue position is rendered — nothing blocks you (ADR-0270 D3.1)", async () => {
+  const ledger = makeFakeLedger({
+    rows: [doc({ unitId: "story-x", sessionId: "wt-ledger", grade: "waiting", branch: "claude/ledger" })],
+  });
+  const env = await claimLedgerCommand("claim", "story-x", { grade: "waiting" }, deps(ledger));
+  assert.equal(env.ok, true, env.body);
+  assert.doesNotMatch(env.body, /position \d+ of \d+/);
+  assert.match(env.body, /NO work claim/);
+  assert.match(env.body, /nothing blocks you/i);
+  assert.match(env.body, /ADR-0270/);
+});
+
 test("claim --grade work acquired: the story wisp is lit; reclaim is named", async () => {
   const ledger = makeFakeLedger();
   const env = await claimLedgerCommand(
@@ -241,6 +253,28 @@ test("claim --grade work refused: names the holder, ok:false, next suggests join
   assert.match(env.body, /other-wt/);
   assert.match(env.body, /claude\/other/);
   assert.ok(env.next?.some((n) => n.includes("--grade waiting")));
+});
+
+test("claim --grade work refused: prints the unit's full claim board and the capability-narrowing path (ADR-0270 D3.2)", async () => {
+  const tenMinAgo = new Date(NOW.getTime() - 10 * 60_000).toISOString();
+  const holder = doc({
+    unitId: "story-x",
+    sessionId: "other-wt",
+    grade: "work",
+    intent: "orchestrate",
+    claimedAt: tenMinAgo,
+  });
+  const ledger = makeFakeLedger({
+    nextResult: { acquired: false, heldBy: holder },
+    rows: [holder, doc({ unitId: "story-x", sessionId: "waiter-wt", grade: "waiting", claimedAt: tenMinAgo })],
+  });
+  const env = await claimLedgerCommand("claim", "story-x", { grade: "work" }, deps(ledger));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /\[work\]\s+other-wt\s+10m\s+branch=claude\/other\s+intent "orchestrate"/);
+  assert.match(env.body, /\[waiting\]\s+waiter-wt/);
+  assert.match(env.body, /capability you are (actually )?writing/);
+  assert.match(env.body, /ADR-0270/);
+  assert.match(env.body, /not an owner question/i);
 });
 
 test("claim: an unknown grade is refused before any store call", async () => {

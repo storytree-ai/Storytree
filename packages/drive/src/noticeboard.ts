@@ -146,12 +146,12 @@ export async function noticeboardCommand(
         "",
         "Usage:",
         "  storytree noticeboard         — show the notice board (the claim ledger)",
-        "  storytree noticeboard declare  — take the work-time claim on your --node story ids",
+        "  storytree noticeboard declare  — take the work-time claim on your --node unit ids (the capability you are writing, ADR-0270; the story for cross-capability work)",
         "  storytree noticeboard done     — release every claim this session holds",
       ].join("\n"),
       next: [
         "storytree noticeboard --pg",
-        "storytree noticeboard declare --working-on <prose> --node <story-id> --pg",
+        "storytree noticeboard declare --working-on <prose> --node <unit-id> --pg",
         "storytree noticeboard done --pg",
       ],
     };
@@ -180,7 +180,7 @@ export async function noticeboardCommand(
       body: bodyLines.join("\n"),
       next: [
         'storytree noticeboard claim <unit-id> --grade exploring --intent "<why>" --pg',
-        "storytree noticeboard declare --working-on <prose> --node <story-id> --pg",
+        "storytree noticeboard declare --working-on <prose> --node <unit-id> --pg",
         "storytree noticeboard done --pg",
       ],
     };
@@ -197,7 +197,7 @@ export async function noticeboardCommand(
         body:
           "declare requires the live store (--pg). " +
           "Bring the DB up and pass --pg.",
-        next: ["pnpm db:up", "storytree noticeboard declare --working-on <prose> --node <story-id> --pg"],
+        next: ["pnpm db:up", "storytree noticeboard declare --working-on <prose> --node <unit-id> --pg"],
       };
     }
     if (deps.identity === null) {
@@ -224,11 +224,11 @@ export async function noticeboardCommand(
         ok: false,
         body:
           "declare anchors work by CLAIMING story nodes on the ledger (ADR-0200 — presence is " +
-          "retired). Pass at least one --node <story-id>; each declared node takes the work-time " +
+          "retired). Pass at least one --node <unit-id>; each declared node takes the work-time " +
           "claim (the story wisp).",
         next: [
-          "storytree noticeboard declare --working-on <prose> --node <story-id> --pg",
-          'storytree noticeboard claim <story-id> --grade exploring --intent "<why>" --pg',
+          "storytree noticeboard declare --working-on <prose> --node <unit-id> --pg",
+          'storytree noticeboard claim <unit-id> --grade exploring --intent "<why>" --pg',
         ],
       };
     }

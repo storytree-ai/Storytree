@@ -1,5 +1,6 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-07-30
 amends: [183, 196]
 arc: arcs-and-plans-arc
 ---
@@ -7,10 +8,15 @@ arc: arcs-and-plans-arc
 
 ## Status
 
-**proposed** — raised by an owner-directed arc audit on 2026-07-25 that found 9 of 15 live arcs had
-reached their end state (several saying so verbatim in their own final increment) while every one of
-them still read as outstanding. The owner has **not** directed a decision here: this ADR records the
-fork and the recommendation for ratification.
+**accepted** (2026-07-30) — raised by an owner-directed arc audit on 2026-07-25 that found 9 of 15
+live arcs had reached their end state (several saying so verbatim in their own final increment) while
+every one of them still read as outstanding; recorded then as a fork with a recommendation, the owner
+not yet directing a decision. **Ratified 2026-07-30:** the recommendation was built and landed as
+PR #1016 (2026-07-29 — the `lifecycle` field, `arc close`, active-only `arc list`) in an
+owner-launched build session titled with this ADR's number, and on 2026-07-30 the owner directed the
+decision-log gap be closed after a factory audit flagged "ADR-0239 `proposed` while its feature ships
+on main" as exactly the drift the log must not carry (the flip is the ADR-0084 green projection of
+that direction, not an invented one).
 
 Revised the same day on owner challenge — *"when all plans are marked as completed wouldn't an arc
 automatically get closed, why do we need to waste model context space with guidance here?"* The
@@ -117,8 +123,9 @@ exactly what happened, at a cost of reading 15 arcs end to end.
 
 ## Decision
 
-**Proposed (not ratified).** Make arc closure stored state, written only from evidence, and filtered
-by default:
+**Decided** — ratified 2026-07-30 (see Status; recorded 2026-07-25 as a recommendation the owner had
+not yet directed, then built and landed as PR #1016 on 2026-07-29 before the decision log caught up).
+Make arc closure stored state, written only from evidence, and filtered by default:
 
 ### D1 — A stored `lifecycle` field on `arc`, fail-closed enum
 
