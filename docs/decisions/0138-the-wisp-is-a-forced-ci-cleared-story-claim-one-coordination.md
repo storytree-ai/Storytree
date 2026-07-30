@@ -78,6 +78,17 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
    one-worktree-per-story build model ([ADR-0031](0031-real-pass-promotion-and-worktree-deps.md)). The
    accepted cost is that same-story work **serialises** (a second session on a sibling capability
    waits); capability grain is the named scale-up path.
+   *[Amended twice. [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md) D2
+   narrows the hard refusal to the **`work` grade**: the claim gained shared `exploring` and `waiting`
+   grades, so only the work mutex hard-refuses, and a refused session takes an ordered `waiting` row
+   instead of simply waiting or picking other work.
+   [ADR-0270](0270-the-claim-ledger-records-a-fiction-same-story-serialisation.md) D1 then **TAKES the
+   capability-grain scale-up path named here**: the session ceremony declares the capability being
+   written, so same-story siblings on disjoint capabilities no longer contend. Story grain stays
+   legitimate for cross-capability work and for a session that does not yet know its unit — and there it
+   still means exactly what this decision says. Every "per story" gloss in this ADR (including Decision
+   1's "one wisp per claimed story") therefore reads "per claimed unit"; how capability-grain wisps
+   render is expressly left open by ADR-0270.]*
 
 3. **Forced by the outer loop, via guidance — not a hard session-start gate.** The session-orchestrator
    (ADR-0137) is instructed in its **guidance prose** to hold a story-claim before it spawns any
@@ -86,6 +97,14 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
    sole direct write, ADR-0137) — because an ADR has **no story node** to claim. Leaving the *timing* to
    the orchestrator (claim when it needs to spawn) rather than a runtime wall keeps it simple and is
    sufficient, because every work path except ADR-authoring runs through a spawn.
+   *[Amended by [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md) D3:
+   "forced by guidance at spawn" is retired and HARDENED into forced by **machinery at workspace
+   creation** — a session obtains its workspace through `storytree worktree create`, which takes the
+   claim FIRST (no claim, no workspace), and `check:declared` flipped WARN → FAIL so an unclaimed
+   session cannot reach the merge ceremony. The spawn is no longer the de-facto hard point, and the
+   timing is no longer the orchestrator's to choose. The claim-free exception survives but widened:
+   ADR-0200 names ADR authoring **and curation** as the claim-free actions that stay invisible on the
+   map.]*
 
 4. **Cleared on the CI merge by branch; staleness is a trace-driven backstop.** The merge job — which
    already *"sweep[s] possibly-dead presence rows"* — also **releases `node_claim` rows for the
@@ -133,9 +152,19 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
 - Story-grain hard-refuse **serialises** same-story work; a second session on a sibling capability waits.
   Accepted at inner-circle scale ([ADR-0133](0133-inner-circle-desktop-is-the-priority-finish-storytree-s-tree.md));
   capability grain is the named scale-up.
+  *[Taken 2026-07-30: [ADR-0270](0270-the-claim-ledger-records-a-fiction-same-story-serialisation.md)
+  D1 moved the session ceremony to capability grain, so this cost now applies only to work that
+  deliberately stays at story grain (cross-capability edits, or a unit not yet known). The price
+  actually being paid was measured first: 13 claim conflicts in a 3-day window, 9 of them on one story
+  whose sessions were writing disjoint capabilities — and the serialisation was being routed around
+  rather than served, which is what made the ledger's own rows false.]*
 - "Forced" is guidance + the spawn-gate, not a runtime session-start wall, so the guarantee is only as
   strong as the spawn being the choke point — true for every path except ADR-authoring (which has no
   node), so the surface is narrow and the guidance carries it.
+  *[Retired by [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md) D3 (see
+  the Decision 3 note): the runtime wall this bullet says we do not have was built — claim-gated
+  `worktree create` plus a FAILing `check:declared` — so the guarantee no longer rests on the spawn
+  being the choke point.]*
 - More to render honestly: the claim≠proof wall (§5) must be enforced visually.
 
 **Neutral / reconciliation**
