@@ -18,11 +18,15 @@ the read-only CI/git inspect surface are **re-aimed** under a new role (`app-gui
 exception to "repurpose, don't delete"); the glue *definition* and write-authority boundary of ADR-0158
 are untouched. (Edges recorded as `amends` per the binary edge model, ADR-0139. Librarian pass 2026-07-09
 **kept `amends`, not `supersedes`**, for ADR-0160: although its `spawn_glue_worker` actuator is fully
-retired, ADR-0160 keeps live residue (the generalised `runSpawnWriteScoped` runner still serving
-`spawn_story_author`, the D5.i `spawn_builder` correction, the optionally-surviving `glue-worker` agent
-def) and remains the `scoped-glue-actuator` story's PRIMARY deciding ADR — a full supersede would strand
-four story `decisions:` links (the `story-decisions` gate). The actuator's retirement is carried as a
-reciprocal prose note on ADR-0160.)
+retired, ADR-0160 keeps live residue and remains the `scoped-glue-actuator` story's PRIMARY deciding
+ADR — a full supersede would strand four story `decisions:` links (the `story-decisions` gate). The
+actuator's retirement is carried as a reciprocal prose note on ADR-0160. **The residue narrowed on
+2026-07-31** and the `amends` edge still holds: the D5.i `spawn_builder` correction and the
+`spawn_story_author` caller named here originally both retired with the spawn surface (see the
+execution-status block below), but ADR-0160 D2's generalised **`runSpawnWriteScoped` write-fence core
+survives them** — deliberately kept, caller-less for now, as the discipline this ADR aims
+`app-guide`'s setup-scoped writes at — alongside the optionally-surviving `glue-worker` agent def. The
+stranded-links ground is untouched either way.)
 
 **Story rename (2026-07-16, owner-directed).** The story node this ADR reserves the `app-guide` role for
 was formerly `terminal-chat`; on owner direction it was renamed `terminal-chat` → `app-guide` to end the
@@ -91,25 +95,49 @@ write-scoped story-code execution. The read-only orientation surface (`orientati
 over; the **spawn** and **landing** surfaces (which drove story work) do not belong to a help agent and
 retire with the interactive orchestrator under ADR-0174, not into `app-guide`.
 
-> **Execution status of that retirement (the code half).** The stories/**-only reconcile deliberately
-> left the code mounted, deferring it to a separate thin PR
-> (`stories/headless-orchestrator/story.md`: "NOT retired here: the code itself"). Progress against it:
-> - **LANDING — DONE (2026-07-30).** `packages/agent/src/landing-tool-surface.ts` and
+> **Execution status of that retirement (the code half) — COMPLETE.** The stories/**-only reconcile
+> deliberately left the code mounted, deferring it to a separate thin PR
+> (`stories/headless-orchestrator/story.md`: "NOT retired here: the code itself"). Both slices have
+> now landed, and the same two facts made each unambiguous: neither surface had a **reachable
+> caller** (`ChatDock`, the only mount of `ChatPanel` and so the only path to POST `/api/chat`, is
+> imported by nothing in the production tree — `TerminalDock` took its dock slot; and `storytree
+> orchestrate`, the other `orchestrate()` caller, passes neither surface's deps), so each was composed
+> at every sidecar boot with no UI path to it.
+> - **LANDING — DONE (2026-07-30, PR #1035).** `packages/agent/src/landing-tool-surface.ts` and
 >   `packages/drive/src/landing-deps.ts` (+ their tests) are deleted, along with the `landing?` thread
 >   through `headless-orchestrator` → `orchestrate` → `chat-stream` → `chat-sse-mount` and the sidecar
 >   composition in `apps/desktop/electron/backend-entry.ts`. Held gone by
->   `apps/desktop/src/backend/landing-surface-retired.test.ts`. Two facts made it unambiguous: the
->   surface had **no reachable caller** (`ChatDock`, the only mount of `ChatPanel` and so the only path
->   to POST `/api/chat`, is imported by nothing in the production tree — `TerminalDock` took its dock
->   slot), and its `open_landing_pr` fresh-branch-after-merge behaviour had become **doctrinally dead**
->   under **ADR-0271** (sessions end where their PR merges), which settled the open question ADR-0163 D3
+>   `apps/desktop/src/backend/landing-surface-retired.test.ts`. Beyond the dead caller, its
+>   `open_landing_pr` fresh-branch-after-merge behaviour had become **doctrinally dead** under
+>   **ADR-0271** (sessions end where their PR merges), which settled the open question ADR-0163 D3
 >   Gap B1 had recorded. The exec seam (`ExecFn` / `ExecResult`) that lived in `landing-deps` was
 >   rehomed to `inspect-deps.ts`, its only remaining consumer — the surface this ADR *keeps*.
-> - **SPAWN — PARTIAL.** `spawn_glue_worker` and its composition are gone (the exception below), but
->   `buildSpawnDeps` / `spawn_story_author` / `spawn_builder` are still composed in the sidecar. The
->   rest of the thin PR (that spawn surface, the retired capabilities' `real:` arms, the
->   `node-build.test.ts` REAL-buildable snapshot, and the `repo-manifest.json` `hostedStories.register`
->   entry) remains outstanding.
+> - **SPAWN — DONE (2026-07-31).** `packages/agent/src/{spawn-tool-surface,claim-gated-spawn}.ts`,
+>   `packages/drive/src/{spawn-deps,spawn-builder,spawn-trace}.ts` and
+>   `apps/desktop/src/backend/spawn-turns.ts` (+ their tests) are deleted, along with the `spawn?`
+>   thread through the same four links, the `ChatStreamSpawnEvent` frame that carried the boundary
+>   traces out (`chat-spawn-trace-events`), and the sidecar composition. Held gone by
+>   `apps/desktop/src/backend/spawn-surface-retired.test.ts`. `spawn_glue_worker` had already gone
+>   ahead of its two siblings as the exception below. Two pieces are deliberately **KEPT**: the
+>   role-neutral write-fence core `runSpawnWriteScoped` (see the Status note on ADR-0160's live
+>   residue, and the Consequences note aiming `app-guide`'s setup-scoped writes at this same
+>   discipline) — renamed to `spawn-write-scoped.ts` once its `runSpawnStoryAuthor` wrapper went with
+>   the tool it served; and `spawn-claim.ts` (`resolveSpawnClaim`), which belongs to the LIVE
+>   `wisp-as-story-claim` story this ADR does not retire.
+> - **The spec-and-manifest half was already complete** before either code slice — done in the
+>   same 2026-07-17 reconcile commit that flipped the capabilities to `retired`, not deferred with the
+>   code. The retired capabilities' `real:` arms are dropped, `packages/cli/src/node-build.test.ts`'s
+>   REAL-buildable snapshot excludes every retired spawn node, and `repo-manifest.json`'s
+>   `hostedStories.register` carries no `headless-orchestrator` / `chat-subagent-spawn` /
+>   `spawn-visibility` entry. (An earlier revision of this block listed those three as outstanding;
+>   corrected in place per ADR-0139 after checking the files rather than the prose.)
+> - **Remaining, and owned by `app-guide` rather than by this retirement:** the studio client still
+>   carries the `spawn` variant on its `ChatEvent` wire union (`apps/studio/src/api.ts`) and the
+>   spawn-line render in `ChatPanel.tsx` / `ChatDock.tsx`. Nothing emits that frame any more, so a
+>   thin client simply never receives one. Those files are the proof-bound sources of three LIVE
+>   `app-guide` capabilities (`multi-turn-transcript`, `auto-grow-input`, `transcript-reset`) — the
+>   chat-panel UX this ADR *re-aims* — so the render is cleaned up by that story's build, not by
+>   unmounting a surface it co-owns.
 
 **THE ONE EXCEPTION — retired as redundant, not repurposed: the `spawn_glue_worker` actuator + the
 `glue-worker` chat-spawn (amends ADR-0160).** The scoped-glue actuator existed *only* because the chat
@@ -148,11 +176,20 @@ by this ADR.
   crowned story or the node ages.
 - **`app-guide`'s setup-scoped writes are a new fence to design.** "Narrow writes for config/hooks" is a
   real write scope; when built it needs the same fail-closed path-fence discipline the retired glue
-  actuator used (ADR-0160 D2), not an unbounded editor. Flagged here; owned by the build.
-- **The `spawn_glue_worker` retirement touches shared spawn code.** `spawn_glue_worker` shares the
-  `runSpawnWriteScoped` core and `spawn-tool-surface.ts` with `spawn_story_author`; the actual removal
-  (ADR-0174's build, not this ADR's) must not disturb the story-author spawn. Here we only *mark* the
-  glue actuator as the one piece that does not come back as `app-guide`.
+  actuator used (ADR-0160 D2), not an unbounded editor. Flagged here; owned by the build. **That
+  discipline is still in the tree, not merely a citation:** the role-neutral `runSpawnWriteScoped`
+  core (`packages/agent/src/spawn-write-scoped.ts`) outlived both spawn roles that called it and is
+  held there for this — a caller injects its own scope predicate; there is no default and no second
+  fence.
+- **The `spawn_glue_worker` retirement touched shared spawn code — and then the sharers retired too.**
+  `spawn_glue_worker` shared the `runSpawnWriteScoped` core and `spawn-tool-surface.ts` with
+  `spawn_story_author`, so its removal had to leave the story-author spawn undisturbed; it did.
+  `spawn_story_author` and `spawn_builder` then retired in their own right (2026-07-31, the execution
+  block above), taking `spawn-tool-surface.ts` with them. What that leaves is the shared **core**,
+  standing alone: `runSpawnWriteScoped` in `packages/agent/src/spawn-write-scoped.ts`, kept precisely
+  because the next bullet needs it. A caller-less runner is a small carrying cost accepted with eyes
+  open — the alternative was deleting the one proven fail-closed write fence and rebuilding it for
+  `app-guide`.
 
 ## References
 
@@ -178,7 +215,19 @@ by this ADR.
   `packages/drive/src/{chat-stream,orchestrate,inspect-deps}.ts` ·
   `apps/desktop/src/backend/chat-sse-mount.ts` ·
   `apps/studio/src/components/{ChatDock,ChatPanel}.tsx` + `apps/studio/src/api.ts`.
-- Code (retired as redundant — the one exception): `packages/agent/src/spawn-tool-surface.ts`
-  (`spawn_glue_worker` registration) · `packages/drive/src/spawn-deps.ts` (`spawnGlueWorker`
-  composition) · sole spawn-site `apps/desktop/electron/backend-entry.ts`. Possibly surviving:
-  `.claude/agents/glue-worker.md` (fenced subagent).
+- Code (RETIRED — deleted, held gone by the two negative guards): the SPAWN surface —
+  `packages/agent/src/{spawn-tool-surface,claim-gated-spawn}.ts` ·
+  `packages/drive/src/{spawn-deps,spawn-builder,spawn-trace}.ts` ·
+  `apps/desktop/src/backend/spawn-turns.ts`; and the LANDING surface —
+  `packages/agent/src/landing-tool-surface.ts` · `packages/drive/src/landing-deps.ts`. Both threads
+  through `headless-orchestrator` → `orchestrate` → `chat-stream` → `chat-sse-mount` and both sidecar
+  compositions in `apps/desktop/electron/backend-entry.ts` are gone with them. Guards:
+  `apps/desktop/src/backend/{spawn,landing}-surface-retired.test.ts`.
+  `spawn_glue_worker` (the one exception, retired as redundant ahead of its siblings) lived in the
+  first two of those spawn files. Possibly surviving: `.claude/agents/glue-worker.md` (fenced
+  subagent).
+- Code (KEPT out of the spawn retirement): `packages/agent/src/spawn-write-scoped.ts`
+  (`runSpawnWriteScoped` — ADR-0160 D2's role-neutral write fence, aimed at `app-guide`'s future
+  setup-scoped writes) · `packages/agent/src/spawn-claim.ts` (`resolveSpawnClaim` — the
+  `take-claim-at-spawn` capability of the LIVE `wisp-as-story-claim` story, which this ADR does not
+  retire: the claim ledger and map wisps stay load-bearing for terminal Claude Code).

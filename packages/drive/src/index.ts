@@ -23,12 +23,10 @@ export * from "./story-build.js";
 export * from "./adopt.js";
 export * from "./orchestrate.js";
 export * from "./chat-stream.js";
-// The spawn-deps composition (ADR-0137 Phase 3): `buildSpawnDeps` + the `SpawnSurfaceDeps` shape the
-// desktop sidecar composes and threads through the chat mount → startChatStream → orchestrate.
-export * from "./spawn-deps.js";
-// The ADR-0152 landing-deps composition (`buildLandingDeps`) was exported here until ADR-0175
-// retired the landing surface with the interactive orchestrator (ADR-0174). Deliberately absent —
-// see apps/desktop/src/backend/landing-surface-retired.test.ts.
+// The ADR-0137 spawn-deps composition (`buildSpawnDeps`) and the ADR-0152 landing-deps composition
+// (`buildLandingDeps`) were exported here until ADR-0175 retired both surfaces with the interactive
+// orchestrator (ADR-0174) rather than re-aiming them into `app-guide`. Deliberately absent — see
+// apps/desktop/src/backend/{spawn,landing}-surface-retired.test.ts, the guards that keep them gone.
 // The inspect-deps composition (ADR-0173): `buildInspectDeps` — the desktop sidecar composes the real
 // read-only `gh`/`git` inspection deps and threads them through the chat mount → startChatStream →
 // orchestrate (the CI/git diagnosis surface). Observation only; each tool refuses a mutating arg.

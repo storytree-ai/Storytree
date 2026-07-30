@@ -4,18 +4,24 @@
  *
  * The write-scoped runner's fence is a CALLER-DECLARED predicate — not hard-wired to `stories/**`.
  * A caller fences the session to whatever source scope it declares and threads its task prompt
- * verbatim. There is no second fence: the story-author wrapper (`runSpawnStoryAuthor`) calls the
- * SAME core with its own `stories/**` predicate (the last test pins that the wrapper stayed green).
+ * verbatim. There is no second fence and no default scope.
+ *
+ * BOTH ROLES THAT CALLED IT ARE RETIRED, THE CORE IS NOT (ADR-0175). `spawn_glue_worker` retired as
+ * redundant (ADR-0175's ONE exception, amending ADR-0160), and `spawn_story_author` retired with the
+ * chat's whole spawn surface — taking its `runSpawnStoryAuthor` wrapper and that wrapper's
+ * `stories/**` default with it (see apps/desktop/src/backend/spawn-surface-retired.test.ts). ADR-0175
+ * keeps this core as ADR-0160's live residue and aims `app-guide`'s future narrow setup-scoped
+ * writes at it, so the fence stays proven while it waits for its next caller.
  *
  * Every test is OFFLINE: the queryFn seam is injected, so no live SDK spend. The tests fire the
- * write-fence PreToolUse hook directly (the pattern from spawn-story-author.test.ts).
+ * write-fence PreToolUse hook directly.
  */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as path from "node:path";
 
-import { runSpawnWriteScoped, runSpawnStoryAuthor } from "./spawn-story-author.js";
+import { runSpawnWriteScoped } from "./spawn-write-scoped.js";
 import type { SdkQueryFn } from "./sdk-author.js";
 
 // ---------------------------------------------------------------------------
@@ -28,7 +34,7 @@ const CWD = path.resolve("/workspace");
 const CALLER_FENCE = (rel: string): boolean => rel.startsWith("apps/desktop/");
 
 // ---------------------------------------------------------------------------
-// Shared helpers (mirror spawn-story-author.test.ts)
+// Shared helpers
 // ---------------------------------------------------------------------------
 
 function queryYielding(messages: unknown[]): SdkQueryFn {
@@ -229,22 +235,31 @@ test("sws-typed-result-never-a-verdict: a successful session returns { ok: true,
 });
 
 // ---------------------------------------------------------------------------
-// sws-story-author-wrapper-keeps-its-default-scope
+// sws-no-default-scope-remains
 // ---------------------------------------------------------------------------
 
-test("sws-story-author-wrapper-keeps-its-default-scope: the story-author entry drives the SAME core with its default stories/** predicate — a stories/** write permitted, a non-stories/** write denied — so the role-neutralisation did not fork the fence or break the existing caller", async () => {
+test("sws-no-default-scope-remains: the core takes NO default write scope — the retired story-author wrapper's stories/** default did not leak into it, so a caller that declares a narrow scope is fenced to exactly that", async () => {
+  // The `runSpawnStoryAuthor` wrapper retired with the `spawn_story_author` tool it served
+  // (ADR-0175). It was the ONLY holder of a stories/** default; the core's fence has always been
+  // caller-declared (ADR-0160 D2). This pins that removing the wrapper left no default behind —
+  // a caller declaring `packages/agent/**` gets that and nothing more, stories/** included.
   const { fn, capturedOptions } = sessionAttemptingWrites([]);
-  // Prime the options capture by running the wrapper once.
-  await runSpawnStoryAuthor({ systemPrompt: "SYS", userPrompt: "author", cwd: CWD, queryFn: fn });
+  await runSpawnWriteScoped({
+    systemPrompt: "SYS",
+    userPrompt: "scoped",
+    cwd: CWD,
+    isWriteAllowed: (rel) => rel.startsWith("packages/agent/"),
+    queryFn: fn,
+  });
   const hook = extractScopeHook(capturedOptions());
 
-  const inside = await hook(preToolUseInput("Write", "stories/new-story/story.md"), "tu-1", SIGNAL);
-  assert.deepEqual(inside, {}, "the story-author wrapper must still permit stories/** writes");
+  const inside = await hook(preToolUseInput("Write", "packages/agent/src/new.ts"), "tu-1", SIGNAL);
+  assert.deepEqual(inside, {}, "a write inside the caller-declared scope must be permitted");
 
-  const outside = await hook(preToolUseInput("Write", "apps/desktop/electron/backend-entry.ts"), "tu-2", SIGNAL);
+  const storiesWrite = await hook(preToolUseInput("Write", "stories/new-story/story.md"), "tu-2", SIGNAL);
   assert.equal(
-    denyOf(outside).decision,
+    denyOf(storiesWrite).decision,
     "deny",
-    "the story-author wrapper must still DENY non-stories/** writes (the default scope held after generalisation)",
+    "stories/** must be DENIED unless the caller declares it — no retired-wrapper default survives in the core",
   );
 });

@@ -34,11 +34,10 @@ import { loadLocalSecrets } from "@storytree/drive/secrets";
 import {
   createOrientationRunner,
   deriveIdentity,
-  buildSpawnDeps,
   buildInspectDeps,
   ensureLiveDb,
 } from "@storytree/drive";
-import type { SpawnSurfaceDeps, InspectSurfaceDeps } from "@storytree/drive";
+import type { InspectSurfaceDeps } from "@storytree/drive";
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
 import {
@@ -65,7 +64,6 @@ import { createBuildRouteMount } from "../src/backend/build-route.js";
 import { createAdoptRouteMount } from "../src/backend/adopt-route.js";
 import type { AdoptContext } from "../src/backend/adopt-route.js";
 import { credentialedBuildRunner } from "../src/backend/credentialed-build-runner.js";
-import { resolveSpawnMaxTurns } from "../src/backend/spawn-turns.js";
 import { resolveOrchestratorMaxTurns } from "../src/backend/orchestrator-turns.js";
 import { CredentialBroker } from "../src/credential/broker.js";
 import { CREDENTIAL_ENV_VAR } from "../src/credential/kinds.js";
@@ -871,85 +869,36 @@ async function main(): Promise<void> {
     return true;
   };
 
-  // ---------- the chat SPAWN surface (ADR-0137 Phase 3 — the sidecar wiring) ----------
+  // ---------- the chat SPAWN surface: RETIRED, composed nowhere (ADR-0175) ----------
   //
-  // Compose the REAL spawn deps and thread them into the chat mount so the desktop
-  // session-orchestrator gains SPAWN power (spawn the story-author to bring a story in; spawn the
-  // builder leaf to drive a change red→green) — never raw Write/Bash (ADR-0137 d.1). The chat itself
-  // still carries `tools: []`; the writes happen only inside the spawned subagents under their own
-  // fences, and the spine remains the sole signer, the human the sole lander.
+  // ADR-0137 Phase 3 composed the real spawn deps here and threaded them into the chat mount, so the
+  // desktop session-orchestrator gained SPAWN power: `spawn_story_author` to bring a story in and
+  // `spawn_builder` to drive a change red→green, each behind the claim gate, over the live pg library
+  // store, the live claim store, the ADR-0033 session identity, and the routed BuildContext.
+  // ADR-0175 retires all of it — the same split that took the landing surface below: the SSE
+  // transport, dock, continuity and read-only inspect surface are RE-AIMED under the `app-guide`
+  // concierge, while "the spawn and landing surfaces (which drove story work) do not belong to a help
+  // agent and retire with the interactive orchestrator" (ADR-0174). The stories/**-only reconcile
+  // deferred the code half to a separate thin PR (stories/headless-orchestrator/story.md); this is
+  // its spawn slice — the modules themselves are deleted, not merely unwired.
   //
-  // OPERATOR-ATTESTED GLUE (like the build path above): a node:test over this composition would spawn
-  // subscription-billed SDK sessions on a gate pass (ADR-0010 §5 forbids the live spend). The
-  // CI-proven cores are buildSpawnDeps (packages/drive/src/spawn-deps.test.ts) and the mount's spawn
-  // forwarding (chat-sse-mount.test.ts) over injected doubles; this file composes the real pieces:
-  //   - store       — the live pg library store (renders the story-author agent fail-closed,
-  //                   ADR-0051 — the chat gains spawn_story_author/spawn_builder. (ADR-0175 retired
-  //                   the spawn_glue_worker actuator as redundant: the embedded terminal makes glue
-  //                   edits natively.) The story-author agent must be synced live — `storytree
-  //                   library sync-agents --pg` — or the whole spawn surface fails closed to
-  //                   propose-only.)
-  //   - claimStore  — the live pg claim store, adapted to the gate's narrow claim/bumpHeartbeat seam
-  //   - identity    — the ADR-0033 session key (worktree name / desktop-scoped id + live HEAD branch),
-  //                   stamped into every spawn claim so a refusal names a real holder (ADR-0138 §2)
-  //   - build       — the SAME routed BuildContext the accept click drives (a third caller, ADR-0090)
-  //   - cwd         — the repo checkout the spawned story-author writes its stories/** under
+  // `spawn_glue_worker`, the third tool that once sat on that server, was already retired ahead of
+  // the other two as ADR-0175's stated ONE exception (amending ADR-0160): the embedded terminal
+  // makes glue edits natively, so the actuator's whole reason for being was gone.
   //
-  // FAIL-CLOSED / DEGRADE-QUIET: a blank identity, an absent story-author agent, or an unreachable git
-  // yields NO spawn surface — the chat mounts propose-only (byte-identical to today), logged once to
-  // stderr. The spawn power is additive; its absence never breaks the read/propose chat.
+  // It had no reachable caller either: `ChatDock` — the only mount of `ChatPanel`, itself the only
+  // caller of POST /api/chat — is imported by nothing in the production tree (`TerminalDock` took its
+  // dock slot under ADR-0174), and `storytree orchestrate` passes no spawn deps. Nothing re-composes
+  // it: see the negative guard at apps/desktop/src/backend/spawn-surface-retired.test.ts.
+  //
+  // The session identity below is still derived — the INSPECT surface's degrade-quiet arm keys on it.
   const identity = deriveChatIdentity(repoRoot);
-  let spawn: SpawnSurfaceDeps | undefined;
   let inspect: InspectSurfaceDeps | undefined;
   if (identity === null) {
     console.error(
-      "[backend-entry] no session identity (git unreachable) — chat mounts propose-only, no spawn/inspect surface",
+      "[backend-entry] no session identity (git unreachable) — chat mounts read/propose only, no inspect surface",
     );
   } else {
-    const claims = new PgClaimStore(pool);
-    // Adapt PgClaimStore to the gate's narrow ClaimStore seam: its bumpHeartbeat takes (unitId,
-    // sessionId) and returns a boolean; the seam wants bumpHeartbeat(unitId): Promise<void> (the
-    // heartbeat is always this session's, ADR-0138 §4).
-    const claimStore: SpawnSurfaceDeps["store"] = {
-      claim: (req) => claims.claim(req),
-      bumpHeartbeat: async (unitId) => {
-        await claims.bumpHeartbeat(unitId, identity.sessionId);
-      },
-    };
-    // Give the chat-spawned story-author a realistic authoring budget: buildSpawnDeps applies maxTurns
-    // to the story-author path ONLY (the builder dispatch is unaffected — it keeps the generic 16-turn
-    // brake), so raising it here does not weaken the runaway brake elsewhere (ADR-0130). Env-tunable via
-    // STORYTREE_SPAWN_MAX_TURNS; defaults to DEFAULT_STORY_AUTHOR_MAX_TURNS because authoring against the
-    // whole corpus reliably overruns 16 and returns a false ✗ after already writing valid stories/**.
-    // DEGRADE-QUIET also on a THROW: buildSpawnDeps returns { ok:false } for the failures it
-    // anticipates, but a store read rejecting inside it (its agent-prompt render queries the live
-    // corpus) would otherwise crash the whole sidecar at boot — e.g. when the DB drops between the
-    // launch preflight passing and this line running. A missing spawn surface is the designed
-    // propose-only degradation, never a boot failure.
-    const composed = await buildSpawnDeps({
-      store: library,
-      claimStore,
-      sessionId: identity.sessionId,
-      branch: identity.branch,
-      cwd: repoRoot,
-      build,
-      maxTurns: resolveSpawnMaxTurns(process.env.STORYTREE_SPAWN_MAX_TURNS),
-    }).catch((err: unknown) => ({
-      ok: false as const,
-      error: `spawn-deps composition threw: ${err instanceof Error ? err.message : String(err)}`,
-    }));
-    if (composed.ok) {
-      spawn = composed.deps;
-      console.error(
-        `[backend-entry] spawn surface composed — chat can spawn the inner loop ` +
-          `(session ${identity.sessionId} on ${identity.branch})`,
-      );
-    } else {
-      console.error(
-        `[backend-entry] spawn surface NOT composed (chat stays propose-only): ${composed.error}`,
-      );
-    }
-
     // ---------- the chat LANDING surface: RETIRED, composed nowhere (ADR-0175) ----------
     //
     // ADR-0152 composed a merge-ceremony surface here (run the gate; commit → push → open a NON-DRAFT
@@ -989,12 +938,12 @@ async function main(): Promise<void> {
     // and the id-taking tools refuse a flag-like id — so no mutating `gh`/`git` command is reachable.
     // No merge/push/sync/pin. It signs nothing (the spine signs, CI is the independent gate).
     //
-    // OPERATOR-ATTESTED GLUE (like the spawn block above): the CI-proven core is
+    // OPERATOR-ATTESTED GLUE (like the build path above): the CI-proven core is
     // buildInspectDeps (packages/drive/src/inspect-deps.test.ts, over an injected exec seam) and the
     // mount's inspect forwarding (chat-sse-mount.test.ts, over a double); this file composes the real
     // pieces. FAIL-CLOSED / DEGRADE-QUIET: a blank cwd is refused by buildInspectDeps before any deps
     // are built (typed { ok:false }); on refusal the chat mounts WITHOUT the inspect surface — the
-    // inspect power is additive, its absence never breaks the read/propose/spawn chat.
+    // inspect power is additive, its absence never breaks the read/propose chat.
     const inspectComposed = buildInspectDeps({ cwd: repoRoot });
     if (inspectComposed.ok) {
       inspect = inspectComposed.deps;
@@ -1003,7 +952,7 @@ async function main(): Promise<void> {
       );
     } else {
       console.error(
-        `[backend-entry] inspect surface NOT composed (chat stays read/propose/spawn/land only): ${inspectComposed.error}`,
+        `[backend-entry] inspect surface NOT composed (chat stays read/propose only): ${inspectComposed.error}`,
       );
     }
   }
@@ -1011,13 +960,12 @@ async function main(): Promise<void> {
   // human-watched session-orchestrator loop, so a fixed cap that false-fails a healthy long
   // orient/propose costs more than it protects. resolveOrchestratorMaxTurns returns undefined unless
   // the operator RE-imposes a cap via STORYTREE_ORCHESTRATOR_MAX_TURNS (a bounded/debug run); undefined
-  // → no maxTurns forwarded → the SDK runs unbounded. This is the SESSION cap only — the chat-spawned
-  // story-author keeps its own STORYTREE_SPAWN_MAX_TURNS brake (resolveSpawnMaxTurns above) and the
-  // builder leaf keeps the generic 16-turn brake (ADR-0130 unchanged there).
+  // → no maxTurns forwarded → the SDK runs unbounded. It is the only per-session brake left here: the
+  // chat-spawned story-author's own ceiling retired with the spawn surface (ADR-0175), and the
+  // inner-loop builder leaf keeps the generic 16-turn brake in its own runner (ADR-0130 unchanged).
   const orchestratorMaxTurns = resolveOrchestratorMaxTurns(process.env.STORYTREE_ORCHESTRATOR_MAX_TURNS);
   const chatMount = createChatSseMount({
     runner: orientationRunner,
-    ...(spawn !== undefined ? { spawn } : {}),
     ...(inspect !== undefined ? { inspect } : {}),
     ...(orchestratorMaxTurns !== undefined ? { maxTurns: orchestratorMaxTurns } : {}),
   });

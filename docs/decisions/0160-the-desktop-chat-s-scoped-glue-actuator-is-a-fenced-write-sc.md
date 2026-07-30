@@ -19,14 +19,20 @@ it resolves 0158 D4's deliberately-open shape fork in favour of shape (a), and l
 > — the **`spawn_glue_worker` actuator this ADR decided (D1) is retired as redundant**: the embedded
 > terminal (ADR-0174) makes glue edits natively, so the chat's scoped-write rung has no reason to exist.
 > Concretely retired are the `spawn_glue_worker` MCP registration and its `spawnGlueWorker` composition
-> (whose sole spawn-site was the desktop chat sidecar). **What stands:** the glue *definition* +
-> write-authority boundary of **ADR-0158** (D1–D3, untouched — only this actuator retires, never the
-> concept); the **generalised `runSpawnWriteScoped` runner (D2)**, still serving `spawn_story_author`;
-> and the **D5.i honesty correction** (`spawn_builder`'s phantom `userPrompt` stays dropped). The
-> **`glue-worker` agent definition (D4) may optionally survive** as a fenced subagent for real
-> Claude Code's Agent/Task tool (ADR-0175 leaves this open). This ADR stays **`accepted`** — its
-> actuator is partly overtaken, not wholly re-decided, and it remains the `scoped-glue-actuator`
-> story's PRIMARY deciding record — so the edge is `amends`, not `supersedes`.
+> (whose sole spawn-site was the desktop chat sidecar). **Its two sibling tools followed on
+> 2026-07-31** — ADR-0175 retired the whole chat spawn surface, so `spawn_story_author`,
+> `spawn_builder` and `spawn-tool-surface.ts` itself are gone too (with the D5.i correction below
+> moot along with the schema it corrected). **What stands:** the glue *definition* + write-authority
+> boundary of **ADR-0158** (D1–D3, untouched — only the actuator retired, never the concept); and
+> **D2's generalised `runSpawnWriteScoped` runner** — which OUTLIVED every caller it was generalised
+> for, deliberately kept in `packages/agent/src/spawn-write-scoped.ts` because ADR-0175 aims
+> `app-guide`'s future narrow setup-scoped writes at exactly this fail-closed path-fence discipline.
+> D2's substance is therefore the live residue: one role-neutral fence with a caller-declared scope,
+> no default, no second copy of the hook. The **`glue-worker` agent definition (D4) may optionally
+> survive** as a fenced subagent for real Claude Code's Agent/Task tool (ADR-0175 leaves this open).
+> This ADR stays **`accepted`** — its actuator is partly overtaken, not wholly re-decided, and it
+> remains the `scoped-glue-actuator` story's PRIMARY deciding record — so the edge is `amends`, not
+> `supersedes`.
 
 ## Context
 
