@@ -14,13 +14,16 @@ import {
  * SessionStart worktree reaper (ADR-0142 / ADR-0033) — the self-cleaning half of worktree hygiene.
  *
  * The merge ceremony deliberately keeps a worktree alive across its branch's death (session identity
- * is worktree-derived; `branch next` reuses the worktree, ADR-0142), and the merge is async on CI
- * after the session stopped — so nothing ever reaps a worktree once its session truly ends and
- * `.claude/worktrees/` accumulates. This entry is the standing drain: at each SessionStart it reaps a
- * SMALL CAP of provably-dead worktrees (merged + clean + idle registered ones, plus old orphan husks),
- * with the current worktree, the primary, live/unmerged branches, dirty trees, and detached gates all
- * held back by the classifier (see `worktree.ts`). It NEVER touches the just-started session's own
- * worktree (it is the current-worktree guard's job to know that).
+ * is worktree-derived, ADR-0033: the landing session runs its closing leg in that tree and leaves it
+ * committed-clean, ADR-0271 D1 — the rare owner-directed `branch next` continuation reuses it too),
+ * and the merge is async on CI after the session stopped. ADR-0271 hands the reap to the archive, but
+ * only for the sessions an owner actually archives — so nothing reaps an unarchived worktree once its
+ * session truly ends and `.claude/worktrees/` accumulates. This entry is the standing drain: at each
+ * SessionStart it reaps a SMALL CAP of provably-dead worktrees (merged + clean + idle
+ * registered ones, plus old orphan husks), with the current worktree, the primary, live/unmerged
+ * branches, dirty trees, and detached gates all held back by the classifier (see `worktree.ts`). It
+ * NEVER touches the just-started session's own worktree (it is the current-worktree guard's job to
+ * know that).
  *
  * HARD CONTRACT (mirrors ambient-presence-entry.ts / provision-worktree.mjs): ALWAYS exit 0, bounded,
  * and silent on every failure path — a prune hiccup must never surface into or slow the session. The

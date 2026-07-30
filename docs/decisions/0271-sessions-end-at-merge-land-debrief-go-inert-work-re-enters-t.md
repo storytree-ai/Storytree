@@ -1,5 +1,6 @@
 ---
 status: accepted
+load_bearing: true
 decided: 2026-07-30
 amends: [142]
 arc: end-at-merge-arc

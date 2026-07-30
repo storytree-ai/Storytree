@@ -74,8 +74,17 @@ What ADR-0142 landed here (leg 2 of its three; legs 1 and 3 are context below):
 **Sibling context (ADR-0142 legs 1 & 3, not this capability's surface):** the CI `verify` job now
 refuses a PR whose head branch already merged (`scripts/merged-branch-guard.sh`) — *a branch is one
 landed unit* — which is what keeps capability D's branch-keyed clear honest (a merge clears exactly the
-landed branch's claims, never live work); and the merge ceremony gains the post-merge leg (fetch main,
-fresh branch, re-declare → the wisp lifecycle across a landing is a blink, never a silent death).
+landed branch's claims, never live work); and the merge ceremony gains the post-merge leg.
+
+> **ADR-0271 note (leg 3's continuation half is retired).** Leg 3's original shape — fetch main, cut a
+> fresh branch, re-declare, keep working — was amended by
+> [ADR-0271](../../docs/decisions/0271-sessions-end-at-merge-land-debrief-go-inert-work-re-enters-t.md)
+> (2026-07-30): a session's working life ends where its PR merges, so the post-merge leg is now the
+> **closing leg** — residue, release claims, owner debrief, then inert — and new work re-enters through a
+> **fresh session**, not a fresh branch in this one. The wisp lifecycle across a landing is therefore an
+> **ending**, not a blink: capability D's machine-clear is the session's last board state, which is
+> honest — it isn't working. `storytree branch next` survives only for the rare owner-directed
+> in-session continuation. **Legs 1 and 2 — this capability included — stand unchanged.**
 
 **Relation to capability E ([`take-claim-at-spawn`](take-claim-at-spawn.md)):** this wiring **neither
 replaces nor blocks** E2's claim-at-SPAWN path (ADR-0142 leg 2, verbatim). E1's pure acquire-or-wait
