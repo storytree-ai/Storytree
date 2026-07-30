@@ -19,8 +19,10 @@ import type { CheckResult } from "./health.js";
  *   2 adr-edge-integrity   — every supersedes / amends target exists (GATE)
  *   3 supersede-consistency — X.supersedes ∋ Y ⇔ Y.status = superseded, both directions (GATE)
  *   3b supersedes-in-part-retired — ADR-0139 retired the `supersedes_in_part` edge ("live in part" is
- *                            no longer a state — edges are binary: full `supersedes` or additive
- *                            `amends`). The strict frontmatter schema (@storytree/drive) drops the
+ *                            no longer a state — edges are binary on the axis of the TARGET'S
+ *                            SURVIVAL: `supersedes` = it leaves the current set, `amends` = it stays
+ *                            in it. `amends` does NOT mean the target is unchanged — D4).
+ *                            The strict frontmatter schema (@storytree/drive) drops the
  *                            field, so a file still carrying it fails to parse (check 1 is the deep,
  *                            un-bypassable floor); this is the friendly, ADR-0139-citing gate —
  *                            `loadRetiredInPartEdges` raw-scans frontmatter and this FAILs on any hit
@@ -179,7 +181,9 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
   results.push(result("supersede-consistency", inconsistent, "supersedes ⇔ superseded holds"));
 
   // 3b supersedes-in-part-retired (GATE, ADR-0139) — the `supersedes_in_part` edge is retired: "live in
-  // part" is no longer a state (edges are binary — full `supersedes` or additive `amends`). The strict
+  // part" is no longer a state (edges are binary on the axis of the TARGET'S SURVIVAL — `supersedes`
+  // = it leaves the current set, `amends` = it stays in it; `amends` does NOT mean the target is
+  // unchanged, D4). The strict
   // frontmatter schema (@storytree/drive) drops the field, so a file still carrying it fails to parse —
   // check 1 `adr-frontmatter` is the deep, un-bypassable floor; this is the friendly, ADR-0139-citing
   // gate, fed the raw-scan hits `loadRetiredInPartEdges` pre-computes ("correct the target in place or
