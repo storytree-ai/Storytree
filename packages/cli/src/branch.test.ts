@@ -12,6 +12,10 @@ import { run } from "./commands.js";
  * runs over an injected `runGit` fake (the deriveIdentity seam pattern), so no repo, network, or
  * real git is touched. The fake models one repo state; every git invocation is recorded so the
  * tests can assert what the command DID (or refused to do), not just what it printed.
+ *
+ * These cover the verb's MECHANICS, which ADR-0271 left intact — but note it is no longer the
+ * default post-merge move: a session's working life ends where its PR merges, so cutting over to a
+ * fresh branch is now the rare owner-directed in-session continuation (see `branch.ts`'s header).
  */
 
 interface RepoState {

@@ -2111,9 +2111,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "branch") {
-    // ADR-0142 — a branch dies on merge. `branch next` is the merge ceremony's post-merge leg in
-    // one verb: detect the dead branch, cut + switch a fresh claude/<name> from origin/main, and
-    // re-take the session's story claims. The re-take recurses through the SAME noticeboard
+    // ADR-0142 — a branch dies on merge. `branch next` succeeds a dead branch in one verb: detect
+    // it, cut + switch a fresh claude/<name> from origin/main, and re-take the session's story
+    // claims. NOT the default post-merge move (ADR-0271 amends ADR-0142 §3 — a session's working
+    // life ends where its PR merges, and new work re-enters through a fresh session), so this is
+    // the rare owner-directed in-session continuation. The re-take recurses through the SAME noticeboard
     // declare dispatch above (claim-at-declare re-lighting the story wisp on the fresh branch) —
     // one code path, never a hand-copied claim write. Presence is retired (ADR-0200 D7): the
     // prior nodes are read from the session's own live claims on the ledger.

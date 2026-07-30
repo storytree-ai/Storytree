@@ -1,15 +1,21 @@
 /**
  * `storytree branch` command family (ADR-0142: a branch dies on merge).
  *
- * `branch next` is the merge ceremony's post-merge leg in one verb. After CI merges a PR, its head
- * branch is DEAD: the merged-branch guard (`scripts/merged-branch-guard.sh`) refuses any new PR from
- * it, and the CI merge job machine-cleared its board state (the story claims, ADR-0138 cap D).
- * The manual leg — fetch main, cut a fresh `claude/<name>` branch, re-take the story claims — is
- * friction; this verb does it: detect the dead branch, cut + switch a fresh branch from
- * `origin/main`, and re-take the session's claims (directly when the live ledger is wired, else as
- * a printed next-step). Presence is retired (ADR-0200 D7): the prior nodes come from the session's
- * own live claims on the ledger, and the re-take rides the recursive `noticeboard declare`
- * (claim-at-declare, ADR-0142) — one code path.
+ * `branch next` succeeds a dead branch in one verb. After CI merges a PR, its head branch is DEAD:
+ * the merged-branch guard (`scripts/merged-branch-guard.sh`) refuses any new PR from it, and the CI
+ * merge job machine-cleared its board state (the story claims, ADR-0138 cap D). This verb detects
+ * that dead branch, cuts + switches a fresh `claude/<name>` branch from `origin/main`, and re-takes
+ * the session's claims (directly when the live ledger is wired, else as a printed next-step).
+ * Presence is retired (ADR-0200 D7): the prior nodes come from the session's own live claims on the
+ * ledger, and the re-take rides the recursive `noticeboard declare` (claim-at-declare, ADR-0142) —
+ * one code path.
+ *
+ * NOT the default post-merge move (ADR-0271, amending ADR-0142 §3). A session's working life ends
+ * where its PR merges, so the post-merge leg is the CLOSING leg — residue, release claims, owner
+ * debrief, then inert (merge-ceremony step 9) — and new work re-enters through a *fresh session*,
+ * not a fresh branch in this one. This verb survives only for the rare owner-directed in-session
+ * continuation (merge-ceremony step 8); the wisp lifecycle across a landing is therefore normally
+ * an ENDING, not a blink.
  *
  * Detection is pure git plumbing behind an injected `runGit` (the `deriveIdentity` seam pattern,
  * `packages/drive/src/noticeboard.ts`), so the whole flow is offline-testable:
@@ -132,8 +138,10 @@ export function branchHelp(): Envelope {
       "                                 it is printed as the next step.",
       "",
       "after a PR merges, its head branch can never land again (the CI merged-branch guard refuses it)",
-      "and the merge machine-cleared its board state — `branch next` is the merge ceremony's post-merge",
-      "leg in one verb.",
+      "and the merge machine-cleared its board state. this is NOT the default post-merge move",
+      "(ADR-0271): a session's working life ends where its PR merges — run the closing leg (residue,",
+      "release claims, owner debrief, then inert) and let new work re-enter through a FRESH SESSION.",
+      "`branch next` survives for the rare owner-directed in-session continuation only.",
     ].join("\n"),
     next: ["storytree branch next --pg", "storytree noticeboard --pg"],
   };
