@@ -1501,9 +1501,20 @@ if (typeof document !== 'undefined' && typeof document.elementFromPoint !== 'fun
 // feedback). 10px comfortably clears click jitter while staying responsive for an intentional drag.
 const DRAG_SLOP = 10;
 
-// ADR-0272 decision 2 (compositor-pan-transform): the bounded pixel distance past which a live
-// drag folds mid-gesture rather than waiting for release — without it, a long drag would slide
-// real content off one edge of the viewport-sized `<svg>` and expose blank map at the other.
+// ADR-0272 decision 2 (compositor-pan-transform): the bounded pixel distance past which a live drag
+// folds mid-gesture rather than waiting for release. Deliberately set FAR past any real gesture — it
+// is a safety valve against a pathological drag (a stuck pointer, a runaway synthetic burst), NOT a
+// routine bound, and the value is a judgement call rather than a measured one.
+//
+// The trade-off it settles, stated rather than buried. The `<svg>` is viewport-sized
+// (`width/height: 100%`) and clips at its own box, so while the wrapper carries a live offset the
+// trailing edge shows the frame's background instead of map — a blank band as wide as the offset,
+// which fills in the instant the gesture folds. Folding often would keep that band small, but every
+// fold costs one full re-raster (~275 ms measured) — reintroducing exactly the choppiness this
+// decision removes. Biasing hard toward "do not fold mid-gesture" is right because the band is only
+// VISIBLE when zoomed in past the fit: at the `fit:'contain'` camera — the owner's reported symptom
+// condition — 18,060 of 18,793 elements are already in view and nothing lies beyond the edges, so
+// the band is background either way and the gesture is pixel-identical to the old path.
 const PAN_FOLD_THRESHOLD_PX = 4000;
 
 export function TreeView({
