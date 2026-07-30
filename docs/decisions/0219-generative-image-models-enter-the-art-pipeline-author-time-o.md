@@ -15,6 +15,13 @@ the `grounded-art-machinery-arc` end state; the arc note flagged that the ADR wo
 driver session as the next increment, and this is it. The LOOK verdict on any produced render remains
 separate and the owner's (ADR-0070 stage 2), still outstanding.
 
+**Currency (2026-07-31).** [ADR-0230](0230-swappable-sprite-art-sheet-render-mode-take-adr-0219-s-parke.md)
+took D3's raster fork, [ADR-0237](0237-chapter-2-is-a-scripted-mode-of-the-real-app-share-product-u.md)
+made the same product renderer available to Chapter 2, and
+[ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) now permits one
+selective PixelLab-generated frame track inside the app-owned animation system. D1's author-time-only
+boundary, committed-assets source of truth, 2.5D posture and owner-held LOOK verdict all stand.
+
 ## Context
 
 This arc's end-state eye test was **fidelity to the existing look**: ADR-0214 D4 made "improving the
@@ -82,10 +89,11 @@ stays 2.5D isometric.** In four parts.
    raster sprites. A literal-painterly **raster** layer is a bigger, later fork and is **not taken
    now**; if it is ever wanted it is its own ADR. **That fork is now TAKEN by
    [ADR-0230](0230-swappable-sprite-art-sheet-render-mode-take-adr-0219-s-parke.md):** the raster-sprite
-   look layer is adopted for the STUDIO map only, as a default-off, prototype-scoped `artStyle` toggle
-   selecting among nano-banana sprite art-sheets. It stands BESIDE this D3 baked-vector look, which
-   remains the DEFAULT render — 0230 adds an optional mode, it does not reverse baked-vector-first (D1
-   author-time-only, D2 hand-the-angle, D4 2.5D-isometric all STAND).
+   look layer entered as a prototype-scoped `artStyle` toggle and, after the owner's LOOK verdict,
+   Storybook became the clean-route default with Vector preserved as an explicit option. ADR-0237
+   extended that shared renderer to Chapter 2. ADR-0273 further permits a selectively generated,
+   registered frame track for island growth; the app still owns time, semantics, replay and reduced
+   motion. None of these amendments reverses D1 author-time-only or D4 2.5D-isometric.
 
 4. **PARKED — do NOT reopen: the game is 2.5D ISOMETRIC and stays that way.** Real 3D / R3F is **Act 1
    only**. "3D" in this arc is an **authoring substrate** (decision 2's light ortho rig), never a
@@ -102,8 +110,9 @@ never parsed into our code (D2). The metric shifts from "matches what exists" to
 directed target," judged by the owner.
 
 Rejected: any per-instance or runtime call to the generative model; auto-tracing raster into the
-scene-graph as the asset (vector soup); a raster-sprite look layer now; shipping real 3D / R3F as the
-map renderer; Google video for Act 2; and any machine-signed look verdict.
+scene-graph as geometry (vector soup); any asset-owned semantic timeline or unregistered frame drift;
+shipping real 3D / R3F as the map renderer; Google video for Act 2; and any machine-signed look
+verdict.
 
 ## Consequences
 
@@ -145,10 +154,12 @@ map renderer; Google video for Act 2; and any machine-signed look verdict.
   author-time only, thrown-away maquette, re-author to checkable vector, baked-vector look D3,
   2.5D-isometric D4 — stands. Read it before relying on decision 2.
 - [ADR-0230](0230-swappable-sprite-art-sheet-render-mode-take-adr-0219-s-parke.md) — **amends this
-  ADR.** Takes D3's parked raster-sprite fork ("if it is ever wanted it is its own ADR") for the STUDIO
-  map only — a default-off, prototype-scoped sprite art-sheet render mode beside the baked-vector
-  default. D1 (author-time only), D2 (hand-the-angle), D3's baked-vector-as-default, and D4 (2.5D
-  isometric) all STAND; the vector look remains the default render.
+  ADR.** Takes D3's parked raster-sprite fork; its owner-attested Storybook sheet is now the
+  clean-route default and Vector remains selectable.
+- [ADR-0237](0237-chapter-2-is-a-scripted-mode-of-the-real-app-share-product-u.md) and
+  [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) — extend the
+  author-time raster posture to Chapter 2 and one selective registered island-growth track while
+  preserving app-owned semantics, deterministic playback, 2.5D rendering and the human LOOK boundary.
 - [ADR-0214](0214-ground-ai-authored-art-in-a-physical-model-csg-over-svg-not.md) — **amended**: D4's
   "improving the art is a hard non-goal" becomes a named aesthetic DIRECTION (the cosy concept). D4's
   **never-reinterpret rule stands** — the concept informs an author, never our code (ADR-0217 D2).
