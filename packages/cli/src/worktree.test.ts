@@ -136,7 +136,7 @@ test("KEEP: a dirty tree is kept (uncommitted changes)", () => {
   assert.match(v.reason, /uncommitted/);
 });
 
-test("KEEP: merged but recently active is kept (a session may be mid branch-next)", () => {
+test("KEEP: merged but recently active is kept (a session may be mid closing leg)", () => {
   const v = classifyWorktree(snap({ name: "just-merged", mtimeMs: RECENT_MTIME }), policy());
   assert.equal(v.decision, "keep");
   assert.match(v.reason, /active < 48h/);
