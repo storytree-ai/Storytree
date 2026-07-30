@@ -15,7 +15,7 @@ export {
 export type { CreatePoolOptions, PoolHandle } from "./connection.js";
 // ADR-0250: the remote-session data-plane refusal — `createPool` enforces it, and the build
 // preflight (`ensureLiveDb`) reads it directly so a blocked session refuses instantly instead of
-// burning the 420s cold-start poll on an instance that was never the problem.
+// burning the multi-minute cold-start poll on an instance that was never the problem.
 export {
   dataPlaneRefusal,
   isDataPlaneBlockedSession,

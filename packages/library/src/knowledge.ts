@@ -968,6 +968,13 @@ export const Friction = buildKindSchema("friction").extend({
   route: FrictionRoute.optional(),
   provenance: FrictionProvenance.optional(),
   reinforcedBy: z.array(FrictionReinforcement).optional(),
+  // The delivery stamp (the delivery-signal gap): a routed item whose remedy LANDED was
+  // indistinguishable from one whose remedy was never built. Optional ref prose (a PR "#1025",
+  // an "ADR-0271", an `asset:` id) written by `storytree friction route --discharged-by` — at
+  // adjudication when the remedy already landed, or by re-running the route when it lands later.
+  // Schema-level metadata like `reinforcedBy`, never a KIND_SPECS body section; optional, so no
+  // `CURRENT_SCHEMA_VERSION` bump and zero migration.
+  dischargedBy: z.string().min(1).optional(),
 });
 // The `arc` kind (ADR-0183 D1) carries one structured field OUTSIDE its KIND_SPECS body table:
 // `increments`, the append-at-landing log that is the initiative's durable residue (the
@@ -1051,4 +1058,41 @@ export function knownFieldsForKind(kind: string): ReadonlySet<string> | null {
   const schema = Knowledge.optionsMap.get(kind as KnowledgeKind);
   if (schema === undefined) return null;
   return new Set(Object.keys(schema.shape));
+}
+
+/** True iff `schema`, after unwrapping optional/nullable/default/effects wrappers, is an array. */
+function isArraySchema(schema: z.ZodTypeAny): boolean {
+  let cur: z.ZodTypeAny = schema;
+  for (;;) {
+    if (cur instanceof z.ZodOptional || cur instanceof z.ZodNullable) {
+      cur = cur.unwrap() as z.ZodTypeAny;
+    } else if (cur instanceof z.ZodDefault) {
+      cur = cur.removeDefault() as z.ZodTypeAny;
+    } else if (cur instanceof z.ZodEffects) {
+      cur = cur.innerType() as z.ZodTypeAny;
+    } else {
+      return cur instanceof z.ZodArray;
+    }
+  }
+}
+
+/**
+ * The ARRAY-typed top-level fields of a structured Knowledge kind (`references`, a uat-criterion's
+ * `stepRefs`, …), read straight from that kind's schema shape like {@link knownFieldsForKind} —
+ * drift-proof, never a hand-maintained list. Null for a non-Knowledge kind.
+ *
+ * Its reason for existing: a write surface (the CLI's `artifact edit`) can never satisfy an array
+ * field with a bare `--set` string — the strict schema rejects it as "Expected array, received
+ * string" with no way to write the field at all. Knowing which fields are array-typed lets the
+ * surface parse the value (inline or `@file`) as a JSON array on the same validated path, and
+ * refuse a non-array value with the expected format named.
+ */
+export function arrayFieldsForKind(kind: string): ReadonlySet<string> | null {
+  const schema = Knowledge.optionsMap.get(kind as KnowledgeKind);
+  if (schema === undefined) return null;
+  return new Set(
+    Object.entries(schema.shape)
+      .filter(([, field]) => isArraySchema(field as z.ZodTypeAny))
+      .map(([name]) => name),
+  );
 }

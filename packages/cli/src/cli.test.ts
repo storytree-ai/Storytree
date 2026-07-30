@@ -476,6 +476,87 @@ test("artifact edit --set field=@path reads the value from a file (no shell-mang
   }
 });
 
+// ---------------------------------------------------------------------------
+// ARRAY fields through --set (the librarian's typed-reference gap): an array-typed schema field
+// (`references`, a uat-criterion's `stepRefs`, …) takes a JSON array — inline or @file — instead
+// of failing "Expected array, received string" with no way to write the field at all.
+// ---------------------------------------------------------------------------
+
+test("artifact edit --set writes an ARRAY field from inline JSON", async () => {
+  const store = await seeded();
+  const env = await run(
+    [
+      "library",
+      "artifact",
+      "edit",
+      "edit-first-curation",
+      "--set",
+      'references=["asset:merge-ceremony","doc:decisions/0270-claims-land-at-capability-grain.md"]',
+    ],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, true, env.body);
+  const got = (await store.getDoc("edit-first-curation"))?.doc as { references?: string[] };
+  assert.deepEqual(got.references, [
+    "asset:merge-ceremony",
+    "doc:decisions/0270-claims-land-at-capability-grain.md",
+  ]);
+});
+
+test("artifact edit --set writes an ARRAY field from a @file JSON array", async () => {
+  const store = await seeded();
+  const dir = mkdtempSync(path.join(tmpdir(), "cli-arrayfield-"));
+  try {
+    const file = path.join(dir, "refs.json");
+    writeFileSync(file, '["asset:library-edit-ceremony", "asset:merge-ceremony"]', "utf8");
+    const env = await run(
+      ["library", "artifact", "edit", "edit-first-curation", "--set", `references=@${file}`],
+      { store, writable: true },
+    );
+    assert.equal(env.ok, true, env.body);
+    const got = (await store.getDoc("edit-first-curation"))?.doc as { references?: string[] };
+    assert.deepEqual(got.references, ["asset:library-edit-ceremony", "asset:merge-ceremony"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("artifact edit --set on an ARRAY field refuses a non-array value NAMING the expected format", async () => {
+  const store = await seeded();
+  // Not JSON at all…
+  const notJson = await run(
+    ["library", "artifact", "edit", "edit-first-curation", "--set", "references=asset:merge-ceremony"],
+    { store, writable: true },
+  );
+  assert.equal(notJson.ok, false);
+  assert.match(notJson.body, /array field/i, "the refusal names the field's array-ness");
+  assert.match(notJson.body, /JSON array/i, "…and the expected format");
+  assert.doesNotMatch(notJson.body, /Expected array, received string/, "never the opaque schema dump");
+  // …and valid JSON that is not an array.
+  const notArray = await run(
+    ["library", "artifact", "edit", "edit-first-curation", "--set", 'references="asset:x"'],
+    { store, writable: true },
+  );
+  assert.equal(notArray.ok, false);
+  assert.match(notArray.body, /JSON array/i);
+});
+
+test("artifact edit --set still REFUSES an arc's increments wholesale — the log is append-only", async () => {
+  // Generic array support must not quietly open a rewrite path over landed history: the increment
+  // log has a first-class append verb (`storytree arc increment add`, ADR-0183 D1).
+  const store = await seeded();
+  await seedArc(store);
+  const env = await run(
+    ["library", "artifact", "edit", "dispatch-arc", "--set", 'increments=[{"date":"2026-07-30","outcome":"rewritten"}]'],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /append-only/i, "the refusal names the append-only policy");
+  assert.match(env.body, /arc increment add/, "…and points at the first-class verb");
+  const got = (await store.getDoc("dispatch-arc"))?.doc as { increments?: unknown[] };
+  assert.equal(got.increments?.length, 1, "the landed log is untouched");
+});
+
 /** Seed a minimal live-shaped arc into a store (arcs are live-only, absent from the offline seed). */
 async function seedArc(store: InMemoryStore): Promise<void> {
   await store.upsertDoc({

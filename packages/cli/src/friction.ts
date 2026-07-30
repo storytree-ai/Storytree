@@ -613,15 +613,19 @@ export async function reinforceFriction(
 // ---------------------------------------------------------------------------
 
 /**
- * `storytree friction route <id> --route <enum> --reason "<justification>" --pg` — the adjudication
- * write (ADR-0168 D5): set `route` (the closed FrictionRoute enum, schema-fenced) + `routeReason` (the
- * justification-gate answers, or the archive reason for `nothing`). The surface the adjudicator (the
- * librarian-curator until the graduation-synthesist is built, inc 5) drives. Live-store only.
+ * `storytree friction route <id> --route <enum> --reason "<justification>" [--discharged-by <ref>]
+ * --pg` — the adjudication write (ADR-0168 D5): set `route` (the closed FrictionRoute enum,
+ * schema-fenced) + `routeReason` (the justification-gate answers, or the archive reason for
+ * `nothing`). `--discharged-by` stamps the DELIVERY ref (a PR / ADR / asset pointer) when the
+ * routed remedy has landed — at adjudication if it already has, or by re-running the route when it
+ * lands later — so a shipped remedy stops looking like a never-built one. The surface the
+ * adjudicator (the librarian-curator until the graduation-synthesist is built, inc 5) drives.
+ * Live-store only.
  */
 export async function routeFriction(
   deps: FrictionDeps,
   id: string | undefined,
-  opts: { route?: string | undefined; reason?: string | undefined },
+  opts: { route?: string | undefined; reason?: string | undefined; dischargedBy?: string | undefined },
   ctx: FrictionContext,
 ): Promise<Envelope> {
   if (deps.writable !== true) return notWritable("route");
@@ -634,6 +638,10 @@ export async function routeFriction(
   if (reason === undefined || reason === "") {
     return { ok: false, body: "route needs --reason — the justification-gate answers (or the archive reason for `nothing`) go in routeReason (ADR-0168 D5).", next: [`storytree friction route ${id} --route ${route} --reason "<why>" --pg`] };
   }
+  const dischargedBy = opts.dischargedBy?.trim();
+  if (opts.dischargedBy !== undefined && (dischargedBy === undefined || dischargedBy === "")) {
+    return { ok: false, body: "route's --discharged-by needs a ref (a PR \"#1025\", an \"ADR-0271\", an asset: id) — omit the flag when the remedy has not landed.", next: [`storytree friction route ${id} --route ${route} --reason "…" --discharged-by "<ref>" --pg`] };
+  }
   const existing = await deps.store.getDoc(id);
   if (!existing) return { ok: false, body: `no friction item "${id}" to route.`, next: ["storytree friction list"] };
   if (existing.kind !== "friction") return { ok: false, body: `"${id}" is a ${existing.kind}, not a friction item.`, next: [`storytree library artifact ${id}`] };
@@ -641,6 +649,7 @@ export async function routeFriction(
   const base = typeof existing.doc === "object" && existing.doc !== null ? { ...(existing.doc as Record<string, unknown>) } : {};
   base["route"] = route;
   base["routeReason"] = reason;
+  if (dischargedBy !== undefined) base["dischargedBy"] = dischargedBy;
   base["updatedAt"] = ctx.now;
 
   let valid: Record<string, unknown>;
@@ -652,7 +661,11 @@ export async function routeFriction(
   const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? "cli" });
   return {
     ok: true,
-    body: `routed ${saved.id} → ${route} (${lifecycleOf(route)}).\nreason: ${reason}`,
+    body: [
+      `routed ${saved.id} → ${route} (${lifecycleOf(route)}).`,
+      `reason: ${reason}`,
+      ...(dischargedBy !== undefined ? [`discharged by ${dischargedBy} — the routed remedy has landed.`] : []),
+    ].join("\n"),
     next: ["storytree friction list", `storytree library artifact ${saved.id} --pg`],
   };
 }
@@ -697,6 +710,8 @@ export async function listFriction(
         life,
         title: strField(doc, "title"),
         route,
+        // The delivery stamp: present iff the routed remedy landed (`--discharged-by`).
+        dischargedBy: strField(doc, "dischargedBy") || undefined,
         age,
         reinforcements: reinforcementCount(doc),
       };
@@ -719,6 +734,8 @@ export async function listFriction(
         r.age !== undefined ? `age ${r.age}d` : "age ?",
         r.reinforcements > 0 ? `×${r.reinforcements + 1}` : null,
         r.route !== undefined ? `→ ${r.route}` : null,
+        // ✓ = the routed remedy LANDED (dischargedBy) — tellable from a route never built.
+        r.dischargedBy !== undefined ? `✓ ${r.dischargedBy}` : null,
       ]
         .filter((x): x is string => x !== null)
         .join("  ");
@@ -769,9 +786,11 @@ export function frictionHelp(): Envelope {
       "        capture), migrate-only (never overwrites live); deletes each staging file it migrates.",
       "  storytree friction reinforce <id> --evidence \"<what happened>\" --pg",
       "        recurrence reinforces an EXISTING item (own evidence, required) — never a twin.",
-      "  storytree friction route <id> --route <enum> --reason \"<why>\" --pg",
+      "  storytree friction route <id> --route <enum> --reason \"<why>\" [--discharged-by <ref>] --pg",
       "        adjudication: set the route (adr|tool|principle|guardrail|process|definition|",
       "        edit-existing|nothing) + the justification. `nothing` archives with a reason.",
+      "        --discharged-by stamps the delivery ref (PR/ADR/asset) once the routed remedy LANDS —",
+      "        re-run the route with it when the landing comes later.",
       "  storytree friction list",
       "        the worklist: open → archived (route says where, ADR-0196), with age + reinforcement count (read-only).",
       "",

@@ -12,6 +12,7 @@ import {
   groupSources,
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
+  arrayFieldsForKind,
   knownFieldsForKind,
   NODE_REF_PREFIX,
   REPO_ROOT_ENV,
@@ -474,11 +475,14 @@ const UNSETTABLE_FIELDS: ReadonlySet<string> = new Set(["kind", "schemaVersion",
  * (a bad edit returns the validation message as guidance, never persists), then upserts (one event +
  * projection update). The id must already exist — `new` creates.
  *
- * Two ergonomics beyond a bare `field=value` (the arc-edit friction, ADR-0168): `field=@path` reads
- * the value from a FILE (long/multi-line prose without shell mangling), and a typo'd field name on a
- * structured kind is rejected with a CLEAR message (via {@link knownFieldsForKind}) instead of the
- * opaque `.strict()` union dump. Note: a structured field that is an ARRAY of objects (an arc's
- * `increments`) still cannot be appended via `--set` — that is what `storytree arc increment add` is for.
+ * Three ergonomics beyond a bare `field=value` (the arc-edit friction, ADR-0168): `field=@path`
+ * reads the value from a FILE (long/multi-line prose without shell mangling); a typo'd field name
+ * on a structured kind is rejected with a CLEAR message (via {@link knownFieldsForKind}) instead of
+ * the opaque `.strict()` union dump; and an ARRAY-typed field (`references`, a uat-criterion's
+ * `stepRefs`, …) takes a JSON array — inline or @file — via {@link arrayFieldsForKind} (a bare
+ * string could never validate, so the field was previously unwritable from this surface). One array
+ * stays fenced BY POLICY: an arc's `increments` log is append-only — that is what `storytree arc
+ * increment add` is for (ADR-0183 D1); see the guard in the `--set` loop below.
  *
  * One field is refused BY POLICY rather than by shape: an arc's `lifecycle` (ADR-0239 D2). It is a
  * valid field the schema would accept, but closure must be written from the prose that justifies it,
@@ -548,6 +552,9 @@ export async function editArtifact(
     // `category` not `kind`) — used to reject a typo'd field name up front with a clear message,
     // rather than letting the .strict() schema throw an opaque "Unrecognized key(s)" union dump.
     const knownFields = kindStr !== undefined ? knownFieldsForKind(kindStr) : null;
+    // The ARRAY-typed fields (`references`, a uat-criterion's `stepRefs`, …): a bare string can
+    // never validate against them, so `--set` parses the value (inline or @file) as a JSON array.
+    const arrayFields = kindStr !== undefined ? arrayFieldsForKind(kindStr) : null;
     const changed: string[] = [];
     for (const s of opts.sets) {
       const i = s.indexOf("=");
@@ -583,6 +590,20 @@ export async function editArtifact(
             "Re-opening a closed arc (closed → active) is OWNER-only, mirroring ADR-0084's human-only un-deciding.",
           ].join("\n"),
           next: [`storytree arc show ${id} --pg`, `storytree arc close ${id} --outcome "…" --pg`],
+        };
+      }
+      // An arc's increment log is APPEND-ONLY (ADR-0183 D1 — the durable residue of each landing).
+      // Generic array support below would otherwise open a wholesale-rewrite path over landed
+      // history, so the log keeps its first-class verb and refuses `--set` by policy.
+      if (kindStr === "arc" && field === "increments") {
+        return {
+          ok: false,
+          body: [
+            "an arc's increment log is append-only — one landing per verb:",
+            `  storytree arc increment add ${id} --outcome "<what landed>" [--pr <ref>] --pg`,
+            "A wholesale --set would let a session rewrite landed history (ADR-0183 D1).",
+          ].join("\n"),
+          next: [`storytree arc show ${id} --pg`, `storytree arc increment add ${id} --outcome "…" --pg`],
         };
       }
       // `field=@path` reads the value from a file (long/multi-line prose, no shell mangling).
@@ -626,9 +647,40 @@ export async function editArtifact(
         }
         value = `asset:${arcId}`;
       }
-      base[field] = refListFields.has(field)
-        ? value.split(/[\s,]+/).filter((v) => v !== "")
-        : value;
+      if (refListFields.has(field)) {
+        base[field] = value.split(/[\s,]+/).filter((v) => v !== "");
+      } else if (arrayFields !== null && arrayFields.has(field)) {
+        // An array-typed schema field: the value — inline or @file — must be a JSON array. A bare
+        // string can never validate, so refuse with the expected format named instead of letting
+        // the strict schema throw "Expected array, received string" with no way forward.
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(value);
+        } catch (e) {
+          return {
+            ok: false,
+            body: [
+              `"${field}" on a ${kindStr} is an array field — pass a JSON array,`,
+              `inline (--set ${field}='["…","…"]') or from a file (--set ${field}=@values.json).`,
+              `could not parse the value as JSON: ${(e as Error).message}`,
+            ].join("\n"),
+            next: [`storytree library artifact ${id}`],
+          };
+        }
+        if (!Array.isArray(parsed)) {
+          return {
+            ok: false,
+            body: [
+              `"${field}" on a ${kindStr} is an array field and the value parsed as JSON but not as an ARRAY —`,
+              `pass a JSON array, inline (--set ${field}='["…","…"]') or from a file (--set ${field}=@values.json).`,
+            ].join("\n"),
+            next: [`storytree library artifact ${id}`],
+          };
+        }
+        base[field] = parsed;
+      } else {
+        base[field] = value;
+      }
       changed.push(field);
     }
     nextDoc = base;
@@ -1821,6 +1873,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "agent-type"?: string;
     evidence?: string;
     route?: string;
+    "discharged-by"?: string;
     source?: string;
     force?: boolean;
     fix?: boolean;
@@ -1896,6 +1949,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         "agent-type": { type: "string" },
         evidence: { type: "string" },
         route: { type: "string" },
+        // `storytree friction route --discharged-by <ref>` — the delivery stamp (remedy landed).
+        "discharged-by": { type: "string" },
         source: { type: "string" },
         // `storytree worktree prune` — destructive, so force+yes are BOTH required to remove.
         force: { type: "boolean", default: false },
@@ -2599,6 +2654,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       return routeFriction(deps, third, {
         ...(values.route !== undefined ? { route: values.route } : {}),
         ...(reason !== undefined ? { reason } : {}),
+        ...(values["discharged-by"] !== undefined ? { dischargedBy: values["discharged-by"] } : {}),
       }, ctx);
     }
     if (sub === "list") {
