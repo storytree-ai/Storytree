@@ -51,8 +51,12 @@ Two facts made "require it" cheap and safe:
 - `@storytree/drive`'s **`ensureLiveDb`** (ADR-0060 / ADR-0063) already does exactly the wanted launch
   behavior: probe the live store, **auto-wake** it via the keyless Cloud SQL Admin REST control plane
   (`setActivationPolicy("ALWAYS")` — ADR-0063 / ADR-0021, no gcloud, works on the desktop), and **poll
-  until it accepts connections or a bounded 420 s ceiling**, then refuse with a clear reason. Its
-  `ensureDbUp` core is pure over injected effects (fake-clock unit-tested).
+  until it accepts connections or a bounded ceiling**, then refuse with a clear reason. Its
+  `ensureDbUp` core is pure over injected effects (fake-clock unit-tested). *(Correction, 2026-07-30
+  per ADR-0139: this read "a bounded 420 s ceiling". The bounded-then-refuse behaviour this decision
+  rests on is unchanged; the default was raised 420 s → 600 s because 420 s abandoned cold starts the
+  tool itself called normal, and an exhausted deadline now refuses as either "still warming" —
+  re-probe, never re-start — or "genuinely unreachable". ADR-0060 carries the raise.)*
 - The Cloud SQL data socket the probe needs is reachable from a real desktop machine; only
   **REMOTE web/VM sessions** can't open it — and those never run the desktop Electron sidecar. So a
   hard DB requirement is naturally **scoped to the real desktop app** and cannot brick remote sessions
@@ -73,7 +77,7 @@ shell.**
      storytree from a git checkout"* (waking the DB would be pointless, and re-probing on Retry is the
      only path that helps).
    - **DB reachable, auto-waking** — reuse `ensureLiveDb`: probe → if down, wake via REST → poll until
-     it answers or the bounded ceiling (420 s default) elapses. The app **attempts to wake the DB on
+     it answers or the bounded ceiling (600 s default) elapses. The app **attempts to wake the DB on
      launch** (owner directive); the ceiling is the *"put a timeout / max retries on it"* the owner
      asked for — a cold Cloud SQL start (~5–6 min) fits inside it, and a genuinely unreachable DB
      **refuses rather than hanging forever**.

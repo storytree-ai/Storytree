@@ -10,7 +10,7 @@
 // unsupported, "report, do not work around".
 //
 // Left alone the failure is a HANG, not an error: `probeLiveDb` burns its 45s budget, reports the DB
-// unreachable, and `ensureDbUp` then spends its whole 420s poll starting an instance that was never
+// unreachable, and `ensureDbUp` then spends its whole multi-minute cold-start poll starting an instance that was never
 // the problem. Nearly eight minutes to learn nothing. This module turns that into an immediate,
 // legible refusal that names the real mechanism.
 //
