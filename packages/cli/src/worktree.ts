@@ -169,7 +169,7 @@ export function classifyWorktree(s: WorktreeSnapshot, policy: PrunePolicy): Work
   }
   if (!s.merged) return keep("branch not merged into origin/main (live work)");
   // merged + clean + not-current + no live row:
-  if (!idle) return keep(`merged but active < ${thresholdH}h ago (a session may be mid branch-next)`);
+  if (!idle) return keep(`merged but active < ${thresholdH}h ago (a session may be mid closing leg)`);
   return reap(`merged into origin/main, clean, idle ${idleFor}`);
 }
 
