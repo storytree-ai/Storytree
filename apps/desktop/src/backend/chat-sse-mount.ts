@@ -14,7 +14,6 @@ import { fileURLToPath } from "node:url";
 import type {
   ChatStreamEvent,
   SpawnSurfaceDeps,
-  LandingSurfaceDeps,
   InspectSurfaceDeps,
 } from "@storytree/drive";
 import { startChatStream } from "@storytree/drive";
@@ -227,23 +226,11 @@ export interface ChatSseMountDeps {
    */
   spawn?: SpawnSurfaceDeps;
   /**
-   * OPTIONAL landing surface deps (ADR-0152, the desktop-orchestrator full-autonomy arc). Present →
-   * the chat session mounts the fail-closed `run_gate` / `open_landing_pr` tools (the merge-ceremony
-   * surface: the orchestrator can run the gate and open a NON-DRAFT PR that CI auto-merges, ADR-0022).
-   * Absent → propose-only, byte-identical to today (the same §7 scale-down as `spawn`). The mount
-   * FORWARDS this opaque token through to `startChatStream` → `orchestrate`; it never constructs it —
-   * the sidecar (backend-entry.ts) composes the real deps via `buildLandingDeps`. The chat session
-   * itself still carries NO Write/Edit/Bash (ADR-0137 d.1 / ADR-0152); `run_gate` only OBSERVES a
-   * pass/fail and `open_landing_pr` never `gh pr merge`s — the spine stays the sole signer, CI the
-   * sole lander (ADR-0091 / ADR-0022).
-   */
-  landing?: LandingSurfaceDeps;
-  /**
    * OPTIONAL inspect surface deps (ADR-0173, the read-only CI/git inspection surface). Present → the
    * chat session mounts the fail-closed READ-ONLY `view_ci_run` / `view_pr_checks` / `git_inspect`
    * tools (the orchestrator can read a failing-job log, an arbitrary PR's checks, the read-only git
    * verbs — so it can root-cause a red pipeline itself instead of theorising). Absent → byte-identical
-   * to today (the same §7 scale-down as `landing`). The mount FORWARDS this opaque token through to
+   * to today (the same §7 scale-down as `spawn`). The mount FORWARDS this opaque token through to
    * `startChatStream` → `orchestrate`; the sidecar (backend-entry.ts) composes the real deps via
    * `buildInspectDeps`. Observation ONLY: the chat session still carries NO Write/Edit/Bash
    * (ADR-0137 d.1 widened for reads, ADR-0173 invariant 1); no inspect tool mutates the tree.
@@ -276,7 +263,6 @@ type BridgedStartStream = (args: {
   queryFn?: SseMountQueryFn;
   runner?: SseOrientationRunner;
   spawn?: SpawnSurfaceDeps;
-  landing?: LandingSurfaceDeps;
   inspect?: InspectSurfaceDeps;
   maxTurns?: number;
 }) => AsyncGenerator<ChatStreamEvent>;
@@ -345,7 +331,7 @@ export function createChatSseMount(
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Build args — forward queryFn/runner/spawn/landing/inspect/maxTurns only when present
+    // Build args — forward queryFn/runner/spawn/inspect/maxTurns only when present
     // (exactOptionalPropertyTypes).
     const streamArgs: {
       intent: string;
@@ -354,7 +340,6 @@ export function createChatSseMount(
       queryFn?: SseMountQueryFn;
       runner?: SseOrientationRunner;
       spawn?: SpawnSurfaceDeps;
-      landing?: LandingSurfaceDeps;
       inspect?: InspectSurfaceDeps;
       maxTurns?: number;
     } = {
@@ -364,7 +349,6 @@ export function createChatSseMount(
       ...(deps.queryFn !== undefined ? { queryFn: deps.queryFn } : {}),
       ...(deps.runner !== undefined ? { runner: deps.runner } : {}),
       ...(deps.spawn !== undefined ? { spawn: deps.spawn } : {}),
-      ...(deps.landing !== undefined ? { landing: deps.landing } : {}),
       ...(deps.inspect !== undefined ? { inspect: deps.inspect } : {}),
       ...(deps.maxTurns !== undefined ? { maxTurns: deps.maxTurns } : {}),
     };

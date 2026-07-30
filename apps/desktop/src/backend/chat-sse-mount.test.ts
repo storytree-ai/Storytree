@@ -49,9 +49,6 @@ type QueryFn = NonNullable<ChatSseMountDeps["queryFn"]>;
 /** The spawn deps type — derived from the mount's own deps so the double stays in sync. */
 type SpawnDeps = NonNullable<ChatSseMountDeps["spawn"]>;
 
-/** The landing deps type — derived from the mount's own deps so the double stays in sync. */
-type LandingDeps = NonNullable<ChatSseMountDeps["landing"]>;
-
 /** The inspect deps type — derived from the mount's own deps so the double stays in sync (ADR-0173). */
 type InspectDeps = NonNullable<ChatSseMountDeps["inspect"]>;
 
@@ -110,18 +107,6 @@ function spawnDepsDouble(): SpawnDeps {
     spawnStoryAuthor: async () => "story-author spawn summary",
     spawnBuilder: async () => "builder dispatched",
   } as SpawnDeps;
-}
-
-/** A minimal landing-deps double — enough to mount the two fail-closed landing tools. Its
- *  runGate/openLandingPr never fire (the scripted session only orients); the point is the mount
- *  FORWARDS it to the session so the landing tools are advertised (mirrors what backend-entry
- *  composes via buildLandingDeps). */
-function landingDepsDouble(): LandingDeps {
-  return {
-    runGate: async () => ({ passed: true, summary: "gate green" }),
-    openLandingPr: async () => ({ ok: true, summary: "landing PR opened", prUrl: "https://github.com/x/y/pull/1" }),
-    pollPrChecks: async () => ({ status: "merged", summary: "PR merged" }),
-  } as LandingDeps;
 }
 
 /** A minimal inspect-deps double — enough to mount the three fail-closed READ-ONLY inspect tools
@@ -884,61 +869,23 @@ test(
   },
 );
 
-// LANDING SEAM (ADR-0152, the desktop-orchestrator full-autonomy arc): injected landing deps must be
-// forwarded through the mount → startChatStream → orchestrate → runHeadlessOrchestrator, which mounts
-// the two fail-closed landing tools (mcp__landing__run_gate / open_landing_pr) into the session. This
-// is the desktop half of the sidecar wiring — the sidecar (backend-entry.ts) composes the real deps
-// via buildLandingDeps and hands them to createChatSseMount; the mount only forwards.
+// LANDING SEAM — RETIRED (ADR-0175). ADR-0152's merge-ceremony surface (`run_gate` /
+// `open_landing_pr` / `poll_pr_checks`) was forwarded through this mount until ADR-0174 retired the
+// in-app interactive orchestrator and ADR-0175 ruled that "the spawn and landing surfaces (which drove
+// story work) do not belong to a help agent and retire with the interactive orchestrator" — the mount
+// takes no `landing` dep any more, and the modules behind it are deleted.
 //
-// DELETION TEST: dropping the landing forwarding in the mount (or in the bridged startChatStream args)
-// removes the landing MCP server from the captured session options — this allowedTools assertion fails.
+// The positive `csm-forwards-landing-deps` test went with the surface, exactly as the ADR-0155 /
+// PR #587 propose/accept tests did. What survives is the NEGATIVE assertion below, which exists to
+// keep it gone: no session this mount starts may advertise a `mcp__landing__*` tool. The wider guard
+// (the modules are deleted; nothing in the chain re-composes them) is landing-surface-retired.test.ts.
+//
+// Why it matters beyond tidiness: `open_landing_pr` cut a FRESH branch on an already-merged branch and
+// kept the session working (ADR-0163 D3 Gap B1's remedy over ADR-0142's post-merge leg). ADR-0271
+// ended that shape — a session's working life ends where its PR merges — and this sidecar renders the
+// SAME session-orchestrator agent, so a wired tool contradicted its own prompt.
 test(
-  "csm-forwards-landing-deps: injected landing deps wire the merge-ceremony tools into the session",
-  async () => {
-    let capturedOptions: unknown;
-    const capturingQuery: QueryFn = ({ options }) => {
-      capturedOptions = options;
-      return (async function* () {
-        yield OK_SDK_RESULT;
-      })();
-    };
-
-    const handler = createChatSseMount({ queryFn: capturingQuery, landing: landingDepsDouble() });
-
-    await withServer(handler, async (base) => {
-      const res = await fetch(`${base}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intent: "land the green unit" }),
-      });
-      assert.equal(res.status, 200);
-      await res.text(); // drain the stream so the session settles
-    });
-
-    assert.ok(capturedOptions !== undefined, "the scripted queryFn must have been called");
-    const opts = capturedOptions as {
-      allowedTools?: string[];
-      mcpServers?: Record<string, unknown>;
-    };
-    const allowed = Array.isArray(opts.allowedTools) ? opts.allowedTools : [];
-    for (const name of ["run_gate", "open_landing_pr"]) {
-      assert.ok(
-        allowed.includes(`mcp__landing__${name}`),
-        `the injected landing deps must wire '${name}' into allowedTools; got: ${JSON.stringify(allowed)}`,
-      );
-    }
-    assert.ok(
-      "landing" in (opts.mcpServers ?? {}),
-      "the landing MCP server must be mounted when landing deps are injected",
-    );
-  },
-);
-
-// LANDING SEAM (baseline): with NO landing deps injected, no landing tools are advertised (the §7
-// scale-down) — the read/propose/spawn surface is byte-identical to before ADR-0152; the mount
-// invents no dead merge-ceremony surface.
-test(
-  "csm-forwards-landing-deps: without landing deps, no landing tools are advertised (unchanged)",
+  "csm-no-landing-surface: no landing tool is advertised — the merge-ceremony surface is retired (ADR-0175)",
   async () => {
     let capturedOptions: unknown;
     const capturingQuery: QueryFn = ({ options }) => {
@@ -964,7 +911,8 @@ test(
     const allowed = opts.allowedTools ?? [];
     assert.ok(
       !allowed.some((n) => n.startsWith("mcp__landing__")),
-      `with no landing deps, no landing tools may be advertised; got: ${JSON.stringify(allowed)}`,
+      `the landing surface is retired (ADR-0175) — no mcp__landing__* tool may be advertised; ` +
+        `got: ${JSON.stringify(allowed)}`,
     );
   },
 );

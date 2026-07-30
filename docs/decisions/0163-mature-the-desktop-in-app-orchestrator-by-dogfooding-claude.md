@@ -41,12 +41,14 @@ terminal session-orchestrator:
   has no `maxTurns`, so the worker inherited the story-author-tuned spawn budget (~40,
   `resolveSpawnMaxTurns`, ADR-0130) and exhausted it on an open-ended "investigate + edit" task — cut
   off *after* the complete edit but *before* self-confirm.
-- **Gap B — dead-branch landing + no CI-watch.** `open_landing_pr` → `buildLandingDeps` pushes the
+- **Gap B — dead-branch landing + no CI-watch.** `open_landing_pr` → `buildLandingDeps` pushed the
   session's fixed branch with no already-merged check, so it committed onto an already-landed branch
   and CI's `merged-branch-guard.sh` (ADR-0142) refused the PR (#599, closed). And the landing surface
-  is only `run_gate` + `open_landing_pr` — with **no CI-watch affordance**, so the in-app orchestrator
-  cannot even see its PR failed; it believes it is done. That directly violates the session-orchestrator
-  discipline *"a PR is not done until CI is green — WATCH it."*
+  was only `run_gate` + `open_landing_pr` — with **no CI-watch affordance**, so the in-app orchestrator
+  could not even see its PR had failed; it believed it was done. That directly violated the
+  session-orchestrator discipline *"a PR is not done until CI is green — WATCH it."*
+  (Both were closed by chips, and the surface itself has since been deleted — see D3's Gap B1/B2
+  entries. This paragraph is the state observed at the retro.)
 
 The mature terminal orchestrator re-landed the fix cleanly (fresh branch, watched CI) as PR #601 —
 because its tool surface *has* those affordances. The question the owner raised: how do we mature the
@@ -87,24 +89,45 @@ in-app affordance MUST leave behind a chip (or an ADR, for a design fork), so th
 draining backlog, not an endless babysit. The gaps already found are the first entries:
   - **Gap A** → a chip: an optional `maxTurns` on `spawn_glue_worker`, threaded through
     `spawnGlueWorker` → the write-scoped runner (+ the guidance nudge to hand tight, file-pointed glue
-    tasks rather than open-ended "investigate + edit").
+    tasks rather than open-ended "investigate + edit"). **MOOT:** ADR-0175 retired the
+    `spawn_glue_worker` actuator itself as redundant — the ADR-0174 terminal's Claude Code makes glue
+    edits natively — so the tool this chip would have tuned no longer exists. The generalised
+    `runSpawnWriteScoped` runner survives (it still serves `spawn_story_author`), and the turn-budget
+    lesson landed there as `resolveSpawnMaxTurns` (`apps/desktop/src/backend/spawn-turns.ts`).
   - **Gap B1** → a chip: `open_landing_pr` stops committing onto a dead branch when the current
-    branch is already merged (chipped and landed, PR #608 — `buildLandingDeps` runs the guard's own
-    `gh pr list --head <branch> --state merged` query before committing). The remedy that SHIPPED is
-    the fresh-branch path, and it is **still live**: on a confirmed merge `openLandingPr` cuts
-    `claude/<freshBranchSlug>` and re-lights the story wisp through the injected
-    `ReDeclarePresenceFn`, refusing fail-closed only when no slug is supplied
-    (`packages/drive/src/landing-deps.ts`). **ADR-0271** (2026-07-30) retired that shape for the
-    *session-orchestrator's* ceremony — a session's working life now ends where its PR merges, so the
-    terminal answer to an already-merged branch is the closing leg and a fresh session, not a fresh
-    branch (it amends ADR-0142, whose post-merge leg the remedy was built on). ADR-0271 scopes the
-    session lifecycle and the merge ceremony, **not** the desktop sidecar's landing tool, so whether
-    `open_landing_pr` should end-and-hand-off rather than cut is an OPEN question recorded here and
-    not settled here. The gap this entry names — landing blind onto a dead branch — was real and is
-    closed; what moved is the doctrinal standing of its remedy, not the code.
-  - **Gap B2** → a chip: a read-only CI-watch affordance (`poll_pr_checks`-shaped) on the landing
-    surface so the in-app orchestrator watches its PR to green — the highest-leverage of the three
-    (it fixes the "believes it's done" blind spot and unblocks the autonomous half of ADR-0164).
+    branch is already merged (chipped and landed, PR #608 — `buildLandingDeps` ran the guard's own
+    `gh pr list --head <branch> --state merged` query before committing). The remedy that shipped was
+    the fresh-branch path: on a confirmed merge `openLandingPr` cut `claude/<freshBranchSlug>` and
+    re-lit the story wisp through an injected `ReDeclarePresenceFn`. **The gap was real and is
+    closed. Both the remedy and the surface it lived in are now GONE** — the whole ADR-0152 landing
+    tool surface was deleted (2026-07-30), executing the retirement ADR-0175 had already decided:
+    ADR-0174 retired the in-app *interactive* orchestrator, and ADR-0175 ruled that "the spawn and
+    landing surfaces (which drove story work) do not belong to a help agent and retire with the
+    interactive orchestrator, not into `app-guide`", while `stories/headless-orchestrator/story.md`
+    deferred the code half to a separate thin PR. Deleted: `packages/agent/src/landing-tool-surface.ts`,
+    `packages/drive/src/landing-deps.ts` (+ their tests), the `landing?` thread through
+    `headless-orchestrator` → `orchestrate` → `chat-stream` → `chat-sse-mount`, and the sidecar
+    composition in `apps/desktop/electron/backend-entry.ts`. Held gone by a negative guard,
+    `apps/desktop/src/backend/landing-surface-retired.test.ts`.
+
+    Two things made deletion the honest answer rather than a behaviour re-decision. **It had no
+    reachable caller:** `ChatDock` — the only mount of `ChatPanel`, itself the only caller of
+    POST `/api/chat` — is imported by nothing in the production tree (`TerminalDock` took its dock
+    slot under ADR-0174), and `storytree orchestrate` passes no landing deps, so the surface was
+    mounted at every sidecar boot with no UI path to it. **And its shape had gone doctrinally dead:**
+    **ADR-0271** (2026-07-30, amending ADR-0142, whose post-merge leg the remedy was built on) ended
+    the cut-and-keep-working move — a session's working life ends where its PR merges, and new work
+    re-enters through a fresh *session*, not a fresh branch. Because the sidecar renders the SAME
+    `session-orchestrator` agent the terminal does, a wired `open_landing_pr` contradicted its own
+    prompt. So the question of whether it should end-and-hand-off or keep cutting is not answered
+    either way — it dissolves with the surface. ADR-0271 is untouched by this: it governs the session
+    lifecycle and the merge ceremony, and nothing here re-opens it.
+  - **Gap B2** → a chip: a read-only CI-watch affordance so the in-app orchestrator watches its PR to
+    green — the highest-leverage of the three (it fixed the "believes it's done" blind spot and
+    unblocked the autonomous half of ADR-0164). Landed as `poll_pr_checks` on the landing surface, and
+    **deleted with it** (see Gap B1). The affordance itself is not lost: the equivalent read-only
+    observation survives as `view_pr_checks` on the ADR-0173 inspect surface, which ADR-0175 re-aims
+    into `app-guide` rather than retiring (`packages/agent/src/inspect-tool-surface.ts`).
 
 ## Consequences
 
@@ -136,12 +159,19 @@ draining backlog, not an endless babysit. The gaps already found are the first e
   independence, not a second agent in the outer loop.
 - ADR-0130 / ADR-0131 — the turn-cap brake (Gap A's context).
 - ADR-0142 — the merged-branch guard + the presence machine-clear on merge (Gap B1's context).
-- ADR-0271 — sessions end at merge; retires Gap B1's fresh-branch-and-keep-working remedy *for the
-  session-orchestrator ceremony* (the closing leg replaces it), leaving the desktop sidecar's shipped
-  fresh-branch path (`packages/drive/src/landing-deps.ts`) an open question. Amends ADR-0142, whose
-  post-merge leg that remedy was built on.
+- ADR-0271 — sessions end at merge; the closing leg replaces the fresh-branch-and-keep-working move
+  Gap B1's remedy was built on. Amends ADR-0142, whose post-merge leg that remedy came from. With the
+  sidecar's landing surface now deleted (ADR-0175's retirement, executed 2026-07-30), no code
+  implements the retired shape anywhere.
+- ADR-0174 / ADR-0175 — the interactive orchestrator's retirement and the split of its infrastructure
+  (SSE transport / dock / continuity / inspect surface re-aimed into `app-guide`; the spawn and landing
+  surfaces retired with it). Gap B1's remedy went with the landing surface.
 - ADR-0164 — the desktop self-restart-to-apply capability (a further identified gap; its autonomous
   phase depends on Gap B2's CI-watch), chipped and discussed separately.
-- Code: `packages/agent/src/spawn-tool-surface.ts` (`spawn_glue_worker`, Gap A),
-  `packages/agent/src/landing-tool-surface.ts` + `packages/drive/src/landing-deps.ts` (the landing
-  surface, Gap B), `apps/desktop/src/backend/spawn-turns.ts` (`resolveSpawnMaxTurns`, Gap A).
+- Code: `packages/agent/src/spawn-tool-surface.ts` (Gap A's `spawn_glue_worker` — itself retired as
+  redundant by ADR-0175), `apps/desktop/src/backend/spawn-turns.ts` (`resolveSpawnMaxTurns`, Gap A).
+  Gap B's landing surface (`packages/agent/src/landing-tool-surface.ts` +
+  `packages/drive/src/landing-deps.ts`) is DELETED — see
+  `apps/desktop/src/backend/landing-surface-retired.test.ts`, the guard that keeps it gone. Gap B2's
+  read-only CI-watch affordance survives as the repurposed inspect surface's `view_pr_checks`
+  (`packages/agent/src/inspect-tool-surface.ts`, ADR-0173/0175).
