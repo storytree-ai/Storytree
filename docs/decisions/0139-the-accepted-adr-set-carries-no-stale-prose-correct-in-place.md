@@ -85,11 +85,23 @@ it (the `story-decisions` gate enforces that graph), and "why we changed our min
 browsable. The dividing line is unchanged from 0086 §D — *did the DECISION change?* — only the
 placement of stale-content removal moves (Decision 2).
 
-**4. `supersedes_in_part` is retired.** Edges are binary: `amends` (strictly additive — every prior
-claim of the target stays true) or `supersedes` (the target is overtaken → corrected in place if the
-decision stands, or fully superseded if the decision changed). "Live in part" is no longer a state. A
-new ADR-health check forbids the `supersedes_in_part` frontmatter field; the `supersede-in-part-note`
-check is removed.
+**4. `supersedes_in_part` is retired.** Edges are binary, and the axis is **the target's SURVIVAL in
+the current set — not whether its text changed**: `supersedes` means the target LEAVES the set (it
+flips to `superseded`, kept as a browsable file); `amends` means the target STAYS in the set as a live
+accepted ADR. "Live in part" is no longer a state. A new ADR-health check forbids the
+`supersedes_in_part` frontmatter field; the `supersede-in-part-note` check is removed.
+
+An `amends` edge therefore carries **no** claim that every prior claim of its target still stands. It
+routinely retires or narrows a clause: the amender records the new decision, and the target is
+CORRECTED IN PLACE (Decision 2) so it stays true in full (Decision 1). That is precisely the
+partial-overtake case this ADR exists to handle — and the reason `supersedes_in_part` could be retired
+outright rather than replaced by some other third edge. Where an amendment does retire or narrow a
+clause, keeping the target true requires annotating that clause in place; an unannotated dead clause is
+the stale prose Decision 1 forbids. The mechanics of that annotation are derived guidance and live with
+Decision 5's rehoming, in the `accepted-adrs-carry-no-stale-prose` principle. The EDGE is still never
+double-entered (ADR-0037 §1): `storytree adr list` derives and prints the incoming `amended by NNNN`
+back-edge from the amender's frontmatter, so a body note carries only the clause-level detail the
+derived edge cannot.
 
 **5. Durable guidance is REHOMED out of ADR bodies into Library artifacts.** Cross-cutting guidance
 buried in an ADR body is extracted into the right `principle` / `definition` / `pattern` artifact (the
@@ -145,8 +157,9 @@ projection of the prose, never inventing a flip; `accepted → proposed` un-deci
 - **The deleted content is in git, not in the corpus.** Recovering it is `git log -p`/`-S`
   archaeology, not `adr list`. For truth-maintenance corrections (rarely revisited) this is the right
   trade; genuine re-decisions keep a browsable superseded file precisely because they are revisited.
-- **The consolidation pass is real work.** 20 `supersedes_in_part` targets to correct/supersede, 76
-  `amends` edges to audit (most are genuinely additive and stay), and the ~76 untagged accepted ADRs to
+- **The consolidation pass is real work.** 20 `supersedes_in_part` targets to correct/supersede, the
+  targets of 76 `amends` edges to audit (the edges themselves all stay — Decision 4; what is audited is
+  whether each TARGET still carries prose its amender retired), and the ~76 untagged accepted ADRs to
   triage and rehome. Done in batches, each a reviewed PR (the librarian's standing pass), not one sweep.
 - **Gate ordering.** The retired-edge check would red the gate while the 20 in-part edges still exist,
   so it lands WARN-first (or after the pass clears them) and flips to FAIL once the last edge is gone.

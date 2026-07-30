@@ -10,9 +10,14 @@ import { z } from "zod";
  * ADR-0086 widened it further: the `librarian-curator` may also flip an ADR to `superseded` as part of
  * curation (still a projection of the `## Status` prose, never invented) — ADR-0086 is itself now
  * SUPERSEDED by ADR-0139, which restates and keeps that supersede authority in force, so cite 0139 as
- * the live rule and 0086 only as its origin. Edges are OUTGOING only and
- * BINARY (`supersedes` = full / `amends` = strictly additive); incoming notes stay prose in the target
- * file, derived — never double-entered.
+ * the live rule and 0086 only as its origin. Edges are OUTGOING only and BINARY on the axis of the
+ * TARGET'S SURVIVAL in the current set, not of its text (ADR-0139 D4): `supersedes` = the target
+ * LEAVES the set (flips to `superseded`); `amends` = the target STAYS in the set as a live accepted
+ * ADR. `amends` is NOT a claim that the target is unchanged — an amender routinely retires or narrows
+ * one of its target's clauses, and the target is then corrected in place to stay true in full (D1/D2).
+ * Incoming edges stay derived, never double-entered: `renderAdrList` computes the `amended by NNNN` /
+ * `superseded by NNNN` back-edges from these outgoing lists, so a note in the target's body carries
+ * only the clause-level detail the derived edge cannot.
  *
  * `supersedes_in_part` was RETIRED by ADR-0139 ("live in part" is no longer a state), so the strict
  * schema no longer accepts it: a file still carrying that key fails to parse loudly, caught by the
