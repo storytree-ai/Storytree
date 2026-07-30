@@ -57,6 +57,12 @@ Three legs, one invariant — *the branch dies on merge; visibility survives it 
    fetch main, cut a fresh branch, re-declare (which re-claims). The wisp lifecycle across a landing
    is a **blink** (merge clears the landed branch's claim; the re-declare re-lights it on the fresh
    branch), never a silent death.
+   *[Amended by ADR-0271 (2026-07-30): the continuation half of this leg is retired. A session's
+   working life ends where its PR merges, so the post-merge leg is now the **closing leg** — residue,
+   release claims, owner debrief, then inert — and new work re-enters through a **fresh session**, not
+   a fresh branch in this one (which also retires §1's "the session continues seamlessly"). The wisp
+   lifecycle across a landing is therefore an **ending**, not a blink: the machine-clear is the
+   session's last board state, which is honest — it isn't working. Legs 1 and 2 stand unchanged.]*
 
 ## Consequences
 
