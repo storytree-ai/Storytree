@@ -88,8 +88,20 @@ draining backlog, not an endless babysit. The gaps already found are the first e
   - **Gap A** → a chip: an optional `maxTurns` on `spawn_glue_worker`, threaded through
     `spawnGlueWorker` → the write-scoped runner (+ the guidance nudge to hand tight, file-pointed glue
     tasks rather than open-ended "investigate + edit").
-  - **Gap B1** → a chip: `open_landing_pr` cuts a fresh branch (and re-declares presence, ADR-0142)
-    when the current branch is already merged, instead of committing onto a dead branch.
+  - **Gap B1** → a chip: `open_landing_pr` stops committing onto a dead branch when the current
+    branch is already merged (chipped and landed, PR #608 — `buildLandingDeps` runs the guard's own
+    `gh pr list --head <branch> --state merged` query before committing). The remedy that SHIPPED is
+    the fresh-branch path, and it is **still live**: on a confirmed merge `openLandingPr` cuts
+    `claude/<freshBranchSlug>` and re-lights the story wisp through the injected
+    `ReDeclarePresenceFn`, refusing fail-closed only when no slug is supplied
+    (`packages/drive/src/landing-deps.ts`). **ADR-0271** (2026-07-30) retired that shape for the
+    *session-orchestrator's* ceremony — a session's working life now ends where its PR merges, so the
+    terminal answer to an already-merged branch is the closing leg and a fresh session, not a fresh
+    branch (it amends ADR-0142, whose post-merge leg the remedy was built on). ADR-0271 scopes the
+    session lifecycle and the merge ceremony, **not** the desktop sidecar's landing tool, so whether
+    `open_landing_pr` should end-and-hand-off rather than cut is an OPEN question recorded here and
+    not settled here. The gap this entry names — landing blind onto a dead branch — was real and is
+    closed; what moved is the doctrinal standing of its remedy, not the code.
   - **Gap B2** → a chip: a read-only CI-watch affordance (`poll_pr_checks`-shaped) on the landing
     surface so the in-app orchestrator watches its PR to green — the highest-leverage of the three
     (it fixes the "believes it's done" blind spot and unblocks the autonomous half of ADR-0164).
@@ -124,6 +136,10 @@ draining backlog, not an endless babysit. The gaps already found are the first e
   independence, not a second agent in the outer loop.
 - ADR-0130 / ADR-0131 — the turn-cap brake (Gap A's context).
 - ADR-0142 — the merged-branch guard + the presence machine-clear on merge (Gap B1's context).
+- ADR-0271 — sessions end at merge; retires Gap B1's fresh-branch-and-keep-working remedy *for the
+  session-orchestrator ceremony* (the closing leg replaces it), leaving the desktop sidecar's shipped
+  fresh-branch path (`packages/drive/src/landing-deps.ts`) an open question. Amends ADR-0142, whose
+  post-merge leg that remedy was built on.
 - ADR-0164 — the desktop self-restart-to-apply capability (a further identified gap; its autonomous
   phase depends on Gap B2's CI-watch), chipped and discussed separately.
 - Code: `packages/agent/src/spawn-tool-surface.ts` (`spawn_glue_worker`, Gap A),

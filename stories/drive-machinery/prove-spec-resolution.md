@@ -77,7 +77,7 @@ a fresh worktree of a throwaway repo, the registry's real proof command, a scrip
 `authorOverride` test seam, the spine's commit, a signed pass on a genuinely clean tree
 (`resolve-prove-spec.test.ts:539`).
 
-## Contracts (10)
+## Contracts (11)
 
 1. **`spec-files-locate-and-load`** — capability and story specs are found and parse to typed NodeSpecs with guidance prose
    - **asserts —** `findNodeSpecFile` resolves both layouts; real library specs load; no frontmatter is LOUD.
@@ -119,3 +119,7 @@ a fresh worktree of a throwaway repo, the registry's real proof command, a scrip
     - **asserts —** the commands really spawn; arming matches install/no-install/live-smoke modes.
     - **covers —** `resolve-prove-spec.ts:311-323`, `:385-411`
     - **proven by —** `resolve-prove-spec.test.ts:433`, `:452`, `:470`, `:484` (REAL, passing)
+11. **`briefs-name-the-declared-contract-ids`** — the phase briefs carry the unit's declared contract ids, independent of what `## Guidance` restates
+    - **asserts —** `assemblePrompts` and all three `realPrompts` arms enumerate every declared id in BOTH phases and carry the ADR-0122 naming rule in AUTHOR_TEST; the ids arrive even when the spec's own `## Guidance` names none; a unit declaring no contracts gets no block (brief parity); the live-smoke brief carries none by design.
+    - **covers —** `resolve-prove-spec.ts` — the `contractsBrief` helper and its splice sites in `assemblePrompts` and the three `realPrompts` arms
+    - **proven by —** `resolve-prove-spec.test.ts:456`, `:471`, `:487`, `:515`, `:529` (REAL, passing)
