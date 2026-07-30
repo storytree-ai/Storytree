@@ -78,6 +78,15 @@ Two never-blocking mechanisms, replacing discipline with structure without a cre
    claim both count, ADR-0200 D2). The SKIP arms (not a session worktree / no DB creds / DB
    unreachable / unexpected error → exit 0) and the CI-unaffected property stand unchanged. See
    `packages/cli/src/check-declared.ts`.]**
+   **[Corrected 2026-07-26 per [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md)
+   D5.2, which closed one of those SKIP arms: "not a session worktree" no longer returns silently.
+   Before falling through, `check:declared` now asks a pure-git lobby question and **FAILs** on the
+   strict conjunction *primary checkout* AND `.claude/worktrees/` present AND *tree dirty* — the one arm
+   that reaches a session which, having no worktree identity, cannot hold a claim at all. The remaining
+   SKIP arms (no DB creds / DB unreachable / unexpected error / any git failure) and the CI-unaffected
+   property do stand: `.claude/worktrees/` is untracked, so a CI checkout or a plain clone is false on
+   the conjunction and still skips silently. See `evaluateLobby` in
+   `packages/cli/src/check-declared.ts`.]**
 
 The enforcement ladder is unchanged above this: build-claim hard-refusal (ADR-0121), the merge
 ceremony + merged-branch guard (ADR-0142), and — when ADR-0137 Phase 3 lands — claim-at-spawn
