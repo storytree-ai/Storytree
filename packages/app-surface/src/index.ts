@@ -1,4 +1,4 @@
-export { SceneView, type SceneCtx } from './SceneView.js';
+export { SceneView, type IslandGrowthRenderLayer, type SceneCtx } from './SceneView.js';
 export {
   normalizeWorldPresentationModel,
   WorldSceneView,
@@ -48,7 +48,26 @@ export {
 } from './trailReveal.js';
 export {
   SemanticGrowthWorldView,
+  type SemanticGrowthAnimationClock,
   type SemanticGrowthFrame,
   type SemanticGrowthFrameKey,
+  type SemanticGrowthIslandLayer,
   type SemanticGrowthWorldViewProps,
 } from './SemanticGrowthWorldView.js';
+export {
+  CHAPTER2_ISLAND_GROWTH_TRACK,
+  ISLAND_GROWTH_CUE_TARGETS,
+  ISLAND_GROWTH_PLAYBACK_POLICY,
+  advanceIslandGrowthPlayback,
+  clampNormalizedProgress,
+  initialIslandGrowthPlayback,
+  islandGrowthFrameAtProgress,
+  replayIslandGrowth,
+  selectIslandGrowthCue,
+  validateIslandGrowthTrack,
+  type IslandGrowthFootprint,
+  type IslandGrowthFrame,
+  type IslandGrowthPlaybackState,
+  type IslandGrowthPoint,
+  type RegisteredIslandGrowthTrack,
+} from './island-growth-track.js';

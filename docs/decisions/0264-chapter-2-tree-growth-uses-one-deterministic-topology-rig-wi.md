@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-07-29
 amends: [237]
 arc: chapter2-real-app-surface-arc
@@ -8,7 +8,10 @@ arc: chapter2-real-app-surface-arc
 
 ## Status
 
-accepted (2026-07-29) — decided/directed by the owner in conversation on 2026-07-29. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
+superseded by [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md)
+(2026-07-30). The deterministic root, replay, reduced-motion and shared-app constraints continue;
+ADR-0273 replaces this ADR's required procedural topology substrate with a bounded, selective
+PixelLab sprite-track experiment after stronger visual evidence and an owner-directed subscription.
 
 **Amends [ADR-0237](0237-chapter-2-is-a-scripted-mode-of-the-real-app-share-product-u.md):**
 its shared app surface, semantic-event control, persistent-scene posture and conditional

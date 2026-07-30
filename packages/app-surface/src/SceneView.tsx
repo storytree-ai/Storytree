@@ -31,6 +31,16 @@ import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
 
+export interface IslandGrowthRenderLayer {
+  readonly src: string;
+  readonly frameIndex: number;
+  readonly canvas: { readonly width: number; readonly height: number };
+  readonly assetAnchor: { readonly x: number; readonly y: number };
+  readonly worldAnchor: { readonly x: number; readonly y: number };
+  readonly scale: number;
+  readonly depthSlot: 'island-growth-composite';
+}
+
 /** The focus-aware context the walk needs — the studio's per-render interactivity
  *  (the scene itself is focus-agnostic; focus / hover / selection are applied here). */
 export interface SceneCtx {
@@ -79,6 +89,8 @@ export interface SceneCtx {
    *  the studio ships) or `march` (a looping travelling dash). `none` leaves them still.
    *  Only read when {@link lanes} is present; `prefers-reduced-motion` overrides all three. */
   laneMotion?: 'draw' | 'march' | 'none';
+  /** One registered SVG image planted into the canonical world painter order. */
+  islandGrowthLayer?: IslandGrowthRenderLayer | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
    *  so a `baked-use` hero (the ADR-0227 status trees, the garden cottage/gazebo) sizes from its real
    *  def geometry. Memoized once per scene in the component below. */
@@ -436,6 +448,29 @@ function hitsLayerToBack(children: readonly SceneNode[]): readonly SceneNode[] {
   const [hits] = out.splice(hitsIdx, 1);
   if (hits) out.splice(out.findIndex((c) => c.kind === 'empties-layer') + 1, 0, hits);
   return out;
+}
+
+function islandGrowthImage(layer: IslandGrowthRenderLayer): React.ReactNode {
+  const width = layer.canvas.width * layer.scale;
+  const height = layer.canvas.height * layer.scale;
+  const x = layer.worldAnchor.x - layer.assetAnchor.x * layer.scale;
+  const y = layer.worldAnchor.y - layer.assetAnchor.y * layer.scale;
+  return React.createElement('image', {
+    key: '__island-growth-composite',
+    href: layer.src,
+    x: fmt(x),
+    y: fmt(y),
+    width: fmt(width),
+    height: fmt(height),
+    preserveAspectRatio: 'none',
+    imageRendering: 'pixelated',
+    pointerEvents: 'none',
+    'aria-hidden': true,
+    'data-depth-slot': layer.depthSlot,
+    'data-island-growth-frame': String(layer.frameIndex),
+    'data-world-anchor-x': fmt(layer.worldAnchor.x),
+    'data-world-anchor-y': fmt(layer.worldAnchor.y),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -843,6 +878,9 @@ function renderNode(
     const children = node.kind === 'world' ? hitsLayerToBack(node.children) : node.children;
     const rendered: React.ReactNode[] = [];
     children.forEach((c, i) => {
+      if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.islandGrowthLayer) {
+        rendered.push(islandGrowthImage(ctx.islandGrowthLayer));
+      }
       const el = renderNode(c, i, childStory, ctx);
       if (el) rendered.push(el);
     });

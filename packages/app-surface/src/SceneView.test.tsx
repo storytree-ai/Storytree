@@ -163,6 +163,33 @@ describe('SceneView — the studio scene mapper', () => {
     expect((SceneView as { $$typeof?: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
   });
 
+  it('renders a registered island-growth frame at one planted world anchor in the composite painter slot', () => {
+    const { root } = renderScene({
+      islandGrowthLayer: {
+        src: '/assets/frame-04.png',
+        frameIndex: 4,
+        canvas: { width: 256, height: 256 },
+        assetAnchor: { x: 128, y: 239 },
+        worldAnchor: { x: 100, y: 120 },
+        scale: 0.5,
+        depthSlot: 'island-growth-composite',
+      },
+    });
+    const image = root.querySelector('image[data-island-growth-frame="4"]');
+    expect(image).toBeTruthy();
+    expect(image?.getAttribute('href')).toBe('/assets/frame-04.png');
+    expect(image?.getAttribute('x')).toBe('36.0');
+    expect(image?.getAttribute('y')).toBe('0.5');
+    expect(image?.getAttribute('width')).toBe('128.0');
+    expect(image?.getAttribute('height')).toBe('128.0');
+    expect(image?.getAttribute('image-rendering')).toBe('pixelated');
+    expect(image?.getAttribute('data-depth-slot')).toBe('island-growth-composite');
+
+    const siblings = Array.from(image!.parentElement!.children);
+    expect(siblings.indexOf(image!)).toBeGreaterThan(siblings.indexOf(root.querySelector('.relaxed-land')!));
+    expect(siblings.indexOf(image!)).toBeLessThan(siblings.indexOf(root.querySelector('.trail-net')!));
+  });
+
   it('maps roles to the studio classes, folding status + variant', () => {
     const { root } = renderScene();
     expect(root.querySelector('.story-tree.st-healthy')).toBeTruthy();

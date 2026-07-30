@@ -25,6 +25,13 @@ The studio remains the canonical live consumer, but "studio-only / public websit
 longer applies to Chapter 2. Its shared app-surface artifact consumes this same Storybook manifest,
 sprite renderer and assets over fictional data. It may not create a website-local sprite fork.
 
+**Selective growth-track amendment
+([ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md), 2026-07-30).**
+Chapter 2 may also consume a registered PixelLab-generated frame track for one bounded island-growth
+witness. The local frames supply appearance only: the shared app owns semantic progress, timing,
+deterministic selection, Back/Replay, reduced motion, anchors and painter order. The witness remains
+exact-query-gated until the owner gives its separate LOOK verdict.
+
 ## Context
 
 The grounded-art arc built a machinery-heavy parametric factory ([ADR-0214](0214-ground-ai-authored-art-in-a-physical-model-csg-over-svg-not.md)
@@ -79,13 +86,13 @@ factory, does not remove it.**
 4. **Scope and invariants that STAND.** Studio map plus Chapter 2's shared app-surface artifact;
    `packages/forest-world-r3f` remains untouched and Chapter 2 may not implement a parallel
    website-local sprite renderer (ADR-0237). Stays **2.5D isometric** (ADR-0219 D4).
-   The **look verdict stays owner-attested** (ADR-0070 stage 2 / ADR-0159); sheets land default-off
-   until the owner signs. The vector factory (ADR-0214/0217) remains the default render and is NOT
-   deleted — the two coexist behind the toggle.
+   The **look verdict stays owner-attested** (ADR-0070 stage 2 / ADR-0159). The vector factory
+   (ADR-0214/0217) remains available and is NOT deleted; it coexists behind the toggle.
 
    **Currency (2026-07-24):** the owner signed on 2026-07-23, so the authorized default flip has now
    occurred. The vector factory remains present and selectable; only its role changed from default to
-   explicit option.
+   explicit option. ADR-0273's later PixelLab island track is a separate exact-query-gated witness
+   whose LOOK verdict is still outstanding.
 
 Rejected: replacing or deleting the parametric factory; per-instance or runtime generative calls;
 auto-tracing raster into the scene-graph as geometry; an independent website sprite/render fork; any
@@ -96,9 +103,9 @@ machine-signed look verdict; real 3D / R3F as the map renderer (ADR-0219 D4 stan
 - **Good — the prototype is unblocked without the factory's per-type machinery.** Multi-style toggling
   is a sheet swap; occlusion is free (existing sort); per-object DOM cost drops from a baked building's
   ~1,400 nodes to one `<image>`.
-- **Good — zero risk to the current map.** Default-off + graceful fallback means the vector render is
-  byte-identical when the toggle is off, and partially-covered sheets still render (sprited where
-  available, vector otherwise — the `evening` sheet exercises exactly this).
+- **Good — the prior map remains recoverable.** Graceful fallback keeps uncovered kinds Vector,
+  explicit `?artStyle=vector` preserves the procedural render, and the PixelLab island track is
+  exact-query-gated rather than replacing the clean route.
 - **Cost — raster forfeits what the vector factory gave for free:** text-diffable art, parametric
   per-status recolour precision (handled here by per-status sprite variants), and machine-checkable
   geometric correctness. A raster sprite *cannot* have a floating roof, so the checker's job is moot for
@@ -109,8 +116,9 @@ machine-signed look verdict; real 3D / R3F as the map renderer (ADR-0219 D4 stan
 - **Cost — cross-asset consistency is the known risk** (the research wall: angle/light/scale/style drift
   across a generated set). Mitigated by hand-the-angle + the locked style bible; residual drift is
   exactly what the owner's look verdict judges.
-- **Honest — the central bet is unproven until attested.** Whether generated sheets clear the prototype
-  look bar is the owner's call (ADR-0070 stage 2); this ADR authorizes the experiment, not its success.
+- **Honest — each new visual track remains unproven until attested.** Storybook cleared its owner
+  verdict on 2026-07-23; ADR-0273's PixelLab island track has its own outstanding LOOK call. Machine
+  proof authorizes neither visual conclusion.
 
 ## References
 
@@ -122,10 +130,13 @@ machine-signed look verdict; real 3D / R3F as the map renderer (ADR-0219 D4 stan
   factory this offers a prototype-scoped alternative to; NOT removed, remains the default render.
 - [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) /
   [ADR-0159](0159-frontend-builder-proves-stage-1-through-the-inner-loop-visua.md) — the look is
-  operator-attested, stage 2; sheets land default-off until the owner signs.
+  operator-attested, stage 2; every new visual track waits for its own owner verdict.
 - [ADR-0093](0093-shared-forest-world-render-core-for-studio-and-the-public-we.md) — colour-is-class;
-  the sprite sheet is a studio-scoped render exception, like ADR-0218's baked-art and ADR-0217's
-  `factoryart` chrome.
+  the sprite sheet began as its studio-scoped render exception, later shared with Chapter 2 by
+  ADR-0237.
+- [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) — permits one
+  selective registered PixelLab frame track while keeping the app as renderer, clock and semantic
+  owner.
 - [ADR-0062](0062-the-forest-world-is-the-observability-layer-rendered-one-art.md) /
   [ADR-0069](0069-parameterise-the-forest-world-geometry-as-a-procedural-pipel.md) — the world is a
   live function of data; sprites are still composed live per render (the sheet is the only static input).
