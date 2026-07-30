@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +11,11 @@ import {
   type SceneTrailsInput,
 } from '@storytree/forest-world';
 import { normalizeWorldPresentationModel, WorldSceneView } from './WorldSceneView.js';
-import { SemanticGrowthWorldView } from './SemanticGrowthWorldView.js';
+import {
+  SemanticGrowthWorldView,
+  type SemanticGrowthAnimationClock,
+} from './SemanticGrowthWorldView.js';
+import { CHAPTER2_ISLAND_GROWTH_TRACK } from './island-growth-track.js';
 import * as AppSurfacePackageRoot from './index.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 
@@ -144,6 +148,124 @@ function frameModelAt(
 }
 
 describe('SemanticGrowthWorldView', () => {
+  it('drives the registered island frames with the app clock, stable anchor, Back and in-place Replay', () => {
+    class ManualClock implements SemanticGrowthAnimationClock {
+      private nextId = 1;
+      private callbacks = new Map<number, (timestamp: number) => void>();
+
+      requestFrame(callback: (timestamp: number) => void): number {
+        const id = this.nextId++;
+        this.callbacks.set(id, callback);
+        return id;
+      }
+
+      cancelFrame(requestId: number): void {
+        this.callbacks.delete(requestId);
+      }
+
+      step(timestamp: number): void {
+        const pending = [...this.callbacks.entries()];
+        this.callbacks.clear();
+        act(() => pending.forEach(([, callback]) => callback(timestamp)));
+      }
+    }
+
+    const clock = new ManualClock();
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const islandGrowth = {
+      track: CHAPTER2_ISLAND_GROWTH_TRACK,
+      worldAnchor: { x: 50, y: 80 },
+      scale: 0.5,
+      clock,
+    } as const;
+    const view = render(
+      <SemanticGrowthWorldView frames={frames} islandGrowth={islandGrowth} />,
+    );
+    const section = view.container.querySelector('section')!;
+    const image = view.container.querySelector('image[data-depth-slot="island-growth-composite"]')!;
+    const frameIndex = (): string | null =>
+      view.container.querySelector('image[data-depth-slot="island-growth-composite"]')
+        ?.getAttribute('data-island-growth-frame') ?? null;
+    const anchor = (): string | null =>
+      view.container.querySelector('image[data-depth-slot="island-growth-composite"]')
+        ?.getAttribute('data-world-anchor-x') ?? null;
+
+    expect(frameIndex()).toBe('0');
+    expect(anchor()).toBe('50.0');
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    clock.step(0);
+    clock.step(10_000);
+    expect(frameIndex()).toBe('1');
+    expect(anchor()).toBe('50.0');
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    clock.step(10_100);
+    clock.step(20_000);
+    expect(frameIndex()).toBe('3');
+    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    clock.step(20_100);
+    clock.step(30_000);
+    expect(frameIndex()).toBe('1');
+    expect(anchor()).toBe('50.0');
+
+    fireEvent.click(view.getByRole('button', { name: 'Replay' }));
+    expect(view.container.querySelector('section')).toBe(section);
+    expect(view.container.querySelector('image[data-depth-slot="island-growth-composite"]')).toBe(image);
+    expect(frameIndex()).toBe('0');
+    expect(anchor()).toBe('50.0');
+  });
+
+  it('settles reduced motion immediately to and retains the same final mature frame', () => {
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const islandGrowth = {
+      track: CHAPTER2_ISLAND_GROWTH_TRACK,
+      worldAnchor: { x: 50, y: 80 },
+      scale: 0.5,
+    } as const;
+    const view = render(
+      <SemanticGrowthWorldView frames={frames} islandGrowth={islandGrowth} reducedMotion />,
+    );
+    for (const _key of ORDERED_KEYS.slice(1)) {
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    }
+    const final = view.container.querySelector('image[data-island-growth-frame="8"]');
+    expect(final).toBeTruthy();
+    expect(view.container.querySelector('[data-island-growth-progress="1.0000"]')).toBeTruthy();
+    view.rerender(
+      <SemanticGrowthWorldView frames={frames} islandGrowth={islandGrowth} reducedMotion />,
+    );
+    expect(view.container.querySelector('image[data-island-growth-frame="8"]')).toBe(final);
+  });
+
+  it('selects the same planted frame and anchor at representative desktop and mobile viewport widths', () => {
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const islandGrowth = {
+      track: CHAPTER2_ISLAND_GROWTH_TRACK,
+      worldAnchor: { x: 50, y: 80 },
+      scale: 0.5,
+    } as const;
+    const witness = (width: number): readonly string[] => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+      const view = render(
+        <SemanticGrowthWorldView frames={frames} islandGrowth={islandGrowth} reducedMotion />,
+      );
+      for (const _key of ORDERED_KEYS.slice(1)) {
+        fireEvent.click(view.getByRole('button', { name: 'Next' }));
+      }
+      const image = view.container.querySelector('image[data-depth-slot="island-growth-composite"]')!;
+      const result = [
+        image.getAttribute('data-island-growth-frame') ?? '',
+        image.getAttribute('data-world-anchor-x') ?? '',
+        image.getAttribute('data-world-anchor-y') ?? '',
+        image.getAttribute('width') ?? '',
+        image.getAttribute('height') ?? '',
+      ] as const;
+      view.unmount();
+      return result;
+    };
+    expect(witness(390)).toEqual(witness(1440));
+  });
+
   it('plays the supplied semantic sequence deterministically, clamps navigation, and renders its real scene immediately without motion when reduced', () => {
     const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
     const view = render(

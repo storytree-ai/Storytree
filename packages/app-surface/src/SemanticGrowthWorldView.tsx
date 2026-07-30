@@ -11,6 +11,15 @@ import {
   wrapperContentBounds,
   type Bounds,
 } from './sprite-sizing.js';
+import {
+  advanceIslandGrowthPlayback,
+  initialIslandGrowthPlayback,
+  islandGrowthFrameAtProgress,
+  replayIslandGrowth,
+  selectIslandGrowthCue,
+  type IslandGrowthPoint,
+  type RegisteredIslandGrowthTrack,
+} from './island-growth-track.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -24,6 +33,18 @@ export interface SemanticGrowthFrame {
   readonly model: WorldPresentationModel;
 }
 
+export interface SemanticGrowthAnimationClock {
+  requestFrame(callback: (timestamp: number) => void): number;
+  cancelFrame(requestId: number): void;
+}
+
+export interface SemanticGrowthIslandLayer {
+  readonly track: RegisteredIslandGrowthTrack;
+  readonly worldAnchor: IslandGrowthPoint;
+  readonly scale: number;
+  readonly clock?: SemanticGrowthAnimationClock;
+}
+
 export interface SemanticGrowthWorldViewProps {
   readonly frames: readonly SemanticGrowthFrame[];
   readonly reducedMotion?: boolean;
@@ -31,6 +52,7 @@ export interface SemanticGrowthWorldViewProps {
   readonly onNext?: (key: SemanticGrowthFrameKey) => void;
   readonly onBack?: (key: SemanticGrowthFrameKey) => void;
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
+  readonly islandGrowth?: SemanticGrowthIslandLayer;
 }
 
 function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
@@ -90,7 +112,10 @@ function unionBounds(a: Bounds | null, b: Bounds | null): Bounds | null {
  * particular world actually sits rather than a fixed magic default. Depends only on the ordered
  * `frames` prop, never the walk's current cursor.
  */
-function representativeViewBox(frames: readonly SemanticGrowthFrame[]): string {
+function representativeViewBox(
+  frames: readonly SemanticGrowthFrame[],
+  islandGrowth?: SemanticGrowthIslandLayer,
+): string {
   let bounds: Bounds | null = null;
   for (const entry of frames) {
     const scene = entry.model.scene;
@@ -107,6 +132,20 @@ function representativeViewBox(frames: readonly SemanticGrowthFrame[]): string {
       maxY: content.maxY + ty,
     });
   }
+  if (islandGrowth) {
+    const rootOffset = parseSimpleTransform(frames[0]?.model.scene.transform);
+    const tx = rootOffset?.tx ?? 0;
+    const ty = rootOffset?.ty ?? 0;
+    const { track, worldAnchor, scale } = islandGrowth;
+    const x = worldAnchor.x - track.islandAnchor.x * scale + tx;
+    const y = worldAnchor.y - track.islandAnchor.y * scale + ty;
+    bounds = unionBounds(bounds, {
+      minX: x,
+      minY: y,
+      maxX: x + track.canvas.width * scale,
+      maxY: y + track.canvas.height * scale,
+    });
+  }
   if (!bounds) return FALLBACK_VIEW_BOX;
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
@@ -120,6 +159,11 @@ function representativeViewBox(frames: readonly SemanticGrowthFrame[]): string {
   ].join(' ');
 }
 
+const BROWSER_ANIMATION_CLOCK: SemanticGrowthAnimationClock = {
+  requestFrame: (callback) => window.requestAnimationFrame(callback),
+  cancelFrame: (requestId) => window.cancelAnimationFrame(requestId),
+};
+
 export function SemanticGrowthWorldView({
   frames,
   reducedMotion,
@@ -127,22 +171,81 @@ export function SemanticGrowthWorldView({
   onNext,
   onBack,
   onReplay,
+  islandGrowth,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
   assertFrames(frames);
   const [cursor, setCursor] = React.useState(0);
+  const [islandPlayback, setIslandPlayback] = React.useState(initialIslandGrowthPlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
   const frame = frames[cursor]!;
+  const islandFrame = islandGrowth
+    ? islandGrowthFrameAtProgress(islandGrowth.track, islandPlayback.progress)
+    : null;
   const model = React.useMemo<WorldPresentationModel>(
-    () => (reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model),
-    [frame.model, reduce],
+    () => {
+      const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
+      if (!islandGrowth || !islandFrame) return base;
+      return {
+        ...base,
+        islandGrowthLayer: {
+          src: islandFrame.src,
+          frameIndex: islandFrame.index,
+          canvas: islandGrowth.track.canvas,
+          assetAnchor: islandGrowth.track.islandAnchor,
+          worldAnchor: islandGrowth.worldAnchor,
+          scale: islandGrowth.scale,
+          depthSlot: islandGrowth.track.depthSlot,
+        },
+      };
+    },
+    [frame.model, islandFrame, islandGrowth, reduce],
   );
   // Held stable through the whole walk — derived from every supplied frame's composed geometry,
   // never the current cursor (see representativeViewBox).
-  const viewBox = React.useMemo(() => representativeViewBox(frames), [frames]);
+  const viewBox = React.useMemo(
+    () => representativeViewBox(frames, islandGrowth),
+    [frames, islandGrowth],
+  );
 
-  const select = (nextCursor: number, callback?: (key: SemanticGrowthFrameKey) => void): void => {
+  React.useEffect(() => {
+    if (!islandGrowth || !reduce) return;
+    setIslandPlayback((current) => selectIslandGrowthCue(current, cursor, true));
+  }, [cursor, islandGrowth, reduce]);
+
+  React.useEffect(() => {
+    if (!islandGrowth || reduce || !islandPlayback.playing) return;
+    const clock = islandGrowth.clock ?? BROWSER_ANIMATION_CLOCK;
+    let requestId = 0;
+    let previousTimestamp: number | null = null;
+    let running = islandPlayback;
+    let cancelled = false;
+    const step = (timestamp: number): void => {
+      if (cancelled) return;
+      const deltaMs = previousTimestamp === null ? 1000 / 60 : timestamp - previousTimestamp;
+      previousTimestamp = timestamp;
+      running = advanceIslandGrowthPlayback(running, deltaMs);
+      setIslandPlayback(running);
+      if (running.playing) requestId = clock.requestFrame(step);
+    };
+    requestId = clock.requestFrame(step);
+    return () => {
+      cancelled = true;
+      clock.cancelFrame(requestId);
+    };
+  }, [islandGrowth, islandPlayback.transitionId, reduce]);
+
+  const select = (
+    nextCursor: number,
+    callback?: (key: SemanticGrowthFrameKey) => void,
+    replay = false,
+  ): void => {
     const bounded = Math.max(0, Math.min(FRAME_KEYS.length - 1, nextCursor));
     setCursor(bounded);
+    if (islandGrowth) {
+      setIslandPlayback((current) =>
+        replay ? replayIslandGrowth(current) : selectIslandGrowthCue(current, bounded, reduce),
+      );
+    }
     callback?.(frames[bounded]!.key);
   };
 
@@ -150,6 +253,13 @@ export function SemanticGrowthWorldView({
     <section
       data-semantic-growth-frame={frame.key}
       data-motion={reduce ? 'reduced' : 'full'}
+      {...(islandGrowth
+        ? {
+            'data-island-growth-progress': islandPlayback.progress.toFixed(4),
+            'data-island-growth-frame': islandFrame?.index,
+            'data-island-growth-anchor': `${islandGrowth.worldAnchor.x},${islandGrowth.worldAnchor.y}`,
+          }
+        : {})}
     >
       <svg viewBox={viewBox} aria-label={`Semantic growth: ${frame.key}`}>
         {events ? (
@@ -161,7 +271,7 @@ export function SemanticGrowthWorldView({
       <nav aria-label="Semantic growth controls">
         <button type="button" onClick={() => select(cursor - 1, onBack)}>Back</button>
         <button type="button" onClick={() => select(cursor + 1, onNext)}>Next</button>
-        <button type="button" onClick={() => select(0, onReplay)}>Replay</button>
+        <button type="button" onClick={() => select(0, onReplay, true)}>Replay</button>
       </nav>
     </section>
   );

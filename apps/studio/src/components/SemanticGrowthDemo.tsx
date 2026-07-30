@@ -33,6 +33,7 @@ import {
   type SceneVegetationInput,
 } from '@storytree/forest-world';
 import {
+  CHAPTER2_ISLAND_GROWTH_TRACK,
   neighbourHighlightPlan,
   laneLayout,
   normalizeWorldPresentationModel,
@@ -65,6 +66,7 @@ const DEMO_CAP_BETA_ID = 'semantic-growth-demo-cap-beta';
  *  takes. */
 const COMPANION_STORY_ID = 'semantic-growth-demo-companion';
 const COMPANION_CAP_ID = 'semantic-growth-demo-companion-cap';
+const ISLAND_GROWTH_SCALE = 0.5;
 
 /** A fixed instant, never `Date.now()`, so the walk (and its signed-proof bloom) stays
  *  byte-identical across every render/re-mount. */
@@ -183,6 +185,33 @@ function clearGroundIdentity(node: SceneNode, primaryId: string): SceneNode {
   return { ...node, children };
 }
 
+/**
+ * `clearGroundIdentity` intentionally removes the primary ground id for the existing vector demo.
+ * In the PixelLab variant that makes the otherwise id-scoped strip unable to recognize the same
+ * wrapper later. The companion owns zero relaxed cells, so the one anonymous direct `ground` child
+ * of `ground-mesh` is precisely the cleared primary substrate and nothing else.
+ */
+function stripClearedPrimaryGround(node: SceneNode): SceneNode {
+  if (node.el !== 'g') return node;
+  return {
+    ...node,
+    children: node.children
+      .filter(
+        (child) =>
+          !(node.kind === 'ground-mesh' && child.kind === 'ground' && child.id === undefined),
+      )
+      .map(stripClearedPrimaryGround),
+  };
+}
+
+function withoutPrimaryIsland(node: SceneNode): SceneNode {
+  const withoutIdentifiedLayers = (['territory', 'ground', 'coast', 'hit'] as const).reduce(
+    (scene, kind) => stripKind(scene, kind, DEMO_STORY_ID),
+    node,
+  );
+  return stripClearedPrimaryGround(withoutIdentifiedLayers);
+}
+
 /** The claim/presence wisp for the `claimed` frame — coordination, never a proof (the ADR-0138
  *  §5 honesty wall the core itself enforces): the story's own status stays `proposed`, and this
  *  claim carries no bloom/verdict identity of its own. */
@@ -221,6 +250,16 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
     buildings: false,
   });
   const companionIndex = baseWorld.territories.findIndex((t) => t.story.id === COMPANION_STORY_ID);
+  const primary = baseWorld.territories.find((t) => t.story.id === DEMO_STORY_ID);
+  if (!primary) throw new Error('Semantic growth fixture requires its primary planted parcel.');
+  islandGrowthAnchorCache = {
+    x: primary.treeSpot.x,
+    y:
+      primary.treeSpot.y +
+      (CHAPTER2_ISLAND_GROWTH_TRACK.islandAnchor.y -
+        CHAPTER2_ISLAND_GROWTH_TRACK.treeRoot.y) *
+        ISLAND_GROWTH_SCALE,
+  };
 
   // sgsd-primary-selection-reuses-drawn-route-lanes: the primary's one-hop selection plan +
   // laid-out lane, derived from the composed world's REAL trail network with the SAME shared
@@ -351,6 +390,7 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
 }
 
 let framesCache: readonly SemanticGrowthFrame[] | null = null;
+let islandGrowthAnchorCache: { readonly x: number; readonly y: number } | null = null;
 
 /** The static fixture, computed once on first use and cached — never at this module's own
  *  top level (see {@link buildFrames}), never rebuilt afterward. */
@@ -359,9 +399,18 @@ function frames(): readonly SemanticGrowthFrame[] {
   return framesCache;
 }
 
+function islandGrowthAnchor(): { readonly x: number; readonly y: number } {
+  frames();
+  if (!islandGrowthAnchorCache) {
+    throw new Error('Semantic growth fixture did not register its island anchor.');
+  }
+  return islandGrowthAnchorCache;
+}
+
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
+  readonly variant?: 'demo' | 'island-growth';
 }
 
 /**
@@ -373,17 +422,35 @@ export interface SemanticGrowthDemoProps {
 export function SemanticGrowthDemo({
   spriteSheet,
   artScale,
+  variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
+  const islandVariant = variant === 'island-growth';
   const framesWithArt: readonly SemanticGrowthFrame[] = frames().map((f) => ({
     key: f.key,
-    model: { ...f.model, spriteSheet, artScale },
+    model: {
+      ...f.model,
+      scene: islandVariant ? withoutPrimaryIsland(f.model.scene) : f.model.scene,
+      spriteSheet,
+      artScale,
+    },
   }));
   return (
     <div className="tree-wrap semantic-growth-demo-host">
       <div className="tree-layout">
         <div className="world-frame">
           <div className="world-viewport" aria-label="semantic growth witness (static fixture)">
-            <SemanticGrowthWorldView frames={framesWithArt} />
+            <SemanticGrowthWorldView
+              frames={framesWithArt}
+              {...(islandVariant
+                ? {
+                    islandGrowth: {
+                      track: CHAPTER2_ISLAND_GROWTH_TRACK,
+                      worldAnchor: islandGrowthAnchor(),
+                      scale: ISLAND_GROWTH_SCALE,
+                    },
+                  }
+                : {})}
+            />
           </div>
         </div>
       </div>

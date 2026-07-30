@@ -360,6 +360,44 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     ).toBe('land');
   });
 
+  it('only the exact island-growth flag mounts the registered full-island track without the fixture primary underneath it', async () => {
+    window.history.pushState({}, '', '/?semanticGrowth=island-growth#/tree');
+    const flagged = await renderTree();
+    const section = flagged.querySelector('[data-semantic-growth-frame="empty"]');
+    expect(section).toBeTruthy();
+    const image = flagged.querySelector('image[data-depth-slot="island-growth-composite"]');
+    expect(image).toBeTruthy();
+    expect(image?.getAttribute('data-island-growth-frame')).toBe('0');
+    expect(image?.getAttribute('href')).toMatch(/frame-00\.png/);
+    expect(image?.getAttribute('href')).not.toMatch(/contact-sheet|pixellab\.ai/i);
+    expect(flagged.querySelector('[data-story-id="semantic-growth-demo"]')).toBeNull();
+    expect(
+      flagged.querySelector('.relaxed-tile'),
+      'the app-owned PixelLab track replaces the primary procedural ground as well as its identity',
+    ).toBeNull();
+    expect(flagged.querySelector('[data-story-id="semantic-growth-demo-companion"]')).toBeTruthy();
+    const next = Array.from(
+      flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+    ).find((button) => button.textContent === 'Next') as HTMLButtonElement;
+    for (const key of ['land', 'proposed', 'claimed', 'signed-proof', 'healthy']) {
+      await act(async () => {
+        next.click();
+      });
+      expect(flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame')).toBe(
+        key,
+      );
+      expect(
+        flagged.querySelector('.relaxed-tile'),
+        `the procedural primary ground must stay absent @ ${key}`,
+      ).toBeNull();
+    }
+
+    window.history.pushState({}, '', '/?semanticGrowth=island-growth-near-miss#/tree');
+    cleanup();
+    const nearMiss = await renderTree();
+    expect(nearMiss.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+  });
+
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
   // machine contract 3): "signed-proof remains proposed/non-healthy while carrying the proof bloom;
   // healthy appears only last" / "no pre-final frame may appear healthy". The `signed-proof` frame is
