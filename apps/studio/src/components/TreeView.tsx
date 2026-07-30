@@ -1486,11 +1486,25 @@ function layoutSubdag(story: TreeStory): SubLayout {
 
 // ---------- view ----------
 
+// Every real browser (and Electron's Chromium) implements `Document#elementFromPoint` — sceneTapSelect
+// below relies on it for its click hit-test. This repo's jsdom test environment does not implement it
+// at all (not merely a stub returning null — the property is simply absent), so guard it in exactly
+// the same defensive spirit as the existing `typeof document === 'undefined'` check: a genuine DOM
+// always has the real method and this is a no-op there.
+if (typeof document !== 'undefined' && typeof document.elementFromPoint !== 'function') {
+  document.elementFromPoint = () => null;
+}
+
 // Px the pointer may wander between press and release before the gesture is treated as a PAN (and the
 // click suppressed) rather than a node SELECT. The old 4px was below normal click jitter, so ordinary
 // mouse/trackpad clicks were being eaten as micro-drags and never opened the detail panel (owner UX
 // feedback). 10px comfortably clears click jitter while staying responsive for an intentional drag.
 const DRAG_SLOP = 10;
+
+// ADR-0272 decision 2 (compositor-pan-transform): the bounded pixel distance past which a live
+// drag folds mid-gesture rather than waiting for release — without it, a long drag would slide
+// real content off one edge of the viewport-sized `<svg>` and expose blank map at the other.
+const PAN_FOLD_THRESHOLD_PX = 4000;
 
 export function TreeView({
   focus,
@@ -1755,6 +1769,16 @@ export function TreeView({
   // Guards against a callback that arrives after cancellation, so an old frame cannot consume a newer
   // gesture's pending delta.
   const panFrameGenerationRef = useRef(0);
+  // ADR-0272 decision 2 (compositor-pan-transform): the HTML wrapper the live per-frame write
+  // targets (a compositor-only CSS transform), never the SVG `<g class="world-camera">`.
+  const panLayerRef = useRef<HTMLDivElement>(null);
+  // The total pixel offset currently PAINTED on `.world-pan-layer` — accumulated frame-by-frame
+  // during a gesture, not yet folded into `cam`.
+  const liveOffsetRef = useRef({ x: 0, y: 0 });
+  // The offset amount just handed to `setCam` via a fold, awaiting the paired useLayoutEffect
+  // (below) to subtract it from `liveOffsetRef` in the SAME visual frame the `<g>` commits — so the
+  // wrapper's reset and the camera's commit are never two separate frames.
+  const foldPendingRef = useRef({ x: 0, y: 0 });
   const suppressClickRef = useRef(false);
   // True for the instant between a per-node onClick (SceneView) handling a clean tap and that click
   // bubbling to the viewport — so the viewport's coordinate-hit-test FALLBACK never double-handles a
@@ -1841,11 +1865,127 @@ export function TreeView({
     setCam(fit);
   }, []);
 
+  // Drag → pan (ADR-0272 decision 2, compositor-pan-transform: commit-on-release). The live
+  // per-frame write lands on `.world-pan-layer`'s CSS transform (compositor-only, cheap) — never
+  // on `<g class="world-camera">`, which stays frozen for the whole gesture (writing it invalidates
+  // paint for the whole SVG subtree — the measured cost ADR-0272 pins). The `<g>` takes the
+  // composed total exactly once: on release, on a bounded mid-gesture fold (a long drag must never
+  // expose an unbounded blank band at the trailing edge), or on any other gesture exit.
+  const paintPanLayer = useCallback((): void => {
+    const layer = panLayerRef.current;
+    if (!layer) return;
+    const { x, y } = liveOffsetRef.current;
+    layer.style.transform = x === 0 && y === 0 ? 'none' : `translate3d(${x}px, ${y}px, 0)`;
+  }, []);
+
+  // Folds a pixel delta into the committed camera, once, and disables programmatic easing. The
+  // wrapper's return to identity is NOT done here — the paired useLayoutEffect below does it, keyed
+  // on `cam`, so the fold and the reset land in the same visual frame.
+  const foldLivePan = useCallback((fx: number, fy: number): void => {
+    if (fx === 0 && fy === 0) return;
+    foldPendingRef.current = { x: foldPendingRef.current.x + fx, y: foldPendingRef.current.y + fy };
+    // Do not retire the fitted-view flag until a camera move actually lands: a cancelled queued
+    // drag must still let a later resize re-fit the untouched view.
+    atFitRef.current = false;
+    setAnimate(false);
+    setCam((c) => (c ? panBy(c, fx, fy) : c));
+  }, []);
+
+  // Same-frame wrapper reset: fires synchronously after any fold's camera commit, before paint.
+  // SUBTRACTS the folded amount — never assigns zero — because movement can arrive between the
+  // fold's `setCam` call and this effect running; subtracting preserves it, assigning zero would
+  // silently drop it. A `cam` change with nothing pending (wheel-zoom, keyboard pan, resize re-fit,
+  // mount fit) is a no-op here.
+  useLayoutEffect(() => {
+    const pending = foldPendingRef.current;
+    if (pending.x === 0 && pending.y === 0) return;
+    foldPendingRef.current = { x: 0, y: 0 };
+    liveOffsetRef.current = {
+      x: liveOffsetRef.current.x - pending.x,
+      y: liveOffsetRef.current.y - pending.y,
+    };
+    paintPanLayer();
+  }, [cam, paintPanLayer]);
+
+  // Per-frame coalesced paint: lands the frame's accumulated pointer delta on the wrapper, then
+  // folds mid-gesture once the live offset has grown past the bounded threshold.
+  const commitPendingPan = useCallback((): void => {
+    const { dx, dy } = pendingPanRef.current;
+    pendingPanRef.current = { dx: 0, dy: 0 };
+    if (dx === 0 && dy === 0) return;
+    liveOffsetRef.current = { x: liveOffsetRef.current.x + dx, y: liveOffsetRef.current.y + dy };
+    paintPanLayer();
+    if (Math.hypot(liveOffsetRef.current.x, liveOffsetRef.current.y) > PAN_FOLD_THRESHOLD_PX) {
+      foldLivePan(liveOffsetRef.current.x, liveOffsetRef.current.y);
+    }
+  }, [paintPanLayer, foldLivePan]);
+
+  const queuePan = useCallback(
+    (dx: number, dy: number): void => {
+      pendingPanRef.current.dx += dx;
+      pendingPanRef.current.dy += dy;
+      if (panFrameRef.current !== null) return;
+      const generation = ++panFrameGenerationRef.current;
+      panFrameRef.current = requestAnimationFrame(() => {
+        // A cancelled rAF should not be able to consume a newer gesture's pending movement.
+        if (panFrameGenerationRef.current !== generation) return;
+        panFrameRef.current = null;
+        commitPendingPan();
+      });
+    },
+    [commitPendingPan],
+  );
+
+  // Trailing edge of a gesture (pointer-up), or a wheel-zoom settling a live offset first: land any
+  // still-queued frame's delta on the wrapper, then fold the WHOLE live offset into the `<g>`
+  // exactly once.
+  const flushPendingPan = useCallback((): void => {
+    if (panFrameRef.current !== null) {
+      cancelAnimationFrame(panFrameRef.current);
+      panFrameRef.current = null;
+      panFrameGenerationRef.current += 1;
+    }
+    const { dx, dy } = pendingPanRef.current;
+    pendingPanRef.current = { dx: 0, dy: 0 };
+    if (dx !== 0 || dy !== 0) {
+      liveOffsetRef.current = { x: liveOffsetRef.current.x + dx, y: liveOffsetRef.current.y + dy };
+      paintPanLayer();
+    }
+    foldLivePan(liveOffsetRef.current.x, liveOffsetRef.current.y);
+  }, [paintPanLayer, foldLivePan]);
+
+  // Pointer CANCEL is not a completed gesture, but it is not a clean discard either: the
+  // already-PAINTED live offset was SHOWN to the operator (snapping it back would be a visible
+  // jump), so it settles into the camera exactly like a release. Only the un-painted pending delta —
+  // queued but never shown — is discarded.
+  const cancelPendingPan = useCallback((): void => {
+    if (panFrameRef.current !== null) cancelAnimationFrame(panFrameRef.current);
+    panFrameRef.current = null;
+    panFrameGenerationRef.current += 1;
+    pendingPanRef.current = { dx: 0, dy: 0 };
+    foldLivePan(liveOffsetRef.current.x, liveOffsetRef.current.y);
+  }, [foldLivePan]);
+
+  // Unmount just cancels the frame — no commit into a dead component (unlike `cancelPendingPan`
+  // above, which settles the painted offset for a live pointer-cancel).
+  const cancelPanFrame = useCallback((): void => {
+    if (panFrameRef.current !== null) cancelAnimationFrame(panFrameRef.current);
+    panFrameRef.current = null;
+    panFrameGenerationRef.current += 1;
+  }, []);
+
+  useEffect(() => cancelPanFrame, [cancelPanFrame]);
+
   // Wheel → zoom-to-cursor. React's onWheel can be passive (preventDefault
   // no-ops), so bind a NATIVE non-passive listener. State is read via the
   // functional updater + limitsRef so the handler can stay identity-stable.
   const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
+    // ADR-0272 decision 2: settle any live drag offset into the camera BEFORE the anchor rect is
+    // read — a translated wrapper moves that rect, so zooming over a live offset would anchor to
+    // the wrong point. flushPendingPan lands any still-queued frame delta, then folds the whole
+    // live offset into `cam` exactly once (the wrapper resets via the paired useLayoutEffect).
+    flushPendingPan();
     const rect = (svgRef.current ?? frameRef.current)?.getBoundingClientRect();
     if (!rect) return;
     const px = e.clientX - rect.left;
@@ -1854,7 +1994,7 @@ export function TreeView({
     atFitRef.current = false; // manual zoom — resize must not yank the view back to fit
     setAnimate(false);
     setCam((c) => (c ? zoomAt(c, px, py, factor, limitsRef.current) : c));
-  }, []);
+  }, [flushPendingPan]);
   // Attach the wheel listener via a callback ref so it binds exactly when the
   // viewport node mounts. (A useEffect keyed on the stable handler would run once
   // on the pre-world "Growing…" placeholder render — when frameRef is still null —
@@ -1906,54 +2046,6 @@ export function TreeView({
     [onWheel, refit],
   );
 
-  // Drag → pan. Pointer capture keeps the gesture even if it leaves the frame.
-  const commitPendingPan = useCallback((): void => {
-    const { dx, dy } = pendingPanRef.current;
-    pendingPanRef.current = { dx: 0, dy: 0 };
-    if (dx !== 0 || dy !== 0) {
-      // Commit the camera and disable programmatic easing together, once per coalesced frame.
-      // Do not retire the fitted-view flag until a camera move actually lands: a cancelled queued
-      // drag must still let a later resize re-fit the untouched view.
-      atFitRef.current = false;
-      setAnimate(false);
-      setCam((c) => (c ? panBy(c, dx, dy) : c));
-    }
-  }, []);
-
-  const queuePan = useCallback(
-    (dx: number, dy: number): void => {
-      pendingPanRef.current.dx += dx;
-      pendingPanRef.current.dy += dy;
-      if (panFrameRef.current !== null) return;
-      const generation = ++panFrameGenerationRef.current;
-      panFrameRef.current = requestAnimationFrame(() => {
-        // A cancelled rAF should not be able to consume a newer gesture's pending movement.
-        if (panFrameGenerationRef.current !== generation) return;
-        panFrameRef.current = null;
-        commitPendingPan();
-      });
-    },
-    [commitPendingPan],
-  );
-
-  const flushPendingPan = useCallback((): void => {
-    if (panFrameRef.current !== null) {
-      cancelAnimationFrame(panFrameRef.current);
-      panFrameRef.current = null;
-      panFrameGenerationRef.current += 1;
-    }
-    commitPendingPan();
-  }, [commitPendingPan]);
-
-  const cancelPendingPan = useCallback((): void => {
-    if (panFrameRef.current !== null) cancelAnimationFrame(panFrameRef.current);
-    panFrameRef.current = null;
-    panFrameGenerationRef.current += 1;
-    pendingPanRef.current = { dx: 0, dy: 0 };
-  }, []);
-
-  useEffect(() => cancelPendingPan, [cancelPendingPan]);
-
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     // Start each gesture fresh: clear any suppression a prior drag left set when
@@ -1987,6 +2079,10 @@ export function TreeView({
       } catch {
         /* capture may be unavailable */
       }
+      // ADR-0272: layer promotion is scoped to the GESTURE, not held permanently — a permanently
+      // promoted `.world-camera` was measured as a costly half-measure, and promoting the `<svg>`
+      // root was measured actively worse. Released in `finishDrag`/`onPointerCancel` below.
+      if (panLayerRef.current) panLayerRef.current.style.willChange = 'transform';
     }
     d.moved = true;
     const dx = e.clientX - d.lastX;
@@ -2000,6 +2096,7 @@ export function TreeView({
     if (d?.moved) suppressClickRef.current = true; // a drag must not register as a click
     // Pointer-up is the trailing edge of the burst: land its latest accumulated delta now.
     flushPendingPan();
+    if (panLayerRef.current) panLayerRef.current.style.willChange = 'auto'; // release — gesture over
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
@@ -2011,8 +2108,11 @@ export function TreeView({
   const onPointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
     if (d?.moved) suppressClickRef.current = true;
-    // A cancellation is not a completed gesture: discard, rather than land, any queued movement.
+    // A cancellation is not a completed gesture, but it is not a clean discard either — the
+    // already-painted live offset settles into the camera (see cancelPendingPan); only the queued,
+    // never-shown delta is discarded.
     cancelPendingPan();
+    if (panLayerRef.current) panLayerRef.current.style.willChange = 'auto'; // release — gesture over
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
@@ -2277,10 +2377,15 @@ export function TreeView({
   );
 
   // ── A STABLE presentation model so the memoised shared view skips the O(nodes) re-walk on a pan ──
-  // A pointermove pans by updating `cam` (state), re-rendering TreeView. Neither the scene nor this
-  // model depends on `cam`, so giving it a stable identity lets the shared SceneView bail out — only
-  // the parent `.world-camera` <g> transform updates (the felt pan lag, ADR-0069 / memory
-  // `studio-map-svg-scaling-wall`). These hooks sit ABOVE the early returns so their order is fixed.
+  // `cam` only updates on a fold/release commit now (ADR-0272 decision 2: a live drag writes the
+  // compositor-only `.world-pan-layer` wrapper imperatively, never `cam`), and neither the scene nor
+  // this model depends on `cam`, so a stable identity still lets the shared SceneView bail out on
+  // those commits — only the parent `.world-camera` <g> transform updates. This memo is real,
+  // required work — but ADR-0272 measured the O(nodes) walk it skips at only ~3% of a gesture frame;
+  // the cost that was actually felt (and that this memo does NOT address) was RASTERISATION: every
+  // live-drag `<g>` transform write invalidated paint for the whole SVG subtree. The wrapper above
+  // removes that write from the live path entirely — see the compositor-pan block near `onWheel`.
+  // These hooks sit ABOVE the early returns so their order is fixed.
   //
   // territoryClassById DOES affect the render (the `.is-selected` shore border, the hub tag), so it is
   // a dep of the legacy inline renderer below. The shared view derives the same selected/hub classes
@@ -2513,6 +2618,13 @@ export function TreeView({
               sceneTapSelect(e.clientX, e.clientY);
             }}
           >
+          {/* ADR-0272 decision 2 (compositor-pan-transform): the live per-frame write during a
+              gesture lands HERE — a cheap compositor-only CSS transform on this HTML wrapper —
+              never on the SVG `<g class="world-camera">` below, which stays frozen for the whole
+              gesture (writing it invalidates paint for the whole subtree). The wrapper commits back
+              to identity in the same visual frame the `<g>` takes the composed total (see the
+              useLayoutEffect keyed on `cam`, above the JSX). */}
+          <div className="world-pan-layer" ref={panLayerRef}>
           <svg
             ref={svgRef}
             className={`world-scene lane-motion-${selectionMotion}`}
@@ -2690,6 +2802,7 @@ export function TreeView({
             )}
             </g>
           </svg>
+          </div>
           </div>
           {sessionDock && (
             <SessionDock

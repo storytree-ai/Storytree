@@ -1530,6 +1530,15 @@ a.stat:hover {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+/* ADR-0272 decision 2 (compositor-pan-transform): the live per-frame write during a drag targets
+   THIS wrapper's `transform` (a cheap compositor-only repaint), never the SVG `<g class="world-camera">`
+   below it — writing that invalidates paint for the whole subtree (the measured 275ms/frame cost).
+   inset:0 mirrors `.world-viewport` so it never disturbs the frame measurement `.world-scene` below
+   relies on (width/height:100%). No transition of its own — the live write must stay instant. */
+.world-pan-layer {
+  position: absolute;
+  inset: 0;
+}
 .world-scene {
   display: block;
   width: 100%;
