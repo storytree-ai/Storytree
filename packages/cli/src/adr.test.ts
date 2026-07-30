@@ -118,6 +118,8 @@ const SAMPLE: AdrListing[] = [
   listing(19, "accepted", "Library tier & defer DBOS", { loadBearing: true }),
   listing(27, "accepted", "Supersede the notice board", { supersedes: [14] }),
   listing(86, "proposed", "ADR lifecycle curation"),
+  listing(142, "accepted", "Branch dies on merge", { loadBearing: true }),
+  listing(271, "accepted", "Sessions end at merge", { amends: [142] }),
 ];
 
 test("renderAdrList default shows every ADR, sorted by number, newest concerns last", () => {
@@ -155,6 +157,32 @@ test("renderAdrList shows outgoing edges and the derived superseded-by back-edge
   const lines = renderAdrList(SAMPLE, {}).join("\n");
   assert.match(lines, /supersedes 0014/); // 0027's outgoing edge
   assert.match(lines, /superseded by 0027/); // 0014's derived back-edge
+});
+
+test("renderAdrList shows the derived amended-by back-edge, even when the amender is filtered out", () => {
+  const lines = renderAdrList(SAMPLE, {}).join("\n");
+  assert.match(lines, /amends 0142/); // 0271's outgoing edge
+  assert.match(lines, /amended by 0271/); // 0142's derived back-edge
+
+  // Computed from the FULL set BEFORE the display filter — the ADR-0142/0271 case: a `--load-bearing`
+  // cut hides the amender's own row (0271 isn't tagged), yet 0142 still carries the pointer, so the
+  // primary calibration surface never shows an amended leg unqualified.
+  const loadBearing = renderAdrList(SAMPLE, { loadBearing: true }).join("\n");
+  assert.doesNotMatch(loadBearing, /0271 {2}accepted/); // the amender's ROW is filtered out
+  assert.match(loadBearing, /amended by 0271/); // …its back-edge on 0142 survives
+});
+
+test("renderAdrList dedupes + sorts both derived back-edges (two amenders, one twice)", () => {
+  const dup: AdrListing[] = [
+    listing(300, "accepted", "Amended twice over"),
+    listing(310, "accepted", "Later amender", { amends: [300] }),
+    listing(305, "accepted", "Earlier amender", { amends: [300, 300] }),
+    listing(320, "superseded", "Superseded twice over"),
+    listing(330, "accepted", "Superseder", { supersedes: [320, 320] }),
+  ];
+  const lines = renderAdrList(dup, {}).join("\n");
+  assert.match(lines, /amended by 0305, 0310/); // ascending, each amender once
+  assert.match(lines, /superseded by 0330$/m);
 });
 
 // ---- adr new / next ------------------------------------------------------------------------
