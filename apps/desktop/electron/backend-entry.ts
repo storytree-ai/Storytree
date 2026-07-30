@@ -35,11 +35,10 @@ import {
   createOrientationRunner,
   deriveIdentity,
   buildSpawnDeps,
-  buildLandingDeps,
   buildInspectDeps,
   ensureLiveDb,
 } from "@storytree/drive";
-import type { SpawnSurfaceDeps, LandingSurfaceDeps, InspectSurfaceDeps } from "@storytree/drive";
+import type { SpawnSurfaceDeps, InspectSurfaceDeps } from "@storytree/drive";
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
 import {
@@ -563,7 +562,7 @@ async function main(): Promise<void> {
   // The desktop BUILD seam (ADR-0133 d.3 — the desktop story's operator-attested sidecar glue): the
   // relocated worker's BuildContext, over which createBuildRouteMount (POST/GET /api/build) drives a
   // real build from the human's click on the story detail panel's Build/Adopt affordance. (The chat
-  // accept-to-Build route was retired by ADR-0155 — the orchestrator DRIVES via its spawn + landing
+  // accept-to-Build route was retired by ADR-0155 — the orchestrator DRIVES via its spawn
   // tools, so there is no /api/chat/accept dispatch anymore.) The routedBuildRunner ROUTES by tier
   // (a story → `story build --real` that persists verdicts + opens the auto-merging PR; a node →
   // `node build --real` that persists the signed verdict and parks a claude/real/<unit>-<run> branch
@@ -901,11 +900,10 @@ async function main(): Promise<void> {
   // stderr. The spawn power is additive; its absence never breaks the read/propose chat.
   const identity = deriveChatIdentity(repoRoot);
   let spawn: SpawnSurfaceDeps | undefined;
-  let landing: LandingSurfaceDeps | undefined;
   let inspect: InspectSurfaceDeps | undefined;
   if (identity === null) {
     console.error(
-      "[backend-entry] no session identity (git unreachable) — chat mounts propose-only, no spawn/landing surface",
+      "[backend-entry] no session identity (git unreachable) — chat mounts propose-only, no spawn/inspect surface",
     );
   } else {
     const claims = new PgClaimStore(pool);
@@ -952,48 +950,27 @@ async function main(): Promise<void> {
       );
     }
 
-    // ---------- the chat LANDING surface (ADR-0152 — the desktop-orchestrator full-autonomy arc) ----------
+    // ---------- the chat LANDING surface: RETIRED, composed nowhere (ADR-0175) ----------
     //
-    // Compose the REAL landing deps and thread them into the chat mount so the desktop
-    // session-orchestrator gains the MERGE CEREMONY (run `pnpm gate`; open a NON-DRAFT PR that CI
-    // auto-merges) — parity with the terminal agent (ADR-0152 relaxes the ADR-0137 d.3 Phase-2 wall
-    // for the desktop orchestrator). buildLandingDeps composes over the SAME repo cwd + session branch
-    // the spawn deps derive; OMIT `exec` so the real `child_process` spawn runs (win32 `pnpm` wrapped
-    // via cmd.exe; git/gh pass through — @storytree/drive's defaultExec). This is PARITY, not a new
-    // trust escalation: the chat still carries `tools: []` (run_gate/open_landing_pr are the ONLY
-    // landing verbs), run_gate OBSERVES the exit code (never rewrites red→green), open_landing_pr
-    // never `gh pr merge`s — the spine stays the sole signer, CI the sole lander (ADR-0091 / ADR-0022).
+    // ADR-0152 composed a merge-ceremony surface here (run the gate; commit → push → open a NON-DRAFT
+    // PR CI auto-merges) to bring this sidecar to parity with the terminal session-orchestrator.
+    // ADR-0174 then retired the in-app INTERACTIVE orchestrator for an embedded terminal running real
+    // Claude Code, and ADR-0175 split what remained: the SSE transport, dock, continuity and the
+    // read-only inspect surface are RE-AIMED under the `app-guide` concierge, while "the spawn and
+    // landing surfaces (which drove story work) do not belong to a help agent and retire with the
+    // interactive orchestrator". The stories/**-only reconcile deferred the code half to a separate
+    // thin PR (stories/headless-orchestrator/story.md); this is its landing slice — the modules
+    // themselves are deleted, not merely unwired.
     //
-    // OPERATOR-ATTESTED GLUE (like the spawn/build paths above): a node:test over this composition
-    // would run a real gate / open a real PR on a gate pass — the CI-proven cores are buildLandingDeps
-    // (packages/drive/src/landing-deps.test.ts, over an injected exec seam) and the mount's landing
-    // forwarding (chat-sse-mount.test.ts, over a double); this file composes the real pieces.
-    //
-    // FAIL-CLOSED / DEGRADE-QUIET: a blank identity is refused by buildLandingDeps before any deps are
-    // built (typed { ok:false }); on refusal the chat mounts WITHOUT the landing surface — read/propose/
-    // spawn only, byte-identical to before ADR-0152 — logged once to stderr. The landing power is
-    // additive; its absence never breaks the read/propose/spawn chat.
-    // ALREADY-MERGED GUARD (ADR-0163 Gap B1 / ADR-0142): if the session branch already landed as a
-    // merged PR, openLandingPr cuts a FRESH branch (`claude/<slug>`) before committing so the PR is
-    // not refused by CI's merged-branch guard (the observed PR #599 failure). We supply the slug here
-    // (drive stays Date.now-free by taking it as a plain arg, ADR-0010) — session id + a short
-    // timestamp keeps it unique across sessions; Date.now is fine in the electron main process.
-    // The presence RE-DECLARE hook + story node are DEFERRED to sidecar glue: this composition site
-    // has no per-session story node, so re-declare is skipped (noted in the landing summary). The
-    // fresh-branch cut alone clears the guard rejection; re-lighting the wisp is a follow-on.
-    const freshBranchSlug = `${identity.sessionId}-reland-${Date.now().toString(36)}`;
-    const landingComposed = buildLandingDeps({ cwd: repoRoot, branch: identity.branch, freshBranchSlug });
-    if (landingComposed.ok) {
-      landing = landingComposed.deps;
-      console.error(
-        `[backend-entry] landing surface composed — chat can run the gate + open the auto-merging PR ` +
-          `(branch ${identity.branch})`,
-      );
-    } else {
-      console.error(
-        `[backend-entry] landing surface NOT composed (chat stays read/propose/spawn only): ${landingComposed.error}`,
-      );
-    }
+    // AND THE SHAPE IS NOW DOCTRINALLY DEAD TOO (ADR-0163 D3 Gap B1 / ADR-0271). The retired
+    // `open_landing_pr` did more than open a PR: on a confirmed already-merged branch it minted a
+    // fresh-branch slug here, cut `claude/<slug>`, and re-lit the wisp so the session could keep
+    // working — Gap B1's shipped remedy (PR #608) over ADR-0142's post-merge leg. ADR-0271 (amending
+    // ADR-0142) ended that: a session's working life ENDS where its PR merges, and new work re-enters
+    // through a fresh SESSION, not a fresh branch. Because this sidecar renders the SAME
+    // `session-orchestrator` agent the terminal does, leaving the tool wired held a live
+    // self-contradiction inside one session. Nothing re-composes it: see the negative guard at
+    // apps/desktop/src/backend/landing-surface-retired.test.ts.
 
     // ---------- the chat INSPECT surface (ADR-0173 — the read-only CI/git inspection surface) ----------
     //
@@ -1003,7 +980,7 @@ async function main(): Promise<void> {
     // (`git status`/`log`/`ls-tree`/`rev-parse`/`show`) — so a blind chat can root-cause a red pipeline
     // itself instead of theorising and escalating a confident-but-wrong fix (the PR #650 stale-pin
     // misdiagnosis ADR-0173 was decided on). buildInspectDeps composes over the SAME repo cwd the
-    // landing/spawn deps derive; OMIT `exec` so the real, TIME-BOXED `child_process` spawn runs
+    // spawn deps derive; OMIT `exec` so the real, TIME-BOXED `child_process` spawn runs
     // (@storytree/drive's defaultInspectExec — git/gh pass through, a 60s wall so a slow gh can't hang
     // the turn).
     //
@@ -1012,12 +989,12 @@ async function main(): Promise<void> {
     // and the id-taking tools refuse a flag-like id — so no mutating `gh`/`git` command is reachable.
     // No merge/push/sync/pin. It signs nothing (the spine signs, CI is the independent gate).
     //
-    // OPERATOR-ATTESTED GLUE (like the spawn/landing blocks above): the CI-proven core is
+    // OPERATOR-ATTESTED GLUE (like the spawn block above): the CI-proven core is
     // buildInspectDeps (packages/drive/src/inspect-deps.test.ts, over an injected exec seam) and the
     // mount's inspect forwarding (chat-sse-mount.test.ts, over a double); this file composes the real
     // pieces. FAIL-CLOSED / DEGRADE-QUIET: a blank cwd is refused by buildInspectDeps before any deps
     // are built (typed { ok:false }); on refusal the chat mounts WITHOUT the inspect surface — the
-    // inspect power is additive, its absence never breaks the read/propose/spawn/land chat.
+    // inspect power is additive, its absence never breaks the read/propose/spawn chat.
     const inspectComposed = buildInspectDeps({ cwd: repoRoot });
     if (inspectComposed.ok) {
       inspect = inspectComposed.deps;
@@ -1041,7 +1018,6 @@ async function main(): Promise<void> {
   const chatMount = createChatSseMount({
     runner: orientationRunner,
     ...(spawn !== undefined ? { spawn } : {}),
-    ...(landing !== undefined ? { landing } : {}),
     ...(inspect !== undefined ? { inspect } : {}),
     ...(orchestratorMaxTurns !== undefined ? { maxTurns: orchestratorMaxTurns } : {}),
   });

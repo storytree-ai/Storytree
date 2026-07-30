@@ -30,7 +30,7 @@ import { test } from "node:test";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { loadCorpus } from "@storytree/library/store";
-import type { SdkQueryFn, LandingSurfaceDeps } from "@storytree/agent";
+import type { SdkQueryFn } from "@storytree/agent";
 
 // RED: chat-stream.ts does not exist yet — module-not-found is the right-kind red.
 import { startChatStream } from "./chat-stream.js";
@@ -114,17 +114,6 @@ function spawnDepsDouble(): SpawnSurfaceDeps {
     branch: "claude/sess-chat",
     spawnStoryAuthor: async () => "story-author spawn summary",
     spawnBuilder: async () => "builder dispatched",
-  };
-}
-
-/** A minimal landing-deps double — enough to mount the two landing tools. The handlers never fire
- *  in these tests (the scripted session only orients); the point is that the deps are FORWARDED to
- *  orchestrate so `mcp__landing__*` is advertised (ADR-0152). */
-function landingDepsDouble(): LandingSurfaceDeps {
-  return {
-    runGate: async () => ({ passed: true, summary: "gate PASSED" }),
-    openLandingPr: async () => ({ ok: true, summary: "landing PR opened" }),
-    pollPrChecks: async () => ({ status: "merged", summary: "PR merged" }),
   };
 }
 
@@ -499,8 +488,13 @@ test(
   },
 );
 
+// The ADR-0152 landing-forwarding test lived here until ADR-0175 retired the landing surface with the
+// interactive orchestrator (ADR-0174): `startChatStream` takes no `landing` dep any more and the
+// modules behind it are deleted, so the positive assertion went with the surface (the ADR-0155 /
+// PR #587 precedent). The surviving negative below keeps it gone; the wider guard is
+// apps/desktop/src/backend/landing-surface-retired.test.ts.
 test(
-  "startChatStream: forwards landing deps to orchestrate — the merge-ceremony tools mount on the session (ADR-0152)",
+  "startChatStream: mounts NO landing surface — the merge-ceremony tools are retired (ADR-0175)",
   async () => {
     const store = new InMemoryStore();
     await loadCorpus(store);
@@ -511,7 +505,6 @@ test(
         intent: "Orient, build to green, and land the unit.",
         store,
         queryFn: q.fn,
-        landing: landingDepsDouble(),
       }),
     );
 
@@ -519,19 +512,17 @@ test(
     assert.equal(last?.type, "done", `capturing session must reach a terminal 'done' (got '${last?.type}')`);
 
     const tools = (q.lastOptions()["allowedTools"] ?? []) as string[];
-    assert.ok(
-      tools.includes("mcp__landing__run_gate"),
-      `mcp__landing__run_gate must be advertised when landing deps are forwarded; got ${JSON.stringify(tools)}`,
-    );
-    assert.ok(
-      tools.includes("mcp__landing__open_landing_pr"),
-      `mcp__landing__open_landing_pr must be advertised when landing deps are forwarded; got ${JSON.stringify(tools)}`,
+    assert.equal(
+      tools.some((t) => t.startsWith("mcp__landing__")),
+      false,
+      `no mcp__landing__* tool may be advertised — the landing surface is retired (ADR-0175), and with ` +
+        `it the fresh-branch-after-merge shape ADR-0271 ended; got ${JSON.stringify(tools)}`,
     );
     // The orchestrator DRIVES rather than proposes (ADR-0155) — there is no propose_unit surface.
     assert.equal(
       tools.includes("mcp__proposal__propose_unit"),
       false,
-      "mcp__proposal__propose_unit must NOT be mounted — the orchestrator drives via its landing tools, it does not propose a unit for a human to accept (ADR-0155)",
+      "mcp__proposal__propose_unit must NOT be mounted — the orchestrator drives via its spawn tools, it does not propose a unit for a human to accept (ADR-0155)",
     );
   },
 );

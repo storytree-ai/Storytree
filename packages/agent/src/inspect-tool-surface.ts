@@ -10,7 +10,7 @@
  * root-cause a red pipeline itself instead of theorising and escalating a confident-but-wrong fix
  * (the PR #650 stale-submodule-pin misdiagnosis ADR-0173 was decided on).
  *
- * Mirrors {@link import("./landing-tool-surface.js").buildLandingTools} exactly (`poll_pr_checks` is
+ * Mirrors the retired ADR-0152 landing tool surface exactly (`poll_pr_checks` is
  * the template):
  *   - OPTIONAL: absent from HeadlessOrchestratorArgs → this module is never consulted → the session
  *     is byte-identical to the propose+spawn+landing surface (the ADR-0108 §7 scale-down mirror).

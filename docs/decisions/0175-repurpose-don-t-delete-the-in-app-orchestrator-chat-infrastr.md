@@ -91,6 +91,26 @@ write-scoped story-code execution. The read-only orientation surface (`orientati
 over; the **spawn** and **landing** surfaces (which drove story work) do not belong to a help agent and
 retire with the interactive orchestrator under ADR-0174, not into `app-guide`.
 
+> **Execution status of that retirement (the code half).** The stories/**-only reconcile deliberately
+> left the code mounted, deferring it to a separate thin PR
+> (`stories/headless-orchestrator/story.md`: "NOT retired here: the code itself"). Progress against it:
+> - **LANDING — DONE (2026-07-30).** `packages/agent/src/landing-tool-surface.ts` and
+>   `packages/drive/src/landing-deps.ts` (+ their tests) are deleted, along with the `landing?` thread
+>   through `headless-orchestrator` → `orchestrate` → `chat-stream` → `chat-sse-mount` and the sidecar
+>   composition in `apps/desktop/electron/backend-entry.ts`. Held gone by
+>   `apps/desktop/src/backend/landing-surface-retired.test.ts`. Two facts made it unambiguous: the
+>   surface had **no reachable caller** (`ChatDock`, the only mount of `ChatPanel` and so the only path
+>   to POST `/api/chat`, is imported by nothing in the production tree — `TerminalDock` took its dock
+>   slot), and its `open_landing_pr` fresh-branch-after-merge behaviour had become **doctrinally dead**
+>   under **ADR-0271** (sessions end where their PR merges), which settled the open question ADR-0163 D3
+>   Gap B1 had recorded. The exec seam (`ExecFn` / `ExecResult`) that lived in `landing-deps` was
+>   rehomed to `inspect-deps.ts`, its only remaining consumer — the surface this ADR *keeps*.
+> - **SPAWN — PARTIAL.** `spawn_glue_worker` and its composition are gone (the exception below), but
+>   `buildSpawnDeps` / `spawn_story_author` / `spawn_builder` are still composed in the sidecar. The
+>   rest of the thin PR (that spawn surface, the retired capabilities' `real:` arms, the
+>   `node-build.test.ts` REAL-buildable snapshot, and the `repo-manifest.json` `hostedStories.register`
+>   entry) remains outstanding.
+
 **THE ONE EXCEPTION — retired as redundant, not repurposed: the `spawn_glue_worker` actuator + the
 `glue-worker` chat-spawn (amends ADR-0160).** The scoped-glue actuator existed *only* because the chat
 could not edit code the way a real editor can (ADR-0160 §Context: the chat surface had "no rung for a

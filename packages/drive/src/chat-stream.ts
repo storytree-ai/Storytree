@@ -29,7 +29,6 @@ import type { Store } from "@storytree/storage-protocol";
 import type {
   SdkQueryFn,
   OrientationRunner,
-  LandingSurfaceDeps,
   InspectSurfaceDeps,
 } from "@storytree/agent";
 
@@ -152,20 +151,11 @@ export interface StartChatStreamArgs {
    */
   spawn?: SpawnSurfaceDeps;
   /**
-   * OPTIONAL landing surface deps (ADR-0152): when present, the underlying `orchestrate()` session
-   * mounts `run_gate` / `open_landing_pr` as fail-closed MCP tools so the chat can run the merge
-   * ceremony (gate → commit → push → NON-DRAFT PR). Absent → byte-identical to the propose/spawn
-   * surface. Landing tools emit no spawn-trace events, so — unlike `spawn` — they are forwarded
-   * straight through with no FIFO wrap. The desktop sidecar composes the real deps via
-   * `buildLandingDeps`; offline tests inject a recording double.
-   */
-  landing?: LandingSurfaceDeps;
-  /**
    * OPTIONAL inspect surface deps (ADR-0173): when present, the underlying `orchestrate()` session
    * mounts `view_ci_run` / `view_pr_checks` / `git_inspect` as fail-closed READ-ONLY MCP tools so the
    * chat can diagnose a red pipeline (read a failing-job log, an arbitrary PR's checks, the read-only
-   * git verbs). Absent → byte-identical to the propose/spawn/landing surface. Inspect tools emit no
-   * spawn-trace events, so — like `landing` — they are forwarded straight through with no FIFO wrap.
+   * git verbs). Absent → byte-identical to the propose/spawn surface. Inspect tools emit no
+   * spawn-trace events, so — unlike `spawn` — they are forwarded straight through with no FIFO wrap.
    * The desktop sidecar composes the real deps via `buildInspectDeps`; offline tests inject a double.
    */
   inspect?: InspectSurfaceDeps;
@@ -278,7 +268,6 @@ export async function* startChatStream(
     ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
     ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
     ...(wrappedSpawn !== undefined ? { spawn: wrappedSpawn } : {}),
-    ...(args.landing !== undefined ? { landing: args.landing } : {}),
     ...(args.inspect !== undefined ? { inspect: args.inspect } : {}),
   })
     .then((result): SessionOutcome => ({ ok: true, result }))

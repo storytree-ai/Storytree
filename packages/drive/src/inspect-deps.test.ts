@@ -23,7 +23,7 @@ import { loadCorpus } from "@storytree/library/store";
 import type { SdkQueryFn } from "@storytree/agent";
 
 import { buildInspectDeps } from "./inspect-deps.js";
-import type { ExecFn, ExecResult } from "./landing-deps.js";
+import type { ExecFn, ExecResult } from "./inspect-deps.js";
 import { orchestrate } from "./orchestrate.js";
 
 // ---------------------------------------------------------------------------

@@ -7,10 +7,12 @@
  * Mirrors `runSdkCurator` with one key difference: where the curator sets `tools: []`
  * (its neighbourhood is in the prompt), this runner wires the read-only orientation tool
  * surface via `createSdkMcpServer` and `allowedTools`, plus the optional spawn (ADR-0137) and
- * landing (ADR-0152) tool surfaces when their deps are present.
+ * inspect (ADR-0173) tool surfaces when their deps are present. (The ADR-0152 LANDING surface was
+ * removed here: ADR-0175 retires it with the interactive orchestrator rather than re-aiming it into
+ * `app-guide` — see apps/desktop/src/backend/landing-surface-retired.test.ts.)
  *
  * NO Write/Edit/Bash — the session carries no raw write verbs (ADR-0137 d.1). The orchestrator
- * DRIVES via its spawn + landing tools; it does not propose a unit for a human to accept with a
+ * DRIVES via its spawn tools; it does not propose a unit for a human to accept with a
  * click (ADR-0155 retires the ADR-0108 d.3 propose_unit / accept-to-Build surface).
  * ONE SESSION AT A TIME — a second concurrent run is refused (ADR-0108 decision 6).
  */
@@ -24,8 +26,6 @@ import { buildOrientationTools } from "./orientation-tools.js";
 import type { OrientationRunner } from "./orientation-tools.js";
 import { buildSpawnTools, SPAWN_SERVER } from "./spawn-tool-surface.js";
 import type { SpawnSurfaceDeps } from "./spawn-tool-surface.js";
-import { buildLandingTools, LANDING_SERVER } from "./landing-tool-surface.js";
-import type { LandingSurfaceDeps } from "./landing-tool-surface.js";
 import { buildInspectTools, INSPECT_SERVER } from "./inspect-tool-surface.js";
 import type { InspectSurfaceDeps } from "./inspect-tool-surface.js";
 
@@ -114,25 +114,12 @@ export interface HeadlessOrchestratorArgs {
    */
   spawn?: SpawnSurfaceDeps;
   /**
-   * OPTIONAL landing surface deps (ADR-0152): when present, the session mounts `run_gate` and
-   * `open_landing_pr` as fail-closed MCP tools — the merge-ceremony surface the terminal
-   * session-orchestrator already has (gate → commit → push → NON-DRAFT PR; CI auto-merges,
-   * ADR-0022). Absent → the session is byte-identical to the propose+spawn surface (the same §7
-   * scale-down mirror as `spawn`).
-   *
-   * The chat keeps `tools: []` regardless — these are scoped, named actions, never a raw `Bash`
-   * surface (ADR-0137 d.1 upheld). The spine still signs verdicts out-of-band and CI re-proves
-   * before the trunk (ADR-0091 / ADR-0020 / ADR-0022): `run_gate` OBSERVES a pass/fail, it never
-   * authors a "healthy", and no landing tool carries a verdict-shaped payload.
-   */
-  landing?: LandingSurfaceDeps;
-  /**
    * OPTIONAL inspect surface deps (ADR-0173): when present, the session mounts `view_ci_run`,
    * `view_pr_checks`, and `git_inspect` as fail-closed, READ-ONLY MCP tools — the CI/git diagnosis
    * surface the terminal session-orchestrator gets for free from its shell (read a failing-job log,
    * an arbitrary PR's checks, the read-only git verbs), so a blind chat can root-cause a red pipeline
    * itself instead of theorising and escalating a confident-but-wrong fix. Absent → the session is
-   * byte-identical to the propose+spawn+landing surface (the same §7 scale-down mirror as `landing`).
+   * byte-identical to the propose+spawn surface (the same §7 scale-down mirror as `spawn`).
    *
    * The chat keeps `tools: []` regardless — these are scoped, named READ actions, never a raw `Bash`
    * surface (ADR-0137 d.1 widened for OBSERVATION only, ADR-0173 invariant 1). No inspect tool
@@ -256,24 +243,18 @@ export async function runHeadlessOrchestrator(
     // orientation tools). Absent deps → no spawn tools advertised → byte-identical to Phase-1/2.
     const spawnTools = args.spawn !== undefined ? buildSpawnTools(args.spawn) : [];
 
-    // Landing tools are wired ONLY when landing deps are present (same §7 scale-down mirror as
-    // spawn tools, ADR-0152). Absent deps → no landing tools advertised → byte-identical to the
-    // propose+spawn surface.
-    const landingTools = args.landing !== undefined ? buildLandingTools(args.landing) : [];
-
     // Inspect tools are wired ONLY when inspect deps are present (same §7 scale-down mirror as
-    // landing tools, ADR-0173). Absent deps → no inspect tools advertised → byte-identical to the
-    // propose+spawn+landing surface.
+    // spawn tools, ADR-0173). Absent deps → no inspect tools advertised → byte-identical to the
+    // propose+spawn surface.
     const inspectTools = args.inspect !== undefined ? buildInspectTools(args.inspect) : [];
 
     // MCP tool names follow the mcp__<server>__<tool> convention so the model can call them.
-    // The orchestrator DRIVES via its spawn + landing tools (ADR-0155) — there is no `propose_unit`
-    // declaration surface: when the human asks it to drive, it spawns the inner loop and lands rather
+    // The orchestrator DRIVES via its spawn tools (ADR-0155) — there is no `propose_unit`
+    // declaration surface: when the human asks it to drive, it spawns the inner loop rather
     // than proposing a unit for a human to accept with a click (the retired ADR-0108 d.3 accept gate).
     const allowedTools = [
       ...orientationTools.map((t) => `mcp__${ORIENTATION_SERVER}__${t.name}`),
       ...spawnTools.map((t) => `mcp__${SPAWN_SERVER}__${t.name}`),
-      ...landingTools.map((t) => `mcp__${LANDING_SERVER}__${t.name}`),
       ...inspectTools.map((t) => `mcp__${INSPECT_SERVER}__${t.name}`),
     ];
 
@@ -300,15 +281,16 @@ export async function runHeadlessOrchestrator(
       // Surface assistant token deltas as they generate (live chat) — see onDelta/extractTextDelta.
       ...(wantsDeltas ? { includePartialMessages: true } : {}),
       // No Write/Edit/Bash in tools or allowedTools — the chat session carries no raw write verbs
-      // (ADR-0137 d.1); writes happen only inside the spawned subagents under their own fences, and
-      // the merge ceremony is the fail-closed landing tools (ADR-0152).
+      // (ADR-0137 d.1); writes happen only inside the spawned subagents under their own fences. The
+      // ADR-0152 merge-ceremony surface that used to sit here retired with the interactive
+      // orchestrator (ADR-0175), so this session runs no landing verb at all.
       tools: [],
       allowedTools,
       permissionMode: "bypassPermissions",
       systemPrompt: args.systemPrompt,
       // The orientation MCP server is only mounted when a runner is present (§7 scale-down).
       // The spawn MCP server is only mounted when spawn deps are present (same §7 mirror), and the
-      // landing MCP server only when landing deps are present. No propose server — the orchestrator
+      // inspect server only when inspect deps are present. No propose server — the orchestrator
       // drives rather than proposing (ADR-0155, retiring the ADR-0108 d.3 propose/accept surface).
       mcpServers: {
         ...(orientationTools.length > 0
@@ -348,15 +330,6 @@ export async function runHeadlessOrchestrator(
                 name: SPAWN_SERVER,
                 version: "1.0.0",
                 tools: spawnTools,
-              }),
-            }
-          : {}),
-        ...(landingTools.length > 0
-          ? {
-              [LANDING_SERVER]: createSdkMcpServer({
-                name: LANDING_SERVER,
-                version: "1.0.0",
-                tools: landingTools,
               }),
             }
           : {}),

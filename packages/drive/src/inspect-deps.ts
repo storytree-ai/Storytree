@@ -4,11 +4,11 @@
  * consumes — the thin drive-side shell that turns `gh`/`git` READS into the injected-handler shape
  * `@storytree/agent`'s `buildInspectTools` mounts.
  *
- * Mirrors {@link import("./landing-deps.js").buildLandingDeps} exactly, but READ-ONLY:
+ * READ-ONLY throughout:
  *   - INJECTED, TIME-BOXED EXEC SEAM (ADR-0010 §5 + ADR-0173 invariant "time-box the shell"): every
- *     subprocess runs through an injected {@link import("./landing-deps.js").ExecFn} — the SAME
- *     `(cmd, args, opts?) => Promise<{code,stdout,stderr}>` seam the landing composition proves
- *     offline — defaulted to {@link defaultInspectExec} (a `child_process` spawn with a hard timeout
+ *     subprocess runs through an injected {@link ExecFn} — a
+ *     `(cmd, args, opts?) => Promise<{code,stdout,stderr}>` seam — defaulted to
+ *     {@link defaultInspectExec} (a `child_process` spawn with a hard timeout
  *     so a slow/rate-limited `gh` can't hang the turn) and replaced by a recording stub in tests.
  *   - FAIL CLOSED, NEVER A THROW: the default exec never rejects; a non-zero exit (or a timeout, or a
  *     spawn failure) resolves to a readable `{ ok: false, summary }` — never an exception into the
@@ -21,19 +21,48 @@
  *     (`gh run view …` / `gh pr checks …` / `git <read-verb> …`) — never a passthrough of an arbitrary
  *     subcommand — so `gh pr merge` / `git commit` are structurally unreachable.
  *
- * NO import from @storytree/cli (ADR-0112 hard invariant: drive reaches agent, never CLI). The exec
- * seam type is reused from ./landing-deps (a sibling drive module), not re-declared.
+ * NO import from @storytree/cli (ADR-0112 hard invariant: drive reaches agent, never CLI).
+ *
+ * The exec seam below (`ExecResult` / `ExecFn`) was declared in the sibling `./landing-deps` module
+ * and imported from here. That module was DELETED when ADR-0175 retired the landing surface with the
+ * interactive orchestrator (ADR-0174) — the inspect surface is the half ADR-0175 re-aims into
+ * `app-guide`, so the seam is rehomed here, its only remaining consumer, rather than left orphaned in
+ * a retired module. Unchanged in shape: the same offline-provable contract, still exported from the
+ * drive barrel.
  */
 
 import { execFile } from "node:child_process";
 
 import type { InspectSurfaceDeps, InspectResult } from "@storytree/agent";
 
-import type { ExecFn, ExecResult } from "./landing-deps.js";
-
 // Re-exported so drive-side consumers (orchestrate.ts, the desktop sidecar) have a named, stable
 // type off this module rather than a deep reach into @storytree/agent.
 export type { InspectSurfaceDeps } from "@storytree/agent";
+
+// ---------------------------------------------------------------------------
+// Exec seam (rehomed from the retired ./landing-deps, ADR-0175)
+// ---------------------------------------------------------------------------
+
+/** The captured result of one subprocess run — the exit code plus its stdout/stderr text. */
+export interface ExecResult {
+  /** The process exit code. Non-zero (or a spawn failure mapped to non-zero) is a failure. */
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+/**
+ * The injected exec seam: run `cmd` with `args` (no shell interpolation — `args` is a vector, so an
+ * argument can never inject a flag) and resolve with the captured {@link ExecResult}. NEVER rejects
+ * — a process that cannot even spawn resolves to a non-zero `code` with the error in `stderr`
+ * (fail-closed). Tests inject a recording double; production defaults to
+ * {@link defaultInspectExec}.
+ */
+export type ExecFn = (
+  cmd: string,
+  args: readonly string[],
+  opts?: { cwd?: string },
+) => Promise<ExecResult>;
 
 // ---------------------------------------------------------------------------
 // Constants
