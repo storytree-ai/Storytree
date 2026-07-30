@@ -33,7 +33,7 @@ import type { SeedEntry } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
-import { arcCommand, arcHelp, arcEdit, arcIncrementAdd, arcClose, arcScopeOf, type ArcWriteDeps } from "./arc.js";
+import { arcCommand, arcHelp, arcNew, arcEdit, arcIncrementAdd, arcClose, arcScopeOf, type ArcWriteDeps } from "./arc.js";
 import { planCommand, planHelp, type CountCommitsSince } from "./plan.js";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import { CLI_AREAS } from "./cli-areas.js";
@@ -1847,6 +1847,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "relayed-by"?: string;
     note?: string;
     title?: string;
+    description?: string;
     supersedes?: string;
     amends?: string;
     arc?: string;
@@ -1918,11 +1919,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         "relayed-by": { type: "string" },
         note: { type: "string" },
         title: { type: "string" },
+        // `storytree arc new` — override the card one-liner the scaffolder would otherwise derive
+        // from the intent.
+        description: { type: "string" },
         supersedes: { type: "string" },
         amends: { type: "string" },
         arc: { type: "string" },
-        // `storytree arc edit` / `arc increment add` / `arc close` — the first-class arc write verbs
-        // (long prose via @path).
+        // `storytree arc new` / `arc edit` / `arc increment add` / `arc close` — the first-class arc
+        // write verbs (long prose via @path).
         "end-state": { type: "string" },
         // `storytree arc list --all | --closed` — widen past the default active-only worklist
         // (ADR-0239 D3). `--all` wins when both are passed.
@@ -2357,11 +2361,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // frontmatter `arc:` stamps on disk — the upward view is never authored on the arc.
     if (help) return arcHelp();
 
-    // The WRITE verbs (arc edit / arc increment add / arc close) go through the validated write path
-    // — a first-class replacement for the raw store one-shot (the ADR-0168 arc-edit friction). Long
-    // prose (--intent/--end-state/--outcome) accepts `@path` to read from a file so shell quoting
-    // never mangles multi-line values into a literal `\n`.
-    if (sub === "edit" || sub === "increment" || sub === "close") {
+    // The WRITE verbs (arc new / arc edit / arc increment add / arc close) go through the validated
+    // write path — a first-class replacement for the raw store one-shot (the ADR-0168 arc-edit
+    // friction) and, for `new`, for hand-authoring the doc JSON (`no-arc-new-scaffolder-verb`). Long
+    // prose (--intent/--end-state/--outcome/--description) accepts `@path` to read from a file so
+    // shell quoting never mangles multi-line values into a literal `\n`.
+    if (sub === "new" || sub === "edit" || sub === "increment" || sub === "close") {
       const writeDeps: ArcWriteDeps = {
         store: deps.store,
         writable: deps.writable === true,
@@ -2369,15 +2374,26 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         now: new Date().toISOString(),
         pg: values.pg === true,
       };
-      let resolved: { intent?: string; endState?: string; outcome?: string };
+      let resolved: { intent?: string; endState?: string; outcome?: string; description?: string };
       try {
         resolved = {
           ...(values.intent !== undefined ? { intent: await resolveAtPathValue(values.intent) } : {}),
           ...(values["end-state"] !== undefined ? { endState: await resolveAtPathValue(values["end-state"]) } : {}),
           ...(values.outcome !== undefined ? { outcome: await resolveAtPathValue(values.outcome) } : {}),
+          ...(values.description !== undefined ? { description: await resolveAtPathValue(values.description) } : {}),
         };
       } catch (e) {
         return { ok: false, body: `could not read a @file value: ${(e as Error).message}`, next: ["storytree arc --help"] };
+      }
+      // The SCAFFOLDER (the missing first lifecycle step): the id is an optional positional, matching
+      // every other arc verb — omitted, it is derived from --title.
+      if (sub === "new") {
+        return arcNew(writeDeps, third, {
+          ...(values.title !== undefined ? { title: values.title } : {}),
+          ...(resolved.intent !== undefined ? { intent: resolved.intent } : {}),
+          ...(resolved.endState !== undefined ? { endState: resolved.endState } : {}),
+          ...(resolved.description !== undefined ? { description: resolved.description } : {}),
+        });
       }
       if (sub === "edit") {
         return arcEdit(writeDeps, third, {

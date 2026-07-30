@@ -9,8 +9,11 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 import {
   arcClose,
   arcCommand,
+  arcDescriptionFrom,
   arcEdit,
+  arcIdFromTitle,
   arcIncrementAdd,
+  arcNew,
   arcScopeOf,
   storyArcStamps,
   type ArcViewDeps,
@@ -363,6 +366,200 @@ function writeDeps(store: InMemoryStore, pg = true, writable = true): ArcWriteDe
   return { store, writable, actor: "test", now: NOW, pg };
 }
 
+// ---------------------------------------------------------------------------
+// `arc new` — the SCAFFOLDER (friction `no-arc-new-scaffolder-verb`, routed `tool`). The missing
+// FIRST step of a lifecycle whose other three steps were already first-class: creating an arc used to
+// mean reading KIND_SPECS for the field set, hand-writing the doc JSON with createdAt/updatedAt
+// hand-stamped, and filing it via `library artifact new --file`. These tests pin the contract that
+// removes that: the author supplies title + intent + end state, and NOTHING mechanical.
+// ---------------------------------------------------------------------------
+
+test("arc new scaffolds a valid arc from three fields — the CLI stamps everything mechanical", async () => {
+  const store = new InMemoryStore();
+  const res = await arcNew(writeDeps(store), undefined, {
+    title: "End at merge",
+    intent: "Sessions end where their PR merges. The closing leg runs in order.",
+    endState: "No landed session is left parked-open.",
+  });
+  assert.equal(res.ok, true);
+  assert.match(res.body, /created arc end-at-merge-arc {2}\[active, 0 increments\]/);
+
+  const got = (await store.getDoc("end-at-merge-arc"))?.doc as Record<string, unknown>;
+  // The three authored fields, verbatim.
+  assert.equal(got["title"], "End at merge");
+  assert.equal(got["intent"], "Sessions end where their PR merges. The closing leg runs in order.");
+  assert.equal(got["endState"], "No landed session is left parked-open.");
+  // Everything else is the CLI's — the whole point of the verb. `id` carries the `-arc` convention,
+  // `description` is derived from the intent's first sentence, and BOTH timestamps + the per-row
+  // schema pin are stamped, so no author hand-writes them (and none can go stale by hand).
+  assert.equal(got["kind"], "arc");
+  assert.equal(got["id"], "end-at-merge-arc");
+  assert.equal(got["description"], "Sessions end where their PR merges.");
+  assert.equal(got["lifecycle"], "active", "a born arc is explicitly in flight");
+  assert.deepEqual(got["references"], []);
+  assert.equal(got["createdAt"], NOW);
+  assert.equal(got["updatedAt"], NOW);
+  assert.equal(typeof got["schemaVersion"], "number", "the upcaster pins the row version");
+  // Born with an EMPTY landing log (ADR-0183 D1): the first entry arrives at the first landing,
+  // through `arc increment add`, never authored ahead of one.
+  assert.equal(got["increments"], undefined);
+});
+
+test("a scaffolded arc is immediately readable by the arc VIEW path (writer + reader agree)", async () => {
+  // Composed OUTWARD on purpose: a green writer whose output the existing reader can't consume is the
+  // trap a per-function suite misses. `arc new` → `arc show`/`arc list`, over the real view code.
+  const fx = diskFixture();
+  try {
+    const store = new InMemoryStore();
+    await arcNew(writeDeps(store), undefined, {
+      title: "Arc orientation surface",
+      intent: "Arcs take the map's top drawer.",
+      endState: "The owner reads initiative state without spelunking.",
+    });
+    const show = await arcCommand("show", "arc-orientation-surface-arc", depsFor(store, fx));
+    assert.equal(show.ok, true);
+    assert.match(show.body, /# Arc orientation surface {4}\[arc\]/);
+    assert.match(show.body, /lifecycle: active \(in flight\)/);
+    assert.match(show.body, /\*\*The intent\.\*\* Arcs take the map's top drawer\./);
+    assert.match(show.body, /\(no landings yet\)/);
+
+    const list = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.equal(list.ok, true);
+    assert.match(list.body, /arc-orientation-surface-arc {2}0 increment\(s\), no landings yet/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc new takes an explicit positional id, normalising it — the convention has an escape hatch", async () => {
+  const store = new InMemoryStore();
+  // A copy-pasted `asset:` ref with stray capitals: normalised rather than minting an id the ref
+  // regexes would later reject. No `-arc` suffix is forced on an authored id.
+  const res = await arcNew(writeDeps(store), "asset:Session Isolation", {
+    title: "Something else entirely",
+    intent: "i",
+    endState: "e",
+  });
+  assert.equal(res.ok, true);
+  assert.match(res.body, /created arc session-isolation\b/);
+  assert.ok(await store.getDoc("session-isolation"));
+  // The derived-id note is suppressed when the author supplied one.
+  assert.doesNotMatch(res.body, /id derived from the title/);
+});
+
+test("arc new names EVERY missing required field in one refusal", async () => {
+  const store = new InMemoryStore();
+  const bare = await arcNew(writeDeps(store), undefined, {});
+  assert.equal(bare.ok, false);
+  assert.match(bare.body, /arc new needs 3 more fields/);
+  assert.match(bare.body, /--title/);
+  assert.match(bare.body, /--intent/);
+  assert.match(bare.body, /--end-state/);
+  // Nothing was written on the way to the refusal.
+  assert.equal((await store.queryDocs({ kind: "arc" })).length, 0);
+
+  // One field short → singular, and only the missing one is named.
+  const partial = await arcNew(writeDeps(store), undefined, { title: "T", intent: "i" });
+  assert.equal(partial.ok, false);
+  assert.match(partial.body, /arc new needs one more field/);
+  assert.match(partial.body, /--end-state/);
+  assert.doesNotMatch(partial.body, /--title/);
+
+  // Whitespace-only is EMPTY: `Markdown` is `.min(1)`, which a lone newline would satisfy while
+  // meaning nothing — so the trim happens before the required check, not after.
+  const blank = await arcNew(writeDeps(store), undefined, { title: "T", intent: "  ", endState: "\n" });
+  assert.equal(blank.ok, false);
+  assert.match(blank.body, /--intent/);
+  assert.match(blank.body, /--end-state/);
+});
+
+test("arc new refuses offline — arcs are live-canonical", async () => {
+  const store = new InMemoryStore();
+  const offline = await arcNew(writeDeps(store, false, false), undefined, {
+    title: "T",
+    intent: "i",
+    endState: "e",
+  });
+  assert.equal(offline.ok, false);
+  assert.match(offline.body, /arc new writes to the shared store — run with --pg/);
+  assert.deepEqual(offline.next, ["pnpm db:up", "storytree arc new <id> --pg"]);
+});
+
+test("arc new refuses an id that already exists — a scaffold never overwrites a live initiative", async () => {
+  const store = await seededStore();
+  const existing = await arcNew(writeDeps(store), "map-arc", { title: "T", intent: "i", endState: "e" });
+  assert.equal(existing.ok, false);
+  assert.match(existing.body, /arc map-arc already exists — edit it, don't recreate it/);
+  assert.match((existing.next ?? []).join("\n"), /storytree arc edit map-arc/);
+  // The seeded arc is untouched — its two increments and original intent survive.
+  const untouched = (await store.getDoc("map-arc"))?.doc as Record<string, unknown>;
+  assert.equal(untouched["intent"], "Pathways on the map.");
+  assert.equal((untouched["increments"] as unknown[]).length, 2);
+
+  // Ids are shared across kinds, so a plan/definition holding the id is a distinct, honest refusal.
+  const wrongKind = await arcNew(writeDeps(store), "map-arc-plan-1", { title: "T", intent: "i", endState: "e" });
+  assert.equal(wrongKind.ok, false);
+  assert.match(wrongKind.body, /already a plan, not an arc/);
+
+  // A COLLIDING derived id says where the id came from, so the fix (pass one) is obvious.
+  const derivedClash = await arcNew(writeDeps(store), undefined, {
+    title: "Map arc",
+    intent: "i",
+    endState: "e",
+  });
+  assert.equal(derivedClash.ok, false);
+  assert.match(derivedClash.body, /that id was DERIVED from the title "Map arc"/);
+});
+
+test("arc new: --description overrides the derived one-liner; long prose keeps its newlines", async () => {
+  const store = new InMemoryStore();
+  const res = await arcNew(writeDeps(store), undefined, {
+    title: "Directional DAG",
+    intent: "line one\nline two",
+    endState: "end line one\nend line two",
+    // A @path-read description arrives with newlines; the card line is a ONE-liner, so it collapses.
+    description: "  A hand-written\n  card line.\n",
+  });
+  assert.equal(res.ok, true);
+  const got = (await store.getDoc("directional-dag-arc"))?.doc as Record<string, unknown>;
+  assert.equal(got["description"], "A hand-written card line.");
+  // The narrative fields are NOT collapsed — multi-line prose is the reason @path exists.
+  assert.equal(got["intent"], "line one\nline two");
+  assert.equal(got["endState"], "end line one\nend line two");
+  assert.doesNotMatch(res.body, /description derived from the intent/);
+});
+
+test("arc new refuses a title that yields no slug, rather than writing an id-less doc", async () => {
+  const store = new InMemoryStore();
+  const res = await arcNew(writeDeps(store), undefined, { title: "!!! ???", intent: "i", endState: "e" });
+  assert.equal(res.ok, false);
+  assert.match(res.body, /could not derive an arc id from the title "!!! \?\?\?"/);
+  assert.equal((await store.queryDocs({ kind: "arc" })).length, 0);
+});
+
+test("arcIdFromTitle: kebab-case plus the `-arc` suffix convention every live arc carries", () => {
+  assert.equal(arcIdFromTitle("End at merge"), "end-at-merge-arc");
+  assert.equal(arcIdFromTitle("Session isolation"), "session-isolation-arc");
+  // Already suffixed → not doubled.
+  assert.equal(arcIdFromTitle("Directional DAG arc"), "directional-dag-arc");
+  assert.equal(arcIdFromTitle("Arc"), "arc");
+  assert.equal(arcIdFromTitle("!!!"), "");
+});
+
+test("arcDescriptionFrom: the intent's first sentence, collapsed to one line and capped", () => {
+  assert.equal(
+    arcDescriptionFrom("Sessions end at merge.  A second sentence is dropped."),
+    "Sessions end at merge.",
+  );
+  // No terminator → the whole (collapsed) intent.
+  assert.equal(arcDescriptionFrom("no terminator here\nsecond line"), "no terminator here second line");
+  // Past the cap → cut at a word boundary, with a trailing separator stripped before the ellipsis.
+  const long = arcDescriptionFrom(`${"alpha ".repeat(40)}omega.`);
+  assert.ok(long.length <= 161, `capped, got ${long.length}`);
+  assert.match(long, /…$/);
+  assert.doesNotMatch(long, /\s…$/, "cut at a word boundary, no dangling space");
+});
+
 test("arc edit patches intent + endState through the validated path and re-persists", async () => {
   const store = await seededStore();
   const res = await arcEdit(writeDeps(store), "map-arc", {
@@ -588,13 +785,33 @@ test("a closed arc leaves the default worklist end-to-end (D2 write → D3 filte
   }
 });
 
-test("arc help advertises the close verb and the list filters", async () => {
+test("arc help advertises the new + close verbs and the list filters", async () => {
   const fx = diskFixture();
   try {
     const help = await arcCommand(undefined, undefined, depsFor(new InMemoryStore(), fx));
+    assert.match(help.body, /storytree arc new \[<id>\] --title/);
     assert.match(help.body, /storytree arc close <id> --outcome/);
     assert.match(help.body, /--all\|--closed/);
     assert.match(help.body, /Re-opening is OWNER-only/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("an EMPTY arc list offers the scaffolder, not the hand-authoring path it replaced", async () => {
+  // The discovery half of the friction: this offer used to read `library artifact new --file
+  // <arc.json>`, handing the reader a filename and leaving the schema to be reverse-engineered.
+  const fx = diskFixture();
+  try {
+    const live = await arcCommand("list", undefined, depsFor(new InMemoryStore(), fx));
+    assert.equal(live.ok, true);
+    const offers = (live.next ?? []).join("\n");
+    assert.match(offers, /^storytree arc new --title/m);
+    assert.doesNotMatch(offers, /library artifact new --file/);
+
+    // Offline the honest first move is still "re-run with --pg" — arcs are live-canonical.
+    const offline = await arcCommand("list", undefined, depsFor(new InMemoryStore(), fx, false));
+    assert.deepEqual(offline.next, ["storytree arc list --pg"]);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }

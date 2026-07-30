@@ -303,11 +303,17 @@ file conflicts).
   Two write-ergonomics: `--set field=@path` reads the value from a FILE (long/multi-line prose
   without shell mangling), and a typo'd `--set` field on a structured kind is REFUSED with a clear
   message (naming the bad field + the editable ones), not the opaque `.strict()` union dump.
-- **Editing an arc? Use the first-class verbs — NOT a `PgLibraryStore` one-shot** (the old
-  fragile path): `pnpm storytree arc edit <id> [--intent <text|@file>] [--end-state <text|@file>] --pg`
-  patches the narrative, and `pnpm storytree arc increment add <id> --outcome <text|@file> [--pr <ref>]
-  [--date <YYYY-MM-DD>] --pg` APPENDS one landing to the increment log (ADR-0183 D1 — the merge-ceremony
-  residue). Both go through the validated write path; long prose comes from `@path` so newlines survive.
+- **Writing an arc? Use the first-class verbs — never hand-authored doc JSON or a `PgLibraryStore`
+  one-shot** (the old fragile paths). The whole lifecycle has a verb, creation included:
+  `pnpm storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file> --pg`
+  SCAFFOLDS one (the `adr new` precedent) — supply those three fields and nothing else; the CLI stamps
+  `kind`/`id`/`description`/`lifecycle`/timestamps, so **don't read `KIND_SPECS` to hand-write the doc
+  JSON and don't file it through `library artifact new --file`**. The id derives from the title (with
+  the house `-arc` suffix) unless you pass one; `--description` overrides the one-liner derived from the
+  intent. Then `arc edit <id> [--intent] [--end-state] --pg` patches the narrative, `arc increment add
+  <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` APPENDS one landing to the
+  increment log (ADR-0183 D1 — the merge-ceremony residue), and `arc close` writes the terminal one.
+  All go through the validated write path; long prose comes from `@path` so newlines survive.
 - **Hosted studio (ADR-0042):** the members deployment — Cloud Run `storytree-studio`
   (australia-southeast1) behind **direct IAP** (no LB, no domain), serving
   `apps/studio/server/serve.ts`: members read + comment (author stamped from the IAP identity,
