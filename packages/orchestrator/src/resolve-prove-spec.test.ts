@@ -30,6 +30,7 @@ import {
   realProofCommand,
   assemblePrompts,
   feedbackCommandsFor,
+  liveSmokePrompts,
   realPrompts,
   scriptedWriterModel,
 } from "./resolve-prove-spec.js";
@@ -427,6 +428,114 @@ test("realPrompts for an install-bearing node names the typecheck wall (type-leg
   assert.match(prompts.authorTest, /tsc --noEmit/);
   assert.match(prompts.authorTest, /exactOptionalPropertyTypes/);
   assert.match(prompts.implement, /tsc --noEmit/);
+});
+
+// ── ADR-0122: the unit's DECLARED CONTRACT IDS reach the leaf's brief ───────────────────────────
+//
+// Contract `briefs-name-the-declared-contract-ids`. The friction this closes
+// (`sdk-leaf-drops-contract-id-test-names`, re-adjudicated 2026-07-30): both prompt assemblers built
+// the brief from header + conventions + `spec.guidance` and dropped `spec.contracts` on the floor —
+// parsed onto the NodeSpec, then never passed. So a leaf learned its unit's ids ONLY when a spec
+// author happened to retype them inside `## Guidance`; when nobody did, it invented a prefix and the
+// signed verdict read `coverage 0/N` (measured: run real-mrg5bsjq, five `lds-*` contracts authored
+// as `ldw-*`, renamed by hand post-merge). This is the PROMPT side — it supplies the input the
+// coverage check's subject never received. Nothing here judges the output or fails a build closed:
+// per-finding coverage stays ADVISORY (ADR-0252 D3).
+
+/**
+ * The 4 ids `tree-view` declares — a REAL capability spec whose `## Guidance` never restates them,
+ * so it is the friction's own shape rather than a hand-built fixture.
+ */
+const TREE_VIEW_CONTRACT_IDS = [
+  "tree-renders-offline",
+  "focus-shows-build-surface",
+  "presence-woven-when-live",
+  "next-pointers-guide",
+];
+
+test("briefs-name-the-declared-contract-ids — assemblePrompts enumerates the declared ids in BOTH phases", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md"));
+  assert.deepEqual(spec.contracts.map((c) => c.id), TREE_VIEW_CONTRACT_IDS);
+  const prompts = assemblePrompts(spec);
+  for (const id of TREE_VIEW_CONTRACT_IDS) {
+    assert.ok(prompts.authorTest.includes(id), `authorTest names ${id}`);
+    assert.ok(prompts.implement.includes(id), `implement names ${id}`);
+  }
+  // AUTHOR_TEST is where the rule bites — the leaf is told to carry the id into the test NAME.
+  assert.match(prompts.authorTest, /NAME EACH TEST FOR THE CONTRACT IT PROVES/);
+  assert.match(prompts.authorTest, /describe\("<contract-id>/);
+  // The header/guidance the brief already carried is untouched.
+  assert.match(prompts.authorTest, /Guidance from the node spec/);
+});
+
+test("briefs-name-the-declared-contract-ids — the ids arrive though `## Guidance` never restates them (the friction's decisive case)", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md"));
+  // The precondition the friction turns on: this spec's own prose names NO contract id, so before
+  // this contract the leaf received none of them.
+  assert.ok(spec.guidance !== undefined, "tree-view carries a ## Guidance section");
+  for (const id of TREE_VIEW_CONTRACT_IDS) {
+    assert.ok(!spec.guidance.includes(id), `guidance does not restate ${id}`);
+  }
+  const real = lookupNodeBuildConfig("tree-view")?.real;
+  assert.ok(real !== undefined);
+  const prompts = realPrompts(spec, real, realProofCommand(real, REPO_ROOT).display);
+  for (const id of TREE_VIEW_CONTRACT_IDS) {
+    assert.ok(prompts.authorTest.includes(id), `authorTest names ${id} with no author restatement`);
+  }
+});
+
+test("briefs-name-the-declared-contract-ids — ALL THREE realPrompts arms carry them (net-new, editsExisting, refactorForTests)", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md"));
+  const base = {
+    testFile: "packages/cli/src/tree.test.ts",
+    sourceFile: "packages/cli/src/tree.ts",
+    scope: {
+      testGlobs: ["packages/cli/src/tree.test.ts"],
+      sourceGlobs: ["packages/cli/src/tree.ts"],
+    },
+    install: true,
+    typecheck: { file: "pnpm", args: ["--filter", "@storytree/cli", "typecheck"] },
+  };
+  const suite = { file: "pnpm", args: ["--filter", "@storytree/cli", "test"] };
+  const arms = [
+    { arm: "net-new", real: base },
+    { arm: "editsExisting", real: { ...base, editsExisting: true, proofCommand: suite } },
+    { arm: "refactorForTests", real: { ...base, refactorForTests: true, proofCommand: suite } },
+  ];
+  for (const { arm, real } of arms) {
+    const prompts = realPrompts(spec, real, realProofCommand(real, "/ws").display);
+    for (const id of TREE_VIEW_CONTRACT_IDS) {
+      assert.ok(prompts.authorTest.includes(id), `${arm}: authorTest names ${id}`);
+      assert.ok(prompts.implement.includes(id), `${arm}: implement names ${id}`);
+    }
+    assert.match(prompts.authorTest, /NAME EACH TEST FOR THE CONTRACT IT PROVES/, `${arm} rule`);
+  }
+});
+
+test("briefs-name-the-declared-contract-ids — a unit declaring NONE gets no block (brief parity holds)", () => {
+  // verdict-line is contract-tier: no `## Contracts` section, so `contracts` parses to []. Its brief
+  // must stay byte-identical to the pre-change one — the parity guard the arms' tests rely on.
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "drive-machinery", "verdict-line.md"));
+  assert.deepEqual(spec.contracts, []);
+  const real = lookupNodeBuildConfig("verdict-line")?.real;
+  assert.ok(real !== undefined);
+  assert.doesNotMatch(
+    realPrompts(spec, real, realProofCommand(real, REPO_ROOT).display).authorTest,
+    /Declared contracts of this unit/,
+  );
+  assert.doesNotMatch(assemblePrompts(spec).authorTest, /Declared contracts of this unit/);
+});
+
+test("briefs-name-the-declared-contract-ids — the live-SMOKE brief deliberately carries NONE", () => {
+  // A live smoke's deliverable is the synthetic add(2,3) pair in a temp dir, NOT the unit's real
+  // tests. Naming the unit's contracts there would tell the leaf to title a throwaway test after a
+  // behaviour it is not authoring — so this assembler is excluded by design, not by oversight.
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md"));
+  const prompts = liveSmokePrompts(spec);
+  for (const id of TREE_VIEW_CONTRACT_IDS) {
+    assert.ok(!prompts.authorTest.includes(id), `live-smoke authorTest omits ${id}`);
+    assert.ok(!prompts.implement.includes(id), `live-smoke implement omits ${id}`);
+  }
 });
 
 // ── Feedback tools (option A): the briefs, the commands, and the resolver wiring ────────────────
