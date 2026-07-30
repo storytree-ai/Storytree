@@ -44,8 +44,10 @@ export interface BranchClaimReleaseStore {
  * coordination state). The trace-driven staleness reclaim (A2) is the backstop if a clear is ever
  * missed.
  *
- * NOTE: keyed on the FULL branch (`claude/<slug>` or a `claude/real/<unit>-<run>` promotion branch)
- * — `node_claim.branch` stores the full branch, and the claim is per-unit, not per-session.
+ * NOTE: keyed on the FULL branch, whatever its shape — `claude/<slug>`, a `claude/real/<unit>-<run>`
+ * promotion branch, or a `worktree-…` lobby-ceremony branch (ADR-0200 D3). `node_claim.branch`
+ * stores the full branch, and the claim is per-unit, not per-session. The CI wiring must never
+ * filter on a branch-name prefix (the `claude/*` gate cost PR #1024's claim its machine clear).
  */
 export async function releaseBranchClaims(
   store: BranchClaimReleaseStore,
