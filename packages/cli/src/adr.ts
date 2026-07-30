@@ -291,9 +291,12 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
 // derived from the live frontmatter, so the list can never drift from the files. Two cuts:
 //   --current        every accepted, non-superseded ADR (the derived backbone — honest by construction)
 //   --load-bearing   only the curated `load_bearing: true` set (the editorial calibrate-to-these list)
-// Outgoing edges (supersedes / amends — binary since ADR-0139 retired supersedes-in-part) and the
-// derived `superseded by` back-edge are shown inline so the reversal story reads off the graph, not off
-// prose. Read-only + offline (it reads docs/decisions on disk) — no DB, no API key.
+// Outgoing edges (supersedes / amends — binary since ADR-0139 retired supersedes-in-part) and BOTH
+// derived back-edges (`superseded by` / `amended by`) are shown inline so the reversal story reads off
+// the graph, not off prose. Both directions matter on `--load-bearing`: ADR-0139 frames `amends` as
+// strictly additive, but in practice an amending ADR can retire a clause of its target (ADR-0271 does,
+// to ADR-0142 §3) — without the back-edge a session calibrating on this view reads the retired leg
+// unqualified. Read-only + offline (it reads docs/decisions on disk) — no DB, no API key.
 
 /** A parsed ADR for the `list` view: frontmatter meta + the H1 title. */
 export interface AdrListing {
@@ -314,19 +317,34 @@ export interface AdrListFilter {
 export { extractAdrTitle };
 
 /**
- * PURE: filter + format the listing rows. Derived `superseded by` back-edges are computed from the
- * FULL set (before the display filter), so a row's reversal is shown even when the superseding ADR is
- * filtered out of view. `★` marks a `load_bearing` current-state ADR.
+ * Invert one outgoing edge kind into `target -> [sources]`, deduped and ascending. Computed from the
+ * FULL listing set by every caller (see {@link renderAdrList}) — never from the filtered view.
  */
-export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFilter): string[] {
-  const supersededBy = new Map<number, number[]>();
+function backEdges(
+  listings: readonly AdrListing[],
+  edge: (m: AdrMeta) => readonly number[],
+): Map<number, number[]> {
+  const byTarget = new Map<number, Set<number>>();
   for (const l of listings) {
-    for (const t of l.meta.supersedes) {
-      const arr = supersededBy.get(t) ?? [];
-      arr.push(l.meta.number);
-      supersededBy.set(t, arr);
+    for (const t of edge(l.meta)) {
+      const set = byTarget.get(t) ?? new Set<number>();
+      set.add(l.meta.number);
+      byTarget.set(t, set);
     }
   }
+  return new Map([...byTarget].map(([t, s]) => [t, [...s].sort((a, b) => a - b)]));
+}
+
+/**
+ * PURE: filter + format the listing rows. Derived `superseded by` / `amended by` back-edges are
+ * computed from the FULL set (before the display filter), so a row's reversal or amendment is shown
+ * even when the superseding / amending ADR is filtered out of view — the ADR-0142/0271 case, where
+ * the amender isn't load-bearing but the amended ADR is, and `--load-bearing` is the primary
+ * calibration surface. `★` marks a `load_bearing` current-state ADR.
+ */
+export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFilter): string[] {
+  const supersededBy = backEdges(listings, (m) => m.supersedes);
+  const amendedBy = backEdges(listings, (m) => m.amends);
   const sorted = [...listings].sort((a, b) => a.meta.number - b.meta.number);
   const rows: string[] = [];
   for (const l of sorted) {
@@ -341,6 +359,8 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
     if (m.arc !== undefined) edges.push(`arc ${m.arc}`);
     const back = supersededBy.get(m.number);
     if (back !== undefined && back.length > 0) edges.push(`superseded by ${back.map(pad).join(", ")}`);
+    const amended = amendedBy.get(m.number);
+    if (amended !== undefined && amended.length > 0) edges.push(`amended by ${amended.map(pad).join(", ")}`);
     for (const e of edges) rows.push(`            ${e}`);
   }
   return rows;
