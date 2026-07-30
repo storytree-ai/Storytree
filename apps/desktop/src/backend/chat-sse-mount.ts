@@ -11,11 +11,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import type {
-  ChatStreamEvent,
-  SpawnSurfaceDeps,
-  InspectSurfaceDeps,
-} from "@storytree/drive";
+import type { ChatStreamEvent, InspectSurfaceDeps } from "@storytree/drive";
 import { startChatStream } from "@storytree/drive";
 // The `template` artifacts, from the library's browser-safe root barrel (ADR-0210 — re-homed from
 // the retired generated assets.json). NOT the node:/pg-laden `@storytree/library/store` subpath.
@@ -216,21 +212,11 @@ export interface ChatSseMountDeps {
    */
   runner?: SseOrientationRunner;
   /**
-   * OPTIONAL spawn surface deps (ADR-0137 Phase 3). Present → the chat session mounts the
-   * claim-gated `spawn_story_author` / `spawn_builder` tools (the orchestrator can spawn the inner
-   * loop). Absent → propose-only, byte-identical to today (the same §7 scale-down as `runner`). The
-   * mount FORWARDS this opaque token through to `startChatStream` → `orchestrate`; it never
-   * constructs it — the sidecar (backend-entry.ts) composes the real deps via `buildSpawnDeps`.
-   * The chat session itself still carries NO Write/Edit/Bash (ADR-0137 d.1); the writes happen only
-   * inside the spawned subagents under their own fences.
-   */
-  spawn?: SpawnSurfaceDeps;
-  /**
    * OPTIONAL inspect surface deps (ADR-0173, the read-only CI/git inspection surface). Present → the
    * chat session mounts the fail-closed READ-ONLY `view_ci_run` / `view_pr_checks` / `git_inspect`
    * tools (the orchestrator can read a failing-job log, an arbitrary PR's checks, the read-only git
    * verbs — so it can root-cause a red pipeline itself instead of theorising). Absent → byte-identical
-   * to today (the same §7 scale-down as `spawn`). The mount FORWARDS this opaque token through to
+   * to today (the same §7 scale-down as `runner`). The mount FORWARDS this opaque token through to
    * `startChatStream` → `orchestrate`; the sidecar (backend-entry.ts) composes the real deps via
    * `buildInspectDeps`. Observation ONLY: the chat session still carries NO Write/Edit/Bash
    * (ADR-0137 d.1 widened for reads, ADR-0173 invariant 1); no inspect tool mutates the tree.
@@ -243,8 +229,11 @@ export interface ChatSseMountDeps {
    * human-watched loop, so a fixed cap that false-fails a healthy long orient/propose costs more than
    * it protects. The sidecar (backend-entry.ts) resolves an operator RE-impose from
    * STORYTREE_ORCHESTRATOR_MAX_TURNS via `resolveOrchestratorMaxTurns` and passes it here; a positive
-   * value bounds the session for a debug/bounded run. This is the session cap only — the spawned
-   * story-author / builder keep their own runaway brakes (ADR-0130 unchanged there).
+   * value bounds the session for a debug/bounded run.
+   *
+   * (The ADR-0137 `spawn` deps that used to sit above this — the claim-gated `spawn_story_author` /
+   * `spawn_builder` mount — are gone: ADR-0175 retires the spawn surface with the interactive
+   * orchestrator, ADR-0174. See spawn-surface-retired.test.ts.)
    */
   maxTurns?: number;
 }
@@ -262,7 +251,6 @@ type BridgedStartStream = (args: {
   resume?: string;
   queryFn?: SseMountQueryFn;
   runner?: SseOrientationRunner;
-  spawn?: SpawnSurfaceDeps;
   inspect?: InspectSurfaceDeps;
   maxTurns?: number;
 }) => AsyncGenerator<ChatStreamEvent>;
@@ -331,7 +319,7 @@ export function createChatSseMount(
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Build args — forward queryFn/runner/spawn/inspect/maxTurns only when present
+    // Build args — forward queryFn/runner/inspect/maxTurns only when present
     // (exactOptionalPropertyTypes).
     const streamArgs: {
       intent: string;
@@ -339,7 +327,6 @@ export function createChatSseMount(
       resume?: string;
       queryFn?: SseMountQueryFn;
       runner?: SseOrientationRunner;
-      spawn?: SpawnSurfaceDeps;
       inspect?: InspectSurfaceDeps;
       maxTurns?: number;
     } = {
@@ -348,7 +335,6 @@ export function createChatSseMount(
       ...(resume !== undefined ? { resume } : {}),
       ...(deps.queryFn !== undefined ? { queryFn: deps.queryFn } : {}),
       ...(deps.runner !== undefined ? { runner: deps.runner } : {}),
-      ...(deps.spawn !== undefined ? { spawn: deps.spawn } : {}),
       ...(deps.inspect !== undefined ? { inspect: deps.inspect } : {}),
       ...(deps.maxTurns !== undefined ? { maxTurns: deps.maxTurns } : {}),
     };

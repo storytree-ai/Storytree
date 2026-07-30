@@ -6,14 +6,14 @@
  *
  * Mirrors `runSdkCurator` with one key difference: where the curator sets `tools: []`
  * (its neighbourhood is in the prompt), this runner wires the read-only orientation tool
- * surface via `createSdkMcpServer` and `allowedTools`, plus the optional spawn (ADR-0137) and
- * inspect (ADR-0173) tool surfaces when their deps are present. (The ADR-0152 LANDING surface was
- * removed here: ADR-0175 retires it with the interactive orchestrator rather than re-aiming it into
- * `app-guide` — see apps/desktop/src/backend/landing-surface-retired.test.ts.)
+ * surface via `createSdkMcpServer` and `allowedTools`, plus the optional inspect (ADR-0173) tool
+ * surface when its deps are present. (The ADR-0152 LANDING and ADR-0137 SPAWN surfaces were both
+ * removed here: ADR-0175 retires them with the interactive orchestrator rather than re-aiming them
+ * into `app-guide` — see apps/desktop/src/backend/{landing,spawn}-surface-retired.test.ts.)
  *
- * NO Write/Edit/Bash — the session carries no raw write verbs (ADR-0137 d.1). The orchestrator
- * DRIVES via its spawn tools; it does not propose a unit for a human to accept with a
- * click (ADR-0155 retires the ADR-0108 d.3 propose_unit / accept-to-Build surface).
+ * NO Write/Edit/Bash — the session carries no raw write verbs (ADR-0137 d.1), and since ADR-0175 no
+ * spawn verb either: what remains is a READ surface. It does not propose a unit for a human to
+ * accept with a click (ADR-0155 retires the ADR-0108 d.3 propose_unit / accept-to-Build surface).
  * ONE SESSION AT A TIME — a second concurrent run is refused (ADR-0108 decision 6).
  */
 
@@ -24,8 +24,6 @@ import { z } from "zod";
 import type { SdkQueryFn } from "./sdk-author.js";
 import { buildOrientationTools } from "./orientation-tools.js";
 import type { OrientationRunner } from "./orientation-tools.js";
-import { buildSpawnTools, SPAWN_SERVER } from "./spawn-tool-surface.js";
-import type { SpawnSurfaceDeps } from "./spawn-tool-surface.js";
 import { buildInspectTools, INSPECT_SERVER } from "./inspect-tool-surface.js";
 import type { InspectSurfaceDeps } from "./inspect-tool-surface.js";
 
@@ -71,8 +69,8 @@ export interface HeadlessOrchestratorArgs {
    * a fixed turn cap that false-fails a long-but-healthy orient/propose (the spawn-visibility symptom)
    * costs more than it protects. Pass a positive value ONLY to RE-impose a cap (debugging / a
    * bounded run); absent, no `maxTurns` is handed to the SDK. This lifts the cap for the orchestrator
-   * SESSION only — the inner-loop builder leaf (`sdk-author.ts`) and the spawned story-author keep
-   * their own runaway brakes (ADR-0130 unchanged there).
+   * SESSION only — the inner-loop builder leaf (`sdk-author.ts`) keeps its own runaway brake
+   * (ADR-0130 unchanged there).
    */
   maxTurns?: number;
   /**
@@ -105,21 +103,12 @@ export interface HeadlessOrchestratorArgs {
   /** Injected for offline tests; defaults to the real SDK `query()`. */
   queryFn?: SdkQueryFn;
   /**
-   * OPTIONAL spawn surface deps: when present, the session mounts `spawn_story_author`
-   * and `spawn_builder` as claim-gated MCP tools. Absent → the session is byte-identical
-   * to the propose-only surface — no spawn tools are advertised (§7 scale-down mirror).
-   *
-   * The chat keeps `tools: []` regardless — spawn power, not write power (ADR-0137 d.1).
-   * Writes happen inside the SPAWNED sessions under their own per-scope fences.
-   */
-  spawn?: SpawnSurfaceDeps;
-  /**
    * OPTIONAL inspect surface deps (ADR-0173): when present, the session mounts `view_ci_run`,
    * `view_pr_checks`, and `git_inspect` as fail-closed, READ-ONLY MCP tools — the CI/git diagnosis
    * surface the terminal session-orchestrator gets for free from its shell (read a failing-job log,
    * an arbitrary PR's checks, the read-only git verbs), so a blind chat can root-cause a red pipeline
    * itself instead of theorising and escalating a confident-but-wrong fix. Absent → the session is
-   * byte-identical to the propose+spawn surface (the same §7 scale-down mirror as `spawn`).
+   * byte-identical to the orientation-only surface (the same §7 scale-down mirror `runner` uses).
    *
    * The chat keeps `tools: []` regardless — these are scoped, named READ actions, never a raw `Bash`
    * surface (ADR-0137 d.1 widened for OBSERVATION only, ADR-0173 invariant 1). No inspect tool
@@ -239,22 +228,17 @@ export async function runHeadlessOrchestrator(
     const orientationTools =
       args.runner !== undefined ? buildOrientationTools(args.runner, { store: null }) : [];
 
-    // Spawn tools are wired ONLY when spawn deps are present (same §7 scale-down mirror as
-    // orientation tools). Absent deps → no spawn tools advertised → byte-identical to Phase-1/2.
-    const spawnTools = args.spawn !== undefined ? buildSpawnTools(args.spawn) : [];
-
-    // Inspect tools are wired ONLY when inspect deps are present (same §7 scale-down mirror as
-    // spawn tools, ADR-0173). Absent deps → no inspect tools advertised → byte-identical to the
-    // propose+spawn surface.
+    // Inspect tools are wired ONLY when inspect deps are present (the same §7 scale-down mirror as
+    // orientation tools, ADR-0173). Absent deps → no inspect tools advertised → byte-identical to
+    // the orientation-only surface.
     const inspectTools = args.inspect !== undefined ? buildInspectTools(args.inspect) : [];
 
     // MCP tool names follow the mcp__<server>__<tool> convention so the model can call them.
-    // The orchestrator DRIVES via its spawn tools (ADR-0155) — there is no `propose_unit`
-    // declaration surface: when the human asks it to drive, it spawns the inner loop rather
-    // than proposing a unit for a human to accept with a click (the retired ADR-0108 d.3 accept gate).
+    // There is no `propose_unit` declaration surface (ADR-0155 retired the ADR-0108 d.3 accept gate)
+    // and, since ADR-0175, no spawn surface either — the ADR-0137 rung retired with the interactive
+    // orchestrator (ADR-0174) rather than re-aiming into `app-guide`. What is left reads.
     const allowedTools = [
       ...orientationTools.map((t) => `mcp__${ORIENTATION_SERVER}__${t.name}`),
-      ...spawnTools.map((t) => `mcp__${SPAWN_SERVER}__${t.name}`),
       ...inspectTools.map((t) => `mcp__${INSPECT_SERVER}__${t.name}`),
     ];
 
@@ -281,17 +265,16 @@ export async function runHeadlessOrchestrator(
       // Surface assistant token deltas as they generate (live chat) — see onDelta/extractTextDelta.
       ...(wantsDeltas ? { includePartialMessages: true } : {}),
       // No Write/Edit/Bash in tools or allowedTools — the chat session carries no raw write verbs
-      // (ADR-0137 d.1); writes happen only inside the spawned subagents under their own fences. The
-      // ADR-0152 merge-ceremony surface that used to sit here retired with the interactive
-      // orchestrator (ADR-0175), so this session runs no landing verb at all.
+      // (ADR-0137 d.1). The ADR-0152 merge-ceremony surface and the ADR-0137 spawn surface that used
+      // to sit here both retired with the interactive orchestrator (ADR-0175), so this session runs
+      // no landing verb and spawns nothing.
       tools: [],
       allowedTools,
       permissionMode: "bypassPermissions",
       systemPrompt: args.systemPrompt,
-      // The orientation MCP server is only mounted when a runner is present (§7 scale-down).
-      // The spawn MCP server is only mounted when spawn deps are present (same §7 mirror), and the
-      // inspect server only when inspect deps are present. No propose server — the orchestrator
-      // drives rather than proposing (ADR-0155, retiring the ADR-0108 d.3 propose/accept surface).
+      // The orientation MCP server is only mounted when a runner is present (§7 scale-down), and the
+      // inspect server only when inspect deps are present. No propose server (ADR-0155 retired the
+      // ADR-0108 d.3 propose/accept surface) and no spawn server (ADR-0175 retired it).
       mcpServers: {
         ...(orientationTools.length > 0
           ? {
@@ -321,15 +304,6 @@ export async function runHeadlessOrchestrator(
                     },
                   ),
                 ),
-              }),
-            }
-          : {}),
-        ...(spawnTools.length > 0
-          ? {
-              [SPAWN_SERVER]: createSdkMcpServer({
-                name: SPAWN_SERVER,
-                version: "1.0.0",
-                tools: spawnTools,
               }),
             }
           : {}),

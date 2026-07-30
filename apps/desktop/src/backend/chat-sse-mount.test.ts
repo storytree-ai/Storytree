@@ -46,9 +46,6 @@ import type { ChatStreamEvent } from "@storytree/drive";
  */
 type QueryFn = NonNullable<ChatSseMountDeps["queryFn"]>;
 
-/** The spawn deps type — derived from the mount's own deps so the double stays in sync. */
-type SpawnDeps = NonNullable<ChatSseMountDeps["spawn"]>;
-
 /** The inspect deps type — derived from the mount's own deps so the double stays in sync (ADR-0173). */
 type InspectDeps = NonNullable<ChatSseMountDeps["inspect"]>;
 
@@ -82,32 +79,9 @@ function queryYielding(messages: unknown[]): QueryFn {
     })();
 }
 
-/** A minimal spawn-deps double — enough to mount the two claim-gated spawn tools. Its gate/runners
- *  never fire (the scripted session only orients); the point is the mount FORWARDS it to the
- *  session so the spawn tools are advertised (mirrors what backend-entry composes via buildSpawnDeps). */
-function spawnDepsDouble(): SpawnDeps {
-  return {
-    store: {
-      claim: async (req: { unitId: string; sessionId: string; branch: string; intent?: string }) => ({
-        acquired: true as const,
-        claim: {
-          unitId: req.unitId,
-          sessionId: req.sessionId,
-          branch: req.branch,
-          intent: req.intent ?? "orchestrate",
-          claimedAt: "2026-07-03T00:00:00.000Z",
-          heartbeatAt: "2026-07-03T00:00:00.000Z",
-        },
-        reclaimed: false,
-      }),
-      bumpHeartbeat: async () => {},
-    },
-    sessionId: "sess-desktop",
-    branch: "claude/sess-desktop",
-    spawnStoryAuthor: async () => "story-author spawn summary",
-    spawnBuilder: async () => "builder dispatched",
-  } as SpawnDeps;
-}
+// The `spawnDepsDouble()` helper that stood here — a claim store + the two spawn runners, enough to
+// mount `mcp__spawn__*` on a scripted session — went with the surface it fed (ADR-0175). The mount
+// takes no `spawn` dep to double any more; `csm-no-spawn-surface` below keeps it that way.
 
 /** A minimal inspect-deps double — enough to mount the three fail-closed READ-ONLY inspect tools
  *  (ADR-0173). Its handlers never fire (the scripted session only orients); the point is the mount
@@ -785,16 +759,20 @@ test(
   },
 );
 
-// SPAWN SEAM (ADR-0137 Phase 3): injected spawn deps must be forwarded through the mount →
-// startChatStream → orchestrate → runHeadlessOrchestrator, which mounts the two claim-gated spawn
-// tools (mcp__spawn__spawn_story_author / spawn_builder) into the session. This is the desktop half
-// of the sidecar wiring — the sidecar (backend-entry.ts) composes the real deps via buildSpawnDeps
-// and hands them to createChatSseMount; the mount only forwards.
+// SPAWN SEAM — RETIRED (ADR-0175). ADR-0137 Phase 3's claim-gated spawn surface
+// (`spawn_story_author` / `spawn_builder`, plus the already-retired `spawn_glue_worker`) was
+// forwarded through this mount until ADR-0174 retired the in-app interactive orchestrator and
+// ADR-0175 ruled that "the spawn and landing surfaces (which drove story work) do not belong to a
+// help agent and retire with the interactive orchestrator" — the mount takes no `spawn` dep any
+// more, and the modules behind it are deleted.
 //
-// DELETION TEST: dropping the spawn forwarding in the mount (or in the bridged startChatStream args)
-// removes the spawn MCP server from the captured session options — this allowedTools assertion fails.
+// The positive `csm-forwards-spawn-deps` test went with the surface, exactly as the landing and the
+// ADR-0155 / PR #587 propose/accept tests did. What survives is the NEGATIVE assertion below, which
+// exists to keep it gone: no session this mount starts may advertise a `mcp__spawn__*` tool. The
+// wider guard (the modules are deleted; nothing in the chain re-composes them) is
+// spawn-surface-retired.test.ts.
 test(
-  "csm-forwards-spawn-deps: injected spawn deps wire the claim-gated spawn tools into the session",
+  "csm-no-spawn-surface: no spawn tool is advertised — the claim-gated spawn surface is retired (ADR-0175)",
   async () => {
     let capturedOptions: unknown;
     const capturingQuery: QueryFn = ({ options }) => {
@@ -804,7 +782,7 @@ test(
       })();
     };
 
-    const handler = createChatSseMount({ queryFn: capturingQuery, spawn: spawnDepsDouble() });
+    const handler = createChatSseMount({ queryFn: capturingQuery });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -822,49 +800,13 @@ test(
       mcpServers?: Record<string, unknown>;
     };
     const allowed = Array.isArray(opts.allowedTools) ? opts.allowedTools : [];
-    for (const name of ["spawn_story_author", "spawn_builder"]) {
-      assert.ok(
-        allowed.includes(`mcp__spawn__${name}`),
-        `the injected spawn deps must wire '${name}' into allowedTools; got: ${JSON.stringify(allowed)}`,
-      );
-    }
-    assert.ok(
-      "spawn" in (opts.mcpServers ?? {}),
-      "the spawn MCP server must be mounted when spawn deps are injected",
-    );
-  },
-);
-
-// SPAWN SEAM (baseline): with NO spawn deps injected, no spawn tools are advertised (the §7
-// scale-down) — the propose-only surface is byte-identical to today; the mount invents no dead surface.
-test(
-  "csm-forwards-spawn-deps: without spawn deps, no spawn tools are advertised (propose-only, unchanged)",
-  async () => {
-    let capturedOptions: unknown;
-    const capturingQuery: QueryFn = ({ options }) => {
-      capturedOptions = options;
-      return (async function* () {
-        yield OK_SDK_RESULT;
-      })();
-    };
-
-    const handler = createChatSseMount({ queryFn: capturingQuery });
-
-    await withServer(handler, async (base) => {
-      const res = await fetch(`${base}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intent: "plain conversational turn" }),
-      });
-      assert.equal(res.status, 200);
-      await res.text();
-    });
-
-    const opts = capturedOptions as { allowedTools?: string[] };
-    const allowed = opts.allowedTools ?? [];
     assert.ok(
       !allowed.some((n) => n.startsWith("mcp__spawn__")),
-      `with no spawn deps, no spawn tools may be advertised; got: ${JSON.stringify(allowed)}`,
+      `no mcp__spawn__* tool may be advertised — the spawn surface is retired (ADR-0175); got: ${JSON.stringify(allowed)}`,
+    );
+    assert.ok(
+      !("spawn" in (opts.mcpServers ?? {})),
+      "no spawn MCP server may be mounted — the surface is retired, not merely unfed (ADR-0175)",
     );
   },
 );

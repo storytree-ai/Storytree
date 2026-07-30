@@ -35,7 +35,6 @@ import type { SdkQueryFn } from "@storytree/agent";
 // RED: chat-stream.ts does not exist yet — module-not-found is the right-kind red.
 import { startChatStream } from "./chat-stream.js";
 import type { ChatStreamEvent } from "./chat-stream.js";
-import type { SpawnSurfaceDeps } from "./spawn-deps.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -90,32 +89,9 @@ const OK_SDK_RESULT = {
   result: "I propose: build the chat-stream adapter as the next Phase-2 capability.",
 };
 
-/** A minimal spawn-deps double — enough to mount the two claim-gated spawn tools. The gate/runners
- *  never fire in these tests (the scripted session only orients); the point is that the deps are
- *  FORWARDED to orchestrate so the tools are advertised. */
-function spawnDepsDouble(): SpawnSurfaceDeps {
-  return {
-    store: {
-      claim: async (req) => ({
-        acquired: true as const,
-        claim: {
-          unitId: req.unitId,
-          sessionId: req.sessionId,
-          branch: req.branch,
-          intent: req.intent ?? "orchestrate",
-          claimedAt: "2026-07-03T00:00:00.000Z",
-          heartbeatAt: "2026-07-03T00:00:00.000Z",
-        },
-        reclaimed: false,
-      }),
-      bumpHeartbeat: async () => {},
-    },
-    sessionId: "sess-chat",
-    branch: "claude/sess-chat",
-    spawnStoryAuthor: async () => "story-author spawn summary",
-    spawnBuilder: async () => "builder dispatched",
-  };
-}
+// The `spawnDepsDouble()` helper that stood here — a claim store + the two spawn runners, forwarded
+// to orchestrate so `mcp__spawn__*` was advertised — went with the surface it fed (ADR-0175).
+// `startChatStream` takes no `spawn` dep to double any more; the negative in §4b keeps it that way.
 
 /** Capture the SDK Options the session was launched with (allowedTools is the observable). */
 function capturingQueryFn(): { fn: SdkQueryFn; lastOptions: () => Record<string, unknown> } {
@@ -426,64 +402,54 @@ test(
 );
 
 // ---------------------------------------------------------------------------
-// 4b. Spawn pass-through (ADR-0137 Phase 3): injected spawn deps are forwarded to
-//     orchestrate, mounting the two claim-gated spawn tools; absent → propose-only,
-//     byte-identical to today (the additive-threading wall, mirroring `runner`).
+// 4b. Spawn pass-through — RETIRED (ADR-0175).
+//
+// ADR-0137 Phase 3 threaded injected spawn deps through to orchestrate, mounting the two claim-gated
+// spawn tools on the session, and the spawn-boundary traces surfaced back out as non-terminal `spawn`
+// events on the delta FIFO (chat-spawn-trace-events). ADR-0174 retired the in-app interactive
+// orchestrator and ADR-0175 ruled that "the spawn and landing surfaces (which drove story work) do not
+// belong to a help agent and retire with the interactive orchestrator" — so `startChatStream` takes no
+// `spawn` dep, emits no `spawn` event, and the modules behind both are deleted.
+//
+// The positive forwarding test went with the surface (the ADR-0155 / PR #587 precedent, and the
+// landing slice's own); the negative below exists to keep it gone. The wider guard — the modules are
+// deleted and nothing in the chain re-composes them — is
+// apps/desktop/src/backend/spawn-surface-retired.test.ts.
 // ---------------------------------------------------------------------------
 
 test(
-  "startChatStream: forwards spawn deps to orchestrate — the spawn tools mount on the session (ADR-0137 Phase 3)",
+  "startChatStream: no mcp__spawn__* tool is advertised — the claim-gated spawn surface is retired (ADR-0175)",
   async () => {
     const store = new InMemoryStore();
     await loadCorpus(store);
     const q = capturingQueryFn();
 
     const events = await drain(
-      startChatStream({
-        intent: "Orient and propose the next unit.",
-        store,
-        queryFn: q.fn,
-        spawn: spawnDepsDouble(),
-      }),
+      startChatStream({ intent: "Orient and propose the next unit.", store, queryFn: q.fn }),
     );
 
     const last = events[events.length - 1];
     assert.equal(last?.type, "done", `capturing session must reach a terminal 'done' (got '${last?.type}')`);
 
     const tools = (q.lastOptions()["allowedTools"] ?? []) as string[];
-    assert.ok(
-      tools.includes("mcp__spawn__spawn_story_author"),
-      `mcp__spawn__spawn_story_author must be advertised when spawn deps are forwarded; got ${JSON.stringify(tools)}`,
-    );
-    assert.ok(
-      tools.includes("mcp__spawn__spawn_builder"),
-      `mcp__spawn__spawn_builder must be advertised when spawn deps are forwarded; got ${JSON.stringify(tools)}`,
-    );
-    // The orchestrator DRIVES rather than proposes (ADR-0155) — there is no propose_unit surface.
-    assert.equal(
-      tools.includes("mcp__proposal__propose_unit"),
-      false,
-      "mcp__proposal__propose_unit must NOT be mounted — the orchestrator drives via spawn tools, it does not propose a unit for a human to accept (ADR-0155)",
-    );
-  },
-);
-
-test(
-  "startChatStream: without spawn deps the session stays propose-only — no mcp__spawn__* tool advertised (the §7 scale-down)",
-  async () => {
-    const store = new InMemoryStore();
-    await loadCorpus(store);
-    const q = capturingQueryFn();
-
-    await drain(
-      startChatStream({ intent: "Orient and propose.", store, queryFn: q.fn }),
-    );
-
-    const tools = (q.lastOptions()["allowedTools"] ?? []) as string[];
     assert.equal(
       tools.some((t) => t.startsWith("mcp__spawn__")),
       false,
-      `no mcp__spawn__* tool may appear without spawn deps; got ${JSON.stringify(tools)}`,
+      `no mcp__spawn__* tool may be advertised — the spawn surface is retired (ADR-0175); got ${JSON.stringify(tools)}`,
+    );
+    // The orchestrator does not propose a unit for a human to accept either (ADR-0155).
+    assert.equal(
+      tools.includes("mcp__proposal__propose_unit"),
+      false,
+      "mcp__proposal__propose_unit must NOT be mounted — ADR-0155 retired the propose/accept surface",
+    );
+    // And no non-terminal `spawn` frame can reach the wire: nothing emits one any more. Read the
+    // discriminant as a plain string — `"spawn"` is no longer in ChatStreamEvent["type"], which is
+    // the point, so this must not be written as a comparison against the narrowed union.
+    assert.equal(
+      events.some((e) => (e as { type: string }).type === "spawn"),
+      false,
+      "no `spawn` event may be emitted — chat-spawn-trace-events retired with the surface it traced",
     );
   },
 );

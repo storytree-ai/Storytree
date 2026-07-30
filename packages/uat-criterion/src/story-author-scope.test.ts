@@ -12,7 +12,7 @@ import {
  * predicate that admits the atomic pair — the existing work-hierarchy surface (`stories/**`) and
  * the NEW detail-kind seed surface — and fail-closed denies every other Library kind's seed path
  * plus every foreign (package / app / ADR / unrelated) path. Offline, no SDK, no store — a pure
- * function over a path string, mirroring the shape `runSpawnStoryAuthor`'s `isWriteAllowed` needs.
+ * function over a path string, mirroring the shape `runSpawnWriteScoped`'s `isWriteAllowed` needs.
  *
  * The seed-corpus layout this predicate is fenced against: per-kind subdirectories under a shared
  * root (`LIBRARY_SEED_KIND_ROOT`), one subdirectory per Library kind — `uat-criterion`'s subdir is
