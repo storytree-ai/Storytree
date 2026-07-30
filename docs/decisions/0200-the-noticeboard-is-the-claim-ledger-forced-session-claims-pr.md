@@ -17,7 +17,11 @@ deterministic"*; the noticeboard should be *"a single surface coordination layer
 as observability on the forest — or at least the core machinery powering these two surfaces"*;
 sessions are **forced to claim at start** (*"it can always release the claims if needed … this might
 push us to better worktree hygiene"*); the exploring state renders as a wisp that *"hovers over the
-story without moving … we capture intent"*; work claims *"push all other sessions to wait in line"*;
+story without moving … we capture intent"*; work claims *"push all other sessions to wait in line"*
+[overtaken 2026-07-30, ADR-0270: what is enforced is check:declared's any-live-claim fence (D3) — a
+`waiting` claim queues for the work slot's promotion but never blocks a session from building, and
+the session ceremony's grain is now the capability being written, story grain remaining for
+cross-capability work];
 no scheduled notifications (*"a single, someone else is looking at this, and then never reports that
 again"*); sessions start on main and **create their worktree through the storytree CLI**; worktree
 names carry the story/arc slug; and the **retirement sweep is the arc's last increment, after UAT
@@ -72,8 +76,13 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
    behind every observability surface (forest map, studio dock, CLI board, statusline).
    `events.session` is retired — no session-presence rows, no staleness bands, no reaper.
 
-2. **Three claim grades, per-(story, session) rows.** The PK becomes `(unit_id, session_id)`;
+2. **Three claim grades, per-(unit, session) rows.** The PK becomes `(unit_id, session_id)`;
    exclusivity is enforced by a partial unique index on `unit_id WHERE grade='work'`:
+   *[This heading read "per-(story, session)" until 2026-07-30; the `(unit_id, session_id)` PK beside
+   it was always the precise statement. Under
+   [ADR-0270](0270-the-claim-ledger-records-a-fiction-same-story-serialisation.md) D1 the unit a
+   session claims is normally the **capability** it is writing — story grain stays legitimate for
+   cross-capability work — so every "per story" gloss in this decision reads "per claimed unit".]*
    - **exploring** — shared (any number of sessions per story), taken at session start, carries the
      intent prose. Renders as a **hovering** wisp (stationary at the story): "someone is reading /
      planning here, and this is what they're thinking." *[The "stationary" half is REVERSED on
@@ -186,7 +195,9 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
 
 **Bad / accepted**
 - Same-story work still serialises (ADR-0138's accepted cost); the queue makes waiting legible
-  rather than removing it. Capability-grain claims remain the named scale-up.
+  rather than removing it. Capability-grain claims remain the named scale-up. [Taken 2026-07-30:
+  ADR-0270 moved the session ceremony to capability grain — the serialisation cost now applies only
+  to work that stays at story grain (cross-capability edits, unit unknown at start).]
 - A session that ignores the lobby ceremony is invisible until the gate wall catches it; claim-free
   actions (ADR authoring, curation — ADR-0138 D3's exception) stay invisible on the map. Accepted
   at inner-circle scale; a session-scoped claim key is the named escape hatch if it ever matters.
