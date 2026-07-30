@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { releaseBranchClaims, type BranchClaimReleaseStore } from "./ingest-merge.js";
 
 /**
@@ -94,5 +95,29 @@ test("releaseBranchClaims: keys on the FULL branch, never a tail-derived session
     store.calls[0],
     "claude/real/render-claim-as-wisp-abc123",
     "the full branch reaches releaseClaimsByBranch (not the 'render-claim-as-wisp-abc123' tail)",
+  );
+});
+
+// ── The CI wiring (ci-clear-on-merge): the YAML that invokes this writer ──────
+
+/** The repo-root workflow this writer is wired into (packages/notice-board/src/store → root). */
+const CI_YAML_URL = new URL("../../../../.github/workflows/ci.yml", import.meta.url);
+
+test("ci.yml wiring: the claim-release writer runs for ANY merged head branch — no claude/* shape gate", () => {
+  const yaml = readFileSync(CI_YAML_URL, "utf8");
+
+  // The automerge job must still invoke this writer at all (the capability's wiring assertion).
+  assert.ok(
+    yaml.includes("src/store/ingest-merge.ts"),
+    "the automerge job invokes the ingest-merge claim-release writer",
+  );
+
+  // Claims are keyed by the FULL head branch, and any branch shape can hold them: the ADR-0200 D3
+  // lobby ceremony mints `worktree-…` branches, and PR #1024's `worktree-adr0270-capability-grain`
+  // work claim survived its merge by 46 minutes because every release step was gated
+  // `startsWith(head.ref, 'claude/')`. The machine clear (ADR-0142) must not depend on shape.
+  assert.ok(
+    !yaml.includes("startsWith(github.event.pull_request.head.ref, 'claude/')"),
+    "no automerge step is gated on a claude/* head-ref prefix — the claim clear must run for every merged branch shape",
   );
 });

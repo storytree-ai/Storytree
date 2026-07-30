@@ -55,10 +55,10 @@ jobs:
         run: bash scripts/adr-pr-collision-check.sh
 
       # A branch is ONE landed unit — it dies on merge (ADR-0142). The merge job below clears the
-      # merged branch's board state (presence + node_claim) keyed on the head ref, so re-landing the
-      # same branch name would erase live sessions from the map and feed the stale-PR trap family.
-      # Refuse a PR whose head branch already has a merged PR. Fail-open on gh errors, like the ADR
-      # collision check above.
+      # merged branch's claim-ledger state (node_claim, ADR-0200) keyed on the head ref, so
+      # re-landing the same branch name would erase live sessions from the map and feed the
+      # stale-PR trap family. Refuse a PR whose head branch already has a merged PR. Fail-open on
+      # gh errors, like the ADR collision check above.
       - name: Merged-branch guard (a branch dies on merge)
         if: github.event_name == 'pull_request'
         env:
@@ -214,36 +214,29 @@ jobs:
           --delete-branch
 
       # -----------------------------------------------------------------------
-      # Presence merge-retire backstop (ADR-0033 / ADR-0041) + possibly-dead sweep
-      # (ADR-0079). The merge that just landed IS the authoritative "this session's
-      # work is done" fact — the one the racy SessionEnd hook misses when a fresh
-      # worktree is deleted before it fires. So retire the merged session's
-      # `events.session` presence row here — and then sweep ALL possibly-dead active
-      # rows (ADR-0079), since the one-shot retire above can't catch sessions that
-      # re-declared after their merge, merged under a different branch, or never
-      # merged. The sweep reuses this same pool — no extra auth/IAM/cron.
+      # Claim-release backstop (ADR-0138 §4 / ADR-0200): the merge that just
+      # landed IS the authoritative "this branch's work is done" fact, so release
+      # ALL of the merged branch's `events.node_claim` rows here — the guaranteed
+      # machine clear the claim ledger needs (a branch dies on merge, ADR-0142).
       #
       # EVERYTHING below is FAIL-SOFT: every step is `continue-on-error: true` and
-      # the writer itself never exits non-zero. The merge already happened and
-      # presence is advisory (ADR-0033) — this must NEVER fail the merge job.
+      # the writer itself never exits non-zero. The merge already happened and the
+      # claim is advisory coordination state — this must NEVER fail the merge job.
       #
-      # Gated on a `claude/*` head ref: only agent sessions have presence rows, so
-      # non-session merges skip the GCP/DB spin-up entirely (done() would no-op on
-      # them regardless). Auth is keyless WIF (ADR-0021) — no JSON key in a secret.
+      # Deliberately UNGATED on the head-ref shape: claims are keyed by the FULL
+      # head branch and ANY branch shape can hold them — the ADR-0200 D3 lobby
+      # ceremony mints `worktree-…` branches, and PR #1024's
+      # `worktree-adr0270-capability-grain` claim outlived its merge by 46 minutes
+      # under the old `claude/*` gate (a presence-era assumption; presence retired
+      # with ADR-0200 D7). A branch with no claims is a clean no-op in the writer.
+      # Auth is keyless WIF (ADR-0021) — no JSON key in a secret.
       # -----------------------------------------------------------------------
-      - name: Stamp merge time
-        id: merge_stamp
-        if: startsWith(github.event.pull_request.head.ref, 'claude/')
+      - name: Checkout (for the claim-release writer)
         continue-on-error: true
-        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout (for the presence writer)
-        if: startsWith(github.event.pull_request.head.ref, 'claude/')
         uses: actions/checkout@v6
 
       - name: Authenticate to GCP (keyless WIF — ADR-0021)
         id: gcp_auth
-        if: startsWith(github.event.pull_request.head.ref, 'claude/')
         continue-on-error: true
         uses: google-github-actions/auth@v3
         with:
@@ -254,14 +247,12 @@ jobs:
           service_account: storytree-ci-presence@storytree-498613.iam.gserviceaccount.com
 
       - name: Set up pnpm
-        if: startsWith(github.event.pull_request.head.ref, 'claude/')
         continue-on-error: true
         uses: pnpm/action-setup@v6
         with:
           version: 9.15.0
 
       - name: Set up Node
-        if: startsWith(github.event.pull_request.head.ref, 'claude/')
         continue-on-error: true
         uses: actions/setup-node@v6
         with:
@@ -269,21 +260,18 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        if: startsWith(github.event.pull_request.head.ref, 'claude/')
         continue-on-error: true
         run: pnpm install --frozen-lockfile
 
-      # Also releases the merged branch's node_claim story-claims (ADR-0138 §4 — the guaranteed
-      # machine clear of the wisp-claim, keyed on the head-ref branch). Fail-soft, same writer.
-      - name: Retire the merged session + release its claims + sweep possibly-dead rows (fail-soft)
-        if: startsWith(github.event.pull_request.head.ref, 'claude/')
+      # Releases the merged branch's node_claim rows (ADR-0138 §4 — the guaranteed machine
+      # clear of the wisp-claim, keyed on the head-ref branch). Fail-soft.
+      - name: Release the merged branch's claims (fail-soft)
         continue-on-error: true
         env:
           # The CI service account's Cloud SQL IAM username (the `.iam` short form —
           # Cloud SQL truncates `.gserviceaccount.com`, mirroring the studio host).
           STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
           STORYTREE_MERGED_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          STORYTREE_MERGED_AT: ${{ steps.merge_stamp.outputs.at }}
         # Package-scoped exec resolves the workspace's pinned tsx (a @storytree/notice-board devDep) —
         # `npx tsx` from root would download tsx fresh (no root .bin in this pnpm workspace).
         # ADR-0077: the merge-ingest writer moved into the notice-board organism's ./store subpath.
@@ -320,12 +308,12 @@ jobs:
       # closes the gap with NO new secret and NO new IAM. Gated to the ADR-0046
       # studio-affecting path set so a non-studio merge doesn't deploy.
       #
-      # MUST stay the LAST step in this job. Unlike the fail-soft presence-retire
+      # MUST stay the LAST step in this job. Unlike the fail-soft claim-release
       # above, a missed deploy is the bug being fixed, so this is deliberately
-      # LOUD (no continue-on-error). The presence steps default to if: success(),
-      # so a dispatch failure here must not be able to skip them — keeping it last
-      # guarantees that. Runs for every auto-merged PR (not just `claude/*`); the
-      # path gate, not a branch gate, decides whether to deploy.
+      # LOUD (no continue-on-error). The claim-release steps default to
+      # if: success(), so a dispatch failure here must not be able to skip them —
+      # keeping it last guarantees that. Runs for every auto-merged PR; the path
+      # gate, not a branch gate, decides whether to deploy.
       # -----------------------------------------------------------------------
       - name: Dispatch studio deploy on a studio-affecting merge (ADR-0061)
         env:
