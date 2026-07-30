@@ -16,7 +16,10 @@ async function main(): Promise<void> {
       const res = await ensureLiveDb(log);
       if (!res.ok) {
         console.error(res.reason);
-        process.exitCode = 1;
+        // A still-warming refusal is a WAIT, not a wedge: the start was issued and the instance
+        // reports ALWAYS — re-probe, never re-start. Exit EX_TEMPFAIL (75) so callers/operators
+        // can tell it from genuinely unreachable (1) without parsing the message.
+        process.exitCode = res.stillWarming === true ? 75 : 1;
         return;
       }
       console.log(res.started ? "RUNNABLE (started)" : "RUNNABLE (already up)");

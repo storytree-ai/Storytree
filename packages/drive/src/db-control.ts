@@ -30,11 +30,23 @@ export interface EnsureDbDeps {
   /** Monotonic-ish clock for the deadline (real: `Date.now`). */
   now: () => number;
   /**
-   * Total budget to wait for connectivity after start (default 420s / 7 min). A real GCP cold start
-   * was measured at ~5–6 min (≤366s end-to-end), not the ~60–90s ADR-0060 first estimated — and since
-   * ADR-0063 made `start()` a non-blocking REST PATCH, this poll owns the WHOLE wait. 180s was below the
-   * observed cold start, so a genuinely-slow start refused spuriously; 420s covers it with headroom
-   * (`oq-live-build-autostart-cold-start-wait`).
+   * Consulted ONLY after the poll deadline exhausts, to tell "start issued, instance still
+   * warming" (activationPolicy ALWAYS — the PATCH took, re-probe and never re-start) apart from
+   * "genuinely unreachable" (the PATCH did not take, or the Admin API disagrees). Optional; absent
+   * or throwing falls back to the generic refusal. Real wiring: `statusLiveDbViaRest`.
+   */
+  status?: () => Promise<InstanceStatus>;
+  /**
+   * Total budget to wait for connectivity after start (default 600s / 10 min). A typical GCP cold
+   * start was measured at ~5–6 min (≤366s end-to-end), not the ~60–90s ADR-0060 first estimated —
+   * and since ADR-0063 made `start()` a non-blocking REST PATCH, this poll owns the WHOLE wait.
+   * 180s was below the observed cold start, so a genuinely-slow start refused spuriously (the
+   * retired `oq-live-build-autostart-cold-start-wait` question — ADR-0060 is the resolution
+   * record); 420s then sat too close to the ~5–6 min its own
+   * progress banner advertises, giving up on starts it itself called normal (the
+   * `db-up-poll-window-shorter-than-the-cold-start-it-triggers` friction — post-overnight starts
+   * have reached ~21 min). 600s carries real headroom, and the still-warming refusal below covers
+   * the long tail honestly.
    */
   timeoutMs?: number;
   /** Poll interval while waiting (default 5s). */
@@ -48,8 +60,15 @@ export interface EnsureDbDeps {
   refusal?: string | null;
 }
 
-/** Outcome of the preflight: up (whether we had to start it), or a refusal reason. */
-export type EnsureDbResult = { ok: true; started: boolean } | { ok: false; reason: string };
+/**
+ * Outcome of the preflight: up (whether we had to start it), or a refusal reason.
+ * `stillWarming` marks the refusal that is NOT a failure to act on: the start was issued and the
+ * instance reports activationPolicy ALWAYS, so it is coming up — re-probe shortly, never re-start
+ * (callers may exit distinctly, e.g. db-cli's EX_TEMPFAIL 75).
+ */
+export type EnsureDbResult =
+  | { ok: true; started: boolean }
+  | { ok: false; reason: string; stillWarming?: boolean };
 
 /**
  * Ensure the live store is reachable, starting it if needed (ADR-0060). Fast path: if a probe
@@ -60,7 +79,7 @@ export type EnsureDbResult = { ok: true; started: boolean } | { ok: false; reaso
  */
 export async function ensureDbUp(deps: EnsureDbDeps): Promise<EnsureDbResult> {
   // ADR-0250: refuse FIRST — before the probe, before the start. A blocked session that falls
-  // through here pays the 45s probe plus the whole 420s poll before refusing for the wrong reason
+  // through here pays the 45s probe plus the whole multi-minute cold-start poll before refusing for the wrong reason
   // ("the database did not accept connections"), which sends the reader after a healthy instance.
   if (deps.refusal !== undefined && deps.refusal !== null) {
     return { ok: false, reason: deps.refusal };
@@ -74,7 +93,7 @@ export async function ensureDbUp(deps: EnsureDbDeps): Promise<EnsureDbResult> {
     return { ok: false, reason: `could not start the database: ${(e as Error).message}` };
   }
 
-  const timeoutMs = deps.timeoutMs ?? 420_000;
+  const timeoutMs = deps.timeoutMs ?? 600_000;
   const pollMs = deps.pollMs ?? 5_000;
   const startedAt = deps.now();
   const deadline = startedAt + timeoutMs;
@@ -90,9 +109,35 @@ export async function ensureDbUp(deps: EnsureDbDeps): Promise<EnsureDbResult> {
       nextProgressAt += 30_000;
     }
   }
+  // Deadline exhausted. Before refusing generically, ask the Admin API which failure this IS:
+  // activationPolicy ALWAYS means the start we issued took and the instance is still warming
+  // (post-overnight cold starts have reached ~21 min) — a wait, not a wedge. Anything else means
+  // the PATCH did not take effect, which no amount of re-probing fixes.
+  const waitedS = Math.round(timeoutMs / 1000);
+  if (deps.status !== undefined) {
+    let observed: InstanceStatus | undefined;
+    try {
+      observed = await deps.status();
+    } catch {
+      // Admin API unreachable — fall through to the generic refusal below.
+    }
+    if (observed !== undefined) {
+      if (observed.activationPolicy === "ALWAYS") {
+        return {
+          ok: false,
+          stillWarming: true,
+          reason: `db:up was issued and the instance reports state=${observed.state} activationPolicy=ALWAYS, but it did not accept connections within ${waitedS}s — it is STILL WARMING, not down (post-overnight cold starts have reached ~21 min; past ~30 min treat it as a real wedge). Re-probe shortly (\`pnpm db:status\`, or just retry the command that needed the DB) — do NOT issue another start or stop.`,
+        };
+      }
+      return {
+        ok: false,
+        reason: `the database did not accept connections within ${waitedS}s of db:up, and the instance reports state=${observed.state} activationPolicy=${observed.activationPolicy} — the activation PATCH did not take effect, so waiting longer will not help. Check \`pnpm db:status\` and \`gcloud auth application-default print-access-token\`.`,
+      };
+    }
+  }
   return {
     ok: false,
-    reason: `the database did not accept connections within ${Math.round(timeoutMs / 1000)}s of db:up. A cold Cloud SQL start usually takes ~5–6 min and it may still be coming up — re-run shortly, or check \`pnpm db:status\` and \`gcloud auth application-default print-access-token\`.`,
+    reason: `the database did not accept connections within ${waitedS}s of db:up. A cold Cloud SQL start usually takes ~5–6 min and it may still be coming up — re-run shortly, or check \`pnpm db:status\` and \`gcloud auth application-default print-access-token\`.`,
   };
 }
 
@@ -107,7 +152,7 @@ export async function ensureDbUp(deps: EnsureDbDeps): Promise<EnsureDbResult> {
  * connector's ADC + Admin-API + TLS handshake — was measured at ~9.6s from a laptop session on a
  * RUNNING, already-warm instance (the `SELECT 1` after it costs ~320ms, and a second query on the
  * warm pool ~17ms). A 10s budget for a ~10s operation has no headroom, so the probe reported a
- * perfectly healthy database as unreachable and `ensureDbUp` burned its whole 420s poll refusing a
+ * perfectly healthy database as unreachable and `ensureDbUp` burned its whole cold-start poll refusing a
  * build it should have run. Erring long is nearly free — the fast path returns the instant the DB
  * answers, and the only cost of a generous budget is a slower refusal when the DB really is down.
  */
@@ -162,6 +207,8 @@ export function ensureLiveDb(log: (message: string) => void): Promise<EnsureDbRe
     probe: () => probeLiveDb(),
     // REST-only (ADR-0063): the build preflight no longer shells gcloud.
     start: () => startLiveDbViaRest(),
+    // Consulted only after the poll deadline: tells still-warming from genuinely unreachable.
+    status: () => statusLiveDbViaRest(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     log,
     now: () => Date.now(),

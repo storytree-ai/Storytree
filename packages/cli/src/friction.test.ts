@@ -541,6 +541,55 @@ test("route refuses a missing --reason (the justification is mandatory)", async 
   assert.match(env.body, /route needs --reason/);
 });
 
+test("route --discharged-by stamps the delivery ref — a landed remedy stops looking like a never-built one", async () => {
+  // The delivery-signal gap: an adr/tool-routed item whose remedy later LANDS was indistinguishable
+  // from one whose remedy was never built. The stamp is optional (route without it is unchanged) and
+  // re-running the route with it records a later landing.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("rt-4"), dirs, { writable: true });
+  const env = await run(
+    ["friction", "route", "rt-4", "--route", "adr", "--reason", "remedy landed in the same PR", "--discharged-by", "#1025", "--pg"],
+    { store: s, writable: true, friction: frictionDeps(dirs) },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /discharged by #1025/);
+  const raw = (await s.getDoc("rt-4"))?.doc as Record<string, unknown>;
+  assert.ok(Friction.safeParse(raw).success, "the discharged doc still validates as Friction");
+  assert.equal(raw["dischargedBy"], "#1025");
+
+  // Without the flag the field stays absent — routing semantics are unchanged.
+  await fileNew(s, frictionDoc("rt-5"), dirs, { writable: true });
+  await run(["friction", "route", "rt-5", "--route", "adr", "--reason", "adr not yet drafted", "--pg"], { store: s, writable: true, friction: frictionDeps(dirs) });
+  const undischarged = (await s.getDoc("rt-5"))?.doc as Record<string, unknown>;
+  assert.equal(undischarged["dischargedBy"], undefined);
+
+  // An empty ref is refused — omit the flag when the remedy has not landed.
+  const empty = await run(
+    ["friction", "route", "rt-4", "--route", "adr", "--reason", "x", "--discharged-by", "", "--pg"],
+    { store: s, writable: true, friction: frictionDeps(dirs) },
+  );
+  assert.equal(empty.ok, false);
+  assert.match(empty.body, /--discharged-by needs a ref/);
+});
+
+test("list marks a discharged archived item so the two ends of a route are tellable apart", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("l-done"), dirs, { writable: true });
+  await run(
+    ["friction", "route", "l-done", "--route", "tool", "--reason", "capability shipped", "--discharged-by", "#1025", "--pg"],
+    { store: s, writable: true, friction: frictionDeps(dirs) },
+  );
+  await fileNew(s, frictionDoc("l-pending"), dirs, { writable: true });
+  await run(["friction", "route", "l-pending", "--route", "tool", "--reason", "capability not yet built", "--pg"], { store: s, writable: true, friction: frictionDeps(dirs) });
+
+  const env = await run(["friction", "list"], { store: s, writable: true, friction: frictionDeps(dirs) });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /l-done.*✓ #1025/, "the discharged row carries the delivery ref");
+  assert.doesNotMatch(env.body, /l-pending.*✓/, "the undischarged row does not");
+});
+
 // ---------------------------------------------------------------------------
 // friction list — the worklist (ADR-0168 D2)
 // ---------------------------------------------------------------------------

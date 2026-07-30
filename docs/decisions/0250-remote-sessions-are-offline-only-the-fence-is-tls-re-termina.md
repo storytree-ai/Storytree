@@ -156,7 +156,8 @@ database that is up.
   a `createPool` throw as "live store unavailable" keep skipping exactly as they do offline; only the
   reason they print gets better.
 - `ensureDbUp` refuses **before** its first probe and before `db:up`, so a blocked session never
-  spends the 45s probe or the 420s cold-start poll.
+  spends the 45s probe or the multi-minute cold-start poll (that poll's budget is ADR-0060's to set —
+  420s when this was written, 600s since 2026-07-30 — and this guard skips all of it either way).
 - `STORYTREE_ALLOW_DATA_PLANE=1` overrides unconditionally, so an environment whose egress is later
   fixed is not bricked by a stale fingerprint.
 

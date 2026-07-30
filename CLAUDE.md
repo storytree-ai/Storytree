@@ -280,7 +280,10 @@ file conflicts).
   **Probe, don't assume — never conclude the DB is unreachable from the environment.** Verify with a
   direct connector `SELECT 1` (via `@storytree/library/store` `createPool`) before deciding it's down.
   A `db:up`/preflight "unreachable within Ns" at status **RUNNABLE** is almost always a slow cold-start
-  (can exceed the 420s poll — seen ~21 min after the overnight stop), not a wedge: wait + re-probe. A
+  (it can exceed the whole readiness poll — ~21 min has been seen after the overnight stop), not a
+  wedge: wait + re-probe. **`db:up` names which case it hit on the way out (ADR-0060):** exit **75**
+  (`EX_TEMPFAIL`) = the start took and the instance is STILL WARMING, so re-probe and do NOT issue
+  another start/stop; exit **1** = the activation PATCH did not take, so waiting won't help. A
   direct `SELECT 1` is the definitive check (it connected in ~340 ms once warm while `db:up`'s own poll
   was still timing out). The TLS-re-termination caveat above applies to REMOTE sessions only.
   Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/library/src/store/load-corpus.ts`.

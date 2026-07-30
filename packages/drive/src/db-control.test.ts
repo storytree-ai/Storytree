@@ -119,6 +119,81 @@ test("ensureDbUp's DEFAULT poll budget covers a real ~6 min cold start (oq-live-
   assert.deepEqual(res, { ok: true, started: true });
 });
 
+test("ensureDbUp's DEFAULT poll budget sits comfortably ABOVE the ~5–6 min cold start its own banner advertises", async () => {
+  // The friction (db-up-poll-window-shorter-than-the-cold-start-it-triggers): the progress line
+  // says "a cold start runs ~5–6 min", so a poll ceiling near that range gives up on starts it
+  // itself called normal. The ceiling must carry real headroom — a start that connects at ~8m40s
+  // (observed cold starts have reached ~21 min after the overnight stop) still succeeds.
+  const clock = fakeClock();
+  const upAt = 520_000; // accepts connections at 8m40s — past the old 420s ceiling
+  const res = await ensureDbUp({
+    probe: async () => clock.now() >= upAt,
+    start: async () => {},
+    sleep: clock.sleep,
+    now: clock.now,
+    log: () => {},
+    // no timeoutMs / pollMs → exercises the real defaults
+  });
+  assert.deepEqual(res, { ok: true, started: true });
+});
+
+test("ensureDbUp timeout with the instance reporting ALWAYS → stillWarming: re-probe, do not re-start", async () => {
+  // "Start issued, instance still warming" is distinguishable from "genuinely unreachable": the
+  // activation PATCH took (policy ALWAYS), so the instance is coming up — the operator should
+  // re-probe, never issue another start. The old failure collapsed both into one message.
+  const res = await ensureDbUp(
+    deps({
+      probe: async () => false,
+      status: async () => ({ state: "RUNNABLE", activationPolicy: "ALWAYS" }),
+      timeoutMs: 30,
+      pollMs: 10,
+    }),
+  );
+  assert.equal(res.ok, false);
+  const failure = res as { reason: string; stillWarming?: boolean };
+  assert.equal(failure.stillWarming, true, "an ALWAYS instance after a start is warming, not unreachable");
+  assert.match(failure.reason, /still warming/i, "the reason names the warming state");
+  assert.match(failure.reason, /re-probe/i, "the remedy is to re-probe");
+  assert.match(failure.reason, /not .*(another start|re-start)/i, "and explicitly NOT another start");
+});
+
+test("ensureDbUp timeout with the instance NOT on ALWAYS → genuinely unreachable, no stillWarming", async () => {
+  // The activation PATCH did not take (policy still NEVER) — this is not a cold start in
+  // progress, so the failure must NOT read as "just wait": it names the observed state instead.
+  const res = await ensureDbUp(
+    deps({
+      probe: async () => false,
+      status: async () => ({ state: "STOPPED", activationPolicy: "NEVER" }),
+      timeoutMs: 30,
+      pollMs: 10,
+    }),
+  );
+  assert.equal(res.ok, false);
+  const failure = res as { reason: string; stillWarming?: boolean };
+  assert.notEqual(failure.stillWarming, true, "a NEVER instance is not 'still warming'");
+  assert.match(failure.reason, /NEVER/, "the reason surfaces the observed activation policy");
+});
+
+test("ensureDbUp timeout with a THROWING/absent status probe falls back to the generic refusal", async () => {
+  const throwing = await ensureDbUp(
+    deps({
+      probe: async () => false,
+      status: async () => {
+        throw new Error("Admin API unreachable");
+      },
+      timeoutMs: 30,
+      pollMs: 10,
+    }),
+  );
+  assert.equal(throwing.ok, false);
+  assert.notEqual((throwing as { stillWarming?: boolean }).stillWarming, true);
+  assert.match((throwing as { reason: string }).reason, /did not accept connections/);
+
+  const absent = await ensureDbUp(deps({ probe: async () => false, timeoutMs: 30, pollMs: 10 }));
+  assert.equal(absent.ok, false);
+  assert.match((absent as { reason: string }).reason, /did not accept connections/);
+});
+
 test("ensureDbUp emits a periodic progress line while waiting for a slow start", async () => {
   const clock = fakeClock();
   const logs: string[] = [];

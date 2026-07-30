@@ -28,10 +28,20 @@ plus connection latency). Two things compounded the gap: [ADR-0063](0063-db-cont
 made the start a **non-blocking REST PATCH**, so the connection-poll — not a blocking `gcloud` call —
 now owns the *whole* wait; and 180s sat *below* the observed cold start, so the first live/real build
 after the daily stop refused spuriously even though the instance came up a minute or two later. The
-poll budget in `ensureDbUp` (`packages/cli/src/db-control.ts`) was raised **180s → 420s (7 min)** so the
-decision's intent — wait out a cold start, else refuse — actually holds, and the loop now logs progress
-every 30s. Resolves `oq-live-build-autostart-cold-start-wait`; read the "≤180s" / "~60–90s" wording
-below as ~5–6 min / ≤420s.
+poll budget in `ensureDbUp` (`packages/drive/src/db-control.ts` — moved out of `packages/cli` by
+ADR-0112) was raised **180s → 420s (7 min)** so the decision's intent — wait out a cold start, else
+refuse — actually holds, and the loop now logs progress every 30s. Resolves
+`oq-live-build-autostart-cold-start-wait` (that open-question artifact is retired; this ADR is the
+resolution record).
+
+**Correction (2026-07-30, per ADR-0139) — the budget is 600s (10 min), not 420s, and deadline
+exhaustion is no longer one collapsed message.** 420s sat too close to the ~5–6 min its own progress
+banner advertises, so `db:up` gave up on starts it had itself called normal (twice in one session at
+301s elapsed; post-overnight cold starts have reached ~21 min). The budget is raised **420s → 600s**,
+and when it does exhaust, the refusal consults the Cloud SQL Admin status and distinguishes **still
+warming** — activation policy `ALWAYS`, i.e. the PATCH took, so re-probe and never re-start (`db:up`
+exits `EX_TEMPFAIL` 75) — from **genuinely unreachable**, naming the observed state. Read the "≤180s"
+/ "~60–90s" wording below as ~5–6 min / ≤600s.
 
 ## Context
 
