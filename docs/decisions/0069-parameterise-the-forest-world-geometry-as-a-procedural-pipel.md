@@ -20,6 +20,13 @@ deferral triggers). It is the rendering-authoring counterpart to
 emergent, not scored": 0062 governs *what* each element means; this governs *how the geometry is
 authored* so that complexity can emerge cheaply.
 
+**Annotated in place 2026-07-31 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md), after [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md) measured a forest-map pan frame.**
+Every decision below stands, and decision 3's "stay on SVG" is reaffirmed on stronger evidence than
+the node-count headroom that originally carried it. Two clauses are narrowed and carry inline notes
+where they sit: decision 3's swap **trigger (b)**, which is now met on both halves and must NOT be
+read as firing, and the Context bullet whose June 2026 node counts, "almost entirely static" premise,
+and CPU/DOM-bound framing are overtaken. Truth-maintenance, not a re-decision.
+
 ## Context
 
 The river network on the forest map has been through ~6 iteration rounds (PRs #157, #186–#193: basin
@@ -36,6 +43,16 @@ The scoping memo (this session) separated the candidate causes and found:
   ~72 capabilities), almost entirely **static** — only the SMIL build-wisp orbit animates. Static SVG
   is comfortable to ~1,000–3,000 nodes (pain ~3,000–5,000); the much lower ~100–500 ceiling applies
   only to per-frame-animated content, which we are not. We have ~3–5× node-count headroom.
+  *[Amended by [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md)
+  (2026-07-31): the June 2026 counts and the headroom estimate are HISTORICAL — the map measured
+  18,793 elements on 2026-07-31, past the stated range, and the headroom is spent. This bullet's
+  conclusion survives (substrate perf is still not the bottleneck; the same element count pans at
+  60 fps once the camera transform is compositor-only), but two of its premises do not. "Almost
+  entirely static, which we are not [per-frame-animated]" is false while a gesture is in flight: a
+  pan re-rasterises the whole `.world-camera` subtree every frame, so the map behaves exactly like
+  per-frame-animated content and the lower ~100–500 ceiling is the relevant one. And ADR-0272
+  decision 6 retires this memo's "CPU/DOM-bound, not GPU-bound" framing as a blanket claim — true of
+  mount and rebuild, false of a pan frame, whose largest trace item is GPU-process rasterisation.]*
 - **The real cost is the authoring model.** We hand-write *deterministic vector math per feature* as
   TS → SVG path `d` strings. Every aesthetic change is a geometry edit with invariants to preserve
   (start on the dock, end on the mouth, no self-intersection, stay deterministic), not a parameter
@@ -88,6 +105,18 @@ render-agnostic world model, and the render substrate stays SVG.**
    > ~100–500 elements at once; (b) node count grows past ~3,000–5,000 (≈ 3–5× today) and static
    pan/zoom degrades on members' devices; (c) we genuinely need per-pixel terrain shading vector
    paths can't express cheaply.
+   *[Trigger (b) amended by
+   [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md) (2026-07-31):
+   it gains a PRECONDITION and must not be read literally today. Both halves are now measurably met
+   — the map is 18,793 elements (~4× the top of the stated range) and pan degrades to 3.6 fps — so
+   read literally this ADR would sanction executing the swap. It does not fire, because the trigger
+   silently assumed that degradation at scale indicts the SUBSTRATE. It does not here: the same
+   18,793 SVG elements pan at the 60 fps vsync floor once the camera transform moves off the `<g>`,
+   with no visual change. Trigger (b) now reads: **node count past the range, and pan/zoom degrades
+   *with the per-frame path already compositor-only*.** Until ADR-0272 decision 2 ships, trigger (b)
+   cannot be evaluated at all and no renderer swap may be argued from it. Triggers (a) and (c) are
+   untouched, and decision 3's "stay on SVG" is reaffirmed on stronger evidence than the node-count
+   headroom that originally carried it.]*
 
 4. **Determinism is preserved and constrains the substrate.** Generators stay a pure function of the
    data (`hash`/`rand01`, no `Math.random`, no wall-clock). This is *why* the layer stays on
