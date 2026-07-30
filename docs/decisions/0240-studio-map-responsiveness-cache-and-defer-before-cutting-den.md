@@ -9,10 +9,15 @@ arc: studio-map-responsiveness-arc
 
 accepted (2026-07-25) — decided/directed by the owner in conversation on 2026-07-25. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
-**Corrected in place 2026-07-27 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md), after stages 1 and 2 landed — again 2026-07-28, after stage 3 — and a third time 2026-07-28, after stage 4.**
-Every decision below STANDS unchanged — the felt cost is re-computation and re-mounting, cache and
-defer first and cut density last, cached paint is never cached truth, the density budget is
-sequenced here and not designed here. What building stages 1–4 overtook is four CONSEQUENCES: one
+**Corrected in place 2026-07-27 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md), after stages 1 and 2 landed — again 2026-07-28, after stage 3 — a third time 2026-07-28, after stage 4 — and a fourth time 2026-07-31, after [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md) measured a pan frame.**
+Decisions 3 and 4 stand unchanged — cached paint is never cached truth, the density budget is
+sequenced here and not designed here. Decisions 1 and 2 are NARROWED by ADR-0272 and carry inline
+notes at the narrowed clauses: decision 1's "not rendering" is true of the costs this ADR measured
+(boot, re-entry, mount) and false of a pan frame, which it never measured; and decision 2's closing
+"only then bound the density" is de-sequenced. This ADR stays in the current set — ADR-0272 `amends`
+it, and stages 1–4 landed under it — but an `amends` edge is not a claim that nothing here changed,
+so the retired clauses are annotated where they sit rather than left to be read as live.
+What building stages 1–4 overtook is four CONSEQUENCES: one
 that called the early increments "behaviour-preserving", two whose prescribed staleness guard turns
 out to be insufficient as literally written, and one that prescribed the wrong TREATMENT for a
 payload whose role it had never checked. Two further bullets are added — for a stage boundary stage
@@ -58,6 +63,18 @@ work is intact in `@storytree/app-surface`. It did not coalesce raw pointer inpu
 studio-local frame coalescer can remove redundant camera commits while retaining that protection.
 Boot, re-entry, and the unbounded density remain the separately sequenced follow-ons.
 
+*[Amended by [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md)
+(2026-07-31), twice over. (i) "CPU/DOM-bound rather than GPU-bound" is retired as a BLANKET claim
+about this surface: it is right about mount and rebuild — what it measured — and wrong about a pan
+frame, whose largest single trace item is GPU-process rasterisation
+(`RasterDecoderImpl::DoEndRasterCHROMIUM::Flush`). The correction is not "the GPU is too weak" — we
+currently ask it to re-rasterise the whole forest every frame, a pipeline mistake rather than a
+hardware limit. Anyone citing this framing must say which cost they mean. (ii) "the unbounded
+density remains a separately sequenced follow-on" is retired: density is DE-SEQUENCED (decision 2's
+note). The `SceneView` memo and the frame coalescer named here are untouched and still
+load-bearing — but note that the memo's own source comment calls the React walk "the felt pan lag",
+and measured that walk is ~3% of a gesture frame.]*
+
 The forces: the cheap fixes are studio-local and behaviour-preserving; the fix that actually *scales*
 (a density budget / LOD) touches the shared scene graph, which drags the web-engine sync-and-pin
 dance and changes what the owner sees on the map.
@@ -67,12 +84,28 @@ dance and changes what the owner sees on the map.
 1. **The felt cost is re-computation and re-mounting, not rendering.** Optimisation on this surface
    targets work that is repeated — refetching, recomputing, remounting — before it targets the size
    of what is drawn.
+   *[Amended by [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md)
+   (2026-07-31): "not rendering" holds only for the costs this ADR measured — boot, re-entry, and the
+   ~70 ms DOM mount — and is dead for the per-frame path, which was never measured here. A shipped
+   pan frame measures 275 ms, of which ~274 ms is paint/rasterise/composite and 0.1 ms is script: a
+   pan frame IS rendering. Read this decision as scoped to repeated work; for per-frame cost
+   ADR-0272 decision 1 governs.]*
 2. **Cache and defer first; cut density last.** The staged order is: keep the map mounted across
    routes → cache and persist the payloads client-side → memoize the server walks and add
    validators → de-serialise the boot so the map's data no longer waits on the Library corpus →
    only then bound the density. The density work is genuinely the only fix whose benefit survives
    the tree growing, but it is sequenced last because it is the only one that changes the shared
    scene graph and what the owner sees.
+   *[Amended by [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md)
+   (2026-07-31): the four staged steps landed and stand; the closing "only then bound the density"
+   is retired, and with it the claim that density is "the only fix whose benefit survives the tree
+   growing". Density is DE-SEQUENCED, not retired as an idea. It was named here as the stage that
+   would finally make the map feel immediate, and measured it cannot be: deleting ALL flora (63% of
+   the DOM) still costs 133 ms per pan frame, and deleting flora *and* every ground cell (82%) still
+   costs 33 ms — ~85% of the map would have to disappear to reach 60 fps by density alone. ADR-0272
+   decision 2 instead moves the pan off the SVG `<g>` transform and reaches the 16.7 ms idle floor
+   with all 18,793 elements present. A density budget may return only against its own fresh
+   evidence, for a cost it can actually pay down (mount, not pan).]*
 3. **Cached paint is never cached truth.** Every cache on this path is paint-then-revalidate: the map
    may paint instantly from a previous payload, but it always refetches and reconciles, and proof
    state (crowns, verdicts, claim and build wisps) is never presented as current on the strength of a
@@ -156,6 +189,12 @@ dance and changes what the owner sees on the map.
   the memo and served back as if they were file-borne state, breaking decision 3.)*
 - The density increment will require a web-engine sync and pin bump, and an owner attestation of the
   look, so it should not be attempted opportunistically inside a caching increment.
+  *(Amended by [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md)
+  (2026-07-31): still true OF a density increment, but density is no longer this arc's next stage
+  (decision 2's note), so this bullet no longer describes the responsiveness endgame — which is what
+  it was written to predict. ADR-0272's remedy is studio-local — `apps/studio/src`, not
+  `packages/forest-world/src` — so it drags no web-engine sync, no pin bump, and no owner
+  attestation, because the look does not change.)*
 - The map remains SVG. Nothing here proposes a renderer change; the measured DOM cost (~70 ms for
   16.6k nodes) does not justify one.
 
