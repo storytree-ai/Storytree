@@ -15,6 +15,7 @@ import type {
   PhaseAuthor,
 } from "@storytree/agent";
 import type { Store } from "@storytree/storage-protocol";
+import type { ContractDecl } from "@storytree/library";
 import type { ContractCoverageAxis } from "@storytree/proof-protocol";
 
 import { resolveSigner } from "./proof/signer.js";
@@ -129,17 +130,59 @@ export function dryRunModel(): ScriptedModel {
 }
 
 /**
- * Assemble the per-phase leaf briefs from the node's REAL spec — its outcome plus its `## Guidance`
- * prose. These are the prompts a live model would receive; the dry-run's scripted model ignores
- * them, but resolving them off the real spec is part of what the dry-run proves.
+ * The DECLARED-CONTRACTS block: the unit's own `## Contracts` ids, spliced into every phase brief
+ * that authors the unit's REAL tests.
+ *
+ * ADR-0122's coverage check maps each declared contract to an observed test by NAME
+ * ({@link import("./proof/contract-coverage.js").testNameCoversContract}) — so a leaf that invents
+ * its own test-name prefix signs a green reading `coverage 0/N` even when the behaviour is genuinely
+ * proven (measured: run real-mrg5bsjq, five `lds-*` contracts authored as `ldw-*`, renamed by hand
+ * post-merge). Until this, the ids reached the leaf ONLY when a spec author happened to restate them
+ * inside `## Guidance`: `spec.contracts` was parsed onto the {@link NodeSpec} and then dropped by
+ * both prompt assemblers. Putting them in the brief structurally makes the convention followable by
+ * construction rather than by authorial diligence.
+ *
+ * PROMPT side only — this supplies the coverage check's missing INPUT, it does not judge the output.
+ * Per-finding coverage stays ADVISORY (ADR-0252 D3): nothing here fails a build closed on `0/N`.
+ *
+ * Empty for a unit declaring none (a story/contract spec, or a capability listing no contracts), so
+ * those briefs stay byte-identical to the pre-change ones.
+ */
+export function contractsBrief(
+  contracts: readonly ContractDecl[],
+  phase: "AUTHOR_TEST" | "IMPLEMENT",
+): string {
+  if (contracts.length === 0) return "";
+  const list = contracts.map((c) => `- \`${c.id}\` — ${c.title}`).join("\n");
+  const rule =
+    phase === "AUTHOR_TEST"
+      ? `NAME EACH TEST FOR THE CONTRACT IT PROVES: the test/suite name must carry that contract's ` +
+        `id VERBATIM as written above — the convention is \`describe("<contract-id>: …")\`, and a ` +
+        `\`test("<contract-id>: …")\` names it just as well. The coverage check (ADR-0122) maps each ` +
+        `declared contract to a test by that name, so an invented, abbreviated, or re-derived prefix ` +
+        `reports the contract UNCOVERED even when your test genuinely proves it. Do not restyle the ` +
+        `ids; copy them.`
+      : `These are the behaviours the unit claims, and the test you are implementing against names ` +
+        `them by id. Make each one pass on its own terms — and leave those names alone (writes to ` +
+        `the test file are refused in this phase anyway).`;
+  return (
+    `\n\nDeclared contracts of this unit (${contracts.length}), from its \`## Contracts\` section:\n` +
+    `${list}\n${rule}`
+  );
+}
+
+/**
+ * Assemble the per-phase leaf briefs from the node's REAL spec — its outcome, its declared contract
+ * ids, plus its `## Guidance` prose. These are the prompts a live model would receive; the dry-run's
+ * scripted model ignores them, but resolving them off the real spec is part of what the dry-run proves.
  */
 export function assemblePrompts(spec: NodeSpec): PhasePrompts {
   const guidance =
     spec.guidance !== undefined ? `\n\nGuidance from the node spec:\n${spec.guidance}` : "";
   const header = `Unit "${spec.id}" (${spec.tier}): ${spec.title}.\nOutcome: ${spec.outcome}`;
   return {
-    authorTest: `${header}\n\nPhase AUTHOR_TEST — author the FAILING test that proves the outcome. Write test paths only; the spine will observe the red itself.${guidance}`,
-    implement: `${header}\n\nPhase IMPLEMENT — implement against the authored test. Write source paths only (never the test); the spine will observe the green itself.${guidance}`,
+    authorTest: `${header}\n\nPhase AUTHOR_TEST — author the FAILING test that proves the outcome. Write test paths only; the spine will observe the red itself.${contractsBrief(spec.contracts, "AUTHOR_TEST")}${guidance}`,
+    implement: `${header}\n\nPhase IMPLEMENT — implement against the authored test. Write source paths only (never the test); the spine will observe the green itself.${contractsBrief(spec.contracts, "IMPLEMENT")}${guidance}`,
   };
 }
 
@@ -726,6 +769,10 @@ export function realPrompts(
 ): PhasePrompts {
   const guidance =
     spec.guidance !== undefined ? `\n\nGuidance from the node spec:\n${spec.guidance}` : "";
+  // ADR-0122: the unit's declared contract ids, spliced ahead of the guidance prose in EVERY arm —
+  // this is REAL mode, so these tests are the ones the coverage check reads. See {@link contractsBrief}.
+  const contractsAuthor = contractsBrief(spec.contracts, "AUTHOR_TEST");
+  const contractsImplement = contractsBrief(spec.contracts, "IMPLEMENT");
   const header = `Unit "${spec.id}" (${spec.tier}): ${spec.title}.\nOutcome: ${spec.outcome}`;
   const customProof = real.proofCommand !== undefined;
   // C (ADR-0057 §3): an edit-existing node flips the brief (read+regress+edit, not net-new), and a
@@ -791,7 +838,7 @@ export function realPrompts(
   if (refactorForTests) {
     return {
       authorTest:
-        `${header}\n\n${conventions}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
+        `${header}\n\n${conventions}${contractsAuthor}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
         `\`${real.testFile}\`. The source file(s) ${sourcesNamed} ALREADY EXIST at HEAD and are ` +
         `CORRECT — this is a REFACTOR-FOR-TESTABILITY, not a behaviour change: do NOT recreate them, ` +
         `do NOT change what they do, and do NOT edit any source in this phase (source writes are ` +
@@ -803,7 +850,7 @@ export function realPrompts(
         `test's missing-seam/structural failure, not a syntax error and not a sibling regression. ` +
         `The spine observes the official red itself. When the test file is written and checked, stop.`,
       implement:
-        `${header}\n\n${conventions}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, then ` +
+        `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, then ` +
         `perform a BEHAVIOUR-PRESERVING REFACTOR of the existing source file(s) ${sourcesNamed} that ` +
         `introduces the seam the test needs — extract a function, expose a parameter, split a module — ` +
         `WITHOUT changing what the code does (writes to the test file are refused in this phase). The ` +
@@ -818,7 +865,7 @@ export function realPrompts(
   if (editsExisting) {
     return {
       authorTest:
-        `${header}\n\n${conventions}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
+        `${header}\n\n${conventions}${contractsAuthor}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
         `\`${real.testFile}\`. The source file(s) ${sourcesNamed} ALREADY EXIST at HEAD — this is a ` +
         `regression/refactor, not a net-new file; do NOT recreate them, and do NOT edit any source ` +
         `in this phase (source writes are refused here). READ the existing source(s) first, then ` +
@@ -828,7 +875,7 @@ export function realPrompts(
         `behaviour-assertion failure, not a syntax error and not a "module not found". The spine ` +
         `observes the official red itself. When the test file is written and checked, stop.`,
       implement:
-        `${header}\n\n${conventions}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, ` +
+        `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, ` +
         `then EDIT the existing source file(s) ${sourcesNamed} so that test passes (you may write ` +
         `more than one — every path under your source scope is writable; writes to the test file ` +
         `are refused). Iterate: edit, \`run_proof\`, fix — until the proof is green` +
@@ -839,7 +886,7 @@ export function realPrompts(
   }
   return {
     authorTest:
-      `${header}\n\n${conventions}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
+      `${header}\n\n${conventions}${contractsAuthor}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
       `\`${real.testFile}\`. The implementation \`${real.sourceFile}\` must NOT exist yet — do ` +
       `not create it (writes outside the test file are refused in this phase). Author the test ` +
       `so it FAILS now (importing the missing implementation) and PASSES once the implementation ` +
@@ -847,7 +894,7 @@ export function realPrompts(
       `reason (a missing-implementation/assertion failure, not a syntax error in the test). ` +
       `The spine observes the official red itself. When the test file is written and checked, stop.`,
     implement:
-      `${header}\n\n${conventions}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, ` +
+      `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, ` +
       `then write ONLY \`${real.sourceFile}\` so that test passes. Writes to the test file are ` +
       `refused in this phase. Iterate: write, \`run_proof\`, fix — until the proof is green` +
       `${real.install === true && real.typecheck !== undefined ? ` and \`run_typecheck\` is green` : ""}, ` +
