@@ -445,7 +445,7 @@ function organicPoseSockets(): NonNullable<typeof organicPoseSocketsCache> {
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'organic-pose-to-pose';
+  readonly variant?: 'demo' | 'organic-pose-to-pose' | 'organic-island-accretion';
 }
 
 /**
@@ -459,7 +459,8 @@ export function SemanticGrowthDemo({
   artScale,
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
-  const poseVariant = variant === 'organic-pose-to-pose';
+  const poseVariant = variant !== 'demo';
+  const accretionVariant = variant === 'organic-island-accretion';
   const sourceFrames = poseVariant ? organicPoseFrames() : frames();
   const sockets = poseVariant ? organicPoseSockets() : null;
   const framesWithArt: readonly SemanticGrowthFrame[] = sourceFrames.map((f) => ({
@@ -479,7 +480,9 @@ export function SemanticGrowthDemo({
             className="world-viewport"
             aria-label={
               poseVariant
-                ? 'organic pose-to-pose growth witness (real app fixture)'
+                ? accretionVariant
+                  ? 'connected SVG island accretion with organic pose-to-pose growth (real app fixture)'
+                  : 'organic pose-to-pose growth witness (real app fixture)'
                 : 'semantic growth witness (static fixture)'
             }
           >
@@ -508,12 +511,42 @@ export function SemanticGrowthDemo({
                         settledAtProgress: 0.18,
                       },
                     },
+                    ...(accretionVariant
+                      ? {
+                          svgIslandAccretion: {
+                            storyId: sockets.island.storyId,
+                            worldAnchor: sockets.tree,
+                            growthDurationMs: 1_600,
+                          },
+                        }
+                      : {}),
                   }
                 : {})}
             />
           </div>
         </div>
       </div>
+      {accretionVariant ? (
+        <p
+          role="note"
+          data-island-accretion-legend="true"
+          style={{
+            boxSizing: 'border-box',
+            flex: '0 0 auto',
+            width: '100%',
+            maxWidth: '72rem',
+            margin: '0 auto',
+            padding: '0.35rem clamp(0.6rem, 2vw, 1rem)',
+            fontSize: 'clamp(0.72rem, 1.7vw, 0.9rem)',
+            lineHeight: 1.35,
+          }}
+        >
+          <strong>connected accretion</strong> grows one real SVG cell from a shared edge; the{' '}
+          <strong>adjacency wave</strong> moves outward with a{' '}
+          <strong>local geometric reveal</strong>, then the real coast finishes in{' '}
+          <strong>coastline settlement</strong>.
+        </p>
+      ) : null}
     </div>
   );
 }

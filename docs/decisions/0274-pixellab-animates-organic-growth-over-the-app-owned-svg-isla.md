@@ -138,6 +138,19 @@ D1 remains unchanged: the rework must retain the existing app-owned SVG island, 
 camera and geometry, with no generated-land substitute. The combined composition remains held and
 the arc stays active pending a corrected whole-composition owner verdict.
 
+### D5 comparison evidence — connected SVG accretion witness (2026-08-01)
+
+The owner reviewed the hosted PR #1055 Experiment 6 witness at
+`?organicGrowth=organic-island-accretion#/tree` after its slower growth and stable terminal-settlement
+correction. The owner said the island growth “looks really good” and that the plant and tree growth
+“looks good too.”
+
+This is positive owner LOOK evidence for the connected SVG accretion composition. It is the first
+explicitly positive island-formation LOOK signal in the corrected ADR-0274 direction, and it also
+confirms that the reused pose-to-pose tree and plant control reads well in this composition. The
+evidence does not by itself merge PR #1055, switch the clean route, select final adoption, or close
+the arc; those remain separate owner decisions.
+
 ### D6 — Explicitly rejected
 
 - Generating the island, coast or complete scene as a PixelLab sprite sequence.
