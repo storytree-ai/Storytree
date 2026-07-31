@@ -12,6 +12,15 @@ import {
   type Bounds,
 } from './sprite-sizing.js';
 import {
+  advanceMaskRevealPlayback,
+  buildOrganicMaskRevealLayer,
+  initialMaskRevealPlayback,
+  replayMaskReveal,
+  selectMaskRevealCue,
+  type OrganicMaskRevealSockets,
+  type RegisteredOrganicMaskRevealTrack,
+} from './organic-mask-reveal.js';
+import {
   advanceOrganicPosePlayback,
   clampOrganicPoseProgress,
   initialOrganicPosePlayback,
@@ -62,6 +71,13 @@ export interface SemanticGrowthOrganicPoseLayer {
   readonly clock?: SemanticGrowthAnimationClock;
 }
 
+export interface SemanticGrowthOrganicMaskLayer {
+  readonly track: RegisteredOrganicMaskRevealTrack;
+  readonly sockets: OrganicMaskRevealSockets;
+  readonly storyId: string;
+  readonly clock?: SemanticGrowthAnimationClock;
+}
+
 export interface SemanticGrowthWorldViewProps {
   readonly frames: readonly SemanticGrowthFrame[];
   readonly reducedMotion?: boolean;
@@ -69,6 +85,7 @@ export interface SemanticGrowthWorldViewProps {
   readonly onNext?: (key: SemanticGrowthFrameKey) => void;
   readonly onBack?: (key: SemanticGrowthFrameKey) => void;
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
+  readonly organicMaskReveal?: SemanticGrowthOrganicMaskLayer;
   readonly organicPoseGrowth?: SemanticGrowthOrganicPoseLayer;
 }
 
@@ -131,6 +148,7 @@ function unionBounds(a: Bounds | null, b: Bounds | null): Bounds | null {
  */
 function representativeViewBox(
   frames: readonly SemanticGrowthFrame[],
+  organicMaskReveal?: SemanticGrowthOrganicMaskLayer,
 ): string {
   let bounds: Bounds | null = null;
   for (const entry of frames) {
@@ -147,6 +165,25 @@ function representativeViewBox(
       minY: content.minY + ty,
       maxY: content.maxY + ty,
     });
+  }
+  if (organicMaskReveal) {
+    const rootOffset = parseSimpleTransform(frames[0]?.model.scene.transform);
+    const tx = rootOffset?.tx ?? 0;
+    const ty = rootOffset?.ty ?? 0;
+    const renderState = buildOrganicMaskRevealLayer(
+      organicMaskReveal.track,
+      organicMaskReveal.sockets,
+      1,
+      organicMaskReveal.storyId,
+    );
+    for (const layer of renderState.layers) {
+      bounds = unionBounds(bounds, {
+        minX: layer.x + tx,
+        minY: layer.y + ty,
+        maxX: layer.x + layer.canvas.width * layer.scale + tx,
+        maxY: layer.y + layer.canvas.height * layer.scale + ty,
+      });
+    }
   }
   if (!bounds) return FALLBACK_VIEW_BOX;
   const width = bounds.maxX - bounds.minX;
@@ -235,11 +272,13 @@ export function SemanticGrowthWorldView({
   onNext,
   onBack,
   onReplay,
+  organicMaskReveal,
   organicPoseGrowth,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
   assertFrames(frames);
   const [cursor, setCursor] = React.useState(0);
   const [organicPlayback, setOrganicPlayback] = React.useState(initialOrganicPosePlayback);
+  const [maskPlayback, setMaskPlayback] = React.useState(initialMaskRevealPlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
   const frame = frames[cursor]!;
   const registry = React.useMemo(
@@ -284,12 +323,23 @@ export function SemanticGrowthWorldView({
         organicPlayback.progress / organicPoseGrowth.nativeIsland.settledAtProgress,
       )
     : null;
+  const organicMaskLayer = organicMaskReveal
+    ? buildOrganicMaskRevealLayer(
+        organicMaskReveal.track,
+        organicMaskReveal.sockets,
+        maskPlayback.progress,
+        organicMaskReveal.storyId,
+      )
+    : null;
   const model = React.useMemo<WorldPresentationModel>(
-    () => {
-      const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
-      if (!organicPoseGrowth || nativeLandProgress === null) return base;
-      return {
-        ...base,
+    () => (reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model),
+    [frame.model, reduce],
+  );
+  const composedModel = React.useMemo<WorldPresentationModel>(() => {
+    let composed = model;
+    if (organicPoseGrowth && nativeLandProgress !== null) {
+      composed = {
+        ...composed,
         nativeIslandGrowthLayer: {
           storyId: organicPoseGrowth.nativeIsland.storyId,
           worldAnchor: organicPoseGrowth.nativeIsland.worldAnchor,
@@ -298,20 +348,30 @@ export function SemanticGrowthWorldView({
         },
         organicPoseLayers: organicLayers,
       };
-    },
-    [frame.model, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
+    }
+    if (organicMaskLayer) {
+      composed = { ...composed, organicMaskRevealLayer: organicMaskLayer };
+    }
+    return composed;
+  }, [model, nativeLandProgress, organicLayers, organicPoseGrowth, organicMaskLayer]);
+  // Held stable through the whole walk — derived from every supplied frame's composed geometry,
+  // never the current cursor (see representativeViewBox).
+  const viewBox = React.useMemo(
+    () => representativeViewBox(frames, organicMaskReveal),
+    [frames, organicMaskReveal],
   );
   // Held stable through the whole walk — derived from every supplied frame's app-owned geometry,
   // never the current cursor or a transparent asset canvas.
-  const viewBox = React.useMemo(
-    () => representativeViewBox(frames),
-    [frames],
-  );
 
   React.useEffect(() => {
     if (!organicPoseGrowth || !reduce) return;
     setOrganicPlayback((current) => selectOrganicPoseCue(current, cursor, true));
   }, [cursor, organicPoseGrowth, reduce]);
+
+  React.useEffect(() => {
+    if (!organicMaskReveal || !reduce) return;
+    setMaskPlayback((current) => selectMaskRevealCue(current, cursor, true));
+  }, [cursor, organicMaskReveal, reduce]);
 
   React.useEffect(() => {
     if (!organicPoseGrowth || reduce || !organicPlayback.playing) return;
@@ -335,6 +395,28 @@ export function SemanticGrowthWorldView({
     };
   }, [organicPoseGrowth, organicPlayback.transitionId, reduce]);
 
+  React.useEffect(() => {
+    if (!organicMaskReveal || reduce || !maskPlayback.playing) return;
+    const clock = organicMaskReveal.clock ?? BROWSER_ANIMATION_CLOCK;
+    let requestId = 0;
+    let previousTimestamp: number | null = null;
+    let running = maskPlayback;
+    let cancelled = false;
+    const step = (timestamp: number): void => {
+      if (cancelled) return;
+      const deltaMs = previousTimestamp === null ? 1000 / 60 : timestamp - previousTimestamp;
+      previousTimestamp = timestamp;
+      running = advanceMaskRevealPlayback(running, deltaMs);
+      setMaskPlayback(running);
+      if (running.playing) requestId = clock.requestFrame(step);
+    };
+    requestId = clock.requestFrame(step);
+    return () => {
+      cancelled = true;
+      clock.cancelFrame(requestId);
+    };
+  }, [maskPlayback.transitionId, organicMaskReveal, reduce]);
+
   const select = (
     nextCursor: number,
     callback?: (key: SemanticGrowthFrameKey) => void,
@@ -347,6 +429,11 @@ export function SemanticGrowthWorldView({
         replay
           ? replayOrganicPosePlayback(current)
           : selectOrganicPoseCue(current, bounded, reduce),
+      );
+    }
+    if (organicMaskReveal) {
+      setMaskPlayback((current) =>
+        replay ? replayMaskReveal(current) : selectMaskRevealCue(current, bounded, reduce),
       );
     }
     callback?.(frames[bounded]!.key);
@@ -365,12 +452,18 @@ export function SemanticGrowthWorldView({
               organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
           }
         : {})}
+      {...(organicMaskReveal
+        ? {
+            'data-organic-mask-reveal-progress': maskPlayback.progress.toFixed(4),
+            'data-organic-mask-reveal-anchor': `${organicMaskReveal.sockets.root.x},${organicMaskReveal.sockets.root.y}`,
+          }
+        : {})}
     >
       <svg viewBox={viewBox} aria-label={`Semantic growth: ${frame.key}`}>
         {events ? (
-          <WorldSceneView model={model} events={events} />
+          <WorldSceneView model={composedModel} events={events} />
         ) : (
-          <WorldSceneView model={model} />
+          <WorldSceneView model={composedModel} />
         )}
       </svg>
       <nav aria-label="Semantic growth controls">

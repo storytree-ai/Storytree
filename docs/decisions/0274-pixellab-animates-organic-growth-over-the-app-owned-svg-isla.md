@@ -124,6 +124,19 @@ The full-island raster witness from ADR-0273 remains useful rejected evidence. I
 visual direction and should leave the active witness path when the corrected implementation lands.
 The successor arc does not close until the corrected organic composition has a real owner verdict.
 
+#### Owner LOOK — Experiment 3 texture-under-mask reveal (2026-08-01)
+
+The owner rejected the texture-under-mask / stroke-matte reveal in draft PR #1047 as the Chapter 2
+organic-growth technique and ranked it least among the experiments viewed so far. The decisive
+failure is perceptual: it looks like the app is slowly revealing a finished static image, which reads
+as cheap rather than as real organic emergence.
+
+PR #1047 and its hosted `organic-mask-reveal` route remain comparison evidence. This verdict rejects
+mask-revealing mature PixelLab tree and plant plates as the adopted growth treatment or clean-route
+default; it does not reject the app-native SVG island, app-owned masking of that land, PixelLab organic
+material in other animation techniques, or any sibling experiment not yet judged. The successor arc
+therefore remains open for comparison and selection.
+
 ### D6 — Explicitly rejected
 
 - Generating the island, coast or complete scene as a PixelLab sprite sequence.
@@ -133,6 +146,8 @@ The successor arc does not close until the corrected organic composition has a r
 - A runtime vendor call, asset-owned clock, second renderer, standalone video/GIF, Storybook-only
   fixture or website recreation presented as product proof.
 - Whole-scene scale/fade, snapshot replacement or crop drift presented as planted organic growth.
+- Texture-under-mask / stroke-matte reveal of mature static organic plates as the adopted Chapter 2
+  growth technique: the owner found the slow static-image reveal visibly cheap in Experiment 3.
 - An unbounded sheet family keyed by story or capability count.
 
 ## Consequences

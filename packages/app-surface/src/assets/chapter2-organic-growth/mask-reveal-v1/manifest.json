@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "id": "chapter2-organic-mask-reveal-v1",
+  "title": "Chapter 2 texture-under-mask organic growth comparison",
+  "status": "experimental-owner-look-pending",
+  "technique": {
+    "industryName": "texture-under-mask reveal",
+    "shortName": "mask reveal",
+    "comparisonQuestion": "Do app-owned structural stroke and matte masks make mature organic artwork read as continuous planted emergence, or merely as a wipe/paint-on effect?",
+    "continuous": true,
+    "frameStepping": false,
+    "wholeSceneScaleOrFade": false
+  },
+  "authorTimeOnly": true,
+  "runtimePixelLabDependency": false,
+  "runtimeCredentialRequired": false,
+  "ownerLookVerdict": {
+    "status": "pending",
+    "note": "Machine proof and agent inspection do not sign the owner-held LOOK verdict."
+  },
+  "referencePlate": {
+    "file": "reference-plate.png",
+    "inspectionOnly": true,
+    "runtimeImported": false,
+    "sourceProductComponent": "SemanticGrowthWorldView through the real Studio TreeView consumer",
+    "sourceQuery": "?semanticGrowth=demo#/tree",
+    "semanticFrame": "land",
+    "sourceViewport": [1280, 720],
+    "crop": {
+      "x": 640,
+      "y": 90,
+      "width": 260,
+      "height": 260
+    },
+    "cameraContract": "Existing app-owned SVG island, coastline, world parcel and low-isometric camera remain authoritative.",
+    "providerInput": {
+      "file": "reference-map-object.png",
+      "width": 192,
+      "height": 192,
+      "paletteColours": 24,
+      "runtimeImported": false,
+      "use": "PixelLab map-object style-match background for both accepted organic cutouts"
+    },
+    "rejectedTrialPalette": {
+      "file": "reference-palette.png",
+      "width": 64,
+      "height": 64,
+      "paletteColours": 16,
+      "runtimeImported": false,
+      "use": "Forced-palette PixFlux trials only; those outputs were rejected."
+    }
+  },
+  "assets": [
+    {
+      "id": "hero-tree-mature",
+      "file": "hero-tree-mature.png",
+      "role": "rooted hero tree, trunk, branches and canopy",
+      "format": "PNG",
+      "background": "transparent",
+      "canvas": [512, 512],
+      "decodedPixelFormat": "RGBA8",
+      "encodedBytes": 17372,
+      "decodedRgbaBytes": 1048576,
+      "source": {
+        "canvas": [192, 192],
+        "alphaBounds": [32, 28, 125, 129],
+        "anchor": [96, 156]
+      },
+      "normalization": {
+        "nearestNeighbourScale": 2,
+        "offset": [64, 167],
+        "policy": "Scale the authored cutout 2x with nearest-neighbour sampling, align its lowest visible root pixel to y=480 and its root centre to x=256, reject any clipped alpha.",
+        "normalizedAnchor": [256, 480],
+        "normalizedAlphaBounds": [128, 223, 250, 258]
+      },
+      "registration": {
+        "worldSocket": "root",
+        "depthSlot": "hero-tree",
+        "runtimeScale": 0.38,
+        "rootContactInvariant": true
+      },
+      "provenance": {
+        "provider": "PixelLab",
+        "tool": "create_map_object",
+        "model": "PixelLab map-object generator (provider did not return a model identifier)",
+        "objectId": "08225c2b-f7e4-4c50-bbfc-18cb85d70d84",
+        "providerCreatedValue": "2026-07-31 01:01",
+        "providerCreatedTimezone": "not returned",
+        "mode": "style-match oval 72%",
+        "view": "low top-down",
+        "prompt": "a single mature ancient hero tree cutout, warm chestnut rooted trunk, natural branching, airy irregular moss-green canopy, planted root contact, no ground or terrain included",
+        "referenceFile": "reference-map-object.png"
+      }
+    },
+    {
+      "id": "plant-cluster-mature",
+      "file": "plant-cluster-mature.png",
+      "role": "bounded capability-aware ground plant sample",
+      "format": "PNG",
+      "background": "transparent",
+      "canvas": [512, 256],
+      "decodedPixelFormat": "RGBA8",
+      "encodedBytes": 7792,
+      "decodedRgbaBytes": 524288,
+      "source": {
+        "canvas": [192, 192],
+        "alphaBounds": [52, 50, 91, 99],
+        "anchor": [96, 148]
+      },
+      "normalization": {
+        "nearestNeighbourScale": 1,
+        "offset": [160, 82],
+        "policy": "Translate the authored cutout without resampling, align its lowest visible planted pixel to y=230 and its shared stem socket to x=256, reject any clipped alpha.",
+        "normalizedAnchor": [256, 230],
+        "normalizedAlphaBounds": [212, 132, 91, 99]
+      },
+      "registration": {
+        "worldSocket": "plants",
+        "depthSlot": "ground-plants",
+        "runtimeScale": 0.22,
+        "groundContactInvariant": true
+      },
+      "provenance": {
+        "provider": "PixelLab",
+        "tool": "create_map_object",
+        "model": "PixelLab map-object generator (provider did not return a model identifier)",
+        "objectId": "c9ff9759-b749-4abd-b35f-d20e62b8fa7b",
+        "providerCreatedValue": "2026-07-31 01:07",
+        "providerCreatedTimezone": "not returned",
+        "mode": "style-match oval 56%",
+        "view": "low top-down",
+        "prompt": "large readable organic woodland plant cluster cutout growing from one centred ground socket, with one curved fern, three lavender flower stems, small cream flowers and broad sage leaves; plants only; no ground tile, soil, island, coast, terrain or shadow",
+        "referenceFile": "reference-map-object.png"
+      }
+    }
+  ],
+  "appOwnedReveal": {
+    "definitionSource": "packages/app-surface/src/organic-mask-reveal.ts",
+    "normalizedProgress": [0, 1],
+    "easing": "smoothstep",
+    "cueTargets": [0, 0.22, 0.52, 0.72, 0.9, 1],
+    "channels": [
+      {
+        "id": "native-land",
+        "range": [0, 0.22],
+        "technique": "app-native SVG clip/mask reveal",
+        "asset": "existing SceneView SVG island/coast/ground only"
+      },
+      {
+        "id": "trunk",
+        "range": [0.16, 0.58],
+        "technique": "normalized SVG stroke mask along deterministic root-to-fork centreline",
+        "asset": "hero-tree-mature"
+      },
+      {
+        "id": "branches",
+        "range": [0.34, 0.75],
+        "technique": "staggered normalized SVG stroke masks from parent forks toward canopy tips",
+        "asset": "hero-tree-mature"
+      },
+      {
+        "id": "foliage",
+        "range": [0.5, 0.92],
+        "technique": "staggered bounded SVG elliptical matte apertures after supporting branches",
+        "asset": "hero-tree-mature"
+      },
+      {
+        "id": "plants",
+        "range": [0.66, 1],
+        "technique": "staggered normalized SVG stroke masks from the declared ground socket",
+        "asset": "plant-cluster-mature"
+      }
+    ],
+    "pathPolicy": {
+      "generator": "organicMaskCenterline",
+      "deterministicInputs": ["start", "end", "bend", "wave", "phase", "segments"],
+      "runtimeProgressControl": "stroke-dashoffset and bounded matte radii only",
+      "runtimeAnchorCompensation": false,
+      "assetOwnedClock": false,
+      "randomness": false,
+      "finalSettlement": "At progress 1 every mature alpha pixel is retained; the SVG island remains the real substrate."
+    },
+    "semanticOwnership": [
+      "cue index",
+      "normalized progress",
+      "timing",
+      "easing",
+      "holds",
+      "Next",
+      "Back",
+      "Replay",
+      "reduced-motion settlement",
+      "retained final scene",
+      "world sockets",
+      "layer depth",
+      "painter order"
+    ]
+  },
+  "painterOrder": [
+    "app-native water and shadow",
+    "app-native SVG island, coast and ground",
+    "ground-plants",
+    "hero-tree",
+    "app-native trails, effects, labels and controls"
+  ],
+  "capabilityCorrespondence": {
+    "seam": "finite app-owned ground/foliage sockets",
+    "representativePlantSocketCount": 1,
+    "unboundedGeneratedFamily": false
+  },
+  "budget": {
+    "runtimeAssetCount": 2,
+    "runtimeRequestCount": 2,
+    "runtimeEncodedBytes": 25164,
+    "runtimeEncodedCeilingBytes": 65536,
+    "runtimeDecodedRgbaBytes": 1572864,
+    "runtimeDecodedRgbaMiB": 1.5,
+    "decodePlusUploadDuplicateCeilingBytes": 3145728,
+    "authoringReferenceBytes": 49417,
+    "authoringReferencesImportedAtRuntime": false,
+    "animationAssetFrameCount": 0,
+    "generatedStagePlateCount": 0,
+    "runtimeLayerCount": 2
+  },
+  "provenance": {
+    "provider": "PixelLab",
+    "termsUrl": "https://pixellab.ai/termsofservice",
+    "licenceNote": "Generated under the owner's PixelLab subscription. Use is subject to PixelLab's Terms of Service; this record asserts no broader licence than those terms.",
+    "authoringToolCalls": 10,
+    "selectedToolCalls": 2,
+    "rejectedToolCalls": 8,
+    "reportedGenerationCostUnits": 6,
+    "mapObjectCostUnits": "not returned by provider",
+    "credentialsCommitted": false,
+    "rejectedExploration": [
+      {
+        "id": "2b1cd369-39dc-45ef-8d89-4ce97b896d36",
+        "tool": "create_image_pixflux",
+        "disposition": "rejected: opaque export and generated grass platform"
+      },
+      {
+        "id": "fee3dc02-82b8-4913-a0ad-b06541af8611",
+        "tool": "create_image_pixflux",
+        "disposition": "rejected: generated an island/ground tile"
+      },
+      {
+        "id": "209ffd8e-e443-4fb5-906c-365bc2e69538",
+        "tool": "create_image_pixen",
+        "disposition": "rejected: opaque export and attached terrain"
+      },
+      {
+        "id": "810c107d-d987-447b-8103-66b5facd6beb",
+        "tool": "create_image_pixen",
+        "disposition": "rejected: baked checker/background despite transparency request"
+      },
+      {
+        "id": "e01b5980-2c95-4f84-939f-17066ca7261a",
+        "tool": "create_image_pixflux",
+        "disposition": "rejected: forced palette collapsed to an opaque monochrome silhouette"
+      },
+      {
+        "id": "7677ff5a-340b-4051-9c28-bbe48bdb7d18",
+        "tool": "create_image_pixflux",
+        "disposition": "rejected: monochrome output included a terrain tile"
+      },
+      {
+        "id": "8374a3a0-80ae-4a17-8037-a172ed15f15f",
+        "tool": "create_map_object",
+        "disposition": "rejected: reference-matched plant was too small and monochrome for mobile"
+      },
+      {
+        "id": "ab759b02-1802-469c-b9ce-43540991bb29",
+        "tool": "create_map_object",
+        "disposition": "rejected: attractive cutout but basic mode did not consume the binding SVG reference plate"
+      }
+    ]
+  }
+}

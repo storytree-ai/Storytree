@@ -30,6 +30,12 @@ import {
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
+import {
+  clampMaskRevealProgress,
+  strokeRevealAtProgress,
+  type OrganicMaskPath,
+  type OrganicMaskRevealRenderState,
+} from './organic-mask-reveal.js';
 
 export interface OrganicPoseRenderLayer {
   readonly trackId: string;
@@ -101,6 +107,8 @@ export interface SceneCtx {
   nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   /** Registered organic pose images planted into the canonical world painter order. */
   organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  /** Registered mature organic art revealed by app-owned SVG masks over retained native land. */
+  organicMaskRevealLayer?: OrganicMaskRevealRenderState | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
    *  so a `baked-use` hero (the ADR-0227 status trees, the garden cottage/gazebo) sizes from its real
    *  def geometry. Memoized once per scene in the component below. */
@@ -484,6 +492,166 @@ function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
   });
 }
 
+function maskId(layer: OrganicMaskRevealRenderState, kind: 'native-land' | 'plants' | 'hero-tree'): string {
+  return `${layer.id}-${kind}`;
+}
+
+function maskPathD(path: OrganicMaskPath): string {
+  return path.points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${fmt(point.x)} ${fmt(point.y)}`)
+    .join(' ');
+}
+
+function staggeredReveal(progress: number, stagger: number): number {
+  return clampMaskRevealProgress((progress - stagger) / (1 - stagger));
+}
+
+/** Definition-only SVG masks. Mature art stays mounted; only these deterministic channels change. */
+function organicMaskDefs(layer: OrganicMaskRevealRenderState): React.ReactNode {
+  const native = layer.nativeLand;
+  const landRx = native.radiusX * native.reveal;
+  const landRy = native.radiusY * native.reveal;
+  const definitions: React.ReactNode[] = [
+    React.createElement(
+      'mask',
+      {
+        key: 'native-land',
+        id: maskId(layer, 'native-land'),
+        maskUnits: 'userSpaceOnUse',
+        x: fmt(native.worldAnchor.x - native.radiusX * 1.4),
+        y: fmt(native.worldAnchor.y - native.radiusY * 1.4),
+        width: fmt(native.radiusX * 2.8),
+        height: fmt(native.radiusY * 2.8),
+        'data-mask-reveal-definition': 'native-land',
+      },
+      React.createElement('rect', {
+        x: fmt(native.worldAnchor.x - native.radiusX * 1.4),
+        y: fmt(native.worldAnchor.y - native.radiusY * 1.4),
+        width: fmt(native.radiusX * 2.8),
+        height: fmt(native.radiusY * 2.8),
+        fill: 'black',
+      }),
+      React.createElement('ellipse', {
+        cx: fmt(native.worldAnchor.x),
+        cy: fmt(native.worldAnchor.y + 12),
+        rx: fmt(landRx),
+        ry: fmt(landRy),
+        fill: 'white',
+        'data-mask-part': 'native-land',
+      }),
+      React.createElement('ellipse', {
+        cx: fmt(native.worldAnchor.x - native.radiusX * 0.38),
+        cy: fmt(native.worldAnchor.y - native.radiusY * 0.08),
+        rx: fmt(landRx * 0.62),
+        ry: fmt(landRy * 0.68),
+        fill: 'white',
+        'data-mask-part': 'native-land-lobe',
+      }),
+      React.createElement('ellipse', {
+        cx: fmt(native.worldAnchor.x + native.radiusX * 0.36),
+        cy: fmt(native.worldAnchor.y - native.radiusY * 0.12),
+        rx: fmt(landRx * 0.66),
+        ry: fmt(landRy * 0.72),
+        fill: 'white',
+        'data-mask-part': 'native-land-lobe',
+      }),
+    ),
+  ];
+
+  for (const registered of layer.layers) {
+    const children: React.ReactNode[] = [
+      React.createElement('rect', {
+        key: 'black',
+        x: 0,
+        y: 0,
+        width: registered.canvas.width,
+        height: registered.canvas.height,
+        fill: 'black',
+      }),
+    ];
+    registered.paths.forEach((path, index) => {
+      const channel = registered.revealState[path.part];
+      const reveal = strokeRevealAtProgress(staggeredReveal(channel, path.stagger));
+      children.push(
+        React.createElement('path', {
+          key: `path-${index}`,
+          d: maskPathD(path),
+          pathLength: 1,
+          fill: 'none',
+          stroke: 'white',
+          strokeWidth: path.strokeWidth,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          strokeDasharray: reveal.dashArray,
+          strokeDashoffset: reveal.dashOffset,
+          'data-mask-part': path.part,
+        }),
+      );
+    });
+    registered.foliage.forEach((cluster, index) => {
+      const reveal = staggeredReveal(registered.revealState.foliage, cluster.stagger);
+      children.push(
+        React.createElement('ellipse', {
+          key: `foliage-${index}`,
+          cx: cluster.cx,
+          cy: cluster.cy,
+          rx: fmt(cluster.rx * reveal),
+          ry: fmt(cluster.ry * reveal),
+          fill: 'white',
+          'data-mask-part': 'foliage',
+        }),
+      );
+    });
+    definitions.push(
+      React.createElement(
+        'mask',
+        {
+          key: registered.kind,
+          id: maskId(layer, registered.kind),
+          maskUnits: 'userSpaceOnUse',
+          x: 0,
+          y: 0,
+          width: registered.canvas.width,
+          height: registered.canvas.height,
+          'data-mask-reveal-definition': registered.kind,
+        },
+        ...children,
+      ),
+    );
+  }
+
+  return React.createElement('defs', { key: '__organic-mask-reveal-defs' }, ...definitions);
+}
+
+function organicMaskImages(layer: OrganicMaskRevealRenderState): readonly React.ReactNode[] {
+  return layer.layers.map((registered) =>
+    React.createElement(
+      'g',
+      {
+        key: `__organic-mask-${registered.kind}`,
+        transform: `translate(${fmt(registered.x)} ${fmt(registered.y)}) scale(${registered.scale})`,
+        'data-mask-reveal-layer': registered.kind,
+        'data-depth-slot': registered.depthSlot,
+        'data-world-socket': registered.worldSocket,
+        'data-world-anchor-x': fmt(registered.worldSocketPoint.x),
+        'data-world-anchor-y': fmt(registered.worldSocketPoint.y),
+        'data-mask-reveal-progress': registered.reveal.toFixed(4),
+      },
+      React.createElement('image', {
+        href: registered.src,
+        x: 0,
+        y: 0,
+        width: registered.canvas.width,
+        height: registered.canvas.height,
+        preserveAspectRatio: 'none',
+        pointerEvents: 'none',
+        mask: `url(#${maskId(layer, registered.kind)})`,
+        'aria-hidden': true,
+      }),
+    ),
+  );
+}
+
 function nativeIslandClipId(layer: NativeIslandGrowthRenderLayer): string {
   return `organic-pose-native-island-${layer.storyId.replace(/[^a-zA-Z0-9_-]/gu, '-')}`;
 }
@@ -777,6 +945,15 @@ function renderNode(
   if (node.transform) props.transform = node.transform;
   if (node.opacity != null) props.opacity = node.opacity;
   if (node.strokeWidth != null) props.strokeWidth = node.strokeWidth;
+  const nativeLand = ctx.organicMaskRevealLayer?.nativeLand;
+  if (
+    nativeLand &&
+    node.id === nativeLand.storyId &&
+    (node.kind === 'coast' || node.kind === 'ground' || node.kind === 'territory')
+  ) {
+    props.mask = `url(#${maskId(ctx.organicMaskRevealLayer!, 'native-land')})`;
+    props['data-native-land-mask-target'] = nativeLand.storyId;
+  }
   const nativeIsland = ctx.nativeIslandGrowthLayer;
   if (
     nativeIsland &&
@@ -927,7 +1104,13 @@ function renderNode(
     if (node.kind === 'world' && ctx.nativeIslandGrowthLayer) {
       rendered.push(nativeIslandClip(ctx.nativeIslandGrowthLayer));
     }
+    if (node.kind === 'world' && ctx.organicMaskRevealLayer) {
+      rendered.push(organicMaskDefs(ctx.organicMaskRevealLayer));
+    }
     children.forEach((c, i) => {
+      if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.organicMaskRevealLayer) {
+        rendered.push(...organicMaskImages(ctx.organicMaskRevealLayer));
+      }
       const el = renderNode(c, i, childStory, ctx);
       if (el) rendered.push(el);
       if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.organicPoseLayers) {

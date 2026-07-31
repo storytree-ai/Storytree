@@ -1310,6 +1310,13 @@ export function readOrganicPoseToPose(search: string = defaultSearch()): boolean
   );
 }
 
+/** Independent Chapter 2 comparison: exact match only; clean and sibling modes stay unchanged. */
+export function readSemanticGrowthOrganicMaskReveal(
+  search: string = defaultSearch(),
+): boolean {
+  return new URLSearchParams(search).get('semanticGrowth') === 'organic-mask-reveal';
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar' | 'stress';
@@ -2296,6 +2303,10 @@ export function TreeView({
   // scene/hooks below never depend on it). Checked once all hooks are declared (React ordering),
   // near the other early returns.
   const semanticGrowthDemo = useMemo(() => readSemanticGrowthDemo(search), [search]);
+  const semanticGrowthOrganicMaskReveal = useMemo(
+    () => readSemanticGrowthOrganicMaskReveal(search),
+    [search],
+  );
   const organicPoseToPose = useMemo(() => readOrganicPoseToPose(search), [search]);
   const scene = useMemo(
     () =>
@@ -2479,12 +2490,18 @@ export function TreeView({
   // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
   // not a variant of the product controller. Every other value (absent/empty/unknown) falls
   // through unchanged, byte-for-byte, to the clean Studio path.
-  if (semanticGrowthDemo || organicPoseToPose) {
+  if (semanticGrowthDemo || organicPoseToPose || semanticGrowthOrganicMaskReveal) {
     return (
       <SemanticGrowthDemo
         spriteSheet={spriteSheet}
         artScale={artScale}
-        variant={organicPoseToPose ? 'organic-pose-to-pose' : 'demo'}
+        variant={
+          organicPoseToPose
+            ? 'organic-pose-to-pose'
+            : semanticGrowthOrganicMaskReveal
+              ? 'organic-mask-reveal'
+              : 'demo'
+        }
       />
     );
   }
