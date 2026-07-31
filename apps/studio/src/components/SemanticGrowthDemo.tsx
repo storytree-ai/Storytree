@@ -33,6 +33,7 @@ import {
   type SceneVegetationInput,
 } from '@storytree/forest-world';
 import {
+  CHAPTER2_ORGANIC_BRANCH_BLOOM_RIG,
   CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
   neighbourHighlightPlan,
   laneLayout,
@@ -68,6 +69,7 @@ const COMPANION_STORY_ID = 'semantic-growth-demo-companion';
 const COMPANION_CAP_ID = 'semantic-growth-demo-companion-cap';
 const ORGANIC_TREE_SCALE = 0.34;
 const ORGANIC_PLANT_SCALE = 0.3;
+const BRANCH_BLOOM_SCALE = 0.65;
 
 /** A fixed instant, never `Date.now()`, so the walk (and its signed-proof bloom) stays
  *  byte-identical across every render/re-mount. */
@@ -442,10 +444,18 @@ function organicPoseSockets(): NonNullable<typeof organicPoseSocketsCache> {
   return organicPoseSocketsCache;
 }
 
+function branchBloomSockets(): NonNullable<typeof organicPoseSocketsCache> {
+  frames();
+  if (!organicPoseSocketsCache) {
+    throw new Error('Semantic growth fixture did not register its branch-bloom socket.');
+  }
+  return organicPoseSocketsCache;
+}
+
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'organic-pose-to-pose';
+  readonly variant?: 'demo' | 'organic-pose-to-pose' | 'organic-branch-bloom';
 }
 
 /**
@@ -460,13 +470,19 @@ export function SemanticGrowthDemo({
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
   const poseVariant = variant === 'organic-pose-to-pose';
+  const branchBloomVariant = variant === 'organic-branch-bloom';
+  const organicVariant = poseVariant || branchBloomVariant;
   const sourceFrames = poseVariant ? organicPoseFrames() : frames();
-  const sockets = poseVariant ? organicPoseSockets() : null;
+  const sockets = poseVariant
+    ? organicPoseSockets()
+    : branchBloomVariant
+      ? branchBloomSockets()
+      : null;
   const framesWithArt: readonly SemanticGrowthFrame[] = sourceFrames.map((f) => ({
     key: f.key,
     model: {
       ...f.model,
-      scene: poseVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
+      scene: organicVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
       spriteSheet,
       artScale,
     },
@@ -480,6 +496,8 @@ export function SemanticGrowthDemo({
             aria-label={
               poseVariant
                 ? 'organic pose-to-pose growth witness (real app fixture)'
+                : branchBloomVariant
+                  ? 'organic branch-emitted leaf bloom witness (real app fixture)'
                 : 'semantic growth witness (static fixture)'
             }
           >
@@ -510,8 +528,32 @@ export function SemanticGrowthDemo({
                     },
                   }
                 : {})}
+              {...(branchBloomVariant && sockets
+                ? {
+                    branchBloomGrowth: {
+                      rig: CHAPTER2_ORGANIC_BRANCH_BLOOM_RIG,
+                      worldRoot: sockets.tree,
+                      scale: BRANCH_BLOOM_SCALE,
+                    },
+                  }
+                : {})}
             />
           </div>
+          {branchBloomVariant ? (
+            <aside className="branch-bloom-guide" aria-label="Experiment 9 technique guide">
+              <strong>Hierarchical foliage rig · branch-emitted cluster bloom</strong>
+              <span>
+                Leaf clusters are children of branch-local sockets, so every bloom inherits the
+                wood’s motion. Secondary action is one small settle; stagger overlaps the blooms
+                instead of popping them one by one.
+              </span>
+              <span>
+                Island control: Round 1 key-pose formation, unchanged and still below the LOOK bar.
+                Watch for popcorn leaves, repeated stamps, busy shimmer, mechanical stagger,
+                socket exposure, or a sparse crown.
+              </span>
+            </aside>
+          ) : null}
         </div>
       </div>
     </div>

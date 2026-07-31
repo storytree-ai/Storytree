@@ -23,6 +23,8 @@ import { neighbourHighlightPlan } from './neighbourHighlight.js';
 import { laneLayout } from './laneLayout.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 import { SceneView, litLaneWidth, laneDrawSeconds, type SceneCtx } from './SceneView.js';
+import { CHAPTER2_ORGANIC_BRANCH_BLOOM_RIG } from './branch-bloom-assets.js';
+import { branchBloomLayerAtProgress } from './branch-bloom-rig.js';
 
 afterEach(cleanup);
 
@@ -162,6 +164,42 @@ describe('SceneView — the studio scene mapper', () => {
     // (ADR-0272 keeps it explicitly), but it is NOT the pan lag the owner feels: measured, the walk is
     // ~3% of a gesture frame and the rest is rasterisation, which ADR-0272 decision 2 addresses.
     expect((SceneView as { $$typeof?: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+  });
+
+  it('renders leaf clusters inside their parent branches with wood after foliage at one stable world root', () => {
+    const branchBloomLayer = branchBloomLayerAtProgress(
+      CHAPTER2_ORGANIC_BRANCH_BLOOM_RIG,
+      1,
+      { x: 50, y: 45 },
+      0.5,
+    );
+    const { root } = renderScene({ branchBloomLayer });
+    const rig = root.querySelector('[data-branch-bloom-rig="chapter2-organic-branch-bloom-v1"]');
+    expect(rig?.getAttribute('data-world-root-x')).toBe('50.0');
+    expect(rig?.getAttribute('data-world-root-y')).toBe('45.0');
+    expect(rig?.getAttribute('data-leaf-family-size')).toBe('3');
+    expect(rig?.getAttribute('data-cluster-instance-count')).toBe('8');
+
+    const leftBranch = rig?.querySelector('[data-branch-bloom-branch="branch-left"]');
+    const leftTip = leftBranch?.querySelector('[data-branch-bloom-cluster="left-tip"]');
+    expect(leftTip?.getAttribute('data-parent-branch')).toBe('branch-left');
+    expect(leftTip?.getAttribute('data-branch-local-socket-x')).toBe('25.0');
+    expect(leftTip?.getAttribute('data-branch-local-socket-y')).toBe('29.0');
+    expect(leftTip?.getAttribute('data-painter-role')).toBe('foliage-under-wood');
+    expect(leftTip?.querySelector('image')?.getAttribute('href')).toMatch(/leaf-fan-spray\.png/);
+
+    const wood = leftBranch?.querySelector('image[data-painter-role="wood-over-socket"]');
+    expect(wood).toBeTruthy();
+    expect(Array.from(leftBranch!.children).indexOf(wood!)).toBe(
+      leftBranch!.children.length - 1,
+    );
+    const worldChildren = Array.from(rig!.parentElement!.children);
+    expect(worldChildren.indexOf(rig!)).toBeGreaterThan(
+      worldChildren.indexOf(root.querySelector('.trail-net')!.parentElement!),
+    );
+    expect(worldChildren.indexOf(rig!)).toBeLessThan(
+      worldChildren.indexOf(root.querySelector('.hex-flora')!.parentElement!),
+    );
   });
 
   it('clips the real SVG island and renders separate registered organic poses at planted anchors after trails', () => {

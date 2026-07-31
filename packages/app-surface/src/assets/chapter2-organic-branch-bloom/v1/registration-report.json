@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "authorTimeOnly": true,
+  "sourceCommit": "4ed9bf38",
+  "fixedCanvas": {
+    "width": 64,
+    "height": 64
+  },
+  "branchLocalSocket": {
+    "x": 32,
+    "y": 58
+  },
+  "familySize": 3,
+  "runtimeCorrection": false,
+  "sourceToRegisteredPolicy": "Retain foliage colours plus their selective one-pixel outline, remove generated wood at author/import time, normalize the leaf mass to a fixed 64x64 plate, and author a five-pixel foliage neck through the exact branch-local socket.",
+  "inheritedBytes": {
+    "trunk-root.png": 5110,
+    "branch-left.png": 1771,
+    "branch-right.png": 2247,
+    "fern-tuft.png": 1462,
+    "flower-tuft.png": 1950,
+    "reference-palette.png": 117,
+    "reference-plate.png": 21003
+  },
+  "members": [
+    {
+      "id": "fan-spray",
+      "source": "sources/pixellab-fan-spray.png",
+      "output": "leaf-fan-spray.png",
+      "sourceDimensions": [
+        64,
+        64
+      ],
+      "sourceMaxY": 43,
+      "sourceFootprint": {
+        "x": 12,
+        "y": 5,
+        "width": 40,
+        "height": 40
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": 11
+      },
+      "registeredSocket": {
+        "x": 32,
+        "y": 58
+      },
+      "socketAlpha": 255,
+      "registeredFootprint": {
+        "x": 12,
+        "y": 16,
+        "width": 40,
+        "height": 43
+      },
+      "encodedBytes": 2079,
+      "decodedRgbaBytes": 16384
+    },
+    {
+      "id": "fork-rosette",
+      "source": "sources/pixellab-fork-rosette.png",
+      "output": "leaf-fork-rosette.png",
+      "sourceDimensions": [
+        64,
+        64
+      ],
+      "sourceMaxY": 42,
+      "sourceFootprint": {
+        "x": 12,
+        "y": 3,
+        "width": 40,
+        "height": 41
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": 12
+      },
+      "registeredSocket": {
+        "x": 32,
+        "y": 58
+      },
+      "socketAlpha": 255,
+      "registeredFootprint": {
+        "x": 12,
+        "y": 15,
+        "width": 40,
+        "height": 44
+      },
+      "encodedBytes": 3549,
+      "decodedRgbaBytes": 16384
+    },
+    {
+      "id": "tip-tuft",
+      "source": "sources/pixellab-tip-tuft.png",
+      "output": "leaf-tip-tuft.png",
+      "sourceDimensions": [
+        64,
+        64
+      ],
+      "sourceMaxY": 39,
+      "sourceFootprint": {
+        "x": 10,
+        "y": 5,
+        "width": 43,
+        "height": 35
+      },
+      "normalizationOffset": {
+        "x": 1,
+        "y": 16
+      },
+      "registeredSocket": {
+        "x": 32,
+        "y": 58
+      },
+      "socketAlpha": 255,
+      "registeredFootprint": {
+        "x": 11,
+        "y": 21,
+        "width": 43,
+        "height": 38
+      },
+      "encodedBytes": 3188,
+      "decodedRgbaBytes": 16384
+    }
+  ],
+  "encodedLeafFamilyBytes": 8816,
+  "decodedLeafFamilyRgbaBytes": 49152
+}

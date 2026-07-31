@@ -22,6 +22,13 @@ import {
   type OrganicPosePoint,
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
+import {
+  branchBloomLayerAtProgress,
+  branchBloomMatureBounds,
+  validateBranchBloomRig,
+  type BranchBloomPoint,
+  type RegisteredBranchBloomRig,
+} from './branch-bloom-rig.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -62,6 +69,13 @@ export interface SemanticGrowthOrganicPoseLayer {
   readonly clock?: SemanticGrowthAnimationClock;
 }
 
+export interface SemanticGrowthBranchBloomLayer {
+  readonly rig: RegisteredBranchBloomRig;
+  readonly worldRoot: BranchBloomPoint;
+  readonly scale: number;
+  readonly clock?: SemanticGrowthAnimationClock;
+}
+
 export interface SemanticGrowthWorldViewProps {
   readonly frames: readonly SemanticGrowthFrame[];
   readonly reducedMotion?: boolean;
@@ -70,6 +84,7 @@ export interface SemanticGrowthWorldViewProps {
   readonly onBack?: (key: SemanticGrowthFrameKey) => void;
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
   readonly organicPoseGrowth?: SemanticGrowthOrganicPoseLayer;
+  readonly branchBloomGrowth?: SemanticGrowthBranchBloomLayer;
 }
 
 function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
@@ -131,8 +146,9 @@ function unionBounds(a: Bounds | null, b: Bounds | null): Bounds | null {
  */
 function representativeViewBox(
   frames: readonly SemanticGrowthFrame[],
+  extraBounds: Bounds | null = null,
 ): string {
-  let bounds: Bounds | null = null;
+  let bounds: Bounds | null = extraBounds;
   for (const entry of frames) {
     const scene = entry.model.scene;
     const defBounds = collectDefBounds(scene);
@@ -236,11 +252,16 @@ export function SemanticGrowthWorldView({
   onBack,
   onReplay,
   organicPoseGrowth,
+  branchBloomGrowth,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
   assertFrames(frames);
+  if (organicPoseGrowth && branchBloomGrowth) {
+    throw new Error('Semantic growth accepts one organic comparison technique at a time.');
+  }
   const [cursor, setCursor] = React.useState(0);
   const [organicPlayback, setOrganicPlayback] = React.useState(initialOrganicPosePlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
+  const growthEnabled = organicPoseGrowth !== undefined || branchBloomGrowth !== undefined;
   const frame = frames[cursor]!;
   const registry = React.useMemo(
     () => {
@@ -279,6 +300,22 @@ export function SemanticGrowthWorldView({
     },
     [organicPlayback.progress, organicPoseGrowth, registry],
   );
+  const branchRig = React.useMemo(
+    () => (branchBloomGrowth ? validateBranchBloomRig(branchBloomGrowth.rig) : null),
+    [branchBloomGrowth],
+  );
+  const branchLayer = React.useMemo(
+    () =>
+      branchBloomGrowth && branchRig
+        ? branchBloomLayerAtProgress(
+            branchRig,
+            organicPlayback.progress,
+            branchBloomGrowth.worldRoot,
+            branchBloomGrowth.scale,
+          )
+        : null,
+    [branchBloomGrowth, branchRig, organicPlayback.progress],
+  );
   const nativeLandProgress = organicPoseGrowth
     ? clampOrganicPoseProgress(
         organicPlayback.progress / organicPoseGrowth.nativeIsland.settledAtProgress,
@@ -287,6 +324,7 @@ export function SemanticGrowthWorldView({
   const model = React.useMemo<WorldPresentationModel>(
     () => {
       const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
+      if (branchLayer) return { ...base, branchBloomLayer: branchLayer };
       if (!organicPoseGrowth || nativeLandProgress === null) return base;
       return {
         ...base,
@@ -299,23 +337,33 @@ export function SemanticGrowthWorldView({
         organicPoseLayers: organicLayers,
       };
     },
-    [frame.model, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
+    [branchLayer, frame.model, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
   );
   // Held stable through the whole walk — derived from every supplied frame's app-owned geometry,
   // never the current cursor or a transparent asset canvas.
   const viewBox = React.useMemo(
-    () => representativeViewBox(frames),
-    [frames],
+    () =>
+      representativeViewBox(
+        frames,
+        branchBloomGrowth && branchRig
+          ? branchBloomMatureBounds(
+              branchRig,
+              branchBloomGrowth.worldRoot,
+              branchBloomGrowth.scale,
+            )
+          : null,
+      ),
+    [branchBloomGrowth, branchRig, frames],
   );
 
   React.useEffect(() => {
-    if (!organicPoseGrowth || !reduce) return;
+    if (!growthEnabled || !reduce) return;
     setOrganicPlayback((current) => selectOrganicPoseCue(current, cursor, true));
-  }, [cursor, organicPoseGrowth, reduce]);
+  }, [cursor, growthEnabled, reduce]);
 
   React.useEffect(() => {
-    if (!organicPoseGrowth || reduce || !organicPlayback.playing) return;
-    const clock = organicPoseGrowth.clock ?? BROWSER_ANIMATION_CLOCK;
+    if (!growthEnabled || reduce || !organicPlayback.playing) return;
+    const clock = organicPoseGrowth?.clock ?? branchBloomGrowth?.clock ?? BROWSER_ANIMATION_CLOCK;
     let requestId = 0;
     let previousTimestamp: number | null = null;
     let running = organicPlayback;
@@ -333,7 +381,7 @@ export function SemanticGrowthWorldView({
       cancelled = true;
       clock.cancelFrame(requestId);
     };
-  }, [organicPoseGrowth, organicPlayback.transitionId, reduce]);
+  }, [branchBloomGrowth, growthEnabled, organicPoseGrowth, organicPlayback.transitionId, reduce]);
 
   const select = (
     nextCursor: number,
@@ -342,7 +390,7 @@ export function SemanticGrowthWorldView({
   ): void => {
     const bounded = Math.max(0, Math.min(FRAME_KEYS.length - 1, nextCursor));
     setCursor(bounded);
-    if (organicPoseGrowth) {
+    if (growthEnabled) {
       setOrganicPlayback((current) =>
         replay
           ? replayOrganicPosePlayback(current)
@@ -364,7 +412,15 @@ export function SemanticGrowthWorldView({
             'data-organic-pose-frames':
               organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
           }
-        : {})}
+        : branchBloomGrowth
+          ? {
+              'data-organic-technique': 'hierarchical-foliage-rig',
+              'data-branch-bloom-progress': organicPlayback.progress.toFixed(4),
+              'data-island-control': 'round-1-key-pose-unchanged',
+              'data-leaf-family-size': String(branchRig?.leafFamilyAssetIds.length ?? 0),
+              'data-cluster-instance-count': String(branchRig?.clusters.length ?? 0),
+            }
+          : {})}
     >
       <svg viewBox={viewBox} aria-label={`Semantic growth: ${frame.key}`}>
         {events ? (

@@ -16,6 +16,7 @@ import {
   type SemanticGrowthAnimationClock,
 } from './SemanticGrowthWorldView.js';
 import { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
+import { CHAPTER2_ORGANIC_BRANCH_BLOOM_RIG } from './branch-bloom-assets.js';
 import * as AppSurfacePackageRoot from './index.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 
@@ -148,6 +149,83 @@ function frameModelAt(
 }
 
 describe('SemanticGrowthWorldView', () => {
+  it('settles the hierarchical foliage rig at cues, holds camera/root invariant, and makes Back/Replay equivalent under reduced motion', () => {
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const view = render(
+      <SemanticGrowthWorldView
+        frames={frames}
+        reducedMotion
+        branchBloomGrowth={{
+          rig: CHAPTER2_ORGANIC_BRANCH_BLOOM_RIG,
+          worldRoot: { x: 50, y: 45 },
+          scale: 0.5,
+        }}
+      />,
+    );
+    const section = view.container.querySelector('section')!;
+    const svg = view.container.querySelector('svg')!;
+    const initialViewBox = svg.getAttribute('viewBox');
+    const rig = () => view.container.querySelector('[data-branch-bloom-rig]');
+    const trunkScale = () =>
+      rig()?.querySelector('[data-branch-bloom-part="trunk-root"]')?.getAttribute('data-trunk-grow-scale');
+    const root = () => [rig()?.getAttribute('data-world-root-x'), rig()?.getAttribute('data-world-root-y')];
+
+    expect(section.getAttribute('data-organic-technique')).toBe('hierarchical-foliage-rig');
+    expect(section.getAttribute('data-island-control')).toBe('round-1-key-pose-unchanged');
+    expect(trunkScale()).toBe('0.0');
+    expect(view.container.querySelector('[data-native-island-story]')).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' })); // land, unchanged Round 1 control
+    expect(section.getAttribute('data-semantic-growth-frame')).toBe('land');
+    expect(view.container.querySelector('[data-story-id="semantic-growth"]')).toBeTruthy();
+    expect(trunkScale()).toBe('0.0');
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' })); // proposed
+    expect(Number(trunkScale())).toBeGreaterThan(0);
+    const proposedRoot = root();
+    expect(svg.getAttribute('viewBox')).toBe(initialViewBox);
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' })); // claimed
+    expect(
+      Number(
+        rig()?.querySelector('[data-branch-bloom-branch="branch-left"]')?.getAttribute('data-branch-grow-scale'),
+      ),
+    ).toBe(1);
+    expect(rig()?.querySelectorAll('[data-branch-bloom-cluster]').length).toBe(8);
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' })); // signed proof
+    expect(
+      Array.from(rig()!.querySelectorAll('[data-cluster-bloom-scale]')).some(
+        (node) => Number(node.getAttribute('data-cluster-bloom-scale')) > 0,
+      ),
+    ).toBe(true);
+    fireEvent.click(view.getByRole('button', { name: 'Next' })); // healthy
+    const finalTransforms = Array.from(rig()!.querySelectorAll('[data-branch-bloom-cluster]')).map(
+      (node) => node.getAttribute('transform'),
+    );
+    expect(root()).toEqual(proposedRoot);
+    expect(svg.getAttribute('viewBox')).toBe(initialViewBox);
+
+    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    expect(
+      Array.from(rig()!.querySelectorAll('[data-branch-bloom-cluster]')).map(
+        (node) => node.getAttribute('transform'),
+      ),
+    ).toEqual(finalTransforms);
+
+    fireEvent.click(view.getByRole('button', { name: 'Replay' }));
+    expect(section.getAttribute('data-semantic-growth-frame')).toBe('empty');
+    expect(trunkScale()).toBe('0.0');
+    expect(
+      Array.from(rig()!.querySelectorAll('[data-cluster-bloom-scale]')).every(
+        (node) => node.getAttribute('data-cluster-bloom-scale') === '0.0',
+      ),
+    ).toBe(true);
+    expect(root()).toEqual(proposedRoot);
+    expect(svg.getAttribute('viewBox')).toBe(initialViewBox);
+  });
+
   it('drives registered tree and plant poses with the app clock, stable anchors, Back and in-place Replay', () => {
     class ManualClock implements SemanticGrowthAnimationClock {
       private nextId = 1;

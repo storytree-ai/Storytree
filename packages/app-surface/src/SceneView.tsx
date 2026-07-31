@@ -30,6 +30,11 @@ import {
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
+import type {
+  BranchBloomBranchRenderLayer,
+  BranchBloomClusterRenderLayer,
+  BranchBloomRenderLayer,
+} from './branch-bloom-rig.js';
 
 export interface OrganicPoseRenderLayer {
   readonly trackId: string;
@@ -101,6 +106,8 @@ export interface SceneCtx {
   nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   /** Registered organic pose images planted into the canonical world painter order. */
   organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  /** App-owned hierarchical tree rig planted into the canonical world painter order. */
+  branchBloomLayer?: BranchBloomRenderLayer | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
    *  so a `baked-use` hero (the ADR-0227 status trees, the garden cottage/gazebo) sizes from its real
    *  def geometry. Memoized once per scene in the component below. */
@@ -482,6 +489,141 @@ function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
     'data-world-anchor-x': fmt(layer.worldAnchor.x),
     'data-world-anchor-y': fmt(layer.worldAnchor.y),
   });
+}
+
+function branchBloomImage(
+  key: string,
+  src: string,
+  canvas: { readonly width: number; readonly height: number },
+  attributes: Readonly<Record<string, string | number | boolean>>,
+): React.ReactNode {
+  return React.createElement('image', {
+    key,
+    href: src,
+    x: 0,
+    y: 0,
+    width: canvas.width,
+    height: canvas.height,
+    preserveAspectRatio: 'none',
+    imageRendering: 'pixelated',
+    pointerEvents: 'none',
+    'aria-hidden': true,
+    ...attributes,
+  });
+}
+
+function branchBloomCluster(cluster: BranchBloomClusterRenderLayer): React.ReactNode {
+  const mirror = cluster.mirrorX ? -cluster.bloomScale : cluster.bloomScale;
+  return React.createElement(
+    'g',
+    {
+      key: cluster.id,
+      transform: `translate(${fmt(cluster.branchLocalSocket.x)} ${fmt(cluster.branchLocalSocket.y)}) rotate(${fmt(cluster.rotation)}) scale(${fmt(mirror)} ${fmt(cluster.bloomScale)}) translate(${-cluster.assetPivot.x} ${-cluster.assetPivot.y})`,
+      'data-branch-bloom-cluster': cluster.id,
+      'data-parent-branch': cluster.parentBranchId,
+      'data-leaf-family-asset': cluster.familyAssetId,
+      'data-branch-local-socket-x': fmt(cluster.branchLocalSocket.x),
+      'data-branch-local-socket-y': fmt(cluster.branchLocalSocket.y),
+      'data-cluster-bloom-scale': fmt(cluster.bloomScale),
+      'data-painter-order': String(cluster.painterOrder),
+      'data-painter-role': 'foliage-under-wood',
+    },
+    branchBloomImage(
+      `${cluster.id}-image`,
+      cluster.src,
+      cluster.canvas,
+      { 'data-branch-bloom-asset': cluster.familyAssetId },
+    ),
+  );
+}
+
+function branchBloomBranch(branch: BranchBloomBranchRenderLayer): React.ReactNode {
+  const children: React.ReactNode[] = branch.clusters.map(branchBloomCluster);
+  children.push(
+    branchBloomImage(
+      `${branch.id}-wood`,
+      branch.src,
+      branch.canvas,
+      {
+        'data-branch-bloom-asset': branch.assetId,
+        'data-painter-role': 'wood-over-socket',
+      },
+    ),
+  );
+  return React.createElement(
+    'g',
+    {
+      key: branch.id,
+      transform: `translate(${fmt(branch.trunkLocalSocket.x)} ${fmt(branch.trunkLocalSocket.y)}) rotate(${fmt(branch.rotation)}) scale(${fmt(branch.growScale)}) translate(${-branch.assetPivot.x} ${-branch.assetPivot.y})`,
+      'data-branch-bloom-branch': branch.id,
+      'data-parent-part': branch.parentPartId,
+      'data-trunk-local-socket-x': fmt(branch.trunkLocalSocket.x),
+      'data-trunk-local-socket-y': fmt(branch.trunkLocalSocket.y),
+      'data-branch-grow-scale': fmt(branch.growScale),
+    },
+    ...children,
+  );
+}
+
+function branchBloomRig(layer: BranchBloomRenderLayer): React.ReactNode {
+  const treeChildren: React.ReactNode[] = layer.branches.map(branchBloomBranch);
+  treeChildren.push(
+    React.createElement(
+      'g',
+      {
+        key: 'trunk-root',
+        transform: `scale(1 ${fmt(layer.trunk.growScale)}) translate(${-layer.trunk.assetPivot.x} ${-layer.trunk.assetPivot.y})`,
+        'data-branch-bloom-part': layer.trunk.id,
+        'data-trunk-grow-scale': fmt(layer.trunk.growScale),
+        'data-painter-role': 'trunk-over-branch-joints',
+      },
+      branchBloomImage(
+        'trunk-root-image',
+        layer.trunk.src,
+        layer.trunk.canvas,
+        { 'data-branch-bloom-asset': 'trunk-root' },
+      ),
+    ),
+  );
+  treeChildren.push(
+    ...layer.plants.map((plant) =>
+      React.createElement(
+        'g',
+        {
+          key: plant.id,
+          transform: `translate(${fmt(plant.rootLocalSocket.x)} ${fmt(plant.rootLocalSocket.y)}) rotate(${fmt(plant.restRotation)}) scale(1 ${fmt(plant.growScale)}) translate(${-plant.assetPivot.x} ${-plant.assetPivot.y})`,
+          'data-branch-bloom-plant': plant.id,
+          'data-root-local-socket-x': fmt(plant.rootLocalSocket.x),
+          'data-root-local-socket-y': fmt(plant.rootLocalSocket.y),
+          'data-plant-grow-scale': fmt(plant.growScale),
+        },
+        branchBloomImage(
+          `${plant.id}-image`,
+          plant.src,
+          plant.canvas,
+          { 'data-branch-bloom-asset': plant.assetId },
+        ),
+      ),
+    ),
+  );
+  return React.createElement(
+    'g',
+    {
+      key: `__branch-bloom-${layer.rigId}`,
+      transform: `translate(${fmt(layer.worldRoot.x)} ${fmt(layer.worldRoot.y)}) scale(${fmt(layer.scale)})`,
+      'data-branch-bloom-rig': layer.rigId,
+      'data-branch-bloom-progress': layer.progress.toFixed(4),
+      'data-world-root-x': fmt(layer.worldRoot.x),
+      'data-world-root-y': fmt(layer.worldRoot.y),
+      'data-leaf-family-size': String(layer.leafFamilySize),
+      'data-cluster-instance-count': String(
+        layer.branches.reduce((sum, branch) => sum + branch.clusters.length, 0),
+      ),
+      pointerEvents: 'none',
+      'aria-hidden': true,
+    },
+    ...treeChildren,
+  );
 }
 
 function nativeIslandClipId(layer: NativeIslandGrowthRenderLayer): string {
@@ -932,6 +1074,9 @@ function renderNode(
       if (el) rendered.push(el);
       if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.organicPoseLayers) {
         rendered.push(...ctx.organicPoseLayers.map(organicPoseImage));
+      }
+      if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.branchBloomLayer) {
+        rendered.push(branchBloomRig(ctx.branchBloomLayer));
       }
     });
     if (node.kind === 'tree' || node.kind === 'flora' || node.kind === 'plate') {

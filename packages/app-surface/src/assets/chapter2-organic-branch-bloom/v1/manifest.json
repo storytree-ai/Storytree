@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "chapter2-organic-branch-bloom-v1",
+  "experiment": 9,
+  "queryGate": "organic-branch-bloom",
+  "comparisonQuestion": "Does foliage growing from branch-local sockets look more connected and natural than an assembled canopy, without becoming repetitive or popcorn-like?",
+  "runtimeRenderer": "@storytree/app-surface SceneView through the real Studio SemanticGrowthDemo consumer",
+  "islandControl": {
+    "id": "round-1-key-pose-island-formation",
+    "status": "held unchanged for comparison; owner evidence says it is still below LOOK bar because it reads as fading in",
+    "implementation": "The standard SemanticGrowthDemo frames() and app-owned SVG island path; no native-island override and no raster island."
+  },
+  "hierarchy": {
+    "root": "trunk-root",
+    "branches": ["branch-left", "branch-right"],
+    "clusterParentRule": "Every cluster is rendered as a child of its owning branch group at an explicit branch-local socket.",
+    "painterRule": "Clusters paint in recorded order beneath parent branch wood; trunk then paints over branch joins.",
+    "secondaryAction": "One bounded 4.5% scale overshoot and small rotational settle per cluster; no loop.",
+    "stagger": "Eight overlapping app-owned bloom windows from progress 0.58 through 0.865."
+  },
+  "leafFamily": {
+    "size": 3,
+    "registeredSocket": [32, 58],
+    "members": ["leaf-fan-spray.png", "leaf-fork-rosette.png", "leaf-tip-tuft.png"],
+    "reuse": {
+      "leaf-fan-spray": 3,
+      "leaf-fork-rosette": 3,
+      "leaf-tip-tuft": 2
+    },
+    "variation": "Asymmetric sockets, mirror flags, rest rotations and scales vary the three assets across eight instances."
+  },
+  "inheritedStrongestRound1Parts": {
+    "sourceCommit": "4ed9bf38",
+    "parts": ["trunk-root.png", "branch-left.png", "branch-right.png", "fern-tuft.png", "flower-tuft.png"],
+    "ownerEvidence": "Cutout-puppet trunk and plant growth were strongest; its detached canopy was rejected and is not reused."
+  },
+  "authorImportBoundary": {
+    "script": "packages/art-authoring/scripts/register-branch-bloom.mts",
+    "rawSources": [
+      "sources/pixellab-fan-spray.png",
+      "sources/pixellab-fork-rosette.png",
+      "sources/pixellab-tip-tuft.png"
+    ],
+    "report": "registration-report.json",
+    "policy": "Generated wood is retained only in raw provenance. Import keeps foliage and its outline, normalizes the crop to 64x64, and guarantees opaque socket coverage before runtime."
+  },
+  "budgets": {
+    "encodedRuntimeBytes": 21356,
+    "decodedRuntimeRgbaBytes": 241664,
+    "encodedLeafFamilyBytes": 8816,
+    "decodedLeafFamilyRgbaBytes": 49152,
+    "leafFamilySize": 3,
+    "clusterInstances": 8
+  },
+  "runtimePolicy": {
+    "localModuleUrlsOnly": true,
+    "runtimeVendorCalls": false,
+    "runtimeSecrets": false,
+    "appOwns": [
+      "semantics",
+      "normalized progress",
+      "timing/easing/holds",
+      "sprite selection",
+      "branch-local sockets",
+      "painter order",
+      "Next/Back/Replay",
+      "reduced-motion settlement",
+      "retained final scene"
+    ]
+  },
+  "ownerLook": "awaiting; this manifest is comparison evidence and does not adopt the technique"
+}

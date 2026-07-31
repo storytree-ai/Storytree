@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "provider": "PixelLab",
+  "tool": "create_image_pixflux",
+  "model": "PixFlux",
+  "terms": "https://pixellab.ai/termsofservice",
+  "sharedSettings": {
+    "transparent": true,
+    "canvas": [64, 64],
+    "isometric": true,
+    "view": "high top-down",
+    "outline": "selective outline",
+    "shading": "medium shading",
+    "detail": "medium detail",
+    "textGuidanceScale": 12,
+    "registeredSocket": [32, 58],
+    "paletteReference": "reference-palette.png"
+  },
+  "acceptedLeafFamily": [
+    {
+      "id": "fan-spray",
+      "jobId": "570959cb-074e-4e6b-90fb-b107c6f2d313",
+      "seed": 274901,
+      "rawSource": "sources/pixellab-fan-spray.png",
+      "registeredOutput": "leaf-fan-spray.png",
+      "prompt": "A single compact attached fan-spray leaf cluster for a fantasy tree canopy, 64x64 transparent pixel art. Low-isometric storybook style using the forced moss, forest green, lime and ochre reference palette. Foliage only: three connected scalloped leaf lobes spreading mainly left, no wood, trunk, roots, ground, island, shadow or detached leaves. The lowest pixels converge at the exact bottom-center branch socket at pixel 32,58. Crisp selective outline and readable at half scale."
+    },
+    {
+      "id": "fork-rosette",
+      "jobId": "374aebf3-9522-41b0-bf1e-fd6bcf50c0b4",
+      "seed": 274904,
+      "initJobId": "570959cb-074e-4e6b-90fb-b107c6f2d313",
+      "initImageStrength": 80,
+      "rawSource": "sources/pixellab-fork-rosette.png",
+      "registeredOutput": "leaf-fork-rosette.png",
+      "prompt": "A single compact attached LEAF MASS for a fantasy tree canopy, pixel art sprite, transparent background. FOLIAGE ONLY: green and warm ochre leaf lobes touch one another as one clustered silhouette. Absolutely no brown branch, no twig, no stem, no trunk, no roots, no ground, no pot, no shadow, no floating detached leaves. The lowest green pixels converge at the bottom-center attachment socket around pixel 32,58. Low-isometric storybook view, crisp selective outline, modest detail, readable at half scale. Make an asymmetrical low horizontal fan: three connected scalloped leaf lobes spreading mostly left and slightly upward, with a narrow green attachment neck at bottom center."
+    },
+    {
+      "id": "tip-tuft",
+      "jobId": "c7e631c9-be2d-4a17-be98-9039a7650c5a",
+      "seed": 274905,
+      "initJobId": "570959cb-074e-4e6b-90fb-b107c6f2d313",
+      "initImageStrength": 70,
+      "rawSource": "sources/pixellab-tip-tuft.png",
+      "registeredOutput": "leaf-tip-tuft.png",
+      "prompt": "A single compact attached LEAF MASS for a fantasy tree canopy, pixel art sprite, transparent background. FOLIAGE ONLY: green and warm ochre leaf lobes touch one another as one clustered silhouette. Absolutely no brown branch, no twig, no stem, no trunk, no roots, no ground, no pot, no shadow, no floating detached leaves. The lowest green pixels converge at the bottom-center attachment socket around pixel 32,58. Low-isometric storybook view, crisp selective outline, modest detail, readable at half scale. Make a compact uneven rounded rosette: four connected leaf lobes, taller on the right, broad enough to hide the attachment socket, no tendrils or lines below the leaf mass."
+    }
+  ],
+  "rejectedLeafJobs": [
+    {
+      "jobId": "43a0ccbc-7c82-4a3c-8e85-7cce12705b3b",
+      "seed": 274902,
+      "reason": "Generated a long exposed brown stem, contradicting foliage-only socket registration."
+    },
+    {
+      "jobId": "d9aec57d-a257-406c-8f54-96c3640a83c1",
+      "seed": 274903,
+      "reason": "Too sparse to support the crown and exposed a long stem."
+    }
+  ],
+  "inheritedCutoutParts": [
+    {
+      "id": "trunk-root",
+      "sourceCommit": "4ed9bf38",
+      "jobId": "9dad91bc-4339-419e-a946-51024dc26d4a",
+      "seed": 274201,
+      "prompt": "Registered cutout puppet component: ONE ancient storybook tree trunk with visible planted roots and a short central trunk, isolated transparent sprite. Low isometric 2.5D camera matching a warm cream, ochre, moss green app-owned SVG island reference plate. Root contact centered at the exact bottom of the canvas; trunk grows upward. Organic crooked silhouette, warm brown bark, subtle moss, charming hand-crafted pixel art. TRUNK AND ROOTS ONLY. No branches, no canopy, no leaves, no ground, no island, no shadow, no text, no border."
+    },
+    {
+      "id": "branch-left",
+      "sourceCommit": "4ed9bf38",
+      "jobId": "4dd4b885-b349-4720-bbd8-a0940c173c09",
+      "seed": 274202,
+      "prompt": "Registered cutout puppet component: ONE major ancient tree branch extending up-left from a clean fork socket at the exact lower-right canvas edge. Low isometric 2.5D storybook pixel art matching a warm cream, ochre, moss green SVG island reference plate. Crooked tapered warm-brown bark, two small child forks, organic asymmetry. BRANCH WOOD ONLY. No trunk, no roots, no canopy, no leaves, no ground, no island, no shadow, no text."
+    },
+    {
+      "id": "branch-right",
+      "sourceCommit": "4ed9bf38",
+      "jobId": "5735e300-7ccf-4320-a076-7aa4cac8d6d8",
+      "seed": 274203,
+      "prompt": "Registered cutout puppet component: ONE major ancient tree branch extending up-right from a clean fork socket at the exact lower-left canvas edge. Low isometric 2.5D storybook pixel art matching a warm cream, ochre, moss green SVG island reference plate. Crooked tapered warm-brown bark, two small child forks, organic asymmetry. BRANCH WOOD ONLY. No trunk, no roots, no canopy, no leaves, no ground, no island, no shadow, no text."
+    },
+    {
+      "id": "fern-tuft",
+      "sourceCommit": "4ed9bf38",
+      "jobId": "077b9938-f419-4d14-b525-3f2720cc9fe7",
+      "seed": 274207,
+      "prompt": "Registered ground cutout component: ONE small fern and grass tuft rooted at exact bottom-center, isolated transparent sprite. Low isometric 2.5D whimsical storybook pixel art matching a cream, ochre and moss green SVG island reference plate. Three asymmetrical fern fronds, tiny warm-ochre base, compact readable silhouette. PLANT ONLY. No ground patch, no island, no tree, no shadow, no text."
+    },
+    {
+      "id": "flower-tuft",
+      "sourceCommit": "4ed9bf38",
+      "jobId": "258052d5-4179-40d7-8492-bb86c646bbbd",
+      "seed": 274208,
+      "prompt": "Registered ground cutout component: ONE tiny wildflower and leaf tuft rooted at exact bottom-center, isolated transparent sprite. Low isometric 2.5D whimsical storybook pixel art matching a cream, ochre and moss green SVG island reference plate. Two uneven moss-green stems, three warm cream and ochre flowers, compact readable silhouette. PLANT ONLY. No ground patch, no island, no tree, no shadow, no text."
+    }
+  ]
+}

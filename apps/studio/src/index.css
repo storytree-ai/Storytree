@@ -1511,6 +1511,45 @@ a.stat:hover {
   overflow: hidden;
   background: linear-gradient(160deg, var(--board-1), var(--board-2));
 }
+
+.branch-bloom-guide {
+  position: absolute;
+  z-index: 4;
+  top: 12px;
+  left: 12px;
+  display: grid;
+  gap: 5px;
+  width: min(370px, calc(100% - 24px));
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+
+.branch-bloom-guide strong {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+@media (max-width: 620px) {
+  .branch-bloom-guide {
+    top: 8px;
+    left: 8px;
+    width: calc(100% - 16px);
+    padding: 7px 9px;
+    font-size: 10px;
+  }
+
+  .branch-bloom-guide span:first-of-type {
+    display: none;
+  }
+}
 .world-viewport {
   /* Fill the frame as an absolute overlay (inset:0), NOT a flex child — an inline SVG's small
      intrinsic height collapses a flex-basis:auto viewport, which left the map tiny in the corner.

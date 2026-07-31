@@ -479,6 +479,98 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     }
   });
 
+  it('only the exact organic-branch-bloom gate mounts a branch-local hierarchy over the unchanged Round 1 island control', async () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+    try {
+      window.history.pushState({}, '', '/?organicGrowth=organic-branch-bloom-near-miss#/tree');
+      const nearMiss = await renderTree();
+      expect(nearMiss.querySelector('[data-branch-bloom-rig]')).toBeNull();
+      cleanup();
+
+      window.history.pushState({}, '', '/?organicGrowth=organic-branch-bloom#/tree');
+      const flagged = await renderTree();
+      const section = flagged.querySelector(
+        '[data-semantic-growth-frame="empty"][data-organic-technique="hierarchical-foliage-rig"]',
+      );
+      expect(section).toBeTruthy();
+      expect(section?.getAttribute('data-island-control')).toBe('round-1-key-pose-unchanged');
+      expect(section?.getAttribute('data-leaf-family-size')).toBe('3');
+      expect(section?.getAttribute('data-cluster-instance-count')).toBe('8');
+      expect(flagged.querySelector('[data-native-island-story]')).toBeNull();
+      const rig = flagged.querySelector('[data-branch-bloom-rig]');
+      expect(rig?.getAttribute('data-world-root-x')).toBeTruthy();
+      expect(rig?.querySelectorAll('[data-branch-bloom-branch]').length).toBe(2);
+      expect(rig?.querySelectorAll('[data-branch-bloom-cluster]').length).toBe(8);
+      expect(
+        rig?.querySelector(
+          '[data-branch-bloom-branch="branch-left"] [data-branch-bloom-cluster="left-tip"][data-parent-branch="branch-left"]',
+        ),
+      ).toBeTruthy();
+      const guide = flagged.querySelector('[aria-label="Experiment 9 technique guide"]');
+      expect(guide?.textContent).toMatch(/hierarchical foliage rig/i);
+      expect(guide?.textContent).toMatch(/branch-local sockets/i);
+      expect(guide?.textContent).toMatch(/popcorn leaves.*socket exposure.*sparse crown/is);
+
+      const controls = Array.from(
+        flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      );
+      const next = controls.find((button) => button.textContent === 'Next') as HTMLButtonElement;
+      const back = controls.find((button) => button.textContent === 'Back') as HTMLButtonElement;
+      const replay = controls.find((button) => button.textContent === 'Replay') as HTMLButtonElement;
+      const initialViewBox = flagged.querySelector('svg')?.getAttribute('viewBox');
+      const rootAnchor = [rig?.getAttribute('data-world-root-x'), rig?.getAttribute('data-world-root-y')];
+
+      await act(async () => next.click()); // land control
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('land');
+      expect(flagged.querySelector('.relaxed-tile')).toBeTruthy();
+      expect(flagged.querySelector('[data-native-island-story]')).toBeNull();
+      await act(async () => next.click()); // proposed
+      await act(async () => next.click()); // claimed
+      await act(async () => next.click()); // signed proof
+      await act(async () => next.click()); // healthy
+      expect(
+        flagged.querySelector('[data-branch-bloom-part="trunk-root"][data-trunk-grow-scale="1.0"]'),
+      ).toBeTruthy();
+      expect(
+        flagged.querySelectorAll('[data-painter-role="wood-over-socket"]').length,
+      ).toBe(2);
+      expect(flagged.querySelector('svg')?.getAttribute('viewBox')).toBe(initialViewBox);
+      expect([rig?.getAttribute('data-world-root-x'), rig?.getAttribute('data-world-root-y')]).toEqual(
+        rootAnchor,
+      );
+
+      await act(async () => back.click());
+      await act(async () => next.click());
+      expect(
+        flagged.querySelector('[data-branch-bloom-part="trunk-root"][data-trunk-grow-scale="1.0"]'),
+      ).toBeTruthy();
+      await act(async () => replay.click());
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('empty');
+      expect(
+        flagged.querySelector('[data-branch-bloom-part="trunk-root"][data-trunk-grow-scale="0.0"]'),
+      ).toBeTruthy();
+      expect(flagged.querySelector('svg')?.getAttribute('viewBox')).toBe(initialViewBox);
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
   // machine contract 3): "signed-proof remains proposed/non-healthy while carrying the proof bloom;
   // healthy appears only last" / "no pre-final frame may appear healthy". The `signed-proof` frame is

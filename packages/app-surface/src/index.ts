@@ -54,6 +54,7 @@ export {
 export {
   SemanticGrowthWorldView,
   type SemanticGrowthAnimationClock,
+  type SemanticGrowthBranchBloomLayer,
   type SemanticGrowthFrame,
   type SemanticGrowthFrameKey,
   type SemanticGrowthOrganicPoseInstance,
@@ -87,3 +88,24 @@ export {
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
 export { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
+export {
+  branchBloomLayerAtProgress,
+  branchBloomMatureBounds,
+  clampBranchBloomProgress,
+  clusterBloomPose,
+  validateBranchBloomRig,
+  type BranchBloomAsset,
+  type BranchBloomBounds,
+  type BranchBloomBranch,
+  type BranchBloomBranchRenderLayer,
+  type BranchBloomBudget,
+  type BranchBloomCluster,
+  type BranchBloomClusterRenderLayer,
+  type BranchBloomPlant,
+  type BranchBloomPlantRenderLayer,
+  type BranchBloomPoint,
+  type BranchBloomRenderLayer,
+  type BranchBloomWindow,
+  type RegisteredBranchBloomRig,
+} from './branch-bloom-rig.js';
+export { CHAPTER2_ORGANIC_BRANCH_BLOOM_RIG } from './branch-bloom-assets.js';
