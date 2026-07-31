@@ -1310,6 +1310,14 @@ export function readOrganicPoseToPose(search: string = defaultSearch()): boolean
   );
 }
 
+/** Experiment 6: the exact connected native-SVG island accretion witness gate. */
+export function readOrganicIslandAccretion(search: string = defaultSearch()): boolean {
+  return (
+    new URLSearchParams(search).get('organicGrowth') ===
+    'organic-island-accretion'
+  );
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar' | 'stress';
@@ -2297,6 +2305,10 @@ export function TreeView({
   // near the other early returns.
   const semanticGrowthDemo = useMemo(() => readSemanticGrowthDemo(search), [search]);
   const organicPoseToPose = useMemo(() => readOrganicPoseToPose(search), [search]);
+  const organicIslandAccretion = useMemo(
+    () => readOrganicIslandAccretion(search),
+    [search],
+  );
   const scene = useMemo(
     () =>
       world
@@ -2479,12 +2491,18 @@ export function TreeView({
   // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
   // not a variant of the product controller. Every other value (absent/empty/unknown) falls
   // through unchanged, byte-for-byte, to the clean Studio path.
-  if (semanticGrowthDemo || organicPoseToPose) {
+  if (semanticGrowthDemo || organicPoseToPose || organicIslandAccretion) {
     return (
       <SemanticGrowthDemo
         spriteSheet={spriteSheet}
         artScale={artScale}
-        variant={organicPoseToPose ? 'organic-pose-to-pose' : 'demo'}
+        variant={
+          organicIslandAccretion
+            ? 'organic-island-accretion'
+            : organicPoseToPose
+              ? 'organic-pose-to-pose'
+              : 'demo'
+        }
       />
     );
   }

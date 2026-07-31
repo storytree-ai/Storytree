@@ -22,6 +22,11 @@ import {
   type OrganicPosePoint,
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
+import {
+  deriveSvgIslandAccretionPlan,
+  svgIslandAccretionAtProgress,
+  type SvgIslandAccretionPoint,
+} from './svg-island-accretion.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -62,6 +67,11 @@ export interface SemanticGrowthOrganicPoseLayer {
   readonly clock?: SemanticGrowthAnimationClock;
 }
 
+export interface SemanticGrowthSvgIslandAccretion {
+  readonly storyId: string;
+  readonly worldAnchor: SvgIslandAccretionPoint;
+}
+
 export interface SemanticGrowthWorldViewProps {
   readonly frames: readonly SemanticGrowthFrame[];
   readonly reducedMotion?: boolean;
@@ -70,6 +80,7 @@ export interface SemanticGrowthWorldViewProps {
   readonly onBack?: (key: SemanticGrowthFrameKey) => void;
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
   readonly organicPoseGrowth?: SemanticGrowthOrganicPoseLayer;
+  readonly svgIslandAccretion?: SemanticGrowthSvgIslandAccretion;
 }
 
 function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
@@ -236,8 +247,19 @@ export function SemanticGrowthWorldView({
   onBack,
   onReplay,
   organicPoseGrowth,
+  svgIslandAccretion,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
   assertFrames(frames);
+  if (svgIslandAccretion && !organicPoseGrowth) {
+    throw new Error('SVG island accretion requires the existing app-owned organic playback clock.');
+  }
+  if (
+    svgIslandAccretion &&
+    organicPoseGrowth &&
+    svgIslandAccretion.storyId !== organicPoseGrowth.nativeIsland.storyId
+  ) {
+    throw new Error('SVG island accretion must target the registered native island.');
+  }
   const [cursor, setCursor] = React.useState(0);
   const [organicPlayback, setOrganicPlayback] = React.useState(initialOrganicPosePlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
@@ -284,22 +306,44 @@ export function SemanticGrowthWorldView({
         organicPlayback.progress / organicPoseGrowth.nativeIsland.settledAtProgress,
       )
     : null;
+  const islandAccretionPlan = React.useMemo(
+    () =>
+      svgIslandAccretion
+        ? deriveSvgIslandAccretionPlan(
+            frames[frames.length - 1]!.model.scene,
+            svgIslandAccretion.storyId,
+            svgIslandAccretion.worldAnchor,
+          )
+        : null,
+    [frames, svgIslandAccretion],
+  );
+  const islandAccretionState = React.useMemo(
+    () =>
+      islandAccretionPlan && nativeLandProgress !== null
+        ? svgIslandAccretionAtProgress(islandAccretionPlan, nativeLandProgress)
+        : null,
+    [islandAccretionPlan, nativeLandProgress],
+  );
   const model = React.useMemo<WorldPresentationModel>(
     () => {
       const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
       if (!organicPoseGrowth || nativeLandProgress === null) return base;
       return {
         ...base,
-        nativeIslandGrowthLayer: {
-          storyId: organicPoseGrowth.nativeIsland.storyId,
-          worldAnchor: organicPoseGrowth.nativeIsland.worldAnchor,
-          radius: organicPoseGrowth.nativeIsland.radius,
-          progress: nativeLandProgress,
-        },
+        ...(islandAccretionState
+          ? { svgIslandAccretionLayer: islandAccretionState }
+          : {
+              nativeIslandGrowthLayer: {
+                storyId: organicPoseGrowth.nativeIsland.storyId,
+                worldAnchor: organicPoseGrowth.nativeIsland.worldAnchor,
+                radius: organicPoseGrowth.nativeIsland.radius,
+                progress: nativeLandProgress,
+              },
+            }),
         organicPoseLayers: organicLayers,
       };
     },
-    [frame.model, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
+    [frame.model, islandAccretionState, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
   );
   // Held stable through the whole walk — derived from every supplied frame's app-owned geometry,
   // never the current cursor or a transparent asset canvas.
@@ -363,6 +407,24 @@ export function SemanticGrowthWorldView({
             'data-native-island-progress': nativeLandProgress?.toFixed(4),
             'data-organic-pose-frames':
               organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
+            ...(islandAccretionState
+              ? {
+                  'data-island-technique': 'connected-accretion',
+                  'data-svg-island-accretion-progress':
+                    islandAccretionState.progress.toFixed(4),
+                  'data-svg-island-accretion-cells':
+                    String(islandAccretionPlan?.cells.length ?? 0),
+                  'data-svg-island-accretion-waves':
+                    islandAccretionPlan
+                      ? [...new Set(islandAccretionPlan.cells.map((cell) => cell.wave))]
+                          .map(
+                            (wave) =>
+                              islandAccretionPlan.cells.filter((cell) => cell.wave === wave).length,
+                          )
+                          .join(',')
+                      : '',
+                }
+              : {}),
           }
         : {})}
     >
