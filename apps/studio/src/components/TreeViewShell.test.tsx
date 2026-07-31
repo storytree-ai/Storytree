@@ -547,7 +547,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       expect(section?.getAttribute('data-contour-path-interpolation')).toBe('quadratic-fixed-topology');
       expect(section?.getAttribute('data-contour-topology-change')).toBe('none');
       expect(section?.getAttribute('data-coast-settle')).toBe('final-16-percent');
-      expect(section?.getAttribute('data-native-island-growth-duration-multiplier')).toBe('1.2');
+      expect(section?.getAttribute('data-native-island-growth-duration-multiplier')).toBe('2');
       expect(section?.getAttribute('data-organic-transition-ms')).toBe('0');
 
       const evaluationCopy = flagged.querySelector('[data-contour-morph-evaluation]')?.textContent ?? '';

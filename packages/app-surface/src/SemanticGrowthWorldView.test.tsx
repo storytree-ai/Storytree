@@ -194,7 +194,7 @@ describe('SemanticGrowthWorldView', () => {
         radius: { x: 36, y: 26 },
         settledAtProgress: 0.18,
         technique: 'radial-expansion',
-        growthDurationMultiplier: 1.2,
+        growthDurationMultiplier: 2,
       },
       clock,
     } as const;
@@ -209,11 +209,11 @@ describe('SemanticGrowthWorldView', () => {
     });
 
     fireEvent.click(controls().next);
-    expect(section().dataset.organicTransitionMs).toBe('624');
+    expect(section().dataset.organicTransitionMs).toBe('1040');
     clock.step(0);
     clock.step(520 - 1000 / 60);
     expect(Number(section().dataset.nativeIslandProgress)).toBeLessThan(1);
-    clock.step(624 - 1000 / 60);
+    clock.step(1040 - 1000 / 60);
     expect(section().dataset.nativeIslandProgress).toBe('1.0000');
 
     fireEvent.click(controls().next);
@@ -225,7 +225,7 @@ describe('SemanticGrowthWorldView', () => {
     fireEvent.click(controls().replay);
     expect(section().dataset.organicTransitionMs).toBe('0');
     fireEvent.click(controls().next);
-    expect(section().dataset.organicTransitionMs).toBe('624');
+    expect(section().dataset.organicTransitionMs).toBe('1040');
 
     const laterDurations = [620, 680, 560, 720];
     for (const duration of laterDurations) {
@@ -238,7 +238,7 @@ describe('SemanticGrowthWorldView', () => {
     fireEvent.click(controls().replay);
     expect(section().dataset.organicTransitionMs).toBe('0');
     fireEvent.click(controls().next);
-    expect(section().dataset.organicTransitionMs).toBe('624');
+    expect(section().dataset.organicTransitionMs).toBe('1040');
     view.unmount();
 
     const sibling = render(
