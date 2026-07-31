@@ -1310,6 +1310,12 @@ export function readOrganicPoseToPose(search: string = defaultSearch()): boolean
   );
 }
 
+/** Exact comparison gate for Experiment 5. It deliberately uses a separate query key/value from
+ *  the rejected full-island track and the earlier semantic fixture; every near miss stays clean. */
+export function readOrganicSocketChoreography(search: string = defaultSearch()): boolean {
+  return new URLSearchParams(search).get('organicGrowth') === 'organic-socket-choreography';
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar' | 'stress';
@@ -2297,6 +2303,10 @@ export function TreeView({
   // near the other early returns.
   const semanticGrowthDemo = useMemo(() => readSemanticGrowthDemo(search), [search]);
   const organicPoseToPose = useMemo(() => readOrganicPoseToPose(search), [search]);
+  const organicSocketChoreography = useMemo(
+    () => readOrganicSocketChoreography(search),
+    [search],
+  );
   const scene = useMemo(
     () =>
       world
@@ -2479,12 +2489,18 @@ export function TreeView({
   // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
   // not a variant of the product controller. Every other value (absent/empty/unknown) falls
   // through unchanged, byte-for-byte, to the clean Studio path.
-  if (semanticGrowthDemo || organicPoseToPose) {
+  if (semanticGrowthDemo || organicPoseToPose || organicSocketChoreography) {
     return (
       <SemanticGrowthDemo
         spriteSheet={spriteSheet}
         artScale={artScale}
-        variant={organicPoseToPose ? 'organic-pose-to-pose' : 'demo'}
+        variant={
+          organicSocketChoreography
+            ? 'socket-choreography'
+            : organicPoseToPose
+              ? 'organic-pose-to-pose'
+              : 'demo'
+        }
       />
     );
   }

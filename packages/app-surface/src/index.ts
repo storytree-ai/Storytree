@@ -1,6 +1,8 @@
 export {
   SceneView,
   type NativeIslandGrowthRenderLayer,
+  type OrganicGrowthDepthSlot,
+  type OrganicGrowthRenderLayer,
   type OrganicPoseRenderLayer,
   type SceneCtx,
 } from './SceneView.js';
@@ -56,6 +58,7 @@ export {
   type SemanticGrowthAnimationClock,
   type SemanticGrowthFrame,
   type SemanticGrowthFrameKey,
+  type SemanticGrowthOrganicLayer,
   type SemanticGrowthOrganicPoseInstance,
   type SemanticGrowthOrganicPoseLayer,
   type SemanticGrowthWorldViewProps,
@@ -87,3 +90,16 @@ export {
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
 export { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
+export {
+  CHAPTER2_SOCKET_CHOREOGRAPHY,
+  clampOrganicProgress,
+  localClipProgress,
+  organicGrowthLayersAtProgress,
+  selectOrganicGrowthFrame,
+  validateOrganicGrowthSet,
+  type OrganicGrowthFrame,
+  type OrganicGrowthPoint,
+  type OrganicGrowthSocket,
+  type RegisteredOrganicGrowthClip,
+  type RegisteredOrganicGrowthSet,
+} from './organic-growth-track.js';

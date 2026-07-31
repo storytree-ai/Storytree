@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "id": "chapter2-organic-socket-choreography-v1",
+  "title": "Experiment 5 — staggered socket choreography",
+  "status": "experimental-owner-look-pending",
+  "generatedAt": "2026-07-31T11:45:00+10:00",
+  "authorTimeOnly": true,
+  "runtimePixelLabDependency": false,
+  "runtimeCredentialRequired": false,
+  "queryGate": {
+    "key": "organicGrowth",
+    "value": "organic-socket-choreography",
+    "deepLinkSuffix": "?organicGrowth=organic-socket-choreography#/tree",
+    "nearMissesRemainClean": true
+  },
+  "ownerLookVerdict": {
+    "status": "pending",
+    "note": "Machine proof and author curation keep this branch viewable; neither signs the owner-held LOOK."
+  },
+  "technique": {
+    "industryName": "staggered modular sprite choreography",
+    "shortName": "socket choreography",
+    "question": "Can one hero track plus two reused support clips make the existing SVG island feel lively without an unbounded generated family, and when does the reuse become mechanical?",
+    "boundedAnswer": {
+      "clipCount": 3,
+      "socketCount": 7,
+      "heroReuse": 1,
+      "fernReuse": 3,
+      "wildflowerReuse": 3,
+      "perSocketGeneratedVariants": 0
+    }
+  },
+  "referencePlate": {
+    "file": "reference-plate.svg",
+    "ownership": "app-authored-authoring-only",
+    "camera": "existing app low-isometric SVG camera",
+    "rootOnPlate": [96, 68],
+    "runtimeImported": false,
+    "generatorConditioning": "The plate fixed camera, root, socket offsets and acceptance inspection. It was not composited into or shipped as PixelLab output.",
+    "preservedAppLayers": [
+      "SVG coast",
+      "SVG ground and parcel cells",
+      "world offset and primary treeSpot",
+      "representative viewBox/camera",
+      "trails",
+      "semantic plate, wisps and UAT markers"
+    ]
+  },
+  "clips": [
+    {
+      "id": "hero-tree",
+      "role": "hero-tree",
+      "canvas": [160, 192],
+      "format": "transparent RGBA8 PNG",
+      "frameCount": 8,
+      "frameOrder": [
+        "hero-tree/frame-00.png",
+        "hero-tree/frame-01.png",
+        "hero-tree/frame-02.png",
+        "hero-tree/frame-03.png",
+        "hero-tree/frame-04.png",
+        "hero-tree/frame-05.png",
+        "hero-tree/frame-06.png",
+        "hero-tree/frame-07.png"
+      ],
+      "frameSemantics": [
+        "planted sapling",
+        "planted sapling hold",
+        "trunk and roots",
+        "trunk and roots hold",
+        "first canopy",
+        "first canopy hold",
+        "canopy accumulation",
+        "mature retained tree"
+      ],
+      "sourceFrameIndices": [0, 0, 5, 5, 6, 6, 7, 8],
+      "normalizedGroundAnchor": [80, 189],
+      "matureFootprint": [10, 12, 139, 178],
+      "selectionNote": "Three deliberate held duplicates reject visibly corrupted interpolation frames and expose the stepping cost of a bounded track instead of commissioning more poses."
+    },
+    {
+      "id": "fern",
+      "role": "ground-plant",
+      "canvas": [64, 64],
+      "format": "transparent RGBA8 PNG",
+      "frameCount": 4,
+      "frameOrder": [
+        "fern/frame-00.png",
+        "fern/frame-01.png",
+        "fern/frame-02.png",
+        "fern/frame-03.png"
+      ],
+      "frameSemantics": [
+        "two planted fiddleheads",
+        "paired fiddleheads",
+        "asymmetric opening",
+        "mature fern retained"
+      ],
+      "sourceFrameIndices": [0, 1, 3, 4],
+      "normalizedGroundAnchor": [32, 59],
+      "matureFootprint": [3, 11, 57, 53]
+    },
+    {
+      "id": "wildflower",
+      "role": "ground-flower",
+      "canvas": [64, 64],
+      "format": "transparent RGBA8 PNG",
+      "frameCount": 4,
+      "frameOrder": [
+        "wildflower/frame-00.png",
+        "wildflower/frame-01.png",
+        "wildflower/frame-02.png",
+        "wildflower/frame-03.png"
+      ],
+      "frameSemantics": [
+        "cream bud and short shoots",
+        "coral and cream buds",
+        "first coral bloom",
+        "two coral blooms and cream bud retained"
+      ],
+      "sourceSelections": [
+        "b631c3d6-67a1-411f-aa03-22b2e032a2d4 candidate 0",
+        "9b3d80c0-40ab-44aa-afdb-2bd646687efc candidate 1",
+        "9b3d80c0-40ab-44aa-afdb-2bd646687efc candidate 0",
+        "ca878d06-ffbb-4f38-93b7-c5ffc8c863e4 candidate 1"
+      ],
+      "normalizedGroundAnchor": [32, 59],
+      "matureFootprint": [15, 5, 40, 55],
+      "selectionNote": "Four explicit stage variants replaced an animation that repeatedly invented a ground platform."
+    }
+  ],
+  "registration": {
+    "coordinateSpace": "frame-pixels-top-left-origin",
+    "normalizer": "normalize.mjs",
+    "policy": "Decode RGBA, select the authored root/ground-contact pixel, translate to the clip's one declared anchor, reject any translation that clips visible pixels, and emit a local versioned PNG.",
+    "heroFrames": [
+      { "frame": 0, "source": 0, "sourceContact": [81, 191], "offset": [-1, -2], "normalizedContact": [80, 189] },
+      { "frame": 1, "source": 0, "sourceContact": [81, 191], "offset": [-1, -2], "normalizedContact": [80, 189] },
+      { "frame": 2, "source": 5, "sourceContact": [79, 191], "offset": [1, -2], "normalizedContact": [80, 189] },
+      { "frame": 3, "source": 5, "sourceContact": [79, 191], "offset": [1, -2], "normalizedContact": [80, 189] },
+      { "frame": 4, "source": 6, "sourceContact": [81, 191], "offset": [-1, -2], "normalizedContact": [80, 189] },
+      { "frame": 5, "source": 6, "sourceContact": [81, 191], "offset": [-1, -2], "normalizedContact": [80, 189] },
+      { "frame": 6, "source": 7, "sourceContact": [80, 191], "offset": [0, -2], "normalizedContact": [80, 189] },
+      { "frame": 7, "source": 8, "sourceContact": [80, 191], "offset": [0, -2], "normalizedContact": [80, 189] }
+    ],
+    "fernFrames": [
+      { "frame": 0, "source": 0, "sourceContact": [31, 55], "offset": [1, 4], "normalizedContact": [32, 59] },
+      { "frame": 1, "source": 1, "sourceContact": [31, 54], "offset": [1, 5], "normalizedContact": [32, 59] },
+      { "frame": 2, "source": 3, "sourceContact": [36, 54], "offset": [-4, 5], "normalizedContact": [32, 59] },
+      { "frame": 3, "source": 4, "sourceContact": [32, 52], "offset": [0, 7], "normalizedContact": [32, 59] }
+    ],
+    "wildflowerFrames": [
+      { "frame": 0, "sourceContact": [27, 59], "offset": [5, 0], "normalizedContact": [32, 59] },
+      { "frame": 1, "sourceContact": [27, 59], "offset": [5, 0], "normalizedContact": [32, 59] },
+      { "frame": 2, "sourceContact": [27, 59], "offset": [5, 0], "normalizedContact": [32, 59] },
+      { "frame": 3, "sourceContact": [30, 60], "offset": [2, -1], "normalizedContact": [32, 59] }
+    ]
+  },
+  "sockets": [
+    { "id": "hero-root", "storyOrder": 0, "clip": "hero-tree", "rootOffset": [0, 0], "scale": 0.43, "startProgress": 0.16, "durationProgress": 0.46, "depthSlot": "organic-hero-tree", "painterOrder": 20 },
+    { "id": "fern-west", "storyOrder": 1, "clip": "fern", "rootOffset": [-31, -8], "scale": 0.36, "startProgress": 0.38, "durationProgress": 0.22, "depthSlot": "organic-ground-back", "painterOrder": 10 },
+    { "id": "flower-east", "storyOrder": 2, "clip": "wildflower", "rootOffset": [29, -7], "scale": 0.34, "startProgress": 0.44, "durationProgress": 0.2, "depthSlot": "organic-ground-back", "painterOrder": 11 },
+    { "id": "fern-north", "storyOrder": 3, "clip": "fern", "rootOffset": [-11, -3], "scale": 0.32, "startProgress": 0.5, "durationProgress": 0.22, "depthSlot": "organic-ground-back", "painterOrder": 12 },
+    { "id": "flower-south-east", "storyOrder": 4, "clip": "wildflower", "rootOffset": [27, 11], "scale": 0.35, "startProgress": 0.56, "durationProgress": 0.2, "depthSlot": "organic-ground-front", "painterOrder": 30 },
+    { "id": "fern-south-west", "storyOrder": 5, "clip": "fern", "rootOffset": [-26, 15], "scale": 0.34, "startProgress": 0.62, "durationProgress": 0.22, "depthSlot": "organic-ground-front", "painterOrder": 31 },
+    { "id": "flower-south", "storyOrder": 6, "clip": "wildflower", "rootOffset": [5, 19], "scale": 0.36, "startProgress": 0.68, "durationProgress": 0.2, "depthSlot": "organic-ground-front", "painterOrder": 32 }
+  ],
+  "painterOrder": [
+    "app-native water/shadow",
+    "app-native SVG coast/ground/parcels",
+    "app-native trails",
+    "organic-ground-back",
+    "organic-hero-tree",
+    "organic-ground-front",
+    "retained app semantic flora/markers/effects/UI"
+  ],
+  "ownership": {
+    "appOwns": [
+      "semantic state and normalized global progress",
+      "global-to-local progress mapping",
+      "frame selection",
+      "socket offsets and fixed world anchors",
+      "stagger schedule, duration, easing and holds",
+      "depth slots and painter order",
+      "Next, Back and Replay",
+      "reduced-motion final settlement",
+      "retained final scene"
+    ],
+    "assetsOwn": [
+      "transparent organic appearance for one selected stage"
+    ]
+  },
+  "capabilityCorrespondenceAssessment": {
+    "status": "assessment-only-not-adopted",
+    "cheapestSeam": "finite-story-order-sockets",
+    "boundedSupportSocketCount": 6,
+    "rule": "Associate the first six app-ordered capability identities with the six support sockets. For higher counts, keep the six visual sockets and aggregate/rotate app metadata; do not generate a count-specific sheet or per-socket art.",
+    "generatedVariantFamilyRequired": false,
+    "tradeoff": "The seam is controllable and cheap, but repeated fern/flower silhouettes can read like stamps before capability correspondence becomes legible."
+  },
+  "budgets": {
+    "encodedFrameBytes": 66723,
+    "decodedRgbaBytesAllFrames": 1114112,
+    "decodedRgbaMiBAllFrames": 1.0625,
+    "frameFileCount": 16,
+    "maxRuntimeImageLayers": 7,
+    "maxUniqueClipTypes": 3,
+    "runtimeAlgorithm": "Seven fixed socket evaluations and one seven-item painter-order sort per progress update.",
+    "encodedBudgetBytes": 320000,
+    "decodedBudgetBytes": 1200000,
+    "runtimeLayerBudget": 7,
+    "performanceAcceptance": "No runtime PixelLab/network call; no more than seven SVG image nodes; fixed O(7) socket evaluation and painter ordering. This experiment records the bounded load but does not claim a frame-time benchmark."
+  },
+  "provenance": {
+    "provider": "PixelLab",
+    "modelIdentity": {
+      "receiptExposedVersionedModelIds": false,
+      "recordedModelIds": [
+        "create_map_object",
+        "create_image_pixen",
+        "create_image_pro",
+        "inpaint_image",
+        "animate_image"
+      ],
+      "note": "PixelLab exposed these exact authoring endpoint/model-family identifiers and the per-request job IDs below, but not a separate versioned model ID. No unreturned version is invented."
+    },
+    "termsUrl": "https://pixellab.ai/termsofservice",
+    "licenceNote": "Generated under the owner's PixelLab subscription and subject to PixelLab's Terms of Service. No broader licence is asserted.",
+    "reportedGenerationCost": 118,
+    "unreportedMapObjectJobs": 3,
+    "costNote": "The total sums costs printed by PixelLab receipts; create_map_object receipts did not print a cost. Rejected generations are included.",
+    "promptReceiptNote": "The heroMatureRepair and heroStartOriginal strings below are faithful reconstructions from the authoring run because those two tool receipts did not echo prompt text; every other prompt is copied from its submitted author-time request.",
+    "acceptedJobs": [
+      { "jobId": "b202b41f-e8bc-4a16-bafa-1c84fb7a41ed", "tool": "inpaint_image", "seed": 52741, "role": "hero mature platform removal" },
+      { "jobId": "00d53c66-0080-41d1-8717-6ec1d11cc886", "tool": "inpaint_image", "seed": 52750, "role": "hero planted start platform removal" },
+      { "jobId": "d03e4958-96cd-44d0-bf12-9b0a7b4c86d2", "tool": "animate_image", "seed": 52754, "role": "hero growth source track" },
+      { "jobId": "1a1c0081-81ee-4dca-b11b-29746b8b771d", "tool": "create_image_pixen", "seed": 52743, "role": "fern planted start" },
+      { "jobId": "246ffe8f-8bb6-496f-85e3-909e86a93455", "tool": "create_image_pixen", "seed": 52748, "role": "fern mature" },
+      { "jobId": "8d853a33-d8e2-41ec-8f86-a0bb4b089fa4", "tool": "animate_image", "seed": 52749, "role": "fern growth track" },
+      { "jobId": "b631c3d6-67a1-411f-aa03-22b2e032a2d4", "tool": "create_image_pro", "seed": 52753, "role": "wildflower planted start candidate 0" },
+      { "jobId": "9b3d80c0-40ab-44aa-afdb-2bd646687efc", "tool": "create_image_pro", "seed": 52757, "role": "wildflower middle candidates 1 and 0" },
+      { "jobId": "ca878d06-ffbb-4f38-93b7-c5ffc8c863e4", "tool": "create_image_pro", "seed": 52756, "role": "wildflower mature candidate 1" }
+    ],
+    "rejectedJobs": [
+      { "jobId": "06814694-0095-4c52-b2ce-0be43eaeebf7", "tool": "create_map_object", "disposition": "base contained an app-owned ground platform; retained only as input to bounded repair" },
+      { "jobId": "db0f573d-86f4-48e9-81cd-9ca4b11237e9", "tool": "create_image_pixen", "seed": 52742, "disposition": "start contained a seed/soil platform; retained only as input to bounded repair" },
+      { "jobId": "992e2906-5802-438d-a8db-fbcbdc992bb2", "tool": "animate_image", "seed": 52745, "disposition": "interpolation retained non-organic ground material" },
+      { "jobId": "25d91c75-3363-4e86-a2d9-6c757b15b4cb", "tool": "create_map_object", "disposition": "returned a conifer on a platform instead of a fern" },
+      { "jobId": "9e9c41de-c9af-4066-a62d-8838d9d004c6", "tool": "animate_image", "seed": 52746, "disposition": "interpolated toward the rejected conifer/platform" },
+      { "jobId": "b38b3201-ec29-4e2d-b358-4c103ac02951", "tool": "create_map_object", "disposition": "returned a flower on a ground tile" },
+      { "jobId": "99e0ad1d-b2fa-409c-b515-e68177d8818c", "tool": "create_image_pixen", "seed": 52744, "disposition": "start contained rocks" },
+      { "jobId": "f325c6a9-02e5-4c40-bcc3-36bf38969045", "tool": "animate_image", "seed": 52747, "disposition": "retained the ground tile" },
+      { "jobId": "b17552f0-6fa5-4e88-b0cb-05f7332cf1e1", "tool": "create_image_pixen", "seed": 52751, "disposition": "mature replacement still contained a ground base" },
+      { "jobId": "8148c105-2954-4ea3-bfb0-076db94c103f", "tool": "create_image_pixen", "seed": 52752, "disposition": "start replacement contained a non-organic base" },
+      { "jobId": "ab75be9a-dd11-4681-b5c5-5c78daf1b980", "tool": "animate_image", "seed": 52755, "disposition": "invented a platform between clean start and mature endpoints" }
+    ]
+  },
+  "prompts": {
+    "heroBase": "One ancient hero story tree as an isolated transparent game object, viewed from the same low top-down 2.5D/isometric camera as a compact story island. A single warm-brown trunk rises from one clearly visible fixed root contact at the exact horizontal centre of the bottom edge; broad asymmetrical crown, parent-first readable branches, clustered olive and emerald leaves with restrained warm-lime highlights, gentle windswept lean, roots gripping invisible ground. Whimsical premium storybook pixel art, hand-authored 16-bit sensibility, crisp pixel clusters, natural irregular silhouette, selective dark umber outline. No land, no soil, no coast, no pot, no shadow, no background, no text, no fruit, no flowers, no other tree, no disconnected leaves. Entire tree visible with generous transparent margin and the lowest root pixel centred.",
+    "heroMatureRepair": "Remove only the grass and soil platform beneath the tree. Preserve the trunk, roots, branches, canopy, transparent background, pixel style and camera. Continue the visible roots cleanly onto transparency; no land, soil, coast, pot, shadow or background.",
+    "heroStartOriginal": "A tiny first-stage hero-tree sapling on a 160x192 transparent canvas: one thin warm-brown stem, two olive seed leaves and a very small centred root contact, in the same low top-down premium storybook pixel style. No land, soil, platform, pot, shadow, background or text.",
+    "heroStartRepair": "Continue the existing thin sapling stem downward into a tiny warm-brown planted root fork on transparency. Remove the entire round seed, pumpkin, soil slab, platform, rocks, ground and shadow. The lowest root contact is a narrow organic root centred near the bottom; all other pixels in the masked area are fully transparent. Match the existing premium storybook pixel clusters and selective dark umber outline.",
+    "heroAnimation": "The planted sapling grows in place into the pinned mature ancient tree: the trunk and existing roots thicken from the exact same root contact, branches fork with gentle uneven timing, and the olive canopy opens in clustered pads. The two low seed leaves are absorbed into the growing trunk. Monotonic organic growth only; no wind loop, bounce, camera motion, rotation, fruit, soil, land, platform, or shadow appears.",
+    "fernStart": "The first growth stage of one tiny woodland fern-and-grass tuft: only a short warm-brown root nub and two tightly curled moss-green fiddleheads emerging from one fixed ground contact centred at the bottom. Isolated transparent game sprite for a low top-down 2.5D story island, premium storybook pixel art with hand-authored 16-bit clusters and selective dark umber outline. No land, no soil patch, no grass platform, no pot, no cast shadow, no background, no flower, no text. Keep the entire sprout low and centred with generous transparent margin.",
+    "fernMature": "One mature woodland fern tuft as an isolated transparent game sprite for a low top-down 2.5D story island. Exactly one fixed warm-brown root contact centred near the bottom; five naturally uneven moss-green and sage fern fronds uncurl upward and sideways with restrained warm-lime tips. Premium whimsical storybook pixel art, hand-authored 16-bit clusters, selective dark umber outline, natural asymmetry. No tree, no conifer, no land, no soil, no rock, no platform, no pot, no cast shadow, no background, no flowers, no text. Entire fern visible with generous transparent margin.",
+    "fernAnimation": "The planted fern grows in place from the exact same bottom-centre root: two fiddleheads uncurl asymmetrically, then three more fronds open with small overlapping holds into the pinned mature fern. Monotonic growth only; roots never slide, no bounce, no wind loop, no camera motion, no rotation, no tree, no soil, land, rock, or shadow appearing.",
+    "wildflowerStart": "A clean first growth stage of the reference wildflower: only three very short uneven olive-green shoots and one closed cream bud emerging directly from a single narrow warm-brown root contact centred near the bottom. The root touches empty transparency with no base. Preserve the reference's premium whimsical storybook pixel clusters. Isolated sprite only; absolutely no land, soil, turf, grass patch, stone, rock, wood, platform, pot, base, cast shadow, background, open flower, or text.",
+    "wildflowerMiddle": "A middle growth stage of the reference wildflower isolated on true transparency: three uneven olive-green stems are about two-thirds mature height from one narrow warm-brown root contact centred near the bottom; one small coral-pink flower has just opened, one coral bud and one closed cream bud remain, with two small leaves. The roots touch empty transparency with no base. Preserve the reference's premium whimsical storybook pixel clusters. Absolutely no land, soil, turf, grass patch, stone, rock, wood, platform, pot, base, cast shadow, background, border, or text.",
+    "wildflowerMature": "A mature tiny wildflower cluster isolated on true transparency: three slender naturally uneven stems rise directly from one narrow warm-brown root contact centred near the bottom; two small coral-pink blooms, one closed cream bud, and a few olive-green leaves. The roots touch empty transparency with no base. Premium whimsical storybook pixel art with hand-authored 16-bit clusters and selective dark umber outline. Absolutely no land, soil, turf, grass patch, stone, rock, wood, platform, pot, base, cast shadow, background, border, or text. Entire plant visible with generous transparent margin."
+  },
+  "knownFailureSignals": [
+    "The hero clip has conspicuous held duplicates and a large sapling-to-trunk step.",
+    "Three identical fern silhouettes and three identical flower silhouettes may read as stamped repetition once all are mature.",
+    "The fern opens from curled fiddleheads to a broad mature silhouette in only four stages.",
+    "The wave can feel mechanical if the six support starts read as equal beats instead of story order.",
+    "Wildflower stages are curated variants, not one topology-consistent interpolation."
+  ]
+}

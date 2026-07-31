@@ -49,6 +49,25 @@ export interface NativeIslandGrowthRenderLayer {
   readonly progress: number;
 }
 
+export type OrganicGrowthDepthSlot =
+  | 'organic-ground-back'
+  | 'organic-hero-tree'
+  | 'organic-ground-front';
+
+export interface OrganicGrowthRenderLayer {
+  readonly src: string;
+  readonly clipId: string;
+  readonly socketId: string;
+  readonly frameIndex: number;
+  readonly canvas: { readonly width: number; readonly height: number };
+  readonly assetAnchor: { readonly x: number; readonly y: number };
+  readonly worldAnchor: { readonly x: number; readonly y: number };
+  readonly scale: number;
+  readonly depthSlot: OrganicGrowthDepthSlot;
+  readonly painterOrder: number;
+  readonly localProgress: number;
+}
+
 /** The focus-aware context the walk needs — the studio's per-render interactivity
  *  (the scene itself is focus-agnostic; focus / hover / selection are applied here). */
 export interface SceneCtx {
@@ -101,6 +120,10 @@ export interface SceneCtx {
   nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   /** Registered organic pose images planted into the canonical world painter order. */
   organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  /** A bounded app-ordered set of registered organic images, planted after native land/trails and
+   *  before the scene's ordinary flora. Each image is appearance only; progress and frame choice
+   *  have already been resolved by the public product player. */
+  organicGrowthLayers?: readonly OrganicGrowthRenderLayer[] | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
    *  so a `baked-use` hero (the ADR-0227 status trees, the garden cottage/gazebo) sizes from its real
    *  def geometry. Memoized once per scene in the component below. */
@@ -508,6 +531,35 @@ function nativeIslandClip(layer: NativeIslandGrowthRenderLayer): React.ReactNode
       }),
     ),
   );
+}
+
+function organicGrowthImages(layers: readonly OrganicGrowthRenderLayer[]): React.ReactNode[] {
+  return layers.map((layer) => {
+    const width = layer.canvas.width * layer.scale;
+    const height = layer.canvas.height * layer.scale;
+    const x = layer.worldAnchor.x - layer.assetAnchor.x * layer.scale;
+    const y = layer.worldAnchor.y - layer.assetAnchor.y * layer.scale;
+    return React.createElement('image', {
+      key: `__organic-growth-${layer.socketId}`,
+      href: layer.src,
+      x: fmt(x),
+      y: fmt(y),
+      width: fmt(width),
+      height: fmt(height),
+      preserveAspectRatio: 'none',
+      imageRendering: 'pixelated',
+      pointerEvents: 'none',
+      'aria-hidden': true,
+      'data-depth-slot': layer.depthSlot,
+      'data-organic-clip': layer.clipId,
+      'data-organic-socket': layer.socketId,
+      'data-organic-frame': String(layer.frameIndex),
+      'data-organic-local-progress': layer.localProgress.toFixed(4),
+      'data-organic-painter-order': String(layer.painterOrder),
+      'data-world-anchor-x': fmt(layer.worldAnchor.x),
+      'data-world-anchor-y': fmt(layer.worldAnchor.y),
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -932,6 +984,9 @@ function renderNode(
       if (el) rendered.push(el);
       if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.organicPoseLayers) {
         rendered.push(...ctx.organicPoseLayers.map(organicPoseImage));
+      }
+      if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.organicGrowthLayers?.length) {
+        rendered.push(...organicGrowthImages(ctx.organicGrowthLayers));
       }
     });
     if (node.kind === 'tree' || node.kind === 'flora' || node.kind === 'plate') {

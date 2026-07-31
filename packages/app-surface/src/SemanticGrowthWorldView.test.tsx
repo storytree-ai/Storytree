@@ -16,6 +16,7 @@ import {
   type SemanticGrowthAnimationClock,
 } from './SemanticGrowthWorldView.js';
 import { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
+import { CHAPTER2_SOCKET_CHOREOGRAPHY } from './organic-growth-track.js';
 import * as AppSurfacePackageRoot from './index.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 
@@ -245,6 +246,103 @@ describe('SemanticGrowthWorldView', () => {
       'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
     )).not.toBe(image);
     expect(frameIndex()).toBeNull();
+  });
+
+  it('drives staggered organic sockets from the same app clock while retaining DOM identity through Back and Replay', () => {
+    class ManualClock implements SemanticGrowthAnimationClock {
+      private nextId = 1;
+      private callbacks = new Map<number, (timestamp: number) => void>();
+
+      requestFrame(callback: (timestamp: number) => void): number {
+        const id = this.nextId++;
+        this.callbacks.set(id, callback);
+        return id;
+      }
+
+      cancelFrame(requestId: number): void {
+        this.callbacks.delete(requestId);
+      }
+
+      step(timestamp: number): void {
+        const pending = [...this.callbacks.values()];
+        this.callbacks.clear();
+        act(() => pending.forEach((callback) => callback(timestamp)));
+      }
+    }
+
+    const clock = new ManualClock();
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const organicGrowth = {
+      set: CHAPTER2_SOCKET_CHOREOGRAPHY,
+      rootWorldAnchor: { x: 50, y: 50 },
+      clock,
+    } as const;
+    const view = render(
+      <SemanticGrowthWorldView frames={frames} organicGrowth={organicGrowth} />,
+    );
+    const section = view.container.querySelector('section')!;
+    const hero = view.container.querySelector('image[data-organic-socket="hero-root"]')!;
+    const sockets = (): readonly string[] =>
+      [...view.container.querySelectorAll('image[data-organic-socket]')].map(
+        (image) =>
+          `${image.getAttribute('data-organic-socket')}:${image.getAttribute('data-organic-frame')}:${image.getAttribute('data-world-anchor-x')},${image.getAttribute('data-world-anchor-y')}`,
+      );
+
+    const initial = sockets();
+    expect(initial).toHaveLength(7);
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    clock.step(0);
+    clock.step(10_000);
+    const land = sockets();
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    clock.step(10_100);
+    clock.step(20_000);
+    const proposed = sockets();
+    expect(proposed).not.toEqual(land);
+    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    clock.step(20_100);
+    clock.step(30_000);
+    expect(sockets()).toEqual(land);
+    fireEvent.click(view.getByRole('button', { name: 'Replay' }));
+    expect(view.container.querySelector('section')).toBe(section);
+    expect(view.container.querySelector('image[data-organic-socket="hero-root"]')).toBe(hero);
+    expect(sockets()).toEqual(initial);
+  });
+
+  it('settles organic reduced motion to the same mature frame/socket/painter result', () => {
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const organicGrowth = {
+      set: CHAPTER2_SOCKET_CHOREOGRAPHY,
+      rootWorldAnchor: { x: 50, y: 50 },
+    } as const;
+    const view = render(
+      <SemanticGrowthWorldView frames={frames} organicGrowth={organicGrowth} reducedMotion />,
+    );
+    for (const _key of ORDERED_KEYS.slice(1)) {
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    }
+    const images = [...view.container.querySelectorAll('image[data-organic-socket]')];
+    expect(images).toHaveLength(7);
+    expect(images.map((image) => image.getAttribute('data-organic-frame'))).toEqual([
+      '3',
+      '3',
+      '3',
+      '7',
+      '3',
+      '3',
+      '3',
+    ]);
+    expect(images.map((image) => image.getAttribute('data-depth-slot'))).toEqual([
+      'organic-ground-back',
+      'organic-ground-back',
+      'organic-ground-back',
+      'organic-hero-tree',
+      'organic-ground-front',
+      'organic-ground-front',
+      'organic-ground-front',
+    ]);
+    expect(view.container.querySelector('[data-organic-growth-progress="1.0000"]')).toBeTruthy();
+    expect(view.container.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
   });
 
   it('settles reduced motion immediately to and retains both final mature poses', () => {
