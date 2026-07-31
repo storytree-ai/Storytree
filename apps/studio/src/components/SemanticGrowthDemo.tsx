@@ -516,6 +516,7 @@ export function SemanticGrowthDemo({
                           svgIslandAccretion: {
                             storyId: sockets.island.storyId,
                             worldAnchor: sockets.tree,
+                            growthDurationMs: 1_600,
                           },
                         }
                       : {}),

@@ -516,6 +516,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       );
       expect(section).toBeTruthy();
       expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('50');
+      expect(section?.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
       expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,10,11,9,6,2');
       const legend = flagged.querySelector('[data-island-accretion-legend="true"]');
       expect(legend).toBeTruthy();

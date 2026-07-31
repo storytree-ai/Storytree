@@ -194,25 +194,23 @@ describe('connected SVG island accretion topology', () => {
     expect(forming.coastProgress).toBe(0);
     expect(forming.cells.every((cell) => !('opacity' in cell))).toBe(true);
 
-    const groundSettled = svgIslandAccretionAtProgress(plan, 0.82);
+    const groundSettled = svgIslandAccretionAtProgress(plan, 0.72);
     expect(groundSettled.cells.every((cell) => cell.scale === 1)).toBe(true);
     expect(groundSettled.coastProgress).toBe(0);
 
-    const coastlineSettling = svgIslandAccretionAtProgress(plan, 0.91);
+    const coastlineSettling = svgIslandAccretionAtProgress(plan, 0.81);
     expect(coastlineSettling.cells.every((cell) => cell.scale === 1)).toBe(true);
     expect(coastlineSettling.coastProgress).toBeGreaterThan(0);
     expect(coastlineSettling.coastProgress).toBeLessThan(1);
     const coastVisible = coastlineSettling.coastReveals.filter((reveal) => reveal.scale > 0);
-    expect(coastVisible.length).toBeGreaterThan(0);
-    for (const reveal of coastVisible.slice(1)) {
-      expect(
-        reveal.neighbourKeys.some((key) =>
-          coastlineSettling.coastReveals
-            .slice(0, reveal.order)
-            .some((earlier) => earlier.key === key),
-        ),
-      ).toBe(true);
-    }
+    expect(coastVisible).toHaveLength(1);
+    expect(coastVisible[0]?.key).toBe('coast-settlement');
+
+    const terminalHold = svgIslandAccretionAtProgress(plan, 0.95);
+    const justBeforeMature = svgIslandAccretionAtProgress(plan, 0.99);
+    expect(terminalHold.coastProgress).toBe(1);
+    expect(justBeforeMature.cells).toEqual(terminalHold.cells);
+    expect(justBeforeMature.coastReveals).toEqual(terminalHold.coastReveals);
 
     const mature = svgIslandAccretionAtProgress(plan, 1);
     expect(mature.mature).toBe(true);
@@ -317,7 +315,11 @@ describe('connected SVG island accretion renderer and public player', () => {
       <SemanticGrowthWorldView
         frames={frames}
         organicPoseGrowth={organicPoseGrowth}
-        svgIslandAccretion={{ storyId: STORY_ID, worldAnchor: { x: 15, y: 15 } }}
+        svgIslandAccretion={{
+          storyId: STORY_ID,
+          worldAnchor: { x: 15, y: 15 },
+          growthDurationMs: 1_600,
+        }}
         reducedMotion
       />,
     );
@@ -407,14 +409,21 @@ describe('connected SVG island accretion renderer and public player', () => {
       <SemanticGrowthWorldView
         frames={frames}
         organicPoseGrowth={organicPoseGrowth}
-        svgIslandAccretion={{ storyId: STORY_ID, worldAnchor: { x: 15, y: 15 } }}
+        svgIslandAccretion={{
+          storyId: STORY_ID,
+          worldAnchor: { x: 15, y: 15 },
+          growthDurationMs: 1_600,
+        }}
       />,
     );
     const section = view.container.querySelector('section')!;
 
     fireEvent.click(view.getByRole('button', { name: 'Next' }));
     clock.step(0);
-    clock.step(10_000);
+    clock.step(520);
+    expect(Number(section.getAttribute('data-svg-island-accretion-progress'))).toBeLessThan(1);
+    expect(view.container.querySelector('[data-island-accretion-cell]')).toBeTruthy();
+    clock.step(1_600);
     expect(section.getAttribute('data-svg-island-accretion-progress')).toBe('1.0000');
     expect(view.container.querySelector('[data-island-accretion-cell]')).toBeNull();
 
