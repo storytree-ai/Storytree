@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +15,7 @@ import { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-a
 import { SceneView, type SceneCtx } from './SceneView.js';
 import {
   SemanticGrowthWorldView,
+  type SemanticGrowthAnimationClock,
   type SemanticGrowthFrame,
 } from './SemanticGrowthWorldView.js';
 import { normalizeWorldPresentationModel } from './WorldSceneView.js';
@@ -345,6 +346,94 @@ describe('connected SVG island accretion renderer and public player', () => {
       section.getAttribute('data-semantic-growth-frame'),
       section.getAttribute('data-svg-island-accretion-progress'),
       view.container.querySelector('.relaxed-tile')?.outerHTML ?? null,
+    ]).toEqual(backed);
+  });
+
+  it('settles full-motion Back to the same empty island state as Replay', () => {
+    class ManualClock implements SemanticGrowthAnimationClock {
+      private nextId = 1;
+      private callbacks = new Map<number, (timestamp: number) => void>();
+
+      requestFrame(callback: (timestamp: number) => void): number {
+        const id = this.nextId++;
+        this.callbacks.set(id, callback);
+        return id;
+      }
+
+      cancelFrame(requestId: number): void {
+        this.callbacks.delete(requestId);
+      }
+
+      step(timestamp: number): void {
+        const pending = [...this.callbacks.values()];
+        this.callbacks.clear();
+        act(() => pending.forEach((callback) => callback(timestamp)));
+      }
+    }
+
+    const matureScene = islandScene();
+    const emptyScene = withoutPrimaryLand(matureScene);
+    const ordered = ['empty', 'land', 'proposed', 'claimed', 'signed-proof', 'healthy'] as const;
+    const frames: readonly SemanticGrowthFrame[] = ordered.map((key, index) => ({
+      key,
+      model: normalizeWorldPresentationModel({ scene: index === 0 ? emptyScene : matureScene }),
+    }));
+    const clock = new ManualClock();
+    const organicPoseGrowth = {
+      registry: CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+      instances: [
+        {
+          trackId: 'chapter2-hero-tree-pose-track-v1',
+          worldAnchor: { x: 15, y: 12 },
+          scale: 0.34,
+          progressWindow: { start: 0.18, end: 1 },
+        },
+        {
+          trackId: 'chapter2-plant-sample-pose-track-v1',
+          worldAnchor: { x: 22, y: 18 },
+          scale: 0.3,
+          progressWindow: { start: 0.52, end: 1 },
+        },
+      ],
+      nativeIsland: {
+        storyId: STORY_ID,
+        worldAnchor: { x: 15, y: 15 },
+        radius: { x: 20, y: 18 },
+        settledAtProgress: 0.18,
+      },
+      clock,
+    } as const;
+    const view = render(
+      <SemanticGrowthWorldView
+        frames={frames}
+        organicPoseGrowth={organicPoseGrowth}
+        svgIslandAccretion={{ storyId: STORY_ID, worldAnchor: { x: 15, y: 15 } }}
+      />,
+    );
+    const section = view.container.querySelector('section')!;
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    clock.step(0);
+    clock.step(10_000);
+    expect(section.getAttribute('data-svg-island-accretion-progress')).toBe('1.0000');
+    expect(view.container.querySelector('[data-island-accretion-cell]')).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    const backed = [
+      section.getAttribute('data-semantic-growth-frame'),
+      section.getAttribute('data-svg-island-accretion-progress'),
+      view.container.querySelector('[data-island-accretion-cell]')?.outerHTML ?? null,
+    ];
+    expect(backed).toEqual(['empty', '0.0000', null]);
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    clock.step(20_000);
+    clock.step(30_000);
+    fireEvent.click(view.getByRole('button', { name: 'Replay' }));
+    expect([
+      section.getAttribute('data-semantic-growth-frame'),
+      section.getAttribute('data-svg-island-accretion-progress'),
+      view.container.querySelector('[data-island-accretion-cell]')?.outerHTML ?? null,
     ]).toEqual(backed);
   });
 
