@@ -34,11 +34,14 @@ import {
 } from '@storytree/forest-world';
 import {
   CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+  CHAPTER2_GROUND_PLANT_KEYPOSE_TRACK,
+  CHAPTER2_HERO_TREE_KEYPOSE_TRACK,
   neighbourHighlightPlan,
   laneLayout,
   normalizeWorldPresentationModel,
   SemanticGrowthWorldView,
   type SemanticGrowthFrame,
+  type SemanticGrowthOrganicComposition,
 } from '@storytree/app-surface';
 import { buildWorld, buildRelaxedCells, worldToScene, type HexWorld } from './TreeView.js';
 import type {
@@ -214,6 +217,14 @@ function withoutPrimaryVectorOrganic(
   };
 }
 
+/** Keep the app-owned coast/ground/parcels/plate/camera, replacing only the primary territory's
+ * procedural organic material with registered PixelLab layers. */
+function withoutPrimaryProceduralOrganic(node: SceneNode): SceneNode {
+  return (['tree', 'parcel-flora'] as const).reduce(
+    (scene, kind) => stripKind(scene, kind, DEMO_STORY_ID),
+    node,
+  );
+}
 /** The claim/presence wisp for the `claimed` frame — coordination, never a proof (the ADR-0138
  *  §5 honesty wall the core itself enforces): the story's own status stays `proposed`, and this
  *  claim carries no bloom/verdict identity of its own. */
@@ -272,6 +283,38 @@ function buildFrames(
         y: primary.radius * 0.96,
       }),
     }),
+  };
+  if (primary.caps.length < 2) {
+    throw new Error('Organic key-pose witness requires two app-owned capability sockets.');
+  }
+  organicGrowthCompositionCache = {
+    placements: [
+      {
+        instanceId: 'hero-tree',
+        track: CHAPTER2_HERO_TREE_KEYPOSE_TRACK,
+        worldAnchor: primary.treeSpot,
+        scale: 0.34,
+        depthSlot: 'organic-tree-back',
+        progressWindow: { start: 0.2, end: 0.92 },
+      },
+      {
+        instanceId: 'capability-plant-alpha',
+        track: CHAPTER2_GROUND_PLANT_KEYPOSE_TRACK,
+        worldAnchor: { x: primary.caps[0]!.x, y: primary.caps[0]!.y },
+        scale: 0.18,
+        depthSlot: 'organic-ground-front',
+        progressWindow: { start: 0.5, end: 0.88 },
+      },
+      {
+        instanceId: 'capability-plant-beta',
+        track: CHAPTER2_GROUND_PLANT_KEYPOSE_TRACK,
+        worldAnchor: { x: primary.caps[1]!.x, y: primary.caps[1]!.y },
+        scale: 0.16,
+        mirrorX: true,
+        depthSlot: 'organic-ground-front',
+        progressWindow: { start: 0.68, end: 1 },
+      },
+    ],
   };
 
   // sgsd-primary-selection-reuses-drawn-route-lanes: the primary's one-hop selection plan +
@@ -421,6 +464,7 @@ let organicPoseSocketsCache: {
     readonly radius: { readonly x: number; readonly y: number };
   };
 } | null = null;
+let organicGrowthCompositionCache: SemanticGrowthOrganicComposition | null = null;
 
 /** The static fixture, computed once on first use and cached — never at this module's own
  *  top level (see {@link buildFrames}), never rebuilt afterward. */
@@ -442,10 +486,18 @@ function organicPoseSockets(): NonNullable<typeof organicPoseSocketsCache> {
   return organicPoseSocketsCache;
 }
 
+function organicGrowthComposition(): SemanticGrowthOrganicComposition {
+  frames();
+  if (!organicGrowthCompositionCache) {
+    throw new Error('Semantic growth fixture did not register its organic sockets.');
+  }
+  return organicGrowthCompositionCache;
+}
+
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'organic-pose-to-pose';
+  readonly variant?: 'demo' | 'organic-pose-to-pose' | 'organic-keypose-blend';
 }
 
 /**
@@ -460,13 +512,18 @@ export function SemanticGrowthDemo({
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
   const poseVariant = variant === 'organic-pose-to-pose';
+  const organicVariant = variant === 'organic-keypose-blend';
   const sourceFrames = poseVariant ? organicPoseFrames() : frames();
   const sockets = poseVariant ? organicPoseSockets() : null;
   const framesWithArt: readonly SemanticGrowthFrame[] = sourceFrames.map((f) => ({
     key: f.key,
     model: {
       ...f.model,
-      scene: poseVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
+      scene: poseVariant
+        ? withoutPrimaryVectorOrganic(f.model.scene)
+        : organicVariant
+          ? withoutPrimaryProceduralOrganic(f.model.scene)
+          : f.model.scene,
       spriteSheet,
       artScale,
     },
@@ -509,6 +566,9 @@ export function SemanticGrowthDemo({
                       },
                     },
                   }
+                : {})}
+              {...(organicVariant
+                ? { organicGrowth: organicGrowthComposition() }
                 : {})}
             />
           </div>

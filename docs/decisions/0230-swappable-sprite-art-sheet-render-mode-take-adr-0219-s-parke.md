@@ -31,7 +31,8 @@ Chapter 2 may consume registered PixelLab-generated frame tracks for bounded tre
 over its app-native SVG island. The local frames supply organic appearance only: the shared app owns
 the island geometry and camera as well as semantic progress, timing, deterministic selection,
 Back/Replay, reduced motion, anchors and painter order. The corrected witness remains
-exact-query-gated until the owner gives its separate LOOK verdict.
+exact-query-gated. Its Experiment 4 owner LOOK outcome is recorded in ADR-0274 D5a: strongest
+island formation so far, but still too fade-like for adoption.
 
 ## Context
 
@@ -94,7 +95,8 @@ factory, does not remove it.**
    occurred. The vector factory remains present and selectable; only its role changed from default to
    explicit option. ADR-0273's later full-island PixelLab witness was rejected by the owner for
    changing the camera and redrawing the island. ADR-0274's organic-only successor remains a separate
-   exact-query-gated witness whose LOOK verdict is outstanding.
+   exact-query-gated witness whose Experiment 4 LOOK remains below the whole-scene adoption bar
+   (ADR-0274 D5a).
 
 Rejected: replacing or deleting the parametric factory; per-instance or runtime generative calls;
 auto-tracing raster into the scene-graph as geometry; an independent website sprite/render fork; any
@@ -119,9 +121,10 @@ machine-signed look verdict; real 3D / R3F as the map renderer (ADR-0219 D4 stan
   across a generated set). Mitigated by hand-the-angle + the locked style bible; residual drift is
   exactly what the owner's look verdict judges.
 - **Honest — each new visual track remains unproven until attested.** Storybook cleared its owner
-  verdict on 2026-07-23; ADR-0273's full-island track failed its owner LOOK call, and ADR-0274's
-  corrected organic-only track has not yet received one. Machine proof authorizes neither visual
-  conclusion.
+  verdict on 2026-07-23; ADR-0273's full-island track failed its owner LOOK call, while ADR-0274's
+  Experiment 4 comparison was judged the strongest island formation so far but still too
+  fade-like to pass the planted-scene bar. Its tree and plant motion was acceptable component
+  evidence, not clean-route adoption. Machine proof authorizes none of these visual conclusions.
 
 ## References
 

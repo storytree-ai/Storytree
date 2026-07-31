@@ -138,6 +138,24 @@ D1 remains unchanged: the rework must retain the existing app-owned SVG island, 
 camera and geometry, with no generated-land substitute. The combined composition remains held and
 the arc stays active pending a corrected whole-composition owner verdict.
 
+### D5a — Experiment 4 is the strongest island formation so far, but still not accepted
+
+The owner reviewed the hosted registered key-pose blend comparison in PR #1046 on 2026-08-01.
+Its app-native island formation is the best of the Chapter 2 experiments reviewed so far, which is
+positive comparative evidence for retaining the existing SVG island, camera and app-owned growth
+clock. It is not an adoption verdict: the island still reads as fading in rather than growing from
+nothing, and the owner expects the land formation to improve beyond this treatment.
+
+The registered tree and plant animations were judged okay. They remain useful organic-material
+evidence, but that component-level signal does not make key-pose blending the clean-route default or
+pass the whole planted-scene LOOK leg.
+
+Therefore D1–D5 stand, with a sharper visual bar for the next bounded comparison: the island's
+visible area and silhouette must emerge materially from zero through app-native geometry, path,
+mask or clip progression. Opacity may support that formation, but must not carry the primary visual
+read. PR #1046 remains held as comparison evidence; no clean-route adoption or arc closure is
+claimed.
+
 ### D6 — Explicitly rejected
 
 - Generating the island, coast or complete scene as a PixelLab sprite sequence.

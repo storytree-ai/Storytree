@@ -1,0 +1,344 @@
+{
+  "schemaVersion": 1,
+  "experiment": {
+    "id": "organic-keypose-blend",
+    "title": "Registered key-pose blend",
+    "status": "comparison-only-awaiting-owner-LOOK",
+    "bindingDecision": "ADR-0274",
+    "historicalBoundary": "ADR-0273",
+    "queryGate": "organicGrowth=organic-keypose-blend",
+    "consumer": "Studio /tree through TreeView -> SemanticGrowthDemo -> SemanticGrowthWorldView -> WorldSceneView -> SceneView",
+    "rendererCount": 1,
+    "adoption": "This manifest records a held comparison experiment. It does not make key-pose blending the clean-route default."
+  },
+  "authoring": {
+    "provider": "PixelLab",
+    "tool": "create_image_pixflux",
+    "modelFamily": "PixFlux",
+    "modelVersion": "The PixelLab job-result API did not return a model version string.",
+    "generatedAt": "2026-07-31",
+    "runtimeDependency": false,
+    "credentialHandling": "PixelLab was invoked only through the author-time connector. No credential was printed, written, or committed.",
+    "terms": "Generated under the PixelLab subscriber account and governed by https://pixellab.ai/termsofservice. No third-party source image was used.",
+    "referencePlate": {
+      "file": "reference-plate.png",
+      "dimensions": {
+        "width": 470,
+        "height": 510
+      },
+      "source": "The exact query-gated real Studio consumer at the land cue, captured at a 1440x960 desktop viewport and cropped to the existing app-owned SVG island/camera.",
+      "role": "Author/import acceptance plate for fixed camera, tree socket, capability sockets, scale, and painter order.",
+      "submittedToModel": false,
+      "honestyNote": "The freeform PixelLab call in this run was text-conditioned. The app plate was used to select, normalize, register, scale, and accept the generated organic cutouts; it was not falsely reported as model image conditioning."
+    },
+    "normalization": {
+      "script": "../../../../art-authoring/scripts/register-organic-keyposes.mts",
+      "report": "normalization-report.json",
+      "contactSheet": "contact-sheet.png",
+      "policy": "Remove a neutral matte and generated ground/shadow pixels only inside bounded import rules, then translate each cleaned alpha silhouette so the alpha-weighted centre of its lowest three root/stem rows meets the fixed track anchor. Reject clipping or dimension drift.",
+      "reason": "PixelLab reported transparent output, but the selected tree downloads contained a flat neutral matte and several later poses contained generated ground/shadow strips. Those pixels are provenance-preserved in source/ and excluded from runtime organic material."
+    }
+  },
+  "tracks": [
+    {
+      "id": "chapter2-hero-tree-keypose-v1",
+      "shortName": "hero-tree",
+      "canvas": {
+        "width": 256,
+        "height": 256,
+        "format": "PNG",
+        "decoded": "RGBA8"
+      },
+      "rootAnchor": {
+        "x": 128,
+        "y": 240,
+        "meaning": "fixed root/ground contact in every normalized pose"
+      },
+      "poseCount": 4,
+      "poseOrder": [
+        "tree/pose-00.png",
+        "tree/pose-01.png",
+        "tree/pose-02.png",
+        "tree/pose-03.png"
+      ],
+      "blendRegion": "hero-tree-local-canvas",
+      "depthSlot": "organic-tree-back",
+      "worldUse": {
+        "socket": "the existing primary territory treeSpot",
+        "scale": 0.34,
+        "globalProgressWindow": {
+          "start": 0.2,
+          "end": 0.92
+        }
+      },
+      "poses": [
+        {
+          "index": 0,
+          "jobId": "03782c4e-0118-49a2-afc6-e7ab113b5931",
+          "seed": 27405,
+          "prompt": "Registered organic growth key pose 1 of 4, transparent cutout only, the earliest state of the SAME hero oak family: a tiny two-leaf shoot with one short warm-brown stem and the first hint of roots. Premium 16-bit storybook pixel art, emerald and lime leaves, selective outline. Same fixed low 2.5D camera and lighting as later oak poses. Absolutely NO base: no grass tile, no island, no ground plane, no soil patch, no shadow, no rock, no border, no label. The only lowest pixels are the tiny roots, meeting at one fixed planted root socket exactly on the horizontal canvas centre near y=232. Keep the small silhouette near that socket with large transparent space above, sized to grow naturally into a mature 210-pixel-tall tree without moving the root.",
+          "request": {
+            "width": 256,
+            "height": 256,
+            "no_background": true,
+            "seed": 27405
+          },
+          "source": {
+            "file": "source/tree-00.png",
+            "encodedBytes": 17703,
+            "sha256": "b07dde520bd6237e8619f259f505cd57d88856b206c380ef0e16b789ab1d3c71"
+          },
+          "runtime": {
+            "file": "tree/pose-00.png",
+            "encodedBytes": 19710,
+            "sha256": "15d059442f95c1777c1fb99a9930aad2b57b2f039c19b36ffe11f2fcc51a966d"
+          }
+        },
+        {
+          "index": 1,
+          "jobId": "a5113a19-0f60-41f4-8f10-26db5d942214",
+          "seed": 27405,
+          "prompt": "Registered organic growth key pose 2 of 4, transparent cutout only, the SAME hero oak family at one-third mature height: a slender warm-brown trunk, two main branches, and a few separated emerald and lime leaf clusters. Premium 16-bit storybook pixel art, selective outline. Same fixed low 2.5D camera and lighting as every pose. Absolutely NO base: no grass tile, no island, no ground plane, no soil patch, no shadow, no rock, no border, no label. The root fork must meet one fixed planted socket exactly on the horizontal canvas centre near y=232. Keep the lower root planted and grow upward without moving it.",
+          "request": {
+            "width": 256,
+            "height": 256,
+            "no_background": true,
+            "seed": 27405
+          },
+          "source": {
+            "file": "source/tree-01.png",
+            "encodedBytes": 22899,
+            "sha256": "eeab0bdf48d1fe0856386d7ff964cddc18e0fe0c03cc59dfaa12ad1e793cf211"
+          },
+          "runtime": {
+            "file": "tree/pose-01.png",
+            "encodedBytes": 28809,
+            "sha256": "84ced66799f0328bb785a9bbbd4ff9cfa43d556a11b4eb54b8393bf11b7232ed"
+          }
+        },
+        {
+          "index": 2,
+          "jobId": "e0005024-de9f-4f53-a1bd-226e6cb78b85",
+          "seed": 27405,
+          "prompt": "Registered organic growth key pose 3 of 4, transparent cutout only, the SAME hero oak family at about two-thirds mature height: a young branching warm-brown trunk with the same parent branches and separated emerald and lime leaf clusters, visibly fuller than pose 2 but not yet the final crown. Premium 16-bit storybook pixel art, selective outline. Same fixed low 2.5D camera and lighting as every pose. Absolutely NO base: no grass tile, no island, no ground plane, no soil patch, no shadow, no rock, no border, no label. The root fork must meet one fixed planted socket exactly on the horizontal canvas centre near y=232. Keep the lower root planted and grow upward without moving it.",
+          "request": {
+            "width": 256,
+            "height": 256,
+            "no_background": true,
+            "seed": 27405
+          },
+          "source": {
+            "file": "source/tree-02.png",
+            "encodedBytes": 28488,
+            "sha256": "d1d39b0f3f13777bbb3372d21711e2998d4a629e6e2483884e7d7389f0223b51"
+          },
+          "runtime": {
+            "file": "tree/pose-02.png",
+            "encodedBytes": 35524,
+            "sha256": "4398c251b688885b6691fbfc1446473c01618337fbd9f74a37b10e4d7819220d"
+          }
+        },
+        {
+          "index": 3,
+          "jobId": "2f68572e-40b6-45e1-9548-13f4ab558407",
+          "seed": 27405,
+          "prompt": "Registered organic growth key pose 4 of 4, transparent cutout only, the mature state of the SAME hero oak family: a strong warm-brown trunk and branching crown with coherent separated clusters of emerald and lime leaves. Premium 16-bit storybook pixel art, selective outline. Same fixed low 2.5D camera and lighting as every pose. Absolutely NO base: no grass tile, no island, no ground plane, no soil patch, no shadow, no rock, no border, no label. The root fork must meet one fixed planted socket exactly on the horizontal canvas centre near y=232. Keep the lower root planted and fit the mature tree within the transparent canvas.",
+          "request": {
+            "width": 256,
+            "height": 256,
+            "no_background": true,
+            "seed": 27405
+          },
+          "source": {
+            "file": "source/tree-03.png",
+            "encodedBytes": 33389,
+            "sha256": "ec610a5fd114e6263a3c80fbaf16cd39857967ca4b87b2a44ed1ce612f3dd118"
+          },
+          "runtime": {
+            "file": "tree/pose-03.png",
+            "encodedBytes": 40815,
+            "sha256": "fd90ec749d16dbce2c579232b2cd0161730c561b67ee3a4c309463fe160dffa1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "chapter2-ground-plant-keypose-v1",
+      "shortName": "ground-plant",
+      "canvas": {
+        "width": 128,
+        "height": 128,
+        "format": "PNG",
+        "decoded": "RGBA8"
+      },
+      "rootAnchor": {
+        "x": 64,
+        "y": 116,
+        "meaning": "fixed stem/root ground contact in every normalized pose"
+      },
+      "poseCount": 3,
+      "poseOrder": [
+        "plant/pose-00.png",
+        "plant/pose-01.png",
+        "plant/pose-02.png"
+      ],
+      "blendRegion": "<instance-id>-local-canvas",
+      "depthSlot": "organic-ground-front",
+      "worldUses": [
+        {
+          "instance": "capability-plant-alpha",
+          "socket": "primary capability socket 0",
+          "scale": 0.18,
+          "mirrored": false,
+          "globalProgressWindow": {
+            "start": 0.5,
+            "end": 0.88
+          }
+        },
+        {
+          "instance": "capability-plant-beta",
+          "socket": "primary capability socket 1",
+          "scale": 0.16,
+          "mirrored": true,
+          "globalProgressWindow": {
+            "start": 0.68,
+            "end": 1
+          }
+        }
+      ],
+      "poses": [
+        {
+          "index": 0,
+          "jobId": "4ea123a5-87b3-43d5-a519-8d2313218ecf",
+          "seed": 27415,
+          "prompt": "Registered organic growth plant key pose 1 of 3, transparent cutout only: the earliest state of the SAME small fern and yellow-wildflower family, one tiny curled fern shoot with a single small leaf. Premium 16-bit storybook pixel art, emerald and lime greens, selective outline, fixed low 2.5D camera and lighting. Absolutely NO base: no grass tile, no island, no ground plane, no soil patch, no shadow, no rock, no border, no label. The only lowest pixels are the planted stem/root contact, exactly on the horizontal canvas centre near y=112. Keep large transparent space around it and never move the contact.",
+          "request": {
+            "width": 128,
+            "height": 128,
+            "no_background": true,
+            "seed": 27415
+          },
+          "source": {
+            "file": "source/plant-00.png",
+            "encodedBytes": 3466,
+            "sha256": "caaa15fb86c806f649f3e7e9ad3366a5915781c4afd6a82bbeedb187765c5c5d"
+          },
+          "runtime": {
+            "file": "plant/pose-00.png",
+            "encodedBytes": 3098,
+            "sha256": "c04f81f29ff373f1944a072e572236327632de75d7e53e32c7935bdb14722e12"
+          }
+        },
+        {
+          "index": 1,
+          "jobId": "a151dea8-d67d-4c14-b0ea-842dcff0e9b2",
+          "seed": 27415,
+          "prompt": "Registered organic growth plant key pose 2 of 3, transparent cutout only: the SAME small fern and yellow-wildflower family at a young middle state, five compact emerald fern fronds and two tiny yellow buds. Premium 16-bit storybook pixel art, selective outline, fixed low 2.5D camera and lighting. Absolutely NO base: no grass tile, no island, no ground plane, no soil patch, no shadow, no rock, no border, no label. All stems meet one planted contact exactly on the horizontal canvas centre near y=112. Keep the contact fixed while the fronds grow upward and outward.",
+          "request": {
+            "width": 128,
+            "height": 128,
+            "no_background": true,
+            "seed": 27415
+          },
+          "source": {
+            "file": "source/plant-01.png",
+            "encodedBytes": 8673,
+            "sha256": "2a4abe8eb3c72d12532284baf4c5a649c6abb41a36c14cd4046712bf7f74ffae"
+          },
+          "runtime": {
+            "file": "plant/pose-01.png",
+            "encodedBytes": 8873,
+            "sha256": "66b63dbc9afe6db8794849c63529bc75687df3daf290c4ef2ce575e4b4283d09"
+          }
+        },
+        {
+          "index": 2,
+          "jobId": "6909c620-fd92-4ef2-9193-a60c62ae5b26",
+          "seed": 27415,
+          "prompt": "Registered organic growth plant key pose 3 of 3, transparent cutout only: the mature state of the SAME small fern and yellow-wildflower family, seven graceful emerald fern fronds with three small yellow flowers. Premium 16-bit storybook pixel art, selective outline, fixed low 2.5D camera and lighting. Absolutely NO base: no grass tile, no island, no ground plane, no soil patch, no shadow, no rock, no border, no label. All stems meet one planted contact exactly on the horizontal canvas centre near y=112. Keep the contact fixed and fit the final clump inside the transparent canvas.",
+          "request": {
+            "width": 128,
+            "height": 128,
+            "no_background": true,
+            "seed": 27415
+          },
+          "source": {
+            "file": "source/plant-02.png",
+            "encodedBytes": 11394,
+            "sha256": "e85d85f363a6086363756003a9106b17a22a9a3ce90363a6402a8665bf233d12"
+          },
+          "runtime": {
+            "file": "plant/pose-02.png",
+            "encodedBytes": 12653,
+            "sha256": "531a1719d2021ea56f849b9386f3798819dfc16bf73cc2aa086de26fee4f4c43"
+          }
+        }
+      ]
+    }
+  ],
+  "blendPolicy": {
+    "selection": "Only adjacent poses are eligible at any normalized local progress.",
+    "weights": "The fractional pose position is smoothstepped; from + to is bounded to 1.0 and a placement renders at most two images.",
+    "localTransforms": "From-pose scale may rise from 1.000 to at most 1.015 while the to-pose scale settles from 0.985 to 1.000. Both transforms pivot around the identical registered root anchor.",
+    "sceneBounds": "Only the per-organic-instance transparent canvas cross-dissolves. The SVG island, coast, geometry, trails, camera, shadows, labels, claims, and whole scene never crossfade.",
+    "timingOwner": "SemanticGrowthWorldView reuses the app-owned normalized progress, smoothstep timing, cue holds, Next, Back, Replay, reduced-motion final settlement, and retained final scene."
+  },
+  "budget": {
+    "runtimePoseCount": 7,
+    "runtimeEncodedPoseBytes": 149482,
+    "runtimeDecodedRgbaBytes": 1245184,
+    "runtimeEncodedLimitBytes": 180000,
+    "runtimeDecodedLimitBytes": 1572864,
+    "maximumSimultaneousImageElements": 6,
+    "actualFinalImageElements": 3,
+    "sourcePoseBytes": 126012,
+    "supportingEvidenceBytesExcludedFromRuntime": {
+      "contactSheet": 156156,
+      "normalizationReport": 7573,
+      "referencePlate": 99339
+    },
+    "desktopValidation": {
+      "viewport": "1440x960",
+      "horizontalOverflow": false,
+      "nativeSvgOpacity": 1,
+      "finalOrganicImages": 3
+    },
+    "mobileValidation": {
+      "viewport": "390x844",
+      "horizontalOverflow": false,
+      "finalOrganicImages": 3,
+      "controlsRemainVisible": true
+    },
+    "browserConsoleWarningsOrErrors": 0
+  },
+  "rejectedAuthoringAttempts": [
+    {
+      "jobId": "c1bef2fa-4ec5-41f0-906f-49d308c518ec",
+      "seed": 27404,
+      "reason": "Rejected because the result authored an isometric grass tile/base, which would replace app-owned land."
+    },
+    {
+      "jobId": "7c75cb14-fc8f-48ef-a1a6-d2dbe91ba0f8",
+      "seed": 27406,
+      "reason": "Rejected img2img attempt: insufficient youth differentiation and retained a ground strip."
+    },
+    {
+      "jobId": "fefc8d08-7f6f-47c4-858c-70da4451f745",
+      "seed": 27407,
+      "reason": "Rejected img2img attempt: insufficient youth differentiation."
+    },
+    {
+      "jobId": "ddf7732e-9c0c-44ee-9dc8-50c2b9690f9a",
+      "seed": 27408,
+      "reason": "Rejected img2img attempt: insufficient youth differentiation."
+    }
+  ],
+  "evidence": {
+    "desktopLandReference": "evidence/desktop-land-reference.png",
+    "desktopBlend": "evidence/desktop-maximum-silhouette-blend.png",
+    "desktopFinal": "evidence/desktop-final.png",
+    "mobileFinal": "evidence/mobile-final.png",
+    "screenshotsAreSupportingOnly": true,
+    "authoritativeWitness": "the hosted real-app query-gated deep link recorded in the pull-request LOOK request"
+  }
+}

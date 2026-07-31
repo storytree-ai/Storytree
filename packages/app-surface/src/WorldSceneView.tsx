@@ -4,6 +4,7 @@ import {
   SceneView,
   type NativeIslandGrowthRenderLayer,
   type OrganicPoseRenderLayer,
+  type OrganicKeyPoseRenderLayer,
   type SceneCtx,
 } from './SceneView.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
@@ -30,6 +31,7 @@ export interface WorldPresentationModel {
   readonly artScale: number;
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  readonly organicGrowthLayers?: readonly OrganicKeyPoseRenderLayer[];
 }
 
 export interface WorldPresentationModelInput {
@@ -46,6 +48,7 @@ export interface WorldPresentationModelInput {
   readonly artScale?: number;
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  readonly organicGrowthLayers?: readonly OrganicKeyPoseRenderLayer[];
 }
 
 export interface WorldPresentationEvents {
@@ -78,6 +81,9 @@ export function normalizeWorldPresentationModel(
       : {}),
     ...(input.organicPoseLayers !== undefined
       ? { organicPoseLayers: input.organicPoseLayers }
+      : {}),
+    ...(input.organicGrowthLayers !== undefined
+      ? { organicGrowthLayers: input.organicGrowthLayers }
       : {}),
   };
 }
@@ -122,6 +128,9 @@ export function WorldSceneView({
         : {}),
       ...(model.organicPoseLayers !== undefined
         ? { organicPoseLayers: model.organicPoseLayers }
+        : {}),
+      ...(model.organicGrowthLayers !== undefined
+        ? { organicGrowthLayers: model.organicGrowthLayers }
         : {}),
     };
   }, [model, events]);
