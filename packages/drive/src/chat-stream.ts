@@ -34,9 +34,6 @@ import type {
 
 import type { OrchestrateResult } from "./orchestrate.js";
 import { orchestrate } from "./orchestrate.js";
-import type { SpawnSurfaceDeps } from "./spawn-deps.js";
-import { asSpawnTrace } from "./spawn-trace.js";
-import type { SpawnTraceRole } from "./spawn-trace.js";
 
 // ---------------------------------------------------------------------------
 // Event types
@@ -53,23 +50,12 @@ export interface ChatStreamDeltaEvent {
   text: string;
 }
 
-/**
- * A NON-terminal streaming event — a spawn-boundary trace surfaced as it fires (ADR-0137 Phase 3 /
- * chat-spawn-trace-events). When `startChatStream` is driven WITH spawn deps, the boundary traces
- * the claim gate would otherwise swallow are narrowed to {@link import("./spawn-trace.js").SpawnTrace}
- * and pushed onto the SAME FIFO the deltas use — interleaved and ordered, before the single terminal
- * event. `phase` maps `spawn_started`→`"started"` / `spawn_finished`→`"finished"`; `ok` is carried
- * only on `finished`. Absent spawn deps → no spawn events (byte-identical to the propose-only surface).
- * The trace ALSO still bumps the claim heartbeat (ADR-0138 §4): the interception is additive, never a
- * theft of the signal.
- */
-export interface ChatStreamSpawnEvent {
-  type: "spawn";
-  phase: "started" | "finished";
-  role: SpawnTraceRole;
-  unitId: string;
-  ok?: boolean;
-}
+// The non-terminal `ChatStreamSpawnEvent` (ADR-0137 Phase 3 / chat-spawn-trace-events) sat here: the
+// spawn-boundary traces, narrowed out of the claim gate and interleaved onto the delta FIFO. It went
+// with the spawn surface itself — ADR-0175 retires spawn with the interactive orchestrator (ADR-0174)
+// rather than re-aiming it into `app-guide`, so there is no emitter left to surface. See
+// apps/desktop/src/backend/spawn-surface-retired.test.ts. `delta` is once again the only non-terminal
+// event; a thin client that still tolerates an unknown frame simply never receives one.
 
 /** A terminal done event — the proposal text plus session metrics. `sessionId` is the SDK session
  *  this exchange ran in (ADR-0170 chat continuity): a thin client threads it back as `resume` on the
@@ -103,7 +89,6 @@ export interface ChatStreamRefusedEvent {
  *  of done/error/refused; zero or more non-terminal `delta` events may precede it. */
 export type ChatStreamEvent =
   | ChatStreamDeltaEvent
-  | ChatStreamSpawnEvent
   | ChatStreamDoneEvent
   | ChatStreamErrorEvent
   | ChatStreamRefusedEvent;
@@ -142,21 +127,15 @@ export interface StartChatStreamArgs {
   /** Hard USD budget ceiling for the live session (live run only). */
   maxBudgetUsd?: number;
   /**
-   * OPTIONAL spawn surface deps (ADR-0137 Phase 3): when present, the underlying
-   * `orchestrate()` session mounts `spawn_story_author` / `spawn_builder` as claim-gated MCP
-   * tools so the chat can spawn the inner loop. Absent → the session is byte-identical to the
-   * propose-only surface (the same additive threading as `runner`; no fork of the Phase-1/2 chain).
-   * The desktop sidecar composes the real deps via `buildSpawnDeps` and passes them through the
-   * chat mount; offline tests inject a scripted double.
-   */
-  spawn?: SpawnSurfaceDeps;
-  /**
    * OPTIONAL inspect surface deps (ADR-0173): when present, the underlying `orchestrate()` session
    * mounts `view_ci_run` / `view_pr_checks` / `git_inspect` as fail-closed READ-ONLY MCP tools so the
    * chat can diagnose a red pipeline (read a failing-job log, an arbitrary PR's checks, the read-only
-   * git verbs). Absent → byte-identical to the propose/spawn surface. Inspect tools emit no
-   * spawn-trace events, so — unlike `spawn` — they are forwarded straight through with no FIFO wrap.
+   * git verbs). Absent → byte-identical to the orientation-only surface. Inspect tools emit no
+   * boundary traces, so they are forwarded straight through with no FIFO wrap.
    * The desktop sidecar composes the real deps via `buildInspectDeps`; offline tests inject a double.
+   *
+   * (The ADR-0137 `spawn` deps that used to sit beside this one are gone — ADR-0175 retires the
+   * spawn surface; see apps/desktop/src/backend/spawn-surface-retired.test.ts.)
    */
   inspect?: InspectSurfaceDeps;
 }
@@ -192,61 +171,18 @@ type SessionOutcome =
 export async function* startChatStream(
   args: StartChatStreamArgs,
 ): AsyncGenerator<ChatStreamEvent> {
-  // The bridge: a single FIFO of buffered non-terminal items (assistant text `delta`s and spawn
-  // boundary `spawn` events) + a single-slot "wake" so the drain loop can park when the queue is
-  // empty and the session hasn't settled, and resume the instant either changes. The queue holds a
-  // discriminated item so deltas and spawn events interleave in arrival order on the ONE FIFO (no
-  // second queue, no second drain loop — the buffered-push + single-slot-wake ordering discipline).
-  type QueueItem =
-    | { kind: "delta"; text: string }
-    | { kind: "spawn"; event: ChatStreamSpawnEvent };
-  const queue: QueueItem[] = [];
+  // The bridge: a FIFO of buffered assistant text `delta`s + a single-slot "wake" so the drain loop
+  // can park when the queue is empty and the session hasn't settled, and resume the instant either
+  // changes (the buffered-push + single-slot-wake ordering discipline). The queue carried a second,
+  // discriminated `spawn` item until ADR-0175 retired the spawn surface that emitted it; with one
+  // producer left it is a plain delta queue again.
+  const queue: string[] = [];
   let wake: (() => void) | null = null;
   const signal = (): void => {
     const w = wake;
     wake = null;
     if (w !== null) w();
   };
-
-  // Wrap the injected spawn deps (when present) so their boundary traces surface OUT to the chat
-  // stream as `spawn` events, WITHOUT stealing the claim heartbeat bump (ADR-0138 §4). The wrap
-  // composes each spawn handler's `onTrace`: it still calls the ORIGINAL onTrace (the gate's
-  // heartbeat sink, preserved) AND, when a message narrows to a SpawnTrace, pushes a
-  // ChatStreamSpawnEvent onto the SAME FIFO and signals — exactly as `onDelta` does. Absent spawn
-  // deps ⇒ no wrap ⇒ byte-identical to the propose-only surface (no `spawn` events).
-  const wrappedSpawn: SpawnSurfaceDeps | undefined =
-    args.spawn === undefined
-      ? undefined
-      : (() => {
-          const original = args.spawn;
-          const composeTrace =
-            (onTrace: (msg: unknown) => void) =>
-            (msg: unknown): void => {
-              // Preserve the gate's heartbeat bump (and any other original behaviour) first.
-              onTrace(msg);
-              const trace = asSpawnTrace(msg);
-              if (trace === null) return;
-              const event: ChatStreamSpawnEvent =
-                trace.type === "spawn_started"
-                  ? { type: "spawn", phase: "started", role: trace.role, unitId: trace.unitId }
-                  : {
-                      type: "spawn",
-                      phase: "finished",
-                      role: trace.role,
-                      unitId: trace.unitId,
-                      ok: trace.ok,
-                    };
-              queue.push({ kind: "spawn", event });
-              signal();
-            };
-          return {
-            ...original,
-            spawnStoryAuthor: (spawnArgs, onTrace) =>
-              original.spawnStoryAuthor(spawnArgs, composeTrace(onTrace)),
-            spawnBuilder: (spawnArgs, onTrace) =>
-              original.spawnBuilder(spawnArgs, composeTrace(onTrace)),
-          };
-        })();
 
   // The session resolves to a typed outcome and NEVER rejects (orchestrate never throws, and the
   // .catch keeps us robust regardless) — so the terminal branch reads the value via `await session`
@@ -259,7 +195,7 @@ export async function* startChatStream(
     ...(args.resume !== undefined ? { resume: args.resume } : {}),
     onDelta: (text: string) => {
       if (text.length === 0) return;
-      queue.push({ kind: "delta", text });
+      queue.push(text);
       signal();
     },
     ...(args.queryFn !== undefined ? { queryFn: args.queryFn } : {}),
@@ -267,7 +203,6 @@ export async function* startChatStream(
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
     ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
-    ...(wrappedSpawn !== undefined ? { spawn: wrappedSpawn } : {}),
     ...(args.inspect !== undefined ? { inspect: args.inspect } : {}),
   })
     .then((result): SessionOutcome => ({ ok: true, result }))
@@ -282,7 +217,7 @@ export async function* startChatStream(
   while (!done || queue.length > 0) {
     const next = queue.shift();
     if (next !== undefined) {
-      yield next.kind === "delta" ? { type: "delta", text: next.text } : next.event;
+      yield { type: "delta", text: next };
       continue;
     }
     // Queue empty and session not done: park until a delta is pushed or the session settles.

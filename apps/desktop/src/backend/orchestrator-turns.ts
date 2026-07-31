@@ -8,9 +8,11 @@
 // unbounded.
 //
 // The escape hatch is env-only: STORYTREE_ORCHESTRATOR_MAX_TURNS RE-imposes a cap (a bounded/debug
-// run). This is the INVERSE default of resolveSpawnMaxTurns (which defaults to a positive number,
-// because the spawned story-author is an inner-loop subagent that keeps its runaway brake — ADR-0130
-// unchanged there): here `undefined` (unbounded) is the default, a positive env value the override.
+// run). Here `undefined` (unbounded) is the default and a positive env value the override — the
+// INVERSE of an inner-loop subagent, which keeps a positive runaway brake (ADR-0130 unchanged there).
+// This used to have a sibling on the same file — `resolveSpawnMaxTurns`, the chat-spawned
+// story-author's own ceiling — which retired with the spawn surface (ADR-0175); this is now the only
+// per-session turn knob the desktop chat carries.
 //
 // This module is a pure function so it carries a CI unit test — the backend-entry glue that reads
 // process.env and threads the result into createChatSseMount is operator-attested (a node:test over it

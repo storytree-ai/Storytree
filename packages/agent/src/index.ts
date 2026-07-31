@@ -94,20 +94,22 @@ export type {
 } from "./headless-orchestrator.js";
 export { runHeadlessOrchestrator } from "./headless-orchestrator.js";
 
-// The spawn seams (ADR-0137 Phase 3 / chat-subagent-spawn): the write-fenced story-author
-// spawn runner and the claim-gated spawn tool surface's dep contract — consumed by
-// @storytree/drive's spawn-deps composition, which renders the story-author prompt,
-// composes the claim/build deps, and threads them through orchestrate() to the runtime.
+// The ADR-0137 Phase-3 SPAWN seam (the claim-gated `spawn_story_author` / `spawn_builder` tool
+// surface and its dep contract) was exported here until ADR-0175 retired it with the interactive
+// orchestrator (ADR-0174) rather than re-aiming it into `app-guide`. It is deliberately absent, not
+// moved — see apps/desktop/src/backend/spawn-surface-retired.test.ts, the negative guard that keeps
+// it gone; its sibling holds the landing surface gone the same way.
+//
+// What SURVIVES that retirement is the ROLE-NEUTRAL write-fence core below (ADR-0160 D2). ADR-0175
+// names it as ADR-0160's live residue and aims `app-guide`'s future narrow setup-scoped writes
+// (config + hooks) at exactly this fail-closed path-fence discipline. Its `runSpawnStoryAuthor`
+// wrapper went with the tool it served, so the module is now named for the core it kept.
 export type {
-  SpawnStoryAuthorArgs,
-  SpawnStoryAuthorResult,
   SpawnWriteScopedArgs,
   SpawnWriteScopedResult,
   ScopeViolation,
-} from "./spawn-story-author.js";
-export { runSpawnStoryAuthor, runSpawnWriteScoped } from "./spawn-story-author.js";
-export type { SpawnSurfaceDeps } from "./spawn-tool-surface.js";
-export { buildSpawnTools, SPAWN_SERVER } from "./spawn-tool-surface.js";
+} from "./spawn-write-scoped.js";
+export { runSpawnWriteScoped } from "./spawn-write-scoped.js";
 
 // The ADR-0152 LANDING seam (the merge-ceremony MCP surface: run_gate + open_landing_pr +
 // poll_pr_checks) was exported here until ADR-0175 retired it with the interactive orchestrator
