@@ -113,10 +113,11 @@ render-agnostic world model, and the render substrate stays SVG.**
    silently assumed that degradation at scale indicts the SUBSTRATE. It does not here: the same
    18,793 SVG elements pan at the 60 fps vsync floor once the camera transform moves off the `<g>`,
    with no visual change. Trigger (b) now reads: **node count past the range, and pan/zoom degrades
-   *with the per-frame path already compositor-only*.** Until ADR-0272 decision 2 ships, trigger (b)
-   cannot be evaluated at all and no renderer swap may be argued from it. Triggers (a) and (c) are
-   untouched, and decision 3's "stay on SVG" is reaffirmed on stronger evidence than the node-count
-   headroom that originally carried it.]*
+   *with the per-frame path already compositor-only*.** ADR-0272 decision 2 SHIPPED on 2026-07-31
+   (capability `compositor-pan-transform`), so the precondition is satisfied and trigger (b) is
+   evaluable — and evaluated against the compositor-only path it does NOT fire, so no renderer swap
+   may be argued from it. Triggers (a) and (c) are untouched, and decision 3's "stay on SVG" is
+   reaffirmed on stronger evidence than the node-count headroom that originally carried it.]*
 
 4. **Determinism is preserved and constrains the substrate.** Generators stay a pure function of the
    data (`hash`/`rand01`, no `Math.random`, no wall-clock). This is *why* the layer stays on
