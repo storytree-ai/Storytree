@@ -205,6 +205,29 @@ describe('Experiment 1 organic pose-to-pose tracks', () => {
       ];
     });
     expect(replayTrace).toEqual(directTrace);
+
+    const firstCue = settle(nextOrganicPoseCue(initialOrganicPosePlayback(), false));
+    const backedToStart = backOrganicPoseCue(firstCue, false);
+    const replayedToStart = replayOrganicPosePlayback(firstCue);
+    expect(backedToStart).toMatchObject({
+      cueIndex: 0,
+      progress: 0,
+      fromProgress: 0,
+      targetProgress: 0,
+      phase: 'settled',
+      playing: false,
+    });
+    expect([
+      backedToStart.cueIndex,
+      backedToStart.progress,
+      ...registry.tracks.map((track) =>
+        organicPoseFrameAtProgress(track, backedToStart.progress).index),
+    ]).toEqual([
+      replayedToStart.cueIndex,
+      replayedToStart.progress,
+      ...registry.tracks.map((track) =>
+        organicPoseFrameAtProgress(track, replayedToStart.progress).index),
+    ]);
   });
 
   it('settles reduced motion immediately on the same cue endpoints and frames', () => {
