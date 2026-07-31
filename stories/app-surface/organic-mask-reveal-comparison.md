@@ -16,14 +16,14 @@ proof:
     file: pnpm
     args: ["-r", "--filter", "@storytree/app-surface", "--filter", "studio", "test"]
   scope:
-    testGlobs: ["packages/app-surface/src/organic-mask-reveal.test.tsx", "apps/studio/src/components/TreeViewShell.test.tsx"]
+    testGlobs: ["packages/app-surface/src/organic-mask-reveal.test.tsx", "apps/studio/src/components/TreeViewShell.test.tsx", "packages/cli/src/node-build.test.ts"]
     sourceGlobs: ["packages/app-surface/src/organic-mask-reveal.ts", "packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/WorldSceneView.tsx", "packages/app-surface/src/SceneView.tsx", "packages/app-surface/src/index.ts", "apps/studio/src/components/SemanticGrowthDemo.tsx", "apps/studio/src/components/TreeView.tsx", "packages/app-surface/src/assets/chapter2-organic-growth/mask-reveal-v1/**/*"]
   real:
     testFile: "packages/app-surface/src/organic-mask-reveal.test.tsx"
     sourceFile: "packages/app-surface/src/organic-mask-reveal.ts"
     editsExisting: true
     scope:
-      testGlobs: ["packages/app-surface/src/organic-mask-reveal.test.tsx", "apps/studio/src/components/TreeViewShell.test.tsx"]
+      testGlobs: ["packages/app-surface/src/organic-mask-reveal.test.tsx", "apps/studio/src/components/TreeViewShell.test.tsx", "packages/cli/src/node-build.test.ts"]
       sourceGlobs: ["packages/app-surface/src/organic-mask-reveal.ts", "packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/WorldSceneView.tsx", "packages/app-surface/src/SceneView.tsx", "packages/app-surface/src/index.ts", "apps/studio/src/components/SemanticGrowthDemo.tsx", "apps/studio/src/components/TreeView.tsx", "packages/app-surface/src/assets/chapter2-organic-growth/mask-reveal-v1/**/*"]
     install: true
     proofCommand:
@@ -91,6 +91,9 @@ default while that verdict is absent.
 - Keep the comparison behind only exact `semanticGrowth=organic-mask-reveal`. Do not make it the
   clean route, a permanent navigation entry or the adopted organic-growth default without a later
   owner verdict.
+- Keep the real-build catalog in lockstep. `packages/cli/src/node-build.test.ts` must include
+  `organic-mask-reveal-comparison`; this companion proves discoverability, not another implementation
+  surface.
 - Record desktop/mobile and request/budget evidence from the deployed real app. Do not label an
   expensive or not-yet-captured machine observation as `human`, and do not self-sign LOOK.
 
