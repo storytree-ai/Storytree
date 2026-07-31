@@ -221,6 +221,67 @@ describe('SceneView — the studio scene mapper', () => {
     expect(siblings.indexOf(plant!)).toBe(siblings.indexOf(tree!) + 1);
   });
 
+  it('morphs the app-native coast path from an anchored seed and clips interior layers by that same ordered contour', () => {
+    const mature =
+      'M 20.0 50.0 Q 20.0 20.0 50.0 20.0 Q 80.0 20.0 80.0 50.0 Q 80.0 80.0 50.0 80.0 Q 20.0 80.0 20.0 50.0 Z';
+    const input = mkInput();
+    input.territories = input.territories.map((territory) => ({
+      ...territory,
+      coastPaths: [mature],
+    }));
+    const scene = buildScene(input);
+    const ctx: SceneCtx = {
+      territoryClassById: (_id, status) => `hex-territory st-${status}`,
+      reveal: null,
+      hidden: new Set(),
+      onSelectStory: vi.fn(),
+      onSelectCap: vi.fn(),
+      nativeIslandGrowthLayer: {
+        storyId: 'lib',
+        worldAnchor: { x: 50, y: 50 },
+        radius: { x: 40, y: 28 },
+        progress: 0,
+        technique: 'contour-morph',
+      },
+    };
+    const view = render(<svg><SceneView scene={scene} ctx={ctx} /></svg>);
+    const coast = (): Element =>
+      view.container.querySelector(
+        '[data-native-island-story="lib"] path.coast-fill',
+      )!;
+    const clip = (): Element =>
+      view.container.querySelector(
+        'clipPath[id^="organic-pose-native-island-"] path[data-contour-path-index="0"]',
+      )!;
+    const interiorOrder = (): string[] =>
+      Array.from(
+        view.container.querySelector('[data-contour-interior-order="source-painter-order"]')!
+          .querySelectorAll('path'),
+      ).map((node) => node.getAttribute('class') ?? '');
+
+    const seed = coast().getAttribute('d');
+    const seedInteriorOrder = interiorOrder();
+    expect(seed).toBeTruthy();
+    expect(seed).not.toBe(mature);
+    expect(clip().getAttribute('d')).toBe(seed);
+    expect(view.container.querySelector('clipPath ellipse')).toBeNull();
+    expect(coast().getAttribute('opacity')).toBeNull();
+    expect(coast().getAttribute('transform')).toBeNull();
+    expect(coast().closest('[data-native-island-story]')?.getAttribute('data-contour-phase')).toBe('seed');
+
+    const settledCtx: SceneCtx = {
+      ...ctx,
+      nativeIslandGrowthLayer: {
+        ...ctx.nativeIslandGrowthLayer!,
+        progress: 1,
+      },
+    };
+    view.rerender(<svg><SceneView scene={scene} ctx={settledCtx} /></svg>);
+    expect(coast().getAttribute('d')).toBe(mature);
+    expect(clip().getAttribute('d')).toBe(mature);
+    expect(interiorOrder()).toEqual(seedInteriorOrder);
+  });
+
   it('maps roles to the studio classes, folding status + variant', () => {
     const { root } = renderScene();
     expect(root.querySelector('.story-tree.st-healthy')).toBeTruthy();

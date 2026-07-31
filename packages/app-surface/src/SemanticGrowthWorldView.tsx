@@ -22,6 +22,7 @@ import {
   type OrganicPosePoint,
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
+import { contourMorphPhase } from './organic-island-contour-morph.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -58,6 +59,7 @@ export interface SemanticGrowthOrganicPoseLayer {
     readonly worldAnchor: OrganicPosePoint;
     readonly radius: OrganicPosePoint;
     readonly settledAtProgress: number;
+    readonly technique?: 'radial-expansion' | 'contour-morph';
   };
   readonly clock?: SemanticGrowthAnimationClock;
 }
@@ -222,7 +224,10 @@ function validateOrganicPoseLayer(
     island.radius.y <= 0 ||
     !Number.isFinite(island.settledAtProgress) ||
     island.settledAtProgress <= 0 ||
-    island.settledAtProgress > 1
+    island.settledAtProgress > 1 ||
+    (island.technique !== undefined &&
+      island.technique !== 'radial-expansion' &&
+      island.technique !== 'contour-morph')
   ) {
     throw new Error('Organic pose native island reveal must use finite app-owned geometry.');
   }
@@ -295,6 +300,9 @@ export function SemanticGrowthWorldView({
           worldAnchor: organicPoseGrowth.nativeIsland.worldAnchor,
           radius: organicPoseGrowth.nativeIsland.radius,
           progress: nativeLandProgress,
+          ...(organicPoseGrowth.nativeIsland.technique
+            ? { technique: organicPoseGrowth.nativeIsland.technique }
+            : {}),
         },
         organicPoseLayers: organicLayers,
       };
@@ -359,10 +367,20 @@ export function SemanticGrowthWorldView({
       {...(organicPoseGrowth
         ? {
             'data-organic-technique': 'pose-to-pose',
+            'data-island-growth-technique':
+              organicPoseGrowth.nativeIsland.technique ?? 'radial-expansion',
             'data-organic-pose-progress': organicPlayback.progress.toFixed(4),
             'data-native-island-progress': nativeLandProgress?.toFixed(4),
             'data-organic-pose-frames':
               organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
+            ...(organicPoseGrowth.nativeIsland.technique === 'contour-morph'
+              ? {
+                  'data-contour-phase': contourMorphPhase(nativeLandProgress ?? 0),
+                  'data-contour-path-interpolation': 'quadratic-fixed-topology',
+                  'data-contour-topology-change': 'none',
+                  'data-coast-settle': 'final-16-percent',
+                }
+              : {}),
           }
         : {})}
     >

@@ -479,6 +479,192 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     }
   });
 
+  it('only the exact organic-island-contour-morph gate path-interpolates an anchored opaque seed to the existing mature coast while reusing the pose control', async () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+    try {
+      const clean = await renderTree();
+      expect(clean.querySelector('[data-island-growth-technique="contour-morph"]')).toBeNull();
+      expect(clean.textContent).not.toMatch(/Experiment 7/i);
+      cleanup();
+
+      window.history.pushState({}, '', '/?organicGrowth=organic-island-contour-morph-near-miss#/tree');
+      const nearMiss = await renderTree();
+      expect(nearMiss.querySelector('[data-island-growth-technique="contour-morph"]')).toBeNull();
+      expect(nearMiss.textContent).not.toMatch(/rubbery|ballooning|melting edge/i);
+      cleanup();
+
+      // Capture the Round 1 control's authoritative mature coast, camera and registered pose.
+      window.history.pushState({}, '', '/?organicGrowth=organic-pose-to-pose#/tree');
+      const control = await renderTree();
+      const controlNext = Array.from(
+        control.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      ).find((button) => button.textContent === 'Next') as HTMLButtonElement;
+      await act(async () => controlNext.click()); // land
+      const matureCoast = control.querySelector(
+        '[data-native-island-story="semantic-growth-demo"] path.coast-fill',
+      )?.getAttribute('d');
+      const controlViewBox = control.querySelector('svg')?.getAttribute('viewBox');
+      await act(async () => controlNext.click()); // proposed
+      const controlTree = control.querySelector(
+        'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
+      );
+      const controlTreePose = [
+        controlTree?.getAttribute('href'),
+        controlTree?.getAttribute('data-organic-frame'),
+        controlTree?.getAttribute('data-world-anchor-x'),
+        controlTree?.getAttribute('data-world-anchor-y'),
+      ];
+      expect(matureCoast).toBeTruthy();
+      expect(controlTree).toBeTruthy();
+      cleanup();
+
+      window.history.pushState({}, '', '/?organicGrowth=organic-island-contour-morph#/tree');
+      const flagged = await renderTree();
+      const section = flagged.querySelector(
+        '[data-semantic-growth-frame="empty"]' +
+          '[data-organic-technique="pose-to-pose"]' +
+          '[data-island-growth-technique="contour-morph"]',
+      );
+      expect(section).toBeTruthy();
+      expect(flagged.querySelector('svg')?.getAttribute('viewBox')).toBe(controlViewBox);
+      expect(section?.getAttribute('data-contour-path-interpolation')).toBe('quadratic-fixed-topology');
+      expect(section?.getAttribute('data-contour-topology-change')).toBe('none');
+      expect(section?.getAttribute('data-coast-settle')).toBe('final-16-percent');
+
+      const evaluationCopy = flagged.querySelector('[data-contour-morph-evaluation]')?.textContent ?? '';
+      for (const term of [
+        'contour morph',
+        'radial expansion',
+        'path interpolation',
+        'topology change',
+        'coast settle',
+        'rubbery',
+        'ballooning',
+        'melting edge',
+        'radial wipe',
+        'shape snap',
+        'hidden fade',
+        'pose-to-pose preferred overall',
+        'misplaced leaves',
+        'trunk/canopy gap',
+        'key-pose',
+      ]) {
+        expect(evaluationCopy.toLowerCase()).toContain(term.toLowerCase());
+      }
+
+      const coast = (): Element =>
+        flagged.querySelector(
+          '[data-native-island-story="semantic-growth-demo"] path.coast-fill',
+        )!;
+      const contourClip = (): Element =>
+        flagged.querySelector(
+          'clipPath[id^="organic-pose-native-island-"] path[data-contour-path-index="0"]',
+        )!;
+      const interior = (): Element =>
+        flagged.querySelector(
+          '[data-native-island-story="semantic-growth-demo"][clip-path]',
+        )!;
+      const interiorOrder = (): string[] =>
+        Array.from(interior().children).map(
+          (node) => `${node.nodeName}:${node.getAttribute('class') ?? ''}`,
+        );
+
+      const seedPath = coast().getAttribute('d');
+      const seedAnchor = [
+        coast().closest('[data-native-island-story]')?.getAttribute('data-seed-anchor-x'),
+        coast().closest('[data-native-island-story]')?.getAttribute('data-seed-anchor-y'),
+      ];
+      const seedInteriorOrder = interiorOrder();
+      expect(seedPath).toBeTruthy();
+      expect(seedPath).not.toBe(matureCoast);
+      expect(contourClip().getAttribute('d')).toBe(seedPath);
+      expect(interior().getAttribute('data-contour-interior-order')).toBe('source-painter-order');
+      expect(flagged.querySelector('clipPath ellipse')).toBeNull();
+      expect(coast().getAttribute('opacity')).toBeNull();
+      expect(coast().getAttribute('transform')).toBeNull();
+      expect(
+        coast().closest('[data-native-island-story]')?.getAttribute('data-contour-seed-opaque'),
+      ).toBe('true');
+
+      const controls = Array.from(
+        flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      );
+      const next = controls.find((button) => button.textContent === 'Next') as HTMLButtonElement;
+      const back = controls.find((button) => button.textContent === 'Back') as HTMLButtonElement;
+      const replay = controls.find((button) => button.textContent === 'Replay') as HTMLButtonElement;
+
+      await act(async () => next.click()); // land: reduced motion settles the contour immediately
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('land');
+      expect(coast().getAttribute('d')).toBe(matureCoast);
+      expect(contourClip().getAttribute('d')).toBe(matureCoast);
+      expect(interiorOrder()).toEqual(seedInteriorOrder);
+      expect(flagged.querySelector('svg')?.getAttribute('viewBox')).toBe(controlViewBox);
+      expect([
+        coast().closest('[data-native-island-story]')?.getAttribute('data-seed-anchor-x'),
+        coast().closest('[data-native-island-story]')?.getAttribute('data-seed-anchor-y'),
+      ]).toEqual(seedAnchor);
+
+      await act(async () => next.click()); // proposed: unchanged Round 1 pose control
+      const experimentTree = flagged.querySelector(
+        'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
+      );
+      expect([
+        experimentTree?.getAttribute('href'),
+        experimentTree?.getAttribute('data-organic-frame'),
+        experimentTree?.getAttribute('data-world-anchor-x'),
+        experimentTree?.getAttribute('data-world-anchor-y'),
+      ]).toEqual(controlTreePose);
+
+      await act(async () => back.click());
+      expect(coast().getAttribute('d')).toBe(matureCoast);
+      await act(async () => back.click());
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('empty');
+      expect(coast().getAttribute('d')).toBe(seedPath);
+      await act(async () => next.click());
+      expect(coast().getAttribute('d')).toBe(matureCoast);
+      await act(async () => replay.click());
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('empty');
+      expect(coast().getAttribute('d')).toBe(seedPath);
+      expect(flagged.querySelector('image[data-organic-track]')).toBeNull();
+      await act(async () => next.click());
+      expect(coast().getAttribute('d')).toBe(matureCoast);
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
+  it('keeps Experiment 7 free of runtime PixelLab calls, secrets, generated land, fades, wipes, and snapshot scaling', () => {
+    const demoSource = readFileSync(
+      resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
+      'utf8',
+    );
+    const contourSource = readFileSync(
+      resolve(APP_SURFACE_SRC, 'organic-island-contour-morph.ts'),
+      'utf8',
+    );
+    const runtime = `${demoSource}\n${contourSource}`;
+    expect(runtime).not.toMatch(/fetch\s*\([^)]*pixellab|XMLHttpRequest|WebSocket|pixellab\.ai/i);
+    expect(runtime).not.toMatch(/PIXELLAB_(?:API_KEY|TOKEN)|process\.env\.PIXELLAB/i);
+    expect(contourSource).not.toMatch(/opacity|cross-?fade|radial\s+(?:clip|wipe)|transform\s*:|scale\s*\(/i);
+    expect(demoSource).not.toMatch(/island-growth-composite|generated-island|\.gif|\.webm|\.mp4/i);
+  });
+
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
   // machine contract 3): "signed-proof remains proposed/non-healthy while carrying the proof bloom;
   // healthy appears only last" / "no pre-final frame may appear healthy". The `signed-proof` frame is

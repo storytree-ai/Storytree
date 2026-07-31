@@ -39,6 +39,7 @@ import {
   normalizeWorldPresentationModel,
   SemanticGrowthWorldView,
   type SemanticGrowthFrame,
+  type SemanticGrowthOrganicPoseLayer,
 } from '@storytree/app-surface';
 import { buildWorld, buildRelaxedCells, worldToScene, type HexWorld } from './TreeView.js';
 import type {
@@ -240,6 +241,7 @@ const DEMO_CLAIM: ClaimActivity = {
  */
 function buildFrames(
   preservePrimaryGroundIdentity = false,
+  keepPrimarySeedLand = false,
 ): readonly SemanticGrowthFrame[] {
   // ONE composed, real world every frame reuses — the primary AND the fixed companion both enter
   // `buildWorld` together (H — sgsd-composed-through-real-studio-world-pipeline /
@@ -333,6 +335,13 @@ function buildFrames(
   const emptyScene = (): SceneNode => {
     const scene = sceneForStory(demoStory('mapped'));
     const noPrimaryTerritory = stripKind(scene, 'territory', DEMO_STORY_ID);
+    if (keepPrimarySeedLand) {
+      return withoutCompanionPlate(
+        preservePrimaryGroundIdentity
+          ? noPrimaryTerritory
+          : clearGroundIdentity(noPrimaryTerritory, DEMO_STORY_ID),
+      );
+    }
     const noPrimaryGround = stripKind(noPrimaryTerritory, 'ground', DEMO_STORY_ID);
     const noPrimaryCoast = stripKind(noPrimaryGround, 'coast', DEMO_STORY_ID);
     return withoutCompanionPlate(noPrimaryCoast);
@@ -412,7 +421,8 @@ function buildFrames(
 
 let framesCache: readonly SemanticGrowthFrame[] | null = null;
 let organicPoseFramesCache: readonly SemanticGrowthFrame[] | null = null;
-let organicPoseSocketsCache: {
+let contourMorphFramesCache: readonly SemanticGrowthFrame[] | null = null;
+interface OrganicPoseSockets {
   readonly tree: { readonly x: number; readonly y: number };
   readonly plant: { readonly x: number; readonly y: number };
   readonly island: {
@@ -420,7 +430,8 @@ let organicPoseSocketsCache: {
     readonly worldAnchor: { readonly x: number; readonly y: number };
     readonly radius: { readonly x: number; readonly y: number };
   };
-} | null = null;
+}
+let organicPoseSocketsCache: OrganicPoseSockets | null = null;
 
 /** The static fixture, computed once on first use and cached — never at this module's own
  *  top level (see {@link buildFrames}), never rebuilt afterward. */
@@ -434,7 +445,14 @@ function organicPoseFrames(): readonly SemanticGrowthFrame[] {
   return organicPoseFramesCache;
 }
 
-function organicPoseSockets(): NonNullable<typeof organicPoseSocketsCache> {
+function contourMorphFrames(): readonly SemanticGrowthFrame[] {
+  if (!contourMorphFramesCache) {
+    contourMorphFramesCache = buildFrames(true, true);
+  }
+  return contourMorphFramesCache;
+}
+
+function organicPoseSockets(): OrganicPoseSockets {
   organicPoseFrames();
   if (!organicPoseSocketsCache) {
     throw new Error('Semantic growth fixture did not register its organic sockets.');
@@ -442,10 +460,41 @@ function organicPoseSockets(): NonNullable<typeof organicPoseSocketsCache> {
   return organicPoseSocketsCache;
 }
 
+function organicPoseControl(
+  sockets: OrganicPoseSockets,
+  technique: 'radial-expansion' | 'contour-morph',
+): SemanticGrowthOrganicPoseLayer {
+  return {
+    registry: CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+    instances: [
+      {
+        trackId: 'chapter2-hero-tree-pose-track-v1',
+        worldAnchor: sockets.tree,
+        scale: ORGANIC_TREE_SCALE,
+        progressWindow: { start: 0.18, end: 1 },
+      },
+      {
+        trackId: 'chapter2-plant-sample-pose-track-v1',
+        worldAnchor: sockets.plant,
+        scale: ORGANIC_PLANT_SCALE,
+        progressWindow: { start: 0.52, end: 1 },
+      },
+    ],
+    nativeIsland: {
+      ...sockets.island,
+      settledAtProgress: 0.18,
+      technique,
+    },
+  };
+}
+
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'organic-pose-to-pose';
+  readonly variant?:
+    | 'demo'
+    | 'organic-pose-to-pose'
+    | 'organic-island-contour-morph';
 }
 
 /**
@@ -459,14 +508,19 @@ export function SemanticGrowthDemo({
   artScale,
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
-  const poseVariant = variant === 'organic-pose-to-pose';
-  const sourceFrames = poseVariant ? organicPoseFrames() : frames();
-  const sockets = poseVariant ? organicPoseSockets() : null;
+  const organicVariant = variant !== 'demo';
+  const contourVariant = variant === 'organic-island-contour-morph';
+  const sourceFrames = contourVariant
+    ? contourMorphFrames()
+    : organicVariant
+      ? organicPoseFrames()
+      : frames();
+  const sockets = organicVariant ? organicPoseSockets() : null;
   const framesWithArt: readonly SemanticGrowthFrame[] = sourceFrames.map((f) => ({
     key: f.key,
     model: {
       ...f.model,
-      scene: poseVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
+      scene: organicVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
       spriteSheet,
       artScale,
     },
@@ -478,39 +532,36 @@ export function SemanticGrowthDemo({
           <div
             className="world-viewport"
             aria-label={
-              poseVariant
-                ? 'organic pose-to-pose growth witness (real app fixture)'
-                : 'semantic growth witness (static fixture)'
+              contourVariant
+                ? 'organic island contour morph witness (real app fixture)'
+                : organicVariant
+                  ? 'organic pose-to-pose growth witness (real app fixture)'
+                  : 'semantic growth witness (static fixture)'
             }
           >
             <SemanticGrowthWorldView
               frames={framesWithArt}
-              {...(poseVariant && sockets
+              {...(organicVariant && sockets
                 ? {
-                    organicPoseGrowth: {
-                      registry: CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
-                      instances: [
-                        {
-                          trackId: 'chapter2-hero-tree-pose-track-v1',
-                          worldAnchor: sockets.tree,
-                          scale: ORGANIC_TREE_SCALE,
-                          progressWindow: { start: 0.18, end: 1 },
-                        },
-                        {
-                          trackId: 'chapter2-plant-sample-pose-track-v1',
-                          worldAnchor: sockets.plant,
-                          scale: ORGANIC_PLANT_SCALE,
-                          progressWindow: { start: 0.52, end: 1 },
-                        },
-                      ],
-                      nativeIsland: {
-                        ...sockets.island,
-                        settledAtProgress: 0.18,
-                      },
-                    },
+                    organicPoseGrowth: organicPoseControl(
+                      sockets,
+                      contourVariant ? 'contour-morph' : 'radial-expansion',
+                    ),
                   }
                 : {})}
             />
+            {contourVariant ? (
+              <aside data-contour-morph-evaluation="experiment-7">
+                <strong>Experiment 7 — contour morph.</strong>{' '}
+                Compare contour morph with radial expansion: path interpolation keeps topology
+                change at none, then completes a coast settle. Reject the result if it reads as
+                rubbery, ballooning, a melting edge, radial wipe, shape snap, or hidden fade.
+                {' '}Round 1 control: pose-to-pose preferred overall. Cutout had the best trunk/plants
+                but its canopy was rejected: misplaced leaves, a buggy trunk/canopy gap, and an
+                unclean result. Key-pose had the best Round 1 island formation but still read as
+                fade; pose-to-pose and cutout island formation were rejected.
+              </aside>
+            ) : null}
           </div>
         </div>
       </div>

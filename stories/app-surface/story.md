@@ -9,7 +9,7 @@ proof_mode: UAT
 # registered organic assets, route isolation, reduced motion and hosted-browser evidence. Whether
 # the corrected composition looks alive and coherent remains an owner-held LOOK judgment.
 arc: chapter2-pixellab-organic-growth-arc
-capabilities: [app-surface-world-view, studio-app-surface-adapter, semantic-growth-replay-view, semantic-growth-studio-demo, svg-island-growth-track, pixellab-organic-growth-tracks, organic-growth-app-witness]
+capabilities: [app-surface-world-view, studio-app-surface-adapter, semantic-growth-replay-view, semantic-growth-studio-demo, svg-island-growth-track, pixellab-organic-growth-tracks, organic-growth-app-witness, organic-island-contour-morph-comparison]
 # The framework-bearing package sits immediately above @storytree/forest-world and imports it.
 # Studio's consuming-surface edge is declared consumer-side in stories/studio/story.md.
 depends_on: [forest-world]
@@ -98,6 +98,7 @@ chrome extraction is folded into this correction.
 | 5 | [`svg-island-growth-track`](svg-island-growth-track.md) | The public player grows the existing SVG island/coast in place under deterministic app-owned progress. | `semantic-growth-replay-view` |
 | 6 | [`pixellab-organic-growth-tracks`](pixellab-organic-growth-tracks.md) | Registered local hero-tree and plant tracks grow from stable app-owned sockets over the retained SVG land. | `svg-island-growth-track` |
 | 7 | [`organic-growth-app-witness`](organic-growth-app-witness.md) | The exact real-consumer witness composes native land with organic tracks while clean and near-miss routes remain unchanged. | `semantic-growth-studio-demo`, `pixellab-organic-growth-tracks` |
+| 8 | [`organic-island-contour-morph-comparison`](organic-island-contour-morph-comparison.md) | An exact real-Studio comparison grows native SVG island contours beside the landed pose-to-pose organic control. | `semantic-growth-studio-demo`, `pixellab-organic-growth-tracks` |
 
 Dependency graph:
 
@@ -110,9 +111,15 @@ pixellab-organic-growth-tracks`
 `[semantic-growth-studio-demo, pixellab-organic-growth-tracks] →
 organic-growth-app-witness`
 
+`[semantic-growth-studio-demo, pixellab-organic-growth-tracks] →
+organic-island-contour-morph-comparison`
+
 The organic-track capability depends on native SVG land because its reference plate, sockets, depth
 slots and retained composition consume that delivered boundary. The hosted witness consumes both the
-existing Studio witness seam and the completed product composition.
+existing Studio witness seam and the completed product composition. The contour-morph comparison is
+a parallel Round 2 experiment: it consumes the same real Studio host and landed pose-to-pose organic
+boundary as its Round 1 control, but it does not silently replace the generic native-land treatment,
+the default witness or the clean route.
 
 ## Ownership
 
@@ -122,8 +129,9 @@ framework-neutral world/scene computation root. Studio owns live data, controlle
 surrounding legend/inspector/chat/camera chrome while hosting the acceptance deep-link through its
 existing frozen `app-surface` entry.
 
-This hierarchy describes work still to be implemented. Authored status remains `proposed`; no
-machine-green result or owner LOOK verdict is claimed.
+This hierarchy describes proposed work and comparison evidence awaiting independent proof and owner
+judgment. Authored status remains `proposed`; no machine-green result, contour-morph adoption or
+owner LOOK verdict is claimed.
 
 ## UAT Test Criteria
 
@@ -211,8 +219,12 @@ controls, ready for the owner's LOOK judgment.
 7. **The corrected real-consumer witness suite is green** _(gate: observe)_
    _(covers: organic-growth-app-witness)_
    `pnpm --filter studio test`.
+8. **The bounded island contour-morph comparison suites are green** _(gate: observe)_
+   _(covers: organic-island-contour-morph-comparison)_
+   `pnpm -r --filter @storytree/app-surface --filter studio test`.
 
-The machine gates do not confer the owner-held LOOK verdict. `healthy` remains derived from signed
+The contour-morph gate proves only its bounded comparison and does not make it the adopted default.
+Machine gates do not confer the owner-held LOOK verdict. `healthy` remains derived from signed
 evidence; authored status stays `proposed`.
 
 ## Ready successors
