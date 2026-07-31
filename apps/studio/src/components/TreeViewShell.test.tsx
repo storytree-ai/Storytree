@@ -570,7 +570,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
         '[data-organic-canopy-track="chapter2-organic-canopy-occlusion-v1"]',
       )!;
       expect(composite.getAttribute('data-root-socket')).toBe(baselineRoot);
-      expect(composite.getAttribute('data-rig-crown-socket')).toBe('0.0,-50.0');
+      expect(composite.getAttribute('data-rig-crown-socket')).toBe('0.0,-98.0');
       const heldRoot = composite.getAttribute('data-root-socket');
       const heldCrown = composite.getAttribute('data-world-crown-socket');
 
@@ -584,9 +584,12 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       expect(matureCanopy.querySelector('image')?.getAttribute('href')).toMatch(
         /chapter2-organic-canopy-occlusion\/v1\/canopy\/pose-08\.png/,
       );
-      expect(matureCanopy.getAttribute('data-asset-crown-socket')).toBe('96.0,160.0');
+      expect(matureCanopy.getAttribute('data-asset-crown-socket')).toBe('96.0,112.0');
       expect(matureCanopy.getAttribute('data-collar-bounds')).toBe(
-        '72.0,140.0,49.0,31.0',
+        '72.0,101.0,49.0,31.0',
+      );
+      expect(matureCanopy.getAttribute('data-local-transform')).toBe(
+        'translate(0.0 -98.0) translate(-96.0 -112.0)',
       );
       expect(Number(matureCanopy.getAttribute('data-collar-opaque-pixels'))).toBeGreaterThanOrEqual(
         1100,

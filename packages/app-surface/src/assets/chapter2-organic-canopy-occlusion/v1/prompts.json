@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "provider": "PixelLab",
   "authorTimeOnly": true,
   "sharedSettings": {
@@ -13,6 +13,13 @@
     "detail": "highly detailed",
     "textGuidanceScale": 10
   },
+  "ownerFeedbackRevision": {
+    "date": "2026-08-01",
+    "verdictOnOriginalCollar": "Rejected: the y140..170 ellipse appeared disconnected from the canopy and read as a green blob behind the foreground trunk.",
+    "historicalPromptPolicy": "The job prompts below remain verbatim provenance for the already-spent PixelLab generations; their low-collar instruction is not the accepted registration contract.",
+    "authorTimeCorrection": "Before registration, discard all visible source pixels at y141 and below. Author the replacement around the actual runtime contact at y105..131 as a narrow asymmetric leaf skirt and compact wood bridge. Register the asset socket at [96,112] and the paired rig socket at [0,-98], preserving the existing net transform [-96,-210].",
+    "newGenerationJobs": 0
+  },
   "jobs": [
     {
       "role": "young endpoint source",
@@ -22,7 +29,7 @@
       "seed": 274801,
       "reportedCost": "1 generation",
       "prompt": "Use case: game sprite. A SINGLE connected young story-tree crown pose on a transparent fixed 192 by 176 canvas. Low-isometric whimsical hand-crafted pixel art in moss, forest green, warm lime and muted ochre matching the supplied palette. Place a small dense asymmetrical leafy sprout in the lower middle. Its attachment point is exact bottom-center at pixel 96,160. Build a deliberate fully opaque foliage overlap collar around that attachment point: a connected dark moss-green U-shaped leaf mass spanning about x 78 to 114 and y 142 to 169, with no transparent hole through the middle. The collar is part of the crown and must wrap behind/around a trunk top so the trunk-to-canopy seam is hidden. Above it, a modest irregular budding crown, roughly x 64 to 128 and y 82 to 160. FOLIAGE ONLY. No trunk, no branches, no roots, no island, no ground, no shadow, no detached clusters, no floating leaves, no halo, no text, no border. Keep generous transparent padding and keep the bottom-center collar opaque.",
-      "observedResult": "PixFlux returned a whole-tree/island study despite the foliage-only constraint. The upper connected palette-matched crown was retained at author/import time; generated land and wood were excluded."
+      "observedResult": "PixFlux returned a whole-tree/island study despite the foliage-only constraint. The upper connected palette-matched crown was retained at author/import time; generated land and wood were excluded. Owner LOOK later rejected the prompted low ellipse, so y141 and below is excluded from every source frame before the replacement join is authored."
     },
     {
       "role": "mature endpoint source",
@@ -32,7 +39,7 @@
       "seed": 274809,
       "reportedCost": "1 generation",
       "prompt": "Use case: game sprite. A SINGLE connected mature story-tree crown pose on a transparent fixed 192 by 176 canvas. Low-isometric whimsical hand-crafted pixel art in moss, forest green, warm lime and muted ochre matching the supplied palette. Broad asymmetric umbrella canopy with layered scalloped leaf masses and a few small internal negative spaces, occupying roughly x 14 to 178 and y 8 to 160. Its attachment point is exact bottom-center at pixel 96,160. Build a deliberate fully opaque foliage overlap collar around that attachment point: a connected dark moss-green U-shaped leaf mass spanning about x 72 to 120 and y 138 to 171, with no transparent hole through the middle. The collar must visibly belong to the crown and wrap behind/around a trunk top, hiding the trunk-to-canopy seam from every side. ONE coherent connected crown silhouette, not free-floating clusters. FOLIAGE ONLY. No trunk, no branches, no roots, no island, no ground, no shadow, no detached leaves, no halo, no text, no border. Keep transparent padding and keep the bottom-center collar opaque.",
-      "observedResult": "PixFlux returned a coherent full-tree study despite the foliage-only constraint. The upper connected palette-matched mature crown was retained and registered; generated wood was excluded."
+      "observedResult": "PixFlux returned a coherent full-tree study despite the foliage-only constraint. The upper connected palette-matched mature crown was retained and registered; generated wood was excluded. Owner LOOK later rejected the prompted low ellipse, so y141 and below is excluded from every source frame before the replacement join is authored."
     },
     {
       "role": "registered canopy pose interpolation",
@@ -44,7 +51,8 @@
       "reportedCost": "5 generations",
       "firstFrame": "sources/canopy-endpoint-young-registered.png",
       "lastFrame": "sources/canopy-endpoint-mature-registered.png",
-      "action": "A planted story-tree crown sprouts organically from the fixed bottom-center crown socket into the mature broad canopy. Redraw the connected foliage silhouette pose by pose with asymmetric budding and outward leaf growth. Keep the exact 192x176 canvas, transparent background, fixed crown socket at pixel 96,160, and the dark opaque overlap collar around x72..120 y140..170 attached in every frame. The collar does not move, float, fade, separate, or become transparent. One coherent connected crown only: no trunk, no branches, no roots, no island, no ground, no shadow, no detached clusters, no floating leaves, no halo, no camera motion, no whole-crown translation."
+      "action": "A planted story-tree crown sprouts organically from the fixed bottom-center crown socket into the mature broad canopy. Redraw the connected foliage silhouette pose by pose with asymmetric budding and outward leaf growth. Keep the exact 192x176 canvas, transparent background, fixed crown socket at pixel 96,160, and the dark opaque overlap collar around x72..120 y140..170 attached in every frame. The collar does not move, float, fade, separate, or become transparent. One coherent connected crown only: no trunk, no branches, no roots, no island, no ground, no shadow, no detached clusters, no floating leaves, no halo, no camera motion, no whole-crown translation.",
+      "observedResult": "Interpolation repeated the requested low ellipse through all nine raw sequence frames. That repeated shape is retained only as raw provenance; the author-time normalizer excludes it at y141 and below before producing runtime poses."
     }
   ]
 }

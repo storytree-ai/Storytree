@@ -196,20 +196,20 @@ const POSE_URLS = Object.freeze([
 ]);
 
 const CANOPY_CANVAS = Object.freeze({ width: 192, height: 176 });
-const ASSET_CROWN_SOCKET = Object.freeze({ x: 96, y: 160 });
-const RIG_CROWN_SOCKET = Object.freeze({ x: 0, y: -50 });
-const COLLAR_BOUNDS = Object.freeze({ x: 72, y: 140, width: 49, height: 31 });
-const COLLAR_CORE = Object.freeze({ x: 88, y: 150, width: 17, height: 16 });
+const ASSET_CROWN_SOCKET = Object.freeze({ x: 96, y: 112 });
+const RIG_CROWN_SOCKET = Object.freeze({ x: 0, y: -98 });
+const COLLAR_BOUNDS = Object.freeze({ x: 72, y: 101, width: 49, height: 31 });
+const COLLAR_CORE = Object.freeze({ x: 91, y: 105, width: 11, height: 18 });
 const OPAQUE_COLLAR_PIXELS = Object.freeze([
-  1335,
-  1308,
-  1375,
-  1380,
-  1318,
-  1296,
-  1317,
-  1336,
-  1346,
+  1412,
+  1326,
+  1226,
+  1152,
+  1106,
+  1197,
+  1283,
+  1350,
+  1352,
 ] as const);
 
 const PARTS: readonly RegisteredOrganicCanopyPart[] = Object.freeze([
@@ -413,6 +413,7 @@ export function organicCanopyLayerAtProgress(
 }
 
 function isLocalCanopyModuleUrl(src: string): boolean {
+  if (/^data:image\/png;base64,/iu.test(src)) return true;
   if (
     (src.startsWith('/') && !src.startsWith('//')) ||
     src.startsWith('file:') ||
@@ -449,7 +450,7 @@ export function validateOrganicCanopyOcclusionTrack(
     track.rigRootSocket.x !== 0 ||
     track.rigRootSocket.y !== 0 ||
     track.rigCrownSocket.x !== 0 ||
-    track.rigCrownSocket.y !== -50
+    track.rigCrownSocket.y !== -98
   ) {
     throw new Error('Organic canopy rig sockets must remain invariant.');
   }
@@ -472,15 +473,15 @@ export function validateOrganicCanopyOcclusionTrack(
       pose.canvas.width !== 192 ||
       pose.canvas.height !== 176 ||
       pose.assetCrownSocket.x !== 96 ||
-      pose.assetCrownSocket.y !== 160 ||
+      pose.assetCrownSocket.y !== 112 ||
       pose.collarBounds.x !== 72 ||
-      pose.collarBounds.y !== 140 ||
+      pose.collarBounds.y !== 101 ||
       pose.collarBounds.width !== 49 ||
       pose.collarBounds.height !== 31 ||
-      pose.collarCore.x !== 88 ||
-      pose.collarCore.y !== 150 ||
-      pose.collarCore.width !== 17 ||
-      pose.collarCore.height !== 16 ||
+      pose.collarCore.x !== 91 ||
+      pose.collarCore.y !== 105 ||
+      pose.collarCore.width !== 11 ||
+      pose.collarCore.height !== 18 ||
       pose.opaqueCollarPixels < track.canopy.minimumOpaqueCollarPixels ||
       pose.collarCoreMinimumAlpha !== 255
     ) {

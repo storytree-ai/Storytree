@@ -34,7 +34,7 @@ describe('Experiment 8 organic canopy occlusion track', () => {
       CHAPTER2_ORGANIC_CANOPY_OCCLUSION_TRACK,
     );
     expect(track.rigRootSocket).toEqual({ x: 0, y: 0 });
-    expect(track.rigCrownSocket).toEqual({ x: 0, y: -50 });
+    expect(track.rigCrownSocket).toEqual({ x: 0, y: -98 });
     expect(track.parts.map((part) => part.id)).toEqual([
       'branch-left',
       'branch-right',
@@ -52,9 +52,9 @@ describe('Experiment 8 organic canopy occlusion track', () => {
     expect(track.canopy).toMatchObject({
       frameCount: 9,
       canvas: { width: 192, height: 176 },
-      assetCrownSocket: { x: 96, y: 160 },
-      collarBounds: { x: 72, y: 140, width: 49, height: 31 },
-      collarCore: { x: 88, y: 150, width: 17, height: 16 },
+      assetCrownSocket: { x: 96, y: 112 },
+      collarBounds: { x: 72, y: 101, width: 49, height: 31 },
+      collarCore: { x: 91, y: 105, width: 11, height: 18 },
       minimumOpaqueCollarPixels: 1100,
       painterSlot: 'canopy-collar',
     });
@@ -92,9 +92,13 @@ describe('Experiment 8 organic canopy occlusion track', () => {
     expect(mature).toEqual(repeated);
     expect([young.worldRoot, mature.worldRoot]).toEqual([root, root]);
     expect([young.rigCrownSocket, mature.rigCrownSocket]).toEqual([
-      { x: 0, y: -50 },
-      { x: 0, y: -50 },
+      { x: 0, y: -98 },
+      { x: 0, y: -98 },
     ]);
+    expect({
+      x: mature.rigCrownSocket.x - mature.canopyPose.assetCrownSocket.x,
+      y: mature.rigCrownSocket.y - mature.canopyPose.assetCrownSocket.y,
+    }).toEqual({ x: -96, y: -210 });
     expect(mature.canopyPose.index).toBe(8);
     expect(mature.partPoses.every((pose) => pose.reveal === 1)).toBe(true);
     expect(mature.partPoses.find((pose) => pose.part.id === 'trunk-root')).toMatchObject({
@@ -182,5 +186,68 @@ describe('Experiment 8 organic canopy occlusion track', () => {
     expect(source).not.toMatch(
       /new URL\([\s\S]{0,120}(?:crown-registration-plate|canopy-registration-report)/i,
     );
+  });
+
+  it('accepts a checked-in PNG that Vite inlines below its asset threshold', () => {
+    const bundled = structuredClone(
+      CHAPTER2_ORGANIC_CANOPY_OCCLUSION_TRACK,
+    ) as Mutable<RegisteredOrganicCanopyOcclusionTrack>;
+    bundled.canopy.poses[0]!.src = 'data:image/png;base64,iVBORw0KGgo=';
+
+    expect(() =>
+      validateOrganicCanopyOcclusionTrack(
+        bundled as RegisteredOrganicCanopyOcclusionTrack,
+      ),
+    ).not.toThrow();
+  });
+
+  it('records the rejected low ellipse exclusion and the exact runtime-relative join offsets', () => {
+    const report = JSON.parse(
+      readFileSync(
+        fileURLToPath(
+          new URL(
+            './assets/chapter2-organic-canopy-occlusion/v1/canopy-registration-report.json',
+            import.meta.url,
+          ),
+        ),
+        'utf8',
+      ),
+    ) as {
+      schemaVersion: number;
+      crownSocket: { x: number; y: number };
+      legacyCollarExclusion: { yFrom: number };
+      runtimeRelativeOffsets: Record<string, { x: number; y: number }>;
+      frames: Array<{
+        registeredCrownSocket: { x: number; y: number };
+        registeredFootprint: { x: number; y: number; width: number; height: number };
+        legacyCollarPixelsExcluded: number;
+        opaqueCollarPixels: number;
+        collarCoreMinimumAlpha: number;
+      }>;
+    };
+
+    expect(report.schemaVersion).toBe(2);
+    expect(report.crownSocket).toEqual({ x: 96, y: 112 });
+    expect(report.legacyCollarExclusion).toEqual({
+      yFrom: 141,
+      reason: expect.stringMatching(/disconnected and blob-like/i),
+    });
+    expect(report.runtimeRelativeOffsets).toEqual({
+      branchLeft: { x: -11, y: 46 },
+      branchRight: { x: 76, y: 36 },
+      trunk: { x: 48, y: 56 },
+    });
+    expect(report.frames).toHaveLength(9);
+    expect(
+      report.frames.every(
+        (frame) =>
+          frame.registeredCrownSocket.x === 96 &&
+          frame.registeredCrownSocket.y === 112 &&
+          frame.legacyCollarPixelsExcluded > 0 &&
+          frame.registeredFootprint.y + frame.registeredFootprint.height <= 141 &&
+          frame.opaqueCollarPixels >= 1100 &&
+          frame.collarCoreMinimumAlpha === 255,
+      ),
+    ).toBe(true);
   });
 });

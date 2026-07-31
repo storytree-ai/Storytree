@@ -1,10 +1,11 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "chapter2-organic-canopy-occlusion-v1",
   "title": "Chapter 2 occlusion-registered canopy sprouting comparison",
   "status": "experimental-owner-look-pending",
   "queryGate": "organicGrowth=organic-canopy-occlusion",
   "generatedAt": "2026-08-01T00:00:00+10:00",
+  "revisedAt": "2026-08-01T09:06:45+10:00",
   "technique": {
     "industryName": "occlusion-registered pose-to-pose sprite animation",
     "shortName": "registered canopy poses",
@@ -50,17 +51,26 @@
     "registrationReport": "canopy-registration-report.json",
     "normalizer": "packages/art-authoring/scripts/register-canopy-occlusion.mts",
     "fixedCanvas": [192, 176],
-    "crownSocket": [96, 160],
-    "collarBounds": [72, 140, 49, 31],
-    "collarCore": [88, 150, 17, 16],
-    "normalizationPolicy": "Retain one connected palette-matched PixelLab crown, move its lower attachment onto the fixed registration plate at author/import time, and author the same opaque overlap collar into every pose. Runtime correction is forbidden.",
+    "crownSocket": [96, 112],
+    "collarBounds": [72, 101, 49, 31],
+    "collarCore": [91, 105, 11, 18],
+    "collarKind": "natural lower-canopy skirt and wood bridge",
+    "normalizationPolicy": "Exclude the rejected interpolated ellipse at y141 and below, retain one connected palette-matched PixelLab crown, normalize its natural taper at author/import time, and author a narrow asymmetric leaf skirt plus opaque wood bridge around the real trunk-top join at y105..131. Runtime correction is forbidden.",
+    "ownerFeedbackRevision": {
+      "acceptedUnchanged": "flower-tuft.png and fern-tuft.png",
+      "reportedDefect": "The canopy appeared disconnected and the old low foliage collar read as a green blob behind the trunk.",
+      "cause": "The original PixelLab prompt baked an ellipse around y140..170 while the runtime trunk top begins near canopy-local y105; the original authoring contact sheet also approximated the trunk at y106 instead of deriving its actual y56 offset.",
+      "correction": "All visible source pixels at y141 and below are excluded before registration. Nine runtime poses receive the same compact natural join around y105..131, and evidence plates derive branch/trunk offsets from the shipped pivots and sockets.",
+      "newGenerationJobs": 0
+    },
     "observedModelLimitation": "PixFlux produced whole-tree studies despite foliage-only prompts. Generated land and wood were excluded by deterministic author-time palette segmentation; only the connected foliage crown informed the registered endpoints.",
     "rejectedReferences": "sources/rejected-canopy-*-reference.png are audit-only Round 1 evidence and are never imported at runtime."
   },
   "rig": {
     "coordinateSpace": "rig-local component pixels; the real app treeSpot supplies the stable world root",
     "rootSocket": [0, 0],
-    "crownSocket": [0, -50],
+    "crownSocket": [0, -98],
+    "netCanopyTransform": [-96, -210],
     "globalScale": 0.5,
     "runtimePositionCorrection": false,
     "painterOrder": [
@@ -68,7 +78,7 @@
       "app-native SVG coast/ground/parcels",
       "branch-left",
       "branch-right",
-      "registered canopy pose with overlap collar",
+      "registered canopy pose with natural leaf skirt and wood bridge",
       "trunk-root foreground seam cover",
       "flower-tuft",
       "fern-tuft",
@@ -85,19 +95,19 @@
       "files": "canopy/pose-00.png through canopy/pose-08.png",
       "poseCount": 9,
       "canvas": [192, 176],
-      "assetSocket": [96, 160],
-      "stage": [0.42, 0.9],
+      "assetSocket": [96, 112],
+      "stage": [0.38, 0.94],
       "selection": "bounded floor-based pose selection from normalized progress",
       "freeFloatingClusters": false,
       "opaqueCollarMinimumPixelsPerPose": 1100,
       "collarCoreMinimumAlpha": 255,
-      "encodedBytes": 90466
+      "encodedBytes": 98024
     }
   },
   "budgets": {
     "runtimeNodeCount": 6,
     "registeredCanopyPoseCount": 9,
-    "encodedRuntimeBytes": 103006,
+    "encodedRuntimeBytes": 110564,
     "decodedRgbaBytes": 1409024,
     "decodedRgbaMiB": 1.344,
     "contactSheetRuntimeImported": false,
@@ -122,6 +132,14 @@
       "077b9938-f419-4d14-b525-3f2720cc9fe7",
       "258052d5-4179-40d7-8492-bb86c646bbbd"
     ],
+    "ownerFeedbackRevisions": [
+      {
+        "date": "2026-08-01",
+        "input": "Plants accepted; canopy disconnected; old green collar reads as a blob behind the trunk.",
+        "authorTimeAction": "Excluded the legacy y141+ ellipse, authored the compact y105..131 leaf-and-wood join, corrected evidence offsets, and re-registered the paired crown sockets without changing the net render transform.",
+        "generationCost": "0 generations"
+      }
+    ],
     "credentialsPrintedOrCommitted": false
   },
   "failureVocabulary": [
@@ -130,10 +148,12 @@
     "trunk gap",
     "halo",
     "canopy skate",
-    "pasted-on crown"
+    "pasted-on crown",
+    "disconnected canopy",
+    "green blob behind trunk"
   ],
   "ownerLookVerdict": {
     "status": "pending",
-    "note": "Executable proof verifies registration, deterministic selection, route isolation and budgets. It does not decide whether the overlap collar reads as natural seam hiding or as a pasted-on crown."
+    "note": "The first owner LOOK rejected the disconnected canopy and low green blob. This author-time revision removes that ellipse and relocates the join evidence without moving the rendered transform. Executable proof verifies registration, deterministic selection, route isolation and budgets; owner LOOK on the revision remains pending."
   }
 }

@@ -407,8 +407,8 @@ describe('SemanticGrowthWorldView', () => {
       ];
       expect(matureTrace).toEqual([
         '50.0,45.0',
-        '0.0,-50.0',
-        '50.0,20.0',
+        '0.0,-98.0',
+        '50.0,-4.0',
         '8',
         initialViewBox,
       ]);
@@ -429,7 +429,7 @@ describe('SemanticGrowthWorldView', () => {
       const replayed = view.container.querySelector('[data-organic-canopy-track]')!;
       expect(section.getAttribute('data-semantic-growth-frame')).toBe('empty');
       expect(replayed.getAttribute('data-root-socket')).toBe('50.0,45.0');
-      expect(replayed.getAttribute('data-rig-crown-socket')).toBe('0.0,-50.0');
+      expect(replayed.getAttribute('data-rig-crown-socket')).toBe('0.0,-98.0');
       expect(svg.getAttribute('viewBox')).toBe(initialViewBox);
       view.unmount();
       return matureTrace;

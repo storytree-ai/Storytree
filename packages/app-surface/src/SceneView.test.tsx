@@ -241,8 +241,8 @@ describe('SceneView — the studio scene mapper', () => {
       'translate(50.0 45.0) scale(0.5)',
     );
     expect(composite.getAttribute('data-root-socket')).toBe('50.0,45.0');
-    expect(composite.getAttribute('data-rig-crown-socket')).toBe('0.0,-50.0');
-    expect(composite.getAttribute('data-world-crown-socket')).toBe('50.0,20.0');
+    expect(composite.getAttribute('data-rig-crown-socket')).toBe('0.0,-98.0');
+    expect(composite.getAttribute('data-world-crown-socket')).toBe('50.0,-4.0');
 
     const painted = Array.from(composite.children).filter((node) =>
       node.hasAttribute('data-painter-order'),
@@ -266,9 +266,9 @@ describe('SceneView — the studio scene mapper', () => {
 
     const canopy = composite.querySelector('[data-painter-slot="canopy-collar"]')!;
     expect(canopy.getAttribute('data-organic-canopy-pose')).toBe('8');
-    expect(canopy.getAttribute('data-asset-crown-socket')).toBe('96.0,160.0');
-    expect(canopy.getAttribute('data-collar-bounds')).toBe('72.0,140.0,49.0,31.0');
-    expect(canopy.getAttribute('data-collar-core')).toBe('88.0,150.0,17.0,16.0');
+    expect(canopy.getAttribute('data-asset-crown-socket')).toBe('96.0,112.0');
+    expect(canopy.getAttribute('data-collar-bounds')).toBe('72.0,101.0,49.0,31.0');
+    expect(canopy.getAttribute('data-collar-core')).toBe('91.0,105.0,11.0,18.0');
     expect(canopy.getAttribute('data-collar-coverage-registration')).toBe(
       'alpha-gte-250-at-least-1100',
     );
