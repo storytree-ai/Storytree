@@ -322,6 +322,7 @@ function resolvedProfile(fullCss: string, nonKeyframeCss: string, suffix: string
 describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-clean-studio-never-mounts-the-demo, sgsd-flag-mounts-one-public-six-frame-player', () => {
   afterEach(() => {
     window.history.pushState({}, '', '/');
+    vi.unstubAllGlobals();
   });
 
   it('the clean route (and any unknown value) never mounts the demo; only the exact flag mounts one public six-frame player, steppable via its own Next control', async () => {
@@ -477,6 +478,125 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
         value: originalMatchMedia,
       });
     }
+  });
+
+  it('ogaw exact organic-keypose-blend gate keeps the real SVG island/camera and composes only bounded registered organic layers', async () => {
+    const treeSource = readFileSync(
+      resolve(process.cwd(), 'src', 'components', 'TreeView.tsx'),
+      'utf8',
+    );
+    const hostSource = readFileSync(
+      resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
+      'utf8',
+    );
+    expect(treeSource).toMatch(
+      /get\('organicGrowth'\)\s*===\s*'organic-keypose-blend'/u,
+    );
+    expect(hostSource).toMatch(/CHAPTER2_HERO_TREE_KEYPOSE_TRACK/u);
+    expect(hostSource).toMatch(/CHAPTER2_GROUND_PLANT_KEYPOSE_TRACK/u);
+    expect(`${treeSource}\n${hostSource}`).not.toMatch(
+      /\bfetch\s*\([^)]*pixellab|api\.pixellab\.ai|PIXELLAB_(?:API_)?KEY/iu,
+    );
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(() => true),
+      })),
+    );
+
+    window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
+    const established = await renderTree();
+    const establishedViewBox = established.querySelector('svg')?.getAttribute('viewBox');
+    expect(establishedViewBox).toBeTruthy();
+    cleanup();
+
+    window.history.pushState({}, '', '/?organicGrowth=organic-keypose-blend#/tree');
+    const flagged = await renderTree();
+    const section = flagged.querySelector('[data-semantic-growth-frame="empty"]');
+    expect(section).toBeTruthy();
+    expect(flagged.querySelector('svg')?.getAttribute('viewBox')).toBe(establishedViewBox);
+    expect(section?.getAttribute('data-organic-growth-progress')).toBe('0.0000');
+    expect(flagged.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+    expect(flagged.querySelector('image[data-organic-instance]')).toBeNull();
+    expect(flagged.querySelector('[data-story-id="semantic-growth-demo-companion"]')).toBeTruthy();
+
+    const nav = flagged.querySelector('nav[aria-label="Semantic growth controls"]');
+    expect(nav).toBeTruthy();
+    const next = Array.from(nav!.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Next',
+    ) as HTMLButtonElement;
+
+    // empty -> land: real app-native SVG substrate arrives, but the organic window has not opened.
+    await act(async () => next.click());
+    expect(
+      flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute(
+        'data-semantic-growth-frame',
+      ),
+    ).toBe('land');
+    expect(flagged.querySelector('.relaxed-tile, .relaxed-cell')).toBeTruthy();
+    expect(flagged.querySelector('image[data-organic-instance]')).toBeNull();
+
+    // land -> proposed: the same real substrate/territory/camera remains while only the primary
+    // procedural tree/parcel flora are replaced by two adjacent registered tree poses.
+    await act(async () => next.click());
+    expect(flagged.querySelector('.relaxed-tile, .relaxed-cell')).toBeTruthy();
+    expect(flagged.querySelector('[data-story-id="semantic-growth-demo"]')).toBeTruthy();
+    expect(flagged.querySelector('.world-plate')).toBeTruthy();
+    const heroImages = flagged.querySelectorAll(
+      'image[data-organic-instance="hero-tree"]',
+    );
+    expect(heroImages).toHaveLength(2);
+    for (const image of heroImages) {
+      expect(image.getAttribute('href')).toMatch(/chapter2-organic-keypose.*pose-\d\d\.png/iu);
+      expect(image.getAttribute('href')).not.toMatch(/source|contact-sheet|pixellab\.ai/iu);
+      expect(image.getAttribute('data-world-anchor-x')).toBeTruthy();
+      expect(image.getAttribute('data-world-anchor-y')).toBeTruthy();
+      expect(image.getAttribute('data-blend-region')).toBe('hero-tree-local-canvas');
+    }
+
+    for (const key of ['claimed', 'signed-proof', 'healthy']) {
+      await act(async () => next.click());
+      expect(
+        flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute(
+          'data-semantic-growth-frame',
+        ),
+      ).toBe(key);
+      expect(
+        flagged.querySelector('.relaxed-tile, .relaxed-cell'),
+        `native SVG land must remain retained @ ${key}`,
+      ).toBeTruthy();
+      expect(flagged.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+    }
+    expect(
+      new Set(
+        Array.from(flagged.querySelectorAll('image[data-organic-instance]')).map((image) =>
+          image.getAttribute('data-organic-instance'),
+        ),
+      ),
+    ).toEqual(
+      new Set(['hero-tree', 'capability-plant-alpha', 'capability-plant-beta']),
+    );
+    expect(
+      flagged.querySelectorAll('image[data-organic-instance]').length,
+      'three placements may contribute at most two local blend images each',
+    ).toBeLessThanOrEqual(6);
+
+    window.history.pushState(
+      {},
+      '',
+      '/?organicGrowth=organic-keypose-blend-near-miss#/tree',
+    );
+    cleanup();
+    const nearMiss = await renderTree();
+    expect(nearMiss.querySelector('[data-semantic-growth-frame]')).toBeNull();
+    expect(nearMiss.querySelector('image[data-organic-instance]')).toBeNull();
   });
 
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md

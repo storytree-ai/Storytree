@@ -49,6 +49,22 @@ export interface NativeIslandGrowthRenderLayer {
   readonly progress: number;
 }
 
+export interface OrganicKeyPoseRenderLayer {
+  readonly instanceId: string;
+  readonly trackId: string;
+  readonly src: string;
+  readonly poseIndex: number;
+  readonly blendRole: 'from' | 'to';
+  readonly blendWeight: number;
+  readonly canvas: { readonly width: number; readonly height: number };
+  readonly assetAnchor: { readonly x: number; readonly y: number };
+  readonly worldAnchor: { readonly x: number; readonly y: number };
+  readonly scale: number;
+  readonly localScale: number;
+  readonly mirrorX: boolean;
+  readonly depthSlot: 'organic-tree-back' | 'organic-ground-front';
+}
+
 /** The focus-aware context the walk needs — the studio's per-render interactivity
  *  (the scene itself is focus-agnostic; focus / hover / selection are applied here). */
 export interface SceneCtx {
@@ -101,6 +117,9 @@ export interface SceneCtx {
   nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   /** Registered organic pose images planted into the canonical world painter order. */
   organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  /** Bounded local PixelLab organic layers. Each entry is one side of an adjacent-pose blend;
+   *  native island/coast/shadow/labels stay outside this array and never inherit its opacity. */
+  organicGrowthLayers?: readonly OrganicKeyPoseRenderLayer[];
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
    *  so a `baked-use` hero (the ADR-0227 status trees, the garden cottage/gazebo) sizes from its real
    *  def geometry. Memoized once per scene in the component below. */
@@ -508,6 +527,61 @@ function nativeIslandClip(layer: NativeIslandGrowthRenderLayer): React.ReactNode
       }),
     ),
   );
+}
+
+const ORGANIC_DEPTH_ORDER: Readonly<Record<OrganicKeyPoseRenderLayer['depthSlot'], number>> =
+  Object.freeze({
+    'organic-tree-back': 0,
+    'organic-ground-front': 1,
+  });
+
+function organicKeyPoseImages(
+  layers: readonly OrganicKeyPoseRenderLayer[],
+): React.ReactNode[] {
+  return [...layers]
+    .filter((layer) => layer.blendWeight > 0)
+    .sort(
+      (a, b) =>
+        ORGANIC_DEPTH_ORDER[a.depthSlot] - ORGANIC_DEPTH_ORDER[b.depthSlot] ||
+        a.worldAnchor.y - b.worldAnchor.y ||
+        a.instanceId.localeCompare(b.instanceId) ||
+        a.poseIndex - b.poseIndex,
+    )
+    .map((layer) => {
+      const sy = layer.scale * layer.localScale;
+      const sx = (layer.mirrorX ? -1 : 1) * sy;
+      // The slight local in-betweening transform is expressed about the declared root socket:
+      // translate to world anchor -> scale/mirror -> translate the asset root to the origin.
+      // Therefore neither pose changes the world-space root even while its silhouette scales.
+      const transform = [
+        `translate(${fmt(layer.worldAnchor.x)} ${fmt(layer.worldAnchor.y)})`,
+        `scale(${fmt(sx)} ${fmt(sy)})`,
+        `translate(${fmt(-layer.assetAnchor.x)} ${fmt(-layer.assetAnchor.y)})`,
+      ].join(' ');
+      return React.createElement('image', {
+        key: `__organic-${layer.instanceId}-${layer.blendRole}-${layer.poseIndex}`,
+        href: layer.src,
+        x: '0',
+        y: '0',
+        width: String(layer.canvas.width),
+        height: String(layer.canvas.height),
+        transform,
+        opacity: layer.blendWeight.toFixed(4),
+        preserveAspectRatio: 'none',
+        imageRendering: 'pixelated',
+        pointerEvents: 'none',
+        'aria-hidden': true,
+        'data-depth-slot': layer.depthSlot,
+        'data-organic-instance': layer.instanceId,
+        'data-organic-track': layer.trackId,
+        'data-organic-pose': String(layer.poseIndex),
+        'data-blend-role': layer.blendRole,
+        'data-blend-weight': layer.blendWeight.toFixed(4),
+        'data-blend-region': `${layer.instanceId}-local-canvas`,
+        'data-world-anchor-x': fmt(layer.worldAnchor.x),
+        'data-world-anchor-y': fmt(layer.worldAnchor.y),
+      });
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -928,6 +1002,13 @@ function renderNode(
       rendered.push(nativeIslandClip(ctx.nativeIslandGrowthLayer));
     }
     children.forEach((c, i) => {
+      if (
+        node.kind === 'world' &&
+        c.kind === 'flora-layer' &&
+        ctx.organicGrowthLayers?.length
+      ) {
+        rendered.push(...organicKeyPoseImages(ctx.organicGrowthLayers));
+      }
       const el = renderNode(c, i, childStory, ctx);
       if (el) rendered.push(el);
       if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.organicPoseLayers) {

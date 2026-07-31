@@ -1310,6 +1310,14 @@ export function readOrganicPoseToPose(search: string = defaultSearch()): boolean
   );
 }
 
+/** Experiment 4: exact, collision-free comparison gate. Near misses and every clean route stay on
+ * the ordinary forest; the value names the industry technique rather than an adoption decision. */
+export function readOrganicKeyPoseBlend(search: string = defaultSearch()): boolean {
+  return (
+    new URLSearchParams(search).get('organicGrowth') === 'organic-keypose-blend'
+  );
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar' | 'stress';
@@ -2297,6 +2305,7 @@ export function TreeView({
   // near the other early returns.
   const semanticGrowthDemo = useMemo(() => readSemanticGrowthDemo(search), [search]);
   const organicPoseToPose = useMemo(() => readOrganicPoseToPose(search), [search]);
+  const organicKeyPoseBlend = useMemo(() => readOrganicKeyPoseBlend(search), [search]);
   const scene = useMemo(
     () =>
       world
@@ -2479,12 +2488,18 @@ export function TreeView({
   // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
   // not a variant of the product controller. Every other value (absent/empty/unknown) falls
   // through unchanged, byte-for-byte, to the clean Studio path.
-  if (semanticGrowthDemo || organicPoseToPose) {
+  if (semanticGrowthDemo || organicPoseToPose || organicKeyPoseBlend) {
     return (
       <SemanticGrowthDemo
         spriteSheet={spriteSheet}
         artScale={artScale}
-        variant={organicPoseToPose ? 'organic-pose-to-pose' : 'demo'}
+        variant={
+          organicKeyPoseBlend
+            ? 'organic-keypose-blend'
+            : organicPoseToPose
+              ? 'organic-pose-to-pose'
+              : 'demo'
+        }
       />
     );
   }

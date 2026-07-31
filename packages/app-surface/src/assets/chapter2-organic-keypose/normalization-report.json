@@ -1,0 +1,324 @@
+{
+  "schemaVersion": 1,
+  "normalizationPolicy": "Remove model-authored ground/shadow pixels in a bounded lower band, then translate each cleaned alpha silhouette so the alpha-weighted centre of its lowest three root/stem rows equals the track target anchor. Reject clipping or dimension drift.",
+  "tracks": [
+    {
+      "id": "hero-tree",
+      "canvas": {
+        "width": 256,
+        "height": 256,
+        "format": "PNG",
+        "decoded": "RGBA8"
+      },
+      "poseCount": 4,
+      "targetAnchor": {
+        "x": 128,
+        "y": 240
+      },
+      "poses": [
+        {
+          "file": "pose-00.png",
+          "sourceDimensions": [
+            256,
+            256
+          ],
+          "sourceFootprint": {
+            "x": 51,
+            "y": 10,
+            "width": 139,
+            "height": 234
+          },
+          "cleanedFootprint": {
+            "x": 51,
+            "y": 10,
+            "width": 139,
+            "height": 234
+          },
+          "sourceAnchorAfterCleanup": {
+            "x": 140,
+            "y": 243
+          },
+          "normalizationOffset": {
+            "x": -12,
+            "y": -3
+          },
+          "normalizedAnchor": {
+            "x": 128,
+            "y": 240
+          },
+          "normalizedFootprint": {
+            "x": 39,
+            "y": 7,
+            "width": 139,
+            "height": 234
+          },
+          "removedMattePixels": 56181,
+          "removedGroundPixels": 0,
+          "encodedBytes": 19710
+        },
+        {
+          "file": "pose-01.png",
+          "sourceDimensions": [
+            256,
+            256
+          ],
+          "sourceFootprint": {
+            "x": 41,
+            "y": 16,
+            "width": 174,
+            "height": 225
+          },
+          "cleanedFootprint": {
+            "x": 41,
+            "y": 16,
+            "width": 174,
+            "height": 221
+          },
+          "sourceAnchorAfterCleanup": {
+            "x": 146,
+            "y": 236
+          },
+          "normalizationOffset": {
+            "x": -18,
+            "y": 4
+          },
+          "normalizedAnchor": {
+            "x": 128,
+            "y": 240
+          },
+          "normalizedFootprint": {
+            "x": 23,
+            "y": 20,
+            "width": 174,
+            "height": 221
+          },
+          "removedMattePixels": 48071,
+          "removedGroundPixels": 1154,
+          "encodedBytes": 28809
+        },
+        {
+          "file": "pose-02.png",
+          "sourceDimensions": [
+            256,
+            256
+          ],
+          "sourceFootprint": {
+            "x": 21,
+            "y": 16,
+            "width": 214,
+            "height": 225
+          },
+          "cleanedFootprint": {
+            "x": 21,
+            "y": 16,
+            "width": 214,
+            "height": 223
+          },
+          "sourceAnchorAfterCleanup": {
+            "x": 137,
+            "y": 238
+          },
+          "normalizationOffset": {
+            "x": -9,
+            "y": 2
+          },
+          "normalizedAnchor": {
+            "x": 128,
+            "y": 240
+          },
+          "normalizedFootprint": {
+            "x": 12,
+            "y": 18,
+            "width": 214,
+            "height": 223
+          },
+          "removedMattePixels": 43868,
+          "removedGroundPixels": 1286,
+          "encodedBytes": 35524
+        },
+        {
+          "file": "pose-03.png",
+          "sourceDimensions": [
+            256,
+            256
+          ],
+          "sourceFootprint": {
+            "x": 23,
+            "y": 16,
+            "width": 208,
+            "height": 224
+          },
+          "cleanedFootprint": {
+            "x": 23,
+            "y": 16,
+            "width": 208,
+            "height": 221
+          },
+          "sourceAnchorAfterCleanup": {
+            "x": 129,
+            "y": 236
+          },
+          "normalizationOffset": {
+            "x": -1,
+            "y": 4
+          },
+          "normalizedAnchor": {
+            "x": 128,
+            "y": 240
+          },
+          "normalizedFootprint": {
+            "x": 22,
+            "y": 20,
+            "width": 208,
+            "height": 221
+          },
+          "removedMattePixels": 40449,
+          "removedGroundPixels": 1614,
+          "encodedBytes": 40815
+        }
+      ],
+      "encodedPoseBytes": 124858,
+      "decodedRgbaBytes": 1048576
+    },
+    {
+      "id": "ground-plant",
+      "canvas": {
+        "width": 128,
+        "height": 128,
+        "format": "PNG",
+        "decoded": "RGBA8"
+      },
+      "poseCount": 3,
+      "targetAnchor": {
+        "x": 64,
+        "y": 116
+      },
+      "poses": [
+        {
+          "file": "pose-00.png",
+          "sourceDimensions": [
+            128,
+            128
+          ],
+          "sourceFootprint": {
+            "x": 34,
+            "y": 42,
+            "width": 58,
+            "height": 60
+          },
+          "cleanedFootprint": {
+            "x": 37,
+            "y": 42,
+            "width": 53,
+            "height": 49
+          },
+          "sourceAnchorAfterCleanup": {
+            "x": 59,
+            "y": 90
+          },
+          "normalizationOffset": {
+            "x": 5,
+            "y": 26
+          },
+          "normalizedAnchor": {
+            "x": 64,
+            "y": 116
+          },
+          "normalizedFootprint": {
+            "x": 42,
+            "y": 68,
+            "width": 53,
+            "height": 49
+          },
+          "removedMattePixels": 12,
+          "removedGroundPixels": 373,
+          "encodedBytes": 3098
+        },
+        {
+          "file": "pose-01.png",
+          "sourceDimensions": [
+            128,
+            128
+          ],
+          "sourceFootprint": {
+            "x": 25,
+            "y": 23,
+            "width": 78,
+            "height": 79
+          },
+          "cleanedFootprint": {
+            "x": 25,
+            "y": 23,
+            "width": 78,
+            "height": 78
+          },
+          "sourceAnchorAfterCleanup": {
+            "x": 65,
+            "y": 100
+          },
+          "normalizationOffset": {
+            "x": -1,
+            "y": 16
+          },
+          "normalizedAnchor": {
+            "x": 64,
+            "y": 116
+          },
+          "normalizedFootprint": {
+            "x": 24,
+            "y": 39,
+            "width": 78,
+            "height": 78
+          },
+          "removedMattePixels": 0,
+          "removedGroundPixels": 781,
+          "encodedBytes": 8873
+        },
+        {
+          "file": "pose-02.png",
+          "sourceDimensions": [
+            128,
+            128
+          ],
+          "sourceFootprint": {
+            "x": 6,
+            "y": 28,
+            "width": 116,
+            "height": 74
+          },
+          "cleanedFootprint": {
+            "x": 6,
+            "y": 28,
+            "width": 112,
+            "height": 73
+          },
+          "sourceAnchorAfterCleanup": {
+            "x": 59,
+            "y": 100
+          },
+          "normalizationOffset": {
+            "x": 5,
+            "y": 16
+          },
+          "normalizedAnchor": {
+            "x": 64,
+            "y": 116
+          },
+          "normalizedFootprint": {
+            "x": 11,
+            "y": 44,
+            "width": 112,
+            "height": 73
+          },
+          "removedMattePixels": 0,
+          "removedGroundPixels": 1073,
+          "encodedBytes": 12653
+        }
+      ],
+      "encodedPoseBytes": 24624,
+      "decodedRgbaBytes": 196608
+    }
+  ],
+  "runtimeEncodedPoseBytes": 149482,
+  "runtimeDecodedRgbaBytes": 1245184
+}
