@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -27,16 +27,21 @@ depends_on: [library, drive-machinery, notice-board, forest-world, studio-member
 # the app brought into the boundary scan as a consuming surface (100), the drive-package
 # extraction that re-pointed the build/secrets seam off cli onto @storytree/drive (112), the
 # garden-composition fold that added the baked-kit import (221), the art-factory split that
-# makes that import a declared cross-story edge (222), the shared app-surface extraction (237), and
-# map route retention before caching or density work (240). ADR-0240's staged order is being taken
-# one increment at a time: stage 1 is `map-route-retention` (retain the map across SPA routes),
-# stage 2 is `map-payload-cache` (persist and paint the two READ-ONLY payloads, stamped and
+# makes that import a declared cross-story edge (222), the shared app-surface extraction (237),
+# map route retention before caching or density work (240), and the measurement that re-costs a pan
+# frame and moves the camera off the SVG `<g>` for the duration of a gesture (272). ADR-0240's staged
+# order was taken one increment at a time: stage 1 is `map-route-retention` (retain the map across SPA
+# routes), stage 2 is `map-payload-cache` (persist and paint the two READ-ONLY payloads, stamped and
 # paint-then-revalidate), stage 3 is `map-server-memo` (memoize the `stories/` and `docs/` walks
 # behind a fingerprint that moves on a content edit, and add `no-cache` + `ETag` validators to the
-# two read routes — what makes the always-revalidate stage 2 mandated actually cheap). Stages 4-5
-# (boot de-serialisation, the density budget) are not authored yet, and no stage adds a new deciding
-# ADR here — 240 already covers the sequence.
-decisions: [8, 36, 38, 100, 112, 221, 222, 237, 240]
+# two read routes — what makes the always-revalidate stage 2 mandated actually cheap), stage 4 is
+# `map-boot-independence` (de-serialise the boot so the map's own fetch starts as soon as membership
+# resolves). ADR-0240's stage 5 was to be the density budget; ADR-0272 measured a pan frame as ~99.8%
+# RASTERISATION and DE-SEQUENCED density (D3) — ~85% of the map would have to disappear to fix pan
+# that way — so stage 5 is `compositor-pan-transform` (D2: the camera stops being a `<g transform>`
+# for the duration of a gesture). 272 is therefore a NEW deciding ADR here: it amends 240's decisions
+# 1 and 3 and changes which increment this story authors next.
+decisions: [8, 36, 38, 100, 112, 221, 222, 237, 240, 272]
 ---
 
 # The studio
@@ -82,7 +87,7 @@ build/secrets seam re-pointed off `cli` onto `@storytree/drive` by ADR-0112) —
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
 
-## Capabilities (14)
+## Capabilities (16)
 
 Listed roots-first (a capability appears after everything it depends on).
 
@@ -102,6 +107,8 @@ Listed roots-first (a capability appears after everything it depends on).
 | 12 | [`map-route-retention`](map-route-retention.md) | An operator returns to the same live forest map after a SPA hash-route transition. | — |
 | 13 | [`map-payload-cache`](map-payload-cache.md) | An operator who reloads the studio sees the forest paint from the last visit's persisted payloads instead of waiting on a cold server walk. | — |
 | 14 | [`map-server-memo`](map-server-memo.md) | An operator's repeated studio load is answered without re-reading a corpus that has not changed on disk. | — |
+| 15 | [`map-boot-independence`](map-boot-independence.md) | An operator's forest map begins fetching its own data as soon as membership resolves, instead of waiting on Library-corpus payloads the map never reads. | — |
+| 16 | [`compositor-pan-transform`](compositor-pan-transform.md) | A forest drag moves the already-rasterised map on the compositor, so the `.world-camera` `<g>` transform is written once at the end of a gesture rather than once per frame. | `coalesced-camera-pan` |
 
 ## Dependency graph (code-derived)
 
@@ -109,9 +116,10 @@ These are **within-story** edges, **read off the real source** (static analysis 
 imports / data-flow between capabilities), never hand-drawn from UAT need (ADR-0010 §3):
 A → B means A's code actually couples to B's code inside the one organism. The graph is
 acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, `chat-panel`,
-`coalesced-camera-pan`, `map-route-retention`, `map-payload-cache`, and `map-server-memo` are the
-roots. (Cross-story edges are NOT in this graph — they are boundary interfaces, declared in
-§"Cross-story boundary" below and encoded as frontmatter `depends_on` — ADR-0010 §4.)
+`coalesced-camera-pan`, `map-route-retention`, `map-payload-cache`, `map-server-memo`, and
+`map-boot-independence` are the roots. (Cross-story edges are NOT in this graph — they are boundary
+interfaces, declared in §"Cross-story boundary" below and encoded as frontmatter `depends_on` —
+ADR-0010 §4.)
 
 - `read-corpus` → `dev-server-persistence-backbone`
   - read-corpus owns its doc handlers (listDocs, safeDocPath, handleDocs at devApi.ts:96-343) but **rides** the backbone's `/api/*` middleware registration — handleDocs is dispatched only because storytreeDataApi.configureServer mounted the namespace before Vite's SPA fallback (devApi.ts:358-377). The coupling is the shared connect-middleware seam, read straight off the code.
@@ -172,6 +180,30 @@ roots. (Cross-story edges are NOT in this graph — they are boundary interfaces
     edge: the proof drives a temp-dir corpus through the routes and asserts freshness and validators, so
     read-corpus's delivered outcome is not a precondition of it. It adds no package import, so no
     cross-story edge either.
+- `map-boot-independence` → (no within-story edge — an EIGHTH root)
+  - It removes one boot gate (`status`) and one dead boot fetch from `App.tsx`'s existing composition
+    and teaches the assets consumers a not-yet-loaded state. `treeMounted` — stage 1's route-retention
+    rule, owned by `map-route-retention` — is deliberately LEFT as the mount gate and is neither
+    consumed nor changed, so neighbouring it in `App.tsx` is the same same-file-adjacency-is-not-an-edge
+    call the three siblings above make. Nor is it a UAT-need edge: the proof holds `listAssets` pending
+    and asserts `/api/tree` is nonetheless requested, which needs no sibling's delivered outcome as a
+    precondition. It changes no server code and adds no package import, so no cross-story edge either.
+- `compositor-pan-transform` → `coalesced-camera-pan` (a REAL edge — and the one place on this arc
+  where the same-file-adjacency call does NOT apply)
+  - Its four arc siblings above each recorded that neighbouring another capability's code in
+    `TreeView.tsx` / `App.tsx` is not an edge, because they consume nothing those capabilities produce.
+    That reasoning fails here, and the discriminator is consumption, not proximity: this capability's
+    per-frame write EXECUTES INSIDE the machinery `coalesced-camera-pan` delivered — the
+    `requestAnimationFrame` callback `queuePan` schedules, guarded by its generation counter, drained by
+    `commitPendingPan`, force-landed by `flushPendingPan` on pointer-up — and it edits those exact
+    functions to re-target that write onto the new compositor-only wrapper. Stage 1's frame boundary IS
+    this unit's scheduling contract: with no coalescer there is no once-per-frame boundary to paint on
+    and no trailing-edge flush to commit from, so the code coupling is a data-flow dependency read off
+    the real source (ADR-0010 §3), not a UAT-need edge drawn from the ADR. Tested the other way, the
+    edge is one-directional and the graph stays acyclic: `coalesced-camera-pan` needs nothing this unit
+    delivers — it landed and proves green with no wrapper present. It adds no package import (the
+    shared `WorldSceneView`/`SceneView` seam it paints through is the already-declared `studio →
+    app-surface` cross-story edge, untouched), so it adds no cross-story edge.
 
 ## Cross-story boundary (ADR-0010 §4)
 
