@@ -101,6 +101,16 @@ describe('branch-emitted leaf bloom hierarchical rig', () => {
       .map((name) => readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8'))
       .join('\n');
     expect(rigSources).not.toMatch(/opacity\s*:/iu);
+    const assetSource = readFileSync(
+      fileURLToPath(new URL('./branch-bloom-assets.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(assetSource).not.toContain('new URL(modulePath, import.meta.url)');
+    expect(
+      assetSource.match(
+        /new URL\(\s*'\.\/assets\/chapter2-organic-branch-bloom\/v1\/[^']+\.png',\s*import\.meta\.url,?\s*\)/gu,
+      ),
+    ).toHaveLength(8);
 
     const report = JSON.parse(
       readFileSync(

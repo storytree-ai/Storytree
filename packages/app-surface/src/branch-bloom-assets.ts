@@ -7,6 +7,7 @@ import type {
 const asset = (
   id: string,
   modulePath: BranchBloomAsset['modulePath'],
+  src: string,
   width: number,
   height: number,
   pivot: BranchBloomAsset['pivot'],
@@ -14,17 +15,57 @@ const asset = (
 ): BranchBloomAsset => ({
   id,
   modulePath,
-  src: new URL(modulePath, import.meta.url).href,
+  src,
   canvas: Object.freeze({ width, height }),
   pivot: Object.freeze(pivot),
   encodedBytes,
   decodedRgbaBytes: width * height * 4,
 });
 
+// Keep every URL literal at its module site. Vite can then fingerprint and
+// copy these checked-in sprites into the production bundle; a dynamic
+// URL construction from the variable module path survives the build as a
+// broken `/assets/assets/...` request.
+const ASSET_URLS = Object.freeze({
+  trunkRoot: new URL(
+    './assets/chapter2-organic-branch-bloom/v1/trunk-root.png',
+    import.meta.url,
+  ).href,
+  branchLeft: new URL(
+    './assets/chapter2-organic-branch-bloom/v1/branch-left.png',
+    import.meta.url,
+  ).href,
+  branchRight: new URL(
+    './assets/chapter2-organic-branch-bloom/v1/branch-right.png',
+    import.meta.url,
+  ).href,
+  fernTuft: new URL(
+    './assets/chapter2-organic-branch-bloom/v1/fern-tuft.png',
+    import.meta.url,
+  ).href,
+  flowerTuft: new URL(
+    './assets/chapter2-organic-branch-bloom/v1/flower-tuft.png',
+    import.meta.url,
+  ).href,
+  leafFanSpray: new URL(
+    './assets/chapter2-organic-branch-bloom/v1/leaf-fan-spray.png',
+    import.meta.url,
+  ).href,
+  leafForkRosette: new URL(
+    './assets/chapter2-organic-branch-bloom/v1/leaf-fork-rosette.png',
+    import.meta.url,
+  ).href,
+  leafTipTuft: new URL(
+    './assets/chapter2-organic-branch-bloom/v1/leaf-tip-tuft.png',
+    import.meta.url,
+  ).href,
+});
+
 const ASSETS = Object.freeze([
   asset(
     'trunk-root',
     './assets/chapter2-organic-branch-bloom/v1/trunk-root.png',
+    ASSET_URLS.trunkRoot,
     96,
     160,
     { x: 48, y: 154 },
@@ -33,6 +74,7 @@ const ASSETS = Object.freeze([
   asset(
     'branch-left',
     './assets/chapter2-organic-branch-bloom/v1/branch-left.png',
+    ASSET_URLS.branchLeft,
     128,
     96,
     { x: 100, y: 90 },
@@ -41,6 +83,7 @@ const ASSETS = Object.freeze([
   asset(
     'branch-right',
     './assets/chapter2-organic-branch-bloom/v1/branch-right.png',
+    ASSET_URLS.branchRight,
     128,
     96,
     { x: 28, y: 90 },
@@ -49,6 +92,7 @@ const ASSETS = Object.freeze([
   asset(
     'fern-tuft',
     './assets/chapter2-organic-branch-bloom/v1/fern-tuft.png',
+    ASSET_URLS.fernTuft,
     64,
     64,
     { x: 32, y: 60 },
@@ -57,6 +101,7 @@ const ASSETS = Object.freeze([
   asset(
     'flower-tuft',
     './assets/chapter2-organic-branch-bloom/v1/flower-tuft.png',
+    ASSET_URLS.flowerTuft,
     64,
     64,
     { x: 32, y: 60 },
@@ -65,6 +110,7 @@ const ASSETS = Object.freeze([
   asset(
     'leaf-fan-spray',
     './assets/chapter2-organic-branch-bloom/v1/leaf-fan-spray.png',
+    ASSET_URLS.leafFanSpray,
     64,
     64,
     { x: 32, y: 58 },
@@ -73,6 +119,7 @@ const ASSETS = Object.freeze([
   asset(
     'leaf-fork-rosette',
     './assets/chapter2-organic-branch-bloom/v1/leaf-fork-rosette.png',
+    ASSET_URLS.leafForkRosette,
     64,
     64,
     { x: 32, y: 58 },
@@ -81,6 +128,7 @@ const ASSETS = Object.freeze([
   asset(
     'leaf-tip-tuft',
     './assets/chapter2-organic-branch-bloom/v1/leaf-tip-tuft.png',
+    ASSET_URLS.leafTipTuft,
     64,
     64,
     { x: 32, y: 58 },
