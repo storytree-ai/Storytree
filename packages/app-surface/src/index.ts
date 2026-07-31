@@ -58,8 +58,20 @@ export {
   type SemanticGrowthFrameKey,
   type SemanticGrowthOrganicPoseInstance,
   type SemanticGrowthOrganicPoseLayer,
+  type SemanticGrowthSvgIslandAccretion,
   type SemanticGrowthWorldViewProps,
 } from './SemanticGrowthWorldView.js';
+export {
+  deriveSharedEdgeAdjacency,
+  deriveSvgIslandAccretionPlan,
+  svgIslandAccretionAtProgress,
+  type SvgIslandAccretionCell,
+  type SvgIslandAccretionCellReveal,
+  type SvgIslandAccretionCoastReveal,
+  type SvgIslandAccretionPlan,
+  type SvgIslandAccretionPoint,
+  type SvgIslandAccretionState,
+} from './svg-island-accretion.js';
 export {
   ORGANIC_POSE_CUE_TARGETS,
   ORGANIC_POSE_PLAYBACK_POLICY,

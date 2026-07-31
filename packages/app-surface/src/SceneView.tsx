@@ -30,6 +30,9 @@ import {
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
+import type {
+  SvgIslandAccretionState,
+} from './svg-island-accretion.js';
 
 export interface OrganicPoseRenderLayer {
   readonly trackId: string;
@@ -99,6 +102,8 @@ export interface SceneCtx {
   laneMotion?: 'draw' | 'march' | 'none';
   /** App-native clip growth for one existing SVG island. */
   nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
+  /** Connected app-native growth over the existing island's real shared-edge cell topology. */
+  svgIslandAccretionLayer?: SvgIslandAccretionState | null;
   /** Registered organic pose images planted into the canonical world painter order. */
   organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
@@ -510,6 +515,35 @@ function nativeIslandClip(layer: NativeIslandGrowthRenderLayer): React.ReactNode
   );
 }
 
+function svgIslandAccretionClipId(layer: SvgIslandAccretionState): string {
+  return `svg-island-accretion-${layer.storyId.replace(/[^a-zA-Z0-9_-]/gu, '-')}`;
+}
+
+function svgIslandAccretionClip(layer: SvgIslandAccretionState): React.ReactNode | null {
+  if (layer.mature) return null;
+  return React.createElement(
+    'defs',
+    { key: '__svg-island-accretion-defs' },
+    React.createElement(
+      'clipPath',
+      {
+        id: svgIslandAccretionClipId(layer),
+        clipPathUnits: 'userSpaceOnUse',
+      },
+      ...layer.coastReveals.map((reveal) =>
+        React.createElement('circle', {
+          key: reveal.key,
+          cx: fmt(reveal.centre.x),
+          cy: fmt(reveal.centre.y),
+          r: fmt(reveal.radius * reveal.scale),
+          'data-island-accretion-coast-cell': reveal.key,
+          'data-island-accretion-scale': reveal.scale.toFixed(4),
+        }),
+      ),
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // the sprite art-style render mode (sprite-art-sheets spike, default-off)
 // ---------------------------------------------------------------------------
@@ -787,6 +821,31 @@ function renderNode(
     props['data-native-island-story'] = nativeIsland.storyId;
     props['data-native-island-progress'] = nativeIsland.progress.toFixed(4);
   }
+  const islandAccretion = ctx.svgIslandAccretionLayer;
+  if (islandAccretion && !islandAccretion.mature) {
+    if (node.kind === 'coast' && node.id === islandAccretion.storyId) {
+      props.clipPath = `url(#${svgIslandAccretionClipId(islandAccretion)})`;
+      props['data-island-accretion-coast'] = islandAccretion.storyId;
+      props['data-island-accretion-progress'] = islandAccretion.progress.toFixed(4);
+    } else if (
+      node.el === 'path' &&
+      (node.kind === 'cell' || node.kind === 'cell-wheat')
+    ) {
+      const reveal = islandAccretion.cellByPath.get(node.d);
+      if (reveal) {
+        const local = [
+          `translate(${fmt(reveal.centroid.x)} ${fmt(reveal.centroid.y)})`,
+          `scale(${reveal.scale.toFixed(4)})`,
+          `translate(${fmt(-reveal.centroid.x)} ${fmt(-reveal.centroid.y)})`,
+        ].join(' ');
+        props.transform = node.transform ? `${node.transform} ${local}` : local;
+        props['data-island-accretion-cell'] = reveal.key;
+        props['data-island-accretion-wave'] = String(reveal.wave);
+        props['data-island-accretion-order'] = String(reveal.order);
+        props['data-island-accretion-scale'] = reveal.scale.toFixed(4);
+      }
+    }
+  }
   // Trail-segment paths (ADR-0169): stamp the reveal hooks into the DOM
   // (data-id/usage/edges/spur) and, when the focus plan names the segment, attach its
   // per-segment growth mask + step the stroke width from the REVEALED edge count (§3
@@ -926,6 +985,9 @@ function renderNode(
     const rendered: React.ReactNode[] = [];
     if (node.kind === 'world' && ctx.nativeIslandGrowthLayer) {
       rendered.push(nativeIslandClip(ctx.nativeIslandGrowthLayer));
+    }
+    if (node.kind === 'world' && ctx.svgIslandAccretionLayer) {
+      rendered.push(svgIslandAccretionClip(ctx.svgIslandAccretionLayer));
     }
     children.forEach((c, i) => {
       const el = renderNode(c, i, childStory, ctx);

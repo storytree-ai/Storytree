@@ -16,7 +16,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AppDataContext, type AppData } from '../lib/appData';
 import { api } from '../api';
-import { TreeView } from './TreeView';
+import {
+  TreeView,
+  readOrganicIslandAccretion,
+  readOrganicPoseToPose,
+  readSemanticGrowthDemo,
+} from './TreeView';
 import { SemanticGrowthDemo } from './SemanticGrowthDemo.js';
 import type { SpriteStyleSheet } from '../lib/sprite-sheet.js';
 
@@ -471,6 +476,97 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       expect(
         flagged.querySelector('[data-story-id="semantic-growth-demo-companion"]'),
       ).toBeTruthy();
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
+  it('only the exact organic-island-accretion gate reuses the canonical 50-cell pose fixture as a connected adjacency wave and teaches its four visual terms without changing any existing gate', async () => {
+    expect(readOrganicIslandAccretion('')).toBe(false);
+    expect(readOrganicIslandAccretion('?organicGrowth=unknown')).toBe(false);
+    expect(readOrganicIslandAccretion('?organicGrowth=organic-island-accretion-near-miss')).toBe(false);
+    expect(readOrganicIslandAccretion('?organicGrowth=organic-island-accretion')).toBe(true);
+    expect(readSemanticGrowthDemo('?semanticGrowth=demo')).toBe(true);
+    expect(readOrganicIslandAccretion('?semanticGrowth=demo')).toBe(false);
+    expect(readOrganicPoseToPose('?organicGrowth=organic-pose-to-pose')).toBe(true);
+    expect(readOrganicIslandAccretion('?organicGrowth=organic-pose-to-pose')).toBe(false);
+
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+    try {
+      window.history.pushState({}, '', '/?organicGrowth=organic-island-accretion#/tree');
+      const flagged = await renderTree();
+      const section = flagged.querySelector(
+        '[data-organic-technique="pose-to-pose"][data-island-technique="connected-accretion"]',
+      );
+      expect(section).toBeTruthy();
+      expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('50');
+      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,10,11,9,6,2');
+      const legend = flagged.querySelector('[data-island-accretion-legend="true"]');
+      expect(legend).toBeTruthy();
+      for (const term of [
+        'connected accretion',
+        'adjacency wave',
+        'local geometric reveal',
+        'coastline settlement',
+      ]) {
+        expect(legend?.textContent).toContain(term);
+      }
+      expect(legend?.compareDocumentPosition(section!)).toBe(
+        Node.DOCUMENT_POSITION_PRECEDING,
+      );
+
+      const next = Array.from(
+        flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      ).find((button) => button.textContent === 'Next') as HTMLButtonElement;
+      const back = Array.from(
+        flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      ).find((button) => button.textContent === 'Back') as HTMLButtonElement;
+      const replay = Array.from(
+        flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      ).find((button) => button.textContent === 'Replay') as HTMLButtonElement;
+      await act(async () => next.click());
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('land');
+      expect(section?.getAttribute('data-svg-island-accretion-progress')).toBe('1.0000');
+      expect(flagged.querySelector('.relaxed-tile')).toBeTruthy();
+      expect(flagged.querySelector('.coast-fill-group')).toBeTruthy();
+      expect(flagged.querySelector('[data-island-accretion-cell]')).toBeNull();
+      expect(flagged.querySelector('[data-island-accretion-coast]')).toBeNull();
+      expect(flagged.querySelector('clipPath[id^="svg-island-accretion-"]')).toBeNull();
+      expect(
+        flagged.querySelector(
+          'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
+        ),
+      ).toBeNull();
+
+      await act(async () => back.click());
+      const backed = [
+        section?.getAttribute('data-semantic-growth-frame'),
+        section?.getAttribute('data-svg-island-accretion-progress'),
+        flagged.querySelector('.relaxed-tile')?.outerHTML ?? null,
+      ];
+      await act(async () => next.click());
+      await act(async () => replay.click());
+      expect([
+        section?.getAttribute('data-semantic-growth-frame'),
+        section?.getAttribute('data-svg-island-accretion-progress'),
+        flagged.querySelector('.relaxed-tile')?.outerHTML ?? null,
+      ]).toEqual(backed);
     } finally {
       Object.defineProperty(window, 'matchMedia', {
         configurable: true,

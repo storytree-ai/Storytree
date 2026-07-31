@@ -10,6 +10,7 @@ import type { SpriteStyleSheet } from './sprite-sheet.js';
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
+import type { SvgIslandAccretionState } from './svg-island-accretion.js';
 
 export interface WorldPresentationModel {
   readonly scene: SceneNode;
@@ -29,6 +30,7 @@ export interface WorldPresentationModel {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
+  readonly svgIslandAccretionLayer?: SvgIslandAccretionState | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
 }
 
@@ -45,6 +47,7 @@ export interface WorldPresentationModelInput {
   readonly spriteSheet?: SpriteStyleSheet | null;
   readonly artScale?: number;
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
+  readonly svgIslandAccretionLayer?: SvgIslandAccretionState | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
 }
 
@@ -75,6 +78,9 @@ export function normalizeWorldPresentationModel(
     artScale: input.artScale ?? 1,
     ...(input.nativeIslandGrowthLayer !== undefined
       ? { nativeIslandGrowthLayer: input.nativeIslandGrowthLayer }
+      : {}),
+    ...(input.svgIslandAccretionLayer !== undefined
+      ? { svgIslandAccretionLayer: input.svgIslandAccretionLayer }
       : {}),
     ...(input.organicPoseLayers !== undefined
       ? { organicPoseLayers: input.organicPoseLayers }
@@ -119,6 +125,9 @@ export function WorldSceneView({
       artScale: model.artScale,
       ...(model.nativeIslandGrowthLayer !== undefined
         ? { nativeIslandGrowthLayer: model.nativeIslandGrowthLayer }
+        : {}),
+      ...(model.svgIslandAccretionLayer !== undefined
+        ? { svgIslandAccretionLayer: model.svgIslandAccretionLayer }
         : {}),
       ...(model.organicPoseLayers !== undefined
         ? { organicPoseLayers: model.organicPoseLayers }
