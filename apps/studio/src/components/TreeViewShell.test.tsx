@@ -479,6 +479,119 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     }
   });
 
+  it('only the exact organic-hybrid-handoff gate match-cuts the cutout trunk into the registered pose crown while the opaque SVG island and camera stay stable', async () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+    try {
+      window.history.pushState({}, '', '/?organicGrowth=organic-hybrid-handoff-near-miss#/tree');
+      const nearMiss = await renderTree();
+      expect(nearMiss.querySelector('[data-organic-technique]')).toBeNull();
+      cleanup();
+
+      window.history.pushState({}, '', '/?organicGrowth=organic-hybrid-handoff#/tree');
+      const flagged = await renderTree();
+      const section = flagged.querySelector(
+        '[data-semantic-growth-frame="empty"][data-organic-technique="registered-hybrid-handoff"]',
+      );
+      expect(section).toBeTruthy();
+      expect(section?.getAttribute('data-hybrid-rig')).toBe('cutout-puppet-to-pose-to-pose');
+      expect(section?.getAttribute('data-handoff-kind')).toBe('match-cut');
+      expect(section?.getAttribute('data-continuity-pose')).toBe('tree-frame-03');
+      expect(section?.getAttribute('data-local-blend')).toBe('none');
+      expect(section?.getAttribute('data-double-trunk')).toBe('false');
+      expect(section?.getAttribute('data-shared-root-plate')).toMatch(/^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/u);
+      expect(section?.getAttribute('data-island-growth-technique')).toBe(
+        'opaque-fixed-topology-contour-morph',
+      );
+      expect(section?.getAttribute('data-island-opacity-animation')).toBe('none');
+      expect(section?.getAttribute('data-runtime-pixellab-calls')).toBe('0');
+      expect(flagged.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+      expect(flagged.querySelector('image[data-organic-track]')).toBeNull();
+      expect(flagged.querySelector('[data-hybrid-cutout-part]')).toBeNull();
+
+      const svg = flagged.querySelector('svg[aria-label^="Semantic growth:"]');
+      const stableViewBox = svg?.getAttribute('viewBox');
+      const stableRoot = section?.getAttribute('data-shared-root-plate');
+      const controls = Array.from(
+        flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      );
+      const next = controls.find((button) => button.textContent === 'Next') as HTMLButtonElement;
+      const back = controls.find((button) => button.textContent === 'Back') as HTMLButtonElement;
+      const replay = controls.find((button) => button.textContent === 'Replay') as HTMLButtonElement;
+
+      await act(async () => next.click()); // land
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('land');
+      expect(section?.getAttribute('data-opaque-contour-phase')).toBe('mature');
+      expect(
+        flagged.querySelector(
+          '[data-native-island-story="semantic-growth-demo"][data-native-island-progress="1.0000"]',
+        ),
+      ).toBeTruthy();
+      expect(flagged.querySelector('.relaxed-tile')).toBeTruthy();
+      expect(flagged.querySelector('[data-hybrid-cutout-part]')).toBeNull();
+
+      await act(async () => next.click()); // proposed: best cutout trunk
+      expect(section?.getAttribute('data-handoff-phase')).toBe('cutout-trunk');
+      expect(flagged.querySelector('[data-hybrid-cutout-part="trunk-root"]')).toBeTruthy();
+      expect(flagged.querySelector('image[data-organic-track]')).toBeNull();
+      expect(section?.getAttribute('data-shared-root-plate')).toBe(stableRoot);
+      expect(svg?.getAttribute('viewBox')).toBe(stableViewBox);
+
+      await act(async () => next.click()); // claimed: registered pose crown after the match cut
+      expect(section?.getAttribute('data-handoff-phase')).toBe('pose-to-pose-crown');
+      expect(flagged.querySelector('[data-hybrid-cutout-part="trunk-root"]')).toBeNull();
+      const tree = flagged.querySelector(
+        'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
+      );
+      expect(tree).toBeTruthy();
+      expect(tree?.getAttribute('href')).toMatch(/tree\/frame-04\.png/);
+      expect(flagged.querySelector('[data-hybrid-cutout-part="flower-tuft"]')).toBeTruthy();
+      expect(flagged.querySelector('[data-hybrid-cutout-part="fern-tuft"]')).toBeTruthy();
+      expect(section?.getAttribute('data-double-trunk')).toBe('false');
+      expect(section?.getAttribute('data-shared-root-plate')).toBe(stableRoot);
+      expect(svg?.getAttribute('viewBox')).toBe(stableViewBox);
+
+      await act(async () => next.click()); // signed-proof
+      await act(async () => next.click()); // healthy
+      expect(
+        flagged.querySelector(
+          'image[data-organic-track="chapter2-hero-tree-pose-track-v1"][data-organic-frame="8"]',
+        ),
+      ).toBeTruthy();
+      expect(flagged.querySelector('[data-hybrid-cutout-part="trunk-root"]')).toBeNull();
+      expect(flagged.querySelector('[data-hybrid-cutout-part="flower-tuft"]')).toBeTruthy();
+      expect(flagged.querySelector('[data-hybrid-cutout-part="fern-tuft"]')).toBeTruthy();
+
+      await act(async () => back.click());
+      expect(section?.getAttribute('data-shared-root-plate')).toBe(stableRoot);
+      expect(svg?.getAttribute('viewBox')).toBe(stableViewBox);
+
+      await act(async () => replay.click());
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('empty');
+      expect(flagged.querySelector('image[data-organic-track]')).toBeNull();
+      expect(flagged.querySelector('[data-hybrid-cutout-part]')).toBeNull();
+      expect(section?.getAttribute('data-shared-root-plate')).toBe(stableRoot);
+      expect(svg?.getAttribute('viewBox')).toBe(stableViewBox);
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
   // machine contract 3): "signed-proof remains proposed/non-healthy while carrying the proof bloom;
   // healthy appears only last" / "no pre-final frame may appear healthy". The `signed-proof` frame is

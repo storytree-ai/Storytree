@@ -334,3 +334,14 @@
   opacity: 1 !important;
   scale: 1 !important;
 }
+
+/* Experiment 10 grows the real opaque coast/ground path from a zero-area seed in SceneView.
+ * Suppress the older scale/opacity entrance so the island itself never fades and the contour
+ * interpolation is the only land-formation mechanism on this exact query gate. */
+[data-organic-technique='registered-hybrid-handoff'][data-motion='full'] .coast-fill-group,
+[data-organic-technique='registered-hybrid-handoff'][data-motion='full'] .relaxed-tile,
+[data-organic-technique='registered-hybrid-handoff'][data-motion='full'] .hex-tile {
+  animation: none !important;
+  opacity: 1 !important;
+  scale: 1 !important;
+}

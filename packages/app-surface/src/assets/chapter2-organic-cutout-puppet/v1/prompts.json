@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "sharedSettings": {
+    "tool": "create_image_pixflux",
+    "model": "PixFlux",
+    "transparent": true,
+    "isometric": true,
+    "view": "low top-down",
+    "outline": "selective outline",
+    "shading": "detailed shading",
+    "detail": "highly detailed",
+    "textGuidanceScale": 9,
+    "palette": "reference-palette.png",
+    "paletteSource": "Colours sampled from reference-plate.png, the real app SVG land cue."
+  },
+  "components": [
+    {
+      "id": "trunk-root",
+      "jobId": "9dad91bc-4339-419e-a946-51024dc26d4a",
+      "seed": 274201,
+      "canvas": [96, 160],
+      "prompt": "Registered cutout puppet component: ONE ancient storybook tree trunk with visible planted roots and a short central trunk, isolated transparent sprite. Low isometric 2.5D camera matching a warm cream, ochre, moss green app-owned SVG island reference plate. Root contact centered at the exact bottom of the canvas; trunk grows upward. Organic crooked silhouette, warm brown bark, subtle moss, charming hand-crafted pixel art. TRUNK AND ROOTS ONLY. No branches, no canopy, no leaves, no ground, no island, no shadow, no text, no border."
+    },
+    {
+      "id": "branch-left",
+      "jobId": "4dd4b885-b349-4720-bbd8-a0940c173c09",
+      "seed": 274202,
+      "canvas": [128, 96],
+      "prompt": "Registered cutout puppet component: ONE major ancient tree branch extending up-left from a clean fork socket at the exact lower-right canvas edge. Low isometric 2.5D storybook pixel art matching a warm cream, ochre, moss green SVG island reference plate. Crooked tapered warm-brown bark, two small child forks, organic asymmetry. BRANCH WOOD ONLY. No trunk, no roots, no canopy, no leaves, no ground, no island, no shadow, no text."
+    },
+    {
+      "id": "branch-right",
+      "jobId": "5735e300-7ccf-4320-a076-7aa4cac8d6d8",
+      "seed": 274203,
+      "canvas": [128, 96],
+      "prompt": "Registered cutout puppet component: ONE major ancient tree branch extending up-right from a clean fork socket at the exact lower-left canvas edge. Low isometric 2.5D storybook pixel art matching a warm cream, ochre, moss green SVG island reference plate. Crooked tapered warm-brown bark, two small child forks, organic asymmetry. BRANCH WOOD ONLY. No trunk, no roots, no canopy, no leaves, no ground, no island, no shadow, no text."
+    },
+    {
+      "id": "canopy-left",
+      "jobId": "72eeed4d-ad42-4125-8729-d4fd724465f2",
+      "seed": 274204,
+      "canvas": [112, 96],
+      "prompt": "Registered cutout puppet component: ONE irregular broadleaf canopy cluster, isolated transparent sprite, heavier on the left with scalloped leaf masses and a small clear attachment nook at lower-right. Low isometric 2.5D whimsical storybook pixel art matching a cream, ochre and moss green SVG island reference plate. Deep forest green with moss and warm lime highlights, irregular holes and asymmetric silhouette. FOLIAGE ONLY. No branch, no trunk, no ground, no island, no shadow, no text."
+    },
+    {
+      "id": "canopy-crown",
+      "jobId": "aa2a9f5f-fc31-4ae0-b8bb-dd229fa0378d",
+      "seed": 274205,
+      "canvas": [112, 96],
+      "prompt": "Registered cutout puppet component: ONE irregular crown canopy cluster, isolated transparent sprite, tall rounded asymmetric crown with a small clear attachment nook centered at bottom. Low isometric 2.5D whimsical storybook pixel art matching a cream, ochre and moss green SVG island reference plate. Layered deep forest green, moss and warm lime highlights, uneven scallops and small negative spaces. FOLIAGE ONLY. No branch, no trunk, no ground, no island, no shadow, no text."
+    },
+    {
+      "id": "canopy-right",
+      "jobId": "c0fca096-2794-4221-b0fd-9adfd8ea26dc",
+      "seed": 274206,
+      "canvas": [112, 96],
+      "prompt": "Registered cutout puppet component: ONE irregular broadleaf canopy cluster, isolated transparent sprite, heavier on the right with scalloped leaf masses and a small clear attachment nook at lower-left. Low isometric 2.5D whimsical storybook pixel art matching a cream, ochre and moss green SVG island reference plate. Deep forest green with moss and warm lime highlights, irregular holes and asymmetric silhouette. FOLIAGE ONLY. No branch, no trunk, no ground, no island, no shadow, no text."
+    },
+    {
+      "id": "fern-tuft",
+      "jobId": "077b9938-f419-4d14-b525-3f2720cc9fe7",
+      "seed": 274207,
+      "canvas": [64, 64],
+      "prompt": "Registered ground cutout component: ONE small fern and grass tuft rooted at exact bottom-center, isolated transparent sprite. Low isometric 2.5D whimsical storybook pixel art matching a cream, ochre and moss green SVG island reference plate. Three asymmetrical fern fronds, tiny warm-ochre base, compact readable silhouette. PLANT ONLY. No ground patch, no island, no tree, no shadow, no text."
+    },
+    {
+      "id": "flower-tuft",
+      "jobId": "258052d5-4179-40d7-8492-bb86c646bbbd",
+      "seed": 274208,
+      "canvas": [64, 64],
+      "prompt": "Registered ground cutout component: ONE tiny wildflower and leaf tuft rooted at exact bottom-center, isolated transparent sprite. Low isometric 2.5D whimsical storybook pixel art matching a cream, ochre and moss green SVG island reference plate. Two uneven moss-green stems, three warm cream and ochre flowers, compact readable silhouette. PLANT ONLY. No ground patch, no island, no tree, no shadow, no text."
+    }
+  ]
+}

@@ -33,6 +33,7 @@ import {
   type SceneVegetationInput,
 } from '@storytree/forest-world';
 import {
+  CHAPTER2_ORGANIC_HYBRID_HANDOFF_RIG,
   CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
   neighbourHighlightPlan,
   laneLayout,
@@ -258,22 +259,6 @@ function buildFrames(
   if (!primary) throw new Error('Semantic growth fixture requires its primary planted parcel.');
   const plant = primary.caps[0];
   if (!plant) throw new Error('Semantic growth fixture requires its bounded plant socket.');
-  organicPoseSocketsCache = {
-    tree: Object.freeze({ x: primary.treeSpot.x, y: primary.treeSpot.y }),
-    plant: Object.freeze({ x: plant.x, y: plant.y }),
-    island: Object.freeze({
-      storyId: DEMO_STORY_ID,
-      worldAnchor: Object.freeze({
-        x: primary.centroid.x,
-        y: primary.centroid.y,
-      }),
-      radius: Object.freeze({
-        x: primary.radius * 1.32,
-        y: primary.radius * 0.96,
-      }),
-    }),
-  };
-
   // sgsd-primary-selection-reuses-drawn-route-lanes: the primary's one-hop selection plan +
   // laid-out lane, derived from the composed world's REAL trail network with the SAME shared
   // helpers the live map uses — never a demo-local path, segment renderer, or CSS animation.
@@ -319,6 +304,38 @@ function buildFrames(
         VEGETATION,
       ),
     );
+  };
+
+  const matureCoastPaths = (node: SceneNode): readonly string[] => {
+    if (node.el !== 'g') return [];
+    if (node.kind === 'coast' && node.id === DEMO_STORY_ID) {
+      return node.children.flatMap((child) =>
+        child.el === 'path' && child.kind === 'coast-shore' ? [child.d] : [],
+      );
+    }
+    return node.children.flatMap(matureCoastPaths);
+  };
+  const registeredMatureCoast = Object.freeze(
+    matureCoastPaths(sceneForStory(demoStory('mapped'))),
+  );
+  if (registeredMatureCoast.length === 0) {
+    throw new Error('Semantic growth fixture requires its real SVG coast plate.');
+  }
+  organicPoseSocketsCache = {
+    tree: Object.freeze({ x: primary.treeSpot.x, y: primary.treeSpot.y }),
+    plant: Object.freeze({ x: plant.x, y: plant.y }),
+    island: Object.freeze({
+      storyId: DEMO_STORY_ID,
+      worldAnchor: Object.freeze({
+        x: primary.centroid.x,
+        y: primary.centroid.y,
+      }),
+      radius: Object.freeze({
+        x: primary.radius * 1.32,
+        y: primary.radius * 0.96,
+      }),
+      matureCoastPaths: registeredMatureCoast,
+    }),
   };
 
   // The companion is witness context, never a narrated nameplate — its `plate` is stripped by id
@@ -419,6 +436,7 @@ let organicPoseSocketsCache: {
     readonly storyId: string;
     readonly worldAnchor: { readonly x: number; readonly y: number };
     readonly radius: { readonly x: number; readonly y: number };
+    readonly matureCoastPaths: readonly string[];
   };
 } | null = null;
 
@@ -445,7 +463,7 @@ function organicPoseSockets(): NonNullable<typeof organicPoseSocketsCache> {
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'organic-pose-to-pose';
+  readonly variant?: 'demo' | 'organic-pose-to-pose' | 'organic-hybrid-handoff';
 }
 
 /**
@@ -460,13 +478,15 @@ export function SemanticGrowthDemo({
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
   const poseVariant = variant === 'organic-pose-to-pose';
-  const sourceFrames = poseVariant ? organicPoseFrames() : frames();
-  const sockets = poseVariant ? organicPoseSockets() : null;
+  const hybridVariant = variant === 'organic-hybrid-handoff';
+  const organicVariant = poseVariant || hybridVariant;
+  const sourceFrames = organicVariant ? organicPoseFrames() : frames();
+  const sockets = organicVariant ? organicPoseSockets() : null;
   const framesWithArt: readonly SemanticGrowthFrame[] = sourceFrames.map((f) => ({
     key: f.key,
     model: {
       ...f.model,
-      scene: poseVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
+      scene: organicVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
       spriteSheet,
       artScale,
     },
@@ -478,7 +498,9 @@ export function SemanticGrowthDemo({
           <div
             className="world-viewport"
             aria-label={
-              poseVariant
+              hybridVariant
+                ? 'registered hybrid handoff growth witness (real app fixture)'
+                : poseVariant
                 ? 'organic pose-to-pose growth witness (real app fixture)'
                 : 'semantic growth witness (static fixture)'
             }
@@ -506,6 +528,19 @@ export function SemanticGrowthDemo({
                       nativeIsland: {
                         ...sockets.island,
                         settledAtProgress: 0.18,
+                      },
+                    },
+                  }
+                : {})}
+              {...(hybridVariant && sockets
+                ? {
+                    organicHybridGrowth: {
+                      rig: CHAPTER2_ORGANIC_HYBRID_HANDOFF_RIG,
+                      worldRoot: sockets.tree,
+                      nativeIsland: {
+                        ...sockets.island,
+                        settledAtProgress: 0.18,
+                        technique: 'opaque-contour-morph' as const,
                       },
                     },
                   }

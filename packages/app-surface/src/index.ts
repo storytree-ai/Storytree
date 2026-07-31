@@ -56,6 +56,7 @@ export {
   type SemanticGrowthAnimationClock,
   type SemanticGrowthFrame,
   type SemanticGrowthFrameKey,
+  type SemanticGrowthOrganicHybridLayer,
   type SemanticGrowthOrganicPoseInstance,
   type SemanticGrowthOrganicPoseLayer,
   type SemanticGrowthWorldViewProps,
@@ -87,3 +88,26 @@ export {
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
 export { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
+export {
+  CHAPTER2_ORGANIC_HYBRID_HANDOFF_RIG,
+  organicHybridHandoffAtProgress,
+  validateOrganicHybridHandoffRig,
+  type OrganicHybridBox,
+  type OrganicHybridCutoutLayer,
+  type OrganicHybridHandoffPhase,
+  type OrganicHybridHandoffState,
+  type OrganicHybridPartKind,
+  type OrganicHybridPartPose,
+  type RegisteredOrganicHybridHandoffRig,
+  type RegisteredOrganicHybridPart,
+} from './organic-hybrid-handoff-track.js';
+export {
+  growOpaqueIslandContour,
+  growOpaqueIslandContours,
+  opaqueContourGrowthPhase,
+  parseOpaqueClosedQuadraticContour,
+  type OpaqueClosedQuadraticContour,
+  type OpaqueContourGrowthPhase,
+  type OpaqueContourPoint,
+  type OpaqueQuadraticContourSegment,
+} from './opaque-island-contour-growth.js';

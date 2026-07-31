@@ -10,6 +10,7 @@ import type { SpriteStyleSheet } from './sprite-sheet.js';
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
+import type { OrganicHybridCutoutLayer } from './organic-hybrid-handoff-track.js';
 
 export interface WorldPresentationModel {
   readonly scene: SceneNode;
@@ -30,6 +31,7 @@ export interface WorldPresentationModel {
   readonly artScale: number;
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  readonly hybridCutoutLayer?: OrganicHybridCutoutLayer | null;
 }
 
 export interface WorldPresentationModelInput {
@@ -46,6 +48,7 @@ export interface WorldPresentationModelInput {
   readonly artScale?: number;
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  readonly hybridCutoutLayer?: OrganicHybridCutoutLayer | null;
 }
 
 export interface WorldPresentationEvents {
@@ -78,6 +81,9 @@ export function normalizeWorldPresentationModel(
       : {}),
     ...(input.organicPoseLayers !== undefined
       ? { organicPoseLayers: input.organicPoseLayers }
+      : {}),
+    ...(input.hybridCutoutLayer !== undefined
+      ? { hybridCutoutLayer: input.hybridCutoutLayer }
       : {}),
   };
 }
@@ -122,6 +128,9 @@ export function WorldSceneView({
         : {}),
       ...(model.organicPoseLayers !== undefined
         ? { organicPoseLayers: model.organicPoseLayers }
+        : {}),
+      ...(model.hybridCutoutLayer !== undefined
+        ? { hybridCutoutLayer: model.hybridCutoutLayer }
         : {}),
     };
   }, [model, events]);

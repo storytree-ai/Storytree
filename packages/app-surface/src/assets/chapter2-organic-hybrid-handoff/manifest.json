@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "id": "chapter2-organic-hybrid-handoff-v1",
+  "title": "Experiment 10 registered hybrid handoff",
+  "queryGate": "organicGrowth=organic-hybrid-handoff",
+  "status": "comparison-only-owner-LOOK-pending",
+  "technique": {
+    "industryName": "registered hybrid rig with a match-cut handoff",
+    "shortName": "hybrid handoff",
+    "hybridRig": "Two animation systems share one planted root plate: a cutout-puppet trunk/plant rig first, then the pose-to-pose whole-tree track.",
+    "matchCut": "The cutout trunk is replaced at one registered continuity pose instead of fading the scene.",
+    "registeredHandoff": "Both sides map their measured asset root anchors onto the same app-owned world root.",
+    "continuityPose": "Pose tree frame 03 begins at the handoff; its registered height is within 3% of the mature cutout trunk.",
+    "localBlend": "none — a direct registered match cut avoids double-trunk ghosting"
+  },
+  "ownerSignalsUsed": [
+    "Experiment 2 cutout-puppet trunk growth was the best trunk growth in Round 1.",
+    "Experiment 2 cutout-puppet plant growth was the best plant growth in Round 1.",
+    "Experiment 2 cutout canopy is excluded because its leaves, attachment gap and composition were rejected.",
+    "The pose-to-pose whole-tree animation is the provisional overall tree leader and supplies the later branch, canopy and mature poses."
+  ],
+  "rootPlate": {
+    "id": "hero-tree-root",
+    "source": "real Studio SemanticGrowthDemo treeSpot",
+    "runtimeOwner": "@storytree/app-surface",
+    "cutoutAssetAnchor": { "x": 48, "y": 154 },
+    "poseAssetAnchor": { "x": 96, "y": 188 },
+    "runtimeCompensation": "none; both assets resolve directly onto one world root"
+  },
+  "handoff": {
+    "normalizedProgress": 0.42,
+    "cutoutTrunkWorldFootprint": { "x": 8.5, "y": 24.5, "width": 34.5, "height": 53 },
+    "poseFrame": 3,
+    "poseTrackProgress": 0.36,
+    "poseWorldFootprint": { "x": 13.6, "y": 12.24, "width": 40.46, "height": 52.02 },
+    "heightDeltaRatio": 0.01849,
+    "simultaneousTrunks": 1,
+    "blendDurationMs": 0
+  },
+  "cutoutTracks": {
+    "sourceManifest": "../chapter2-organic-cutout-puppet/v1/manifest.json",
+    "normalizer": "packages/art-authoring/scripts/register-cutout-puppet.mts",
+    "parts": [
+      {
+        "id": "trunk-root",
+        "file": "../chapter2-organic-cutout-puppet/v1/trunk-root.png",
+        "canvas": [96, 160],
+        "pivot": [48, 154],
+        "socket": [0, 0],
+        "stage": [0.18, 0.42],
+        "encodedBytes": 5110,
+        "model": "PixelLab PixFlux create_image_pixflux",
+        "seed": 274201,
+        "jobId": "9dad91bc-4339-419e-a946-51024dc26d4a"
+      },
+      {
+        "id": "flower-tuft",
+        "file": "../chapter2-organic-cutout-puppet/v1/flower-tuft.png",
+        "canvas": [64, 64],
+        "pivot": [32, 60],
+        "socket": [70, 8],
+        "stage": [0.5, 0.82],
+        "encodedBytes": 1950,
+        "model": "PixelLab PixFlux create_image_pixflux",
+        "seed": 274208,
+        "jobId": "258052d5-4179-40d7-8492-bb86c646bbbd"
+      },
+      {
+        "id": "fern-tuft",
+        "file": "../chapter2-organic-cutout-puppet/v1/fern-tuft.png",
+        "canvas": [64, 64],
+        "pivot": [32, 60],
+        "socket": [-72, 10],
+        "stage": [0.58, 0.9],
+        "encodedBytes": 1462,
+        "model": "PixelLab PixFlux create_image_pixflux",
+        "seed": 274207,
+        "jobId": "077b9938-f419-4d14-b525-3f2720cc9fe7"
+      }
+    ]
+  },
+  "poseTrack": {
+    "sourceManifest": "../chapter2-organic-pose-to-pose/manifest.json",
+    "id": "chapter2-hero-tree-pose-track-v1",
+    "canvas": [192, 192],
+    "registeredRootAnchor": [96, 188],
+    "frameCount": 9,
+    "firstUsedFrame": 3,
+    "lastUsedFrame": 8,
+    "model": "PixelLab PixFlux endpoints + animate_image pose interpolation",
+    "generationIds": [
+      "424f0c52-de40-4db8-b8f2-ec19e4aa92e7",
+      "aa74acbe-b388-43f7-8f42-b6e42d12bd5e",
+      "345c3b2e-1cdd-4d9c-917c-1f1eaf25a482"
+    ]
+  },
+  "island": {
+    "industryName": "opaque fixed-topology quadratic contour morph",
+    "shortName": "opaque contour growth",
+    "source": "existing app-owned SVG coast and ground geometry",
+    "seed": "zero-area path at the real island centroid",
+    "settlement": "exact mature SVG coast path",
+    "opacityAnimation": false,
+    "rasterLand": false,
+    "wholeSceneTransform": false,
+    "comparisonBoundary": "Used as the substrate for this composition test only; it does not select between separate Round 2 island experiments."
+  },
+  "painterOrder": [
+    "app-native water and shadow",
+    "app-native opaque SVG coast and ground",
+    "pose-to-pose hero tree when handoff is complete",
+    "cutout trunk before handoff or cutout ground plants after handoff",
+    "app-native effects and UI"
+  ],
+  "runtime": {
+    "appOwns": [
+      "semantic state",
+      "normalized progress",
+      "timing, easing and holds",
+      "match-cut selection",
+      "SVG path interpolation",
+      "sprite selection",
+      "sockets and painter order",
+      "Next, Back and Replay",
+      "reduced-motion settlement",
+      "retained final scene"
+    ],
+    "pixelLabCalls": 0,
+    "pixelLabCredentials": 0,
+    "assetClock": false
+  },
+  "budget": {
+    "encodedRuntimeBytes": 152528,
+    "encodedByteLimit": 180000,
+    "decodedRgbaBytes": 1421312,
+    "decodedRgbaByteLimit": 1500000,
+    "poseFrames": 9,
+    "cutoutComponents": 3,
+    "maxSimultaneousOrganicLayers": 3
+  },
+  "provenance": {
+    "provider": "PixelLab",
+    "providerMode": "author-time-only",
+    "termsUrl": "https://pixellab.ai/termsofservice",
+    "credentialsPrintedOrCommitted": false
+  },
+  "failureVocabulary": [
+    "style pop",
+    "double trunk",
+    "ghosting",
+    "silhouette snap",
+    "canopy gap",
+    "timing seam",
+    "island fade"
+  ],
+  "ownerLook": {
+    "status": "pending",
+    "attestedBy": null
+  }
+}
