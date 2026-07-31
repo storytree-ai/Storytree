@@ -138,6 +138,23 @@ D1 remains unchanged: the rework must retain the existing app-owned SVG island, 
 camera and geometry, with no generated-land substitute. The combined composition remains held and
 the arc stays active pending a corrected whole-composition owner verdict.
 
+### D5 comparison evidence — branch-emitted leaf bloom witness (2026-08-01)
+
+The owner reviewed held Experiment 9 at
+`?organicGrowth=organic-branch-bloom#/tree` and said: “this looks really buggy, the placement is all
+over the place.”
+
+This is a negative owner LOOK verdict on the current branch-emitted leaf bloom composition. The
+hierarchical foliage rig as authored here does not pass: despite explicit branch-local sockets and
+deterministic painter order, the resulting placement does not read as one coherent planted tree and
+its intended attachment structure is not visually legible. The witness remains comparison evidence
+only and is not eligible for clean-route adoption.
+
+Treat this as evidence against this authored placement/registration treatment, not as a general
+rejection of branch-local sockets in every implementation. D1 remains unchanged, no sibling
+experiment receives a verdict from this feedback, and the arc remains active pending a corrected
+whole-composition owner verdict.
+
 ### D6 — Explicitly rejected
 
 - Generating the island, coast or complete scene as a PixelLab sprite sequence.
