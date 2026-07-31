@@ -23,6 +23,10 @@ import { neighbourHighlightPlan } from './neighbourHighlight.js';
 import { laneLayout } from './laneLayout.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 import { SceneView, litLaneWidth, laneDrawSeconds, type SceneCtx } from './SceneView.js';
+import {
+  CHAPTER2_ORGANIC_CANOPY_OCCLUSION_TRACK,
+  organicCanopyLayerAtProgress,
+} from './organic-canopy-occlusion-track.js';
 
 afterEach(cleanup);
 
@@ -219,6 +223,62 @@ describe('SceneView — the studio scene mapper', () => {
     expect(siblings.indexOf(tree!)).toBeGreaterThan(siblings.indexOf(trailLayer));
     expect(siblings.indexOf(tree!)).toBeLessThan(siblings.indexOf(floraLayer));
     expect(siblings.indexOf(plant!)).toBe(siblings.indexOf(tree!) + 1);
+  });
+
+  it('paints inherited branches behind the registered canopy collar, then trunk and foreground plants', () => {
+    const layer = organicCanopyLayerAtProgress(
+      CHAPTER2_ORGANIC_CANOPY_OCCLUSION_TRACK,
+      1,
+      { x: 50, y: 45 },
+      0.5,
+    );
+    const { root } = renderScene({ organicPoseLayers: [layer] });
+    const composite = root.querySelector(
+      '[data-organic-canopy-track="chapter2-organic-canopy-occlusion-v1"]',
+    )!;
+    expect(composite).toBeTruthy();
+    expect(composite.getAttribute('transform')).toBe(
+      'translate(50.0 45.0) scale(0.5)',
+    );
+    expect(composite.getAttribute('data-root-socket')).toBe('50.0,45.0');
+    expect(composite.getAttribute('data-rig-crown-socket')).toBe('0.0,-98.0');
+    expect(composite.getAttribute('data-world-crown-socket')).toBe('50.0,-4.0');
+
+    const painted = Array.from(composite.children).filter((node) =>
+      node.hasAttribute('data-painter-order'),
+    );
+    expect(painted.map((node) => node.getAttribute('data-painter-order'))).toEqual([
+      '10',
+      '20',
+      '30',
+      '40',
+      '50',
+      '60',
+    ]);
+    expect(painted.map((node) => node.getAttribute('data-painter-slot'))).toEqual([
+      'branch-behind-canopy',
+      'branch-behind-canopy',
+      'canopy-collar',
+      'trunk-front',
+      'plant-foreground',
+      'plant-foreground',
+    ]);
+
+    const canopy = composite.querySelector('[data-painter-slot="canopy-collar"]')!;
+    expect(canopy.getAttribute('data-organic-canopy-pose')).toBe('8');
+    expect(canopy.getAttribute('data-asset-crown-socket')).toBe('96.0,112.0');
+    expect(canopy.getAttribute('data-collar-bounds')).toBe('72.0,101.0,49.0,31.0');
+    expect(canopy.getAttribute('data-collar-core')).toBe('91.0,105.0,11.0,18.0');
+    expect(canopy.getAttribute('data-collar-coverage-registration')).toBe(
+      'alpha-gte-250-at-least-1100',
+    );
+    expect(canopy.querySelector('image')?.getAttribute('href')).toMatch(
+      /organic-canopy-occlusion\/v1\/canopy\/pose-08\.png/,
+    );
+    expect(canopy.querySelector('image')?.getAttribute('href')).not.toMatch(
+      /canopy-(?:left|right|crown)\.png/,
+    );
+    expect(root.querySelector('[data-native-island-progress]')).toBeNull();
   });
 
   it('maps roles to the studio classes, folding status + variant', () => {

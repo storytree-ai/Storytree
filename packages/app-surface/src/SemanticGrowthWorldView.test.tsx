@@ -16,6 +16,7 @@ import {
   type SemanticGrowthAnimationClock,
 } from './SemanticGrowthWorldView.js';
 import { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
+import { CHAPTER2_ORGANIC_CANOPY_OCCLUSION_TRACK } from './organic-canopy-occlusion-track.js';
 import * as AppSurfacePackageRoot from './index.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 
@@ -361,6 +362,79 @@ describe('SemanticGrowthWorldView', () => {
       view.unmount();
       return result;
     };
+    expect(witness(390)).toEqual(witness(1440));
+  });
+
+  it('holds canopy root, crown socket, camera, painter registry, and Round 1 SVG island formation across navigation and viewport sizes', () => {
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const witness = (width: number): readonly string[] => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+      const view = render(
+        <SemanticGrowthWorldView
+          frames={frames}
+          organicCanopyOcclusion={{
+            track: CHAPTER2_ORGANIC_CANOPY_OCCLUSION_TRACK,
+            worldRoot: { x: 50, y: 45 },
+            scale: 0.5,
+          }}
+          reducedMotion
+        />,
+      );
+      const section = view.container.querySelector('section')!;
+      const svg = view.container.querySelector('svg')!;
+      const initialViewBox = svg.getAttribute('viewBox') ?? '';
+      expect(section.getAttribute('data-island-formation-control')).toBe(
+        'round1-keypose',
+      );
+      expect(
+        view.getByText(/held constant at the Round 1 key-pose SVG arrive-ground treatment/i),
+      ).toBeTruthy();
+      expect(view.getByText(/below the island-growth bar/i)).toBeTruthy();
+      expect(view.container.querySelector('[data-native-island-progress]')).toBeNull();
+      expect(view.container.querySelector('clipPath[id^="organic-pose-native-island-"]')).toBeNull();
+
+      for (const _key of ORDERED_KEYS.slice(1)) {
+        fireEvent.click(view.getByRole('button', { name: 'Next' }));
+      }
+      const mature = view.container.querySelector('[data-organic-canopy-track]')!;
+      const matureTrace = [
+        mature.getAttribute('data-root-socket') ?? '',
+        mature.getAttribute('data-rig-crown-socket') ?? '',
+        mature.getAttribute('data-world-crown-socket') ?? '',
+        mature.querySelector('[data-painter-slot="canopy-collar"]')
+          ?.getAttribute('data-organic-canopy-pose') ?? '',
+        svg.getAttribute('viewBox') ?? '',
+      ];
+      expect(matureTrace).toEqual([
+        '50.0,45.0',
+        '0.0,-98.0',
+        '50.0,-4.0',
+        '8',
+        initialViewBox,
+      ]);
+
+      fireEvent.click(view.getByRole('button', { name: 'Back' }));
+      const backedPose = view.container
+        .querySelector('[data-painter-slot="canopy-collar"]')
+        ?.getAttribute('data-organic-canopy-pose');
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+      expect(
+        view.container
+          .querySelector('[data-painter-slot="canopy-collar"]')
+          ?.getAttribute('data-organic-canopy-pose'),
+      ).toBe('8');
+      expect(backedPose).not.toBe('8');
+
+      fireEvent.click(view.getByRole('button', { name: 'Replay' }));
+      const replayed = view.container.querySelector('[data-organic-canopy-track]')!;
+      expect(section.getAttribute('data-semantic-growth-frame')).toBe('empty');
+      expect(replayed.getAttribute('data-root-socket')).toBe('50.0,45.0');
+      expect(replayed.getAttribute('data-rig-crown-socket')).toBe('0.0,-98.0');
+      expect(svg.getAttribute('viewBox')).toBe(initialViewBox);
+      view.unmount();
+      return matureTrace;
+    };
+
     expect(witness(390)).toEqual(witness(1440));
   });
 

@@ -1,6 +1,7 @@
 export {
   SceneView,
   type NativeIslandGrowthRenderLayer,
+  type OrganicPoseFrameRenderLayer,
   type OrganicPoseRenderLayer,
   type SceneCtx,
 } from './SceneView.js';
@@ -58,6 +59,7 @@ export {
   type SemanticGrowthFrameKey,
   type SemanticGrowthOrganicPoseInstance,
   type SemanticGrowthOrganicPoseLayer,
+  type SemanticGrowthOrganicCanopyOcclusionLayer,
   type SemanticGrowthWorldViewProps,
 } from './SemanticGrowthWorldView.js';
 export {
@@ -87,3 +89,30 @@ export {
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
 export { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
+export {
+  CHAPTER2_ORGANIC_CANOPY_OCCLUSION_TRACK,
+  ORGANIC_CANOPY_CUE_TARGETS,
+  ORGANIC_CANOPY_PLAYBACK_POLICY,
+  advanceOrganicCanopyPlayback,
+  backOrganicCanopyCue,
+  clampOrganicCanopyProgress,
+  initialOrganicCanopyPlayback,
+  nextOrganicCanopyCue,
+  organicCanopyLayerAtProgress,
+  organicCanopyPoseAtProgress,
+  replayOrganicCanopyPlayback,
+  selectOrganicCanopyCue,
+  validateOrganicCanopyOcclusionTrack,
+  type OrganicCanopyBox,
+  type OrganicCanopyOcclusionRenderLayer,
+  type OrganicCanopyPainterSlot,
+  type OrganicCanopyPartKind,
+  type OrganicCanopyPartPose,
+  type OrganicCanopyPartScaleMode,
+  type OrganicCanopyPlaybackState,
+  type OrganicCanopyPoint,
+  type OrganicCanopySize,
+  type RegisteredOrganicCanopyOcclusionTrack,
+  type RegisteredOrganicCanopyPart,
+  type RegisteredOrganicCanopyPose,
+} from './organic-canopy-occlusion-track.js';

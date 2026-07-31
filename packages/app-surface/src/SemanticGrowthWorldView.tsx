@@ -22,6 +22,16 @@ import {
   type OrganicPosePoint,
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
+import {
+  advanceOrganicCanopyPlayback,
+  initialOrganicCanopyPlayback,
+  organicCanopyLayerAtProgress,
+  replayOrganicCanopyPlayback,
+  selectOrganicCanopyCue,
+  validateOrganicCanopyOcclusionTrack,
+  type OrganicCanopyPoint,
+  type RegisteredOrganicCanopyOcclusionTrack,
+} from './organic-canopy-occlusion-track.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -62,6 +72,13 @@ export interface SemanticGrowthOrganicPoseLayer {
   readonly clock?: SemanticGrowthAnimationClock;
 }
 
+export interface SemanticGrowthOrganicCanopyOcclusionLayer {
+  readonly track: RegisteredOrganicCanopyOcclusionTrack;
+  readonly worldRoot: OrganicCanopyPoint;
+  readonly scale: number;
+  readonly clock?: SemanticGrowthAnimationClock;
+}
+
 export interface SemanticGrowthWorldViewProps {
   readonly frames: readonly SemanticGrowthFrame[];
   readonly reducedMotion?: boolean;
@@ -70,6 +87,7 @@ export interface SemanticGrowthWorldViewProps {
   readonly onBack?: (key: SemanticGrowthFrameKey) => void;
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
   readonly organicPoseGrowth?: SemanticGrowthOrganicPoseLayer;
+  readonly organicCanopyOcclusion?: SemanticGrowthOrganicCanopyOcclusionLayer;
 }
 
 function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
@@ -236,10 +254,12 @@ export function SemanticGrowthWorldView({
   onBack,
   onReplay,
   organicPoseGrowth,
+  organicCanopyOcclusion,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
   assertFrames(frames);
   const [cursor, setCursor] = React.useState(0);
   const [organicPlayback, setOrganicPlayback] = React.useState(initialOrganicPosePlayback);
+  const [canopyPlayback, setCanopyPlayback] = React.useState(initialOrganicCanopyPlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
   const frame = frames[cursor]!;
   const registry = React.useMemo(
@@ -284,9 +304,40 @@ export function SemanticGrowthWorldView({
         organicPlayback.progress / organicPoseGrowth.nativeIsland.settledAtProgress,
       )
     : null;
+  const canopyTrack = React.useMemo(
+    () =>
+      organicCanopyOcclusion
+        ? validateOrganicCanopyOcclusionTrack(organicCanopyOcclusion.track)
+        : null,
+    [organicCanopyOcclusion],
+  );
+  const canopyLayer = React.useMemo(
+    () => {
+      if (!organicCanopyOcclusion || !canopyTrack) return null;
+      if (
+        !Number.isFinite(organicCanopyOcclusion.worldRoot.x) ||
+        !Number.isFinite(organicCanopyOcclusion.worldRoot.y) ||
+        !Number.isFinite(organicCanopyOcclusion.scale) ||
+        organicCanopyOcclusion.scale <= 0
+      ) {
+        throw new Error('Organic canopy root and scale must be finite app-owned values.');
+      }
+      return organicCanopyLayerAtProgress(
+        canopyTrack,
+        canopyPlayback.progress,
+        organicCanopyOcclusion.worldRoot,
+        organicCanopyOcclusion.scale,
+      );
+    }, [canopyPlayback.progress, canopyTrack, organicCanopyOcclusion]);
   const model = React.useMemo<WorldPresentationModel>(
     () => {
       const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
+      if (canopyLayer) {
+        return {
+          ...base,
+          organicPoseLayers: [canopyLayer],
+        };
+      }
       if (!organicPoseGrowth || nativeLandProgress === null) return base;
       return {
         ...base,
@@ -299,7 +350,7 @@ export function SemanticGrowthWorldView({
         organicPoseLayers: organicLayers,
       };
     },
-    [frame.model, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
+    [canopyLayer, frame.model, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
   );
   // Held stable through the whole walk — derived from every supplied frame's app-owned geometry,
   // never the current cursor or a transparent asset canvas.
@@ -312,6 +363,11 @@ export function SemanticGrowthWorldView({
     if (!organicPoseGrowth || !reduce) return;
     setOrganicPlayback((current) => selectOrganicPoseCue(current, cursor, true));
   }, [cursor, organicPoseGrowth, reduce]);
+
+  React.useEffect(() => {
+    if (!organicCanopyOcclusion || !reduce) return;
+    setCanopyPlayback((current) => selectOrganicCanopyCue(current, cursor, true));
+  }, [cursor, organicCanopyOcclusion, reduce]);
 
   React.useEffect(() => {
     if (!organicPoseGrowth || reduce || !organicPlayback.playing) return;
@@ -335,6 +391,28 @@ export function SemanticGrowthWorldView({
     };
   }, [organicPoseGrowth, organicPlayback.transitionId, reduce]);
 
+  React.useEffect(() => {
+    if (!organicCanopyOcclusion || reduce || !canopyPlayback.playing) return;
+    const clock = organicCanopyOcclusion.clock ?? BROWSER_ANIMATION_CLOCK;
+    let requestId = 0;
+    let previousTimestamp: number | null = null;
+    let running = canopyPlayback;
+    let cancelled = false;
+    const step = (timestamp: number): void => {
+      if (cancelled) return;
+      const deltaMs = previousTimestamp === null ? 1000 / 60 : timestamp - previousTimestamp;
+      previousTimestamp = timestamp;
+      running = advanceOrganicCanopyPlayback(running, deltaMs);
+      setCanopyPlayback(running);
+      if (running.playing) requestId = clock.requestFrame(step);
+    };
+    requestId = clock.requestFrame(step);
+    return () => {
+      cancelled = true;
+      clock.cancelFrame(requestId);
+    };
+  }, [canopyPlayback.transitionId, organicCanopyOcclusion, reduce]);
+
   const select = (
     nextCursor: number,
     callback?: (key: SemanticGrowthFrameKey) => void,
@@ -347,6 +425,13 @@ export function SemanticGrowthWorldView({
         replay
           ? replayOrganicPosePlayback(current)
           : selectOrganicPoseCue(current, bounded, reduce),
+      );
+    }
+    if (organicCanopyOcclusion) {
+      setCanopyPlayback((current) =>
+        replay
+          ? replayOrganicCanopyPlayback(current)
+          : selectOrganicCanopyCue(current, bounded, reduce),
       );
     }
     callback?.(frames[bounded]!.key);
@@ -365,6 +450,14 @@ export function SemanticGrowthWorldView({
               organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
           }
         : {})}
+      {...(organicCanopyOcclusion && canopyLayer
+        ? {
+            'data-organic-technique': 'organic-canopy-occlusion',
+            'data-organic-canopy-progress': canopyPlayback.progress.toFixed(4),
+            'data-organic-canopy-pose': String(canopyLayer.canopyPose.index),
+            'data-island-formation-control': 'round1-keypose',
+          }
+        : {})}
     >
       <svg viewBox={viewBox} aria-label={`Semantic growth: ${frame.key}`}>
         {events ? (
@@ -373,6 +466,12 @@ export function SemanticGrowthWorldView({
           <WorldSceneView model={model} />
         )}
       </svg>
+      {organicCanopyOcclusion ? (
+        <p data-island-formation-control="round1-keypose">
+          Island formation held constant at the Round 1 key-pose SVG arrive-ground treatment,
+          below the island-growth bar.
+        </p>
+      ) : null}
       <nav aria-label="Semantic growth controls">
         <button type="button" onClick={() => select(cursor - 1, onBack)}>Back</button>
         <button type="button" onClick={() => select(cursor + 1, onNext)}>Next</button>

@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 2,
+  "authorTimeOnly": true,
+  "fixedCanvas": {
+    "width": 192,
+    "height": 176
+  },
+  "frameCount": 9,
+  "crownSocket": {
+    "x": 96,
+    "y": 112
+  },
+  "rigCrownSocket": {
+    "x": 0,
+    "y": -98
+  },
+  "netCanopyTransform": {
+    "x": -96,
+    "y": -210
+  },
+  "collarBounds": {
+    "x": 72,
+    "y": 101,
+    "width": 49,
+    "height": 31
+  },
+  "collarCore": {
+    "x": 91,
+    "y": 105,
+    "width": 11,
+    "height": 18
+  },
+  "collarKind": "natural-lower-canopy-skirt-and-wood-bridge",
+  "minimumOpaqueCollarPixels": 1100,
+  "legacyCollarExclusion": {
+    "yFrom": 141,
+    "reason": "Owner LOOK found the interpolated y141..171 ellipse disconnected and blob-like."
+  },
+  "runtimeRelativeOffsets": {
+    "branchLeft": {
+      "x": -11,
+      "y": 46
+    },
+    "branchRight": {
+      "x": 76,
+      "y": 36
+    },
+    "trunk": {
+      "x": 48,
+      "y": 56
+    }
+  },
+  "registrationPlate": "crown-registration-plate.png",
+  "runtimeCorrection": false,
+  "sourceToRegisteredPolicy": "Exclude the interpolated legacy ellipse at y141+; retain one connected PixelLab crown; normalize it at author/import time; then author a narrow asymmetric leaf skirt and opaque wood bridge around the real trunk-top join at y105..131.",
+  "frames": [
+    {
+      "file": "canopy/pose-00.png",
+      "sourceFile": "sources/canopy-sequence/frame-00.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 55,
+        "y": 75,
+        "width": 82,
+        "height": 66
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": -5
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 112
+      },
+      "registeredFootprint": {
+        "x": 55,
+        "y": 70,
+        "width": 82,
+        "height": 66
+      },
+      "legacyCollarPixelsExcluded": 1170,
+      "opaqueCollarPixels": 1412,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 4057
+    },
+    {
+      "file": "canopy/pose-01.png",
+      "sourceFile": "sources/canopy-sequence/frame-01.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 51,
+        "y": 66,
+        "width": 91,
+        "height": 75
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": -5
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 112
+      },
+      "registeredFootprint": {
+        "x": 51,
+        "y": 61,
+        "width": 91,
+        "height": 75
+      },
+      "legacyCollarPixelsExcluded": 1169,
+      "opaqueCollarPixels": 1326,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 7317
+    },
+    {
+      "file": "canopy/pose-02.png",
+      "sourceFile": "sources/canopy-sequence/frame-02.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 45,
+        "y": 55,
+        "width": 102,
+        "height": 86
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": -5
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 112
+      },
+      "registeredFootprint": {
+        "x": 45,
+        "y": 50,
+        "width": 102,
+        "height": 86
+      },
+      "legacyCollarPixelsExcluded": 1172,
+      "opaqueCollarPixels": 1226,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 7702
+    },
+    {
+      "file": "canopy/pose-03.png",
+      "sourceFile": "sources/canopy-sequence/frame-03.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 37,
+        "y": 39,
+        "width": 118,
+        "height": 102
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": -5
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 112
+      },
+      "registeredFootprint": {
+        "x": 37,
+        "y": 34,
+        "width": 118,
+        "height": 102
+      },
+      "legacyCollarPixelsExcluded": 1175,
+      "opaqueCollarPixels": 1152,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 11516
+    },
+    {
+      "file": "canopy/pose-04.png",
+      "sourceFile": "sources/canopy-sequence/frame-04.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 23,
+        "y": 9,
+        "width": 144,
+        "height": 132
+      },
+      "normalizationOffset": {
+        "x": 1,
+        "y": -5
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 112
+      },
+      "registeredFootprint": {
+        "x": 24,
+        "y": 4,
+        "width": 144,
+        "height": 132
+      },
+      "legacyCollarPixelsExcluded": 1184,
+      "opaqueCollarPixels": 1106,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 13455
+    },
+    {
+      "file": "canopy/pose-05.png",
+      "sourceFile": "sources/canopy-sequence/frame-05.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 18,
+        "y": 2,
+        "width": 156,
+        "height": 139
+      },
+      "normalizationOffset": {
+        "x": 4,
+        "y": 2
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 112
+      },
+      "registeredFootprint": {
+        "x": 22,
+        "y": 4,
+        "width": 148,
+        "height": 132
+      },
+      "legacyCollarPixelsExcluded": 1191,
+      "opaqueCollarPixels": 1197,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 15381
+    },
+    {
+      "file": "canopy/pose-06.png",
+      "sourceFile": "sources/canopy-sequence/frame-06.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 17,
+        "y": 9,
+        "width": 159,
+        "height": 132
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": -5
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 112
+      },
+      "registeredFootprint": {
+        "x": 17,
+        "y": 4,
+        "width": 159,
+        "height": 132
+      },
+      "legacyCollarPixelsExcluded": 1190,
+      "opaqueCollarPixels": 1283,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 14108
+    },
+    {
+      "file": "canopy/pose-07.png",
+      "sourceFile": "sources/canopy-sequence/frame-07.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 16,
+        "y": 17,
+        "width": 161,
+        "height": 124
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": -5
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 112
+      },
+      "registeredFootprint": {
+        "x": 16,
+        "y": 12,
+        "width": 161,
+        "height": 124
+      },
+      "legacyCollarPixelsExcluded": 1191,
+      "opaqueCollarPixels": 1350,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 15035
+    },
+    {
+      "file": "canopy/pose-08.png",
+      "sourceFile": "sources/canopy-sequence/frame-08.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 16,
+        "y": 23,
+        "width": 161,
+        "height": 118
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": -5
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 112
+      },
+      "registeredFootprint": {
+        "x": 16,
+        "y": 18,
+        "width": 161,
+        "height": 118
+      },
+      "legacyCollarPixelsExcluded": 1191,
+      "opaqueCollarPixels": 1352,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 9453
+    }
+  ],
+  "encodedCanopyBytes": 98024,
+  "decodedCanopyRgbaBytes": 1216512
+}

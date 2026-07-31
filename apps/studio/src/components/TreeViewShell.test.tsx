@@ -479,6 +479,173 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     }
   });
 
+  it('only exact organic-canopy-occlusion holds the Round 1 SVG island/camera while the registered crown occludes branch wood behind the trunk', async () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+    try {
+      window.history.pushState({}, '', '/#/tree');
+      const clean = await renderTree();
+      expect(clean.querySelector('[data-organic-canopy-track]')).toBeNull();
+      cleanup();
+
+      window.history.pushState(
+        {},
+        '',
+        '/?organicGrowth=organic-canopy-occlusion-near-miss#/tree',
+      );
+      const nearMiss = await renderTree();
+      expect(nearMiss.querySelector('[data-organic-canopy-track]')).toBeNull();
+      expect(nearMiss.querySelector('[data-island-formation-control]')).toBeNull();
+      cleanup();
+
+      // The held control is the existing semantic witness camera and its real primary tree spot.
+      window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
+      const baseline = await renderTree();
+      const baselineSvg = baseline.querySelector(
+        '[data-semantic-growth-frame] > svg',
+      )!;
+      const baselineViewBox = baselineSvg.getAttribute('viewBox');
+      const baselineNext = Array.from(
+        baseline.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      ).find((button) => button.textContent === 'Next') as HTMLButtonElement;
+      await act(async () => baselineNext.click()); // land
+      await act(async () => baselineNext.click()); // proposed
+      const primaryTree = baseline.querySelector(
+        '[data-story-id="semantic-growth-demo"] .story-tree',
+      );
+      const rootMatch = /translate\(([-\d.]+) ([-\d.]+)\)/u.exec(
+        primaryTree?.getAttribute('transform') ?? '',
+      );
+      expect(rootMatch).toBeTruthy();
+      const baselineRoot = `${Number(rootMatch?.[1]).toFixed(1)},${Number(rootMatch?.[2]).toFixed(1)}`;
+      cleanup();
+
+      window.history.pushState(
+        {},
+        '',
+        '/?organicGrowth=organic-canopy-occlusion#/tree',
+      );
+      const flagged = await renderTree();
+      const section = flagged.querySelector(
+        '[data-semantic-growth-frame="empty"][data-organic-technique="organic-canopy-occlusion"]',
+      )!;
+      expect(section).toBeTruthy();
+      expect(section.getAttribute('data-island-formation-control')).toBe(
+        'round1-keypose',
+      );
+      expect(flagged.textContent).toMatch(
+        /held constant at the Round 1 key-pose SVG arrive-ground treatment/i,
+      );
+      expect(flagged.textContent).toMatch(/below the island-growth bar/i);
+      const svg = section.querySelector(':scope > svg')!;
+      expect(svg.getAttribute('viewBox')).toBe(baselineViewBox);
+      expect(flagged.querySelector('[data-native-island-progress]')).toBeNull();
+      expect(flagged.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+      expect(flagged.querySelector('image[href*="island"]')).toBeNull();
+
+      const controls = Array.from(
+        section.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      );
+      const next = controls.find((button) => button.textContent === 'Next') as HTMLButtonElement;
+      const back = controls.find((button) => button.textContent === 'Back') as HTMLButtonElement;
+      const replay = controls.find((button) => button.textContent === 'Replay') as HTMLButtonElement;
+      await act(async () => next.click()); // land -- ordinary semantic ground
+      expect(flagged.querySelector('.coast-fill-group')).toBeTruthy();
+      expect(flagged.querySelector('[data-native-island-progress]')).toBeNull();
+      await act(async () => next.click()); // proposed
+
+      const composite = flagged.querySelector(
+        '[data-organic-canopy-track="chapter2-organic-canopy-occlusion-v1"]',
+      )!;
+      expect(composite.getAttribute('data-root-socket')).toBe(baselineRoot);
+      expect(composite.getAttribute('data-rig-crown-socket')).toBe('0.0,-98.0');
+      const heldRoot = composite.getAttribute('data-root-socket');
+      const heldCrown = composite.getAttribute('data-world-crown-socket');
+
+      await act(async () => next.click()); // claimed
+      await act(async () => next.click()); // signed-proof
+      await act(async () => next.click()); // healthy
+      const matureCanopy = flagged.querySelector(
+        '[data-painter-slot="canopy-collar"][data-organic-canopy-pose="8"]',
+      )!;
+      expect(matureCanopy).toBeTruthy();
+      expect(matureCanopy.querySelector('image')?.getAttribute('href')).toMatch(
+        /chapter2-organic-canopy-occlusion\/v1\/canopy\/pose-08\.png/,
+      );
+      expect(matureCanopy.getAttribute('data-asset-crown-socket')).toBe('96.0,112.0');
+      expect(matureCanopy.getAttribute('data-collar-bounds')).toBe(
+        '72.0,101.0,49.0,31.0',
+      );
+      expect(matureCanopy.getAttribute('data-local-transform')).toBe(
+        'translate(0.0 -98.0) translate(-96.0 -112.0)',
+      );
+      expect(Number(matureCanopy.getAttribute('data-collar-opaque-pixels'))).toBeGreaterThanOrEqual(
+        1100,
+      );
+      const painterSlots = Array.from(
+        composite.querySelectorAll(':scope > [data-painter-slot]'),
+      ).map((node) => node.getAttribute('data-painter-slot'));
+      expect(painterSlots).toEqual([
+        'branch-behind-canopy',
+        'branch-behind-canopy',
+        'canopy-collar',
+        'trunk-front',
+        'plant-foreground',
+        'plant-foreground',
+      ]);
+      expect(composite.getAttribute('data-root-socket')).toBe(heldRoot);
+      expect(composite.getAttribute('data-world-crown-socket')).toBe(heldCrown);
+      expect(svg.getAttribute('viewBox')).toBe(baselineViewBox);
+      expect(
+        flagged.querySelector(
+          'image[href*="canopy-left"], image[href*="canopy-right"], image[href*="canopy-crown"]',
+        ),
+      ).toBeNull();
+
+      await act(async () => back.click());
+      expect(
+        flagged
+          .querySelector('[data-painter-slot="canopy-collar"]')
+          ?.getAttribute('data-organic-canopy-pose'),
+      ).not.toBe('8');
+      await act(async () => next.click());
+      expect(
+        flagged
+          .querySelector('[data-painter-slot="canopy-collar"]')
+          ?.getAttribute('data-organic-canopy-pose'),
+      ).toBe('8');
+      await act(async () => replay.click());
+      expect(section.getAttribute('data-semantic-growth-frame')).toBe('empty');
+      expect(composite.getAttribute('data-root-socket')).toBe(heldRoot);
+      expect(svg.getAttribute('viewBox')).toBe(baselineViewBox);
+
+      const runtimeSource = [
+        'TreeView.tsx',
+        'SemanticGrowthDemo.tsx',
+      ].map((file) =>
+        readFileSync(resolve(process.cwd(), 'src', 'components', file), 'utf8'),
+      ).join('\n');
+      expect(runtimeSource).not.toMatch(/pixellab|fetch\s*\([^)]*organic|apiKey|credential/i);
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
   // machine contract 3): "signed-proof remains proposed/non-healthy while carrying the proof bloom;
   // healthy appears only last" / "no pre-final frame may appear healthy". The `signed-proof` frame is
