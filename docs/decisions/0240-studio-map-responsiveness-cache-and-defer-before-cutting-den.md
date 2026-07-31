@@ -9,7 +9,7 @@ arc: studio-map-responsiveness-arc
 
 accepted (2026-07-25) — decided/directed by the owner in conversation on 2026-07-25. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
-**Corrected in place 2026-07-27 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md), after stages 1 and 2 landed — again 2026-07-28, after stage 3 — a third time 2026-07-28, after stage 4 — and a fourth time 2026-07-31, after [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md) measured a pan frame.**
+**Corrected in place 2026-07-27 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md), after stages 1 and 2 landed — again 2026-07-28, after stage 3 — a third time 2026-07-28, after stage 4 — and a fourth time 2026-07-31, after [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md) measured a pan frame — and a fifth time 2026-08-01, when the pattern named below graduated to the Library.**
 Decisions 3 and 4 stand unchanged — cached paint is never cached truth, the density budget is
 sequenced here and not designed here. Decisions 1 and 2 are NARROWED by ADR-0272 and carry inline
 notes at the narrowed clauses: decision 1's "not rendering" is true of the costs this ADR measured
@@ -24,7 +24,7 @@ payload whose role it had never checked. Two further bullets are added — for a
 2 necessarily crossed, and for the honesty window stage 4 found that deferral opens. All are
 corrected in the Consequences below — truth-maintenance, not a re-decision.
 
-Worth naming once, because the next stage will also prescribe mechanisms: all three insufficient
+Named here because the next stage will also prescribe mechanisms: all three insufficient
 prescriptions failed the SAME way, and stage 4 sharpens what that way is. The first two named a
 guard that could not OBSERVE the thing it was meant to gate — a server code stamp that arrives only
 after the paint it would have gated; a directory mtime that does not move when file content changes.
@@ -32,7 +32,22 @@ The third named a treatment, "defer", for a payload whose actual ROLE was never 
 turned out to have no reader at all — so the honest move was deletion, not deferral. The common root
 is prescribing a mechanism without first asking what it can SEE or what it is FOR. On this path a
 design-time prescription is best read as a hypothesis to probe against the code before it is written
-down as the answer. What landed and when is the arc's increment log (`storytree arc show
+down as the answer.
+
+*(Corrected in place 2026-08-01 per ADR-0139 — the generalisation is REHOMED, the instances stay.
+The "what it can SEE" half is no longer this ADR's to carry corpus-wide: it graduated on 2026-07-31
+to `asset:an-observable-is-evidence-only-for-what-it-observes`, which cites the two guards above as
+its design-time instances alongside two more from unrelated subsystems, and which supplies the
+discriminating test this paragraph stops short of — name ONE ordinary operation that moves your key
+without moving the property. What is deliberately NOT rehomed, because the Library does not own it,
+is the "or what it is FOR" half: the third prescription is not an observable failure at all — no
+instrument was mis-chosen, the payload's ROLE was simply never asked about, and the TREATMENT was
+wrong once it was. So read this paragraph as two arc-local instances of a corpus rule, plus a third
+failure that still has only this home. Opening clause narrowed from "Worth naming once" for the same
+reason: the naming now lives in the Library. ADR-0272's closing section mis-summarised all three as
+observe-failures and is corrected to match this split, same date.)*
+
+What landed and when is the arc's increment log (`storytree arc show
 studio-map-responsiveness-arc --pg`), never tracked here.
 
 ## Context
@@ -211,6 +226,11 @@ change, no sync-and-pin dance, and no change to what the owner sees (decision 2'
 
 - Arc: `studio-map-responsiveness-arc` (`storytree arc show studio-map-responsiveness-arc --pg`).
 - ADR-0042 (hosted studio) — the caching decisions apply to the members deployment, not just local dev.
+- `asset:an-observable-is-evidence-only-for-what-it-observes` — the corpus rule the Status block above
+  states locally. It cites this ADR twice: the two insufficient guards (the server code stamp, the
+  directory mtime) as design-time instances, and the ~70 ms DOM-mount figure generalised into
+  decision 1's "not rendering" as its inference-time instance. Pull it before prescribing the next
+  guard, or before quoting a number here as evidence about a cost it did not measure.
 - `apps/studio/src/App.tsx` (the boot gate), `apps/studio/server/apiRouter.ts` (`readTree`, `listDocs`),
   `apps/studio/src/components/TreeView.tsx` (the world/scene memos), `@storytree/app-surface`
   (`SceneView`, already memoized).

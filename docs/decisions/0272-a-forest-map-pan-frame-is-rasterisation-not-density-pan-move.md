@@ -175,10 +175,22 @@ ADR-0240's Status block already names this arc's recurring failure — "prescrib
 first asking what it can SEE or what it is FOR" — across three prescriptions. This is the fourth
 instance and it is the same root wearing a different coat: decision 1 generalised a MOUNT measurement
 (~70 ms to insert 16.6k nodes) into a claim about rendering *in general*, and that claim then
-sequenced four stages of work away from the owner's actual symptom. The three earlier failures were
-mechanisms that could not observe what they gated; this one is a **measurement of one thing quoted as
-evidence about another**. Worth carrying forward: on this surface, a number is evidence only for the
-thing it actually measured.
+sequenced four stages of work away from the owner's actual symptom. Two of the three earlier failures
+were mechanisms that could not observe what they gated — the third mis-prescribed a TREATMENT for a
+payload whose role was never asked about, which is the "or what it is FOR" half of ADR-0240's root
+and a different failure; this one is a **measurement of one thing quoted as evidence about another**.
+Worth carrying forward: on this surface, a number is evidence only for the thing it actually
+measured.
+
+*(It WAS carried forward, and the fence came off — recorded in place 2026-08-01 per ADR-0139. On
+2026-07-31 the rule graduated to `asset:an-observable-is-evidence-only-for-what-it-observes`, which
+holds both faces as one — design-time, a check must key on something that can SEE the property it
+gates; inference-time, a number is evidence only for what it actually measured — with no
+"on this surface" restriction and a discriminating test to apply at both. The words above are
+deliberately left exactly as written rather than widened: the Library artifact quotes this sentence
+AS the tell that the corpus had re-derived the shape locally, once too often, without ever
+generalising it — so rewriting it here would falsify the evidence the principle rests on. Only the
+REACH changes: "on this surface" was honest when written and is no longer a fence.)*
 
 **Measurement traps this arc should not re-pay.** All three silently corrupt rather than fail:
 
@@ -223,6 +235,14 @@ than a defect:
   with the renderer swap named-deferred behind explicit triggers; trigger (b) is amended here, and
   the CPU/DOM-bound framing its scoping memo established is narrowed by decision 6. The `SceneView`
   memo it produced is intact and still required.
+- `asset:an-observable-is-evidence-only-for-what-it-observes` — the corpus rule that graduated
+  (2026-07-31) from this ADR's closing paragraph and ADR-0240's Status block, stated there without
+  the "on this surface" fence. The measurements above are its inference-time instance: ADR-0240's
+  ~70 ms mount figure quoted as evidence about rendering, against the 275 ms pan frame that is ~99.8%
+  rendering. Pull it before quoting any number in this arc as evidence about a cost it did not
+  measure — this ADR's own Limits already fence one such gap by hand ("Zoom is not fixed by this…
+  the same commit-on-settle trick applies but was not measured"), which is the rule applied rather
+  than a separate caveat.
 - `apps/studio/src/components/TreeView.tsx` — the `.world-camera` group, which carried the
   per-frame camera when this ADR was measured; since decision 2 shipped (2026-07-31) the per-frame
   write lands on the `.world-pan-layer` wrapper's CSS transform and `commitPendingPan` folds it back
