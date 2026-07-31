@@ -12,6 +12,15 @@ arc: chapter2-pixellab-organic-growth-arc
 accepted (2026-07-31) — decided/directed by the owner in conversation on 2026-07-31.
 Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**Owner LOOK evidence (2026-08-01 — Experiment 2, layered cutout puppet).** The owner judged this
+comparison to have the best trunk and ground-plant growth animations seen so far, with the plants in
+particular animating very well. That positive component evidence does not adopt the complete rig.
+The island formation remained below the visual bar, while the tree leaves looked wrong and were
+misplaced: a visible gap between canopy and trunk made the settled tree read as buggy and unclean.
+The trunk and plant choreography are therefore retained as strong reusable evidence; the current
+canopy assembly/registration and island-formation treatment are rejected. No clean-route default or
+whole-technique adoption follows from this verdict.
+
 **Supersedes
 [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md).**
 Its hosted full-island raster witness proved that generated frames can run deterministically in the
@@ -92,6 +101,12 @@ The generated asset must fit the app's camera; the camera does not move to fit t
 with the wrong projection, drifting root, changing ground contact or incompatible mature footprint
 is rejected or regenerated rather than compensated by moving the island at runtime.
 
+Stable coordinates are necessary but not sufficient registration. In the settled scene, canopy
+material must visibly connect to and overlap its supporting trunk or branch at the declared socket.
+A mathematically invariant socket that leaves a visible air gap, misplaced leaves or a detached
+canopy has failed registration and must be re-authored, re-normalized or rejected; the app must not
+ship that discontinuity as an intentional puppet joint.
+
 Separate registered tracks are preferred when they preserve painter order and let the app compose
 land, trunk, canopy and ground details cleanly. The SVG island remains visible as the real retained
 scene beneath and around those organic layers.
@@ -124,6 +139,11 @@ The full-island raster witness from ADR-0273 remains useful rejected evidence. I
 visual direction and should leave the active witness path when the corrected implementation lands.
 The successor arc does not close until the corrected organic composition has a real owner verdict.
 
+Experiment 2's 2026-08-01 owner LOOK is a component-selective result: its trunk and ground-plant
+motion are the strongest positive animation evidence in that comparison, but its island formation
+and visibly detached canopy fail the composed-scene bar. The experiment remains comparison evidence
+and does not close the successor arc or authorize the cutout-puppet rig as the clean-route default.
+
 ### D6 — Explicitly rejected
 
 - Generating the island, coast or complete scene as a PixelLab sprite sequence.
@@ -133,6 +153,8 @@ The successor arc does not close until the corrected organic composition has a r
 - A runtime vendor call, asset-owned clock, second renderer, standalone video/GIF, Storybook-only
   fixture or website recreation presented as product proof.
 - Whole-scene scale/fade, snapshot replacement or crop drift presented as planted organic growth.
+- A canopy whose leaves are mathematically socketed but visibly detached, misplaced or separated
+  from their supporting trunk/branch by an air gap.
 - An unbounded sheet family keyed by story or capability count.
 
 ## Consequences
@@ -152,6 +174,8 @@ The successor arc does not close until the corrected organic composition has a r
   still a real rejection condition.
 - Registered sockets, author-time normalization and cross-layer painter order become explicit
   pipeline work.
+- Coordinate-invariant sockets still require a visual continuity check: stable math can produce a
+  visibly buggy trunk/canopy gap.
 - The seam between crisp SVG land and raster organic art may reveal style mismatch and needs a
   hosted visual verdict.
 - Multiple organic tracks require deliberate loading and frame budgets even though they are smaller
