@@ -683,7 +683,11 @@ test('trailFillWidth is 1.2 + 1.8*sqrt(n): a thin spur, a legible thin→thick t
 
 // ---------- perf sanity ----------
 
-test('30 islands / 60 edges routes in under 2s', () => {
+// The 2s bound is asserted only under STORYTREE_PERF=1 (ADR-0276): on a gate run the box is
+// shared with concurrent suites and sessions, so elapsed measures CPU starvation, not the
+// routine — measured 386ms quiet vs 6185ms isolated-but-loaded (PR #1010). The functional
+// proof below stays gate-tier; the elapsed still prints every run as a TAP diagnostic.
+test('30 islands / 60 edges route correctly (2s bound opt-in via STORYTREE_PERF=1)', (t) => {
   const islands: TrailIsland[] = [];
   for (let i = 0; i < 30; i++) {
     const col = i % 6;
@@ -707,7 +711,10 @@ test('30 islands / 60 edges routes in under 2s', () => {
   const net = routeTrails(islands, edges, 'seed-perf');
   const elapsed = performance.now() - t0;
   assert.ok(net.edges.length > 0);
-  assert.ok(elapsed < 2000, `routed in ${elapsed.toFixed(0)}ms`);
+  t.diagnostic(`routed in ${elapsed.toFixed(0)}ms`);
+  if (process.env.STORYTREE_PERF === '1') {
+    assert.ok(elapsed < 2000, `routed in ${elapsed.toFixed(0)}ms`);
+  }
   // segment ids are unique even under 32-bit hash collisions (the -N extension)
   assert.equal(new Set(net.segments.map((s) => s.id)).size, net.segments.length);
   for (const edge of net.edges) assertChainContinuous(net, islands, edge);
