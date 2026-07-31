@@ -20,6 +20,7 @@ import {
   selectOrganicPoseCue,
   validateOrganicPoseRegistry,
   type OrganicPosePoint,
+  type OrganicPosePlaybackState,
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
 import {
@@ -70,6 +71,8 @@ export interface SemanticGrowthOrganicPoseLayer {
 export interface SemanticGrowthSvgIslandAccretion {
   readonly storyId: string;
   readonly worldAnchor: SvgIslandAccretionPoint;
+  /** Duration of the initial empty-to-land accretion only; later pose cues retain their control timing. */
+  readonly growthDurationMs: number;
 }
 
 export interface SemanticGrowthWorldViewProps {
@@ -106,6 +109,24 @@ function withoutOrbit(node: SceneNode): SceneNode {
 
 function browserPrefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+function withSvgIslandGrowthTiming(
+  selected: OrganicPosePlaybackState,
+  svgIslandAccretion: SemanticGrowthSvgIslandAccretion | undefined,
+  settledAtProgress: number,
+  reducedMotion: boolean,
+): OrganicPosePlaybackState {
+  if (
+    !svgIslandAccretion ||
+    reducedMotion ||
+    selected.transitionMs === 0 ||
+    selected.fromProgress >= selected.targetProgress ||
+    selected.targetProgress !== settledAtProgress
+  ) {
+    return selected;
+  }
+  return { ...selected, transitionMs: svgIslandAccretion.growthDurationMs };
 }
 
 const fmt = (n: number): string => n.toFixed(1);
@@ -260,6 +281,13 @@ export function SemanticGrowthWorldView({
   ) {
     throw new Error('SVG island accretion must target the registered native island.');
   }
+  if (
+    svgIslandAccretion &&
+    (!Number.isFinite(svgIslandAccretion.growthDurationMs) ||
+      svgIslandAccretion.growthDurationMs <= 0)
+  ) {
+    throw new Error('SVG island accretion growth duration must be positive and finite.');
+  }
   const [cursor, setCursor] = React.useState(0);
   const [organicPlayback, setOrganicPlayback] = React.useState(initialOrganicPosePlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
@@ -390,7 +418,12 @@ export function SemanticGrowthWorldView({
       setOrganicPlayback((current) =>
         replay
           ? replayOrganicPosePlayback(current)
-          : selectOrganicPoseCue(current, bounded, reduce),
+          : withSvgIslandGrowthTiming(
+              selectOrganicPoseCue(current, bounded, reduce),
+              svgIslandAccretion,
+              organicPoseGrowth.nativeIsland.settledAtProgress,
+              reduce,
+            ),
       );
     }
     callback?.(frames[bounded]!.key);
@@ -414,6 +447,8 @@ export function SemanticGrowthWorldView({
                     islandAccretionState.progress.toFixed(4),
                   'data-svg-island-accretion-cells':
                     String(islandAccretionPlan?.cells.length ?? 0),
+                  'data-svg-island-accretion-duration-ms':
+                    String(svgIslandAccretion?.growthDurationMs ?? 0),
                   'data-svg-island-accretion-waves':
                     islandAccretionPlan
                       ? [...new Set(islandAccretionPlan.cells.map((cell) => cell.wave))]

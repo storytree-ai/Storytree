@@ -70,12 +70,12 @@ interface PolygonTopology {
   readonly boundary: ReadonlySet<number>;
 }
 
-const LAND_SETTLED_AT = 0.82;
-const CELL_START_SPAN = 0.62;
+const LAND_SETTLED_AT = 0.72;
+const CELL_START_SPAN = 0.5;
 const CELL_REVEAL_DURATION = LAND_SETTLED_AT - CELL_START_SPAN;
 const COAST_START = LAND_SETTLED_AT;
-const COAST_START_SPAN = 0.12;
-const COAST_REVEAL_DURATION = 1 - COAST_START - COAST_START_SPAN;
+const COAST_SETTLED_AT = 0.9;
+const COAST_REVEAL_DURATION = COAST_SETTLED_AT - COAST_START;
 const TAU = Math.PI * 2;
 
 function clamp01(value: number): number {
@@ -358,11 +358,12 @@ export function deriveSvgIslandAccretionPlan(
   };
 }
 
-function coastRadius(cell: SvgIslandAccretionCell): number {
-  const radius = Math.max(
-    ...cell.points.map((point) => Math.sqrt(distanceSquared(cell.centroid, point))),
-  );
-  return radius * 2.4;
+function coastSettlementRadius(plan: SvgIslandAccretionPlan): number {
+  return Math.max(
+    ...plan.cells.flatMap((cell) =>
+      cell.points.map((point) => Math.sqrt(distanceSquared(plan.worldAnchor, point))),
+    ),
+  ) * 1.25;
 }
 
 /** Select one immutable geometric reveal state. Progress 1 explicitly means no renderer clipping. */
@@ -383,23 +384,19 @@ export function svgIslandAccretionAtProgress(
     ),
   }));
   const cellByKey = new Map(cells.map((cell) => [cell.key, cell]));
-  const coastProgress = clamp01((progress - COAST_START) / (1 - COAST_START));
-  const coastReveals = plan.cells.map(
-    (cell, order): SvgIslandAccretionCoastReveal => {
-      const start = COAST_START +
-        (plan.cells.length > 1
-          ? (order / (plan.cells.length - 1)) * COAST_START_SPAN
-          : 0);
-      return {
-        key: cell.key,
-        centre: cell.centroid,
-        radius: coastRadius(cell),
-        neighbourKeys: cell.neighbourKeys,
-        order,
-        scale: smoothstep((progress - start) / COAST_REVEAL_DURATION),
-      };
-    },
-  );
+  const coastProgress = smoothstep((progress - COAST_START) / COAST_REVEAL_DURATION);
+  // Coastline settlement is one island-wide geometric handoff. The previous version
+  // expanded one clip circle per cell after the land was already complete, making the
+  // retained hex mesh appear to dance at the end. One connected reveal keeps every
+  // settled land cell immobile through the terminal hold.
+  const coastReveals: readonly SvgIslandAccretionCoastReveal[] = [{
+    key: 'coast-settlement',
+    centre: plan.worldAnchor,
+    radius: coastSettlementRadius(plan),
+    neighbourKeys: plan.boundaryCellKeys,
+    order: 0,
+    scale: coastProgress,
+  }];
   return {
     storyId: plan.storyId,
     worldAnchor: plan.worldAnchor,
