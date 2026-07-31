@@ -26,10 +26,11 @@ longer applies to Chapter 2. Its shared app-surface artifact consumes this same 
 sprite renderer and assets over fictional data. It may not create a website-local sprite fork.
 
 **Selective growth-track amendment
-([ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md), 2026-07-30).**
-Chapter 2 may also consume a registered PixelLab-generated frame track for one bounded island-growth
-witness. The local frames supply appearance only: the shared app owns semantic progress, timing,
-deterministic selection, Back/Replay, reduced motion, anchors and painter order. The witness remains
+([ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md), 2026-07-31).**
+Chapter 2 may consume registered PixelLab-generated frame tracks for bounded tree and plant growth
+over its app-native SVG island. The local frames supply organic appearance only: the shared app owns
+the island geometry and camera as well as semantic progress, timing, deterministic selection,
+Back/Replay, reduced motion, anchors and painter order. The corrected witness remains
 exact-query-gated until the owner gives its separate LOOK verdict.
 
 ## Context
@@ -91,8 +92,9 @@ factory, does not remove it.**
 
    **Currency (2026-07-24):** the owner signed on 2026-07-23, so the authorized default flip has now
    occurred. The vector factory remains present and selectable; only its role changed from default to
-   explicit option. ADR-0273's later PixelLab island track is a separate exact-query-gated witness
-   whose LOOK verdict is still outstanding.
+   explicit option. ADR-0273's later full-island PixelLab witness was rejected by the owner for
+   changing the camera and redrawing the island. ADR-0274's organic-only successor remains a separate
+   exact-query-gated witness whose LOOK verdict is outstanding.
 
 Rejected: replacing or deleting the parametric factory; per-instance or runtime generative calls;
 auto-tracing raster into the scene-graph as geometry; an independent website sprite/render fork; any
@@ -104,8 +106,8 @@ machine-signed look verdict; real 3D / R3F as the map renderer (ADR-0219 D4 stan
   is a sheet swap; occlusion is free (existing sort); per-object DOM cost drops from a baked building's
   ~1,400 nodes to one `<image>`.
 - **Good — the prior map remains recoverable.** Graceful fallback keeps uncovered kinds Vector,
-  explicit `?artStyle=vector` preserves the procedural render, and the PixelLab island track is
-  exact-query-gated rather than replacing the clean route.
+  explicit `?artStyle=vector` preserves the procedural render, and PixelLab organic-growth tracks
+  stay exact-query-gated rather than replacing the clean route or the SVG island.
 - **Cost — raster forfeits what the vector factory gave for free:** text-diffable art, parametric
   per-status recolour precision (handled here by per-status sprite variants), and machine-checkable
   geometric correctness. A raster sprite *cannot* have a floating roof, so the checker's job is moot for
@@ -117,8 +119,9 @@ machine-signed look verdict; real 3D / R3F as the map renderer (ADR-0219 D4 stan
   across a generated set). Mitigated by hand-the-angle + the locked style bible; residual drift is
   exactly what the owner's look verdict judges.
 - **Honest — each new visual track remains unproven until attested.** Storybook cleared its owner
-  verdict on 2026-07-23; ADR-0273's PixelLab island track has its own outstanding LOOK call. Machine
-  proof authorizes neither visual conclusion.
+  verdict on 2026-07-23; ADR-0273's full-island track failed its owner LOOK call, and ADR-0274's
+  corrected organic-only track has not yet received one. Machine proof authorizes neither visual
+  conclusion.
 
 ## References
 
@@ -134,9 +137,9 @@ machine-signed look verdict; real 3D / R3F as the map renderer (ADR-0219 D4 stan
 - [ADR-0093](0093-shared-forest-world-render-core-for-studio-and-the-public-we.md) — colour-is-class;
   the sprite sheet began as its studio-scoped render exception, later shared with Chapter 2 by
   ADR-0237.
-- [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) — permits one
-  selective registered PixelLab frame track while keeping the app as renderer, clock and semantic
-  owner.
+- [ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) — permits
+  selective registered PixelLab tree and plant tracks over the SVG island while keeping the app as
+  geometry owner, renderer, clock and semantic owner.
 - [ADR-0062](0062-the-forest-world-is-the-observability-layer-rendered-one-art.md) /
   [ADR-0069](0069-parameterise-the-forest-world-geometry-as-a-procedural-pipel.md) — the world is a
   live function of data; sprites are still composed live per render (the sheet is the only static input).

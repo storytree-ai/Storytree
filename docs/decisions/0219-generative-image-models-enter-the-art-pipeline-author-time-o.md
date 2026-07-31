@@ -18,9 +18,10 @@ separate and the owner's (ADR-0070 stage 2), still outstanding.
 **Currency (2026-07-31).** [ADR-0230](0230-swappable-sprite-art-sheet-render-mode-take-adr-0219-s-parke.md)
 took D3's raster fork, [ADR-0237](0237-chapter-2-is-a-scripted-mode-of-the-real-app-share-product-u.md)
 made the same product renderer available to Chapter 2, and
-[ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) now permits one
-selective PixelLab-generated frame track inside the app-owned animation system. D1's author-time-only
-boundary, committed-assets source of truth, 2.5D posture and owner-held LOOK verdict all stand.
+[ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) now permits
+selective PixelLab-generated tree and plant tracks inside the app-owned animation system while the
+island and coast remain app-native SVG. D1's author-time-only boundary, committed-assets source of
+truth, 2.5D posture and owner-held LOOK verdict all stand.
 
 ## Context
 
@@ -91,9 +92,10 @@ stays 2.5D isometric.** In four parts.
    [ADR-0230](0230-swappable-sprite-art-sheet-render-mode-take-adr-0219-s-parke.md):** the raster-sprite
    look layer entered as a prototype-scoped `artStyle` toggle and, after the owner's LOOK verdict,
    Storybook became the clean-route default with Vector preserved as an explicit option. ADR-0237
-   extended that shared renderer to Chapter 2. ADR-0273 further permits a selectively generated,
-   registered frame track for island growth; the app still owns time, semantics, replay and reduced
-   motion. None of these amendments reverses D1 author-time-only or D4 2.5D-isometric.
+   extended that shared renderer to Chapter 2. ADR-0274 further permits selectively generated,
+   registered frame tracks for tree and plant growth while retaining the app-native SVG island; the
+   app still owns time, semantics, replay and reduced motion. None of these amendments reverses D1
+   author-time-only or D4 2.5D-isometric.
 
 4. **PARKED — do NOT reopen: the game is 2.5D ISOMETRIC and stays that way.** Real 3D / R3F is **Act 1
    only**. "3D" in this arc is an **authoring substrate** (decision 2's light ortho rig), never a
@@ -157,9 +159,10 @@ verdict.
   ADR.** Takes D3's parked raster-sprite fork; its owner-attested Storybook sheet is now the
   clean-route default and Vector remains selectable.
 - [ADR-0237](0237-chapter-2-is-a-scripted-mode-of-the-real-app-share-product-u.md) and
-  [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) — extend the
-  author-time raster posture to Chapter 2 and one selective registered island-growth track while
-  preserving app-owned semantics, deterministic playback, 2.5D rendering and the human LOOK boundary.
+  [ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) — extend the
+  author-time raster posture to Chapter 2 and selective registered organic-growth tracks over the
+  app-native SVG island while preserving app-owned semantics, deterministic playback, 2.5D
+  rendering and the human LOOK boundary.
 - [ADR-0214](0214-ground-ai-authored-art-in-a-physical-model-csg-over-svg-not.md) — **amended**: D4's
   "improving the art is a hard non-goal" becomes a named aesthetic DIRECTION (the cosy concept). D4's
   **never-reinterpret rule stands** — the concept informs an author, never our code (ADR-0217 D2).
