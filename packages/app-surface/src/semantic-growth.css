@@ -323,3 +323,14 @@
   transition: none !important;
   opacity: 1 !important;
 }
+
+/* Experiment 1 owns land arrival with the app-native SVG clip in SceneView. Keep the existing
+ * coast/ground geometry and camera, but prevent the semantic demo's older scale/fade entrance from
+ * applying a second reveal on this exact query-gated technique. */
+[data-organic-technique='pose-to-pose'][data-motion='full'] .coast-fill-group,
+[data-organic-technique='pose-to-pose'][data-motion='full'] .relaxed-tile,
+[data-organic-technique='pose-to-pose'][data-motion='full'] .hex-tile {
+  animation: none !important;
+  opacity: 1 !important;
+  scale: 1 !important;
+}

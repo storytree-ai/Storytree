@@ -15,7 +15,7 @@ import {
   SemanticGrowthWorldView,
   type SemanticGrowthAnimationClock,
 } from './SemanticGrowthWorldView.js';
-import { CHAPTER2_ISLAND_GROWTH_TRACK } from './island-growth-track.js';
+import { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
 import * as AppSurfacePackageRoot from './index.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 
@@ -148,7 +148,7 @@ function frameModelAt(
 }
 
 describe('SemanticGrowthWorldView', () => {
-  it('drives the registered island frames with the app clock, stable anchor, Back and in-place Replay', () => {
+  it('drives registered tree and plant poses with the app clock, stable anchors, Back and in-place Replay', () => {
     class ManualClock implements SemanticGrowthAnimationClock {
       private nextId = 1;
       private callbacks = new Map<number, (timestamp: number) => void>();
@@ -172,93 +172,191 @@ describe('SemanticGrowthWorldView', () => {
 
     const clock = new ManualClock();
     const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
-    const islandGrowth = {
-      track: CHAPTER2_ISLAND_GROWTH_TRACK,
-      worldAnchor: { x: 50, y: 80 },
-      scale: 0.5,
+    const organicPoseGrowth = {
+      registry: CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+      instances: [
+        {
+          trackId: 'chapter2-hero-tree-pose-track-v1',
+          worldAnchor: { x: 50, y: 45 },
+          scale: 0.34,
+          progressWindow: { start: 0.18, end: 1 },
+        },
+        {
+          trackId: 'chapter2-plant-sample-pose-track-v1',
+          worldAnchor: { x: 62, y: 62 },
+          scale: 0.22,
+          progressWindow: { start: 0.52, end: 1 },
+        },
+      ],
+      nativeIsland: {
+        storyId: 'semantic-growth',
+        worldAnchor: { x: 50, y: 50 },
+        radius: { x: 36, y: 26 },
+        settledAtProgress: 0.18,
+      },
       clock,
     } as const;
     const view = render(
-      <SemanticGrowthWorldView frames={frames} islandGrowth={islandGrowth} />,
+      <SemanticGrowthWorldView frames={frames} organicPoseGrowth={organicPoseGrowth} />,
     );
     const section = view.container.querySelector('section')!;
-    const image = view.container.querySelector('image[data-depth-slot="island-growth-composite"]')!;
-    const frameIndex = (): string | null =>
-      view.container.querySelector('image[data-depth-slot="island-growth-composite"]')
-        ?.getAttribute('data-island-growth-frame') ?? null;
-    const anchor = (): string | null =>
-      view.container.querySelector('image[data-depth-slot="island-growth-composite"]')
-        ?.getAttribute('data-world-anchor-x') ?? null;
+    const frameIndex = (track = 'chapter2-hero-tree-pose-track-v1'): string | null =>
+      view.container.querySelector(`image[data-organic-track="${track}"]`)
+        ?.getAttribute('data-organic-frame') ?? null;
+    const anchor = (axis: 'x' | 'y'): string | null =>
+      view.container.querySelector('image[data-organic-track="chapter2-hero-tree-pose-track-v1"]')
+        ?.getAttribute(`data-world-anchor-${axis}`) ?? null;
 
-    expect(frameIndex()).toBe('0');
-    expect(anchor()).toBe('50.0');
+    expect(frameIndex()).toBeNull();
     fireEvent.click(view.getByRole('button', { name: 'Next' }));
     clock.step(0);
     clock.step(10_000);
-    expect(frameIndex()).toBe('1');
-    expect(anchor()).toBe('50.0');
+    expect(frameIndex()).toBeNull();
+    expect(
+      view.container.querySelector('[data-native-island-progress="1.0000"]'),
+    ).toBeTruthy();
 
     fireEvent.click(view.getByRole('button', { name: 'Next' }));
     clock.step(10_100);
     clock.step(20_000);
-    expect(frameIndex()).toBe('3');
-    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    const image = view.container.querySelector(
+      'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
+    )!;
+    expect(frameIndex()).toBe('1');
+    expect(anchor('x')).toBe('50.0');
+    expect(anchor('y')).toBe('45.0');
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
     clock.step(20_100);
     clock.step(30_000);
+    expect(frameIndex()).toBe('4');
+    expect(frameIndex('chapter2-plant-sample-pose-track-v1')).toBe('0');
+
+    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    clock.step(30_100);
+    clock.step(40_000);
     expect(frameIndex()).toBe('1');
-    expect(anchor()).toBe('50.0');
+    expect(frameIndex('chapter2-plant-sample-pose-track-v1')).toBeNull();
+    expect(anchor('x')).toBe('50.0');
 
     fireEvent.click(view.getByRole('button', { name: 'Replay' }));
     expect(view.container.querySelector('section')).toBe(section);
-    expect(view.container.querySelector('image[data-depth-slot="island-growth-composite"]')).toBe(image);
-    expect(frameIndex()).toBe('0');
-    expect(anchor()).toBe('50.0');
+    expect(view.container.querySelector(
+      'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
+    )).not.toBe(image);
+    expect(frameIndex()).toBeNull();
   });
 
-  it('settles reduced motion immediately to and retains the same final mature frame', () => {
+  it('settles reduced motion immediately to and retains both final mature poses', () => {
     const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
-    const islandGrowth = {
-      track: CHAPTER2_ISLAND_GROWTH_TRACK,
-      worldAnchor: { x: 50, y: 80 },
-      scale: 0.5,
+    const organicPoseGrowth = {
+      registry: CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+      instances: [
+        {
+          trackId: 'chapter2-hero-tree-pose-track-v1',
+          worldAnchor: { x: 50, y: 45 },
+          scale: 0.34,
+          progressWindow: { start: 0.18, end: 1 },
+        },
+        {
+          trackId: 'chapter2-plant-sample-pose-track-v1',
+          worldAnchor: { x: 62, y: 62 },
+          scale: 0.22,
+          progressWindow: { start: 0.52, end: 1 },
+        },
+      ],
+      nativeIsland: {
+        storyId: 'semantic-growth',
+        worldAnchor: { x: 50, y: 50 },
+        radius: { x: 36, y: 26 },
+        settledAtProgress: 0.18,
+      },
     } as const;
     const view = render(
-      <SemanticGrowthWorldView frames={frames} islandGrowth={islandGrowth} reducedMotion />,
+      <SemanticGrowthWorldView
+        frames={frames}
+        organicPoseGrowth={organicPoseGrowth}
+        reducedMotion
+      />,
     );
     for (const _key of ORDERED_KEYS.slice(1)) {
       fireEvent.click(view.getByRole('button', { name: 'Next' }));
     }
-    const final = view.container.querySelector('image[data-island-growth-frame="8"]');
-    expect(final).toBeTruthy();
-    expect(view.container.querySelector('[data-island-growth-progress="1.0000"]')).toBeTruthy();
-    view.rerender(
-      <SemanticGrowthWorldView frames={frames} islandGrowth={islandGrowth} reducedMotion />,
+    const tree = view.container.querySelector(
+      'image[data-organic-track="chapter2-hero-tree-pose-track-v1"][data-organic-frame="8"]',
     );
-    expect(view.container.querySelector('image[data-island-growth-frame="8"]')).toBe(final);
+    const plant = view.container.querySelector(
+      'image[data-organic-track="chapter2-plant-sample-pose-track-v1"][data-organic-frame="4"]',
+    );
+    expect(tree).toBeTruthy();
+    expect(plant).toBeTruthy();
+    expect(
+      view.container.querySelector('[data-organic-pose-progress="1.0000"]'),
+    ).toBeTruthy();
+    view.rerender(
+      <SemanticGrowthWorldView
+        frames={frames}
+        organicPoseGrowth={organicPoseGrowth}
+        reducedMotion
+      />,
+    );
+    expect(
+      view.container.querySelector(
+        'image[data-organic-track="chapter2-hero-tree-pose-track-v1"][data-organic-frame="8"]',
+      ),
+    ).toBe(tree);
   });
 
-  it('selects the same planted frame and anchor at representative desktop and mobile viewport widths', () => {
+  it('selects the same planted frames and anchors at representative desktop and mobile viewport widths', () => {
     const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
-    const islandGrowth = {
-      track: CHAPTER2_ISLAND_GROWTH_TRACK,
-      worldAnchor: { x: 50, y: 80 },
-      scale: 0.5,
+    const organicPoseGrowth = {
+      registry: CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+      instances: [
+        {
+          trackId: 'chapter2-hero-tree-pose-track-v1',
+          worldAnchor: { x: 50, y: 45 },
+          scale: 0.34,
+          progressWindow: { start: 0.18, end: 1 },
+        },
+        {
+          trackId: 'chapter2-plant-sample-pose-track-v1',
+          worldAnchor: { x: 62, y: 62 },
+          scale: 0.22,
+          progressWindow: { start: 0.52, end: 1 },
+        },
+      ],
+      nativeIsland: {
+        storyId: 'semantic-growth',
+        worldAnchor: { x: 50, y: 50 },
+        radius: { x: 36, y: 26 },
+        settledAtProgress: 0.18,
+      },
     } as const;
     const witness = (width: number): readonly string[] => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
       const view = render(
-        <SemanticGrowthWorldView frames={frames} islandGrowth={islandGrowth} reducedMotion />,
+        <SemanticGrowthWorldView
+          frames={frames}
+          organicPoseGrowth={organicPoseGrowth}
+          reducedMotion
+        />,
       );
       for (const _key of ORDERED_KEYS.slice(1)) {
         fireEvent.click(view.getByRole('button', { name: 'Next' }));
       }
-      const image = view.container.querySelector('image[data-depth-slot="island-growth-composite"]')!;
+      const tree = view.container.querySelector(
+        'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
+      )!;
+      const plant = view.container.querySelector(
+        'image[data-organic-track="chapter2-plant-sample-pose-track-v1"]',
+      )!;
       const result = [
-        image.getAttribute('data-island-growth-frame') ?? '',
-        image.getAttribute('data-world-anchor-x') ?? '',
-        image.getAttribute('data-world-anchor-y') ?? '',
-        image.getAttribute('width') ?? '',
-        image.getAttribute('height') ?? '',
+        tree.getAttribute('data-organic-frame') ?? '',
+        tree.getAttribute('data-world-anchor-x') ?? '',
+        tree.getAttribute('data-world-anchor-y') ?? '',
+        plant.getAttribute('data-organic-frame') ?? '',
+        plant.getAttribute('data-world-anchor-x') ?? '',
+        plant.getAttribute('data-world-anchor-y') ?? '',
       ] as const;
       view.unmount();
       return result;

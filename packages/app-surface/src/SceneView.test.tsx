@@ -164,31 +164,61 @@ describe('SceneView — the studio scene mapper', () => {
     expect((SceneView as { $$typeof?: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
   });
 
-  it('renders a registered island-growth frame at one planted world anchor in the composite painter slot', () => {
+  it('clips the real SVG island and renders separate registered organic poses at planted anchors after trails', () => {
     const { root } = renderScene({
-      islandGrowthLayer: {
-        src: '/assets/frame-04.png',
-        frameIndex: 4,
-        canvas: { width: 256, height: 256 },
-        assetAnchor: { x: 128, y: 239 },
-        worldAnchor: { x: 100, y: 120 },
-        scale: 0.5,
-        depthSlot: 'island-growth-composite',
+      nativeIslandGrowthLayer: {
+        storyId: 'lib',
+        worldAnchor: { x: 50, y: 50 },
+        radius: { x: 40, y: 28 },
+        progress: 0.5,
       },
+      organicPoseLayers: [
+        {
+          trackId: 'hero-tree',
+          src: '/assets/tree-04.png',
+          frameIndex: 4,
+          canvas: { width: 192, height: 192 },
+          assetAnchor: { x: 96, y: 188 },
+          worldAnchor: { x: 100, y: 120 },
+          scale: 0.5,
+          depthSlot: 'hero-tree-organic',
+        },
+        {
+          trackId: 'plant-sample',
+          src: '/assets/plant-02.png',
+          frameIndex: 2,
+          canvas: { width: 96, height: 96 },
+          assetAnchor: { x: 48, y: 92 },
+          worldAnchor: { x: 130, y: 134 },
+          scale: 0.25,
+          depthSlot: 'ground-plant-organic',
+        },
+      ],
     });
-    const image = root.querySelector('image[data-island-growth-frame="4"]');
-    expect(image).toBeTruthy();
-    expect(image?.getAttribute('href')).toBe('/assets/frame-04.png');
-    expect(image?.getAttribute('x')).toBe('36.0');
-    expect(image?.getAttribute('y')).toBe('0.5');
-    expect(image?.getAttribute('width')).toBe('128.0');
-    expect(image?.getAttribute('height')).toBe('128.0');
-    expect(image?.getAttribute('image-rendering')).toBe('pixelated');
-    expect(image?.getAttribute('data-depth-slot')).toBe('island-growth-composite');
+    const tree = root.querySelector('image[data-organic-track="hero-tree"]');
+    const plant = root.querySelector('image[data-organic-track="plant-sample"]');
+    expect(tree?.getAttribute('href')).toBe('/assets/tree-04.png');
+    expect(tree?.getAttribute('x')).toBe('52.0');
+    expect(tree?.getAttribute('y')).toBe('26.0');
+    expect(tree?.getAttribute('width')).toBe('96.0');
+    expect(tree?.getAttribute('height')).toBe('96.0');
+    expect(tree?.getAttribute('image-rendering')).toBe('pixelated');
+    expect(tree?.getAttribute('data-depth-slot')).toBe('hero-tree-organic');
+    expect(plant?.getAttribute('data-depth-slot')).toBe('ground-plant-organic');
 
-    const siblings = Array.from(image!.parentElement!.children);
-    expect(siblings.indexOf(image!)).toBeGreaterThan(siblings.indexOf(root.querySelector('.relaxed-land')!));
-    expect(siblings.indexOf(image!)).toBeLessThan(siblings.indexOf(root.querySelector('.trail-net')!));
+    const clip = root.querySelector(
+      'clipPath[id^="organic-pose-native-island-"] ellipse',
+    );
+    expect(clip?.getAttribute('rx')).toBe('20.0');
+    expect(clip?.getAttribute('ry')).toBe('14.0');
+    expect(root.querySelector('[data-native-island-story="lib"][clip-path]')).toBeTruthy();
+
+    const siblings = Array.from(tree!.parentElement!.children);
+    const trailLayer = root.querySelector('.trail-net')!.parentElement!;
+    const floraLayer = root.querySelector('.hex-flora')!.parentElement!;
+    expect(siblings.indexOf(tree!)).toBeGreaterThan(siblings.indexOf(trailLayer));
+    expect(siblings.indexOf(tree!)).toBeLessThan(siblings.indexOf(floraLayer));
+    expect(siblings.indexOf(plant!)).toBe(siblings.indexOf(tree!) + 1);
   });
 
   it('maps roles to the studio classes, folding status + variant', () => {
