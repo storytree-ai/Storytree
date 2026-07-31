@@ -1303,6 +1303,13 @@ export function readSemanticGrowthIsland(search: string = defaultSearch()): bool
   return new URLSearchParams(search).get('semanticGrowth') === 'island-growth';
 }
 
+/** Independent Chapter 2 comparison: exact match only; clean and sibling modes stay unchanged. */
+export function readSemanticGrowthOrganicMaskReveal(
+  search: string = defaultSearch(),
+): boolean {
+  return new URLSearchParams(search).get('semanticGrowth') === 'organic-mask-reveal';
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar' | 'stress';
@@ -2179,6 +2186,10 @@ export function TreeView({
   // near the other early returns.
   const semanticGrowthDemo = useMemo(() => readSemanticGrowthDemo(search), [search]);
   const semanticGrowthIsland = useMemo(() => readSemanticGrowthIsland(search), [search]);
+  const semanticGrowthOrganicMaskReveal = useMemo(
+    () => readSemanticGrowthOrganicMaskReveal(search),
+    [search],
+  );
   const scene = useMemo(
     () =>
       world
@@ -2356,12 +2367,18 @@ export function TreeView({
   // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
   // not a variant of the product controller. Every other value (absent/empty/unknown) falls
   // through unchanged, byte-for-byte, to the clean Studio path.
-  if (semanticGrowthDemo || semanticGrowthIsland) {
+  if (semanticGrowthDemo || semanticGrowthIsland || semanticGrowthOrganicMaskReveal) {
     return (
       <SemanticGrowthDemo
         spriteSheet={spriteSheet}
         artScale={artScale}
-        variant={semanticGrowthIsland ? 'island-growth' : 'demo'}
+        variant={
+          semanticGrowthIsland
+            ? 'island-growth'
+            : semanticGrowthOrganicMaskReveal
+              ? 'organic-mask-reveal'
+              : 'demo'
+        }
       />
     );
   }

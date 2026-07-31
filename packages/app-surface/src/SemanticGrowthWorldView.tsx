@@ -20,6 +20,15 @@ import {
   type IslandGrowthPoint,
   type RegisteredIslandGrowthTrack,
 } from './island-growth-track.js';
+import {
+  advanceMaskRevealPlayback,
+  buildOrganicMaskRevealLayer,
+  initialMaskRevealPlayback,
+  replayMaskReveal,
+  selectMaskRevealCue,
+  type OrganicMaskRevealSockets,
+  type RegisteredOrganicMaskRevealTrack,
+} from './organic-mask-reveal.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -45,6 +54,13 @@ export interface SemanticGrowthIslandLayer {
   readonly clock?: SemanticGrowthAnimationClock;
 }
 
+export interface SemanticGrowthOrganicMaskLayer {
+  readonly track: RegisteredOrganicMaskRevealTrack;
+  readonly sockets: OrganicMaskRevealSockets;
+  readonly storyId: string;
+  readonly clock?: SemanticGrowthAnimationClock;
+}
+
 export interface SemanticGrowthWorldViewProps {
   readonly frames: readonly SemanticGrowthFrame[];
   readonly reducedMotion?: boolean;
@@ -53,6 +69,7 @@ export interface SemanticGrowthWorldViewProps {
   readonly onBack?: (key: SemanticGrowthFrameKey) => void;
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
   readonly islandGrowth?: SemanticGrowthIslandLayer;
+  readonly organicMaskReveal?: SemanticGrowthOrganicMaskLayer;
 }
 
 function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
@@ -115,6 +132,7 @@ function unionBounds(a: Bounds | null, b: Bounds | null): Bounds | null {
 function representativeViewBox(
   frames: readonly SemanticGrowthFrame[],
   islandGrowth?: SemanticGrowthIslandLayer,
+  organicMaskReveal?: SemanticGrowthOrganicMaskLayer,
 ): string {
   let bounds: Bounds | null = null;
   for (const entry of frames) {
@@ -146,6 +164,25 @@ function representativeViewBox(
       maxY: y + track.canvas.height * scale,
     });
   }
+  if (organicMaskReveal) {
+    const rootOffset = parseSimpleTransform(frames[0]?.model.scene.transform);
+    const tx = rootOffset?.tx ?? 0;
+    const ty = rootOffset?.ty ?? 0;
+    const renderState = buildOrganicMaskRevealLayer(
+      organicMaskReveal.track,
+      organicMaskReveal.sockets,
+      1,
+      organicMaskReveal.storyId,
+    );
+    for (const layer of renderState.layers) {
+      bounds = unionBounds(bounds, {
+        minX: layer.x + tx,
+        minY: layer.y + ty,
+        maxX: layer.x + layer.canvas.width * layer.scale + tx,
+        maxY: layer.y + layer.canvas.height * layer.scale + ty,
+      });
+    }
+  }
   if (!bounds) return FALLBACK_VIEW_BOX;
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
@@ -172,21 +209,33 @@ export function SemanticGrowthWorldView({
   onBack,
   onReplay,
   islandGrowth,
+  organicMaskReveal,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
   assertFrames(frames);
   const [cursor, setCursor] = React.useState(0);
   const [islandPlayback, setIslandPlayback] = React.useState(initialIslandGrowthPlayback);
+  const [maskPlayback, setMaskPlayback] = React.useState(initialMaskRevealPlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
   const frame = frames[cursor]!;
   const islandFrame = islandGrowth
     ? islandGrowthFrameAtProgress(islandGrowth.track, islandPlayback.progress)
     : null;
+  const organicMaskLayer = organicMaskReveal
+    ? buildOrganicMaskRevealLayer(
+        organicMaskReveal.track,
+        organicMaskReveal.sockets,
+        maskPlayback.progress,
+        organicMaskReveal.storyId,
+      )
+    : null;
   const model = React.useMemo<WorldPresentationModel>(
-    () => {
-      const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
-      if (!islandGrowth || !islandFrame) return base;
+    () => (reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model),
+    [frame.model, reduce],
+  );
+  const composedModel = React.useMemo<WorldPresentationModel>(() => {
+    if (islandGrowth && islandFrame) {
       return {
-        ...base,
+        ...model,
         islandGrowthLayer: {
           src: islandFrame.src,
           frameIndex: islandFrame.index,
@@ -197,20 +246,26 @@ export function SemanticGrowthWorldView({
           depthSlot: islandGrowth.track.depthSlot,
         },
       };
-    },
-    [frame.model, islandFrame, islandGrowth, reduce],
-  );
+    }
+    if (organicMaskLayer) return { ...model, organicMaskRevealLayer: organicMaskLayer };
+    return model;
+  }, [islandFrame, islandGrowth, model, organicMaskLayer]);
   // Held stable through the whole walk — derived from every supplied frame's composed geometry,
   // never the current cursor (see representativeViewBox).
   const viewBox = React.useMemo(
-    () => representativeViewBox(frames, islandGrowth),
-    [frames, islandGrowth],
+    () => representativeViewBox(frames, islandGrowth, organicMaskReveal),
+    [frames, islandGrowth, organicMaskReveal],
   );
 
   React.useEffect(() => {
     if (!islandGrowth || !reduce) return;
     setIslandPlayback((current) => selectIslandGrowthCue(current, cursor, true));
   }, [cursor, islandGrowth, reduce]);
+
+  React.useEffect(() => {
+    if (!organicMaskReveal || !reduce) return;
+    setMaskPlayback((current) => selectMaskRevealCue(current, cursor, true));
+  }, [cursor, organicMaskReveal, reduce]);
 
   React.useEffect(() => {
     if (!islandGrowth || reduce || !islandPlayback.playing) return;
@@ -234,6 +289,28 @@ export function SemanticGrowthWorldView({
     };
   }, [islandGrowth, islandPlayback.transitionId, reduce]);
 
+  React.useEffect(() => {
+    if (!organicMaskReveal || reduce || !maskPlayback.playing) return;
+    const clock = organicMaskReveal.clock ?? BROWSER_ANIMATION_CLOCK;
+    let requestId = 0;
+    let previousTimestamp: number | null = null;
+    let running = maskPlayback;
+    let cancelled = false;
+    const step = (timestamp: number): void => {
+      if (cancelled) return;
+      const deltaMs = previousTimestamp === null ? 1000 / 60 : timestamp - previousTimestamp;
+      previousTimestamp = timestamp;
+      running = advanceMaskRevealPlayback(running, deltaMs);
+      setMaskPlayback(running);
+      if (running.playing) requestId = clock.requestFrame(step);
+    };
+    requestId = clock.requestFrame(step);
+    return () => {
+      cancelled = true;
+      clock.cancelFrame(requestId);
+    };
+  }, [maskPlayback.transitionId, organicMaskReveal, reduce]);
+
   const select = (
     nextCursor: number,
     callback?: (key: SemanticGrowthFrameKey) => void,
@@ -244,6 +321,11 @@ export function SemanticGrowthWorldView({
     if (islandGrowth) {
       setIslandPlayback((current) =>
         replay ? replayIslandGrowth(current) : selectIslandGrowthCue(current, bounded, reduce),
+      );
+    }
+    if (organicMaskReveal) {
+      setMaskPlayback((current) =>
+        replay ? replayMaskReveal(current) : selectMaskRevealCue(current, bounded, reduce),
       );
     }
     callback?.(frames[bounded]!.key);
@@ -260,12 +342,18 @@ export function SemanticGrowthWorldView({
             'data-island-growth-anchor': `${islandGrowth.worldAnchor.x},${islandGrowth.worldAnchor.y}`,
           }
         : {})}
+      {...(organicMaskReveal
+        ? {
+            'data-organic-mask-reveal-progress': maskPlayback.progress.toFixed(4),
+            'data-organic-mask-reveal-anchor': `${organicMaskReveal.sockets.root.x},${organicMaskReveal.sockets.root.y}`,
+          }
+        : {})}
     >
       <svg viewBox={viewBox} aria-label={`Semantic growth: ${frame.key}`}>
         {events ? (
-          <WorldSceneView model={model} events={events} />
+          <WorldSceneView model={composedModel} events={events} />
         ) : (
-          <WorldSceneView model={model} />
+          <WorldSceneView model={composedModel} />
         )}
       </svg>
       <nav aria-label="Semantic growth controls">

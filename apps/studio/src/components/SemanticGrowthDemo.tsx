@@ -34,6 +34,7 @@ import {
 } from '@storytree/forest-world';
 import {
   CHAPTER2_ISLAND_GROWTH_TRACK,
+  CHAPTER2_ORGANIC_MASK_REVEAL_TRACK,
   neighbourHighlightPlan,
   laneLayout,
   normalizeWorldPresentationModel,
@@ -212,6 +213,45 @@ function withoutPrimaryIsland(node: SceneNode): SceneNode {
   return stripClearedPrimaryGround(withoutIdentifiedLayers);
 }
 
+/** Retain the real SVG coast/ground/parcel/plate while the registered mature organic layers supply
+ *  only the primary tree and bounded plant sample. Companion vegetation stays untouched. */
+function withoutPrimaryProceduralOrganics(node: SceneNode): SceneNode {
+  if (node.el !== 'g') return node;
+  if (node.kind === 'territory' && node.id === DEMO_STORY_ID) {
+    return {
+      ...node,
+      children: node.children.filter(
+        (child) => child.kind !== 'tree' && child.kind !== 'flora',
+      ),
+    };
+  }
+  return {
+    ...node,
+    children: node.children.map(withoutPrimaryProceduralOrganics),
+  };
+}
+
+/** The base semantic fixture clears this non-visual id to avoid double identity. This comparison
+ *  restores it only on the retained primary ground wrapper so SceneView can apply the same native
+ *  land mask to both coast and substrate. The companion has no ground wrapper in this fixture. */
+function restorePrimaryGroundMaskTarget(node: SceneNode): SceneNode {
+  if (node.el !== 'g') return node;
+  if (node.kind === 'ground-mesh') {
+    return {
+      ...node,
+      children: node.children.map((child) =>
+        child.kind === 'ground' && child.id === undefined
+          ? { ...child, id: DEMO_STORY_ID }
+          : child,
+      ),
+    };
+  }
+  return {
+    ...node,
+    children: node.children.map(restorePrimaryGroundMaskTarget),
+  };
+}
+
 /** The claim/presence wisp for the `claimed` frame — coordination, never a proof (the ADR-0138
  *  §5 honesty wall the core itself enforces): the story's own status stays `proposed`, and this
  *  claim carries no bloom/verdict identity of its own. */
@@ -259,6 +299,13 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
       (CHAPTER2_ISLAND_GROWTH_TRACK.islandAnchor.y -
         CHAPTER2_ISLAND_GROWTH_TRACK.treeRoot.y) *
         ISLAND_GROWTH_SCALE,
+  };
+  organicMaskSocketsCache = {
+    root: { x: primary.treeSpot.x, y: primary.treeSpot.y },
+    plants: {
+      x: primary.centroid.x - primary.radius * 0.34,
+      y: primary.centroid.y + primary.radius * 0.3,
+    },
   };
 
   // sgsd-primary-selection-reuses-drawn-route-lanes: the primary's one-hop selection plan +
@@ -391,6 +438,10 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
 
 let framesCache: readonly SemanticGrowthFrame[] | null = null;
 let islandGrowthAnchorCache: { readonly x: number; readonly y: number } | null = null;
+let organicMaskSocketsCache: {
+  readonly root: { readonly x: number; readonly y: number };
+  readonly plants: { readonly x: number; readonly y: number };
+} | null = null;
 
 /** The static fixture, computed once on first use and cached — never at this module's own
  *  top level (see {@link buildFrames}), never rebuilt afterward. */
@@ -407,10 +458,21 @@ function islandGrowthAnchor(): { readonly x: number; readonly y: number } {
   return islandGrowthAnchorCache;
 }
 
+function organicMaskSockets(): {
+  readonly root: { readonly x: number; readonly y: number };
+  readonly plants: { readonly x: number; readonly y: number };
+} {
+  frames();
+  if (!organicMaskSocketsCache) {
+    throw new Error('Semantic growth fixture did not register its organic world sockets.');
+  }
+  return organicMaskSocketsCache;
+}
+
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'island-growth';
+  readonly variant?: 'demo' | 'island-growth' | 'organic-mask-reveal';
 }
 
 /**
@@ -425,11 +487,18 @@ export function SemanticGrowthDemo({
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
   const islandVariant = variant === 'island-growth';
+  const maskVariant = variant === 'organic-mask-reveal';
   const framesWithArt: readonly SemanticGrowthFrame[] = frames().map((f) => ({
     key: f.key,
     model: {
       ...f.model,
-      scene: islandVariant ? withoutPrimaryIsland(f.model.scene) : f.model.scene,
+      scene: islandVariant
+        ? withoutPrimaryIsland(f.model.scene)
+        : maskVariant
+          ? restorePrimaryGroundMaskTarget(
+              withoutPrimaryProceduralOrganics(f.model.scene),
+            )
+          : f.model.scene,
       spriteSheet,
       artScale,
     },
@@ -447,6 +516,15 @@ export function SemanticGrowthDemo({
                       track: CHAPTER2_ISLAND_GROWTH_TRACK,
                       worldAnchor: islandGrowthAnchor(),
                       scale: ISLAND_GROWTH_SCALE,
+                    },
+                  }
+                : {})}
+              {...(maskVariant
+                ? {
+                    organicMaskReveal: {
+                      track: CHAPTER2_ORGANIC_MASK_REVEAL_TRACK,
+                      sockets: organicMaskSockets(),
+                      storyId: DEMO_STORY_ID,
                     },
                   }
                 : {})}

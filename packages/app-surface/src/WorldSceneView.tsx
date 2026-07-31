@@ -5,6 +5,7 @@ import type { SpriteStyleSheet } from './sprite-sheet.js';
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
+import type { OrganicMaskRevealRenderState } from './organic-mask-reveal.js';
 
 export interface WorldPresentationModel {
   readonly scene: SceneNode;
@@ -24,6 +25,7 @@ export interface WorldPresentationModel {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
   readonly islandGrowthLayer?: IslandGrowthRenderLayer | null;
+  readonly organicMaskRevealLayer?: OrganicMaskRevealRenderState | null;
 }
 
 export interface WorldPresentationModelInput {
@@ -39,6 +41,7 @@ export interface WorldPresentationModelInput {
   readonly spriteSheet?: SpriteStyleSheet | null;
   readonly artScale?: number;
   readonly islandGrowthLayer?: IslandGrowthRenderLayer | null;
+  readonly organicMaskRevealLayer?: OrganicMaskRevealRenderState | null;
 }
 
 export interface WorldPresentationEvents {
@@ -68,6 +71,9 @@ export function normalizeWorldPresentationModel(
     artScale: input.artScale ?? 1,
     ...(input.islandGrowthLayer !== undefined
       ? { islandGrowthLayer: input.islandGrowthLayer }
+      : {}),
+    ...(input.organicMaskRevealLayer !== undefined
+      ? { organicMaskRevealLayer: input.organicMaskRevealLayer }
       : {}),
   };
 }
@@ -109,6 +115,9 @@ export function WorldSceneView({
       artScale: model.artScale,
       ...(model.islandGrowthLayer !== undefined
         ? { islandGrowthLayer: model.islandGrowthLayer }
+        : {}),
+      ...(model.organicMaskRevealLayer !== undefined
+        ? { organicMaskRevealLayer: model.organicMaskRevealLayer }
         : {}),
     };
   }, [model, events]);

@@ -398,6 +398,71 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     expect(nearMiss.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
   });
 
+  it('only the exact organic-mask-reveal flag mounts continuous mature-organic masks over retained SVG land', async () => {
+    const clean = await renderTree();
+    expect(clean.querySelector('[data-organic-mask-reveal-progress]')).toBeNull();
+    expect(clean.querySelector('[data-mask-reveal-layer]')).toBeNull();
+    cleanup();
+
+    window.history.pushState({}, '', '/?semanticGrowth=organic-mask-reveal-near-miss#/tree');
+    const nearMiss = await renderTree();
+    expect(nearMiss.querySelector('[data-organic-mask-reveal-progress]')).toBeNull();
+    expect(nearMiss.querySelector('[data-mask-reveal-layer]')).toBeNull();
+    cleanup();
+
+    window.history.pushState({}, '', '/?semanticGrowth=organic-mask-reveal#/tree');
+    const flagged = await renderTree();
+    const section = flagged.querySelector('[data-semantic-growth-frame="empty"]');
+    expect(section).toBeTruthy();
+    expect(section?.getAttribute('data-organic-mask-reveal-progress')).toBe('0.0000');
+    expect(flagged.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+
+    const layers = Array.from(flagged.querySelectorAll('[data-mask-reveal-layer]'));
+    expect(layers.map((layer) => layer.getAttribute('data-depth-slot'))).toEqual([
+      'ground-plants',
+      'hero-tree',
+    ]);
+    expect(layers.map((layer) => layer.getAttribute('data-mask-reveal-layer'))).toEqual([
+      'plants',
+      'hero-tree',
+    ]);
+    expect(layers[0]?.querySelector('image')?.getAttribute('href')).toMatch(
+      /plant-cluster-mature\.png/,
+    );
+    expect(layers[1]?.querySelector('image')?.getAttribute('href')).toMatch(
+      /hero-tree-mature\.png/,
+    );
+    expect(layers[0]?.getAttribute('data-world-socket')).toBe('plants');
+    expect(layers[1]?.getAttribute('data-world-socket')).toBe('root');
+
+    const next = Array.from(
+      flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+    ).find((button) => button.textContent === 'Next') as HTMLButtonElement;
+    await act(async () => {
+      next.click();
+    });
+    expect(
+      flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
+    ).toBe('land');
+    const nativeLandTargets = Array.from(
+      flagged.querySelectorAll('[data-native-land-mask-target="semantic-growth-demo"]'),
+    );
+    expect(nativeLandTargets.length).toBeGreaterThanOrEqual(2);
+    expect(
+      nativeLandTargets.some(
+        (target) =>
+          target.matches('.relaxed-land') ||
+          target.querySelector('.relaxed-tile, .relaxed-cell') !== null,
+      ),
+      'the established primary SVG ground is itself under the app-native mask',
+    ).toBe(true);
+    expect(
+      flagged.querySelector('.relaxed-tile'),
+      'mask reveal keeps the real app-owned SVG island instead of rasterizing or replacing it',
+    ).toBeTruthy();
+    expect(flagged.querySelector('[data-story-id="semantic-growth-demo-companion"]')).toBeTruthy();
+  });
+
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
   // machine contract 3): "signed-proof remains proposed/non-healthy while carrying the proof bloom;
   // healthy appears only last" / "no pre-final frame may appear healthy". The `signed-proof` frame is
