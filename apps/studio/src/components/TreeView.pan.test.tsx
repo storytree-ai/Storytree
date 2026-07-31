@@ -123,7 +123,37 @@ function cameraValues(camera: Element): { tx: number; ty: number; scale: number 
   return { tx: Number(match[1]), ty: Number(match[2]), scale: Number(match[3]) };
 }
 
-async function mountMap(): Promise<{ viewport: HTMLElement; camera: Element; unmount: () => void }> {
+/** The `.world-pan-layer` wrapper's live CSS translate — {x:0,y:0} for an absent/identity transform. */
+function panLayerOffset(panLayer: Element): { x: number; y: number } {
+  const transform = (panLayer as HTMLElement).style.transform;
+  if (!transform || transform === 'none') return { x: 0, y: 0 };
+  const match = transform.match(/translate3d\(\s*(-?[\d.]+)px\s*,\s*(-?[\d.]+)px\s*,\s*0(?:px)?\s*\)/);
+  if (!match) return { x: NaN, y: NaN };
+  return { x: Number(match[1]), y: Number(match[2]) };
+}
+
+/**
+ * The COMPOSED camera the operator actually sees: the `.world-camera` `<g>` transform composed with
+ * the `.world-pan-layer` CSS transform. The SVG carries no viewBox (1 user unit == 1 CSS pixel) and
+ * the wrapper translate is applied outside it, so the two translations simply add in screen space.
+ *
+ * This capability's contracts are stated against this value, not against the `<g>` alone (ADR-0272
+ * decision 2 moved the live per-frame write onto the wrapper — see `compositor-pan-transform`). What
+ * this file protects is the frame BOUNDARY — one commit per burst carrying the cumulative latest
+ * delta, never a replay of stale intermediates — and that is invariant across where the write lands.
+ */
+function composedCamera(camera: Element, panLayer: Element): { tx: number; ty: number; scale: number } {
+  const g = cameraValues(camera);
+  const layer = panLayerOffset(panLayer);
+  return { tx: g.tx + layer.x, ty: g.ty + layer.y, scale: g.scale };
+}
+
+async function mountMap(): Promise<{
+  viewport: HTMLElement;
+  camera: Element;
+  panLayer: Element;
+  unmount: () => void;
+}> {
   const rendered = render(
     <AppDataContext.Provider value={APP_DATA}>
       <TreeView focus={null} />
@@ -135,7 +165,9 @@ async function mountMap(): Promise<{ viewport: HTMLElement; camera: Element; unm
     expect(element?.getAttribute('transform')).toBeTruthy();
     return element!;
   });
-  return { viewport, camera, unmount: rendered.unmount };
+  const panLayer = rendered.container.querySelector('.world-pan-layer');
+  expect(panLayer).not.toBeNull();
+  return { viewport, camera, panLayer: panLayer!, unmount: rendered.unmount };
 }
 
 function dragPastSlop(viewport: HTMLElement): void {
@@ -232,37 +264,63 @@ describe('TreeView drag pan', () => {
 
   it('pan-frame-commits-the-latest-cumulative-delta: lands the total and independently coalesces a later burst', async () => {
     const frames = installFakeFrames();
-    const { viewport, camera } = await mountMap();
+    const { viewport, camera, panLayer } = await mountMap();
     const before = cameraValues(camera);
 
     dragPastSlop(viewport);
     frames.run(1);
-    expect(cameraValues(camera)).toEqual({ tx: before.tx + 26, ty: before.ty + 22, scale: before.scale });
+    // Asserted against the COMPOSED camera (see composedCamera): the flushed frame lands the
+    // cumulative delta on what the operator sees, wherever the write physically goes.
+    expect(composedCamera(camera, panLayer)).toEqual({
+      tx: before.tx + 26,
+      ty: before.ty + 22,
+      scale: before.scale,
+    });
 
     fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 140, clientY: 130 }); // +8, +4
     fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 154, clientY: 143 }); // +14, +13
     expect(frames.request).toHaveBeenCalledTimes(2);
     frames.run(2);
 
-    expect(cameraValues(camera)).toEqual({ tx: before.tx + 48, ty: before.ty + 39, scale: before.scale });
+    // One later frame, the later cumulative total — not a replay of the intermediate (+8,+4).
+    expect(composedCamera(camera, panLayer)).toEqual({
+      tx: before.tx + 48,
+      ty: before.ty + 39,
+      scale: before.scale,
+    });
   });
 
   it('pan-frame-settles-or-cancels-pending-work-safely: pointer-up flushes, cancel suppresses its synthetic click, and unmount drops work', async () => {
     const frames = installFakeFrames();
-    const { viewport, camera, unmount } = await mountMap();
+    const { viewport, camera, panLayer, unmount } = await mountMap();
     const before = cameraValues(camera);
 
     dragPastSlop(viewport);
     fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 132, clientY: 126 });
     expect(frames.cancel).toHaveBeenNthCalledWith(1, 1);
-    expect(cameraValues(camera)).toEqual({ tx: before.tx + 26, ty: before.ty + 22, scale: before.scale });
+    // Release keeps the final legal position. (Composed, per this file's contract note — here the
+    // release has already folded the wrapper back to identity, so composed IS the `<g>` value.)
+    expect(composedCamera(camera, panLayer)).toEqual({
+      tx: before.tx + 26,
+      ty: before.ty + 22,
+      scale: before.scale,
+    });
     frames.run(1);
-    expect(cameraValues(camera)).toEqual({ tx: before.tx + 26, ty: before.ty + 22, scale: before.scale });
+    expect(composedCamera(camera, panLayer)).toEqual({
+      tx: before.tx + 26,
+      ty: before.ty + 22,
+      scale: before.scale,
+    });
 
     dragPastSlop(viewport);
     fireEvent.pointerCancel(viewport, { pointerId: 1, clientX: 132, clientY: 126 });
     expect(frames.cancel).toHaveBeenNthCalledWith(2, 2);
-    expect(cameraValues(camera)).toEqual({ tx: before.tx + 26, ty: before.ty + 22, scale: before.scale });
+    // The queued delta was never painted, so cancellation discards it and the view does not move.
+    expect(composedCamera(camera, panLayer)).toEqual({
+      tx: before.tx + 26,
+      ty: before.ty + 22,
+      scale: before.scale,
+    });
 
     // A cancellation's same-gesture click remains swallowed, but the next genuine pointerdown clears
     // that suppression and its story click navigates normally.
@@ -277,9 +335,20 @@ describe('TreeView drag pan', () => {
     dragPastSlop(viewport);
     expect(frames.request).toHaveBeenCalledTimes(3);
     frames.run(2);
-    expect(cameraValues(camera)).toEqual({ tx: before.tx + 26, ty: before.ty + 22, scale: before.scale });
+    // The stale cancelled frame must not consume the NEW gesture's pending delta.
+    expect(composedCamera(camera, panLayer)).toEqual({
+      tx: before.tx + 26,
+      ty: before.ty + 22,
+      scale: before.scale,
+    });
     frames.run(3);
-    expect(cameraValues(camera)).toEqual({ tx: before.tx + 52, ty: before.ty + 44, scale: before.scale });
+    // The new gesture's own frame lands its cumulative delta. Mid-gesture that write is on the pan
+    // layer rather than the `<g>` — which is precisely why this is asserted composed.
+    expect(composedCamera(camera, panLayer)).toEqual({
+      tx: before.tx + 52,
+      ty: before.ty + 44,
+      scale: before.scale,
+    });
     fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 132, clientY: 126 });
 
     fireEvent.pointerDown(viewport, { button: 0, pointerId: 4, clientX: 100, clientY: 100 });

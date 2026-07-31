@@ -72,8 +72,10 @@ currently ask it to re-rasterise the whole forest every frame, a pipeline mistak
 hardware limit. Anyone citing this framing must say which cost they mean. (ii) "the unbounded
 density remains a separately sequenced follow-on" is retired: density is DE-SEQUENCED (decision 2's
 note). The `SceneView` memo and the frame coalescer named here are untouched and still
-load-bearing — but note that the memo's own source comment calls the React walk "the felt pan lag",
-and measured that walk is ~3% of a gesture frame.]*
+load-bearing — but note that the memo's own source comment USED TO call the React walk "the felt pan
+lag", and measured that walk is ~3% of a gesture frame. That comment and its `TreeView.tsx` twin
+were corrected when ADR-0272 decision 2 shipped (2026-07-31); both now attribute the felt cost to
+rasterisation.]*
 
 The forces: the cheap fixes are studio-local and behaviour-preserving; the fix that actually *scales*
 (a density budget / LOD) touches the shared scene graph, which drags the web-engine sync-and-pin
