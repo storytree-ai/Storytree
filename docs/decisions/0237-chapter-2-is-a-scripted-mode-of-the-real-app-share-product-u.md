@@ -34,11 +34,12 @@ scope is reversed for Chapter 2: the owner-attested Storybook sheet and the same
 app uses are the first Chapter 2 art substrate.
 
 **Amended by
-[ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) (2026-07-30).**
+[ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) (2026-07-31).**
 D5's infrastructure-first ordering has been satisfied by the landed shared-surface iterations.
-One bounded PixelLab full-island frame track may now enter as registered local appearance assets;
-the shared app still owns semantic state, timing, deterministic playback, anchors, painter order and
-reduced motion, and the owner still holds the LOOK verdict.
+The existing SVG island remains the land and camera substrate; bounded PixelLab tree and plant
+tracks may now enter as registered local appearance assets. The shared app still owns semantic
+state, timing, deterministic playback, anchors, painter order and reduced motion, and the owner
+still holds the LOOK verdict.
 
 ## Context
 
@@ -160,10 +161,10 @@ fallbacks. It proves one island growing from nothing through proposed, live-work
 the shared surface. It is allowed to look like a prototype; it is not allowed to fork the renderer.
 
 After that real iteration was witnessed, the observed gaps earned the bounded art work authorized by
-ADR-0273: one complete-island PixelLab track, curated into canonical committed local assets behind
-the same app-owned semantic slots. Purchased packs, commissioned work and the existing author-time
-generative pipeline remain compatible sources; no runtime vendor call or asset-owned state model is
-introduced.
+ADR-0274: the app-native SVG island grows through the standard renderer while registered PixelLab
+tree and plant tracks deform at stable root and ground sockets. Purchased packs, commissioned work
+and the existing author-time generative pipeline remain compatible sources; no runtime vendor call
+or asset-owned state model is introduced.
 
 Frame sequences or cutout layers are added to the art manifest only when an object's silhouette must
 deform. Camera motion, translation, scale, orbit, path reveal, glow and state crossfade do not earn
@@ -236,9 +237,9 @@ proved. It is not reachable from Chapter 2 after migration.
   frame and fictional-data boundary; preserved and broadened to this artifact.
 - [ADR-0230](0230-swappable-sprite-art-sheet-render-mode-take-adr-0219-s-parke.md) — current
   Storybook sprite renderer/art; amended from studio-only to shared with Chapter 2.
-- [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) — selective
-  full-island PixelLab track, registered as local appearance assets under this ADR's shared app-owned
-  semantic transition system.
+- [ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) — selective
+  PixelLab tree and plant tracks registered over the app-native SVG island under this ADR's shared
+  app-owned semantic transition system.
 - [ADR-0056](0056-ground-the-public-website-s-claims-to-the-corpus-via-data-gr.md) /
   [ADR-0066](0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md) — the public
   grounding and no-private-data boundary that stands.
