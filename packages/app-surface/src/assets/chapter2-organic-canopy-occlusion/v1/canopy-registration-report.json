@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 1,
+  "authorTimeOnly": true,
+  "fixedCanvas": {
+    "width": 192,
+    "height": 176
+  },
+  "frameCount": 9,
+  "crownSocket": {
+    "x": 96,
+    "y": 160
+  },
+  "collarBounds": {
+    "x": 72,
+    "y": 140,
+    "width": 49,
+    "height": 31
+  },
+  "collarCore": {
+    "x": 88,
+    "y": 150,
+    "width": 17,
+    "height": 16
+  },
+  "registrationPlate": "crown-registration-plate.png",
+  "runtimeCorrection": false,
+  "sourceToRegisteredPolicy": "Keep one connected PixelLab crown, normalize its lower attachment to the fixed plate at author/import time, then author the same opaque palette-matched overlap collar into every pose.",
+  "frames": [
+    {
+      "file": "canopy/pose-00.png",
+      "sourceFile": "sources/canopy-sequence/frame-00.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 55,
+        "y": 75,
+        "width": 82,
+        "height": 67
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": 13
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 160
+      },
+      "registeredFootprint": {
+        "x": 55,
+        "y": 88,
+        "width": 82,
+        "height": 84
+      },
+      "opaqueCollarPixels": 1335,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 4562
+    },
+    {
+      "file": "canopy/pose-01.png",
+      "sourceFile": "sources/canopy-sequence/frame-01.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 51,
+        "y": 66,
+        "width": 91,
+        "height": 76
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": 13
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 160
+      },
+      "registeredFootprint": {
+        "x": 51,
+        "y": 79,
+        "width": 91,
+        "height": 93
+      },
+      "opaqueCollarPixels": 1308,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 8334
+    },
+    {
+      "file": "canopy/pose-02.png",
+      "sourceFile": "sources/canopy-sequence/frame-02.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 45,
+        "y": 55,
+        "width": 102,
+        "height": 117
+      },
+      "normalizationOffset": {
+        "x": 0,
+        "y": -17
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 160
+      },
+      "registeredFootprint": {
+        "x": 45,
+        "y": 38,
+        "width": 102,
+        "height": 134
+      },
+      "opaqueCollarPixels": 1375,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 9182
+    },
+    {
+      "file": "canopy/pose-03.png",
+      "sourceFile": "sources/canopy-sequence/frame-03.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 37,
+        "y": 39,
+        "width": 118,
+        "height": 133
+      },
+      "normalizationOffset": {
+        "x": 1,
+        "y": -16
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 160
+      },
+      "registeredFootprint": {
+        "x": 38,
+        "y": 23,
+        "width": 117,
+        "height": 149
+      },
+      "opaqueCollarPixels": 1380,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 12722
+    },
+    {
+      "file": "canopy/pose-04.png",
+      "sourceFile": "sources/canopy-sequence/frame-04.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 23,
+        "y": 9,
+        "width": 144,
+        "height": 163
+      },
+      "normalizationOffset": {
+        "x": 15,
+        "y": 14
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 160
+      },
+      "registeredFootprint": {
+        "x": 38,
+        "y": 23,
+        "width": 117,
+        "height": 149
+      },
+      "opaqueCollarPixels": 1318,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 10779
+    },
+    {
+      "file": "canopy/pose-05.png",
+      "sourceFile": "sources/canopy-sequence/frame-05.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 18,
+        "y": 2,
+        "width": 156,
+        "height": 170
+      },
+      "normalizationOffset": {
+        "x": 18,
+        "y": 21
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 160
+      },
+      "registeredFootprint": {
+        "x": 36,
+        "y": 23,
+        "width": 121,
+        "height": 149
+      },
+      "opaqueCollarPixels": 1296,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 12457
+    },
+    {
+      "file": "canopy/pose-06.png",
+      "sourceFile": "sources/canopy-sequence/frame-06.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 17,
+        "y": 9,
+        "width": 159,
+        "height": 162
+      },
+      "normalizationOffset": {
+        "x": 14,
+        "y": 14
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 160
+      },
+      "registeredFootprint": {
+        "x": 31,
+        "y": 23,
+        "width": 130,
+        "height": 149
+      },
+      "opaqueCollarPixels": 1317,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 11534
+    },
+    {
+      "file": "canopy/pose-07.png",
+      "sourceFile": "sources/canopy-sequence/frame-07.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 16,
+        "y": 17,
+        "width": 161,
+        "height": 155
+      },
+      "normalizationOffset": {
+        "x": 12,
+        "y": 6
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 160
+      },
+      "registeredFootprint": {
+        "x": 28,
+        "y": 23,
+        "width": 137,
+        "height": 149
+      },
+      "opaqueCollarPixels": 1336,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 12182
+    },
+    {
+      "file": "canopy/pose-08.png",
+      "sourceFile": "sources/canopy-sequence/frame-08.png",
+      "sourceDimensions": [
+        192,
+        176
+      ],
+      "sourceFootprint": {
+        "x": 16,
+        "y": 23,
+        "width": 161,
+        "height": 149
+      },
+      "normalizationOffset": {
+        "x": 9,
+        "y": 0
+      },
+      "registeredCrownSocket": {
+        "x": 96,
+        "y": 160
+      },
+      "registeredFootprint": {
+        "x": 25,
+        "y": 23,
+        "width": 143,
+        "height": 149
+      },
+      "opaqueCollarPixels": 1346,
+      "collarCoreMinimumAlpha": 255,
+      "encodedBytes": 8714
+    }
+  ],
+  "encodedCanopyBytes": 90466,
+  "decodedCanopyRgbaBytes": 1216512
+}

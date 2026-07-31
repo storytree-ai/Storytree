@@ -1310,6 +1310,13 @@ export function readOrganicPoseToPose(search: string = defaultSearch()): boolean
   );
 }
 
+export function readOrganicCanopyOcclusion(search: string = defaultSearch()): boolean {
+  return (
+    new URLSearchParams(search).get('organicGrowth') ===
+    'organic-canopy-occlusion'
+  );
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar' | 'stress';
@@ -2297,6 +2304,10 @@ export function TreeView({
   // near the other early returns.
   const semanticGrowthDemo = useMemo(() => readSemanticGrowthDemo(search), [search]);
   const organicPoseToPose = useMemo(() => readOrganicPoseToPose(search), [search]);
+  const organicCanopyOcclusion = useMemo(
+    () => readOrganicCanopyOcclusion(search),
+    [search],
+  );
   const scene = useMemo(
     () =>
       world
@@ -2479,12 +2490,18 @@ export function TreeView({
   // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
   // not a variant of the product controller. Every other value (absent/empty/unknown) falls
   // through unchanged, byte-for-byte, to the clean Studio path.
-  if (semanticGrowthDemo || organicPoseToPose) {
+  if (semanticGrowthDemo || organicPoseToPose || organicCanopyOcclusion) {
     return (
       <SemanticGrowthDemo
         spriteSheet={spriteSheet}
         artScale={artScale}
-        variant={organicPoseToPose ? 'organic-pose-to-pose' : 'demo'}
+        variant={
+          organicCanopyOcclusion
+            ? 'organic-canopy-occlusion'
+            : organicPoseToPose
+              ? 'organic-pose-to-pose'
+              : 'demo'
+        }
       />
     );
   }

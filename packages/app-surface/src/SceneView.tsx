@@ -30,8 +30,12 @@ import {
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
+import type {
+  OrganicCanopyOcclusionRenderLayer,
+  OrganicCanopyPartPose,
+} from './organic-canopy-occlusion-track.js';
 
-export interface OrganicPoseRenderLayer {
+export interface OrganicPoseFrameRenderLayer {
   readonly trackId: string;
   readonly src: string;
   readonly frameIndex: number;
@@ -41,6 +45,10 @@ export interface OrganicPoseRenderLayer {
   readonly scale: number;
   readonly depthSlot: 'hero-tree-organic' | 'ground-plant-organic';
 }
+
+export type OrganicPoseRenderLayer =
+  | OrganicPoseFrameRenderLayer
+  | OrganicCanopyOcclusionRenderLayer;
 
 export interface NativeIslandGrowthRenderLayer {
   readonly storyId: string;
@@ -460,7 +468,7 @@ function hitsLayerToBack(children: readonly SceneNode[]): readonly SceneNode[] {
   return out;
 }
 
-function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
+function organicPoseImage(layer: OrganicPoseFrameRenderLayer): React.ReactNode {
   const width = layer.canvas.width * layer.scale;
   const height = layer.canvas.height * layer.scale;
   const x = layer.worldAnchor.x - layer.assetAnchor.x * layer.scale;
@@ -482,6 +490,140 @@ function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
     'data-world-anchor-x': fmt(layer.worldAnchor.x),
     'data-world-anchor-y': fmt(layer.worldAnchor.y),
   });
+}
+
+function organicCanopyPartNode(
+  layer: OrganicCanopyOcclusionRenderLayer,
+  pose: OrganicCanopyPartPose,
+): React.ReactNode {
+  const part = pose.part;
+  const clipId = `${layer.trackId}-${part.id}-reveal`;
+  const revealedHeight = part.canvas.height * pose.reveal;
+  const localTransform = [
+    `translate(${fmt(part.rigSocket.x)} ${fmt(part.rigSocket.y)})`,
+    `rotate(${fmt(pose.angleDeg)})`,
+    `scale(${fmt(pose.scaleX)} ${fmt(pose.scaleY)})`,
+    `translate(${fmt(-part.assetPivot.x)} ${fmt(-part.assetPivot.y)})`,
+  ].join(' ');
+  return React.createElement(
+    'g',
+    {
+      key: part.id,
+      transform: localTransform,
+      opacity: pose.reveal === 0 ? 0 : 1,
+      'data-organic-canopy-part': part.id,
+      'data-organic-canopy-kind': part.kind,
+      'data-painter-slot': part.painterSlot,
+      'data-painter-order': String(part.painterOrder),
+      'data-rig-socket': `${fmt(part.rigSocket.x)},${fmt(part.rigSocket.y)}`,
+      'data-asset-pivot': `${fmt(part.assetPivot.x)},${fmt(part.assetPivot.y)}`,
+      'data-reveal': pose.reveal.toFixed(4),
+      'data-local-transform': localTransform,
+    },
+    React.createElement(
+      'defs',
+      null,
+      React.createElement(
+        'clipPath',
+        { id: clipId, clipPathUnits: 'userSpaceOnUse' },
+        React.createElement('rect', {
+          x: 0,
+          y: fmt(part.canvas.height - revealedHeight),
+          width: part.canvas.width,
+          height: fmt(revealedHeight),
+        }),
+      ),
+    ),
+    React.createElement('image', {
+      href: part.src,
+      x: 0,
+      y: 0,
+      width: part.canvas.width,
+      height: part.canvas.height,
+      preserveAspectRatio: 'none',
+      imageRendering: 'pixelated',
+      pointerEvents: 'none',
+      clipPath: `url(#${clipId})`,
+      'aria-hidden': true,
+    }),
+  );
+}
+
+function organicCanopyOcclusionGroup(
+  layer: OrganicCanopyOcclusionRenderLayer,
+): React.ReactNode {
+  const pose = layer.canopyPose;
+  const crownTransform = [
+    `translate(${fmt(layer.rigCrownSocket.x)} ${fmt(layer.rigCrownSocket.y)})`,
+    `translate(${fmt(-pose.assetCrownSocket.x)} ${fmt(-pose.assetCrownSocket.y)})`,
+  ].join(' ');
+  const canopy = React.createElement(
+    'g',
+    {
+      key: '__connected-canopy',
+      transform: crownTransform,
+      opacity: layer.canopyReveal === 0 ? 0 : 1,
+      'data-organic-canopy-pose': String(pose.index),
+      'data-painter-slot': 'canopy-collar',
+      'data-painter-order': '30',
+      'data-asset-crown-socket': `${fmt(pose.assetCrownSocket.x)},${fmt(pose.assetCrownSocket.y)}`,
+      'data-rig-crown-socket': `${fmt(layer.rigCrownSocket.x)},${fmt(layer.rigCrownSocket.y)}`,
+      'data-collar-bounds': `${fmt(pose.collarBounds.x)},${fmt(pose.collarBounds.y)},${fmt(pose.collarBounds.width)},${fmt(pose.collarBounds.height)}`,
+      'data-collar-core': `${fmt(pose.collarCore.x)},${fmt(pose.collarCore.y)},${fmt(pose.collarCore.width)},${fmt(pose.collarCore.height)}`,
+      'data-collar-opaque-pixels': String(pose.opaqueCollarPixels),
+      'data-collar-core-min-alpha': String(pose.collarCoreMinimumAlpha),
+      'data-collar-coverage-registration': 'alpha-gte-250-at-least-1100',
+      'data-reveal': layer.canopyReveal.toFixed(4),
+      'data-local-transform': crownTransform,
+    },
+    React.createElement('image', {
+      href: pose.src,
+      x: 0,
+      y: 0,
+      width: pose.canvas.width,
+      height: pose.canvas.height,
+      preserveAspectRatio: 'none',
+      imageRendering: 'pixelated',
+      pointerEvents: 'none',
+      'aria-hidden': true,
+    }),
+  );
+  const painted = [
+    ...layer.partPoses.map((partPose) => ({
+      order: partPose.part.painterOrder,
+      node: organicCanopyPartNode(layer, partPose),
+    })),
+    { order: 30, node: canopy },
+  ].sort((a, b) => a.order - b.order);
+  const worldCrown = {
+    x: layer.worldRoot.x + layer.rigCrownSocket.x * layer.scale,
+    y: layer.worldRoot.y + layer.rigCrownSocket.y * layer.scale,
+  };
+  return React.createElement(
+    'g',
+    {
+      key: '__organic-canopy-occlusion',
+      transform: `translate(${fmt(layer.worldRoot.x)} ${fmt(layer.worldRoot.y)}) scale(${fmt(layer.scale)})`,
+      pointerEvents: 'none',
+      'aria-hidden': true,
+      'data-depth-slot': layer.depthSlot,
+      'data-organic-canopy-track': layer.trackId,
+      'data-organic-canopy-progress': layer.progress.toFixed(4),
+      'data-root-socket': `${fmt(layer.worldRoot.x)},${fmt(layer.worldRoot.y)}`,
+      'data-rig-root-socket': `${fmt(layer.rigRootSocket.x)},${fmt(layer.rigRootSocket.y)}`,
+      'data-rig-crown-socket': `${fmt(layer.rigCrownSocket.x)},${fmt(layer.rigCrownSocket.y)}`,
+      'data-world-crown-socket': `${fmt(worldCrown.x)},${fmt(worldCrown.y)}`,
+      'data-painter-slot': 'organic-tree-composite',
+    },
+    ...painted.map((entry) => entry.node),
+  );
+}
+
+function organicPoseLayerNode(layer: OrganicPoseRenderLayer): React.ReactNode {
+  if ('renderKind' in layer && layer.renderKind === 'organic-canopy-occlusion') {
+    return organicCanopyOcclusionGroup(layer);
+  }
+  return organicPoseImage(layer as OrganicPoseFrameRenderLayer);
 }
 
 function nativeIslandClipId(layer: NativeIslandGrowthRenderLayer): string {
@@ -931,7 +1073,7 @@ function renderNode(
       const el = renderNode(c, i, childStory, ctx);
       if (el) rendered.push(el);
       if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.organicPoseLayers) {
-        rendered.push(...ctx.organicPoseLayers.map(organicPoseImage));
+        rendered.push(...ctx.organicPoseLayers.map(organicPoseLayerNode));
       }
     });
     if (node.kind === 'tree' || node.kind === 'flora' || node.kind === 'plate') {

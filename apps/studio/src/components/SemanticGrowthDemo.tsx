@@ -33,6 +33,7 @@ import {
   type SceneVegetationInput,
 } from '@storytree/forest-world';
 import {
+  CHAPTER2_ORGANIC_CANOPY_OCCLUSION_TRACK,
   CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
   neighbourHighlightPlan,
   laneLayout,
@@ -68,6 +69,7 @@ const COMPANION_STORY_ID = 'semantic-growth-demo-companion';
 const COMPANION_CAP_ID = 'semantic-growth-demo-companion-cap';
 const ORGANIC_TREE_SCALE = 0.34;
 const ORGANIC_PLANT_SCALE = 0.3;
+const ORGANIC_CANOPY_OCCLUSION_SCALE = 0.5;
 
 /** A fixed instant, never `Date.now()`, so the walk (and its signed-proof bloom) stays
  *  byte-identical across every render/re-mount. */
@@ -442,10 +444,21 @@ function organicPoseSockets(): NonNullable<typeof organicPoseSocketsCache> {
   return organicPoseSocketsCache;
 }
 
+function organicCanopyRoot(): { readonly x: number; readonly y: number } {
+  frames();
+  if (!organicPoseSocketsCache) {
+    throw new Error('Semantic growth fixture did not register its canopy root socket.');
+  }
+  return organicPoseSocketsCache.tree;
+}
+
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'organic-pose-to-pose';
+  readonly variant?:
+    | 'demo'
+    | 'organic-pose-to-pose'
+    | 'organic-canopy-occlusion';
 }
 
 /**
@@ -460,13 +473,17 @@ export function SemanticGrowthDemo({
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
   const poseVariant = variant === 'organic-pose-to-pose';
+  const canopyVariant = variant === 'organic-canopy-occlusion';
   const sourceFrames = poseVariant ? organicPoseFrames() : frames();
   const sockets = poseVariant ? organicPoseSockets() : null;
   const framesWithArt: readonly SemanticGrowthFrame[] = sourceFrames.map((f) => ({
     key: f.key,
     model: {
       ...f.model,
-      scene: poseVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
+      scene:
+        poseVariant || canopyVariant
+          ? withoutPrimaryVectorOrganic(f.model.scene)
+          : f.model.scene,
       spriteSheet,
       artScale,
     },
@@ -480,6 +497,8 @@ export function SemanticGrowthDemo({
             aria-label={
               poseVariant
                 ? 'organic pose-to-pose growth witness (real app fixture)'
+                : canopyVariant
+                  ? 'organic canopy occlusion growth witness (real app fixture)'
                 : 'semantic growth witness (static fixture)'
             }
           >
@@ -507,6 +526,15 @@ export function SemanticGrowthDemo({
                         ...sockets.island,
                         settledAtProgress: 0.18,
                       },
+                    },
+                  }
+                : {})}
+              {...(canopyVariant
+                ? {
+                    organicCanopyOcclusion: {
+                      track: CHAPTER2_ORGANIC_CANOPY_OCCLUSION_TRACK,
+                      worldRoot: organicCanopyRoot(),
+                      scale: ORGANIC_CANOPY_OCCLUSION_SCALE,
                     },
                   }
                 : {})}
