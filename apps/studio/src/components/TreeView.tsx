@@ -1303,6 +1303,13 @@ export function readSemanticGrowthIsland(search: string = defaultSearch()): bool
   return new URLSearchParams(search).get('semanticGrowth') === 'island-growth';
 }
 
+export function readOrganicCutoutPuppet(search: string = defaultSearch()): boolean {
+  return (
+    new URLSearchParams(search).get('organicGrowth') ===
+    'organic-cutout-puppet'
+  );
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar' | 'stress';
@@ -2179,6 +2186,7 @@ export function TreeView({
   // near the other early returns.
   const semanticGrowthDemo = useMemo(() => readSemanticGrowthDemo(search), [search]);
   const semanticGrowthIsland = useMemo(() => readSemanticGrowthIsland(search), [search]);
+  const organicCutoutPuppet = useMemo(() => readOrganicCutoutPuppet(search), [search]);
   const scene = useMemo(
     () =>
       world
@@ -2356,12 +2364,18 @@ export function TreeView({
   // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
   // not a variant of the product controller. Every other value (absent/empty/unknown) falls
   // through unchanged, byte-for-byte, to the clean Studio path.
-  if (semanticGrowthDemo || semanticGrowthIsland) {
+  if (semanticGrowthDemo || semanticGrowthIsland || organicCutoutPuppet) {
     return (
       <SemanticGrowthDemo
         spriteSheet={spriteSheet}
         artScale={artScale}
-        variant={semanticGrowthIsland ? 'island-growth' : 'demo'}
+        variant={
+          semanticGrowthIsland
+            ? 'island-growth'
+            : organicCutoutPuppet
+              ? 'cutout-puppet'
+              : 'demo'
+        }
       />
     );
   }

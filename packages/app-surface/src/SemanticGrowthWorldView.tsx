@@ -20,6 +20,15 @@ import {
   type IslandGrowthPoint,
   type RegisteredIslandGrowthTrack,
 } from './island-growth-track.js';
+import {
+  advanceCutoutPuppetPlayback,
+  cutoutPuppetLayerAtProgress,
+  initialCutoutPuppetPlayback,
+  replayCutoutPuppet,
+  selectCutoutPuppetCue,
+  type CutoutPuppetPoint,
+  type RegisteredCutoutPuppetRig,
+} from './cutout-puppet-rig.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -45,6 +54,13 @@ export interface SemanticGrowthIslandLayer {
   readonly clock?: SemanticGrowthAnimationClock;
 }
 
+export interface SemanticGrowthCutoutPuppetLayer {
+  readonly rig: RegisteredCutoutPuppetRig;
+  readonly worldRoot: CutoutPuppetPoint;
+  readonly scale: number;
+  readonly clock?: SemanticGrowthAnimationClock;
+}
+
 export interface SemanticGrowthWorldViewProps {
   readonly frames: readonly SemanticGrowthFrame[];
   readonly reducedMotion?: boolean;
@@ -53,6 +69,7 @@ export interface SemanticGrowthWorldViewProps {
   readonly onBack?: (key: SemanticGrowthFrameKey) => void;
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
   readonly islandGrowth?: SemanticGrowthIslandLayer;
+  readonly cutoutPuppet?: SemanticGrowthCutoutPuppetLayer;
 }
 
 function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
@@ -115,6 +132,7 @@ function unionBounds(a: Bounds | null, b: Bounds | null): Bounds | null {
 function representativeViewBox(
   frames: readonly SemanticGrowthFrame[],
   islandGrowth?: SemanticGrowthIslandLayer,
+  cutoutPuppet?: SemanticGrowthCutoutPuppetLayer,
 ): string {
   let bounds: Bounds | null = null;
   for (const entry of frames) {
@@ -146,6 +164,24 @@ function representativeViewBox(
       maxY: y + track.canvas.height * scale,
     });
   }
+  if (cutoutPuppet) {
+    const rootOffset = parseSimpleTransform(frames[0]?.model.scene.transform);
+    const tx = rootOffset?.tx ?? 0;
+    const ty = rootOffset?.ty ?? 0;
+    const { rig, worldRoot, scale } = cutoutPuppet;
+    bounds = unionBounds(bounds, {
+      minX: worldRoot.x + rig.matureFootprint.x * scale + tx,
+      minY: worldRoot.y + rig.matureFootprint.y * scale + ty,
+      maxX:
+        worldRoot.x +
+        (rig.matureFootprint.x + rig.matureFootprint.width) * scale +
+        tx,
+      maxY:
+        worldRoot.y +
+        (rig.matureFootprint.y + rig.matureFootprint.height) * scale +
+        ty,
+    });
+  }
   if (!bounds) return FALLBACK_VIEW_BOX;
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
@@ -172,45 +208,64 @@ export function SemanticGrowthWorldView({
   onBack,
   onReplay,
   islandGrowth,
+  cutoutPuppet,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
   assertFrames(frames);
   const [cursor, setCursor] = React.useState(0);
   const [islandPlayback, setIslandPlayback] = React.useState(initialIslandGrowthPlayback);
+  const [cutoutPlayback, setCutoutPlayback] = React.useState(initialCutoutPuppetPlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
   const frame = frames[cursor]!;
   const islandFrame = islandGrowth
     ? islandGrowthFrameAtProgress(islandGrowth.track, islandPlayback.progress)
     : null;
+  const cutoutLayer = cutoutPuppet
+    ? cutoutPuppetLayerAtProgress(
+        cutoutPuppet.rig,
+        cutoutPlayback.progress,
+        cutoutPuppet.worldRoot,
+        cutoutPuppet.scale,
+      )
+    : null;
   const model = React.useMemo<WorldPresentationModel>(
     () => {
       const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
-      if (!islandGrowth || !islandFrame) return base;
       return {
         ...base,
-        islandGrowthLayer: {
-          src: islandFrame.src,
-          frameIndex: islandFrame.index,
-          canvas: islandGrowth.track.canvas,
-          assetAnchor: islandGrowth.track.islandAnchor,
-          worldAnchor: islandGrowth.worldAnchor,
-          scale: islandGrowth.scale,
-          depthSlot: islandGrowth.track.depthSlot,
-        },
+        ...(islandGrowth && islandFrame
+          ? {
+              islandGrowthLayer: {
+                src: islandFrame.src,
+                frameIndex: islandFrame.index,
+                canvas: islandGrowth.track.canvas,
+                assetAnchor: islandGrowth.track.islandAnchor,
+                worldAnchor: islandGrowth.worldAnchor,
+                scale: islandGrowth.scale,
+                depthSlot: islandGrowth.track.depthSlot,
+              },
+            }
+          : {}),
+        ...(cutoutLayer ? { cutoutPuppetLayer: cutoutLayer } : {}),
       };
     },
-    [frame.model, islandFrame, islandGrowth, reduce],
+    [cutoutLayer, frame.model, islandFrame, islandGrowth, reduce],
   );
   // Held stable through the whole walk — derived from every supplied frame's composed geometry,
   // never the current cursor (see representativeViewBox).
   const viewBox = React.useMemo(
-    () => representativeViewBox(frames, islandGrowth),
-    [frames, islandGrowth],
+    () => representativeViewBox(frames, islandGrowth, cutoutPuppet),
+    [cutoutPuppet, frames, islandGrowth],
   );
 
   React.useEffect(() => {
     if (!islandGrowth || !reduce) return;
     setIslandPlayback((current) => selectIslandGrowthCue(current, cursor, true));
   }, [cursor, islandGrowth, reduce]);
+
+  React.useEffect(() => {
+    if (!cutoutPuppet || !reduce) return;
+    setCutoutPlayback((current) => selectCutoutPuppetCue(current, cursor, true));
+  }, [cursor, cutoutPuppet, reduce]);
 
   React.useEffect(() => {
     if (!islandGrowth || reduce || !islandPlayback.playing) return;
@@ -234,6 +289,28 @@ export function SemanticGrowthWorldView({
     };
   }, [islandGrowth, islandPlayback.transitionId, reduce]);
 
+  React.useEffect(() => {
+    if (!cutoutPuppet || reduce || !cutoutPlayback.playing) return;
+    const clock = cutoutPuppet.clock ?? BROWSER_ANIMATION_CLOCK;
+    let requestId = 0;
+    let previousTimestamp: number | null = null;
+    let running = cutoutPlayback;
+    let cancelled = false;
+    const step = (timestamp: number): void => {
+      if (cancelled) return;
+      const deltaMs = previousTimestamp === null ? 1000 / 60 : timestamp - previousTimestamp;
+      previousTimestamp = timestamp;
+      running = advanceCutoutPuppetPlayback(running, deltaMs);
+      setCutoutPlayback(running);
+      if (running.playing) requestId = clock.requestFrame(step);
+    };
+    requestId = clock.requestFrame(step);
+    return () => {
+      cancelled = true;
+      clock.cancelFrame(requestId);
+    };
+  }, [cutoutPlayback.transitionId, cutoutPuppet, reduce]);
+
   const select = (
     nextCursor: number,
     callback?: (key: SemanticGrowthFrameKey) => void,
@@ -244,6 +321,11 @@ export function SemanticGrowthWorldView({
     if (islandGrowth) {
       setIslandPlayback((current) =>
         replay ? replayIslandGrowth(current) : selectIslandGrowthCue(current, bounded, reduce),
+      );
+    }
+    if (cutoutPuppet) {
+      setCutoutPlayback((current) =>
+        replay ? replayCutoutPuppet(current) : selectCutoutPuppetCue(current, bounded, reduce),
       );
     }
     callback?.(frames[bounded]!.key);
@@ -258,6 +340,12 @@ export function SemanticGrowthWorldView({
             'data-island-growth-progress': islandPlayback.progress.toFixed(4),
             'data-island-growth-frame': islandFrame?.index,
             'data-island-growth-anchor': `${islandGrowth.worldAnchor.x},${islandGrowth.worldAnchor.y}`,
+          }
+        : {})}
+      {...(cutoutPuppet
+        ? {
+            'data-cutout-puppet-progress': cutoutPlayback.progress.toFixed(4),
+            'data-cutout-puppet-root': `${cutoutPuppet.worldRoot.x},${cutoutPuppet.worldRoot.y}`,
           }
         : {})}
     >

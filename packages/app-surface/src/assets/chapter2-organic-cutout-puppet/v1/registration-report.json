@@ -1,0 +1,315 @@
+{
+  "schemaVersion": 1,
+  "authorTimeOnly": true,
+  "transparentBackground": true,
+  "sourcePalette": "reference-palette.png derived from the real app SVG reference plate; exact palette matching makes deterministic semantic masks possible",
+  "componentCount": 8,
+  "components": [
+    {
+      "file": "trunk-root.png",
+      "sourceDimensions": [
+        96,
+        160
+      ],
+      "selection": "wood",
+      "selectionYRange": [
+        45,
+        159
+      ],
+      "sourcePivot": {
+        "x": 50,
+        "y": 150
+      },
+      "sourceFootprint": {
+        "x": 19,
+        "y": 45,
+        "width": 69,
+        "height": 106
+      },
+      "normalizationOffset": {
+        "x": -2,
+        "y": 4
+      },
+      "normalizedPivot": {
+        "x": 48,
+        "y": 154
+      },
+      "normalizedFootprint": {
+        "x": 17,
+        "y": 49,
+        "width": 69,
+        "height": 106
+      },
+      "selectedPixelCount": 2170,
+      "encodedBytes": 5110
+    },
+    {
+      "file": "branch-left.png",
+      "sourceDimensions": [
+        128,
+        96
+      ],
+      "selection": "wood",
+      "selectionYRange": [
+        15,
+        72
+      ],
+      "sourcePivot": {
+        "x": 62,
+        "y": 72
+      },
+      "sourceFootprint": {
+        "x": 37,
+        "y": 15,
+        "width": 53,
+        "height": 58
+      },
+      "normalizationOffset": {
+        "x": 38,
+        "y": 18
+      },
+      "normalizedPivot": {
+        "x": 100,
+        "y": 90
+      },
+      "normalizedFootprint": {
+        "x": 75,
+        "y": 33,
+        "width": 53,
+        "height": 58
+      },
+      "selectedPixelCount": 473,
+      "encodedBytes": 1771
+    },
+    {
+      "file": "branch-right.png",
+      "sourceDimensions": [
+        128,
+        96
+      ],
+      "selection": "wood",
+      "selectionYRange": [
+        10,
+        78
+      ],
+      "sourcePivot": {
+        "x": 63,
+        "y": 78
+      },
+      "sourceFootprint": {
+        "x": 39,
+        "y": 10,
+        "width": 56,
+        "height": 69
+      },
+      "normalizationOffset": {
+        "x": -35,
+        "y": 12
+      },
+      "normalizedPivot": {
+        "x": 28,
+        "y": 90
+      },
+      "normalizedFootprint": {
+        "x": 4,
+        "y": 22,
+        "width": 56,
+        "height": 69
+      },
+      "selectedPixelCount": 763,
+      "encodedBytes": 2247
+    },
+    {
+      "file": "canopy-left.png",
+      "sourceDimensions": [
+        112,
+        96
+      ],
+      "selection": "foliage",
+      "selectionYRange": [
+        0,
+        78
+      ],
+      "sourcePivot": {
+        "x": 56,
+        "y": 78
+      },
+      "sourceFootprint": {
+        "x": 15,
+        "y": 6,
+        "width": 82,
+        "height": 73
+      },
+      "normalizationOffset": {
+        "x": 14,
+        "y": 10
+      },
+      "normalizedPivot": {
+        "x": 70,
+        "y": 88
+      },
+      "normalizedFootprint": {
+        "x": 29,
+        "y": 16,
+        "width": 82,
+        "height": 73
+      },
+      "selectedPixelCount": 3208,
+      "encodedBytes": 6371
+    },
+    {
+      "file": "canopy-crown.png",
+      "sourceDimensions": [
+        112,
+        96
+      ],
+      "selection": "foliage",
+      "selectionYRange": [
+        0,
+        72
+      ],
+      "sourcePivot": {
+        "x": 55,
+        "y": 72
+      },
+      "sourceFootprint": {
+        "x": 29,
+        "y": 7,
+        "width": 50,
+        "height": 66
+      },
+      "normalizationOffset": {
+        "x": 1,
+        "y": 16
+      },
+      "normalizedPivot": {
+        "x": 56,
+        "y": 88
+      },
+      "normalizedFootprint": {
+        "x": 30,
+        "y": 23,
+        "width": 50,
+        "height": 66
+      },
+      "selectedPixelCount": 1596,
+      "encodedBytes": 3569
+    },
+    {
+      "file": "canopy-right.png",
+      "sourceDimensions": [
+        112,
+        96
+      ],
+      "selection": "foliage",
+      "selectionYRange": [
+        0,
+        78
+      ],
+      "sourcePivot": {
+        "x": 57,
+        "y": 78
+      },
+      "sourceFootprint": {
+        "x": 17,
+        "y": 2,
+        "width": 76,
+        "height": 77
+      },
+      "normalizationOffset": {
+        "x": -15,
+        "y": 10
+      },
+      "normalizedPivot": {
+        "x": 42,
+        "y": 88
+      },
+      "normalizedFootprint": {
+        "x": 2,
+        "y": 12,
+        "width": 76,
+        "height": 77
+      },
+      "selectedPixelCount": 2903,
+      "encodedBytes": 6405
+    },
+    {
+      "file": "fern-tuft.png",
+      "sourceDimensions": [
+        64,
+        64
+      ],
+      "selection": "all-visible",
+      "selectionYRange": [
+        0,
+        63
+      ],
+      "sourcePivot": {
+        "x": 31,
+        "y": 50
+      },
+      "sourceFootprint": {
+        "x": 19,
+        "y": 11,
+        "width": 25,
+        "height": 40
+      },
+      "normalizationOffset": {
+        "x": 1,
+        "y": 10
+      },
+      "normalizedPivot": {
+        "x": 32,
+        "y": 60
+      },
+      "normalizedFootprint": {
+        "x": 20,
+        "y": 21,
+        "width": 25,
+        "height": 40
+      },
+      "selectedPixelCount": 468,
+      "encodedBytes": 1462
+    },
+    {
+      "file": "flower-tuft.png",
+      "sourceDimensions": [
+        64,
+        64
+      ],
+      "selection": "all-visible",
+      "selectionYRange": [
+        0,
+        63
+      ],
+      "sourcePivot": {
+        "x": 30,
+        "y": 53
+      },
+      "sourceFootprint": {
+        "x": 17,
+        "y": 10,
+        "width": 30,
+        "height": 44
+      },
+      "normalizationOffset": {
+        "x": 2,
+        "y": 7
+      },
+      "normalizedPivot": {
+        "x": 32,
+        "y": 60
+      },
+      "normalizedFootprint": {
+        "x": 19,
+        "y": 17,
+        "width": 30,
+        "height": 44
+      },
+      "selectedPixelCount": 602,
+      "encodedBytes": 1950
+    }
+  ],
+  "encodedComponentBytes": 28885,
+  "decodedRgbaBytes": 321536
+}

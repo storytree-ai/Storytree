@@ -51,6 +51,7 @@ export {
   type SemanticGrowthAnimationClock,
   type SemanticGrowthFrame,
   type SemanticGrowthFrameKey,
+  type SemanticGrowthCutoutPuppetLayer,
   type SemanticGrowthIslandLayer,
   type SemanticGrowthWorldViewProps,
 } from './SemanticGrowthWorldView.js';
@@ -71,3 +72,25 @@ export {
   type IslandGrowthPoint,
   type RegisteredIslandGrowthTrack,
 } from './island-growth-track.js';
+export {
+  CHAPTER2_ORGANIC_CUTOUT_PUPPET_RIG,
+  CUTOUT_PUPPET_CUE_TARGETS,
+  CUTOUT_PUPPET_PLAYBACK_POLICY,
+  advanceCutoutPuppetPlayback,
+  clampCutoutPuppetProgress,
+  cutoutPuppetLayerAtProgress,
+  cutoutPuppetPosesAtProgress,
+  initialCutoutPuppetPlayback,
+  replayCutoutPuppet,
+  selectCutoutPuppetCue,
+  validateCutoutPuppetRig,
+  type CutoutPuppetBox,
+  type CutoutPuppetPartKind,
+  type CutoutPuppetPartPose,
+  type CutoutPuppetPlaybackState,
+  type CutoutPuppetPoint,
+  type CutoutPuppetRenderLayer,
+  type CutoutPuppetScaleMode,
+  type RegisteredCutoutPuppetPart,
+  type RegisteredCutoutPuppetRig,
+} from './cutout-puppet-rig.js';

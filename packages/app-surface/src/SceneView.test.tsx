@@ -23,6 +23,10 @@ import { neighbourHighlightPlan } from './neighbourHighlight.js';
 import { laneLayout } from './laneLayout.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 import { SceneView, litLaneWidth, laneDrawSeconds, type SceneCtx } from './SceneView.js';
+import {
+  CHAPTER2_ORGANIC_CUTOUT_PUPPET_RIG,
+  cutoutPuppetLayerAtProgress,
+} from './cutout-puppet-rig.js';
 
 afterEach(cleanup);
 
@@ -188,6 +192,47 @@ describe('SceneView — the studio scene mapper', () => {
     const siblings = Array.from(image!.parentElement!.children);
     expect(siblings.indexOf(image!)).toBeGreaterThan(siblings.indexOf(root.querySelector('.relaxed-land')!));
     expect(siblings.indexOf(image!)).toBeLessThan(siblings.indexOf(root.querySelector('.trail-net')!));
+  });
+
+  it('renders registered cutout components from stable pivots in explicit painter order over SVG land', () => {
+    const root = { x: 100, y: 120 };
+    const { root: rendered } = renderScene({
+      cutoutPuppetLayer: cutoutPuppetLayerAtProgress(
+        CHAPTER2_ORGANIC_CUTOUT_PUPPET_RIG,
+        1,
+        root,
+        0.5,
+      ),
+    });
+    const rig = rendered.querySelector('[data-cutout-rig="chapter2-organic-cutout-puppet-v1"]');
+    expect(rig).toBeTruthy();
+    expect(rig?.getAttribute('data-world-root-x')).toBe('100.0');
+    expect(rig?.getAttribute('data-world-root-y')).toBe('120.0');
+    expect(rig?.getAttribute('transform')).toBe('translate(100.0 120.0) scale(0.5)');
+
+    const parts = Array.from(rig!.querySelectorAll('[data-cutout-part]'));
+    expect(parts).toHaveLength(8);
+    expect(parts.map((part) => Number(part.getAttribute('data-layer-depth')))).toEqual([
+      20, 22, 30, 40, 42, 44, 54, 55,
+    ]);
+    expect(parts.every((part) => part.getAttribute('data-reveal') === '1.0000')).toBe(true);
+    const trunk = rig!.querySelector('[data-cutout-part="trunk-root"]');
+    expect(trunk?.getAttribute('data-socket-x')).toBe('0.0');
+    expect(trunk?.getAttribute('data-socket-y')).toBe('0.0');
+    expect(trunk?.getAttribute('data-pivot-x')).toBe('48.0');
+    expect(trunk?.getAttribute('data-pivot-y')).toBe('154.0');
+    expect(trunk?.getAttribute('data-local-transform')).toContain('translate(0.0 0.0)');
+
+    const images = Array.from(rig!.querySelectorAll('image'));
+    expect(images).toHaveLength(8);
+    expect(images.every((image) => !image.getAttribute('href')?.includes('pixellab'))).toBe(true);
+    const siblings = Array.from(rig!.parentElement!.children);
+    expect(siblings.indexOf(rig!)).toBeGreaterThan(
+      siblings.indexOf(rendered.querySelector('.relaxed-land')!),
+    );
+    expect(siblings.indexOf(rig!)).toBeLessThan(
+      siblings.indexOf(rendered.querySelector('.trail-net')!),
+    );
   });
 
   it('maps roles to the studio classes, folding status + variant', () => {

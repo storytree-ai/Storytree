@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "id": "chapter2-organic-cutout-puppet-v1",
+  "title": "Chapter 2 layered cutout puppet growth comparison",
+  "status": "experimental-owner-look-pending",
+  "queryGate": "organicGrowth=organic-cutout-puppet",
+  "generatedAt": "2026-07-31T11:08:00+10:00",
+  "timestampBasis": "Captured during the accepted PixelLab jobs; PixelLab did not return per-job timestamps.",
+  "technique": {
+    "industryName": "articulated 2D cutout rig",
+    "shortName": "cutout puppet",
+    "comparisonQuestion": "Does an economical layered organic rig read as charming growth, or as a hinged paper puppet?",
+    "adoptionStatus": "comparison-only-awaiting-owner-LOOK"
+  },
+  "authorTimeOnly": true,
+  "runtimePixelLabDependency": false,
+  "runtimeCredentialRequired": false,
+  "runtimeOwns": [
+    "semantic cue",
+    "normalized progress",
+    "timing",
+    "easing",
+    "holds",
+    "local transforms",
+    "reveals",
+    "stagger",
+    "pivots",
+    "sockets",
+    "painter order",
+    "Next",
+    "Back",
+    "Replay",
+    "reduced-motion settlement",
+    "retained final scene"
+  ],
+  "referencePlate": {
+    "file": "reference-plate.png",
+    "paletteFile": "reference-palette.png",
+    "source": "Real Studio consumer using SemanticGrowthDemo's land cue through SemanticGrowthWorldView and SceneView.",
+    "sourceQuery": "?semanticGrowth=demo#/tree",
+    "sourceFrame": "land",
+    "svgViewBox": "-3.9 -4.1 665.6 668.1",
+    "rasterDimensions": [800, 800],
+    "encodedBytes": 21003,
+    "camera": "Existing app-owned low-isometric/2.5D camera; the plate, camera, island, coast, world parcel and geometry are not runtime assets of this rig."
+  },
+  "authoring": {
+    "prompts": "prompts.json",
+    "sourceOutputs": "sources/",
+    "registrationReport": "registration-report.json",
+    "normalizer": "packages/art-authoring/scripts/register-cutout-puppet.mts",
+    "normalizationPolicy": "Segment the PixelLab output at author/import time with the exact reference-derived palette, compute the selected lower contact, translate it to the declared pivot, reject clipping, then ship the normalized transparent component.",
+    "observedModelLimitation": "Six structural prompts explicitly requested isolated trunk, branch or canopy material, but PixFlux returned coherent whole-tree sprites. The deterministic author-time palette segmentation extracted the requested wood/foliage layers. This is retained as experiment evidence rather than hidden.",
+    "sourceEncodedBytes": 28268,
+    "sourceFilesShippedForAudit": true
+  },
+  "rig": {
+    "coordinateSpace": "rig-local component pixels; world root is supplied by the real app treeSpot",
+    "rootSocket": {
+      "id": "hero-tree-root",
+      "x": 0,
+      "y": 0,
+      "meaning": "The root contact never changes as progress, viewport or navigation changes."
+    },
+    "matureFootprint": {
+      "x": -84,
+      "y": -211,
+      "width": 170,
+      "height": 221
+    },
+    "depthSlot": "organic-cutout-puppet",
+    "globalScale": 0.5,
+    "painterOrder": [
+      "app-native water/shadow",
+      "app-native SVG coast/ground/parcels",
+      "branch-left",
+      "branch-right",
+      "trunk-root",
+      "canopy-left",
+      "canopy-right",
+      "canopy-crown",
+      "flower-tuft",
+      "fern-tuft",
+      "app-native trails/effects/UI"
+    ],
+    "components": [
+      {
+        "id": "branch-left",
+        "kind": "major-branch",
+        "file": "branch-left.png",
+        "canvas": [128, 96],
+        "pivot": [100, 90],
+        "socket": [-7, -74],
+        "layerDepth": 20,
+        "stage": [0.32, 0.64],
+        "matureFootprint": [75, 33, 53, 58],
+        "encodedBytes": 1771
+      },
+      {
+        "id": "branch-right",
+        "kind": "major-branch",
+        "file": "branch-right.png",
+        "canvas": [128, 96],
+        "pivot": [28, 90],
+        "socket": [8, -84],
+        "layerDepth": 22,
+        "stage": [0.36, 0.68],
+        "matureFootprint": [4, 22, 56, 69],
+        "encodedBytes": 2247
+      },
+      {
+        "id": "trunk-root",
+        "kind": "rooted-trunk",
+        "file": "trunk-root.png",
+        "canvas": [96, 160],
+        "pivot": [48, 154],
+        "socket": [0, 0],
+        "layerDepth": 30,
+        "stage": [0.18, 0.5],
+        "matureFootprint": [17, 49, 69, 106],
+        "encodedBytes": 5110
+      },
+      {
+        "id": "canopy-left",
+        "kind": "canopy-cluster",
+        "file": "canopy-left.png",
+        "canvas": [112, 96],
+        "pivot": [70, 88],
+        "socket": [-36, -124],
+        "layerDepth": 40,
+        "stage": [0.48, 0.82],
+        "matureFootprint": [29, 16, 82, 73],
+        "encodedBytes": 6371
+      },
+      {
+        "id": "canopy-right",
+        "kind": "canopy-cluster",
+        "file": "canopy-right.png",
+        "canvas": [112, 96],
+        "pivot": [42, 88],
+        "socket": [40, -122],
+        "layerDepth": 42,
+        "stage": [0.52, 0.86],
+        "matureFootprint": [2, 12, 76, 77],
+        "encodedBytes": 6405
+      },
+      {
+        "id": "canopy-crown",
+        "kind": "canopy-cluster",
+        "file": "canopy-crown.png",
+        "canvas": [112, 96],
+        "pivot": [56, 88],
+        "socket": [0, -146],
+        "layerDepth": 44,
+        "stage": [0.56, 0.9],
+        "matureFootprint": [30, 23, 50, 66],
+        "encodedBytes": 3569
+      },
+      {
+        "id": "flower-tuft",
+        "kind": "ground-plant",
+        "file": "flower-tuft.png",
+        "canvas": [64, 64],
+        "pivot": [32, 60],
+        "socket": [70, 8],
+        "layerDepth": 54,
+        "stage": [0.74, 0.96],
+        "matureFootprint": [19, 17, 30, 44],
+        "encodedBytes": 1950
+      },
+      {
+        "id": "fern-tuft",
+        "kind": "ground-plant",
+        "file": "fern-tuft.png",
+        "canvas": [64, 64],
+        "pivot": [32, 60],
+        "socket": [-72, 10],
+        "layerDepth": 55,
+        "stage": [0.78, 1],
+        "matureFootprint": [20, 21, 25, 40],
+        "encodedBytes": 1462
+      }
+    ]
+  },
+  "playback": {
+    "cueOrder": ["empty", "land", "proposed", "claimed", "signed-proof", "healthy"],
+    "cueProgress": [0, 0.16, 0.38, 0.58, 0.78, 1],
+    "transitionMs": [0, 420, 920, 980, 1040, 1120],
+    "holdMs": [0, 180, 180, 160, 140, 0],
+    "easing": "smoothstep",
+    "reveal": "bottom-up local clip per part",
+    "motion": "pivot-local rotation and non-uniform scale; no whole-island transform",
+    "reducedMotion": "immediate cue settlement to the same normalized endpoint"
+  },
+  "budgets": {
+    "runtimeComponentCount": 8,
+    "runtimeComponentCountCap": 8,
+    "encodedRuntimeBytes": 28885,
+    "decodedRgbaBytes": 321536,
+    "decodedRgbaMiB": 0.307,
+    "contactSheetBytes": 33694,
+    "contactSheetRuntimeImported": false,
+    "referencePlateRuntimeImported": false,
+    "sourceOutputsRuntimeImported": false,
+    "targetFramePacing": "60 fps app requestAnimationFrame; eight SVG image nodes and eight local transform groups"
+  },
+  "provenance": {
+    "provider": "PixelLab",
+    "termsUrl": "https://pixellab.ai/termsofservice",
+    "licenceNote": "Generated through the connected PixelLab service. Use is subject to PixelLab's Terms of Service; this record asserts no broader licence than those terms.",
+    "model": "PixFlux",
+    "tool": "create_image_pixflux",
+    "acceptedGenerationCount": 8,
+    "generationCost": "8 generations reported by the tool; billing source and balance were not exposed.",
+    "jobs": [
+      "9dad91bc-4339-419e-a946-51024dc26d4a",
+      "4dd4b885-b349-4720-bbd8-a0940c173c09",
+      "5735e300-7ccf-4320-a076-7aa4cac8d6d8",
+      "72eeed4d-ad42-4125-8729-d4fd724465f2",
+      "aa2a9f5f-fc31-4ae0-b8bb-dd229fa0378d",
+      "c0fca096-2794-4221-b0fd-9adfd8ea26dc",
+      "077b9938-f419-4d14-b525-3f2720cc9fe7",
+      "258052d5-4179-40d7-8492-bb86c646bbbd"
+    ],
+    "credentialsPrintedOrCommitted": false
+  },
+  "capabilityCountSeam": {
+    "boundedSlotCount": 3,
+    "mechanism": "The three app-owned canopy sockets are the finite capability-correspondence seam; capability count may monotonically reveal at most these registered clusters.",
+    "generatedVariantFamilyRequired": false
+  },
+  "ownerLookVerdict": {
+    "status": "pending",
+    "note": "Machine proof can verify pivots, sockets, determinism, budgets and route isolation. It cannot decide whether the visible hinges feel charming or mechanical."
+  }
+}

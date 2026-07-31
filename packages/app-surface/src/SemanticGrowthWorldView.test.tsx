@@ -16,6 +16,7 @@ import {
   type SemanticGrowthAnimationClock,
 } from './SemanticGrowthWorldView.js';
 import { CHAPTER2_ISLAND_GROWTH_TRACK } from './island-growth-track.js';
+import { CHAPTER2_ORGANIC_CUTOUT_PUPPET_RIG } from './cutout-puppet-rig.js';
 import * as AppSurfacePackageRoot from './index.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 
@@ -259,6 +260,153 @@ describe('SemanticGrowthWorldView', () => {
         image.getAttribute('data-world-anchor-y') ?? '',
         image.getAttribute('width') ?? '',
         image.getAttribute('height') ?? '',
+      ] as const;
+      view.unmount();
+      return result;
+    };
+    expect(witness(390)).toEqual(witness(1440));
+  });
+
+  it('drives the cutout rig with the app clock while root, pivots, Back and in-place Replay stay stable', () => {
+    class ManualClock implements SemanticGrowthAnimationClock {
+      private nextId = 1;
+      private callbacks = new Map<number, (timestamp: number) => void>();
+
+      requestFrame(callback: (timestamp: number) => void): number {
+        const id = this.nextId++;
+        this.callbacks.set(id, callback);
+        return id;
+      }
+
+      cancelFrame(requestId: number): void {
+        this.callbacks.delete(requestId);
+      }
+
+      step(timestamp: number): void {
+        const pending = [...this.callbacks.entries()];
+        this.callbacks.clear();
+        act(() => pending.forEach(([, callback]) => callback(timestamp)));
+      }
+    }
+
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const clock = new ManualClock();
+    const cutoutPuppet = {
+      rig: CHAPTER2_ORGANIC_CUTOUT_PUPPET_RIG,
+      worldRoot: { x: 50, y: 45 },
+      scale: 0.5,
+      clock,
+    } as const;
+    const view = render(
+      <SemanticGrowthWorldView frames={frames} cutoutPuppet={cutoutPuppet} />,
+    );
+    const group = view.container.querySelector('[data-cutout-rig]')!;
+    const root = (): readonly [string | null, string | null] => [
+      group.getAttribute('data-world-root-x'),
+      group.getAttribute('data-world-root-y'),
+    ];
+    const progress = (): string | null =>
+      view.container
+        .querySelector('[data-cutout-puppet-progress]')
+        ?.getAttribute('data-cutout-puppet-progress') ?? null;
+    const reveal = (id: string): string | null =>
+      group.querySelector(`[data-cutout-part="${id}"]`)?.getAttribute('data-reveal') ?? null;
+
+    expect(progress()).toBe('0.0000');
+    expect(root()).toEqual(['50.0', '45.0']);
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    clock.step(0);
+    clock.step(10_000);
+    expect(progress()).toBe('0.1600');
+    expect(reveal('trunk-root')).toBe('0.0000');
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    clock.step(10_100);
+    clock.step(20_000);
+    expect(progress()).toBe('0.3800');
+    expect(Number(reveal('trunk-root'))).toBeGreaterThan(0);
+    expect(reveal('canopy-crown')).toBe('0.0000');
+
+    fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    clock.step(20_100);
+    clock.step(30_000);
+    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    clock.step(30_100);
+    clock.step(40_000);
+    expect(progress()).toBe('0.3800');
+    expect(root()).toEqual(['50.0', '45.0']);
+
+    fireEvent.click(view.getByRole('button', { name: 'Replay' }));
+    expect(view.container.querySelector('[data-cutout-rig]')).toBe(group);
+    expect(progress()).toBe('0.0000');
+    expect(root()).toEqual(['50.0', '45.0']);
+  });
+
+  it('settles reduced-motion cutout parts immediately on the same retained mature composition', () => {
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const cutoutPuppet = {
+      rig: CHAPTER2_ORGANIC_CUTOUT_PUPPET_RIG,
+      worldRoot: { x: 50, y: 45 },
+      scale: 0.5,
+    } as const;
+    const view = render(
+      <SemanticGrowthWorldView
+        frames={frames}
+        cutoutPuppet={cutoutPuppet}
+        reducedMotion
+      />,
+    );
+    for (const _key of ORDERED_KEYS.slice(1)) {
+      fireEvent.click(view.getByRole('button', { name: 'Next' }));
+    }
+    const group = view.container.querySelector('[data-cutout-rig]')!;
+    expect(
+      view.container
+        .querySelector('[data-cutout-puppet-progress]')
+        ?.getAttribute('data-cutout-puppet-progress'),
+    ).toBe('1.0000');
+    expect(
+      Array.from(group.querySelectorAll('[data-cutout-part]')).every(
+        (part) => part.getAttribute('data-reveal') === '1.0000',
+      ),
+    ).toBe(true);
+    view.rerender(
+      <SemanticGrowthWorldView
+        frames={frames}
+        cutoutPuppet={cutoutPuppet}
+        reducedMotion
+      />,
+    );
+    expect(view.container.querySelector('[data-cutout-rig]')).toBe(group);
+  });
+
+  it('retains identical cutout semantics and stable framing at desktop and mobile widths', () => {
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const cutoutPuppet = {
+      rig: CHAPTER2_ORGANIC_CUTOUT_PUPPET_RIG,
+      worldRoot: { x: 50, y: 45 },
+      scale: 0.5,
+    } as const;
+    const witness = (width: number): readonly unknown[] => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+      const view = render(
+        <SemanticGrowthWorldView
+          frames={frames}
+          cutoutPuppet={cutoutPuppet}
+          reducedMotion
+        />,
+      );
+      for (const _key of ORDERED_KEYS.slice(1)) {
+        fireEvent.click(view.getByRole('button', { name: 'Next' }));
+      }
+      const svg = view.container.querySelector('svg')!;
+      const group = view.container.querySelector('[data-cutout-rig]')!;
+      const result = [
+        svg.getAttribute('viewBox'),
+        group.getAttribute('data-world-root-x'),
+        group.getAttribute('data-world-root-y'),
+        group.getAttribute('data-cutout-progress'),
+        group.querySelectorAll('[data-cutout-part]').length,
       ] as const;
       view.unmount();
       return result;

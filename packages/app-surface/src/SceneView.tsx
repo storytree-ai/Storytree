@@ -30,6 +30,7 @@ import {
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
+import type { CutoutPuppetRenderLayer } from './cutout-puppet-rig.js';
 
 export interface IslandGrowthRenderLayer {
   readonly src: string;
@@ -91,6 +92,8 @@ export interface SceneCtx {
   laneMotion?: 'draw' | 'march' | 'none';
   /** One registered SVG image planted into the canonical world painter order. */
   islandGrowthLayer?: IslandGrowthRenderLayer | null;
+  /** Registered transparent organic components articulated from app-owned pivots/sockets. */
+  cutoutPuppetLayer?: CutoutPuppetRenderLayer | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
    *  so a `baked-use` hero (the ADR-0227 status trees, the garden cottage/gazebo) sizes from its real
    *  def geometry. Memoized once per scene in the component below. */
@@ -471,6 +474,85 @@ function islandGrowthImage(layer: IslandGrowthRenderLayer): React.ReactNode {
     'data-world-anchor-x': fmt(layer.worldAnchor.x),
     'data-world-anchor-y': fmt(layer.worldAnchor.y),
   });
+}
+
+function cutoutPuppetGroup(layer: CutoutPuppetRenderLayer): React.ReactNode {
+  const defs: React.ReactNode[] = [];
+  const parts: React.ReactNode[] = [];
+  for (const pose of layer.poses) {
+    const part = pose.part;
+    const clipId = `${layer.rigId}-${part.id}-reveal`;
+    const revealedHeight = part.canvas.height * pose.reveal;
+    defs.push(
+      React.createElement(
+        'clipPath',
+        {
+          key: `${part.id}-clip`,
+          id: clipId,
+          clipPathUnits: 'userSpaceOnUse',
+        },
+        React.createElement('rect', {
+          x: 0,
+          y: fmt(part.canvas.height - revealedHeight),
+          width: part.canvas.width,
+          height: fmt(revealedHeight),
+        }),
+      ),
+    );
+    const localTransform = [
+      `translate(${fmt(part.socket.x)} ${fmt(part.socket.y)})`,
+      `rotate(${fmt(pose.angleDeg)})`,
+      `scale(${fmt(pose.scaleX)} ${fmt(pose.scaleY)})`,
+      `translate(${fmt(-part.assetPivot.x)} ${fmt(-part.assetPivot.y)})`,
+    ].join(' ');
+    parts.push(
+      React.createElement(
+        'g',
+        {
+          key: part.id,
+          transform: localTransform,
+          opacity: pose.reveal === 0 ? 0 : 1,
+          'data-cutout-part': part.id,
+          'data-cutout-kind': part.kind,
+          'data-layer-depth': String(part.layerDepth),
+          'data-socket-x': fmt(part.socket.x),
+          'data-socket-y': fmt(part.socket.y),
+          'data-pivot-x': fmt(part.assetPivot.x),
+          'data-pivot-y': fmt(part.assetPivot.y),
+          'data-reveal': pose.reveal.toFixed(4),
+          'data-local-transform': localTransform,
+        },
+        React.createElement('image', {
+          href: part.src,
+          x: 0,
+          y: 0,
+          width: part.canvas.width,
+          height: part.canvas.height,
+          preserveAspectRatio: 'none',
+          imageRendering: 'pixelated',
+          pointerEvents: 'none',
+          clipPath: `url(#${clipId})`,
+          'aria-hidden': true,
+        }),
+      ),
+    );
+  }
+  return React.createElement(
+    'g',
+    {
+      key: '__organic-cutout-puppet',
+      transform: `translate(${fmt(layer.worldRoot.x)} ${fmt(layer.worldRoot.y)}) scale(${fmt(layer.scale)})`,
+      pointerEvents: 'none',
+      'aria-hidden': true,
+      'data-depth-slot': layer.depthSlot,
+      'data-cutout-rig': layer.rigId,
+      'data-cutout-progress': layer.progress.toFixed(4),
+      'data-world-root-x': fmt(layer.worldRoot.x),
+      'data-world-root-y': fmt(layer.worldRoot.y),
+    },
+    React.createElement('defs', null, ...defs),
+    ...parts,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -880,6 +962,9 @@ function renderNode(
     children.forEach((c, i) => {
       if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.islandGrowthLayer) {
         rendered.push(islandGrowthImage(ctx.islandGrowthLayer));
+      }
+      if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.cutoutPuppetLayer) {
+        rendered.push(cutoutPuppetGroup(ctx.cutoutPuppetLayer));
       }
       const el = renderNode(c, i, childStory, ctx);
       if (el) rendered.push(el);

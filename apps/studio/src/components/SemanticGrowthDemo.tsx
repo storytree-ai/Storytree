@@ -34,6 +34,7 @@ import {
 } from '@storytree/forest-world';
 import {
   CHAPTER2_ISLAND_GROWTH_TRACK,
+  CHAPTER2_ORGANIC_CUTOUT_PUPPET_RIG,
   neighbourHighlightPlan,
   laneLayout,
   normalizeWorldPresentationModel,
@@ -67,6 +68,7 @@ const DEMO_CAP_BETA_ID = 'semantic-growth-demo-cap-beta';
 const COMPANION_STORY_ID = 'semantic-growth-demo-companion';
 const COMPANION_CAP_ID = 'semantic-growth-demo-companion-cap';
 const ISLAND_GROWTH_SCALE = 0.5;
+const CUTOUT_PUPPET_SCALE = 0.5;
 
 /** A fixed instant, never `Date.now()`, so the walk (and its signed-proof bloom) stays
  *  byte-identical across every render/re-mount. */
@@ -212,6 +214,41 @@ function withoutPrimaryIsland(node: SceneNode): SceneNode {
   return stripClearedPrimaryGround(withoutIdentifiedLayers);
 }
 
+function collectBloomAnchors(node: SceneNode): SceneNode[] {
+  if (node.kind === 'bloom-anchor') return [node];
+  if (node.el !== 'g') return [];
+  return node.children.flatMap(collectBloomAnchors);
+}
+
+function stripPrimaryOrganicParts(node: SceneNode, insidePrimary = false): SceneNode[] {
+  if (node.el !== 'g') return [node];
+  const inPrimary =
+    insidePrimary || (node.kind === 'territory' && node.id === DEMO_STORY_ID);
+  if (inPrimary && node.kind === 'tree') return collectBloomAnchors(node);
+  if (inPrimary && node.kind === 'flora') return [];
+  if (
+    node.kind === 'parcel-flora' &&
+    (node.id === DEMO_CAP_ALPHA_ID || node.id === DEMO_CAP_BETA_ID)
+  ) {
+    return [];
+  }
+  return [
+    {
+      ...node,
+      children: node.children.flatMap((child) =>
+        stripPrimaryOrganicParts(child, inPrimary),
+      ),
+    },
+  ];
+}
+
+function withoutPrimaryOrganicParts(node: SceneNode): SceneNode {
+  const stripped = stripPrimaryOrganicParts(node);
+  const root = stripped[0];
+  if (!root) throw new Error('Organic cutout witness cannot remove the world root.');
+  return root;
+}
+
 /** The claim/presence wisp for the `claimed` frame — coordination, never a proof (the ADR-0138
  *  §5 honesty wall the core itself enforces): the story's own status stays `proposed`, and this
  *  claim carries no bloom/verdict identity of its own. */
@@ -259,6 +296,10 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
       (CHAPTER2_ISLAND_GROWTH_TRACK.islandAnchor.y -
         CHAPTER2_ISLAND_GROWTH_TRACK.treeRoot.y) *
         ISLAND_GROWTH_SCALE,
+  };
+  cutoutPuppetRootCache = {
+    x: primary.treeSpot.x,
+    y: primary.treeSpot.y,
   };
 
   // sgsd-primary-selection-reuses-drawn-route-lanes: the primary's one-hop selection plan +
@@ -391,6 +432,7 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
 
 let framesCache: readonly SemanticGrowthFrame[] | null = null;
 let islandGrowthAnchorCache: { readonly x: number; readonly y: number } | null = null;
+let cutoutPuppetRootCache: { readonly x: number; readonly y: number } | null = null;
 
 /** The static fixture, computed once on first use and cached — never at this module's own
  *  top level (see {@link buildFrames}), never rebuilt afterward. */
@@ -407,10 +449,18 @@ function islandGrowthAnchor(): { readonly x: number; readonly y: number } {
   return islandGrowthAnchorCache;
 }
 
+function cutoutPuppetRoot(): { readonly x: number; readonly y: number } {
+  frames();
+  if (!cutoutPuppetRootCache) {
+    throw new Error('Semantic growth fixture did not register its hero-tree root socket.');
+  }
+  return cutoutPuppetRootCache;
+}
+
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'island-growth';
+  readonly variant?: 'demo' | 'island-growth' | 'cutout-puppet';
 }
 
 /**
@@ -425,11 +475,16 @@ export function SemanticGrowthDemo({
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
   const islandVariant = variant === 'island-growth';
+  const cutoutVariant = variant === 'cutout-puppet';
   const framesWithArt: readonly SemanticGrowthFrame[] = frames().map((f) => ({
     key: f.key,
     model: {
       ...f.model,
-      scene: islandVariant ? withoutPrimaryIsland(f.model.scene) : f.model.scene,
+      scene: islandVariant
+        ? withoutPrimaryIsland(f.model.scene)
+        : cutoutVariant
+          ? withoutPrimaryOrganicParts(f.model.scene)
+          : f.model.scene,
       spriteSheet,
       artScale,
     },
@@ -447,6 +502,15 @@ export function SemanticGrowthDemo({
                       track: CHAPTER2_ISLAND_GROWTH_TRACK,
                       worldAnchor: islandGrowthAnchor(),
                       scale: ISLAND_GROWTH_SCALE,
+                    },
+                  }
+                : {})}
+              {...(cutoutVariant
+                ? {
+                    cutoutPuppet: {
+                      rig: CHAPTER2_ORGANIC_CUTOUT_PUPPET_RIG,
+                      worldRoot: cutoutPuppetRoot(),
+                      scale: CUTOUT_PUPPET_SCALE,
                     },
                   }
                 : {})}

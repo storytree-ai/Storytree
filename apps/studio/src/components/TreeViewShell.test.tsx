@@ -398,6 +398,67 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     expect(nearMiss.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
   });
 
+  it('only the exact organic-cutout-puppet query mounts the articulated rig over retained native SVG land', async () => {
+    const clean = await renderTree();
+    expect(clean.querySelector('[data-cutout-rig]')).toBeNull();
+    cleanup();
+
+    window.history.pushState(
+      {},
+      '',
+      '/?organicGrowth=organic-cutout-puppet-near-miss#/tree',
+    );
+    const nearMiss = await renderTree();
+    expect(nearMiss.querySelector('[data-cutout-rig]')).toBeNull();
+    cleanup();
+
+    window.history.pushState(
+      {},
+      '',
+      '/?organicGrowth=organic-cutout-puppet#/tree',
+    );
+    const flagged = await renderTree();
+    const section = flagged.querySelector('[data-semantic-growth-frame="empty"]');
+    expect(section).toBeTruthy();
+    const rig = flagged.querySelector(
+      '[data-cutout-rig="chapter2-organic-cutout-puppet-v1"]',
+    );
+    expect(rig).toBeTruthy();
+    expect(rig?.getAttribute('data-depth-slot')).toBe('organic-cutout-puppet');
+    expect(rig?.querySelectorAll('[data-cutout-part]')).toHaveLength(8);
+    expect(
+      Array.from(rig!.querySelectorAll('image')).every((image) => {
+        const href = image.getAttribute('href') ?? '';
+        return (
+          !/pixellab\.ai/i.test(href) &&
+          /chapter2-organic-cutout-puppet\/v1\/[\w-]+\.png/i.test(href)
+        );
+      }),
+    ).toBe(true);
+    expect(flagged.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+    expect(
+      flagged.querySelector('.relaxed-tile'),
+      'the primary native land is absent at the semantic empty cue',
+    ).toBeNull();
+
+    const next = Array.from(
+      flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+    ).find((button) => button.textContent === 'Next') as HTMLButtonElement;
+    await act(async () => {
+      next.click();
+    });
+    expect(
+      flagged
+        .querySelector('[data-semantic-growth-frame]')
+        ?.getAttribute('data-semantic-growth-frame'),
+    ).toBe('land');
+    expect(
+      flagged.querySelector('.relaxed-tile'),
+      'the land cue must reveal the existing app-owned SVG substrate',
+    ).toBeTruthy();
+    expect(flagged.querySelector('image[data-depth-slot="island-growth-composite"]')).toBeNull();
+  });
+
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
   // machine contract 3): "signed-proof remains proposed/non-healthy while carrying the proof bloom;
   // healthy appears only last" / "no pre-final frame may appear healthy". The `signed-proof` frame is
