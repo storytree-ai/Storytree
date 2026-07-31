@@ -79,11 +79,14 @@ truth — reached through deferral instead of caching. A deferral without that g
 increment; it is the defect this unit exists to prevent, which is the splitting rule's answer: the
 guard shares the precondition and the observable with the deferral it makes safe.
 
-This is ADR-0240 decision 2's FOURTH and final stage before density — de-serialise the boot. Stage 2
+This is ADR-0240 decision 2's FOURTH stage — de-serialise the boot. Stage 2
 ([`map-payload-cache`](map-payload-cache.md)) already took the `/api/docs` third of it, so what is
 left is the remaining pair. It is client-side work: no server route, header, ETag, or memoization
 change (that was stage 3, [`map-server-memo`](map-server-memo.md)). Sharing a file with a sibling
-increment creates no `depends_on` edge — stages 2 and 3 both say the same.
+increment creates no `depends_on` edge — stages 2 and 3 both say the same. It is no longer the last
+stage before density: ADR-0272 decision 3 de-sequenced that budget, and what followed here was
+stage 5, [`compositor-pan-transform`](compositor-pan-transform.md) — pan moved off the SVG `<g>`
+transform onto a compositor-only wrapper.
 
 ## Guidance
 
@@ -254,7 +257,12 @@ increment creates no `depends_on` edge — stages 2 and 3 both say the same.
 
 - **Density, LOD, culling, aggregation, scene-graph redesign, or renderer choice** — and any change
   to `packages/forest-world`, `@storytree/app-surface`, or the world's look that the owner would
-  see. ADR-0240 decision 2 sequences density LAST and decision 4 keeps it undesigned until its own
+  see. ADR-0272 decision 3 DE-SEQUENCES density: flora is 62.8% of the map and deleting all of it
+  reaches only 133 ms (7.6 fps); deleting flora *and* every ground cell (82% of the map) reaches
+  only 33 ms. A 16.7 ms budget affords ~2,800 elements, so ~85% of the map would have to disappear
+  to fix pan by density alone. It is not retired as an idea, but it may only return against its own
+  fresh evidence, for a cost it can actually pay down (mount, not pan) — and it is not this unit,
+  which is about ORDER, not element count. ADR-0240 decision 4 keeps it undesigned until its own
   increment, behind its own ADR and an owner attestation.
 - Any regression of stage 1's SPA route retention, of stage 2's three cache guards (the client
   stamp, the server `code.head` evictor, the structural shape check), or of stage 3's corpus memo

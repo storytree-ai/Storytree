@@ -81,6 +81,13 @@ The forces: the cheap fixes are studio-local and behaviour-preserving; the fix t
 (a density budget / LOD) touches the shared scene graph, which drags the web-engine sync-and-pin
 dance and changes what the owner sees on the map.
 
+*[Amended by [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md)
+(2026-07-31): "the fix that actually *scales*" survives only for MOUNT cost, which does stay
+O(elements) — and is dead as a description of the responsiveness endgame this sentence was written to
+frame. The felt symptom was fixed without touching density at all: studio-local, no scene-graph
+change, no sync-and-pin dance, and no change to what the owner sees (decision 2's note).
+"Behaviour-preserving" is separately corrected in the first Consequence below.]*
+
 ## Decision
 
 1. **The felt cost is re-computation and re-mounting, not rendering.** Optimisation on this surface
