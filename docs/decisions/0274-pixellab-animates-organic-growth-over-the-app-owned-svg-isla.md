@@ -124,6 +124,20 @@ The full-island raster witness from ADR-0273 remains useful rejected evidence. I
 visual direction and should leave the active witness path when the corrected implementation lands.
 The successor arc does not close until the corrected organic composition has a real owner verdict.
 
+### D5 comparison evidence — pose-to-pose witness (2026-08-01)
+
+The owner reviewed the hosted PR #1045 witness at
+`?organicGrowth=organic-pose-to-pose#/tree` and said the tree animation was "probably the most"
+liked of the experiments, while disliking how the island forms.
+
+This is partial comparison evidence, not the D5 adoption verdict. The pose-to-pose tree is the
+provisional comparison leader; "probably" leaves final selection and clean-route adoption open.
+This witness's island-formation treatment does not pass LOOK and must be reworked.
+
+D1 remains unchanged: the rework must retain the existing app-owned SVG island, coast, established
+camera and geometry, with no generated-land substitute. The combined composition remains held and
+the arc stays active pending a corrected whole-composition owner verdict.
+
 ### D6 — Explicitly rejected
 
 - Generating the island, coast or complete scene as a PixelLab sprite sequence.
