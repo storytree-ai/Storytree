@@ -115,9 +115,18 @@ source remains `apps/studio/src/components/TreeView.tsx`, which the `studio` sur
      frame schedules no more than one pending camera frame; it does not call a camera state update per
      input event.
 2. **`pan-frame-commits-the-latest-cumulative-delta`**
-   - **asserts —** flushing that one frame applies the cumulative latest drag delta to `.world-camera`,
+   - **asserts —** flushing that one frame applies the cumulative latest drag delta to the COMPOSED
+     camera — the `.world-camera` `<g>` transform composed with the `.world-pan-layer` transform —
      preserves scale and `atFitRef` semantics, and a later burst schedules exactly one later frame rather
      than replaying stale intermediate deltas.
+   - **note (ADR-0272 D2) —** this contract is about the frame BOUNDARY: one commit per burst, carrying
+     the cumulative latest delta, never a replay of stale intermediates. It originally named
+     `.world-camera` because the `<g>` was the only place a camera write could land. ADR-0272 decision 2
+     moves the per-frame write off the `<g>` onto a compositor-only HTML wrapper
+     ([`compositor-pan-transform`](compositor-pan-transform.md)), so the assertion is stated against the
+     composed camera, which is what the operator actually sees and what stays invariant across that
+     change. Nothing this contract was protecting is weakened: before the wrapper exists the pan layer
+     is identity and the composed value IS the `<g>` value.
 3. **`pan-frame-settles-or-cancels-pending-work-safely`**
    - **asserts —** pointer release preserves the final legal drag position, while pointer cancellation or
      component unmount clears pending frame work so no stale camera update, synthetic click selection or

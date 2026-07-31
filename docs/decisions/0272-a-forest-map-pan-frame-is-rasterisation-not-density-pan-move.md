@@ -123,9 +123,10 @@ not apply to non-root SVG elements at all — a category error, not a tuning fai
    scale indicts the substrate. It does not here: the same 18,793 SVG elements pan at the 60 fps
    vsync floor once the transform moves off the `<g>`. **Trigger (b) is therefore read as: node
    count past the range, and pan/zoom degrades *with the per-frame path already compositor-only*.**
-   Until decision 2 ships, trigger (b) cannot be evaluated at all, and no renderer swap may be
-   argued from it. These numbers do not reopen the renderer question; they close it more firmly than
-   the mount measurement did.
+   Decision 2 SHIPPED on 2026-07-31 (capability `compositor-pan-transform`), so the precondition is
+   satisfied and trigger (b) is evaluable — and evaluated against the compositor-only path it does
+   **not** fire. No renderer swap may be argued from it. These numbers do not reopen the renderer
+   question; they close it more firmly than the mount measurement did.
 6. **"CPU/DOM-bound, not GPU-bound" is retired as a blanket claim about this surface.** That finding
    (ADR-0069's scoping memo, restated in ADR-0240's Context and in the `SceneView` memo comment) is
    right about mount and rebuild, which is what it measured. On a pan frame the single largest item
@@ -157,9 +158,11 @@ not apply to non-root SVG elements at all — a category error, not a tuning fai
 - **Zoom is not fixed by this.** Scaling a rasterised layer is blurry, so a wheel gesture still wants
   a re-raster. The same commit-on-settle trick applies but was not measured.
 - **The `<svg>` is viewport-sized** (`width/height: 100%`), so translating a wrapper slides real
-  content off one edge and blank in at the other. The implementation must either commit back to the
-  `<g>` on release (recommended, and cheapest) or render the SVG oversized. This is the one genuine
-  design decision the build session still owns.
+  content off one edge and blank in at the other. Of the two options named here — commit back to the
+  `<g>` on release, or render the SVG oversized — the build session took the first (recommended, and
+  cheapest): `commitPendingPan` in `apps/studio/src/components/TreeView.tsx` folds the wrapper's
+  accumulated offset into the `<g class="world-camera">` transform when the gesture ends. Settled;
+  no longer open.
 - **The arc's end-state clause "when the map's render cost is bounded rather than linear in
   capability count" is NOT satisfied by this decision** and should not be read as if it were. The
   first raster stays O(elements); what changes is that a pan no longer pays it. Whether that clause
@@ -192,16 +195,18 @@ thing it actually measured.
 - **`Playwright mouse.move` costs a ~350 ms round-trip**, so input-driven panning cannot measure
   frame cadence at all. Drive frames from an in-page rAF loop.
 
-**Two stale claims left in CODE COMMENTS, for the build session to correct in passing.** Neither is
-fixed here — this increment lands no code — but both are now measurably wrong and both sit exactly
-where the next reader will look:
+**Two stale claims that were left in CODE COMMENTS.** This ADR landed no code; the build session
+that shipped decision 2 corrected the first in passing, and the second is a standing note rather
+than a defect:
 
-- `packages/app-surface/src/SceneView.tsx` (the `React.memo` doc comment, ~line 884) and its twin in
-  `apps/studio/src/components/TreeView.tsx` (~line 2277) each call the O(nodes) React walk **"the
-  felt pan lag"**, and instruct the reader to keep the memo wrapped to avoid re-introducing it. Keep
-  the memo — it is real work and still required — but the *attribution* is wrong: the React walk is
-  ~3% of a gesture frame (283 ms with React vs 275 ms for the bare attribute write). What the owner
-  feels is the rasterisation this ADR measures, not the walk.
+- ~~`packages/app-surface/src/SceneView.tsx` (the `React.memo` doc comment) and its twin in
+  `apps/studio/src/components/TreeView.tsx` each call the O(nodes) React walk **"the felt pan
+  lag"**~~ — **CORRECTED 2026-07-31** with decision 2. Both comments now attribute the felt cost to
+  rasterisation; the phrase "felt pan lag" no longer appears in either file. The rule they carried
+  is unchanged and still binding: keep the memo wrapped — it is real work and still required — but
+  the *attribution* was wrong, because the React walk is ~3% of a gesture frame (283 ms with React
+  vs 275 ms for the bare attribute write). What the owner feels is the rasterisation this ADR
+  measures, not the walk.
 - The camera's `transition: transform .35s ease` branch is dead: `animate` is `useState(false)` and
   `setAnimate(true)` appears zero times, confirmed live (computed transition is `none 0s`). Noted so
   the build session does not mistake it for a live easing path it must preserve.
@@ -218,13 +223,16 @@ where the next reader will look:
   with the renderer swap named-deferred behind explicit triggers; trigger (b) is amended here, and
   the CPU/DOM-bound framing its scoping memo established is narrowed by decision 6. The `SceneView`
   memo it produced is intact and still required.
-- `apps/studio/src/components/TreeView.tsx` — the `.world-camera` group whose `transform` attribute
-  is today's per-frame camera, the `queuePan`/`commitPendingPan` coalescer, and `sceneTapSelect`.
+- `apps/studio/src/components/TreeView.tsx` — the `.world-camera` group, which carried the
+  per-frame camera when this ADR was measured; since decision 2 shipped (2026-07-31) the per-frame
+  write lands on the `.world-pan-layer` wrapper's CSS transform and `commitPendingPan` folds it back
+  into the `<g>` on release. Also the `queuePan` coalescer and `sceneTapSelect`.
 - `packages/app-surface/src/SceneView.tsx` — the memoized mapper; the `React.memo` doc comment above
   the export (not the file header) documents that a pan skips the O(nodes) React walk so that "only
   the parent `.world-camera` <g> transform attribute updates", which this ADR confirms and re-costs.
-  Note that both that comment and its twin in `TreeView.tsx` call the React walk "the felt pan lag";
-  measured, the walk is ~8 ms of a 283 ms gesture frame (~3%). The memo is still load-bearing and
+  Both that comment and its `TreeView.tsx` twin USED TO call the React walk "the felt pan lag" and
+  were corrected when decision 2 shipped; measured, the walk is ~8 ms of a 283 ms gesture frame
+  (~3%). The memo is still load-bearing and
   must stay wrapped — but it is not what the owner feels.
 - `packages/forest-world/src/scene.ts` — `grassCount = round(2 + tests * 1.9)`, the per-capability
   flora budget whose ceiling decision 3 measures.

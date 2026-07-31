@@ -919,12 +919,19 @@ function renderNode(
  * caller supplies the `<svg>` shell + `<defs>` and layers any studio-only chrome
  * (solar spokes, the Shared-Islands panel, building stamps) ON TOP.
  *
- * `React.memo` is LOAD-BEARING for pan performance (ADR-0069 / memory
+ * `React.memo` is LOAD-BEARING (ADR-0069, kept explicitly by ADR-0272 / memory
  * `studio-map-svg-scaling-wall`): a pointermove pans by updating the camera state on the parent, which
  * re-renders TreeView. The scene subtree does not depend on the camera, so as long as the caller hands
  * `scene` and `ctx` STABLE identities across a pan (TreeView memoises both), memo bails out here and the
- * ~O(nodes) React walk is skipped — only the parent `.world-camera` <g> transform attribute updates.
- * Keep this wrapped; unwrapping it re-introduces the felt pan lag.
+ * ~O(nodes) React walk is skipped. Keep this wrapped — it is real work and still required.
+ *
+ * What it is NOT is the pan lag the owner feels. That attribution was carried here for a year and
+ * ADR-0272 measured it away: a gesture frame costs 283 ms WITH the React walk against 275 ms for the
+ * bare `<g>` attribute write, so this walk is ~3% of the frame. The other ~99.8% is rasterisation —
+ * writing `transform` on an SVG `<g>` invalidates the paint artifact for the whole subtree, and an SVG
+ * child gets no composited layer, so all ~14k paths re-raster every frame. The remedy is ADR-0272
+ * decision 2 (pan rides a compositor-only CSS transform on an HTML wrapper, committed back to the `<g>`
+ * on release), not this memo. Skipping this walk is worth its ~3%; do not read it as the fix.
  */
 export const SceneView = React.memo(function SceneView({
   scene,
