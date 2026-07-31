@@ -34,6 +34,7 @@ import {
 } from '@storytree/forest-world';
 import {
   CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+  CHAPTER2_SOCKET_CHOREOGRAPHY,
   neighbourHighlightPlan,
   laneLayout,
   normalizeWorldPresentationModel,
@@ -193,6 +194,7 @@ function clearGroundIdentity(node: SceneNode, primaryId: string): SceneNode {
 function withoutPrimaryVectorOrganic(
   node: SceneNode,
   inPrimaryTerritory = false,
+  includeConifers = false,
 ): SceneNode {
   if (node.el !== 'g') return node;
   const inPrimary =
@@ -207,10 +209,11 @@ function withoutPrimaryVectorOrganic(
             (child.kind === 'tree' ||
               child.kind === 'flora' ||
               child.kind === 'parcel-flora' ||
-              child.kind === 'baked-art')
+              child.kind === 'baked-art' ||
+              (includeConifers && child.kind === 'conifer'))
           ),
       )
-      .map((child) => withoutPrimaryVectorOrganic(child, inPrimary)),
+      .map((child) => withoutPrimaryVectorOrganic(child, inPrimary, includeConifers)),
   };
 }
 
@@ -445,7 +448,7 @@ function organicPoseSockets(): NonNullable<typeof organicPoseSocketsCache> {
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'organic-pose-to-pose';
+  readonly variant?: 'demo' | 'organic-pose-to-pose' | 'socket-choreography';
 }
 
 /**
@@ -460,13 +463,18 @@ export function SemanticGrowthDemo({
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
   const poseVariant = variant === 'organic-pose-to-pose';
+  const socketVariant = variant === 'socket-choreography';
   const sourceFrames = poseVariant ? organicPoseFrames() : frames();
-  const sockets = poseVariant ? organicPoseSockets() : null;
+  const sockets = poseVariant || socketVariant ? organicPoseSockets() : null;
   const framesWithArt: readonly SemanticGrowthFrame[] = sourceFrames.map((f) => ({
     key: f.key,
     model: {
       ...f.model,
-      scene: poseVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
+      scene: poseVariant
+        ? withoutPrimaryVectorOrganic(f.model.scene)
+        : socketVariant
+          ? withoutPrimaryVectorOrganic(f.model.scene, false, true)
+          : f.model.scene,
       spriteSheet,
       artScale,
     },
@@ -480,7 +488,9 @@ export function SemanticGrowthDemo({
             aria-label={
               poseVariant
                 ? 'organic pose-to-pose growth witness (real app fixture)'
-                : 'semantic growth witness (static fixture)'
+                : socketVariant
+                  ? 'organic socket choreography growth witness (real app fixture)'
+                  : 'semantic growth witness (static fixture)'
             }
           >
             <SemanticGrowthWorldView
@@ -507,6 +517,14 @@ export function SemanticGrowthDemo({
                         ...sockets.island,
                         settledAtProgress: 0.18,
                       },
+                    },
+                  }
+                : {})}
+              {...(socketVariant && sockets
+                ? {
+                    organicGrowth: {
+                      set: CHAPTER2_SOCKET_CHOREOGRAPHY,
+                      rootWorldAnchor: sockets.tree,
                     },
                   }
                 : {})}

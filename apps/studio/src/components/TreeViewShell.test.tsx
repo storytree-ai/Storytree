@@ -41,7 +41,10 @@ vi.mock('../api', () => ({
   },
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 const appData: AppData = {
   docs: [],
@@ -477,6 +480,80 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
         value: originalMatchMedia,
       });
     }
+  });
+
+  it('only the exact socket-choreography query keeps native SVG land and mounts the bounded registered growth wave', async () => {
+    const clean = await renderTree();
+    expect(clean.querySelector('[data-organic-socket]')).toBeNull();
+    cleanup();
+
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    );
+    window.history.pushState({}, '', '/?organicGrowth=organic-socket-choreography#/tree');
+    const flagged = await renderTree();
+    const section = flagged.querySelector('[data-semantic-growth-frame="empty"]');
+    expect(section).toBeTruthy();
+    expect(section?.getAttribute('data-organic-growth-progress')).toBe('0.0000');
+    expect(flagged.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+    const initialLayers = [...flagged.querySelectorAll('image[data-organic-socket]')];
+    expect(initialLayers).toHaveLength(7);
+    expect(initialLayers.map((image) => image.getAttribute('data-organic-clip'))).toEqual([
+      'fern',
+      'wildflower',
+      'fern',
+      'hero-tree',
+      'wildflower',
+      'fern',
+      'wildflower',
+    ]);
+    const initialAnchors = initialLayers.map(
+      (image) =>
+        `${image.getAttribute('data-world-anchor-x')},${image.getAttribute('data-world-anchor-y')}`,
+    );
+
+    const next = Array.from(
+      flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+    ).find((button) => button.textContent === 'Next') as HTMLButtonElement;
+    await act(async () => next.click());
+    expect(flagged.querySelector('[data-semantic-growth-frame="land"]')).toBeTruthy();
+    expect(
+      flagged.querySelector('.relaxed-tile'),
+      'the real app-owned SVG ground remains the substrate in the organic comparison',
+    ).toBeTruthy();
+
+    for (const key of ['proposed', 'claimed', 'signed-proof', 'healthy']) {
+      await act(async () => next.click());
+      expect(flagged.querySelector(`[data-semantic-growth-frame="${key}"]`)).toBeTruthy();
+    }
+    const matureLayers = [...flagged.querySelectorAll('image[data-organic-socket]')];
+    expect(matureLayers.map((image) => image.getAttribute('data-organic-frame'))).toEqual([
+      '3', '3', '3', '7', '3', '3', '3',
+    ]);
+    expect(
+      matureLayers.map(
+        (image) =>
+          `${image.getAttribute('data-world-anchor-x')},${image.getAttribute('data-world-anchor-y')}`,
+      ),
+    ).toEqual(initialAnchors);
+    expect(flagged.querySelectorAll('.story-tree')).toHaveLength(1);
+    expect(flagged.querySelector('.story-tree title')?.textContent).toMatch(/companion/i);
+
+    window.history.pushState({}, '', '/?organicGrowth=organic-socket-choreography-near-miss#/tree');
+    cleanup();
+    const nearMiss = await renderTree();
+    expect(nearMiss.querySelector('[data-organic-socket]')).toBeNull();
+    expect(nearMiss.querySelector('nav[aria-label="Semantic growth controls"]')).toBeNull();
   });
 
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md

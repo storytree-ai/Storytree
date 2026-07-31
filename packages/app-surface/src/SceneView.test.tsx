@@ -221,6 +221,61 @@ describe('SceneView — the studio scene mapper', () => {
     expect(siblings.indexOf(plant!)).toBe(siblings.indexOf(tree!) + 1);
   });
 
+  it('plants bounded organic layers after native land/trails and before scene flora in declared painter order', () => {
+    const makeLayer = (
+      socketId: string,
+      depthSlot: 'organic-ground-back' | 'organic-hero-tree' | 'organic-ground-front',
+      x: number,
+    ) => ({
+      src: `/assets/${socketId}.png`,
+      clipId: socketId === 'hero-root' ? 'hero-tree' : 'fern',
+      socketId,
+      frameIndex: 2,
+      canvas: { width: 64, height: 64 },
+      assetAnchor: { x: 32, y: 61 },
+      worldAnchor: { x, y: 70 },
+      scale: 0.5,
+      depthSlot,
+      painterOrder:
+        depthSlot === 'organic-ground-back'
+          ? 10
+          : depthSlot === 'organic-hero-tree'
+            ? 20
+            : 30,
+      localProgress: 0.75,
+    } as const);
+    const { root } = renderScene({
+      organicGrowthLayers: [
+        makeLayer('back-fern', 'organic-ground-back', 40),
+        makeLayer('hero-root', 'organic-hero-tree', 50),
+        makeLayer('front-fern', 'organic-ground-front', 60),
+      ],
+    });
+    const images = [...root.querySelectorAll('image[data-organic-socket]')];
+    expect(images.map((image) => image.getAttribute('data-organic-socket'))).toEqual([
+      'back-fern',
+      'hero-root',
+      'front-fern',
+    ]);
+    expect(images.map((image) => image.getAttribute('data-depth-slot'))).toEqual([
+      'organic-ground-back',
+      'organic-hero-tree',
+      'organic-ground-front',
+    ]);
+    expect(images[0]?.getAttribute('x')).toBe('24.0');
+    expect(images[0]?.getAttribute('y')).toBe('39.5');
+    expect(images[0]?.getAttribute('data-world-anchor-x')).toBe('40.0');
+    expect(images[0]?.getAttribute('data-world-anchor-y')).toBe('70.0');
+
+    const imageParent = images[0]!.parentElement!;
+    const siblings = Array.from(imageParent.children);
+    let floraBranch: Element = root.querySelector('.hex-flora')!;
+    while (floraBranch.parentElement !== imageParent) floraBranch = floraBranch.parentElement!;
+    expect(siblings.indexOf(images[0]!)).toBeGreaterThan(siblings.indexOf(root.querySelector('.relaxed-land')!));
+    expect(siblings.indexOf(images[0]!)).toBeGreaterThan(siblings.indexOf(root.querySelector('.trail-net')!));
+    expect(siblings.indexOf(images[2]!)).toBeLessThan(siblings.indexOf(floraBranch));
+  });
+
   it('maps roles to the studio classes, folding status + variant', () => {
     const { root } = renderScene();
     expect(root.querySelector('.story-tree.st-healthy')).toBeTruthy();

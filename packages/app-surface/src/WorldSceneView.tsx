@@ -3,6 +3,7 @@ import type { SceneNode } from '@storytree/forest-world';
 import {
   SceneView,
   type NativeIslandGrowthRenderLayer,
+  type OrganicGrowthRenderLayer,
   type OrganicPoseRenderLayer,
   type SceneCtx,
 } from './SceneView.js';
@@ -30,6 +31,7 @@ export interface WorldPresentationModel {
   readonly artScale: number;
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  readonly organicGrowthLayers?: readonly OrganicGrowthRenderLayer[] | null;
 }
 
 export interface WorldPresentationModelInput {
@@ -46,6 +48,7 @@ export interface WorldPresentationModelInput {
   readonly artScale?: number;
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  readonly organicGrowthLayers?: readonly OrganicGrowthRenderLayer[] | null;
 }
 
 export interface WorldPresentationEvents {
@@ -78,6 +81,9 @@ export function normalizeWorldPresentationModel(
       : {}),
     ...(input.organicPoseLayers !== undefined
       ? { organicPoseLayers: input.organicPoseLayers }
+      : {}),
+    ...(input.organicGrowthLayers !== undefined
+      ? { organicGrowthLayers: input.organicGrowthLayers }
       : {}),
   };
 }
@@ -122,6 +128,9 @@ export function WorldSceneView({
         : {}),
       ...(model.organicPoseLayers !== undefined
         ? { organicPoseLayers: model.organicPoseLayers }
+        : {}),
+      ...(model.organicGrowthLayers !== undefined
+        ? { organicGrowthLayers: model.organicGrowthLayers }
         : {}),
     };
   }, [model, events]);

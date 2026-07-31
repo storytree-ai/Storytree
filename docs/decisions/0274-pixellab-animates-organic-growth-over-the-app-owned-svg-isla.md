@@ -124,6 +124,19 @@ The full-island raster witness from ADR-0273 remains useful rejected evidence. I
 visual direction and should leave the active witness path when the corrected implementation lands.
 The successor arc does not close until the corrected organic composition has a real owner verdict.
 
+### Owner LOOK record — Experiment 5: staggered socket choreography (2026-08-01)
+
+**Verdict: rejected as the island-growth technique.** After viewing the hosted
+`organic-socket-choreography` real-app comparison, the owner was not a fan of how the island grows.
+The staggered socket choreography / planting-wave composition therefore does not become the clean
+route or the Chapter 2 default.
+
+The component-level signal is deliberately preserved: the owner found the **tree animation** and
+the **flower animations** quite nice. This verdict rejects their overall socket-wave composition,
+not those individual organic tracks. They remain useful evidence or candidate material when the
+remaining experiments are compared. The successor arc stays active; this comparison verdict does
+not select another technique, close the arc, or decide the other experiments.
+
 ### D6 — Explicitly rejected
 
 - Generating the island, coast or complete scene as a PixelLab sprite sequence.

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 128" role="img" aria-labelledby="title desc">
+  <title id="title">Storytree app camera and socket registration plate</title>
+  <desc id="desc">An authoring-only schematic of the existing low-isometric SVG island with one tree root and six supporting ground sockets.</desc>
+  <rect width="192" height="128" fill="#111813"/>
+  <path d="M22 70 57 37 120 30 169 61 145 99 77 110 29 91Z" fill="#26382a" stroke="#b59a62" stroke-width="5"/>
+  <path d="M25 66 59 34 119 28 166 58 143 94 78 105 32 87Z" fill="#536946" stroke="#71835a" stroke-width="2"/>
+  <path d="M48 66 69 46 105 41 135 58 120 80 84 87 57 78Z" fill="#61784f" opacity=".72"/>
+  <g fill="none" stroke="#d8c28a" stroke-width="1" stroke-dasharray="3 3" opacity=".65">
+    <path d="M96 68 65 60"/>
+    <path d="M96 68 125 61"/>
+    <path d="M96 68 85 65"/>
+    <path d="M96 68 123 79"/>
+    <path d="M96 68 70 83"/>
+    <path d="M96 68 101 87"/>
+  </g>
+  <g stroke="#111813" stroke-width="2">
+    <circle cx="96" cy="68" r="5" fill="#d69a52"/>
+    <circle cx="65" cy="60" r="3.5" fill="#7ca66b"/>
+    <circle cx="125" cy="61" r="3.5" fill="#de8c7d"/>
+    <circle cx="85" cy="65" r="3.5" fill="#7ca66b"/>
+    <circle cx="123" cy="79" r="3.5" fill="#de8c7d"/>
+    <circle cx="70" cy="83" r="3.5" fill="#7ca66b"/>
+    <circle cx="101" cy="87" r="3.5" fill="#de8c7d"/>
+  </g>
+  <path d="M16 117h160" stroke="#d8c28a" stroke-width="1" opacity=".35"/>
+  <g fill="#f1e9d7" font-family="ui-monospace, monospace" font-size="6">
+    <text x="8" y="10">APP-AUTHORED REFERENCE • LOW ISOMETRIC • ROOT (96,68)</text>
+    <text x="8" y="124">SOCKET OFFSETS: (-31,-8) (29,-7) (-11,-3) (27,11) (-26,15) (5,19)</text>
+  </g>
+</svg>
