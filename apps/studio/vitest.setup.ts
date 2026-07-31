@@ -10,3 +10,12 @@
 if (typeof (globalThis as { self?: unknown }).self === 'undefined') {
   (globalThis as { self: unknown }).self = globalThis;
 }
+
+// Under `pnpm -r test` this suite shares the box with other packages' suites while vitest forks
+// per core, and a CPU-starved fork can hold a functionally-sound `waitFor` past testing-library's
+// 1s default — the 07-29/07-30 gate flakes: green isolated, red under load (ADR-0276). Same
+// philosophy as the testTimeout ceiling in vitest.config.ts: a genuinely-missing element still
+// fails (at 15s), and a passing `waitFor` resolves the moment its condition holds, so green runs
+// get no slower.
+const { configure } = await import('@testing-library/dom');
+configure({ asyncUtilTimeout: 15_000 });
