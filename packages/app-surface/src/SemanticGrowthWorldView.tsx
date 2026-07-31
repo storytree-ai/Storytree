@@ -12,14 +12,16 @@ import {
   type Bounds,
 } from './sprite-sizing.js';
 import {
-  advanceIslandGrowthPlayback,
-  initialIslandGrowthPlayback,
-  islandGrowthFrameAtProgress,
-  replayIslandGrowth,
-  selectIslandGrowthCue,
-  type IslandGrowthPoint,
-  type RegisteredIslandGrowthTrack,
-} from './island-growth-track.js';
+  advanceOrganicPosePlayback,
+  clampOrganicPoseProgress,
+  initialOrganicPosePlayback,
+  organicPoseFrameAtProgress,
+  replayOrganicPosePlayback,
+  selectOrganicPoseCue,
+  validateOrganicPoseRegistry,
+  type OrganicPosePoint,
+  type RegisteredOrganicPoseRegistry,
+} from './organic-pose-to-pose-track.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -38,10 +40,25 @@ export interface SemanticGrowthAnimationClock {
   cancelFrame(requestId: number): void;
 }
 
-export interface SemanticGrowthIslandLayer {
-  readonly track: RegisteredIslandGrowthTrack;
-  readonly worldAnchor: IslandGrowthPoint;
+export interface SemanticGrowthOrganicPoseInstance {
+  readonly trackId: string;
+  readonly worldAnchor: OrganicPosePoint;
   readonly scale: number;
+  readonly progressWindow: {
+    readonly start: number;
+    readonly end: number;
+  };
+}
+
+export interface SemanticGrowthOrganicPoseLayer {
+  readonly registry: RegisteredOrganicPoseRegistry;
+  readonly instances: readonly SemanticGrowthOrganicPoseInstance[];
+  readonly nativeIsland: {
+    readonly storyId: string;
+    readonly worldAnchor: OrganicPosePoint;
+    readonly radius: OrganicPosePoint;
+    readonly settledAtProgress: number;
+  };
   readonly clock?: SemanticGrowthAnimationClock;
 }
 
@@ -52,7 +69,7 @@ export interface SemanticGrowthWorldViewProps {
   readonly onNext?: (key: SemanticGrowthFrameKey) => void;
   readonly onBack?: (key: SemanticGrowthFrameKey) => void;
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
-  readonly islandGrowth?: SemanticGrowthIslandLayer;
+  readonly organicPoseGrowth?: SemanticGrowthOrganicPoseLayer;
 }
 
 function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
@@ -114,7 +131,6 @@ function unionBounds(a: Bounds | null, b: Bounds | null): Bounds | null {
  */
 function representativeViewBox(
   frames: readonly SemanticGrowthFrame[],
-  islandGrowth?: SemanticGrowthIslandLayer,
 ): string {
   let bounds: Bounds | null = null;
   for (const entry of frames) {
@@ -130,20 +146,6 @@ function representativeViewBox(
       maxX: content.maxX + tx,
       minY: content.minY + ty,
       maxY: content.maxY + ty,
-    });
-  }
-  if (islandGrowth) {
-    const rootOffset = parseSimpleTransform(frames[0]?.model.scene.transform);
-    const tx = rootOffset?.tx ?? 0;
-    const ty = rootOffset?.ty ?? 0;
-    const { track, worldAnchor, scale } = islandGrowth;
-    const x = worldAnchor.x - track.islandAnchor.x * scale + tx;
-    const y = worldAnchor.y - track.islandAnchor.y * scale + ty;
-    bounds = unionBounds(bounds, {
-      minX: x,
-      minY: y,
-      maxX: x + track.canvas.width * scale,
-      maxY: y + track.canvas.height * scale,
     });
   }
   if (!bounds) return FALLBACK_VIEW_BOX;
@@ -164,6 +166,68 @@ const BROWSER_ANIMATION_CLOCK: SemanticGrowthAnimationClock = {
   cancelFrame: (requestId) => window.cancelAnimationFrame(requestId),
 };
 
+function localInstanceProgress(
+  progress: number,
+  window: SemanticGrowthOrganicPoseInstance['progressWindow'],
+): number | null {
+  if (
+    !Number.isFinite(window.start) ||
+    !Number.isFinite(window.end) ||
+    window.start < 0 ||
+    window.end > 1 ||
+    window.start >= window.end
+  ) {
+    throw new Error('Organic pose instance progress windows must be ordered within [0,1].');
+  }
+  if (progress <= window.start) return null;
+  return clampOrganicPoseProgress(
+    (progress - window.start) / (window.end - window.start),
+  );
+}
+
+function validateOrganicPoseLayer(
+  layer: SemanticGrowthOrganicPoseLayer,
+  registry: RegisteredOrganicPoseRegistry,
+): void {
+  if (
+    layer.instances.length !== registry.tracks.length ||
+    new Set(layer.instances.map((instance) => instance.trackId)).size !==
+      registry.tracks.length
+  ) {
+    throw new Error('Organic pose instances must mount each registered track exactly once.');
+  }
+  for (const instance of layer.instances) {
+    if (!registry.tracks.some((track) => track.id === instance.trackId)) {
+      throw new Error(`Unknown organic pose track "${instance.trackId}".`);
+    }
+    if (!Number.isFinite(instance.scale) || instance.scale <= 0) {
+      throw new Error('Organic pose instance scale must be positive and finite.');
+    }
+    if (
+      !Number.isFinite(instance.worldAnchor.x) ||
+      !Number.isFinite(instance.worldAnchor.y)
+    ) {
+      throw new Error('Organic pose world anchors must be finite.');
+    }
+    localInstanceProgress(0, instance.progressWindow);
+  }
+  const island = layer.nativeIsland;
+  if (
+    island.storyId.trim() === '' ||
+    !Number.isFinite(island.worldAnchor.x) ||
+    !Number.isFinite(island.worldAnchor.y) ||
+    !Number.isFinite(island.radius.x) ||
+    !Number.isFinite(island.radius.y) ||
+    island.radius.x <= 0 ||
+    island.radius.y <= 0 ||
+    !Number.isFinite(island.settledAtProgress) ||
+    island.settledAtProgress <= 0 ||
+    island.settledAtProgress > 1
+  ) {
+    throw new Error('Organic pose native island reveal must use finite app-owned geometry.');
+  }
+}
+
 export function SemanticGrowthWorldView({
   frames,
   reducedMotion,
@@ -171,60 +235,97 @@ export function SemanticGrowthWorldView({
   onNext,
   onBack,
   onReplay,
-  islandGrowth,
+  organicPoseGrowth,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
   assertFrames(frames);
   const [cursor, setCursor] = React.useState(0);
-  const [islandPlayback, setIslandPlayback] = React.useState(initialIslandGrowthPlayback);
+  const [organicPlayback, setOrganicPlayback] = React.useState(initialOrganicPosePlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
   const frame = frames[cursor]!;
-  const islandFrame = islandGrowth
-    ? islandGrowthFrameAtProgress(islandGrowth.track, islandPlayback.progress)
+  const registry = React.useMemo(
+    () => {
+      if (!organicPoseGrowth) return null;
+      const valid = validateOrganicPoseRegistry(organicPoseGrowth.registry);
+      validateOrganicPoseLayer(organicPoseGrowth, valid);
+      return valid;
+    },
+    [organicPoseGrowth],
+  );
+  const organicLayers = React.useMemo(
+    () => {
+      if (!organicPoseGrowth || !registry) return null;
+      return organicPoseGrowth.instances.flatMap((instance) => {
+        const track = registry.tracks.find((candidate) => candidate.id === instance.trackId);
+        if (!track) throw new Error(`Unknown organic pose track "${instance.trackId}".`);
+        const localProgress = localInstanceProgress(
+          organicPlayback.progress,
+          instance.progressWindow,
+        );
+        if (localProgress === null) return [];
+        const selected = organicPoseFrameAtProgress(track, localProgress);
+        return [
+          {
+            trackId: track.id,
+            src: selected.src,
+            frameIndex: selected.index,
+            canvas: track.canvas,
+            assetAnchor: track.groundAnchor,
+            worldAnchor: instance.worldAnchor,
+            scale: instance.scale,
+            depthSlot: track.depthSlot,
+          },
+        ];
+      });
+    },
+    [organicPlayback.progress, organicPoseGrowth, registry],
+  );
+  const nativeLandProgress = organicPoseGrowth
+    ? clampOrganicPoseProgress(
+        organicPlayback.progress / organicPoseGrowth.nativeIsland.settledAtProgress,
+      )
     : null;
   const model = React.useMemo<WorldPresentationModel>(
     () => {
       const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
-      if (!islandGrowth || !islandFrame) return base;
+      if (!organicPoseGrowth || nativeLandProgress === null) return base;
       return {
         ...base,
-        islandGrowthLayer: {
-          src: islandFrame.src,
-          frameIndex: islandFrame.index,
-          canvas: islandGrowth.track.canvas,
-          assetAnchor: islandGrowth.track.islandAnchor,
-          worldAnchor: islandGrowth.worldAnchor,
-          scale: islandGrowth.scale,
-          depthSlot: islandGrowth.track.depthSlot,
+        nativeIslandGrowthLayer: {
+          storyId: organicPoseGrowth.nativeIsland.storyId,
+          worldAnchor: organicPoseGrowth.nativeIsland.worldAnchor,
+          radius: organicPoseGrowth.nativeIsland.radius,
+          progress: nativeLandProgress,
         },
+        organicPoseLayers: organicLayers,
       };
     },
-    [frame.model, islandFrame, islandGrowth, reduce],
+    [frame.model, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
   );
-  // Held stable through the whole walk — derived from every supplied frame's composed geometry,
-  // never the current cursor (see representativeViewBox).
+  // Held stable through the whole walk — derived from every supplied frame's app-owned geometry,
+  // never the current cursor or a transparent asset canvas.
   const viewBox = React.useMemo(
-    () => representativeViewBox(frames, islandGrowth),
-    [frames, islandGrowth],
+    () => representativeViewBox(frames),
+    [frames],
   );
 
   React.useEffect(() => {
-    if (!islandGrowth || !reduce) return;
-    setIslandPlayback((current) => selectIslandGrowthCue(current, cursor, true));
-  }, [cursor, islandGrowth, reduce]);
+    if (!organicPoseGrowth || !reduce) return;
+    setOrganicPlayback((current) => selectOrganicPoseCue(current, cursor, true));
+  }, [cursor, organicPoseGrowth, reduce]);
 
   React.useEffect(() => {
-    if (!islandGrowth || reduce || !islandPlayback.playing) return;
-    const clock = islandGrowth.clock ?? BROWSER_ANIMATION_CLOCK;
+    if (!organicPoseGrowth || reduce || !organicPlayback.playing) return;
+    const clock = organicPoseGrowth.clock ?? BROWSER_ANIMATION_CLOCK;
     let requestId = 0;
     let previousTimestamp: number | null = null;
-    let running = islandPlayback;
+    let running = organicPlayback;
     let cancelled = false;
     const step = (timestamp: number): void => {
       if (cancelled) return;
       const deltaMs = previousTimestamp === null ? 1000 / 60 : timestamp - previousTimestamp;
       previousTimestamp = timestamp;
-      running = advanceIslandGrowthPlayback(running, deltaMs);
-      setIslandPlayback(running);
+      running = advanceOrganicPosePlayback(running, deltaMs);
+      setOrganicPlayback(running);
       if (running.playing) requestId = clock.requestFrame(step);
     };
     requestId = clock.requestFrame(step);
@@ -232,7 +333,7 @@ export function SemanticGrowthWorldView({
       cancelled = true;
       clock.cancelFrame(requestId);
     };
-  }, [islandGrowth, islandPlayback.transitionId, reduce]);
+  }, [organicPoseGrowth, organicPlayback.transitionId, reduce]);
 
   const select = (
     nextCursor: number,
@@ -241,9 +342,11 @@ export function SemanticGrowthWorldView({
   ): void => {
     const bounded = Math.max(0, Math.min(FRAME_KEYS.length - 1, nextCursor));
     setCursor(bounded);
-    if (islandGrowth) {
-      setIslandPlayback((current) =>
-        replay ? replayIslandGrowth(current) : selectIslandGrowthCue(current, bounded, reduce),
+    if (organicPoseGrowth) {
+      setOrganicPlayback((current) =>
+        replay
+          ? replayOrganicPosePlayback(current)
+          : selectOrganicPoseCue(current, bounded, reduce),
       );
     }
     callback?.(frames[bounded]!.key);
@@ -253,11 +356,13 @@ export function SemanticGrowthWorldView({
     <section
       data-semantic-growth-frame={frame.key}
       data-motion={reduce ? 'reduced' : 'full'}
-      {...(islandGrowth
+      {...(organicPoseGrowth
         ? {
-            'data-island-growth-progress': islandPlayback.progress.toFixed(4),
-            'data-island-growth-frame': islandFrame?.index,
-            'data-island-growth-anchor': `${islandGrowth.worldAnchor.x},${islandGrowth.worldAnchor.y}`,
+            'data-organic-technique': 'pose-to-pose',
+            'data-organic-pose-progress': organicPlayback.progress.toFixed(4),
+            'data-native-island-progress': nativeLandProgress?.toFixed(4),
+            'data-organic-pose-frames':
+              organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
           }
         : {})}
     >

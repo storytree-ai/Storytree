@@ -1,6 +1,11 @@
 import React from 'react';
 import type { SceneNode } from '@storytree/forest-world';
-import { SceneView, type IslandGrowthRenderLayer, type SceneCtx } from './SceneView.js';
+import {
+  SceneView,
+  type NativeIslandGrowthRenderLayer,
+  type OrganicPoseRenderLayer,
+  type SceneCtx,
+} from './SceneView.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
@@ -23,7 +28,8 @@ export interface WorldPresentationModel {
   readonly laneMotion: 'draw' | 'march' | 'none';
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly islandGrowthLayer?: IslandGrowthRenderLayer | null;
+  readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
+  readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
 }
 
 export interface WorldPresentationModelInput {
@@ -38,7 +44,8 @@ export interface WorldPresentationModelInput {
   readonly laneMotion?: 'draw' | 'march' | 'none';
   readonly spriteSheet?: SpriteStyleSheet | null;
   readonly artScale?: number;
-  readonly islandGrowthLayer?: IslandGrowthRenderLayer | null;
+  readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
+  readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
 }
 
 export interface WorldPresentationEvents {
@@ -66,8 +73,11 @@ export function normalizeWorldPresentationModel(
     laneMotion: input.laneMotion ?? 'draw',
     spriteSheet: input.spriteSheet ?? null,
     artScale: input.artScale ?? 1,
-    ...(input.islandGrowthLayer !== undefined
-      ? { islandGrowthLayer: input.islandGrowthLayer }
+    ...(input.nativeIslandGrowthLayer !== undefined
+      ? { nativeIslandGrowthLayer: input.nativeIslandGrowthLayer }
+      : {}),
+    ...(input.organicPoseLayers !== undefined
+      ? { organicPoseLayers: input.organicPoseLayers }
       : {}),
   };
 }
@@ -107,8 +117,11 @@ export function WorldSceneView({
       onSelectCap: events?.onSelectCapability ?? NOOP_SELECT_CAPABILITY,
       spriteSheet: model.spriteSheet,
       artScale: model.artScale,
-      ...(model.islandGrowthLayer !== undefined
-        ? { islandGrowthLayer: model.islandGrowthLayer }
+      ...(model.nativeIslandGrowthLayer !== undefined
+        ? { nativeIslandGrowthLayer: model.nativeIslandGrowthLayer }
+        : {}),
+      ...(model.organicPoseLayers !== undefined
+        ? { organicPoseLayers: model.organicPoseLayers }
         : {}),
     };
   }, [model, events]);
