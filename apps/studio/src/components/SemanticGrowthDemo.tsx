@@ -33,8 +33,8 @@ import {
   type SceneVegetationInput,
 } from '@storytree/forest-world';
 import {
-  CHAPTER2_ISLAND_GROWTH_TRACK,
   CHAPTER2_ORGANIC_MASK_REVEAL_TRACK,
+  CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
   neighbourHighlightPlan,
   laneLayout,
   normalizeWorldPresentationModel,
@@ -67,7 +67,8 @@ const DEMO_CAP_BETA_ID = 'semantic-growth-demo-cap-beta';
  *  takes. */
 const COMPANION_STORY_ID = 'semantic-growth-demo-companion';
 const COMPANION_CAP_ID = 'semantic-growth-demo-companion-cap';
-const ISLAND_GROWTH_SCALE = 0.5;
+const ORGANIC_TREE_SCALE = 0.34;
+const ORGANIC_PLANT_SCALE = 0.3;
 
 /** A fixed instant, never `Date.now()`, so the walk (and its signed-proof bloom) stays
  *  byte-identical across every render/re-mount. */
@@ -187,30 +188,31 @@ function clearGroundIdentity(node: SceneNode, primaryId: string): SceneNode {
 }
 
 /**
- * `clearGroundIdentity` intentionally removes the primary ground id for the existing vector demo.
- * In the PixelLab variant that makes the otherwise id-scoped strip unable to recognize the same
- * wrapper later. The companion owns zero relaxed cells, so the one anonymous direct `ground` child
- * of `ground-mesh` is precisely the cleared primary substrate and nothing else.
+ * Retire only the primary territory's app-drawn organic material for the pose experiment.
+ * Coast, ground, parcels, hit geometry, plate, proof and presence remain the real SVG scene.
  */
-function stripClearedPrimaryGround(node: SceneNode): SceneNode {
+function withoutPrimaryVectorOrganic(
+  node: SceneNode,
+  inPrimaryTerritory = false,
+): SceneNode {
   if (node.el !== 'g') return node;
+  const inPrimary =
+    inPrimaryTerritory || (node.kind === 'territory' && node.id === DEMO_STORY_ID);
   return {
     ...node,
     children: node.children
       .filter(
         (child) =>
-          !(node.kind === 'ground-mesh' && child.kind === 'ground' && child.id === undefined),
+          !(
+            inPrimary &&
+            (child.kind === 'tree' ||
+              child.kind === 'flora' ||
+              child.kind === 'parcel-flora' ||
+              child.kind === 'baked-art')
+          ),
       )
-      .map(stripClearedPrimaryGround),
+      .map((child) => withoutPrimaryVectorOrganic(child, inPrimary)),
   };
-}
-
-function withoutPrimaryIsland(node: SceneNode): SceneNode {
-  const withoutIdentifiedLayers = (['territory', 'ground', 'coast', 'hit'] as const).reduce(
-    (scene, kind) => stripKind(scene, kind, DEMO_STORY_ID),
-    node,
-  );
-  return stripClearedPrimaryGround(withoutIdentifiedLayers);
 }
 
 /** Retain the real SVG coast/ground/parcel/plate while the registered mature organic layers supply
@@ -276,7 +278,9 @@ const DEMO_CLAIM: ClaimActivity = {
  * exactly once, the static fixture is still frozen the first time it's needed, never rebuilt
  * per render.
  */
-function buildFrames(): readonly SemanticGrowthFrame[] {
+function buildFrames(
+  preservePrimaryGroundIdentity = false,
+): readonly SemanticGrowthFrame[] {
   // ONE composed, real world every frame reuses — the primary AND the fixed companion both enter
   // `buildWorld` together (H — sgsd-composed-through-real-studio-world-pipeline /
   // sgsd-companion-witness-territory), so the tiles, coastline, and capability layout below are
@@ -292,13 +296,22 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
   const companionIndex = baseWorld.territories.findIndex((t) => t.story.id === COMPANION_STORY_ID);
   const primary = baseWorld.territories.find((t) => t.story.id === DEMO_STORY_ID);
   if (!primary) throw new Error('Semantic growth fixture requires its primary planted parcel.');
-  islandGrowthAnchorCache = {
-    x: primary.treeSpot.x,
-    y:
-      primary.treeSpot.y +
-      (CHAPTER2_ISLAND_GROWTH_TRACK.islandAnchor.y -
-        CHAPTER2_ISLAND_GROWTH_TRACK.treeRoot.y) *
-        ISLAND_GROWTH_SCALE,
+  const plant = primary.caps[0];
+  if (!plant) throw new Error('Semantic growth fixture requires its bounded plant socket.');
+  organicPoseSocketsCache = {
+    tree: Object.freeze({ x: primary.treeSpot.x, y: primary.treeSpot.y }),
+    plant: Object.freeze({ x: plant.x, y: plant.y }),
+    island: Object.freeze({
+      storyId: DEMO_STORY_ID,
+      worldAnchor: Object.freeze({
+        x: primary.centroid.x,
+        y: primary.centroid.y,
+      }),
+      radius: Object.freeze({
+        x: primary.radius * 1.32,
+        y: primary.radius * 0.96,
+      }),
+    }),
   };
   organicMaskSocketsCache = {
     root: { x: primary.treeSpot.x, y: primary.treeSpot.y },
@@ -381,14 +394,22 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
   const landScene = (): SceneNode => {
     const scene = sceneForStory(demoStory('mapped'));
     const noPrimaryTerritory = stripKind(scene, 'territory', DEMO_STORY_ID);
-    return withoutCompanionPlate(clearGroundIdentity(noPrimaryTerritory, DEMO_STORY_ID));
+    return withoutCompanionPlate(
+      preservePrimaryGroundIdentity
+        ? noPrimaryTerritory
+        : clearGroundIdentity(noPrimaryTerritory, DEMO_STORY_ID),
+    );
   };
 
   // `proposed`/`claimed`/`signed-proof`/`healthy`: the primary's identity group stays — only its
   // ground's identity tag is cleared (its real substrate/parcels/parcel-flora content untouched)
   // so it never double-counts alongside the primary's own `territory` group.
   const narrativeScene = (story: TreeStory, claims: readonly ClaimActivity[] = []): SceneNode =>
-    withoutCompanionPlate(clearGroundIdentity(sceneForStory(story, claims), DEMO_STORY_ID));
+    withoutCompanionPlate(
+      preservePrimaryGroundIdentity
+        ? sceneForStory(story, claims)
+        : clearGroundIdentity(sceneForStory(story, claims), DEMO_STORY_ID),
+    );
 
   // Only once the primary's own identity narrates (`proposed` onward) does its real drawn route
   // reach the shared renderer as a lit lane — `empty`/`land` carry no primary identity yet, so
@@ -437,7 +458,16 @@ function buildFrames(): readonly SemanticGrowthFrame[] {
 }
 
 let framesCache: readonly SemanticGrowthFrame[] | null = null;
-let islandGrowthAnchorCache: { readonly x: number; readonly y: number } | null = null;
+let organicPoseFramesCache: readonly SemanticGrowthFrame[] | null = null;
+let organicPoseSocketsCache: {
+  readonly tree: { readonly x: number; readonly y: number };
+  readonly plant: { readonly x: number; readonly y: number };
+  readonly island: {
+    readonly storyId: string;
+    readonly worldAnchor: { readonly x: number; readonly y: number };
+    readonly radius: { readonly x: number; readonly y: number };
+  };
+} | null = null;
 let organicMaskSocketsCache: {
   readonly root: { readonly x: number; readonly y: number };
   readonly plants: { readonly x: number; readonly y: number };
@@ -450,12 +480,17 @@ function frames(): readonly SemanticGrowthFrame[] {
   return framesCache;
 }
 
-function islandGrowthAnchor(): { readonly x: number; readonly y: number } {
-  frames();
-  if (!islandGrowthAnchorCache) {
-    throw new Error('Semantic growth fixture did not register its island anchor.');
+function organicPoseFrames(): readonly SemanticGrowthFrame[] {
+  if (!organicPoseFramesCache) organicPoseFramesCache = buildFrames(true);
+  return organicPoseFramesCache;
+}
+
+function organicPoseSockets(): NonNullable<typeof organicPoseSocketsCache> {
+  organicPoseFrames();
+  if (!organicPoseSocketsCache) {
+    throw new Error('Semantic growth fixture did not register its organic sockets.');
   }
-  return islandGrowthAnchorCache;
+  return organicPoseSocketsCache;
 }
 
 function organicMaskSockets(): {
@@ -472,7 +507,7 @@ function organicMaskSockets(): {
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'island-growth' | 'organic-mask-reveal';
+  readonly variant?: 'demo' | 'organic-pose-to-pose' | 'organic-mask-reveal';
 }
 
 /**
@@ -486,14 +521,16 @@ export function SemanticGrowthDemo({
   artScale,
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
-  const islandVariant = variant === 'island-growth';
+  const poseVariant = variant === 'organic-pose-to-pose';
   const maskVariant = variant === 'organic-mask-reveal';
-  const framesWithArt: readonly SemanticGrowthFrame[] = frames().map((f) => ({
+  const sourceFrames = poseVariant ? organicPoseFrames() : frames();
+  const sockets = poseVariant ? organicPoseSockets() : null;
+  const framesWithArt: readonly SemanticGrowthFrame[] = sourceFrames.map((f) => ({
     key: f.key,
     model: {
       ...f.model,
-      scene: islandVariant
-        ? withoutPrimaryIsland(f.model.scene)
+      scene: poseVariant
+        ? withoutPrimaryVectorOrganic(f.model.scene)
         : maskVariant
           ? restorePrimaryGroundMaskTarget(
               withoutPrimaryProceduralOrganics(f.model.scene),
@@ -507,15 +544,40 @@ export function SemanticGrowthDemo({
     <div className="tree-wrap semantic-growth-demo-host">
       <div className="tree-layout">
         <div className="world-frame">
-          <div className="world-viewport" aria-label="semantic growth witness (static fixture)">
+          <div
+            className="world-viewport"
+            aria-label={
+              poseVariant
+                ? 'organic pose-to-pose growth witness (real app fixture)'
+                : maskVariant
+                  ? 'organic texture-under-mask growth witness (real app fixture)'
+                  : 'semantic growth witness (static fixture)'
+            }
+          >
             <SemanticGrowthWorldView
               frames={framesWithArt}
-              {...(islandVariant
+              {...(poseVariant && sockets
                 ? {
-                    islandGrowth: {
-                      track: CHAPTER2_ISLAND_GROWTH_TRACK,
-                      worldAnchor: islandGrowthAnchor(),
-                      scale: ISLAND_GROWTH_SCALE,
+                    organicPoseGrowth: {
+                      registry: CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+                      instances: [
+                        {
+                          trackId: 'chapter2-hero-tree-pose-track-v1',
+                          worldAnchor: sockets.tree,
+                          scale: ORGANIC_TREE_SCALE,
+                          progressWindow: { start: 0.18, end: 1 },
+                        },
+                        {
+                          trackId: 'chapter2-plant-sample-pose-track-v1',
+                          worldAnchor: sockets.plant,
+                          scale: ORGANIC_PLANT_SCALE,
+                          progressWindow: { start: 0.52, end: 1 },
+                        },
+                      ],
+                      nativeIsland: {
+                        ...sockets.island,
+                        settledAtProgress: 0.18,
+                      },
                     },
                   }
                 : {})}

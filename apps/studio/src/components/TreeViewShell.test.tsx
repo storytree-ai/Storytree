@@ -360,42 +360,123 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     ).toBe('land');
   });
 
-  it('only the exact island-growth flag mounts the registered full-island track without the fixture primary underneath it', async () => {
-    window.history.pushState({}, '', '/?semanticGrowth=island-growth#/tree');
-    const flagged = await renderTree();
-    const section = flagged.querySelector('[data-semantic-growth-frame="empty"]');
-    expect(section).toBeTruthy();
-    const image = flagged.querySelector('image[data-depth-slot="island-growth-composite"]');
-    expect(image).toBeTruthy();
-    expect(image?.getAttribute('data-island-growth-frame')).toBe('0');
-    expect(image?.getAttribute('href')).toMatch(/frame-00\.png/);
-    expect(image?.getAttribute('href')).not.toMatch(/contact-sheet|pixellab\.ai/i);
-    expect(flagged.querySelector('[data-story-id="semantic-growth-demo"]')).toBeNull();
-    expect(
-      flagged.querySelector('.relaxed-tile'),
-      'the app-owned PixelLab track replaces the primary procedural ground as well as its identity',
-    ).toBeNull();
-    expect(flagged.querySelector('[data-story-id="semantic-growth-demo-companion"]')).toBeTruthy();
-    const next = Array.from(
-      flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
-    ).find((button) => button.textContent === 'Next') as HTMLButtonElement;
-    for (const key of ['land', 'proposed', 'claimed', 'signed-proof', 'healthy']) {
-      await act(async () => {
-        next.click();
-      });
-      expect(flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame')).toBe(
-        key,
-      );
-      expect(
-        flagged.querySelector('.relaxed-tile'),
-        `the procedural primary ground must stay absent @ ${key}`,
-      ).toBeNull();
-    }
+  it('only the exact organic-pose-to-pose gate grows local registered poses over the retained real SVG island, with stable Back/Replay sockets', async () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+    try {
+      // The historical rejected gate is no longer active.
+      window.history.pushState({}, '', '/?semanticGrowth=island-growth#/tree');
+      const historical = await renderTree();
+      expect(historical.querySelector('[data-organic-technique]')).toBeNull();
+      cleanup();
 
-    window.history.pushState({}, '', '/?semanticGrowth=island-growth-near-miss#/tree');
-    cleanup();
-    const nearMiss = await renderTree();
-    expect(nearMiss.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+      // A near miss on the new key follows the same ordinary product route.
+      window.history.pushState({}, '', '/?organicGrowth=organic-pose-to-pose-near-miss#/tree');
+      const nearMiss = await renderTree();
+      expect(nearMiss.querySelector('[data-organic-technique]')).toBeNull();
+      cleanup();
+
+      window.history.pushState({}, '', '/?organicGrowth=organic-pose-to-pose#/tree');
+      const flagged = await renderTree();
+      const section = flagged.querySelector(
+        '[data-semantic-growth-frame="empty"][data-organic-technique="pose-to-pose"]',
+      );
+      expect(section).toBeTruthy();
+      expect(
+        flagged.querySelector(
+          '.hex-territory[data-story-id="semantic-growth-demo"]',
+        ),
+      ).toBeNull();
+      expect(
+        flagged.querySelector('[data-story-id="semantic-growth-demo-companion"]'),
+      ).toBeTruthy();
+      expect(flagged.querySelector('image[data-organic-track]')).toBeNull();
+      expect(flagged.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+
+      const controls = Array.from(
+        flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      );
+      const next = controls.find((button) => button.textContent === 'Next') as HTMLButtonElement;
+      const back = controls.find((button) => button.textContent === 'Back') as HTMLButtonElement;
+      const replay = controls.find((button) => button.textContent === 'Replay') as HTMLButtonElement;
+
+      await act(async () => next.click()); // land
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('land');
+      expect(flagged.querySelector('.relaxed-tile')).toBeTruthy();
+      expect(
+        flagged.querySelector(
+          '[data-native-island-story="semantic-growth-demo"][data-native-island-progress="1.0000"]',
+        ),
+      ).toBeTruthy();
+      expect(flagged.querySelector('image[data-organic-track]')).toBeNull();
+
+      await act(async () => next.click()); // proposed
+      const tree = flagged.querySelector(
+        'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
+      );
+      expect(tree).toBeTruthy();
+      expect(tree?.getAttribute('href')).toMatch(/tree\/frame-01\.png/);
+      expect(tree?.getAttribute('href')).not.toMatch(/contact-sheet|pixellab\.ai/i);
+      expect(flagged.querySelector('.relaxed-tile')).toBeTruthy();
+      const rootAnchor = [
+        tree?.getAttribute('data-world-anchor-x'),
+        tree?.getAttribute('data-world-anchor-y'),
+      ];
+
+      await act(async () => next.click()); // claimed
+      const plant = flagged.querySelector(
+        'image[data-organic-track="chapter2-plant-sample-pose-track-v1"]',
+      );
+      expect(plant).toBeTruthy();
+      expect(plant?.getAttribute('href')).toMatch(/plant\/frame-00\.png/);
+
+      await act(async () => next.click()); // signed-proof
+      await act(async () => next.click()); // healthy
+      expect(
+        flagged.querySelector(
+          'image[data-organic-track="chapter2-hero-tree-pose-track-v1"][data-organic-frame="8"]',
+        ),
+      ).toBeTruthy();
+      expect(
+        flagged.querySelector(
+          'image[data-organic-track="chapter2-plant-sample-pose-track-v1"][data-organic-frame="4"]',
+        ),
+      ).toBeTruthy();
+      expect(flagged.querySelector('.relaxed-tile')).toBeTruthy();
+
+      await act(async () => back.click());
+      const backedTree = flagged.querySelector(
+        'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
+      );
+      expect([
+        backedTree?.getAttribute('data-world-anchor-x'),
+        backedTree?.getAttribute('data-world-anchor-y'),
+      ]).toEqual(rootAnchor);
+
+      await act(async () => replay.click());
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('empty');
+      expect(flagged.querySelector('image[data-organic-track]')).toBeNull();
+      expect(
+        flagged.querySelector('[data-story-id="semantic-growth-demo-companion"]'),
+      ).toBeTruthy();
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
   });
 
   it('only the exact organic-mask-reveal flag mounts continuous mature-organic masks over retained SVG land', async () => {

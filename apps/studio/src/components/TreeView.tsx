@@ -1299,8 +1299,15 @@ export function readSemanticGrowthDemo(search: string = defaultSearch()): boolea
   return new URLSearchParams(search).get('semanticGrowth') === 'demo';
 }
 
-export function readSemanticGrowthIsland(search: string = defaultSearch()): boolean {
-  return new URLSearchParams(search).get('semanticGrowth') === 'island-growth';
+/**
+ * The Chapter 2 comparison route is exact and default-off. A different key/value, including the
+ * historical rejected island-growth gate, falls through to the ordinary Studio product.
+ */
+export function readOrganicPoseToPose(search: string = defaultSearch()): boolean {
+  return (
+    new URLSearchParams(search).get('organicGrowth') ===
+    'organic-pose-to-pose'
+  );
 }
 
 /** Independent Chapter 2 comparison: exact match only; clean and sibling modes stay unchanged. */
@@ -2296,11 +2303,11 @@ export function TreeView({
   // scene/hooks below never depend on it). Checked once all hooks are declared (React ordering),
   // near the other early returns.
   const semanticGrowthDemo = useMemo(() => readSemanticGrowthDemo(search), [search]);
-  const semanticGrowthIsland = useMemo(() => readSemanticGrowthIsland(search), [search]);
   const semanticGrowthOrganicMaskReveal = useMemo(
     () => readSemanticGrowthOrganicMaskReveal(search),
     [search],
   );
+  const organicPoseToPose = useMemo(() => readOrganicPoseToPose(search), [search]);
   const scene = useMemo(
     () =>
       world
@@ -2483,14 +2490,14 @@ export function TreeView({
   // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
   // not a variant of the product controller. Every other value (absent/empty/unknown) falls
   // through unchanged, byte-for-byte, to the clean Studio path.
-  if (semanticGrowthDemo || semanticGrowthIsland || semanticGrowthOrganicMaskReveal) {
+  if (semanticGrowthDemo || organicPoseToPose || semanticGrowthOrganicMaskReveal) {
     return (
       <SemanticGrowthDemo
         spriteSheet={spriteSheet}
         artScale={artScale}
         variant={
-          semanticGrowthIsland
-            ? 'island-growth'
+          organicPoseToPose
+            ? 'organic-pose-to-pose'
             : semanticGrowthOrganicMaskReveal
               ? 'organic-mask-reveal'
               : 'demo'

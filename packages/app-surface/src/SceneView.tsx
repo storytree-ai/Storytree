@@ -37,14 +37,22 @@ import {
   type OrganicMaskRevealRenderState,
 } from './organic-mask-reveal.js';
 
-export interface IslandGrowthRenderLayer {
+export interface OrganicPoseRenderLayer {
+  readonly trackId: string;
   readonly src: string;
   readonly frameIndex: number;
   readonly canvas: { readonly width: number; readonly height: number };
   readonly assetAnchor: { readonly x: number; readonly y: number };
   readonly worldAnchor: { readonly x: number; readonly y: number };
   readonly scale: number;
-  readonly depthSlot: 'island-growth-composite';
+  readonly depthSlot: 'hero-tree-organic' | 'ground-plant-organic';
+}
+
+export interface NativeIslandGrowthRenderLayer {
+  readonly storyId: string;
+  readonly worldAnchor: { readonly x: number; readonly y: number };
+  readonly radius: { readonly x: number; readonly y: number };
+  readonly progress: number;
 }
 
 /** The focus-aware context the walk needs — the studio's per-render interactivity
@@ -95,8 +103,10 @@ export interface SceneCtx {
    *  the studio ships) or `march` (a looping travelling dash). `none` leaves them still.
    *  Only read when {@link lanes} is present; `prefers-reduced-motion` overrides all three. */
   laneMotion?: 'draw' | 'march' | 'none';
-  /** One registered SVG image planted into the canonical world painter order. */
-  islandGrowthLayer?: IslandGrowthRenderLayer | null;
+  /** App-native clip growth for one existing SVG island. */
+  nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
+  /** Registered organic pose images planted into the canonical world painter order. */
+  organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
   /** Registered mature organic art revealed by app-owned SVG masks over retained native land. */
   organicMaskRevealLayer?: OrganicMaskRevealRenderState | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
@@ -458,13 +468,13 @@ function hitsLayerToBack(children: readonly SceneNode[]): readonly SceneNode[] {
   return out;
 }
 
-function islandGrowthImage(layer: IslandGrowthRenderLayer): React.ReactNode {
+function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
   const width = layer.canvas.width * layer.scale;
   const height = layer.canvas.height * layer.scale;
   const x = layer.worldAnchor.x - layer.assetAnchor.x * layer.scale;
   const y = layer.worldAnchor.y - layer.assetAnchor.y * layer.scale;
   return React.createElement('image', {
-    key: '__island-growth-composite',
+    key: `__organic-pose-${layer.trackId}`,
     href: layer.src,
     x: fmt(x),
     y: fmt(y),
@@ -475,7 +485,8 @@ function islandGrowthImage(layer: IslandGrowthRenderLayer): React.ReactNode {
     pointerEvents: 'none',
     'aria-hidden': true,
     'data-depth-slot': layer.depthSlot,
-    'data-island-growth-frame': String(layer.frameIndex),
+    'data-organic-track': layer.trackId,
+    'data-organic-frame': String(layer.frameIndex),
     'data-world-anchor-x': fmt(layer.worldAnchor.x),
     'data-world-anchor-y': fmt(layer.worldAnchor.y),
   });
@@ -636,6 +647,32 @@ function organicMaskImages(layer: OrganicMaskRevealRenderState): readonly React.
         pointerEvents: 'none',
         mask: `url(#${maskId(layer, registered.kind)})`,
         'aria-hidden': true,
+      }),
+    ),
+  );
+}
+
+function nativeIslandClipId(layer: NativeIslandGrowthRenderLayer): string {
+  return `organic-pose-native-island-${layer.storyId.replace(/[^a-zA-Z0-9_-]/gu, '-')}`;
+}
+
+function nativeIslandClip(layer: NativeIslandGrowthRenderLayer): React.ReactNode {
+  const progress = Math.max(0, Math.min(1, layer.progress));
+  return React.createElement(
+    'defs',
+    { key: '__organic-native-island-defs' },
+    React.createElement(
+      'clipPath',
+      {
+        id: nativeIslandClipId(layer),
+        clipPathUnits: 'userSpaceOnUse',
+      },
+      React.createElement('ellipse', {
+        cx: fmt(layer.worldAnchor.x),
+        cy: fmt(layer.worldAnchor.y),
+        rx: fmt(Math.max(0.01, layer.radius.x * progress)),
+        ry: fmt(Math.max(0.01, layer.radius.y * progress)),
+        'data-native-island-progress': progress.toFixed(4),
       }),
     ),
   );
@@ -917,6 +954,16 @@ function renderNode(
     props.mask = `url(#${maskId(ctx.organicMaskRevealLayer!, 'native-land')})`;
     props['data-native-land-mask-target'] = nativeLand.storyId;
   }
+  const nativeIsland = ctx.nativeIslandGrowthLayer;
+  if (
+    nativeIsland &&
+    (node.kind === 'coast' || node.kind === 'ground') &&
+    node.id === nativeIsland.storyId
+  ) {
+    props.clipPath = `url(#${nativeIslandClipId(nativeIsland)})`;
+    props['data-native-island-story'] = nativeIsland.storyId;
+    props['data-native-island-progress'] = nativeIsland.progress.toFixed(4);
+  }
   // Trail-segment paths (ADR-0169): stamp the reveal hooks into the DOM
   // (data-id/usage/edges/spur) and, when the focus plan names the segment, attach its
   // per-segment growth mask + step the stroke width from the REVEALED edge count (§3
@@ -1054,18 +1101,21 @@ function renderNode(
     // the island tiles / plants on top (see hitsLayerToBack).
     const children = node.kind === 'world' ? hitsLayerToBack(node.children) : node.children;
     const rendered: React.ReactNode[] = [];
+    if (node.kind === 'world' && ctx.nativeIslandGrowthLayer) {
+      rendered.push(nativeIslandClip(ctx.nativeIslandGrowthLayer));
+    }
     if (node.kind === 'world' && ctx.organicMaskRevealLayer) {
       rendered.push(organicMaskDefs(ctx.organicMaskRevealLayer));
     }
     children.forEach((c, i) => {
-      if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.islandGrowthLayer) {
-        rendered.push(islandGrowthImage(ctx.islandGrowthLayer));
-      }
       if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.organicMaskRevealLayer) {
         rendered.push(...organicMaskImages(ctx.organicMaskRevealLayer));
       }
       const el = renderNode(c, i, childStory, ctx);
       if (el) rendered.push(el);
+      if (node.kind === 'world' && c.kind === 'trails-layer' && ctx.organicPoseLayers) {
+        rendered.push(...ctx.organicPoseLayers.map(organicPoseImage));
+      }
     });
     if (node.kind === 'tree' || node.kind === 'flora' || node.kind === 'plate') {
       // Motion-safe inner wrapper (semantic-growth.css `arrive-pop`): `tree`/`flora`/`plate` are
