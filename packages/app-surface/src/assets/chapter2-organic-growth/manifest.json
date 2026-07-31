@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "chapter2-organic-socket-choreography-v1",
   "title": "Experiment 5 — staggered socket choreography",
-  "status": "experimental-owner-look-pending",
+  "status": "experimental-owner-look-rejected",
   "generatedAt": "2026-07-31T11:45:00+10:00",
   "authorTimeOnly": true,
   "runtimePixelLabDependency": false,
@@ -14,8 +14,15 @@
     "nearMissesRemainClean": true
   },
   "ownerLookVerdict": {
-    "status": "pending",
-    "note": "Machine proof and author curation keep this branch viewable; neither signs the owner-held LOOK."
+    "status": "rejected",
+    "date": "2026-08-01",
+    "techniqueDecision": "Do not adopt staggered socket choreography / the planting-wave composition as the Chapter 2 island-growth technique.",
+    "ownerFeedback": "Not a big fan of how the island grows here, however the tree animation and the flower animations look quite nice.",
+    "positiveSignals": [
+      "The bounded hero-tree growth animation is worth retaining as useful organic-motion evidence.",
+      "The bounded wildflower stage animation is worth retaining as useful organic-motion evidence."
+    ],
+    "scopeNote": "The verdict rejects the overall socket-choreography growth-wave composition, not the individual tree or flower animation material. The arc remains active while the owner compares the other experiments."
   },
   "technique": {
     "industryName": "staggered modular sprite choreography",
