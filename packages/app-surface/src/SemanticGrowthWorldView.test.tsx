@@ -148,6 +148,133 @@ function frameModelAt(
 }
 
 describe('SemanticGrowthWorldView', () => {
+  it('scopes a native-island duration multiplier to the first land cue while preserving later pose timings, Back, Replay, and reduced motion', () => {
+    class ManualClock implements SemanticGrowthAnimationClock {
+      private nextId = 1;
+      private callbacks = new Map<number, (timestamp: number) => void>();
+
+      requestFrame(callback: (timestamp: number) => void): number {
+        const id = this.nextId++;
+        this.callbacks.set(id, callback);
+        return id;
+      }
+
+      cancelFrame(requestId: number): void {
+        this.callbacks.delete(requestId);
+      }
+
+      step(timestamp: number): void {
+        const pending = [...this.callbacks.entries()];
+        this.callbacks.clear();
+        act(() => pending.forEach(([, callback]) => callback(timestamp)));
+      }
+    }
+
+    const frames = ORDERED_KEYS.map((key) => ({ key, model: frameModel(key) }));
+    const clock = new ManualClock();
+    const contourGrowth = {
+      registry: CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+      instances: [
+        {
+          trackId: 'chapter2-hero-tree-pose-track-v1',
+          worldAnchor: { x: 50, y: 45 },
+          scale: 0.34,
+          progressWindow: { start: 0.18, end: 1 },
+        },
+        {
+          trackId: 'chapter2-plant-sample-pose-track-v1',
+          worldAnchor: { x: 62, y: 62 },
+          scale: 0.22,
+          progressWindow: { start: 0.52, end: 1 },
+        },
+      ],
+      nativeIsland: {
+        storyId: 'semantic-growth',
+        worldAnchor: { x: 50, y: 50 },
+        radius: { x: 36, y: 26 },
+        settledAtProgress: 0.18,
+        technique: 'radial-expansion',
+        growthDurationMultiplier: 1.2,
+      },
+      clock,
+    } as const;
+    const view = render(
+      <SemanticGrowthWorldView frames={frames} organicPoseGrowth={contourGrowth} />,
+    );
+    const section = (): HTMLElement => view.container.querySelector('section')!;
+    const controls = () => ({
+      next: view.getByRole('button', { name: 'Next' }),
+      back: view.getByRole('button', { name: 'Back' }),
+      replay: view.getByRole('button', { name: 'Replay' }),
+    });
+
+    fireEvent.click(controls().next);
+    expect(section().dataset.organicTransitionMs).toBe('624');
+    clock.step(0);
+    clock.step(520 - 1000 / 60);
+    expect(Number(section().dataset.nativeIslandProgress)).toBeLessThan(1);
+    clock.step(624 - 1000 / 60);
+    expect(section().dataset.nativeIslandProgress).toBe('1.0000');
+
+    fireEvent.click(controls().next);
+    expect(section().dataset.organicTransitionMs).toBe('620');
+    clock.step(1_000);
+    clock.step(10_000);
+    fireEvent.click(controls().back);
+    expect(section().dataset.organicTransitionMs).toBe('520');
+    fireEvent.click(controls().replay);
+    expect(section().dataset.organicTransitionMs).toBe('0');
+    fireEvent.click(controls().next);
+    expect(section().dataset.organicTransitionMs).toBe('624');
+
+    const laterDurations = [620, 680, 560, 720];
+    for (const duration of laterDurations) {
+      fireEvent.click(controls().next);
+      expect(section().dataset.organicTransitionMs).toBe(String(duration));
+    }
+
+    fireEvent.click(controls().back);
+    expect(section().dataset.organicTransitionMs).toBe('560');
+    fireEvent.click(controls().replay);
+    expect(section().dataset.organicTransitionMs).toBe('0');
+    fireEvent.click(controls().next);
+    expect(section().dataset.organicTransitionMs).toBe('624');
+    view.unmount();
+
+    const sibling = render(
+      <SemanticGrowthWorldView
+        frames={frames}
+        organicPoseGrowth={{
+          ...contourGrowth,
+          nativeIsland: {
+            storyId: contourGrowth.nativeIsland.storyId,
+            worldAnchor: contourGrowth.nativeIsland.worldAnchor,
+            radius: contourGrowth.nativeIsland.radius,
+            settledAtProgress: contourGrowth.nativeIsland.settledAtProgress,
+            technique: contourGrowth.nativeIsland.technique,
+          },
+          clock: new ManualClock(),
+        }}
+      />,
+    );
+    fireEvent.click(sibling.getByRole('button', { name: 'Next' }));
+    expect(sibling.container.querySelector<HTMLElement>('section')?.dataset.organicTransitionMs)
+      .toBe('520');
+    sibling.unmount();
+
+    const reduced = render(
+      <SemanticGrowthWorldView
+        frames={frames}
+        organicPoseGrowth={{ ...contourGrowth, clock: new ManualClock() }}
+        reducedMotion
+      />,
+    );
+    fireEvent.click(reduced.getByRole('button', { name: 'Next' }));
+    const reducedSection = reduced.container.querySelector<HTMLElement>('section')!;
+    expect(reducedSection.dataset.organicTransitionMs).toBe('0');
+    expect(reducedSection.dataset.nativeIslandProgress).toBe('1.0000');
+  });
+
   it('drives registered tree and plant poses with the app clock, stable anchors, Back and in-place Replay', () => {
     class ManualClock implements SemanticGrowthAnimationClock {
       private nextId = 1;

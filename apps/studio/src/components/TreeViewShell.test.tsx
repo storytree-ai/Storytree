@@ -509,6 +509,10 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       // Capture the Round 1 control's authoritative mature coast, camera and registered pose.
       window.history.pushState({}, '', '/?organicGrowth=organic-pose-to-pose#/tree');
       const control = await renderTree();
+      expect(
+        control.querySelector('[data-organic-technique="pose-to-pose"]')
+          ?.getAttribute('data-native-island-growth-duration-multiplier'),
+      ).toBeNull();
       const controlNext = Array.from(
         control.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
       ).find((button) => button.textContent === 'Next') as HTMLButtonElement;
@@ -543,6 +547,8 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       expect(section?.getAttribute('data-contour-path-interpolation')).toBe('quadratic-fixed-topology');
       expect(section?.getAttribute('data-contour-topology-change')).toBe('none');
       expect(section?.getAttribute('data-coast-settle')).toBe('final-16-percent');
+      expect(section?.getAttribute('data-native-island-growth-duration-multiplier')).toBe('1.2');
+      expect(section?.getAttribute('data-organic-transition-ms')).toBe('0');
 
       const evaluationCopy = flagged.querySelector('[data-contour-morph-evaluation]')?.textContent ?? '';
       for (const term of [

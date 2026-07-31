@@ -69,6 +69,7 @@ const COMPANION_STORY_ID = 'semantic-growth-demo-companion';
 const COMPANION_CAP_ID = 'semantic-growth-demo-companion-cap';
 const ORGANIC_TREE_SCALE = 0.34;
 const ORGANIC_PLANT_SCALE = 0.3;
+const CONTOUR_MORPH_GROWTH_DURATION_MULTIPLIER = 1.2;
 
 /** A fixed instant, never `Date.now()`, so the walk (and its signed-proof bloom) stays
  *  byte-identical across every render/re-mount. */
@@ -484,6 +485,9 @@ function organicPoseControl(
       ...sockets.island,
       settledAtProgress: 0.18,
       technique,
+      ...(technique === 'contour-morph'
+        ? { growthDurationMultiplier: CONTOUR_MORPH_GROWTH_DURATION_MULTIPLIER }
+        : {}),
     },
   };
 }
