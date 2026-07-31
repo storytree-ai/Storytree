@@ -238,14 +238,14 @@ export const CHAPTER2_ORGANIC_BRANCH_BLOOM_RIG: RegisteredBranchBloomRig = Objec
     Object.freeze({
       id: 'fern-tuft',
       assetId: 'fern-tuft',
-      rootLocalSocket: Object.freeze({ x: -72, y: 10 }),
+      rootLocalSocket: Object.freeze({ x: -39, y: 10 }),
       grow: Object.freeze({ start: 0.49, end: 0.67 }),
       restRotation: -3,
     }),
     Object.freeze({
       id: 'flower-tuft',
       assetId: 'flower-tuft',
-      rootLocalSocket: Object.freeze({ x: 70, y: 8 }),
+      rootLocalSocket: Object.freeze({ x: 39, y: 8 }),
       grow: Object.freeze({ start: 0.54, end: 0.72 }),
       restRotation: 4,
     }),

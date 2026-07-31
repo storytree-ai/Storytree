@@ -613,6 +613,7 @@ function branchBloomRig(layer: BranchBloomRenderLayer): React.ReactNode {
       transform: `translate(${fmt(layer.worldRoot.x)} ${fmt(layer.worldRoot.y)}) scale(${fmt(layer.scale)})`,
       'data-branch-bloom-rig': layer.rigId,
       'data-branch-bloom-progress': layer.progress.toFixed(4),
+      'data-branch-bloom-scale': fmt(layer.scale),
       'data-world-root-x': fmt(layer.worldRoot.x),
       'data-world-root-y': fmt(layer.worldRoot.y),
       'data-leaf-family-size': String(layer.leafFamilySize),

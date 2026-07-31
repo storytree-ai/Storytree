@@ -512,6 +512,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       expect(flagged.querySelector('[data-native-island-story]')).toBeNull();
       const rig = flagged.querySelector('[data-branch-bloom-rig]');
       expect(rig?.getAttribute('data-world-root-x')).toBeTruthy();
+      expect(Number(rig?.getAttribute('data-branch-bloom-scale'))).toBeGreaterThanOrEqual(1);
       expect(rig?.querySelectorAll('[data-branch-bloom-branch]').length).toBe(2);
       expect(rig?.querySelectorAll('[data-branch-bloom-cluster]').length).toBe(8);
       expect(

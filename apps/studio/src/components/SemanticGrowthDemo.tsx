@@ -69,7 +69,9 @@ const COMPANION_STORY_ID = 'semantic-growth-demo-companion';
 const COMPANION_CAP_ID = 'semantic-growth-demo-companion-cap';
 const ORGANIC_TREE_SCALE = 0.34;
 const ORGANIC_PLANT_SCALE = 0.3;
-const BRANCH_BLOOM_SCALE = 0.65;
+// The comparison camera must remain identical to the Round 1 control, so make
+// the authored rig legible inside that camera rather than introducing a zoom.
+const BRANCH_BLOOM_SCALE = 1.2;
 
 /** A fixed instant, never `Date.now()`, so the walk (and its signed-proof bloom) stays
  *  byte-identical across every render/re-mount. */
