@@ -259,8 +259,8 @@ decisions for the increment that implements this, not owner forks. All three hav
 code rather than in a further ADR, exactly as intended. `packages/cli/src/verification-decay.ts` (the
 pure judge) and `packages/cli/src/check-verification-decay.ts` (the disk-reading entrypoint) are where
 they are recorded and reasoned — including which of the four cheap checks is and is not yet swept,
-which is now a machine fact printed on every run (`chartered coverage: N/4 … NOT swept: …`) rather
-than a source comment somebody must remember to update.
+which is now a machine fact printed on every run (`chartered coverage: N/4 …`, naming any instrument
+NOT swept) rather than a source comment somebody must remember to update.
 
 On the third — the **"crosses a line" warn-escalation backstop**, the one that matters because it
 covers the skip risk decision 1's judgment gate introduces — the shape is settled and the backstop is
@@ -270,12 +270,30 @@ an age-keyed line would smuggle the rejected calendar back under a slower name),
 adjudicating — an escalation asserts an obligation to LOOK, never that a defect exists.
 
 Exactly **one** line is declared today: an instrument that FAILED TO RUN, where the sweep went blind
-and its silence is therefore not evidence. It reds the gate independently of decision 3's ceiling and
-is EXCLUDED from the counted total, so raising `DRAIN_CEILING` can never discharge it — its remedy is
-a PASS, not a DRAIN. Lines keyed to a signal's AGE, or to a count of arc-closes that declined the
-pass, are **NOT built**: both need persisted per-signal state this deliberately-stateless sweep does
-not have. The residual is therefore real and worth stating plainly — the skip risk is covered for the
-blind-instrument class only, and a signal that merely sits unexamined still escalates nothing.
+and its silence is therefore not evidence. It reds the gate independently of decision 3's
+per-instrument ceilings and is EXCLUDED from every counted total, so raising a drain ceiling can never
+discharge it — its remedy is a PASS, not a DRAIN. Lines keyed to a signal's AGE, or to a count of
+arc-closes that declined the pass, are **NOT built**: both need persisted per-signal state this
+deliberately-stateless sweep does not have. The residual is therefore real and worth stating plainly —
+the skip risk is covered for the blind-instrument class only, and a signal that merely sits unexamined
+still escalates nothing.
+
+**Correction (2026-08-01, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+two present-tense pointers into live machinery had moved, and are re-aimed rather than reversed.**
+(a) The symbol `DRAIN_CEILING`, named in the paragraph above, **no longer exists** — the per-instrument
+split recorded in the third correction under Consequences replaced it with a `CEILINGS` table and
+`DecayInstrument.ceiling` (`packages/cli/src/check-verification-decay.ts`,
+`packages/cli/src/verification-decay.ts`). The sentence is re-aimed at *a drain ceiling*, and the
+singular "decision 3's ceiling" beside it is pluralised to match that same split. The two mentions of
+`DRAIN_CEILING = 5` in the corrections above are deliberately **left standing**: they describe what the
+first implementing increment did, which is still what it did. (b) The chartered roster is now
+**complete** — all four of decision 1's cheap instruments sweep, so the run prints `chartered coverage:
+4/4` and the `NOT swept:` tail the shape above illustrates is unreachable at today's registry; the
+sentence describing it is scoped, not removed, because the reporting mechanism is unchanged and a fifth
+instrument would make it reachable again. **Nothing is re-decided.** Recorded because a symbol name that
+returns zero grep hits is the same stale-prose harm as a false claim — worse, in that it fails silently:
+the reader cannot reach the mechanism the sentence is about, and has no signal that the sentence, not
+their search, is what is wrong.
 
 **Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
 the two unbuilt lines above are a fork now TAKEN, not work still pending — read

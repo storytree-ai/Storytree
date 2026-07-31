@@ -151,12 +151,26 @@ is what fires, rather than its presence — the age line becomes buildable as a 
 decision should be revisited. No such residue exists today.
 
 **Not decided here.** Whether the ceilings themselves should ratchet down mechanically rather than by
-norm; whether the librarian friction drain needs a claim (the concurrent-drain gap, live and separately
-open); and whether the general rule in decision 3 should be promoted to a durable `pattern` or
-`guardrail` — that is the `guidance-curator`'s call, and it sits beside the existing
-`pattern:fail-closed-conditions-never-share-a-measure`, which this neighbours without duplicating (that
-one is about a shared MEASURE letting one condition discharge another; this one is about a trigger's
-PROVENANCE).
+norm; and whether the librarian friction drain needs a claim (the concurrent-drain gap, live and
+separately open — still open at 2026-08-01: neither `packages/cli/src/friction-drain.ts` nor
+`packages/cli/src/friction-lifecycle.ts` takes a claim,
+and [ADR-0270](0270-the-claim-ledger-records-a-fiction-same-story-serialisation.md) routes it out
+rather than settling it).
+
+**Correction (2026-08-01, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+a third item in that list has been TAKEN, and is removed from it.** It read "whether the general rule in
+decision 3 should be promoted to a durable `pattern` or `guardrail` — that is the `guidance-curator`'s
+call". The promotion has landed. `pattern:backstop-trigger-must-be-observable-in-run` carries decision
+3's sentence — *a fail-closed backstop's firing condition must be observable in the run itself, from
+evidence the fenced party cannot silently omit* — and cites this ADR, both candidate lines, and the four
+increments by number. It sits beside `pattern:fail-closed-conditions-never-share-a-measure` exactly as
+this section anticipated, and neighbours it without duplicating: that one is about a shared MEASURE
+letting one condition discharge another, this one about a trigger's PROVENANCE. **Nothing is
+re-decided** — the `guidance-curator` made the call this section routed to them, which is this section
+working rather than being overturned. Recorded because this ADR's own Context argues that a decision
+recorded where it reads as pending gets carried forward unchanged by every session that reads it (four
+times: #955, #956, #963, #965); an open *Not decided here* naming work that has since landed is that
+same defect, on this ADR's own page.
 
 ## References
 
