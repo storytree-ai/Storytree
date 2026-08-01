@@ -1,0 +1,7 @@
+{
+  "description": "A tiny round bush of LEAVES capping this little stump - one small rounded tuft of moss green, olive and pale lime foliage with a dark green rim, sitting straight on the wood with no gap. Foliage only: draw absolutely no bark, no trunk, no branch, no stem, no wood of any kind, no blade of grass. Soft lobed leaf outline, empty transparent space beyond it. No rectangle, no straight edges, no soil, no ground, no shadow, no second tree, no text.",
+  "image_base64": "@work/ablated/ablated-00.png",
+  "mask_image_base64": "@work/dome-00c.png",
+  "crop_to_mask": true,
+  "seed": 31710
+}

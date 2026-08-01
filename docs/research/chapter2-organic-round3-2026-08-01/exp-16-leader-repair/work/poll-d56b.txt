@@ -1,0 +1,5 @@
+status: completed
+id: 23057fac-14fa-4474-8036-04b57449a153
+frames: 9
+download: https://api.pixellab.ai/mcp/images/23057fac-14fa-4474-8036-04b57449a153/download?index=0 ... ?index=8
+(5 more frames not shown — fetch them from the download URLs above)

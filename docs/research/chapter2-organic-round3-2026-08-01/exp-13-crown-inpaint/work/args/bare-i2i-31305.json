@@ -1,0 +1,8 @@
+{
+ "description": "the exact same pixel-art tree in deep winter: every leaf is gone, the whole canopy has vanished, leaving only the bare dark branches and twigs of the crown against a transparent background, same warm brown trunk with flared roots, same colours, same position, no leaves, no green, no ground, no soil, no grass, transparent background",
+ "init_image_base64": "<stripped 24448 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "init_image_strength": 90,
+ "no_background": true,
+ "view": "low top-down",
+ "seed": 31305
+}

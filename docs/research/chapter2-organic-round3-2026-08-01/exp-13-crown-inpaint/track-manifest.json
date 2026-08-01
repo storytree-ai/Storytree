@@ -1,0 +1,158 @@
+{
+  "experiment": "exp-13-crown-inpaint",
+  "canvas": {
+    "width": 192,
+    "height": 192,
+    "format": "PNG",
+    "decoded": "RGBA8"
+  },
+  "frameCount": 7,
+  "targetAnchor": {
+    "x": 96,
+    "y": 188
+  },
+  "alphaThreshold": 8,
+  "anchorRule": "alpha-weighted x across bottom three occupied rows; bottom-most occupied y",
+  "authorTimeNormalisation": [
+    "integer translate of the single base canvas so its bottom-most row is y=188",
+    "foliage palette snap to the mature frame green ramp (luminance-nearest)",
+    "deterministic 1px despeckle of near-white pixels (modal opaque 8-neighbour)"
+  ],
+  "frames": [
+    {
+      "file": "frame-00.png",
+      "source": "inp-f0-y1-00.png",
+      "alphaBounds": {
+        "x": 49,
+        "y": 138,
+        "width": 97,
+        "height": 51
+      },
+      "anchor": {
+        "x": 96.4375,
+        "y": 188.0
+      },
+      "foliagePx": 0,
+      "encodedBytes": 4416,
+      "specksRepaired": 1,
+      "rootPlateDiffPx": 0,
+      "trunkBandDiffPx": 780
+    },
+    {
+      "file": "frame-01.png",
+      "source": "inp-f1-y1-00.png",
+      "alphaBounds": {
+        "x": 49,
+        "y": 107,
+        "width": 97,
+        "height": 82
+      },
+      "anchor": {
+        "x": 96.4375,
+        "y": 188.0
+      },
+      "foliagePx": 1477,
+      "encodedBytes": 6676,
+      "specksRepaired": 0,
+      "rootPlateDiffPx": 1,
+      "trunkBandDiffPx": 145
+    },
+    {
+      "file": "frame-02.png",
+      "source": "inp-f2-y1-00.png",
+      "alphaBounds": {
+        "x": 37,
+        "y": 76,
+        "width": 122,
+        "height": 113
+      },
+      "anchor": {
+        "x": 96.4375,
+        "y": 188.0
+      },
+      "foliagePx": 1211,
+      "encodedBytes": 9932,
+      "specksRepaired": 1,
+      "rootPlateDiffPx": 1,
+      "trunkBandDiffPx": 0
+    },
+    {
+      "file": "frame-03.png",
+      "source": "inp-f3-y1-00.png",
+      "alphaBounds": {
+        "x": 25,
+        "y": 44,
+        "width": 137,
+        "height": 145
+      },
+      "anchor": {
+        "x": 96.4375,
+        "y": 188.0
+      },
+      "foliagePx": 2926,
+      "encodedBytes": 11997,
+      "specksRepaired": 0,
+      "rootPlateDiffPx": 1,
+      "trunkBandDiffPx": 0
+    },
+    {
+      "file": "frame-04.png",
+      "source": "inp-f6-e1-00.png",
+      "alphaBounds": {
+        "x": 24,
+        "y": 25,
+        "width": 139,
+        "height": 164
+      },
+      "anchor": {
+        "x": 96.4375,
+        "y": 188.0
+      },
+      "foliagePx": 4285,
+      "encodedBytes": 16774,
+      "specksRepaired": 4,
+      "rootPlateDiffPx": 0,
+      "trunkBandDiffPx": 0
+    },
+    {
+      "file": "frame-05.png",
+      "source": "inp-f7-e1-00.png",
+      "alphaBounds": {
+        "x": 24,
+        "y": 20,
+        "width": 139,
+        "height": 169
+      },
+      "anchor": {
+        "x": 96.4375,
+        "y": 188.0
+      },
+      "foliagePx": 6764,
+      "encodedBytes": 21370,
+      "specksRepaired": 1,
+      "rootPlateDiffPx": 1,
+      "trunkBandDiffPx": 0
+    },
+    {
+      "file": "frame-06.png",
+      "source": "inp-f8-e1-00.png",
+      "alphaBounds": {
+        "x": 18,
+        "y": 12,
+        "width": 157,
+        "height": 177
+      },
+      "anchor": {
+        "x": 96.4375,
+        "y": 188.0
+      },
+      "foliagePx": 11310,
+      "encodedBytes": 26142,
+      "specksRepaired": 2,
+      "rootPlateDiffPx": 0,
+      "trunkBandDiffPx": 0
+    }
+  ],
+  "encodedFrameBytes": 97307,
+  "decodedRgbaBytes": 1032192
+}

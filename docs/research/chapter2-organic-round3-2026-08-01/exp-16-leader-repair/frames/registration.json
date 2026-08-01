@@ -1,0 +1,555 @@
+{
+ "canvas": {
+  "width": 128,
+  "height": 128,
+  "format": "PNG",
+  "decoded": "RGBA8"
+ },
+ "frameCount": 19,
+ "targetAnchor": {
+  "x": 64,
+  "y": 122
+ },
+ "anchorRule": "alpha-weighted x over the 10-row band 32..22 px above the bottom-most opaque row (the trunk axis above the root flare); groundY = bottom-most opaque row",
+ "alphaThreshold": 8,
+ "palette": {
+  "sharedColours": 32,
+  "method": "MEDIANCUT/32"
+ },
+ "frames": [
+  {
+   "file": "frame-00.png",
+   "src": "frame-00.png",
+   "sourceAnchor": [
+    63.83,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    63.83,
+    122
+   ],
+   "driftX": -0.17,
+   "driftY": 0,
+   "bbox": [
+    39,
+    50,
+    46,
+    73
+   ],
+   "alphaPx": 858,
+   "bytes": 1565,
+   "provenance": "sprout e2 (edit_image seedling, anchored)  <- grows from nothing",
+   "rawSource": "raw/d0s-00.png"
+  },
+  {
+   "file": "frame-01.png",
+   "src": "frame-01.png",
+   "sourceAnchor": [
+    63.4,
+    122
+   ],
+   "offset": [
+    1,
+    0
+   ],
+   "normalizedAnchor": [
+    64.4,
+    122
+   ],
+   "driftX": 0.4,
+   "driftY": 0,
+   "bbox": [
+    41,
+    45,
+    45,
+    78
+   ],
+   "alphaPx": 1087,
+   "bytes": 2195,
+   "provenance": "tween d0s-01  (sprout->f00 interp)",
+   "rawSource": "raw/d0s-01.png"
+  },
+  {
+   "file": "frame-02.png",
+   "src": "frame-02.png",
+   "sourceAnchor": [
+    63.16,
+    122
+   ],
+   "offset": [
+    1,
+    0
+   ],
+   "normalizedAnchor": [
+    64.16,
+    122
+   ],
+   "driftX": 0.16,
+   "driftY": 0,
+   "bbox": [
+    38,
+    31,
+    49,
+    92
+   ],
+   "alphaPx": 1292,
+   "bytes": 2220,
+   "provenance": "tween d0s-02  (sprout->f00 interp)",
+   "rawSource": "raw/d0s-02.png"
+  },
+  {
+   "file": "frame-03.png",
+   "src": "frame-03.png",
+   "sourceAnchor": [
+    63.16,
+    122
+   ],
+   "offset": [
+    1,
+    0
+   ],
+   "normalizedAnchor": [
+    64.16,
+    122
+   ],
+   "driftX": 0.16,
+   "driftY": 0,
+   "bbox": [
+    38,
+    13,
+    53,
+    110
+   ],
+   "alphaPx": 1374,
+   "bytes": 2539,
+   "provenance": "tween d0s-03  (sprout->f00 interp)",
+   "rawSource": "raw/d0s-03.png"
+  },
+  {
+   "file": "frame-04.png",
+   "src": "frame-04.png",
+   "sourceAnchor": [
+    63.89,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    63.89,
+    122
+   ],
+   "driftX": -0.11,
+   "driftY": 0,
+   "bbox": [
+    29,
+    18,
+    75,
+    105
+   ],
+   "alphaPx": 1623,
+   "bytes": 2759,
+   "provenance": "pose f00  (round-1 pose 0, restyled)",
+   "rawSource": "work/tuned/frame-00.png"
+  },
+  {
+   "file": "frame-05.png",
+   "src": "frame-05.png",
+   "sourceAnchor": [
+    64.27,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    64.27,
+    122
+   ],
+   "driftX": 0.27,
+   "driftY": 0,
+   "bbox": [
+    29,
+    15,
+    76,
+    108
+   ],
+   "alphaPx": 1639,
+   "bytes": 2637,
+   "provenance": "pose f01  (round-1 pose 1, restyled)",
+   "rawSource": "work/tuned/frame-01.png"
+  },
+  {
+   "file": "frame-06.png",
+   "src": "frame-06.png",
+   "sourceAnchor": [
+    63.25,
+    122
+   ],
+   "offset": [
+    1,
+    0
+   ],
+   "normalizedAnchor": [
+    64.25,
+    122
+   ],
+   "driftX": 0.25,
+   "driftY": 0,
+   "bbox": [
+    30,
+    12,
+    76,
+    111
+   ],
+   "alphaPx": 2028,
+   "bytes": 3442,
+   "provenance": "tween d12b-02 (f01->f02 interp)",
+   "rawSource": "raw/d12b-02.png"
+  },
+  {
+   "file": "frame-07.png",
+   "src": "frame-07.png",
+   "sourceAnchor": [
+    64.26,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    64.26,
+    122
+   ],
+   "driftX": 0.26,
+   "driftY": 0,
+   "bbox": [
+    30,
+    14,
+    76,
+    109
+   ],
+   "alphaPx": 2190,
+   "bytes": 3548,
+   "provenance": "pose f02  (round-1 pose 2, restyled)",
+   "rawSource": "work/tuned/frame-02.png"
+  },
+  {
+   "file": "frame-08.png",
+   "src": "frame-08.png",
+   "sourceAnchor": [
+    63.76,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    63.76,
+    122
+   ],
+   "driftX": -0.24,
+   "driftY": 0,
+   "bbox": [
+    29,
+    21,
+    79,
+    102
+   ],
+   "alphaPx": 2091,
+   "bytes": 3331,
+   "provenance": "pose f03  (round-1 pose 3, restyled)",
+   "rawSource": "work/tuned/frame-03.png"
+  },
+  {
+   "file": "frame-09.png",
+   "src": "frame-09.png",
+   "sourceAnchor": [
+    64.2,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    64.2,
+    122
+   ],
+   "driftX": 0.2,
+   "driftY": 0,
+   "bbox": [
+    28,
+    21,
+    82,
+    102
+   ],
+   "alphaPx": 2257,
+   "bytes": 4285,
+   "provenance": "tween d35-01  (f03->f05 interp)",
+   "rawSource": "raw/d35-01.png"
+  },
+  {
+   "file": "frame-10.png",
+   "src": "frame-10.png",
+   "sourceAnchor": [
+    64.75,
+    122
+   ],
+   "offset": [
+    -1,
+    0
+   ],
+   "normalizedAnchor": [
+    63.75,
+    122
+   ],
+   "driftX": -0.25,
+   "driftY": 0,
+   "bbox": [
+    26,
+    21,
+    85,
+    102
+   ],
+   "alphaPx": 2822,
+   "bytes": 4589,
+   "provenance": "tween d35-02  (f03->f05 interp)",
+   "rawSource": "raw/d35-02.png"
+  },
+  {
+   "file": "frame-11.png",
+   "src": "frame-11.png",
+   "sourceAnchor": [
+    63.51,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    63.51,
+    122
+   ],
+   "driftX": -0.49,
+   "driftY": 0,
+   "bbox": [
+    27,
+    26,
+    79,
+    97
+   ],
+   "alphaPx": 2828,
+   "bytes": 3794,
+   "provenance": "pose f05  (round-1 pose 5, restyled)",
+   "rawSource": "work/tuned/frame-05.png"
+  },
+  {
+   "file": "frame-12.png",
+   "src": "frame-12.png",
+   "sourceAnchor": [
+    63.87,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    63.87,
+    122
+   ],
+   "driftX": -0.13,
+   "driftY": 0,
+   "bbox": [
+    28,
+    27,
+    80,
+    96
+   ],
+   "alphaPx": 2983,
+   "bytes": 4726,
+   "provenance": "tween d56b-01 (f05->f06 interp)  <- the repaired cut",
+   "rawSource": "raw/d56b-01.png"
+  },
+  {
+   "file": "frame-13.png",
+   "src": "frame-13.png",
+   "sourceAnchor": [
+    64.06,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    64.06,
+    122
+   ],
+   "driftX": 0.06,
+   "driftY": 0,
+   "bbox": [
+    26,
+    23,
+    84,
+    100
+   ],
+   "alphaPx": 3638,
+   "bytes": 4968,
+   "provenance": "tween d56b-02 (f05->f06 interp)  <- the repaired cut",
+   "rawSource": "raw/d56b-02.png"
+  },
+  {
+   "file": "frame-14.png",
+   "src": "frame-14.png",
+   "sourceAnchor": [
+    63.91,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    63.91,
+    122
+   ],
+   "driftX": -0.09,
+   "driftY": 0,
+   "bbox": [
+    20,
+    15,
+    92,
+    108
+   ],
+   "alphaPx": 4084,
+   "bytes": 5373,
+   "provenance": "tween d56b-03 (f05->f06 interp)  <- the repaired cut",
+   "rawSource": "raw/d56b-03.png"
+  },
+  {
+   "file": "frame-15.png",
+   "src": "frame-15.png",
+   "sourceAnchor": [
+    63.95,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    63.95,
+    122
+   ],
+   "driftX": -0.05,
+   "driftY": 0,
+   "bbox": [
+    17,
+    18,
+    95,
+    105
+   ],
+   "alphaPx": 4723,
+   "bytes": 4282,
+   "provenance": "pose f06  (round-1 pose 6, restyled + de-grounded)",
+   "rawSource": "work/tuned/frame-06.png"
+  },
+  {
+   "file": "frame-16.png",
+   "src": "frame-16.png",
+   "sourceAnchor": [
+    64.01,
+    121
+   ],
+   "offset": [
+    0,
+    1
+   ],
+   "normalizedAnchor": [
+    64.01,
+    122
+   ],
+   "driftX": 0.01,
+   "driftY": 0,
+   "bbox": [
+    16,
+    14,
+    95,
+    109
+   ],
+   "alphaPx": 4957,
+   "bytes": 5536,
+   "provenance": "tween d68-01  (f06->f08 interp)",
+   "rawSource": "raw/d68-01.png"
+  },
+  {
+   "file": "frame-17.png",
+   "src": "frame-17.png",
+   "sourceAnchor": [
+    64.21,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    64.21,
+    122
+   ],
+   "driftX": 0.21,
+   "driftY": 0,
+   "bbox": [
+    17,
+    12,
+    95,
+    111
+   ],
+   "alphaPx": 4967,
+   "bytes": 4350,
+   "provenance": "pose f07  (round-1 pose 7, restyled + de-grounded)",
+   "rawSource": "work/tuned/frame-07.png"
+  },
+  {
+   "file": "frame-18.png",
+   "src": "frame-18.png",
+   "sourceAnchor": [
+    63.79,
+    122
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "normalizedAnchor": [
+    63.79,
+    122
+   ],
+   "driftX": -0.21,
+   "driftY": 0,
+   "bbox": [
+    16,
+    11,
+    95,
+    112
+   ],
+   "alphaPx": 5046,
+   "bytes": 4496,
+   "provenance": "pose f08  (round-1 pose 8, restyled + de-grounded)",
+   "rawSource": "work/tuned/frame-08.png"
+  }
+ ],
+ "encodedFrameBytes": 70635,
+ "decodedRgbaBytes": 1245184
+}

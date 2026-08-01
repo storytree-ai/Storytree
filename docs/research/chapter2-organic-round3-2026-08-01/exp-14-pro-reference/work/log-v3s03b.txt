@@ -1,0 +1,7 @@
+JOB v3s03b cef10f22-a60d-486f-85c7-bcd72e79b8cf
+frames: 4
+download: https://api.pixellab.ai/mcp/images/cef10f22-a60d-486f-85c7-bcd72e79b8cf/download?index=0 ... ?index=3
+SAVED raw\v3s03b-cef10f22-00.png
+SAVED raw\v3s03b-cef10f22-01.png
+SAVED raw\v3s03b-cef10f22-02.png
+SAVED raw\v3s03b-cef10f22-03.png

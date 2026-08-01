@@ -1,0 +1,7 @@
+{
+  "description": "A small rounded young crown growing straight out of the bare branch tips that are already in the picture: four or five overlapping rounded tufts of leaves in the same moss green, olive and pale lime as a storybook pixel-art shade tree, each tuft rimmed in dark green, sitting directly on the wood with no gap. The crown must be a soft lobed dome, wider than tall, fading to empty transparent space at its edge. No rectangle, no straight edges, no flat sawn ends, no soil, no ground, no grass, no shadow, no extra trunk, no second tree.",
+  "image_base64": "@work/ablated/ablated-02.png",
+  "mask_image_base64": "@work/mask-02b.png",
+  "crop_to_mask": true,
+  "seed": 31704
+}

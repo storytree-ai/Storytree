@@ -1,0 +1,10 @@
+{
+ "description": "the same young tree grown further: the brown stem continues up out of the trunk below and forks into three or four thin bare limbs with a scattering of small green leaves near their ends, warm brown bark, dark outline, storybook pixel art; everything around the limbs is empty transparent background, no soil, no grass, no second tree",
+ "image_base64": "<stripped 5944 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_x": 38,
+ "mask_y": 70,
+ "mask_width": 116,
+ "mask_height": 64,
+ "crop_to_mask": true,
+ "seed": 31312
+}

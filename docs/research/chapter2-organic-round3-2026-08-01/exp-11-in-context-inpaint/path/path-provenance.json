@@ -1,0 +1,26 @@
+{
+ "jobId": "1e376ebb-2d7c-4aa4-a01f-8e95af2210a1",
+ "tool": "inpaint_image",
+ "seed": 31130,
+ "sourceCropInPaddedPlate": [
+  0,
+  104,
+  96,
+  184
+ ],
+ "canvas": [
+  96,
+  80
+ ],
+ "ribbonBounds": {
+  "x0": 0,
+  "y0": 5,
+  "x1": 56,
+  "y1": 73
+ },
+ "encodedBytes": 3562,
+ "derived": {
+  "dirt-texture-tile-16.png": "directionless 16x16 swatch sampled from the ribbon interior",
+  "dirt-texture-tile-32-seamless.png": "mirrored 32x32, tiles seamlessly"
+ }
+}

@@ -1,0 +1,154 @@
+{
+ "s00": {
+  "job": "27e35d0c-f578-4d8f-8327-bf6f22aa54c9",
+  "seed": 31110,
+  "description": "a tiny tree seedling just sprouted out of the ground: one short thin brown stem with two small dark green leaves. Nothing else - no soil patch, no shadow, no second plant, do not change the ground.",
+  "rx": 8,
+  "top": 88,
+  "raw": "s00-27e35d0c-00.png",
+  "diff_px": 33,
+  "bbox": [
+   43,
+   88,
+   52,
+   97
+  ],
+  "anchor": [
+   48,
+   97
+  ]
+ },
+ "s01": {
+  "job": "9a7f5db0-a630-4aaa-8139-26f3e4b2f614",
+  "seed": 31111,
+  "description": "a small tree seedling: one thin brown stem with a few small dark green leaves at its top. Nothing else - no soil patch, no shadow, no second plant, do not change the ground.",
+  "rx": 11,
+  "top": 80,
+  "raw": "s01-9a7f5db0-00.png",
+  "diff_px": 39,
+  "bbox": [
+   38,
+   88,
+   52,
+   100
+  ],
+  "anchor": [
+   52,
+   100
+  ]
+ },
+ "s02": {
+  "job": "5e29f060-45ae-4148-be42-160e5d4bf54d",
+  "seed": 31112,
+  "description": "a young tree sapling: one slender brown trunk with a small tuft of dark green leaves at its top. Nothing else - no soil patch, no shadow, no second plant, do not change the ground.",
+  "rx": 15,
+  "top": 70,
+  "raw": "s02-5e29f060-00.png",
+  "diff_px": 146,
+  "bbox": [
+   38,
+   77,
+   53,
+   100
+  ],
+  "anchor": [
+   49,
+   100
+  ]
+ },
+ "s03": {
+  "job": "f4691417-f38d-463f-aecf-b7dd02afb77b",
+  "seed": 31113,
+  "description": "a young tree: one slender brown trunk with a small rounded dark green leafy canopy sitting on top of the trunk. Nothing else - no soil patch, no shadow, no second plant, do not change the ground.",
+  "rx": 20,
+  "top": 60,
+  "raw": "s03-f4691417-00.png",
+  "diff_px": 165,
+  "bbox": [
+   38,
+   65,
+   53,
+   100
+  ],
+  "anchor": [
+   47,
+   100
+  ]
+ },
+ "s04": {
+  "job": "55be35fa-d772-4ce1-83ab-954887ef6c00",
+  "seed": 31114,
+  "description": "a young tree growing taller: one brown trunk with a rounded dark green leafy canopy sitting on top of the trunk. Nothing else - no soil patch, no shadow, no second plant, do not change the ground.",
+  "rx": 25,
+  "top": 50,
+  "raw": "s04-55be35fa-00.png",
+  "diff_px": 2088,
+  "bbox": [
+   22,
+   50,
+   72,
+   108
+  ],
+  "anchor": [
+   47,
+   108
+  ]
+ },
+ "s05": {
+  "job": "cc1a1535-7b39-4901-8b84-c863fb89c81e",
+  "seed": 31115,
+  "description": "a maturing tree: one thicker brown trunk with a broad rounded dark green leafy canopy sitting on top of the trunk. Nothing else - no soil patch, no shadow, no second plant, do not change the ground.",
+  "rx": 30,
+  "top": 40,
+  "raw": "s05-cc1a1535-00.png",
+  "diff_px": 3112,
+  "bbox": [
+   17,
+   40,
+   76,
+   108
+  ],
+  "anchor": [
+   47,
+   108
+  ]
+ },
+ "s06": {
+  "job": "0615107e-9c67-4b24-ba55-e90de6c39de8",
+  "seed": 31116,
+  "description": "a nearly mature tree: one thick brown trunk with splayed roots at its base and a wide rounded dark green leafy canopy sitting on top of the trunk. Nothing else - no soil patch, no shadow, no second plant, do not change the ground.",
+  "rx": 35,
+  "top": 30,
+  "raw": "s06-0615107e-00.png",
+  "diff_px": 4079,
+  "bbox": [
+   12,
+   30,
+   78,
+   108
+  ],
+  "anchor": [
+   47,
+   108
+  ]
+ },
+ "s07": {
+  "job": "2620b971-6174-4738-934c-ddc838614c12",
+  "seed": 31117,
+  "description": "a large mature hero tree: one thick brown trunk with splayed roots at its base and a very wide rounded dark green leafy canopy sitting on top of the trunk. Nothing else - no soil patch, no shadow, no second plant, do not change the ground.",
+  "rx": 40,
+  "top": 20,
+  "raw": "s07-2620b971-00.png",
+  "diff_px": 4841,
+  "bbox": [
+   7,
+   22,
+   87,
+   108
+  ],
+  "anchor": [
+   47,
+   108
+  ]
+ }
+}

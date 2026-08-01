@@ -1,0 +1,15 @@
+[poll 1] status: processing 5%
+[poll 2] status: processing 12%
+[poll 3] status: processing 6%
+[poll 4] status: processing 6%
+[poll 5] status: processing 20%
+[poll 6] status: processing 33%
+[poll 7] status: processing 33%
+[poll 8] status: processing 33%
+[poll 9] status: processing 73%
+[poll 10] status: processing 95%
+status: completed
+id: 4a64a8fa-3318-4195-8961-6a2035bd5f31
+frames: 9
+download: https://api.pixellab.ai/mcp/images/4a64a8fa-3318-4195-8961-6a2035bd5f31/download?index=0 ... ?index=8
+(5 more frames not shown — fetch them from the download URLs above)

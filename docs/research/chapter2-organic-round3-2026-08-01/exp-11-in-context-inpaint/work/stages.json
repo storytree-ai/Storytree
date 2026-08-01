@@ -1,0 +1,10 @@
+{"stages":[
+ {"k":0,"rx":8,"top":88,"seed":31110,"description":"a tiny tree seedling just sprouted out of the ground: one short thin brown stem with two small dark green leaves. Nothing else - no soil patch, no shadow, no second plant, do not change the ground."},
+ {"k":1,"rx":11,"top":80,"seed":31111,"description":"a small tree seedling: one thin brown stem with a few small dark green leaves at its top. Nothing else - no soil patch, no shadow, no second plant, do not change the ground."},
+ {"k":2,"rx":15,"top":70,"seed":31112,"description":"a young tree sapling: one slender brown trunk with a small tuft of dark green leaves at its top. Nothing else - no soil patch, no shadow, no second plant, do not change the ground."},
+ {"k":3,"rx":20,"top":60,"seed":31113,"description":"a young tree: one slender brown trunk with a small rounded dark green leafy canopy sitting on top of the trunk. Nothing else - no soil patch, no shadow, no second plant, do not change the ground."},
+ {"k":4,"rx":25,"top":50,"seed":31114,"description":"a young tree growing taller: one brown trunk with a rounded dark green leafy canopy sitting on top of the trunk. Nothing else - no soil patch, no shadow, no second plant, do not change the ground."},
+ {"k":5,"rx":30,"top":40,"seed":31115,"description":"a maturing tree: one thicker brown trunk with a broad rounded dark green leafy canopy sitting on top of the trunk. Nothing else - no soil patch, no shadow, no second plant, do not change the ground."},
+ {"k":6,"rx":35,"top":30,"seed":31116,"description":"a nearly mature tree: one thick brown trunk with splayed roots at its base and a wide rounded dark green leafy canopy sitting on top of the trunk. Nothing else - no soil patch, no shadow, no second plant, do not change the ground."},
+ {"k":7,"rx":40,"top":20,"seed":31117,"description":"a large mature hero tree: one thick brown trunk with splayed roots at its base and a very wide rounded dark green leafy canopy sitting on top of the trunk. Nothing else - no soil patch, no shadow, no second plant, do not change the ground."}
+]}

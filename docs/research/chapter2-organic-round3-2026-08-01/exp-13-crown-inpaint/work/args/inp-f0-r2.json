@@ -1,0 +1,10 @@
+{
+ "description": "a young sapling seedling: one slim brown stem rising straight up out of the old spread roots below it, carrying five or six large pointed green leaves alternating along its length, the leaves drawn big and clear with a lighter green top face and a dark green underside, dark brown outline, storybook game pixel art; everything around the little sapling is completely empty transparent background, no soil, no grass, no other plant",
+ "image_base64": "<stripped 1696 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_x": 60,
+ "mask_y": 126,
+ "mask_width": 72,
+ "mask_height": 52,
+ "crop_to_mask": true,
+ "seed": 31320
+}

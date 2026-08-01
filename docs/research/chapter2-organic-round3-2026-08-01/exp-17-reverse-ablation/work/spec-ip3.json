@@ -1,0 +1,7 @@
+{
+  "description": "Extend this young canopy upward and outward into a rounded dome of six or seven overlapping rounded leaf clusters that continue the leaf clusters already drawn below them, in the same moss green, olive and pale lime as the storybook pixel-art shade tree in this picture, every tuft rimmed in dark green, growing straight onto the bare wood that is already there so there is no gap between leaf and branch. Soft lobed outline, empty transparent space beyond it. No rectangle, no straight edges, no flat sawn ends, no soil, no ground, no grass, no shadow, no extra trunk, no second tree, no text.",
+  "image_base64": "@work/ablated/ablated-03.png",
+  "mask_image_base64": "@work/dome-03.png",
+  "crop_to_mask": true,
+  "seed": 31708
+}

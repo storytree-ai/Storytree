@@ -1,0 +1,11 @@
+{
+ "description": "a single bare deciduous tree trunk with NO leaves at all, thick buttressed roots flaring out and gripping the ground, one tapering trunk rising and splitting into a fork of two strong bare limbs that each end in a few short bare twigs, warm reddish-brown bark with lighter tan highlights and a dark brown outline, storybook game pixel art, one tree only, centred, nothing else in the picture, no ground tile, no soil patch, no grass, no border",
+ "width": 192,
+ "height": 192,
+ "no_background": true,
+ "view": "low top-down",
+ "outline": "single color black outline",
+ "shading": "basic shading",
+ "detail": "medium detail",
+ "seed": 31302
+}

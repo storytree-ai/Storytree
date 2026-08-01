@@ -1,0 +1,7 @@
+{
+ "description": "a broad green canopy of overlapping round leafy clumps covering most of this tree's branches, growing outward and downward along the limbs, brown branches visible through the gaps underneath, layered light and dark green with a dark outline, storybook pixel art; the rest of the area is empty transparent background",
+ "image_base64": "<stripped 18212 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_image_base64": "<stripped 960 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "crop_to_mask": true,
+ "seed": 31330
+}

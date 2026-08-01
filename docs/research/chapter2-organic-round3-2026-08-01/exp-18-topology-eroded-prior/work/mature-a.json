@@ -1,0 +1,12 @@
+{
+  "description": "a single mature broadleaf hero tree standing alone, one continuously connected organism: a thick brown trunk with a flared exposed root base, sturdy branches spreading upward and fusing directly into one rounded moss-green and olive leaf canopy with no gap or seam between branch and leaf, storybook pixel art, transparent background, no ground, no soil, no grass, no dirt tile, no shadow, no frame, no border, exactly one tree",
+  "width": 192,
+  "height": 192,
+  "no_background": true,
+  "view": "low top-down",
+  "outline": "selective outline",
+  "shading": "basic shading",
+  "detail": "medium detail",
+  "text_guidance_scale": 8,
+  "seed": 31800
+}

@@ -1,0 +1,8 @@
+{
+  "image_urls": ["@file:in128/frame-06.png", "@file:in128/frame-07.png", "@file:in128/frame-08.png"],
+  "description": "Erase the ground under the tree. Delete the green grass tuft, the brown soil mound, the scattered pebbles and the small pink flowers at the base, so that the bare roots end on a fully transparent background with nothing beneath them. Do not change the tree itself: the trunk, every branch, every leaf, the canopy silhouette and the root flare must stay pixel-identical in the same position. No new ground, no shadow, no grass, no dirt.",
+  "width": 128,
+  "height": 128,
+  "no_background": true,
+  "seed": 31600
+}

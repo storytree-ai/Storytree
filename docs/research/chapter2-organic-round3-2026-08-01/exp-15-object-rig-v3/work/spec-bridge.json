@@ -1,0 +1,10 @@
+{
+ "object_id": "7d3ad687-337e-449e-aff6-a300af26e8dd",
+ "mode": "v3",
+ "animation_description": "the young tree fills out into its mature form: the trunk thickens and gains its braided bark, the three leaf clusters swell and multiply until they merge into one full rounded canopy carried on the branches; the base never moves",
+ "frame_count": 16,
+ "keep_first_frame": true,
+ "display_name": "exp15-bridge-11-12",
+ "custom_start_frame_base64__b64file": "../raw/animA-11.png",
+ "end_frame_base64__b64file": "../raw/animA-12.png"
+}
