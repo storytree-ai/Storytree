@@ -22,6 +22,12 @@ import {
   type OrganicPosePoint,
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
+import {
+  organicHybridHandoffAtProgress,
+  validateOrganicHybridHandoffRig,
+  type RegisteredOrganicHybridHandoffRig,
+} from './organic-hybrid-handoff-track.js';
+import { opaqueContourGrowthPhase } from './opaque-island-contour-growth.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -58,6 +64,21 @@ export interface SemanticGrowthOrganicPoseLayer {
     readonly worldAnchor: OrganicPosePoint;
     readonly radius: OrganicPosePoint;
     readonly settledAtProgress: number;
+    readonly technique?: 'radial-expansion' | 'opaque-contour-morph';
+  };
+  readonly clock?: SemanticGrowthAnimationClock;
+}
+
+export interface SemanticGrowthOrganicHybridLayer {
+  readonly rig: RegisteredOrganicHybridHandoffRig;
+  readonly worldRoot: OrganicPosePoint;
+  readonly nativeIsland: {
+    readonly storyId: string;
+    readonly worldAnchor: OrganicPosePoint;
+    readonly radius: OrganicPosePoint;
+    readonly settledAtProgress: number;
+    readonly technique: 'opaque-contour-morph';
+    readonly matureCoastPaths: readonly string[];
   };
   readonly clock?: SemanticGrowthAnimationClock;
 }
@@ -70,6 +91,7 @@ export interface SemanticGrowthWorldViewProps {
   readonly onBack?: (key: SemanticGrowthFrameKey) => void;
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
   readonly organicPoseGrowth?: SemanticGrowthOrganicPoseLayer;
+  readonly organicHybridGrowth?: SemanticGrowthOrganicHybridLayer;
 }
 
 function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
@@ -222,9 +244,33 @@ function validateOrganicPoseLayer(
     island.radius.y <= 0 ||
     !Number.isFinite(island.settledAtProgress) ||
     island.settledAtProgress <= 0 ||
-    island.settledAtProgress > 1
+    island.settledAtProgress > 1 ||
+    (island.technique !== undefined &&
+      island.technique !== 'radial-expansion' &&
+      island.technique !== 'opaque-contour-morph')
   ) {
     throw new Error('Organic pose native island reveal must use finite app-owned geometry.');
+  }
+}
+
+function validateOrganicHybridLayer(layer: SemanticGrowthOrganicHybridLayer): void {
+  validateOrganicHybridHandoffRig(layer.rig);
+  if (
+    !Number.isFinite(layer.worldRoot.x) ||
+    !Number.isFinite(layer.worldRoot.y) ||
+    layer.nativeIsland.storyId.trim() === '' ||
+    !Number.isFinite(layer.nativeIsland.worldAnchor.x) ||
+    !Number.isFinite(layer.nativeIsland.worldAnchor.y) ||
+    !Number.isFinite(layer.nativeIsland.radius.x) ||
+    !Number.isFinite(layer.nativeIsland.radius.y) ||
+    layer.nativeIsland.radius.x <= 0 ||
+    layer.nativeIsland.radius.y <= 0 ||
+    !Number.isFinite(layer.nativeIsland.settledAtProgress) ||
+    layer.nativeIsland.settledAtProgress <= 0 ||
+    layer.nativeIsland.settledAtProgress > 1 ||
+    layer.nativeIsland.technique !== 'opaque-contour-morph'
+  ) {
+    throw new Error('Organic hybrid handoff requires a planted root and opaque app-owned island.');
   }
 }
 
@@ -236,8 +282,13 @@ export function SemanticGrowthWorldView({
   onBack,
   onReplay,
   organicPoseGrowth,
+  organicHybridGrowth,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
   assertFrames(frames);
+  if (organicPoseGrowth && organicHybridGrowth) {
+    throw new Error('Organic growth techniques are exact query-gated alternatives.');
+  }
+  if (organicHybridGrowth) validateOrganicHybridLayer(organicHybridGrowth);
   const [cursor, setCursor] = React.useState(0);
   const [organicPlayback, setOrganicPlayback] = React.useState(initialOrganicPosePlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
@@ -279,27 +330,75 @@ export function SemanticGrowthWorldView({
     },
     [organicPlayback.progress, organicPoseGrowth, registry],
   );
-  const nativeLandProgress = organicPoseGrowth
+  const hybridState = React.useMemo(
+    () =>
+      organicHybridGrowth
+        ? organicHybridHandoffAtProgress(
+            organicHybridGrowth.rig,
+            organicPlayback.progress,
+            organicHybridGrowth.worldRoot,
+          )
+        : null,
+    [organicHybridGrowth, organicPlayback.progress],
+  );
+  const hybridPoseLayers = React.useMemo(
+    () => {
+      if (!organicHybridGrowth || !hybridState?.poseTreeFrame) return null;
+      const track = organicHybridGrowth.rig.poseTreeTrack;
+      return [
+        {
+          trackId: track.id,
+          src: hybridState.poseTreeFrame.src,
+          frameIndex: hybridState.poseTreeFrame.index,
+          canvas: track.canvas,
+          assetAnchor: track.groundAnchor,
+          worldAnchor: organicHybridGrowth.worldRoot,
+          scale: organicHybridGrowth.rig.poseTreeScale,
+          depthSlot: track.depthSlot,
+        },
+      ];
+    },
+    [hybridState, organicHybridGrowth],
+  );
+  const activeNativeIsland =
+    organicPoseGrowth?.nativeIsland ?? organicHybridGrowth?.nativeIsland ?? null;
+  const nativeLandProgress = activeNativeIsland
     ? clampOrganicPoseProgress(
-        organicPlayback.progress / organicPoseGrowth.nativeIsland.settledAtProgress,
+        organicPlayback.progress / activeNativeIsland.settledAtProgress,
       )
     : null;
   const model = React.useMemo<WorldPresentationModel>(
     () => {
       const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
-      if (!organicPoseGrowth || nativeLandProgress === null) return base;
+      if (!activeNativeIsland || nativeLandProgress === null) return base;
       return {
         ...base,
         nativeIslandGrowthLayer: {
-          storyId: organicPoseGrowth.nativeIsland.storyId,
-          worldAnchor: organicPoseGrowth.nativeIsland.worldAnchor,
-          radius: organicPoseGrowth.nativeIsland.radius,
+          storyId: activeNativeIsland.storyId,
+          worldAnchor: activeNativeIsland.worldAnchor,
+          radius: activeNativeIsland.radius,
           progress: nativeLandProgress,
+          ...(activeNativeIsland.technique
+            ? { technique: activeNativeIsland.technique }
+            : {}),
+          ...(organicHybridGrowth
+            ? { matureCoastPaths: organicHybridGrowth.nativeIsland.matureCoastPaths }
+            : {}),
         },
-        organicPoseLayers: organicLayers,
+        organicPoseLayers: organicHybridGrowth ? hybridPoseLayers : organicLayers,
+        ...(hybridState ? { hybridCutoutLayer: hybridState.cutoutLayer } : {}),
       };
     },
-    [frame.model, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
+    [
+      activeNativeIsland,
+      frame.model,
+      hybridPoseLayers,
+      hybridState,
+      nativeLandProgress,
+      organicHybridGrowth,
+      organicLayers,
+      reduce,
+    ],
   );
   // Held stable through the whole walk — derived from every supplied frame's app-owned geometry,
   // never the current cursor or a transparent asset canvas.
@@ -307,15 +406,18 @@ export function SemanticGrowthWorldView({
     () => representativeViewBox(frames),
     [frames],
   );
+  const hasOrganicGrowth = Boolean(organicPoseGrowth || organicHybridGrowth);
+  const activeClock =
+    organicPoseGrowth?.clock ?? organicHybridGrowth?.clock ?? BROWSER_ANIMATION_CLOCK;
 
   React.useEffect(() => {
-    if (!organicPoseGrowth || !reduce) return;
+    if (!hasOrganicGrowth || !reduce) return;
     setOrganicPlayback((current) => selectOrganicPoseCue(current, cursor, true));
-  }, [cursor, organicPoseGrowth, reduce]);
+  }, [cursor, hasOrganicGrowth, reduce]);
 
   React.useEffect(() => {
-    if (!organicPoseGrowth || reduce || !organicPlayback.playing) return;
-    const clock = organicPoseGrowth.clock ?? BROWSER_ANIMATION_CLOCK;
+    if (!hasOrganicGrowth || reduce || !organicPlayback.playing) return;
+    const clock = activeClock;
     let requestId = 0;
     let previousTimestamp: number | null = null;
     let running = organicPlayback;
@@ -333,7 +435,7 @@ export function SemanticGrowthWorldView({
       cancelled = true;
       clock.cancelFrame(requestId);
     };
-  }, [organicPoseGrowth, organicPlayback.transitionId, reduce]);
+  }, [activeClock, hasOrganicGrowth, organicPlayback.transitionId, reduce]);
 
   const select = (
     nextCursor: number,
@@ -342,7 +444,7 @@ export function SemanticGrowthWorldView({
   ): void => {
     const bounded = Math.max(0, Math.min(FRAME_KEYS.length - 1, nextCursor));
     setCursor(bounded);
-    if (organicPoseGrowth) {
+    if (hasOrganicGrowth) {
       setOrganicPlayback((current) =>
         replay
           ? replayOrganicPosePlayback(current)
@@ -359,11 +461,34 @@ export function SemanticGrowthWorldView({
       {...(organicPoseGrowth
         ? {
             'data-organic-technique': 'pose-to-pose',
+            'data-island-growth-technique':
+              organicPoseGrowth.nativeIsland.technique ?? 'radial-expansion',
             'data-organic-pose-progress': organicPlayback.progress.toFixed(4),
             'data-native-island-progress': nativeLandProgress?.toFixed(4),
             'data-organic-pose-frames':
               organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
           }
+        : organicHybridGrowth && hybridState
+          ? {
+              'data-organic-technique': 'registered-hybrid-handoff',
+              'data-hybrid-rig': 'cutout-puppet-to-pose-to-pose',
+              'data-handoff-kind': hybridState.handoff.kind,
+              'data-handoff-phase': hybridState.phase,
+              'data-continuity-pose': `tree-frame-${hybridState.handoff.continuityPoseFrame.toString().padStart(2, '0')}`,
+              'data-local-blend': hybridState.handoff.localBlend,
+              'data-double-trunk': String(hybridState.handoff.doubleTrunk),
+              'data-organic-pose-progress': organicPlayback.progress.toFixed(4),
+              'data-native-island-progress': nativeLandProgress?.toFixed(4),
+              'data-organic-pose-frames': hybridPoseLayers
+                ?.map((layer) => `${layer.trackId}:${layer.frameIndex}`)
+                .join(',') ?? '',
+              'data-shared-root-plate':
+                `${organicHybridGrowth.worldRoot.x},${organicHybridGrowth.worldRoot.y}`,
+              'data-island-growth-technique': 'opaque-fixed-topology-contour-morph',
+              'data-opaque-contour-phase': opaqueContourGrowthPhase(nativeLandProgress ?? 0),
+              'data-island-opacity-animation': 'none',
+              'data-runtime-pixellab-calls': '0',
+            }
         : {})}
     >
       <svg viewBox={viewBox} aria-label={`Semantic growth: ${frame.key}`}>
