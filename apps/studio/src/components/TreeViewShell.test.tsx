@@ -1699,9 +1699,10 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
       const { next } = controls(lab);
       for (let i = 0; i < 5; i += 1) await act(async () => next.click());
 
-      // exp-16 is authored on a 128px canvas while the other three are 192px, and each mature
-      // footprint differs, so one shared instance scale would render exp-16 at ~65% the apparent
-      // height. Measure what the browser would actually see: the mature footprint's world height.
+      // exp-16 and code-blender are authored on a 128px canvas while the others are 192px, and
+      // each mature footprint differs, so one shared instance scale would render the 128px
+      // tracks at ~65% the apparent height. Measure what the browser would actually see: the
+      // mature footprint's world height.
       const measured: number[] = [];
       for (const candidate of CHAPTER2_ROUND3_TREE_CANDIDATES) {
         await act(async () =>
@@ -1713,13 +1714,13 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
         const track = heroTrackOf(candidate.id);
         expect(hero.getAttribute('data-organic-track')).toBe(track.id);
         const renderedHeight = Number(hero.getAttribute('height'));
-        // Undo the display projection so the four candidates are compared on the same axis.
+        // Undo the display projection so every candidate is compared on the same axis.
         const projection = Number(hero.getAttribute('data-organic-projection'));
         measured.push(
           (renderedHeight / projection) * (track.matureFootprint.height / track.canvas.height),
         );
       }
-      expect(measured).toHaveLength(4);
+      expect(measured).toHaveLength(CHAPTER2_ROUND3_TREE_CANDIDATES.length);
       const reference = measured[0]!;
       expect(reference).toBeGreaterThan(0);
       for (const [index, height] of measured.entries()) {

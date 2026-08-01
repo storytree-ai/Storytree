@@ -1,0 +1,555 @@
+{
+ "track": "blender-hero-v1",
+ "provenance": "code-generated (ADR-0280 D1); headless Blender finish (D2a); model-free",
+ "canvas": {
+  "width": 128,
+  "height": 128,
+  "format": "PNG",
+  "decoded": "RGBA8"
+ },
+ "frameCount": 19,
+ "frameOrder": [
+  "frame-00.png",
+  "frame-01.png",
+  "frame-02.png",
+  "frame-03.png",
+  "frame-04.png",
+  "frame-05.png",
+  "frame-06.png",
+  "frame-07.png",
+  "frame-08.png",
+  "frame-09.png",
+  "frame-10.png",
+  "frame-11.png",
+  "frame-12.png",
+  "frame-13.png",
+  "frame-14.png",
+  "frame-15.png",
+  "frame-16.png",
+  "frame-17.png",
+  "frame-18.png"
+ ],
+ "groundSocketAnchor": {
+  "x": 62.45,
+  "y": 120
+ },
+ "anchorRule": "alpha-weighted x across the bottom three occupied TREE rows; groundY = bottom-most occupied tree row (the contact shadow is excluded from the anchor so it cannot drag the socket down)",
+ "camera_elevation_deg": 20.0,
+ "cameraRule": "orthographic, framed ONCE to the mature extent and byte-identical on every frame; the tree grows inside a fixed frame",
+ "alphaThreshold": 110,
+ "palette": {
+  "source": "exp-16 committed 32-colour track palette",
+  "usable": 31,
+  "method": "nearest in luma-weighted RGB"
+ },
+ "render": {
+  "blender": "5.2.0 LTS",
+  "engine": "CYCLES/CPU",
+  "seed": 20260801,
+  "samples": 72,
+  "shadow_samples": 32,
+  "supersample_res": 384,
+  "ortho_scale": 3.133245,
+  "nodes": 405,
+  "iterations": 27,
+  "lobes": 42
+ },
+ "growth": [
+  {
+   "i": 0,
+   "u": 0.0,
+   "N": 3.815,
+   "live_nodes": 5,
+   "lobes": 0,
+   "trunk_r": 0.01441,
+   "t_root": 0.0357,
+   "cotyledon": 0.955
+  },
+  {
+   "i": 1,
+   "u": 0.146789,
+   "N": 6.8163,
+   "live_nodes": 8,
+   "lobes": 0,
+   "trunk_r": 0.01726,
+   "t_root": 0.0708,
+   "cotyledon": 1.0
+  },
+  {
+   "i": 2,
+   "u": 0.192661,
+   "N": 7.9971,
+   "live_nodes": 12,
+   "lobes": 0,
+   "trunk_r": 0.02382,
+   "t_root": 0.1356,
+   "cotyledon": 1.0
+  },
+  {
+   "i": 3,
+   "u": 0.220183,
+   "N": 8.737,
+   "live_nodes": 18,
+   "lobes": 0,
+   "trunk_r": 0.02907,
+   "t_root": 0.1804,
+   "cotyledon": 0.9509
+  },
+  {
+   "i": 4,
+   "u": 0.256881,
+   "N": 9.7554,
+   "live_nodes": 26,
+   "lobes": 0,
+   "trunk_r": 0.03359,
+   "t_root": 0.2162,
+   "cotyledon": 0.7594
+  },
+  {
+   "i": 5,
+   "u": 0.284404,
+   "N": 10.5408,
+   "live_nodes": 38,
+   "lobes": 0,
+   "trunk_r": 0.0403,
+   "t_root": 0.266,
+   "cotyledon": 0.5569
+  },
+  {
+   "i": 6,
+   "u": 0.330275,
+   "N": 11.8869,
+   "live_nodes": 53,
+   "lobes": 0,
+   "trunk_r": 0.04567,
+   "t_root": 0.3037,
+   "cotyledon": 0.2076
+  },
+  {
+   "i": 7,
+   "u": 0.366972,
+   "N": 12.9941,
+   "live_nodes": 68,
+   "lobes": 1,
+   "trunk_r": 0.0487,
+   "t_root": 0.3242,
+   "cotyledon": 0.0238
+  },
+  {
+   "i": 8,
+   "u": 0.412844,
+   "N": 14.4125,
+   "live_nodes": 102,
+   "lobes": 4,
+   "trunk_r": 0.0553,
+   "t_root": 0.3677,
+   "cotyledon": 0.0
+  },
+  {
+   "i": 9,
+   "u": 0.458716,
+   "N": 15.8662,
+   "live_nodes": 122,
+   "lobes": 4,
+   "trunk_r": 0.06005,
+   "t_root": 0.3979,
+   "cotyledon": 0.0
+  },
+  {
+   "i": 10,
+   "u": 0.495413,
+   "N": 17.0525,
+   "live_nodes": 178,
+   "lobes": 4,
+   "trunk_r": 0.06874,
+   "t_root": 0.4512,
+   "cotyledon": 0.0
+  },
+  {
+   "i": 11,
+   "u": 0.541284,
+   "N": 18.5627,
+   "live_nodes": 210,
+   "lobes": 6,
+   "trunk_r": 0.07372,
+   "t_root": 0.4809,
+   "cotyledon": 0.0
+  },
+  {
+   "i": 12,
+   "u": 0.577982,
+   "N": 19.7915,
+   "live_nodes": 242,
+   "lobes": 8,
+   "trunk_r": 0.07756,
+   "t_root": 0.5033,
+   "cotyledon": 0.0
+  },
+  {
+   "i": 13,
+   "u": 0.623853,
+   "N": 21.3516,
+   "live_nodes": 311,
+   "lobes": 13,
+   "trunk_r": 0.08405,
+   "t_root": 0.5405,
+   "cotyledon": 0.0
+  },
+  {
+   "i": 14,
+   "u": 0.66055,
+   "N": 22.6182,
+   "live_nodes": 341,
+   "lobes": 17,
+   "trunk_r": 0.08778,
+   "t_root": 0.5615,
+   "cotyledon": 0.0
+  },
+  {
+   "i": 15,
+   "u": 0.697248,
+   "N": 23.9003,
+   "live_nodes": 365,
+   "lobes": 22,
+   "trunk_r": 0.09134,
+   "t_root": 0.5813,
+   "cotyledon": 0.0
+  },
+  {
+   "i": 16,
+   "u": 0.733945,
+   "N": 25.1973,
+   "live_nodes": 400,
+   "lobes": 34,
+   "trunk_r": 0.09497,
+   "t_root": 0.6013,
+   "cotyledon": 0.0
+  },
+  {
+   "i": 17,
+   "u": 0.779817,
+   "N": 26.8388,
+   "live_nodes": 405,
+   "lobes": 40,
+   "trunk_r": 0.09903,
+   "t_root": 0.6233,
+   "cotyledon": 0.0
+  },
+  {
+   "i": 18,
+   "u": 1.0,
+   "N": 35.0,
+   "live_nodes": 405,
+   "lobes": 42,
+   "trunk_r": 0.11588,
+   "t_root": 0.7124,
+   "cotyledon": 0.0
+  }
+ ],
+ "frames": [
+  {
+   "file": "frame-00.png",
+   "sourceAnchor": [
+    63.5,
+    117
+   ],
+   "bbox": [
+    58,
+    103,
+    69,
+    117
+   ],
+   "alphaPx": 62,
+   "treePx": 62,
+   "shadowPx": 0
+  },
+  {
+   "file": "frame-01.png",
+   "sourceAnchor": [
+    63.41,
+    117
+   ],
+   "bbox": [
+    56,
+    95,
+    70,
+    117
+   ],
+   "alphaPx": 110,
+   "treePx": 109,
+   "shadowPx": 1
+  },
+  {
+   "file": "frame-02.png",
+   "sourceAnchor": [
+    63.1,
+    117
+   ],
+   "bbox": [
+    55,
+    90,
+    71,
+    117
+   ],
+   "alphaPx": 142,
+   "treePx": 137,
+   "shadowPx": 5
+  },
+  {
+   "file": "frame-03.png",
+   "sourceAnchor": [
+    62.97,
+    118
+   ],
+   "bbox": [
+    54,
+    87,
+    72,
+    118
+   ],
+   "alphaPx": 176,
+   "treePx": 171,
+   "shadowPx": 5
+  },
+  {
+   "file": "frame-04.png",
+   "sourceAnchor": [
+    62.98,
+    118
+   ],
+   "bbox": [
+    54,
+    83,
+    72,
+    118
+   ],
+   "alphaPx": 241,
+   "treePx": 236,
+   "shadowPx": 5
+  },
+  {
+   "file": "frame-05.png",
+   "sourceAnchor": [
+    63.24,
+    118
+   ],
+   "bbox": [
+    54,
+    80,
+    74,
+    118
+   ],
+   "alphaPx": 312,
+   "treePx": 308,
+   "shadowPx": 4
+  },
+  {
+   "file": "frame-06.png",
+   "sourceAnchor": [
+    63.1,
+    118
+   ],
+   "bbox": [
+    53,
+    75,
+    77,
+    118
+   ],
+   "alphaPx": 473,
+   "treePx": 467,
+   "shadowPx": 6
+  },
+  {
+   "file": "frame-07.png",
+   "sourceAnchor": [
+    62.82,
+    118
+   ],
+   "bbox": [
+    50,
+    70,
+    80,
+    118
+   ],
+   "alphaPx": 671,
+   "treePx": 648,
+   "shadowPx": 23
+  },
+  {
+   "file": "frame-08.png",
+   "sourceAnchor": [
+    62.83,
+    118
+   ],
+   "bbox": [
+    46,
+    64,
+    85,
+    118
+   ],
+   "alphaPx": 977,
+   "treePx": 936,
+   "shadowPx": 41
+  },
+  {
+   "file": "frame-09.png",
+   "sourceAnchor": [
+    62.8,
+    118
+   ],
+   "bbox": [
+    41,
+    59,
+    86,
+    118
+   ],
+   "alphaPx": 1276,
+   "treePx": 1213,
+   "shadowPx": 63
+  },
+  {
+   "file": "frame-10.png",
+   "sourceAnchor": [
+    62.69,
+    118
+   ],
+   "bbox": [
+    36,
+    54,
+    90,
+    118
+   ],
+   "alphaPx": 1558,
+   "treePx": 1477,
+   "shadowPx": 81
+  },
+  {
+   "file": "frame-11.png",
+   "sourceAnchor": [
+    62.28,
+    118
+   ],
+   "bbox": [
+    33,
+    48,
+    93,
+    118
+   ],
+   "alphaPx": 2015,
+   "treePx": 1916,
+   "shadowPx": 99
+  },
+  {
+   "file": "frame-12.png",
+   "sourceAnchor": [
+    62.22,
+    119
+   ],
+   "bbox": [
+    33,
+    43,
+    97,
+    119
+   ],
+   "alphaPx": 2358,
+   "treePx": 2236,
+   "shadowPx": 122
+  },
+  {
+   "file": "frame-13.png",
+   "sourceAnchor": [
+    61.7,
+    119
+   ],
+   "bbox": [
+    32,
+    36,
+    99,
+    119
+   ],
+   "alphaPx": 2869,
+   "treePx": 2723,
+   "shadowPx": 146
+  },
+  {
+   "file": "frame-14.png",
+   "sourceAnchor": [
+    61.46,
+    119
+   ],
+   "bbox": [
+    32,
+    32,
+    100,
+    119
+   ],
+   "alphaPx": 3315,
+   "treePx": 3118,
+   "shadowPx": 197
+  },
+  {
+   "file": "frame-15.png",
+   "sourceAnchor": [
+    61.29,
+    119
+   ],
+   "bbox": [
+    28,
+    27,
+    103,
+    119
+   ],
+   "alphaPx": 3725,
+   "treePx": 3499,
+   "shadowPx": 226
+  },
+  {
+   "file": "frame-16.png",
+   "sourceAnchor": [
+    61.37,
+    119
+   ],
+   "bbox": [
+    28,
+    21,
+    105,
+    119
+   ],
+   "alphaPx": 4152,
+   "treePx": 3898,
+   "shadowPx": 254
+  },
+  {
+   "file": "frame-17.png",
+   "sourceAnchor": [
+    61.16,
+    119
+   ],
+   "bbox": [
+    28,
+    17,
+    106,
+    119
+   ],
+   "alphaPx": 4573,
+   "treePx": 4304,
+   "shadowPx": 269
+  },
+  {
+   "file": "frame-18.png",
+   "sourceAnchor": [
+    61.61,
+    120
+   ],
+   "bbox": [
+    27,
+    10,
+    106,
+    120
+   ],
+   "alphaPx": 4919,
+   "treePx": 4662,
+   "shadowPx": 257
+  }
+ ]
+}
