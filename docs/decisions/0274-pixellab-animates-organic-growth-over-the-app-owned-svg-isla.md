@@ -138,6 +138,17 @@ D1 remains unchanged: the rework must retain the existing app-owned SVG island, 
 camera and geometry, with no generated-land substitute. The combined composition remains held and
 the arc stays active pending a corrected whole-composition owner verdict.
 
+### D5 comparison evidence — contour-morph witness (2026-08-01)
+
+The owner reviewed the hosted PR #1053 witness at
+`?organicGrowth=organic-island-contour-morph#/tree` and judged that the island growth was "okay, but
+another experiment yielded better results" and that the plant and tree growth looked "decent".
+
+This records contour morph as acceptable island-formation evidence, but below the current connected
+SVG accretion lead from Experiment 6. The plant/tree result is positive component evidence only. It
+does not adopt either technique, switch the clean route, make a final selection, change D1 or close
+the active arc.
+
 ### D6 — Explicitly rejected
 
 - Generating the island, coast or complete scene as a PixelLab sprite sequence.

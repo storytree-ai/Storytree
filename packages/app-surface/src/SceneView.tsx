@@ -30,6 +30,10 @@ import {
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
+import {
+  contourMorphPhase,
+  morphOrganicIslandContours,
+} from './organic-island-contour-morph.js';
 
 export interface OrganicPoseRenderLayer {
   readonly trackId: string;
@@ -47,6 +51,13 @@ export interface NativeIslandGrowthRenderLayer {
   readonly worldAnchor: { readonly x: number; readonly y: number };
   readonly radius: { readonly x: number; readonly y: number };
   readonly progress: number;
+  readonly technique?: 'radial-expansion' | 'contour-morph';
+}
+
+interface NativeIslandContourRenderState {
+  readonly paths: readonly string[];
+  readonly byMaturePath: ReadonlyMap<string, string>;
+  readonly phase: ReturnType<typeof contourMorphPhase>;
 }
 
 /** The focus-aware context the walk needs — the studio's per-render interactivity
@@ -101,6 +112,8 @@ export interface SceneCtx {
   nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   /** Registered organic pose images planted into the canonical world painter order. */
   organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+  /** INTERNAL: mature coast paths folded to the current contour-morph progress. */
+  nativeIslandContourState?: NativeIslandContourRenderState | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
    *  so a `baked-use` hero (the ADR-0227 status trees, the garden cottage/gazebo) sizes from its real
    *  def geometry. Memoized once per scene in the component below. */
@@ -488,8 +501,27 @@ function nativeIslandClipId(layer: NativeIslandGrowthRenderLayer): string {
   return `organic-pose-native-island-${layer.storyId.replace(/[^a-zA-Z0-9_-]/gu, '-')}`;
 }
 
-function nativeIslandClip(layer: NativeIslandGrowthRenderLayer): React.ReactNode {
+function nativeIslandClip(
+  layer: NativeIslandGrowthRenderLayer,
+  contour: NativeIslandContourRenderState | null | undefined,
+): React.ReactNode {
   const progress = Math.max(0, Math.min(1, layer.progress));
+  const shape = contour
+    ? contour.paths.map((d, index) =>
+        React.createElement('path', {
+          key: `contour-${index}`,
+          d,
+          'data-contour-path-index': String(index),
+          'data-contour-phase': contour.phase,
+        }),
+      )
+    : React.createElement('ellipse', {
+        cx: fmt(layer.worldAnchor.x),
+        cy: fmt(layer.worldAnchor.y),
+        rx: fmt(Math.max(0.01, layer.radius.x * progress)),
+        ry: fmt(Math.max(0.01, layer.radius.y * progress)),
+        'data-native-island-progress': progress.toFixed(4),
+      });
   return React.createElement(
     'defs',
     { key: '__organic-native-island-defs' },
@@ -499,15 +531,19 @@ function nativeIslandClip(layer: NativeIslandGrowthRenderLayer): React.ReactNode
         id: nativeIslandClipId(layer),
         clipPathUnits: 'userSpaceOnUse',
       },
-      React.createElement('ellipse', {
-        cx: fmt(layer.worldAnchor.x),
-        cy: fmt(layer.worldAnchor.y),
-        rx: fmt(Math.max(0.01, layer.radius.x * progress)),
-        ry: fmt(Math.max(0.01, layer.radius.y * progress)),
-        'data-native-island-progress': progress.toFixed(4),
-      }),
+      shape,
     ),
   );
+}
+
+function matureCoastPaths(node: SceneNode, storyId: string): readonly string[] {
+  if (node.el !== 'g') return [];
+  if (node.kind === 'coast' && node.id === storyId) {
+    return node.children.flatMap((child) =>
+      child.el === 'path' && child.kind === 'coast-shore' ? [child.d] : [],
+    );
+  }
+  return node.children.flatMap((child) => matureCoastPaths(child, storyId));
 }
 
 // ---------------------------------------------------------------------------
@@ -783,9 +819,21 @@ function renderNode(
     (node.kind === 'coast' || node.kind === 'ground') &&
     node.id === nativeIsland.storyId
   ) {
-    props.clipPath = `url(#${nativeIslandClipId(nativeIsland)})`;
+    const contour = nativeIsland.technique === 'contour-morph';
+    if (node.kind === 'ground' || !contour) {
+      props.clipPath = `url(#${nativeIslandClipId(nativeIsland)})`;
+    }
     props['data-native-island-story'] = nativeIsland.storyId;
     props['data-native-island-progress'] = nativeIsland.progress.toFixed(4);
+    if (contour) {
+      props['data-contour-phase'] = ctx.nativeIslandContourState?.phase;
+      props['data-seed-anchor-x'] = fmt(nativeIsland.worldAnchor.x);
+      props['data-seed-anchor-y'] = fmt(nativeIsland.worldAnchor.y);
+      props['data-contour-seed-opaque'] = 'true';
+      if (node.kind === 'ground') {
+        props['data-contour-interior-order'] = 'source-painter-order';
+      }
+    }
   }
   // Trail-segment paths (ADR-0169): stamp the reveal hooks into the DOM
   // (data-id/usage/edges/spur) and, when the focus plan names the segment, attach its
@@ -865,7 +913,12 @@ function renderNode(
       props.rx = fmt(node.rx);
       break;
     case 'path':
-      props.d = node.d;
+      props.d =
+        node.kind === 'coast-shore' &&
+        nativeIsland?.technique === 'contour-morph' &&
+        storyId === nativeIsland.storyId
+          ? (ctx.nativeIslandContourState?.byMaturePath.get(node.d) ?? node.d)
+          : node.d;
       break;
     case 'polygon':
       props.points = node.points;
@@ -919,13 +972,21 @@ function renderNode(
     );
   }
   if (node.el === 'g') {
-    const childStory = node.kind === 'territory' ? node.id : storyId;
+    const childStory =
+      node.kind === 'territory' || node.kind === 'coast' || node.kind === 'ground'
+        ? node.id
+        : storyId;
     // At the world root, sink the hit layer to the back so its rects catch clicks without covering
     // the island tiles / plants on top (see hitsLayerToBack).
     const children = node.kind === 'world' ? hitsLayerToBack(node.children) : node.children;
     const rendered: React.ReactNode[] = [];
     if (node.kind === 'world' && ctx.nativeIslandGrowthLayer) {
-      rendered.push(nativeIslandClip(ctx.nativeIslandGrowthLayer));
+      rendered.push(
+        nativeIslandClip(
+          ctx.nativeIslandGrowthLayer,
+          ctx.nativeIslandContourState,
+        ),
+      );
     }
     children.forEach((c, i) => {
       const el = renderNode(c, i, childStory, ctx);
@@ -996,7 +1057,29 @@ export const SceneView = React.memo(function SceneView({
     () => (ctx.spriteSheet ? collectDefBounds(scene) : null),
     [scene, ctx.spriteSheet],
   );
-  const walkCtx = defBounds ? { ...ctx, defBounds } : ctx;
+  const contourState = React.useMemo<NativeIslandContourRenderState | null>(() => {
+    const layer = ctx.nativeIslandGrowthLayer;
+    if (layer?.technique !== 'contour-morph') return null;
+    const maturePaths = matureCoastPaths(scene, layer.storyId);
+    if (maturePaths.length === 0) {
+      throw new Error(`Contour morph requires the existing SVG coast for "${layer.storyId}".`);
+    }
+    const paths = morphOrganicIslandContours(
+      maturePaths,
+      layer.worldAnchor,
+      layer.progress,
+    );
+    return {
+      paths,
+      byMaturePath: new Map(maturePaths.map((path, index) => [path, paths[index]!])),
+      phase: contourMorphPhase(layer.progress),
+    };
+  }, [scene, ctx.nativeIslandGrowthLayer]);
+  const walkCtx: SceneCtx = {
+    ...ctx,
+    ...(defBounds ? { defBounds } : {}),
+    ...(contourState ? { nativeIslandContourState: contourState } : {}),
+  };
   // The scene root (the `world` group) always renders — only the hit layer is skipped.
   return renderNode(scene, 'scene', undefined, walkCtx) ?? <g />;
 });

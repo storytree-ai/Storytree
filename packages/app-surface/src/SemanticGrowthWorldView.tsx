@@ -20,8 +20,10 @@ import {
   selectOrganicPoseCue,
   validateOrganicPoseRegistry,
   type OrganicPosePoint,
+  type OrganicPosePlaybackState,
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
+import { contourMorphPhase } from './organic-island-contour-morph.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -58,6 +60,9 @@ export interface SemanticGrowthOrganicPoseLayer {
     readonly worldAnchor: OrganicPosePoint;
     readonly radius: OrganicPosePoint;
     readonly settledAtProgress: number;
+    readonly technique?: 'radial-expansion' | 'contour-morph';
+    /** App-owned pacing for the seed-to-land cue only; later pose cues keep the registry policy. */
+    readonly growthDurationMultiplier?: number;
   };
   readonly clock?: SemanticGrowthAnimationClock;
 }
@@ -222,10 +227,37 @@ function validateOrganicPoseLayer(
     island.radius.y <= 0 ||
     !Number.isFinite(island.settledAtProgress) ||
     island.settledAtProgress <= 0 ||
-    island.settledAtProgress > 1
+    island.settledAtProgress > 1 ||
+    (island.growthDurationMultiplier !== undefined &&
+      (!Number.isFinite(island.growthDurationMultiplier) ||
+        island.growthDurationMultiplier <= 0)) ||
+    (island.technique !== undefined &&
+      island.technique !== 'radial-expansion' &&
+      island.technique !== 'contour-morph')
   ) {
     throw new Error('Organic pose native island reveal must use finite app-owned geometry.');
   }
+}
+
+function selectOrganicGrowthCue(
+  layer: SemanticGrowthOrganicPoseLayer,
+  state: OrganicPosePlaybackState,
+  cueIndex: number,
+  reducedMotion: boolean,
+): OrganicPosePlaybackState {
+  const selected = selectOrganicPoseCue(state, cueIndex, reducedMotion);
+  const multiplier = layer.nativeIsland.growthDurationMultiplier ?? 1;
+  const growsFromSeedToLand =
+    selected.cueIndex === 1 &&
+    selected.fromProgress === 0 &&
+    selected.targetProgress === layer.nativeIsland.settledAtProgress;
+  if (!growsFromSeedToLand || selected.transitionMs === 0 || multiplier === 1) {
+    return selected;
+  }
+  return {
+    ...selected,
+    transitionMs: selected.transitionMs * multiplier,
+  };
 }
 
 export function SemanticGrowthWorldView({
@@ -295,6 +327,9 @@ export function SemanticGrowthWorldView({
           worldAnchor: organicPoseGrowth.nativeIsland.worldAnchor,
           radius: organicPoseGrowth.nativeIsland.radius,
           progress: nativeLandProgress,
+          ...(organicPoseGrowth.nativeIsland.technique
+            ? { technique: organicPoseGrowth.nativeIsland.technique }
+            : {}),
         },
         organicPoseLayers: organicLayers,
       };
@@ -310,7 +345,9 @@ export function SemanticGrowthWorldView({
 
   React.useEffect(() => {
     if (!organicPoseGrowth || !reduce) return;
-    setOrganicPlayback((current) => selectOrganicPoseCue(current, cursor, true));
+    setOrganicPlayback((current) =>
+      selectOrganicGrowthCue(organicPoseGrowth, current, cursor, true),
+    );
   }, [cursor, organicPoseGrowth, reduce]);
 
   React.useEffect(() => {
@@ -346,7 +383,7 @@ export function SemanticGrowthWorldView({
       setOrganicPlayback((current) =>
         replay
           ? replayOrganicPosePlayback(current)
-          : selectOrganicPoseCue(current, bounded, reduce),
+          : selectOrganicGrowthCue(organicPoseGrowth, current, bounded, reduce),
       );
     }
     callback?.(frames[bounded]!.key);
@@ -359,10 +396,27 @@ export function SemanticGrowthWorldView({
       {...(organicPoseGrowth
         ? {
             'data-organic-technique': 'pose-to-pose',
+            'data-island-growth-technique':
+              organicPoseGrowth.nativeIsland.technique ?? 'radial-expansion',
             'data-organic-pose-progress': organicPlayback.progress.toFixed(4),
+            'data-organic-transition-ms': organicPlayback.transitionMs,
             'data-native-island-progress': nativeLandProgress?.toFixed(4),
+            ...(organicPoseGrowth.nativeIsland.growthDurationMultiplier !== undefined
+              ? {
+                  'data-native-island-growth-duration-multiplier':
+                    organicPoseGrowth.nativeIsland.growthDurationMultiplier,
+                }
+              : {}),
             'data-organic-pose-frames':
               organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
+            ...(organicPoseGrowth.nativeIsland.technique === 'contour-morph'
+              ? {
+                  'data-contour-phase': contourMorphPhase(nativeLandProgress ?? 0),
+                  'data-contour-path-interpolation': 'quadratic-fixed-topology',
+                  'data-contour-topology-change': 'none',
+                  'data-coast-settle': 'final-16-percent',
+                }
+              : {}),
           }
         : {})}
     >

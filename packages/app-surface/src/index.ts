@@ -87,3 +87,13 @@ export {
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
 export { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
+export {
+  contourMorphPhase,
+  morphOrganicIslandContour,
+  morphOrganicIslandContours,
+  parseClosedQuadraticContour,
+  type ClosedQuadraticContour,
+  type ContourMorphPhase,
+  type ContourPoint,
+  type QuadraticContourSegment,
+} from './organic-island-contour-morph.js';
