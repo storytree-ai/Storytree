@@ -7,10 +7,14 @@
  * rule are exercised everywhere.
  */
 import { strict as assert } from "node:assert";
+import * as fs from "node:fs";
+import * as os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import test from "node:test";
 
 import {
+  builtinRealpath,
   canonicalisePath,
   classifyTarget,
   containsPath,
@@ -340,4 +344,141 @@ test("resolveTargets + evaluateWriteAuthority refuse a junction escape out of a 
   const got = evaluateWriteAuthority({ targets, claimsBySession: CLAIMED });
   assert.equal(got.decision, "refuse");
   assert.match(got.reason, /read-only agent lobby/);
+});
+
+// ---------------------------------------------------------------------------
+// builtinRealpath — the DEFAULT resolver, driven against a REAL filesystem
+//
+// Every test above injects a `RealpathFn` fake. That is what makes the decision provable offline and
+// identically on both platforms — and it is also why `builtinRealpath`, the resolver the PreToolUse
+// boundary actually calls, was reachable by no test at all
+// (`asset:a-mocked-seam-leaves-its-default-implementation-unproven`). The fakes above are sound and
+// STAY; this section ADDS the missing half. It matters more here than in the usual instance: this
+// module's header names junction/symlink escape as a trap it encodes, and every arm of that trap is
+// decided by `realpath` — so the fixtures prove the policy reacts correctly when a fake SAYS a
+// junction resolved somewhere, and prove nothing about whether the real resolver follows one.
+//
+// The escape vector is therefore created for real. `fs.symlinkSync(target, link, "junction")` needs
+// no elevation on Windows (it makes a directory junction, the native form of this attack) and the
+// `type` argument is ignored on POSIX, so the one call exercises the true vector on every platform.
+// ---------------------------------------------------------------------------
+
+/**
+ * Run `fn` against a real, canonicalised temp directory.
+ *
+ * The root is resolved BEFORE use because `os.tmpdir()` is itself commonly reached through a link or
+ * a differently-cased path — macOS `/var` → `/private/var`, Windows `AppData\Local\Temp` — so
+ * expectations built from the raw `mkdtempSync` return would fail for a reason that has nothing to
+ * do with the code under test.
+ */
+function withRealTmp(fn: (root: string) => void): void {
+  const raw = fs.mkdtempSync(path.join(os.tmpdir(), "storytree-write-authority-"));
+  try {
+    fn(fs.realpathSync.native(raw));
+  } finally {
+    fs.rmSync(raw, { recursive: true, force: true });
+  }
+}
+
+test("builtinRealpath resolves a real directory to itself", () => {
+  withRealTmp((root) => {
+    const dir = path.join(root, "wt");
+    fs.mkdirSync(dir);
+    assert.equal(builtinRealpath(dir), dir);
+  });
+});
+
+test("builtinRealpath returns null for a path that does not exist — the file-CREATE precondition", () => {
+  // The ancestor walk in `canonicalisePath` is built entirely on this being null rather than throwing.
+  withRealTmp((root) => {
+    assert.equal(builtinRealpath(path.join(root, "nope", "deeper.ts")), null);
+  });
+});
+
+test("builtinRealpath returns null when the path runs THROUGH a file (ENOTDIR)", () => {
+  // A second, distinct throw from the one above: the catch arm has to swallow both.
+  withRealTmp((root) => {
+    const file = path.join(root, "a-file.ts");
+    fs.writeFileSync(file, "x");
+    assert.equal(builtinRealpath(path.join(file, "nested.ts")), null);
+  });
+});
+
+test("builtinRealpath follows a REAL junction out of one directory into another", () => {
+  withRealTmp((root) => {
+    const primary = path.join(root, "primary");
+    const wt = path.join(root, "wt");
+    fs.mkdirSync(primary);
+    fs.mkdirSync(wt);
+    const link = path.join(wt, "escape");
+    fs.symlinkSync(primary, link, "junction");
+    // The whole reason the boundary canonicalises rather than prefix-matching: the link's own path
+    // is under `wt`, and it IS `primary`.
+    assert.equal(builtinRealpath(link), primary);
+  });
+});
+
+test("builtinRealpath reports the volume's true on-disk casing", () => {
+  withRealTmp((root) => {
+    const dir = path.join(root, "MixedCase");
+    fs.mkdirSync(dir);
+    const miscased = path.join(root, "mixedcase");
+    // Probe the VOLUME rather than branching on `process.platform`: a case-insensitive volume must
+    // hand back the TRUE casing (the stated reason production uses `.native`), a case-sensitive one
+    // must report the mis-cased path as non-existent. Both are real assertions, on every platform,
+    // so neither arm is skipped anywhere.
+    let caseInsensitive: boolean;
+    try {
+      fs.statSync(miscased);
+      caseInsensitive = true;
+    } catch {
+      caseInsensitive = false;
+    }
+    assert.equal(builtinRealpath(miscased), caseInsensitive ? dir : null);
+  });
+});
+
+test("canonicalisePath walks to the nearest REAL ancestor for a create — default resolver, no fake", () => {
+  withRealTmp((root) => {
+    const wt = path.join(root, "wt");
+    fs.mkdirSync(wt);
+    const target = path.join(wt, "src", "brand-new.ts");
+    // No third argument: this is the production path, `builtinRealpath` included.
+    assert.deepEqual(canonicalisePath(target, wt), { ok: true, path: target });
+  });
+});
+
+test("canonicalisePath resolves a REAL junction escape out of the worktree — default resolver", () => {
+  withRealTmp((root) => {
+    const primary = path.join(root, "primary");
+    const wt = path.join(root, "wt");
+    fs.mkdirSync(primary);
+    fs.mkdirSync(wt);
+    fs.symlinkSync(primary, path.join(wt, "escape"), "junction");
+    const got = canonicalisePath(path.join("escape", "CLAUDE.md"), wt);
+    // Written as a path under the worktree; it IS a write into the primary checkout.
+    assert.deepEqual(got, { ok: true, path: path.join(primary, "CLAUDE.md") });
+  });
+});
+
+test("a REAL junction escape out of a claimed worktree is REFUSED end to end", () => {
+  // The security property itself, against a real substrate: every layer on the production path, with
+  // the worktree nested under the primary root exactly as `.claude/worktrees/<name>` really is.
+  withRealTmp((root) => {
+    const primary = path.join(root, "primary");
+    const wt = path.join(primary, ".claude", "worktrees", "alpha-1a2b3c");
+    fs.mkdirSync(wt, { recursive: true });
+    fs.symlinkSync(primary, path.join(wt, "escape"), "junction");
+
+    const topo: RepoTopology = {
+      primaryRoot: primary,
+      mintedWorktrees: [{ sessionId: "alpha-1a2b3c", root: wt, branch: "claude/alpha-1a2b3c" }],
+      caseInsensitive: platformCaseInsensitive(process.platform),
+    };
+    // No `realpath` argument: `resolveTargets` falls through to `builtinRealpath`.
+    const targets = resolveTargets([path.join("escape", "CLAUDE.md")], wt, topo);
+    const got = evaluateWriteAuthority({ targets, claimsBySession: CLAIMED });
+    assert.equal(got.decision, "refuse");
+    assert.match(got.reason, /read-only agent lobby/);
+  });
 });

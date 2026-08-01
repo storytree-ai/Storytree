@@ -183,6 +183,11 @@ export const CHARTERED_INSTRUMENTS: readonly string[] = [
   "mirror-pair-drift",
   "vacuous-proof",
   "warn-list-hygiene",
+  // The FIFTH, chartered by ADR-0278 (which amends ADR-0252 D1's four). ADR-0252's own 2026-08-01
+  // correction anticipated exactly this: it scoped rather than removed the `NOT swept:` reporting
+  // because "a fifth instrument would make it reachable again". The denominator is read from THIS
+  // list, so adding a member is the whole change — no prose anywhere states the number.
+  "unproven-seam-default",
 ];
 
 // ---------------------------------------------------------------------------
@@ -796,6 +801,219 @@ export function findWarnListHygiene(checks: readonly GateCheckFacts[]): DecayFin
         `(${shape.witnesses.join("; ")}), and no source implementing it sets a non-zero exit code — ` +
         "so no size that list reaches fails anything",
     });
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
+// Seam-default facts (the unproven-seam-default facts, ADR-0278)
+// ---------------------------------------------------------------------------
+
+/**
+ * One source file's SEAM DEFAULTS — the symbols wired as the fallback used when no fake is injected.
+ *
+ * Keyed on the WIRING and never on the name. The repo's `default*` / `builtin*` convention is only a
+ * convention: it both over-includes (`defaultScript` is a data constant) and under-includes (nothing
+ * obliges a seam default to be named at all), so a name-keyed aperture would measure the convention
+ * rather than the hazard. What identifies a seam default is its POSITION — the value a call falls
+ * through to when the caller injects nothing.
+ */
+export interface SeamDefaultFacts {
+  /** Repo-relative path of the file declaring them — where the repair is made. */
+  path: string;
+  /**
+   * Fallback symbol → the local symbols it wires, when the default is an object literal seam
+   * (`{ statMtimeMs: defaultStatMtimeMs, … }`). EMPTY for a plain function default. The arms are
+   * carried so the finding can name what a drain has to reach; they are never counted separately,
+   * because covering the object is what covers them.
+   */
+  defaults: ReadonlyMap<string, readonly string[]>;
+}
+
+export const UNPROVEN_SEAM_DEFAULT = "unproven-seam-default";
+
+/**
+ * THE APERTURE (ADR-0278 D4 leaves this to the build, as ADR-0252's "Not decided here" assigns it).
+ *
+ * A seam default is recognised by its WIRING POSITION — the value a call falls through to when the
+ * caller injects nothing — never by its name. Two forms carry that meaning in this repo, and both are
+ * matched:
+ *
+ *   `const io = deps.io ?? defaultWorktreeIo;`        the nullish fallback (worktree.ts, branch.ts)
+ *   `realpath: RealpathFn = builtinRealpath,`         the parameter default (write-authority.ts)
+ *
+ * DELIBERATELY EXCLUDED: the `default*` / `builtin*` NAMING convention. It both over-includes
+ * (`defaultScript` is a data constant, `defaultSecretsFile` is path arithmetic) and under-includes —
+ * nothing obliges a seam default to be named at all — so it would measure the convention rather than
+ * the hazard. A hand-run name-keyed probe on 2026-08-01 was wrong about `defaultWorktreeIo` and
+ * `builtinRealpath`, both of which ARE covered.
+ */
+const NULLISH_FALLBACK = /\?\?\s*([A-Za-z_$][\w$]*)/g;
+const PARAM_DEFAULT = /^\s*[A-Za-z_$][\w$]*\s*:\s*[^=;()]+?\s*=\s*([A-Za-z_$][\w$]*)\s*,?$/gm;
+const FUNCTION_DECL = /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm;
+const CONST_DECL = /^(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::\s*[^=]+?)?\s*=\s*/gm;
+
+/**
+ * The local symbols that are IMPLEMENTATIONS — callable, or an object literal of callables.
+ *
+ * THIS IS THE APERTURE'S PRECISION, and it was earned rather than assumed. The first sweep filtered
+ * only on "declared locally in this file", and located 46 — but a third of those were scalar DEFAULT
+ * VALUES, not seam implementations: `maxTurns = DEFAULT_MAX_TURNS`, `actor = DEFAULT_ACTOR`,
+ * `tolerance = DEFAULT_TOLERANCE`, `names = SURNAMES`. Those share the syntactic position and none of
+ * the hazard — a number has no unproven behaviour, and "no test names the constant 16" is not a
+ * verification gap. The rule that separates them is the one the ADR states: a seam default is the
+ * value a CALL falls through to, so it has to be callable, or a surface of callables.
+ *
+ * Computed in two passes because the object case depends on the callable case: an object literal is a
+ * seam only when at least one of its members is itself an implementation (`{ statMtimeMs:
+ * defaultStatMtimeMs, … }`) or an inline function. An empty or all-scalar object (`EMPTY_KEYS = {}`)
+ * is data.
+ */
+function localImplementations(source: string): Set<string> {
+  const callables = new Set<string>();
+  for (const m of source.matchAll(FUNCTION_DECL)) if (m[1] !== undefined) callables.add(m[1]);
+
+  const objectBodies = new Map<string, string>();
+  for (const m of source.matchAll(CONST_DECL)) {
+    const name = m[1];
+    if (name === undefined || m.index === undefined) continue;
+    const start = m.index + m[0].length;
+    // A short window is enough to CLASSIFY the right-hand side; it is NOT enough to read an object
+    // seam's members, so the object arm re-slices to the literal's real `\n};` terminator below.
+    // Capping it at a fixed width silently dropped `defaultWorktreeIo` and `defaultWorktreeCreateIo`
+    // — the two instances ADR-0278 names as canonical — because their members sit past it. An
+    // under-report is the dangerous direction for this instrument: it prints a smaller, greener
+    // number over a sweep that looked at less.
+    const head = source.slice(start, start + 400);
+    if (/^(?:async\s+)?function\b/.test(head) || (head.split(";")[0] ?? "").includes("=>")) {
+      callables.add(name);
+    } else if (head.startsWith("{")) {
+      const end = source.indexOf("\n};", start);
+      objectBodies.set(name, end === -1 ? head : source.slice(start, end));
+    }
+  }
+
+  for (const [name, body] of objectBodies) {
+    const wiresCallable = [...body.matchAll(/[A-Za-z_$][\w$]*\s*:\s*([A-Za-z_$][\w$]*)\s*[,\n]/g)].some(
+      (m) => m[1] !== undefined && callables.has(m[1]),
+    );
+    if (wiresCallable || body.includes("=>")) callables.add(name);
+  }
+  return callables;
+}
+
+/**
+ * The local implementations an object-literal seam wires (`{ statMtimeMs: defaultStatMtimeMs, … }`).
+ *
+ * Carried so a finding can NAME the arms a drain has to reach — `defaultRemoveDir`'s `win32` branch
+ * is the thin instance where a default that acquired one test would still leave an arm unexercised.
+ * The arms are never counted separately: covering the object is what covers them, and counting both
+ * would inflate the backlog against its own ceiling.
+ */
+function objectArms(source: string, symbol: string, impls: ReadonlySet<string>): string[] {
+  const decl = new RegExp(`\\bconst\\s+${symbol}\\b[^=]*=\\s*\\{`, "m").exec(source);
+  if (decl === null) return [];
+  const start = decl.index + decl[0].length;
+  const end = source.indexOf("\n};", start);
+  if (end === -1) return [];
+  const arms = new Set<string>();
+  for (const m of source.slice(start, end).matchAll(/[A-Za-z_$][\w$]*\s*:\s*([A-Za-z_$][\w$]*)\s*[,\n]/g)) {
+    const value = m[1];
+    if (value !== undefined && impls.has(value)) arms.add(value);
+  }
+  return [...arms].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * The identifiers a test file actually USES — its code with comments and string literals removed.
+ *
+ * THE ORACLE POISONS ITSELF WITHOUT THIS, and it was measured rather than feared. This instrument's
+ * own tests name `builtinRunGit`, `defaultWorktreeCreateIo` and `defaultRemoveDir` — in a prose
+ * comment and in a fixture STRING respectively — and a raw identifier scan over test files promptly
+ * read all three as covered and went silent on three genuine findings. Documenting a finding must not
+ * discharge it. The general form is worse than the self-inflicted case: any test whose comment
+ * mentions a seam default would silently clear it, so the instrument would decay exactly where
+ * someone was careful enough to explain themselves.
+ *
+ * COMMENTS ARE STRIPPED BEFORE STRINGS, deliberately. The reverse order is tempting (it keeps a `//`
+ * inside a URL literal from truncating a line) but it lets a prose apostrophe — `don't` — open a
+ * "string" that swallows real code up to the next one. Over-stripping produces FALSE POSITIVES, which
+ * are noisy but safe; under-stripping produces silence, which is the failure this whole arc fences.
+ * The residual cost is small and named: an identifier sitting after a `//` inside a string literal on
+ * the same line is dropped.
+ *
+ * Still BLIND, unchanged, to a test that genuinely imports a symbol and never drives it — that one
+ * reads as covered, and only the adversarial pass can tell the difference.
+ */
+export function codeIdentifiers(source: string): string[] {
+  const code = source
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n]*/g, " ")
+    .replace(/`(?:\\.|[^`\\])*`/g, " ")
+    .replace(/"(?:\\.|[^"\\\n])*"/g, " ")
+    .replace(/'(?:\\.|[^'\\\n])*'/g, " ");
+  return [...code.matchAll(/[A-Za-z_$][\w$]*/g)].map((m) => m[0]);
+}
+
+/** One file's seam defaults, or an empty map when it wires none. */
+export function extractSeamDefaults(source: string): Map<string, readonly string[]> {
+  const impls = localImplementations(source);
+
+  const symbols = new Set<string>();
+  for (const pattern of [NULLISH_FALLBACK, PARAM_DEFAULT]) {
+    for (const m of source.matchAll(pattern)) {
+      const symbol = m[1];
+      // Declared HERE and an implementation: `?? []`, `?? someImport`, and `= DEFAULT_MAX_TURNS` are
+      // all in the fallback position and none of them is a seam this repo leaves unproven.
+      if (symbol !== undefined && impls.has(symbol)) symbols.add(symbol);
+    }
+  }
+
+  const out = new Map<string, readonly string[]>();
+  for (const symbol of [...symbols].sort((a, b) => a.localeCompare(b))) {
+    out.set(symbol, objectArms(source, symbol, impls));
+  }
+  return out;
+}
+
+/**
+ * Locate injected IO seams whose DEFAULT implementation is exercised by no test (ADR-0278).
+ *
+ * The shape, and why nothing else here sees it: injecting a seam makes the policy provable offline
+ * with fixtures and, in the same move, exempts the default — the code the binary actually calls —
+ * from every test that injects a fake. The suite gets GREENER the more thoroughly the seam is mocked.
+ * `vacuous-proof` is the near neighbour and is structurally blind: it keys on a test that declines to
+ * RUN, and here every test runs and every assertion is true, about a fake.
+ *
+ * AN OBSERVATION, NOT A VERDICT, in the house style of the other four. It states that a fallback
+ * symbol appears in no test file. It does NOT say the default is wrong, and it does NOT say the seam
+ * should not exist — some located defaults are pure path arithmetic that a real-substrate test would
+ * not improve. Which of those is true is the adversarial pass's question, not this one's.
+ */
+export function findUnprovenSeamDefault(
+  files: readonly SeamDefaultFacts[],
+  testedSymbols: ReadonlySet<string>,
+): DecayFinding[] {
+  const findings: DecayFinding[] = [];
+  // Sorted so the report — and the ceiling's view of the backlog — is stable run to run.
+  for (const file of [...files].sort((a, b) => a.path.localeCompare(b.path))) {
+    for (const symbol of [...file.defaults.keys()].sort((a, b) => a.localeCompare(b))) {
+      if (testedSymbols.has(symbol)) continue;
+      const arms = (file.defaults.get(symbol) ?? []).filter((arm) => !testedSymbols.has(arm));
+      const armNote =
+        arms.length === 0 ? "" : `, wiring ${arms.length} equally untested arm(s): ${arms.join(", ")}`;
+      findings.push({
+        instrument: UNPROVEN_SEAM_DEFAULT,
+        // Per SYMBOL, not per file: a file may carry more than one seam, and the id must stay stable
+        // across runs because the ceiling counts these.
+        id: `${UNPROVEN_SEAM_DEFAULT}:${file.path}:${symbol}`,
+        where: file.path,
+        detail:
+          `\`${symbol}\` is wired as the fallback used when no fake is injected, and its name appears ` +
+          `in no test file in the repository${armNote} — so every test of this seam is evidence about ` +
+          "the fakes, and the implementation that runs in production is reached by nothing",
+      });
+    }
   }
   return findings;
 }
