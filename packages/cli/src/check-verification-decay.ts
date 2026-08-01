@@ -14,9 +14,11 @@
  *
  * NOT DONE HERE, so nobody reads this as complete:
  *
- * - ADR-0252 names FOUR cheap instruments and **all four now sweep** — the registry below is the seam
- *   that made each a row rather than a redesign. Chartered coverage is REPORTED on every run rather
- *   than asserted here, so this comment can never be the thing that goes stale about it.
+ * - ADR-0252 chartered FOUR cheap instruments and ADR-0278 added a FIFTH (`unproven-seam-default`);
+ *   all five sweep — the registry below is the seam that made each a row rather than a redesign.
+ *   Chartered coverage is REPORTED on every run from `CHARTERED_INSTRUMENTS`, so the DENOMINATOR can
+ *   never go stale; the prose naming a count still can, and did — this bullet said "FOUR … all four"
+ *   until 2026-08-01. Read the run, not this line.
  * - ADR-0252 D1's **warn-escalation backstop** EXISTS, with exactly ONE line declared: an instrument
  *   that FAILED TO RUN (the sweep went blind). It reds the gate independently of the ceiling and
  *   demands the fresh-session adversarial pass. The two DEFERRAL-KEYED lines — a signal's AGE, and a
@@ -65,11 +67,15 @@ import { registeredMirrorRoutes } from "./mirror-conformance.js";
 import {
   CONTRACT_BINDING_DRIFT,
   MIRROR_PAIR_DRIFT,
+  UNPROVEN_SEAM_DEFAULT,
   VACUOUS_PROOF,
   WARN_LIST_HYGIENE,
+  codeIdentifiers,
+  extractSeamDefaults,
   findContractBindingDrift,
   findMirrorPairDrift,
   findOptionsFormSkips,
+  findUnprovenSeamDefault,
   findVacuousProof,
   findWarnListHygiene,
   formatDecaySweep,
@@ -80,6 +86,7 @@ import {
   type GateCheckFacts,
   type GateCheckSource,
   type ProofBinding,
+  type SeamDefaultFacts,
   type SurfaceRoutes,
   type TestFileFacts,
   type WorkspaceFacts,
@@ -221,6 +228,31 @@ const CEILINGS = {
    * chartered instruments to reach it.
    */
   [WARN_LIST_HYGIENE]: 0,
+  /**
+   * Baselined 2026-08-01 (ADR-0278) at the 24 seam defaults this instrument's FIRST REAL SWEEP
+   * located — an honest baseline, so it ships GREEN and any subsequent growth reds the gate.
+   *
+   * THE APERTURE THIS NUMBER IS MEASURED THROUGH is `extractSeamDefaults` below: a fallback in one of
+   * two wiring positions whose symbol is a local IMPLEMENTATION (callable, or an object of
+   * callables). Two earlier apertures were measured and rejected on the way here, and both are worth
+   * recording because each would have produced a WORSE number in a different direction:
+   *
+   * - Filtering only on "declared in this file" located 46, but a third of those were scalar default
+   *   VALUES — `DEFAULT_MAX_TURNS`, `DEFAULT_ACTOR`, `SURNAMES`. A number has no unproven behaviour;
+   *   counting it would have inflated the baseline with items no drain could ever discharge.
+   * - Classifying an object seam from a fixed 400-char window silently dropped `defaultWorktreeIo`
+   *   and `defaultWorktreeCreateIo` — the two instances ADR-0278 names as canonical — because their
+   *   members sit past it. That is the DANGEROUS direction: a smaller, greener number over a sweep
+   *   that looked at less.
+   *
+   * THE BASELINE IS NET OF ONE DRAIN, taken in the same landing rather than counted then repaired:
+   * `builtinRealpath` (`packages/drive/src/write-authority.ts`) was covered against a real filesystem
+   * before this ceiling was measured, and the instrument correctly no longer locates it. It also does
+   * not locate `defaultWorktreeIo`, which `worktree-idle-signal.test.ts` genuinely drives — that pair
+   * is this instrument's own validation, and it is the reason the number is trusted: a hand-run
+   * name-keyed probe the same day reported BOTH as uncovered and was wrong about both.
+   */
+  [UNPROVEN_SEAM_DEFAULT]: 24,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -528,6 +560,64 @@ function loadTestFileFacts(root: string): TestFileFacts[] {
 }
 
 // ---------------------------------------------------------------------------
+// Seam-default facts (the unproven-seam-default facts, ADR-0278)
+// ---------------------------------------------------------------------------
+
+
+/**
+ * Every seam default declared under the scanned roots.
+ *
+ * THROWS rather than returning an empty list, for the reason `loadSurfaceRoutes` and
+ * `loadTestFileFacts` do: no seam defaults found yields no findings, so a broken enumeration would
+ * report a perfectly clean sweep. {@link runDecaySweep} turns the throw into an ESCALATION (the sweep
+ * went blind), which is the honest answer and the one no ceiling can clear.
+ */
+function loadSeamDefaultFacts(root: string): SeamDefaultFacts[] {
+  const facts: SeamDefaultFacts[] = [];
+  let scanned = 0;
+  for (const dir of TEST_ROOT_DIRS) {
+    const abs = path.join(root, dir);
+    if (!existsSync(abs)) continue;
+    for (const file of walkSourceFiles(abs)) {
+      scanned++;
+      const defaults = extractSeamDefaults(readFileSync(file, "utf8"));
+      if (defaults.size === 0) continue;
+      facts.push({ path: path.relative(root, file).replace(/\\/g, "/"), defaults });
+    }
+  }
+  requireObserved(scanned, `no source files found under ${TEST_ROOT_DIRS.join(", ")}`);
+  requireObserved(facts.length, `no injected seam defaults found across ${scanned} source file(s)`);
+  return facts;
+}
+
+/**
+ * Every identifier appearing in any test file — the "which tests exercise the default?" oracle the
+ * principle prescribes (`asset:a-mocked-seam-leaves-its-default-implementation-unproven`: search the
+ * default's SYMBOL name across test files; zero hits is the finding).
+ *
+ * Repo-wide rather than per-package on purpose: a default may legitimately be driven from a sibling
+ * package's suite, and scoping the search to its own package would manufacture findings.
+ *
+ * Comments and string literals are excluded by {@link codeIdentifiers} — a symbol NAMED in prose is
+ * not a test exercising it, and counting one lets documenting a finding discharge it.
+ */
+function loadTestedSymbols(root: string): Set<string> {
+  const symbols = new Set<string>();
+  let scanned = 0;
+  for (const dir of TEST_ROOT_DIRS) {
+    for (const file of walkTestFiles(path.join(root, dir))) {
+      scanned++;
+      for (const name of codeIdentifiers(readFileSync(file, "utf8"))) symbols.add(name);
+    }
+  }
+  // An empty symbol table would mark EVERY default uncovered — a spectacular false sweep, not a clean
+  // one. This is the blind-instrument condition, and it escalates rather than reporting a backlog.
+  requireObserved(scanned, `no test files found under ${TEST_ROOT_DIRS.join(", ")}`);
+  requireObserved(symbols.size, `no identifiers read from ${scanned} test file(s)`);
+  return symbols;
+}
+
+// ---------------------------------------------------------------------------
 // Gate-check facts (the warn-list-hygiene facts)
 // ---------------------------------------------------------------------------
 
@@ -684,6 +774,30 @@ function main(): void {
         "away or in another package; a check mixing a BLOCKING rule with an advisory worklist (it " +
         "reads as bounded because the exit path exists); and gate steps that are not `check:*` scripts.",
       run: () => findWarnListHygiene(loadGateChecks(repoRoot)),
+    },
+    {
+      name: UNPROVEN_SEAM_DEFAULT,
+      ceiling: CEILINGS[UNPROVEN_SEAM_DEFAULT],
+      locates:
+        "an injected IO seam whose DEFAULT implementation — the value a call falls through to when " +
+        "nothing is injected — appears in no test file, so every test of that seam is evidence about " +
+        "the fakes and the code the binary runs is reached by nothing. The suite gets GREENER the more " +
+        "thoroughly the seam is mocked, which is why nothing else here sees it: `vacuous-proof` keys on " +
+        "a test that declines to RUN, and here every test runs and asserts truthfully, about a fake " +
+        "(ADR-0278). FALSE POSITIVE: a located default may be pure path arithmetic (`defaultSecretsFile`) " +
+        "or trivial delegation that a real-substrate test would not improve — locating is never `this is " +
+        "broken', only `no test reaches this'; and a default driven THROUGH its public API with the " +
+        "fallback taken implicitly (`canonicalisePath(t, cwd)` with no third argument) reads as " +
+        "uncovered unless some test also names the symbol. BLIND TO: the converse — a test that IMPORTS " +
+        "the symbol without driving it reads as covered, which is the shape this instrument cannot " +
+        "distinguish and the adversarial pass must; an unrelated identifier COLLISION anywhere in the " +
+        "suite (a fixture key or local variable that happens to share a seam default's name) silences " +
+        "that finding, which is why tests near a scanned symbol use synthetic fixture names — comments " +
+        "and string literals are already excluded, but live code cannot be; a seam wired by neither " +
+        "matched form (a factory closing over the impl, a default assembled at call time); and any arm " +
+        "NESTED inside a located default (`defaultRemoveDir`'s `win32` branch), which one test on the " +
+        "object does not exercise.",
+      run: () => findUnprovenSeamDefault(loadSeamDefaultFacts(repoRoot), loadTestedSymbols(repoRoot)),
     },
   ];
 

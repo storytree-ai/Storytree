@@ -5,13 +5,17 @@ import {
   CHARTERED_INSTRUMENTS,
   CONTRACT_BINDING_DRIFT,
   MIRROR_PAIR_DRIFT,
+  UNPROVEN_SEAM_DEFAULT,
   VACUOUS_PROOF,
   WARN_LIST_HYGIENE,
   analyzeGateCheck,
+  codeIdentifiers,
   evaluateDecayCeiling,
+  extractSeamDefaults,
   findContractBindingDrift,
   findMirrorPairDrift,
   findOptionsFormSkips,
+  findUnprovenSeamDefault,
   findVacuousProof,
   findWarnListHygiene,
   formatDecaySweep,
@@ -22,6 +26,7 @@ import {
   type DecayInstrument,
   type GateCheckFacts,
   type ProofBinding,
+  type SeamDefaultFacts,
   type SurfaceRoutes,
   type TestFileFacts,
   type WorkspaceFacts,
@@ -899,26 +904,236 @@ describe("chartered coverage: an unswept instrument is a machine fact, not a sou
     const { failed, lines } = formatDecaySweep(runDecaySweep(instruments), instruments);
     const text = lines.join("\n");
     assert.equal(failed, false, "an unbuilt instrument is an absence, not a signal — it must not red");
-    assert.match(text, /chartered coverage: 1\/4/);
+    assert.match(text, /chartered coverage: 1\/5/);
     assert.match(text, /mirror-pair-drift/);
     assert.match(text, /vacuous-proof/);
     assert.match(text, /warn-list-hygiene/);
+    assert.match(text, /unproven-seam-default/);
     assert.match(text, /Silence over an unswept instrument is not evidence/);
   });
 
   it("reports full coverage once every chartered instrument is registered", () => {
     const instruments = CHARTERED_INSTRUMENTS.map(inst);
     const text = formatDecaySweep(runDecaySweep(instruments), instruments).lines.join("\n");
-    assert.match(text, /chartered coverage: 4\/4/);
+    assert.match(text, /chartered coverage: 5\/5/);
     assert.doesNotMatch(text, /NOT swept/);
   });
 
-  it("the roster is exactly ADR-0252 D1's four cheap instruments", () => {
-    assert.equal(CHARTERED_INSTRUMENTS.length, 4);
+  it("the roster is ADR-0252 D1's four cheap instruments plus ADR-0278's fifth", () => {
+    assert.equal(CHARTERED_INSTRUMENTS.length, 5);
     // The exported slugs must stay JOINED to the roster: an instrument registered under a name the
     // roster does not carry would sweep while still being reported as NOT swept.
-    for (const slug of [CONTRACT_BINDING_DRIFT, MIRROR_PAIR_DRIFT, VACUOUS_PROOF, WARN_LIST_HYGIENE]) {
+    for (const slug of [
+      CONTRACT_BINDING_DRIFT,
+      MIRROR_PAIR_DRIFT,
+      VACUOUS_PROOF,
+      WARN_LIST_HYGIENE,
+      UNPROVEN_SEAM_DEFAULT,
+    ]) {
       assert.ok(CHARTERED_INSTRUMENTS.includes(slug), `roster is missing ${slug}`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// unproven-seam-default (ADR-0278)
+// ---------------------------------------------------------------------------
+
+/** One file's seam defaults, in the shape the loader produces. */
+function seamFile(
+  filePath: string,
+  defaults: Readonly<Record<string, readonly string[]>>,
+): SeamDefaultFacts {
+  return { path: filePath, defaults: new Map(Object.entries(defaults)) };
+}
+
+describe("unproven-seam-default: what it locates", () => {
+  it("locates a fallback symbol that appears in no test file", () => {
+    const findings = findUnprovenSeamDefault(
+      [seamFile("packages/a/src/branch.ts", { builtinFakeGit: [] })],
+      new Set(["somethingElse"]),
+    );
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.instrument, UNPROVEN_SEAM_DEFAULT);
+    assert.equal(findings[0]?.where, "packages/a/src/branch.ts");
+    assert.equal(findings[0]?.id, `${UNPROVEN_SEAM_DEFAULT}:packages/a/src/branch.ts:builtinFakeGit`);
+    assert.match(findings[0]?.detail ?? "", /builtinFakeGit/);
+  });
+
+  it("stays SILENT on a default some test names — the drain is what clears it", () => {
+    // The instrument's own validation case: `builtinFakeRealpath` was covered in this same landing, and
+    // `defaultFakeIo` was already driven by `worktree-idle-signal.test.ts`. Both must go quiet,
+    // or the backlog can never be drained and the ceiling stops meaning anything.
+    const findings = findUnprovenSeamDefault(
+      [seamFile("packages/a/src/write-authority.ts", { builtinFakeRealpath: [] })],
+      new Set(["builtinFakeRealpath"]),
+    );
+    assert.deepEqual(findings, []);
+  });
+
+  it("emits ONE finding per SYMBOL, because a file may carry more than one seam", () => {
+    const findings = findUnprovenSeamDefault(
+      [seamFile("packages/a/src/branch.ts", { builtinFakeGit: [], builtinFakeName: [] })],
+      new Set(),
+    );
+    assert.equal(findings.length, 2);
+    // Ids differ, or the ceiling would count two backlog items as one.
+    assert.notEqual(findings[0]?.id, findings[1]?.id);
+  });
+
+  it("names the untested ARMS of an object seam without counting them separately", () => {
+    // Covering the object is what covers the arms, so counting both would inflate the backlog against
+    // its own ceiling — but a drain still needs to know which arms exist (`defaultRemoveDir`'s win32
+    // branch is the thin instance).
+    const findings = findUnprovenSeamDefault(
+      [seamFile("packages/a/src/worktree.ts", { defaultFakeIo: ["fakeStatMtime"] })],
+      new Set(),
+    );
+    assert.equal(findings.length, 1);
+    assert.match(findings[0]?.detail ?? "", /1 equally untested arm\(s\): fakeStatMtime/);
+  });
+
+  it("omits an arm that IS tested, so a partial drain is visible in the detail", () => {
+    const findings = findUnprovenSeamDefault(
+      [seamFile("packages/a/src/worktree.ts", { defaultFakeIo: ["a", "b"] })],
+      new Set(["a"]),
+    );
+    assert.equal(findings.length, 1);
+    assert.match(findings[0]?.detail ?? "", /1 equally untested arm\(s\): b/);
+  });
+
+  it("orders findings by path then symbol so the ceiling's view is stable run to run", () => {
+    const findings = findUnprovenSeamDefault(
+      [
+        seamFile("packages/z/src/z.ts", { zeta: [] }),
+        seamFile("packages/a/src/a.ts", { beta: [], alpha: [] }),
+      ],
+      new Set(),
+    );
+    assert.deepEqual(
+      findings.map((f) => f.id),
+      [
+        `${UNPROVEN_SEAM_DEFAULT}:packages/a/src/a.ts:alpha`,
+        `${UNPROVEN_SEAM_DEFAULT}:packages/a/src/a.ts:beta`,
+        `${UNPROVEN_SEAM_DEFAULT}:packages/z/src/z.ts:zeta`,
+      ],
+    );
+  });
+
+  it("never escalates — locating a default is an obligation to LOOK, not a defect", () => {
+    const findings = findUnprovenSeamDefault(
+      [seamFile("packages/a/src/x.ts", { defaultThing: [] })],
+      new Set(),
+    );
+    assert.equal(findings[0]?.escalation, undefined);
+  });
+});
+
+describe("unproven-seam-default: the coverage oracle", () => {
+  it("REGRESSION: a symbol named only in a COMMENT does not count as covered", () => {
+    // Measured, not feared: this file's own tests named `builtinRunGit`, `defaultWorktreeCreateIo`
+    // and `defaultRemoveDir`, and a raw identifier scan read all three as covered and went silent on
+    // three genuine findings. Documenting a finding must not discharge it.
+    //
+    // The strip fixes the COMMENT and STRING cases. It cannot fix a real symbol used as live code —
+    // `{ builtinRunGit: [] }` as a fixture KEY is genuinely code — so the fixtures below deliberately
+    // use synthetic names (`builtinFakeGit`, `defaultFakeIo`). That is the discipline any test near a
+    // scanned symbol must follow, and the residual is stated at the instrument: an unrelated
+    // identifier collision anywhere in the suite silences that finding.
+    const src = ["// see defaultRemoveDir's win32 arm", "/* and defaultWorktreeCreateIo too */", "run();"].join(
+      "\n",
+    );
+    const names = codeIdentifiers(src);
+    assert.ok(!names.includes("defaultRemoveDir"), "a comment mention must not count");
+    assert.ok(!names.includes("defaultWorktreeCreateIo"), "a block-comment mention must not count");
+    assert.ok(names.includes("run"), "real code must survive the strip");
+  });
+
+  it("REGRESSION: a symbol appearing only inside a STRING does not count as covered", () => {
+    const src = ['const fixture = "function builtinRunGit(args) {}";', "drive(fixture);"].join("\n");
+    const names = codeIdentifiers(src);
+    assert.ok(!names.includes("builtinRunGit"), "a fixture string must not count");
+    assert.ok(names.includes("drive"), "real code must survive the strip");
+  });
+
+  it("a symbol the test really imports and calls DOES count", () => {
+    const src = ['import { builtinRealpath } from "./x.js";', "assert.equal(builtinRealpath(dir), dir);"].join(
+      "\n",
+    );
+    assert.ok(codeIdentifiers(src).includes("builtinRealpath"));
+  });
+
+  it("a prose apostrophe does not swallow the code that follows it", () => {
+    // Why comments are stripped BEFORE strings: `don't` would otherwise open a string literal and
+    // eat real identifiers up to the next apostrophe, silencing them.
+    const src = ["// the seam's default isn't driven here", "drivesTheRealThing();"].join("\n");
+    assert.ok(codeIdentifiers(src).includes("drivesTheRealThing"));
+  });
+});
+
+describe("unproven-seam-default: the aperture", () => {
+  it("matches the nullish fallback form", () => {
+    const src = [
+      "function builtinRunGit(args) { return spawn(args); }",
+      "export function branchOf(deps) {",
+      "  const runGit = deps.runGit ?? builtinRunGit;",
+      "}",
+    ].join("\n");
+    assert.deepEqual([...extractSeamDefaults(src).keys()], ["builtinRunGit"]);
+  });
+
+  it("matches the parameter-default form", () => {
+    const src = [
+      "export const builtinRealpath: RealpathFn = (p) => realpathSync.native(p);",
+      "export function canonicalisePath(",
+      "  target: string,",
+      "  cwd: string,",
+      "  realpath: RealpathFn = builtinRealpath,",
+      "): Canonical {}",
+    ].join("\n");
+    assert.deepEqual([...extractSeamDefaults(src).keys()], ["builtinRealpath"]);
+  });
+
+  it("IGNORES a scalar default value — a number has no unproven behaviour", () => {
+    // The first sweep located 46 by filtering only on "declared in this file", and a third were these.
+    // Counting them would inflate the baseline with items no drain could ever discharge.
+    const src = [
+      "const DEFAULT_MAX_TURNS = 16;",
+      'const DEFAULT_ACTOR = "system";',
+      'const SURNAMES = ["villani", "elbakyan"];',
+      "const EMPTY_KEYS = {};",
+      "export function run(opts) {",
+      "  const turns = opts.maxTurns ?? DEFAULT_MAX_TURNS;",
+      "  const actor = opts.actor ?? DEFAULT_ACTOR;",
+      "  const names = opts.names ?? SURNAMES;",
+      "  const keys = opts.keys ?? EMPTY_KEYS;",
+      "}",
+    ].join("\n");
+    assert.deepEqual([...extractSeamDefaults(src).keys()], []);
+  });
+
+  it("IGNORES a fallback whose symbol is not declared in this file", () => {
+    const src = ["export function run(opts) {", "  const io = opts.io ?? importedElsewhere;", "}"].join("\n");
+    assert.deepEqual([...extractSeamDefaults(src).keys()], []);
+  });
+
+  it("reads an object seam's members past a fixed window, and reports them as arms", () => {
+    // REGRESSION: classifying the right-hand side from a 400-char window silently dropped
+    // `defaultWorktreeIo` and `defaultWorktreeCreateIo`, whose members sit past it — an under-report,
+    // which is the dangerous direction: a smaller, greener number over a sweep that looked at less.
+    const filler = Array.from({ length: 40 }, (_, i) => `  // padding line ${i}`).join("\n");
+    const src = [
+      "function defaultStatMtimeMs(dir) { return statSync(dir).mtimeMs; }",
+      "export const defaultWorktreeIo: WorktreeIo = {",
+      filler,
+      "  statMtimeMs: defaultStatMtimeMs,",
+      "};",
+      "export function prune(deps) {",
+      "  const io = deps.io ?? defaultWorktreeIo;",
+      "}",
+    ].join("\n");
+    const defaults = extractSeamDefaults(src);
+    assert.deepEqual([...defaults.keys()], ["defaultWorktreeIo"]);
+    assert.deepEqual(defaults.get("defaultWorktreeIo"), ["defaultStatMtimeMs"]);
   });
 });
