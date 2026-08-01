@@ -30,6 +30,9 @@ import {
 import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
+import type {
+  SvgIslandAccretionState,
+} from './svg-island-accretion.js';
 
 export interface OrganicPoseRenderLayer {
   readonly trackId: string;
@@ -40,6 +43,19 @@ export interface OrganicPoseRenderLayer {
   readonly worldAnchor: { readonly x: number; readonly y: number };
   readonly scale: number;
   readonly depthSlot: 'hero-tree-organic' | 'ground-plant-organic';
+  /**
+   * OPTIONAL vertical PROJECTION factor in (0,1] — a pure display squash of this layer's rendered
+   * box, anchored AT `worldAnchor` (the asset's registered ground contact) so the base stays
+   * pinned and only the height compresses. `worldAnchor.y` is an exact fixed point of the
+   * transform: the anchor's own offset is scaled by the same factor as the box, so
+   * `y + assetAnchor.y * scale * projection === worldAnchor.y` for every value.
+   *
+   * It is DISPLAY ONLY — track data, registered anchors, frame selection and playback state are
+   * untouched, and it is not a camera: a squashed sprite is a comparison stand-in for a lower
+   * view angle, not a re-render at one. Absent ⇒ nothing is emitted and the rendered `<image>` is
+   * byte-identical to before this field existed.
+   */
+  readonly projection?: number;
 }
 
 export interface NativeIslandGrowthRenderLayer {
@@ -99,6 +115,8 @@ export interface SceneCtx {
   laneMotion?: 'draw' | 'march' | 'none';
   /** App-native clip growth for one existing SVG island. */
   nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
+  /** Connected app-native growth over the existing island's real shared-edge cell topology. */
+  svgIslandAccretionLayer?: SvgIslandAccretionState | null;
   /** Registered organic pose images planted into the canonical world painter order. */
   organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
@@ -461,10 +479,13 @@ function hitsLayerToBack(children: readonly SceneNode[]): readonly SceneNode[] {
 }
 
 function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
+  const projection = layer.projection ?? 1;
   const width = layer.canvas.width * layer.scale;
-  const height = layer.canvas.height * layer.scale;
+  const height = layer.canvas.height * layer.scale * projection;
   const x = layer.worldAnchor.x - layer.assetAnchor.x * layer.scale;
-  const y = layer.worldAnchor.y - layer.assetAnchor.y * layer.scale;
+  // Anchored AT the ground socket (see `OrganicPoseRenderLayer.projection`): the anchor offset is
+  // squashed by the same factor as the box, so the root contact never moves as the dial changes.
+  const y = layer.worldAnchor.y - layer.assetAnchor.y * layer.scale * projection;
   return React.createElement('image', {
     key: `__organic-pose-${layer.trackId}`,
     href: layer.src,
@@ -481,6 +502,9 @@ function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
     'data-organic-frame': String(layer.frameIndex),
     'data-world-anchor-x': fmt(layer.worldAnchor.x),
     'data-world-anchor-y': fmt(layer.worldAnchor.y),
+    ...(layer.projection === undefined
+      ? {}
+      : { 'data-organic-projection': layer.projection.toFixed(2) }),
   });
 }
 
@@ -506,6 +530,35 @@ function nativeIslandClip(layer: NativeIslandGrowthRenderLayer): React.ReactNode
         ry: fmt(Math.max(0.01, layer.radius.y * progress)),
         'data-native-island-progress': progress.toFixed(4),
       }),
+    ),
+  );
+}
+
+function svgIslandAccretionClipId(layer: SvgIslandAccretionState): string {
+  return `svg-island-accretion-${layer.storyId.replace(/[^a-zA-Z0-9_-]/gu, '-')}`;
+}
+
+function svgIslandAccretionClip(layer: SvgIslandAccretionState): React.ReactNode | null {
+  if (layer.mature) return null;
+  return React.createElement(
+    'defs',
+    { key: '__svg-island-accretion-defs' },
+    React.createElement(
+      'clipPath',
+      {
+        id: svgIslandAccretionClipId(layer),
+        clipPathUnits: 'userSpaceOnUse',
+      },
+      ...layer.coastReveals.map((reveal) =>
+        React.createElement('circle', {
+          key: reveal.key,
+          cx: fmt(reveal.centre.x),
+          cy: fmt(reveal.centre.y),
+          r: fmt(reveal.radius * reveal.scale),
+          'data-island-accretion-coast-cell': reveal.key,
+          'data-island-accretion-scale': reveal.scale.toFixed(4),
+        }),
+      ),
     ),
   );
 }
@@ -787,6 +840,31 @@ function renderNode(
     props['data-native-island-story'] = nativeIsland.storyId;
     props['data-native-island-progress'] = nativeIsland.progress.toFixed(4);
   }
+  const islandAccretion = ctx.svgIslandAccretionLayer;
+  if (islandAccretion && !islandAccretion.mature) {
+    if (node.kind === 'coast' && node.id === islandAccretion.storyId) {
+      props.clipPath = `url(#${svgIslandAccretionClipId(islandAccretion)})`;
+      props['data-island-accretion-coast'] = islandAccretion.storyId;
+      props['data-island-accretion-progress'] = islandAccretion.progress.toFixed(4);
+    } else if (
+      node.el === 'path' &&
+      (node.kind === 'cell' || node.kind === 'cell-wheat')
+    ) {
+      const reveal = islandAccretion.cellByPath.get(node.d);
+      if (reveal) {
+        const local = [
+          `translate(${fmt(reveal.centroid.x)} ${fmt(reveal.centroid.y)})`,
+          `scale(${reveal.scale.toFixed(4)})`,
+          `translate(${fmt(-reveal.centroid.x)} ${fmt(-reveal.centroid.y)})`,
+        ].join(' ');
+        props.transform = node.transform ? `${node.transform} ${local}` : local;
+        props['data-island-accretion-cell'] = reveal.key;
+        props['data-island-accretion-wave'] = String(reveal.wave);
+        props['data-island-accretion-order'] = String(reveal.order);
+        props['data-island-accretion-scale'] = reveal.scale.toFixed(4);
+      }
+    }
+  }
   // Trail-segment paths (ADR-0169): stamp the reveal hooks into the DOM
   // (data-id/usage/edges/spur) and, when the focus plan names the segment, attach its
   // per-segment growth mask + step the stroke width from the REVEALED edge count (§3
@@ -926,6 +1004,9 @@ function renderNode(
     const rendered: React.ReactNode[] = [];
     if (node.kind === 'world' && ctx.nativeIslandGrowthLayer) {
       rendered.push(nativeIslandClip(ctx.nativeIslandGrowthLayer));
+    }
+    if (node.kind === 'world' && ctx.svgIslandAccretionLayer) {
+      rendered.push(svgIslandAccretionClip(ctx.svgIslandAccretionLayer));
     }
     children.forEach((c, i) => {
       const el = renderNode(c, i, childStory, ctx);

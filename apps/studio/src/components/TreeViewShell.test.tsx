@@ -12,11 +12,21 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import {
+  CHAPTER2_ROUND3_TREE_CANDIDATES,
+  type OrganicPoseTrack,
+} from '@storytree/app-surface';
 import { AppDataContext, type AppData } from '../lib/appData';
 import { api } from '../api';
-import { TreeView } from './TreeView';
+import {
+  TreeView,
+  readChapter2Round3Lab,
+  readOrganicIslandAccretion,
+  readOrganicPoseToPose,
+  readSemanticGrowthDemo,
+} from './TreeView';
 import { SemanticGrowthDemo } from './SemanticGrowthDemo.js';
 import type { SpriteStyleSheet } from '../lib/sprite-sheet.js';
 
@@ -479,6 +489,98 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     }
   });
 
+  it('only the exact organic-island-accretion gate reuses the canonical 50-cell pose fixture as a connected adjacency wave and teaches its four visual terms without changing any existing gate', async () => {
+    expect(readOrganicIslandAccretion('')).toBe(false);
+    expect(readOrganicIslandAccretion('?organicGrowth=unknown')).toBe(false);
+    expect(readOrganicIslandAccretion('?organicGrowth=organic-island-accretion-near-miss')).toBe(false);
+    expect(readOrganicIslandAccretion('?organicGrowth=organic-island-accretion')).toBe(true);
+    expect(readSemanticGrowthDemo('?semanticGrowth=demo')).toBe(true);
+    expect(readOrganicIslandAccretion('?semanticGrowth=demo')).toBe(false);
+    expect(readOrganicPoseToPose('?organicGrowth=organic-pose-to-pose')).toBe(true);
+    expect(readOrganicIslandAccretion('?organicGrowth=organic-pose-to-pose')).toBe(false);
+
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+    try {
+      window.history.pushState({}, '', '/?organicGrowth=organic-island-accretion#/tree');
+      const flagged = await renderTree();
+      const section = flagged.querySelector(
+        '[data-organic-technique="pose-to-pose"][data-island-technique="connected-accretion"]',
+      );
+      expect(section).toBeTruthy();
+      expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('50');
+      expect(section?.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
+      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,10,11,9,6,2');
+      const legend = flagged.querySelector('[data-island-accretion-legend="true"]');
+      expect(legend).toBeTruthy();
+      for (const term of [
+        'connected accretion',
+        'adjacency wave',
+        'local geometric reveal',
+        'coastline settlement',
+      ]) {
+        expect(legend?.textContent).toContain(term);
+      }
+      expect(legend?.compareDocumentPosition(section!)).toBe(
+        Node.DOCUMENT_POSITION_PRECEDING,
+      );
+
+      const next = Array.from(
+        flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      ).find((button) => button.textContent === 'Next') as HTMLButtonElement;
+      const back = Array.from(
+        flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      ).find((button) => button.textContent === 'Back') as HTMLButtonElement;
+      const replay = Array.from(
+        flagged.querySelectorAll('nav[aria-label="Semantic growth controls"] button'),
+      ).find((button) => button.textContent === 'Replay') as HTMLButtonElement;
+      await act(async () => next.click());
+      expect(section?.getAttribute('data-semantic-growth-frame')).toBe('land');
+      expect(section?.getAttribute('data-svg-island-accretion-progress')).toBe('1.0000');
+      expect(flagged.querySelector('.relaxed-tile')).toBeTruthy();
+      expect(flagged.querySelector('.coast-fill-group')).toBeTruthy();
+      expect(flagged.querySelector('[data-island-accretion-cell]')).toBeNull();
+      expect(flagged.querySelector('[data-island-accretion-coast]')).toBeNull();
+      expect(flagged.querySelector('clipPath[id^="svg-island-accretion-"]')).toBeNull();
+      expect(
+        flagged.querySelector(
+          'image[data-organic-track="chapter2-hero-tree-pose-track-v1"]',
+        ),
+      ).toBeNull();
+
+      await act(async () => back.click());
+      const backed = [
+        section?.getAttribute('data-semantic-growth-frame'),
+        section?.getAttribute('data-svg-island-accretion-progress'),
+        flagged.querySelector('.relaxed-tile')?.outerHTML ?? null,
+      ];
+      await act(async () => next.click());
+      await act(async () => replay.click());
+      expect([
+        section?.getAttribute('data-semantic-growth-frame'),
+        section?.getAttribute('data-svg-island-accretion-progress'),
+        flagged.querySelector('.relaxed-tile')?.outerHTML ?? null,
+      ]).toEqual(backed);
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
   // machine contract 3): "signed-proof remains proposed/non-healthy while carrying the proof bloom;
   // healthy appears only last" / "no pre-final frame may appear healthy". The `signed-proof` frame is
@@ -704,6 +806,94 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       ).toBe(key);
       const litLane = flagged.querySelector('.trail-lane.is-drawing');
       expect(litLane, `lit drawing lane missing @ ${key}`).toBeTruthy();
+    }
+  });
+
+  // The ADR-0169 ARRIVAL DRAW-ON, wired into the witness for the first time. Distinct from the
+  // lit SELECTION lane above: that lane is the one-hop highlight, this is the BASE trail growing
+  // outward from the arriving island along its real `depends_on` edge.
+  //
+  // The load-bearing half is that the mask ELEMENTS exist in this DOM. `SceneView` only ever
+  // REFERENCES `mask="url(#trail-m-<id>)"`, and SVG renders an unresolved mask reference
+  // UNMASKED — so a fixture that set `reveal` without the player emitting a matching `<defs>`
+  // would leave the trail fully drawn from the first paint, with dead wiring behind it and
+  // nothing to show for it. Hence: every reference must RESOLVE, not merely be present.
+  it('the primary\'s arrival draws its real trail on, exactly once, from the arriving island', async () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
+      'utf8',
+    );
+
+    // The shared, unit-tested selector — imported from the app-surface seam and actually called
+    // over the composed world's REAL trail network, never a demo-local plan or invented segment.
+    expect(source).toMatch(
+      /import\s*\{[\s\S]*?\barrivalGrowPlan\b[\s\S]*?\}\s*from '@storytree\/app-surface'/,
+    );
+    expect(source).toMatch(/\barrivalGrowPlan\s*\(\s*baseWorld\.trails\s*,/);
+    // No demo-local mask, stagger constant or growth animation — all of that belongs to the
+    // shared player and the shared stylesheet.
+    expect(source).not.toMatch(/trail-m-|trail-reveal-mask|REVEAL_STAGGER_MS/);
+
+    window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
+    const flagged = await renderTree();
+    const nav = flagged.querySelector('nav[aria-label="Semantic growth controls"]');
+    expect(nav).toBeTruthy();
+    const nextButton = Array.from(nav!.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Next',
+    );
+    expect(nextButton).toBeTruthy();
+
+    const frameKey = (): string | null | undefined =>
+      flagged
+        .querySelector('[data-semantic-growth-frame]')
+        ?.getAttribute('data-semantic-growth-frame');
+    const growthMasks = (): Element[] =>
+      Array.from(flagged.querySelectorAll('mask[id^="trail-m-"]'));
+    const unresolvedMaskRefs = (): string[] =>
+      Array.from(flagged.querySelectorAll('[mask]'))
+        .map((el) => el.getAttribute('mask') ?? '')
+        .filter((ref) => {
+          const id = /^url\(#(.+)\)$/.exec(ref)?.[1] ?? '';
+          return id === '' || flagged.querySelector(`[id="${id}"]`) === null;
+        });
+
+    // `empty` / `land`: no primary identity yet, so nothing is arriving and nothing draws on.
+    expect(frameKey()).toBe('empty');
+    expect(growthMasks()).toHaveLength(0);
+    await act(async () => {
+      nextButton!.click();
+    });
+    expect(frameKey()).toBe('land');
+    expect(growthMasks()).toHaveLength(0);
+
+    // `proposed` — THE ARRIVAL. The real road grows on: one mask per segment of the primary's
+    // own routed edge, and every mask reference the scene attached resolves in this same DOM.
+    await act(async () => {
+      nextButton!.click();
+    });
+    expect(frameKey()).toBe('proposed');
+    const arrivalMasks = growthMasks();
+    expect(arrivalMasks.length).toBeGreaterThan(0);
+    expect(unresolvedMaskRefs()).toEqual([]);
+    expect(flagged.querySelectorAll('.trail-fill.is-growing').length).toBe(arrivalMasks.length);
+    // the mask lies over the segment's own geometry (resolved off the scene, not invented).
+    for (const mask of arrivalMasks) {
+      const segId = (mask.getAttribute('id') ?? '').replace(/^trail-m-/, '');
+      const drawn = flagged.querySelector(`path.trail-fill[data-id="${segId}"]`);
+      expect(drawn, `arrival mask ${segId} has no drawn segment`).toBeTruthy();
+      expect(mask.querySelector('path')?.getAttribute('d')).toBe(drawn!.getAttribute('d'));
+    }
+
+    // EXACTLY ONCE: every later frame carries no plan, so it simply paints the trail — no mask,
+    // no growth class, and no dangling reference left behind.
+    for (const key of ['claimed', 'signed-proof', 'healthy']) {
+      await act(async () => {
+        nextButton!.click();
+      });
+      expect(frameKey()).toBe(key);
+      expect(growthMasks(), `masks lingering @ ${key}`).toHaveLength(0);
+      expect(flagged.querySelectorAll('.trail-fill.is-growing')).toHaveLength(0);
+      expect(flagged.querySelectorAll('[mask]')).toHaveLength(0);
     }
   });
 
@@ -1086,6 +1276,749 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     for (const selector of bloomSelectors) {
       expect(matchesFrame(selector, 'signed-proof')).toBe(true);
       expect(matchesFrame(selector, 'healthy')).toBe(false);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Chapter 2 round-3 COMPARISON LAB — `?organicGrowth=r3-lab#/tree`
+//
+// One query-gated mode of the REAL Studio consumer, following the variant seam the
+// `organic-pose-to-pose` and `organic-island-accretion` gates already use. It presents ONE fixed
+// composition — the Experiment 6 connected SVG accretion island, the ADR-0277-retained plant
+// track and the newly wired arrival path-growth beat — with the HERO TREE switchable between the
+// four registered candidates, so the owner gives one comparison LOOK verdict instead of opening
+// four hosted tags. The appearance verdict itself is the owner's (ADR-0070 stage 2); everything
+// below is the machine half.
+// ---------------------------------------------------------------------------------------------
+
+/** Every track any candidate can mount, by id — the hero trees plus the ONE shared plant. */
+const R3_LAB_TRACKS: ReadonlyMap<string, OrganicPoseTrack> = new Map(
+  CHAPTER2_ROUND3_TREE_CANDIDATES.flatMap((candidate) =>
+    candidate.registry.tracks.map((track) => [track.id, track] as const),
+  ),
+);
+
+/**
+ * The bound on "the root contact did not move", in world units.
+ *
+ * `SceneView` formats every emitted coordinate to ONE decimal (`fmt = n.toFixed(1)`), so the
+ * measurement below reads three separately-rounded quantities — the box `y`, the box `height`
+ * (scaled by an anchor fraction < 1) and the socket's own `data-world-anchor-y`. Each contributes
+ * at most 0.05, so 0.15 is the renderer's own quantisation, not slack: the underlying transform
+ * pins the contact EXACTLY (`y + assetAnchor.y * scale * projection === worldAnchor.y`), and this
+ * is simply the finest statement the rendered DOM can support.
+ */
+const CONTACT_TOLERANCE_PX = 0.15;
+
+/** Where the asset's registered ground contact actually landed, measured off the rendered box. */
+function measuredGroundContact(image: Element): {
+  readonly x: number;
+  readonly y: number;
+  readonly socketX: number;
+  readonly socketY: number;
+} {
+  const trackId = image.getAttribute('data-organic-track') ?? '';
+  const track = R3_LAB_TRACKS.get(trackId);
+  if (!track) throw new Error(`Rendered an unregistered organic track "${trackId}".`);
+  const box = {
+    x: Number(image.getAttribute('x')),
+    y: Number(image.getAttribute('y')),
+    width: Number(image.getAttribute('width')),
+    height: Number(image.getAttribute('height')),
+  };
+  return {
+    x: box.x + (track.groundAnchor.x / track.canvas.width) * box.width,
+    y: box.y + (track.groundAnchor.y / track.canvas.height) * box.height,
+    socketX: Number(image.getAttribute('data-world-anchor-x')),
+    socketY: Number(image.getAttribute('data-world-anchor-y')),
+  };
+}
+
+function heroTrackOf(candidateId: string): OrganicPoseTrack {
+  const candidate = CHAPTER2_ROUND3_TREE_CANDIDATES.find((c) => c.id === candidateId);
+  if (!candidate) throw new Error(`Unknown round-3 candidate "${candidateId}".`);
+  const track = candidate.registry.tracks.find((t) => t.id === candidate.heroTreeTrackId);
+  if (!track) throw new Error(`Candidate "${candidateId}" registers no hero-tree track.`);
+  return track;
+}
+
+describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
+  afterEach(() => {
+    window.history.pushState({}, '', '/');
+  });
+
+  /** The reduced-motion branch the existing organic gates use: playback settles on the cue, so
+   *  every frame's organic selection is observable without driving a real animation clock. */
+  function forceReducedMotion(): () => void {
+    const original = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+    return () => {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: original });
+    };
+  }
+
+  function controls(root: HTMLElement): {
+    next: HTMLButtonElement;
+    back: HTMLButtonElement;
+    replay: HTMLButtonElement;
+  } {
+    const buttons = Array.from(
+      root.querySelectorAll<HTMLButtonElement>(
+        'nav[aria-label="Semantic growth controls"] button',
+      ),
+    );
+    const pick = (label: string): HTMLButtonElement => {
+      const button = buttons.find((b) => b.textContent === label);
+      if (!button) throw new Error(`The public player is missing its ${label} control.`);
+      return button;
+    };
+    return { next: pick('Next'), back: pick('Back'), replay: pick('Replay') };
+  }
+
+  const organicImages = (root: HTMLElement): Element[] =>
+    Array.from(root.querySelectorAll('image[data-organic-track]'));
+
+  const heroImages = (root: HTMLElement): Element[] =>
+    organicImages(root).filter(
+      (image) => image.getAttribute('data-depth-slot') === 'hero-tree-organic',
+    );
+
+  it('only the exact `r3-lab` value mounts the lab; clean, unknown and near-miss routes fall through byte-identically and no sibling gate moves', async () => {
+    // 1) The reader is an EXACT match, never a truthy/prefix gate.
+    expect(readChapter2Round3Lab('')).toBe(false);
+    expect(readChapter2Round3Lab('?organicGrowth=')).toBe(false);
+    expect(readChapter2Round3Lab('?organicGrowth=r3')).toBe(false);
+    expect(readChapter2Round3Lab('?organicGrowth=r3-lab-near-miss')).toBe(false);
+    expect(readChapter2Round3Lab('?organicGrowth=R3-LAB')).toBe(false);
+    expect(readChapter2Round3Lab('?semanticGrowth=r3-lab')).toBe(false);
+    expect(readChapter2Round3Lab('?organicGrowth=r3-lab')).toBe(true);
+
+    // 2) The lab's value moves NO existing gate, and no existing value moves the lab.
+    expect(readSemanticGrowthDemo('?organicGrowth=r3-lab')).toBe(false);
+    expect(readOrganicPoseToPose('?organicGrowth=r3-lab')).toBe(false);
+    expect(readOrganicIslandAccretion('?organicGrowth=r3-lab')).toBe(false);
+    expect(readChapter2Round3Lab('?semanticGrowth=demo')).toBe(false);
+    expect(readChapter2Round3Lab('?organicGrowth=organic-pose-to-pose')).toBe(false);
+    expect(readChapter2Round3Lab('?organicGrowth=organic-island-accretion')).toBe(false);
+
+    // 3) The clean route renders the ordinary product with no lab surface at all …
+    window.history.pushState({}, '', '/#/tree');
+    const clean = await renderTree();
+    expect(clean.querySelector('[data-r3-lab]')).toBeNull();
+    expect(clean.querySelector('[data-semantic-growth-frame]')).toBeNull();
+    expect(clean.querySelector('nav[aria-label="Semantic growth controls"]')).toBeNull();
+    const cleanHtml = clean.innerHTML;
+    cleanup();
+
+    // … and a NEAR MISS on the lab's own key produces the byte-identical clean render.
+    window.history.pushState({}, '', '/?organicGrowth=r3-lab-near-miss#/tree');
+    const nearMiss = await renderTree();
+    expect(nearMiss.querySelector('[data-r3-lab]')).toBeNull();
+    expect(nearMiss.querySelector('[data-semantic-growth-frame]')).toBeNull();
+    expect(nearMiss.innerHTML).toBe(cleanHtml);
+    cleanup();
+
+    // 4) The three existing gates still mount their own witness, unchanged by the lab's arrival.
+    for (const [query, expected] of [
+      ['?semanticGrowth=demo', null],
+      ['?organicGrowth=organic-pose-to-pose', 'pose-to-pose'],
+      ['?organicGrowth=organic-island-accretion', 'pose-to-pose'],
+    ] as const) {
+      window.history.pushState({}, '', `/${query}#/tree`);
+      const gated = await renderTree();
+      expect(gated.querySelectorAll('[data-semantic-growth-frame]')).toHaveLength(1);
+      expect(
+        gated.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-organic-technique'),
+      ).toBe(expected);
+      // None of them grows a lab picker …
+      expect(gated.querySelector('[data-r3-lab]')).toBeNull();
+      // … and none of them gains the projection field the lab introduced: the layer prop is
+      // optional, so a variant that does not set it emits nothing and renders as it always did.
+      expect(gated.querySelectorAll('[data-organic-projection]')).toHaveLength(0);
+      cleanup();
+    }
+  });
+
+  it('mounts ONE fixed composition — accretion island, shared plant track, arrival beat — with exactly one hero tree track and the labelled controls', async () => {
+    const restoreMotion = forceReducedMotion();
+    try {
+      window.history.pushState({}, '', '/?organicGrowth=r3-lab#/tree');
+      const lab = await renderTree();
+
+      // Exactly one public player, on the first of its six ordered frames.
+      const sections = lab.querySelectorAll('[data-semantic-growth-frame]');
+      expect(sections).toHaveLength(1);
+      const section = sections[0]!;
+      expect(section.getAttribute('data-semantic-growth-frame')).toBe('empty');
+
+      // The FIXED half: the Experiment 6 connected accretion island over the pose-to-pose clock.
+      expect(section.getAttribute('data-organic-technique')).toBe('pose-to-pose');
+      expect(section.getAttribute('data-island-technique')).toBe('connected-accretion');
+      expect(section.getAttribute('data-svg-island-accretion-cells')).toBe('50');
+      expect(section.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
+
+      // The picker names every candidate, with the incumbent pressed by default.
+      const candidateButtons = Array.from(lab.querySelectorAll('[data-r3-lab-candidate]'));
+      expect(candidateButtons.map((b) => b.getAttribute('data-r3-lab-candidate'))).toEqual(
+        CHAPTER2_ROUND3_TREE_CANDIDATES.map((c) => c.id),
+      );
+      for (const [index, button] of candidateButtons.entries()) {
+        // Labelled by name, not by index — the owner has to be able to say which one won.
+        expect(button.textContent).toBe(CHAPTER2_ROUND3_TREE_CANDIDATES[index]!.label);
+        expect(button.getAttribute('aria-pressed')).toBe(index === 0 ? 'true' : 'false');
+      }
+      expect(
+        lab.querySelector('[data-r3-lab-candidate-picker]')?.getAttribute('aria-label'),
+      ).toBe('Hero tree candidate');
+
+      // The projection dial: the four stepped options, defaulting to 0.82.
+      const projectionButtons = Array.from(lab.querySelectorAll('[data-r3-lab-projection]'));
+      expect(projectionButtons.map((b) => b.getAttribute('data-r3-lab-projection'))).toEqual([
+        '1.00',
+        '0.90',
+        '0.82',
+        '0.72',
+      ]);
+      expect(
+        projectionButtons
+          .filter((b) => b.getAttribute('aria-pressed') === 'true')
+          .map((b) => b.getAttribute('data-r3-lab-projection')),
+      ).toEqual(['0.82']);
+      expect(section.getAttribute('data-organic-projection')).toBe('0.82');
+
+      // Labelled HONESTLY — a comparison control, explicitly not a solved camera.
+      const legend = lab.querySelector('[data-r3-lab-legend]');
+      expect(legend?.textContent).toMatch(/comparison control, not a solved camera/i);
+      expect(legend?.textContent).toMatch(/hero tree/i);
+      // The budget the mounted candidate actually costs is stated, never silently blown.
+      expect(lab.querySelector('[data-r3-lab-budget="incumbent"]')?.textContent).toMatch(
+        /9 frames/,
+      );
+
+      // Walk to the settled frame: exactly ONE hero-tree track is mounted, over the shared plant.
+      const { next } = controls(lab);
+      for (let i = 0; i < 5; i += 1) await act(async () => next.click());
+      expect(section.getAttribute('data-semantic-growth-frame')).toBe('healthy');
+      expect(heroImages(lab)).toHaveLength(1);
+      expect(organicImages(lab)).toHaveLength(2);
+      expect(heroImages(lab)[0]?.getAttribute('data-organic-track')).toBe(
+        heroTrackOf('incumbent').id,
+      );
+      expect(
+        lab.querySelector('image[data-organic-track="chapter2-plant-sample-pose-track-v1"]'),
+      ).toBeTruthy();
+      // The real SVG island substrate is still the land — no generated island, coast or composite.
+      expect(lab.querySelector('.relaxed-tile')).toBeTruthy();
+      expect(lab.querySelector('[data-depth-slot="island-growth-composite"]')).toBeNull();
+    } finally {
+      restoreMotion();
+    }
+  });
+
+  it('switching candidate swaps ONLY the hero tree — no remount, no cursor reset, no change to the plant, island or projection', async () => {
+    const restoreMotion = forceReducedMotion();
+    try {
+      window.history.pushState({}, '', '/?organicGrowth=r3-lab#/tree');
+      const lab = await renderTree();
+      const { next } = controls(lab);
+      // Park the walk mid-way, so a reset would be unmissable.
+      for (let i = 0; i < 3; i += 1) await act(async () => next.click());
+
+      const playerNode = lab.querySelector('[data-semantic-growth-frame]')!;
+      const before = {
+        frame: playerNode.getAttribute('data-semantic-growth-frame'),
+        poseProgress: playerNode.getAttribute('data-organic-pose-progress'),
+        islandProgress: playerNode.getAttribute('data-native-island-progress'),
+        accretionProgress: playerNode.getAttribute('data-svg-island-accretion-progress'),
+        projection: playerNode.getAttribute('data-organic-projection'),
+        plant: lab
+          .querySelector('image[data-organic-track="chapter2-plant-sample-pose-track-v1"]')
+          ?.outerHTML,
+        substrate: lab.querySelector('.relaxed-tile')?.outerHTML,
+      };
+      expect(before.frame).toBe('claimed');
+      expect(before.plant).toBeTruthy();
+
+      const legendProse = new Set<string>();
+      for (const candidate of CHAPTER2_ROUND3_TREE_CANDIDATES) {
+        const button = lab.querySelector<HTMLButtonElement>(
+          `[data-r3-lab-candidate="${candidate.id}"]`,
+        )!;
+        await act(async () => button.click());
+
+        // The player node is the SAME DOM element — not re-keyed, not remounted.
+        expect(lab.querySelector('[data-semantic-growth-frame]')).toBe(playerNode);
+        // …and the cursor + every clock it owns are exactly where the owner left them.
+        expect({
+          frame: playerNode.getAttribute('data-semantic-growth-frame'),
+          poseProgress: playerNode.getAttribute('data-organic-pose-progress'),
+          islandProgress: playerNode.getAttribute('data-native-island-progress'),
+          accretionProgress: playerNode.getAttribute('data-svg-island-accretion-progress'),
+          projection: playerNode.getAttribute('data-organic-projection'),
+          plant: lab
+            .querySelector('image[data-organic-track="chapter2-plant-sample-pose-track-v1"]')
+            ?.outerHTML,
+          substrate: lab.querySelector('.relaxed-tile')?.outerHTML,
+        }).toEqual(before);
+
+        // Exactly one hero tree is mounted, and it is the selected one.
+        const heroes = heroImages(lab);
+        expect(heroes).toHaveLength(1);
+        expect(heroes[0]?.getAttribute('data-organic-track')).toBe(candidate.heroTreeTrackId);
+        expect(heroes[0]?.getAttribute('href')).toMatch(/\/tree\/frame-\d+\.png$/);
+        // Only the pressed button is pressed.
+        expect(
+          Array.from(lab.querySelectorAll('[data-r3-lab-candidate]'))
+            .filter((b) => b.getAttribute('aria-pressed') === 'true')
+            .map((b) => b.getAttribute('data-r3-lab-candidate')),
+        ).toEqual([candidate.id]);
+
+        // The explanatory legend carries NO candidate-dependent text. jsdom does no layout, so
+        // this is the testable half of a measured browser fact: while the per-candidate readout
+        // shared that paragraph, exp-18's shorter clause dropped a wrapped line and grew the map
+        // SVG 665px -> 685px. A comparison lab may not resize its own subject when you switch
+        // candidates, so the varying text now lives in a separate fixed one-line row.
+        legendProse.add(lab.querySelector('[data-r3-lab-legend]')?.textContent ?? '');
+        expect(
+          lab.querySelector('[data-r3-lab-budget]')?.getAttribute('data-r3-lab-budget'),
+        ).toBe(candidate.id);
+      }
+      expect(legendProse.size).toBe(1);
+
+      // Next still drives the public player from where the walk actually stands.
+      await act(async () => next.click());
+      expect(playerNode.getAttribute('data-semantic-growth-frame')).toBe('signed-proof');
+    } finally {
+      restoreMotion();
+    }
+  });
+
+  it('the projection dial squashes only the height and NEVER moves the root contact, for every candidate and every step, and it survives Replay', async () => {
+    const restoreMotion = forceReducedMotion();
+    try {
+      window.history.pushState({}, '', '/?organicGrowth=r3-lab#/tree');
+      const lab = await renderTree();
+      const section = lab.querySelector('[data-semantic-growth-frame]')!;
+      const { next, replay } = controls(lab);
+      const walkToSettled = async (): Promise<void> => {
+        for (let i = 0; i < 5; i += 1) await act(async () => next.click());
+      };
+      await walkToSettled();
+
+      const steps = ['1.00', '0.90', '0.82', '0.72'] as const;
+      for (const candidate of CHAPTER2_ROUND3_TREE_CANDIDATES) {
+        await act(async () =>
+          lab
+            .querySelector<HTMLButtonElement>(`[data-r3-lab-candidate="${candidate.id}"]`)!
+            .click(),
+        );
+        const unsquashed = new Map<string, { x: string; width: string; height: number }>();
+        for (const step of steps) {
+          await act(async () =>
+            lab.querySelector<HTMLButtonElement>(`[data-r3-lab-projection="${step}"]`)!.click(),
+          );
+          expect(section.getAttribute('data-organic-projection')).toBe(step);
+
+          const images = organicImages(lab);
+          expect(images).toHaveLength(2);
+          for (const image of images) {
+            const trackId = image.getAttribute('data-organic-track')!;
+            expect(image.getAttribute('data-organic-projection')).toBe(step);
+
+            // THE CLAIM: the registered ground contact still sits on its world socket.
+            const contact = measuredGroundContact(image);
+            expect(
+              Math.abs(contact.y - contact.socketY),
+              `${candidate.id}/${trackId} @ ${step}: root contact moved ${(
+                contact.y - contact.socketY
+              ).toFixed(3)}px`,
+            ).toBeLessThanOrEqual(CONTACT_TOLERANCE_PX);
+            expect(Math.abs(contact.x - contact.socketX)).toBeLessThanOrEqual(
+              CONTACT_TOLERANCE_PX,
+            );
+
+            const height = Number(image.getAttribute('height'));
+            if (step === '1.00') {
+              unsquashed.set(trackId, {
+                x: image.getAttribute('x')!,
+                width: image.getAttribute('width')!,
+                height,
+              });
+              continue;
+            }
+            const base = unsquashed.get(trackId)!;
+            // Horizontal geometry is untouched — this is a VERTICAL squash, not a rescale.
+            expect(image.getAttribute('x')).toBe(base.x);
+            expect(image.getAttribute('width')).toBe(base.width);
+            // …and the height really did compress by the selected factor.
+            expect(Math.abs(height - base.height * Number(step))).toBeLessThanOrEqual(0.1);
+            expect(height).toBeLessThan(base.height);
+          }
+        }
+      }
+
+      // Deterministic for a given setting, and Replay does not yank the owner's comparison
+      // setting back to the default mid-comparison: it resets the WALK, not the dial.
+      await act(async () =>
+        lab.querySelector<HTMLButtonElement>('[data-r3-lab-projection="0.72"]')!.click(),
+      );
+      const settled = organicImages(lab).map((image) => image.outerHTML);
+      await act(async () => replay.click());
+      expect(section.getAttribute('data-semantic-growth-frame')).toBe('empty');
+      expect(
+        lab
+          .querySelector('[data-r3-lab-projection="0.72"]')
+          ?.getAttribute('aria-pressed'),
+      ).toBe('true');
+      expect(section.getAttribute('data-organic-projection')).toBe('0.72');
+      await walkToSettled();
+      expect(organicImages(lab).map((image) => image.outerHTML)).toEqual(settled);
+    } finally {
+      restoreMotion();
+    }
+  });
+
+  it('every candidate is drawn at the accepted track’s mature height, so canvas size never biases the comparison', async () => {
+    const restoreMotion = forceReducedMotion();
+    try {
+      window.history.pushState({}, '', '/?organicGrowth=r3-lab#/tree');
+      const lab = await renderTree();
+      const { next } = controls(lab);
+      for (let i = 0; i < 5; i += 1) await act(async () => next.click());
+
+      // exp-16 is authored on a 128px canvas while the other three are 192px, and each mature
+      // footprint differs, so one shared instance scale would render exp-16 at ~65% the apparent
+      // height. Measure what the browser would actually see: the mature footprint's world height.
+      const measured: number[] = [];
+      for (const candidate of CHAPTER2_ROUND3_TREE_CANDIDATES) {
+        await act(async () =>
+          lab
+            .querySelector<HTMLButtonElement>(`[data-r3-lab-candidate="${candidate.id}"]`)!
+            .click(),
+        );
+        const hero = heroImages(lab)[0]!;
+        const track = heroTrackOf(candidate.id);
+        expect(hero.getAttribute('data-organic-track')).toBe(track.id);
+        const renderedHeight = Number(hero.getAttribute('height'));
+        // Undo the display projection so the four candidates are compared on the same axis.
+        const projection = Number(hero.getAttribute('data-organic-projection'));
+        measured.push(
+          (renderedHeight / projection) * (track.matureFootprint.height / track.canvas.height),
+        );
+      }
+      expect(measured).toHaveLength(4);
+      const reference = measured[0]!;
+      expect(reference).toBeGreaterThan(0);
+      for (const [index, height] of measured.entries()) {
+        expect(
+          Math.abs(height - reference),
+          `${CHAPTER2_ROUND3_TREE_CANDIDATES[index]!.id} renders ${height.toFixed(
+            2,
+          )} world units of mature tree against the incumbent's ${reference.toFixed(2)}`,
+        ).toBeLessThanOrEqual(0.2);
+      }
+    } finally {
+      restoreMotion();
+    }
+  });
+
+  it('Next/Back/Replay drive the public player and a repeated trace selects equal cue, progress, native-land state, organic frame and socket output', async () => {
+    const restoreMotion = forceReducedMotion();
+    try {
+      window.history.pushState({}, '', '/?organicGrowth=r3-lab#/tree');
+      const lab = await renderTree();
+      const section = lab.querySelector('[data-semantic-growth-frame]')!;
+      const { next, back, replay } = controls(lab);
+      // Compare a NON-default candidate too, so the trace covers a swapped registry.
+      await act(async () =>
+        lab.querySelector<HTMLButtonElement>('[data-r3-lab-candidate="exp-18"]')!.click(),
+      );
+
+      const sample = (): unknown => ({
+        cue: section.getAttribute('data-semantic-growth-frame'),
+        motion: section.getAttribute('data-motion'),
+        progress: section.getAttribute('data-organic-pose-progress'),
+        nativeLand: section.getAttribute('data-native-island-progress'),
+        accretion: section.getAttribute('data-svg-island-accretion-progress'),
+        organicFrames: section.getAttribute('data-organic-pose-frames'),
+        sockets: organicImages(lab).map((image) => {
+          const contact = measuredGroundContact(image);
+          return {
+            track: image.getAttribute('data-organic-track'),
+            frame: image.getAttribute('data-organic-frame'),
+            href: image.getAttribute('href'),
+            socket: [contact.socketX, contact.socketY],
+            box: [
+              image.getAttribute('x'),
+              image.getAttribute('y'),
+              image.getAttribute('width'),
+              image.getAttribute('height'),
+            ],
+          };
+        }),
+        scene: section.querySelector('svg')?.outerHTML ?? null,
+      });
+
+      // The trace: forward through the whole walk, back twice, forward again.
+      const trace = async (): Promise<unknown[]> => {
+        const out: unknown[] = [sample()];
+        for (let i = 0; i < 5; i += 1) {
+          await act(async () => next.click());
+          out.push(sample());
+        }
+        for (let i = 0; i < 2; i += 1) {
+          await act(async () => back.click());
+          out.push(sample());
+        }
+        await act(async () => next.click());
+        out.push(sample());
+        return out;
+      };
+
+      const first = await trace();
+      // The comparison below is only worth anything if the trace SAW something: nine samples over
+      // six distinct states, where the three visits to `signed-proof` (forward, then Back, then
+      // Next again) collapse to ONE — which is the determinism claim stated as a count.
+      expect(first).toHaveLength(9);
+      expect(new Set(first.map((sampled) => JSON.stringify(sampled))).size).toBe(6);
+      expect(
+        first.filter((sampled) => (sampled as { sockets: unknown[] }).sockets.length === 2),
+      ).not.toHaveLength(0);
+      for (const sampled of first) {
+        expect((sampled as { scene: string | null }).scene).toBeTruthy();
+      }
+
+      await act(async () => replay.click());
+      expect(section.getAttribute('data-semantic-growth-frame')).toBe('empty');
+      const second = await trace();
+      expect(second).toEqual(first);
+
+      // Reduced motion SETTLES on the retained final scene: last registered pose of each track,
+      // the island fully accreted, and no half-played arrival reveal left behind.
+      await act(async () => replay.click());
+      for (let i = 0; i < 5; i += 1) await act(async () => next.click());
+      expect(section.getAttribute('data-motion')).toBe('reduced');
+      expect(section.getAttribute('data-organic-pose-progress')).toBe('1.0000');
+      expect(section.getAttribute('data-native-island-progress')).toBe('1.0000');
+      expect(section.getAttribute('data-svg-island-accretion-progress')).toBe('1.0000');
+      expect(lab.querySelectorAll('mask[id^="trail-m-"]')).toHaveLength(0);
+      expect(lab.querySelectorAll('.trail-fill.is-growing')).toHaveLength(0);
+      for (const image of organicImages(lab)) {
+        const track = R3_LAB_TRACKS.get(image.getAttribute('data-organic-track')!)!;
+        expect(image.getAttribute('data-organic-frame')).toBe(String(track.frameCount - 1));
+      }
+      // …the same final scene the trace already reached.
+      expect(sample()).toEqual(first[first.length - 4]);
+    } finally {
+      restoreMotion();
+    }
+  });
+
+  it('carries the arrival path-growth beat: the trail draws on at the arrival frame, every mask reference resolves, and it plays exactly once', async () => {
+    // Full motion (no reduced-motion override) — the beat is dropped by design under reduce.
+    window.history.pushState({}, '', '/?organicGrowth=r3-lab#/tree');
+    const lab = await renderTree();
+    const section = lab.querySelector('[data-semantic-growth-frame]')!;
+    const { next } = controls(lab);
+
+    const masks = (): Element[] => Array.from(lab.querySelectorAll('mask[id^="trail-m-"]'));
+    const unresolvedMaskRefs = (): string[] =>
+      Array.from(lab.querySelectorAll('[mask]'))
+        .map((el) => el.getAttribute('mask') ?? '')
+        .filter((ref) => {
+          const id = /^url\(#(.+)\)$/.exec(ref)?.[1] ?? '';
+          return id === '' || lab.querySelector(`[id="${id}"]`) === null;
+        });
+
+    expect(section.getAttribute('data-semantic-growth-frame')).toBe('empty');
+    expect(masks()).toHaveLength(0);
+    await act(async () => next.click());
+    expect(section.getAttribute('data-semantic-growth-frame')).toBe('land');
+    expect(masks()).toHaveLength(0);
+
+    // The ARRIVAL.
+    await act(async () => next.click());
+    expect(section.getAttribute('data-semantic-growth-frame')).toBe('proposed');
+    const arrival = masks();
+    expect(arrival.length).toBeGreaterThan(0);
+    // A mask that does not RESOLVE renders unmasked — the trail would paint fully drawn behind
+    // dead wiring, which is exactly the silent no-op this beat had to escape.
+    expect(unresolvedMaskRefs()).toEqual([]);
+    expect(lab.querySelectorAll('.trail-fill.is-growing')).toHaveLength(arrival.length);
+    for (const mask of arrival) {
+      const segId = (mask.getAttribute('id') ?? '').replace(/^trail-m-/, '');
+      const drawn = lab.querySelector(`path.trail-fill[data-id="${segId}"]`);
+      expect(drawn, `arrival mask ${segId} has no drawn segment`).toBeTruthy();
+      expect(mask.querySelector('path')?.getAttribute('d')).toBe(drawn!.getAttribute('d'));
+    }
+
+    // The beat belongs to the fixed composition, not to a candidate: swapping the hero tree
+    // neither kills it nor re-fires it.
+    await act(async () =>
+      lab.querySelector<HTMLButtonElement>('[data-r3-lab-candidate="exp-15"]')!.click(),
+    );
+    expect(masks()).toHaveLength(arrival.length);
+    expect(unresolvedMaskRefs()).toEqual([]);
+
+    // EXACTLY ONCE: later frames carry no plan, so nothing is left half-wired.
+    for (const key of ['claimed', 'signed-proof', 'healthy']) {
+      await act(async () => next.click());
+      expect(section.getAttribute('data-semantic-growth-frame')).toBe(key);
+      expect(masks(), `masks lingering @ ${key}`).toHaveLength(0);
+      expect(lab.querySelectorAll('.trail-fill.is-growing')).toHaveLength(0);
+      expect(lab.querySelectorAll('[mask]')).toHaveLength(0);
+    }
+  });
+
+  it('no PixelLab client, hostname, credential or runtime model call reaches the consumer, and the lab has no permanent navigation entry', async () => {
+    // ---- A. SOURCE audit over the files that actually compose the lab consumer. --------------
+    const labSources: [string, string][] = [
+      ['SemanticGrowthDemo.tsx', readFileSync(resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'), 'utf8')],
+      ...(
+        [
+          'chapter2-round3-tree-candidates.ts',
+          'organic-pose-to-pose-assets.ts',
+          'organic-pose-to-pose-track.ts',
+          'SemanticGrowthWorldView.tsx',
+          'SceneView.tsx',
+          'svg-island-accretion.ts',
+        ] as const
+      ).map((name): [string, string] => [
+        name,
+        readFileSync(resolve(APP_SURFACE_SRC, name), 'utf8'),
+      ]),
+    ];
+    for (const [name, source] of labSources) {
+      // No vendor endpoint of any kind — the provenance PROSE may name PixelLab (it must: that is
+      // the licence record), but no reachable host may appear anywhere.
+      expect(source, `${name}: vendor URL`).not.toMatch(/https?:\/\/[^\s'"`)]*pixellab/i);
+      expect(source, `${name}: vendor host`).not.toMatch(/pixellab\.ai/i);
+      // No network primitive at all in the lab's own consumer path.
+      expect(source, `${name}: network primitive`).not.toMatch(
+        /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|navigator\.sendBeacon)\s*\(/,
+      );
+      expect(source, `${name}: http client`).not.toMatch(/\b(?:axios|got|undici|node-fetch)\b/);
+      // No credential surface, and no environment read to smuggle one in.
+      expect(source, `${name}: credential`).not.toMatch(
+        /\b(?:api[_-]?key|apiKey|access[_-]?token|Bearer\s|Authorization|client[_-]?secret)\b/i,
+      );
+      expect(source, `${name}: env read`).not.toMatch(/process\.env|import\.meta\.env/);
+    }
+
+    // The Studio gate adds only a URL reader — no fetch, no import of a vendor module.
+    const treeViewSource = readFileSync(
+      resolve(process.cwd(), 'src', 'components', 'TreeView.tsx'),
+      'utf8',
+    );
+    expect(treeViewSource).toMatch(
+      /export function readChapter2Round3Lab\([\s\S]*?get\('organicGrowth'\) === 'r3-lab'/,
+    );
+    expect(treeViewSource).not.toMatch(/pixellab/i);
+
+    // The player is mounted WITHOUT a remount key — the host may not smuggle a cursor reset in.
+    const demoSource = labSources[0]![1];
+    const mountSite = /<SemanticGrowthWorldView\b[\s\S]*?\/>/.exec(demoSource)?.[0] ?? '';
+    expect(mountSite).not.toBe('');
+    expect(mountSite).not.toMatch(/\bkey=/);
+    // …and the host owns no frame cursor, timer or animation clock of its own. Checked over the
+    // CODE only: the file's own prose says "a fixed instant, never `Date.now()`", and a rule that
+    // a comment can trip is a rule about prose. Dropping whole comment lines can only remove
+    // comments (a line carrying code never begins with `//`, `/*` or `*`), and the guard below
+    // proves the stripper did not eat the component itself.
+    const demoCode = demoSource
+      .split('\n')
+      .filter((line) => !/^\s*(?:\/\/|\/\*|\*)/.test(line))
+      .join('\n');
+    expect(demoCode).toContain('export function SemanticGrowthDemo');
+    expect(demoCode).toContain('<SemanticGrowthWorldView');
+    expect(demoCode).not.toMatch(/setInterval|setTimeout|requestAnimationFrame|Date\.now\(\)/);
+
+    // ---- B. DEPENDENCY audit — nothing vendor-shaped is even installable at this seam. -------
+    const vendorish = /pixellab|openai|anthropic|replicate|stability|midjourney/i;
+    for (const manifest of ['package.json', resolve('..', '..', 'packages', 'app-surface', 'package.json')]) {
+      const pkg = JSON.parse(readFileSync(resolve(process.cwd(), manifest), 'utf8')) as {
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      for (const name of [
+        ...Object.keys(pkg.dependencies ?? {}),
+        ...Object.keys(pkg.devDependencies ?? {}),
+      ]) {
+        expect(name, `${manifest} depends on ${name}`).not.toMatch(vendorish);
+      }
+    }
+
+    // ---- C. NO PERMANENT NAVIGATION ENTRY — the query is the only way in. -------------------
+    const studioSrc = resolve(process.cwd(), 'src');
+    const mentions = (readdirSync(studioSrc, { recursive: true, encoding: 'utf8' }) as string[])
+      .map((entry) => entry.replace(/\\/g, '/'))
+      .filter((entry) => /\.(?:ts|tsx)$/.test(entry))
+      .filter((entry) => readFileSync(resolve(studioSrc, entry), 'utf8').includes('r3-lab'));
+    expect(mentions.sort()).toEqual([
+      'components/SemanticGrowthDemo.tsx',
+      'components/TreeView.tsx',
+      'components/TreeViewShell.test.tsx',
+    ]);
+    for (const [, source] of [['TreeView.tsx', treeViewSource] as const, ...labSources.slice(0, 1)]) {
+      expect(source).not.toMatch(/href=[^\n]*r3-lab/);
+    }
+
+    // ---- D. RUNTIME audit — walking the whole lab issues no request off this origin. ---------
+    const restoreMotion = forceReducedMotion();
+    const originalFetch = globalThis.fetch;
+    const requested: string[] = [];
+    globalThis.fetch = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      requested.push(
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : (input as Request).url,
+      );
+      // The Studio's own art-sheet load already tolerates a rejected manifest fetch.
+      throw new Error('network blocked in test');
+    }) as typeof fetch;
+    try {
+      window.history.pushState({}, '', '/?organicGrowth=r3-lab#/tree');
+      const lab = await renderTree();
+      const { next } = controls(lab);
+      for (const candidate of CHAPTER2_ROUND3_TREE_CANDIDATES) {
+        await act(async () =>
+          lab
+            .querySelector<HTMLButtonElement>(`[data-r3-lab-candidate="${candidate.id}"]`)!
+            .click(),
+        );
+      }
+      for (let i = 0; i < 5; i += 1) await act(async () => next.click());
+
+      // Nothing left this origin, and nothing vendor-shaped was asked for at all.
+      for (const url of requested) {
+        expect(url, `requested ${url}`).not.toMatch(vendorish);
+        expect(url.startsWith('/') || url.startsWith(window.location.origin)).toBe(true);
+      }
+      // Every mounted frame is a local checked-in module asset, never a vendor URL.
+      const hrefs = organicImages(lab).map((image) => image.getAttribute('href') ?? '');
+      expect(hrefs.length).toBeGreaterThan(0);
+      for (const href of hrefs) {
+        expect(href).not.toMatch(vendorish);
+        expect(href).toMatch(/\/(?:tree|plant)\/frame-\d+\.png$/);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreMotion();
     }
   });
 });
