@@ -29,6 +29,16 @@ Generated animation remains a selective app-owned render track, but only for org
 deformation benefits from authored frames: trees, canopy, plants, flowers and bounded foliage
 details. The island and coast remain app-native SVG.
 
+**Amended by
+[ADR-0280](0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md) (2026-08-01) and
+[ADR-0282](0282-the-act-2-intro-regrows-the-whole-forest-app-native-one-focu.md) (2026-08-02).**
+D1, D3 and every runtime safeguard stand unchanged under both. ADR-0280 widens D2's reservation of
+organic growth tracks from PixelLab to any author-time source, code first, and narrows the model's
+role to supplying components rather than whole frames or growth tracks. ADR-0282 adds the scale rule
+D2 never carried: an authored per-frame track — from any source — is affordable for at most one
+focused tree, and every other tree in the forest renders app-native. This ADR is not superseded and
+its arc is not closed; the hero-tree source remains unselected.
+
 ## Context
 
 The PixelLab full-island experiment reached the real shared app and answered an important
@@ -47,12 +57,13 @@ plants change shape as they grow; a small registered sequence can express that a
 better than a whole-scene scale/fade or a rigid procedural reveal. The correction is therefore a
 layering decision, not a rejection of generated art.
 
-## Standing position at a glance (2026-08-01)
+## Standing position at a glance (2026-08-02)
 
-This section is a summary, not a decision. It restates what D1–D6 below, ADR-0277 and the recorded
-owner LOOK verdicts already establish, so the current art-direction position can be read from this
-one ADR instead of reconstructed from two ADRs plus the arc increment log. Nothing here is new
-policy; where it appears to differ from a decision clause, the clause wins.
+This section is a summary, not a decision. It restates what D1–D6 below, ADR-0277, ADR-0280,
+ADR-0282 and the recorded owner LOOK verdicts already establish, so the current art-direction
+position can be read from this one ADR instead of reconstructed from four ADRs plus the arc
+increment log. Nothing here is new policy; where it appears to differ from a decision clause, the
+clause wins.
 
 **Island — SETTLED (recorded lead).** Experiment 6's connected SVG accretion is the island
 treatment. It carries the only explicitly positive island-formation LOOK the arc has recorded — "the
@@ -65,10 +76,41 @@ flowers, grasses and other small ground details on declared app-owned sockets (A
 Each retained plant track still carries the fixed canvas, pose order and dimensions, stable ground
 socket, crop normalization, painter slot, provenance and decode budget those clauses require.
 
-**Hero tree — UNRESOLVED.** No hero-tree treatment is selected, and the arc still carries this as
-its open question. Round 3 puts four candidates over the fixed Experiment 6 island composition in
-one comparison lab at `?organicGrowth=r3-lab#/tree` (PR #1062): the round-1 incumbent, exp-15
-object-rig v3, exp-16 leader-repair and exp-18 eroded prior. The owner LOOK verdict is pending.
+**Hero tree — UNRESOLVED, and its LOOK is blocked on the camera.** No hero-tree treatment is
+selected, and the arc still carries this as its open question. Round 3 put four candidates over the
+fixed Experiment 6 island composition in one comparison lab at `?organicGrowth=r3-lab#/tree`
+(PR #1062): the round-1 incumbent, exp-15 object-rig v3, exp-16 leader-repair and exp-18 eroded
+prior. That lab is built and its owner LOOK verdict has not been taken — and it is no longer merely
+pending. The owner directed on 2026-08-01 that the camera must be fixed before any hero-tree LOOK,
+and the camera-projection probe then established that PixelLab will not obey a camera word: the
+`view` parameter with isometric and aerial vocabulary, and in-context `create_map_object`, all
+return side elevation or bare terrain. Every round-3 candidate is front elevation against a low
+top-down plate. The workaround needs roughly 40 generations and 12 remain, which the owner has
+declined to top up, so this route is blocked on capability and on budget at once.
+
+**Hero-tree source — REOPENED, and now code-first (ADR-0280).** Round 4
+(`docs/research/chapter2-code-only-art-2026-08-01/VERDICT.md`) built four model-free generators and
+measured them against exp-16. Two results changed the direction. The camera is a free scalar in code
+— the blocker that is structurally unavailable from the vendor costs one re-run — and the finish,
+not the method, is what made procedural art look schematic: two near-identical procedural skeletons
+emitted through different renderers give vector clipart through SVG and a competitive pixel-art tree
+through a raster rasteriser. ADR-0280 took that fork: our code owns skeleton, camera and growth, a
+generative model supplies components rather than whole frames, and the technique is a code skeleton
+with a raster finish. That decision explicitly does not close this arc or select its hero tree —
+both tracks are live, and both are unattested.
+
+**Round 4's own caution, kept honest.** Code did not win the drawing. On root flare, crown
+separation and young-tree proportions the generated track beats every code track at every stage of
+the sequence except the single mature frame, and not one of the four code tracks produced anything a
+person would call a sapling. What code won is everything mechanical, and it won it for free: the
+best code track's worst cut subdivided `0.676` to `0.953` in `0.8 s` for `$0.00` with byte-identical
+endpoints, where `6` irreplaceable generations moved exp-16's worst cut only `0.279` to `0.457` and
+hit a reported floor.
+
+**The forest at large — SETTLED (ADR-0282).** The clauses below are written for one focused tree and
+say nothing about 45 of them. ADR-0282 settles that: the forest at large — island accretion,
+per-territory trees, trails — renders app-native at any story count, and an authored per-frame
+track, from any source, is affordable for at most one focused tree.
 
 ### Experiment record
 
@@ -256,6 +298,12 @@ candidate, accept the held island control or close the arc. ADR-0277 records the
 
 - [ADR-0277](0277-occlusion-registered-cutouts-are-plant-only.md) — amendment that retains the
   Experiment 8 cutout/pose technique for small plants and rejects its assembled hero-tree join.
+- [ADR-0280](0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md) — amendment that
+  widens D2 from PixelLab to any author-time source, code first, and demotes the generative model to
+  a supplier of components.
+- [ADR-0282](0282-the-act-2-intro-regrows-the-whole-forest-app-native-one-focu.md) — amendment that
+  adds the scale rule: app-native forest at any story count, at most one focused tree on an authored
+  per-frame track.
 - [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) — rejected
   full-island raster experiment and inherited deterministic runtime safeguards.
 - [ADR-0264](0264-chapter-2-tree-growth-uses-one-deterministic-topology-rig-wi.md) — earlier

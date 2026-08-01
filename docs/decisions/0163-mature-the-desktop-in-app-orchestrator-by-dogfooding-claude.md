@@ -159,10 +159,13 @@ draining backlog, not an endless babysit. The gaps already found are the first e
   independence, not a second agent in the outer loop.
 - ADR-0130 / ADR-0131 — the turn-cap brake (Gap A's context).
 - ADR-0142 — the merged-branch guard + the presence machine-clear on merge (Gap B1's context).
-- ADR-0271 — sessions end at merge; the closing leg replaces the fresh-branch-and-keep-working move
-  Gap B1's remedy was built on. Amends ADR-0142, whose post-merge leg that remedy came from. With the
-  sidecar's landing surface now deleted (ADR-0175's retirement, executed 2026-07-30), no code
-  implements the retired shape anywhere.
+- ADR-0271 — the closing leg replaces the fresh-branch-and-keep-working move Gap B1's remedy was
+  built on. Amends ADR-0142, whose post-merge leg that remedy came from. With the sidecar's landing
+  surface now deleted (ADR-0175's retirement, executed 2026-07-30), no code implements the retired
+  shape anywhere. *[ADR-0275 (2026-08-01) amends ADR-0271: sessions no longer always end at merge —
+  the ending is an orchestration call. This gloss's point is unaffected, because what ADR-0275
+  restores is a fresh **worktree**, never the fresh-branch-in-place shape Gap B1's remedy used;
+  that shape stays retired and still has no implementation.]*
 - ADR-0174 / ADR-0175 — the interactive orchestrator's retirement and the split of its infrastructure
   (SSE transport / dock / continuity / inspect surface re-aimed into `app-guide`; the spawn and landing
   surfaces retired with it). Gap B1's remedy went with the landing surface.

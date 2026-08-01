@@ -33,8 +33,10 @@ elevation against a low top-down plate. The owner directed on 2026-08-01 that th
 before any owner LOOK. An 11-generation camera-projection probe (arc increment #1062) then
 established that PixelLab will not obey a camera *word* — the `view` parameter with isometric and
 aerial vocabulary, and in-context `create_map_object`, all return side elevation or bare terrain. A
-generation top-up would not have fixed it. The remaining workaround needs roughly 40 generations and
-18 remain, so it is also budget-blocked.
+generation top-up would not have fixed it. The remaining workaround needs roughly 40 generations, and
+**12 remain** — 18 at the time of the probe, less the 6 that round 4's `exp-16-v2` repair spent
+lifting exp-16's worst cut from `0.279` to `0.457` before reporting a floor — so it is also
+budget-blocked. The owner has declined to buy more.
 
 **Connectedness and growth were never had together.** Round 3 §5 item 4: three of the eight tracks
 won per-frame connectedness by freezing the tree, which is the "slowly revealed static image" family
@@ -96,6 +98,43 @@ the skeleton and a model owned only the skin — with the skin also moved into c
 **Vector output is not the finish.** SVG emission is retained only as a debugging or structural view.
 The delivered asset is raster.
 
+### D2a — Blender is admitted as an author-time render backend behind the same seam
+
+Blender is adopted as a **third finish backend**, alongside the pixel rasteriser and the SVG
+structural view. It is free, GPL, and fully scriptable, and it is admitted **because this arc's job is
+to find the ceiling** — the one 3D data point we hold (`code-sdf-volume`) is a sphere-tracer we
+hand-rolled in numpy inside a single workflow phase, so it measures the ceiling of what we can
+hand-roll, not the ceiling of 3D.
+
+- **Code still owns skeleton, camera and growth (D1 is unchanged).** Blender is driven headless from
+  our own script — `blender --background --python <script>` — which generates the geometry, sets the
+  camera and steps the growth. Blender occupies the *finish* slot, exactly where the pixel rasteriser
+  sits. It is a renderer, never an authority, and no `.blend` file is a source of truth: the script
+  is.
+- **It does not replace the pixel rasteriser.** That track is the best-looking code result to date and
+  stays a live candidate. The backends are compared, not ranked by adoption order.
+- **The raster back half still applies.** A Blender frame that ships as a generic 3D render is the
+  ADR-0145 failure reproduced. Output passes through the same quantisation, palette snap and
+  selective-outline treatment that keeps a frame inside the island's idiom.
+- **Author-time only, exactly as for every other vendor (ADR-0219).** Blender never enters the
+  runtime, the build or the deployed artifact, and is not a workspace dependency. It is an operator
+  tool on the authoring machine; the committed PNG frames and the generating script are what the repo
+  carries.
+- **Determinism is constrained, not assumed.** Renders use **CPU Cycles** with a fixed seed and a
+  fixed sample count, against a **pinned LTS Blender** — **5.2.0 LTS**, which is the version installed
+  and used for the first spike. EEVEE and GPU rendering are not stable across drivers and machines and
+  are not used for delivered frames. Where exact byte-reproducibility cannot be shown, ADR-0219's
+  existing rule governs: the **committed frame is the source of truth**, not the renderer.
+
+`bpy` from PyPI is not a usable route here — no wheel exists for the machine's Python 3.14.5 — and the
+headless-application route is preferred regardless, since Blender bundles its own interpreter and can
+be version-pinned.
+
+**The scope objection is noted and remains the owner's to weigh.** D5 records that the live argument
+against 3D is over-engineering a non-core surface, and a Blender pipeline is heavier than a
+single-file generator. It is admitted here because it is free, author-time only, and directly serves
+the ceiling question this arc exists to answer — not because heavier tooling is assumed better.
+
 ### D3 — Generative models are demoted to component and texture suppliers
 
 A generative image model may author **individual component assets and textures** — a leaf blade, a
@@ -132,11 +171,15 @@ Consequently:
 
 - **3D at runtime stays closed**, as decided by ADR-0145, ADR-0214 ("Rejected: a three.js / WebGL
   substrate swap") and ADR-0069 D3.
-- **Author-time 3D is not rejected on identity grounds and was never tested on its merits.**
+- **Author-time 3D is not rejected on identity grounds and has not yet been tested on its merits.**
   ADR-0069 D4's rejection of WebGL is grounded in the requirement for pixel-stable deterministic
   output, which a CPU-side renderer satisfies; ADR-0219 already contemplates an author-time 3D
   maquette. The one round-4 attempt (`code-sdf-volume`) failed to resolve into a tree and is
-  undiagnosed.
+  undiagnosed — and it is **weak evidence about 3D**, because it is a sphere-tracer we hand-rolled in
+  numpy in a single workflow phase rather than a production renderer.
+  **D2a now supplies the instrument** that makes this question answerable: headless Blender, CPU
+  Cycles, driven by our own script. Author-time 3D moves from "untested hypothetical" to "testable
+  within this arc", which is precisely the evidence the owner needs to weigh the scope call below.
 - **Reopening 3D is an owner decision, taken against the ceiling this arc demonstrates**, and it is
   to be argued on scope — is this worth building for a non-core surface — rather than re-litigating
   the look.
@@ -177,7 +220,15 @@ a fork raised to the owner, not an assumption.
 - A ceiling demonstration can consume real effort and end in "not good enough", which is an accepted
   outcome of this arc rather than a failure of it.
 - `code-sdf-volume`'s failure is undiagnosed, so the author-time-3D option is being held open on an
-  experiment that did not work.
+  experiment that did not work — mitigated but not removed by D2a, which replaces the hand-rolled
+  renderer with a production one.
+- **D2a adds a ~1 GB author-time tool to an initiative whose live objection is over-engineering.** It
+  is free, author-time only and absent from the runtime, build and workspace dependencies, but it is
+  still a heavier pipeline than a single-file generator, and it must earn its place against the pixel
+  rasteriser on results rather than on capability.
+- A production renderer makes it *easier* to ship a frame that looks like generic 3D — the exact
+  appearance ADR-0145 rejected. The raster back half is what prevents that, and it is now
+  load-bearing rather than stylistic.
 
 ## References
 
@@ -185,6 +236,10 @@ a fork raised to the owner, not an assumption.
   island, camera constraint and runtime safeguards; amended here, not superseded.
 - [ADR-0277](0277-occlusion-registered-cutouts-are-plant-only.md) — registered cutouts retained for
   small plants, rejected for the hero tree.
+- [ADR-0282](0282-the-act-2-intro-regrows-the-whole-forest-app-native-one-focu.md) — the scale rule
+  this decision leaves open: an author-time track of any source, code or model, is affordable for at
+  most one focused tree, and the forest at large renders app-native at any story count. It takes the
+  hero-tree source question as this ADR and ADR-0274 leave it.
 - [ADR-0219](0219-generative-image-models-enter-the-art-pipeline-author-time-o.md) — author-time-only
   generation boundary; model role amended here.
 - [ADR-0264](0264-chapter-2-tree-growth-uses-one-deterministic-topology-rig-wi.md) (superseded) and
