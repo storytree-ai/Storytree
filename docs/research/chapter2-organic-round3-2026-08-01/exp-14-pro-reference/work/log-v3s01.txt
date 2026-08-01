@@ -1,0 +1,11 @@
+[fire 1] error: rate limit exceeded (9/8 jobs)
+[fire 2] error: rate limit exceeded (8/8 jobs)
+[fire 3] error: rate limit exceeded (9/8 jobs)
+[fire 4] error: rate limit exceeded (8/8 jobs)
+JOB v3s01 a3af5768-d5f9-4d1a-8005-caec14639e1f
+frames: 4
+download: https://api.pixellab.ai/mcp/images/a3af5768-d5f9-4d1a-8005-caec14639e1f/download?index=0 ... ?index=3
+SAVED raw\v3s01-a3af5768-00.png
+SAVED raw\v3s01-a3af5768-01.png
+SAVED raw\v3s01-a3af5768-02.png
+SAVED raw\v3s01-a3af5768-03.png

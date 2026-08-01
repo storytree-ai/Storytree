@@ -1,0 +1,102 @@
+{
+  "id": "chapter2-organic-round3-exp-14-pro-reference",
+  "round": 3,
+  "experiment": "exp-14-pro-reference",
+  "title": "Pro model with labelled references and a style lock to the island plate",
+  "technique": "create_image_pro, one fixed seed, a fixed labelled reference pair (species card + island plate) and a narrowed style lock to the island plate; nine-frame ladder SELECTED by measurement out of the 72-candidate pool, then anchor-normalized author-time",
+  "provider": "PixelLab",
+  "model": "pro",
+  "providerMode": "author-time-only",
+  "terms": "https://pixellab.ai/termsofservice",
+  "referencePlate": {
+    "file": "packages/app-surface/src/assets/chapter2-organic-pose-to-pose/svg-island-reference-plate.png",
+    "width": 155,
+    "height": 191,
+    "derived": [
+      { "file": "work/plate-island-only.png", "width": 106, "height": 142, "how": "background hue-separated at r-b >= 45" },
+      { "file": "work/plate-island-core.png", "width": 95, "height": 136, "how": "island-only with the cream coastline rim (r>205 & g>190) removed - the plate actually used as reference 2 and style_image from call 4 onward" }
+    ],
+    "purpose": "camera, palette and shading reference only - no land, coast or composite was generated"
+  },
+  "tracks": [
+    {
+      "id": "chapter2-hero-tree-pro-reference-track-v1",
+      "canvas": { "width": 192, "height": 192, "format": "transparent PNG RGBA8" },
+      "frameCount": 9,
+      "frameOrder": [
+        "frames/frame-00.png", "frames/frame-01.png", "frames/frame-02.png",
+        "frames/frame-03.png", "frames/frame-04.png", "frames/frame-05.png",
+        "frames/frame-06.png", "frames/frame-07.png", "frames/frame-08.png"
+      ],
+      "registeredRootAnchor": { "x": 96, "y": 188 },
+      "measuredMaxAnchorDriftPx": 0,
+      "measuredMaxTrunkCentreShiftPx": 13.5,
+      "measuredMinAdjacentSilhouetteIoU": 0.185,
+      "measuredMinAdjacentLowerTrunkBandIoU": 0.367,
+      "registrationReport": "tree-registration.json",
+      "continuityReport": "continuity.json",
+      "contactSheet": "contact-sheet.png",
+      "preview": "preview.gif",
+      "comparison": "comparison-vs-round1.png",
+      "generationCanvas": { "width": 168, "height": 168, "candidatesPerCall": 4 },
+      "seed": 31400,
+      "seedBlock": "31400-31408",
+      "styleCopy": ["color_palette", "shading"],
+      "referenceImages": [
+        { "file": "work/species-card.png", "usage": "the exact tree this is - keep this bark colour, leaf shape, root flare and drawing style identical" },
+        { "file": "work/plate-island-core.png", "usage": "the scene this tree stands in - match its camera angle and palette" }
+      ],
+      "frameJobs": {
+        "frame-00": "f05197dc-064f-4042-aee8-3485a5a658ad",
+        "frame-01": "f05197dc-064f-4042-aee8-3485a5a658ad",
+        "frame-02": "a4e90a6b-bda3-4c2d-8456-8d61fa3608be",
+        "frame-03": "3485f134-9654-4d4f-a3c1-f12e2ba7beee",
+        "frame-04": "a4e90a6b-bda3-4c2d-8456-8d61fa3608be",
+        "frame-05": "9339b845-978e-4ea4-8a3e-f946007f8e42",
+        "frame-06": "6d0f1152-8349-4043-850e-1bf5a9b62bb9",
+        "frame-07": "641923d4-dc73-4d48-b788-80d6dd3087da",
+        "frame-08": "75ea7c28-f366-4650-b827-1e6e4410a4cd"
+      },
+      "encodedBytes": 61207,
+      "decodedRgbaBytes": 1327104
+    }
+  ],
+  "reusedUnchanged": [
+    { "what": "island growth", "why": "ADR-0274 D1/D6 - experiment 6 connected SVG accretion is the round-3 control; no land, coast or composite generated here" },
+    { "what": "plant track", "why": "ADR-0277 D2 - the registered cutout/pose plant technique is selected; round-1 chapter2-plant-sample-pose-track-v1 is reused as-is and no generation budget was spent on plants" }
+  ],
+  "generations": { "calls": 18, "perCall": 25, "total": 450 },
+  "authoringRejects": [
+    { "jobId": "773dad17-8175-407e-8354-79140e1015f2", "reason": "chained previous-stage reference did not hold: all four candidates redrew a stout orange-lit tree with a 12px trunk from a 3px-trunk reference" },
+    { "jobId": "43fbbffb-8451-4386-b867-927d2745bda0", "reason": "cream coastline in the style plate plus 'cream-lit' prompt wording produced a white birch stripe down every trunk" },
+    { "jobId": "f4b9ab28-0e21-4d14-bb77-5d9b6c1606b7", "reason": "partial: candidate 00 carried a soil/debris strip, candidates 00 and 01 carried a cream sticker halo from style_copy 'outline'; candidate 03 retained as the species card" },
+    { "jobId": "f7355ced-698b-4768-aaa0-b5bea1f77568", "reason": "three of four candidates painted the prompt's 'windows of transparent sky' as literal white/pale-blue patches inside the canopy (528 / 211 / 22 pale px)" },
+    { "jobId": "641923d4-dc73-4d48-b788-80d6dd3087da", "reason": "partial: candidates 00/01/02 carried the same white sky-patch artifact (52 / 128 / 58 pale px); candidate 03 shipped" },
+    { "jobId": "5b6402df-3e99-4e9d-82fe-8125fa378e28", "reason": "'fist-sized lobes' produced three giant single leaves instead, and bark drifted light (mean 137,90,61 against the family's 95,58,38)" },
+    { "jobId": "f3d1910d-a3cb-43b0-a4df-ceb93a2f400a", "reason": "same failure and same bark drift as 5b6402df" }
+  ],
+  "runtime": {
+    "appOwns": [
+      "semantic state", "normalized progress", "progress-to-frame selection",
+      "easing and deliberate holds", "Next, Back and Replay",
+      "reduced-motion final settlement", "retained final scene",
+      "world sockets, depth slots and painter order",
+      "app-native SVG coast and ground reveal",
+      "trail draw-on (arrivalGrowPlan) and the lit selection lane"
+    ],
+    "pixelLabCalls": 0
+  },
+  "pathGrowth": {
+    "doc": "path-growth.md",
+    "treatment": "trail grows outward from the arriving island AFTER the land settles; the lit selection lane chases one REVEAL_STAGGER_MS behind",
+    "ridesExistingMachinery": [
+      "packages/app-surface/src/trailReveal.ts arrivalGrowPlan + REVEAL_STAGGER_MS",
+      "packages/app-surface/src/WorldSceneView.tsx WorldPresentationModel.reveal",
+      "packages/app-surface/src/SceneView.tsx trail-m-<id> mask hookup + is-growing",
+      "apps/studio/src/components/TreeView.tsx per-segment mask emission",
+      "apps/studio/src/index.css .trail-reveal-mask / trail-reveal-grow / .trail-lane.is-drawing"
+    ],
+    "generatedAssetsRequired": 0
+  },
+  "ownerLook": { "status": "pending", "attestedBy": null }
+}

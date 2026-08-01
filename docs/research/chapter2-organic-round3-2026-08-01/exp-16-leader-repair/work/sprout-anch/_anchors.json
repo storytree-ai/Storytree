@@ -1,0 +1,28 @@
+[
+ {
+  "file": "frame-00.png",
+  "src": "frame-00.png",
+  "sourceAnchor": [
+   53.83,
+   90
+  ],
+  "offset": [
+   10,
+   32
+  ],
+  "normalizedAnchor": [
+   63.83,
+   122
+  ],
+  "driftX": -0.17,
+  "driftY": 0,
+  "bbox": [
+   39,
+   50,
+   46,
+   73
+  ],
+  "alphaPx": 858,
+  "bytes": 2279
+ }
+]

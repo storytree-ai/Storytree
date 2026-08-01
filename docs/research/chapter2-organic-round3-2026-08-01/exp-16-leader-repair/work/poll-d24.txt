@@ -1,0 +1,8 @@
+[poll 1] status: processing 63%
+[poll 2] status: processing 81%
+[poll 3] status: processing 81%
+status: completed
+id: b793d604-1e59-4212-93bd-7df58d4f19c2
+frames: 5
+download: https://api.pixellab.ai/mcp/images/b793d604-1e59-4212-93bd-7df58d4f19c2/download?index=0 ... ?index=4
+(1 more frames not shown — fetch them from the download URLs above)

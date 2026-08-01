@@ -1,0 +1,14 @@
+{
+  "src": "raw/mature-b-efcd8090-00.png",
+  "canvas": [
+    192,
+    192
+  ],
+  "bridge_r": 2,
+  "root_band": 4,
+  "root_y": 180,
+  "seed_px": 112,
+  "reachable": 13473,
+  "unreachable": 0,
+  "max_geodesic": 167
+}

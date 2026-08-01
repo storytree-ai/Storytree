@@ -159,7 +159,14 @@ const TREE_TRACK: OrganicPoseTrack = Object.freeze({
   }),
 });
 
-const PLANT_TRACK: OrganicPoseTrack = Object.freeze({
+/**
+ * The ADR-0277 D2 retained cutout/pose plant sample.
+ *
+ * Exported because it is FIXED across the Chapter 2 round-3 comparison lab: every hero-tree
+ * candidate registry pairs its own tree track with this exact object, so a candidate swap can
+ * never smuggle a different plant into the comparison.
+ */
+export const CHAPTER2_PLANT_SAMPLE_TRACK: OrganicPoseTrack = Object.freeze({
   id: 'chapter2-plant-sample-pose-track-v1',
   kind: 'plant-sample',
   assetOrigin: 'checked-in-module-url',
@@ -206,7 +213,7 @@ const PLANT_TRACK: OrganicPoseTrack = Object.freeze({
 export const CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY: RegisteredOrganicPoseRegistry =
   Object.freeze({
     id: 'chapter2-organic-pose-to-pose-v1',
-    tracks: Object.freeze([TREE_TRACK, PLANT_TRACK]),
+    tracks: Object.freeze([TREE_TRACK, CHAPTER2_PLANT_SAMPLE_TRACK]),
     budget: Object.freeze({
       maxEncodedBytes: 200_000,
       maxDecodedRgbaBytes: 1_600_000,

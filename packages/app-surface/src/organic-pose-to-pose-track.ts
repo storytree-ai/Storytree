@@ -392,10 +392,14 @@ export function selectOrganicPoseCue(
   const holdMs = ORGANIC_POSE_PLAYBACK_POLICY.holdMs[bounded]!;
   const phase: OrganicPosePlaybackPhase =
     transitionMs > 0 ? 'transitioning' : holdMs > 0 ? 'holding' : 'settled';
+  // Cue zero deliberately has no transition. A zero-duration selection must therefore
+  // settle AT its endpoint immediately; retaining `state.progress` here made Back move the
+  // semantic cursor to `empty` while leaving the island/tree at the later cue until Replay.
+  const selectedProgress = transitionMs === 0 ? targetProgress : state.progress;
   return {
     cueIndex: bounded,
-    progress: state.progress,
-    fromProgress: state.progress,
+    progress: selectedProgress,
+    fromProgress: selectedProgress,
     targetProgress,
     elapsedMs: 0,
     transitionMs,

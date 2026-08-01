@@ -32,13 +32,23 @@ import {
   type SceneNode,
   type SceneVegetationInput,
 } from '@storytree/forest-world';
+import { useMemo, useState } from 'react';
 import {
+  arrivalGrowPlan,
   CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+  CHAPTER2_ROUND3_TREE_CANDIDATES,
+  chapter2Round3TreeCandidate,
   neighbourHighlightPlan,
   laneLayout,
   normalizeWorldPresentationModel,
   SemanticGrowthWorldView,
+  type Chapter2HeroTreeCandidate,
+  type Chapter2HeroTreeCandidateId,
+  type OrganicPoseTrack,
   type SemanticGrowthFrame,
+  type SemanticGrowthOrganicPoseLayer,
+  type SemanticGrowthSvgIslandAccretion,
+  type TrailRevealPlan,
 } from '@storytree/app-surface';
 import { buildWorld, buildRelaxedCells, worldToScene, type HexWorld } from './TreeView.js';
 import type {
@@ -285,6 +295,19 @@ function buildFrames(
     roundabouts: true,
   });
 
+  // The ADR-0169 ARRIVAL draw-on, over the same composed world's REAL trail network: the primary
+  // is the island that ARRIVES in this walk, so its direct incident road grows outward from it
+  // rather than snapping in already drawn. The live map has always had this beat
+  // (`TreeView.tsx` calls the same shared selector); the witness never wired it, which is why no
+  // Chapter 2 mock has ever shown a path growing.
+  //
+  // Set on the `proposed` frame ONLY (see the frame list below). `reveal` is a per-frame field on
+  // the DISCRETE six-key cursor, not the organic layer's continuous progress axis, and the mask
+  // animation fires on MOUNT — so putting the plan on the one arrival frame plays the beat
+  // exactly once, at the arrival, while every later frame (no plan ⇒ no mask) simply paints the
+  // trail fully drawn. `empty`/`land` carry no primary identity yet, so they stay off it too.
+  const arrivalPlan = arrivalGrowPlan(baseWorld.trails, new Set([DEMO_STORY_ID]));
+
   const rawRelaxedCells = buildRelaxedCells(baseWorld, 'mesh', {});
   // The SOLE allowed filtering (H): deterministic removal of the real `buildRelaxedCells` output
   // OWNED by the fixed companion territory — never a hand-authored replacement — so the companion
@@ -370,12 +393,14 @@ function buildFrames(
   const narrativeModel = (
     story: TreeStory,
     claims: readonly ClaimActivity[] = [],
+    reveal: TrailRevealPlan | null = null,
   ): ReturnType<typeof normalizeWorldPresentationModel> =>
     normalizeWorldPresentationModel({
       scene: narrativeScene(story, claims),
       neighbours: neighbourPlan,
       lanes: primaryLanes,
       laneMotion: 'draw',
+      reveal,
     });
 
   return [
@@ -388,8 +413,10 @@ function buildFrames(
       model: normalizeWorldPresentationModel({ scene: landScene() }),
     },
     {
+      // The ARRIVAL: the primary's island and its road appear together for the first time, so
+      // this is the one frame that carries the draw-on plan.
       key: 'proposed',
-      model: narrativeModel(demoStory('proposed')),
+      model: narrativeModel(demoStory('proposed'), [], arrivalPlan),
     },
     {
       key: 'claimed',
@@ -442,10 +469,70 @@ function organicPoseSockets(): NonNullable<typeof organicPoseSocketsCache> {
   return organicPoseSocketsCache;
 }
 
+const PLANT_TRACK_ID = 'chapter2-plant-sample-pose-track-v1';
+const INCUMBENT_HERO_TRACK_ID = 'chapter2-hero-tree-pose-track-v1';
+
+/**
+ * The round-3 lab's PROJECTION dial (comparison stand-in, never a solved camera).
+ *
+ * Verified 2026-08-01: PixelLab will not produce a low-top-down tree by prompting, and the
+ * generation budget is spent, so the camera cannot be fixed by regeneration in this increment.
+ * What costs nothing is a deterministic vertical squash of the rendered organic layer, pinned at
+ * the ground socket. 0.82 is the owner-facing default because it reads noticeably more planted
+ * than 1.00 without turning the tree into a bush; 1.00 is the untouched track and 0.72 is the far
+ * end of what still reads as a tree.
+ *
+ * The dial is STATELESS — the rendered geometry is a pure function of the selected value, so it
+ * holds nothing for Replay to clear, and Replay deliberately does NOT snap the owner's chosen
+ * comparison setting back to the default mid-comparison.
+ */
+const R3_LAB_PROJECTIONS = Object.freeze([1, 0.9, 0.82, 0.72] as const);
+const R3_LAB_DEFAULT_PROJECTION = 0.82;
+const R3_LAB_DEFAULT_CANDIDATE: Chapter2HeroTreeCandidateId = 'incumbent';
+
+function heroTreeTrack(candidate: Chapter2HeroTreeCandidate): OrganicPoseTrack {
+  const track = candidate.registry.tracks.find((t) => t.id === candidate.heroTreeTrackId);
+  if (!track) throw new Error(`Round-3 candidate "${candidate.id}" registers no hero-tree track.`);
+  return track;
+}
+
+/**
+ * The mature hero tree's world HEIGHT under the accepted round-1 track — the size every candidate
+ * is drawn at, so the owner compares shape and planting rather than accidental scale.
+ *
+ * exp-16 is authored on a 128px canvas while the other three are 192px, and every candidate's
+ * mature footprint differs, so mounting them all at one instance scale would render exp-16 at
+ * roughly 65% the apparent height and quietly bias the LOOK verdict. The instance scale is a
+ * DISPLAY decision the app owns (never a re-normalisation of the asset), derived here from each
+ * track's own registered `matureFootprint`.
+ *
+ * Resolved LAZILY and cached, never at module scope: this module is imported by every route that
+ * imports TreeView, and reaching into the round-3 candidate registry during module evaluation
+ * would make the whole Studio bundle's load depend on a table only the lab reads.
+ */
+let incumbentMatureWorldHeightCache: number | null = null;
+
+function incumbentMatureWorldHeight(): number {
+  if (incumbentMatureWorldHeightCache === null) {
+    incumbentMatureWorldHeightCache =
+      heroTreeTrack(chapter2Round3TreeCandidate('incumbent')).matureFootprint.height *
+      ORGANIC_TREE_SCALE;
+  }
+  return incumbentMatureWorldHeightCache;
+}
+
+function heroTreeScale(candidate: Chapter2HeroTreeCandidate): number {
+  return incumbentMatureWorldHeight() / heroTreeTrack(candidate).matureFootprint.height;
+}
+
 export interface SemanticGrowthDemoProps {
   readonly spriteSheet: SpriteStyleSheet | null;
   readonly artScale: number;
-  readonly variant?: 'demo' | 'organic-pose-to-pose';
+  readonly variant?:
+    | 'demo'
+    | 'organic-pose-to-pose'
+    | 'organic-island-accretion'
+    | 'r3-lab';
 }
 
 /**
@@ -459,18 +546,70 @@ export function SemanticGrowthDemo({
   artScale,
   variant = 'demo',
 }: SemanticGrowthDemoProps): React.JSX.Element {
-  const poseVariant = variant === 'organic-pose-to-pose';
+  const labVariant = variant === 'r3-lab';
+  const poseVariant = variant !== 'demo';
+  // The lab presents the owner's recorded island lead, so it carries the accretion layer (and its
+  // legend) exactly as the `organic-island-accretion` gate does.
+  const accretionVariant = variant === 'organic-island-accretion' || labVariant;
+  // The ONLY host state the lab adds: which hero tree is mounted and which projection is shown.
+  // Neither is a frame cursor, a timer or a remount key — the public player still owns the
+  // semantic cursor, the playback clock and Back/Next/Replay, and it is never re-keyed, so
+  // switching a candidate mid-walk leaves the walk exactly where the owner left it.
+  const [candidateId, setCandidateId] =
+    useState<Chapter2HeroTreeCandidateId>(R3_LAB_DEFAULT_CANDIDATE);
+  const [projection, setProjection] = useState<number>(R3_LAB_DEFAULT_PROJECTION);
   const sourceFrames = poseVariant ? organicPoseFrames() : frames();
   const sockets = poseVariant ? organicPoseSockets() : null;
-  const framesWithArt: readonly SemanticGrowthFrame[] = sourceFrames.map((f) => ({
-    key: f.key,
-    model: {
-      ...f.model,
-      scene: poseVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
-      spriteSheet,
-      artScale,
-    },
-  }));
+  const candidate = labVariant ? chapter2Round3TreeCandidate(candidateId) : null;
+  const framesWithArt = useMemo<readonly SemanticGrowthFrame[]>(
+    () =>
+      sourceFrames.map((f) => ({
+        key: f.key,
+        model: {
+          ...f.model,
+          scene: poseVariant ? withoutPrimaryVectorOrganic(f.model.scene) : f.model.scene,
+          spriteSheet,
+          artScale,
+        },
+      })),
+    [artScale, poseVariant, sourceFrames, spriteSheet],
+  );
+  // EXACTLY ONE hero-tree track is mounted at a time: the layer carries the selected candidate's
+  // registry, whose two tracks are that candidate's hero tree plus the SHARED, frozen plant track
+  // — so a candidate swap can never change the plant, the island or the walk.
+  const organicPoseGrowth = useMemo<SemanticGrowthOrganicPoseLayer | null>(() => {
+    if (!poseVariant || !sockets) return null;
+    return {
+      registry: candidate ? candidate.registry : CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+      instances: [
+        {
+          trackId: candidate ? candidate.heroTreeTrackId : INCUMBENT_HERO_TRACK_ID,
+          worldAnchor: sockets.tree,
+          scale: candidate ? heroTreeScale(candidate) : ORGANIC_TREE_SCALE,
+          progressWindow: { start: 0.18, end: 1 },
+        },
+        {
+          trackId: PLANT_TRACK_ID,
+          worldAnchor: sockets.plant,
+          scale: ORGANIC_PLANT_SCALE,
+          progressWindow: { start: 0.52, end: 1 },
+        },
+      ],
+      nativeIsland: {
+        ...sockets.island,
+        settledAtProgress: 0.18,
+      },
+      ...(labVariant ? { projection } : {}),
+    };
+  }, [candidate, labVariant, poseVariant, projection, sockets]);
+  const svgIslandAccretion = useMemo<SemanticGrowthSvgIslandAccretion | null>(() => {
+    if (!accretionVariant || !sockets) return null;
+    return {
+      storyId: sockets.island.storyId,
+      worldAnchor: sockets.tree,
+      growthDurationMs: 1_600,
+    };
+  }, [accretionVariant, sockets]);
   return (
     <div className="tree-wrap semantic-growth-demo-host">
       <div className="tree-layout">
@@ -478,42 +617,149 @@ export function SemanticGrowthDemo({
           <div
             className="world-viewport"
             aria-label={
-              poseVariant
-                ? 'organic pose-to-pose growth witness (real app fixture)'
-                : 'semantic growth witness (static fixture)'
+              labVariant
+                ? 'Chapter 2 round-3 hero-tree comparison lab (real app fixture)'
+                : poseVariant
+                  ? accretionVariant
+                    ? 'connected SVG island accretion with organic pose-to-pose growth (real app fixture)'
+                    : 'organic pose-to-pose growth witness (real app fixture)'
+                  : 'semantic growth witness (static fixture)'
             }
           >
             <SemanticGrowthWorldView
               frames={framesWithArt}
-              {...(poseVariant && sockets
-                ? {
-                    organicPoseGrowth: {
-                      registry: CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
-                      instances: [
-                        {
-                          trackId: 'chapter2-hero-tree-pose-track-v1',
-                          worldAnchor: sockets.tree,
-                          scale: ORGANIC_TREE_SCALE,
-                          progressWindow: { start: 0.18, end: 1 },
-                        },
-                        {
-                          trackId: 'chapter2-plant-sample-pose-track-v1',
-                          worldAnchor: sockets.plant,
-                          scale: ORGANIC_PLANT_SCALE,
-                          progressWindow: { start: 0.52, end: 1 },
-                        },
-                      ],
-                      nativeIsland: {
-                        ...sockets.island,
-                        settledAtProgress: 0.18,
-                      },
-                    },
-                  }
-                : {})}
+              {...(organicPoseGrowth ? { organicPoseGrowth } : {})}
+              {...(organicPoseGrowth && svgIslandAccretion ? { svgIslandAccretion } : {})}
             />
           </div>
         </div>
       </div>
+      {labVariant && candidate ? (
+        <div
+          data-r3-lab="true"
+          style={{
+            boxSizing: 'border-box',
+            flex: '0 0 auto',
+            width: '100%',
+            maxWidth: '72rem',
+            margin: '0 auto',
+            padding: '0.35rem clamp(0.6rem, 2vw, 1rem)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.5rem 1.25rem',
+            alignItems: 'baseline',
+          }}
+        >
+          <div
+            role="group"
+            aria-label="Hero tree candidate"
+            data-r3-lab-candidate-picker="true"
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}
+          >
+            {CHAPTER2_ROUND3_TREE_CANDIDATES.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                data-r3-lab-candidate={entry.id}
+                aria-pressed={entry.id === candidateId}
+                onClick={() => setCandidateId(entry.id)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+          <div
+            role="group"
+            aria-label="Projection comparison (vertical squash)"
+            data-r3-lab-projection-picker="true"
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}
+          >
+            {R3_LAB_PROJECTIONS.map((value) => (
+              <button
+                key={value.toFixed(2)}
+                type="button"
+                data-r3-lab-projection={value.toFixed(2)}
+                aria-pressed={value === projection}
+                onClick={() => setProjection(value)}
+              >
+                {value.toFixed(2)}&#215;
+              </button>
+            ))}
+          </div>
+          {/*
+            The prose below is deliberately candidate-INDEPENDENT, and the per-candidate readout
+            below it is a single non-wrapping line. Measured in Chromium at 1440x900 before this
+            split: exp-18's shorter budget clause cost the legend one wrapped line (97px -> 78px),
+            which grew the map SVG from 665px to 685px — switching candidates RESIZED the picture
+            the owner is comparing by ~3%. A comparison lab may not move its own subject, so the
+            varying text now occupies a fixed one-line row and the block height is constant.
+          */}
+          <p
+            role="note"
+            data-r3-lab-legend="true"
+            style={{
+              margin: 0,
+              flex: '1 1 22rem',
+              fontSize: 'clamp(0.72rem, 1.7vw, 0.9rem)',
+              lineHeight: 1.35,
+            }}
+          >
+            The <strong>hero tree</strong> is the only thing that changes: the connected SVG
+            accretion island, the retained plant track and the arrival path-growth beat are fixed
+            for every candidate, and every candidate is drawn at the accepted track&rsquo;s mature
+            height so scale never biases the comparison. <strong>Projection</strong> is a{' '}
+            <strong>comparison control, not a solved camera</strong> — a deterministic vertical
+            squash of the organic sprite layer, pinned at the ground socket so the root contact
+            never moves, standing in for the low top-down view the generator would not produce.
+          </p>
+          <p
+            data-r3-lab-budget={candidate.id}
+            style={{
+              margin: 0,
+              flex: '1 1 100%',
+              minWidth: 0,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              fontSize: 'clamp(0.72rem, 1.7vw, 0.9rem)',
+              lineHeight: 1.35,
+            }}
+          >
+            Mounted: <strong>{candidate.label}</strong> at{' '}
+            <strong>{projection.toFixed(2)}&#215;</strong> — {candidate.frameCount} frames,{' '}
+            {candidate.canvas.width}&#215;{candidate.canvas.height},{' '}
+            {String(candidate.budget.encodedBytes)} encoded bytes,{' '}
+            {String(candidate.budget.decodedRgbaBytes)} decoded bytes;{' '}
+            {candidate.budget.exceedsPriorCeiling.length === 0
+              ? 'within the round-1 ceilings'
+              : `exceeds the round-1 ceiling on ${candidate.budget.exceedsPriorCeiling.join(
+                  ' and ',
+                )}`}
+            .
+          </p>
+        </div>
+      ) : null}
+      {accretionVariant ? (
+        <p
+          role="note"
+          data-island-accretion-legend="true"
+          style={{
+            boxSizing: 'border-box',
+            flex: '0 0 auto',
+            width: '100%',
+            maxWidth: '72rem',
+            margin: '0 auto',
+            padding: '0.35rem clamp(0.6rem, 2vw, 1rem)',
+            fontSize: 'clamp(0.72rem, 1.7vw, 0.9rem)',
+            lineHeight: 1.35,
+          }}
+        >
+          <strong>connected accretion</strong> grows one real SVG cell from a shared edge; the{' '}
+          <strong>adjacency wave</strong> moves outward with a{' '}
+          <strong>local geometric reveal</strong>, then the real coast finishes in{' '}
+          <strong>coastline settlement</strong>.
+        </p>
+      ) : null}
     </div>
   );
 }

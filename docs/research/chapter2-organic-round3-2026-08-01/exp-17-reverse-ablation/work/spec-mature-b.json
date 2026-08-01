@@ -1,0 +1,13 @@
+{
+  "description": "A single broad hero shade tree seen from a low top-down camera. One sturdy fluted brown trunk with flaring surface roots at the bottom centre, dividing into clearly visible bare branches that reach outward and upward; each branch tip carries its own SEPARATE rounded cluster of moss-green and olive leaves, with open gaps of empty space between the clusters so the whole branch armature stays readable. Whole tree only: roots at the bottom edge, crown filling the top. Transparent background, no ground, no soil, no grass, no island, no shadow platform, no frame, no border, no second tree, no text.",
+  "width": 192,
+  "height": 192,
+  "no_background": true,
+  "view": "low top-down",
+  "outline": "selective outline",
+  "shading": "medium shading",
+  "detail": "highly detailed",
+  "text_guidance_scale": 9,
+  "color_image_base64": "@C:/code/storytree/packages/app-surface/src/assets/chapter2-organic-pose-to-pose/tree/frame-08.png",
+  "seed": 31701
+}

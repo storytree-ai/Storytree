@@ -1,0 +1,236 @@
+[
+ {
+  "file": "frame-00.png",
+  "src": "frame-00.png",
+  "sourceAnchor": [
+   61.89,
+   117
+  ],
+  "offset": [
+   2,
+   5
+  ],
+  "normalizedAnchor": [
+   63.89,
+   122
+  ],
+  "driftX": -0.11,
+  "driftY": 0,
+  "bbox": [
+   29,
+   18,
+   75,
+   105
+  ],
+  "alphaPx": 1623,
+  "bytes": 2796
+ },
+ {
+  "file": "frame-01.png",
+  "src": "frame-01.png",
+  "sourceAnchor": [
+   61.27,
+   126
+  ],
+  "offset": [
+   3,
+   -4
+  ],
+  "normalizedAnchor": [
+   64.27,
+   122
+  ],
+  "driftX": 0.27,
+  "driftY": 0,
+  "bbox": [
+   29,
+   15,
+   76,
+   108
+  ],
+  "alphaPx": 1639,
+  "bytes": 2870
+ },
+ {
+  "file": "frame-02.png",
+  "src": "frame-02.png",
+  "sourceAnchor": [
+   60.26,
+   125
+  ],
+  "offset": [
+   4,
+   -3
+  ],
+  "normalizedAnchor": [
+   64.26,
+   122
+  ],
+  "driftX": 0.26,
+  "driftY": 0,
+  "bbox": [
+   30,
+   14,
+   76,
+   109
+  ],
+  "alphaPx": 2190,
+  "bytes": 3710
+ },
+ {
+  "file": "frame-03.png",
+  "src": "frame-03.png",
+  "sourceAnchor": [
+   65.76,
+   125
+  ],
+  "offset": [
+   -2,
+   -3
+  ],
+  "normalizedAnchor": [
+   63.76,
+   122
+  ],
+  "driftX": -0.24,
+  "driftY": 0,
+  "bbox": [
+   29,
+   21,
+   79,
+   102
+  ],
+  "alphaPx": 2091,
+  "bytes": 3553
+ },
+ {
+  "file": "frame-04.png",
+  "src": "frame-04.png",
+  "sourceAnchor": [
+   59.15,
+   114
+  ],
+  "offset": [
+   5,
+   8
+  ],
+  "normalizedAnchor": [
+   64.15,
+   122
+  ],
+  "driftX": 0.15,
+  "driftY": 0,
+  "bbox": [
+   23,
+   28,
+   92,
+   95
+  ],
+  "alphaPx": 2271,
+  "bytes": 3839
+ },
+ {
+  "file": "frame-05.png",
+  "src": "frame-05.png",
+  "sourceAnchor": [
+   58.51,
+   114
+  ],
+  "offset": [
+   5,
+   8
+  ],
+  "normalizedAnchor": [
+   63.51,
+   122
+  ],
+  "driftX": -0.49,
+  "driftY": 0,
+  "bbox": [
+   27,
+   26,
+   79,
+   97
+  ],
+  "alphaPx": 2828,
+  "bytes": 3844
+ },
+ {
+  "file": "frame-06.png",
+  "src": "frame-06.png",
+  "sourceAnchor": [
+   61.95,
+   114
+  ],
+  "offset": [
+   2,
+   8
+  ],
+  "normalizedAnchor": [
+   63.95,
+   122
+  ],
+  "driftX": -0.05,
+  "driftY": 0,
+  "bbox": [
+   17,
+   18,
+   95,
+   105
+  ],
+  "alphaPx": 4723,
+  "bytes": 4272
+ },
+ {
+  "file": "frame-07.png",
+  "src": "frame-07.png",
+  "sourceAnchor": [
+   67.21,
+   120
+  ],
+  "offset": [
+   -3,
+   2
+  ],
+  "normalizedAnchor": [
+   64.21,
+   122
+  ],
+  "driftX": 0.21,
+  "driftY": 0,
+  "bbox": [
+   17,
+   12,
+   95,
+   111
+  ],
+  "alphaPx": 4967,
+  "bytes": 4421
+ },
+ {
+  "file": "frame-08.png",
+  "src": "frame-08.png",
+  "sourceAnchor": [
+   61.79,
+   121
+  ],
+  "offset": [
+   2,
+   1
+  ],
+  "normalizedAnchor": [
+   63.79,
+   122
+  ],
+  "driftX": -0.21,
+  "driftY": 0,
+  "bbox": [
+   16,
+   11,
+   95,
+   112
+  ],
+  "alphaPx": 5046,
+  "bytes": 4553
+ }
+]

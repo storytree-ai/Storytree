@@ -1,0 +1,7 @@
+{
+ "description": "the full mature canopy of this tree: a broad dome of overlapping round green leafy clumps covering every branch tip, sitting down onto the main limbs so the crown and the brown boughs merge into one shape, layered light and dark green with a dark outline, storybook pixel art; the rest of the area is empty transparent background",
+ "image_base64": "<stripped 18212 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_image_base64": "<stripped 1100 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "crop_to_mask": true,
+ "seed": 31338
+}

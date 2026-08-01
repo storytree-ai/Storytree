@@ -58,8 +58,20 @@ export {
   type SemanticGrowthFrameKey,
   type SemanticGrowthOrganicPoseInstance,
   type SemanticGrowthOrganicPoseLayer,
+  type SemanticGrowthSvgIslandAccretion,
   type SemanticGrowthWorldViewProps,
 } from './SemanticGrowthWorldView.js';
+export {
+  deriveSharedEdgeAdjacency,
+  deriveSvgIslandAccretionPlan,
+  svgIslandAccretionAtProgress,
+  type SvgIslandAccretionCell,
+  type SvgIslandAccretionCellReveal,
+  type SvgIslandAccretionCoastReveal,
+  type SvgIslandAccretionPlan,
+  type SvgIslandAccretionPoint,
+  type SvgIslandAccretionState,
+} from './svg-island-accretion.js';
 export {
   ORGANIC_POSE_CUE_TARGETS,
   ORGANIC_POSE_PLAYBACK_POLICY,
@@ -86,4 +98,19 @@ export {
   type OrganicPoseTrackKind,
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
-export { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
+export {
+  CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
+  CHAPTER2_PLANT_SAMPLE_TRACK,
+} from './organic-pose-to-pose-assets.js';
+export {
+  CHAPTER2_ROUND3_EXP15_REGISTRY,
+  CHAPTER2_ROUND3_EXP16_REGISTRY,
+  CHAPTER2_ROUND3_EXP18_REGISTRY,
+  CHAPTER2_ROUND3_LAB_BUDGET,
+  CHAPTER2_ROUND3_TREE_CANDIDATES,
+  chapter2Round3TreeCandidate,
+  type Chapter2HeroTreeAnchorRule,
+  type Chapter2HeroTreeCandidate,
+  type Chapter2HeroTreeCandidateBudget,
+  type Chapter2HeroTreeCandidateId,
+} from './chapter2-round3-tree-candidates.js';

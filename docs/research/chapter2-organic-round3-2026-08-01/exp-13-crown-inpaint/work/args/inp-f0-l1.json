@@ -1,0 +1,7 @@
+{
+ "description": "a leafy young sapling: a spray of six or seven large pointed green leaves on short green stalks, carried at the top of one slim brown stem that grows straight up out of the old roots below, light green leaf faces and dark green undersides, dark brown outline, storybook game pixel art, nothing else in the picture, no soil, no grass",
+ "image_base64": "<stripped 1696 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_image_base64": "<stripped 652 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "crop_to_mask": true,
+ "seed": 31340
+}

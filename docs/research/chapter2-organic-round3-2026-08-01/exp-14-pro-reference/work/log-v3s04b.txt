@@ -1,0 +1,7 @@
+JOB v3s04b 6d0f1152-8349-4043-850e-1bf5a9b62bb9
+frames: 4
+download: https://api.pixellab.ai/mcp/images/6d0f1152-8349-4043-850e-1bf5a9b62bb9/download?index=0 ... ?index=3
+SAVED raw\v3s04b-6d0f1152-00.png
+SAVED raw\v3s04b-6d0f1152-01.png
+SAVED raw\v3s04b-6d0f1152-02.png
+SAVED raw\v3s04b-6d0f1152-03.png

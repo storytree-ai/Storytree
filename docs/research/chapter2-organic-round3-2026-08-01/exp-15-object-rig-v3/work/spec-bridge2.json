@@ -1,0 +1,10 @@
+{
+ "object_id": "7d3ad687-337e-449e-aff6-a300af26e8dd",
+ "mode": "v3",
+ "animation_description": "the last of the canopy fills in and settles: the remaining gaps between the leaf clusters close into one continuous rounded crown carried on the branches, the bark darkens slightly, and the tree comes to rest; the base never moves",
+ "frame_count": 16,
+ "keep_first_frame": true,
+ "display_name": "exp15-bridge-12-16",
+ "custom_start_frame_base64__b64file": "../raw/animA-12.png",
+ "end_frame_base64__b64file": "../raw/animA-16.png"
+}

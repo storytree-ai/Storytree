@@ -1,0 +1,7 @@
+JOB v3s04c f3d1910d-a3cb-43b0-a4df-ceb93a2f400a
+frames: 4
+download: https://api.pixellab.ai/mcp/images/f3d1910d-a3cb-43b0-a4df-ceb93a2f400a/download?index=0 ... ?index=3
+SAVED raw\v3s04c-f3d1910d-00.png
+SAVED raw\v3s04c-f3d1910d-01.png
+SAVED raw\v3s04c-f3d1910d-02.png
+SAVED raw\v3s04c-f3d1910d-03.png

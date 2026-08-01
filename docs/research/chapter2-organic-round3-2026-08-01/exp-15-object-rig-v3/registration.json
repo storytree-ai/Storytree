@@ -1,0 +1,422 @@
+{
+  "canvas": {
+    "width": 192,
+    "height": 192,
+    "format": "PNG",
+    "decoded": "RGBA8"
+  },
+  "frameCount": 16,
+  "targetAnchor": {
+    "x": 96,
+    "y": 188
+  },
+  "alphaThreshold": 8,
+  "anchorRule": "alpha-weighted x across bottom three occupied rows; bottom-most occupied y",
+  "sourceCanvas": {
+    "width": 176,
+    "height": 176
+  },
+  "frames": [
+    {
+      "file": "frame-00.png",
+      "source": "animA-00",
+      "sourceAnchor": {
+        "x": 88,
+        "y": 172
+      },
+      "sourceFootprint": {
+        "x": 72,
+        "y": 91,
+        "width": 34,
+        "height": 82
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 80,
+        "y": 107,
+        "width": 34,
+        "height": 82
+      },
+      "encodedBytes": 1885
+    },
+    {
+      "file": "frame-01.png",
+      "source": "animA-02",
+      "sourceAnchor": {
+        "x": 87,
+        "y": 172
+      },
+      "sourceFootprint": {
+        "x": 65,
+        "y": 73,
+        "width": 47,
+        "height": 100
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 74,
+        "y": 89,
+        "width": 47,
+        "height": 100
+      },
+      "encodedBytes": 4104
+    },
+    {
+      "file": "frame-02.png",
+      "source": "animA-03",
+      "sourceAnchor": {
+        "x": 87,
+        "y": 172
+      },
+      "sourceFootprint": {
+        "x": 62,
+        "y": 63,
+        "width": 53,
+        "height": 110
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 71,
+        "y": 79,
+        "width": 53,
+        "height": 110
+      },
+      "encodedBytes": 4980
+    },
+    {
+      "file": "frame-03.png",
+      "source": "animA-04",
+      "sourceAnchor": {
+        "x": 86,
+        "y": 172
+      },
+      "sourceFootprint": {
+        "x": 56,
+        "y": 52,
+        "width": 61,
+        "height": 121
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 66,
+        "y": 68,
+        "width": 61,
+        "height": 121
+      },
+      "encodedBytes": 5777
+    },
+    {
+      "file": "frame-04.png",
+      "source": "animA-05",
+      "sourceAnchor": {
+        "x": 86,
+        "y": 170
+      },
+      "sourceFootprint": {
+        "x": 52,
+        "y": 42,
+        "width": 68,
+        "height": 129
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 62,
+        "y": 60,
+        "width": 68,
+        "height": 129
+      },
+      "encodedBytes": 7090
+    },
+    {
+      "file": "frame-05.png",
+      "source": "animA-06",
+      "sourceAnchor": {
+        "x": 86,
+        "y": 169
+      },
+      "sourceFootprint": {
+        "x": 49,
+        "y": 30,
+        "width": 74,
+        "height": 140
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 59,
+        "y": 49,
+        "width": 74,
+        "height": 140
+      },
+      "encodedBytes": 7420
+    },
+    {
+      "file": "frame-06.png",
+      "source": "animA-07",
+      "sourceAnchor": {
+        "x": 86,
+        "y": 170
+      },
+      "sourceFootprint": {
+        "x": 48,
+        "y": 23,
+        "width": 80,
+        "height": 148
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 58,
+        "y": 41,
+        "width": 80,
+        "height": 148
+      },
+      "encodedBytes": 8518
+    },
+    {
+      "file": "frame-07.png",
+      "source": "animA-08",
+      "sourceAnchor": {
+        "x": 86,
+        "y": 170
+      },
+      "sourceFootprint": {
+        "x": 46,
+        "y": 16,
+        "width": 86,
+        "height": 155
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 56,
+        "y": 34,
+        "width": 86,
+        "height": 155
+      },
+      "encodedBytes": 8825
+    },
+    {
+      "file": "frame-08.png",
+      "source": "animA-09",
+      "sourceAnchor": {
+        "x": 86,
+        "y": 170
+      },
+      "sourceFootprint": {
+        "x": 42,
+        "y": 10,
+        "width": 92,
+        "height": 161
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 52,
+        "y": 28,
+        "width": 92,
+        "height": 161
+      },
+      "encodedBytes": 10089
+    },
+    {
+      "file": "frame-09.png",
+      "source": "animA-10",
+      "sourceAnchor": {
+        "x": 87,
+        "y": 170
+      },
+      "sourceFootprint": {
+        "x": 34,
+        "y": 6,
+        "width": 104,
+        "height": 165
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 43,
+        "y": 24,
+        "width": 104,
+        "height": 165
+      },
+      "encodedBytes": 10266
+    },
+    {
+      "file": "frame-10.png",
+      "source": "bridge-01",
+      "sourceAnchor": {
+        "x": 87,
+        "y": 171
+      },
+      "sourceFootprint": {
+        "x": 29,
+        "y": 3,
+        "width": 113,
+        "height": 169
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 38,
+        "y": 20,
+        "width": 113,
+        "height": 169
+      },
+      "encodedBytes": 12080
+    },
+    {
+      "file": "frame-11.png",
+      "source": "bridge-03",
+      "sourceAnchor": {
+        "x": 87,
+        "y": 171
+      },
+      "sourceFootprint": {
+        "x": 28,
+        "y": 7,
+        "width": 118,
+        "height": 165
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 37,
+        "y": 24,
+        "width": 118,
+        "height": 165
+      },
+      "encodedBytes": 12382
+    },
+    {
+      "file": "frame-12.png",
+      "source": "bridge-08",
+      "sourceAnchor": {
+        "x": 87,
+        "y": 171
+      },
+      "sourceFootprint": {
+        "x": 25,
+        "y": 7,
+        "width": 124,
+        "height": 165
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 34,
+        "y": 24,
+        "width": 124,
+        "height": 165
+      },
+      "encodedBytes": 12968
+    },
+    {
+      "file": "frame-13.png",
+      "source": "bridge-14",
+      "sourceAnchor": {
+        "x": 87,
+        "y": 171
+      },
+      "sourceFootprint": {
+        "x": 24,
+        "y": 5,
+        "width": 126,
+        "height": 167
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 33,
+        "y": 22,
+        "width": 126,
+        "height": 167
+      },
+      "encodedBytes": 13924
+    },
+    {
+      "file": "frame-14.png",
+      "source": "bridge2-04",
+      "sourceAnchor": {
+        "x": 87,
+        "y": 171
+      },
+      "sourceFootprint": {
+        "x": 19,
+        "y": 6,
+        "width": 132,
+        "height": 166
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 28,
+        "y": 23,
+        "width": 132,
+        "height": 166
+      },
+      "encodedBytes": 13613
+    },
+    {
+      "file": "frame-15.png",
+      "source": "bridge2-16",
+      "sourceAnchor": {
+        "x": 88,
+        "y": 172
+      },
+      "sourceFootprint": {
+        "x": 12,
+        "y": 8,
+        "width": 139,
+        "height": 165
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 20,
+        "y": 24,
+        "width": 139,
+        "height": 165
+      },
+      "encodedBytes": 9785
+    }
+  ],
+  "totalEncodedBytes": 143706
+}

@@ -1,0 +1,10 @@
+[poll 1] status: processing 7%
+[poll 2] status: processing 13%
+[poll 3] status: processing 20%
+[poll 4] status: processing 27%
+[poll 5] status: processing 57%
+[poll 6] status: processing 64%
+status: completed
+id: 949c8b37-a7b1-4029-ba85-23357c8b5f2c
+frames: 1
+download: https://api.pixellab.ai/mcp/images/949c8b37-a7b1-4029-ba85-23357c8b5f2c/download

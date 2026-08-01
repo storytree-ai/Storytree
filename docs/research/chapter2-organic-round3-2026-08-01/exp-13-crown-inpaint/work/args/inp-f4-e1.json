@@ -1,0 +1,7 @@
+{
+ "description": "a small tuft of fresh green leaves budding directly on the topmost twigs of the bare tree below, a compact little clump of round leafy foliage wrapped tightly around those exact twigs so the twigs pass through it, two tones of green with a dark outline, storybook pixel art; the rest of the area is empty transparent background",
+ "image_base64": "<stripped 18212 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_image_base64": "<stripped 560 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "crop_to_mask": true,
+ "seed": 31334
+}

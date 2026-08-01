@@ -1,0 +1,260 @@
+{
+  "src": "raw/mature-b-efcd8090-00.png",
+  "root_y": 180,
+  "alpha_threshold": 32,
+  "leaf_split_delta": 12,
+  "apex_band": 60,
+  "min_run_px": 2,
+  "root_band_rows": 4,
+  "metric": {
+    "kind": "anisotropic chamfer geodesic, 8-connected, multi-source from the root contact band",
+    "vertical_cost": 2,
+    "horizontal_cost": 5,
+    "diagonal_cost": 5,
+    "dmax": 480
+  },
+  "canopy_tones": {
+    "light": [
+      119,
+      172,
+      75
+    ],
+    "mid": [
+      84,
+      144,
+      65
+    ],
+    "dark": [
+      39,
+      86,
+      43
+    ]
+  },
+  "stages": [
+    {
+      "stage": 0,
+      "cut": 78,
+      "taper_px": 5,
+      "taper_frac": 1.0,
+      "crown_r_px": 9,
+      "area_px": 2043,
+      "wood_px": 938,
+      "real_leaf_px": 0,
+      "synthetic_crown_px": 1110,
+      "bbox": [
+        56,
+        126,
+        134,
+        180
+      ],
+      "width": 79,
+      "height": 55,
+      "contact_row": 180,
+      "contact_span": [
+        65,
+        112
+      ],
+      "contact_centre_x": 88.5
+    },
+    {
+      "stage": 1,
+      "cut": 112,
+      "taper_px": 4,
+      "taper_frac": 1.0,
+      "crown_r_px": 11,
+      "area_px": 2791,
+      "wood_px": 1246,
+      "real_leaf_px": 0,
+      "synthetic_crown_px": 1546,
+      "bbox": [
+        53,
+        105,
+        134,
+        180
+      ],
+      "width": 82,
+      "height": 76,
+      "contact_row": 180,
+      "contact_span": [
+        65,
+        112
+      ],
+      "contact_centre_x": 88.5
+    },
+    {
+      "stage": 2,
+      "cut": 152,
+      "taper_px": 4,
+      "taper_frac": 1.0,
+      "crown_r_px": 14,
+      "area_px": 4279,
+      "wood_px": 1616,
+      "real_leaf_px": 0,
+      "synthetic_crown_px": 2664,
+      "bbox": [
+        53,
+        81,
+        134,
+        180
+      ],
+      "width": 82,
+      "height": 100,
+      "contact_row": 180,
+      "contact_span": [
+        65,
+        112
+      ],
+      "contact_centre_x": 88.5
+    },
+    {
+      "stage": 3,
+      "cut": 195,
+      "taper_px": 3,
+      "taper_frac": 1.0,
+      "crown_r_px": 17,
+      "area_px": 6103,
+      "wood_px": 2066,
+      "real_leaf_px": 35,
+      "synthetic_crown_px": 4003,
+      "bbox": [
+        44,
+        60,
+        134,
+        180
+      ],
+      "width": 91,
+      "height": 121,
+      "contact_row": 180,
+      "contact_span": [
+        65,
+        112
+      ],
+      "contact_centre_x": 88.5
+    },
+    {
+      "stage": 4,
+      "cut": 245,
+      "taper_px": 3,
+      "taper_frac": 1.0,
+      "crown_r_px": 19,
+      "area_px": 9392,
+      "wood_px": 2445,
+      "real_leaf_px": 834,
+      "synthetic_crown_px": 6114,
+      "bbox": [
+        32,
+        50,
+        148,
+        180
+      ],
+      "width": 117,
+      "height": 131,
+      "contact_row": 180,
+      "contact_span": [
+        65,
+        112
+      ],
+      "contact_centre_x": 88.5
+    },
+    {
+      "stage": 5,
+      "cut": 295,
+      "taper_px": 2,
+      "taper_frac": 1.0,
+      "crown_r_px": 20,
+      "area_px": 10917,
+      "wood_px": 2890,
+      "real_leaf_px": 2785,
+      "synthetic_crown_px": 5242,
+      "bbox": [
+        33,
+        33,
+        156,
+        180
+      ],
+      "width": 124,
+      "height": 148,
+      "contact_row": 180,
+      "contact_span": [
+        65,
+        112
+      ],
+      "contact_centre_x": 88.5
+    },
+    {
+      "stage": 6,
+      "cut": 350,
+      "taper_px": 1,
+      "taper_frac": 1.0,
+      "crown_r_px": 15,
+      "area_px": 12574,
+      "wood_px": 3363,
+      "real_leaf_px": 5819,
+      "synthetic_crown_px": 3392,
+      "bbox": [
+        25,
+        11,
+        171,
+        180
+      ],
+      "width": 147,
+      "height": 170,
+      "contact_row": 180,
+      "contact_span": [
+        64,
+        113
+      ],
+      "contact_centre_x": 88.5
+    },
+    {
+      "stage": 7,
+      "cut": 412,
+      "taper_px": 1,
+      "taper_frac": 1.0,
+      "crown_r_px": 7,
+      "area_px": 12542,
+      "wood_px": 3367,
+      "real_leaf_px": 8431,
+      "synthetic_crown_px": 744,
+      "bbox": [
+        26,
+        5,
+        169,
+        180
+      ],
+      "width": 144,
+      "height": 176,
+      "contact_row": 180,
+      "contact_span": [
+        64,
+        113
+      ],
+      "contact_centre_x": 88.5
+    },
+    {
+      "stage": 8,
+      "cut": 480,
+      "taper_px": 0,
+      "taper_frac": 1.0,
+      "crown_r_px": 0,
+      "area_px": 13473,
+      "wood_px": 3935,
+      "real_leaf_px": 9538,
+      "synthetic_crown_px": 0,
+      "bbox": [
+        12,
+        10,
+        178,
+        180
+      ],
+      "width": 167,
+      "height": 171,
+      "contact_row": 180,
+      "contact_span": [
+        63,
+        114
+      ],
+      "contact_centre_x": 88.5
+    }
+  ]
+}

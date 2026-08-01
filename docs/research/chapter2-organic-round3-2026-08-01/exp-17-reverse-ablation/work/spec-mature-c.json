@@ -1,0 +1,13 @@
+{
+  "description": "One mature woodland tree, low top-down 2.5D game camera. Slender-to-medium trunk of several merged stems braided together, flaring into a few short surface roots exactly at the bottom centre. Above the fork the trunk breaks into a sparse open armature of bare brown limbs and thin twigs; leaves grow only as small distinct tufts at the far ends of the twigs, deep moss green and olive with a pale lime rim light. Airy silhouette with plenty of transparent holes through the crown. Single subject, transparent background, no ground plane, no soil, no grass blades, no rocks, no island, no drop shadow, no border, no vignette, no duplicate tree.",
+  "width": 192,
+  "height": 192,
+  "no_background": true,
+  "view": "low top-down",
+  "outline": "selective outline",
+  "shading": "medium shading",
+  "detail": "highly detailed",
+  "text_guidance_scale": 10,
+  "color_image_base64": "@C:/code/storytree/packages/app-surface/src/assets/chapter2-organic-pose-to-pose/tree/frame-08.png",
+  "seed": 31702
+}

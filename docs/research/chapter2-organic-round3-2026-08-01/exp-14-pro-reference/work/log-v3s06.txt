@@ -1,0 +1,8 @@
+[fire 1] error: rate limit exceeded (8/8 jobs)
+JOB v3s06 f7355ced-698b-4768-aaa0-b5bea1f77568
+frames: 4
+download: https://api.pixellab.ai/mcp/images/f7355ced-698b-4768-aaa0-b5bea1f77568/download?index=0 ... ?index=3
+SAVED raw\v3s06-f7355ced-00.png
+SAVED raw\v3s06-f7355ced-01.png
+SAVED raw\v3s06-f7355ced-02.png
+SAVED raw\v3s06-f7355ced-03.png

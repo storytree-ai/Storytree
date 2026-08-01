@@ -1,5 +1,5 @@
 import React from 'react';
-import type { SceneNode } from '@storytree/forest-world';
+import { trailFillWidth, type SceneNode } from '@storytree/forest-world';
 import {
   WorldSceneView,
   type WorldPresentationEvents,
@@ -20,8 +20,14 @@ import {
   selectOrganicPoseCue,
   validateOrganicPoseRegistry,
   type OrganicPosePoint,
+  type OrganicPosePlaybackState,
   type RegisteredOrganicPoseRegistry,
 } from './organic-pose-to-pose-track.js';
+import {
+  deriveSvgIslandAccretionPlan,
+  svgIslandAccretionAtProgress,
+  type SvgIslandAccretionPoint,
+} from './svg-island-accretion.js';
 // The public view itself imports/loads its co-located motion stylesheet, so a consumer
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
@@ -59,7 +65,25 @@ export interface SemanticGrowthOrganicPoseLayer {
     readonly radius: OrganicPosePoint;
     readonly settledAtProgress: number;
   };
+  /**
+   * OPTIONAL vertical PROJECTION for the whole organic sprite layer — a display squash in (0,1]
+   * anchored at each instance's own ground socket (see `OrganicPoseRenderLayer.projection`).
+   *
+   * It is a property of the LAYER, not of one instance, because a projection is a camera-shaped
+   * thing: a frame in which the hero tree were squashed and the plant beside it were not would be
+   * showing two different views at once. Stateless — the rendered geometry is a pure function of
+   * the current value, so it carries nothing for Replay to clear and never moves a root contact.
+   * Absent ⇒ every instance renders exactly as it did before this field existed.
+   */
+  readonly projection?: number;
   readonly clock?: SemanticGrowthAnimationClock;
+}
+
+export interface SemanticGrowthSvgIslandAccretion {
+  readonly storyId: string;
+  readonly worldAnchor: SvgIslandAccretionPoint;
+  /** Duration of the initial empty-to-land accretion only; later pose cues retain their control timing. */
+  readonly growthDurationMs: number;
 }
 
 export interface SemanticGrowthWorldViewProps {
@@ -70,6 +94,7 @@ export interface SemanticGrowthWorldViewProps {
   readonly onBack?: (key: SemanticGrowthFrameKey) => void;
   readonly onReplay?: (key: SemanticGrowthFrameKey) => void;
   readonly organicPoseGrowth?: SemanticGrowthOrganicPoseLayer;
+  readonly svgIslandAccretion?: SemanticGrowthSvgIslandAccretion;
 }
 
 function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
@@ -95,6 +120,107 @@ function withoutOrbit(node: SceneNode): SceneNode {
 
 function browserPrefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+/** The trail passes that draw a named segment. All four carry the SAME `d` for a given segment
+ *  id (`buildTrails` renders one path per pass off one `TrailSegment`), so the first occurrence
+ *  in scene order resolves it — the shadow/casing/fill/ghost split is a painter concern only. */
+const TRAIL_SEGMENT_KINDS: ReadonlySet<string> = new Set([
+  'trail-shadow',
+  'trail-casing',
+  'trail-fill',
+  'trail-ghost',
+]);
+
+/**
+ * Segment id → the path data the SCENE drew for it.
+ *
+ * `RevealSegment` deliberately carries no `d` (it is a pure timing/direction plan over segment
+ * IDS), and the draw-on mask must lie exactly over the stroke it grows, so the geometry is
+ * resolved from the same scene the player is about to render rather than taken as a second prop
+ * that could disagree with it. This mirrors how `SceneView` already reads `id` + `d` off the
+ * trail children when it attaches the mask reference.
+ */
+function trailSegmentPathData(
+  node: SceneNode,
+  into: Map<string, string> = new Map(),
+): ReadonlyMap<string, string> {
+  if (node.el === 'g') {
+    for (const child of node.children) trailSegmentPathData(child, into);
+    return into;
+  }
+  if (
+    node.el === 'path' &&
+    node.id !== undefined &&
+    node.kind !== undefined &&
+    TRAIL_SEGMENT_KINDS.has(node.kind) &&
+    !into.has(node.id)
+  ) {
+    into.set(node.id, node.d);
+  }
+  return into;
+}
+
+/**
+ * The ADR-0169 arrival draw-on masks for a frame that carries a plan — one solid white stroke
+ * per revealed segment over that segment's own path, `pathLength`-normalised so the CSS dash
+ * animation grows it length-agnostically, staggered by the plan's own `delayMs`.
+ *
+ * Composed from the live map's `<defs>` (TreeView.tsx) because `SceneView` only ever REFERENCES
+ * these ids: a `mask="url(#trail-m-…)"` whose target is absent renders UNMASKED in SVG, so
+ * without this the trail would paint fully drawn from the first frame and the plan would be
+ * dead wiring. `maskUnits="userSpaceOnUse"` with oversized bounds keeps a thin diagonal's mask
+ * region from clipping the wide stroke.
+ */
+function revealMaskNodes(model: WorldPresentationModel): React.JSX.Element[] {
+  const plan = model.reveal;
+  if (!plan || plan.segments.length === 0) return [];
+  const pathById = trailSegmentPathData(model.scene);
+  return plan.segments.flatMap((seg) => {
+    const d = pathById.get(seg.id);
+    // A plan may name a segment this frame's scene does not draw (an earlier frame's world).
+    // Emitting a mask with no geometry would blank the stroke, so skip it and let it paint.
+    if (d === undefined) return [];
+    return [
+      <mask
+        key={seg.id}
+        id={`trail-m-${seg.id}`}
+        maskUnits="userSpaceOnUse"
+        x={-100000}
+        y={-100000}
+        width={200000}
+        height={200000}
+      >
+        <path
+          d={d}
+          pathLength={1}
+          className={`trail-reveal-mask${seg.fromEnd ? ' from-end' : ''}`}
+          style={{
+            animationDelay: `${seg.delayMs}ms`,
+            strokeWidth: trailFillWidth(seg.revealedUsage) + 8,
+          }}
+        />
+      </mask>,
+    ];
+  });
+}
+
+function withSvgIslandGrowthTiming(
+  selected: OrganicPosePlaybackState,
+  svgIslandAccretion: SemanticGrowthSvgIslandAccretion | undefined,
+  settledAtProgress: number,
+  reducedMotion: boolean,
+): OrganicPosePlaybackState {
+  if (
+    !svgIslandAccretion ||
+    reducedMotion ||
+    selected.transitionMs === 0 ||
+    selected.fromProgress >= selected.targetProgress ||
+    selected.targetProgress !== settledAtProgress
+  ) {
+    return selected;
+  }
+  return { ...selected, transitionMs: svgIslandAccretion.growthDurationMs };
 }
 
 const fmt = (n: number): string => n.toFixed(1);
@@ -211,6 +337,12 @@ function validateOrganicPoseLayer(
     }
     localInstanceProgress(0, instance.progressWindow);
   }
+  if (
+    layer.projection !== undefined &&
+    (!Number.isFinite(layer.projection) || layer.projection <= 0 || layer.projection > 1)
+  ) {
+    throw new Error('Organic pose projection must be a display squash within (0,1].');
+  }
   const island = layer.nativeIsland;
   if (
     island.storyId.trim() === '' ||
@@ -236,8 +368,26 @@ export function SemanticGrowthWorldView({
   onBack,
   onReplay,
   organicPoseGrowth,
+  svgIslandAccretion,
 }: SemanticGrowthWorldViewProps): React.JSX.Element {
   assertFrames(frames);
+  if (svgIslandAccretion && !organicPoseGrowth) {
+    throw new Error('SVG island accretion requires the existing app-owned organic playback clock.');
+  }
+  if (
+    svgIslandAccretion &&
+    organicPoseGrowth &&
+    svgIslandAccretion.storyId !== organicPoseGrowth.nativeIsland.storyId
+  ) {
+    throw new Error('SVG island accretion must target the registered native island.');
+  }
+  if (
+    svgIslandAccretion &&
+    (!Number.isFinite(svgIslandAccretion.growthDurationMs) ||
+      svgIslandAccretion.growthDurationMs <= 0)
+  ) {
+    throw new Error('SVG island accretion growth duration must be positive and finite.');
+  }
   const [cursor, setCursor] = React.useState(0);
   const [organicPlayback, setOrganicPlayback] = React.useState(initialOrganicPosePlayback);
   const reduce = reducedMotion ?? browserPrefersReducedMotion();
@@ -273,6 +423,9 @@ export function SemanticGrowthWorldView({
             worldAnchor: instance.worldAnchor,
             scale: instance.scale,
             depthSlot: track.depthSlot,
+            ...(organicPoseGrowth.projection === undefined
+              ? {}
+              : { projection: organicPoseGrowth.projection }),
           },
         ];
       });
@@ -284,23 +437,56 @@ export function SemanticGrowthWorldView({
         organicPlayback.progress / organicPoseGrowth.nativeIsland.settledAtProgress,
       )
     : null;
+  const islandAccretionPlan = React.useMemo(
+    () =>
+      svgIslandAccretion
+        ? deriveSvgIslandAccretionPlan(
+            frames[frames.length - 1]!.model.scene,
+            svgIslandAccretion.storyId,
+            svgIslandAccretion.worldAnchor,
+          )
+        : null,
+    [frames, svgIslandAccretion],
+  );
+  const islandAccretionState = React.useMemo(
+    () =>
+      islandAccretionPlan && nativeLandProgress !== null
+        ? svgIslandAccretionAtProgress(islandAccretionPlan, nativeLandProgress)
+        : null,
+    [islandAccretionPlan, nativeLandProgress],
+  );
   const model = React.useMemo<WorldPresentationModel>(
     () => {
-      const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
+      // Reduced motion settles on the FINAL scene, which for the arrival draw-on is the fully
+      // drawn trail — the same place full motion lands once the mask animation completes. The
+      // app owns that settlement rather than leaning on the stylesheet's own
+      // `prefers-reduced-motion` branch, because the `reducedMotion` PROP can be set with the
+      // browser query unmatched; dropping the plan removes the mask, its reference and the
+      // `is-growing` class together, so nothing is left half-wired.
+      const base = reduce
+        ? { ...frame.model, scene: withoutOrbit(frame.model.scene), reveal: null }
+        : frame.model;
       if (!organicPoseGrowth || nativeLandProgress === null) return base;
       return {
         ...base,
-        nativeIslandGrowthLayer: {
-          storyId: organicPoseGrowth.nativeIsland.storyId,
-          worldAnchor: organicPoseGrowth.nativeIsland.worldAnchor,
-          radius: organicPoseGrowth.nativeIsland.radius,
-          progress: nativeLandProgress,
-        },
+        ...(islandAccretionState
+          ? { svgIslandAccretionLayer: islandAccretionState }
+          : {
+              nativeIslandGrowthLayer: {
+                storyId: organicPoseGrowth.nativeIsland.storyId,
+                worldAnchor: organicPoseGrowth.nativeIsland.worldAnchor,
+                radius: organicPoseGrowth.nativeIsland.radius,
+                progress: nativeLandProgress,
+              },
+            }),
         organicPoseLayers: organicLayers,
       };
     },
-    [frame.model, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
+    [frame.model, islandAccretionState, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
   );
+  // The `<defs>` half of the arrival draw-on: absent a plan this is empty and the rendered
+  // `<svg>` is byte-identical to before this existed.
+  const revealMasks = React.useMemo(() => revealMaskNodes(model), [model]);
   // Held stable through the whole walk — derived from every supplied frame's app-owned geometry,
   // never the current cursor or a transparent asset canvas.
   const viewBox = React.useMemo(
@@ -346,7 +532,12 @@ export function SemanticGrowthWorldView({
       setOrganicPlayback((current) =>
         replay
           ? replayOrganicPosePlayback(current)
-          : selectOrganicPoseCue(current, bounded, reduce),
+          : withSvgIslandGrowthTiming(
+              selectOrganicPoseCue(current, bounded, reduce),
+              svgIslandAccretion,
+              organicPoseGrowth.nativeIsland.settledAtProgress,
+              reduce,
+            ),
       );
     }
     callback?.(frames[bounded]!.key);
@@ -363,10 +554,34 @@ export function SemanticGrowthWorldView({
             'data-native-island-progress': nativeLandProgress?.toFixed(4),
             'data-organic-pose-frames':
               organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
+            ...(organicPoseGrowth.projection === undefined
+              ? {}
+              : { 'data-organic-projection': organicPoseGrowth.projection.toFixed(2) }),
+            ...(islandAccretionState
+              ? {
+                  'data-island-technique': 'connected-accretion',
+                  'data-svg-island-accretion-progress':
+                    islandAccretionState.progress.toFixed(4),
+                  'data-svg-island-accretion-cells':
+                    String(islandAccretionPlan?.cells.length ?? 0),
+                  'data-svg-island-accretion-duration-ms':
+                    String(svgIslandAccretion?.growthDurationMs ?? 0),
+                  'data-svg-island-accretion-waves':
+                    islandAccretionPlan
+                      ? [...new Set(islandAccretionPlan.cells.map((cell) => cell.wave))]
+                          .map(
+                            (wave) =>
+                              islandAccretionPlan.cells.filter((cell) => cell.wave === wave).length,
+                          )
+                          .join(',')
+                      : '',
+                }
+              : {}),
           }
         : {})}
     >
       <svg viewBox={viewBox} aria-label={`Semantic growth: ${frame.key}`}>
+        {revealMasks.length > 0 ? <defs>{revealMasks}</defs> : null}
         {events ? (
           <WorldSceneView model={model} events={events} />
         ) : (

@@ -1,0 +1,10 @@
+{
+ "description": "a small young canopy of round leafy clumps sitting on the upper branches of the bare tree below, the leaf clumps growing out along those exact branches and letting the brown twigs show through the gaps, two tones of green with a dark outline, storybook pixel art; the rest of the area is empty transparent background",
+ "image_base64": "<stripped 18212 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_x": 48,
+ "mask_y": 24,
+ "mask_width": 96,
+ "mask_height": 68,
+ "crop_to_mask": true,
+ "seed": 31315
+}

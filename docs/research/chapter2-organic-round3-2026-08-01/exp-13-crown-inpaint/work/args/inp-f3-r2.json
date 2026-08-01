@@ -1,0 +1,10 @@
+{
+ "description": "the same tree as a tall young sapling: the brown trunk below continues up and spreads into an open crown of thin brown branches, each carrying loose clusters of pointed green leaves, airy enough to see branches through the gaps, light and dark green leaf faces, dark brown outline, storybook game pixel art; everything around the branches is completely empty transparent background, no soil, no grass",
+ "image_base64": "<stripped 7476 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_x": 26,
+ "mask_y": 44,
+ "mask_width": 140,
+ "mask_height": 76,
+ "crop_to_mask": true,
+ "seed": 31323
+}
