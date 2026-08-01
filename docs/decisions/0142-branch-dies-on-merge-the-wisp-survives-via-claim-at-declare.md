@@ -64,6 +64,18 @@ Three legs, one invariant — *the branch dies on merge; visibility survives it 
    lifecycle across a landing is therefore an **ending**, not a blink: the machine-clear is the
    session's last board state, which is honest — it isn't working. Legs 1 and 2 stand unchanged.]*
 
+   *[Re-amended by ADR-0275 (2026-08-01), which partially un-inverts the note above — read the two
+   together. Continuation is legal again, so "a session's working life ends where its PR merges" is
+   retired: the UNIT ends there and the ending of the SESSION is an orchestration call. But what
+   returns is NOT this leg as originally written, and NOT the fresh branch in the same worktree —
+   that half stays retired, with §1's "continues seamlessly" along with it. What ADR-0275 D1 mandates
+   is a fresh **worktree** on a fresh branch cut from freshly-fetched `origin/main`, mechanically
+   required the moment repo code is touched again; non-code work (discussion, `--pg` Library and
+   decision-log edits) continues in place and never needed a worktree at all. This leg's own claim
+   remains exactly true under both endings: the branch is dead at merge, and the re-declare on the
+   new branch re-claims. The wisp lifecycle is therefore a **blink** again for a continuing session
+   and an **ending** for one that goes inert. Legs 1 and 2 still stand unchanged.]*
+
 ## Consequences
 
 - Any session that anchors itself with `declare --node` now has a durable claim wisp on the map —
