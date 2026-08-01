@@ -43,6 +43,19 @@ export interface OrganicPoseRenderLayer {
   readonly worldAnchor: { readonly x: number; readonly y: number };
   readonly scale: number;
   readonly depthSlot: 'hero-tree-organic' | 'ground-plant-organic';
+  /**
+   * OPTIONAL vertical PROJECTION factor in (0,1] — a pure display squash of this layer's rendered
+   * box, anchored AT `worldAnchor` (the asset's registered ground contact) so the base stays
+   * pinned and only the height compresses. `worldAnchor.y` is an exact fixed point of the
+   * transform: the anchor's own offset is scaled by the same factor as the box, so
+   * `y + assetAnchor.y * scale * projection === worldAnchor.y` for every value.
+   *
+   * It is DISPLAY ONLY — track data, registered anchors, frame selection and playback state are
+   * untouched, and it is not a camera: a squashed sprite is a comparison stand-in for a lower
+   * view angle, not a re-render at one. Absent ⇒ nothing is emitted and the rendered `<image>` is
+   * byte-identical to before this field existed.
+   */
+  readonly projection?: number;
 }
 
 export interface NativeIslandGrowthRenderLayer {
@@ -466,10 +479,13 @@ function hitsLayerToBack(children: readonly SceneNode[]): readonly SceneNode[] {
 }
 
 function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
+  const projection = layer.projection ?? 1;
   const width = layer.canvas.width * layer.scale;
-  const height = layer.canvas.height * layer.scale;
+  const height = layer.canvas.height * layer.scale * projection;
   const x = layer.worldAnchor.x - layer.assetAnchor.x * layer.scale;
-  const y = layer.worldAnchor.y - layer.assetAnchor.y * layer.scale;
+  // Anchored AT the ground socket (see `OrganicPoseRenderLayer.projection`): the anchor offset is
+  // squashed by the same factor as the box, so the root contact never moves as the dial changes.
+  const y = layer.worldAnchor.y - layer.assetAnchor.y * layer.scale * projection;
   return React.createElement('image', {
     key: `__organic-pose-${layer.trackId}`,
     href: layer.src,
@@ -486,6 +502,9 @@ function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
     'data-organic-frame': String(layer.frameIndex),
     'data-world-anchor-x': fmt(layer.worldAnchor.x),
     'data-world-anchor-y': fmt(layer.worldAnchor.y),
+    ...(layer.projection === undefined
+      ? {}
+      : { 'data-organic-projection': layer.projection.toFixed(2) }),
   });
 }
 

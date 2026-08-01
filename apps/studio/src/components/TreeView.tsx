@@ -1318,6 +1318,20 @@ export function readOrganicIslandAccretion(search: string = defaultSearch()): bo
   );
 }
 
+/**
+ * The Chapter 2 round-3 COMPARISON LAB — `?organicGrowth=r3-lab`, and that exact value only.
+ *
+ * One fixed composition (the connected SVG accretion island, the ADR-0277-retained plant track and
+ * the arrival path-growth beat) with the HERO TREE switchable between the four registered
+ * candidates, so the owner gives ONE comparison LOOK verdict instead of opening four hosted tags.
+ * Absence, an empty value, a near miss (`r3-lab-x`, `r3`) and every sibling `organicGrowth` value
+ * fall through to the ordinary Studio product unchanged — and the lab has NO permanent navigation
+ * entry, so the only way in is typing this query.
+ */
+export function readChapter2Round3Lab(search: string = defaultSearch()): boolean {
+  return new URLSearchParams(search).get('organicGrowth') === 'r3-lab';
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar' | 'stress';
@@ -2309,6 +2323,7 @@ export function TreeView({
     () => readOrganicIslandAccretion(search),
     [search],
   );
+  const chapter2Round3Lab = useMemo(() => readChapter2Round3Lab(search), [search]);
   const scene = useMemo(
     () =>
       world
@@ -2491,17 +2506,19 @@ export function TreeView({
   // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
   // not a variant of the product controller. Every other value (absent/empty/unknown) falls
   // through unchanged, byte-for-byte, to the clean Studio path.
-  if (semanticGrowthDemo || organicPoseToPose || organicIslandAccretion) {
+  if (semanticGrowthDemo || organicPoseToPose || organicIslandAccretion || chapter2Round3Lab) {
     return (
       <SemanticGrowthDemo
         spriteSheet={spriteSheet}
         artScale={artScale}
         variant={
-          organicIslandAccretion
-            ? 'organic-island-accretion'
-            : organicPoseToPose
-              ? 'organic-pose-to-pose'
-              : 'demo'
+          chapter2Round3Lab
+            ? 'r3-lab'
+            : organicIslandAccretion
+              ? 'organic-island-accretion'
+              : organicPoseToPose
+                ? 'organic-pose-to-pose'
+                : 'demo'
         }
       />
     );

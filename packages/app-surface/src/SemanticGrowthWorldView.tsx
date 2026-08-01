@@ -65,6 +65,17 @@ export interface SemanticGrowthOrganicPoseLayer {
     readonly radius: OrganicPosePoint;
     readonly settledAtProgress: number;
   };
+  /**
+   * OPTIONAL vertical PROJECTION for the whole organic sprite layer — a display squash in (0,1]
+   * anchored at each instance's own ground socket (see `OrganicPoseRenderLayer.projection`).
+   *
+   * It is a property of the LAYER, not of one instance, because a projection is a camera-shaped
+   * thing: a frame in which the hero tree were squashed and the plant beside it were not would be
+   * showing two different views at once. Stateless — the rendered geometry is a pure function of
+   * the current value, so it carries nothing for Replay to clear and never moves a root contact.
+   * Absent ⇒ every instance renders exactly as it did before this field existed.
+   */
+  readonly projection?: number;
   readonly clock?: SemanticGrowthAnimationClock;
 }
 
@@ -326,6 +337,12 @@ function validateOrganicPoseLayer(
     }
     localInstanceProgress(0, instance.progressWindow);
   }
+  if (
+    layer.projection !== undefined &&
+    (!Number.isFinite(layer.projection) || layer.projection <= 0 || layer.projection > 1)
+  ) {
+    throw new Error('Organic pose projection must be a display squash within (0,1].');
+  }
   const island = layer.nativeIsland;
   if (
     island.storyId.trim() === '' ||
@@ -406,6 +423,9 @@ export function SemanticGrowthWorldView({
             worldAnchor: instance.worldAnchor,
             scale: instance.scale,
             depthSlot: track.depthSlot,
+            ...(organicPoseGrowth.projection === undefined
+              ? {}
+              : { projection: organicPoseGrowth.projection }),
           },
         ];
       });
@@ -534,6 +554,9 @@ export function SemanticGrowthWorldView({
             'data-native-island-progress': nativeLandProgress?.toFixed(4),
             'data-organic-pose-frames':
               organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
+            ...(organicPoseGrowth.projection === undefined
+              ? {}
+              : { 'data-organic-projection': organicPoseGrowth.projection.toFixed(2) }),
             ...(islandAccretionState
               ? {
                   'data-island-technique': 'connected-accretion',
