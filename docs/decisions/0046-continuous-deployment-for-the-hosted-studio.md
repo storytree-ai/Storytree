@@ -223,9 +223,22 @@ briefly drop the IAP wall. Instead:
 1. **Trust the deploy as the primary gate.** `gcloud run deploy` blocks until the new revision is
    **Ready** and fails the step if the container crashes on startup — so a broken bundle already
    fails the job.
-2. **Assert the rollout took.** `gcloud run services describe storytree-studio
-   --format='value(status.latestReadyRevisionName)'` equals the just-deployed revision, and traffic
-   routes 100% to LATEST.
+2. **Assert the rollout took** — against the revision the deploy actually created (captured from
+   `gcloud run deploy --format='value(status.latestCreatedRevisionName)'`), asserting it is `Ready`
+   AND holds 100% of traffic. Both halves matter, and neither may be assumed:
+   - *Traffic does not route itself.* `gcloud run deploy` routes 100% to the new revision only while
+     the traffic block is the default `latestRevision: true`. An out-of-band
+     `gcloud run deploy --tag <t> --no-traffic` (how a session stands up an attestation deep-link)
+     rewrites it into an explicit pin, after which every CD deploy lands at 0% traffic. CD therefore
+     **re-asserts** serving each run (`update-traffic --to-revisions <new>=100`), the same
+     declare-don't-inherit posture as the ADR-0042 flag set.
+   - *Name the revision; don't compare the service's `latest*` pointers to each other.* That
+     comparison observes neither traffic nor identity — it passes while a months-old revision serves,
+     and it goes red when the two pointers merely disagree. They do disagree: revision-name numbers
+     are allocated per deploy path and collide across them, so a tagged side-deploy can leave a
+     higher-numbered revision than CD creates next, leaving `latestReady` older by wall clock than
+     `latestCreated`. For the same reason CD pins by name rather than `--to-latest`, which resolves
+     through that unreliable `latestReady` pointer.
 3. **Optional hardening:** add a Cloud Run **startup probe** on a liveness route (per ADR-0042 health
    probes hit the container *directly*, before IAP) so DB-independent boot health is part of
    "Ready". The probe must return 200 **regardless of DB state** — the studio self-reports degraded
@@ -271,8 +284,11 @@ idle-stopped before pointing the optional startup probe at it.
 
 - `.github/workflows/deploy-studio.yml` — `push: main` + the conservative `paths:` filter, keyless
   WIF auth (`storytree-studio-deployer`), `gcloud builds submit` (delegated build, dedicated staging
-  dir), `gcloud run deploy` with the full ADR-0042 flag set, and the Ready-revision smoke check
-  (`latestReadyRevisionName == latestCreatedRevisionName`; no `--no-iap` spoof).
+  dir), `gcloud run deploy` with the full ADR-0042 flag set, an `update-traffic` step re-asserting
+  100% onto the revision just deployed, and the smoke check that the deployed revision is `Ready`
+  and serving (no `--no-iap` spoof). *(As first built, the smoke check compared
+  `latestReadyRevisionName == latestCreatedRevisionName` and assumed traffic followed the deploy —
+  corrected 2026-08-01 after 5 consecutive red runs left members on a day-old image; §C.2.)*
 - `infra/studio-cd.tf` — the deploy SA and its least-privilege IAM, the dedicated source-staging
   bucket (7-day TTL), and the WIF binding (ref-scoped to `main`). References the `ci-presence.tf` WIF
   pool by literal path so the two units stay decoupled. Three outputs paste-check the workflow.

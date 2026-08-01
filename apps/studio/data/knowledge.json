@@ -85,18 +85,18 @@
     "schemaVersion": 3
   },
   {
-    "kind": "pattern",
     "id": "edit-first-curation",
+    "kind": "pattern",
     "title": "Edit-first curation",
-    "description": "Edit is the default; authoring a new artifact is the justified exception. Search before you write.",
-    "references": [],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-08T00:00:00.000Z",
-    "statement": "Edit is the default; authoring a new artifact is the justified exception, taken only after searching for what already exists.",
     "problem": "Duplicate artifacts split authority — a consumer does not know which one to trust — and a fresh artifact severs the revision history and evidence chain that would otherwise stay attached to the original.",
-    "approach": "Edit the closest existing artifact by default. Writing a new one must be justified: state what search terms were run, what the closest existing artifact was, and why editing it was not the right move. Search-before-write is the cheapest duplication defence there is.",
+    "approach": "Edit the closest existing artifact by default, and sweep all five guidance-bearing tiers to find it — `principle`, `guardrail`, `pattern`, `process`, `definition` — since a rule can be stated as completely in a `process` or a `definition` as on the behavioural floor. Writing a new one must be justified: state what search terms were run, which tiers they spanned, what the closest existing artifact was, and why editing it was not the right move; an unnamed sweep is unfalsifiable, since a narrow one and a full one both read afterwards as \"searched, nothing found\". Search-before-write is the cheapest duplication defence there is.",
+    "createdAt": "2026-06-05T00:00:00.000Z",
+    "statement": "Edit is the default; authoring a new artifact is the justified exception, taken only after searching for what already exists.",
     "tradeoffs": "You trade the up-front cost of searching and of bending an existing artifact to fit, against the downstream cost of split authority and a broken evidence chain. Reaching for a new artifact is faster in the moment but leaves consumers unsure which source is canonical.",
-    "provenance": "Imported from v1.",
+    "updatedAt": "2026-06-08T00:00:00.000Z",
+    "provenance": "Imported from v1. The five-tier sweep clause was added to the Approach 2026-08-01 by `guidance-curator`, escalated to this seat by that day's librarian pass rather than enacted there — a `pattern` is behavioural-floor content, and `asset:friction-adjudication`'s own route table sends a floor edit here. The rule as written was unqualified (*the closest existing artifact*, no tier named), and the measured defect is that adjudicators read it as the floor tiers alone. Measured twice on one item: `convenience-wrapper-hides-the-substrate-health-its-caller-must-guard-on` was routed `principle` on the ground that no existing artifact stated the rule, while `asset:verification-decay-detection`'s failure modes already stated it more fully — the load-and-compare convenience wrapper that hands back the comparison and discards the load — verified first-hand in that artifact at this seat, not taken from the drain's report; and the corpus-investigator commissioned to verify that route, given the same tier scope, independently reproduced the same UNAUTHORED verdict instead of catching it. So the verification `asset:friction-adjudication` already mandates on guidance-rendering routes is not a net for this failure: only the sweep across all five tiers found it. The load-bearing half is that the narrowing is invisible after the fact — a three-tier sweep and a five-tier sweep read identically as \"searched, nothing found\" — which is why the clause requires the tiers swept to be NAMED, and is what that process's step 1 question 3 already asks for. The procedural half of the same finding is recorded as that process's ninth failure mode. Live tier counts were deliberately NOT recorded here: they are stateful and would rot (`asset:stateless-vs-stateful-graduation`); the five tier NAMES are the stateless part.",
+    "references": [],
+    "description": "Edit is the default; authoring a new artifact is the justified exception. Search before you write.",
     "schemaVersion": 3
   },
   {
