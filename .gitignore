@@ -63,3 +63,9 @@ Thumbs.db
 
 # Personal Claude Code overrides (per-machine, never shared)
 .claude/settings.local.json
+
+# Write-authority claim receipts (ADR-0257 D5) — per-session, per-machine authority artifacts
+# stamped into the PRIMARY checkout by the claim ceremonies. Never shared, and never tracked:
+# an untracked receipt would dirty the lobby, which ADR-0245 D5.2's gate arm reads as a session
+# mutating the shared checkout — so minting one would red the gate it exists to protect.
+.claude/receipts/

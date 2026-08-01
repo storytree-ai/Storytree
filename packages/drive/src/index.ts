@@ -44,8 +44,18 @@ export * from "./noticeboard-claims.js";
 // of the session-isolation wall. The harness-neutral semantic layer a Claude `PreToolUse` boundary
 // and a Codex managed hook each project: canonicalise the target, classify it against the repo
 // topology, and refuse unless it lands in a git-known worktree whose branch matches a live claim.
-// Not yet installed as a wall — the adapters and their containment are later increments.
+// Increment 1 was the decision alone, installed nowhere. Increment 2 (below) INSTALLS it.
 export * from "./write-authority.js";
+// Increment 2 of the same wall — the two halves that make the decision above actually bind:
+//   - `write-authority-receipt.js`: the claim RECEIPT (ADR-0257 D5). The ledger read costs ~20 s
+//     from a cold process, and a `PreToolUse` hook is a fresh process per write, so the answer is
+//     stamped by the claim ceremony (which already pays that cost) and read for free thereafter.
+//   - `write-authority-rules.js`: the STATIC `permissions.deny` block (ADR-0257 D1 containment),
+//     generated from `repo-manifest.json` so the lobby surface and the wall cannot drift apart.
+// The Claude `PreToolUse` adapter that consumes both is `packages/cli/write-authority-hook.mjs`.
+// It ships SWITCHED OFF (`STORYTREE_WRITE_AUTHORITY`), pending the fleet drain.
+export * from "./write-authority-receipt.js";
+export * from "./write-authority-rules.js";
 // The ambient session surface (statusline glance + claim heartbeat + the SessionStart nudge +
 // the never-blocking-hooks audit) — ledger-sourced since the presence retirement (ADR-0200 D5/D7).
 export * from "./ambient-presence.js";

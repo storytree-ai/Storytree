@@ -98,6 +98,13 @@ import { nodeBuild, nodeHelp, nodeResolve, specView } from "@storytree/drive";
 import { orchestrate } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
+import {
+  deleteReceiptFile,
+  locateWorktree,
+  mintReceipt,
+  writeReceiptFile,
+} from "@storytree/drive";
+import type { SessionReceiptLike } from "@storytree/drive";
 import { renderOfferFollowUps } from "@storytree/context-traversal-capture";
 import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
 import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
@@ -2088,6 +2095,29 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         },
       );
     }
+    // The write-authority receipt writer (ADR-0257 D5), or null when this process is not running
+    // inside a managed worktree — where there is no session to authorise and nothing to stamp.
+    // Kept local to the dispatch so the receipt's I/O never leaks into the pure command module.
+    const sessionReceipts = (id: SessionIdentity | null): SessionReceiptLike | null => {
+      if (id === null) return null;
+      const located = locateWorktree(process.cwd());
+      if (located === null || located.sessionId !== id.sessionId) return null;
+      return {
+        mint: (claims) =>
+          writeReceiptFile(
+            mintReceipt({
+              sessionId: id.sessionId,
+              worktreeRoot: located.worktreeRoot,
+              primaryRoot: located.primaryRoot,
+              branch: id.branch,
+              claims,
+              now: new Date(),
+            }),
+          ),
+        revoke: () => deleteReceiptFile(located.primaryRoot, located.sessionId),
+      };
+    };
+
     // The board's ledger read (ADR-0200 D7): the SAME PgClaimStore that drives the ledger verbs
     // rides `presence.ledger`; capture the method so the narrowing survives the closure (a fake
     // ledger without the read half degrades the board to the empty offline render).
@@ -2102,6 +2132,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       {
         identity,
         now: () => new Date(),
+        // The write-authority receipt (ADR-0257 D5). Wired HERE because it is filesystem I/O and
+        // needs the checkout roots, which `noticeboard.ts` deliberately does not know. The roots
+        // come from cwd's path shape, so a session outside a managed worktree mints nothing — the
+        // fail-closed direction, and the same locator the PreToolUse hook uses.
+        receipts: sessionReceipts(identity),
         // Claim-at-declare (ADR-0142): the anchored node's work-time claim IS the declare now
         // (presence retired, ADR-0200 D7).
         claims: deps.presence?.claims ?? null,

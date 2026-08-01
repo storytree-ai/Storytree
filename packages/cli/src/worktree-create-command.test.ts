@@ -98,12 +98,19 @@ interface FakeIo extends WorktreeCreateIo {
     fetch: number;
     add: { branch: string; path: string }[];
     install: string[];
+    /** Write-authority receipts stamped (ADR-0257 D5) — one per successful create. */
+    receipts: { sessionId: string; branch: string; claims: readonly { unitId: string }[] }[];
   };
 }
 
 /** An IO whose `exists` collides for the first N draws; every mutation call is recorded. */
-function fakeIo(opts?: { collideFirstN?: number; installOk?: boolean; addThrows?: boolean }): FakeIo {
-  const calls: FakeIo["calls"] = { exists: [], fetch: 0, add: [], install: [] };
+function fakeIo(opts?: {
+  collideFirstN?: number;
+  installOk?: boolean;
+  addThrows?: boolean;
+  receiptFails?: boolean;
+}): FakeIo {
+  const calls: FakeIo["calls"] = { exists: [], fetch: 0, add: [], install: [], receipts: [] };
   const collideFirstN = opts?.collideFirstN ?? 0;
   return {
     calls,
@@ -114,6 +121,11 @@ function fakeIo(opts?: { collideFirstN?: number; installOk?: boolean; addThrows?
     },
     fetchMain() {
       calls.fetch += 1;
+    },
+    stampReceipt(input) {
+      if (opts?.receiptFails === true) return { ok: false, why: "disk full" };
+      calls.receipts.push({ sessionId: input.sessionId, branch: input.branch, claims: input.claims });
+      return { ok: true };
     },
     addWorktree(_primaryRoot, branch, absPath) {
       if (opts?.addThrows === true) throw new Error("git worktree add exploded");
@@ -410,6 +422,40 @@ test("create: a ledger WITHOUT baselineCursor (the optional seam absent) still c
     { ledger: ledger as unknown as WorktreeCreateLedgerLike, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
   );
   assert.equal(env.ok, true);
+});
+
+test("create: a born-claimed session is stamped a write-authority receipt (ADR-0257 D5)", async () => {
+  // Without this, a session created here — which never runs `noticeboard declare` — would hold live
+  // claims and NO receipt, and the wall would refuse its every write the moment it is switched on.
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-a", "story-b"], intent: "building" },
+    { ledger: fakeLedger(), io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+  );
+  assert.equal(env.ok, true);
+  assert.equal(io.calls.receipts.length, 1);
+  const stamped = io.calls.receipts[0];
+  assert.equal(stamped?.branch, io.calls.add[0]?.branch, "the receipt records the branch just cut");
+  assert.deepEqual(
+    stamped?.claims.map((c) => c.unitId),
+    ["story-a", "story-b"],
+    "every claimed node rides the receipt",
+  );
+  assert.match(env.body, /receipt stamped/);
+});
+
+test("create: a FAILED receipt stamp is reported but never tears down the workspace", async () => {
+  // The claim is the coordination truth; the receipt is a performance artifact. Losing it must cost
+  // a loud message and a restamp instruction, not the worktree the session just paid for.
+  const io = fakeIo({ receiptFails: true });
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "building" },
+    { ledger: fakeLedger(), io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+  );
+  assert.equal(env.ok, true, "a receipt failure must not fail the create");
+  assert.equal(io.calls.add.length, 1, "the worktree still exists");
+  assert.match(env.body, /receipt NOT stamped/);
+  assert.match(env.body, /noticeboard declare/, "the message must name the restamp remedy");
 });
 
 test("create: a refused take never reaches the baseline (no workspace, no cursor)", async () => {
