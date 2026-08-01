@@ -31,6 +31,7 @@ import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
 import type {
+  SvgIslandAccretionCellReveal,
   SvgIslandAccretionState,
 } from './svg-island-accretion.js';
 
@@ -63,6 +64,28 @@ export interface NativeIslandGrowthRenderLayer {
   readonly worldAnchor: { readonly x: number; readonly y: number };
   readonly radius: { readonly x: number; readonly y: number };
   readonly progress: number;
+}
+
+/**
+ * The Act 2 intro's whole-forest regrow (ADR-0282 D1) — the SAME connected accretion the single
+ * island already plays, applied to every island still growing, plus the two absence sets that let
+ * a forest start from nothing.
+ *
+ * The two lookups are pre-MERGED across every accreting island by the caller so this walk stays
+ * O(1) per node: with 45 territories, probing one accretion state per island per cell would be
+ * O(islands x cells) on a surface whose measured cost is already rasterisation (ADR-0272).
+ *
+ * Absent ⇒ every node renders exactly as it did before this field existed.
+ */
+export interface ForestRegrowRenderLayer {
+  /** Stories with no island on the map yet — their coast, ground, flora and hit area are not drawn. */
+  readonly hiddenStoryIds: ReadonlySet<string>;
+  /** Trail segments whose two endpoint islands are not both present — roads to nowhere, not drawn. */
+  readonly hiddenSegmentIds: ReadonlySet<string>;
+  /** storyId → the coast settlement clip for an island still accreting. */
+  readonly accretionByStory: ReadonlyMap<string, SvgIslandAccretionState>;
+  /** cell path `d` → its reveal scale, merged across every accreting island. */
+  readonly cellRevealByPath: ReadonlyMap<string, SvgIslandAccretionCellReveal>;
 }
 
 /** The focus-aware context the walk needs — the studio's per-render interactivity
@@ -117,6 +140,9 @@ export interface SceneCtx {
   nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   /** Connected app-native growth over the existing island's real shared-edge cell topology. */
   svgIslandAccretionLayer?: SvgIslandAccretionState | null;
+  /** The whole-forest regrow (ADR-0282): absence sets + per-island accretion for many islands
+   *  at once. Absent/null ⇒ every node renders byte-identically to before it existed. */
+  forestRegrowLayer?: ForestRegrowRenderLayer | null;
   /** Registered organic pose images planted into the canonical world painter order. */
   organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
@@ -563,6 +589,91 @@ function svgIslandAccretionClip(layer: SvgIslandAccretionState): React.ReactNode
   );
 }
 
+/** One `<defs>` carrying a coast clip for every island still accreting in a forest regrow. */
+function forestRegrowAccretionDefs(layer: ForestRegrowRenderLayer): React.ReactNode | null {
+  const growing = [...layer.accretionByStory.values()].filter((state) => !state.mature);
+  if (growing.length === 0) return null;
+  return React.createElement(
+    'defs',
+    { key: '__forest-regrow-accretion-defs' },
+    ...growing.map((state) =>
+      React.createElement(
+        'clipPath',
+        {
+          key: state.storyId,
+          id: svgIslandAccretionClipId(state),
+          clipPathUnits: 'userSpaceOnUse',
+        },
+        ...state.coastReveals.map((reveal) =>
+          React.createElement('circle', {
+            key: reveal.key,
+            cx: fmt(reveal.centre.x),
+            cy: fmt(reveal.centre.y),
+            r: fmt(reveal.radius * reveal.scale),
+            'data-island-accretion-coast-cell': reveal.key,
+            'data-island-accretion-scale': reveal.scale.toFixed(4),
+          }),
+        ),
+      ),
+    ),
+  );
+}
+
+/** The per-story layer groups a regrow makes absent together — an island is all of it or none. */
+const REGROW_STORY_LAYER_KINDS: ReadonlySet<string> = new Set([
+  'coast',
+  'ground',
+  'territory',
+  'hit',
+]);
+
+/** The four painter passes that draw a named trail segment (see the same split in trailReveal). */
+const REGROW_TRAIL_SEGMENT_KINDS: ReadonlySet<string> = new Set([
+  'trail-shadow',
+  'trail-casing',
+  'trail-fill',
+  'trail-ghost',
+]);
+
+/**
+ * True when this node belongs to a story (or a road) the regrow has not reached yet.
+ *
+ * Absence is a SKIP, not a `display:none` class: an island that is not on the map yet costs no
+ * DOM and no paint, which is what keeps the opening of the intro — where almost nothing has
+ * landed — cheaper than the settled forest rather than the same price.
+ */
+function regrowHides(node: SceneNode, layer: ForestRegrowRenderLayer): boolean {
+  if (node.id === undefined || node.kind === undefined) return false;
+  if (REGROW_STORY_LAYER_KINDS.has(node.kind)) return layer.hiddenStoryIds.has(node.id);
+  if (REGROW_TRAIL_SEGMENT_KINDS.has(node.kind)) return layer.hiddenSegmentIds.has(node.id);
+  return false;
+}
+
+/**
+ * The coast settlement clip for an accreting island — from the single-island semantic player or
+ * from the many-island forest regrow. Both play the SAME Experiment 6 accretion; they differ only
+ * in how many islands are in flight, so they resolve through one seam here rather than two
+ * parallel render paths that could drift.
+ */
+function accretionCoastFor(node: SceneNode, ctx: SceneCtx): SvgIslandAccretionState | null {
+  if (node.kind !== 'coast' || node.id === undefined) return null;
+  const single = ctx.svgIslandAccretionLayer;
+  if (single && !single.mature && single.storyId === node.id) return single;
+  const many = ctx.forestRegrowLayer?.accretionByStory.get(node.id);
+  return many && !many.mature ? many : null;
+}
+
+/** The per-cell reveal for an accreting land cell, from either accretion source. */
+function accretionCellFor(node: SceneNode, ctx: SceneCtx): SvgIslandAccretionCellReveal | null {
+  if (node.el !== 'path' || (node.kind !== 'cell' && node.kind !== 'cell-wheat')) return null;
+  const single = ctx.svgIslandAccretionLayer;
+  if (single && !single.mature) {
+    const reveal = single.cellByPath.get(node.d);
+    if (reveal) return reveal;
+  }
+  return ctx.forestRegrowLayer?.cellRevealByPath.get(node.d) ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // the sprite art-style render mode (sprite-art-sheets spike, default-off)
 // ---------------------------------------------------------------------------
@@ -807,6 +918,9 @@ function renderNode(
   storyId: string | undefined,
   ctx: SceneCtx,
 ): React.JSX.Element | null {
+  // Checked FIRST, ahead of the sprite swap: a story the regrow has not reached yet must not draw
+  // a sprite either.
+  if (ctx.forestRegrowLayer && regrowHides(node, ctx.forestRegrowLayer)) return null;
   if (ctx.spriteSheet) {
     const sprite = trySprite(node, key, storyId, ctx);
     if (sprite) return sprite;
@@ -840,29 +954,27 @@ function renderNode(
     props['data-native-island-story'] = nativeIsland.storyId;
     props['data-native-island-progress'] = nativeIsland.progress.toFixed(4);
   }
-  const islandAccretion = ctx.svgIslandAccretionLayer;
-  if (islandAccretion && !islandAccretion.mature) {
-    if (node.kind === 'coast' && node.id === islandAccretion.storyId) {
-      props.clipPath = `url(#${svgIslandAccretionClipId(islandAccretion)})`;
-      props['data-island-accretion-coast'] = islandAccretion.storyId;
-      props['data-island-accretion-progress'] = islandAccretion.progress.toFixed(4);
-    } else if (
-      node.el === 'path' &&
-      (node.kind === 'cell' || node.kind === 'cell-wheat')
-    ) {
-      const reveal = islandAccretion.cellByPath.get(node.d);
-      if (reveal) {
-        const local = [
-          `translate(${fmt(reveal.centroid.x)} ${fmt(reveal.centroid.y)})`,
-          `scale(${reveal.scale.toFixed(4)})`,
-          `translate(${fmt(-reveal.centroid.x)} ${fmt(-reveal.centroid.y)})`,
-        ].join(' ');
-        props.transform = node.transform ? `${node.transform} ${local}` : local;
-        props['data-island-accretion-cell'] = reveal.key;
-        props['data-island-accretion-wave'] = String(reveal.wave);
-        props['data-island-accretion-order'] = String(reveal.order);
-        props['data-island-accretion-scale'] = reveal.scale.toFixed(4);
-      }
+  // The connected Experiment 6 accretion — the island's coast surfaces behind a growing clip while
+  // its land cells scale up in adjacency waves. One island (the semantic player) or many at once
+  // (the Act 2 forest regrow) resolve through the same pair of seams, so the two never drift.
+  const coastAccretion = accretionCoastFor(node, ctx);
+  if (coastAccretion) {
+    props.clipPath = `url(#${svgIslandAccretionClipId(coastAccretion)})`;
+    props['data-island-accretion-coast'] = coastAccretion.storyId;
+    props['data-island-accretion-progress'] = coastAccretion.progress.toFixed(4);
+  } else {
+    const reveal = accretionCellFor(node, ctx);
+    if (reveal) {
+      const local = [
+        `translate(${fmt(reveal.centroid.x)} ${fmt(reveal.centroid.y)})`,
+        `scale(${reveal.scale.toFixed(4)})`,
+        `translate(${fmt(-reveal.centroid.x)} ${fmt(-reveal.centroid.y)})`,
+      ].join(' ');
+      props.transform = node.transform ? `${node.transform} ${local}` : local;
+      props['data-island-accretion-cell'] = reveal.key;
+      props['data-island-accretion-wave'] = String(reveal.wave);
+      props['data-island-accretion-order'] = String(reveal.order);
+      props['data-island-accretion-scale'] = reveal.scale.toFixed(4);
     }
   }
   // Trail-segment paths (ADR-0169): stamp the reveal hooks into the DOM
@@ -1007,6 +1119,10 @@ function renderNode(
     }
     if (node.kind === 'world' && ctx.svgIslandAccretionLayer) {
       rendered.push(svgIslandAccretionClip(ctx.svgIslandAccretionLayer));
+    }
+    if (node.kind === 'world' && ctx.forestRegrowLayer) {
+      const defs = forestRegrowAccretionDefs(ctx.forestRegrowLayer);
+      if (defs) rendered.push(defs);
     }
     children.forEach((c, i) => {
       const el = renderNode(c, i, childStory, ctx);
