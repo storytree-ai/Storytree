@@ -2,7 +2,7 @@
 id: "app-surface"
 tier: story
 title: "The shared app surface — planted SVG land with registered organic growth"
-outcome: "The real shared app lets an operator witness one planted Chapter 2 island grow through the existing deterministic product player, retaining native SVG land beneath registered local PixelLab organic tracks."
+outcome: "The real shared app lets an operator witness one planted Chapter 2 island grow through the existing deterministic product player, retaining app-native SVG land and registered PixelLab-authored tracks for small plants and flowers while the hero-tree treatment remains separately unresolved and the whole composition remains open for LOOK."
 status: proposed
 proof_mode: UAT
 # Machine legs prove the shared model/view, Studio adoption, semantic replay, app-native land,
@@ -14,20 +14,24 @@ capabilities: [app-surface-world-view, studio-app-surface-adapter, semantic-grow
 # Studio's consuming-surface edge is declared consumer-side in stories/studio/story.md.
 depends_on: [forest-world]
 consumed_by: []
-decisions: [274, 237, 219, 93, 213, 215, 230, 70]
+decisions: [277, 274, 237, 219, 93, 213, 215, 230, 70]
 ---
 
 # The shared app surface — planted SVG land with registered organic growth
 
 **Outcome —** The real shared app lets an operator witness one planted Chapter 2 island grow through
-the existing deterministic product player, retaining native SVG land beneath registered local
-PixelLab organic tracks.
+the existing deterministic product player, retaining app-native SVG land and registered
+PixelLab-authored tracks for small plants and flowers while the hero-tree treatment remains
+separately unresolved and the whole composition remains open for LOOK.
 
 This story preserves the already-landed shared-app extraction and semantic-player seams from
-`chapter2-real-app-surface-arc`. Its current unfinished increment is governed by ADR-0274 and
-`chapter2-pixellab-organic-growth-arc`: the established app-owned SVG island remains the land and
-camera substrate, while transparent PixelLab-authored tree and plant tracks may grow from registered
-app-owned sockets.
+`chapter2-real-app-surface-arc`. Its current unfinished increment is governed by ADR-0274 as amended
+by ADR-0277 and `chapter2-pixellab-organic-growth-arc`: the established app-owned SVG island remains
+the land and camera substrate, while the registered PixelLab-authored track treatment is
+retained for small plants and flowers at app-owned ground sockets. ADR-0277 rejects Experiment 8's
+cutout-trunk plus occlusion-registered canopy/overlap-collar assembly for the hero tree; it does not
+choose the replacement or exclude every coherent whole-tree PixelLab treatment. The hero tree must
+be resolved in a separate bounded visual-design leg.
 
 The ADR-0273 full-island raster experiment is rejected history, not active work. Its evidence remains
 in ADR-0273 and git history; its two capability specs are removed from this active hierarchy rather
@@ -40,10 +44,13 @@ witness mode. Walk the same public product player through:
 
 `empty → land → proposed story → claimed/presence → signed proof → healthy`.
 
-The land leg reveals the existing SVG island at its established isometric camera. Later legs grow
-registered transparent hero-tree, canopy, plant and flower tracks from stable root/ground sockets.
-Next, Back and Replay remain app-owned; reduced motion reaches the same settled cues; the mature
-composition stays as the retained scene. The clean product route remains unchanged.
+The land leg reveals the existing SVG island at its established isometric camera. Later legs grow a
+separately resolved hero tree and registered transparent pose/cutout tracks for small plants and
+flowers from stable ground sockets. ADR-0277 chooses no hero-tree treatment; other coherent
+whole-tree PixelLab treatments, including pose-to-pose evidence, remain comparison candidates rather
+than selected direction. Next, Back and Replay remain app-owned; reduced motion reaches the same
+settled cues; the mature composition stays as the retained scene. The clean product route remains
+unchanged.
 
 This is still one consumer journey: the operator cannot judge the organic tracks without their
 native land substrate, and cannot judge either without the real hosted consumer. The implementation
@@ -65,9 +72,11 @@ chrome extraction is folded into this correction.
 - **Keep land app-native.** The app grows or reveals its existing SVG geometry through its standard
   shared renderer. Masks, clips, path reveals or bounded geometry interpolation are implementation
   choices only when they preserve the same land, coordinates, interaction geometry and final scene.
-- **Use PixelLab only for organic deformation.** Transparent local tracks may depict the rooted hero
-  tree, trunk/canopy, bounded foliage overlays, plants and flowers. Each track is authored against a
-  fixed reference plate from the real island camera.
+- **Keep the retained independent pose/cutout-track technique plant-only.** Transparent local tracks
+  may depict bounded ferns, flowers, grasses and other small ground details. Experiment 8's cutout
+  trunk plus occlusion-registered canopy/overlap-collar assembly is rejected for the hero tree.
+  ADR-0277 neither selects the replacement nor excludes a later coherent whole-tree PixelLab
+  treatment.
 - **Register every organic track to app-owned sockets.** Fixed canvas, frame dimensions/order,
   root/ground socket, depth slot, mature footprint and author/import-time normalization are declared.
   A wrong projection or drifting ground contact is rejected, never chased by runtime transforms.
@@ -96,7 +105,7 @@ chrome extraction is folded into this correction.
 | 3 | [`semantic-growth-replay-view`](semantic-growth-replay-view.md) | The shared view plays six supplied semantic frames with deterministic Next/Back/Replay and app-owned normal/reduced motion. | `studio-app-surface-adapter` |
 | 4 | [`semantic-growth-studio-demo`](semantic-growth-studio-demo.md) | An exact Studio flag mounts one representative semantic fixture through the real composition path. | `semantic-growth-replay-view` |
 | 5 | [`svg-island-growth-track`](svg-island-growth-track.md) | The public player grows the existing SVG island/coast in place under deterministic app-owned progress. | `semantic-growth-replay-view` |
-| 6 | [`pixellab-organic-growth-tracks`](pixellab-organic-growth-tracks.md) | Registered local hero-tree and plant tracks grow from stable app-owned sockets over the retained SVG land. | `svg-island-growth-track` |
+| 6 | [`pixellab-organic-growth-tracks`](pixellab-organic-growth-tracks.md) | Registered local pose/cutout tracks grow small plants and flowers from stable app-owned ground sockets over the retained SVG land; the hero-tree treatment remains separate and unresolved. | `svg-island-growth-track` |
 | 7 | [`organic-growth-app-witness`](organic-growth-app-witness.md) | The exact real-consumer witness composes native land with organic tracks while clean and near-miss routes remain unchanged. | `semantic-growth-studio-demo`, `pixellab-organic-growth-tracks` |
 
 Dependency graph:
@@ -163,13 +172,14 @@ controls, ready for the owner's LOOK judgment.
    established view box, world parcel and painter slot; equal progress yields equal geometry state;
    the retained final land is the real app SVG; no raster land frame, complete-scene composite,
    second renderer, random value or asset clock participates.
-8. **Organic tracks are local, registered and product-driven.** _(witness: machine)_
-   _(proof-gate: app-surface#gate-6)_ Validate and decode every referenced hero-tree/canopy/plant/
-   flower frame, then walk full and reduced-motion traces. **Success —** provenance, fixed dimensions,
-   order, reference camera, root/ground sockets, normalization, mature footprint and painter slots
+8. **Small-plant tracks are local, registered and product-driven.** _(witness: machine)_
+   _(proof-gate: app-surface#gate-6)_ Validate and decode every referenced small-plant and flower
+   frame, then walk full and reduced-motion traces. **Success —** provenance, fixed dimensions,
+   order, reference camera, ground sockets, normalization, mature footprint and painter slots
    are complete; all frames are transparent local assets; equal cue/progress selects equal frames;
    Back/Replay settle identically; the SVG land remains visible; no runtime PixelLab dependency or
-   unbounded count-keyed family exists.
+   unbounded count-keyed family exists, and Experiment 8's cutout-trunk plus registered-canopy/
+   overlap-collar assembly does not return as the hero-tree treatment.
 9. **The corrected real-consumer route is exact and ordinary Studio stays ordinary.**
    _(witness: machine)_(proof-gate: app-surface#gate-7)_ Exercise clean, near-miss and exact
    organic-growth queries. **Success —** only the exact query mounts one public product player over

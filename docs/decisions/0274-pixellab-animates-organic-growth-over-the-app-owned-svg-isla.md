@@ -68,6 +68,11 @@ PixelLab may author the visual deformation of:
 - bounded capability-aware foliage overlays; and
 - plants, flowers and other small ground details attached to declared sockets.
 
+[ADR-0277](0277-occlusion-registered-cutouts-are-plant-only.md) narrows this authorization for one
+tested assembly: Experiment 8's cutout trunk plus separately authored occlusion-registered canopy is
+plant-only and is not a hero-tree solution. Other coherent whole-tree PixelLab treatments remain in
+scope for comparison; none is selected by that amendment.
+
 Accepted outputs are transparent, locally versioned PNG or atlas assets with fixed frame
 dimensions, frame count, order, prompt/model metadata, generation identifiers and licence/provenance
 notes. PixelLab is author-time tooling only. No vendor request, credential, model call or generated
@@ -112,7 +117,8 @@ The successor arc `chapter2-pixellab-organic-growth-arc` must produce one hosted
 witness in which:
 
 - the existing SVG island grows at the established camera angle;
-- PixelLab-authored tree and plant tracks grow from stable app-owned sockets;
+- a separately selected coherent hero-tree treatment and PixelLab-authored plant tracks grow from
+  stable app-owned sockets;
 - the clean product route is unchanged and any witness gate uses the same product component;
 - deterministic progress, Back/Replay equivalence and reduced-motion settlement have executable
   proof;
@@ -138,6 +144,18 @@ D1 remains unchanged: the rework must retain the existing app-owned SVG island, 
 camera and geometry, with no generated-land substitute. The combined composition remains held and
 the arc stays active pending a corrected whole-composition owner verdict.
 
+### D5 comparison evidence — occlusion-registered cutout witness (2026-08-01)
+
+The owner reviewed the hosted PR #1054 witness at
+`?organicGrowth=organic-canopy-occlusion#/tree` twice. The small plants looked good and retain the
+registered cutout/pose technique. The tree canopy still looked disconnected from the trunk after a
+focused author-time correction removed the reported green blob and moved the overlap collar to the
+true crown contact.
+
+This rejects the Experiment 8 cutout-trunk plus occlusion-registered-canopy assembly for the hero
+tree. It does not reject every PixelLab-authored whole-tree pose treatment, select a sibling tree
+candidate, accept the held island control or close the arc. ADR-0277 records the plant-only narrowing.
+
 ### D6 — Explicitly rejected
 
 - Generating the island, coast or complete scene as a PixelLab sprite sequence.
@@ -162,8 +180,8 @@ the arc stays active pending a corrected whole-composition owner verdict.
 
 **Costs and risks.**
 
-- Tree and plant art must be generated against a precise reference plate; projection mismatch is
-  still a real rejection condition.
+- Every selected PixelLab-authored tree candidate and retained plant track must be generated against
+  a precise reference plate; projection mismatch is still a real rejection condition.
 - Registered sockets, author-time normalization and cross-layer painter order become explicit
   pipeline work.
 - The seam between crisp SVG land and raster organic art may reveal style mismatch and needs a
@@ -175,6 +193,8 @@ the arc stays active pending a corrected whole-composition owner verdict.
 
 ## References
 
+- [ADR-0277](0277-occlusion-registered-cutouts-are-plant-only.md) — amendment that retains the
+  Experiment 8 cutout/pose technique for small plants and rejects its assembled hero-tree join.
 - [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) — rejected
   full-island raster experiment and inherited deterministic runtime safeguards.
 - [ADR-0264](0264-chapter-2-tree-growth-uses-one-deterministic-topology-rig-wi.md) — earlier
