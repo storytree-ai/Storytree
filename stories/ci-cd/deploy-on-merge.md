@@ -31,8 +31,9 @@ trunk.
   path changed (the `paths:` filter — `apps/studio/**`, `packages/**`, `docs/**`, `stories/**`,
   lockfile, build/deploy machinery), authenticates keyless (WIF provider + `storytree-studio-deployer`
   SA, no JSON key), builds via Cloud Build with a short-SHA tag, deploys with the full
-  `--service-account … --set-env-vars … --no-allow-unauthenticated --iap` flag set, and runs the
-  safe smoke check (newest CREATED revision == newest READY revision — no curl, the site is
+  `--service-account … --set-env-vars … --no-allow-unauthenticated --iap` flag set, re-asserts 100%
+  of traffic onto the revision it just created, and runs the safe smoke check (that named revision is
+  `Ready` and is the one serving — no curl, the site is
   IAP-locked). It is a workflow/posture audit, not a real deploy; the live rollout follows the house
   manual/dispatch path (next bullet).
 - **The GITHUB_TOKEN no-cascade reality (honest).** An AUTO-MERGED PR's `push:main` does NOT cascade
@@ -47,7 +48,11 @@ trunk.
   a newer merge waits for the in-flight rollout rather than aborting it half-finished.
 - **The smoke check is IAP-safe.** It does not curl the site (no `--no-iap` spoof — that would drop
   the wall); `gcloud run deploy` already blocks until the revision is Ready, and the check confirms
-  the newest created revision is the newest ready one (the rollout actually took).
+  the revision built from this commit is `Ready` and holds 100% of traffic — i.e. members are on it.
+- **Serving is re-asserted, never assumed.** A `--tag … --no-traffic` side-deploy (an attestation
+  deep-link) rewrites the service's traffic block into an explicit pin, after which every CD deploy
+  lands at 0% traffic. So the job pins traffic to its own revision by name each run — the same
+  declare-don't-inherit posture as the flag set above (ADR-0046 §C.2).
 
 ## Contracts (4)
 

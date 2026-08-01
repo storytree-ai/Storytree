@@ -93,30 +93,84 @@ jobs:
             --project "${PROJECT_ID}" \
             .
 
+      # Capture the revision this deploy created. Every step below names THAT revision explicitly
+      # rather than trusting the service's `latest*` pointers — see the traffic step for why.
       - name: Deploy to Cloud Run (full ADR-0042 posture — IAP, runtime SA, env vars)
+        id: deploy
         run: |
-          gcloud run deploy "${SERVICE}" \
+          set -euo pipefail
+          revision=$(gcloud run deploy "${SERVICE}" \
             --image "${IMAGE_REPO}:${{ steps.tag.outputs.tag }}" \
             --region "${REGION}" --project "${PROJECT_ID}" \
             --service-account "${RUNTIME_SA}" \
             --set-env-vars "STORYTREE_STUDIO_STORE=pg,STORYTREE_DB_USER=storytree-studio-host@storytree-498613.iam,STORYTREE_STUDIO_ADMINS=hua.mick@gmail.com" \
             --memory 1Gi --max-instances 2 \
-            --no-allow-unauthenticated --iap
+            --no-allow-unauthenticated --iap \
+            --format='value(status.latestCreatedRevisionName)')
+          # Fallback: read the pointer back off the service. Equivalent in the normal case — the
+          # deploy we just blocked on IS the newest created revision — but it races a concurrent
+          # side-deploy, so it is the backstop and not the primary path.
+          if [ -z "${revision}" ]; then
+            revision=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --project "${PROJECT_ID}" \
+              --format='value(status.latestCreatedRevisionName)')
+          fi
+          if [ -z "${revision}" ]; then
+            echo "::error::the deploy reported no revision name — cannot verify the rollout"
+            exit 1
+          fi
+          echo "Deployed revision: ${revision}"
+          echo "revision=${revision}" >> "$GITHUB_OUTPUT"
+
+      # Serving is NOT automatic, and this is the bug that stranded members on a 2026-07-31 image
+      # for a day (5 consecutive red runs). `gcloud run deploy` only routes 100% to the new revision
+      # while the service's traffic block is the default `latestRevision: true`. Any out-of-band
+      # `gcloud run deploy --tag <t> --no-traffic` — how a session stands up a look/feel attestation
+      # deep-link — REWRITES that block into an explicit pin on the then-serving revision. From that
+      # moment every CD deploy lands at "serving 0 percent of traffic" and the members' studio is
+      # frozen. So re-assert serving every run, exactly as the workflow re-asserts the ADR-0042 flag
+      # set: posture is declared, never inherited.
+      #
+      # Pin to the revision we just built, NOT `--to-latest`: `latestRevision: true` resolves through
+      # `status.latestReadyRevisionName`, and that pointer is itself unreliable here. Revision-name
+      # numbers are allocated per deploy path and collide across them (00836/00820/00821/00823 each
+      # name two distinct revisions), so a tagged side-deploy can leave a HIGHER-numbered revision
+      # than the one CD creates next — after which `latestReady` names a revision older by wall clock
+      # than `latestCreated`. Naming our own revision is immune to all of it.
+      # Tags are untouched: `--to-revisions` changes percentages only, so live attestation deep-links
+      # keep working.
+      - name: Route 100% of traffic to the revision just deployed
+        run: |
+          set -euo pipefail
+          gcloud run services update-traffic "${SERVICE}" \
+            --region "${REGION}" --project "${PROJECT_ID}" \
+            --to-revisions "${{ steps.deploy.outputs.revision }}=100"
 
       # Safe smoke check — the site is IAP-locked, so we do NOT curl it (no --no-iap spoof; that
       # would drop the wall). `gcloud run deploy` already blocks until the revision is Ready and
-      # fails this job if the container crashes on boot. Here we additionally confirm the newest
-      # CREATED revision is the newest READY one (no broken revision sitting unready) — i.e. the
-      # rollout actually took. Cloud Run routes 100% to the new revision by default.
-      - name: Smoke check — newest revision is Ready and serving
+      # fails this job if the container crashes on boot. What we add here is the property members
+      # actually experience: the revision built from THIS commit is the one being served. The old
+      # check compared the service's `latestCreated`/`latestReady` pointers to each other, which
+      # observes neither traffic nor identity — it could pass while 100% of traffic sat on a months-
+      # old revision, and it went red for a day on two healthy pointers that merely disagreed.
+      # Asks "which revision holds 100% of traffic?" rather than summing our revision's entries: a
+      # tag entry carries no percent, so a revision that is both tagged and serving appears twice
+      # and the naive sum reads as a blank line. Filtering on percent=100 always yields one value.
+      - name: Smoke check — the deployed revision is Ready and serving 100% of traffic
         run: |
           set -euo pipefail
-          ready=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --project "${PROJECT_ID}" --format='value(status.latestReadyRevisionName)')
-          created=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --project "${PROJECT_ID}" --format='value(status.latestCreatedRevisionName)')
+          want="${{ steps.deploy.outputs.revision }}"
+          serving=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --project "${PROJECT_ID}" \
+            --format='value(status.traffic.filter("percent=100").extract(revisionName).flatten())')
           url=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --project "${PROJECT_ID}" --format='value(status.url)')
-          echo "latest ready=${ready}  latest created=${created}  url=${url}"
-          if [ "${ready}" != "${created}" ]; then
-            echo "::error::newest revision (${created}) is not Ready (${ready}) — rollout did not take"
+          ready=$(gcloud run revisions describe "${want}" --region "${REGION}" --project "${PROJECT_ID}" \
+            --format='value(status.conditions.filter("type=Ready").extract(status).flatten())')
+          echo "deployed=${want}  serving=${serving:-<split or none>}  ready=${ready:-Unknown}  url=${url}"
+          if [ "${ready}" != "True" ]; then
+            echo "::error::${want} is not Ready (Ready=${ready:-Unknown}) — the container did not come up"
             exit 1
           fi
-          echo "Deployed ${created} — serving. (Behind IAP; the /api/health code stamp confirms the bundle to a signed-in viewer.)"
+          if [ "${serving}" != "${want}" ]; then
+            echo "::error::members are NOT on this build — 100% of traffic is on '${serving:-no single revision (split?)}', not the revision just deployed (${want}). Inspect the traffic block: gcloud run services describe ${SERVICE} --region ${REGION} --project ${PROJECT_ID} --format='value(spec.traffic)'"
+            exit 1
+          fi
+          echo "Deployed ${want} — Ready and serving 100%. (Behind IAP; the /api/health code stamp confirms the bundle to a signed-in viewer.)"

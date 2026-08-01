@@ -135,9 +135,16 @@ Further **tightening option** still open (owner's call, would touch the workflow
 
 ## Post-deploy verification (what CD does, and what it deliberately does NOT)
 
-CD's smoke check asserts the **newest created revision is the newest Ready revision** (the rollout
-took) — `gcloud run deploy` already fails the job if the container crashes on boot. It does **NOT**
-curl the site: the service is IAP-locked, and the `studio-cloud.md` "verify behind the wall" recipe
+CD captures the revision the deploy created, re-asserts 100% of traffic onto it
+(`update-traffic --to-revisions <new>=100`), then asserts **that named revision is `Ready` and is the
+one holding 100% of traffic** — `gcloud run deploy` already fails the job if the container crashes on
+boot. Traffic is re-asserted rather than assumed: a `gcloud run deploy --tag <t> --no-traffic`
+side-deploy (an attestation deep-link) rewrites the service's traffic block into an explicit pin, and
+from then on every CD deploy lands at 0% traffic with the members' studio frozen on the pinned
+revision. That is exactly what happened 2026-07-31 → 08-01. Tagged deep-links are unaffected by the
+re-assert: `--to-revisions` changes percentages only.
+
+It does **NOT** curl the site: the service is IAP-locked, and the `studio-cloud.md` "verify behind the wall" recipe
 (temporary `--no-iap` + a `run.invoker` binding + a spoofed `x-goog-authenticated-user-email` header)
 **must never run in automated CD** — it would briefly drop the wall. A signed-in viewer confirms the
 served bundle via the `/api/health` `code` git-HEAD stamp.
