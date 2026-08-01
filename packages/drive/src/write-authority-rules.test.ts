@@ -6,22 +6,28 @@
  * `.claude/worktrees` would freeze every session in the fleet at once; a MISSING rule silently
  * leaves part of the lobby writable and nothing anywhere would say so. Both directions are pinned.
  *
- * The last test is deliberately SELF-ARMING: it is inert while `.claude/settings.json` carries no
- * deny block (the state this increment ships in, because static rules cannot be env-gated and the
- * fleet has not been drained yet), and becomes a real conformance gate the moment the flip PR adds
- * one. That way the flip cannot land a hand-edited block that has drifted from the manifest.
+ * The last test is SELF-ARMING against the INSTALLED wall: inert on a machine that has none (CI,
+ * a fresh checkout), a real conformance gate on one that does. Increment 2 pointed it at the repo's
+ * own `.claude/settings.json`; increment 3 established the block cannot live there — the rules are
+ * absolute, so a committed block is keyed to one machine and a relative one would deny each worktree
+ * its own `packages/**` — and repointed it at `~/.claude/settings.json`, where the wall is actually
+ * installed. Its job is unchanged: a block that has drifted from the manifest must not sit unnoticed.
  */
 import { strict as assert } from "node:assert";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import { locateWorktree } from "./write-authority-receipt.js";
 import {
   GATED_TOOLS,
+  installWallSettings,
   lobbyDenyRules,
   rulesDenyingWorktrees,
   toPermissionPath,
+  wallHookCommand,
   type ManifestRootSlice,
 } from "./write-authority-rules.js";
 
@@ -102,27 +108,115 @@ test("output is sorted and de-duplicated, so regenerating never produces a spuri
 });
 
 // ---------------------------------------------------------------------------
-// Self-arming conformance (inert until the flip PR adds the block)
+// installWallSettings — the idempotent, self-pruning fold (increment 3)
 // ---------------------------------------------------------------------------
 
-test("if settings.json declares a deny block, it must match the generated rules", () => {
-  const settingsPath = path.join(REPO_ROOT, ".claude", "settings.json");
+const MANIFEST_FIXTURE: ManifestRootSlice = {
+  root: { dirs: { packages: "", docs: "", ".claude": "" }, files: { "README.md": "" } },
+};
+
+test("installWallSettings preserves every unrelated setting the user holds", () => {
+  // It writes to the user's OWN ~/.claude/settings.json, shared with every other project on the
+  // machine. Losing their model choice or theme to install a security wall would be its own incident.
+  const out = installWallSettings(
+    { model: "sonnet", theme: "dark", permissions: { defaultMode: "bypassPermissions" } },
+    MANIFEST_FIXTURE,
+    "C:\\code\\storytree",
+  );
+  assert.equal(out["model"], "sonnet");
+  assert.equal(out["theme"], "dark");
+  assert.equal(out.permissions?.["defaultMode"], "bypassPermissions");
+});
+
+test("installWallSettings is IDEMPOTENT — re-running installs no duplicates", () => {
+  const once = installWallSettings({}, MANIFEST_FIXTURE, "C:\\code\\storytree");
+  const twice = installWallSettings(once, MANIFEST_FIXTURE, "C:\\code\\storytree");
+  assert.deepEqual(twice.permissions?.deny, once.permissions?.deny);
+  assert.equal((twice.hooks?.["PreToolUse"] as unknown[]).length, 1);
+});
+
+test("installWallSettings PRUNES stale rules for this checkout when the manifest shrinks", () => {
+  // The reason the block is generated at all: a removed top-level directory must not leave an orphan
+  // rule behind, or the installed wall slowly stops matching the repo surface it is derived from.
+  const wide = installWallSettings({}, MANIFEST_FIXTURE, "C:\\code\\storytree");
+  const narrow = installWallSettings(
+    wide,
+    { root: { dirs: { packages: "" }, files: {} } },
+    "C:\\code\\storytree",
+  );
+  assert.ok(!(narrow.permissions?.deny ?? []).some((r) => r.includes("/docs/")));
+  assert.ok((narrow.permissions?.deny ?? []).some((r) => r.includes("/packages/")));
+});
+
+test("installWallSettings keeps deny rules that are NOT this wall's", () => {
+  const out = installWallSettings(
+    { permissions: { deny: ["Write(//d/other-repo/**)", "Bash(rm:*)"] } },
+    MANIFEST_FIXTURE,
+    "C:\\code\\storytree",
+  );
+  assert.ok(out.permissions?.deny?.includes("Write(//d/other-repo/**)"));
+  assert.ok(out.permissions?.deny?.includes("Bash(rm:*)"));
+});
+
+test("installWallSettings keeps OTHER PreToolUse hooks and replaces only its own", () => {
+  const mine = installWallSettings(
+    { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo hi" }] }] } },
+    MANIFEST_FIXTURE,
+    "C:\\code\\storytree",
+  );
+  const entries = mine.hooks?.["PreToolUse"] as Array<{ matcher?: string }>;
+  assert.equal(entries.length, 2);
+  assert.ok(entries.some((e) => e.matcher === "Bash"));
+  // …and a re-install still leaves exactly one of ours beside it.
+  const again = installWallSettings(mine, MANIFEST_FIXTURE, "C:\\code\\storytree");
+  assert.equal((again.hooks?.["PreToolUse"] as unknown[]).length, 2);
+});
+
+test("the hook command is ABSOLUTE and carries the --root scope bound", () => {
+  // Relative would resolve inside whichever worktree is running, so checking out an older branch
+  // there would silently swap the wall for an older one. `--root` is what stops a user-level
+  // registration from firing in every other repository on the machine.
+  const cmd = wallHookCommand("C:\\code\\storytree");
+  assert.equal(cmd, "node C:/code/storytree/packages/cli/write-authority-hook.mjs --root C:/code/storytree");
+});
+
+// ---------------------------------------------------------------------------
+// Self-arming conformance against the INSTALLED wall
+// ---------------------------------------------------------------------------
+
+test("if this machine has the wall installed, its deny block must match the generated rules", () => {
+  // Increment 2 pointed this at `<repo>/.claude/settings.json` and it never armed, because the flip
+  // proved the block CANNOT live there: the rules are absolute, and a committed absolute block is
+  // keyed to one machine — it would fail in every worktree and in CI, and a relative one would
+  // anchor at each worktree's own root and deny every session its own `packages/**`. So the wall is
+  // installed user-level, and this is where the drift gate has to look.
+  //
+  // Local-only by construction: CI has no installed wall, so it skips. That is a real limit and is
+  // stated rather than papered over — the gate against a stale block is the machine that runs it.
+  const settingsPath = path.join(os.homedir(), ".claude", "settings.json");
   if (!fs.existsSync(settingsPath)) return;
-  const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")) as {
-    permissions?: { deny?: string[] };
-  };
-  const declared = settings.permissions?.deny;
-  if (declared === undefined || declared.length === 0) {
-    // The shipped state of this increment: the wall lands OFF, so no static block yet. Nothing to
-    // conform to — this test arms itself when the flip PR adds one.
-    return;
+  let settings: { permissions?: { deny?: string[] } };
+  try {
+    settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")) as typeof settings;
+  } catch {
+    return; // the user's file, not ours to adjudicate
   }
-  const expected = lobbyDenyRules(readManifest(), REPO_ROOT);
-  const missing = expected.filter((r) => !declared.includes(r));
+  const declared = settings.permissions?.deny;
+  if (declared === undefined || declared.length === 0) return; // wall not installed here
+
+  // The checkout THIS test is running in — the primary when run from the lobby, its parent when run
+  // from a worktree. A block installed for a different checkout is not ours to check.
+  const located = locateWorktree(REPO_ROOT);
+  const primaryRoot = located !== null ? located.primaryRoot : REPO_ROOT;
+  const base = toPermissionPath(primaryRoot);
+  if (!declared.some((r) => r.includes(base))) return;
+
+  const missing = lobbyDenyRules(readManifest(), primaryRoot).filter((r) => !declared.includes(r));
   assert.deepEqual(
     missing,
     [],
-    "settings.json's deny block has drifted from repo-manifest.json — regenerate it rather than hand-editing",
+    "the installed deny block has drifted from repo-manifest.json — regenerate it with " +
+      "`storytree write-authority install --write` rather than hand-editing",
   );
   assert.deepEqual(rulesDenyingWorktrees(declared), []);
 });

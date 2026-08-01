@@ -20,10 +20,25 @@
 // switch below, which is a HUMAN maintenance lever, not an agent-selectable escape (ADR-0257 D1
 // allows exactly that distinction) — the agent cannot set the parent process's environment.
 //
-// THE SWITCH IS OFF BY DEFAULT IN THIS INCREMENT (owner call, 2026-08-01: "land it off, drain the
-// fleet, then flip it on in a one-line PR"). Merging this changes NO session's behaviour. At the
-// time of writing 38 of 39 registered worktrees hold no live claim and 14 are on detached HEAD, so
-// switching on before a drain would refuse writes fleet-wide. The flip PR sets the default to on.
+// THE SWITCH IS ON BY DEFAULT AS OF INCREMENT 3 (owner call, 2026-08-02, after confirming the fleet
+// was drained: measured zero live claims on the ledger). Increment 2 shipped it OFF by default and
+// the flip is deliberately a separate PR, because static deny rules cannot be env-gated and turning
+// the wall on across 39 registered worktrees — 38 of them unclaimed, 14 detached — would have
+// refused writes fleet-wide mid-session. `STORYTREE_WRITE_AUTHORITY=off` is now the kill switch:
+// REGISTERED MEANS ENFORCING, so a hook that is wired up but silently inert (a lost env var) is no
+// longer a reachable state.
+//
+// SCOPE GUARD — `--root <abs>`. The wall is installed MACHINE-SCOPED (increment 3, owner call): the
+// registration lives in the user-level `~/.claude/settings.json`, not the committed project
+// settings, for two reasons. The static deny block is unavoidably absolute
+// (`//c/code/storytree/...`) — a relative rule anchors at each WORKTREE's own root and would deny
+// every session its own `packages/**` — and user-level is the only settings file every worktree
+// session loads, since `.claude/settings.local.json` is gitignored and therefore absent in a fresh
+// worktree. But a user-level registration would otherwise fire in EVERY repository on the machine,
+// where `locateWorktree` returns null and every write would be refused. `--root` bounds it: a cwd
+// outside the named checkout is none of this wall's business and passes untouched. This also keeps
+// remote/web container sessions unaffected, which is ADR-0257 D6's single-tenant exemption — they
+// are plain clones, not shared checkouts, and a committed registration would brick them.
 //
 // CONSTRAINTS (mirroring provision-worktree.mjs / worktree-health.mjs): BARE NODE at the top level,
 // zero non-builtin imports, so this file always loads. The typed decision core is imported lazily
@@ -89,10 +104,38 @@ export function extractTargets(toolName, toolInput) {
   return out;
 }
 
-/** Is the wall switched on? `on`/`1`/`true` enable it; anything else (including unset) leaves it inert. */
+/**
+ * Is the wall switched on? ON unless explicitly switched off (increment 3's flip). Only the human
+ * maintenance values `off`/`0`/`false` disable it — UNSET enables, so a registered-but-inert hook is
+ * not a reachable state. `on`/`1`/`true` remain accepted so increment 2's callers keep working.
+ */
 export function wallEnabled(env) {
   const v = (env["STORYTREE_WRITE_AUTHORITY"] ?? "").trim().toLowerCase();
-  return v === "on" || v === "1" || v === "true";
+  return !(v === "off" || v === "0" || v === "false");
+}
+
+/** The `--root <abs>` scope bound, or null when the registration named none (wall applies anywhere). */
+export function parseRootArg(argv) {
+  const at = argv.indexOf("--root");
+  if (at === -1) return null;
+  const v = argv[at + 1];
+  return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+}
+
+/**
+ * Is `cwd` inside the checkout this wall was installed to protect?
+ *
+ * Deliberately a SEPARATE concern from `locateWorktree` (which finds a session's worktree inside a
+ * checkout) rather than a second copy of it, and it must stay in this file: it decides whether to
+ * load the typed core at all, and the load is the hook's whole ~450 ms cost. Paying that on every
+ * write in every unrelated repository on the machine is exactly what this guard exists to avoid, so
+ * it cannot live behind the import it is gating. Exported, and tested directly, for that reason.
+ */
+export function isUnderRoot(cwd, root) {
+  const norm = (p) => path.resolve(p).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  const c = norm(cwd);
+  const r = norm(root);
+  return c === r || c.startsWith(`${r}/`);
 }
 
 async function main() {
@@ -109,7 +152,20 @@ async function main() {
   const toolName = typeof input.tool_name === "string" ? input.tool_name : "";
   if (!GATED_TOOLS.has(toolName)) pass();
 
+  const cwd = typeof input.cwd === "string" && input.cwd !== "" ? input.cwd : process.cwd();
   const targets = extractTargets(toolName, input.tool_input);
+
+  // SCOPE GUARD, before anything expensive. A machine-scoped registration sees every repository on
+  // the box; only the named checkout is this wall's business. Both the session AND every target must
+  // be outside it to pass — a cwd-only test would let a session in an unrelated repo write straight
+  // into the protected checkout, since authority is keyed on the TARGET (ADR-0255 D2), not the cwd.
+  const root = parseRootArg(process.argv);
+  if (root !== null) {
+    const touchesRoot =
+      isUnderRoot(cwd, root) || targets.some((t) => isUnderRoot(path.resolve(cwd, t), root));
+    if (!touchesRoot) pass();
+  }
+
   if (targets.length === 0) {
     deny(
       `REFUSED — no write target could be extracted from this ${toolName} call, so its authority ` +
@@ -117,8 +173,6 @@ async function main() {
         "denied, never guessed read-only).",
     );
   }
-
-  const cwd = typeof input.cwd === "string" && input.cwd !== "" ? input.cwd : process.cwd();
 
   // The typed decision core, loaded lazily through tsx. ANY failure here denies — an authority
   // boundary that cannot load its own decision must not fall open. Measured ~450 ms warm, because

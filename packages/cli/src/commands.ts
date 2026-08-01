@@ -48,6 +48,7 @@ import {
 } from "./worktree.js";
 // `worktree create` — the claim-gated workspace ceremony (ADR-0200 D3).
 import { createWorktree, type WorktreeCreateIo } from "./worktree-create.js";
+import { writeAuthorityCommand } from "./write-authority-install.js";
 import {
   desktopHelp,
   desktopInstallShortcut,
@@ -1891,6 +1892,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "threshold-hours"?: string;
     runtime?: string;
     "from-offer"?: string;
+    "hook-from"?: string;
   };
   try {
     const parsed = parseArgs({
@@ -1975,6 +1977,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         // read is declaring it followed (ADR-0260 D3). Registered so the flag parses; the VALUE is
         // read from argv by the capture boundary in `main.ts`, never from here.
         "from-offer": { type: "string" },
+        // `storytree write-authority install --hook-from <checkout>` — source the wall's hook script
+        // from a checkout other than the protected one (ADR-0257 D1 increment 3).
+        "hook-from": { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -2262,6 +2267,17 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return pruneWorktrees(options, {
       ...(wtIo !== undefined ? { io: wtIo } : {}),
       ...(deps.worktree?.now !== undefined ? { now: deps.worktree.now } : {}),
+    });
+  }
+
+  if (area === "write-authority") {
+    // ADR-0257 D1/D6 increment 3 — install/inspect the write-authority wall. The deny block is
+    // DERIVED from repo-manifest.json, so it needs a caller that can regenerate it; installing by
+    // hand is how the wall and the repo surface drift apart. Offline, no store.
+    return writeAuthorityCommand(sub, {
+      write: values.write === true,
+      help,
+      ...(values["hook-from"] !== undefined ? { hookFrom: values["hook-from"] } : {}),
     });
   }
 

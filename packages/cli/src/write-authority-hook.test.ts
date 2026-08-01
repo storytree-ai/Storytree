@@ -95,16 +95,25 @@ function stampReceipt(
   fs.writeFileSync(target, JSON.stringify(receipt), "utf8");
 }
 
-/** Run the real hook. `wall: true` switches it on; otherwise it stays at its shipped default. */
-function runHook(input: unknown, opts: { wall?: boolean; raw?: string } = {}): {
+/**
+ * Run the real hook. `wall` UNSET leaves the switch unset, which since increment 3 means ON — that
+ * is the flip, and every test that says nothing about the switch is therefore exercising the shipped
+ * default. `wall: false` drives the human kill switch; `wall: true` sets it explicitly on.
+ * `args` appends process arguments (the `--root` scope bound).
+ */
+function runHook(
+  input: unknown,
+  opts: { wall?: boolean; raw?: string; args?: readonly string[] } = {},
+): {
   decision: "deny" | "pass";
   reason: string;
 } {
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env["STORYTREE_WRITE_AUTHORITY"];
   if (opts.wall === true) env["STORYTREE_WRITE_AUTHORITY"] = "on";
+  if (opts.wall === false) env["STORYTREE_WRITE_AUTHORITY"] = "off";
 
-  const res = spawnSync(process.execPath, [HOOK], {
+  const res = spawnSync(process.execPath, [HOOK, ...(opts.args ?? [])], {
     input: opts.raw ?? JSON.stringify(input),
     encoding: "utf8",
     env,
@@ -138,12 +147,16 @@ function withRepo(fn: (fx: Fixture) => void, opts: { alphaHead?: string | null }
 // RED → GREEN: the conflicting write
 // ---------------------------------------------------------------------------
 
-test("RED — with the wall OFF, a session writing into a SIBLING's workspace is PERMITTED", () => {
-  // Today's behaviour, and the incident ADR-0255/0257 were written for. Proving it here is what
-  // makes the next test a real red→green rather than an assertion that already held.
+test("RED — with the wall switched OFF, a session writing into a SIBLING's workspace is PERMITTED", () => {
+  // The incident ADR-0255/0257 were written for, and — until increment 3 — the shipped default.
+  // Proving it here is what makes the next test a real red→green rather than an assertion that
+  // already held. Since the flip this also IS the kill-switch test: `off` is the one human
+  // maintenance lever, and if it ever stopped working there would be no way out of a bad wall.
   withRepo((fx) => {
     stampReceipt(fx);
-    const got = runHook(editCall(fx.alphaRoot, path.join(fx.betaRoot, "packages", "stolen.ts")));
+    const got = runHook(editCall(fx.alphaRoot, path.join(fx.betaRoot, "packages", "stolen.ts")), {
+      wall: false,
+    });
     assert.equal(got.decision, "pass");
   });
 });
@@ -162,17 +175,122 @@ test("GREEN — the SAME conflicting write is REFUSED once the wall is switched 
 });
 
 // ---------------------------------------------------------------------------
-// The shipped default — merging this must change nothing
+// The shipped default — THE FLIP (increment 3)
 // ---------------------------------------------------------------------------
 
-test("the wall is OFF by default: a lobby write passes when the switch is unset", () => {
-  // The increment lands disabled on purpose (owner call): 38 of 39 live worktrees hold no claim, so
-  // an on-by-default merge would refuse writes fleet-wide. If this ever flips accidentally, this
-  // test is the alarm.
+test("the wall is ON by default: a lobby write is REFUSED when the switch is unset", () => {
+  // Increment 2 asserted the exact opposite here, deliberately: it landed disabled because 38 of 39
+  // registered worktrees held no claim and 14 were detached, so an on-by-default merge would have
+  // refused writes fleet-wide. Increment 3 flips it after the owner confirmed a drained fleet
+  // (measured 2026-08-02: zero live claims on the ledger).
+  //
+  // What this pins is not merely a default but an INVARIANT: registered means enforcing. A hook that
+  // is wired into settings yet silently inert — because an env var was never set, or was lost across
+  // a shell — is the failure mode a security boundary can least afford, and after this flip it is
+  // not a reachable state.
   withRepo((fx) => {
     stampReceipt(fx);
     const got = runHook(editCall(fx.alphaRoot, path.join(fx.primaryRoot, "packages", "drive", "src", "x.ts")));
-    assert.equal(got.decision, "pass");
+    assert.equal(got.decision, "deny");
+    assert.match(got.reason, /read-only agent lobby|PRIMARY CHECKOUT/);
+  });
+});
+
+test("a write inside the OWN claimed worktree is allowed with the switch unset — the wall is not a brick", () => {
+  // The other half of the flip, and the one that matters day to day: on-by-default must not mean
+  // refuse-everything. A wall that refuses a session's own claimed workspace would be indistinguish-
+  // able from a broken one, and would be switched straight back off.
+  withRepo((fx) => {
+    stampReceipt(fx);
+    const got = runHook(editCall(fx.alphaRoot, path.join(fx.alphaRoot, "packages", "mine.ts")));
+    assert.equal(got.decision, "pass", `expected allow, got: ${got.reason}`);
+  });
+});
+
+test("a receipt with `/`-normalised roots still authorises the OWN worktree (the brick regression)", () => {
+  // Found 2026-08-02 by installing the wall and trying to write: every write was refused, including
+  // the session's own claimed worktree, with "outside this repository".
+  //
+  // The cause was invisible to every test here because `stampReceipt` mints from `fx.alphaRoot`,
+  // i.e. `path.join` output, so the receipt's roots and the realpath'd target agreed on separators.
+  // The REAL hook mints from `locateWorktree`, which forward-slashes. This test reproduces that by
+  // writing the receipt exactly as the ceremony does — and it failed before the fix.
+  withRepo((fx) => {
+    const slash = (p: string): string => p.replace(/\\/g, "/");
+    const receipt = mintReceipt({
+      sessionId: ALPHA,
+      worktreeRoot: slash(fx.alphaRoot),
+      primaryRoot: slash(fx.primaryRoot),
+      branch: ALPHA_BRANCH,
+      claims: [{ unitId: "drive-machinery", branch: ALPHA_BRANCH }],
+      now: new Date(),
+    });
+    const target = receiptPath(fx.primaryRoot, ALPHA);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify(receipt), "utf8");
+
+    const own = runHook(editCall(fx.alphaRoot, path.join(fx.alphaRoot, "packages", "mine.ts")));
+    assert.equal(own.decision, "pass", `own worktree must stay writable, got: ${own.reason}`);
+
+    // …and the wall still refuses what it should, so the fix is not "allow everything".
+    const lobby = runHook(
+      editCall(fx.alphaRoot, path.join(fx.primaryRoot, "packages", "drive", "src", "x.ts")),
+    );
+    assert.equal(lobby.decision, "deny");
+    const sibling = runHook(editCall(fx.alphaRoot, path.join(fx.betaRoot, "packages", "stolen.ts")));
+    assert.equal(sibling.decision, "deny");
+    // The refusal must NAME the sibling case. Reporting it as "outside this repository" is what sent
+    // this session diagnosing a path bug as a scope bug.
+    assert.match(sibling.reason, /ANOTHER\s+session's workspace/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The `--root` scope bound (increment 3): machine-scoped install, one checkout
+// ---------------------------------------------------------------------------
+
+test("--root: a session in an UNRELATED repository is untouched", () => {
+  // The registration is user-level, so it fires for every project on the machine. Without this
+  // guard `locateWorktree` would return null for all of them and refuse every write — turning a
+  // storytree wall into a machine-wide outage. Also ADR-0257 D6's single-tenant exemption: a plain
+  // clone (a remote/web container) is not a shared checkout and must not be bound.
+  withRepo((fx) => {
+    const elsewhere = path.join(path.dirname(fx.primaryRoot), "some-other-repo");
+    const got = runHook(editCall(elsewhere, path.join(elsewhere, "src", "x.ts")), {
+      args: ["--root", fx.primaryRoot],
+    });
+    assert.equal(got.decision, "pass", `expected pass, got: ${got.reason}`);
+  });
+});
+
+test("--root: an unrelated session reaching INTO the protected checkout is still refused", () => {
+  // The hole a cwd-only guard would leave. Authority is keyed on the TARGET (ADR-0255 D2), so a
+  // session sitting outside the checkout must not gain write authority over it by virtue of where
+  // it happens to be standing.
+  withRepo((fx) => {
+    const elsewhere = path.join(path.dirname(fx.primaryRoot), "some-other-repo");
+    const got = runHook(
+      editCall(elsewhere, path.join(fx.primaryRoot, "packages", "drive", "src", "x.ts")),
+      { args: ["--root", fx.primaryRoot] },
+    );
+    assert.equal(got.decision, "deny");
+  });
+});
+
+test("--root: sessions INSIDE the protected checkout are bound exactly as before", () => {
+  withRepo((fx) => {
+    stampReceipt(fx);
+    const args = ["--root", fx.primaryRoot];
+    assert.equal(
+      runHook(editCall(fx.alphaRoot, path.join(fx.betaRoot, "packages", "stolen.ts")), { args })
+        .decision,
+      "deny",
+    );
+    assert.equal(
+      runHook(editCall(fx.alphaRoot, path.join(fx.alphaRoot, "packages", "mine.ts")), { args })
+        .decision,
+      "pass",
+    );
   });
 });
 
