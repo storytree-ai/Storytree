@@ -1,0 +1,165 @@
+{
+ "canvas": [
+  128,
+  128
+ ],
+ "anchor": [
+  64.0,
+  122.0
+ ],
+ "seed": 1359437549,
+ "frames": [
+  {
+   "i": 0,
+   "t": 0.0,
+   "alpha": 560,
+   "strays_pruned": 0,
+   "D": 1.02,
+   "trunk_len": 50.0
+  },
+  {
+   "i": 1,
+   "t": 0.055556,
+   "alpha": 434,
+   "strays_pruned": 0,
+   "D": 1.2356,
+   "trunk_len": 49.639
+  },
+  {
+   "i": 2,
+   "t": 0.111111,
+   "alpha": 679,
+   "strays_pruned": 0,
+   "D": 1.4511,
+   "trunk_len": 49.278
+  },
+  {
+   "i": 3,
+   "t": 0.166667,
+   "alpha": 874,
+   "strays_pruned": 0,
+   "D": 1.6667,
+   "trunk_len": 48.917
+  },
+  {
+   "i": 4,
+   "t": 0.222222,
+   "alpha": 979,
+   "strays_pruned": 0,
+   "D": 1.8822,
+   "trunk_len": 48.556
+  },
+  {
+   "i": 5,
+   "t": 0.277778,
+   "alpha": 947,
+   "strays_pruned": 0,
+   "D": 2.0978,
+   "trunk_len": 48.194
+  },
+  {
+   "i": 6,
+   "t": 0.333333,
+   "alpha": 971,
+   "strays_pruned": 0,
+   "D": 2.3133,
+   "trunk_len": 47.833
+  },
+  {
+   "i": 7,
+   "t": 0.388889,
+   "alpha": 1215,
+   "strays_pruned": 0,
+   "D": 2.5289,
+   "trunk_len": 47.472
+  },
+  {
+   "i": 8,
+   "t": 0.444444,
+   "alpha": 1576,
+   "strays_pruned": 0,
+   "D": 2.7444,
+   "trunk_len": 47.111
+  },
+  {
+   "i": 9,
+   "t": 0.5,
+   "alpha": 1951,
+   "strays_pruned": 0,
+   "D": 2.96,
+   "trunk_len": 46.75
+  },
+  {
+   "i": 10,
+   "t": 0.555556,
+   "alpha": 1956,
+   "strays_pruned": 0,
+   "D": 3.1756,
+   "trunk_len": 46.389
+  },
+  {
+   "i": 11,
+   "t": 0.611111,
+   "alpha": 2187,
+   "strays_pruned": 0,
+   "D": 3.3911,
+   "trunk_len": 46.028
+  },
+  {
+   "i": 12,
+   "t": 0.666667,
+   "alpha": 2831,
+   "strays_pruned": 0,
+   "D": 3.6067,
+   "trunk_len": 45.667
+  },
+  {
+   "i": 13,
+   "t": 0.722222,
+   "alpha": 3895,
+   "strays_pruned": 0,
+   "D": 3.8222,
+   "trunk_len": 45.306
+  },
+  {
+   "i": 14,
+   "t": 0.777778,
+   "alpha": 4518,
+   "strays_pruned": 0,
+   "D": 4.0378,
+   "trunk_len": 44.944
+  },
+  {
+   "i": 15,
+   "t": 0.833333,
+   "alpha": 4135,
+   "strays_pruned": 0,
+   "D": 4.2533,
+   "trunk_len": 44.583
+  },
+  {
+   "i": 16,
+   "t": 0.888889,
+   "alpha": 4142,
+   "strays_pruned": 0,
+   "D": 4.4689,
+   "trunk_len": 44.222
+  },
+  {
+   "i": 17,
+   "t": 0.944444,
+   "alpha": 4132,
+   "strays_pruned": 0,
+   "D": 4.6844,
+   "trunk_len": 43.861
+  },
+  {
+   "i": 18,
+   "t": 1.0,
+   "alpha": 4029,
+   "strays_pruned": 0,
+   "D": 4.9,
+   "trunk_len": 43.5
+  }
+ ]
+}

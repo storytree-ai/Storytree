@@ -62,7 +62,13 @@ stays 2.5D isometric.** In four parts.
 
 1. **Generative entry, AUTHOR-TIME ONLY.** Google Gemini image generation ("nano-banana", SDK
    `@google/genai`) is adopted as an author-time concept/asset tool — **never** in the deterministic
-   build or the runtime, **never** fetched per-instance. It informs an object type's KIT once
+   build or the runtime, **never** fetched per-instance.
+   *(Amended by [ADR-0280](0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md),
+   2026-08-01, on the model's ROLE only: for Chapter 2 organic art a generative model supplies
+   individual COMPONENT assets and textures — a leaf blade, a bark texture, a flower — which our code
+   then places, lights, composes and animates. It does not author a whole frame, a growth track, a
+   pose sequence or a silhouette. The author-time-only boundary here is unchanged and strengthened.
+   Noted in place per ADR-0139.)* It informs an object type's KIT once
    (ADR-0217 D8), never inlined (D2). Cost is tens of dollars for a full authoring burst
    (research-confirmed); commercial shipping is licensed (we own the output; SynthID is invisible and
    moot once the asset is re-authored to vector); output is non-deterministic (no seed), so the
