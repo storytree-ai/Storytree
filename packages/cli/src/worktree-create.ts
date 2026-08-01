@@ -30,6 +30,8 @@ import process from "node:process";
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
 import { claimGrade, exploringClaimRequest } from "@storytree/notice-board";
 
+import { mintReceipt, writeReceiptFile } from "@storytree/drive";
+
 import { storyArcStamps } from "./arc.js";
 import type { Envelope } from "./envelope.js";
 
@@ -155,6 +157,20 @@ export interface WorktreeCreateIo {
   fetchMain(primaryRoot: string): void;
   /** `git worktree add -b <branch> <absPath> refs/remotes/origin/main` — throws on failure. */
   addWorktree(primaryRoot: string, branch: string, absPath: string): void;
+  /**
+   * Stamp the write-authority receipt for the newly minted session (ADR-0257 D5: the claim
+   * authority stamps it AFTER the claim succeeds and BEFORE the workspace is handed to a writer).
+   * Without this a born-claimed session — which never runs `noticeboard declare` — would hold a
+   * live claim and no receipt, and the wall would refuse its every write once switched on.
+   * Best-effort by contract: a receipt failure is REPORTED, never a teardown, exactly like install.
+   */
+  stampReceipt(input: {
+    sessionId: string;
+    worktreeRoot: string;
+    primaryRoot: string;
+    branch: string;
+    claims: readonly { unitId: string; branch: string }[];
+  }): { ok: true } | { ok: false; why: string };
   /** Synchronous `pnpm install` in the new worktree; returns ok/code, never throws. */
   install(absPath: string): { ok: boolean; code: number };
 }
@@ -208,6 +224,9 @@ export const defaultWorktreeCreateIo: WorktreeCreateIo = {
       ["-C", primaryRoot, "worktree", "add", "-b", branch, absPath, "refs/remotes/origin/main"],
       { encoding: "utf8" },
     );
+  },
+  stampReceipt(input) {
+    return writeReceiptFile(mintReceipt({ ...input, now: new Date() }));
   },
   install: defaultInstall,
 };
@@ -411,6 +430,26 @@ export async function createWorktree(
     installNote = `pnpm install FAILED (${errMsg(err)}) — run \`pnpm install\` in ${worktreePath} before any pnpm/tsx command; the worktree and claims stand.`;
   }
 
+  // Stamp the write-authority receipt (ADR-0257 D5) — after the claim succeeded and the workspace
+  // exists, before it is handed to a writer. A born-claimed session never runs `noticeboard
+  // declare`, so without this it would hold live claims and no receipt, and the wall would refuse
+  // its every write once switched on. Reported, never fatal: the claim is the coordination truth.
+  let receiptNote: string;
+  try {
+    const stamped = io.stampReceipt({
+      sessionId,
+      worktreeRoot: worktreePath,
+      primaryRoot: primary,
+      branch,
+      claims: nodes.map((unitId) => ({ unitId, branch })),
+    });
+    receiptNote = stamped.ok
+      ? "write-authority receipt stamped."
+      : `write-authority receipt NOT stamped (${stamped.why}) — writes will be refused while the wall is switched on; re-run \`storytree noticeboard declare --node <unit> --pg\` from the worktree to restamp.`;
+  } catch (err) {
+    receiptNote = `write-authority receipt NOT stamped (${errMsg(err)}) — re-run \`storytree noticeboard declare --node <unit> --pg\` from the worktree to restamp.`;
+  }
+
   // (e) The start payload: claims + board digest + the work-from-this-path ceremony.
   const digest: string[] = [];
   for (const unitId of nodes) {
@@ -449,6 +488,7 @@ export async function createWorktree(
     `  cd there — the basename "${sessionId}" IS your session id (ADR-0033), and branch ${branch} is cut off origin/main.`,
     "  Claims release via `storytree noticeboard release <unit> --pg`, or on merge.",
     `  ${installNote}`,
+    `  ${receiptNote}`,
     ...(fetchNote !== null ? [`  ${fetchNote}`] : []),
   ].join("\n");
 

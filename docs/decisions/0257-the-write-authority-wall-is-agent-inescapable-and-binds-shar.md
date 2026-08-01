@@ -24,10 +24,39 @@ stamp a claim receipt. **Those three corrections survive acceptance** and are th
 against re-introducing the overclaims — an implementer citing a green status here must still not
 read them as solved.
 
-**Accepted is not built.** What went green on 2026-07-28 is *what the wall must be*, not that any of
-it exists. D1–D9 are enforced nowhere today: no managed Codex profile, no interactive claim hook, no
-receipt stamped by `worktree create`. D9's proof bar is behavioural build work an ADR cannot declare
-green. Until it is met, the only live enforcement of this hazard remains
+**Accepted is not built — and as of 2026-08-02 it is PARTLY built, on Claude only, shipped OFF.**
+What went green on 2026-07-28 was *what the wall must be*, not that any of it existed. Increment 1
+(2026-07-29, #1001) added the pure decision — `packages/drive/src/write-authority.ts` — installed
+nowhere. Increment 2 installs it for the Claude surface:
+
+- **The Claude `PreToolUse` adapter EXISTS** (`packages/cli/write-authority-hook.mjs`) and is proven
+  behaviourally: it spawns against real sibling worktrees and refuses the cross-session write, the
+  lobby write, the `..` escape, a detached HEAD, a rewound branch, and an absent/expired/malformed
+  receipt. The transport fork the arc recorded is settled — the hook loads the typed decision through
+  tsx (MEASURED ~450 ms per write, against ~20 s for a ledger dial and ~2.3 s for the full CLI graph),
+  so there is ONE implementation rather than a hand-rolled `.mjs` copy of the path logic.
+- **The receipt of D5 is PARTLY built.** It is stamped by both claim ceremonies — `worktree create`
+  (correcting the Codex reviewer's "does not stamp one today") and `noticeboard declare` — carries a
+  finite `expiresAt`, is revoked by `noticeboard done`, and is re-validated on every write against the
+  LIVE HEAD branch. It is **NOT SIGNED.** Its tamper-resistance comes only from living in the
+  deny-protected lobby, which binds the file tools and not a shell. **D5 is therefore OPEN**, and a
+  green status here must not be read as closing it — the signing-key custody fork this ADR names is
+  still unresolved.
+- **The static containment of D1 is GENERATED but NOT INSTALLED** (`write-authority-rules.ts`, from
+  `repo-manifest.json` so the lobby surface cannot drift from the wall). Verified empirically on
+  Windows: a denied `Write` is refused, a non-denied sibling path succeeds, and the rule binds without
+  a session restart.
+
+**Nothing is enforced yet.** The hook ships behind `STORYTREE_WRITE_AUTHORITY`, defaulting OFF, and no
+deny block is in `.claude/settings.json` — because static rules cannot be env-gated and, measured on
+2026-08-01, 38 of the 39 registered worktrees held no live claim and 14 were on detached HEAD. Turning
+it on before those are drained would refuse writes fleet-wide. The flip is a separate, deliberate PR.
+
+**Still absent entirely:** the whole Codex adapter (D2/D3/D7), the lobby's trusted mint actuator (D4),
+brokered common-directory access (D8), and Bash/shell containment on either surface. **D9's bar is NOT
+met** — it demands proof under real concurrent load on both supported desktop surfaces, and this
+increment's evidence is a spawned-hook suite on one. Until the flip lands, the only live enforcement
+of this hazard remains
 [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) D5.2's gate-time
 lobby arm, which this ADR sits in front of rather than replaces.
 
