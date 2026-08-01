@@ -161,10 +161,14 @@ fallbacks. It proves one island growing from nothing through proposed, live-work
 the shared surface. It is allowed to look like a prototype; it is not allowed to fork the renderer.
 
 After that real iteration was witnessed, the observed gaps earned the bounded art work authorized by
-ADR-0274: the app-native SVG island grows through the standard renderer while registered PixelLab
+ADR-0274: the app-native SVG island grows through the standard renderer while registered organic
 tree and plant tracks deform at stable root and ground sockets. Purchased packs, commissioned work
 and the existing author-time generative pipeline remain compatible sources; no runtime vendor call
-or asset-owned state model is introduced.
+or asset-owned state model is introduced. Two later decisions narrow where those tracks may come
+from and how many of them there may be: ADR-0280 makes Chapter 2's organic art code-generated — our
+code owns skeleton, camera and growth, a generative model supplies components — and ADR-0282 sets
+the scale rule, that an authored per-frame track is affordable for at most one focused tree while
+the forest at large renders app-native at any story count.
 
 Frame sequences or cutout layers are added to the art manifest only when an object's silhouette must
 deform. Camera motion, translation, scale, orbit, path reveal, glow and state crossfade do not earn
@@ -240,6 +244,11 @@ proved. It is not reachable from Chapter 2 after migration.
 - [ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) — selective
   PixelLab tree and plant tracks registered over the app-native SVG island under this ADR's shared
   app-owned semantic transition system.
+- [ADR-0280](0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md) — Chapter 2's
+  organic art is code-generated; a generative model supplies components, not whole frames.
+- [ADR-0282](0282-the-act-2-intro-regrows-the-whole-forest-app-native-one-focu.md) — the Act 2 intro
+  is built in this shared surface first and ported to the website afterwards; the forest regrows
+  app-native at any story count.
 - [ADR-0056](0056-ground-the-public-website-s-claims-to-the-corpus-via-data-gr.md) /
   [ADR-0066](0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md) — the public
   grounding and no-private-data boundary that stands.

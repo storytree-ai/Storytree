@@ -33,8 +33,10 @@ elevation against a low top-down plate. The owner directed on 2026-08-01 that th
 before any owner LOOK. An 11-generation camera-projection probe (arc increment #1062) then
 established that PixelLab will not obey a camera *word* — the `view` parameter with isometric and
 aerial vocabulary, and in-context `create_map_object`, all return side elevation or bare terrain. A
-generation top-up would not have fixed it. The remaining workaround needs roughly 40 generations and
-18 remain, so it is also budget-blocked.
+generation top-up would not have fixed it. The remaining workaround needs roughly 40 generations, and
+**12 remain** — 18 at the time of the probe, less the 6 that round 4's `exp-16-v2` repair spent
+lifting exp-16's worst cut from `0.279` to `0.457` before reporting a floor — so it is also
+budget-blocked. The owner has declined to buy more.
 
 **Connectedness and growth were never had together.** Round 3 §5 item 4: three of the eight tracks
 won per-frame connectedness by freezing the tree, which is the "slowly revealed static image" family
@@ -234,6 +236,10 @@ a fork raised to the owner, not an assumption.
   island, camera constraint and runtime safeguards; amended here, not superseded.
 - [ADR-0277](0277-occlusion-registered-cutouts-are-plant-only.md) — registered cutouts retained for
   small plants, rejected for the hero tree.
+- [ADR-0282](0282-the-act-2-intro-regrows-the-whole-forest-app-native-one-focu.md) — the scale rule
+  this decision leaves open: an author-time track of any source, code or model, is affordable for at
+  most one focused tree, and the forest at large renders app-native at any story count. It takes the
+  hero-tree source question as this ADR and ADR-0274 leave it.
 - [ADR-0219](0219-generative-image-models-enter-the-art-pipeline-author-time-o.md) — author-time-only
   generation boundary; model role amended here.
 - [ADR-0264](0264-chapter-2-tree-growth-uses-one-deterministic-topology-rig-wi.md) (superseded) and
