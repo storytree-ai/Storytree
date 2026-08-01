@@ -1,0 +1,4 @@
+# Exactly reproducible from the seed by the README command; 2.7 MB of intermediate.
+raw/
+raw2/
+registry-block.ts.txt
