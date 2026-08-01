@@ -249,6 +249,96 @@ const EXP18_NORMALIZATION_OFFSETS = Object.freeze([
   { x: 4, y: 0 },
 ] as const);
 
+const CODE_BLENDER_MODULE_PATHS = Object.freeze([
+  './assets/code-blender/tree/frame-00.png',
+  './assets/code-blender/tree/frame-01.png',
+  './assets/code-blender/tree/frame-02.png',
+  './assets/code-blender/tree/frame-03.png',
+  './assets/code-blender/tree/frame-04.png',
+  './assets/code-blender/tree/frame-05.png',
+  './assets/code-blender/tree/frame-06.png',
+  './assets/code-blender/tree/frame-07.png',
+  './assets/code-blender/tree/frame-08.png',
+  './assets/code-blender/tree/frame-09.png',
+  './assets/code-blender/tree/frame-10.png',
+  './assets/code-blender/tree/frame-11.png',
+  './assets/code-blender/tree/frame-12.png',
+  './assets/code-blender/tree/frame-13.png',
+  './assets/code-blender/tree/frame-14.png',
+  './assets/code-blender/tree/frame-15.png',
+  './assets/code-blender/tree/frame-16.png',
+  './assets/code-blender/tree/frame-17.png',
+  './assets/code-blender/tree/frame-18.png',
+] as const);
+
+const CODE_BLENDER_URLS = Object.freeze([
+  new URL('./assets/code-blender/tree/frame-00.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-01.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-02.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-03.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-04.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-05.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-06.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-07.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-08.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-09.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-10.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-11.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-12.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-13.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-14.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-15.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-16.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-17.png', import.meta.url).href,
+  new URL('./assets/code-blender/tree/frame-18.png', import.meta.url).href,
+]);
+
+const CODE_BLENDER_SOURCE_ANCHORS = Object.freeze([
+  { x: 64, y: 118 },
+  { x: 63, y: 118 },
+  { x: 63, y: 118 },
+  { x: 63, y: 118 },
+  { x: 63, y: 118 },
+  { x: 63, y: 118 },
+  { x: 63, y: 118 },
+  { x: 63, y: 118 },
+  { x: 63, y: 118 },
+  { x: 63, y: 118 },
+  { x: 63, y: 118 },
+  { x: 62, y: 118 },
+  { x: 62, y: 118 },
+  { x: 62, y: 118 },
+  { x: 61, y: 118 },
+  { x: 61, y: 118 },
+  { x: 61, y: 118 },
+  { x: 61, y: 118 },
+  { x: 62, y: 118 },
+] as const);
+
+const CODE_BLENDER_NORMALIZATION_OFFSETS = Object.freeze([
+  { x: -2, y: 0 },
+  { x: -1, y: 0 },
+  { x: -1, y: 0 },
+  { x: -1, y: 0 },
+  { x: -1, y: 0 },
+  { x: -1, y: 0 },
+  { x: -1, y: 0 },
+  { x: -1, y: 0 },
+  { x: -1, y: 0 },
+  { x: -1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 0 },
+  { x: 0, y: 0 },
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: 1, y: 0 },
+  { x: 1, y: 0 },
+  { x: 1, y: 0 },
+  { x: 0, y: 0 },
+] as const);
+
+const CODE_BLENDER_ANCHOR = Object.freeze({ x: 62, y: 118 });
+
 function frame(
   index: number,
   modulePath: OrganicPoseFrame['modulePath'],
@@ -464,7 +554,69 @@ export const CHAPTER2_ROUND3_EXP18_REGISTRY: RegisteredOrganicPoseRegistry = Obj
   }),
 });
 
-export type Chapter2HeroTreeCandidateId = 'incumbent' | 'exp-15' | 'exp-16' | 'exp-18';
+const CODE_BLENDER_TREE_TRACK: OrganicPoseTrack = Object.freeze({
+  id: 'chapter2-round3-code-blender-hero-tree-track-v1',
+  kind: 'hero-tree',
+  assetOrigin: 'checked-in-module-url',
+  transparent: true,
+  canvas: Object.freeze({ width: 128, height: 128 }),
+  frameDimensions: Object.freeze({ width: 128, height: 128 }),
+  frameCount: CODE_BLENDER_MODULE_PATHS.length,
+  frames: Object.freeze(
+    CODE_BLENDER_MODULE_PATHS.map((modulePath, index) =>
+      frame(
+        index,
+        modulePath,
+        CODE_BLENDER_URLS[index]!,
+        CODE_BLENDER_SOURCE_ANCHORS[index]!,
+        CODE_BLENDER_NORMALIZATION_OFFSETS[index]!,
+        CODE_BLENDER_ANCHOR,
+      ),
+    ),
+  ),
+  poses: evenPoses(CODE_BLENDER_MODULE_PATHS.length),
+  groundAnchor: CODE_BLENDER_ANCHOR,
+  normalizationMode: 'author-import-time-only',
+  depthSlot: 'hero-tree-organic',
+  matureFootprint: Object.freeze({ x: 27, y: 10, width: 80, height: 111 }),
+  encodedBytes: 49_199,
+  decodedRgbaBytes: 1_245_184,
+  provenance: Object.freeze({
+    prompt:
+      "none. No generative model produced any pixel in this track: there is no prompt, no vendor request, no credential and no model id anywhere in its authoring path. The generator imports json, math, os, sys, numpy, bpy and mathutils and nothing else.",
+    modelId:
+      "n/a — the renderer is headless Blender 5.2.0 LTS on CPU Cycles, driven by our own script (ADR-0280 D2a). Blender occupies the FINISH slot the pixel rasteriser sits in; it is never an authority and no .blend is a source of truth.",
+    generationId:
+      "seed=20260801, CPU Cycles, 72 samples (32 for the contact-shadow pass), supersampled at 384 and box-downsampled to 128. Re-runs from the seed on the pinned build; ADR-0219's committed-frame-is-truth rule governs where exact byte reproducibility across machines cannot be shown.",
+    licence: "GPL renderer used at author time only; the committed frames are ours",
+    notes:
+      "Code owns skeleton, camera and growth (ADR-0280 D1). Topology is a strict PREFIX — the skeleton is grown once, each node records its birth iteration, and the frontier eases out of ZERO length, so nothing is frozen to buy per-frame connectedness. Randomness is identity-keyed, never a draw counter. Girth is secondary growth (pipe model over an age-dependent tip radius), which is what makes frame 00 a cotyledon seedling rather than the bare stump the first Blender spike opened on. The 19 frames are placed at equal SILHOUETTE-CHANGE arc length, measured author-time from an analytic projection of the skeleton. Output passes the same raster back half as every other candidate; a raw Blender frame shipped as-is is the ADR-0145 failure reproduced.",
+    referencePlateId:
+      "none. The camera is calibrated to forest-world's own shadow ellipse as a NUMBER (scene.ts rx=0.78R, ry=0.20R => 0.256, against sin 20deg = 0.342), not to an image plate. The one thing borrowed is exp-16's committed 32-colour palette, declared in both scripts.",
+  }),
+});
+
+/**
+ * code-blender — the code-generated candidate. Ceilings are the MEASURED actuals — zero headroom by design, so a byte, a frame or a
+ * layer added to this candidate fails validation rather than sliding through.
+ */
+export const CHAPTER2_ROUND3_CODE_BLENDER_REGISTRY: RegisteredOrganicPoseRegistry = Object.freeze({
+  id: 'chapter2-round3-code-blender-v1',
+  tracks: Object.freeze([CODE_BLENDER_TREE_TRACK, CHAPTER2_PLANT_SAMPLE_TRACK]),
+  budget: Object.freeze({
+    maxEncodedBytes: 73_734,
+    maxDecodedRgbaBytes: 1_429_504,
+    maxFrameCount: 24,
+    maxLayerCount: 2,
+  }),
+});
+
+export type Chapter2HeroTreeCandidateId =
+  | 'incumbent'
+  | 'exp-15'
+  | 'exp-16'
+  | 'exp-18'
+  | 'code-blender';
 
 /** What one candidate costs, and which of the prior ceilings that cost breaks. */
 export interface Chapter2HeroTreeCandidateBudget {
@@ -495,6 +647,18 @@ export interface Chapter2HeroTreeAnchorRule {
    * because a frame can measure exactly on the 0.5 tie (exp-15 frames 03 and 08 do).
    */
   readonly maxAnchorResidualPx: number;
+  /**
+   * How far the bottom-most occupied row travels across the track, in px.
+   *
+   * ZERO for every hand-authored candidate: they are 2D art with a deliberately flat base, so the
+   * contact row is a constant and the suite pins it exactly. It is NOT zero for a code-generated
+   * candidate rendered through one fixed camera — the trunk base is pinned at world z=0, but
+   * secondary growth thickens the trunk, so the near edge of its own footprint descends by
+   * `r * sin(cameraElevation)` as it fattens. Buying a constant row would mean shifting the frame
+   * upward as the tree matures, i.e. the tree rising out of the ground, which is exactly the base
+   * drift ADR-0280 D1 forbids. The band is stated instead, and the suite asserts against it.
+   */
+  readonly groundRowSpreadPx: number;
   readonly contactAnchorSpreadPx: number;
   readonly experimentDeclaredDriftPx: number;
   readonly framesShifted: number;
@@ -546,6 +710,7 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
       experimentDeclared:
         "alpha-weighted x across bottom three occupied rows; bottom-most occupied y",
       maxAnchorResidualPx: 0.4478,
+      groundRowSpreadPx: 0,
       contactAnchorSpreadPx: 0.9,
       experimentDeclaredDriftPx: 0.9,
       framesShifted: 0,
@@ -578,6 +743,7 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
       experimentDeclared:
         "alpha-weighted x across bottom three occupied rows; bottom-most occupied y",
       maxAnchorResidualPx: 0.5,
+      groundRowSpreadPx: 0,
       contactAnchorSpreadPx: 0.62,
       experimentDeclaredDriftPx: 0.0,
       framesShifted: 0,
@@ -610,6 +776,7 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
       experimentDeclared:
         "alpha-weighted x over the 10-row band 32..22 px above the bottom-most opaque row (the trunk axis above the root flare); groundY = bottom-most opaque row",
       maxAnchorResidualPx: 0.4865,
+      groundRowSpreadPx: 0,
       contactAnchorSpreadPx: 10.61,
       experimentDeclaredDriftPx: 0.49,
       framesShifted: 19,
@@ -642,6 +809,7 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
       experimentDeclared:
         "alpha-weighted x-centroid over the bottom 10 contact rows, alpha threshold 32",
       maxAnchorResidualPx: 0.4706,
+      groundRowSpreadPx: 0,
       contactAnchorSpreadPx: 13.73,
       experimentDeclaredDriftPx: 0.5,
       framesShifted: 8,
@@ -650,6 +818,39 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
       bodyCentroidSpreadAfterPx: 14.92,
       bodyCentroidMaxStepBeforePx: 4.17,
       bodyCentroidMaxStepAfterPx: 13.67,
+    }),
+  }),
+  Object.freeze({
+    id: 'code-blender',
+    label: "code-blender — code-generated, Blender finish",
+    technique:
+      "space-colonisation skeleton, pipe-model secondary growth and a 20° calibrated orthographic camera all computed by our own script; headless Blender 5.2.0 LTS on CPU Cycles supplies the finish, then the same raster back half every other candidate is held to (ADR-0280 D1/D2a). No generative model produced any pixel",
+    registry: CHAPTER2_ROUND3_CODE_BLENDER_REGISTRY,
+    heroTreeTrackId: 'chapter2-round3-code-blender-hero-tree-track-v1',
+    frameCount: 19,
+    canvas: Object.freeze({ width: 128, height: 128 }),
+    groundAnchor: Object.freeze({ x: 62, y: 118 }),
+    budget: Object.freeze({
+      encodedBytes: 73_734,
+      decodedRgbaBytes: 1_429_504,
+      frameCount: 24,
+      layerCount: 2,
+      exceedsPriorCeiling: Object.freeze(['frameCount']),
+    }),
+    anchorRule: Object.freeze({
+      applied: APPLIED_RULE,
+      experimentDeclared:
+        "none — the generator declares no anchor rule at all. It pins the planting point in WORLD space (trunk base at the origin, camera framed once to the mature extent and byte-identical every frame), so its own lateral drift is 0 by construction; the measured contact spread below is what the PIXEL rule reads off a root flare and crown that are not left-right symmetric",
+      maxAnchorResidualPx: 0.5,
+      groundRowSpreadPx: 3,
+      contactAnchorSpreadPx: 2.339,
+      experimentDeclaredDriftPx: 0,
+      framesShifted: 15,
+      maxAbsShiftPx: 2,
+      bodyCentroidSpreadBeforePx: 2.3673,
+      bodyCentroidSpreadAfterPx: 5.0325,
+      bodyCentroidMaxStepBeforePx: 0.6985,
+      bodyCentroidMaxStepAfterPx: 1.1388,
     }),
   }),
 ]);
@@ -668,8 +869,8 @@ export function chapter2Round3TreeCandidate(
  *
  * `mountedWorstCase` is what the browser actually pays, because the lab mounts EXACTLY ONE hero
  * tree at a time over the fixed plant layer — two organic layers, always, whichever candidate is
- * selected. `shippedTotal` is what the repository and the bundle carry with all four checked in;
- * its decoded figure is a bound that is never reached at runtime, since three of the four tracks
+ * selected. `shippedTotal` is what the repository and the bundle carry with all five checked in;
+ * its decoded figure is a bound that is never reached at runtime, since four of the five tracks
  * are never decoded in a given session.
  */
 export const CHAPTER2_ROUND3_LAB_BUDGET = Object.freeze({
@@ -693,10 +894,10 @@ export const CHAPTER2_ROUND3_LAB_BUDGET = Object.freeze({
     exceedsPriorCeiling: Object.freeze(['decodedRgbaBytes', 'frameCount']),
   }),
   shippedTotal: Object.freeze({
-    encodedBytes: 426_013,
-    decodedRgbaBytesIfEveryTrackDecoded: 6_443_008,
-    frameCount: 58,
-    heroTreeTracks: 4,
+    encodedBytes: 475_212,
+    decodedRgbaBytesIfEveryTrackDecoded: 7_688_192,
+    frameCount: 77,
+    heroTreeTracks: 5,
     sharedPlantTracks: 1,
     exceedsPriorCeiling: Object.freeze(['encodedBytes', 'decodedRgbaBytes', 'frameCount']),
   }),

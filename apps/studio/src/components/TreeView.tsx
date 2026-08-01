@@ -157,12 +157,20 @@ import {
   neighbourHighlightPlan,
   laneLayout,
   normalizeWorldPresentationModel,
+  deriveForestRegrowAccretionPlans,
   WorldSceneView,
   type WorldPresentationEvents,
   type WorldPresentationModel,
 } from '@storytree/app-surface';
 import { parseStyleSheet, type SpriteStyleSheet } from '../lib/sprite-sheet.js';
 import { SemanticGrowthDemo } from './SemanticGrowthDemo.js';
+import {
+  readAct2Intro,
+  useAct2Intro,
+  useReducedMotion,
+  useStableForestRegrowLayer,
+} from './act2Intro.js';
+import { Act2IntroControl } from './Act2IntroControl.js';
 
 // The current `?…` search string, SSR-guarded ('' when there is no window). The
 // panel-exposed readers default to this so non-panel call sites (and SSR) keep
@@ -2324,6 +2332,22 @@ export function TreeView({
     [search],
   );
   const chapter2Round3Lab = useMemo(() => readChapter2Round3Lab(search), [search]);
+  // ── the Act 2 intro (ADR-0282): the whole forest regrown from its base nodes ──
+  // Unlike the witness stages above this is NOT a variant controller — there is no early return,
+  // no separate stage and no synthetic world. It runs on the REAL map with the real corpus; the
+  // gate adds a cursor and a control and changes nothing else, so `?act2=intro` shows the same
+  // forest, the same islands and the same roads the clean route does.
+  const act2Intro = useMemo(() => readAct2Intro(search), [search]);
+  const act2ReducedMotion = useReducedMotion();
+  const act2Player = useAct2Intro({
+    enabled: act2Intro,
+    stories,
+    reducedMotion: act2ReducedMotion,
+    // The ORDER comes from the story graph's own `depends_on` (ADR-0282 D3); the routed network
+    // supplies only which segments join which islands, so a road the router had to drop can never
+    // silently reorder the forest.
+    edges: world?.trails.edges ?? null,
+  });
   const scene = useMemo(
     () =>
       world
@@ -2347,6 +2371,31 @@ export function TreeView({
   const trailSegById = useMemo(
     () => new Map((world?.trails.segments ?? []).map((s) => [s.id, s])),
     [world],
+  );
+
+  // One connected-accretion plan per island, derived ONCE from the settled scene. This is the
+  // expensive half of the regrow (a scene walk per story), so it is keyed on the scene alone and
+  // never touched by the cursor; the per-frame half below only re-selects cell scales.
+  const act2AccretionPlans = useMemo(
+    () =>
+      act2Intro && scene && world
+        ? deriveForestRegrowAccretionPlans(
+            scene,
+            new Map(world.territories.map((t) => [t.story.id, t.centroid])),
+          )
+        : null,
+    [act2Intro, scene, world],
+  );
+  // The per-frame render layer: which islands and roads exist yet, plus the accretion state of
+  // every island still growing. Null unless the regrow is actually mid-flight, so a settled forest
+  // — including the moment the gated route first loads — carries no layer and renders unchanged.
+  // Held STABLE across frames that would paint an identical picture — a forest-map frame's cost is
+  // rasterisation (ADR-0272), so an unchanged layer object is what keeps `SceneView`'s memo bail-out
+  // intact and those frames free.
+  const act2RegrowLayer = useStableForestRegrowLayer(
+    act2Player.state,
+    act2AccretionPlans,
+    act2Player.regrowing,
   );
 
   // ISLAND ARRIVAL: when a re-pulled tree payload contains stories absent from the
@@ -2392,9 +2441,17 @@ export function TreeView({
     );
   }, [arriveParam, world]);
   const arrivalIds = useMemo<ReadonlySet<string> | null>(() => {
+    // During an Act 2 regrow the arriving islands ARE the ones the plan is landing right now, so
+    // the existing arrival machinery — the staged coast/ground/flora classes and the incident
+    // trail draw-on below — is reused verbatim rather than a second animation being written.
+    if (act2RegrowLayer) {
+      return act2Player.state && act2Player.state.arrivalStoryIds.length > 0
+        ? new Set(act2Player.state.arrivalStoryIds)
+        : null;
+    }
     if (!demoArrivalId && entering.size === 0) return null;
     return demoArrivalId ? new Set([...entering, demoArrivalId]) : entering;
-  }, [demoArrivalId, entering]);
+  }, [act2RegrowLayer, act2Player.state, demoArrivalId, entering]);
   // The trail draw-on animation, re-rooted from click to ARRIVAL: an arriving island's
   // DIRECT incident trails grow outward from it (existing trails stay statically drawn).
   // Null when nothing is arriving ⇒ every trail simply paints, no masks.
@@ -2479,6 +2536,7 @@ export function TreeView({
             laneMotion: selectionMotion,
             spriteSheet,
             artScale,
+            forestRegrowLayer: act2RegrowLayer,
           })
         : null,
     [
@@ -2487,6 +2545,7 @@ export function TreeView({
       hidden,
       arrivalIds,
       growPlan,
+      act2RegrowLayer,
       neighbourPlan,
       laneLayoutPlan,
       selectionMotion,
@@ -2864,6 +2923,11 @@ export function TreeView({
               onClose={() => setSessionDock(false)}
             />
           )}
+          {/* The Act 2 intro control (ADR-0282): the owner clicks it and the whole forest regrows
+              from nothing, outward from the base nodes, in the story graph's own dependency order.
+              Gated on the exact `?act2=intro` value — absent ⇒ not mounted, and the clean route
+              renders byte-for-byte as before. */}
+          {act2Intro && <Act2IntroControl player={act2Player} reducedMotion={act2ReducedMotion} />}
           {/* `?arrive=` demo: replay the arrival — remounts the scene subtree so the
               CSS animations run again. Absent flag ⇒ no button (default world untouched). */}
           {renderScene && demoArrivalId && (

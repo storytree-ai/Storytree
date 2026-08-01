@@ -160,12 +160,13 @@ const CANDIDATES = CHAPTER2_ROUND3_TREE_CANDIDATES;
 const NEW_CANDIDATES = CANDIDATES.filter((candidate) => candidate.id !== 'incumbent');
 
 describe('Chapter 2 round-3 hero-tree candidates', () => {
-  it('registers exactly four candidates in comparison order, each a valid two-layer registry', () => {
+  it('registers exactly five candidates in comparison order, each a valid two-layer registry', () => {
     expect(CANDIDATES.map((candidate) => candidate.id)).toEqual([
       'incumbent',
       'exp-15',
       'exp-16',
       'exp-18',
+      'code-blender',
     ]);
     for (const candidate of CANDIDATES) {
       const registry = validateOrganicPoseRegistry(candidate.registry);
@@ -177,8 +178,8 @@ describe('Chapter 2 round-3 hero-tree candidates', () => {
       expect(heroTree(candidate).id).toBe(candidate.heroTreeTrackId);
     }
     // Registry ids and hero-tree track ids are unique, so a picker cannot alias two candidates.
-    expect(new Set(CANDIDATES.map((c) => c.registry.id)).size).toBe(4);
-    expect(new Set(CANDIDATES.map((c) => c.heroTreeTrackId)).size).toBe(4);
+    expect(new Set(CANDIDATES.map((c) => c.registry.id)).size).toBe(5);
+    expect(new Set(CANDIDATES.map((c) => c.heroTreeTrackId)).size).toBe(5);
   });
 
   it('pins the SAME plant track object into every candidate, so a tree swap cannot change the plant', () => {
@@ -239,10 +240,15 @@ describe('Chapter 2 round-3 hero-tree candidates', () => {
         const path = fileURLToPath(new URL(frame.modulePath, import.meta.url));
         const measured = measureGroundAnchor(decodePng(new Uint8Array(readFileSync(path))));
         const residual = Math.abs(measured.x - track.groundAnchor.x);
-        // The bottom-most occupied row is pinned exactly; the weighted x within half a pixel.
-        expect(measured.y, `${candidate.id} ${frame.modulePath} ground row`).toBe(
-          track.groundAnchor.y,
-        );
+        // The bottom-most occupied row is pinned exactly wherever the candidate declares a
+        // flat contact band (every hand-authored one does), and inside the declared band
+        // otherwise. See `groundRowSpreadPx`: a code-generated track rendered through one fixed
+        // camera cannot hold a constant contact row while its trunk thickens, and buying one
+        // would mean drifting the base (ADR-0280 D1).
+        expect(
+          Math.abs(measured.y - track.groundAnchor.y),
+          `${candidate.id} ${frame.modulePath} ground row`,
+        ).toBeLessThanOrEqual(candidate.anchorRule.groundRowSpreadPx);
         expect(residual, `${candidate.id} ${frame.modulePath} residual`).toBeLessThanOrEqual(0.5);
         worstResidual = Math.max(worstResidual, residual);
 
@@ -331,6 +337,11 @@ describe('Chapter 2 round-3 hero-tree candidates', () => {
     expect(
       CANDIDATES.filter((candidate) => candidate.anchorRule.framesShifted === 0).map((c) => c.id),
     ).toEqual(['incumbent', 'exp-15']);
+
+    // Only the code-generated track carries a contact BAND rather than a pinned row.
+    expect(
+      CANDIDATES.filter((c) => c.anchorRule.groundRowSpreadPx > 0).map((c) => c.id),
+    ).toEqual(['code-blender']);
   });
 
   it('restates the byte budget per candidate against the measured cost, never silently blown', () => {
@@ -382,6 +393,7 @@ describe('Chapter 2 round-3 hero-tree candidates', () => {
       'exp-15': ['decodedRgbaBytes', 'frameCount'],
       'exp-16': ['frameCount'],
       'exp-18': [],
+      'code-blender': ['frameCount'],
     });
   });
 
@@ -450,7 +462,7 @@ describe('Chapter 2 round-3 hero-tree candidates', () => {
     // Every frame is a statically analysable local module URL, one per registered frame.
     expect(
       source.match(
-        /new URL\('\.\/assets\/exp-1[568]\/tree\/frame-\d\d\.png',\s*import\.meta\.url\)/g,
+        /new URL\('\.\/assets\/(?:exp-1[568]|code-blender)\/tree\/frame-\d\d\.png',\s*import\.meta\.url\)/g,
       ),
     ).toHaveLength(NEW_CANDIDATES.reduce((sum, c) => sum + c.frameCount, 0));
     expect(source).not.toMatch(

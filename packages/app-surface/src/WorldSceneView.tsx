@@ -2,6 +2,7 @@ import React from 'react';
 import type { SceneNode } from '@storytree/forest-world';
 import {
   SceneView,
+  type ForestRegrowRenderLayer,
   type NativeIslandGrowthRenderLayer,
   type OrganicPoseRenderLayer,
   type SceneCtx,
@@ -31,6 +32,9 @@ export interface WorldPresentationModel {
   readonly artScale: number;
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   readonly svgIslandAccretionLayer?: SvgIslandAccretionState | null;
+  /** The Act 2 whole-forest regrow (ADR-0282): which islands and roads exist yet, and the
+   *  accretion state of every island still growing. Absent ⇒ the settled forest, unchanged. */
+  readonly forestRegrowLayer?: ForestRegrowRenderLayer | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
 }
 
@@ -48,6 +52,7 @@ export interface WorldPresentationModelInput {
   readonly artScale?: number;
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   readonly svgIslandAccretionLayer?: SvgIslandAccretionState | null;
+  readonly forestRegrowLayer?: ForestRegrowRenderLayer | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
 }
 
@@ -81,6 +86,9 @@ export function normalizeWorldPresentationModel(
       : {}),
     ...(input.svgIslandAccretionLayer !== undefined
       ? { svgIslandAccretionLayer: input.svgIslandAccretionLayer }
+      : {}),
+    ...(input.forestRegrowLayer !== undefined
+      ? { forestRegrowLayer: input.forestRegrowLayer }
       : {}),
     ...(input.organicPoseLayers !== undefined
       ? { organicPoseLayers: input.organicPoseLayers }
@@ -128,6 +136,9 @@ export function WorldSceneView({
         : {}),
       ...(model.svgIslandAccretionLayer !== undefined
         ? { svgIslandAccretionLayer: model.svgIslandAccretionLayer }
+        : {}),
+      ...(model.forestRegrowLayer !== undefined
+        ? { forestRegrowLayer: model.forestRegrowLayer }
         : {}),
       ...(model.organicPoseLayers !== undefined
         ? { organicPoseLayers: model.organicPoseLayers }
