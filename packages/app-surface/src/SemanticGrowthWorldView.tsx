@@ -1,5 +1,5 @@
 import React from 'react';
-import type { SceneNode } from '@storytree/forest-world';
+import { trailFillWidth, type SceneNode } from '@storytree/forest-world';
 import {
   WorldSceneView,
   type WorldPresentationEvents,
@@ -109,6 +109,89 @@ function withoutOrbit(node: SceneNode): SceneNode {
 
 function browserPrefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+/** The trail passes that draw a named segment. All four carry the SAME `d` for a given segment
+ *  id (`buildTrails` renders one path per pass off one `TrailSegment`), so the first occurrence
+ *  in scene order resolves it — the shadow/casing/fill/ghost split is a painter concern only. */
+const TRAIL_SEGMENT_KINDS: ReadonlySet<string> = new Set([
+  'trail-shadow',
+  'trail-casing',
+  'trail-fill',
+  'trail-ghost',
+]);
+
+/**
+ * Segment id → the path data the SCENE drew for it.
+ *
+ * `RevealSegment` deliberately carries no `d` (it is a pure timing/direction plan over segment
+ * IDS), and the draw-on mask must lie exactly over the stroke it grows, so the geometry is
+ * resolved from the same scene the player is about to render rather than taken as a second prop
+ * that could disagree with it. This mirrors how `SceneView` already reads `id` + `d` off the
+ * trail children when it attaches the mask reference.
+ */
+function trailSegmentPathData(
+  node: SceneNode,
+  into: Map<string, string> = new Map(),
+): ReadonlyMap<string, string> {
+  if (node.el === 'g') {
+    for (const child of node.children) trailSegmentPathData(child, into);
+    return into;
+  }
+  if (
+    node.el === 'path' &&
+    node.id !== undefined &&
+    node.kind !== undefined &&
+    TRAIL_SEGMENT_KINDS.has(node.kind) &&
+    !into.has(node.id)
+  ) {
+    into.set(node.id, node.d);
+  }
+  return into;
+}
+
+/**
+ * The ADR-0169 arrival draw-on masks for a frame that carries a plan — one solid white stroke
+ * per revealed segment over that segment's own path, `pathLength`-normalised so the CSS dash
+ * animation grows it length-agnostically, staggered by the plan's own `delayMs`.
+ *
+ * Composed from the live map's `<defs>` (TreeView.tsx) because `SceneView` only ever REFERENCES
+ * these ids: a `mask="url(#trail-m-…)"` whose target is absent renders UNMASKED in SVG, so
+ * without this the trail would paint fully drawn from the first frame and the plan would be
+ * dead wiring. `maskUnits="userSpaceOnUse"` with oversized bounds keeps a thin diagonal's mask
+ * region from clipping the wide stroke.
+ */
+function revealMaskNodes(model: WorldPresentationModel): React.JSX.Element[] {
+  const plan = model.reveal;
+  if (!plan || plan.segments.length === 0) return [];
+  const pathById = trailSegmentPathData(model.scene);
+  return plan.segments.flatMap((seg) => {
+    const d = pathById.get(seg.id);
+    // A plan may name a segment this frame's scene does not draw (an earlier frame's world).
+    // Emitting a mask with no geometry would blank the stroke, so skip it and let it paint.
+    if (d === undefined) return [];
+    return [
+      <mask
+        key={seg.id}
+        id={`trail-m-${seg.id}`}
+        maskUnits="userSpaceOnUse"
+        x={-100000}
+        y={-100000}
+        width={200000}
+        height={200000}
+      >
+        <path
+          d={d}
+          pathLength={1}
+          className={`trail-reveal-mask${seg.fromEnd ? ' from-end' : ''}`}
+          style={{
+            animationDelay: `${seg.delayMs}ms`,
+            strokeWidth: trailFillWidth(seg.revealedUsage) + 8,
+          }}
+        />
+      </mask>,
+    ];
+  });
 }
 
 function withSvgIslandGrowthTiming(
@@ -354,7 +437,15 @@ export function SemanticGrowthWorldView({
   );
   const model = React.useMemo<WorldPresentationModel>(
     () => {
-      const base = reduce ? { ...frame.model, scene: withoutOrbit(frame.model.scene) } : frame.model;
+      // Reduced motion settles on the FINAL scene, which for the arrival draw-on is the fully
+      // drawn trail — the same place full motion lands once the mask animation completes. The
+      // app owns that settlement rather than leaning on the stylesheet's own
+      // `prefers-reduced-motion` branch, because the `reducedMotion` PROP can be set with the
+      // browser query unmatched; dropping the plan removes the mask, its reference and the
+      // `is-growing` class together, so nothing is left half-wired.
+      const base = reduce
+        ? { ...frame.model, scene: withoutOrbit(frame.model.scene), reveal: null }
+        : frame.model;
       if (!organicPoseGrowth || nativeLandProgress === null) return base;
       return {
         ...base,
@@ -373,6 +464,9 @@ export function SemanticGrowthWorldView({
     },
     [frame.model, islandAccretionState, nativeLandProgress, organicLayers, organicPoseGrowth, reduce],
   );
+  // The `<defs>` half of the arrival draw-on: absent a plan this is empty and the rendered
+  // `<svg>` is byte-identical to before this existed.
+  const revealMasks = React.useMemo(() => revealMaskNodes(model), [model]);
   // Held stable through the whole walk — derived from every supplied frame's app-owned geometry,
   // never the current cursor or a transparent asset canvas.
   const viewBox = React.useMemo(
@@ -464,6 +558,7 @@ export function SemanticGrowthWorldView({
         : {})}
     >
       <svg viewBox={viewBox} aria-label={`Semantic growth: ${frame.key}`}>
+        {revealMasks.length > 0 ? <defs>{revealMasks}</defs> : null}
         {events ? (
           <WorldSceneView model={model} events={events} />
         ) : (

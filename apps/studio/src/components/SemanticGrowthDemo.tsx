@@ -33,12 +33,14 @@ import {
   type SceneVegetationInput,
 } from '@storytree/forest-world';
 import {
+  arrivalGrowPlan,
   CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
   neighbourHighlightPlan,
   laneLayout,
   normalizeWorldPresentationModel,
   SemanticGrowthWorldView,
   type SemanticGrowthFrame,
+  type TrailRevealPlan,
 } from '@storytree/app-surface';
 import { buildWorld, buildRelaxedCells, worldToScene, type HexWorld } from './TreeView.js';
 import type {
@@ -285,6 +287,19 @@ function buildFrames(
     roundabouts: true,
   });
 
+  // The ADR-0169 ARRIVAL draw-on, over the same composed world's REAL trail network: the primary
+  // is the island that ARRIVES in this walk, so its direct incident road grows outward from it
+  // rather than snapping in already drawn. The live map has always had this beat
+  // (`TreeView.tsx` calls the same shared selector); the witness never wired it, which is why no
+  // Chapter 2 mock has ever shown a path growing.
+  //
+  // Set on the `proposed` frame ONLY (see the frame list below). `reveal` is a per-frame field on
+  // the DISCRETE six-key cursor, not the organic layer's continuous progress axis, and the mask
+  // animation fires on MOUNT — so putting the plan on the one arrival frame plays the beat
+  // exactly once, at the arrival, while every later frame (no plan ⇒ no mask) simply paints the
+  // trail fully drawn. `empty`/`land` carry no primary identity yet, so they stay off it too.
+  const arrivalPlan = arrivalGrowPlan(baseWorld.trails, new Set([DEMO_STORY_ID]));
+
   const rawRelaxedCells = buildRelaxedCells(baseWorld, 'mesh', {});
   // The SOLE allowed filtering (H): deterministic removal of the real `buildRelaxedCells` output
   // OWNED by the fixed companion territory — never a hand-authored replacement — so the companion
@@ -370,12 +385,14 @@ function buildFrames(
   const narrativeModel = (
     story: TreeStory,
     claims: readonly ClaimActivity[] = [],
+    reveal: TrailRevealPlan | null = null,
   ): ReturnType<typeof normalizeWorldPresentationModel> =>
     normalizeWorldPresentationModel({
       scene: narrativeScene(story, claims),
       neighbours: neighbourPlan,
       lanes: primaryLanes,
       laneMotion: 'draw',
+      reveal,
     });
 
   return [
@@ -388,8 +405,10 @@ function buildFrames(
       model: normalizeWorldPresentationModel({ scene: landScene() }),
     },
     {
+      // The ARRIVAL: the primary's island and its road appear together for the first time, so
+      // this is the one frame that carries the draw-on plan.
       key: 'proposed',
-      model: narrativeModel(demoStory('proposed')),
+      model: narrativeModel(demoStory('proposed'), [], arrivalPlan),
     },
     {
       key: 'claimed',

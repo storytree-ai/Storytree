@@ -804,6 +804,94 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     }
   });
 
+  // The ADR-0169 ARRIVAL DRAW-ON, wired into the witness for the first time. Distinct from the
+  // lit SELECTION lane above: that lane is the one-hop highlight, this is the BASE trail growing
+  // outward from the arriving island along its real `depends_on` edge.
+  //
+  // The load-bearing half is that the mask ELEMENTS exist in this DOM. `SceneView` only ever
+  // REFERENCES `mask="url(#trail-m-<id>)"`, and SVG renders an unresolved mask reference
+  // UNMASKED — so a fixture that set `reveal` without the player emitting a matching `<defs>`
+  // would leave the trail fully drawn from the first paint, with dead wiring behind it and
+  // nothing to show for it. Hence: every reference must RESOLVE, not merely be present.
+  it('the primary\'s arrival draws its real trail on, exactly once, from the arriving island', async () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
+      'utf8',
+    );
+
+    // The shared, unit-tested selector — imported from the app-surface seam and actually called
+    // over the composed world's REAL trail network, never a demo-local plan or invented segment.
+    expect(source).toMatch(
+      /import\s*\{[\s\S]*?\barrivalGrowPlan\b[\s\S]*?\}\s*from '@storytree\/app-surface'/,
+    );
+    expect(source).toMatch(/\barrivalGrowPlan\s*\(\s*baseWorld\.trails\s*,/);
+    // No demo-local mask, stagger constant or growth animation — all of that belongs to the
+    // shared player and the shared stylesheet.
+    expect(source).not.toMatch(/trail-m-|trail-reveal-mask|REVEAL_STAGGER_MS/);
+
+    window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
+    const flagged = await renderTree();
+    const nav = flagged.querySelector('nav[aria-label="Semantic growth controls"]');
+    expect(nav).toBeTruthy();
+    const nextButton = Array.from(nav!.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Next',
+    );
+    expect(nextButton).toBeTruthy();
+
+    const frameKey = (): string | null | undefined =>
+      flagged
+        .querySelector('[data-semantic-growth-frame]')
+        ?.getAttribute('data-semantic-growth-frame');
+    const growthMasks = (): Element[] =>
+      Array.from(flagged.querySelectorAll('mask[id^="trail-m-"]'));
+    const unresolvedMaskRefs = (): string[] =>
+      Array.from(flagged.querySelectorAll('[mask]'))
+        .map((el) => el.getAttribute('mask') ?? '')
+        .filter((ref) => {
+          const id = /^url\(#(.+)\)$/.exec(ref)?.[1] ?? '';
+          return id === '' || flagged.querySelector(`[id="${id}"]`) === null;
+        });
+
+    // `empty` / `land`: no primary identity yet, so nothing is arriving and nothing draws on.
+    expect(frameKey()).toBe('empty');
+    expect(growthMasks()).toHaveLength(0);
+    await act(async () => {
+      nextButton!.click();
+    });
+    expect(frameKey()).toBe('land');
+    expect(growthMasks()).toHaveLength(0);
+
+    // `proposed` — THE ARRIVAL. The real road grows on: one mask per segment of the primary's
+    // own routed edge, and every mask reference the scene attached resolves in this same DOM.
+    await act(async () => {
+      nextButton!.click();
+    });
+    expect(frameKey()).toBe('proposed');
+    const arrivalMasks = growthMasks();
+    expect(arrivalMasks.length).toBeGreaterThan(0);
+    expect(unresolvedMaskRefs()).toEqual([]);
+    expect(flagged.querySelectorAll('.trail-fill.is-growing').length).toBe(arrivalMasks.length);
+    // the mask lies over the segment's own geometry (resolved off the scene, not invented).
+    for (const mask of arrivalMasks) {
+      const segId = (mask.getAttribute('id') ?? '').replace(/^trail-m-/, '');
+      const drawn = flagged.querySelector(`path.trail-fill[data-id="${segId}"]`);
+      expect(drawn, `arrival mask ${segId} has no drawn segment`).toBeTruthy();
+      expect(mask.querySelector('path')?.getAttribute('d')).toBe(drawn!.getAttribute('d'));
+    }
+
+    // EXACTLY ONCE: every later frame carries no plan, so it simply paints the trail — no mask,
+    // no growth class, and no dangling reference left behind.
+    for (const key of ['claimed', 'signed-proof', 'healthy']) {
+      await act(async () => {
+        nextButton!.click();
+      });
+      expect(frameKey()).toBe(key);
+      expect(growthMasks(), `masks lingering @ ${key}`).toHaveLength(0);
+      expect(flagged.querySelectorAll('.trail-fill.is-growing')).toHaveLength(0);
+      expect(flagged.querySelectorAll('[mask]')).toHaveLength(0);
+    }
+  });
+
   // H — sgsd-companion-witness-territory (semantic-growth-studio-demo): the fixture must ALSO compose
   // a second, FIXED "companion" territory through the SAME real Studio pipeline as the primary — its
   // real draw tiles enter `buildRelaxedCells` alongside the primary's, and ONLY the companion's OWNED
