@@ -15,13 +15,21 @@ the `grounded-art-machinery-arc` end state; the arc note flagged that the ADR wo
 driver session as the next increment, and this is it. The LOOK verdict on any produced render remains
 separate and the owner's (ADR-0070 stage 2), still outstanding.
 
-**Currency (2026-07-31).** [ADR-0230](0230-swappable-sprite-art-sheet-render-mode-take-adr-0219-s-parke.md)
+**Currency (2026-08-02).** [ADR-0230](0230-swappable-sprite-art-sheet-render-mode-take-adr-0219-s-parke.md)
 took D3's raster fork, [ADR-0237](0237-chapter-2-is-a-scripted-mode-of-the-real-app-share-product-u.md)
 made the same product renderer available to Chapter 2, and
-[ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) now permits
+[ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) permitted
 selective PixelLab-generated tree and plant tracks inside the app-owned animation system while the
-island and coast remain app-native SVG. D1's author-time-only boundary, committed-assets source of
-truth, 2.5D posture and owner-held LOOK verdict all stand.
+island and coast remain app-native SVG.
+[ADR-0280](0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md) then narrowed the
+model's ROLE for Chapter 2's organic art: our own code owns skeleton, camera and growth, and a
+generative model supplies individual component assets and textures rather than a whole frame, a
+growth track or a silhouette.
+[ADR-0282](0282-the-act-2-intro-regrows-the-whole-forest-app-native-one-focu.md) then set the scale
+rule that follows from that — the forest at large renders app-native at any story count, and a
+per-frame raster track is affordable for at most one focused tree.
+D1's author-time-only boundary, committed-assets source of truth, 2.5D posture and owner-held LOOK
+verdict all stand and are strengthened by each of those amendments.
 
 ## Context
 
@@ -110,6 +118,24 @@ stays 2.5D isometric.** In four parts.
    Rive is a heavier, separately-scoped call — **never** Google video (Veo produces fixed one-off clips,
    not data-driven animation).
 
+**Import-time rule — key the background GLOBALLY, never flood-fill from the edges (2026-08-02,
+measured).** A generated component arrives on a background, and the import step that removes it is
+ours. It must key the background by COLOUR across the whole cell, over a chroma value that cannot
+occur in the art. It must not flood-fill inward from the edges or corners: a fill seeded at the
+border cannot reach background that the art encloses, so sky between branches survives as opaque
+paint and the delivered asset reads as though the model drew solid gaps it never drew. Measured on
+the 2026-07-30 Nano Banana tree-growth spike, whose packaging script removes only corner-connected
+near-white background: **3,691 px** of enclosed background are left opaque across its 3x3 source
+sheet — **0** in the three sprout cells, where nothing is enclosed yet, and **1,496** and **1,136**
+in the two mature cells, where the crown closes around the sky. **219 px** of that survives the
+downsample into the delivered 96 px frames, concentrated in the same mature cells. The defect is in
+our import, not in the return: a global colour key clears it on the already-delivered asset at zero
+generation cost. This rule now governs every component import under
+[ADR-0280](0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md) D3, which makes a
+generative model the supplier of components rather than of whole frames. (The spike directory the
+measurement was taken from is a working-tree artifact and is not committed to `main`; the rule, not
+the directory, is the durable part.)
+
 **And the aesthetic non-goal is amended.** The end-state eye test now has a **named target** — the cosy
 concept — replacing ADR-0214 D4 / ADR-0217 D7's "improving the art is a non-goal / fidelity is the
 metric." This is **design-time DIRECTION** (the owner names the target), NOT the model reinterpreting:
@@ -194,5 +220,3 @@ verdict.
   `style-bible.md` (the D2-safe bridge step-2 style bible this increment locks).
 - `asset:isometric-art-geometry-libraries` (techstack) — the geometry-library survey; standing verdict
   is nothing adopted. Read before adding any dependency.
-</content>
-</invoke>
