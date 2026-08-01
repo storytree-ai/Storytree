@@ -16,9 +16,13 @@ that altitude was rejected and what was chosen instead.
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the nudge and
 landing-time `check:declared` wall stand as feedback and defence in depth. The rejection of a
 creation gate is overtaken for GENERIC WRITES by the repository-minted claim-first ceremony already
-built in ADR-0200: the primary checkout is now a mechanically read-only agent lobby, and a separate
-cross-harness pre-write authority guard refuses mutation before the late gate. Ambient noticeboard
-hooks remain never-blocking; the authority guard is a different surface.
+built in ADR-0200: ADR-0255 D1 makes the primary checkout a mechanically read-only agent lobby, with
+a separate cross-harness pre-write authority guard refusing mutation before the late gate. Ambient
+noticeboard hooks remain never-blocking; the authority guard is a different surface. *(Precision
+correction 2026-08-02, decision unchanged: this used to read "the primary checkout **is now** a
+mechanically read-only agent lobby", which described a DECIDED state as an achieved one. It is not
+enforced yet — ADR-0257 increment 2 landed the Claude write-time wall switched OFF, so today the
+nudge and the landing-time `check:declared` arm are the whole ratchet.)*
 
 ## Context
 

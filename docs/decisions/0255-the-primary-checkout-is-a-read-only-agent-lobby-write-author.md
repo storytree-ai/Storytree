@@ -43,8 +43,10 @@ ceremony applies across harnesses rather than only to Storytree-owned spawners.
 *(edge recorded by the librarian pass on 2026-07-28 — this ADR was authored without citing it, and
 both ADRs independently amend ADR-0200 for the same hazard; the edge below is a record of what this
 body already effects, not a new decision)*. ADR-0245 diagnosed the same fault — uncommitted work in
-the shared primary checkout — and shipped the only enforcement of it that exists today: its **D5.2
-gate-time backstop**, `check:declared`'s lobby arm. **That arm stands and stays built.** D4 below
+the shared primary checkout — and shipped the only enforcement of it that is **in force** today
+*(re-checked 2026-08-02: ADR-0257 increment 2 landed a write-time wall in the tree, but switched off
+and installed nowhere, so it enforces nothing yet)*: its **D5.2 gate-time backstop**,
+`check:declared`'s lobby arm. **That arm stands and stays built.** D4 below
 already places it in the feedback layer, and "Rejected alternatives" rejects the merge gate only as
 *the authority boundary*, never as defence in depth — "the late gate remains defence in depth" is
 this ADR's own words. What is amended is ADR-0245 D5's **ranking**: the gate is no longer "the
@@ -212,9 +214,15 @@ projections of one rule.
    writer cannot reach, read-only to the writer, and carrying a finite `expiresAt`. While the ledger
    is unreachable, a matching unexpired receipt admits **only its recorded scope**; missing, deleted,
    malformed, forged, expired or mismatched receipts still refuse, and an unreachable ledger **never**
-   permits a new mint. This degrades an already-granted authority; it never manufactures one. The
-   receipt is unbuilt — `worktree create` does not stamp one today — so until it exists, this
-   decision's unqualified read-only rule is what actually holds.)*
+   permits a new mint. This degrades an already-granted authority; it never manufactures one.
+   **This decision's unqualified read-only rule is still what actually holds** — corrected in place
+   2026-08-02, where this clause used to say "the receipt is unbuilt — `worktree create` does not
+   stamp one today", and the reason has changed rather than gone away. ADR-0257 increment 2 does now
+   stamp a receipt from both claim ceremonies, with a finite `expiresAt` and live-branch
+   re-validation, but it is **UNSIGNED** — the "signed with material the writer cannot reach" clause
+   above is the one part not built — and the hook that would honour it ships behind a default-off
+   switch. So no write is admitted by a receipt today, and the narrow offline exception is not yet
+   in effect.)*
 
 8. **The cross-surface proof is behavioural.** This decision is not green until the supported
    Claude and Codex surfaces both prove:
