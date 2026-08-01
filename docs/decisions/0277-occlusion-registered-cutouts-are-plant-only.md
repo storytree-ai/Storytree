@@ -132,6 +132,15 @@ closure or clean-route adoption.
   PixelLab-organic-track direction, amended but still current. Its "Standing position at a glance"
   section carries the consolidated island / small-plant / hero-tree position and the experiment
   record.
+- [ADR-0280](0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md) — Chapter 2's
+  organic art is code-generated: our code owns skeleton, camera and growth, and a generative model
+  supplies individual component assets and textures rather than, in its D3's words, "a whole frame, a
+  growth track, a pose sequence or a silhouette". **Read that clause against D2 above.** ADR-0280
+  carries no `amends` edge to this record and never names the retained small-plant tracks, so whether
+  D2's already-authored plant poses are grandfathered as accepted art or are themselves the pose
+  sequences D3 demotes is not settled by either record. Its D4 is the reason to think they survive —
+  it states that decision does not close or de-prioritise this arc. The clarification is the owner's,
+  not an agent's, and until it is taken, D2 stands as written for the plant tracks already authored.
 - [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) — rejected
   full-island PixelLab substrate.
 - [ADR-0219](0219-generative-image-models-enter-the-art-pipeline-author-time-o.md) — author-time

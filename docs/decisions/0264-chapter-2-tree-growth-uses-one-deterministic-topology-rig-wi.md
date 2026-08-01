@@ -21,6 +21,36 @@ is not a required terminal handoff. The implementation is one deterministic, add
 trunk/branch/canopy topology rendered with the safe layered-SVG vocabulary. Replaceable art may
 finish that topology without becoming its state model.
 
+**Evidence note (2026-08-02) — the reversal was tested, and it was half right.** This ADR stays
+superseded; nothing below returns to force. But round 4 of the successor arc
+(`docs/research/chapter2-code-only-art-2026-08-01/VERDICT.md`) put four model-free generators against
+the generated track that replaced this rig, and the result deserves recording here rather than only
+in the ADRs that overtook it.
+
+- **Right on the art.** ADR-0273/0274 reversed this decision because generated frames drew a better
+  tree, and that holds under measurement: on root flare, crown separation and young-tree proportions
+  the generated track wins at every stage of the sequence except the single mature frame. Not one of
+  the four code tracks produced anything a person would call a sapling. The reversal stands.
+- **Wrong to discard the rig with the renderer.** Every mechanical property this ADR promised, round
+  4 delivered in full and for nothing: byte-identical determinism on four independent generators, the
+  ground-contact row pinned to one scanline on every frame of every track, `0.50 px` of horizontal
+  anchor drift on the best of them, one connected body per frame, monotone mass with no shrink, and a
+  palette that is a strict subset of the reference's 32 colours by construction. The decisive number
+  is the in-betweens: subdividing the best code track's worst cut moved it `0.676` to `0.953` in
+  `0.8 s` for `$0.00` with both endpoints byte-identical, while `6` irreplaceable generations moved
+  the generated track's worst cut only `0.279` to `0.457` and then hit a reported floor. This ADR's
+  error was making the rig the RENDERER, not having a rig.
+- **The renderer, not the method, is what looked schematic.** This ADR rendered its rig through
+  layered SVG. Round 4's controlled result is that two near-identical procedural skeletons emitted
+  through different renderers give vector clipart through SVG and a competitive pixel-art tree
+  through a raster rasteriser — so the reading that grew out of this reversal, that procedural art
+  looks cheap, does not survive.
+
+[ADR-0280](0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md) (2026-08-01) is
+where that correction is carried forward as a live decision: code owns skeleton, camera and growth,
+with a raster finish, and a generative model supplies components. Read it, not this record, for what
+is in force.
+
 ## Context
 
 The semantic-growth witness proved the shared six-state player, real Storybook/Vector art policy,

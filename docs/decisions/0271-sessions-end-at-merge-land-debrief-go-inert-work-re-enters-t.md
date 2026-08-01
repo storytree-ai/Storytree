@@ -70,6 +70,17 @@ worktree when the session is archived; mid-session `git worktree remove` on the 
 is Windows-hostile and would break D3's read-only exploration); deliver the debrief (D2); then go
 **inert**: no further monitors, polling loops, scheduled wakeups, or new work in this session.
 
+*[Amended by ADR-0275 (2026-08-01): the closing leg's ORDER stands unchanged — residue, release
+claims, clean tree, debrief — but "then go **inert**" is retired as the only ending. The leg now
+ends in a **fork**: continue, or go inert. Inert remains the terminal branch and everything this
+clause says about it still holds once taken. What is no longer true is that the session ends where
+its PR merges: the UNIT ends there, and whether the SESSION ends is an orchestration call. Two axes
+govern it (ADR-0275 D1) — whether repo code may be touched again is MECHANICAL (non-code work
+continues right here; the moment repo code changes a fresh **worktree** is mandatory), and whether
+to continue in-thread or hand off to a freshly cut session is the session's own judgment on its
+context headroom. ADR-0275 D2's hard ends (a workstream fork, ~3 continuations, degraded context,
+an owner-gated leg) force this clause's inert branch. D2/D3/D4 survive — see D3's own note.]*
+
 **D2 — The debrief is owner-facing and mandatory.** Its three parts: **(a) what landed** — PR
 number(s) and a plain-language outcome paragraph; **(b) every follow-up chip created, named by its
 chip title** — follow-up work is *chipped as part of the debrief*, not merely mentioned, so the
@@ -82,6 +93,13 @@ and read-only exploration are always answered — never refused, never fought. W
 after landing is open new **work**: writes, claims, builds, PRs. When the owner asks for new work
 in a landed session, the right response is to chip it into a fresh session — visibly, named per
 D2b — not to refuse, and not to silently do it.
+
+*[Scope narrowed by ADR-0275 (2026-08-01), which keeps this decision itself unchanged: read
+"landed" here as **inert**. Inert-is-not-mute applies at the FINAL end, and the no-new-work clause
+binds a session that has taken D1's inert branch — not every session that has merged a PR, since a
+session may now legally continue past its merge. A continuing session opens new work by ADR-0275
+D1's mechanics (fresh worktree, re-declared claims); a session past a D2 hard end, or already
+inert, still chips it.]*
 
 **D4 — The janitor is an owner-confirmed distributed sweep.** A session may — at session start,
 or at its own debrief — list sessions and surface the qualifying siblings as an archive offer:
@@ -109,6 +127,12 @@ diff-scoping + concurrency cap) are undecided — nothing here implements or for
 - **ADR-0142's post-merge leg inverts.** `storytree branch next` stops being the ceremony's
   continuation verb; the wisp lifecycle across a landing is no longer a blink but an ending — the
   machine-clear at merge is the session's last board state, which is honest: it isn't working.
+  *[Partially un-inverted by ADR-0275 (2026-08-01): what returns is NOT ADR-0142's fresh branch in
+  the same worktree — that stays retired — but a fresh **worktree** on a fresh branch, mandatory
+  the moment repo code is touched again. So for a CONTINUING session the wisp lifecycle is a blink
+  again (the merge machine-clears, the re-declare re-lights it on the new branch), and the
+  machine-clear is not its last board state; for a session taking the inert branch this bullet
+  stands exactly as written.]*
 - **The residue is load-bearing.** Closing is safe only because what landed lives in the arc's
   increment log, what was learned lives in memory/Library, and what's next lives in named chips.
   A session that skips the residue steps has stranded context — the debrief (D2) is the checklist
