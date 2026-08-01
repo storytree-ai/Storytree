@@ -135,9 +135,21 @@ exactly the junk-becomes-noise risk the owner flagged. Disposition: **fold in, b
 
 ## Consequences
 
-- A REAL pass now has exactly three honest endings, all visible in the build envelope: **promoted
-  & pushed** (PR-ready), **parked locally** (no origin / push failed / regression red — preserved,
-  named), or **skipped** (nothing authored). The evidence-only fourth state is gone.
+- A REAL pass that RUNS TO COMPLETION has exactly three honest endings, all visible in the build
+  envelope: **promoted & pushed** (PR-ready), **parked locally** (no origin / push failed /
+  regression red — preserved, named), or **skipped** (nothing authored).
+  **CORRECTED 2026-08-01 — the evidence-only fourth state is NOT gone for an INTERRUPTED run.**
+  The decision above is unchanged; this consequence was overstated. The spine commits the proven
+  work inside the disposable worktree (`commitAuthored`) and parks it on
+  `claude/real/<unit-id>-<run-id>` only later, in `promoteRealPass` — with the install-bearing
+  typecheck and the full package regression suite running in between (`node-build.ts`), and a wider
+  window still for a `story build --real` chain, which promotes ONCE at the stacked HEAD. A kill,
+  crash, or timeout anywhere in that window leaves the proven commit referenced only by the
+  worktree, which `git worktree prune` and OS temp cleanup then reclaim (`removeDirBestEffort`) —
+  an unreferenced commit, which is precisely the evidence-only state this ADR names, and one no
+  build envelope reports because none is emitted. Recovery depends on the operator having kept the
+  SHA (`git merge --ff-only <sha>`). Narrowing that window is unowned work, not a decision taken
+  here.
 - Repo settings should disallow squash-merge for `claude/real/*` PRs (or reviewers must pick a
   merge commit) — recorded here as the operating rule; enforcement automation is later work.
 - REAL targets are no longer limited to dependency-free leaves: a registry entry with
