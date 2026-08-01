@@ -1,0 +1,10 @@
+{
+ "description": "a single slender young sapling stem, thin as a pencil, growing straight up out of the old flared roots below it, only about twenty pixels tall, with two or three tiny fresh green leaves at its very tip, warm brown bark, dark outline, storybook pixel art; everything around the little stem is completely empty transparent background, no soil, no grass, no branches, no other tree",
+ "image_base64": "<stripped 3060 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_x": 62,
+ "mask_y": 120,
+ "mask_width": 68,
+ "mask_height": 52,
+ "crop_to_mask": true,
+ "seed": 31310
+}

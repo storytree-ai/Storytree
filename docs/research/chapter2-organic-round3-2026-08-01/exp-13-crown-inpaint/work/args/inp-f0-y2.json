@@ -1,0 +1,7 @@
+{
+ "description": "a small round leafy crown budding on the top of the young stem below, a compact clump of round green foliage with two or three short brown twigs showing at its edge, two tones of green with a dark outline, storybook pixel art; the rest of the area is empty transparent background",
+ "image_base64": "<stripped 4544 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_image_base64": "<stripped 544 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "crop_to_mask": true,
+ "seed": 31360
+}

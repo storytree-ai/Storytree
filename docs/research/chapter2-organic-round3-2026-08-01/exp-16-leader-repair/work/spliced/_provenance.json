@@ -1,0 +1,135 @@
+[
+ {
+  "index": 0,
+  "file": "frame-00.png",
+  "source": "raw/d0s-00.png",
+  "provenance": "sprout e2 (edit_image seedling, anchored)  <- grows from nothing",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 1,
+  "file": "frame-01.png",
+  "source": "raw/d0s-01.png",
+  "provenance": "tween d0s-01  (sprout->f00 interp)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 2,
+  "file": "frame-02.png",
+  "source": "raw/d0s-02.png",
+  "provenance": "tween d0s-02  (sprout->f00 interp)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 3,
+  "file": "frame-03.png",
+  "source": "raw/d0s-03.png",
+  "provenance": "tween d0s-03  (sprout->f00 interp)",
+  "prunedStrayPx": 73
+ },
+ {
+  "index": 4,
+  "file": "frame-04.png",
+  "source": "work/tuned/frame-00.png",
+  "provenance": "pose f00  (round-1 pose 0, restyled)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 5,
+  "file": "frame-05.png",
+  "source": "work/tuned/frame-01.png",
+  "provenance": "pose f01  (round-1 pose 1, restyled)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 6,
+  "file": "frame-06.png",
+  "source": "raw/d12b-02.png",
+  "provenance": "tween d12b-02 (f01->f02 interp)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 7,
+  "file": "frame-07.png",
+  "source": "work/tuned/frame-02.png",
+  "provenance": "pose f02  (round-1 pose 2, restyled)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 8,
+  "file": "frame-08.png",
+  "source": "work/tuned/frame-03.png",
+  "provenance": "pose f03  (round-1 pose 3, restyled)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 9,
+  "file": "frame-09.png",
+  "source": "raw/d35-01.png",
+  "provenance": "tween d35-01  (f03->f05 interp)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 10,
+  "file": "frame-10.png",
+  "source": "raw/d35-02.png",
+  "provenance": "tween d35-02  (f03->f05 interp)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 11,
+  "file": "frame-11.png",
+  "source": "work/tuned/frame-05.png",
+  "provenance": "pose f05  (round-1 pose 5, restyled)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 12,
+  "file": "frame-12.png",
+  "source": "raw/d56b-01.png",
+  "provenance": "tween d56b-01 (f05->f06 interp)  <- the repaired cut",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 13,
+  "file": "frame-13.png",
+  "source": "raw/d56b-02.png",
+  "provenance": "tween d56b-02 (f05->f06 interp)  <- the repaired cut",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 14,
+  "file": "frame-14.png",
+  "source": "raw/d56b-03.png",
+  "provenance": "tween d56b-03 (f05->f06 interp)  <- the repaired cut",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 15,
+  "file": "frame-15.png",
+  "source": "work/tuned/frame-06.png",
+  "provenance": "pose f06  (round-1 pose 6, restyled + de-grounded)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 16,
+  "file": "frame-16.png",
+  "source": "raw/d68-01.png",
+  "provenance": "tween d68-01  (f06->f08 interp)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 17,
+  "file": "frame-17.png",
+  "source": "work/tuned/frame-07.png",
+  "provenance": "pose f07  (round-1 pose 7, restyled + de-grounded)",
+  "prunedStrayPx": 0
+ },
+ {
+  "index": 18,
+  "file": "frame-18.png",
+  "source": "work/tuned/frame-08.png",
+  "provenance": "pose f08  (round-1 pose 8, restyled + de-grounded)",
+  "prunedStrayPx": 0
+ }
+]

@@ -1,0 +1,5 @@
+status: completed
+id: 573f6e07-89ad-44df-b646-dc0696b2eff3
+frames: 5
+download: https://api.pixellab.ai/mcp/images/573f6e07-89ad-44df-b646-dc0696b2eff3/download?index=0 ... ?index=4
+(1 more frames not shown — fetch them from the download URLs above)

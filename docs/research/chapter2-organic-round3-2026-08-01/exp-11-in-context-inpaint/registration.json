@@ -1,0 +1,136 @@
+{
+ "canvas": {
+  "width": 96,
+  "height": 128,
+  "format": "transparent PNG RGBA8"
+ },
+ "frameCount": 5,
+ "declaredRootSocket": {
+  "x": 47,
+  "y": 100
+ },
+ "frameOriginInPlate": {
+  "x": 52,
+  "y": 50
+ },
+ "anchorRule": "alpha-weighted x across the bottom three occupied rows; bottom-most occupied y (round-1 rule)",
+ "rootDriftPx": {
+  "x": 1,
+  "y": 2
+ },
+ "normalization": "NONE APPLIED - every frame was generated in the plate's own coordinate frame, so the track is registered by construction",
+ "encodedBytes": 18614,
+ "decodedRgbaBytes": 245760,
+ "frames": [
+  {
+   "frame": "frame-00.png",
+   "stage": "s00",
+   "alphaBounds": {
+    "x0": 43,
+    "y0": 88,
+    "x1": 52,
+    "y1": 96,
+    "w": 10,
+    "h": 9
+   },
+   "rootAnchor": {
+    "x": 48,
+    "y": 96
+   },
+   "anchorDeltaFromSocket": {
+    "dx": 1,
+    "dy": -4
+   },
+   "opaquePx": 29,
+   "encodedBytes": 305
+  },
+  {
+   "frame": "frame-01.png",
+   "stage": "s02",
+   "alphaBounds": {
+    "x0": 42,
+    "y0": 80,
+    "x1": 53,
+    "y1": 98,
+    "w": 12,
+    "h": 19
+   },
+   "rootAnchor": {
+    "x": 47,
+    "y": 98
+   },
+   "anchorDeltaFromSocket": {
+    "dx": 0,
+    "dy": -2
+   },
+   "opaquePx": 123,
+   "encodedBytes": 703
+  },
+  {
+   "frame": "frame-02.png",
+   "stage": "s04b",
+   "alphaBounds": {
+    "x0": 22,
+    "y0": 50,
+    "x1": 71,
+    "y1": 98,
+    "w": 50,
+    "h": 49
+   },
+   "rootAnchor": {
+    "x": 47,
+    "y": 98
+   },
+   "anchorDeltaFromSocket": {
+    "dx": 0,
+    "dy": -2
+   },
+   "opaquePx": 1545,
+   "encodedBytes": 4746
+  },
+  {
+   "frame": "frame-03.png",
+   "stage": "s06",
+   "alphaBounds": {
+    "x0": 16,
+    "y0": 30,
+    "x1": 78,
+    "y1": 98,
+    "w": 63,
+    "h": 69
+   },
+   "rootAnchor": {
+    "x": 47,
+    "y": 98
+   },
+   "anchorDeltaFromSocket": {
+    "dx": 0,
+    "dy": -2
+   },
+   "opaquePx": 2419,
+   "encodedBytes": 5669
+  },
+  {
+   "frame": "frame-04.png",
+   "stage": "s07",
+   "alphaBounds": {
+    "x0": 15,
+    "y0": 22,
+    "x1": 84,
+    "y1": 98,
+    "w": 70,
+    "h": 77
+   },
+   "rootAnchor": {
+    "x": 47,
+    "y": 98
+   },
+   "anchorDeltaFromSocket": {
+    "dx": 0,
+    "dy": -2
+   },
+   "opaquePx": 3009,
+   "encodedBytes": 7191
+  }
+ ]
+}

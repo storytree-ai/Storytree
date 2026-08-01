@@ -1,0 +1,10 @@
+{
+ "object_id": "7d3ad687-337e-449e-aff6-a300af26e8dd",
+ "mode": "v3",
+ "animation_description": "a sapling grows into a mature tree: the single slender stem thickens into a braided trunk that rises and flares into roots, side branches push outward and upward, and the small leaf clusters swell and multiply into a full rounded canopy; the base stays planted on exactly the same spot the whole time and the tree never slides, tips or leaves the ground line",
+ "frame_count": 16,
+ "keep_first_frame": true,
+ "display_name": "exp15-growth-a",
+ "custom_start_frame_base64__b64file": "pose-start-176-55.png",
+ "end_frame_base64__b64file": "pose-end-176.png"
+}

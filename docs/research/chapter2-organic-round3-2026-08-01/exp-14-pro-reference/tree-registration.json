@@ -1,0 +1,327 @@
+{
+  "canvas": {
+    "width": 192,
+    "height": 192,
+    "format": "PNG",
+    "decoded": "RGBA8"
+  },
+  "frameCount": 9,
+  "targetAnchor": {
+    "x": 96,
+    "y": 188
+  },
+  "alphaThreshold": 8,
+  "anchorRule": "alpha-weighted x across bottom three occupied rows; bottom-most occupied y",
+  "speckleFloorPx": 24,
+  "frames": [
+    {
+      "file": "frame-00.png",
+      "source": "raw/v3s00-f05197dc-00.png",
+      "sourceAnchor": {
+        "x": 82,
+        "y": 152
+      },
+      "sourceFootprint": {
+        "x": 41,
+        "y": 35,
+        "width": 91,
+        "height": 118
+      },
+      "normalizationOffset": {
+        "x": 14,
+        "y": 36
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 55,
+        "y": 71,
+        "width": 91,
+        "height": 118
+      },
+      "anchorDriftPx": {
+        "x": 0,
+        "y": 0
+      },
+      "specklesRemovedPx": [],
+      "encodedBytes": 4517
+    },
+    {
+      "file": "frame-01.png",
+      "source": "raw/v3s00-f05197dc-01.png",
+      "sourceAnchor": {
+        "x": 62,
+        "y": 153
+      },
+      "sourceFootprint": {
+        "x": 42,
+        "y": 30,
+        "width": 84,
+        "height": 124
+      },
+      "normalizationOffset": {
+        "x": 34,
+        "y": 35
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 76,
+        "y": 65,
+        "width": 84,
+        "height": 124
+      },
+      "anchorDriftPx": {
+        "x": 0,
+        "y": 0
+      },
+      "specklesRemovedPx": [],
+      "encodedBytes": 4348
+    },
+    {
+      "file": "frame-02.png",
+      "source": "raw/v3st-a4e90a6b-02.png",
+      "sourceAnchor": {
+        "x": 80,
+        "y": 155
+      },
+      "sourceFootprint": {
+        "x": 35,
+        "y": 22,
+        "width": 89,
+        "height": 134
+      },
+      "normalizationOffset": {
+        "x": 16,
+        "y": 33
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 51,
+        "y": 55,
+        "width": 89,
+        "height": 134
+      },
+      "anchorDriftPx": {
+        "x": 0,
+        "y": 0
+      },
+      "specklesRemovedPx": [],
+      "encodedBytes": 7725
+    },
+    {
+      "file": "frame-03.png",
+      "source": "raw/v3s04-3485f134-00.png",
+      "sourceAnchor": {
+        "x": 84,
+        "y": 153
+      },
+      "sourceFootprint": {
+        "x": 47,
+        "y": 26,
+        "width": 75,
+        "height": 128
+      },
+      "normalizationOffset": {
+        "x": 12,
+        "y": 35
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 59,
+        "y": 61,
+        "width": 75,
+        "height": 128
+      },
+      "anchorDriftPx": {
+        "x": 0,
+        "y": 0
+      },
+      "specklesRemovedPx": [],
+      "encodedBytes": 7491
+    },
+    {
+      "file": "frame-04.png",
+      "source": "raw/v3st-a4e90a6b-00.png",
+      "sourceAnchor": {
+        "x": 76,
+        "y": 158
+      },
+      "sourceFootprint": {
+        "x": 35,
+        "y": 9,
+        "width": 89,
+        "height": 150
+      },
+      "normalizationOffset": {
+        "x": 20,
+        "y": 30
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 55,
+        "y": 39,
+        "width": 89,
+        "height": 150
+      },
+      "anchorDriftPx": {
+        "x": 0,
+        "y": 0
+      },
+      "specklesRemovedPx": [],
+      "encodedBytes": 9688
+    },
+    {
+      "file": "frame-05.png",
+      "source": "raw/v3s05-9339b845-00.png",
+      "sourceAnchor": {
+        "x": 82,
+        "y": 151
+      },
+      "sourceFootprint": {
+        "x": 35,
+        "y": 14,
+        "width": 94,
+        "height": 138
+      },
+      "normalizationOffset": {
+        "x": 14,
+        "y": 37
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 49,
+        "y": 51,
+        "width": 94,
+        "height": 138
+      },
+      "anchorDriftPx": {
+        "x": 0,
+        "y": 0
+      },
+      "specklesRemovedPx": [],
+      "encodedBytes": 6045
+    },
+    {
+      "file": "frame-06.png",
+      "source": "raw/v3s04b-6d0f1152-00.png",
+      "sourceAnchor": {
+        "x": 79,
+        "y": 146
+      },
+      "sourceFootprint": {
+        "x": 35,
+        "y": 21,
+        "width": 99,
+        "height": 126
+      },
+      "normalizationOffset": {
+        "x": 17,
+        "y": 42
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 52,
+        "y": 63,
+        "width": 99,
+        "height": 126
+      },
+      "anchorDriftPx": {
+        "x": 0,
+        "y": 0
+      },
+      "specklesRemovedPx": [],
+      "encodedBytes": 4772
+    },
+    {
+      "file": "frame-07.png",
+      "source": "raw/v3s08-641923d4-03.png",
+      "sourceAnchor": {
+        "x": 89,
+        "y": 144
+      },
+      "sourceFootprint": {
+        "x": 19,
+        "y": 23,
+        "width": 126,
+        "height": 122
+      },
+      "normalizationOffset": {
+        "x": 7,
+        "y": 44
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 26,
+        "y": 67,
+        "width": 126,
+        "height": 122
+      },
+      "anchorDriftPx": {
+        "x": 0,
+        "y": 0
+      },
+      "specklesRemovedPx": [],
+      "encodedBytes": 11245
+    },
+    {
+      "file": "frame-08.png",
+      "source": "raw/v3s07-75ea7c28-00.png",
+      "sourceAnchor": {
+        "x": 78,
+        "y": 152
+      },
+      "sourceFootprint": {
+        "x": 19,
+        "y": 16,
+        "width": 127,
+        "height": 137
+      },
+      "normalizationOffset": {
+        "x": 18,
+        "y": 36
+      },
+      "normalizedAnchor": {
+        "x": 96,
+        "y": 188
+      },
+      "normalizedFootprint": {
+        "x": 37,
+        "y": 52,
+        "width": 127,
+        "height": 137
+      },
+      "anchorDriftPx": {
+        "x": 0,
+        "y": 0
+      },
+      "specklesRemovedPx": [],
+      "encodedBytes": 5376
+    }
+  ],
+  "encodedFrameBytes": 61207,
+  "decodedRgbaBytes": 1327104,
+  "maxAnchorDriftPx": 0
+}

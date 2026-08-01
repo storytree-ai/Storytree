@@ -1,0 +1,7 @@
+{
+  "description": "One slender young shoot rising from the top of this stump and opening into a single small rounded tuft of LEAVES. The tuft must be GREEN foliage only - moss green, olive and pale lime with a dark green rim, exactly the greens of a storybook pixel-art shade tree. Draw no extra bark, no extra trunk, no thick branch, no wood beyond the one thin shoot. Soft lobed leaf outline, empty transparent space beyond it. No rectangle, no straight edges, no soil, no ground, no grass, no shadow, no second tree, no text.",
+  "image_base64": "@work/ablated/ablated-00.png",
+  "mask_image_base64": "@work/dome-00b.png",
+  "crop_to_mask": true,
+  "seed": 31709
+}

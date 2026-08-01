@@ -1,0 +1,10 @@
+{
+ "description": "the same sapling grown taller and slightly thicker: a slim brown stem continuing straight up out of the roots below, splitting near the top into two shoots, each carrying several large pointed green leaves, light and dark green leaf faces, dark brown outline, storybook game pixel art; everything else is completely empty transparent background, no soil, no grass, no second plant",
+ "image_base64": "<stripped 4544 base64 chars \u2014 see work/input*.png and work/maskimg*.png>",
+ "mask_x": 50,
+ "mask_y": 100,
+ "mask_width": 92,
+ "mask_height": 58,
+ "crop_to_mask": true,
+ "seed": 31321
+}

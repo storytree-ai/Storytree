@@ -1,0 +1,8 @@
+{
+  "image_urls": ["@file:in128/frame-06.png", "@file:in128/frame-07.png", "@file:in128/frame-08.png"],
+  "description": "Show this same tree with clean bare roots standing on nothing: the patch of grass, the mound of soil and the small flowers around its base become empty transparent space. The tree keeps exactly the same trunk, the same branches, the same leaves, the same canopy outline and the same root flare, in exactly the same place.",
+  "width": 128,
+  "height": 128,
+  "no_background": true,
+  "seed": 31601
+}

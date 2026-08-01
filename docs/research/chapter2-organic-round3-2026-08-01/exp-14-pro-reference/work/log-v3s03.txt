@@ -1,0 +1,7 @@
+JOB v3s03 d8199048-f8a1-4eb9-8923-e4999ca251e5
+frames: 4
+download: https://api.pixellab.ai/mcp/images/d8199048-f8a1-4eb9-8923-e4999ca251e5/download?index=0 ... ?index=3
+SAVED raw\v3s03-d8199048-00.png
+SAVED raw\v3s03-d8199048-01.png
+SAVED raw\v3s03-d8199048-02.png
+SAVED raw\v3s03-d8199048-03.png

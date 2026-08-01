@@ -1,0 +1,7 @@
+JOB v3s02 e9247652-1162-46e1-8dc7-8ad3b32753f9
+frames: 4
+download: https://api.pixellab.ai/mcp/images/e9247652-1162-46e1-8dc7-8ad3b32753f9/download?index=0 ... ?index=3
+SAVED raw\v3s02-e9247652-00.png
+SAVED raw\v3s02-e9247652-01.png
+SAVED raw\v3s02-e9247652-02.png
+SAVED raw\v3s02-e9247652-03.png

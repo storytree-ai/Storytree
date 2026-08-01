@@ -1,0 +1,207 @@
+{
+ "summary": {
+  "canvas": "192x192 RGBA8, fixed",
+  "frameCount": 9,
+  "rootAnchor": {
+   "x": 98,
+   "y": 178
+  },
+  "rootAnchorDriftPx": {
+   "x": 0,
+   "y": 0
+  },
+  "opaquePxTotal": 62933,
+  "ablatedPxTotal": 59734,
+  "ablatedPctOfTrack": 94.9,
+  "generatedPxTotal": 3199,
+  "generatedPctOfTrack": 5.1,
+  "ablatedPxDifferingFromMature": 0,
+  "pixelsLostBetweenConsecutiveFrames": 787,
+  "encodedBytesTotal": 73590,
+  "decodedRgbaBytes": 1327104,
+  "contactSheetBytes": 52402,
+  "previewGifBytes": 121743
+ },
+ "frames": [
+  {
+   "frame": 0,
+   "opaque": 1432,
+   "ablatedPx": 989,
+   "generatedPx": 443,
+   "ablatedPxDifferingFromMature": 0,
+   "lostFromPrevious": 0,
+   "lostPctOfPrevious": 0.0,
+   "alphaBounds": {
+    "x": 70,
+    "y": 129,
+    "w": 52,
+    "h": 50
+   },
+   "rootAnchor": {
+    "x": 98,
+    "y": 178
+   },
+   "encodedBytes": 2789
+  },
+  {
+   "frame": 1,
+   "opaque": 2921,
+   "ablatedPx": 1956,
+   "generatedPx": 965,
+   "ablatedPxDifferingFromMature": 0,
+   "lostFromPrevious": 89,
+   "lostPctOfPrevious": 6.2,
+   "alphaBounds": {
+    "x": 59,
+    "y": 88,
+    "w": 77,
+    "h": 91
+   },
+   "rootAnchor": {
+    "x": 98,
+    "y": 178
+   },
+   "encodedBytes": 4516
+  },
+  {
+   "frame": 2,
+   "opaque": 4354,
+   "ablatedPx": 2563,
+   "generatedPx": 1791,
+   "ablatedPxDifferingFromMature": 0,
+   "lostFromPrevious": 186,
+   "lostPctOfPrevious": 6.4,
+   "alphaBounds": {
+    "x": 55,
+    "y": 70,
+    "w": 81,
+    "h": 109
+   },
+   "rootAnchor": {
+    "x": 98,
+    "y": 178
+   },
+   "encodedBytes": 6642
+  },
+  {
+   "frame": 3,
+   "opaque": 5480,
+   "ablatedPx": 5480,
+   "generatedPx": 0,
+   "ablatedPxDifferingFromMature": 0,
+   "lostFromPrevious": 512,
+   "lostPctOfPrevious": 11.8,
+   "alphaBounds": {
+    "x": 34,
+    "y": 64,
+    "w": 122,
+    "h": 115
+   },
+   "rootAnchor": {
+    "x": 98,
+    "y": 178
+   },
+   "encodedBytes": 8037
+  },
+  {
+   "frame": 4,
+   "opaque": 6842,
+   "ablatedPx": 6842,
+   "generatedPx": 0,
+   "ablatedPxDifferingFromMature": 0,
+   "lostFromPrevious": 0,
+   "lostPctOfPrevious": 0.0,
+   "alphaBounds": {
+    "x": 28,
+    "y": 59,
+    "w": 139,
+    "h": 120
+   },
+   "rootAnchor": {
+    "x": 98,
+    "y": 178
+   },
+   "encodedBytes": 9004
+  },
+  {
+   "frame": 5,
+   "opaque": 8634,
+   "ablatedPx": 8634,
+   "generatedPx": 0,
+   "ablatedPxDifferingFromMature": 0,
+   "lostFromPrevious": 0,
+   "lostPctOfPrevious": 0.0,
+   "alphaBounds": {
+    "x": 20,
+    "y": 49,
+    "w": 152,
+    "h": 130
+   },
+   "rootAnchor": {
+    "x": 98,
+    "y": 178
+   },
+   "encodedBytes": 9711
+  },
+  {
+   "frame": 6,
+   "opaque": 9959,
+   "ablatedPx": 9959,
+   "generatedPx": 0,
+   "ablatedPxDifferingFromMature": 0,
+   "lostFromPrevious": 0,
+   "lostPctOfPrevious": 0.0,
+   "alphaBounds": {
+    "x": 20,
+    "y": 35,
+    "w": 152,
+    "h": 144
+   },
+   "rootAnchor": {
+    "x": 98,
+    "y": 178
+   },
+   "encodedBytes": 10457
+  },
+  {
+   "frame": 7,
+   "opaque": 11420,
+   "ablatedPx": 11420,
+   "generatedPx": 0,
+   "ablatedPxDifferingFromMature": 0,
+   "lostFromPrevious": 0,
+   "lostPctOfPrevious": 0.0,
+   "alphaBounds": {
+    "x": 20,
+    "y": 22,
+    "w": 152,
+    "h": 157
+   },
+   "rootAnchor": {
+    "x": 98,
+    "y": 178
+   },
+   "encodedBytes": 11109
+  },
+  {
+   "frame": 8,
+   "opaque": 11891,
+   "ablatedPx": 11891,
+   "generatedPx": 0,
+   "ablatedPxDifferingFromMature": 0,
+   "lostFromPrevious": 0,
+   "lostPctOfPrevious": 0.0,
+   "alphaBounds": {
+    "x": 20,
+    "y": 13,
+    "w": 152,
+    "h": 166
+   },
+   "rootAnchor": {
+    "x": 98,
+    "y": 178
+   },
+   "encodedBytes": 11325
+  }
+ ]
+}
