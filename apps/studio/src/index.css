@@ -5220,6 +5220,67 @@ button.legend-tile:hover {
   }
 }
 /* the demo's replay control (only rendered when ?arrive= is set) */
+/* The Act 2 intro control (ADR-0282), mounted only under the exact `?act2=intro` gate: one
+   obvious primary button that regrows the whole forest from its base nodes, plus the transport
+   the app owns (Back a wave, Skip to grown) and a factual readout of where the regrow is. Sits
+   top-centre over the map, above the world but below the panels. */
+.act2-intro {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px 7px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.act2-intro-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.act2-intro button {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: 600 12.5px var(--font);
+  cursor: pointer;
+}
+.act2-intro button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.act2-intro button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.act2-intro-primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.act2-intro-readout {
+  margin: 0;
+  font: 600 11.5px var(--font);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+.act2-intro-note {
+  margin: 0;
+  max-width: 44ch;
+  font: 400 11px var(--font);
+  opacity: 0.6;
+}
+
 .arrive-replay {
   position: absolute;
   top: 10px;

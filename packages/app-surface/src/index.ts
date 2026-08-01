@@ -1,9 +1,28 @@
 export {
   SceneView,
+  type ForestRegrowRenderLayer,
   type NativeIslandGrowthRenderLayer,
   type OrganicPoseRenderLayer,
   type SceneCtx,
 } from './SceneView.js';
+export {
+  deriveForestRegrowPlan,
+  forestRegrowAtProgress,
+  FOREST_REGROW_TUNING,
+  type ForestRegrowIslandGrowth,
+  type ForestRegrowPlan,
+  type ForestRegrowState,
+  type ForestRegrowStep,
+  type ForestRegrowStory,
+  type ForestRegrowTrailEdge,
+  type ForestRegrowTuning,
+} from './forest-regrow.js';
+export {
+  deriveForestRegrowAccretionPlans,
+  forestRegrowLayerSignature,
+  forestRegrowRenderLayer,
+  type ForestRegrowAccretionPlans,
+} from './forest-regrow-render.js';
 export {
   normalizeWorldPresentationModel,
   WorldSceneView,
