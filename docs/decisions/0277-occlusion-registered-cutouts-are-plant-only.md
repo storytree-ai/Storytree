@@ -129,7 +129,9 @@ closure or clean-route adoption.
 ## References
 
 - [ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) — broader
-  PixelLab-organic-track direction, amended but still current.
+  PixelLab-organic-track direction, amended but still current. Its "Standing position at a glance"
+  section carries the consolidated island / small-plant / hero-tree position and the experiment
+  record.
 - [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) — rejected
   full-island PixelLab substrate.
 - [ADR-0219](0219-generative-image-models-enter-the-art-pipeline-author-time-o.md) — author-time
@@ -141,4 +143,6 @@ closure or clean-route adoption.
 - [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) — owner-held visual
   verdict.
 - Arc `chapter2-pixellab-organic-growth-arc` — active initiative carrying the selection evidence.
-- PR #1054 / `?organicGrowth=organic-canopy-occlusion#/tree` — held Experiment 8 evidence.
+- PR #1054 — held Experiment 8 evidence, and the permanent record of it. Its hosted witness tag was
+  retired on 2026-08-01; the witness rebuilds from that PR branch. The verdict stands as written in
+  D5 above and in ADR-0274.

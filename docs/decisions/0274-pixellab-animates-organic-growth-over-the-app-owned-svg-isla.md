@@ -47,6 +47,56 @@ plants change shape as they grow; a small registered sequence can express that a
 better than a whole-scene scale/fade or a rigid procedural reveal. The correction is therefore a
 layering decision, not a rejection of generated art.
 
+## Standing position at a glance (2026-08-01)
+
+This section is a summary, not a decision. It restates what D1–D6 below, ADR-0277 and the recorded
+owner LOOK verdicts already establish, so the current art-direction position can be read from this
+one ADR instead of reconstructed from two ADRs plus the arc increment log. Nothing here is new
+policy; where it appears to differ from a decision clause, the clause wins.
+
+**Island — SETTLED (recorded lead).** Experiment 6's connected SVG accretion is the island
+treatment. It carries the only explicitly positive island-formation LOOK the arc has recorded — "the
+island growth looks really good" — and it is the fixed composition the round-3 hero-tree lab
+compares candidates over. It is app-owned SVG land, as D1 requires; no generated-land substitute is
+in scope. Whole-composition and clean-route adoption still run through D5.
+
+**Small plants and flowers — SETTLED.** The registered cutout/pose technique is retained for ferns,
+flowers, grasses and other small ground details on declared app-owned sockets (ADR-0277 D2 and D5).
+Each retained plant track still carries the fixed canvas, pose order and dimensions, stable ground
+socket, crop normalization, painter slot, provenance and decode budget those clauses require.
+
+**Hero tree — UNRESOLVED.** No hero-tree treatment is selected, and the arc still carries this as
+its open question. Round 3 puts four candidates over the fixed Experiment 6 island composition in
+one comparison lab at `?organicGrowth=r3-lab#/tree` (PR #1062): the round-1 incumbent, exp-15
+object-rig v3, exp-16 leader-repair and exp-18 eroded prior. The owner LOOK verdict is pending.
+
+### Experiment record
+
+Verdicts are the owner's recorded LOOK, quoted from the arc increment log. Each experiment is
+anchored to its PR, which is the permanent artifact; two experiments never reached a PR and live on
+their branches.
+
+| Exp | Technique | PR | Owner LOOK verdict |
+| --- | --- | --- | --- |
+| 1 | pose-to-pose | #1045 | Provisional comparison leader — tree animation "probably the most" liked; island formation did NOT pass and must be reworked |
+| 2 | layered cutout puppet | (branch only) | Best trunk + ground-plant growth so far; NOT adopted — island below bar, leaves wrong/misplaced, canopy-to-trunk gap reads buggy |
+| 3 | texture-under-mask / stroke-matte reveal | #1047 | Rejected, ranked least — read as a slowly revealed static image, "cheap rather than organic emergence" |
+| 4 | registered key-pose blending | #1046 | Strongest island formation at the time but NOT accepted — island "fades in rather than grows from nothing" |
+| 5 | staggered socket choreography | #1048 | Rejected — owner not a fan of the island growth; tree + flower animations liked as component evidence |
+| 6 | connected SVG accretion | #1055 | POSITIVE — "the island growth looks really good"; first positive island LOOK; the current island lead |
+| 7 | SVG contour morph | #1053 | Island okay but below the Exp 6 lead; not rejected outright |
+| 8 | occlusion-registered canopy | #1054 | Hero-tree assembly REJECTED (canopy still disconnected after a focused correction); cutout/pose technique RETAINED for small plants — ADR-0277 |
+| 9 | branch-emitted leaf bloom | (branch only) | Rejected — "this looks really buggy, the placement is all over the place" |
+| 10 | registered hybrid handoff | #1056 | Positive for the plant/tree composition ("actually looks quite nice"); trunk-to-thin-twig handoff needs a continuity sprite of comparable trunk weight |
+
+**Hosted witness tags retired 2026-08-01.** The ten per-experiment hosted witness revisions on the
+`storytree-studio` service were retired at the owner's direction, superseded by the single round-3
+comparison lab in PR #1062 that puts four hero-tree candidates over one fixed composition. This
+follows D5's rule that a superseded witness leaves the active witness path once the corrected
+implementation lands. The evidence of record is now the PRs above plus the arc increment log, and
+each witness rebuilds from its PR or branch. Retiring a witness retires no verdict: the verdict
+prose in this ADR and in ADR-0277 stands exactly as written.
+
 ## Decision
 
 ### D1 — The existing SVG island is the sole land substrate
@@ -142,9 +192,10 @@ The successor arc does not close until the corrected organic composition has a r
 
 ### D5 comparison evidence — pose-to-pose witness (2026-08-01)
 
-The owner reviewed the hosted PR #1045 witness at
-`?organicGrowth=organic-pose-to-pose#/tree` and said the tree animation was "probably the most"
-liked of the experiments, while disliking how the island forms.
+The owner reviewed the hosted Experiment 1 witness from PR #1045 and said the tree animation was
+"probably the most" liked of the experiments, while disliking how the island forms. That witness's
+hosted tag was retired on 2026-08-01; PR #1045 is the permanent record and the witness rebuilds from
+its branch.
 
 This is partial comparison evidence, not the D5 adoption verdict. The pose-to-pose tree is the
 provisional comparison leader; "probably" leaves final selection and clean-route adoption open.
@@ -156,11 +207,11 @@ the arc stays active pending a corrected whole-composition owner verdict.
 
 ### D5 comparison evidence — occlusion-registered cutout witness (2026-08-01)
 
-The owner reviewed the hosted PR #1054 witness at
-`?organicGrowth=organic-canopy-occlusion#/tree` twice. The small plants looked good and retain the
-registered cutout/pose technique. The tree canopy still looked disconnected from the trunk after a
-focused author-time correction removed the reported green blob and moved the overlap collar to the
-true crown contact.
+The owner reviewed the hosted Experiment 8 witness from PR #1054 twice. The small plants looked good
+and retain the registered cutout/pose technique. The tree canopy still looked disconnected from the
+trunk after a focused author-time correction removed the reported green blob and moved the overlap
+collar to the true crown contact. That witness's hosted tag was retired on 2026-08-01; PR #1054 is
+the permanent record and the witness rebuilds from its branch.
 
 This rejects the Experiment 8 cutout-trunk plus occlusion-registered-canopy assembly for the hero
 tree. It does not reject every PixelLab-authored whole-tree pose treatment, select a sibling tree
