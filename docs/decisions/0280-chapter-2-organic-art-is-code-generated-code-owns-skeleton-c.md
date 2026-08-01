@@ -119,10 +119,10 @@ hand-roll, not the ceiling of 3D.
   tool on the authoring machine; the committed PNG frames and the generating script are what the repo
   carries.
 - **Determinism is constrained, not assumed.** Renders use **CPU Cycles** with a fixed seed and a
-  fixed sample count, against a **pinned LTS Blender** (`BlenderFoundation.Blender.LTS.4.5`, 4.5.10 at
-  time of writing). EEVEE and GPU rendering are not stable across drivers and machines and are not
-  used for delivered frames. Where exact byte-reproducibility cannot be shown, ADR-0219's existing
-  rule governs: the **committed frame is the source of truth**, not the renderer.
+  fixed sample count, against a **pinned LTS Blender** — **5.2.0 LTS**, which is the version installed
+  and used for the first spike. EEVEE and GPU rendering are not stable across drivers and machines and
+  are not used for delivered frames. Where exact byte-reproducibility cannot be shown, ADR-0219's
+  existing rule governs: the **committed frame is the source of truth**, not the renderer.
 
 `bpy` from PyPI is not a usable route here — no wheel exists for the machine's Python 3.14.5 — and the
 headless-application route is preferred regardless, since Blender bundles its own interpreter and can
