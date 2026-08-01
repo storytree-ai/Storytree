@@ -1,0 +1,5 @@
+credits: $0.00
+generations_remaining: 18
+generations_used: 1982
+generations_total: 2000
+subscription: active (Tier 1: Pixel Apprentice)

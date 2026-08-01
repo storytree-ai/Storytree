@@ -1,0 +1,203 @@
+[
+ {
+  "file": "frame-00.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 0,
+  "tufts": [],
+  "speckles": 0
+ },
+ {
+  "file": "frame-01.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 9,
+  "speckles": 9,
+  "tufts": []
+ },
+ {
+  "file": "frame-02.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 0,
+  "tufts": [],
+  "speckles": 0
+ },
+ {
+  "file": "frame-03.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 3,
+  "speckles": 3,
+  "tufts": []
+ },
+ {
+  "file": "frame-04.png",
+  "erased": 26,
+  "healed": 0,
+  "recoloured": 0,
+  "speckles": 0,
+  "tufts": [
+   {
+    "green_px": 25,
+    "top": 107,
+    "x": [
+     40,
+     49
+    ],
+    "float_frac": 0.44
+   }
+  ]
+ },
+ {
+  "file": "frame-05.png",
+  "erased": 19,
+  "healed": 0,
+  "recoloured": 1,
+  "speckles": 1,
+  "tufts": [
+   {
+    "green_px": 18,
+    "top": 108,
+    "x": [
+     43,
+     49
+    ],
+    "float_frac": 0.28
+   }
+  ]
+ },
+ {
+  "file": "frame-06.png",
+  "erased": 39,
+  "healed": 1,
+  "recoloured": 0,
+  "speckles": 0,
+  "tufts": [
+   {
+    "green_px": 13,
+    "top": 105,
+    "x": [
+     45,
+     52
+    ],
+    "float_frac": 0.31
+   }
+  ]
+ },
+ {
+  "file": "frame-07.png",
+  "erased": 47,
+  "healed": 1,
+  "recoloured": 0,
+  "speckles": 0,
+  "tufts": [
+   {
+    "green_px": 13,
+    "top": 105,
+    "x": [
+     44,
+     51
+    ],
+    "float_frac": 0.31
+   },
+   {
+    "green_px": 3,
+    "top": 111,
+    "x": [
+     91,
+     93
+    ],
+    "float_frac": 1.0
+   }
+  ]
+ },
+ {
+  "file": "frame-08.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 0,
+  "tufts": [],
+  "speckles": 0
+ },
+ {
+  "file": "frame-09.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 10,
+  "speckles": 10,
+  "tufts": []
+ },
+ {
+  "file": "frame-10.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 8,
+  "speckles": 8,
+  "tufts": []
+ },
+ {
+  "file": "frame-11.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 10,
+  "speckles": 10,
+  "tufts": []
+ },
+ {
+  "file": "frame-12.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 1,
+  "speckles": 1,
+  "tufts": []
+ },
+ {
+  "file": "frame-13.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 3,
+  "speckles": 3,
+  "tufts": []
+ },
+ {
+  "file": "frame-14.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 5,
+  "speckles": 5,
+  "tufts": []
+ },
+ {
+  "file": "frame-15.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 0,
+  "tufts": [],
+  "speckles": 0
+ },
+ {
+  "file": "frame-16.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 1,
+  "speckles": 1,
+  "tufts": []
+ },
+ {
+  "file": "frame-17.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 0,
+  "tufts": [],
+  "speckles": 0
+ },
+ {
+  "file": "frame-18.png",
+  "erased": 0,
+  "healed": 0,
+  "recoloured": 0,
+  "tufts": [],
+  "speckles": 0
+ }
+]
