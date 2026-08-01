@@ -156,6 +156,25 @@ This rejects the Experiment 8 cutout-trunk plus occlusion-registered-canopy asse
 tree. It does not reject every PixelLab-authored whole-tree pose treatment, select a sibling tree
 candidate, accept the held island control or close the arc. ADR-0277 records the plant-only narrowing.
 
+### D5 comparison evidence — registered hybrid handoff witness (2026-08-01)
+
+The owner reviewed held Experiment 10 in PR #1056 at
+`?organicGrowth=organic-hybrid-handoff#/tree` and judged the plant/tree composition positively:
+the result "actually looks quite nice." The exception is the initial cutout-trunk handoff, where
+the grown trunk transitions into a thin twig before the later pose-to-pose tree develops.
+
+The owner attributes this more likely to the selected sprite combination than to the registered
+hybrid/match-cut technique itself. Preserve the hybrid rig as promising comparison evidence, but do
+not retain the current trunk-to-continuity-pose pairing as the answer. A successor must choose a
+continuity sprite whose trunk weight and silhouette match the liked cutout trunk, then re-prove that
+the registered handoff has no style pop, silhouette snap, double trunk, ghosting, canopy gap or
+timing seam.
+
+This LOOK signal is explicitly limited to plants and trees. Experiment 10's island treatment gains
+no positive comparison weight: other island-growth experiments already produced better results,
+with connected SVG accretion from Experiment 6 remaining the current recorded lead. This evidence
+does not adopt the hybrid rig, choose an island treatment, change the clean route or close the arc.
+
 ### D6 — Explicitly rejected
 
 - Generating the island, coast or complete scene as a PixelLab sprite sequence.
