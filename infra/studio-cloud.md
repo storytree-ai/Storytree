@@ -57,6 +57,18 @@ gcloud run deploy storytree-studio `
 only invoker. The app additionally fail-closes (401) on any API request without the IAP
 identity header — defense in depth (ADR-0042 d.2).
 
+**Then route traffic to it — the deploy alone may not.** If the last line reads *"is serving 0
+percent of traffic"*, the service's traffic block is pinned to an explicit revision rather than
+`latestRevision: true` (any `--tag <t> --no-traffic` side-deploy does this), so your new revision is
+live but nobody is on it. CD re-asserts this every run; a break-glass deploy must do it by hand:
+
+```powershell
+gcloud run services update-traffic storytree-studio --region australia-southeast1 `
+  --project storytree-498613 --to-revisions <the-revision-just-deployed>=100
+gcloud run services describe storytree-studio --region australia-southeast1 --project storytree-498613 `
+  --format="value(status.traffic.filter(""percent=100"").extract(revisionName).flatten())"   # who is actually served
+```
+
 ## 4b. One-time, console-only: the IAP OAuth client (BLOCKING until done)
 
 `storytree-498613` has **no Organization**, so IAP cannot use a Google-managed OAuth client —
