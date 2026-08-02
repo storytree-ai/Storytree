@@ -12,10 +12,13 @@
  * refused rather than clobbered, and that the protected checkout is derived rather than guessed.
  */
 import { strict as assert } from "node:assert";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import {
+  defaultWallInstallIo,
   protectedRoot,
   userSettingsPath,
   writeAuthorityCommand,
@@ -232,4 +235,44 @@ test("re-installing is a no-op diff — the command is safe to re-run after any 
   writeAuthorityCommand("install", { write: true }, h.io);
   const second = writeAuthorityCommand("install", {}, h.io);
   assert.match(second.body, /\+0, -0/);
+});
+
+/**
+ * The DEFAULT `WallInstallIo` — the implementation every case above replaces, and therefore the one
+ * the binary actually runs. Everything above is evidence about the injected fake; without this it is
+ * evidence about nothing that ships (ADR-0278's unproven-seam-default class).
+ *
+ * Driven against a real temp directory, never the home directory: the header's reason stands, and
+ * `homeDir()` is only READ here, never written through. The load-bearing behaviour is `readFile`'s
+ * swallow-to-`null` — every caller distinguishes "absent" from "corrupt" by that `null`, and a
+ * throw-instead-of-null would turn a first-time install into a crash.
+ */
+test("defaultWallInstallIo: real file IO round-trips, and a missing file reads as null not a throw", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "storytree-wall-io-"));
+  try {
+    const target = path.join(dir, "settings.json");
+
+    // The first-install case: nothing there yet, and that must be `null`, not an exception.
+    assert.equal(defaultWallInstallIo.readFile(target), null);
+
+    defaultWallInstallIo.writeFile(target, '{"permissions":{"deny":[]}}');
+    assert.equal(defaultWallInstallIo.readFile(target), '{"permissions":{"deny":[]}}');
+
+    // A directory is unreadable-as-a-file on every platform — the same `null`, not a throw.
+    assert.equal(defaultWallInstallIo.readFile(dir), null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("defaultWallInstallIo: homeDir, cwd and repoRoot are wired to real absolute paths", () => {
+  for (const got of [
+    defaultWallInstallIo.homeDir(),
+    defaultWallInstallIo.cwd(),
+    defaultWallInstallIo.repoRoot(),
+  ]) {
+    assert.equal(typeof got, "string");
+    assert.ok(got.length > 0);
+    assert.ok(path.isAbsolute(got), `expected an absolute path, got ${got}`);
+  }
 });

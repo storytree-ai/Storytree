@@ -95,11 +95,22 @@ fleet (measured: zero live claims on the ledger) and it landed:
   necessary and not sufficient — and it is now pinned by regression tests at both layers.
 
 **What is in force on the dev machine today:** the static deny block (93 rules), verified
-behaviourally — a `Write` into the lobby is refused, a write inside the session's own claimed
-worktree succeeds. The **semantic half is installed on demand**: it was registered, exercised
-end-to-end (own worktree allowed; sibling worktree refused *by name*; lobby refused), then
-unregistered because the only host carrying the post-flip script was an ephemeral worktree. It
-re-registers with one command once a durable checkout carries this code.
+behaviourally — a `Write` into the lobby is refused, a write inside a worktree succeeds. The
+**semantic half is installed on demand**: it was registered, exercised end-to-end (own worktree
+allowed; sibling worktree refused *by name*; lobby refused), then unregistered because the only host
+carrying the post-flip script was an ephemeral worktree. It re-registers with one command once a
+durable checkout carries this code.
+
+**Read that split precisely, because the static half is CLAIM-BLIND and the two halves do not cover
+the same hazard.** The deny block is a list of absolute paths; it cannot know a claim, a branch or a
+session. It denies the LOBBY and permits everything under `.claude/worktrees` — necessarily, since
+denying that would freeze the fleet, and a deny rule cannot carry an allow-exception. So with only
+the static half registered, **one session writing into a SIBLING session's worktree is not refused by
+anything.** That is the cross-session collision this arc was cut for — "a sibling's write lands in
+your diff" — and it is bound only by the semantic half, which is exactly the half currently
+unregistered. What increment 3 achieved is therefore the LOBBY hazard, not session isolation:
+the primary checkout is closed to Claude's file tools, and worktree-to-worktree remains open.
+*(Verified 2026-08-02 against the installed block: 93 rules, none matching `.claude/worktrees`.)*
 
 **Still absent entirely:** the whole Codex adapter (D2/D3/D7), the lobby's trusted mint actuator (D4),
 brokered common-directory access (D8), and Bash/shell containment on either surface. **D9's bar is NOT
