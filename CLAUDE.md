@@ -423,6 +423,17 @@ The interactive session agent: the outer loop that turns an owner's intent into 
 - `verbatimModuleSyntax` (use `import type`), `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
   `strict`. No build step — packages export raw TS consumed via `tsx`.
 - Tests: `node:test` + `node:assert/strict`, `*.test.ts` under `src/`.
+- **The PRIMARY CHECKOUT is unwritable by your file tools** (ADR-0255 D1 / ADR-0257 D1, in force since
+  2026-08-02). On this dev machine a generated `permissions.deny` block in the USER-level
+  `~/.claude/settings.json` refuses `Write`/`Edit`/`NotebookEdit` anywhere under `C:\code\storytree`
+  itself — you get *"File is in a directory that is denied by your permission settings"*. That is not a
+  bug and not yours to route around: work in your worktree. Regenerate the block (never hand-edit it —
+  it is DERIVED from `repo-manifest.json`) with `pnpm storytree write-authority install --write`.
+  **Read the scope precisely (ADR-0284):** the wall is that static block and nothing else. It binds
+  three file tools; **Bash is not bound**, so a shell write into the lobby still succeeds and is still
+  a violation. It is claim-blind, so it permits everything under `.claude/worktrees` — a write into a
+  SIBLING worktree is refused by nothing, and that hazard is deliberately de-scoped (zero evidenced
+  instances) rather than unfinished. Codex is unbound entirely.
 - **Anchor your session on the notice board** once you know what you're working on:
   `pnpm storytree noticeboard declare --working-on "<what>" --node <unit-id> --pg` (repeat
   `--node` per unit; the claim upsert is idempotent per (unit, session), so refining is cheap).

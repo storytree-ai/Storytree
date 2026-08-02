@@ -840,13 +840,15 @@ export const UNPROVEN_SEAM_DEFAULT = "unproven-seam-default";
  * matched:
  *
  *   `const io = deps.io ?? defaultWorktreeIo;`        the nullish fallback (worktree.ts, branch.ts)
- *   `realpath: RealpathFn = builtinRealpath,`         the parameter default (write-authority.ts)
+ *   `io: WallInstallIo = defaultWallInstallIo,`       the parameter default (write-authority-install.ts)
  *
  * DELIBERATELY EXCLUDED: the `default*` / `builtin*` NAMING convention. It both over-includes
  * (`defaultScript` is a data constant, `defaultSecretsFile` is path arithmetic) and under-includes —
  * nothing obliges a seam default to be named at all — so it would measure the convention rather than
  * the hazard. A hand-run name-keyed probe on 2026-08-01 was wrong about `defaultWorktreeIo` and
- * `builtinRealpath`, both of which ARE covered.
+ * `builtinRealpath`, both of which WERE covered. (`builtinRealpath` lived in
+ * `packages/drive/src/write-authority.ts`, deleted by ADR-0284 D2; the probe result stands as the
+ * reason the naming convention is excluded, and does not depend on the symbol still existing.)
  */
 const NULLISH_FALLBACK = /\?\?\s*([A-Za-z_$][\w$]*)/g;
 const PARAM_DEFAULT = /^\s*[A-Za-z_$][\w$]*\s*:\s*[^=;()]+?\s*=\s*([A-Za-z_$][\w$]*)\s*,?$/gm;
