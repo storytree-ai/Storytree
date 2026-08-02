@@ -18,9 +18,17 @@ agent reads is paid for, so redundant context is a cost, not a courtesy). First 
 `docs/glossary.md` on 2026-06-08 (49 terms tested, 11 removed). Applied a second time on 2026-06-20 to
 three Library artifacts (`deep-modules`, `recursive-decomposition-patterns`, `exploration-principles`):
 all three are §2-reconstructible generic craft, but all three were **kept** under §6 because the
-now-wired corpus (ADR-0051/0053) inlines each into live agent prompts — they are load-bearing
+now-wired corpus (ADR-0051/0053) cites each from live agent prompts — they are load-bearing
 cross-references, not shelf items (see §6's added clause). The open question proposing their prune
 (`oq-prune-reconstructible-guidance`) was resolved *keep* and retired.
+
+**Corrected in place 2026-08-02 (ADR-0139); the decision is unchanged.** This block and §6 both said
+the wired corpus *inlines* a cited artifact's full body into agent prompts. That was true of the one
+render mode that existed on 2026-06-20;
+[ADR-0156](0156-subagent-prompts-are-essentials-only-the-cli-serves-ceremony.md) (accepted 2026-07-04,
+amending ADR-0051/0052) split the renderer into three modes and repointed the surfaces a reader checks
+first off the full-inline path. Only the mechanism prose moved — the §6 veto never rested on inlining,
+and it stands unchanged.
 
 ## Date
 
@@ -89,11 +97,17 @@ ADR makes it the corpus's pruning rule rather than an ad-hoc instinct.
    not silent.
 
    **A Library artifact that another artifact cites is a load-bearing cross-reference — including one
-   inlined into an agent's prompt.** Once the corpus is a wired pull surface (ADR-0051/0053), an
-   agent's `context`/`rules`/`antiPatterns` list inlines the *full body* of every `asset:` it names,
-   and sibling principles compose against it by name. So a blind-reconstructible artifact that an agent
-   pulls (or another artifact references) is held under this veto exactly as `contract` is: pruning it
-   dangles those refs and breaks the `storytree agents` render / the `check:claude` gate. The raw test
+   an agent's prompt pulls.** Once the corpus is a wired pull surface (ADR-0051/0053), an agent's
+   `context`/`rules`/`antiPatterns` list names `asset:` refs that must RESOLVE, and sibling principles
+   compose against it by name. *How much* of a referenced artifact reaches the prompt is a render-mode
+   detail that has since moved (ADR-0156: the SDK-leaf / spawn drivers still inject full bodies, while
+   `storytree agents <name>` and the harness-native `.claude/agents/*.md` files render each ref as its
+   one-line assertion plus a `storytree library artifact <id>` pull-hint, and the CLAUDE.md region a
+   pointer manifest) — the veto does not depend on it. It depends on the citation not dangling: a
+   missing ref renders as `> MISSING REF`, lands in `missingRefs`, and exits `build:agents` non-zero.
+   So a blind-reconstructible artifact that an agent pulls (or another artifact references) is held
+   under this veto exactly as `contract` is: pruning it dangles those refs and breaks the
+   `storytree agents` render / the `check:claude` gate. The raw test
    (§2) flags such an artifact as a *candidate*; it does **not** mandate the prune. First map the
    citations — `storytree library tree focus <id>` lists the inbound edges — and prune only if nothing
    load-bearing depends on it, cleaning every ref in the same change (§7's fold-the-nuance rule applies
