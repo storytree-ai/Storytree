@@ -29,7 +29,18 @@ const MANIFEST = JSON.stringify({
   root: { dirs: { packages: "", docs: "", ".claude": "" }, files: { "README.md": "" } },
 });
 
-const PRIMARY = path.join("C:", "code", "storytree");
+/**
+ * The fixture checkout root, PLATFORM-APPROPRIATE rather than hard-coded Windows.
+ *
+ * `protectedRoot` runs the target through `locateWorktree`, which calls `path.resolve` — and on
+ * POSIX a `C:/…` string is a RELATIVE path, so it silently became
+ * `/home/runner/work/storytree/storytree/packages/cli/c:/code/storytree` and the assertion failed in
+ * CI while passing on the Windows dev box. Any fixture that reaches real path resolution has to be
+ * absolute on the platform actually running it.
+ */
+const PRIMARY = process.platform === "win32" ? "C:\\code\\storytree" : "/code/storytree";
+/** The same root in the forward-slashed form every one of these APIs emits. */
+const PRIMARY_SLASH = PRIMARY.replace(/\\/g, "/");
 
 interface Harness {
   io: WallInstallIo;
@@ -181,7 +192,7 @@ test("--hook-from sources the script elsewhere while still protecting the lobby"
   // but another checkout on the machine did. The registration must then run THAT script and still
   // pass `--root` for the lobby — protecting one checkout with a hook hosted by another.
   const h = harness({ hookScript: null });
-  const hostRoot = "C:/code/storytree-runtime";
+  const hostRoot = `${PRIMARY_SLASH}-runtime`;
   h.files.set(`${hostRoot}/packages/cli/write-authority-hook.mjs`, HOOK_SCRIPT_POST_FLIP);
 
   const got = writeAuthorityCommand("install", { write: true, hookFrom: hostRoot }, h.io);
@@ -191,7 +202,7 @@ test("--hook-from sources the script elsewhere while still protecting the lobby"
   };
   const command = written.hooks?.PreToolUse?.[0]?.hooks?.[0]?.command ?? "";
   assert.match(command, /storytree-runtime\/packages\/cli\/write-authority-hook\.mjs/);
-  assert.match(command, /--root C:\/code\/storytree$/);
+  assert.ok(command.endsWith(`--root ${PRIMARY_SLASH}`), command);
 });
 
 test("a PRE-FLIP hook script is refused — inert by default is worse than absent", () => {
