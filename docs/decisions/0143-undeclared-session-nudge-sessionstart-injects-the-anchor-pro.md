@@ -26,10 +26,15 @@ lobby", which stated a DECIDED state as an achieved one. The repair then read "I
 increment 3 overtook hours later. Neither is true now. What holds: ADR-0257 increment 3 installed the
 STATIC half of that wall on the developer machine, so a `Write`/`Edit`/`NotebookEdit` into the lobby
 is refused before mutation there — the nudge and `check:declared` are no longer the whole ratchet for
-file tools on that box. What does NOT hold: the guard is **not cross-harness** in force (Codex is
-untouched), the claim-aware half is unregistered, no layer binds a **shell**, and nothing is
-installed on any other machine. This ADR's own two mechanisms are unaffected either way; read the
-build state from ADR-0257, which owns it, not from here.)*
+file tools on that box. What does NOT hold, and — corrected a third time on 2026-08-02 — will NOT
+come to hold: the guard is **not cross-harness** in force (Codex is untouched and unscheduled), no
+layer binds a **shell**, and nothing is installed on any other machine. The claim-aware half is not
+"unregistered" but **RETIRED and deleted** —
+[ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) D2. So the
+"separate cross-harness pre-write authority guard" this correction names **does not exist and is not
+being built**; what exists is a static, claim-blind `permissions.deny` block on one machine. This
+ADR's own two mechanisms are unaffected either way — and are, if anything, MORE load-bearing now, not
+less. Read the build state from ADR-0284, which owns it, not from here and not from ADR-0257.)*
 
 ## Context
 

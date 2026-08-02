@@ -55,6 +55,20 @@ SEPARATE, harness-neutral write-authority guard which blocks before a generic ag
 primary checkout or an unclaimed workspace. A blocking authority check is not a presence/ambient
 hook and therefore does not revive the V1 stop-loop scar this ADR prevents.
 
+*(Build state corrected in place 2026-08-02 per ADR-0139 — the never-blocking contract and the
+"a blocking authority check is not an ambient hook" reasoning are UNCHANGED; only the description of
+the guard is. As built and after
+[ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md), that guard is
+neither harness-neutral nor able to see an unclaimed workspace: it is a static `permissions.deny`
+block, installed user-level on one developer machine, binding Claude Code's `Write`/`Edit`/
+`NotebookEdit` against the **primary checkout only**. The claim-aware half that would have covered
+"or an unclaimed workspace" was retired before it was ever registered, and worktree-to-worktree is
+de-scoped as a hazard. Note the shape, because it is this ADR's own lesson landing again: the guard
+that survived is the one that **cannot fail open** — a deny rule is evaluated in-process and holds
+even under `bypassPermissions` — while the one retired was a hook, which fails open on anything but
+exit code 2. ADR-0033's scar was a blocking hook that hung; ADR-0284's finding is a blocking hook
+that silently does not block.)*
+
 ## Date
 
 2026-06-11

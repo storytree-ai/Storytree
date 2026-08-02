@@ -226,6 +226,16 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
    minimum, not merely a future improvement. A human may enter a separately selected maintenance
    profile, but the agent cannot request, approve or activate it.
 
+   *(Composition AMENDED 2026-08-02 by ADR-0284 D2/D5. The bar itself stands; the sentence "a
+   fail-closed pre-tool policy is mandatory on every supported interactive harness" does not, for
+   Claude Code. A `PreToolUse` hook FAILS OPEN — only exit code 2 blocks, so an absent script, a
+   missing interpreter, a timeout or a crash all admit the write — and its integrity depends on a
+   git branch not moving, which makes it a guardrail and not a mechanism that can satisfy this
+   clause's own inescapability requirement. On Claude the composition is now the static
+   `permissions.deny` block ALONE. Codex, where the hook pairs with an OS-level managed profile that
+   also binds the shell, is the one surface where D2/D3's composition still reads correctly — and it
+   is unbuilt.)*
+
 2. **Codex requires a managed permission profile and managed hooks together.** The Codex adapter is
    delivered from the system/enterprise managed layer, not only from repository `.codex` config:
 
@@ -265,6 +275,11 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
    tools that do not traverse the hook path receive no local filesystem authority from the writer
    profile. A newly introduced write path leaves the adapter red until it is contained and proven.
 
+   *(Stands as a Codex clause (ADR-0284 D6) with one dead dependency, annotated 2026-08-02: the
+   fourth bullet's "or a valid offline receipt under D5" has no referent — D5 is retired and nothing
+   mints a receipt. A Codex adapter built against this clause verifies the live claim, and needs its
+   own answer for ledger loss during the ADR-0114 sleep window; it does not inherit one from here.)*
+
 4. **The lobby has an exact actuator, not a generic shell allowlist.** The source prohibition
    continues to cover tracked, untracked and ignored files. The trusted mint actuator alone may
    write the enumerated Git metadata needed by `worktree create` and reconstructible local tooling
@@ -273,7 +288,13 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
    caches or `.git` to generic shell/file tools is not equivalent and is refused. Provisioning
    inside the newly minted worktree occurs after the claim and is worktree-scoped.
 
-5. **A minted worktree receives a tamper-evident, expiring claim receipt.** Extending ADR-0255 D7,
+5. **RETIRED 2026-08-02 by [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) D4
+   — this clause is dead, and D5 is CLOSED rather than open.** The receipt's only consumer was the
+   `PreToolUse` hook; with the hook retired the receipt is deleted from both claim ceremonies and from
+   `noticeboard done`, and the signing-key custody fork below did not need resolving — it needed
+   deleting. The clause is kept unedited for the record; do not implement it.
+
+   ~~**A minted worktree receives a tamper-evident, expiring claim receipt.**~~ Extending ADR-0255 D7,
    the claim authority stamps a receipt only after the claim succeeds and before the workspace is
    handed to a writer. The receipt contains at least:
 
@@ -289,17 +310,17 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
    malformed, forged, expired or mismatched receipts refuse. An unreachable ledger never permits a
    new mint.
 
-   *(Build state, corrected in place 2026-08-02 — the DECISION above is unchanged. This clause used
-   to read "the receipt mechanism is unbuilt; `worktree create` does not stamp one today". Increment 2
-   built the mechanism PARTLY: `packages/drive/src/write-authority-receipt.ts`, stamped by both
-   `worktree create` and `noticeboard declare`, revoked by `noticeboard done`, carrying a finite
-   `expiresAt`, re-validated against the live HEAD branch on every gated write, and refusing when
-   absent, expired, malformed or branch-mismatched. The fifth required field — **the authority
-   signature or MAC whose signing material is unavailable to the writer — does not exist**, so the
-   receipt is not yet the tamper-evident authority artifact this decision requires and D5 is NOT
-   closed. Increment 3 flipped the switch that reads it to default-ON and installed the deny block
-   that makes `.claude/receipts/` unwritable by the file tools — so the receipt is now enforced and
-   file-tool tamper-resistant, and still forgeable from a shell.)*
+   *(Build state, final — corrected in place 2026-08-02 per ADR-0139. Increment 2 built the mechanism
+   PARTLY (`packages/drive/src/write-authority-receipt.ts`, stamped by `worktree create` and
+   `noticeboard declare`, revoked by `noticeboard done`, finite `expiresAt`, re-validated against the
+   live HEAD branch, refusing when absent/expired/malformed/branch-mismatched) and never built the
+   fifth required field — the authority signature or MAC whose signing material is unavailable to the
+   writer. **It is now DELETED** (ADR-0284 D4) along with the hook that read it. An earlier version of
+   this note read "D5 is NOT closed" and "the receipt is now enforced and file-tool tamper-resistant";
+   both are false as of ADR-0284 — nothing stamps, reads or enforces a receipt. A defect found on the
+   way out, recorded because it bears on any future revival: `evaluateReceiptAuthority` built the repo
+   topology FROM receipt fields and never cross-checked them, so a forged receipt naming the lobby as
+   its own worktree classified the whole repository as inside it.)*
 
 6. **The checkout wall binds shared checkouts; claim coordination still binds every writer.**
    ADR-0255 D1's lobby filesystem wall applies wherever more than one agent session can reach a
@@ -326,7 +347,14 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
    unrelated refs. Source editing may be proved before this Git lifecycle is complete, but the
    Codex adapter is not end-to-end green until the common-directory cases pass.
 
-9. **The behavioural proof bar is extended, not replaced by configuration review.** ADR-0255 D8
+9. **RETIRED 2026-08-02 by [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) D7
+   — the bar has no subject left.** Every item below proves the semantic layer or the receipt, both
+   deleted. The proof that remains for the layer that stands is the static block's conformance test
+   against the installed user-level file. Should the Codex adapter (D2/D3/D7) ever be built, this
+   list is a good starting bar for it — but it is a draft to re-derive, not a live requirement, and
+   the receipt items in it are void. Kept unedited for the record.
+
+   ~~**The behavioural proof bar is extended, not replaced by configuration review.**~~ ADR-0255 D8
    stands in full. Codex additionally proves on the real supported Desktop/CLI boundary:
 
    - primary-checkout edits through `apply_patch`, shell, MCP/plugin/local tools and absolute paths
@@ -354,8 +382,10 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
   equal coverage.
 - The existing Codex leaf contributes tested parsing ideas without being mislabeled as an
   interactive-session wall.
-- The claim receipt degrades an already-authorised workspace during the nightly database window
-  without turning ledger loss into general write authority.
+- ~~The claim receipt degrades an already-authorised workspace during the nightly database window
+  without turning ledger loss into general write authority.~~ *(Void — D5 retired, ADR-0284 D4. The
+  static block has no ledger dependency at all, so the ADR-0114 sleep window is a non-issue for the
+  layer that stands, by removal rather than by design.)*
 - Shared-checkout safety and cross-session claim coordination are separated, so an isolated
   filesystem is not mistaken for an uncoordinated writer exemption.
 
@@ -367,8 +397,10 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
   profile allowlists. The managed fleet version becomes an explicit prerequisite.
 - Static filesystem profiles and Git's shared common directory do not naturally express one live
   claim. A launcher-generated scope or broker is real machinery, not configuration wording.
-- The receipt adds a second, short-lived representation of authority. Signing, key custody,
-  renewal, expiry and revocation tests become load-bearing.
+- ~~The receipt adds a second, short-lived representation of authority. Signing, key custody,
+  renewal, expiry and revocation tests become load-bearing.~~ *(Void — D5 retired, ADR-0284 D4. This
+  cost was correctly foreseen and is the main thing the retirement buys back, along with the 12-hour
+  TTL that would have refused long sessions mid-work.)*
 - The HTTP claim client directed by ADR-0259 is unbuilt, so remote claim-bound authoring does not
   become green merely because this ADR names the route.
 - The enumerated actuator allowlist requires maintenance as Git and package tooling change.
@@ -382,20 +414,30 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
 - **Call the existing phase hook the interactive policy.** Rejected: it is replica- and
   phase-specific and validates no noticeboard authority.
 - **Permit every `.claude/worktrees` directory in the static writer profile.** Rejected: a stale or
-  unclaimed worktree would become writable below the semantic hook.
+  unclaimed worktree would become writable below the semantic hook. *(This rejection is REVERSED in
+  effect by ADR-0284 D1/D2 — read it as history, not as current policy. It is exactly what ships: a
+  deny rule cannot carry an allow-exception, so denying `.claude/worktrees` would freeze the fleet,
+  and there is no semantic hook underneath any more. Every worktree, stale or unclaimed, is writable
+  by every session. The owner de-scoped that as a hazard on zero evidenced instances in five weeks.)*
 - **Grant the common `.git` directory broadly.** Rejected: it reopens primary and unrelated-ref
   mutation through the metadata side door.
 - **Grant a generic shell so minting works.** Rejected: the narrow trusted actuator is the bounded
   form.
 - **Use an unsigned or non-expiring receipt.** Rejected: the writer could forge it or retain stale
-  authority indefinitely.
+  authority indefinitely. *(Moot since ADR-0284 D4 — there is no receipt of any kind. The judgement
+  itself held up: what increment 2 actually shipped WAS the unsigned form this bullet rejects.)*
 - **Treat a disposable remote checkout as claim-free.** Rejected: isolation removes co-tenant
   filesystem damage, not duplicate work or noticeboard invisibility.
 - **Freeze every already-authorised workspace whenever the ledger sleeps.** Rejected: the signed,
-  finite receipt preserves a past grant without permitting a new one.
+  finite receipt preserves a past grant without permitting a new one. *(The rejection stands; its
+  stated remedy does not — no receipt exists (ADR-0284 D4). The static block simply never consults
+  the ledger, so nothing freezes when it sleeps.)*
 
 ## References
 
+- [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) — **amends this
+  ADR** (2026-08-02): D1's composition, D5 and D9 change; D2/D3/D7 stand. Read it before acting on
+  anything here.
 - [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md) — the decision
   this proposes to amend.
 - [ADR-0258](0258-the-inner-loop-is-separable-from-the-store-remote-sessions-l.md) — remote sessions
@@ -433,5 +475,10 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
   worktree location, detached HEAD and Handoff behaviour.
 - `packages/agent/src/codex-scope-hook.mjs` — replica-phase seed code, not the interactive policy.
 - `packages/agent/src/sdk-author.ts` — the analogous Claude SDK phase boundary.
-- `packages/cli/src/worktree-create.ts` — the claim-first mint to extend with a receipt.
+- `packages/cli/src/worktree-create.ts` — the claim-first mint. *(It stamped a receipt from
+  increment 2 until ADR-0284 D4 removed it; it mints identity and takes the claim, nothing more.)*
 - `packages/drive/src/noticeboard.ts` — `deriveIdentity()`, which the boundary validates against.
+- `packages/drive/src/write-authority-rules.ts` — the generator for the static deny block, which is
+  the whole of this ADR that runs. *(The hook, the receipt module and the decision core
+  `write-authority.ts` are deleted — ADR-0284 D2/D4; recover them from git if a Codex adapter needs
+  the canonicalisation and containment logic.)*

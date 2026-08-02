@@ -28,7 +28,13 @@ build-scoped claim and dry-run/offline mechanics stand. Its non-worktree build n
 generic agent write authority outside a claim-bound workspace: ADR-0255 generalises
 claim-before-worktree to every agent source write and rules the primary checkout read-only across
 harnesses. *(That is the DECISION, not the installed state — as of 2026-08-02 only the Claude file
-tools are bound, on one machine. ADR-0255's Status block carries the authoritative build state.)*
+tools are bound, on one machine, and only against the primary checkout.
+[ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) is the authoritative
+build state; read ADR-0255's Status block only with ADR-0284's banner, which rolls back most of what
+ADR-0257 promised. The correction that matters for THIS ADR: the mechanism that would have
+generalised claim-before-worktree to a generic agent write — a claim-aware pre-write boundary — is
+retired, so **claim-before-worktree remains a coordination rule enforced by ceremony and by this
+ADR's own build-time refusal, never by the filesystem**. Nothing consults a claim before a write.)*
 
 ## Context
 
