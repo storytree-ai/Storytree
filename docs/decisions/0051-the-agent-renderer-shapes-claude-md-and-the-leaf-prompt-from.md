@@ -54,9 +54,15 @@ the one thing that escaped it. The fix is to make every runtime surface a **gene
 ## Decision
 
 1. **One renderer, the single mechanism.** `storytree agents <name>` assembles an agent's system text
-   from its Library artifact: it reads the `agent` unit, fetches the units its `context` / `rules` /
-   `antiPatterns` refs point at, and injects their rendered bodies under labelled sections (never
-   restating — ADR-0029 §7). It runs **offline** off the seed corpus (like every other read command,
+   from its Library artifact: it reads the `agent` unit and resolves the units its `context` / `rules`
+   / `antiPatterns` refs point at (never restating — ADR-0029 §7). **How much of each ref it renders
+   is per-mode, and [ADR-0156](0156-subagent-prompts-are-essentials-only-the-cli-serves-ceremony.md)
+   moved this command off the fat one:** injecting the refs' full rendered bodies under labelled
+   sections survives only on the SDK-leaf / spawn path (`renderAgentPrompt`, Decision 4);
+   `storytree agents <name>` and the `.claude/agents/*.md` files now render each `rules` /
+   `antiPatterns` ref as its ONE-LINE assertion plus a `storytree library artifact <id>` pull-hint and
+   each `context` ref as a per-step door (`renderAgentEssentials`), with the bodies served
+   just-in-time by the CLI. It runs **offline** off the seed corpus (like every other read command,
    ADR-0023), so it works in CI and in the ephemeral web container. This is the keystone every surface
    reuses.
 
