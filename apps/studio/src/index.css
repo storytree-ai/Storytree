@@ -1846,6 +1846,15 @@ a.stat:hover {
 .trail-reveal-mask.from-end {
   stroke-dashoffset: -1;
 }
+/* ADR-0283 D1 — the Act 2 regrow drives the SAME mask from the app's own cursor instead: it
+   writes `stroke-dashoffset` inline every frame, so the keyframe has to get out of the way (a
+   running animation outranks an inline style on the property it animates). Growth follows the
+   edge there, which means the app has to KNOW when a pathway arrives — a CSS keyframe cannot be
+   sampled, so the timing moved to the plan. Reduced motion never reaches this state: the regrow
+   settles straight onto the grown forest (ADR-0282 D6). */
+.trail-reveal-mask.is-cursor-driven {
+  animation: none;
+}
 @keyframes trail-reveal-grow {
   to {
     stroke-dashoffset: 0;
@@ -1888,63 +1897,17 @@ a.stat:hover {
   opacity: 0.7;
 }
 
-/* HUB SPOKES — the radial "solar-system" layout (ADR-0074 §6, `?layout=solar`): the
-   dense wiring layer joining every organism to the central cli/store hubs, rendered
-   VISIBLE but LOW-SALIENCE (a hair-thin faint thread). Density is de-noised here, NEVER
-   dropped (ADR-0074 §1). Empty / absent in the default DAG world. */
-.spoke-net {
-  filter: blur(0.4px);
-}
-.world-spoke {
-  fill: none;
-  stroke: var(--trail-bed);
-  stroke-width: 1.1;
-  stroke-linecap: round;
-  opacity: 0.16;
-  pointer-events: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .spoke-net {
-    filter: none;
-  }
-}
+/* (The radial "solar-system" layout's wiring skins stood here — the hub-spoke net
+   (`.spoke-net` / `.world-spoke`, ADR-0074 §6) and the 2026-06-20 path refresh's orbit
+   GRID + perimeter-docked connections (`.solar-orbit-ring` / `.solar-spoke` /
+   `.solar-spoke-net`). ADR-0283 D2 retired the layout, leaving every one of them without
+   an element to skin; the `depends_on` roads are the ADR-0169 reveal-on-focus TRAIL
+   network above, which is the one road model now. */
 
-/* SOLAR PATH REFRESH (2026-06-20, `?layout=solar`) — the orbit GRID + thin, no-arrow,
-   PERIMETER-DOCKED connections that replace the river-trail roads and centre-to-centre
-   spokes in solar mode (the website's road model, web/src/lib/world.ts; owner steer:
-   connections must fan around each island's rim, not converge on one point). Thinner
-   than the website's lanes, no arrowheads. All absent in the default DAG world. */
-.solar-orbit-ring {
-  fill: none;
-  stroke: var(--trail-bed);
-  stroke-width: 1.1;
-  stroke-dasharray: 3 7;
-  stroke-linecap: round;
-  opacity: 0.34;
-}
-.solar-spoke {
-  fill: none;
-  stroke: var(--trail-bed);
-  stroke-width: 1;
-  stroke-linecap: round;
-  opacity: 0.16;
-  pointer-events: none;
-}
-/* the `depends_on` roads retired their docked-line rendering (ADR-0169 — they are the
-   reveal-on-focus TRAIL network above now); only the solar spokes stay docked lines. */
-.solar-spoke-net {
-  filter: blur(0.3px);
-}
-@media (prefers-reduced-motion: reduce) {
-  .solar-spoke-net {
-    filter: none;
-  }
-}
-
-/* The cli/store hubs render like any other island for now (owner call 2026-06-19 —
-   "make them like any other island; work out the look later"). Their hub-ness is the
-   LAYOUT (centred, spokes converging), not a skin. The `.is-hub` class is still set on
-   their territory, so a distinct hub look can be re-added here later without touching TS. */
+/* The cli/store hubs render like any other island (owner call 2026-06-19 — "make them
+   like any other island; work out the look later"). Their hub-ness was the LAYOUT, which
+   ADR-0283 D2 retired; what remains is the on-map EMPHASIS. The `.is-hub` class is still
+   set on their territory, so a distinct hub look can be re-added here without touching TS. */
 
 /* flora: the per-territory layer of trees, plates and wisps */
 .hex-flora {
@@ -5218,6 +5181,27 @@ button.legend-tile:hover {
     opacity: 1;
     transform: scale(1);
   }
+}
+/* ADR-0283 D1 — the SAME staging, re-timed for the Act 2 regrow. The delays above open with a
+   ~1.05 s hold because a live arrival draws its roads FIRST and the island surfaces after them.
+   Under edge-driven growth the road has already arrived before the island is scheduled at all, so
+   that hold would leave an island invisible for the whole of its own accretion and then sprout
+   outgoing pathways from ground nobody had seen. Compressed to land inside `islandGrowthMs`
+   (760 ms): coast, then ground, then flora — the same three beats, an order of magnitude tighter.
+   Only the delays and durations change; the keyframes, the reduced-motion kill and the live
+   arrival path are untouched. */
+.world-scene.act2-regrowing .coast-fill-group.arrive-island {
+  animation-duration: 0.34s;
+  animation-delay: 0s;
+}
+.world-scene.act2-regrowing .relaxed-tile.arrive-island,
+.world-scene.act2-regrowing .hex-tile.arrive-island {
+  animation-duration: 0.38s;
+  animation-delay: 0.1s;
+}
+.world-scene.act2-regrowing .hex-flora.arrive-island {
+  animation-duration: 0.42s;
+  animation-delay: 0.32s;
 }
 /* the demo's replay control (only rendered when ?arrive= is set) */
 /* The Act 2 intro control (ADR-0282), mounted only under the exact `?act2=intro` gate: one

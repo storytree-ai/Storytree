@@ -114,10 +114,10 @@ allowed, §5): `cli → base`, `cli → proof-protocol`. The merged declared gra
 consumed_by) is **acyclic** (ADR-0058): the CLI is a pure source — nothing imports it.
 
 > **UI note (sequencing).** Because these edges are declared on the spokes' `consumed_by`, the CLI
-> renders as an edgeless node in TODAY's forest (which reads `depends_on` only). That is intended:
-> the hub spokes tangle a tree (ADR-0074 §6), so they are laid out de-noised by the **radial /
-> solar-system world** (the live-library `solar-system-world` proposal, a separate frontend session
-> that reads `consumed_by`). The edges are declared and gate-enforced now; the radial UI draws them.
+> renders as an edgeless node in the forest (which reads `depends_on` only). The radial /
+> solar-system world that was to draw them de-noised (ADR-0074 §6) is **retired** — ADR-0283 D2
+> made DAG rows the one map layout, so nothing on the map draws `consumed_by` wiring today. The
+> edges stay declared and gate-enforced; how they are eventually shown is an open UI question.
 
 ## UAT Test Criteria
 

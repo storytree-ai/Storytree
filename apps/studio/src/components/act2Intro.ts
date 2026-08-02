@@ -18,12 +18,15 @@ import {
   forestRegrowAtProgress,
   forestRegrowLayerSignature,
   forestRegrowRenderLayer,
+  forestRegrowTrailPlan,
+  forestRegrowTrailSignature,
   type ForestRegrowAccretionPlans,
   type ForestRegrowPlan,
   type ForestRegrowRenderLayer,
   type ForestRegrowState,
   type ForestRegrowStory,
   type ForestRegrowTrailEdge,
+  type TrailRevealPlan,
 } from '@storytree/app-surface';
 
 /**
@@ -84,6 +87,31 @@ export function useStableForestRegrowLayer(
   return layer;
 }
 
+/**
+ * The same stability hold for the PATHWAY half (ADR-0283 D1): the cursor-driven trail plan that
+ * feeds the per-segment reveal masks. Rebuilt only when a front has actually moved, so a frame
+ * where nothing is drawing hands back the identical object and the scene's memo bail-out survives.
+ *
+ * Null when no pathway is mid-draw — which is also the signal that every road on the map is
+ * simply painted, with no mask anywhere.
+ */
+export function useStableForestRegrowTrails(
+  state: ForestRegrowState | null,
+  usageById: ReadonlyMap<string, number>,
+  active: boolean,
+): TrailRevealPlan | null {
+  const held = useRef<{ signature: string; plan: TrailRevealPlan | null } | null>(null);
+  if (!active || !state) {
+    held.current = null;
+    return null;
+  }
+  const signature = forestRegrowTrailSignature(state);
+  if (held.current?.signature === signature) return held.current.plan;
+  const plan = forestRegrowTrailPlan(state, usageById);
+  held.current = { signature, plan };
+  return plan;
+}
+
 export interface Act2IntroClock {
   requestFrame(callback: (timestamp: number) => void): number;
   cancelFrame(requestId: number): void;
@@ -98,6 +126,9 @@ export interface Act2IntroInput {
   readonly enabled: boolean;
   readonly stories: readonly ForestRegrowStory[] | null;
   readonly edges: readonly ForestRegrowTrailEdge[] | null;
+  /** Segment id → drawn length in world units, so a pathway's pace follows the real routed
+   *  geometry rather than a per-segment guess (ADR-0283 D1: growth runs along the real trail). */
+  readonly segmentLengths?: ReadonlyMap<string, number> | null;
   readonly reducedMotion?: boolean;
   readonly clock?: Act2IntroClock;
 }
@@ -169,15 +200,20 @@ export function useAct2Intro({
   enabled,
   stories,
   edges,
+  segmentLengths,
   reducedMotion,
   clock,
 }: Act2IntroInput): Act2IntroPlayer {
   const plan = useMemo(
     () =>
       enabled && stories && stories.length > 0
-        ? deriveForestRegrowPlan(stories, edges ?? [])
+        ? deriveForestRegrowPlan(
+            stories,
+            edges ?? [],
+            segmentLengths ? { segmentLengths } : {},
+          )
         : null,
-    [enabled, stories, edges],
+    [enabled, stories, edges, segmentLengths],
   );
   // The cursor. A regrow starts SETTLED — opening the gated route shows the real forest as it is,
   // and the control is what rewinds it to nothing. Anything else would hide the product behind an
