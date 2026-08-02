@@ -1,0 +1,1227 @@
+{
+  "generatedAt": "2026-08-02",
+  "source": "loadArcRollups() against the live Cloud SQL store (packages/drive/src/arc-rollup.ts) — the same join behind GET /api/arcs and storytree arc show",
+  "totals": {
+    "arcs": 32,
+    "active": 17,
+    "closed": 15
+  },
+  "liveOpenQuestions": [
+    {
+      "id": "oq-public-live-forest-on-the-website",
+      "arcRef": null,
+      "note": "the ONLY live open-question; carries no arcRef, so no arc surfaces it"
+    }
+  ],
+  "arcs": [
+    {
+      "id": "act2-intro-forest-regrow-arc",
+      "title": "Act 2 opens by regrowing the whole forest from its base nodes",
+      "description": "Build the Act 2 introduction as a control inside the real shared app: the owner clicks it and the whole forest regrows from nothing, outward from the base…",
+      "intent": "Build the Act 2 introduction as a control inside the real shared app: the owner clicks it and the whole forest regrows from nothing, outward from the base nodes in the story graph's own dependency order. Build it in the app first and iterate there until the owner is happy with how it looks; the website port comes afterwards and only then. The forest at large grows app-native and free — Experiment 6 connected SVG island accretion, the existing procedural story-tree renderer, and the arrival trail draw-on — so it scales to any story count; the authored raster track is reserved for one focused h…",
+      "endState": "Closed when the owner has looked at the regrow in the real app and is happy with it. An obvious owner-reachable control replays the whole forest growing from nothing in the story graph's own dependency order, and the growth is CAUSAL rather than merely ordered (ADR-0283 D1): the base nodes are the only islands that form from nothing, a settled island grows its outgoing pathways outward along the real trail geometry, and a downstream island forms only once a pathway has arrived at it — so nothing ever appears unconnected. Islands accrete, one focused hero tree carries authored frames, and the …",
+      "lastLanded": "2026-08-02",
+      "ageDays": 0,
+      "increments": [
+        {
+          "date": "2026-08-01",
+          "pr": "1075",
+          "outcome": "LANDED — the Act 2 regrow is built into the shared app surface and runs on the real map. `?act2=intro` puts an obvious control on the REAL forest map (not a witness stage) that replays the whole forest growing from nothing, outward from the base nodes, in the…"
+        },
+        {
+          "date": "2026-08-02",
+          "pr": "1077",
+          "outcome": "ATTESTED + RE-DIRECTED — the owner looked at increment 1 in the real app and stamped it, then named the next iteration in the same sitting. Landed here is the DECISION, not the build. The LOOK verdict on increment 1 (PR #1075): \"this looks good\" — the ADR-007…"
+        },
+        {
+          "date": "2026-08-02",
+          "pr": "1078",
+          "outcome": "BUILT — increment 2: growth follows the edge, and one map layout. Plus ADR-0285, decided mid-build when the owner watched a run. ADR-0283 D1 (edge-driven growth). The wave barrier is gone. `forest-regrow.ts` no longer schedules by rank at all: base nodes form…"
+        },
+        {
+          "date": "2026-08-02",
+          "pr": null,
+          "outcome": "ATTESTED (with four items outstanding) — the owner looked at increment 2 in the real app, on the production build served from the merged commit, and stamped the growth: \"this looks great otherwise\". That is the ADR-0070 stage-2 verdict on the CAUSAL edge-driv…"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 282,
+          "status": "accepted",
+          "title": "The Act 2 intro regrows the whole forest app-native; one focused tree earns authored frames"
+        },
+        {
+          "number": 283,
+          "status": "accepted",
+          "title": "Act 2 growth follows the edge: pathways grow from settled nodes, and one layout"
+        },
+        {
+          "number": 285,
+          "status": "accepted",
+          "title": "An island forms the moment a pathway reaches it, not when all its ground has settled"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "arc-orientation-surface-arc",
+      "title": "Arcs as the map's primary orientation surface",
+      "description": "The owner returns to the map and reads where every arc is up to, what it is about, and what is next — without asking an agent to re-onboard them.",
+      "intent": "Make arcs the primary thing the owner meets on the forest map, so that returning after time away RESTORES the context an initiative needs — what it is about, where it is up to, what comes next, and which questions are waiting on the owner — instead of the owner asking an agent for a diagram and a re-onboarding briefing every time.",
+      "endState": "Closed when the owner can arrive at the map cold and, from its primary surface alone, say for any live arc what it is about, where it is up to, and what comes next — including the open questions that arc is waiting on them to answer, with enough context attached to answer them rather than merely find them. The surface distinguishes arcs that are currently running, waiting (they have open questions), and blocked, and an arc can be clicked through to read its questions. The Library remains reachable as a secondary option. The observable close condition is behavioural: the owner stops asking an …",
+      "lastLanded": "2026-07-29",
+      "ageDays": 4,
+      "increments": [
+        {
+          "date": "2026-07-29",
+          "pr": "1020",
+          "outcome": "Increment 1 LANDED — the shape-independent infrastructure ADR-0267 owes, built so the mock round has something to render whichever UI option the owner picks. No UI, deliberately (D-not-decided: the visual design and multi-arc layout are the owner's next deliv…"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 267,
+          "status": "accepted",
+          "title": "Arcs take the map's primary top-drawer slot, the Library becomes secondary"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "chapter2-code-generated-organic-art-arc",
+      "title": "Chapter 2 organic art is generated by our own code",
+      "description": "Show the ceiling of code-generated organic art for Chapter 2: art produced by our own code rather than by an image model, with code owning the tree's skeleton…",
+      "intent": "Show the ceiling of code-generated organic art for Chapter 2: art produced by our own code rather than by an image model, with code owning the tree's skeleton, its calibrated camera and its growth over time, and a generative model demoted to supplying individual component assets and textures that the code then orchestrates (ADR-0280). The chosen technique is the hybrid — the space-colonisation skeleton, pipe-model girth and 20-degree calibrated camera of round 4's code-your-own-call, put through code-pixel-rasteriser's shading, quantisation and selective-outline finish — which generalises exp…",
+      "endState": "The owner has looked at a code-generated hero tree composited on the real app-owned SVG island at the established isometric camera, and has stated plainly whether code-generated art reaches the quality bar and whether reopening 3D is warranted. The delivered track is model-free in its skeleton, camera, growth and finish, renders deterministically from a seed at zero per-frame cost, declares its camera elevation in registration metadata calibrated to the app plate rather than chosen by taste, and guarantees topology continuity by construction — the tree at any age a strict prefix of the mature…",
+      "lastLanded": "2026-08-02",
+      "ageDays": 0,
+      "increments": [
+        {
+          "date": "2026-08-01",
+          "pr": "1065",
+          "outcome": "PR #1065 landed the arc's founding decision as design output only, with no product code change. ADR-0280 is accepted (owner-directed in conversation, ADR-0110): Chapter 2's organic art is generated by our own code, which owns the tree's skeleton, its calibrat…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1066",
+          "outcome": "PR #1066 admitted headless Blender to the pipeline as ADR-0280 D2a, owner-directed after another session called out that Blender is free and programmatically accessible. It sits behind the SAME seam the pixel rasteriser occupies — a render backend, never a ne…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1067",
+          "outcome": "PR #1067 landed the first exercise of ADR-0280 D2a as research evidence only — no product code, no candidate, no owner attestation. The owner installed Blender and asked to see what could be achieved with it; blender_tree.py drives headless Blender 5.2.0 LTS …"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1074",
+          "outcome": "PR #1074 landed the second exercise of ADR-0280 D2a and the FIRST code track ever composited on the app-owned SVG island — the gap ADR-0280 itself listed as where round-3 tracks lost points they had won on transparency. Research evidence plus the product-code…"
+        },
+        {
+          "date": "2026-08-02",
+          "pr": "1080",
+          "outcome": "PR #1080 landed the third exercise of ADR-0280 D2a, on the owner's reading of v2's honest bottom line — that the mistake was trying to render leaves, and that green clouds plus a leaves texture was the expected shape. Research evidence plus the product-code r…"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 280,
+          "status": "accepted",
+          "title": "Chapter 2 organic art is code-generated: code owns skeleton, camera and growth; models supply components"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "chapter2-pixellab-organic-growth-arc",
+      "title": "Chapter 2 grows PixelLab trees and plants over the app-native SVG island",
+      "description": "Replace the rejected full-island PixelLab raster experiment with a layered Chapter 2 growth system: the existing app-owned SVG island and coastline remain the…",
+      "intent": "Finish Chapter 2 organic growth with the existing app-owned SVG island and coastline as the geometry, camera and land-growth substrate; retain Experiment 8's registered cutout/pose technique only for small ground plants and flowers; and resolve the hero tree through a separately selected treatment that reads as one attached organism. ADR-0274's broader coherent whole-tree PixelLab candidates remain eligible comparison evidence. The shared app continues to own semantics, progress, timing, navigation, reduced motion, sockets and painter order, while rejected canopy assemblies remain evidence ra…",
+      "endState": "A hosted real shared-app witness grows the existing SVG island and coastline app-natively at the established camera, presents a separately resolved hero tree whose trunk and canopy read as one connected organism, and grows locally versioned small plants and flowers through the retained registered cutout/pose tracks at stable app-owned ground sockets. The shared app owns semantic progress, timing, deterministic selection, navigation, replay, reduced motion, final settlement and painter order; there is no generated island, Experiment 8 cutout-trunk plus separately registered raster-canopy assem…",
+      "lastLanded": "2026-08-01",
+      "ageDays": 1,
+      "increments": [
+        {
+          "date": "2026-07-31",
+          "pr": "1040",
+          "outcome": "PR #1040 landed ADR-0274 and the corrected work hierarchy. The existing app-owned SVG island, coastline, parcel and established isometric camera are now the sole land substrate; PixelLab is limited to author-time registered hero-tree, canopy, plant, flower an…"
+        },
+        {
+          "date": "2026-07-31",
+          "pr": "1045",
+          "outcome": "Held pose-to-pose organic-growth comparison landed in PR #1045 and is viewable on the real shared Studio at the dedicated organic-pose-to-pose Cloud Run tag. PixelLab was author-time only; 9 registered tree poses plus 5 registered plant poses ship locally wit…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1048",
+          "outcome": "Owner LOOK on held Experiment 5 rejected staggered socket choreography / the planting-wave composition as the Chapter 2 island-growth technique: the owner was not a fan of how the island grows in this comparison. Positive component signal is preserved — the t…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1047",
+          "outcome": "Owner LOOK on held Experiment 3 rejected texture-under-mask / stroke-matte reveal as the Chapter 2 organic-growth technique and ranked it least among the experiments viewed so far: the continuous mask made mature tree and plant plates read as a slowly reveale…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1046",
+          "outcome": "Owner LOOK on held Experiment 4 ranked registered key-pose blending as the strongest island-formation comparison so far, but did not accept it: the island still reads as fading in rather than growing from nothing, and the owner expects a better app-native for…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": null,
+          "outcome": "Owner LOOK on held Experiment 2 (layered cutout puppet) produced a component-selective result: this comparison has the best trunk and ground-plant growth animations seen so far, and the plants animate particularly well. The complete mock is not adopted: islan…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1050",
+          "outcome": "Owner comparison LOOK on the held pose-to-pose witness from PR #1045, recorded in ADR-0274 by PR #1050: the tree animation is the provisional comparison leader (probably"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1050",
+          "outcome": "Correction to the immediately preceding truncated CLI entry for PR #1050. Owner comparison LOOK on the held pose-to-pose witness from PR #1045, recorded in ADR-0274 by PR #1050: the tree animation is the provisional comparison leader — the owner said it was p…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1055",
+          "outcome": "Owner LOOK on held Experiment 6, connected SVG accretion, in PR #1055 is positive: the island growth looks really good, and the plant and tree growth look good too. This is the first explicitly positive island-formation LOOK signal in the corrected ADR-0274 d…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": null,
+          "outcome": "Owner LOOK on held Experiment 9, branch-emitted leaf bloom / hierarchical foliage rig, is negative: “this looks really buggy, the placement is all over the place.” The current authored socket/placement treatment fails visual coherence and is not adopted. Pres…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1054",
+          "outcome": "Owner LOOK on held Experiment 8 (PR #1054), occlusion-registered canopy sprouting, rejects the PixelLab/cutout registered-pose assembly for the hero tree. After the first review found a disconnected canopy and green blob, a targeted author-time correction rem…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1053",
+          "outcome": "Owner LOOK on held Experiment 7, SVG contour morph, found the island growth okay but below the current connected-SVG-accretion lead from Experiment 6, which yielded the better result. The reused pose-to-pose plant and tree growth looks decent and remains posi…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1054",
+          "outcome": "Correction to the immediately preceding Experiment 8 entry: ADR-0277 amends ADR-0274; it does not supersede the broader PixelLab-organic-track direction. The owner verdict is technique-specific: retain Experiment 8's registered cutout/pose treatment for small…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1057",
+          "outcome": "PR #1057 landed accepted ADR-0277 and the reconciled app-surface story projection. Experiment 8's cutout-trunk plus occlusion-registered raster-canopy/overlap-collar assembly is rejected for the hero tree; its registered cutout/pose technique is retained for …"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1056",
+          "outcome": "Owner LOOK on held Experiment 10 (PR #1056), registered hybrid handoff, is positive for the plant/tree composition: the mock actually"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1056",
+          "outcome": "Correction to the immediately preceding truncated CLI entry for PR #1056. Owner LOOK on held Experiment 10, registered hybrid handoff, is positive for the plant/tree composition: the mock \"actually looks quite nice.\" The exception is the initial cutout-trunk …"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1061",
+          "outcome": "Round 3 landed in PR #1061 as author-time comparison research only: eight hero-tree growth experiments over the settled island (Experiment 6 connected SVG accretion) and the ADR-0277-retained plant tracks, each adversarially re-measured. Six derive from recor…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1062",
+          "outcome": "PR #1062 landed the round-3 hosted comparison lab at ?organicGrowth=r3-lab#/tree: four hero-tree candidates (round-1 incumbent, exp-15 object-rig v3, exp-16 leader-repair, exp-18 eroded prior) switchable over ONE fixed composition - Experiment 6's connected S…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1063",
+          "outcome": "Witness-path hygiene: the ten per-experiment hosted Cloud Run witness tags were retired from the storytree-studio service at the owner's direction, superseded by the single round-3 comparison lab PR #1062 landed at ?organicGrowth=r3-lab#/tree. Retired: organi…"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 274,
+          "status": "accepted",
+          "title": "PixelLab animates organic growth over the app-owned SVG island"
+        },
+        {
+          "number": 277,
+          "status": "accepted",
+          "title": "Occlusion-registered cutouts are retained for small plants, not the hero tree"
+        }
+      ],
+      "plans": [],
+      "stories": [
+        "app-surface"
+      ],
+      "questions": []
+    },
+    {
+      "id": "context-decision-tree-arc",
+      "title": "Context decision tree — what was offered, and what the agent chose",
+      "description": "Record the branches an agent did NOT take, so a traversal draws as a decision tree instead of a containment chain.",
+      "intent": "Make an agent's context traversal legible as a sequence of DECISIONS rather than a record of reads: capture what the Library offered at each step alongside what was actually followed, so an owner watching a playback can see where a session chose one pathway over the others available to it.",
+      "endState": "A traversal playback shows decision points. At a visit that offered several onward links, the overview renders the branch the session took AND the branches it did not, so the shape on screen answers \"what else was on the table here?\" — not merely \"what did it read next?\". The distinction that closes this arc is that an unfollowed branch is visible: a tree drawn only from reads that happened is a containment chain, which the previous arc already delivers. Attribution is deterministic or absent. A followed edge is drawn only where the telemetry proves the agent answered a specific offer; where …",
+      "lastLanded": "2026-07-29",
+      "ageDays": 4,
+      "increments": [
+        {
+          "date": "2026-07-27",
+          "pr": "974",
+          "outcome": "OPENED THE ARC AND FILED ITS FORK. Owner-directed: after watching the regenerated playback (#962) the owner asked why a traversal renders as a chain rather than a decision tree. The honest answer is that `linked-session-context-arc` closed its worklist withou…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "994",
+          "outcome": "THE FORK IS SETTLED — ADR-0260 is ACCEPTED. The owner chose candidate B (\"offers carry an ID\") in conversation on 2026-07-27, from the four presented when the ADR was filed `proposed` earlier the same day. Design-time alignment IS the ratification (ADR-0110),…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "1003",
+          "outcome": "CANDIDATE SETS HAVE A PRODUCER — the arc's first BUILD increment, landing ADR-0260 D1/D2/D6/D7 and deliberately not D3. `CandidateSetEvent` was defined in ADR-0235 clause 2 and had never been emitted by anything; a `storytree library artifact <id>` read now r…"
+        },
+        {
+          "date": "2026-07-29",
+          "pr": "1005",
+          "outcome": "THE OFFER'S IDENTITY TRAVELS, AND A READ CAN NOW SAY WHICH BRANCH IT TOOK — ADR-0260 D3/D4 built, the arc's second build increment. `FollowedEdgeEvent` was defined in ADR-0235 clause 2 and had never been emitted by anything; a `storytree library artifact <id>…"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 260,
+          "status": "accepted",
+          "title": "A followed edge needs an offer it can be joined to, and ordering cannot supply it"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "directional-dag-arc",
+      "title": "The knowledge DAG is an authored dependency edge, not the citation web",
+      "description": "Give the Library a true directional, acyclic DAG via an authored standsOn edge, distinct from the cyclic citation web (ADR-0223).",
+      "intent": "Give the Library a true directional, acyclic dependency DAG built from an authored `standsOn` edge — distinct from and additive to the `references` citation web — so the tech-tree reads as a real dependency graph with honest \"stands on\" / \"stood on by\" sides, instead of a busy web whose mutual citations scramble the layout (ADR-0223).",
+      "endState": "The Library focus graph is driven by the authored `standsOn` edge, not by `references`: the knowledge schema carries `standsOn`, a fail-closed acyclicity gate rejects any cycle, the existing corpus is bootstrapped from down-tier citations and then curated, and the studio renders a directional tech-tree whose \"stands on\" and \"stood on by\" panes are literally the edge and its reverse. Citations survive unchanged as the free \"see also\" web. Closed when a member can select any artifact and see a clean, acyclic dependency DAG, and the librarian-curator maintains `standsOn` alongside `references` a…",
+      "lastLanded": null,
+      "ageDays": null,
+      "increments": [],
+      "adrs": [
+        {
+          "number": 223,
+          "status": "accepted",
+          "title": "The knowledge DAG is an authored standsOn edge, not the citation web"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "end-at-merge-arc",
+      "title": "End-at-merge session lifecycle",
+      "description": "Sessions end at merge: land, debrief the owner, go inert — new work re-enters through fresh sessions, and merged-idle tabs are archived.",
+      "intent": "A session's lifecycle ends where its PR merges — every landing finishes with an owner-facing debrief that names its follow-up chips, the landed session goes inert but stays fully conversational, and new work always re-enters through fresh sessions — so parked-open sessions (~48% of lost wall-clock in the 2026-07-30 factory audit) stop being the factory's largest cost.",
+      "endState": "Every merge ceremony ends with the closing leg (residue appended, claims released, worktree reaped, debrief delivered, session inert); a landed session never refuses questions or analysis but never opens new work in place — it chips the work into a fresh session the owner can find by name; merged-idle sessions get archived through the owner-confirmed janitor sweep; and the owner never needs to re-task an old tab.",
+      "lastLanded": "2026-08-01",
+      "ageDays": 1,
+      "increments": [
+        {
+          "date": "2026-07-30",
+          "pr": "1026",
+          "outcome": "Increment 1 landed (PR #1026): ADR-0271 born accepted (owner-directed, amends ADR-0142) — the merge ceremony gained the closing leg (residue → release claims → reap-ready worktree → owner debrief naming every follow-up chip by title → inert), inert-is-not-mut…"
+        },
+        {
+          "date": "2026-07-30",
+          "pr": "1028",
+          "outcome": "Increment 2 landed (PR #1028): the repo caught up to the decision. Seven places still framed `storytree branch next` as the merge ceremony's default post-merge leg — branch.ts's header docstring AND its user-facing `branch --help` output (the copy an agent ac…"
+        },
+        {
+          "date": "2026-07-30",
+          "pr": "1029",
+          "outcome": "Increment 3 landed (PR #1029): the three residual stale-framing instances increment 2 deliberately left — each needing a judgement outside a comment-only unit — are cleared, and each judgement was routed to its proper chair rather than made mechanically. (1) …"
+        },
+        {
+          "date": "2026-07-31",
+          "pr": "1042",
+          "outcome": "Re-decision increment opened (PR #1042): ADR-0275 born PROPOSED (amends ADR-0271) after the 2026-07-31 overnight audit — one night in, ADR-0271's own machinery measurably worked (13/13 closing legs; owner asks 20→0; polling 21.1h→41min; the post-0271 cohort b…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1071",
+          "outcome": "Increment 5 landed (PR #1071): the owner resolved the ADR-0275 continue-or-inert fork live in\\nconversation on 2026-08-01. ADR-0275 flips proposed to accepted with the owner's exact wording split\\ninto two independent axes (D1, rewritten): Axis 1 (mechanical,…"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 271,
+          "status": "accepted",
+          "title": "Sessions end at merge: land, debrief, go inert; work re-enters through fresh sessions"
+        },
+        {
+          "number": 275,
+          "status": "accepted",
+          "title": "Sessions may continue past merge: the unit ends; ending the session is an orchestration call"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "explorer-onboarding-arc",
+      "title": "Explorer onboarding & in-app guide",
+      "description": "Trusted devs (read-only, own Claude subscription) onboard through the desktop app: one owner-sent terminal command installs and provisions everything; the in-app guide runs on their token.",
+      "intent": "A trusted dev with read-only repo access onboards as an EXPLORER through the desktop app: one owner-sent terminal command installs the app and provisions a read-only checkout, a first-run wizard connects their own Claude subscription (the Claude path first; other agents later), and the in-app guide — powered by their token, seeing the live forest through the hosted read path — walks them through exploring the story tree, the library, and the decision log by talking to their agent.",
+      "endState": "Both target devs have completed the journey end-to-end with no owner hand-holding beyond sending the invite and the install one-liner: the command installs the desktop app and provisions a read-only checkout with prerequisites handled, the first-run wizard connects their own Claude subscription (their token, never the owner's secrets — the app only detects, never captures), the guide verifies the setup end-to-end (and repairs or escalates what it finds broken), and the guide holds its first conversation and tour on their token against the live tree. The onboarding path is the guided in-app ex…",
+      "lastLanded": "2026-07-19",
+      "ageDays": 14,
+      "increments": [
+        {
+          "date": "2026-07-17",
+          "pr": "775",
+          "outcome": "Increment 1 LANDED: hierarchy reconcile — absorbed headless-orchestrator into app-guide (dormant chat substrate ownership); retired chat-subagent-spawn + spawn-visibility (ADR-0174/0175); pruned hostedStories.register + proof.real arms. Plan explorer-onboardi…"
+        },
+        {
+          "date": "2026-07-17",
+          "pr": "776",
+          "outcome": "Design foundation LANDED: ADR-0207 born accepted (owner-directed) — D1 one-liner idempotent installer / D2 free-org Read + IAP identity, desktop-only v1 / D3 storytree-never-handles-Claude-credentials (dev-run setup-token fork) / D4 hosted live read day one /…"
+        },
+        {
+          "date": "2026-07-17",
+          "pr": "781",
+          "outcome": "Owner prerequisite D2 (ADR-0207) LANDED: free-org repo transfer — `storytree` + `storytree-web` moved from the HuaMick account to the storytree-ai org. Retargeted .gitmodules, ci.yml's web-submodule clone, and the 3 infra WIF bindings (canonical names storytr…"
+        },
+        {
+          "date": "2026-07-17",
+          "pr": "784",
+          "outcome": "Increment D1 (ADR-0207) LANDED: the Windows one-liner installer. infra/install.ps1 — idempotent `Invoke-Step` runner (git/node/pnpm/gh-cli/github-auth/clone/provision/claude-cli, then launches the desktop app from the checkout pre-D5); ASCII-only (PS 5.1 mis-…"
+        },
+        {
+          "date": "2026-07-17",
+          "pr": "787",
+          "outcome": "Increment D6 (ADR-0207) LANDED: the bottom layer — `storytree doctor`, a read-only, offline-capable CLI (packages/cli/src/doctor.ts) that probes each explorer setup invariant (git/node/checkout-provisioned/repo-fetchable/seed-readable/claude-cli/claude-login/…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "789",
+          "outcome": "Increment D6 TOP LAYER (ADR-0207) LANDED: the guide's repair planner core. packages/cli/src/repair-planner.ts — pure planRepairs(DoctorReport) -> ordered RepairPlan (one action per FAILing probe, in doctor's dependency order; formatRepairPlan renders it). D6 …"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "791",
+          "outcome": "Increment D6 ESCALATION BLOB (ADR-0207) LANDED: the last machine-provable slice of D6. packages/cli/src/escalation-blob.ts — pure buildEscalationBlob(DoctorReport, {plan?}) -> secrets-redacted EscalationBlob (+ formatEscalationBlob) the dev pastes to the owne…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "799",
+          "outcome": "Increment D6 GUIDE REPAIR-LOOP CONTROLLER LANDED: the sequencing core of ADR-0207 D6's conversational guide. packages/cli/src/guide-loop.ts — a PURE state machine (startGuide/stepGuide) composing the three landed single-shot D6 primitives (runDoctor probe -> …"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "803",
+          "outcome": "Increment D6 ENACTABLE REPAIR LANDED: infra/install.ps1 gains `-Step <name>` single-step invocation — the missing executable link under the loop's run-installer-step directive (until now install.ps1 only ran the whole sequence, so 'repair' meant re-walking ev…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "805",
+          "outcome": "Increment D6 GUIDE CLI LANDED — the D6 repair loop is now COMPLETE and RUNNABLE by a real dev in the terminal. packages/cli/src/guide.ts wires the finished pieces (runDoctor probe / planRepairs plan / buildEscalationBlob escalate / startGuide+stepGuide sequen…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "807",
+          "outcome": "Increment D5 DISTRIBUTION BUCKET CODIFIED (owner-apply pending): infra/dist-bucket.tf + infra/dist-bucket.md — the public `storytree-dist` GCS bucket that serves the install script pre-auth (and later the binaries + electron-updater latest.yml feed), beside t…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "809",
+          "outcome": "Increment D4/D6 HOSTED-READ PROBE LANDED: doctor now probes the D4 hosted live read, closing a real gap between D4 and D6 — a dev with GitHub Read but NO IAP membership grant was told 'setup is healthy' and discovered the broken live read themselves. New `hos…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "812",
+          "outcome": "Increment D2/D4 INVITE CEREMONY RUNBOOK LANDED: infra/explorer-invite.md — the arc's 'no hand-holding beyond sending the invite' half, as ONE page. It existed only implicitly, scattered across ADR-0207 D2/D4 + studio-cloud.md + install.md, so the owner had to…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "817",
+          "outcome": "D5 BUCKET IS APPLIED (owner ran terraform apply) + the apply blocker was fixed. The owner's apply errored on an UNRELATED pre-existing resource — google_cloud_run_v2_service_iam_member.web_editor_deployer_run_admin 404'd because commit 4ef03938 (same day) sco…"
+        },
+        {
+          "date": "2026-07-19",
+          "pr": "825",
+          "outcome": "D5 IS LIVE — the install one-liner works end-to-end. install.ps1 is published to the public storytree-dist bucket and `irm https://storage.googleapis.com/storytree-dist/install.ps1 | iex` is real. VERIFIED: anonymous curl returns HTTP 200 / 11041 bytes (no cr…"
+        },
+        {
+          "date": "2026-07-19",
+          "pr": "827",
+          "outcome": "D5 COMPLETE — `check:dist-drift` closes the last weakness. The PUBLISHED object, not the repo copy, is what a fresh explorer machine downloads and EXECUTES, and publishing is a manual `gcloud storage cp`, so an edited infra/install.ps1 never reaches the bucke…"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 207,
+          "status": "accepted",
+          "title": "Explorer onboarding v1: desktop entrypoint, dev-owned Claude auth, hosted live read, public distribution"
+        }
+      ],
+      "plans": [
+        {
+          "id": "explorer-onboarding-plan-1",
+          "title": "Explorer onboarding — build plan (inc 1: absorb headless-orchestrator into app-guide; retire chat work-spawn children)",
+          "status": "consumed",
+          "anchorSha": "5aef9ea6a"
+        }
+      ],
+      "stories": [
+        "app-guide"
+      ],
+      "questions": []
+    },
+    {
+      "id": "factory-self-load-tune-the-guidance-loop-back-to-evidence-arc",
+      "title": "Factory self-load: tune the guidance loop back to evidence",
+      "description": "An owner-commissioned audit on 2026-08-02 measured how much of the factory's work is directed at itself.",
+      "intent": "An owner-commissioned audit on 2026-08-02 measured how much of the factory's work is directed at itself. The measurements that justify this arc, all verified with positive controls: 88% of sessions in the preceding 36 hours (29 of 33) were started by a prompt another agent wrote, not by the owner. The longest spawn chain ran 11 hops from one product complaint — \"the forrest map laggs or is choppy when you pan\" (2026-07-27) — and pivoted from product work to pure corpus machinery at hop 5, never returning; six consecutive generations touched nothing a user can see. 16 of 19 agent-minted chips …",
+      "endState": "A session that finishes a unit can decline to queue follow-up work, and says so plainly. \"Not worth a session\" becomes a first-class, free outcome at the closing leg — exactly as \"nothing to report\" already is at friction capture — and the generated orchestrator guidance no longer states that the choice is not a judgment call. Discretion is restored without reopening the failure ADR-0271 and ADR-0275 were written to prevent: a session still ends at merge, still debriefs, and still never silently drops work it judged worth doing. Authored guidance reaches an agent or is not authored. The 36 pr…",
+      "lastLanded": null,
+      "ageDays": null,
+      "increments": [],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "flaky-test-coverage-arc",
+      "title": "Flaky test coverage",
+      "description": "Agent-authored tests have quietly accumulated load-sensitive wall-clock assertions — the owner's framing on 2026-07-31: \"i didnt realise we were starting to…",
+      "intent": "Agent-authored tests have quietly accumulated load-sensitive wall-clock assertions — the owner's framing on 2026-07-31: \"i didnt realise we were starting to get AI test slop bloat\". The overnight audit measured the cost: 3 of 4 gate runs on docs-only diffs flaked on these tests under 5-6 concurrent sessions (forest-world \"under 2s, took 3795ms\"; app-surface's 5000ms bound), with zero real regressions caught; each flake costs a 9-42 min gate re-run plus ~8 min proving innocence, and because pnpm -r halts at the first failure, a mid-gate flake silently skips the zero-ceiling corpus checks seque…",
+      "endState": "The test suite carries no load-sensitive wall-clock assertion that can red a gate on an innocent diff: every existing flake-prone pattern is inventoried and then fixed, fenced, or retired with its genuine coverage preserved by honest means; a mid-gate flake no longer silently skips the checks sequenced after it; and new agent-authored tests cannot reintroduce the pattern (the prevention mechanism the owner picks from proposed options). The arc opens with a propose-to-the-owner increment — solutions are ranked and decided before anything is swept or built.",
+      "lastLanded": "2026-08-01",
+      "ageDays": 1,
+      "increments": [
+        {
+          "date": "2026-08-01",
+          "pr": "1049",
+          "outcome": "Inventory + decision + first fixes (PR #1049). Swept all 24 gate-tier workspaces: exactly ONE measured wall-clock assertion (forest-world routing 'under 2s' — >=3 confirmed flakes, once 6185ms isolated) plus testing-library's un-floored 1s waitFor default (~7…"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 276,
+          "status": "accepted",
+          "title": "Wall-clock timing leaves the gate tier"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "foreign-project-forest-arc",
+      "title": "Forests for other projects",
+      "description": "A storytree instance grows and proves a work tree for a repo that is not storytree.",
+      "intent": "Make storytree grow a forest for a project that is not storytree — a fresh tree, or one mapped from a brownfield repo — so the product builds the user's software instead of only its own.",
+      "endState": "Closed when a developer can point storytree at a repo that is not storytree, obtain a tree for it — grown fresh or mapped from what is already there — and drive that tree to a signed green through the prove-it-gate running that project's own proof commands, with no storytree checkout, no storytree ADR numbering, and no credential on storytree infrastructure anywhere in the loop.",
+      "lastLanded": "2026-07-28",
+      "ageDays": 5,
+      "increments": [
+        {
+          "date": "2026-07-26",
+          "pr": "931",
+          "outcome": "Arc chartered. ADR-0246 lifts ADR-0133 D5's deferral (\"No work is scoped to it here\") and records the boundary against distribution-posture-arc: that arc owns the DEPLOYMENT (packaging, the createPool cloudsql-iam|local mode fork, the seed split, the D4 updat…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "977",
+          "outcome": "Increment 1 LANDED — the repo root is a parameter, not a derivation. New pure `resolveRepoRoot` + `REPO_ROOT_ENV` (\"STORYTREE_REPO_ROOT\") in the `@storytree/library` ROOT barrel, precedence explicit > env > module-derived; blank/whitespace reads as unset (an …"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "984",
+          "outcome": "Increment 2 LANDED — the repo root is DRIVABLE, not just declared. Inc 1 made it a parameter; the only thing that could SET it was STORYTREE_REPO_ROOT, which is the wrong granularity for any caller that is not a shell (the desktop backend, the studio worker, …"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "986",
+          "outcome": "Increment 2 CURATION (the librarian pass, landed separately because automerge took #984 in ~4 min — faster than the pass could finish; the ceremony puts the pass BEFORE the merge, which in practice means before opening the PR). Two in-place ADR-0246 correctio…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "992",
+          "outcome": "Fork (a) SETTLED by the owner — ADR-0261 accepted (owner-directed, ADR-0110). Fresh-tree authoring (a1) is the arc's first user: a developer points storytree at their own repo and AUTHORS a story/capability/contract hierarchy for it, driven to a signed green …"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 246,
+          "status": "accepted",
+          "title": "Forests for other projects: the ADR-0133 deferral is lifted and scoped as its own arc"
+        },
+        {
+          "number": 259,
+          "status": "accepted",
+          "title": "Every client reaches the store through an HTTP front door; direct pg is a server-side privilege"
+        },
+        {
+          "number": 261,
+          "status": "accepted",
+          "title": "Fork (a) settled: fresh-tree authoring is the foreign forest's first user; brownfield mapping becomes its own arc"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "friction-delivery-signal-arc",
+      "title": "Friction delivery signal",
+      "description": "The friction loop is fail-closed on adjudication and fail-open on delivery, and the whole gap sits on one route.",
+      "intent": "The friction loop is fail-closed on adjudication and fail-open on delivery, and the whole gap sits on one route. Measured 2026-08-02 across the 227-item worklist: the five Library routes deliver 50 of 54 (92.6%), while `tool` delivers 6 of 125 — and `tool` carries 56% of all routed signal. The cause is structural, not cultural: every Library route names the artifact kind its executor writes (`principle` -> a principle, `process` -> a process), so its output is a countable Library row. `tool` names only a destination (story-author) and stops, so the item ARCHIVES the moment it is routed — whic…",
+      "endState": "Routing a friction item to `tool` emits a `proposal` artifact and cites it in the item's `references`, so the `tool` route is symmetric with the five Library routes and ADR-0168 D2's routed lifecycle holds for every route rather than seven of eight. The proposal is authored by the graduation-synthesist at routing time (story-author is fail-closed fenced to `stories/**` and cannot write a Library artifact; it CONSUMES the proposal when authoring the story), so no fence is widened and the scope prose that today sits buried in an archived `routeReason` becomes a listable, countable, seed-scope r…",
+      "lastLanded": null,
+      "ageDays": null,
+      "increments": [],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "grounded-art-machinery-arc",
+      "title": "Grounded art machinery",
+      "description": "Build the physical-grounding pipeline for AI-authored forest-world art (ADR-0214) so quality scales with the machinery, not the model tier — without changing the look.",
+      "intent": "Build the machinery that grounds AI-authored forest-world art in a physical model — parts, typed sockets, an explicit deterministic draw-order pass, a named-violation checker, and a render-and-look loop — so that art quality scales with the machinery rather than with the model tier, and so the owner can finally assess the approach on work an agent actually produced through it.",
+      "endState": "Closed when the owner's eye test passes on a contact sheet of buildings an agent authored end-to-end through the pipeline — physically sound, in the existing look — and the tier that produced them is *understood* rather than merely reached. **The ladder is machinery-first, not model-first** (owner call, 2026-07-18). The artist leaf starts at the cheapest tier and every failure is diagnosed before anything is escalated. A failure the CHECKER catches is a reasoning-capacity signal and may justify climbing. A failure that is physically sound but reads wrong is a KIT or PALETTE gap — the machiner…",
+      "lastLanded": "2026-07-23",
+      "ageDays": 10,
+      "increments": [
+        {
+          "date": "2026-07-19",
+          "pr": "819",
+          "outcome": "LANDED — increment 1 (prior-art survey) delivered as docs/research/grounded-art-prior-art-survey.md. Consumed plan grounded-art-inc1-prior-art-survey (flipped to consumed). Verdicts: Q1 shape-grammars RESHAPES (the part-tree is NOT a naive split-grammar re-de…"
+        },
+        {
+          "date": "2026-07-19",
+          "pr": "820",
+          "outcome": "LANDED — increment 2 (targeted prior-art pass) delivered as docs/research/grounded-art-prior-art-addendum.md. Deliberately small (5 agents) after inc 1's 714-agent run hit a session limit and scored failed verifier votes as refutations. VERDICTS: A1 manifold-…"
+        },
+        {
+          "date": "2026-07-19",
+          "pr": "821",
+          "outcome": "LANDED — increment 3 (the design decision) delivered as ADR-0217, which AMENDS ADR-0214. Owner re-grounded the arc on the ORIGIN EVIDENCE mid-session: 19 buildings vibed out looked good but were full of mistakes; 2 pulled through the procedural-architecture s…"
+        },
+        {
+          "date": "2026-07-19",
+          "pr": "822",
+          "outcome": "LANDED — increment 4 (the building factory's net-new machinery) delivered as packages/procedural-architecture: draw-order.ts (station 3) and apertures.ts (openings cut as real holes). ADR-0217 D4 and D5 realised. STATION 3 IS BUILT AND PROVEN ON THE ORIGIN EV…"
+        },
+        {
+          "date": "2026-07-19",
+          "pr": "823+#824",
+          "outcome": "LANDED — increment 4 continued, on the owner ask for buildings that had NOT already been adapted to the parametric surface (the windmill and mushroom were hand-tuned before the factory existed, so they were never a fair test). OWNER VERDICT ON THE MACHINERY: …"
+        },
+        {
+          "date": "2026-07-19",
+          "pr": "831",
+          "outcome": "LANDED — increment 5, the GLUE: three buildings the factory already produced now stand on the island in place of the flat ADR-0102 identity glyphs, behind ?factoryart=on (DEFAULT OFF — the look verdict is the owner's, ADR-0070 stage 2, and is NOT yet given). …"
+        },
+        {
+          "date": "2026-07-20",
+          "pr": "832",
+          "outcome": "increment 6 (the standing-stones, baked) delivered. The owner directed (2026-07-20) that the flat pastel standing-stones be driven through the SAME factory as increment 5's buildings so they read as true isometric solids. Unlike the buildings (studio chrome),…"
+        },
+        {
+          "date": "2026-07-20",
+          "pr": "835",
+          "outcome": "increment 7 (standing-stones -> tall flowers) LANDED. The owner rejected increment 6's baked isometric standing-stones (#832) as \"messy and noisy rather than cosy\" and directed a cosy stand-in (2026-07-20): one soft, flat flower per UAT criterion, its verdict…"
+        },
+        {
+          "date": "2026-07-20",
+          "pr": "837",
+          "outcome": "increment 8 (the cosy-look pivot's DESIGN FOUNDATION) LANDED. Authored ADR-0219 (born-accepted, ADR-0110; amends 0214/0217) formalising the owner-directed 2026-07-20 four-part pivot the arc endState carried as 'Direction update (2026-07-20)': (1) generative i…"
+        },
+        {
+          "date": "2026-07-20",
+          "pr": "840",
+          "outcome": "increment 9 (the cosy palette/light LIFT on one island) LANDED — realises ADR-0219 + docs/research/grounded-art-concept/style-bible.md (increment 8's ratified spec). A CSS-only, studio-only, DEFAULT-OFF `?cosy=on` flag shifts the island-facing tokens toward t…"
+        },
+        {
+          "date": "2026-07-20",
+          "pr": "840",
+          "outcome": "OWNER LOOK VERDICT on increment 9 (#840), ADR-0070 stage 2, not self-signed: the owner ATTESTED the cosy palette/light lift as accept-as-landed (\"yes it's fine, stamp it\"). The default-off ?cosy=on flag stays exactly as shipped — NO re-tune of the body.cosy-i…"
+        },
+        {
+          "date": "2026-07-20",
+          "pr": "831",
+          "outcome": "OWNER LOOK VERDICT on the factoryart=on baked-isometric BUILDINGS (increment 5, #831), ADR-0070 stage 2, not self-signed: REJECTED. Owner's words: \"this is actually a step backwards ... the factory art glues fine to the island but it's over-complicated and ne…"
+        },
+        {
+          "date": "2026-07-20",
+          "pr": "842",
+          "outcome": "#842 LANDED — increment 10 (the concept hero-asset kit) delivered as packages/procedural-architecture: four fixed, deterministic, committed baked-vector heroes — cottage + gazebo (buildings/), autumn tree + stepping stone (landscape/, the 2nd/3rd landscape ty…"
+        },
+        {
+          "date": "2026-07-20",
+          "pr": "843",
+          "outcome": "Inc 10 hero-kit look attestation: owner reviewed the contact sheet, approved cottage + autumn tree as-is, and flagged gazebo (finial socket, peeking post-caps, squat; then 'roof too big') + stepping stone ('a little high'). Reworked both through the existing …"
+        },
+        {
+          "date": "2026-07-20",
+          "pr": "844",
+          "outcome": "increment 11 (garden-island compose) LANDED — the owner-attested inc-10 hero kit composed into the `studio` exemplar garden island behind the DEFAULT-OFF `?garden` flag (owner-directed after approving the direction on a live render, ADR-0221). Flag-off is byt…"
+        },
+        {
+          "date": "2026-07-20",
+          "pr": "844",
+          "outcome": "OWNER LOOK VERDICT on increment 11 (#844), ADR-0070 stage 2, NOT self-signed: the owner ATTESTED the cosy-island garden composition as accept-as-landed — \"this is good, stamp it\" (from the hosted before→after→concept render, claude.ai/code/artifact/67178122-7…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "846",
+          "outcome": "#846 LANDED — the queued STRUCTURAL thread (owner go-ahead 2026-07-21): parallel iteration on the forest UX surface is unlocked. ADR-0222 (born accepted, owner-directed): (1) the art factory is its OWN story — `art-factory` owns @storytree/procedural-architec…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "849",
+          "outcome": "the STATION-4 LOOK-JUDGE BENCHMARK — a measurement increment (owner-directed 2026-07-21), run BEFORE building station 4 exactly as increment 4 prescribed (\"near 50% means keep the human in the loop and say so\"). The pairs already existed as the machinery fixe…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "850",
+          "outcome": "increment 12 (garden collision + footpath polish) LANDED — the two owner-DEFERRED follow-ons from inc 11 (#844), both in packages/forest-world/src/scene.ts behind the DEFAULT-OFF ?garden flag. (1) ASSET COLLISION fixed: on a small island the gazebo merged int…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "850",
+          "outcome": "OWNER LOOK VERDICT on increment 12 (#850), ADR-0070 stage 2, not self-signed: the owner ATTESTED the small-island collision fix + the refined front-door footpath from the hosted before->after render (claude.ai/code/artifact/a2e06dc7-be9e-4d2e-a630-9029ce1f18a…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "851",
+          "outcome": "station-4 benchmark FOLLOW-UP (grounding check, owner-flagged): the benchmark must cover the look defects the OWNER called out, not synthetic stand-ins. Two of the seven called-out classes weren't faithful in #849; both now closed. (1) FLAT-PLATES — replaced …"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "853",
+          "outcome": "STATION 4 BUILT + LANDED (owner-directed \"proceed to implement/land station 4\", 2026-07-21) — realizes ADR-0217 D6 on the strength of the look-judge benchmark. ADR-0224 (born accepted, ADR-0110; amends ADR-0217) pins the shape. NEW MACHINERY packages/procedur…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "854",
+          "outcome": "increment (generative-3D bridge substrate — executes ADR-0219 D2's deferred generator step). VERIFIED FIRST (verify-not-recall, the gating question): Gemini's Apr-2026 \"spatial intelligence\" 3D is VIEW-ONLY — a Gemini APP feature (interactive in-chat), NOT an…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "855",
+          "outcome": "increment (art-authoring OFFLINE SEAM — the generative blocking-substrate adapter, ADR-0225 contracts 1-3). Built new package @storytree/art-authoring (a SECOND art-factory-owned package, depends on procedural-architecture as a same-story edge, NOT foundation…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "857",
+          "outcome": "Island ground now carries the story's folded status (owner call: green=healthy, brown=mapped, blackened=unhealthy; amber-wheat=proposed, gold=building) - CSS-only territory-scoped --hex-top-* re-definitions in the studio; fixes the garden/cosy island reading …"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "858",
+          "outcome": "increment (art-authoring LIVE backend — contract 4; the generative pipeline PROVEN end-to-end). Built nvidiaTrellisBackend: the credential-gated live vendor behind the vendor-swappable seam. POSTs to build.nvidia.com's hosted microsoft/TRELLIS (https://ai.api…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "859",
+          "outcome": "forest-hut hero re-authored through the art factory (demonstrates the nano-banana → checkable baked-vector flow end-to-end, PR #859). Took the DEMO concept from #856 (docs/research/grounded-art-concept/forest-hut-concept.png, nano-banana Pro, now on main) and…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "860",
+          "outcome": "Owner correction to the ground-status tint: proposed/building land pinned back to the classic green grass (the amber proposed ground had turned the mostly-proposed map brown; the pin also overrides the cosy sage so the garden island reads green), healthy deep…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "859",
+          "outcome": "OWNER LOOK VERDICT on the forest-hut hero (#859), ADR-0070 stage 2, NOT self-signed: the owner ATTESTED the re-authored forest-hut from the hosted render (claude.ai/code/artifact/b4c3531f-160f-4306-8781-4409e05eea52) — \"good enough for now, proceed to stamp t…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "861",
+          "outcome": "Final ground-status palette per owner call ('shouldnt proposed be a yellow or orange?'): wheat-yellow proposed, orange-gold building, lusher-green healthy, brown mapped, blackened unhealthy. Root cause of the #857/#860 brown-map complaints found and fixed: th…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": null,
+          "outcome": "OWNER ATTESTED the inc-13 ground-status palette 2026-07-21 ('yes this is good land this', from the live studio render): wheat-yellow proposed / orange-gold building / green healthy / brown mapped / blackened unhealthy is the standing island-ground meaning. Th…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": "862",
+          "outcome": "Inc 14 (#862) — grounded 3-state UAT-marker flower, the owner's \"grounded flower, still 1:1\" direction (2026-07-21, chosen via AskUserQuestion over aggregate-hero and mushroom alternatives). The UAT-criteria marker is now a soft, shaded baked-vector flower gr…"
+        },
+        {
+          "date": "2026-07-21",
+          "pr": null,
+          "outcome": "DIRECTION + PLANNING (owner-directed 2026-07-21): the island's living surface becomes ONE legible vegetation vocabulary, and the hero tree spreads to every island. Ratified in conversation (ADR-0110, born-accepted) and recorded as ADR-0226 (amends ADR-0221). …"
+        },
+        {
+          "date": "2026-07-22",
+          "pr": null,
+          "outcome": "CORRECTION to the prior (2026-07-21) direction entry: the \"live flower session\" was NOT resteered — it LANDED increment 14 concurrently (#862, commit 89926726): the grounded 3-state baked-vector UAT-marker flower (packages/procedural-architecture/src/landscap…"
+        },
+        {
+          "date": "2026-07-22",
+          "pr": "865",
+          "outcome": "OWNER LOOK VERDICT on the inc-14 baked UAT flower (#862), ADR-0070 stage 2, NOT self-signed: REJECTED for now (2026-07-22). Owner, from the contact sheet: \"looks over complicated ... the flower head is horizontal which i think looks odd ... proceed with simpl…"
+        },
+        {
+          "date": "2026-07-22",
+          "pr": null,
+          "outcome": "SCALING / NODE-BUDGET findings folded in + chipped to implement (owner-directed \"fold them into the arc then chip off to implement\", 2026-07-22). Context: the studio forest map is SVG, so \"too many nodes\" = SVG DOM elements, not DAG nodes. Baking flattens the…"
+        },
+        {
+          "date": "2026-07-22",
+          "pr": null,
+          "outcome": "REMAINING ADR-0226 build units CHIPPED for overnight autonomous build (owner-directed \"cut fresh sessions for those as well now, done by morning\", 2026-07-22). task_03c79c1c: ONE session, TWO SEQUENTIAL PRs (both units edit buildTerritoryFlora in scene.ts so …"
+        },
+        {
+          "date": "2026-07-22",
+          "pr": "867, #868",
+          "outcome": "ADR-0226 vegetation vocabulary + tree-spread — TWO SEQUENTIAL UNITS LANDED behind ONE default-off `?veg=on` studio flag (SceneInput.vegetation; gear toggle in the \"Cosy island\" group; byte-identical when off, same absent⇒byte-for-byte lock as garden/uatCriter…"
+        },
+        {
+          "date": "2026-07-22",
+          "pr": "869, #870",
+          "outcome": "ADR-0226 PROMOTED TO THE STUDIO DEFAULT (#869) after the owner's stage-2 look verdict (go, with two fixes), plus a desktop-E2E follow-up (#870). Fixes landed: (1) BIGGER UAT flowers — the unified small-flower scatter wears a 1.0 wrapper (new MARKER_SCALE_SMAL…"
+        },
+        {
+          "date": "2026-07-22",
+          "pr": "871",
+          "outcome": "ADR-0227 (born-accepted, amends 0226) — the tree-spread's autumn-tree hero now carries STATUS via per-status colourways, resolving the owner's \"this looks good but all the trees are brown?\" verdict on the ADR-0226 promotion. Root cause: the tree-spread replac…"
+        },
+        {
+          "date": "2026-07-22",
+          "pr": "871",
+          "outcome": "OWNER STAGE-2 LOOK VERDICT on ADR-0227 / #871 (ADR-0070 stage 2, NOT self-signed): the owner ATTESTED the per-status tree colourways from the hosted contact sheet (claude.ai/code/artifact/dd75e88d-2da6-48ea-a176-43310292b450) — \"looks good please land this\" (…"
+        },
+        {
+          "date": "2026-07-23",
+          "pr": "872",
+          "outcome": "Studio map simplification — the owner reframed \"run the art factory for more buildings\" into a map-model change: with the mature ADR-0169 pathways carrying dependencies, the off-map Shared Islands panel + per-island stamps are no longer needed. Landed as thre…"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 214,
+          "status": "accepted",
+          "title": "Ground AI-authored art in a physical model: CSG over SVG, not a render-substrate swap"
+        },
+        {
+          "number": 217,
+          "status": "accepted",
+          "title": "Art factories are per object type: parametric kit, explicit draw order, render-and-look loop"
+        },
+        {
+          "number": 218,
+          "status": "accepted",
+          "title": "Baked art carries resolved paint into the shared scene via a fenced node family"
+        },
+        {
+          "number": 219,
+          "status": "accepted",
+          "title": "Generative image models enter the art pipeline author-time only, bridged to checkable vector"
+        },
+        {
+          "number": 221,
+          "status": "accepted",
+          "title": "Autumn-tree hero is the studio garden-flag central tree, resolving ADR-0218's deferred tree call"
+        },
+        {
+          "number": 222,
+          "status": "accepted",
+          "title": "Split the art factory into its own story; forest-world gains a capability floor"
+        },
+        {
+          "number": 224,
+          "status": "accepted",
+          "title": "Station 4 realized: render-look-refine as a bounded quorum revert-only look guard"
+        },
+        {
+          "number": 225,
+          "status": "accepted",
+          "title": "Generative-3D produces the bridge blocking substrate via a vendor-swappable author-time adapter"
+        },
+        {
+          "number": 226,
+          "status": "accepted",
+          "title": "Unified world-art vegetation vocabulary: grass proves capabilities, flowers prove UAT, retire the witness signpost"
+        },
+        {
+          "number": 227,
+          "status": "accepted",
+          "title": "Baked hero trees carry status via per-status colourways (restore the tree-spread crown hue)"
+        },
+        {
+          "number": 228,
+          "status": "accepted",
+          "title": "Forest map defaults to pathways-only: shared-island hubs return to the map, retire the off-map panel and stamps from the default"
+        },
+        {
+          "number": 229,
+          "status": "accepted",
+          "title": "The default map layout is DAG rows again; the dependency-aware and solar layouts stay in the picker"
+        },
+        {
+          "number": 231,
+          "status": "accepted",
+          "title": "The vegetation vocabulary is permanent studio world art, not a gear toggle"
+        },
+        {
+          "number": 233,
+          "status": "accepted",
+          "title": "The forest-map ground tiling is always the Townscaper mesh; retire the substrate gear control"
+        }
+      ],
+      "plans": [
+        {
+          "id": "grounded-art-inc10-hero-asset-kit",
+          "title": "Increment 10 - the concept hero-asset kit: fixed garden pieces authored to match the reference",
+          "status": "consumed",
+          "anchorSha": "535d8e8ee"
+        },
+        {
+          "id": "grounded-art-inc11-garden-island-compose",
+          "title": "Increment 11 - compose the attested hero kit into one whole garden island, behind a default-off flag",
+          "status": "consumed",
+          "anchorSha": "71b879e54"
+        },
+        {
+          "id": "grounded-art-inc11-garden-island-remake",
+          "title": "Increment 11 - one whole island remade as the concept garden, behind a default-off flag",
+          "status": "superseded",
+          "anchorSha": "535d8e8ee"
+        }
+      ],
+      "stories": [
+        "art-factory"
+      ],
+      "questions": []
+    },
+    {
+      "id": "map-connection-legibility-arc",
+      "title": "Map connection legibility — selecting a node answers what connects to it",
+      "description": "Selecting a story on the forest map shows its immediate upstream and downstream neighbours, which merged trunk routing currently hides.",
+      "intent": "Selecting a story on the forest map should answer \"what connects to this?\" without the reader tracing merged trails by eye — the shared-segment routing that made the map read as one road network also made a single node's own connections unreadable.",
+      "endState": "Closed when a member selecting a story on the map can see, at a glance and without hovering or leaving the map, which stories it stands on and which stand on it; when that reading stays honest where a routed trail is shared with edges the selection does not own; when the affordance costs no measurable frame time on a full-size forest (it repaints trails and shores only, never the hex substrate); and when the owner attests the look on the real map.",
+      "lastLanded": "2026-07-26",
+      "ageDays": 7,
+      "increments": [
+        {
+          "date": "2026-07-26",
+          "pr": "923",
+          "outcome": "LANDED (PR #923, CI automerge) — increment 1: selecting a story lights its immediate neighbours. Arc chartered this session on the owner's ask (\"hard to see which nodes connect to a selected node because of our merged path architecture\"); five treatments were…"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 242,
+          "status": "accepted",
+          "title": "Selecting a story lights its immediate neighbours: a lit lane on the incident trail segments"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "session-isolation-arc",
+      "title": "Session isolation — the write-authority wall",
+      "description": "Concurrent sessions are made structurally unable to collide: a repository write requires a claim, and the wall enforcing it is inescapable by the agent it binds.",
+      "intent": "Make concurrent sessions structurally unable to collide — a repository write requires a held claim, the wall enforcing it is one the bound agent cannot disable or approve around, and a session reaching into a shared checkout is refused rather than trusted.",
+      "endState": "The shared primary checkout is not a workspace: no agent session treats it as one, and a write into it is refused by an authority boundary rather than by prompt guidance. When a collision is attempted, the signal that follows reports the refusal instead of reporting success. AMENDED 2026-08-02 by ADR-0284 D1, on owner direction. This end state used to read \"a session in any supported harness cannot write into a checkout it holds no claim on\" and to require proof \"under concurrent load on both supported desktop surfaces\". Both are withdrawn. Session isolation means the LOBBY IS NOT A WORKSPACE…",
+      "lastLanded": "2026-08-02",
+      "ageDays": 0,
+      "increments": [
+        {
+          "date": "2026-07-29",
+          "pr": "1001",
+          "outcome": "LANDED — the decision layer of the wall, and the decision behind it. ADR-0257 accepted (owner-ratified 2026-07-28 alongside the five-day friction report). Its `amends: [255]` edge now binds and is recorded in place on ADR-0255: D1 narrowed to SHARED checkouts…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1072",
+          "outcome": "LANDED — the wall is INSTALLED and SWITCHED OFF. Increment 1 built the decision and installed it nowhere; this wires it into the real write path as two layers, shipped inert. Built: `packages/drive/src/write-authority-receipt.ts` (the ADR-0257 D5 claim receip…"
+        },
+        {
+          "date": "2026-08-02",
+          "pr": "1076",
+          "outcome": "LANDED — the flip. The wall is ENFORCING, but only its LOBBY half; the arc's founding hazard (worktree-to-worktree) is still open. Owner confirmed a drained fleet before this landed (measured: zero live claims on the ledger, against 38-of-39 unclaimed on 08-0…"
+        },
+        {
+          "date": "2026-08-02",
+          "pr": "1081",
+          "outcome": "LANDED — the semantic half is RETIRED, not finished. The arc's founding hazard is DE-SCOPED by owner decision, and this increment is the reversal of increment 3's direction. The session was cut to register the PreToolUse hook — the one command left in increme…"
+        }
+      ],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "verification-integrity-arc",
+      "title": "Verification integrity — guard the proofs, not just the code",
+      "description": "Keep the proof machinery trustworthy as the codebase grows, because the measured debt is in the verification layer rather than the code.",
+      "intent": "Make storytree's verification layer as trustworthy as the code it judges. A four-instrument audit of the 60k-LOC codebase on 2026-07-26 found essentially no code slop — zero `any`/`as any`/`@ts-ignore` across 67k production lines, 0.6% dead exports, 1.2% of logic-role code untested, and cross-package commit fan-out DECLINING over 1,357 commits — but found every serious defect in the proof layer instead: a demonstrated path to a signed `pass` verdict for a proof that executed zero assertions, a shipped 'proof' that only greps source for an import string, and mirror surfaces that must agree wit…",
+      "endState": "The gate cannot be made to sign a verdict it did not observe. Every observation the spine trusts carries enough identity that a missing observation is distinguishable from a stale one, and the fail-closed behaviour the proof machinery documents about itself is the behaviour it actually has — verified by a regression test that exercises the real multi-observation sequence rather than a single call. The recurring failure CLASS is fenced by durable Library guardrails, not by one-off fixes: a proof that cannot fail is not a proof; any two surfaces required to agree are gated by a test that compar…",
+      "lastLanded": "2026-08-01",
+      "ageDays": 1,
+      "increments": [
+        {
+          "date": "2026-07-26",
+          "pr": "936",
+          "outcome": "**Increment 1 — LANDED. The demonstrated signed-verdict forgery in the ADR-0211 assert-oracle protocol is closed; ADR-0249 records the re-decision.** The defect was not that ADR-0211's floor was low — it admitted that honestly. It was that the layer **inverte…"
+        },
+        {
+          "date": "2026-07-26",
+          "pr": "939",
+          "outcome": "**Increment 2 — the OPEN OWNER FORK is SETTLED. ADR-0252 records the detection pass's trigger and shape; the arc's last named blocker to close is gone. No code shipped — this increment is a decision.** The charter said the trigger and shape were undecided and…"
+        },
+        {
+          "date": "2026-07-26",
+          "pr": "940",
+          "outcome": "**Increment 2 — LANDED. The mirror-drift class is fenced by a gate that compares the two surfaces; the demonstrated `/api/docs` drift is closed. ADR-0251 records the decision.** The defect was ordinary; its INVISIBILITY was the finding. `apps/desktop/src/back…"
+        },
+        {
+          "date": "2026-07-26",
+          "pr": "940",
+          "outcome": "**Correction to the entry above (PR 940) — two claims in it were overtaken between drafting and appending, by a sibling session landing PR 939 concurrently.** The log is append-only, so the correction is an entry rather than an edit. 1. **NUMBERING.** Two ent…"
+        },
+        {
+          "date": "2026-07-26",
+          "pr": "947",
+          "outcome": "Repaired the audit-confirmed binding-staleness hierarchy mismatch: boundhash-on-verdict, change-event-store, and source-drift now parse as capabilities matching the declared story capability list; focused loader/typecheck/prove-spec tests passed."
+        },
+        {
+          "date": "2026-07-26",
+          "pr": "946",
+          "outcome": "Increment — LANDED. The proof-binding-integrity hierarchy now defines an exhaustive evidence-or-refusal contract for every machine UAT leg, a complete corpus-audit successor, and a runtime projection explicitly held behind the active website-experience UI sou…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "948",
+          "outcome": "Landed proof-binding outcome contract at 9553de51: a machine-leg resolver result now adapts exhaustively to literal observe-gate evidence or a stable non-runnable refusal; exact command and display-only adoption invocation are preserved, with no fallback sele…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "949",
+          "outcome": "**LANDED — the first instrument of ADR-0252's continuous mechanical half. `pnpm check:verification-decay` sweeps for contract-binding drift and carries the D3 drain ceiling; 5 units are bound to proof targets that no longer exist. Implementation of an already…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "950",
+          "outcome": "LANDED — PR #950 added the read-only machine-leg binding corpus audit. It emits exactly one source-provenance-bearing, deterministically ordered evidence-or-refusal row for every parsed explicit machine UAT leg; human/either legs are excluded, literal observe…"
+        },
+        {
+          "date": "2026-07-26",
+          "pr": null,
+          "outcome": "LANDED — ADR-0252 D4 now has the live Library process `verification-decay-detection`. It requires every cheap signal to remain a region locator until a fresh, independent adversarial session begins from REFUTED and establishes a concrete inputs → wrong-outcom…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": null,
+          "outcome": "Added four live-canonical verification guardrails: non-failing oracle proofs are not proof; unattributable observations are not evidence; required agreeing surfaces are conformance-gated; advisory lists stay bounded/readable or fail closed. Export to seed is …"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "955",
+          "outcome": "**LANDED — ADR-0252 D1's warn-escalation backstop now exists in `check:verification-decay`. A signal can cross a line and force the deep adversarial pass, independently of the D3 drain ceiling and unclearable by it. Implementation of an already-settled decisi…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "956",
+          "outcome": "**LANDED — the SECOND of ADR-0252 D1's four cheap instruments. `check:verification-decay` now sweeps for `mirror-pair-drift`; chartered coverage moves 1/4 → 2/4. And the drain ceiling SPLIT per instrument, because building the second instrument is what expose…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "959",
+          "outcome": "**RESIDUE OF THE PR #956 LANDING, not a new increment — and it closes the guardrail thread this arc has carried since increment 1.** **THE HELD GUARDRAIL REACHED TWO CONSUMERS AND LANDED — as a PATTERN, not a guardrail.** The held wording was *a backstop's di…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "963",
+          "outcome": "**LANDED — the THIRD of ADR-0252 D1's four cheap instruments. `check:verification-decay` now sweeps for `vacuous-proof`; chartered coverage moves 2/4 → 3/4. Implementation of an already-settled decision — no new ADR.** **THE PREMISE WAS VERIFIED FIRST, and it…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "965",
+          "outcome": "**LANDED — the FOURTH and LAST of ADR-0252 D1's chartered cheap instruments. `check:verification-decay` now sweeps for `warn-list-hygiene`; chartered coverage moves 3/4 → 4/4 and the `NOT swept` line is gone from every run. ADR-0252 D1's instrument charter is…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "970",
+          "outcome": "**ADR-0252 D1's deferral-keyed escalation lines are SETTLED — decided against, not deferred (ADR-0256, `proposed`).** The last structural gap in the arc's continuous-detection machinery is closed as a decision rather than as a build. Both candidate lines — a …"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "973",
+          "outcome": "**The FIRST of `warn-list-hygiene`'s six located worklists is bounded: `check:graduation-worklist` is now fail-closed at a drain ceiling.** `warn-list-hygiene` 6 → 5 located (total 28 → 27), its ceiling tightened to match; every instrument still within its ow…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "978",
+          "outcome": "Bounded `check:surface-coverage` at a two-axis drain ceiling — the SECOND of the six worklists the `warn-list-hygiene` instrument locates, after `check:graduation-worklist` (#973). The instrument now reads 4 located / ceiling 4; total 26 signals across 4 inst…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "980",
+          "outcome": "**ADR-0256 ACCEPTED — owner-ratified 2026-07-27, and the status propagated through every consumer.** The owner ratified in conversation (\"accept ADR-0256\"), which IS the ratification under ADR-0110. The `## Status` prose was rewritten rather than the frontmat…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "985",
+          "outcome": "DRAINED `check:surface-coverage` to a CLEAN bijection and TIGHTENED its orphan ceiling 1 → 0 in the same unit — the obligation the previous increment (#978) created when it baselined R=1 at exactly one un-drained item. This is the first of the six `warn-list-…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "988",
+          "outcome": "BOUNDED `check:corpus-content` at a two-axis drain ceiling and tightened `WARN_LIST_HYGIENE` 4 → 3 — the third of the six worklists bounded under that instrument, and the first whose SUBSTRATE GUARD had to be built in the opposite direction to the worked exam…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "991",
+          "outcome": "`check:coverage` — the fourth `warn-list-hygiene` worklist — is BOUNDED at a two-axis drain ceiling (`packages/cli/src/coverage-drain.ts`), and `WARN_LIST_HYGIENE` drops 3 → 2. It is the list ADR-0252 itself names as this instrument's live counter-example (\"`…"
+        },
+        {
+          "date": "2026-07-29",
+          "pr": "996",
+          "outcome": "**LANDED — the friction report's headline question is answered with measurement, and answered NO. `check:coverage` stays name-granular; the clause segmenter is REFUSED rather than deferred. ADR-0262 (`proposed`) records the fork that would make clause coverag…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "998",
+          "outcome": "Bounded the LAST TWO `warn-list-hygiene` worklists — `check:agents-sync` and `check:corpus-sync` — at zero drain ceilings (`packages/cli/src/sync-drain.ts`). The instrument now locates NOTHING and `WARN_LIST_HYGIENE` drops 2 → 0: the first of ADR-0252 D1's fo…"
+        },
+        {
+          "date": "2026-07-30",
+          "pr": "1018",
+          "outcome": "Guidance-curator executed the three `principle` routes and consolidated FIVE friction items into TWO additions rather than five artifacts. NEW `principle:price-the-deferral` merges `an-unmeasured-risk-in-a-checks-own-prose-...` and `a-false-positive-clause-th…"
+        },
+        {
+          "date": "2026-07-30",
+          "pr": "1022",
+          "outcome": "**Increment 25 — LANDED. The mirror registry gains its second row, and the decay sweep is corrected to measure the population it guards.** Executes the `tool` route for `friction-unfenced-cross-surface-mirrors`. Two pieces, and they are NOT interchangeable — …"
+        },
+        {
+          "date": "2026-07-30",
+          "pr": "1024",
+          "outcome": "ADR-0270 resolved and landed (owner picked option b, capability grain, in conversation — ADR-0110): the claim ledger's false rows are retired. D3 code: a waiting claim renders no queue position when no work claim is held (the 'position 1 of 1 behind nobody' f…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1060",
+          "outcome": "LANDED — the fifth verification-decay instrument, owner-ratified. ADR-0278 amends ADR-0252 D1's four-instrument charter; `unproven-seam-default` locates injected IO seams whose default implementation no test exercises, and `chartered coverage` now reads 5/5. …"
+        }
+      ],
+      "adrs": [
+        {
+          "number": 249,
+          "status": "accepted",
+          "title": "Oracle-report freshness: an unattributable observation is not evidence"
+        },
+        {
+          "number": 251,
+          "status": "accepted",
+          "title": "Mirror conformance: two surfaces required to agree are gated by a test that compares them"
+        },
+        {
+          "number": 252,
+          "status": "accepted",
+          "title": "Verification-decay detection: continuous mechanical warns, a judgment-gated adversarial pass in a fresh session"
+        },
+        {
+          "number": 253,
+          "status": "proposed",
+          "title": "Criterion identity is immutable across UAT revisions"
+        },
+        {
+          "number": 256,
+          "status": "accepted",
+          "title": "Deferral-keyed escalation lines are not built: a backstop's trigger must be observable in-run"
+        },
+        {
+          "number": 262,
+          "status": "proposed",
+          "title": "Contract clauses are declared but not observable: check:coverage stays name-granular until a clause carries identity"
+        },
+        {
+          "number": 265,
+          "status": "proposed",
+          "title": "Per-contract falsifiability at CONFIRM_RED: the spine observes one red per file, not per contract"
+        },
+        {
+          "number": 269,
+          "status": "accepted",
+          "title": "A drain ceiling rises only when the measured population enlarges, never to absorb growth"
+        },
+        {
+          "number": 278,
+          "status": "accepted",
+          "title": "A fifth verification-decay instrument: an injected seam whose default no test exercises"
+        }
+      ],
+      "plans": [
+        {
+          "id": "verification-integrity-identity-and-durable-controls-plan",
+          "title": "Verification integrity identity and durable-controls increment",
+          "status": "ready",
+          "anchorSha": "939358a2e"
+        },
+        {
+          "id": "verification-integrity-machine-leg-binding-audit-plan",
+          "title": "Verification integrity — machine-leg binding corpus audit",
+          "status": "ready",
+          "anchorSha": "9553de518"
+        },
+        {
+          "id": "verification-integrity-next-integrity-repair-plan",
+          "title": "Verification integrity — corpus repair and runtime pickup",
+          "status": "ready",
+          "anchorSha": "7976d83b1"
+        },
+        {
+          "id": "verification-integrity-proof-binding-contract-and-audit-plan",
+          "title": "Verification integrity — proof-binding contract then corpus audit",
+          "status": "ready",
+          "anchorSha": "65b727120"
+        }
+      ],
+      "stories": [
+        "proof-binding-integrity"
+      ],
+      "questions": []
+    },
+    {
+      "id": "worktree-reaper-integrity-arc",
+      "title": "Worktree reaper integrity — a drain that cannot silently no-op",
+      "description": "Make the SessionStart worktree reaper actually drain, honour locks, and report enough that a permanently no-op reaper is distinguishable from a healthy one.",
+      "intent": "Make worktree hygiene real. The SessionStart reaper (ADR-0142 / ADR-0033) is wired and running, but a 2026-07-27 owner-directed stock take found it has been silently no-op'ing while `.claude/worktrees/` grew to 79 registered worktrees and roughly 93 GB — up from the 21 GB measured on 2026-07-19. Its live verdict was `reap 5, keep 77`, and all five targets were directories git had already lost, so the run would have reclaimed zero bytes; 59 merged-clean-unlocked worktrees (~74 GB) were all held back by the single reason `merged but active < 48h ago`. The cause is the idle proxy in `packages/cl…",
+      "endState": "The reaper drains. `.claude/worktrees/` holds only worktrees that are plausibly live — unmerged branches, dirty trees, deliberate locked gates, and the current session's own — and the standing footprint is a small multiple of a single worktree rather than tens of gigabytes. The one-time backlog is cleared, with the dirty merged trees triaged rather than bulk-deleted: uncommitted work on an already-landed branch is either salvaged or discarded on an explicit decision, never silently removed. The idle signal cannot be reset by activity that is not use. Whatever proxy replaces the current mtime …",
+      "lastLanded": "2026-07-28",
+      "ageDays": 5,
+      "increments": [
+        {
+          "date": "2026-07-28",
+          "pr": "981",
+          "outcome": "Increment 1 — the idle signal is honest, and `locked` is a first-class keep. Strands 1 and 2 of four LANDED; strands 3 and 4 remain, both escalated. THE IDLE PROXY. `defaultStatMtimeMs` in `packages/cli/src/worktree.ts` no longer reads the admin `logs/HEAD`. …"
+        }
+      ],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    }
+  ]
+}

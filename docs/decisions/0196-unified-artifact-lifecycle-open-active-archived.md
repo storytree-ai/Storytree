@@ -92,6 +92,15 @@ A kind uses the subset that applies. `active` is a lifecycle state, NOT the cura
   a stored `lifecycle` field for kinds that have NO stored state today lands with the build only
   where a surface needs to WRITE a transition (arc close), not speculatively.
 
+  *The `arc` leg of this clause has since been EXERCISED, exactly as written* (ADR-0239, which amends
+  this ADR without overturning it — recorded here per ADR-0139 so this row is not read as still
+  pending): a surface did need to write the transition, so `arc` gained a stored `lifecycle`
+  (`active` | `closed`) written by `storytree arc close`. `arc` is therefore **no longer a projection
+  default** — `lifecycleOf`'s arc branch now reads that stored field, so this ADR's `arc` →
+  `archived` = "closed" mapping is now witnessable in practice and not only mapped here. The other
+  kinds named in this bullet remain projection defaults, and D4's single-projection rule (and D4's
+  separate deferral of the stored-vocabulary rename) is unchanged and was honoured.
+
 ### D3 — The build: projection module + surfaces (this unit)
 
 - **`lifecycleOf`** — one pure, browser-safe module in `@storytree/library` (the root barrel; the
