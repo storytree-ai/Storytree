@@ -1,0 +1,325 @@
+{
+  "source": "nano-banana-original.jpg",
+  "sourceSize": [
+    1024,
+    1024
+  ],
+  "layout": "equal 3x3 cells, reading order",
+  "frameSize": [
+    96,
+    96
+  ],
+  "backgroundRemoval": {
+    "method": "corner-connected flood fill",
+    "maxChannelTolerance": 42
+  },
+  "alignmentTarget": {
+    "bottomRootMeanX": 47,
+    "bottomY": 91
+  },
+  "summary": {
+    "unalignedHorizontalRootRangePx": 2.1,
+    "unalignedVerticalRootRangePx": 21,
+    "alignedHorizontalRootRangePx": 0.9,
+    "alignedVerticalRootRangePx": 0
+  },
+  "frames": [
+    {
+      "frame": 0,
+      "sourceCell": [
+        0,
+        0,
+        341,
+        341
+      ],
+      "unaligned": {
+        "alphaBounds": [
+          37,
+          33,
+          58,
+          66
+        ],
+        "bottomY": 66,
+        "bottomRootMeanX": 47.1
+      },
+      "integerAlignmentShift": [
+        0,
+        25
+      ],
+      "aligned": {
+        "alphaBounds": [
+          37,
+          58,
+          58,
+          91
+        ],
+        "bottomY": 91,
+        "bottomRootMeanX": 47.1
+      }
+    },
+    {
+      "frame": 1,
+      "sourceCell": [
+        341,
+        0,
+        683,
+        341
+      ],
+      "unaligned": {
+        "alphaBounds": [
+          36,
+          23,
+          59,
+          70
+        ],
+        "bottomY": 70,
+        "bottomRootMeanX": 47.1
+      },
+      "integerAlignmentShift": [
+        0,
+        21
+      ],
+      "aligned": {
+        "alphaBounds": [
+          36,
+          44,
+          59,
+          91
+        ],
+        "bottomY": 91,
+        "bottomRootMeanX": 47.1
+      }
+    },
+    {
+      "frame": 2,
+      "sourceCell": [
+        683,
+        0,
+        1024,
+        341
+      ],
+      "unaligned": {
+        "alphaBounds": [
+          28,
+          11,
+          75,
+          71
+        ],
+        "bottomY": 71,
+        "bottomRootMeanX": 46.5
+      },
+      "integerAlignmentShift": [
+        0,
+        20
+      ],
+      "aligned": {
+        "alphaBounds": [
+          28,
+          31,
+          75,
+          91
+        ],
+        "bottomY": 91,
+        "bottomRootMeanX": 46.5
+      }
+    },
+    {
+      "frame": 3,
+      "sourceCell": [
+        0,
+        341,
+        341,
+        683
+      ],
+      "unaligned": {
+        "alphaBounds": [
+          18,
+          7,
+          77,
+          82
+        ],
+        "bottomY": 82,
+        "bottomRootMeanX": 46.4
+      },
+      "integerAlignmentShift": [
+        1,
+        9
+      ],
+      "aligned": {
+        "alphaBounds": [
+          19,
+          16,
+          78,
+          91
+        ],
+        "bottomY": 91,
+        "bottomRootMeanX": 47.4
+      }
+    },
+    {
+      "frame": 4,
+      "sourceCell": [
+        341,
+        341,
+        683,
+        683
+      ],
+      "unaligned": {
+        "alphaBounds": [
+          16,
+          7,
+          78,
+          82
+        ],
+        "bottomY": 82,
+        "bottomRootMeanX": 47.0
+      },
+      "integerAlignmentShift": [
+        0,
+        9
+      ],
+      "aligned": {
+        "alphaBounds": [
+          16,
+          16,
+          78,
+          91
+        ],
+        "bottomY": 91,
+        "bottomRootMeanX": 47.0
+      }
+    },
+    {
+      "frame": 5,
+      "sourceCell": [
+        683,
+        341,
+        1024,
+        683
+      ],
+      "unaligned": {
+        "alphaBounds": [
+          11,
+          4,
+          81,
+          82
+        ],
+        "bottomY": 82,
+        "bottomRootMeanX": 46.5
+      },
+      "integerAlignmentShift": [
+        0,
+        9
+      ],
+      "aligned": {
+        "alphaBounds": [
+          11,
+          13,
+          81,
+          91
+        ],
+        "bottomY": 91,
+        "bottomRootMeanX": 46.5
+      }
+    },
+    {
+      "frame": 6,
+      "sourceCell": [
+        0,
+        683,
+        341,
+        1024
+      ],
+      "unaligned": {
+        "alphaBounds": [
+          11,
+          6,
+          83,
+          86
+        ],
+        "bottomY": 86,
+        "bottomRootMeanX": 46.3
+      },
+      "integerAlignmentShift": [
+        1,
+        5
+      ],
+      "aligned": {
+        "alphaBounds": [
+          12,
+          11,
+          84,
+          91
+        ],
+        "bottomY": 91,
+        "bottomRootMeanX": 47.3
+      }
+    },
+    {
+      "frame": 7,
+      "sourceCell": [
+        341,
+        683,
+        683,
+        1024
+      ],
+      "unaligned": {
+        "alphaBounds": [
+          7,
+          5,
+          88,
+          86
+        ],
+        "bottomY": 86,
+        "bottomRootMeanX": 46.8
+      },
+      "integerAlignmentShift": [
+        0,
+        5
+      ],
+      "aligned": {
+        "alphaBounds": [
+          7,
+          10,
+          88,
+          91
+        ],
+        "bottomY": 91,
+        "bottomRootMeanX": 46.8
+      }
+    },
+    {
+      "frame": 8,
+      "sourceCell": [
+        683,
+        683,
+        1024,
+        1024
+      ],
+      "unaligned": {
+        "alphaBounds": [
+          3,
+          2,
+          93,
+          87
+        ],
+        "bottomY": 87,
+        "bottomRootMeanX": 45.0
+      },
+      "integerAlignmentShift": [
+        2,
+        4
+      ],
+      "aligned": {
+        "alphaBounds": [
+          5,
+          6,
+          95,
+          91
+        ],
+        "bottomY": 91,
+        "bottomRootMeanX": 47.0
+      }
+    }
+  ]
+}
