@@ -5,8 +5,21 @@
 // EXACT match; absence, an empty value and every near miss fall through untouched.
 
 import { describe, it, expect } from 'vitest';
-import { backProgress, readAct2Intro, waveAtProgress, waveStartProgress } from './act2Intro.js';
-import { deriveForestRegrowPlan, type ForestRegrowStory } from '@storytree/app-surface';
+import {
+  ACT2_INTRO_SESSION_KEY,
+  act2IntroAlreadyArrived,
+  backProgress,
+  forestRegrowGraphKey,
+  markAct2IntroArrived,
+  readAct2Intro,
+  waveAtProgress,
+  waveStartProgress,
+} from './act2Intro.js';
+import {
+  deriveForestRegrowPlan,
+  type ForestRegrowStory,
+  type ForestRegrowTrailEdge,
+} from '@storytree/app-surface';
 
 describe('readAct2Intro', () => {
   it('mounts on the one exact value', () => {
@@ -77,5 +90,126 @@ describe('the wave transport', () => {
       at = next;
     }
     expect(at).toBe(0);
+  });
+});
+
+// ── ADR-0286: the first-arrival session flag ──
+//
+// The regrow now plays on the clean route, so what stops it becoming a tax on every navigation
+// back to the map is this one flag. Its failure direction is deliberate and worth pinning: no
+// storage at all must fail toward PLAYING, because a viewer who blocks storage should still get
+// the introduction, and the cost of being wrong is one extra regrow.
+
+/** A `Storage` that behaves, and one that throws on every access (private-mode Safari). */
+function fakeStorage(): Storage {
+  const map = new Map<string, string>();
+  return {
+    get length() {
+      return map.size;
+    },
+    clear: () => map.clear(),
+    getItem: (k: string) => map.get(k) ?? null,
+    key: (i: number) => [...map.keys()][i] ?? null,
+    removeItem: (k: string) => void map.delete(k),
+    setItem: (k: string, v: string) => void map.set(k, v),
+  } as Storage;
+}
+
+function hostileStorage(): Storage {
+  const boom = (): never => {
+    throw new Error('storage blocked');
+  };
+  return { getItem: boom, setItem: boom, removeItem: boom, clear: boom, key: boom, length: 0 } as unknown as Storage;
+}
+
+describe('the first-arrival session flag', () => {
+  it('is unset on arrival and set once recorded', () => {
+    const storage = fakeStorage();
+    expect(act2IntroAlreadyArrived(storage)).toBe(false);
+    markAct2IntroArrived(storage);
+    expect(act2IntroAlreadyArrived(storage)).toBe(true);
+    expect(storage.getItem(ACT2_INTRO_SESSION_KEY)).not.toBeNull();
+  });
+
+  it('is idempotent — recording twice still reads as one arrival', () => {
+    const storage = fakeStorage();
+    markAct2IntroArrived(storage);
+    markAct2IntroArrived(storage);
+    expect(act2IntroAlreadyArrived(storage)).toBe(true);
+  });
+
+  it('fails toward playing with no storage, and never throws on a hostile one', () => {
+    expect(act2IntroAlreadyArrived(null)).toBe(false);
+    expect(() => markAct2IntroArrived(null)).not.toThrow();
+    const hostile = hostileStorage();
+    expect(act2IntroAlreadyArrived(hostile)).toBe(false);
+    expect(() => markAct2IntroArrived(hostile)).not.toThrow();
+  });
+});
+
+// ── ADR-0286: the plan's graph key ──
+//
+// The studio paints from a cached tree payload and then confirms it against `/api/tree`, so the
+// SAME graph arrives twice as two different arrays seconds apart. A plan keyed on array identity
+// resets the cursor when the confirm lands — which, now that the regrow plays automatically on
+// arrival, would have killed the intro mid-run every single time.
+
+const EDGES: readonly ForestRegrowTrailEdge[] = [
+  { from: 'a', to: 'c', segments: [{ id: 's1' }, { id: 's2', reversed: true }] },
+  { from: 'c', to: 'd', segments: [{ id: 's3' }] },
+];
+const LENGTHS = new Map([
+  ['s1', 120],
+  ['s2', 340],
+  ['s3', 90],
+]);
+
+describe('forestRegrowGraphKey', () => {
+  it('is identical for a re-fetched copy of the same graph', () => {
+    const copy = GRAPH.map((s) => ({ id: s.id, dependsOn: [...s.dependsOn] }));
+    const edgeCopy = EDGES.map((e) => ({ ...e, segments: e.segments.map((s) => ({ ...s })) }));
+    expect(forestRegrowGraphKey(copy, edgeCopy, new Map(LENGTHS))).toBe(
+      forestRegrowGraphKey(GRAPH, EDGES, LENGTHS),
+    );
+  });
+
+  it('is independent of the order stories and edges arrive in', () => {
+    expect(forestRegrowGraphKey([...GRAPH].reverse(), [...EDGES].reverse(), LENGTHS)).toBe(
+      forestRegrowGraphKey(GRAPH, EDGES, LENGTHS),
+    );
+  });
+
+  it('changes when anything the PLAN reads changes', () => {
+    const base = forestRegrowGraphKey(GRAPH, EDGES, LENGTHS);
+    // a new story
+    expect(forestRegrowGraphKey([...GRAPH, { id: 'e', dependsOn: ['d'] }], EDGES, LENGTHS)).not.toBe(base);
+    // a changed dependency
+    expect(
+      forestRegrowGraphKey(
+        GRAPH.map((s) => (s.id === 'd' ? { id: 'd', dependsOn: ['a'] } : s)),
+        EDGES,
+        LENGTHS,
+      ),
+    ).not.toBe(base);
+    // a re-routed edge (different segments)
+    expect(
+      forestRegrowGraphKey(GRAPH, [{ from: 'a', to: 'c', segments: [{ id: 's9' }] }, EDGES[1]!], LENGTHS),
+    ).not.toBe(base);
+    // a segment drawn the other way round — it changes which end the growth starts from
+    expect(
+      forestRegrowGraphKey(
+        GRAPH,
+        [{ from: 'a', to: 'c', segments: [{ id: 's1' }, { id: 's2' }] }, EDGES[1]!],
+        LENGTHS,
+      ),
+    ).not.toBe(base);
+    // a different geometry, which paces the pathway differently
+    expect(forestRegrowGraphKey(GRAPH, EDGES, new Map([...LENGTHS, ['s1', 4000]]))).not.toBe(base);
+  });
+
+  it('shrugs off a sub-unit float wobble in the routed geometry', () => {
+    expect(forestRegrowGraphKey(GRAPH, EDGES, new Map([...LENGTHS, ['s1', 120.0004]]))).toBe(
+      forestRegrowGraphKey(GRAPH, EDGES, LENGTHS),
+    );
   });
 });

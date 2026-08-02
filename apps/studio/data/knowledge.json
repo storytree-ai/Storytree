@@ -2152,7 +2152,12 @@
       "asset:test-fixtures-mirror-production-failure-modes",
       "asset:real-test-must-not-leak-a-handle",
       "asset:baseline-preservation",
-      "asset:dogfood-fix-the-source"
+      "asset:dogfood-fix-the-source",
+      "asset:an-observable-is-evidence-only-for-what-it-observes",
+      "asset:a-mocked-seam-leaves-its-default-implementation-unproven",
+      "asset:capture-the-oracle-for-a-convention-you-dont-own",
+      "asset:a-live-only-guarantee-is-an-honesty-gap",
+      "asset:an-inherited-precondition-holds-only-where-and-when-it-was-authored"
     ],
     "antiPatterns": [
       "asset:right-kind-red",
@@ -2175,7 +2180,12 @@
       "asset:reward-hacking",
       "asset:implementer-shortcut-patterns",
       "asset:faked-uat-theatre",
-      "asset:agent-never-self-exempts"
+      "asset:agent-never-self-exempts",
+      "asset:an-observable-is-evidence-only-for-what-it-observes",
+      "asset:a-mocked-seam-leaves-its-default-implementation-unproven",
+      "asset:capture-the-oracle-for-a-convention-you-dont-own",
+      "asset:a-live-only-guarantee-is-an-honesty-gap",
+      "asset:an-inherited-precondition-holds-only-where-and-when-it-was-authored"
     ],
     "provenance": "Captured from the LIVE leaf system prompt — `leafSystemPrompt()` / `SYSTEM_PROMPT_BASE` plus the no-feedback / feedback closings in packages/agent/src/sdk-author.ts — and split by phase per the owner's call (2026-06-14) that test-authoring and flipping-to-green want separate prompts. Renamed from `leaf-test-author` (owner steer 2026-06-14) AND hard-wired: the SDK leaf's AUTHOR_TEST system prompt IS this rendered agent (ADR-0051 §4) — the CLI assembles it via `renderAgentPrompt`, threads it through `resolveProveSpec` into `ClaudeAgentAuthor.phasePrompts`, and a live leaf with no injected prompt fails closed (no generic fallback). Supersedes the retired `agent-owned-loop-test-author` draft, which cited ungraduated candidate refs. No ADRs are injected: this role searches ADRs just-in-time via the library.",
     "createdAt": "2026-06-14T00:00:00.000Z",
@@ -2202,13 +2212,15 @@
       "asset:slow-growth-minimum-to-green",
       "asset:baseline-preservation",
       "asset:dogfood-fix-the-source",
-      "asset:verify-edit-write-persisted-or-escalate"
+      "asset:verify-edit-write-persisted-or-escalate",
+      "asset:tightening-a-shared-contract-needs-a-full-sweep"
     ],
     "antiPatterns": [
       "asset:reward-hacking",
       "asset:implementer-shortcut-patterns",
       "asset:faked-uat-theatre",
-      "asset:agent-never-self-exempts"
+      "asset:agent-never-self-exempts",
+      "asset:no-proof-preservation"
     ],
     "escalation": "If you conclude a frozen input is itself wrong — e.g. the test you must satisfy but may not edit is wrong — stop and say so plainly instead of working around it. The spine routes the fix to the owning surface, never to the leaf.",
     "references": [
@@ -2223,7 +2235,9 @@
       "asset:reward-hacking",
       "asset:implementer-shortcut-patterns",
       "asset:faked-uat-theatre",
-      "asset:agent-never-self-exempts"
+      "asset:agent-never-self-exempts",
+      "asset:tightening-a-shared-contract-needs-a-full-sweep",
+      "asset:no-proof-preservation"
     ],
     "provenance": "Captured from the LIVE leaf system prompt — `leafSystemPrompt()` / `SYSTEM_PROMPT_BASE` plus the no-feedback / feedback closings in packages/agent/src/sdk-author.ts — and split by phase per the owner's call (2026-06-14) that test-authoring and flipping-to-green want separate prompts. Renamed from `leaf-implementer` (owner steer 2026-06-14) AND hard-wired: the SDK leaf's IMPLEMENT system prompt IS this rendered agent (ADR-0051 §4) — the CLI assembles it via `renderAgentPrompt`, threads it through `resolveProveSpec` into `ClaudeAgentAuthor.phasePrompts`, and a live leaf with no injected prompt fails closed (no generic fallback). Supersedes the retired `agent-owned-loop-builder` draft, which cited ungraduated candidate refs. No ADRs are injected: this role searches ADRs just-in-time via the library. `deep-modules` added to context 2026-06-15 (agent↔artifact routing review): V1 routed it to `build-rust`, this role's ancestor, for an implementation-time decision the leaf still faces — don't widen a unit's public surface 'for testability', and run the deletion test on a boundary you're about to add; it composes with slow-growth-minimum-to-green's resistance to speculative structure rather than duplicating it.",
     "createdAt": "2026-06-14T00:00:00.000Z",
@@ -2552,7 +2566,13 @@
       "asset:defects-amend-the-owning-story",
       "asset:verify-edit-write-persisted-or-escalate",
       "asset:pair-the-fence-with-the-affordance",
-      "asset:example-carries-the-discriminator"
+      "asset:example-carries-the-discriminator",
+      "asset:a-contract-that-says-observable-must-name-its-observer",
+      "asset:a-spec-body-describes-only-what-it-contracts",
+      "asset:a-deferral-recorded-without-a-status-reads-as-pending-work",
+      "asset:the-same-file-in-another-tree-is-a-different-file",
+      "asset:cold-rebuild",
+      "asset:one-way-to-do-things"
     ],
     "antiPatterns": [
       "asset:never-bypass-the-gate",
@@ -2575,7 +2595,13 @@
       "asset:agent-never-self-exempts",
       "asset:pair-the-fence-with-the-affordance",
       "asset:example-carries-the-discriminator",
-      "asset:escalate-up-when-blocked-or-out-of-scope"
+      "asset:escalate-up-when-blocked-or-out-of-scope",
+      "asset:a-contract-that-says-observable-must-name-its-observer",
+      "asset:a-spec-body-describes-only-what-it-contracts",
+      "asset:a-deferral-recorded-without-a-status-reads-as-pending-work",
+      "asset:the-same-file-in-another-tree-is-a-different-file",
+      "asset:cold-rebuild",
+      "asset:one-way-to-do-things"
     ],
     "provenance": "Evolved from V1 `legacy/Agentic/agents/planner/story-writer` (disposition: evolve). The dedicated story author the owner asked for (2026-06-14) after seeing stories improvised by the leaf mechanics or the orchestrator session. Re-tiered to v2's story › capability › contract. Corrected 2026-07-10 against ADR-0039 d.2 and ADR-0137 d.1: work units are disk-canonical `stories/**` frontmatter-markdown written through the spawned/native subagent's fail-closed file-tool fence, not live Library artifacts; the DB-only write guidance was removed. Distinct from guidance-curator (rule content) and librarian-curator (corpus structure). No ADRs injected — searched just-in-time. Owner extension (2026-06-26, ADR-0110): a story-shape ADR the owner DIRECTED in conversation is authored `accepted` (the `adr new --decided` path), not hedged `proposed` for a redundant end-of-flow ratification.",
     "createdAt": "2026-06-14T00:00:00.000Z",
@@ -2616,7 +2642,8 @@
     "rules": [
       "asset:slow-growth-minimum-to-green",
       "asset:verify-edit-write-persisted-or-escalate",
-      "asset:edit-first-curation"
+      "asset:edit-first-curation",
+      "asset:the-same-file-in-another-tree-is-a-different-file"
     ],
     "antiPatterns": [
       "asset:agent-never-self-exempts",
@@ -2632,7 +2659,8 @@
       "asset:edit-first-curation",
       "asset:agent-never-self-exempts",
       "asset:never-bypass-the-gate",
-      "asset:escalate-up-when-blocked-or-out-of-scope"
+      "asset:escalate-up-when-blocked-or-out-of-scope",
+      "asset:the-same-file-in-another-tree-is-a-different-file"
     ],
     "provenance": "New in v2 (2026-07-05), authored for ADR-0160 (the desktop chat's scoped glue actuator) resolving ADR-0158 D4. The spawned role behind `spawn_glue_worker` — the runtime equivalent of the terminal's Agent/Task tool the desktop chat lacked, so a scoped glue intent ('add 3 routes to backend-entry.ts') is delegated to a path-fenced worker instead of over-routing into a whole-story `story build --real`. Rendered from this one artifact (ADR-0051/0055): the terminal `storytree agents glue-worker` and the spawned glue-worker move together. Distinct from the builder leaf (which drives a red→green) and story-author (which authors the work hierarchy). Should cite the `glue` definition (ADR-0158 D1) once it is migrated into the seed — a librarian follow-on.",
     "createdAt": "2026-07-05T00:00:00.000Z",
@@ -2883,7 +2911,13 @@
       "asset:red-green",
       "asset:route-structural-forks-to-story-author",
       "asset:reference-dont-restate",
-      "asset:verify-edit-write-persisted-or-escalate"
+      "asset:verify-edit-write-persisted-or-escalate",
+      "asset:a-green-positional-oracle-is-necessary-not-sufficient",
+      "asset:a-contract-that-says-observable-must-name-its-observer",
+      "asset:one-element-per-signal",
+      "asset:de-noise-promotes-never-drops",
+      "asset:an-owner-approved-reference-is-repo-resident",
+      "asset:one-way-to-do-things"
     ],
     "antiPatterns": [
       "asset:agent-never-self-exempts",
@@ -2909,7 +2943,13 @@
       "asset:never-bypass-the-gate",
       "asset:human-owns-the-outer-loop",
       "asset:stage-the-attestation-experience",
-      "asset:escalate-up-when-blocked-or-out-of-scope"
+      "asset:escalate-up-when-blocked-or-out-of-scope",
+      "asset:a-green-positional-oracle-is-necessary-not-sufficient",
+      "asset:a-contract-that-says-observable-must-name-its-observer",
+      "asset:one-element-per-signal",
+      "asset:de-noise-promotes-never-drops",
+      "asset:an-owner-approved-reference-is-repo-resident",
+      "asset:one-way-to-do-things"
     ],
     "provenance": "Authored 2026-06-17 (ADR-0070) at the owner's steer — the forest-world / visual work, until now improvised by the orchestrator session via orchestrate-route-supplement, codified as a dedicated INNER-LOOP role (the same 'improvised by the orchestrator session' fix that motivated story-author). Owns all studio visual surfaces; its proof is two-stage — red-green (ADR-0020) on the provable layer, operator-attested (ADR-0007) on the appearance — answering 'how does the inner loop coordinate the screenshot the leaf can't take' with the existing operator-attested mode + ADR-0036 §5 deep-links. Delegatable (.claude/agents/frontend-builder.md, ADR-0052); seed-canonical (ADR-0055). The visual-attestation phase and the vitest proof command are named capability gaps (ADR-0070 §5), to expand as follow-on inner-loop units. No ADRs injected — searched just-in-time; doctrine lives in the cited artifacts (reference-don't-restate). Owner extension (2026-07-05, ADR-0159): re-authored so Stage 1 routes its provable core through the inner loop (`node/story build --real --store pg`, signed verdict) now that ADR-0070 Gap B (the spec-borne vitest `proofCommand`, ADR-0057 §3) has shipped and the studio caps are wired for it — retiring the hand-run `pnpm --filter studio test` workaround that left caps unregistered; the visual self-QA is first-classed as `render-and-witness-a-flag-guarded-surface`; added the fence that a cap missing a `proof.real` block routes to story-author. Stage 2 (the look) remains operator-attested, never self-signed. Owner extension (2026-07-17, ADR-0208): when a unit holds several distinct visual assets, Stage-2 look work is built by an art-asset designer-swarm (asset:art-asset-designer-swarm) — one render-and-look design subagent per asset under a shared style bible + a narrow pure-function contract, sonnet-default; integration, the Stage-1 proof, and the owner-attested look verdict stay with the builder, unchanged.",
     "createdAt": "2026-06-17T00:00:00.000Z",
@@ -3117,7 +3157,8 @@
       "asset:authoritative-source-beats-derived",
       "asset:guidance-quality",
       "asset:pair-the-fence-with-the-affordance",
-      "asset:example-carries-the-discriminator"
+      "asset:example-carries-the-discriminator",
+      "asset:citing-a-document-is-not-reading-it"
     ],
     "antiPatterns": [
       "asset:live-store-is-the-edit-surface",
@@ -3142,7 +3183,8 @@
       "asset:pair-the-fence-with-the-affordance",
       "asset:example-carries-the-discriminator",
       "asset:escalate-up-when-blocked-or-out-of-scope",
-      "asset:friction-adjudication"
+      "asset:friction-adjudication",
+      "asset:citing-a-document-is-not-reading-it"
     ],
     "provenance": "Evolved from V1 `legacy/Agentic/agents/teacher/guidance-writer` (corpus-structure half) + the curator drafts. Split out per the owner's 3-way call (2026-06-14): the librarian keeps the catalog (dedupe, cross-link, reference tier, prune) and does NOT own rule content (guidance-curator) or work units (story-author); tool-grant discipline moved to guidance-curator per the owner's boundary correction (2026-06-14). No ADRs injected. Owner extension (2026-06-21, ADR-0086): the librarian now also keeps the decision log honest — it maintains ADR `status` / supersession edges and the `load_bearing` current-state set, and MAY flip an ADR to `superseded` as curation (extending ADR-0084's agent green-flip), always as a projection of the `## Status` prose; substantive re-decisions are copy-on-write. The owner judged decision-log status maintenance a structural-health concern (the librarian's remit), distinct from authoring the decision (the human/session) or rule content (guidance-curator). Owner extension (2026-06-22, ADR-0095): the librarian now also GRADUATES durable agent-memory into the Library — extracting the durable essence (deriving definitions / principles that flow into agent guidance, ADR-0051/0053), graduating only genuinely durable material (D8) and deleting the graduated memory to dogfood the Library (D6); the mechanical candidate core is `graduationCandidates` (@storytree/library), the judgment the librarian's (the prove-the-mechanism / curate-the-judgment split, ADR-0095 D3).\n\nOwner reshape (2026-06-29, ADR-0139, which SUPERSEDES ADR-0086 and amends ADR-0037): the decision-log mandate is reframed from 'flip a wholly-dead ADR to superseded; partially-overtaken stays accepted with stale prose' to 'keep every ACCEPTED ADR TRUE IN FULL'. Truth-maintenance is now CORRECT-IN-PLACE (remove overtaken prose without changing the decision — git is the archive, so no superseded shell is left behind), SUPERSEDE-AND-REPLACE only on a genuine re-decision (the old kept as a browsable `superseded` file), and REHOME durable cross-cutting guidance out of ADR bodies into Library artifacts (the ADR-0095 graduation mechanism applied to ADR bodies). `supersedes_in_part` is RETIRED (binary edges on the target's SURVIVAL: `supersedes` = it leaves the current set / `amends` = it stays in it, never a claim the target is unchanged) and 'live in part' is no longer a state; active ⟺ load-bearing, so the `load_bearing` tag and its `load-bearing-live` gate retire at the end of the consolidation pass (the librarian's editorial call, no hard cap). This runs EVERY loop as part of the standing pre-merge librarian pass (ADR-0095 D7), not a one-off sweep. UNCHANGED and restated in ADR-0139: the `storytree adr list` current-state query, the spawn-librarian-at-landing discipline, the supersede authority, and the transcribe-not-invent honesty invariant (status stays a projection of `## Status` prose; `accepted → proposed` stays human-only). The principle `accepted-adrs-carry-no-stale-prose` (the truth-maintenance complement of `survival-test-for-adrs`) was authored alongside this reshape.\n\nOwner extension (2026-07-04, ADR-0154, which amends ADR-0034): the librarian now also keeps the `process` tier a standing projection of the load-bearing decision log — reading the log FORWARD into processes (any load-bearing way-of-working ADR must carry a current derived `process`, ADR-0034 §2 reference-don't-restate), complementing the reactive ADR-0095 memory-graduation path. ADR-0034 §3 had staffed the derivation as a one-time fan-out with no standing owner, so the tier froze at six ceremonies while the decision log grew past 150 ADRs; ADR-0154 makes the derivation a standing librarian charter (the same decision-log→library projection family as the ADR-0139 true-in-full mandate) and adds the advisory `check:surface-coverage` gate enforcing the process↔entrypoint bijection (WARN-only, the `check:coverage` / `check:agents-sync` family), whose orphan list is the backfill worklist. Unit 3 delivered the first-cut backfill (`db-control`, `launch-studio`, `launch-desktop`, `website-release`) this charter thereafter maintains. The `next:`-graph follow-on (process branch-edges → the CLI choose-your-own-adventure surface) was UN-DEFERRED into this charter by ADR-0161 (decision 3, which amends ADR-0154): the `process` tier is a node type in the node-keyed context DAG, so keeping its branch-edges a current projection — derived through the one shared `next:` emitter (the same helper the ADR-0156 agent step→refs rollout uses) — is now part of the standing librarian charter.\n\nOwner extension (2026-07-06/07, ADR-0168 D4/D5): the standing pre-merge librarian pass GAINS a friction drain — hygiene-check new `friction` items (evidence + refs sane) and a BOUNDED routine drain of the K≈3 oldest ROUTABLE items (aged ≥1 session, filed by another branch — never the whole worklist, never marking your own homework) through the `friction-adjudication` gate, with the fail-closed ceiling delegated to `check:friction-drain`. The librarian HELD the adjudication chair under the same role-agnostic ceremony until the `graduation-synthesist` was built (ADR-0168 D5, unit 5); the CURRENT reality is that the synthesist chairs the deeper adjudication (the whole-system view, the `adr` route, the owner-escalation judgment) and the librarian's pre-merge pass runs only the routine bounded drain and hands off. This is the same decision-log→library projection family as the ADR-0139 true-in-full mandate and the ADR-0154 process projection — friction is the lifecycle tier's drain.",
     "createdAt": "2026-06-14T00:00:00.000Z",
@@ -3195,7 +3237,11 @@
       "asset:authoritative-source-beats-derived",
       "asset:no-claim-without-evidence",
       "asset:exploration-principles",
-      "asset:orchestrator-is-sole-fan-out"
+      "asset:orchestrator-is-sole-fan-out",
+      "asset:unrun-check-is-unverified-not-refuted",
+      "asset:an-observable-is-evidence-only-for-what-it-observes",
+      "asset:prose-names-a-set-it-never-checked",
+      "asset:citing-a-document-is-not-reading-it"
     ],
     "escalation": "- **Judgment, not a state-claim:** STOP — one finding, `agrees: false`, `actual: \"question is not a verifiable claim about corpus state\"`; the caller reframes or routes to the human outer loop.\n- **Corpus-corrupting state:** include the finding AND raise severity to `high` — but do not fix it; the spine routes the fix to the owning surface.\n- **Live state needed, DB unreachable:** `agrees: false`, `actual: \"could not determine — live store unreachable (run pnpm db:up)\"`.\n- **Surface the grant can't reach:** `agrees: false`, `actual: \"could not access source — <reason>\"`.",
     "provenance": "Renamed library-investigator → corpus-investigator (owner call, 2026-06-14) and its inputs graduated (authoritative-source-beats-derived, no-claim-without-evidence now live). Imported and EVOLVED from V1 `legacy/Agentic/agents/orchestration/system-investigator/` (contract.yml + inputs.yml + process.yml). Disposition = evolve (ADR-0029 roster mapping: system-investigator -> library-investigator). CARRIED almost verbatim: the read-only floor, one-question-per-invocation, the structured findings/assumption_violations/summary return shape, authoritative-source-beats-derived precedence, the verifiable-evidence_path rule, no-speculation, no-spawn, no-fix-just-surface, and the judgment-vs-state-claim escalation. CHANGED: the SOURCE MAP is re-pointed from V1's on-disk YAML corpus (contract.yml / agents/README.md / schemas/*.schema.json / stories/*.yml / evidence/runs/*.jsonl / .claude/agents/*.md) to v2's authoritative sources — the LIVE Cloud SQL Library reached via the `storytree library` CLI (ADR-0023), packages/library/src/knowledge.ts (the zod schema), docs/decisions/*.md, and the event log / node rollup (ADR-0006). ADDED a v2-specific STALENESS CHECK step + rule: because artifact state now lives in one shared DB many sessions mutate concurrently (ADR-0009/0023), a brief is stale by default, so the agent must read the live `--pg`/event-log source for state claims rather than the offline seed or the brief's premise — this makes its verify-before-acting role MORE load-bearing than in V1. DROPPED V1 specifics the reversals obsoleted: Rust/cargo commands, the per-agent contract.yml/inputs.yml/process.yml authority walls, the YAML-files-as-source framing, and the session-orchestrator-spawns-it framing (the deterministic spine, not an orchestrator agent, fans it out; ADR-0004/0005). Folded per ADR-0029 §'V1 bucket -> v2 field': scope.purpose -> oneLine/role, scope.owns+outcome.outputs -> owns, scope.does_not_touch -> doesNotTouch, scope.authority -> authority, outcome.success_criteria -> outcome, inputs.required_reading+context -> requiredReading, inputs.tools+commands -> tools, process.workflow -> workflow, guidance.{rules,anti_patterns,escalation} -> rules/antiPatterns/escalation; V1 `parameters` (question/pointers) dropped as a runtime concern per ADR-0029. DRY retrofit (2026-06-10): restated discipline moved out of rules/antiPatterns/body into typed refs per the ADR-0029 reference-don't-restate design rule; the prose now lives in the cited existing units + docs/research/agent-guidance-candidates.json.\n\nOwner reshape retrofit (2026-06-11): the prose authority walls (owns/doesNotTouch/authority) dropped — scope walls are enforced by code and guardrails, never described in guidance — and requiredReading/rules/antiPatterns retyped to `asset:` ref lists (the `storytree agents <name>` renderer injects the cited units; ADRs are searched just-in-time, not preloaded); any output-contract prose the dropped fields carried moved into `outcome`. See ADR-0029 §\"Owner reshape (2026-06-11)\".",
@@ -3207,7 +3253,11 @@
       "asset:no-claim-without-evidence",
       "asset:exploration-principles",
       "asset:orchestrator-is-sole-fan-out",
-      "asset:escalate-up-when-blocked-or-out-of-scope"
+      "asset:escalate-up-when-blocked-or-out-of-scope",
+      "asset:unrun-check-is-unverified-not-refuted",
+      "asset:an-observable-is-evidence-only-for-what-it-observes",
+      "asset:prose-names-a-set-it-never-checked",
+      "asset:citing-a-document-is-not-reading-it"
     ],
     "createdAt": "2026-06-11T00:00:00.000Z",
     "updatedAt": "2026-06-14T00:00:00.000Z",
@@ -3260,7 +3310,8 @@
       "asset:edit-first-curation",
       "asset:stateless-vs-stateful-graduation",
       "asset:reference-dont-restate",
-      "asset:audit-the-signed-verdict"
+      "asset:audit-the-signed-verdict",
+      "asset:price-the-deferral"
     ],
     "antiPatterns": [
       "asset:human-owns-the-outer-loop",
@@ -3286,7 +3337,8 @@
       "asset:guidance-curator",
       "asset:story-author",
       "asset:librarian-curator",
-      "doc:decisions/0287-the-tool-route-emits-a-proposal-and-the-proposal-tier-carrie.md"
+      "doc:decisions/0287-the-tool-route-emits-a-proposal-and-the-proposal-tier-carrie.md",
+      "asset:price-the-deferral"
     ],
     "provenance": "Renamed agent-signal-synthesis → graduation-synthesist (owner call, 2026-06-14). Evolved from V1 `legacy/Agentic/agents/teacher/memory-curator/{contract,inputs,process}.yml` (disposition: evolve, ADR-0029 roster mapping), RECAST 2026-06-11 per ADR-0032 (the earlier threshold-proposer shape dropped: a cite is a typed LINK building a signal-graph, graduation is synthesis emitting OQs/proposals into the ADR-0018 flow, not a threshold scan; forge-resistance defences deliberately not built, ADR-0032 §5). KEPT from V1: the stateless-vs-stateful discriminator + preservation bias as synthesis judgement, and the graduate-durable-rules-out-of-ephemeral-memory purpose. REVOKED from V1: autonomous-direct-lift into `agents/**/process.yml`. Deferred 2026-06-11 — named, unbuilt.\n\nUN-PARKED and BUILT 2026-07-06/07 by ADR-0168 (D5, owner direction 2): the owner directed that the owner be OUT of the default loop — 'I shouldn't need to be included in this loop unless a dedicated subagent says so' — which exercised the owner fork this agent was parked awaiting. The role is now the DEDICATED ADJUDICATOR with the whole-system view: it chairs friction adjudication through the `friction-adjudication` process (the PROCEDURE, ADR-0034/0154 — makes no new policy) against the `friction-justification-bar` floor (the RULE, authored through guidance-curator), sets `route`/`routeReason`, and decides what escalates to the owner. Least-authority is preserved: it ROUTES and ESCALATES, the per-route authors execute (guidance-curator authors principle/guardrail; librarian authors process/definition/edit-existing; story-author does tool-work). Friction-born ADRs are born-`proposed` (the owner escalation, gated by the friction→ADR alignment check), never `accepted` under ADR-0110. Verification is proportional to blast radius: guidance-rendering routes carry mandatory corpus-investigator verification (they render into every future session), the ADR route is contained. It also absorbs ADR-0032 §3's original memory-graduation synthesis seat — the same judgment applied to the agent-memory source (the librarian-curator runs the routine pre-merge memory pass, the synthesist is the deeper whole-system adjudicator both paths feed). Until this build the librarian-curator held the chair under the same role-agnostic ceremony (ADR-0168 D5); it now runs only the bounded routine pre-merge drain and hands the deeper adjudication here. Corrected 2026-08-03 (ADR-0139 in-place correction) for ADR-0287, which amends ADR-0168 D5's `tool` route: the route now EMITS a `proposal` this seat writes, and the friction item cites it. The role's least-authority sentence, the tools list, and workflow steps 3 and 6 said the synthesist's ONE write verb was `friction route` and that `tool` routed to story-author — both false after ADR-0287, and left uncorrected they would have had an adjudicator decline the write the CLI now REQUIRES (`friction route --route tool` is refused until the item cites a live proposal). Least-authority is unchanged in substance, and that is why the widening is stated narrowly: a `proposal` is deferred SCOPE, not behavioural guidance, so the 'writes no durable guidance itself' constraint still holds; the seat took the pen only because `asset:story-author` is fail-closed fenced to `stories/**` with no Library artifact write and no `--pg`, which made D2 forced rather than chosen. No new policy (ADR-0034 §2): the deciding ADR is ADR-0287, now cited. ADR-0287 D3's `check:proposal-drain` and D4's backfill are DECIDED and NOT YET BUILT.",
     "createdAt": "2026-06-11T00:00:00.000Z",
@@ -3809,7 +3861,8 @@
       "asset:slow-growth-minimum-to-green",
       "asset:route-structural-forks-to-story-author",
       "asset:owner-fork-bar",
-      "asset:reference-dont-restate"
+      "asset:reference-dont-restate",
+      "asset:price-the-deferral"
     ],
     "antiPatterns": [
       "asset:agent-never-self-exempts"
