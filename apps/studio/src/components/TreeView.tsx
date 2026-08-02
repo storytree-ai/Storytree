@@ -62,15 +62,9 @@ import {
   readRenderScene,
   type ControlSpec,
 } from '../lib/worldSettings.js';
-import {
-  solarSeeds,
-  spokeEdges,
-  dockedEdgePath,
-  orbitRings,
-  type SolarNode,
-  type DockNode,
-} from '../lib/solarLayout.js';
-import { stressSeeds, type StressNode, type StressEdge } from '../lib/stressLayout.js';
+// ADR-0283 D2: `../lib/solarLayout.js` and `../lib/stressLayout.js` are no longer imported here —
+// DAG rows are the one map arrangement. The modules stay (tested, and `stressSeeds` still serves
+// `overviewConstellation.ts`); nothing on the map reaches them.
 import { arrivalGrowPlan } from '../lib/trailReveal.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
 import {
@@ -167,6 +161,7 @@ import { SemanticGrowthDemo } from './SemanticGrowthDemo.js';
 import {
   readAct2Intro,
   useAct2Intro,
+  useStableForestRegrowTrails,
   useReducedMotion,
   useStableForestRegrowLayer,
 } from './act2Intro.js';
@@ -189,7 +184,7 @@ function requireControl(key: string): ControlSpec {
   if (!c) throw new Error(`worldSettings: missing control "${key}"`);
   return c;
 }
-const LAYOUT_CTL = requireControl('layout');
+// (the `layout` control retired with ADR-0283 D2 — DAG rows are the one arrangement now)
 const ART_STYLE_CTL = requireControl('artStyle');
 const ART_SCALE_CTL = requireControl('artScale');
 const SELECTION_MOTION_CTL = requireControl('selectionMotion');
@@ -265,10 +260,12 @@ export interface HexWorld {
    *  once), per-edge ordered segment chains, forced cave portals. Hidden by default;
    *  revealed on island focus (§3). Empty (no segments) when there are no edges. */
   trails: TrailNetwork;
-  /** Solar mode only (ADR-0074 §6 + the 2026-06-20 path refresh): the concentric orbit
-   *  GRID + the perimeter-docked hub spokes. `depends_on` edges live in `trails` now
-   *  (ADR-0169); the spokes stay docked lines (§6 — out of scope). Absent in the DAG
-   *  world (byte-identical). */
+  /** DORMANT since ADR-0283 D2 — `buildWorld` never populates this. It carried the radial
+   *  layout's concentric orbit GRID + perimeter-docked hub spokes (ADR-0074 §6 + the
+   *  2026-06-20 path refresh); that arrangement is retired, so every renderer's
+   *  `world.solar &&` guard is now permanently false. The field and `StudioWorldChrome`'s
+   *  guarded pass are left in place rather than deleted (the ADR leaves that call to the
+   *  increment) — but nothing on the map reaches them. */
   solar?: {
     /** The hub-cluster centre the orbit rings are concentric about. */
     center: Pt;
@@ -358,9 +355,6 @@ export function buildWorld(
   allStories: TreeStory[],
   opts?: {
     plantsScatter?: boolean;
-    /** ADR-0074 §6: `solar` seeds islands on rank-keyed orbits around the hubs;
-     *  `dag` (default) keeps the bottom-up dependency rows. */
-    layoutMode?: LayoutMode;
     /** ADR-0076 §2 / ADR-0088: stories tagged `render: building` (e.g. `library`) are
      *  EXCLUDED from the laid-out territories (they live in the Shared Islands panel now, not
      *  the map) AND their consumers carry a distributed BOOKSHELF STAMP — the on-map "this
@@ -370,14 +364,10 @@ export function buildWorld(
      *  When a single building story is passed with `buildings: false`, it lays out as one plain
      *  island — exactly the one-island Territory the Shared Islands panel renders per building. */
     buildings?: boolean;
-    /** Ids of the synthetic central hubs in `stories` (solar mode only). */
-    hubIds?: ReadonlySet<string>;
   },
 ): HexWorld {
   const plantsScatter = opts?.plantsScatter ?? false;
-  const layoutMode = opts?.layoutMode ?? 'dag';
   const buildings = opts?.buildings ?? false;
-  const hubIds = opts?.hubIds ?? EMPTY_ID_SET;
 
   // ADR-0102 (per-island icon stamps, owner-directed 2026-06-25): a story tagged `render: building`
   // (today `library` and `cli`) PROMOTES every edge incident to it from a road to a per-island icon
@@ -460,33 +450,10 @@ export function buildWorld(
       .map((j) => seedPx.get(j)?.x ?? 0);
     return xs.length ? xs.reduce((p, c) => p + c, 0) / xs.length : 0;
   };
-  if (layoutMode === 'solar') {
-    // ADR-0074 §6: hubs at the centre, organisms on rank-keyed orbits. Seeds flow
-    // into the SAME snap/grow/coast/edge pipeline below, so the islands and roads
-    // read as the existing forest world — only WHERE they sit changes.
-    const solarNodes: SolarNode[] = stories.map((s, i) => ({
-      id: s.id,
-      rank: ranks.get(s.id) ?? 0,
-      hub: hubIds.has(s.id),
-      radius: estRadius(quotas[i] ?? 3),
-    }));
-    for (const [i, p] of solarSeeds(solarNodes)) seedPx.set(i, p);
-  } else if (layoutMode === 'stress') {
-    // ADR-0171: dependency-aware placement — stress majorization + soft y-hierarchy
-    // anchor pulls dependency-adjacent islands SHORT while keeping the top-down read,
-    // so a foundation→distant-consumer trail no longer crosses the whole forest. Same
-    // downstream snap/grow/coast/edge pipeline as every mode — only WHERE islands sit.
-    const stressNodes: StressNode[] = stories.map((s, i) => ({
-      id: s.id,
-      rank: ranks.get(s.id) ?? 0,
-      radius: estRadius(quotas[i] ?? 3),
-    }));
-    const stressEdges: StressEdge[] = edgeList.map((e) => ({ from: e.from, to: e.to }));
-    // seed folds the story ids (like the trail router), so placement is stable across
-    // renders and re-derives only when the world's story set actually changes.
-    const stressSeed = `stress:${stories.map((s) => s.id).sort().join('|')}`;
-    for (const [i, p] of stressSeeds(stressNodes, stressEdges, stressSeed)) seedPx.set(i, p);
-  } else for (let r = 0; r <= maxRank; r++) {
+  // ADR-0283 D2: DAG ROWS, unconditionally. The `solar` (ADR-0074 §6) and `stress` (ADR-0171)
+  // seedings that used to branch here are retired as selectable arrangements — one layout means
+  // one thing every growth choreography has to be correct against.
+  for (let r = 0; r <= maxRank; r++) {
     const row = byRank[r] ?? [];
     const ordered = [...row].sort((a, b) => {
       const sa = stories[a];
@@ -761,42 +728,14 @@ export function buildWorld(
             to: e.to,
             title: `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`,
           })),
-          `trails:${layoutMode}:${stories.map((s) => s.id).sort().join('|')}`,
+          `trails:dag:${stories.map((s) => s.id).sort().join('|')}`,
         )
       : { segments: [], edges: [], caves: [], dropped: [] };
 
-  // Perimeter-dock node for every island, keyed by story id — the rim point + dock radius
-  // a solar SPOKE meets (a touch INSIDE the bounding radius so the line lands on the
-  // coast). Spokes stay thin docked lines (ADR-0169 §6 — out of scope for the trails).
-  const dockById = new Map<string, DockNode>(
-    territories.map((t) => [t.story.id, { x: t.centroid.x, y: t.centroid.y, r: t.radius * 0.82 }]),
-  );
-  let solar: HexWorld['solar'];
-  if (layoutMode === 'solar') {
-    // hub centre = mean of the central hub islands' centroids (fallback: all islands)
-    const orbiting = territories.filter((t) => !hubIds.has(t.story.id));
-    const ref = territories.filter((t) => hubIds.has(t.story.id));
-    const refSet = ref.length ? ref : territories;
-    const center: Pt = {
-      x: refSet.reduce((s, t) => s + t.centroid.x, 0) / refSet.length,
-      y: refSet.reduce((s, t) => s + t.centroid.y, 0) / refSet.length,
-    };
-    // the orbit grid: one faint ring per rank, at that rank's mean island distance
-    const rings = orbitRings(
-      orbiting.map((t) => ({
-        rank: ranks.get(t.story.id) ?? 0,
-        dist: Math.hypot(t.centroid.x - center.x, t.centroid.y - center.y),
-      })),
-    ).map((r) => r.radius);
-    // provider-side `consumed_by` wiring as straight, low-salience hub spokes.
-    const spokeLines: { from: string; to: string; d: string }[] = [];
-    for (const e of spokeEdges(stories.map((s) => ({ id: s.id, consumedBy: s.consumedBy })))) {
-      const a = dockById.get(e.from);
-      const b = dockById.get(e.to);
-      if (a && b) spokeLines.push({ from: e.from, to: e.to, d: dockedEdgePath(a, b, 0) });
-    }
-    solar = { center, rings, spokes: spokeLines };
-  }
+  // ADR-0283 D2: the radial `solar` assembly that used to build `world.solar` here — the hub
+  // centre, the rank orbit rings and the `consumed_by` spoke lines — is gone with the layout it
+  // served. `HexWorld['solar']` stays optional on the shared type and is simply never populated,
+  // so the renderers that guard on it draw nothing.
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
   const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
@@ -818,7 +757,6 @@ export function buildWorld(
     empties,
     drawTiles,
     trails,
-    ...(solar ? { solar } : {}),
     width: Math.ceil(maxX - minX),
     height: Math.ceil(maxY - minY),
     offset: { x: -minX, y: -minY },
@@ -1340,19 +1278,16 @@ export function readChapter2Round3Lab(search: string = defaultSearch()): boolean
   return new URLSearchParams(search).get('organicGrowth') === 'r3-lab';
 }
 
-// ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
-
-type LayoutMode = 'dag' | 'solar' | 'stress';
-
-/** DEFAULT (param absent) ⇒ the dependency-aware stress-majorization placement
- *  (ADR-0171, owner-attested 2026-07-07 — shortens trails while keeping hierarchy);
- *  `?layout=dag` ⇒ the old strict-layered world; `?layout=solar` ⇒ the RADIAL
- *  hub-and-spoke world. Gear-panel managed (worldSettings, the single source of truth
- *  for the default), so the panel + this reader never drift. */
-function readLayoutMode(search: string = defaultSearch()): LayoutMode {
-  const v = readControlValue(search, LAYOUT_CTL);
-  return v === 'solar' ? 'solar' : v === 'stress' ? 'stress' : 'dag';
-}
+/* ---------- map layout ----------
+ * ADR-0283 D2 (owner-directed 2026-08-02): DAG rows are the ONE map layout. The `readLayoutMode`
+ * reader, the `LayoutMode` union and the `?layout=` query values are gone — `?layout=stress` /
+ * `?layout=solar` no longer resolve to anything and fall through to rows like any unknown param,
+ * and the gear picker that offered them retired with them (worldSettings). This is a product call
+ * about what the map IS, not an Act 2 convenience: every growth, arrival and pathway choreography
+ * from here on has exactly one arrangement to be correct against. The placement modules
+ * (`lib/solarLayout.ts`, `lib/stressLayout.ts`) are left in place and tested but unreached from
+ * the map; `stressSeeds` still serves `overviewConstellation.ts`.
+ */
 
 /**
  * Which sprite art STYLE SHEET re-skins the map (sprite-art-sheets arc) — `'storybook'` is the
@@ -1381,37 +1316,17 @@ export function readSelectionMotion(search: string = defaultSearch()): 'draw' | 
 }
 
 /**
- * The central wiring hubs everything orbits in solar mode (ADR-0074 §2 — the wiring
- * layer is VISIBLE, not exempt: hiding the most-connected nodes hides the most
- * architecturally important relationships). `cli` / `store` are now FIRST-CLASS hub
- * organisms with real stories + capabilities + lightweight UATs (ADR-0074 §3, landed
- * PR #234), so `/api/tree` returns them like any island — they render with their real
- * capability trees and are fully selectable. `HUB_IDS` is used only to LAY THEM OUT
- * centrally; the synthetic `makeHubStory` below is a fallback for the edge case where
- * a hub story is absent from the payload (offline / pre-#234), kept so the radial world
- * still has a centre.
+ * The central wiring organisms (ADR-0074 §2 — the wiring layer is VISIBLE, not exempt: hiding the
+ * most-connected nodes hides the most architecturally important relationships). `cli` / `store`
+ * are FIRST-CLASS organisms with real stories + capabilities + lightweight UATs (ADR-0074 §3,
+ * landed PR #234), so `/api/tree` returns them like any island.
+ *
+ * ADR-0283 D2 retired the radial layout these used to be laid out CENTRALLY for, and the synthetic
+ * fallback hub story that gave that world a centre when the payload lacked one went with it. What
+ * remains is the on-map EMPHASIS — the `is-hub` tag and the presentation model's
+ * `emphasizedStoryIds` — which never depended on the arrangement.
  */
-const HUB_DEFS: readonly { id: string; title: string }[] = [
-  { id: 'store', title: 'store' },
-  { id: 'cli', title: 'cli' },
-];
-const HUB_IDS: ReadonlySet<string> = new Set(HUB_DEFS.map((h) => h.id));
-
-/** A synthetic FALLBACK hub story — a bare central island, used only when the real
- *  cli/store story is missing from the payload (normally they come from /api/tree). */
-function makeHubStory(def: { id: string; title: string }): TreeStory {
-  return {
-    id: def.id,
-    title: def.title,
-    outcome: 'wiring hub — every organism connects here',
-    status: null,
-    proofMode: '',
-    uatWitness: 'human',
-    dependsOn: [],
-    consumedBy: [],
-    capabilities: [],
-  };
-}
+const HUB_IDS: ReadonlySet<string> = new Set(['store', 'cli']);
 
 // ---------- focus relations (V1's ancestor/descendant highlighting) ----------
 
@@ -1719,33 +1634,16 @@ export function TreeView({
     () => assets.map((a) => (Array.isArray(a.references) ? a : { ...a, references: [] })),
     [assets],
   );
-  // ADR-0074 §6: `?layout=solar` reskins the world radially with cli/store hubs at the
-  // centre. Gear-panel managed, so it's reactive on `search` (live, no reload). In solar
-  // mode the synthetic hub islands are injected ONLY into buildWorld's input — the
-  // component's `stories` state (panel / selection / verdicts) stays clean.
-  const layoutMode = useMemo(() => readLayoutMode(search), [search]);
+  // ADR-0283 D2: there is no layout dial any more — the world is DAG rows, full stop. The
+  // synthetic hub-island injection that only `solar` needed went with it.
   // ADR-0076 §2 / ADR-0088: building-class stories (e.g. library) are EXCLUDED from the map and
   // their consumers carry a distributed bookshelf STAMP (the "uses the shared library" marker).
   // The buildings themselves live in the permanent Shared Islands panel. Default ON since the
   // owner attested it; `?buildings=off` restores normal connected islands (no panel, no stamps).
   const buildings = useMemo(() => readBuildings(search), [search]);
-  const worldStories = useMemo(() => {
-    if (layoutMode !== 'solar' || !stories) return stories;
-    const present = new Set(stories.map((s) => s.id));
-    const hubs = HUB_DEFS.filter((h) => !present.has(h.id)).map(makeHubStory);
-    return [...stories, ...hubs];
-  }, [stories, layoutMode]);
   const world = useMemo(
-    () =>
-      worldStories
-        ? buildWorld(worldStories, {
-            plantsScatter,
-            layoutMode,
-            buildings,
-            hubIds: HUB_IDS,
-          })
-        : null,
-    [worldStories, plantsScatter, layoutMode, buildings],
+    () => (stories ? buildWorld(stories, { plantsScatter, buildings }) : null),
+    [stories, plantsScatter, buildings],
   );
   // ADR-0088: the building-class stories that fill the permanent Shared Islands panel. Generic
   // over `story.building === true` (sharedIslandStories). Empty when `?buildings=off` (the
@@ -2339,6 +2237,22 @@ export function TreeView({
   // forest, the same islands and the same roads the clean route does.
   const act2Intro = useMemo(() => readAct2Intro(search), [search]);
   const act2ReducedMotion = useReducedMotion();
+  // The routed geometry the regrow's pathways grow ALONG (ADR-0283 D1): each segment's drawn
+  // length in world units, so a long haul takes longer to travel than a short spur instead of
+  // every pathway costing the same. Derived once per world — never per frame.
+  const trailSegLengths = useMemo(() => {
+    const lengths = new Map<string, number>();
+    for (const segment of world?.trails.segments ?? []) {
+      let total = 0;
+      for (let i = 1; i < segment.points.length; i += 1) {
+        const a = segment.points[i - 1]!;
+        const b = segment.points[i]!;
+        total += Math.hypot(b.x - a.x, b.y - a.y);
+      }
+      lengths.set(segment.id, total);
+    }
+    return lengths;
+  }, [world]);
   const act2Player = useAct2Intro({
     enabled: act2Intro,
     stories,
@@ -2347,6 +2261,7 @@ export function TreeView({
     // supplies only which segments join which islands, so a road the router had to drop can never
     // silently reorder the forest.
     edges: world?.trails.edges ?? null,
+    segmentLengths: act2Intro ? trailSegLengths : null,
   });
   const scene = useMemo(
     () =>
@@ -2442,8 +2357,10 @@ export function TreeView({
   }, [arriveParam, world]);
   const arrivalIds = useMemo<ReadonlySet<string> | null>(() => {
     // During an Act 2 regrow the arriving islands ARE the ones the plan is landing right now, so
-    // the existing arrival machinery — the staged coast/ground/flora classes and the incident
-    // trail draw-on below — is reused verbatim rather than a second animation being written.
+    // the staged coast/ground/flora arrival classes are reused verbatim rather than a second
+    // island animation being written. Their DELAYS are re-timed under `.act2-regrowing`
+    // (index.css) to land inside the island's own accretion window: the default staging waits
+    // ~1.05 s for a road to arrive first, which under ADR-0283 has already happened.
     if (act2RegrowLayer) {
       return act2Player.state && act2Player.state.arrivalStoryIds.length > 0
         ? new Set(act2Player.state.arrivalStoryIds)
@@ -2452,12 +2369,31 @@ export function TreeView({
     if (!demoArrivalId && entering.size === 0) return null;
     return demoArrivalId ? new Set([...entering, demoArrivalId]) : entering;
   }, [act2RegrowLayer, act2Player.state, demoArrivalId, entering]);
-  // The trail draw-on animation, re-rooted from click to ARRIVAL: an arriving island's
-  // DIRECT incident trails grow outward from it (existing trails stay statically drawn).
-  // Null when nothing is arriving ⇒ every trail simply paints, no masks.
+  // Per-segment usage, for the reveal mask's stroke width (the §3 multi-reveal width step-up).
+  const trailSegUsage = useMemo(
+    () => new Map((world?.trails.segments ?? []).map((s) => [s.id, s.usage])),
+    [world],
+  );
+  // ADR-0283 D1 — the regrow's own pathway fronts: which segments are mid-draw and how far the
+  // front has travelled, straight off the app cursor. Held stable across frames where no front
+  // has moved. Null (⇒ fall through to the live-arrival plan below) whenever the regrow is not
+  // drawing a pathway.
+  const act2TrailPlan = useStableForestRegrowTrails(
+    act2Player.state,
+    trailSegUsage,
+    act2Player.regrowing,
+  );
+  // The trail draw-on plan. Two sources, never both: the Act 2 regrow drives it from the CURSOR
+  // (so the schedule knows the instant a pathway arrives — ADR-0283 D1), while a live island
+  // ARRIVAL keeps the CSS beat it has always had (an arriving island's DIRECT incident trails
+  // grow outward from it, existing trails stay statically drawn). Null ⇒ every trail simply
+  // paints, no masks.
   const growPlan = useMemo(
-    () => arrivalGrowPlan(world?.trails ?? null, arrivalIds),
-    [world, arrivalIds],
+    () =>
+      act2Player.regrowing
+        ? act2TrailPlan
+        : arrivalGrowPlan(world?.trails ?? null, arrivalIds),
+    [act2Player.regrowing, act2TrailPlan, world, arrivalIds],
   );
   // ADR-0242 — the selection highlight the reveal-on-click era never had: ONE hop, both
   // directions. `neighbourHighlightPlan` is pure, so this is just which segments sit on the
@@ -2739,7 +2675,14 @@ export function TreeView({
           <div className="world-pan-layer" ref={panLayerRef}>
           <svg
             ref={svgRef}
-            className={`world-scene lane-motion-${selectionMotion}`}
+            className={`world-scene lane-motion-${selectionMotion}${
+              // ADR-0283 D1: while the regrow is in flight the island arrival staging is re-timed
+              // to land INSIDE the island's own accretion window (index.css). Its default beat
+              // holds the island back ~1.05 s waiting for a road to arrive first — under edge
+              // scheduling the road has already arrived, so that wait would make a settled island
+              // sprout its outgoing pathways before it was visible.
+              act2Player.regrowing ? ' act2-regrowing' : ''
+            }`}
             onClick={(e) => {
               // scene selection is handled on the viewport (coordinate hit-test); here only the legacy
               // render clears on a true background click.
@@ -2758,18 +2701,33 @@ export function TreeView({
               >
                 <path d="M 0 1.2 L 8 5 L 0 8.8 z" fill="context-stroke" />
               </marker>
-              {/* ADR-0169 arrival draw-on masks — one per segment growing on an island
-                  ARRIVAL: a solid white stroke over the segment's own path, pathLength-
-                  normalised so the CSS dash animation (offset 1→0, or -1→0 for a chain
-                  walked against the path's drawn direction) grows it length-agnostically;
-                  the visible stroke is masked by it, so it draws on from the new island.
+              {/* ADR-0169 draw-on masks — one per segment currently growing: a solid white
+                  stroke over the segment's own path, pathLength-normalised so a dash offset of
+                  1→0 (or -1→0 for a chain walked against the path's drawn direction) grows it
+                  length-agnostically; the visible stroke is masked by it, so the road draws on.
                   userSpaceOnUse + oversized bounds keep a thin diagonal's mask region from
-                  clipping the wide stroke. Stagger rides an inline animation-delay per
-                  chain position. Absent arrival ⇒ no masks; every trail just paints. */}
+                  clipping the wide stroke. Absent growth ⇒ no masks; every trail just paints.
+
+                  TWO drivers, chosen per segment by whether the plan carries a `drawn` cursor:
+                  a live island ARRIVAL keeps the CSS beat (an inline animation-delay per chain
+                  position plus the 0.35s keyframe), while the Act 2 regrow writes the offset
+                  itself from the app cursor and suppresses the keyframe (`is-cursor-driven`).
+                  ADR-0283 D1 needs the moment a pathway ARRIVES to be a number the schedule
+                  holds, and a CSS keyframe cannot be sampled. */}
               {renderScene &&
                 growPlan?.segments.map((seg) => {
                   const s = trailSegById.get(seg.id);
                   if (!s) return null;
+                  const cursorDriven = seg.drawn !== undefined;
+                  const style: React.CSSProperties = {
+                    strokeWidth: trailFillWidth(seg.revealedUsage) + 8,
+                  };
+                  if (seg.drawn !== undefined) {
+                    const remaining = 1 - Math.max(0, Math.min(1, seg.drawn));
+                    style.strokeDashoffset = seg.fromEnd ? -remaining : remaining;
+                  } else {
+                    style.animationDelay = `${seg.delayMs}ms`;
+                  }
                   return (
                     <mask
                       key={seg.id}
@@ -2783,11 +2741,10 @@ export function TreeView({
                       <path
                         d={s.d}
                         pathLength={1}
-                        className={`trail-reveal-mask${seg.fromEnd ? ' from-end' : ''}`}
-                        style={{
-                          animationDelay: `${seg.delayMs}ms`,
-                          strokeWidth: trailFillWidth(seg.revealedUsage) + 8,
-                        }}
+                        className={`trail-reveal-mask${seg.fromEnd ? ' from-end' : ''}${
+                          cursorDriven ? ' is-cursor-driven' : ''
+                        }`}
+                        style={style}
                       />
                     </mask>
                   );
@@ -2833,11 +2790,8 @@ export function TreeView({
               </>
             ) : (
             <g transform={`translate(${world.offset.x} ${world.offset.y})`}>
-              {/* SOLAR ORBIT GRID — the rings are still COMPUTED (`world.solar.rings` /
-                  `.center`, machinery kept) but NOT DRAWN: the owner's steer (2026-06-20)
-                  is to keep the orbit structure invisible and the islands loosely placed.
-                  Re-enable by mapping `world.solar.rings` to faint `.solar-orbit-ring`
-                  circles centred on `world.solar.center`. */}
+              {/* (The solar ORBIT GRID note that stood here described rings this render never
+                  drew, for a layout ADR-0283 D2 retired. Nothing computes `world.solar` now.) */}
 
               {/* the pale coast */}
               <g className="hex-coast">
@@ -2871,22 +2825,11 @@ export function TreeView({
                 }}
               />
 
-              {/* SOLAR spokes (solar mode) — thin, no-arrow, PERIMETER-DOCKED curves
-                  (the de-noised hub→organism `consumed_by` wiring, low salience). The
-                  `depends_on` edges are the ADR-0169 trail network now, which only the
-                  scene render draws (reveal-on-focus) — this legacy `?render=legacy`
-                  escape shows the world WITHOUT trails. */}
-              {world.solar && (
-                <g className="solar-spoke-net">
-                  {world.solar.spokes.map((s) => (
-                    <path
-                      key={`${s.from}->${s.to}`}
-                      className="solar-spoke"
-                      d={s.d}
-                    />
-                  ))}
-                </g>
-              )}
+              {/* (The solar SPOKE pass — the de-noised hub→organism `consumed_by` wiring — stood
+                  here behind a `world.solar &&` guard. ADR-0283 D2 retired the layout that
+                  populated it, so it drew nothing and is gone with the arrangement. The
+                  `depends_on` edges are the ADR-0169 trail network, which only the scene render
+                  draws; this legacy `?render=legacy` escape shows the world WITHOUT trails.) */}
 
               {/* trees, contract-density flora, nameplates, wisps — per territory */}
               {world.territories.map((t) => (
@@ -3465,8 +3408,10 @@ function StoryStamp({
  * chrome layers ON TOP of `<SceneView>`, never pushed into the framework-agnostic core). With the
  * scene render now the DEFAULT (ADR-0093 Unit D), this overlay restores the three pieces that lived
  * only in the old inline `<g>` and are NOT in the shared core (so the flip regresses nothing):
- *  - the solar SPOKES (`world.solar.spokes`, the de-noised hub→organism `consumed_by` wiring) — drawn
- *    only in solar mode, low-salience, the SAME `.solar-spoke-net` markup the inline path used;
+ *  - the solar SPOKES (`world.solar.spokes`, the de-noised hub→organism `consumed_by` wiring) —
+ *    DORMANT since ADR-0283 D2: the radial layout it belonged to is retired and `buildWorld` never
+ *    populates `world.solar`, so this pass renders nothing on the real map. The guarded branch and
+ *    its `.solar-spoke-net` markup are kept rather than deleted;
  *  - the distributed-consumer building STAMPS each island carries (`Territory.stamps`, ADR-0102) — the
  *    scene draws the trees/flora/plates/wisps, but the stamps are studio chrome, so they ride here; and
  *  - the per-nameplate IDENTITY-KEY glyph (`world-plate-key` + `IconGlyph`, ADR-0102) — each island's

@@ -99,12 +99,14 @@ describe('buildWorld — the ADR-0169 trail network (roads route as trails, both
     expect(world.trails.edges[0]!.title).toMatch(/depends on/);
   });
 
-  it('the solar layout carries the SAME one-TrailNetwork model (no per-layout road model)', () => {
-    const world = buildWorld(fixture(), { layoutMode: 'solar' });
+  // ADR-0283 D2 (owner-directed 2026-08-02): DAG rows are the ONLY layout. `?layout=stress` /
+  // `?layout=solar` are retired, so there is no second arrangement to hold the one-TrailNetwork
+  // model against — and no solar layer to build.
+  it('lays out DAG rows whatever the URL said, and populates no solar layer', () => {
+    const world = buildWorld(fixture());
     const keys = world.trails.edges.map((e) => `${e.from}->${e.to}`);
     expect(keys).toContain('foundation->mid');
-    // solar keeps only its spokes/rings — there is no solar.roads layer anymore
-    expect(world.solar && 'roads' in world.solar).toBe(false);
+    expect(world.solar).toBeUndefined();
   });
 
   it('is deterministic — same stories, byte-identical network', () => {

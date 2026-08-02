@@ -92,7 +92,7 @@ export type ControlValue = number | boolean | string;
 // The schema. Defaults + clamps MIRROR TreeView's RIVER_TUNING / the readers.
 // ---------------------------------------------------------------------------
 
-const GROUP_LAYOUT = 'Layout';
+// (the 'Layout' group retired with its only control — ADR-0283 D2)
 const GROUP_ART = 'Art style';
 const GROUP_SELECTION = 'Selection';
 
@@ -118,42 +118,24 @@ function normalizeArtStyle(raw: string | null): string {
   return (ART_STYLE_NAMES as readonly string[]).includes(raw) ? raw : 'vector';
 }
 
-/** layout aliases, mirroring readLayoutMode. Default = `dag` (ADR-0229, owner-directed 2026-07-23,
- *  amends ADR-0171): an absent/unknown param renders the DAG rows. `?layout=stress` opts into the
- *  dependency-aware trail-shortening placement; `?layout=solar` the radial hub world. */
-function normalizeLayout(raw: string | null): string {
-  if (raw === 'solar' || raw === 'solar-system' || raw === 'radial') return 'solar';
-  // explicit opt-in to the dependency-aware stress-majorization placement (shortens trails)
-  if (raw === 'stress' || raw === 'stress-majorization' || raw === 'force') return 'stress';
-  // ADR-0229 (amends ADR-0171): DAG rows are the default again —
-  // 'dag' | 'rows' | 'tree' | unknown | null → dag.
-  return 'dag';
-}
-
 // The forest-map dials (owner ask 2026-06-18). Since the river-trail road system was
 // retired (ADR-0076: connections are thin perimeter-docked lines with nothing to tune),
-// the road-routing knobs are GONE — only Layout (DAG vs solar) and Ground (tiling) remain.
-// Each control's `hint` is the visible plain-English description shown UNDER the control.
+// the road-routing knobs are GONE — and ADR-0283 D2 has since retired the Layout picker too,
+// so the "Layout" gear section no longer exists. Each control's `hint` is the visible
+// plain-English description shown UNDER the control.
 export const CONTROLS: readonly ControlSpec[] = [
-  // ---- Layout ----
-  // ADR-0229 (owner-directed 2026-07-23, amends ADR-0171): DAG rows are the DEFAULT again — a clean
-  // URL renders the layered rows (which read cleanly against the pathways-only map, ADR-0228). The
-  // dependency-aware `stress` placement and the radial `solar` world (ADR-0074 §6: cli/store hubs at
-  // the centre) stay in the picker — `?layout=stress` / `?layout=solar` opt into them.
-  {
-    kind: 'select',
-    key: 'layout',
-    label: 'Layout',
-    group: GROUP_LAYOUT,
-    hint: 'How islands are arranged — DAG rows (default), a dependency-aware layout that shortens trails, or a solar-system with the cli/store hubs at the centre.',
-    default: 'dag',
-    options: [
-      { value: 'dag', label: 'DAG rows' },
-      { value: 'stress', label: 'Dependency-aware' },
-      { value: 'solar', label: 'Solar system' },
-    ],
-    normalize: normalizeLayout,
-  },
+  // ---- Layout ---- RETIRED (ADR-0283 D2, owner-directed 2026-08-02)
+  // DAG rows are now the ONE map layout, not the default among three. ADR-0229 had already made
+  // rows the default (2026-07-23, amending ADR-0171) while keeping `stress` (the dependency-aware
+  // trail-shortening placement) and `solar` (ADR-0074 §6's radial hub world) in this picker. Every
+  // growth, arrival and pathway choreography then had to be defensible against all three: an
+  // edge-driven regrow reads DOWN a row layout as a front, and under stress-majorization placement
+  // the same schedule scatters across the plane, because that optimiser places for short trails
+  // rather than for depth. The picker entry, the `?layout=` query values and the documented
+  // alternatives all go; `?layout=anything` now falls through to rows like any unmanaged param.
+  // The placement MODULES (`lib/stressLayout.ts`, `lib/solarLayout.ts`) are left in place and
+  // tested — `stressSeeds` still has a live caller in `overviewConstellation.ts` — but nothing on
+  // the map reaches them any more.
 
   // ---- Ground ----
   // ADR-0233 retired the `substrate` "Ground tiling" gear select (mesh / hex / relaxed-quad /
