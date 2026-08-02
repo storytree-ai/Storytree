@@ -68,10 +68,67 @@ CANVAS = 128                         # the delivered pixel canvas
 ANCHOR_ROW = 118.0                   # where the trunk's ground contact lands, in canvas px
 SKIP_RENDER = "--no-render" in argv  # skeleton/retime only, for fast iteration
 VERBOSE = "--verbose" in argv
+# `--only 18,9` renders a SUBSET of the delivered frames. The retiming, the camera and
+# the frame indices are unchanged, so a single-frame render is byte-identical to that
+# frame of a full run — it is the tight loop for the colour work, not a different tree.
+ONLY = ({int(x) for x in arg("--only", "").split(",") if x.strip() != ""}
+        if arg("--only", "") else None)
 
 os.makedirs(OUT, exist_ok=True)
 
 # ---------------------------------------------------------------- palette anchors
+# The BANDS. exp-16's confidence is not saturation, it is TWELVE colours held in large
+# flat regions plus one bright warm top-highlight over a fifth of the canopy; v2 carried
+# 24 and no highlight at all. So the band list IS the colour budget, authored here at
+# exp-16's own committed palette values rather than discovered by the snap: the material
+# emits a palette entry exactly, and `pixelise.py`'s snap becomes a near-identity.
+#
+# (stop, sRGB) — stop is the shading value at which the band takes over. Positions are
+# tuned against the MEASURED coverage of the mature crown, not by eye: the top band is
+# placed to land near exp-16's 20-21%.
+FOLIAGE_BANDS = [
+    (0.00, (92, 90, 46)),        # deep shade      exp-16: 6.8%
+    (0.26, (101, 118, 65)),      # shade           exp-16: 21.7%
+    (0.61, (121, 141, 83)),      # mid
+    (0.72, (135, 148, 89)),      # body            exp-16: 29.0%
+    (0.89, (173, 167, 114)),     # warm highlight  exp-16: 20.4%  <- v2 had NO equivalent
+]
+BARK_BANDS = [
+    (0.00, (73, 44, 28)),
+    (0.38, (103, 62, 39)),
+    (0.60, (125, 94, 55)),
+    (0.80, (152, 106, 60)),
+]
+# The key sits UP-LEFT-AND-FORWARD of the camera, not overhead. The iso-bands of N·L are
+# circles perpendicular to L, so a near-vertical key at a 20 deg camera projects them as
+# horizontal stripes and every lobe reads as a flat-topped plate; swinging L toward the
+# view axis turns them into concentric rings around an upper-left highlight, which is how
+# exp-16's lobes read as round. Lever 3 (the top highlight) and lever 2 (the banding) are
+# the same mechanism — the band list chooses the colours, this vector places them.
+LIGHT_DIR = (-0.435, -0.429, 0.792)
+# Foliage occlusion is a CREASE finder, not a global dimmer: short-range and strong, so
+# the valley where two clouds meet drops a whole band and reads as the dark seam that
+# separates them. Without it the lobes merge into one lumpy mass — exp-16 draws a scallop
+# between every pair, and that separation is what makes a canopy read as clusters.
+AO_AMOUNT = 0.62
+AO_DIST = 0.20
+# Bark reaches FURTHER and darker. A cel material is self-lit, so a twig inside the
+# canopy would otherwise render at the same brightness as one on the silhouette — and a
+# BRIGHT bark band peeking through a gap is the orange speckle that reads as noise.
+# exp-16's crown is 29% bark by area and almost none of it is bright: the twigs are
+# there, they are simply in deep shade. Long-range occlusion is what puts them there.
+AO_AMOUNT_BARK = 0.80
+AO_DIST_BARK = 0.80
+BLADE_BIAS = 0.10              # young blades read a shade brighter than canopy cloud
+# LEVER 4, the optional one. A tiled leaf texture at 128 px lands sub-pixel — the whole
+# tree is ~86 px wide and a lobe is 12-20 px — so it can only ADD colours, which is the
+# exact defect being fixed. The defensible form is a BREAK-UP MASK: noise added to the
+# shading value BEFORE the ramp, so it scallops the band boundary (the terminator) into
+# something leafy instead of a smooth vector arc, and cannot introduce a colour because
+# the ramp still only emits band values. `--breakup <x>` overrides for the experiment.
+LEAF_BREAKUP = float(arg("--breakup", "0.10"))
+LEAF_BREAKUP_SCALE = 22.0
+
 # sampled from exp-16's committed 32-colour track palette; the raster back half snaps
 # every pixel back onto that palette, so these only need to land in the right family.
 BARK_SRGB = (126 / 255, 85 / 255, 53 / 255)
@@ -143,17 +200,39 @@ R_TIP_MAX = 0.0265             # a lignified twig
 TAU_AGE = 26.0                 # iterations to e-fold toward R_TIP_MAX
 AGE_TAIL = 8.0                # pure secondary growth after extension stops
 
-# foliage
+# ---------------------------------------------------------------- foliage
+# v2 rendered per-leaf geometry all the way to maturity, and that is the machine that
+# manufactured its colour fragmentation: each blade presents its own facing angle, so a
+# mature crown carried a CONTINUUM of shading that quantised into speckle — measured at
+# 24 distinct crown colours against exp-16's 12. A cloud has one surface and can hold a
+# band. So blades exist only while ONE LEAF IS A READABLE FRACTION OF THE SILHOUETTE,
+# and clouds carry the crown from sapling up.
 LEAF_EVERY = 2                 # a blade whorl on every internode: a sapling is LEAFY,
 LEAF_LEN = 0.225               # and a bare armature that greens only at the end is the
 LEAF_PER = 3                   # "stump" complaint in another costume
 AGE_LEAF = 1.5                 # blades reach full size over this many iterations
-AGE_SHED_LO = 18.0             # a shoot starts dropping blades here
-AGE_SHED_HI = 24.0             # and is bare by here
-AGE_LOBE = 4.0
-LOBE_CELL = 0.20               # tip-cluster cell size
-LOBE_SHELL = 0.28              # lobes only on the crown's outer shell
-LOBE_MIN, LOBE_CAP, LOBE_BASE = 0.110, 0.190, 0.098
+N_BLADE_FULL = 9.2             # blades carry the frame up to here (stages 1-3) ...
+N_BLADE_OFF = 15.0             # ... and are gone by here, with clouds already covering
+
+# The canopy is carried on the OUTER ORDERS of live shoot and migrates outward as the
+# tree grows — which is what a real canopy does, and what lets one mechanism serve a
+# sapling apex and a mature crown shell. Cloud SEATS are farthest-point sampled from the
+# mature skeleton ONCE and every node is assigned to one, so a cloud can never appear,
+# merge or split between frames; only its live membership changes.
+N_CLOUD_ON = 5.2               # no canopy cloud before this: at frame 0 the COTYLEDON
+N_CLOUD_FULL = 10.5            # pair carries the silhouette, and a green ball over it
+                               # is the "stump" complaint in a third costume
+N_CLOUD = 22                   # fewer, larger clouds: the count IS the band budget
+CLOUD_ORDERS = 4.6             # a node bears canopy within this many orders of a live tip
+CLOUD_RISE = 3.2               # iterations for a newly live node to pull its weight
+CLOUD_SAT = 3.4                # summed weight at which a cloud reaches its own extent
+CLOUD_EXT = 1.34               # radius from the weighted spread of the nodes it covers
+CLOUD_BASE = 0.062
+CLOUD_MIN, CLOUD_CAP = 0.085, 0.352
+CLOUD_SQUASH = 0.93            # a cloud is a ROUNDED mass. v2's 0.82 plus a near-vertical
+                               # key made each lobe a flat-topped plate, and a pile of
+                               # plates reads as stacked lily pads rather than as canopy
+WOOD_HIDE = 0.32               # how far a twig tapers away under its own canopy weight
 
 # base (gap 2's fix)
 N_ROOT = 7
@@ -317,41 +396,45 @@ NMAX_BIRTH = max(n.birth for n in NODES)
 N_FLOOR = 2.0
 
 
-def cluster_tips(nodes):
-    """Fixed spatial clustering of the MATURE skeleton's tips, computed once — so a
-    canopy lobe can never appear, merge or split between frames, only grow. Each
-    cluster carries the radius covering its own tips: that is what guarantees the crown
-    CLOSES as the blades are shed, rather than thinning out."""
-    tips = [i for i, n in enumerate(nodes) if not n.kids]
-    cells = {}
-    for i in tips:
-        p = nodes[i].p
-        cells.setdefault(tuple((p / LOBE_CELL).astype(int)), []).append(i)
-    inner, out = set(), []
-    for k in sorted(cells.keys()):
-        mem = cells[k]
-        P = np.array([nodes[i].p for i in mem])
-        c = P.mean(axis=0)
-        q = np.linalg.norm((c - CROWN_C) / CROWN_R)
-        if q < LOBE_SHELL:
-            inner.update(mem)          # shade twigs inside the crown carry blades instead
-            continue
-        # Nothing hangs under the middle of the crown. That void is what lets you watch
-        # the limbs run up into the foliage — without it the canopy reads as a lollipop
-        # sitting on a pole, which is what the first probe did.
-        if (c[2] < CROWN_C[2] + 0.10 * CROWN_R[2]
-                and math.hypot(c[0], c[1]) < 0.42 * CROWN_R[0]):
-            inner.update(mem)
-            continue
-        ext = float(np.linalg.norm(P - c, axis=1).max()) if len(mem) > 1 else 0.0
-        out.append((mem, min(LOBE_CAP, max(LOBE_MIN, 0.80 * ext + LOBE_BASE))))
-    return out, inner
+def cloud_seats(nodes):
+    """Farthest-point sampling of the MATURE skeleton into N_CLOUD seats, then a fixed
+    assignment of EVERY node to its nearest seat. Computed once, so a cloud can never
+    appear, merge or split between frames — only its live membership changes.
+
+    Sampling the whole skeleton rather than only the mature tips is what lets ONE
+    mechanism serve both ends of the track: a sapling's live apex is owned by some seat
+    and gets its cloud there, and the mature crown's shell is owned by the crown seats.
+    Nothing hangs under the middle of the crown, because an interior node is many orders
+    from a live tip and carries no canopy weight — the void that lets you watch the limbs
+    run up into the foliage falls out of the outer-orders rule rather than being carved."""
+    P = np.array([n.p for n in nodes])
+    first = int(np.argmax(P[:, 2]))            # the leader apex: the canopy's first seat
+    seats = [first]
+    d = np.linalg.norm(P - P[first], axis=1)
+    while len(seats) < min(N_CLOUD, len(nodes)):
+        nxt = int(np.argmax(d))
+        seats.append(nxt)
+        d = np.minimum(d, np.linalg.norm(P - P[nxt], axis=1))
+    owner = np.argmin(np.linalg.norm(P[:, None, :] - P[seats][None, :, :], axis=2), axis=1)
+    return [np.nonzero(owner == k)[0] for k in range(len(seats))]
 
 
-CLUSTERS, INNER = cluster_tips(NODES)
-INNER_MASK = np.zeros(len(NODES), dtype=bool)
-for _i in INNER:
-    INNER_MASK[_i] = True
+CLUSTERS = cloud_seats(NODES)
+
+
+def live_depth(alive):
+    """Orders from each live node down to its deepest live descendant; 0 at a live tip.
+    A child is always appended after its parent, so one reverse pass is exact."""
+    dh = np.zeros(len(NODES))
+    for i in range(len(NODES) - 1, -1, -1):
+        if not alive[i]:
+            continue
+        best = -1.0
+        for k in NODES[i].kids:
+            if alive[k] and dh[k] > best:
+                best = dh[k]
+        dh[i] = 0.0 if best < 0 else best + 1.0
+    return dh
 
 
 def root_spec():
@@ -405,36 +488,46 @@ def frame_state(N):
         s = sum(r[k] ** PIPE_E for k in NODES[i].kids if alive[k])
         r[i] = max(r0, s ** (1.0 / PIPE_E) if s > 0 else 0.0)
 
-    # blades: a shoot flushes leaves in its first season and drops them as it lignifies.
-    # Shade twigs inside the crown never get a lobe, so they hold their blades longer.
+    # blades: a whorl flushes on a young shoot and the whole population is handed to the
+    # clouds once the plant is big enough that one leaf is no longer a readable fraction
+    # of the silhouette. The gate is GLOBAL (on N) rather than per-shoot age, because the
+    # thing being decided is the STAGE's idiom, not any one shoot's season.
     ai = np.clip(age / AGE_LEAF, 0.0, 1.0)
-    lo = np.where(INNER_MASK, AGE_SHED_LO * 2.1, AGE_SHED_LO)
-    hi = np.where(INNER_MASK, AGE_SHED_HI * 2.1, AGE_SHED_HI)
-    ao = np.clip((age - lo) / np.maximum(hi - lo, 1e-6), 0.0, 1.0)
+    g = np.clip((N - N_BLADE_FULL) / (N_BLADE_OFF - N_BLADE_FULL), 0.0, 1.0)
+    gate = 1.0 - g * g * (3 - 2 * g)
     # the first flush is small: at the seedling stage the COTYLEDONS should carry the
     # frame, not a full-size true leaf on a 2 px stem
     flush = min(1.0, 0.45 + 0.55 * max(0.0, (N - N_FLOOR) / 7.0))
-    leaf = ai * (1.0 - ao * ao * (3 - 2 * ao)) * alive * flush
+    leaf = ai * alive * flush * gate
 
-    # lobes: monotone mass, so a lobe only ever grows
+    # clouds: the canopy rides the OUTER ORDERS of live shoot and migrates outward with
+    # growth. Weight per node falls off with how deep inside the live tree it sits, so an
+    # apex bears canopy and a lignified interior does not.
+    dh = live_depth(alive)
+    con = np.clip((N - N_CLOUD_ON) / (N_CLOUD_FULL - N_CLOUD_ON), 0.0, 1.0)
+    con = con * con * (3 - 2 * con)
+    wn = np.clip(1.0 - dh / CLOUD_ORDERS, 0.0, 1.0) * np.clip(age / CLOUD_RISE, 0.0, 1.0)
+    wn = wn * alive * con
     lobes = []
-    for ci, (cl, rt) in enumerate(CLUSTERS):
-        m, w, c = 0.0, 0.0, np.zeros(3)
-        for i in cl:
-            if not alive[i]:
-                continue
-            a = min(1.0, age[i] / AGE_LOBE)
-            m += a
-            c += NODES[i].p * a
-            w += a
-        if m <= 0.02 or w <= 0:
+    for ci, cl in enumerate(CLUSTERS):
+        w = wn[cl]
+        tot = float(w.sum())
+        if tot <= 0.05:
             continue
-        c = c / w
+        P = np.array([NODES[i].p for i in cl])
+        c = (P * w[:, None]).sum(axis=0) / tot
+        # weighted spread of what this cloud actually covers, so a cloud never spans a
+        # gap between two live regions it happens to own
+        spread = math.sqrt(float((w * ((P - c) ** 2).sum(axis=1)).sum() / tot))
+        sat = min(1.0, (tot / CLOUD_SAT) ** 0.45)
+        rad = min(CLOUD_CAP, max(CLOUD_MIN, CLOUD_EXT * spread + CLOUD_BASE)) * sat
+        # identity-keyed size variety: a crown of same-sized lumps reads as cauliflower,
+        # and exp-16's canopy is conspicuously a few big masses among smaller ones
+        rad *= 0.74 + 0.52 * h01(ci, 81)
         rv = c - CROWN_C
         nrv = np.linalg.norm(rv)
-        if nrv > 1e-9:
-            c = c + rv / nrv * (0.20 * rt)     # foliage sits on the OUTSIDE of the volume
-        rad = rt * (m / len(cl)) ** 0.42 * (0.82 + 0.30 * h01(ci, 81)) * 1.48
+        if nrv > 1e-9:                        # foliage sits on the OUTSIDE of the volume
+            c = c + rv / nrv * (0.22 * rad)
         if rad > 0.012:
             lobes.append((ci, c, rad))
 
@@ -444,7 +537,7 @@ def frame_state(N):
     cot = min(1.0, max(0.0, (N - N_FLOOR) / COT_FULL_N + 0.35))
     fade = np.clip((N - COT_FADE_LO) / (COT_FADE_HI - COT_FADE_LO), 0.0, 1.0)
     cot *= 1.0 - fade * fade * (3 - 2 * fade)
-    return {"alive": alive, "frac": frac, "age": age, "r": r,
+    return {"alive": alive, "frac": frac, "age": age, "r": r, "wn": wn,
             "leaf": leaf, "lobes": lobes, "t_root": t_root, "cot": cot, "N": N}
 
 
@@ -578,7 +671,7 @@ class MeshBuf:
         self.add([mathutils.Vector((c[0] + p.x * rad, c[1] + p.y * rad,
                                     c[2] + p.z * rad * squash)) for p in SPH_V], SPH_F)
 
-    def blob(self, c, rad, key, squash=0.82):
+    def blob(self, c, rad, key, squash=CLOUD_SQUASH):
         """A lobe that is not a billiard ball. Per-lobe anisotropy plus a low-frequency
         vertex displacement, both identity-keyed: a pile of perfect spheres is exactly
         the 'grape cluster' read that sank code-your-own-call's canopy."""
@@ -651,8 +744,17 @@ def tube(buf, pts, radii, ref0=None):
 # ---------------------------------------------------------------- geometry emission
 def emit_wood(buf, st):
     """Internodes as rings joined parent->child. A shared parent ring at a fork means
-    the fork is webbed rather than two cylinders poking through each other."""
+    the fork is webbed rather than two cylinders poking through each other.
+
+    A twig UNDER canopy tapers away. Bark and cloud are separate surfaces, so an outer
+    twig otherwise pokes a millimetre through the lobe that is meant to be hiding it, and
+    at 128 px that reads as a scatter of bright orange flecks across the crown — measured
+    at 3.8% of the mature crown, where exp-16's in-crown bark is 29% and almost all of it
+    deep shade. Real foliage hides its own twigs, so the taper is keyed on the SAME cloud
+    weight that put the lobe there, which makes the two surfaces agree by construction
+    rather than by tuning a radius against a radius."""
     alive, frac, r = st["alive"], st["frac"], st["r"]
+    r = r * (1.0 - WOOD_HIDE * st["wn"])
     flare_amt = FLARE_AMT * st["t_root"]
 
     def flare(p, rad):
@@ -801,18 +903,96 @@ def emit_cotyledons(buf, st):
 
 
 # ---------------------------------------------------------------- scene
-def make_materials():
-    def mat(name, rgb, rough, sss=0.0):
-        m = bpy.data.materials.new(name)
-        m.use_nodes = True
-        b = m.node_tree.nodes["Principled BSDF"]
-        b.inputs["Base Color"].default_value = lin(rgb)
-        b.inputs["Roughness"].default_value = rough
-        return m
+def banded(name, bands, bias=0.0, ao_amt=AO_AMOUNT, ao_dist=AO_DIST,
+           breakup=0.0):
+    """A CEL material: flat bands keyed on the surface normal, never a smooth diffuse
+    response. This is the fix for v2's honest bottom line — "a physically-lit render
+    carries a lot of intermediate values, and quantising them is not the same act as an
+    artist choosing eight". Here the artist's choice is made up front: the shader can
+    only ever emit one of `bands`, so the crown's colour count is AUTHORED rather than
+    discovered, and a cloud holds a band the way a painted one does.
 
-    bark = mat("bark", BARK_SRGB, 0.93)
-    fol = mat("foliage", FOLIAGE_SRGB, 0.80)
-    blade = mat("blade", BLADE_SRGB, 0.66)
+        v = clamp(map(N·L, -1..1 -> 0..1) + bias) * (1 - AO_AMOUNT + AO_AMOUNT * AO)
+        colour = constant-interpolated ramp over v
+
+    Ambient occlusion is folded in BEFORE the ramp rather than multiplied after, so a
+    shaded interior drops a whole band instead of inventing a new value between two.
+    Emission with a Standard view transform means the rendered pixel IS the authored
+    sRGB triple, which is what makes the palette snap a near-identity.
+    """
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    dot = nt.nodes.new("ShaderNodeVectorMath")
+    dot.operation = "DOT_PRODUCT"
+    dot.inputs[1].default_value = LIGHT_DIR
+    nt.links.new(geo.outputs["Normal"], dot.inputs[0])
+
+    mr = nt.nodes.new("ShaderNodeMapRange")
+    mr.clamp = True
+    mr.inputs["From Min"].default_value = -1.0
+    mr.inputs["From Max"].default_value = 1.0
+    mr.inputs["To Min"].default_value = bias
+    mr.inputs["To Max"].default_value = 1.0 + bias
+    nt.links.new(dot.outputs["Value"], mr.inputs["Value"])
+
+    ao = nt.nodes.new("ShaderNodeAmbientOcclusion")
+    ao.samples = 8
+    ao.inputs["Distance"].default_value = ao_dist
+    aom = nt.nodes.new("ShaderNodeMath")          # ao * AMOUNT + (1 - AMOUNT)
+    aom.operation = "MULTIPLY_ADD"
+    aom.inputs[1].default_value = ao_amt
+    aom.inputs[2].default_value = 1.0 - ao_amt
+    nt.links.new(ao.outputs["AO"], aom.inputs[0])
+
+    mul = nt.nodes.new("ShaderNodeMath")
+    mul.operation = "MULTIPLY"
+    nt.links.new(mr.outputs["Result"], mul.inputs[0])
+    nt.links.new(aom.outputs["Value"], mul.inputs[1])
+    shade_out = mul.outputs["Value"]
+
+    if breakup > 0.0:
+        # lever 4: scallop the TERMINATOR, never tint the surface
+        tex = nt.nodes.new("ShaderNodeTexNoise")
+        tex.inputs["Scale"].default_value = LEAF_BREAKUP_SCALE
+        tex.inputs["Detail"].default_value = 2.0
+        nz = nt.nodes.new("ShaderNodeMath")       # (noise - 0.5) * breakup
+        nz.operation = "MULTIPLY_ADD"
+        nz.inputs[1].default_value = breakup
+        nz.inputs[2].default_value = -0.5 * breakup
+        nt.links.new(tex.outputs["Fac"], nz.inputs[0])
+        add = nt.nodes.new("ShaderNodeMath")
+        add.operation = "ADD"
+        nt.links.new(mul.outputs["Value"], add.inputs[0])
+        nt.links.new(nz.outputs["Value"], add.inputs[1])
+        shade_out = add.outputs["Value"]
+
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    el = ramp.color_ramp
+    el.interpolation = "CONSTANT"
+    while len(el.elements) > 1:
+        el.elements.remove(el.elements[-1])
+    el.elements[0].position = bands[0][0]
+    el.elements[0].color = lin(tuple(c / 255 for c in bands[0][1]))
+    for pos, rgb in bands[1:]:
+        e = el.elements.new(pos)
+        e.color = lin(tuple(c / 255 for c in rgb))
+    nt.links.new(shade_out, ramp.inputs["Fac"])
+
+    em = nt.nodes.new("ShaderNodeEmission")
+    nt.links.new(ramp.outputs["Color"], em.inputs["Color"])
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    nt.links.new(em.outputs["Emission"], out.inputs["Surface"])
+    return m
+
+
+def make_materials():
+    bark = banded("bark", BARK_BANDS, ao_amt=AO_AMOUNT_BARK, ao_dist=AO_DIST_BARK)
+    fol = banded("foliage", FOLIAGE_BANDS, breakup=LEAF_BREAKUP)
+    blade = banded("blade", FOLIAGE_BANDS, bias=BLADE_BIAS)
     return bark, fol, blade
 
 
@@ -926,7 +1106,8 @@ def render(path, samples):
 PICKS = retime()
 print("RETIME", [round(p, 4) for p in PICKS], flush=True)
 print(f"SKELETON nodes={len(NODES)} iters={NMAX_BIRTH} lobes={len(CLUSTERS)} "
-      f"span={SPAN:.4f} tz={TZ:.4f} top={_TOP:.3f} halfw={_HALFW:.3f}", flush=True)
+      f"span={SPAN:.4f} tz={TZ:.4f} top={_TOP:.3f} halfw={_HALFW:.3f} "
+      f"numpy={np.__version__}", flush=True)
 
 meta = {
     "generator": "blender_tree.py",
@@ -945,6 +1126,18 @@ meta = {
     "nodes": len(NODES),
     "iterations": NMAX_BIRTH,
     "lobes": len(CLUSTERS),
+    # The skeleton's float reductions are numpy-version sensitive: 2.4.4 grows 380 nodes
+    # over 28 iterations where Blender's bundled 2.3.4 grows 405 over 27. The DELIVERED
+    # tree is whatever the pinned Blender's numpy grows, so the version is recorded with
+    # the frames rather than assumed — and the structural loop runs under Blender too
+    # (`blender --background --python blender_tree.py -- --no-render`), because the plain
+    # -Python route iterates a DIFFERENT tree.
+    "numpy": np.__version__,
+    "shading": "cel bands from the surface normal (emission + constant ramp), not a "
+               "smooth diffuse response; the band list IS the crown's colour budget",
+    "leaf_breakup": LEAF_BREAKUP,
+    "foliage_bands": [list(c) for _p, c in FOLIAGE_BANDS],
+    "bark_bands": [list(c) for _p, c in BARK_BANDS],
     "frames": [],
 }
 
@@ -963,8 +1156,11 @@ for i, u in enumerate(PICKS):
     })
     if SKIP_RENDER:
         print(f"PLAN {i:02d} u={u:.4f} N={N:.2f} live={int(st['alive'].sum())} "
-              f"lobes={len(st['lobes'])} r0={st['r'][0]:.4f} root={st['t_root']:.2f} "
+              f"lobes={len(st['lobes'])} blades={int((st['leaf'] > 0.05).sum())} "
+              f"r0={st['r'][0]:.4f} root={st['t_root']:.2f} "
               f"cot={st['cot']:.2f}", flush=True)
+        continue
+    if ONLY is not None and i not in ONLY:
         continue
     build_scene(st, shadow_pass=False)
     render(os.path.join(OUT, f"frame-{i:02d}.png"), SAMPLES)

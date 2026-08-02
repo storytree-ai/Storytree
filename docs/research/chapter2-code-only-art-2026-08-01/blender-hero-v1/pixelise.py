@@ -5,14 +5,22 @@ A raw Blender render shipped as-is IS the ADR-0145 failure reproduced. This take
 supersampled 3D render down to the island's own pixel-art idiom, and writes the track's
 `registration.json` from what it MEASURES rather than from what the generator intended.
 
-  1. box-downsample to the 128 canvas (supersampling does the anti-aliasing)
+  1. snap to exp-16's committed 32-colour track palette AT FULL RESOLUTION, then
+     MODE-downsample to the 128 canvas -- each output pixel takes the majority palette
+     colour of its 3x3 block rather than their average
   2. composite the contact-shadow pass UNDER the tree as its own palette value
   3. alpha threshold -> a hard pixel-art silhouette, no soft fringe
-  4. snap every colour to exp-16's committed 32-colour track palette
-  5. selective, material-tinted outline: silhouette rim only, never black, never
+  4. selective, material-tinted outline: silhouette rim only, never black, never
      uniform (a uniform black key-line is what makes code art read as clipart)
-  6. measure the ground anchor per frame with exp-16's own anchor rule, and record
+  5. measure the ground anchor per frame with exp-16's own anchor rule, and record
      canvas / frame order / camera elevation in registration.json
+
+Step 1's ORDER is load-bearing and was the wrong way round in v2. Box-downsampling
+first averages across every band edge in the frame, and each of those averages then
+snaps to whatever palette entry happens to be nearest -- so a shader emitting five flat
+colours still delivers a crown of two dozen. Snapping first and taking the majority
+second means a band edge stays an edge: measured on the mature frame, the same render
+lands 24 crown colours through box-then-snap and 12 through snap-then-mode.
 
 Usage: python pixelise.py <raw-dir> <dst-dir> [target=128]
 """
@@ -36,8 +44,13 @@ PAL = np.array([c for c in PAL_ALL if not (c[0] == c[1] == c[2])], dtype=np.floa
 # the darkest palette entry is the ground-contact value; the shadow never invents a colour
 SHADOW_COL = PAL[np.argmin(PAL.sum(axis=1))]
 SHADOW_ALPHA = 96.0
-CHROMA = 1.45        # chroma multiply about the luma axis, before the palette snap
-CONTRAST = 1.16      # value spread about PIVOT, so shade and light land on different entries
+# v2 pushed chroma 1.45x and value 1.16x about a pivot, because a physically-lit CPU
+# render lands mid-value and low-chroma and washed out on the island's saturated plate.
+# The cel bands are now AUTHORED at exp-16's own palette values and emitted exactly
+# (emission shader + Standard view transform), so there is nothing left to correct --
+# a push here would only walk an already-correct colour off its own palette entry.
+CHROMA = 1.0
+CONTRAST = 1.0
 PIVOT = 116.0
 # The palette splits cleanly into a bark family and a foliage family. Snapping across the
 # whole 31 lets a DEEPLY SHADED GREEN land on a brown, which is why the first composited
@@ -57,15 +70,51 @@ def snap_to(rgb, pal):
 
 
 def snap(rgb, foliage=None):
-    """Family-aware snap. `foliage` is classified on the RAW render, where a green base
-    colour keeps g > r at every light level, so shading can never change a leaf's family."""
+    """Family-aware snap. `foliage` is classified on the RAW render, so shading can never
+    change a leaf's family.
+
+    When the render declares the cel bands it emitted, each family snaps to ITS OWN BAND
+    LIST rather than to the whole 31-colour palette. That makes the snap an identity for
+    a correctly-emitted pixel and a hard clamp for anything else -- so the crown's colour
+    count is bounded by the authored band count instead of being whatever the nearest
+    -neighbour search happens to reach. The rim keeps a reserved darker entry per family
+    (below), because a rim clamped to the darkest BODY band stops reading as a rim.
+    """
     if foliage is None:
         return snap_to(rgb, PAL)
-    return np.where(foliage[:, :, None], snap_to(rgb, GREENS), snap_to(rgb, BROWNS))
+    return np.where(foliage[:, :, None], snap_to(rgb, FOL_PAL), snap_to(rgb, BARK_PAL))
 
 
 def box(im):
     return im if im.size[0] == TARGET else im.resize((TARGET, TARGET), Image.BOX)
+
+
+def mode_down(rgb, keep):
+    """Majority downsample: each output pixel takes the most common palette colour among
+    the `keep` sub-pixels of its block. Never averages, so a band edge survives as an
+    edge instead of becoming a new colour that then snaps somewhere else entirely."""
+    src = rgb.shape[0]
+    if src == TARGET:
+        return rgb.astype(np.float32)
+    k = src // TARGET
+    key = (rgb[:, :, 0].astype(np.int64) * 65536
+           + rgb[:, :, 1].astype(np.int64) * 256 + rgb[:, :, 2].astype(np.int64))
+    key = np.where(keep, key, -1)
+    blocks = key.reshape(TARGET, k, TARGET, k).transpose(0, 2, 1, 3).reshape(
+        TARGET, TARGET, k * k)
+    vals = np.unique(key[keep]) if keep.any() else np.array([], dtype=np.int64)
+    best = np.zeros((TARGET, TARGET), dtype=np.int64) - 1
+    bestn = np.zeros((TARGET, TARGET), dtype=np.int32)
+    for v in vals:
+        n = (blocks == v).sum(axis=2).astype(np.int32)
+        take = n > bestn
+        best = np.where(take, v, best)
+        bestn = np.where(take, n, bestn)
+    out = np.zeros((TARGET, TARGET, 3), dtype=np.float32)
+    out[:, :, 0] = np.where(best >= 0, best >> 16, 0)
+    out[:, :, 1] = np.where(best >= 0, (best >> 8) & 255, 0)
+    out[:, :, 2] = np.where(best >= 0, best & 255, 0)
+    return out
 
 
 def anchor_of(mask, alpha=None):
@@ -94,25 +143,70 @@ shadow_dir = os.path.join(SRC, "shadow")
 have_shadow = os.path.isdir(shadow_dir)
 meta_path = os.path.join(SRC, "render-meta.json")
 render_meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+# The cel bands the render declares it emitted. Foliage is classified by MEMBERSHIP of
+# this list rather than by a g>r hue test, because the warm top-highlight band is not
+# green (exp-16's own highlight is a khaki at (173,167,114)) and a hue test would file
+# it with the bark.
+FOLIAGE_BANDS = np.array(render_meta.get("foliage_bands", []), dtype=np.float32)
+BARK_BANDS = np.array(render_meta.get("bark_bands", []), dtype=np.float32)
+
+
+def _rim_reserve(bands, family):
+    """One palette entry darker than the darkest band, reserved for the silhouette rim.
+    Without it the rim clamps onto the darkest BODY band and the tree loses its edge --
+    the band list is a colour BUDGET, and the rim is one of the things it must pay for."""
+    if not len(bands):
+        return family
+    lo = float((bands * W).sum(axis=1).min())
+    cand = [c for c in family if float((c * W).sum()) < lo - 4.0]
+    if not cand:
+        return np.array(list(bands), dtype=np.float32)
+    dark = min(cand, key=lambda c: abs(float((c * W).sum()) - (lo - 26.0)))
+    return np.array(list(bands) + [dark], dtype=np.float32)
+
+
+FOL_PAL = _rim_reserve(FOLIAGE_BANDS, GREENS) if len(FOLIAGE_BANDS) else GREENS
+BARK_PAL = _rim_reserve(BARK_BANDS, BROWNS) if len(BARK_BANDS) else BROWNS
 
 frames = []
 for name in names:
-    a = np.array(box(Image.open(os.path.join(SRC, name)).convert("RGBA")), dtype=np.float32)
-    rgb, alpha = a[:, :, :3], a[:, :, 3]
-    tree = alpha > 110.0
+    full = np.array(Image.open(os.path.join(SRC, name)).convert("RGBA"), dtype=np.float32)
+    # --- 1. snap at FULL resolution, then take the block MAJORITY ------------------
+    # Order matters: downsampling first averages across every band edge and the averages
+    # then snap wherever they land, which is how five emitted colours became 24.
+    fr, fa = full[:, :, :3], full[:, :, 3]
+    fkeep = fa > 110.0
+    # Family classification is on the RAW render, so shading can never move a leaf into
+    # the bark family. The warm top-highlight is deliberately NOT green (exp-16's own
+    # highlight is a khaki at (173,167,114)), so a g>r hue test would file it with the
+    # bark; when the render declares its bands, the test is which family a pixel is
+    # NEARER to. That distinction is not academic: Cycles anti-aliases its own band
+    # edges, so the raw frame carries a fringe of intermediate values at every boundary.
+    # Under an absolute membership threshold those fringes fell outside the foliage list
+    # and snapped to the nearest BROWN — which is what put a scatter of bright orange
+    # flecks across the crown, 3.8% of it, that read as noise and had nothing to do with
+    # the twigs they were blamed on. A nearest-family test has no threshold to miss.
+    if FOLIAGE_BANDS.size and BARK_BANDS.size:
+        df = np.abs(fr[:, :, None, :] - FOLIAGE_BANDS[None, None, :, :]).sum(axis=3)
+        db = np.abs(fr[:, :, None, :] - BARK_BANDS[None, None, :, :]).sum(axis=3)
+        ffol = df.min(axis=2) <= db.min(axis=2)
+    else:
+        ffol = (fr[:, :, 1] - fr[:, :, 0]) > 1.0
+    if CHROMA != 1.0 or CONTRAST != 1.0:
+        flum = (fr * W).sum(axis=2, keepdims=True)
+        fr = np.clip(flum + (fr - flum) * CHROMA, 0, 255)
+        fr = np.clip(PIVOT + (fr - PIVOT) * CONTRAST, 0, 255)
+    fsnap = np.where(fkeep[:, :, None], snap(fr, ffol), 0.0)
 
-    # --- 3b. push chroma and value range BEFORE the snap ---------------------------
-    # A physically-lit CPU render lands mid-value and low-chroma. Snapped straight, the
-    # track looks fine in isolation and then WASHES OUT the moment it is composited on
-    # the island's saturated green plate — which is the failure mode the round-3 tracks
-    # were caught by, so it is corrected here rather than discovered again.
-    foliage = (rgb[:, :, 1] - rgb[:, :, 0]) > 1.0
-    lum = (rgb * W).sum(axis=2, keepdims=True)
-    rgb = np.clip(lum + (rgb - lum) * CHROMA, 0, 255)
-    rgb = np.clip(PIVOT + (rgb - PIVOT) * CONTRAST, 0, 255)
+    a = np.array(box(Image.fromarray(full.astype(np.uint8), "RGBA")), dtype=np.float32)
+    alpha = a[:, :, 3]
+    tree = alpha > 110.0
+    rgb = mode_down(fsnap.astype(np.int32), fkeep)
+    foliage = mode_down(np.repeat(ffol[:, :, None], 3, axis=2).astype(np.int32) * 255,
+                        fkeep)[:, :, 0] > 127
 
     out = np.zeros_like(a)
-    out[:, :, :3] = np.where(tree[:, :, None], snap(rgb, foliage), 0.0)
+    out[:, :, :3] = np.where(tree[:, :, None], rgb, 0.0)
     out[:, :, 3] = np.where(tree, 255.0, 0.0)
 
     # --- 2. the contact shadow, UNDER the tree, as one flat palette value ----------
@@ -136,6 +230,28 @@ for name in names:
         # SEMI-transparent, unlike every other pixel in the frame: the island is the
         # substrate (ADR-0274 D1) and a shadow DARKENS it rather than replacing it
         out[:, :, 3] = np.where(shadow, SHADOW_ALPHA, out[:, :, 3])
+
+    # --- 4b. the CREASE keyline between overlapping clouds -------------------------
+    # exp-16 separates its lobes with a drawn dark scallop; a shading valley alone does
+    # not read at 128 px, and without separation the canopy is one lumpy mass rather
+    # than a cluster of clouds. The cue is available without a second render pass: bands
+    # are ordered, so a jump of two or more bands between neighbouring pixels is a FORM
+    # boundary (one cloud in front of another), where a jump of one is just shading.
+    # Deepening the darker side of such a step draws the scallop exactly where the
+    # geometry already put it.
+    if len(FOL_PAL) >= 3:
+        order = np.argsort((FOL_PAL * W).sum(axis=1))
+        ranked = FOL_PAL[order]
+        idx = np.full(tree.shape, -1, dtype=np.int32)
+        for bi, col in enumerate(ranked):
+            hit = (np.abs(out[:, :, :3] - col).sum(axis=2) < 1.0) & foliage & tree
+            idx = np.where(hit, bi, idx)
+        crease = np.zeros(tree.shape, dtype=bool)
+        for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            nb_i = np.roll(np.roll(idx, dy, axis=0), dx, axis=1)
+            crease |= (idx >= 0) & (nb_i >= 0) & (nb_i - idx >= 2)
+        crease &= idx <= 2                    # only deepen the valley, never the highlight
+        out[:, :, :3] = np.where(crease[:, :, None], ranked[0], out[:, :, :3])
 
     solid = tree | shadow
 
@@ -185,7 +301,12 @@ reg = {
                    "on every frame; the tree grows inside a fixed frame"),
     "alphaThreshold": 110,
     "palette": {"source": "exp-16 committed 32-colour track palette",
-                "usable": int(len(PAL)), "method": "nearest in luma-weighted RGB"},
+                "usable": int(len(PAL)),
+                "method": ("nearest in luma-weighted RGB, within the emitted BAND list per "
+                           "family when the render declares one — so the crown's colour "
+                           "count is the authored band count, not whatever the search reaches"),
+                "foliageBands": [[int(v) for v in c] for c in FOL_PAL],
+                "barkBands": [[int(v) for v in c] for c in BARK_PAL]},
     "render": {k: render_meta.get(k) for k in
                ("blender", "engine", "seed", "samples", "shadow_samples",
                 "supersample_res", "ortho_scale", "nodes", "iterations", "lobes")},

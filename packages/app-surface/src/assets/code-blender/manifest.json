@@ -25,17 +25,17 @@
       "y": 118
     },
     "maxAnchorResidualPx": 0.5,
-    "measuredContactAnchorSpreadPx": 2.339,
-    "framesRequiringAShift": 15,
+    "measuredContactAnchorSpreadPx": 4.4339,
+    "framesRequiringAShift": 17,
     "totalFrames": 19,
     "maxAbsShiftPx": 2,
     "groundRowSpreadPx": 3,
     "groundRowSpreadReason": "the camera is fixed and the trunk base is pinned at world z=0, but SECONDARY GROWTH thickens the trunk, so the front of its own footprint descends by r*sin(20 deg) as it fattens. Pinning the bottom row to a constant would mean shifting the frame upward as the tree matures \u2014 the tree would appear to rise out of the ground. This track states the band instead of buying a constant row with base drift (ADR-0280 D1).",
     "costOfApplyingTheAppliedRule": {
-      "bodyCentroidSpreadBeforePx": 2.3673,
-      "bodyCentroidSpreadAfterPx": 5.0325,
-      "bodyCentroidMaxFrameToFrameStepBeforePx": 0.6985,
-      "bodyCentroidMaxFrameToFrameStepAfterPx": 1.1388
+      "bodyCentroidSpreadBeforePx": 3.559,
+      "bodyCentroidSpreadAfterPx": 6.159,
+      "bodyCentroidMaxFrameToFrameStepBeforePx": 2.1196,
+      "bodyCentroidMaxFrameToFrameStepAfterPx": 2.4302
     }
   },
   "tracks": [
@@ -81,14 +81,14 @@
         "samples": 72,
         "shadow_samples": 32,
         "supersample_res": 384,
-        "ortho_scale": 3.133245,
+        "ortho_scale": 3.136162,
         "nodes": 405,
         "iterations": 27,
-        "lobes": 42
+        "lobes": 22
       },
       "growthPacing": "19 frames placed at equal SILHOUETTE-CHANGE arc length, measured author-time from an analytic projection of the skeleton, not at equal time (ADR-0280 D1: growth pacing is authored)",
       "contactShadow": "a second Blender pass: the tree casts but is invisible to camera, so alpha carries the shadow alone. Composited at alpha 96 \u2014 the only semi-transparent pixels in the track \u2014 because the island is the substrate (ADR-0274 D1) and a shadow darkens it rather than replacing it. Clipped at the tree's own contact row so it cannot define the ground socket.",
-      "encodedBytes": 49199,
+      "encodedBytes": 29169,
       "decodedRgbaBytes": 1245184
     },
     {
@@ -123,7 +123,7 @@
   },
   "budget": {
     "restatedFor": "code-blender",
-    "encodedBytes": 73734,
+    "encodedBytes": 53704,
     "decodedRgbaBytes": 1429504,
     "frameCount": 24,
     "simultaneousOrganicLayers": 2,

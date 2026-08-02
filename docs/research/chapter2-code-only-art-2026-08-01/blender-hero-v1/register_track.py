@@ -133,7 +133,8 @@ report = {
          # lab is registered under: it keeps `sourceAnchor + normalizationOffset ==
          # normalizedAnchor` a true identity even where the measurement lands on the 0.5
          # tie (frame 00 measures exactly 63.5). The EXACT measurement is right below it.
-         "sourceAnchor": {"x": anchor_x - dx, "y": p[1]},
+         "sourceAnchor": {"x": anchor_x - dx, "y": anchor_y},
+         "measuredGroundRow": p[1],
          "sourceAnchorExact": round(p[0], 4),
          "normalizationOffset": {"x": dx, "y": dy},
          "normalizedAnchor": {"x": anchor_x, "y": anchor_y},
@@ -287,7 +288,16 @@ ts = [
     "]);",
     "",
     "const CODE_BLENDER_SOURCE_ANCHORS = Object.freeze([",
-    *[f"  {{ x: {anchor_x - dx}, y: {p[1]} }}," for p, (dx, _dy) in zip(pre, shifts)],
+    # y is the REGISTERED anchor row, not the frame's measured contact row. No vertical
+    # shift is ever applied (dy is always 0, because moving a frame to pin its bottom row
+    # is the base drift ADR-0280 D1 forbids), so the registration identity
+    # `sourceAnchor + normalizationOffset == normalizedAnchor` can only hold with the
+    # anchor row here. The per-frame MEASURED row is reported separately, in
+    # `frames[].measuredAfter.y`, and the app-side suite bounds it by `groundRowSpreadPx`
+    # against the shipped pixels — which is where a varying contact row belongs. Emitting
+    # the measured row here instead produced a block that had to be hand-corrected before
+    # it was true, which is the transcription step this emitter exists to remove.
+    *[f"  {{ x: {anchor_x - dx}, y: {anchor_y} }}," for dx, _dy in shifts],
     "] as const);",
     "",
     "const CODE_BLENDER_NORMALIZATION_OFFSETS = Object.freeze([",
@@ -309,6 +319,7 @@ ts = [
     f"//   framesShifted            {sum(1 for dx, _ in shifts if dx != 0)}",
     f"//   maxAbsShiftPx            {max(abs(dx) for dx, _ in shifts)}",
     f"//   groundRowSpreadPx        {int(max(ground_rows) - min(ground_rows))}",
+    f"//   maxAnchorResidualPx      {round(max(residuals), 4)}",
     f"//   bodyCentroidBefore       spread {spread([b[0] for b in pre_body])} "
     f"step {max_step([b[0] for b in pre_body])}",
     f"//   bodyCentroidAfter        spread {spread([b[0] for b in post_body])} "

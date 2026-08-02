@@ -8,25 +8,26 @@
   "y": 118
  },
  "maxAnchorResidualPx": 0.5,
- "measuredContactAnchorSpreadPx": 2.339,
- "framesRequiringAShift": 15,
+ "measuredContactAnchorSpreadPx": 4.4339,
+ "framesRequiringAShift": 17,
  "totalFrames": 19,
  "maxAbsShiftPx": 2,
  "groundRowSpreadPx": 3,
  "groundRowSpreadReason": "the camera is fixed and the trunk base is pinned at world z=0, but SECONDARY GROWTH thickens the trunk, so the front of its own footprint descends by r*sin(20 deg) as it fattens. Pinning the bottom row to a constant would mean shifting the frame upward as the tree matures \u2014 the tree would appear to rise out of the ground. This track states the band instead of buying a constant row with base drift (ADR-0280 D1).",
  "costOfApplyingTheAppliedRule": {
-  "bodyCentroidSpreadBeforePx": 2.3673,
-  "bodyCentroidSpreadAfterPx": 5.0325,
-  "bodyCentroidMaxFrameToFrameStepBeforePx": 0.6985,
-  "bodyCentroidMaxFrameToFrameStepAfterPx": 1.1388
+  "bodyCentroidSpreadBeforePx": 3.559,
+  "bodyCentroidSpreadAfterPx": 6.159,
+  "bodyCentroidMaxFrameToFrameStepBeforePx": 2.1196,
+  "bodyCentroidMaxFrameToFrameStepAfterPx": 2.4302
  },
  "frames": [
   {
    "file": "tree/frame-00.png",
    "sourceAnchor": {
     "x": 64,
-    "y": 117
+    "y": 118
    },
+   "measuredGroundRow": 117,
    "sourceAnchorExact": 63.5,
    "normalizationOffset": {
     "x": -2,
@@ -46,9 +47,10 @@
    "file": "tree/frame-01.png",
    "sourceAnchor": {
     "x": 63,
-    "y": 117
+    "y": 118
    },
-   "sourceAnchorExact": 63.4114,
+   "measuredGroundRow": 117,
+   "sourceAnchorExact": 62.8981,
    "normalizationOffset": {
     "x": -1,
     "y": 0
@@ -58,18 +60,19 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 62.4114,
+    "x": 61.8981,
     "y": 117
    },
-   "residualPx": 0.4114
+   "residualPx": 0.1019
   },
   {
    "file": "tree/frame-02.png",
    "sourceAnchor": {
     "x": 63,
-    "y": 117
+    "y": 118
    },
-   "sourceAnchorExact": 63.0967,
+   "measuredGroundRow": 117,
+   "sourceAnchorExact": 62.9301,
    "normalizationOffset": {
     "x": -1,
     "y": 0
@@ -79,10 +82,10 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 62.0967,
+    "x": 61.9301,
     "y": 117
    },
-   "residualPx": 0.0967
+   "residualPx": 0.0699
   },
   {
    "file": "tree/frame-03.png",
@@ -90,7 +93,8 @@
     "x": 63,
     "y": 118
    },
-   "sourceAnchorExact": 62.9695,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 63.0928,
    "normalizationOffset": {
     "x": -1,
     "y": 0
@@ -100,10 +104,10 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 61.9695,
+    "x": 62.0928,
     "y": 118
    },
-   "residualPx": 0.0305
+   "residualPx": 0.0928
   },
   {
    "file": "tree/frame-04.png",
@@ -111,7 +115,8 @@
     "x": 63,
     "y": 118
    },
-   "sourceAnchorExact": 62.9805,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 63.1342,
    "normalizationOffset": {
     "x": -1,
     "y": 0
@@ -121,10 +126,10 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 61.9805,
+    "x": 62.1342,
     "y": 118
    },
-   "residualPx": 0.0195
+   "residualPx": 0.1342
   },
   {
    "file": "tree/frame-05.png",
@@ -132,7 +137,8 @@
     "x": 63,
     "y": 118
    },
-   "sourceAnchorExact": 63.2413,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 62.7133,
    "normalizationOffset": {
     "x": -1,
     "y": 0
@@ -142,10 +148,10 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 62.2413,
+    "x": 61.7133,
     "y": 118
    },
-   "residualPx": 0.2413
+   "residualPx": 0.2867
   },
   {
    "file": "tree/frame-06.png",
@@ -153,7 +159,8 @@
     "x": 63,
     "y": 118
    },
-   "sourceAnchorExact": 63.0976,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 63.1261,
    "normalizationOffset": {
     "x": -1,
     "y": 0
@@ -163,10 +170,10 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 62.0976,
+    "x": 62.1261,
     "y": 118
    },
-   "residualPx": 0.0976
+   "residualPx": 0.1261
   },
   {
    "file": "tree/frame-07.png",
@@ -174,7 +181,8 @@
     "x": 63,
     "y": 118
    },
-   "sourceAnchorExact": 62.8232,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 63.1505,
    "normalizationOffset": {
     "x": -1,
     "y": 0
@@ -184,20 +192,21 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 61.8232,
+    "x": 62.1505,
     "y": 118
    },
-   "residualPx": 0.1768
+   "residualPx": 0.1505
   },
   {
    "file": "tree/frame-08.png",
    "sourceAnchor": {
-    "x": 63,
+    "x": 64,
     "y": 118
    },
-   "sourceAnchorExact": 62.8326,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 64.2474,
    "normalizationOffset": {
-    "x": -1,
+    "x": -2,
     "y": 0
    },
    "normalizedAnchor": {
@@ -205,10 +214,10 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 61.8326,
+    "x": 62.2474,
     "y": 118
    },
-   "residualPx": 0.1674
+   "residualPx": 0.2474
   },
   {
    "file": "tree/frame-09.png",
@@ -216,7 +225,8 @@
     "x": 63,
     "y": 118
    },
-   "sourceAnchorExact": 62.8037,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 63.2937,
    "normalizationOffset": {
     "x": -1,
     "y": 0
@@ -226,20 +236,21 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 61.8037,
+    "x": 62.2937,
     "y": 118
    },
-   "residualPx": 0.1963
+   "residualPx": 0.2937
   },
   {
    "file": "tree/frame-10.png",
    "sourceAnchor": {
-    "x": 63,
+    "x": 62,
     "y": 118
    },
-   "sourceAnchorExact": 62.6879,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 61.9431,
    "normalizationOffset": {
-    "x": -1,
+    "x": 0,
     "y": 0
    },
    "normalizedAnchor": {
@@ -247,20 +258,21 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 61.6879,
+    "x": 61.9431,
     "y": 118
    },
-   "residualPx": 0.3121
+   "residualPx": 0.0569
   },
   {
    "file": "tree/frame-11.png",
    "sourceAnchor": {
-    "x": 62,
+    "x": 61,
     "y": 118
    },
-   "sourceAnchorExact": 62.276,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 61.2988,
    "normalizationOffset": {
-    "x": 0,
+    "x": 1,
     "y": 0
    },
    "normalizedAnchor": {
@@ -268,20 +280,21 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 62.276,
+    "x": 62.2988,
     "y": 118
    },
-   "residualPx": 0.276
+   "residualPx": 0.2988
   },
   {
    "file": "tree/frame-12.png",
    "sourceAnchor": {
-    "x": 62,
-    "y": 119
+    "x": 60,
+    "y": 118
    },
-   "sourceAnchorExact": 62.2203,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 60.1034,
    "normalizationOffset": {
-    "x": 0,
+    "x": 2,
     "y": 0
    },
    "normalizedAnchor": {
@@ -289,18 +302,19 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 62.2203,
-    "y": 119
+    "x": 62.1034,
+    "y": 118
    },
-   "residualPx": 0.2203
+   "residualPx": 0.1034
   },
   {
    "file": "tree/frame-13.png",
    "sourceAnchor": {
     "x": 62,
-    "y": 119
+    "y": 118
    },
-   "sourceAnchorExact": 61.698,
+   "measuredGroundRow": 118,
+   "sourceAnchorExact": 61.6038,
    "normalizationOffset": {
     "x": 0,
     "y": 0
@@ -310,18 +324,19 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 61.698,
-    "y": 119
+    "x": 61.6038,
+    "y": 118
    },
-   "residualPx": 0.302
+   "residualPx": 0.3962
   },
   {
    "file": "tree/frame-14.png",
    "sourceAnchor": {
     "x": 61,
-    "y": 119
+    "y": 118
    },
-   "sourceAnchorExact": 61.4626,
+   "measuredGroundRow": 119,
+   "sourceAnchorExact": 61.4014,
    "normalizationOffset": {
     "x": 1,
     "y": 0
@@ -331,20 +346,21 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 62.4626,
+    "x": 62.4014,
     "y": 119
    },
-   "residualPx": 0.4626
+   "residualPx": 0.4014
   },
   {
    "file": "tree/frame-15.png",
    "sourceAnchor": {
-    "x": 61,
-    "y": 119
+    "x": 60,
+    "y": 118
    },
-   "sourceAnchorExact": 61.2916,
+   "measuredGroundRow": 119,
+   "sourceAnchorExact": 59.8136,
    "normalizationOffset": {
-    "x": 1,
+    "x": 2,
     "y": 0
    },
    "normalizedAnchor": {
@@ -352,20 +368,21 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 62.2916,
+    "x": 61.8136,
     "y": 119
    },
-   "residualPx": 0.2916
+   "residualPx": 0.1864
   },
   {
    "file": "tree/frame-16.png",
    "sourceAnchor": {
-    "x": 61,
-    "y": 119
+    "x": 60,
+    "y": 118
    },
-   "sourceAnchorExact": 61.3725,
+   "measuredGroundRow": 119,
+   "sourceAnchorExact": 60.4106,
    "normalizationOffset": {
-    "x": 1,
+    "x": 2,
     "y": 0
    },
    "normalizedAnchor": {
@@ -373,18 +390,19 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 62.3725,
+    "x": 62.4106,
     "y": 119
    },
-   "residualPx": 0.3725
+   "residualPx": 0.4106
   },
   {
    "file": "tree/frame-17.png",
    "sourceAnchor": {
     "x": 61,
-    "y": 119
+    "y": 118
    },
-   "sourceAnchorExact": 61.161,
+   "measuredGroundRow": 119,
+   "sourceAnchorExact": 60.73,
    "normalizationOffset": {
     "x": 1,
     "y": 0
@@ -394,20 +412,21 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 62.161,
+    "x": 61.73,
     "y": 119
    },
-   "residualPx": 0.161
+   "residualPx": 0.27
   },
   {
    "file": "tree/frame-18.png",
    "sourceAnchor": {
-    "x": 62,
-    "y": 120
+    "x": 60,
+    "y": 118
    },
-   "sourceAnchorExact": 61.6121,
+   "measuredGroundRow": 120,
+   "sourceAnchorExact": 60.4918,
    "normalizationOffset": {
-    "x": 0,
+    "x": 2,
     "y": 0
    },
    "normalizedAnchor": {
@@ -415,12 +434,12 @@
     "y": 118
    },
    "measuredAfter": {
-    "x": 61.6121,
+    "x": 62.4918,
     "y": 120
    },
-   "residualPx": 0.3879
+   "residualPx": 0.4918
   }
  ],
- "encodedBytes": 49199,
+ "encodedBytes": 29169,
  "decodedRgbaBytes": 1245184
 }
