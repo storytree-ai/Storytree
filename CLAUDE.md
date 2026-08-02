@@ -151,28 +151,36 @@ file conflicts).
   artifacts never migrated). Graduating into the seed and not syncing now fails your gate; the remedy is
   the one idempotent command above. Still local-only: it SKIPs offline, with no creds, or on an
   unreadable seed.
-- **EDITED A DURABLE-TIER ARTIFACT LIVE? export it in the SAME PR (ADR-0120/0263):** the third seed
-  ceremony is the live→seed direction, and since 2026-07-29 it carries a **ZERO** ceiling like its two
-  siblings above. `pnpm gate` runs `check:corpus-content`, a BODY-level seed↔live diff, and it now
-  **BLOCKS on the first drifted artifact** (V=0 / D=0, `packages/cli/src/corpus-content-drain.ts`) —
-  for every session, including one that touched no artifact. The remedy is one command, never a raised
-  ceiling: `pnpm storytree library export-corpus --pg --write`, then commit the `knowledge.json` diff.
-  At a drained backlog the UPDATE half of that batch is just the artifact you edited (it was 236
-  additions wide until ADR-0263 narrowed the export scope to the durable tier). **A green
-  `check:corpus-content` does NOT mean `--write` is a no-op, so DRY-RUN FIRST** (`export-corpus --pg`,
-  no `--write`): the check iterates the SEED scope and skips any id live carries but the seed does not,
-  so a **live-only** artifact is invisible to it on both axes — while the export APPENDS every live-only
-  export-scope artifact. Measured 2026-07-30: the check printed `OK … across 177` and exited 0 while the
-  dry run reported one pending addition (`oq-diff-view-altitude` — an open-question the owner had
-  RETIRED under ADR-0267 D5, whose seed row main had already dropped). Blind-writing on a green check
-  would have resurrected it into the committed seed. **Scope matters here:** only
+- **EDITED A DURABLE-TIER ARTIFACT LIVE? export it in the SAME PR (ADR-0120/0263/0290):** the third
+  seed ceremony is the live→seed direction, and it carries a **ZERO** ceiling like its two siblings
+  above. `pnpm gate` runs `check:corpus-content`, a BODY-level seed↔live diff, and it **BLOCKS on the
+  first drifted artifact THIS BRANCH AUTHORED** (A=0 / D=0 / L=0,
+  `packages/cli/src/corpus-content-drain.ts`). **Since ADR-0290 it no longer reds you for a sibling's
+  drift** — the check charges each difference by authorship, from two exact signals (your seed diff vs
+  the merge base, and the latest live writer per artifact, now stamped `cli@<branch>`), and prints the
+  rest as `BEHIND MAIN` (remedy: `git merge origin/main` — NOT an export, which would re-author a hunk
+  already on main) or `ANOTHER WRITER` (named, with its writer, not yours to reconcile). **Don't
+  hand-prove your innocence any more** — the pristine-HEAD differential sessions used to run by hand is
+  what the check now does. If attribution can't be measured it says so and charges everything, so a
+  red without an explanation is still a red.
+  **Your own drift's remedy is one artifact wide**, never a raised ceiling:
+  `pnpm storytree library export-corpus --id <id> --pg --write`, then commit the `knowledge.json`
+  diff — the check prints the exact `--id` invocation. The BARE `export-corpus --pg --write` still
+  exists and is still all-or-nothing (it sweeps every sibling's drift AND appends every live-only
+  artifact), so **if you use that form, DRY-RUN FIRST** (`export-corpus --pg`, no `--write`): a green
+  check is not evidence it is a no-op. Measured 2026-07-30: the check printed `OK … across 177` and
+  exited 0 while the dry run reported one pending addition (`oq-diff-view-altitude` — an open-question
+  the owner had RETIRED under ADR-0267 D5, whose seed row main had already dropped); blind-writing
+  would have resurrected it into the committed seed. The check now PRINTS the live-only population on
+  every path, split into yours and not-yours, so that trap is visible rather than remembered.
+  **Scope matters here:** only
   `definition` / `principle` / `pattern` / `guardrail` / `techstack` / `process` / `open-question` /
   `proposal` are seed-scope (`SEED_SCOPE_KINDS`) — editing a `friction`, `arc`, `uat-criterion` or `plan`
   live is FREE and creates no drift. **Direction is NOT auto-inferred**: because `sync-corpus` is
   migrate-only, a seed edit can never reach live, so the SEED is sometimes the correct side — three cases
-  found so far, two of them MIXED. On any drift you did not author, spawn `librarian-curator` for the
-  per-artifact direction call rather than blind-exporting. SKIPs offline / with no creds, so CI stays
-  DB-free.
+  found so far, two of them MIXED. On drift you did not author, leave it or route it back; spawn
+  `librarian-curator` for the per-artifact direction call rather than blind-exporting. SKIPs offline /
+  with no creds, so CI stays DB-free.
 - **EXPLORE (read, offline OK):** `storytree library` (dashboard) · `… artifact <id>` ·
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023). Read commands run offline (in-memory seed); no DB needed.

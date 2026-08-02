@@ -2,23 +2,40 @@
 //
 // `check:corpus-sync` (ADR-0103) compares ID PRESENCE only — it does not look at BODIES, so a live
 // artifact whose body has drifted from its seed copy — or a seed copy degraded relative to live —
-// passes it clean. This compares the export-scope tier (structured,
-// non-agent, non-template) BODY-for-body and WARNs on drift, classifying each:
+// passes it clean. This compares the export-scope tier (structured, non-agent, non-template)
+// BODY-for-body, CHARGES each difference to a party, and gates only on what this branch is answerable
+// for:
 //
-//   - value-drift   → live is a valid current body that differs: a genuine edit. Resolve by direction —
-//                     export live→seed (`storytree library export-corpus --pg --write`) if live is
-//                     canonical, or re-edit on the live surface if the seed is.
+//   - authored value-drift → live is a valid current body differing from seed, on an artifact THIS
+//                     BRANCH edited (its seed entry, or the last live write). Resolve by direction —
+//                     export live→seed (`export-corpus --id <id> --pg --write`) if live is canonical,
+//                     or re-edit on the live surface if the seed is. GATED at zero.
 //   - degraded-live → live is below the schema floor / invalid; the SEED is canonical. Restore it
-//                     seed→live (`storytree library artifact edit <id> --file <seed> --pg`).
+//                     seed→live (`storytree library artifact edit <id> --file <seed> --pg`). GATED at
+//                     zero for the WHOLE population — see `corpus-content-drain.ts` for why this is
+//                     the one axis where a foreign red is affordable.
+//   - authored live-only → an export-scope artifact THIS BRANCH created live that the seed does not
+//                     carry. GATED at zero; the check was blind to this population before ADR-0290.
+//   - stale / foreign → drift no signal attributes to this branch. REPORTED in full, with the writer
+//                     and the remedy, and never charged.
 //
 // FAIL-CLOSED AT A DRAIN CEILING (added by `verification-integrity-arc` under ADR-0252 D3, in
 // ADR-0168 D4's shape). This was WARN-only, exit 0 at EVERY size — and a differential control over
 // this binary with only its seed input varied found it printing a 122-item worklist and exiting 0 on
 // the day the check itself landed, then wandering 18 → 14 → 16 → 14 over the following month with
-// nothing ever failing. The ceiling, its two independent axes, the differential control behind them,
-// and both baselines live in the pure `corpus-content-drain.ts`; this shell does the live read,
-// prints, and sets the exit code. The OK/WARN lines are UNCHANGED — RED is layered above them, so this
-// check is strictly stronger than before and never quieter.
+// nothing ever failing. The ceilings, their independent axes, the differential control behind them,
+// and every baseline live in the pure `corpus-content-drain.ts`; the authorship reasoning lives in the
+// pure `corpus-content-attribution.ts`; this shell does the live read, the git reads, the event read,
+// prints, and sets the exit code.
+//
+// SCOPED BY AUTHORSHIP, NOT LOOSENED (ADR-0290). Measured on this binary, 2026-08-02, on a branch
+// identical to `origin/main` with a clean working tree and no live writes: RED, exit 1, on three
+// artifacts the session had not touched. The seed is one branch's working tree and the live store is
+// shared by every concurrent session, so the check was joining a per-branch surface to a
+// machine-shared one and charging the total to whoever ran the gate next. Six sessions filed that
+// independently. Nothing prints more quietly now — every id named before is still named, with its
+// writer and the reason it is or is not yours attached — and one population the check could never see
+// (live-only artifacts this branch authored) is newly charged.
 //
 // REACHABILITY IS UNCHANGED, and it is where fail-open lives: DB reachable + drift → WARN (or RED past
 // a ceiling); clean → OK; no DB/creds → SKIP, exit 0. The ceiling adds no new way to fail on a
@@ -26,9 +43,33 @@
 // comparison candidates, making the counts a lower bound. It manufactures a false CLEAN instead, which
 // is what `comparedLive` below exists to catch: measured on this checkout, an EMPTY live store made
 // this check print `OK — every seed body matches live across 160 export-scope artifacts`.
+//
+// ATTRIBUTION FAILS THE OTHER WAY — CLOSED, PER AXIS. If the git or event signals cannot be read, this
+// falls back to the PRE-ADR-0290 behaviour of each axis rather than to a pass: every drifted id is
+// charged as authored (as before), and live-only is charged to nobody (as before, when it was
+// invisible). The reason is stated in `corpus-content-attribution.ts` — a wrongly-charged red costs a
+// merge or a routed report, a wrongly-excused red lands a one-sided edit no later gate will catch.
 
-import { createPool, closePool, PgLibraryStore, diffSeedCorpusContent } from "@storytree/library/store";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+import { InMemoryStore } from "@storytree/storage-protocol";
+import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
+import type { SeedEntry } from "@storytree/library/store";
+import {
+  canonicalJson,
+  closePool,
+  createPool,
+  diffCorpusContent,
+  loadCorpus,
+  PgLibraryStore,
+} from "@storytree/library/store";
+
+import { branchOfActor, currentGitBranch } from "./cli-actor.js";
+import type { DriftAttributionEvidence } from "./corpus-content-attribution.js";
+import { attributeDrift } from "./corpus-content-attribution.js";
 import {
   DEFAULT_CORPUS_CONTENT_DRAIN_CONFIG as CEILING,
   evaluateCorpusContentDrain,
@@ -38,6 +79,8 @@ import { loadLocalSecrets } from "./secrets.js";
 const TAG = "[check:corpus-content]";
 /** Bound the live read so a stopped DB can't hang the gate (matches check:corpus-sync). */
 const LIVE_READ_TIMEOUT_MS = 10_000;
+/** The one committed seed, relative to the repo root — the path `git show <rev>:<path>` also takes. */
+const SEED_REL = "apps/studio/data/knowledge.json";
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -56,6 +99,62 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   });
 }
 
+/** The repo the seed belongs to — a PARAMETER (ADR-0246), so a scratch-root control run still works. */
+function repoRoot(): string {
+  return resolveRepoRoot({
+    env: process.env[REPO_ROOT_ENV],
+    derived: path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", ".."),
+  }).root;
+}
+
+/** Run git in the seed's repo, or `null` on any failure. Never throws — every caller degrades. */
+function git(root: string, args: readonly string[]): string | null {
+  try {
+    return execFileSync("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      maxBuffer: 64 * 1024 * 1024,
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/** The seed entries at a git revision, keyed by id, or `null` if that revision has no readable seed. */
+function seedEntriesAt(root: string, rev: string): Map<string, SeedEntry> | null {
+  const raw = git(root, ["show", `${rev}:${SEED_REL}`]);
+  if (raw === null) return null;
+  try {
+    const entries = JSON.parse(raw) as SeedEntry[];
+    return new Map(entries.map((e) => [e.id, e]));
+  } catch {
+    return null;
+  }
+}
+
+/** The seed entries in the WORKING TREE (uncommitted edits included), or `null` if unreadable. */
+function workingSeedEntries(root: string): Map<string, SeedEntry> | null {
+  try {
+    const entries = JSON.parse(readFileSync(path.join(root, SEED_REL), "utf8")) as SeedEntry[];
+    return new Map(entries.map((e) => [e.id, e]));
+  } catch {
+    return null;
+  }
+}
+
+/** Ids whose seed entry differs between two revisions of the file — added, removed, or edited. */
+function changedSeedIds(a: Map<string, SeedEntry>, b: Map<string, SeedEntry>): Set<string> {
+  const changed = new Set<string>();
+  for (const id of new Set([...a.keys(), ...b.keys()])) {
+    const l = a.get(id);
+    const r = b.get(id);
+    if (l === undefined || r === undefined || canonicalJson(l) !== canonicalJson(r)) changed.add(id);
+  }
+  return changed;
+}
+
+const list = (ids: readonly string[]): string => (ids.length > 0 ? ids.join(", ") : "(none)");
+
 async function main(): Promise<void> {
   loadLocalSecrets();
 
@@ -68,53 +167,200 @@ async function main(): Promise<void> {
   try {
     handle = await createPool();
     const pg = new PgLibraryStore(handle.pool);
-    const diff = await withTimeout(diffSeedCorpusContent(pg), LIVE_READ_TIMEOUT_MS, "live read");
+
+    // The seed side is loaded here rather than through `diffSeedCorpusContent` because attribution
+    // needs to run the SAME comparator against a second seed revision (origin/main's), and the only
+    // honest way to ask "would main's seed have drifted too" is to diff it the same way.
+    const seedStore = new InMemoryStore();
+    await loadCorpus(seedStore);
+    const seed = await seedStore.queryDocs();
+    const live = await withTimeout(pg.queryDocs(), LIVE_READ_TIMEOUT_MS, "live read");
+    const diff = diffCorpusContent(seed, live);
     const degraded = diff.drifted.filter((d) => d.cls === "degraded-live");
     const value = diff.drifted.filter((d) => d.cls === "value-drift");
 
-    if (diff.clean) {
+    // ---- attribution evidence (git + the event log) ---------------------------------------------
+    const root = repoRoot();
+    const branch = currentGitBranch(root);
+    const mergeBase = git(root, ["merge-base", "origin/main", "HEAD"]);
+    const working = workingSeedEntries(root);
+    const baseSeed = mergeBase === null ? null : seedEntriesAt(root, mergeBase);
+
+    let writers: Map<string, { actor: string; at: string }> | null = null;
+    try {
+      writers = await withTimeout(pg.latestWriters(), LIVE_READ_TIMEOUT_MS, "event read");
+    } catch {
+      writers = null;
+    }
+
+    // Both EXACT signals are required. Missing either would silently stop charging a whole direction —
+    // a git-only signal cannot see a live edit (the ceremony's normal direction), and an event-only
+    // signal cannot see a hand-edited seed — so the fallback is to charge, not to excuse.
+    const unattributable =
+      branch === null
+        ? "git could not name the current branch (detached HEAD?)"
+        : mergeBase === null || baseSeed === null || working === null
+          ? "the merge-base seed could not be read (no `origin/main` ref, or an unreadable knowledge.json)"
+          : writers === null
+            ? "the live event log could not be read, so no live write can be attributed"
+            : undefined;
+
+    const evidence: DriftAttributionEvidence = {
+      branch,
+      seedChangedByBranch:
+        baseSeed !== null && working !== null ? changedSeedIds(baseSeed, working) : new Set<string>(),
+      liveWrittenByBranch:
+        writers !== null && branch !== null
+          ? new Set(
+              [...writers.entries()]
+                .filter(([, w]) => branchOfActor(w.actor) === branch)
+                .map(([id]) => id),
+            )
+          : new Set<string>(),
+      // Diagnostic only: ids that drift against MY seed but not against origin/main's, i.e. main has
+      // already landed the reconciliation and this branch simply has not merged it. Its absence costs
+      // a worse message (the drift reports as `foreign`) and never a wrong verdict, so an unfetched
+      // `origin/main` is not part of the fail-closed predicate above.
+      reconciledOnMain: (() => {
+        const mainSeed = seedEntriesAt(root, "origin/main");
+        if (mainSeed === null) return new Set<string>();
+        const mainDocs = [...mainSeed.values()].map((e) => ({
+          id: e.id,
+          kind: e.kind,
+          doc: e,
+          createdAt: "",
+          updatedAt: "",
+        }));
+        const againstMain = new Set(diffCorpusContent(mainDocs, live).drifted.map((d) => d.id));
+        return new Set(diff.drifted.map((d) => d.id).filter((id) => !againstMain.has(id)));
+      })(),
+      ...(unattributable === undefined ? {} : { unattributable }),
+    };
+
+    const valueAttrib = attributeDrift(value.map((d) => d.id), evidence);
+    // Live-only falls back the OTHER way: before ADR-0290 this population was charged to nobody
+    // because it was invisible, so an unmeasurable attribution must leave it uncharged rather than
+    // red every session on a backlog that predates the axis. Fail-closed means "no quieter than
+    // before", and per axis that is a different list.
+    const authoredLiveOnly =
+      unattributable === undefined
+        ? diff.liveOnly.filter((id) => evidence.liveWrittenByBranch.has(id))
+        : [];
+    const foreignLiveOnly = diff.liveOnly.filter((id) => !authoredLiveOnly.includes(id));
+
+    // ---- report -----------------------------------------------------------------------------------
+    if (diff.clean && diff.liveOnly.length === 0) {
       // Reports the population actually COMPARED, not the seed scope. Those diverge exactly when the
       // claim stops being true: a seed id with no live row is skipped, so an absent or truncated live
       // tier reaches this branch with nothing having been matched.
-      //
-      // AND THE OTHER DIRECTION IS NOT MEASURED AT ALL, which is why the caveat below is printed on
-      // the GREEN path rather than only on a breach. `diffCorpusContent` walks the SEED scope, so an
-      // id the LIVE store carries and the seed does not is skipped silently — it is neither
-      // value-drift nor degraded-live. `computeExportedSeed` meanwhile APPENDS every such id. So this
-      // OK is a true statement about seed bodies and NOT a statement that `export-corpus --write`
-      // would be a no-op. Measured 2026-07-30: clean over 177 here, one pending live-only addition in
-      // the same shell — an owner-retired artifact a blind --write would have put back in the seed.
       console.log(
         `${TAG} OK — every seed body matches live across ${diff.comparedLive} export-scope artifacts` +
           (diff.comparedLive === diff.compared ? "." : ` (of ${diff.compared} in the seed).`),
       );
+    } else if (diff.clean) {
       console.log(
-        `${TAG}   (Seed-scope only: a LIVE-ONLY artifact is not measured here, but IS swept by ` +
-          "`export-corpus --write`. Dry-run before writing.)",
+        `${TAG} OK — every seed body matches live across ${diff.comparedLive} export-scope artifacts.`,
       );
     } else {
       console.warn(
-        `${TAG} WARN — ${diff.drifted.length} of ${diff.compared} export-scope artifacts differ between ` +
-          "seed and live (body-level). Reconcile by direction (ADR-0120):",
+        `${TAG} ${diff.drifted.length} of ${diff.compared} export-scope artifacts differ between seed ` +
+          `and live (body-level), charged by authorship (ADR-0290):`,
       );
-      if (value.length > 0) {
+      if (valueAttrib.authored.length > 0) {
         console.warn(
-          `${TAG}   value-drift [${value.length}] (genuine edits): ${value.map((d) => d.id).join(", ")}`,
+          `${TAG}   YOURS — value-drift [${valueAttrib.authored.length}]: ` +
+            valueAttrib.authored.map((d) => `${d.id} (${d.because})`).join(", "),
         );
-        console.warn(`${TAG}     → if live is canonical: pnpm storytree library export-corpus --pg --write`);
+        console.warn(
+          `${TAG}     → if live is canonical: pnpm storytree library export-corpus ` +
+            `${valueAttrib.authored.map((d) => `--id ${d.id}`).join(" ")} --pg --write`,
+        );
+        console.warn(`${TAG}     → if the SEED is canonical: storytree library artifact edit <id> --file <seed> --pg`);
+      }
+      if (valueAttrib.stale.length > 0) {
+        console.warn(
+          `${TAG}   BEHIND MAIN — not yours [${valueAttrib.stale.length}]: ` +
+            valueAttrib.stale.map((d) => d.id).join(", "),
+        );
+        console.warn(
+          `${TAG}     → origin/main's seed already carries these live bodies. Remedy: git merge origin/main.` +
+            " Do NOT export — it would re-author a hunk already on main.",
+        );
+      }
+      if (valueAttrib.foreign.length > 0) {
+        console.warn(
+          `${TAG}   ANOTHER WRITER — not yours [${valueAttrib.foreign.length}]: ` +
+            valueAttrib.foreign
+              .map((d) => {
+                const w = writers?.get(d.id);
+                return w === undefined ? d.id : `${d.id} (last written by ${w.actor} at ${w.at})`;
+              })
+              .join(", "),
+        );
+        console.warn(
+          `${TAG}     → an unexported live edit from another branch or surface. Not yours to reconcile:` +
+            " route it back, or leave it. Blind-exporting commits their body under your name.",
+        );
       }
       if (degraded.length > 0) {
         console.warn(
-          `${TAG}   degraded-live [${degraded.length}] (seed canonical): ${degraded.map((d) => d.id).join(", ")}`,
+          `${TAG}   DEGRADED-LIVE [${degraded.length}] (seed canonical, charged to everyone): ` +
+            degraded.map((d) => d.id).join(", "),
         );
-        console.warn(`${TAG}     → restore seed→live: storytree library artifact edit <id> --file <seed> --pg`);
+        console.warn(
+          `${TAG}     → restore seed→live: storytree library artifact edit <id> --file <seed> --pg` +
+            " (merge origin/main first — restoring from a stale seed writes a stale body live).",
+        );
       }
     }
 
-    // ---- the drain ceiling (ADR-0168 D4's shape) ------------------------------------------------
+    // The live-only population, which the drift axes are structurally blind to and the unscoped export
+    // writes anyway. Printed on EVERY path, including the clean one, because a green drift verdict has
+    // never been evidence that a bare `--write` is a no-op.
+    if (diff.liveOnly.length > 0) {
+      console.warn(
+        `${TAG}   LIVE-ONLY [${diff.liveOnly.length}] — in live, absent from the seed; no drift axis ` +
+          "can see these, but a bare `export-corpus --write` APPENDS every one:",
+      );
+      if (authoredLiveOnly.length > 0) {
+        console.warn(`${TAG}     YOURS [${authoredLiveOnly.length}]: ${list(authoredLiveOnly)}`);
+        console.warn(
+          `${TAG}       → carry it into the seed: pnpm storytree library export-corpus ` +
+            `${authoredLiveOnly.map((id) => `--id ${id}`).join(" ")} --pg --write`,
+        );
+      }
+      if (foreignLiveOnly.length > 0) {
+        console.warn(`${TAG}     not yours [${foreignLiveOnly.length}]: ${list(foreignLiveOnly)}`);
+        console.warn(
+          `${TAG}       → two OPPOSITE causes, so do not blanket-export: a graduation that never` +
+            " reached the seed (export it), or an artifact deliberately RETIRED live (drop the live",
+        );
+        console.warn(
+          `${TAG}       row instead — a blind --write resurrects it into the committed seed). Settle it` +
+            " on events.library_event, per process:library-edit-ceremony.",
+        );
+      }
+    }
+
+    if (unattributable !== undefined) {
+      console.warn(
+        `${TAG}   (ATTRIBUTION UNAVAILABLE — ${unattributable}. Falling back to the pre-ADR-0290` +
+          " behaviour of each axis: every drift is charged to this branch, live-only to nobody.)",
+      );
+    }
+
+    // ---- the drain ceilings (ADR-0168 D4's shape, ADR-0290's aperture) ---------------------------
     const drain = evaluateCorpusContentDrain(
-      { valueDrift: value.map((d) => d.id), degradedLive: degraded.map((d) => d.id) },
-      { compared: diff.compared, comparedLive: diff.comparedLive },
+      {
+        authoredValueDrift: valueAttrib.authored.map((d) => d.id),
+        degradedLive: degraded.map((d) => d.id),
+        authoredLiveOnly,
+      },
+      {
+        compared: diff.compared,
+        comparedLive: diff.comparedLive,
+        deferred: valueAttrib.stale.length + valueAttrib.foreign.length + foreignLiveOnly.length,
+      },
     );
 
     // A sweep that compared less than the whole seed scope is REPORTED, never read as a clean corpus.
@@ -125,45 +371,34 @@ async function main(): Promise<void> {
     if (drain.level !== "red") return;
 
     console.error(
-      `${TAG} RED — corpus-content drain ceiling breached: ${drain.valueDriftCount} value-drift, ` +
-        `${drain.degradedLiveCount} degraded-live.`,
+      `${TAG} RED — corpus-content drain ceiling breached: ${drain.authoredDriftCount} authored ` +
+        `value-drift, ${drain.degradedLiveCount} degraded-live, ${drain.authoredLiveOnlyCount} authored live-only.`,
     );
     for (const b of drain.breaches) console.error(`${TAG}   ${b}`);
     console.error(
-      `${TAG}   Landing is blocked until the ADR-0120 reconciliation backlog is drained back to`,
+      `${TAG}   Landing is blocked until what THIS BRANCH authored is reconciled, back to`,
     );
     console.error(
-      `${TAG}   V=${CEILING.valueDriftCeiling} / D=${CEILING.degradedLiveCeiling}. For VALUE-DRIFT, resolve by DIRECTION — do not assume live is newer:`,
+      `${TAG}   A=${CEILING.authoredDriftCeiling} / D=${CEILING.degradedLiveCeiling} / L=${CEILING.authoredLiveOnlyCeiling}.` +
+        " Only your own artifacts are charged (ADR-0290); anything",
     );
     console.error(
-      `${TAG}   where LIVE is canonical, \`pnpm storytree library export-corpus --pg --write\` (one command;`,
+      `${TAG}   printed above as BEHIND MAIN or ANOTHER WRITER is reported and NOT part of this breach.`,
     );
     console.error(
-      `${TAG}   since ADR-0263 it carries only the durable tier, so at a drained backlog the UPDATES are`,
+      `${TAG}   The drain is now one artifact wide — \`export-corpus --id <id> --pg --write\` writes only`,
     );
     console.error(
-      `${TAG}   just the artifact you edited — but it IS all-or-nothing: it also sweeps any sibling's`,
+      `${TAG}   the ids you name, so it carries no sibling's body and appends no live-only artifact.`,
     );
     console.error(
-      `${TAG}   drift, AND it ADDS every live-only artifact, which this check cannot see at all).`,
+      `${TAG}   Direction is still yours to call and is NOT inferable: \`sync-corpus\` is migrate-only, so`,
     );
     console.error(
-      `${TAG}   So DRY-RUN FIRST: \`pnpm storytree library export-corpus --pg\` (no --write). A live-only`,
+      `${TAG}   a seed edit can never reach live and the SEED can be the newer side. A bare (unscoped)`,
     );
     console.error(
-      `${TAG}   id is invisible here — the diff walks the SEED scope — but the export APPENDS it, and it`,
-    );
-    console.error(
-      `${TAG}   may be an artifact deliberately RETIRED live, which --write would resurrect in the seed.`,
-    );
-    console.error(
-      `${TAG}   Where the SEED is canonical, re-edit on the live surface instead: \`sync-corpus\` is`,
-    );
-    console.error(
-      `${TAG}   migrate-only, so a seed edit can never reach live and the seed CAN be the newer side.`,
-    );
-    console.error(
-      `${TAG}   On drift you did not author, spawn librarian-curator to call direction per artifact.`,
+      `${TAG}   \`export-corpus --write\` still sweeps everything — dry-run it first if you use that form.`,
     );
     console.error(
       `${TAG}   For DEGRADED-LIVE the seed is canonical by construction — restore it per artifact:`,

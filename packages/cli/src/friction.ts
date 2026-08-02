@@ -38,6 +38,7 @@ import path from "node:path";
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { explainDocValidationError, upcastAndValidate, Friction, FrictionRoute, NODE_REF_PREFIX } from "@storytree/library";
 
+import { defaultCliActor } from "./cli-actor.js";
 import type { Envelope } from "./envelope.js";
 import { lifecycleOf, type FrictionLifecycle } from "./friction-lifecycle.js";
 
@@ -346,7 +347,7 @@ export async function newFriction(
         next: [`storytree friction reinforce ${id} --evidence "<what happened this time>" --pg`],
       };
     }
-    const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? "cli" });
+    const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? defaultCliActor() });
     return {
       ok: true,
       body: `filed friction ${saved.id} on "${ctx.branch}" (${date}). It becomes routable one session after filing (the session that files it never adjudicates it, ADR-0168 D4).`,
@@ -532,7 +533,7 @@ export async function migrateFriction(
       }
       continue;
     }
-    await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? "cli" });
+    await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? defaultCliActor() });
     unlinkSync(full); // served its purpose (the README lifecycle) — the deletion rides the session's PR
     migrated.push(id);
   }
@@ -594,7 +595,7 @@ export async function reinforceFriction(
   } catch (e) {
     return { ok: false, body: `reinforcement would make "${id}" invalid:\n${explainDocValidationError(base, e)}`, next: [`storytree library artifact ${id}`] };
   }
-  const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? "cli" });
+  const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? defaultCliActor() });
   // The tombstone nudge keys on the ROUTE detail, not the (ADR-0196-collapsed) lifecycle: every
   // routed item is lifecycle-archived now, but only `route: nothing` is the re-openable tombstone.
   const tombstoned = routeOf(valid) === "nothing";
@@ -760,7 +761,7 @@ export async function routeFriction(
   } catch (e) {
     return { ok: false, body: `routing would make "${id}" invalid:\n${explainDocValidationError(base, e)}`, next: [`storytree library artifact ${id}`] };
   }
-  const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? "cli" });
+  const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? defaultCliActor() });
   return {
     ok: true,
     body: [
