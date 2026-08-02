@@ -37,6 +37,18 @@ numpy grows, so `render-meta.json` now records the numpy version alongside the s
 renders a subset for the tight colour loop; the retiming, camera and frame indices are unchanged, so
 a subset frame is identical to that frame of a full run.
 
+**Two exploratory flags, both defaulting to the delivered track** (verified: the defaults still
+report `nodes=405 iters=27 lobes=22 span=3.1362 tz=1.4080` and the identical `RETIME` vector).
+
+- `--framing fixed | per-stage | eased` — the open SCALE-CONVENTION fork (§6 item 3). `fixed` is D1
+  as decided, one camera framed to the mature extent. `per-stage` frames each frame to its own
+  extent so every stage fills the canvas; `eased` does that with exp-16's measured 0.65 opening.
+  **No variant has been rendered yet** — the fork is parked, not answered.
+- `--skeleton space-colonisation | sapling` (`--sap-preset <species>`) — who grows the skeleton, from
+  the Blender-ecosystem spike:
+  [`../../chapter2-blender-ecosystem-spike-2026-08-02/`](../../chapter2-blender-ecosystem-spike-2026-08-02/README.md).
+  Needs the `sapling_tree_gen` extension from extensions.blender.org.
+
 ## The defect, measured
 
 v2's crown was not short of green — it was **fragmented**. Same crown definition, mature frame:

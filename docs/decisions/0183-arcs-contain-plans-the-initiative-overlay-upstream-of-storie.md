@@ -69,9 +69,13 @@ curated in the ceremonies, a node in the ADR-0161 context DAG.
 - An arc is an **overlay, not a tier**: it *references* stories, ADRs, and plans; nothing
   proof-related rolls up to it. The story remains the top proof grain (no verdict, no UAT, no
   rollup on an arc).
-- The arc's only authored mutations are slow: intent changes and **increment-log entries at
-  landing** (PR#, outcome, what was consumed or re-planned). The increment log is the **durable
-  residue** — history survives plan pruning.
+- The arc's authored mutations are slow: intent changes, **increment-log entries at landing** (PR#,
+  outcome, what was consumed or re-planned), and — added by **ADR-0239 D1/D2**, which amends this
+  clause — the one **closing transition** (`storytree arc close`, which atomically appends the
+  terminal increment and sets the stored `lifecycle: closed`). This list read "only ... intent
+  changes and increment-log entries" until ADR-0239; that closed set was the reason closure could be
+  *described* in prose and never *reported* as state, and it is corrected here in place per ADR-0139.
+  The increment log remains the **durable residue** — history survives plan pruning.
 - An arc is not durable guidance: lessons still graduate out through ADR-0095/0168; the arc holds
   state and pointers only.
 - **UI naming:** the studio displays the kind as **"Epic"** by default, with a display toggle to
