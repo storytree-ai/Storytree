@@ -8,23 +8,25 @@ growth). Blender occupies the FINISH slot only. No .blend is a source of truth; 
 file is. Output is NOT deliverable until it passes pixelise.py — a raw Blender frame
 shipped as-is is the ADR-0145 failure reproduced (ADR-0280 D2a).
 
-This is v2. v1 (../blender-spike/) answered "what can Blender do"; it lost to exp-16 on
-four named gaps, and each is addressed here:
+This is v4. Its two targets are the silhouette defects ADR-0289 D2 names, both of them
+in this file's own CANOPY code rather than in the skeleton:
 
-  1. THE OPENING — v1 opened on a bare stump because girth was static: the mature
-     trunk radius was drawn from frame 0. Girth is now SECONDARY GROWTH, a function of
-     each node's age, so a young stem is a young stem. Frame 0 is a two-leaf cotyledon
-     seedling on a hypocotyl, as exp-16 opens.
-  2. THE BASE — buttress root spurs that climb the bole and descend to the soil, a
-     base flare on the lower trunk, and a real cast contact shadow (the second render
-     pass; v1's sibling `code-sdf-volume` had the only working ground contact in the
-     round-4 pool and this mines it with a production renderer).
-  3. LEAF CHARACTER — individual leaf BLADES on young shoots, shed as a shoot
-     lignifies, with canopy lobes taking the mass over. v1 was lobes throughout.
-  4. CROWN SILHOUETTE — space colonisation into a ROUNDED attractor envelope, instead
-     of v1's fixed-angle recursion, which read flat-topped and acacia-like.
+  1. FOLIAGE AT THE TRUNK — canopy mass appeared against the bole because the rule that
+     places it was purely TOPOLOGICAL (outer orders of live shoot), and a lateral that
+     ends low on the bole is an outer order. A CANOPY FLOOR supplies the missing
+     geometric half: no node bears canopy below a fraction of the LIVE tree's own top.
+  2. THE INVERTED PEAR — the crown envelope was an ellipsoid as tall as it was wide,
+     starting at 29% of tree height, so the tree read as an oval on a short stick with
+     no waist. Raised and shortened onto a bole, measured against exp-16's own
+     half-width-by-height profile rather than judged by eye.
 
-Invariants held (ADR-0280 D1):
+v3's four levers (clouds carry the crown, authored cel bands, the top highlight, the
+break-up mask) are unchanged and still carry the colour result. What v4 DELETES, under
+the licence ADR-0289 D1 grants, is the seedling apparatus: leaf blades, the
+blade-to-cloud handoff, the age-dependent first flush and the cotyledon organ. The track
+animates a tree FORMING, so one canopy mechanism serves the whole of it.
+
+Invariants held (ADR-0280 D1, reaffirmed by ADR-0289):
   · Topology is a strict PREFIX. The skeleton is grown once; every node records its
     birth iteration; a frame at reveal N draws nodes with birth <= N and eases the
     frontier out of zero length. Nothing is frozen to buy per-frame connectedness.
@@ -179,7 +181,6 @@ AO_DIST = 0.20
 # there, they are simply in deep shade. Long-range occlusion is what puts them there.
 AO_AMOUNT_BARK = 0.80
 AO_DIST_BARK = 0.80
-BLADE_BIAS = 0.10              # young blades read a shade brighter than canopy cloud
 # LEVER 4, the optional one. A tiled leaf texture at 128 px lands sub-pixel — the whole
 # tree is ~86 px wide and a lobe is 12-20 px — so it can only ADD colours, which is the
 # exact defect being fixed. The defensible form is a BREAK-UP MASK: noise added to the
@@ -188,12 +189,6 @@ BLADE_BIAS = 0.10              # young blades read a shade brighter than canopy 
 # the ramp still only emits band values. `--breakup <x>` overrides for the experiment.
 LEAF_BREAKUP = float(arg("--breakup", "0.10"))
 LEAF_BREAKUP_SCALE = 22.0
-
-# sampled from exp-16's committed 32-colour track palette; the raster back half snaps
-# every pixel back onto that palette, so these only need to land in the right family.
-BARK_SRGB = (126 / 255, 85 / 255, 53 / 255)
-FOLIAGE_SRGB = (121 / 255, 141 / 255, 83 / 255)
-BLADE_SRGB = (152 / 255, 174 / 255, 101 / 255)  # young blades read a shade brighter
 
 
 def srgb_to_linear(c):
@@ -242,16 +237,39 @@ TROPISM = np.array([0.0, 0.0, 0.26])
 # The crown envelope. ROUNDED by construction — this is gap 4's fix. Proportioned so the
 # mature silhouette lands near exp-16's (79 x 111 px of a 128 canvas), because a crown
 # that fills the canvas edge to edge reads as a bush rather than as a tree.
-CROWN_C = np.array([0.0, 0.0, 1.80])
-CROWN_R = np.array([0.84, 0.72, 0.94])
-BOLE_CLEAR_Z = 0.76            # no attractors below this: keeps a readable bole
+#
+# RAISED AND SHORTENED for ADR-0289 D2's second defect, "we losing the overall upside
+# down pair shape". The fix came out of a MEASUREMENT rather than out of the phrase.
+# Half-width by height decile, mature frame, ours against exp-16's:
+#
+#     height band     0.17-0.25   0.25-0.33   0.42-0.50   0.58-0.67   0.92-1.00
+#     exp-16               9.5         7.5        38.5        47.0        22.0
+#     v3                  18.5        20.5        39.5        45.5        14.5
+#
+# The two crowns agree on where they are WIDEST (0.58-0.67) and on how wide. What exp-16
+# has and v3 did not is a WAIST: it narrows to a 7.5 px half-width at a quarter of its
+# height and then jumps to 38.5, while v3 ramped smoothly 18.5 -> 20.5 -> 39.5 and read
+# as an oval on a short stick. An upside-down pear is a narrow stem carrying a broad
+# round top, and the stem is the half of it that was missing.
+#
+# So the envelope's FLOOR is what moved: z 0.86..2.74 (an ellipsoid as tall as it is
+# wide, starting at 29% of tree height) becomes z 1.24..2.76 — the same rounded shape,
+# raised onto a bole and squashed vertically so it stays a crown rather than a column.
+# The canopy floor below (CANOPY_FLOOR) holds the same line for the FOLIAGE, and the two
+# numbers are deliberately the same measurement read twice: where the crown begins.
+CROWN_C = np.array([0.0, 0.0, 2.00])
+CROWN_R = np.array([0.86, 0.74, 0.76])
+BOLE_CLEAR_Z = 1.18            # no attractors below this: keeps a readable bole
 BOLE_CLEAR_R = 0.34            # nor this close to the axis low down
 BOLE_MIN_Z = 0.40              # the leader climbs at least this high before it forks
-N_LOW = 13                     # a low attractor ring: a few side shoots on the
-LOW_R = (0.24, 0.44)           # sapling that survive as the mature tree's low limbs.
-LOW_Z = (0.60, 0.98)           # Keep it SPARSE and HIGH: a dense low ring grows a
-                               # permanent skirt around the bole and the tree reads
-                               # as a hedge rather than as a tree.
+N_LOW = 10                     # a low attractor ring: a few side shoots on the sapling
+LOW_R = (0.22, 0.40)           # that survive as the mature tree's low limbs. Keep it
+LOW_Z = (0.80, 1.15)           # SPARSE and HIGH: a dense low ring grows a permanent
+                               # skirt around the bole and the tree reads as a hedge.
+                               # It sits just UNDER the crown floor, so at maturity these
+                               # limbs are bare wood fanning into the canopy — which is
+                               # 29% of exp-16's crown by area — and not a second tier of
+                               # foliage hanging beside the trunk.
 
 # secondary growth (gap 1's fix): girth is a function of AGE, not of position
 PIPE_E = 2.15
@@ -274,26 +292,37 @@ AGE_TAIL = 8.0                # pure secondary growth after extension stops
 # manufactured its colour fragmentation: each blade presents its own facing angle, so a
 # mature crown carried a CONTINUUM of shading that quantised into speckle — measured at
 # 24 distinct crown colours against exp-16's 12. A cloud has one surface and can hold a
-# band. So blades exist only while ONE LEAF IS A READABLE FRACTION OF THE SILHOUETTE,
-# and clouds carry the crown from sapling up.
-LEAF_EVERY = 2                 # a blade whorl on every internode: a sapling is LEAFY,
-LEAF_LEN = 0.225               # and a bare armature that greens only at the end is the
-LEAF_PER = 3                   # "stump" complaint in another costume
-AGE_LEAF = 1.5                 # blades reach full size over this many iterations
-N_BLADE_FULL = 9.2             # blades carry the frame up to here (stages 1-3) ...
-N_BLADE_OFF = 15.0             # ... and are gone by here, with clouds already covering
-
+# band. v3 kept blades for the frames where ONE LEAF IS A READABLE FRACTION OF THE
+# SILHOUETTE and handed the population to clouds at frame 10.
+#
+# ADR-0289 D1 RETIRED that second mechanism, and the whole seedling apparatus with it:
+# the track animates a tree FORMING, not a sapling maturing, so frame 0 need not be a
+# botanically plausible cotyledon seedling and the mid frames need not be plausible trees
+# of a given age. Deleted here, not kept behind a flag (git is the archive): the leaf
+# BLADE geometry and its whorl placement, the age-dependent first flush, the
+# blade-to-cloud handoff gate, the two-leaf cotyledon organ and its senescence ramp, and
+# the third material they needed. ONE mechanism now carries the canopy from the first
+# frame to the last, which is what lever 1 claimed and only half did.
+#
 # The canopy is carried on the OUTER ORDERS of live shoot and migrates outward as the
 # tree grows — which is what a real canopy does, and what lets one mechanism serve a
 # sapling apex and a mature crown shell. Cloud SEATS are farthest-point sampled from the
 # mature skeleton ONCE and every node is assigned to one, so a cloud can never appear,
 # merge or split between frames; only its live membership changes.
-N_CLOUD_ON = 5.2               # no canopy cloud before this: at frame 0 the COTYLEDON
-N_CLOUD_FULL = 10.5            # pair carries the silhouette, and a green ball over it
-                               # is the "stump" complaint in a third costume
+N_CLOUD_ON = 2.0               # canopy from the FIRST frame (= N_FLOOR): with the blades
+N_CLOUD_FULL = 6.0             # gone there is nothing else to carry the opening, and a
+                               # green tuft on a two-internode stem is a tree beginning to
+                               # form, which is now the whole requirement (ADR-0289 D1)
 N_CLOUD = 22                   # fewer, larger clouds: the count IS the band budget
 CLOUD_ORDERS = 4.6             # a node bears canopy within this many orders of a live tip
-CLOUD_RISE = 3.2               # iterations for a newly live node to pull its weight
+CLOUD_ORDERS_YOUNG = 20.0      # ... but a SAPLING has no interior: 20 exceeds the depth of
+                               # any young tree here, so while young the rule is OFF rather
+                               # than merely loose. Eased between the two by `mat` below.
+CLOUD_RISE = 1.5               # iterations for a newly live node to pull its weight. It
+                               # was 3.2 while blades covered the young frames; with the
+                               # canopy alone, a branching burst puts a whole shell of
+                               # nodes one order deeper in a single frame, and a lag longer
+                               # than the frame step means the new tips cannot pay for it.
 CLOUD_SAT = 3.4                # summed weight at which a cloud reaches its own extent
 CLOUD_EXT = 1.34               # radius from the weighted spread of the nodes it covers
 CLOUD_BASE = 0.062
@@ -303,16 +332,42 @@ CLOUD_SQUASH = 0.93            # a cloud is a ROUNDED mass. v2's 0.82 plus a nea
                                # plates reads as stacked lily pads rather than as canopy
 WOOD_HIDE = 0.32               # how far a twig tapers away under its own canopy weight
 
+# THE CANOPY FLOOR — ADR-0289 D2's first named defect, "we seem to be added the greenary
+# at the trunk for some reason". The outer-orders rule above is TOPOLOGICAL: it asks how
+# many orders a node sits below the deepest live tip, and a short lateral that ENDS low on
+# the bole is a live tip, so it scored full canopy weight and grew a cloud beside the
+# trunk. Measured on the mature frame: v3's lowest foliage pixel sat at 16% of tree
+# height, against exp-16's 44%, and three of its 21 clouds were centred at 30%, 36% and
+# 48% — detached bubbles flanking a bare bole, which is exactly the read the owner named.
+#
+# The floor is the missing GEOMETRIC half of the same question: a node bears canopy only
+# if it is in the crown, and the crown is the top of the tree. It is expressed as a
+# FRACTION of the live tree's own height rather than as a world z, which is what lets one
+# rule serve both ends of the track — a sapling's apex is at 100% of its own height and
+# greens, while the same lateral, once the leader has climbed past it, falls below the
+# rising floor and lignifies. Losing its leaves as it is overtopped is what a real low
+# limb does; `measure.py --monotone` is what proves the viewer never sees the loss.
+#
+# BOTH shell rules — the floor here and CLOUD_ORDERS above — describe a tree that already
+# HAS a crown, and a sapling is all crown. Applied at full strength to a whip they take
+# foliage off it faster than it can grow: the outer-orders window becomes a fixed-length
+# tuft sliding up an extending leader while the floor climbs underneath it. Measured, the
+# first cut LOST canopy at frames 4->5->6 (64 -> 41 -> 23 proxy px) and failed
+# `measure.py --monotone` on the delivered pixels.
+#
+# So one MATURITY scalar — how tall the live tree is against the mature tree — eases both
+# rules in together. At the seedling there is no floor and every order is an outer order;
+# at maturity both are exactly the shell rules the mature crown needs. This is the same
+# move as expressing the floor as a fraction rather than a world z, applied once more.
+CANOPY_FLOOR = 0.40            # no canopy weight below this fraction of the live top
+CANOPY_FEATHER = 0.13          # ... ramping to full over this much more of it
+CANOPY_MATURE_Z = 1.00         # the live top, as a fraction of the MATURE top, at which
+                               # both shell rules reach full strength
+
 # base (gap 2's fix)
 N_ROOT = 7
 FLARE_H = 0.12                 # height over which the bole flares into the roots
 FLARE_AMT = 0.85               # peak extra radius at the soil, as a fraction
-
-# the cotyledon pair (gap 1's fix)
-COT_LEN = 0.150
-COT_FULL_N = 3.0               # fully open this many iterations after the floor
-COT_FADE_LO = 8.0              # senescence begins
-COT_FADE_HI = 13.5             # absorbed
 
 
 # ---------------------------------------------------------------- skeleton
@@ -630,8 +685,8 @@ def build_skeleton_sapling():
     # The birth wave: growth propagates outward from the root at constant extension rate,
     # so birth is arc length from the root — one unit per segment, now that segments are
     # uniform. Rescaled so the deepest node is born at the SAME iteration the
-    # space-colonisation tree's is, which is what lets every N-keyed gate below (blades,
-    # cotyledons, cloud onset, AGE_TAIL, TAU_AGE) carry over unretuned. Positive segment
+    # space-colonisation tree's is, which is what lets every N-keyed gate below (cloud
+    # onset, AGE_TAIL, TAU_AGE) carry over unretuned. Positive segment
     # lengths make birth strictly increasing root->tip, so the prefix property holds by
     # construction.
     for i, n in enumerate(nodes):
@@ -668,6 +723,7 @@ def build_skeleton_sapling():
 
 NODES = build_skeleton_sapling() if SKELETON == "sapling" else build_skeleton()
 NMAX_BIRTH = max(n.birth for n in NODES)
+Z_MATURE = max(float(n.p[2]) for n in NODES)
 N_FLOOR = 2.0
 print(f"SKEL apex_z={max(float(n.p[2]) for n in NODES):.3f} "
       f"source={SKELETON}", flush=True)
@@ -681,6 +737,15 @@ def cloud_seats(nodes):
     Sampling the whole skeleton rather than only the mature tips is what lets ONE
     mechanism serve both ends of the track: a sapling's live apex is owned by some seat
     and gets its cloud there, and the mature crown's shell is owned by the crown seats.
+
+    It is TEMPTING to spend every seat on the mature crown, since the two or three that
+    land low are exactly where v3 grew its clouds-beside-the-trunk. Measured, that is the
+    wrong repair and it was tried: restricting the seats leaves a sapling — every node of
+    which is below the mature crown floor — assigned to a single nearest crown seat, so
+    the first NINE frames render one lollipop blob. The low seats are not the defect; the
+    canopy WEIGHT rule was, and the canopy floor is where that is fixed. A low seat costs
+    nothing once weight is floored, because the nodes it owns score zero at maturity.
+
     Nothing hangs under the middle of the crown, because an interior node is many orders
     from a live tip and carries no canopy weight — the void that lets you watch the limbs
     run up into the foliage falls out of the outer-orders rule rather than being carved."""
@@ -766,25 +831,31 @@ def frame_state(N):
         s = sum(r[k] ** PIPE_E for k in NODES[i].kids if alive[k])
         r[i] = max(r0, s ** (1.0 / PIPE_E) if s > 0 else 0.0)
 
-    # blades: a whorl flushes on a young shoot and the whole population is handed to the
-    # clouds once the plant is big enough that one leaf is no longer a readable fraction
-    # of the silhouette. The gate is GLOBAL (on N) rather than per-shoot age, because the
-    # thing being decided is the STAGE's idiom, not any one shoot's season.
-    ai = np.clip(age / AGE_LEAF, 0.0, 1.0)
-    g = np.clip((N - N_BLADE_FULL) / (N_BLADE_OFF - N_BLADE_FULL), 0.0, 1.0)
-    gate = 1.0 - g * g * (3 - 2 * g)
-    # the first flush is small: at the seedling stage the COTYLEDONS should carry the
-    # frame, not a full-size true leaf on a 2 px stem
-    flush = min(1.0, 0.45 + 0.55 * max(0.0, (N - N_FLOOR) / 7.0))
-    leaf = ai * alive * flush * gate
-
     # clouds: the canopy rides the OUTER ORDERS of live shoot and migrates outward with
     # growth. Weight per node falls off with how deep inside the live tree it sits, so an
     # apex bears canopy and a lignified interior does not.
+    # Both heights are the EASED ones. A frontier node is alive from `birth <= N+1` but is
+    # drawn at a fraction of its length, so reading either end off nd.p lets the floor
+    # climb to a height the viewer cannot yet see — the canopy would recede from limbs
+    # that have not visibly been overtopped.
+    zf = np.array([nd.p[2] if nd.parent < 0 else
+                   NODES[nd.parent].p[2] + (nd.p[2] - NODES[nd.parent].p[2]) * frac[i]
+                   for i, nd in enumerate(NODES)])
+    ztop = float(zf[alive].max()) if alive.any() else 0.0
+    grown = min(1.0, ztop / (CANOPY_MATURE_Z * Z_MATURE)) if Z_MATURE > 0 else 1.0
+    mat = grown * grown * (3 - 2 * grown)         # 0 at the seedling, 1 at the crown
+
     dh = live_depth(alive)
     con = np.clip((N - N_CLOUD_ON) / (N_CLOUD_FULL - N_CLOUD_ON), 0.0, 1.0)
     con = con * con * (3 - 2 * con)
-    wn = np.clip(1.0 - dh / CLOUD_ORDERS, 0.0, 1.0) * np.clip(age / CLOUD_RISE, 0.0, 1.0)
+    orders = CLOUD_ORDERS_YOUNG + (CLOUD_ORDERS - CLOUD_ORDERS_YOUNG) * mat
+    wn = np.clip(1.0 - dh / orders, 0.0, 1.0) * np.clip(age / CLOUD_RISE, 0.0, 1.0)
+    # ... and the CANOPY FLOOR, the geometric half of the same question: is this node in
+    # the crown at all? Measured against the LIVE tree's own top, so it rises with the
+    # tree and one rule serves a sapling apex and a mature crown shell.
+    if ztop > 1e-6:
+        wz = np.clip((zf / ztop - CANOPY_FLOOR * mat) / CANOPY_FEATHER, 0.0, 1.0)
+        wn = wn * (wz * wz * (3 - 2 * wz))
     wn = wn * alive * con
     lobes = []
     for ci, cl in enumerate(CLUSTERS):
@@ -803,20 +874,22 @@ def frame_state(N):
         # and exp-16's canopy is conspicuously a few big masses among smaller ones
         rad *= 0.74 + 0.52 * h01(ci, 81)
         rv = c - CROWN_C
+        # ... but NEVER downward. The push exists because foliage sits on the OUTSIDE of
+        # the crown volume; applied as a full radial vector it also pushed every cloud
+        # below the crown centre DOWN and out, which is the one direction an upside-down
+        # pear cannot afford to grow (ADR-0289 D2). Clamping the vertical component to
+        # zero keeps the shell on the sides and the top and leaves the underside alone.
+        rv = np.array([rv[0], rv[1], max(float(rv[2]), 0.0)])
         nrv = np.linalg.norm(rv)
-        if nrv > 1e-9:                        # foliage sits on the OUTSIDE of the volume
+        if nrv > 1e-9:
             c = c + rv / nrv * (0.22 * rad)
         if rad > 0.012:
             lobes.append((ci, c, rad))
 
     # the base: flare and buttress grow with the trunk, so a seedling has neither
     t_root = float(np.clip((r[0] - R_TIP_MIN) / (0.175 - R_TIP_MIN), 0.0, 1.0)) ** 0.75
-    # cotyledons: open, hold, then senesce as the first true leaves take over
-    cot = min(1.0, max(0.0, (N - N_FLOOR) / COT_FULL_N + 0.35))
-    fade = np.clip((N - COT_FADE_LO) / (COT_FADE_HI - COT_FADE_LO), 0.0, 1.0)
-    cot *= 1.0 - fade * fade * (3 - 2 * fade)
     return {"alive": alive, "frac": frac, "age": age, "r": r, "wn": wn,
-            "leaf": leaf, "lobes": lobes, "t_root": t_root, "cot": cot, "N": N}
+            "lobes": lobes, "t_root": t_root, "N": N}
 
 
 # ---------------------------------------------------------------- camera framing
@@ -836,11 +909,9 @@ _MAT = frame_state(NMAX_BIRTH + AGE_TAIL)
 _TOP = max((NODES[i].p[2] + _MAT["r"][i]) for i in range(len(NODES)))
 for _c in _MAT["lobes"]:
     _TOP = max(_TOP, float(_c[1][2] + _c[2] * 0.95))
-_TOP += LEAF_LEN * 0.7          # blades reach past the node they hang on
 _HALFW = max(abs(NODES[i].p[0]) for i in range(len(NODES)))
 for _c in _MAT["lobes"]:
     _HALFW = max(_HALFW, float(abs(_c[1][0]) + _c[2]))
-_HALFW += LEAF_LEN * 0.7
 
 _V = 1.0 - 2.0 * ANCHOR_ROW / CANVAS          # ground row, in NDC (+1 top, -1 bottom)
 PAD = 0.06
@@ -880,7 +951,7 @@ def frame_extent(st):
     for _ci, c, rad in st["lobes"]:
         top = max(top, float(c[2] + rad * 0.95))
         halfw = max(halfw, float(abs(c[0]) + rad))
-    return top + LEAF_LEN * 0.7, halfw + LEAF_LEN * 0.7
+    return top, halfw
 
 
 def camera_for(st):
@@ -923,9 +994,16 @@ def n_of_u(u):
 _TOP0 = frame_extent(frame_state(n_of_u(0.0)))[0]
 
 
-def cheap_silhouette(st, size=96):
+def cheap_silhouette(st, size=96, wood=True):
     """An analytic stand-in for the render, used only to MEASURE growth pacing.
-    Discs for every live internode and lobe; never shipped."""
+    Discs for every live internode and lobe; never shipped.
+
+    `wood=False` rasterises the CANOPY alone, which is the author-time proxy for what
+    `measure.py --monotone` will later count in the delivered pixels. That check is the
+    one obligation the canopy floor creates — a rising floor takes foliage off a limb the
+    leader has overtopped — and finding a violation needed a ten-minute render before this
+    existed, so it is worth the twenty lines. It is a PROXY: the real check still runs on
+    the shipped frames."""
     m = np.zeros((size, size), dtype=bool)
     k = size / CANVAS
     yy, xx = np.mgrid[0:size, 0:size]
@@ -941,12 +1019,14 @@ def cheap_silhouette(st, size=96):
         sub = ((xx[y0:y1, x0:x1] - cx) ** 2 + (yy[y0:y1, x0:x1] - cy) ** 2) <= rr * rr
         m[y0:y1, x0:x1] |= sub
 
-    for i, nd in enumerate(NODES):
-        if not st["alive"][i] or nd.parent < 0:
-            continue
-        a, b = NODES[nd.parent].p, NODES[nd.parent].p + (nd.p - NODES[nd.parent].p) * st["frac"][i]
-        for t in (0.0, 0.5, 1.0):
-            disc(a + (b - a) * t, st["r"][i])
+    if wood:
+        for i, nd in enumerate(NODES):
+            if not st["alive"][i] or nd.parent < 0:
+                continue
+            a = NODES[nd.parent].p
+            b = a + (nd.p - a) * st["frac"][i]
+            for t in (0.0, 0.5, 1.0):
+                disc(a + (b - a) * t, st["r"][i])
     for _ci, c, rad in st["lobes"]:
         disc(c, rad)
     return m
@@ -1169,87 +1249,6 @@ def emit_roots(buf, st):
         buf.sphere(pts[-1], radii[-1] * 1.05)
 
 
-def leaf_blade(buf, base, axis, up, length, width, curl,
-               ribs=(0.06, 0.46, 0.50, 0.36, 0.0)):
-    """One leaf blade: a midrib with five ribs, drooping slightly. Gap 3 — at stages
-    2-3 exp-16 draws individual blades and v1 drew lobes, which is much less charming."""
-    ax = mathutils.Vector(axis).normalized()
-    side = ax.cross(mathutils.Vector(up))
-    if side.length < 1e-6:
-        side = ax.cross(mathutils.Vector((1, 0, 0)))
-    side.normalize()
-    nrm = side.cross(ax).normalized()
-    ts = (0.0, 0.22, 0.5, 0.78, 1.0)
-    hw = ribs
-    left, right = [], []
-    for t, h in zip(ts, hw):
-        mid = mathutils.Vector(base) + ax * (length * t) - nrm * (curl * length * t * t)
-        left.append(mid + side * (width * h))
-        right.append(mid - side * (width * h))
-    b = len(buf.v)
-    buf.v += left + right
-    n = len(ts)
-    buf.f += [(b + i, b + i + 1, b + n + i + 1, b + n + i) for i in range(n - 1)]
-
-
-def emit_blades(buf, st):
-    alive, leaf, r = st["alive"], st["leaf"], st["r"]
-    for i, nd in enumerate(NODES):
-        if not alive[i] or nd.parent < 0 or leaf[i] < 0.05:
-            continue
-        if i % LEAF_EVERY != 0:
-            continue
-        par = NODES[nd.parent].p
-        b = par + (nd.p - par) * st["frac"][i]
-        ax = mathutils.Vector(nd.p - par)
-        if ax.length < 1e-6:
-            continue
-        ax.normalize()
-        L = LEAF_LEN * leaf[i] * (0.76 + 0.48 * h01(i, 91))
-        if L < 0.012:
-            continue
-        # a whorl around the shoot, phase-offset per node so successive whorls do not
-        # stack into a single plane
-        side0 = ax.cross(mathutils.Vector((0, 0, 1)))
-        if side0.length < 1e-6:
-            side0 = ax.cross(mathutils.Vector((1, 0, 0)))
-        side0.normalize()
-        perp = ax.cross(side0).normalized()
-        phase = h01(i, 93) * math.tau
-        for s in range(LEAF_PER):
-            th = phase + s / LEAF_PER * math.tau
-            radial = side0 * math.cos(th) + perp * math.sin(th)
-            # petiole: mostly outward from the shoot, lifted, with a little forward lean
-            outward = (radial * (0.86 + 0.16 * h01(i, 97 + s)) + ax * 0.34
-                       + mathutils.Vector((0, 0, 0.30))).normalized()
-            base = b - ax * (L * 0.12 * s / max(1, LEAF_PER - 1))
-            leaf_blade(buf, base + radial * (r[i] * 0.8), outward,
-                       mathutils.Vector((0, 0, 1)), L, L * 0.46, 0.34)
-
-
-def emit_cotyledons(buf, st):
-    """The two-leaf opening. Gap 1: exp-16 opens on a true cotyledon seedling and v1
-    opened on a bare stump. The pair is an ORGAN on the base internode, present from
-    the first frame and absorbed as the first true leaves flush — it never makes a
-    branch appear or disappear, so the skeleton stays a strict prefix."""
-    c = st["cot"]
-    if c < 0.04 or not st["alive"][0]:
-        return
-    # sit them at the top of the hypocotyl: the highest live node on the first chain
-    i = 0
-    while NODES[i].kids and st["alive"][NODES[i].kids[0]] and NODES[i].p[2] < 0.20:
-        i = NODES[i].kids[0]
-    par = NODES[NODES[i].parent].p if NODES[i].parent >= 0 else NODES[i].p
-    top = par + (NODES[i].p - par) * st["frac"][i]
-    L = COT_LEN * c
-    for s in (-1, 1):
-        d = mathutils.Vector((s * 0.96, 0.10 * s, 0.26)).normalized()
-        # broad and blunt, not a spike: a cotyledon is a fat oval and a narrow one
-        # reads as a cross rather than as a seedling
-        leaf_blade(buf, mathutils.Vector(top), d, mathutils.Vector((0, 0, 1)),
-                   L, L * 0.92, 0.10, ribs=(0.30, 0.86, 1.00, 0.90, 0.34))
-
-
 # ---------------------------------------------------------------- scene
 def banded(name, bands, bias=0.0, ao_amt=AO_AMOUNT, ao_dist=AO_DIST,
            breakup=0.0):
@@ -1340,8 +1339,7 @@ def banded(name, bands, bias=0.0, ao_amt=AO_AMOUNT, ao_dist=AO_DIST,
 def make_materials():
     bark = banded("bark", BARK_BANDS, ao_amt=AO_AMOUNT_BARK, ao_dist=AO_DIST_BARK)
     fol = banded("foliage", FOLIAGE_BANDS, breakup=LEAF_BREAKUP)
-    blade = banded("blade", FOLIAGE_BANDS, bias=BLADE_BIAS)
-    return bark, fol, blade
+    return bark, fol
 
 
 def make_world():
@@ -1361,7 +1359,7 @@ def make_world():
 def build_scene(st, shadow_pass):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_world()
-    bark, fol, blade = make_materials()
+    bark, fol = make_materials()
 
     wood = MeshBuf()
     emit_wood(wood, st)
@@ -1373,12 +1371,6 @@ def build_scene(st, shadow_pass):
         for _ci, c, rad in st["lobes"]:
             lb.blob(c, rad, _ci)
         objs.append(lb.object("lobes", fol))
-
-    bl = MeshBuf()
-    emit_blades(bl, st)
-    emit_cotyledons(bl, st)
-    if bl.v:
-        objs.append(bl.object("blades", blade, smooth=False))
 
     if shadow_pass:
         # Ground contact. The tree casts but is invisible to camera, so alpha carries
@@ -1509,6 +1501,7 @@ meta = {
     "frames": [],
 }
 
+_PREV_AREA = []                  # the previous frame's (silhouette, canopy) proxy areas
 if not SKIP_RENDER:
     os.makedirs(os.path.join(OUT, "shadow"), exist_ok=True)
 for i, u in enumerate(PICKS):
@@ -1524,7 +1517,7 @@ for i, u in enumerate(PICKS):
         "lobes": len(st["lobes"]),
         "trunk_r": round(float(st["r"][0]), 5),
         "t_root": round(st["t_root"], 4),
-        "cotyledon": round(st["cot"], 4),
+        "canopy_weight": round(float(st["wn"].sum()), 4),
         "ortho_scale": round(CAM_SPAN, 6),
         "target_z": round(CAM_TZ, 6),
         # what the scale convention actually BUYS, in the units the fork is argued in:
@@ -1533,12 +1526,16 @@ for i, u in enumerate(PICKS):
         "apparent_height_frac": round((_top_i / CAM_SPAN) / (_TOP / SPAN), 4),
     })
     if SKIP_RENDER:
+        _sil = int(cheap_silhouette(st).sum())
+        _can = int(cheap_silhouette(st, wood=False).sum())
+        _drop = ("  <-- SHRANK" if _PREV_AREA and
+                 (_sil < _PREV_AREA[0] or _can < _PREV_AREA[1]) else "")
+        _PREV_AREA[:] = [_sil, _can]
         print(f"PLAN {i:02d} u={u:.4f} N={N:.2f} live={int(st['alive'].sum())} "
-              f"lobes={len(st['lobes'])} blades={int((st['leaf'] > 0.05).sum())} "
+              f"lobes={len(st['lobes'])} sil={_sil:5d} canopy={_can:5d} "
               f"r0={st['r'][0]:.4f} root={st['t_root']:.2f} "
-              f"cot={st['cot']:.2f} span={CAM_SPAN:.4f} "
               f"true={_top_i / _TOP:.3f} apparent="
-              f"{(_top_i / CAM_SPAN) / (_TOP / SPAN):.3f}", flush=True)
+              f"{(_top_i / CAM_SPAN) / (_TOP / SPAN):.3f}{_drop}", flush=True)
         continue
     if ONLY is not None and i not in ONLY:
         continue

@@ -213,8 +213,14 @@ a fork raised to the owner, not an assumption.
   work and may reveal that the rasteriser's finish depends on the front elevation it was tuned for.
 - **Palette is borrowed, not directed.** Three code tracks subset exp-16's colours. An independent
   art direction against the island plate has not been attempted and may be where code is weakest.
-- **No code track has been composited on the real island**, which is where round-3 tracks lost points
-  won on transparency. Nothing here is owner-attested.
+- At decision time **no code track had been composited on the real island**, which is where round-3
+  tracks lost points won on transparency.
+  **Corrected in place 2026-08-03 (ADR-0139); the decision is unchanged.** That risk was discharged
+  the following day: `829eb0b2` (2026-08-02) composited the code-generated hero tree on the real
+  island and registered it as the `code-blender` track in `packages/app-surface`, and every contact
+  sheet since is drawn on the island's own plate rather than on transparency. The clause that still
+  stands, and the one this bullet is now kept for, is the second: **nothing in this track is
+  owner-attested** — the LOOK verdict remains the owner's (ADR-0070).
 - Demoting models to component suppliers gives up whole-frame art direction, which is the thing
   PixelLab was actually good at — exp-16's style match remains the best in the pool.
 - A ceiling demonstration can consume real effort and end in "not good enough", which is an accepted

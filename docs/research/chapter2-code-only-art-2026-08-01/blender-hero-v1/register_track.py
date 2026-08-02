@@ -234,14 +234,27 @@ manifest = {
             "decodedRgbaBytes": 184320,
         },
     ],
-    "knownWeakness": ("against exp-16 this track still loses on SCALE CONVENTION and on mid-stage "
-                      "readability. exp-16's frame 0 seedling is 73 px tall of 128 (65% of its "
-                      "mature height) because each stage is drawn to fill the frame; this track "
-                      "holds ONE camera framed to the mature extent, so its frame 0 is 18 px and "
-                      "the first third of the track is small in frame. That is the D1 invariant "
-                      "doing its job, not a bug, but it is an art-direction fork the owner has "
-                      "not been asked about. Mid stages also show more bare twig through the "
-                      "foliage than exp-16 does."),
+    # The scale-convention sentence here was WRONG from #1074 through #1080 and is corrected
+    # in place rather than carried. It claimed exp-16 "draws each stage to fill the frame",
+    # which nobody had measured; measured, exp-16 is at 91-99% of its mature height from
+    # frame 03 onward and is NON-monotone about it (110 px at f03, 96 at f12, 112 at f18),
+    # with only f00-f02 smaller. Its convention is closer to a CONSTANT apparent height with
+    # growth reading as width. That makes the fork BROADER than the mis-statement implied —
+    # the gap is the whole middle of the track, not one small opening frame — which is worth
+    # knowing before ADR-0289's deflation of it is taken as a dissolution.
+    "knownWeakness": ("against exp-16 this track still loses on SCALE CONVENTION and on root "
+                      "flare. Measured across exp-16's 19 frames, it holds 91-99% of its mature "
+                      "height from frame 03 onward and is NON-monotone about it (110 px at f03, "
+                      "96 px at f12, 112 px at f18); only f00-f02 are smaller, at 65/70/82%. So "
+                      "its convention is close to a CONSTANT apparent height from stage 3, with "
+                      "growth reading as width (53 -> 95 px) and density rather than as height. "
+                      "This track holds ONE camera framed to the mature extent, so its apparent "
+                      "height ramps 14% -> 100% across the whole track. That is the ADR-0280 D1 "
+                      "invariant doing its job, not a bug, but it is an art-direction fork the "
+                      "owner has not been asked about, and the corrected measurement makes it "
+                      "broader than the earlier wording implied. Root flare is the other gap: "
+                      "exp-16's buttress spans 37 px at 8% of tree height against this track's "
+                      "~20."),
     "runtime": {
         "appOwns": ["semantic state", "normalized progress", "progress-to-frame selection",
                     "easing and deliberate holds", "Next, Back and Replay",

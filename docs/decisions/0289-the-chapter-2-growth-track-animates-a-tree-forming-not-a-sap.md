@@ -94,13 +94,29 @@ purchase remains an owner action.
 - The next iteration is aimed at two concrete, owner-named silhouette defects instead of at
   botanical fidelity that nobody is buying.
 - Work the relaxed standard makes optional — the cotyledon opening, the blade-to-cloud handoff, the
-  age-dependent leaf flush — can be simplified rather than defended, and it is a meaningful share of
-  the generator's complexity.
+  age-dependent leaf flush — was a meaningful share of the generator's complexity.
+  **Corrected in place 2026-08-03 (ADR-0139); the decision is unchanged.** This bullet said that
+  machinery "can be simplified rather than defended", which now misdescribes the generator: D1's
+  licence was taken on 2026-08-03 and the leaf blades, the blade-to-cloud handoff, the age-dependent
+  flush, the cotyledon organ and the third material were DELETED outright rather than simplified.
+  One canopy mechanism now serves the whole track.
 - The ecosystem question is closed with evidence and is cheap to re-open: the comparison is one flag.
 - The scale-convention fork (ADR-0280's open art-direction question — one camera at the mature extent
-  versus per-stage framing) is substantially DEFLATED. Its whole force was that frame 0 is a ~18 px
-  seedling and the first third of the track is small in frame; if the track need not open on a
-  seedling at all, the fork may dissolve rather than need deciding.
+  versus per-stage framing) was expected to DEFLATE, on the grounds that its whole force was a ~18 px
+  opening frame and that the fork "may dissolve rather than need deciding".
+  **Corrected in place 2026-08-03 (ADR-0139); the decision is unchanged — this was a prediction, and
+  rendering the fork for the first time answered it the other way.** Both halves were wrong. The
+  premise that exp-16 opens small and grows into the frame was never measured and is false: across
+  its 19 frames exp-16 sits at 91–99% of mature height from frame 03 and is NON-monotone (it shrinks
+  between f03 and f12), so its convention is closer to a constant apparent height with growth reading
+  as width and density. The divergence from a fixed camera is therefore the whole MIDDLE of the
+  track, not the opening — the fork is BROADER than this bullet assumed, and it does not dissolve.
+  It remains undecided, but on a different axis than taste: magnifying the early frames exposes a
+  mid-stage character weakness (a smooth mass with a bare leader, against exp-16's leafy whip), so
+  the fixed camera is currently HIDING that weakness rather than causing it. `fixed` is retained and
+  the fork is blocked on mid-stage character. Evidence:
+  `docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/README.md` §5 and
+  `framing-fork.png`.
 
 **Bad, or at least owed.**
 
