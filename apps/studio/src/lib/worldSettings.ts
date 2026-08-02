@@ -95,6 +95,9 @@ export type ControlValue = number | boolean | string;
 // (the 'Layout' group retired with its only control — ADR-0283 D2)
 const GROUP_ART = 'Art style';
 const GROUP_SELECTION = 'Selection';
+/** ADR-0286: the Act 2 regrow's owner-facing home. Holds the speed dial below and — supplied by
+ *  TreeView, not by this schema — the "Regrow the forest" ACTION, which has no URL state to bind. */
+export const GROUP_INTRO = 'Forest intro';
 
 /** selectionMotion aliases, mirroring TreeView's `readSelectionMotion`. Absence ⇒ the
  *  owner-directed `draw` default (each route draws on once and the neighbour shores pulse).
@@ -222,6 +225,30 @@ export const CONTROLS: readonly ControlSpec[] = [
       { value: 'off', label: 'Still' },
     ],
     normalize: normalizeSelectionMotion,
+  },
+
+  // ---- Forest intro (ADR-0286, owner-directed 2026-08-02) ----
+  // The Act 2 regrow plays once per browser session, on the first arrival at the map. This dial is
+  // the only thing about it the URL carries; the replay button beside it is an action, not state.
+  //
+  // Why the default is not 1×. `1` means the plan's OWN duration — the pace that falls out of the
+  // routed pathway geometry, about 6 s on the current forest since ADR-0285 removed the ordering
+  // clamp that had been padding it. The owner watched that and said "its probably too fast". 0.6×
+  // stretches it to roughly ten seconds, which is long enough to follow a road out to the island it
+  // forms. The dial is the escape in both directions, and it scales the CLOCK only — every island
+  // still forms exactly where its pathway arrives (ADR-0285's causal invariant is untouched).
+  {
+    kind: 'number',
+    key: 'regrowSpeed',
+    label: 'Regrow speed',
+    group: GROUP_INTRO,
+    hint: 'How fast the forest regrows when it plays. 1× is the pace the story graph itself implies (about 6 seconds); the 0.6× default stretches that to roughly ten so each island’s arrival is easy to follow.',
+    default: 0.6,
+    min: 0.25,
+    max: 2,
+    step: 0.05,
+    clampMin: 0.05,
+    clampMax: 10,
   },
 ] as const;
 

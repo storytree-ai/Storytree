@@ -80,6 +80,19 @@ export interface NativeIslandGrowthRenderLayer {
 export interface ForestRegrowRenderLayer {
   /** Stories with no island on the map yet — their coast, ground, flora and hit area are not drawn. */
   readonly hiddenStoryIds: ReadonlySet<string>;
+  /**
+   * Stories whose PALE COAST HEXES are not drawn yet (ADR-0286) — a strict superset of
+   * {@link hiddenStoryIds}: absent islands PLUS the ones still accreting.
+   *
+   * A separate set because the moat reveals LATER than the island it belongs to. The coast hexes
+   * ring an island's FINAL footprint, so showing them the moment accretion starts would draw a
+   * pale halo around a single cell — the same "the map already knows what is coming" read, one
+   * island at a time. They land with the settled island instead.
+   *
+   * Only reaches a coast hex the scene ATTRIBUTED to a story (`SceneEmptyHex.owner`); an
+   * unattributed moat is untouched, exactly as it was before this field existed.
+   */
+  readonly hiddenEmptyStoryIds: ReadonlySet<string>;
   /** Trail segments whose two endpoint islands are not both present — roads to nowhere, not drawn. */
   readonly hiddenSegmentIds: ReadonlySet<string>;
   /** storyId → the coast settlement clip for an island still accreting. */
@@ -646,6 +659,9 @@ function regrowHides(node: SceneNode, layer: ForestRegrowRenderLayer): boolean {
   if (node.id === undefined || node.kind === undefined) return false;
   if (REGROW_STORY_LAYER_KINDS.has(node.kind)) return layer.hiddenStoryIds.has(node.id);
   if (REGROW_TRAIL_SEGMENT_KINDS.has(node.kind)) return layer.hiddenSegmentIds.has(node.id);
+  // ADR-0286: the pale coast, per island, on its own later schedule. An `empty` node only carries
+  // an id when the scene attributed it, so an unattributed moat never matches and never hides.
+  if (node.kind === 'empty') return layer.hiddenEmptyStoryIds.has(node.id);
   return false;
 }
 
