@@ -47,7 +47,7 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
   "check:manifest",
   "check:boundaries",
   "check:mirror-conformance",
-  "check:claude",
+  "check:guidance",
   "check:agents",
   "check:process-graph",
   "check:web-grounding",

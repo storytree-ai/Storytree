@@ -101,11 +101,10 @@ jobs:
       - name: Cross-surface mirror conformance
         run: pnpm check:mirror-conformance
 
-      # CLAUDE.md's operating-discipline region is a GENERATED VIEW of the
-      # `session-orchestrator` library agent (ADR-0051) — fail if it has drifted
-      # from the artifact (edit the artifact + `pnpm build:claude`, don't hand-edit).
-      - name: CLAUDE.md in sync
-        run: pnpm check:claude
+      # CLAUDE.md's region and Codex AGENTS.md are GENERATED root views of the
+      # `session-orchestrator` Library agent (ADR-0051/0291) — fail if either drifts.
+      - name: Root agent guidance in sync
+        run: pnpm check:guidance
 
       # .claude/agents/*.md are GENERATED subagent files — a view of the delegatable library
       # agents (ADR-0052). Fail if they have drifted (edit the agent artifact + `pnpm build:agents`).

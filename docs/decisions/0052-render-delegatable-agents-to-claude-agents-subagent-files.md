@@ -11,7 +11,8 @@ load_bearing: true
 accepted (flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) —
 owner steer 2026-06-14: after ADR-0051 wired the agent renderer, the question was whether the
 harness's *spawned subagents* are the authored agents. They were not: ADR-0051 renders the
-`session-orchestrator` into CLAUDE.md and `red-builder` / `green-builder` into the SDK leaf, but a
+`session-orchestrator` into dedicated root main-session projections (CLAUDE.md, plus Codex AGENTS.md
+under ADR-0291) and `red-builder` / `green-builder` into the SDK leaf, but a
 Claude Code session spawning a subagent (the Agent/Task tool) still got a generic agent. The owner
 accepted this in conversation 2026-06-21 (recorded under [ADR-0084](0084-agents-may-flip-an-adr-green.md));
 the harness-native subagent rendering is built and enforced by `check:agents`.
@@ -42,7 +43,7 @@ ADR-0053 over this surface. Decision 1 is corrected out in place below.
 ## Context
 
 ADR-0051 deliberately favours the harness-AGNOSTIC, pull-based model (ADR-0030): context is rendered
-into CLAUDE.md (the main session) and into the SDK leaf, and any role is *pullable* via
+into root main-session projections (CLAUDE.md and Codex AGENTS.md) and into the SDK leaf, and any role is *pullable* via
 `storytree agents <name>`. But the pull model alone does not register `story-author` as a native
 project subagent. Claude Code binds project subagents from `.claude/agents/<id>.md`; Cursor's native
 project contract is `.cursor/agents/<id>.md` (ADR-0178); Codex and Gemini use their corresponding
@@ -66,14 +67,14 @@ delegated to by the corresponding harness. That is the gap this decision closes,
    renderer" decision — the load-bearing point here — is untouched.)*
 
 2. **Only the DELEGATABLE agents render here.** The three with a dedicated runtime surface are
-   excluded: `session-orchestrator` (→ CLAUDE.md, ADR-0051 §3) and `red-builder` / `green-builder`
+   excluded: `session-orchestrator` (→ dedicated root projections, ADR-0051 §3 / ADR-0291) and `red-builder` / `green-builder`
    (→ the SDK leaf, §4). Every other Library agent selected by `delegatableAgentIds` becomes a
    spawnable project subagent; the generated files, not a hand-maintained list in this ADR, are the
    current roster.
 
-3. **Generated, drift-gated, like CLAUDE.md.** `pnpm build:agents` regenerates every directory from
+3. **Generated and drift-gated like the root guidance.** `pnpm build:agents` regenerates every directory from
    the SEED corpus (offline, CI-safe); `pnpm check:agents` fails on stale / missing / orphaned files
-   in any target and joins `pnpm gate` + a CI step, mirroring `check:claude`. Every directory is
+   in any target and joins `pnpm gate` + a CI step, mirroring `check:guidance`. Every directory is
    fully generated (write prunes orphans). A dangling agent ref fails the build closed. The repository
    manifest allow-lists both generated roots.
 
@@ -87,7 +88,7 @@ delegated to by the corresponding harness. That is the gap this decision closes,
 ## Consequences
 
 - Good: Claude, Cursor, Codex, and Gemini CLI sessions can delegate to the same authored story-writers. One source
-  (the Library `agent` tier) feeds CLAUDE.md, the SDK leaf, `.claude/agents`, `.cursor/agents`, and
+  (the Library `agent` tier) feeds root CLAUDE.md / AGENTS.md, the SDK leaf, `.claude/agents`, `.cursor/agents`, and
   `.codex/agents`, and `.gemini/agents`; none are hand-maintained.
 - Cost / sharp edges: multiple generated surfaces must stay green (`check:agents` in the gate + CI).
   The files render from the SEED, so live `--pg` agent edits don't show until a DB→seed export runs (the

@@ -200,7 +200,9 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
   per the criterion the owner fixed in this ADR — not an owner fork. _(PR: this one.)_
 - [x] **5. Maintenance & monitoring system** (Phase 2) — the per-agent-type onboarding-budget SLA
   monitor, the arc's terminal deliverable. `storytree onboarding` (`packages/cli/src/onboarding*.ts`):
-  a POST-SESSION, offline, store-free command that reads a Claude Code transcript, MEASURES active
+  a POST-SESSION, offline, store-free command that reads a Claude Code transcript or Codex rollout
+  JSONL (ADR-0291; both adapters normalize into the same budget trace, and an unknown shape is
+  refused rather than reported as a false zero), MEASURES active
   onboarding cost (the baseline's prefix-sum — summed per-tool latency up to the first real-work
   action, so idle/thinking is excluded by construction), tags each pre-work call to a cost center
   (ENV / CLI / BOOT / SOURCE / KNOWLEDGE), COMPARES the total to the agent-type's budget (`AGENT_BUDGETS`

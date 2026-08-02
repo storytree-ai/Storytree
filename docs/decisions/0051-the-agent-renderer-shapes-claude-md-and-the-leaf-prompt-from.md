@@ -73,12 +73,12 @@ the one thing that escaped it. The fix is to make every runtime surface a **gene
    gains the missing line the slip revealed: **a hold (draft / `hold` label) is temporary — when the
    held unit is green, flip it to non-draft so it merges.**
 
-3. **CLAUDE.md's operating-discipline block is a generated view.** A generator renders the orchestrator
+3. **The root operating-discipline views are generated.** A generator renders the orchestrator
    agent (via the renderer) into a **marked region** of `CLAUDE.md`
-   (`<!-- AGENT:orchestrator START -->` … `END`); the repo-orientation prose around it stays
-   hand-authored. The generator joins `build-corpus.mjs`'s outputs, and a CI check fails if the region
-   is stale (the glossary's drift-guard pattern) — so the discipline can never silently diverge from
-   the Library again.
+   (`<!-- AGENT:session-orchestrator START -->` … `END`); the repo-orientation prose around it stays
+   hand-authored. ADR-0291 adds a fully-generated root `AGENTS.md` from the same digest for Codex.
+   One CI check fails if either projection is stale, so the discipline cannot silently diverge from
+   the Library or between harnesses.
 
 4. **The SDK leaf prompt IS a generated view too — BUILT** (2026-06-14, the follow-up unit after the
    CLAUDE.md slice). The live Claude Agent SDK leaf's per-phase system prompt is the RENDERED library
@@ -95,8 +95,8 @@ the one thing that escaped it. The fix is to make every runtime surface a **gene
    **merge-ceremony stays orchestrator-only** — it is never referenced by a leaf agent.
 
 5. **One agent population, many rendered surfaces** (the owner's reframe): the Library `agent` unit is
-   the single source of truth; CLAUDE.md (the interactive/orchestrator surface), the SDK leaf prompt
-   (the leaf surface), and later `.claude/agents/*` (subagents) are all **generated views** of it.
+   the single source of truth; CLAUDE.md / root AGENTS.md (the interactive/orchestrator surfaces), the
+   SDK leaf prompt (the leaf surface), and harness-native specialist files are generated views of it.
 
 ## What this explicitly does NOT do
 
@@ -111,7 +111,7 @@ the one thing that escaped it. The fix is to make every runtime surface a **gene
 ## Consequences
 
 - The operating discipline has **one source of truth** (the orchestrator `agent` unit) and reaches
-  **every session** through a generated CLAUDE.md region — no more hand-copy drift, and the exact rule
+  Claude and Codex sessions through generated root projections — no more hand-copy drift, and the exact rule
   that bit us (hold-is-temporary) is captured where it propagates.
 - The same renderer now gives the SDK leaf its prompt from the Library (Decision 4, BUILT), closing the
   last hard-coded guidance surface (ADR-0030's deferred binding): `red-builder` and `green-builder` ARE

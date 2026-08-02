@@ -79,7 +79,7 @@ const CLI_CMD = /\b(storytree|launch\.mjs|packages\/cli\/src\/main\.ts)\b/i;
 
 /** A path that is orientation KNOWLEDGE rather than editable SOURCE. */
 const KNOWLEDGE_PATH =
-  /(^|[\\/])(docs[\\/]|CLAUDE\.md|README|\.claude[\\/]|memory[\\/]|knowledge\.json|open-questions\.md|stories[\\/])|\.(md|mdx)$/i;
+  /(^|[\\/])(docs[\\/]|(?:CLAUDE|AGENTS)\.md|README|\.(?:claude|codex)[\\/]|memory[\\/]|knowledge\.json|open-questions\.md|stories[\\/])|\.(md|mdx)$/i;
 /** A path that is editable engine SOURCE. */
 const SOURCE_PATH = /(^|[\\/])(packages|apps|forest-world|web|legacy|infra|scripts)[\\/]|\.(ts|tsx|mjs|cjs|js|jsx|sql|tf)$/i;
 
@@ -183,8 +183,8 @@ export function measureOnboarding(trace: readonly TraceToolCall[]): OnboardingMe
  *
  * - Analysis / read-mostly agents reach real work fast (their reads ARE their work) → a LOW budget.
  * - Build / verify agents legitimately probe ENV + orient on SOURCE before their first edit → HIGHER.
- * - The interactive session-orchestrator orients on all three surfaces + the notice board + CLAUDE.md
- *   → the highest budget.
+ * - The interactive session-orchestrator orients on all three surfaces + the notice board + its
+ *   harness-native root guidance → the highest budget.
  *
  * The baseline (pre-Phase-1) was ~107 s p50 / ~478 s p90 of active onboarding; these budgets guard
  * the IMPROVED baseline, so a well-behaved session sits comfortably under its type's budget.
@@ -192,7 +192,9 @@ export function measureOnboarding(trace: readonly TraceToolCall[]): OnboardingMe
 export const AGENT_BUDGETS: Readonly<Record<string, number>> = {
   // Low tier — analysis / read-mostly.
   Explore: 45_000,
+  explorer: 45_000,
   Plan: 60_000,
+  planner: 60_000,
   "corpus-investigator": 45_000,
   "friction-analyst": 60_000,
   "claude-code-guide": 45_000,
