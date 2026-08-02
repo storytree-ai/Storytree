@@ -490,9 +490,10 @@ export type RenderDigestResult =
 
 /**
  * A CONCISE digest of an agent — its own prose (role / outcome / workflow / escalation) plus a
- * manifest of the artifacts it stands on, pointing at `storytree agents <name>` for the full
- * assembled text. This is what shapes CLAUDE.md's operating-discipline region (ADR-0051 §3): the
- * thin cheat-sheet the friction audit asked for, NOT a dump of every referenced body.
+ * manifest of the artifacts it stands on, pointing at `storytree agents <name>` for the ESSENTIALS
+ * render (one-line assertions + per-artifact pull commands since ADR-0156 §6ii — never the full
+ * bodies; those come from `storytree library artifact <id>`). This is what shapes CLAUDE.md's
+ * operating-discipline region (ADR-0051 §3): the thin cheat-sheet the friction audit asked for.
  */
 export async function renderAgentDigest(store: Store, name: string): Promise<RenderDigestResult> {
   const available = await agentIds(store);
@@ -528,7 +529,7 @@ export async function renderAgentDigest(store: Store, name: string): Promise<Ren
   }
   if (groups.length > 0) {
     lines.push(
-      `**Stands on** — assembled from these library artifacts; run \`storytree agents ${stored.id}\` for their full text:`,
+      `**Stands on** — assembled from these library artifacts; \`storytree agents ${stored.id}\` renders their one-line assertions + a \`storytree library artifact <id>\` pull command each (bodies stay pull-based, ADR-0156):`,
       ...groups,
     );
   }
