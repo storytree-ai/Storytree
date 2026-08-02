@@ -21,21 +21,21 @@
     "appliedRuleSource": "round-1's accepted track; the lab applies ONE rule to every candidate",
     "trackDeclaredRule": "the generator does not declare an anchor rule at all \u2014 the camera is framed once to the mature extent and the trunk base sits at world z=0, so the ground socket is a CONSEQUENCE of the projection rather than a measurement convention",
     "registeredRootAnchor": {
-      "x": 62,
+      "x": 63,
       "y": 118
     },
     "maxAnchorResidualPx": 0.5,
-    "measuredContactAnchorSpreadPx": 4.4339,
-    "framesRequiringAShift": 17,
+    "measuredContactAnchorSpreadPx": 1.7642,
+    "framesRequiringAShift": 5,
     "totalFrames": 19,
-    "maxAbsShiftPx": 2,
+    "maxAbsShiftPx": 1,
     "groundRowSpreadPx": 3,
     "groundRowSpreadReason": "the camera is fixed and the trunk base is pinned at world z=0, but SECONDARY GROWTH thickens the trunk, so the front of its own footprint descends by r*sin(20 deg) as it fattens. Pinning the bottom row to a constant would mean shifting the frame upward as the tree matures \u2014 the tree would appear to rise out of the ground. This track states the band instead of buying a constant row with base drift (ADR-0280 D1).",
     "costOfApplyingTheAppliedRule": {
-      "bodyCentroidSpreadBeforePx": 3.559,
-      "bodyCentroidSpreadAfterPx": 6.159,
-      "bodyCentroidMaxFrameToFrameStepBeforePx": 2.1196,
-      "bodyCentroidMaxFrameToFrameStepAfterPx": 2.4302
+      "bodyCentroidSpreadBeforePx": 3.0679,
+      "bodyCentroidSpreadAfterPx": 4.0679,
+      "bodyCentroidMaxFrameToFrameStepBeforePx": 1.2867,
+      "bodyCentroidMaxFrameToFrameStepAfterPx": 1.8064
     }
   },
   "tracks": [
@@ -70,7 +70,7 @@
         "tree/frame-18.png"
       ],
       "registeredRootAnchor": {
-        "x": 62,
+        "x": 63,
         "y": 118
       },
       "registrationReport": "tree-registration.json",
@@ -81,14 +81,14 @@
         "samples": 72,
         "shadow_samples": 32,
         "supersample_res": 384,
-        "ortho_scale": 3.136162,
-        "nodes": 405,
-        "iterations": 27,
+        "ortho_scale": 3.05595,
+        "nodes": 352,
+        "iterations": 28,
         "lobes": 22
       },
       "growthPacing": "19 frames placed at equal SILHOUETTE-CHANGE arc length, measured author-time from an analytic projection of the skeleton, not at equal time (ADR-0280 D1: growth pacing is authored)",
       "contactShadow": "a second Blender pass: the tree casts but is invisible to camera, so alpha carries the shadow alone. Composited at alpha 96 \u2014 the only semi-transparent pixels in the track \u2014 because the island is the substrate (ADR-0274 D1) and a shadow darkens it rather than replacing it. Clipped at the tree's own contact row so it cannot define the ground socket.",
-      "encodedBytes": 29169,
+      "encodedBytes": 24478,
       "decodedRgbaBytes": 1245184
     },
     {
@@ -102,7 +102,7 @@
       "decodedRgbaBytes": 184320
     }
   ],
-  "knownWeakness": "against exp-16 this track still loses on SCALE CONVENTION and on mid-stage readability. exp-16's frame 0 seedling is 73 px tall of 128 (65% of its mature height) because each stage is drawn to fill the frame; this track holds ONE camera framed to the mature extent, so its frame 0 is 18 px and the first third of the track is small in frame. That is the D1 invariant doing its job, not a bug, but it is an art-direction fork the owner has not been asked about. Mid stages also show more bare twig through the foliage than exp-16 does.",
+  "knownWeakness": "against exp-16 this track still loses on SCALE CONVENTION and on root flare. Measured across exp-16's 19 frames, it holds 91-99% of its mature height from frame 03 onward and is NON-monotone about it (110 px at f03, 96 px at f12, 112 px at f18); only f00-f02 are smaller, at 65/70/82%. So its convention is close to a CONSTANT apparent height from stage 3, with growth reading as width (53 -> 95 px) and density rather than as height. This track holds ONE camera framed to the mature extent, so its apparent height ramps 14% -> 100% across the whole track. That is the ADR-0280 D1 invariant doing its job, not a bug, but it is an art-direction fork the owner has not been asked about, and the corrected measurement makes it broader than the earlier wording implied. Root flare is the other gap: exp-16's buttress spans 37 px at 8% of tree height against this track's ~20.",
   "runtime": {
     "appOwns": [
       "semantic state",
@@ -123,7 +123,7 @@
   },
   "budget": {
     "restatedFor": "code-blender",
-    "encodedBytes": 53704,
+    "encodedBytes": 49013,
     "decodedRgbaBytes": 1429504,
     "frameCount": 24,
     "simultaneousOrganicLayers": 2,

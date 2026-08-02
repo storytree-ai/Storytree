@@ -1,16 +1,14 @@
-# Blender hero tree v3 — clouds carry the crown, and the bands are authored
+# Blender hero tree v4 — the crown gets a floor, and the tree gets a waist
 
-**Date:** 2026-08-02 · **Blender:** 5.2.0 LTS, headless, CPU Cycles · **Cost:** $0 · **Vendor calls:** 0
+**Date:** 2026-08-03 · **Blender:** 5.2.0 LTS, headless, CPU Cycles · **Cost:** $0 · **Vendor calls:** 0
 
-The third exercise of [ADR-0280](../../../decisions/0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md)
-D2a. v2 delivered a registered 19-frame track and composited it on the app-owned SVG island for the
-first time; its honest bottom line was that the canopy read **muted and slightly grey** against the
-island's plate, and that *"a physically-lit render carries a lot of intermediate values, and
-quantising them is not the same act as an artist choosing eight."*
+The fourth exercise of [ADR-0280](../../../decisions/0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md)
+D2a, and the first one aimed at defects the owner NAMED rather than at a gap we found ourselves.
+[ADR-0289](../../../decisions/0289-the-chapter-2-growth-track-animates-a-tree-forming-not-a-sap.md)
+D2 names exactly two, both in this directory's own canopy code rather than in the skeleton:
 
-This increment takes the owner's reading of that — *"seems like the mistake we are making is trying
-to render leaves, i would of expected we would just use green clouds and then add a leaves texture"*
-— and treats the residue as a **measurable defect rather than a matter of taste**.
+> "we seem to be added the greenary at the trunk for some reason, and we losing the overall upside
+> down pair shape of the tree"
 
 **Nothing here is owner-attested.** The LOOK verdict is the owner's (ADR-0070) and §6 records the
 author's honest assessment, which is not flattering everywhere.
@@ -21,6 +19,7 @@ author's honest assessment, which is not flattering everywhere.
 blender --background --python blender_tree.py -- --out raw --frames 19 --res 384 --samples 72 --shadow-samples 32
 python pixelise.py raw frames 128
 python measure.py frames --monotone
+python measure.py ../../../../packages/app-surface/src/assets/exp-16/tree frames --shape --frame 18
 python register_track.py --write        # -> packages/app-surface/src/assets/code-blender/
 ```
 
@@ -29,174 +28,221 @@ python register_track.py --write        # -> packages/app-surface/src/assets/cod
 this machine — no wheel for Python 3.14.5.
 
 **Run the structural loop under Blender too** — `blender --background --python blender_tree.py --
---no-render` (~3.5 s). v2's README offered `python blender_tree.py --no-render` as a one-second
-plain-Python route, and that route **iterates a different tree**: the space-colonisation reductions
-are numpy-version sensitive, and system numpy 2.4.4 grows **380 nodes over 28 iterations** where
-Blender's bundled 2.3.4 grows **405 over 27**. The delivered tree is whatever the *pinned* Blender's
-numpy grows, so `render-meta.json` now records the numpy version alongside the seed. `--only 14,18`
-renders a subset for the tight colour loop; the retiming, camera and frame indices are unchanged, so
-a subset frame is identical to that frame of a full run.
+--no-render` (~10 s). The plain-Python route **iterates a different tree**: the space-colonisation
+reductions are numpy-version sensitive, and system numpy 2.4.4 grows a different skeleton from
+Blender's bundled 2.3.4. The delivered tree is whatever the *pinned* Blender's numpy grows, so
+`render-meta.json` records the numpy version alongside the seed. `--only 14,18` renders a subset for
+the tight colour loop; the retiming, camera and frame indices are unchanged, so a subset frame is
+identical to that frame of a full run.
 
-**Two exploratory flags, both defaulting to the delivered track** (verified: the defaults still
-report `nodes=405 iters=27 lobes=22 span=3.1362 tz=1.4080` and the identical `RETIME` vector).
+The `--no-render` plan now prints a **canopy-area proxy per frame and flags any frame that shrinks**,
+which is the ten-second version of the ten-minute `--monotone` check — see "the obligation the floor
+creates" below.
 
-- `--framing fixed | per-stage | eased` — the open SCALE-CONVENTION fork (§6 item 3). `fixed` is D1
-  as decided, one camera framed to the mature extent. `per-stage` frames each frame to its own
-  extent so every stage fills the canvas; `eased` does that with exp-16's measured 0.65 opening.
-  **No variant has been rendered yet** — the fork is parked, not answered.
+**Two exploratory flags, both defaulting to the delivered track.**
+
+- `--framing fixed | per-stage | eased` — the scale-convention fork. **Now rendered** (§5) where every
+  previous increment left it built-but-unseen.
 - `--skeleton space-colonisation | sapling` (`--sap-preset <species>`) — who grows the skeleton, from
   the Blender-ecosystem spike:
   [`../../chapter2-blender-ecosystem-spike-2026-08-02/`](../../chapter2-blender-ecosystem-spike-2026-08-02/README.md).
-  Needs the `sapling_tree_gen` extension from extensions.blender.org.
+  Settled by ADR-0289 D3 in favour of ours; retained so the question stays answered rather than open.
 
-## The defect, measured
+## 1. The two defects, measured
 
-v2's crown was not short of green — it was **fragmented**. Same crown definition, mature frame:
+The previous increments argued the silhouette in adjectives. `measure.py --shape` states it as
+half-width by height decile, base to apex, plus the height of the lowest row carrying canopy:
 
-| | crown px | distinct colours | green | brightest band | mean luma |
+| height band | 0.00-0.08 | 0.17-0.25 | 0.25-0.33 | 0.42-0.50 | 0.58-0.67 | 0.83-0.92 | 0.92-1.00 | foliage floor |
+|---|---|---|---|---|---|---|---|---|
+| exp-16 (the bar) | 23 | 9.5 | 7.5 | 38.5 | **47** | 31.5 | 22 | **44%** |
+| v3 (landed 08-02) | 8.5 | 18.5 | 20.5 | 39.5 | **45.5** | 29 | 14.5 | **16%** |
+| **v4 (this)** | 10 | **5** | **4** | 26 | 44 | 38 | 20 | **45%** |
+
+Both defects are in that table.
+
+**"Greenery at the trunk" is the foliage floor.** exp-16 carries no canopy below 44% of its height.
+v3's lowest canopy sat at 16%, and three of its 21 mature clouds were centred at 30%, 36% and 48% of
+tree height — detached bubbles flanking a bare bole.
+
+**"Losing the upside-down pear" is the WAIST.** The two crowns already agreed on where they are
+widest and on how wide, so the phrase was never about the top of the tree. What exp-16 has and v3 did
+not is a narrow stem: exp-16 pinches to a 7.5 px half-width at a quarter of its height and then jumps
+to 38.5 by half, while v3 ramped smoothly 18.5 → 20.5 → 39.5 and read as an oval on a short stick.
+
+## 2. The fix, and why it is two halves of one question
+
+**The canopy floor.** v3's rule for where foliage sits was purely TOPOLOGICAL — a node bears canopy
+if it is within a few orders of a live tip. A short lateral that ENDS low on the bole is within zero
+orders of a live tip, so it scored full weight and grew a cloud beside the trunk. The floor is the
+missing GEOMETRIC half: a node bears canopy only if it is in the crown, and the crown is the top of
+the tree. It is a FRACTION of the live tree's own height, not a world z, which is what lets one rule
+serve both ends of the track — a sapling's apex is at 100% of its own height and greens; the same
+lateral, once the leader has climbed past it, falls below the rising floor and lignifies.
+
+**The crown envelope was raised and shortened.** z 0.86–2.74 (an ellipsoid as tall as it is wide,
+starting at 29% of tree height) becomes z 1.24–2.76 — the same rounded shape, lifted onto a bole. The
+low attractor ring moved with it and now sits just UNDER the crown floor, so at maturity those limbs
+are bare wood fanning into the canopy, which is what exp-16 shows, rather than a second tier of
+foliage hanging beside the trunk.
+
+**And the outward push stopped pushing down.** Clouds sit on the outside of the crown volume, which
+v3 implemented as a full radial vector from the crown centre — so every cloud below that centre was
+pushed DOWN and out, the one direction an upside-down pear cannot afford to grow. Clamping the
+vertical component to zero keeps the shell on the sides and the top and leaves the underside alone.
+
+## 3. What ADR-0289 D1 let us delete
+
+D1 says the track animates a tree FORMING, not a sapling maturing: frame 0 need not be a botanically
+plausible seedling and the mid frames need not be plausible trees of a given age. That retires a
+whole apparatus, and it is **deleted rather than kept behind a flag** — git is the archive:
+
+- the leaf BLADE geometry, its whorl placement and its per-shoot size ramp,
+- the age-dependent first flush,
+- the blade-to-cloud handoff gate (`N_BLADE_FULL` / `N_BLADE_OFF`),
+- the two-leaf cotyledon organ and its senescence ramp,
+- the third material they needed, and three dead colour constants left over from before the cel-band
+  rewrite.
+
+**ONE mechanism now carries the canopy from the first frame to the last**, which is what v3's lever 1
+claimed and only half did. The generator is **62 code lines lighter** (non-blank, non-comment) and
+three lines shorter overall — the deletion is real, and the comments explaining the canopy rules grew
+to nearly meet it.
+
+## 4. The obligation the floor creates, and how it is discharged
+
+A floor that RISES can take foliage off a limb the leader has overtopped, so `measure.py --monotone`
+— written for v3's blade-to-cloud handoff — inherits a live obligation rather than a historical one.
+It was **not** free:
+
+- Applied at full strength to a whip, both shell rules take foliage off faster than the whip grows
+  it. The first cut lost canopy across frames 4→5→6 and FAILED `--monotone` on the delivered pixels.
+  Both rules describe a tree that already HAS a crown, so one maturity scalar now eases them in
+  together: at the seedling there is no floor and every order is an outer order.
+- Restricting the cloud SEATS to the mature crown looked like the obvious repair for
+  clouds-beside-the-trunk and is the wrong one — it leaves a sapling, every node of which is below
+  the mature crown floor, assigned to a single nearest seat, so the first nine frames render one
+  lollipop. The low seats were never the defect. That reasoning is recorded at `cloud_seats`.
+- `CLOUD_RISE` had to come down from 3.2 to 1.5. A branching burst puts a whole shell of nodes one
+  order deeper in a single frame, and while blades covered the young frames that did not matter.
+
+**All 19 frames are strictly increasing on both silhouette and foliage area.** The author-time proxy
+in the `--no-render` plan agrees, which is what made three of those findings cheap to reach.
+
+One measurement note worth keeping: the foliage floor is the lowest row carrying at least three
+foliage pixels, not the lowest foliage pixel. Frame 14 reported an 18% floor on the strength of ONE
+stray pixel while its canopy actually bottomed at 40%, and a metric a single pixel can move is a
+metric that sends the next iteration after the wrong thing.
+
+## 5. The scale-convention fork — rendered at last, and it does not dissolve
+
+`--framing` was built in the previous increment and **nothing had ever been rendered with it**.
+`framing-fork.png` is the three conventions against exp-16, every cell on the island's own plate.
+
+**First, the premise was wrong, in three places, and is corrected.** Every previous statement of this
+fork claimed exp-16 "draws each stage to fill the frame". Nobody had measured it. Measured across
+exp-16's 19 frames:
+
+| | f00 | f01 | f02 | f03 | f09 | f12 | f18 |
+|---|---|---|---|---|---|---|---|
+| exp-16 height, % of mature | 65 | 70 | 82 | **98** | 91 | **86** | 100 |
+
+It reaches 91–99% at frame 03 and stays there, NON-monotonically — it shrinks from 110 px to 96 px
+between f03 and f12 before returning to 112. Its convention is closer to a *constant apparent height*
+from stage 3, with growth reading as width (53 → 95 px) and density. Corrected in
+`register_track.py`'s emitted `knownWeakness` (the manifest is generated, so that is the source), and
+here.
+
+**The correction makes the fork BROADER, not narrower.** ADR-0289 deflated it on the grounds that its
+whole force was a ~18 px opening frame. But the gap was never confined to the opening — it is the
+whole middle of the track. Rendered heights, in canvas px:
+
+| | f00 | f04 | f09 | f14 | f18 |
 |---|---|---|---|---|---|
-| exp-16 (the bar) | 4280 | **12** | 51% | (173,167,114) at **20.4%** | 119 |
-| v2 (landed) | 3917 | **24** | 90% | (110,151,72) at 23% | 112 |
-| **v3 (this)** | **4531** | **7** | 62% | **(173,167,114) at 20.5%** | **123** |
+| fixed (delivered) | 16 | 30 | 66 | 91 | 121 |
+| eased | 77 | 97 | 113 | 118 | 121 |
+| per-stage | 119 | 119 | 120 | 120 | 121 |
+| exp-16 | 73 | 105 | 102 | 108 | 112 |
 
-exp-16's confidence is twelve colours held in **large flat regions** plus one bright **warm** top
--highlight over a fifth of the canopy. v2 had two dozen values and **no highlight at all** — its
-brightest band was a saturated mid-green. Note what the green fraction actually measures: exp-16's
-highlight is a *khaki*, not a green, so a crown that is 90% green is a crown with no highlight in it.
+`eased` tracks exp-16 closely; `per-stage` overshoots. So the fork is answerable now rather than
+parked.
 
-Per-leaf geometry is the machine that manufactures the extra values: each blade presents its own
-facing angle, so a mature crown carries a continuum of shading that quantises into speckle. **A cloud
-has one surface and can hold a band.**
+**But the render also supplies a reason not to take it yet, and it is the honest finding here.**
+Magnifying the early frames does not flatter them — it shows how little is in them. At f04 `eased`
+gives a large smooth blob with a bare leader poking out of the top, where exp-16 gives a leafy whip
+with a root flare. **The fixed camera is currently hiding a mid-stage weakness rather than causing
+one**, and switching conventions would surface exactly the per-stage character work ADR-0289 D1
+deprioritised. Recommendation: keep `fixed`, and treat the fork as blocked on mid-stage character
+rather than on taste. The owner's call either way; the picture is now on the table.
 
-## The four levers
+## 6. Honest assessment against exp-16
 
-**1. Clouds carry the crown from sapling up.** v2's canopy lobes were clustered from the MATURE
-skeleton's tips, so frames 0–5 had *zero* lobes and the mature frame still carried blades on every
-tip born after iteration 18 — the entire outer shell. Foliage now rides the **outer orders of live
-shoot** and migrates outward with growth, which is what a real canopy does and what lets one
-mechanism serve both a sapling apex and a mature crown shell. Cloud seats are farthest-point sampled
-from the mature skeleton **once** and every node is assigned to one, so a cloud can never appear,
-merge or split between frames — only its live membership changes. Blades now exist only while one
-leaf is a readable fraction of the silhouette (frames 0–9) and are gone by frame 10.
+`exp16-vs-v3-vs-v4.png` is the three-way, every cell composited on the island's green plate —
+`sheet.py` refuses to draw a cell on transparency, because a transparent contact sheet hid two
+failures in an earlier increment.
 
-The crown's central void — what lets you watch the limbs run up into the foliage — is no longer
-carved by a rule. It falls out of the outer-orders weight: an interior node is many orders from a
-live tip and carries no canopy.
+**Closed by this increment, measurably**
 
-**2. The bands are authored, not discovered.** Foliage and bark are **cel materials**: the surface
-normal dotted with one key vector, folded with ambient occlusion, through a **constant-interpolated
-ramp** into an emission shader. The shader can only ever emit a band colour, so the crown's colour
-count is a budget set in the source rather than whatever a nearest-neighbour search reaches. The
-bands are exp-16's own committed palette values and a Standard view transform means the rendered
-pixel **is** that sRGB triple — so `pixelise.py`'s palette snap became a near-identity, and v2's
-chroma (×1.45) and contrast (×1.16) corrections could be **deleted** rather than retuned.
+- Foliage floor **16% → 45%**, against exp-16's 44%. The lowest mature cloud is now centred at 60% of
+  apex height; v3 had three centred at 30%, 36% and 48%.
+- The waist exists: half-width **20.5 → 4** at a quarter of tree height, against exp-16's 7.5.
+- The upper crown improved as a side effect of not pushing clouds downward: 0.92–1.00 half-width
+  **14.5 → 20**, against exp-16's 22.
+- Anchor registration got steadier: contact-anchor spread **4.43 → 1.76 px**, frames needing a shift
+  **17 → 5**, max shift **2 → 1 px**. Ground-row spread stays 3 for the unchanged reason below.
 
-Band *positions* were tuned against measured coverage, not by eye, against exp-16's distribution.
+**Held, not traded away**
 
-**3. The top highlight is the same mechanism.** The iso-bands of N·L are circles perpendicular to L,
-so a near-vertical key at a 20° camera projects them as horizontal stripes and every lobe reads as a
-flat-topped plate. Swinging the key up-left-and-**forward** turns them into concentric rings around
-an upper-left highlight. The band list chooses the colours; the light vector places them.
+- Crown colour count **8**, against v3's 7 and exp-16's 12 — the cel-band result survives the canopy
+  rework intact.
+- Warm top highlight at **20.6%** of the crown, against exp-16's 20.4%.
+- Mean crown luma 125 (v3 123, exp-16 119); crown mass 4494 px (v3 4531, exp-16 4280).
 
-**4. A leaves texture is the optional lever, and the honest answer is "marginal".** At 128 px the
-whole tree is ~91 px wide and a lobe is 12–20 px, so a tiled leaf texture lands sub-pixel and can
-only add colours. The defensible form is a **break-up mask**: noise added to the shading value
-*before* the ramp, so it scallops the terminator instead of tinting the surface. Measured at 0.00 /
-0.10 / 0.20 it leaves the crown colour count at **7 in all three** — it provably cannot introduce a
-value. 0.10 ships because it makes interior band edges read less like clean vector arcs; the effect
-is small and is not claimed as more than that.
+**Where it still loses**
 
-## Two raster-back-half findings, both from measurement rather than taste
+1. **Root flare.** exp-16's buttress spans 37 px at 8% of tree height; this track's spans ~20. It is
+   now the largest single difference in the profile table (base band 23 against 10) and it was
+   already gap 5 in v3. Untouched here.
+2. **Mid-stage character.** exp-16's f04 and f09 are leafy whips with visible roots; v4's are a ball
+   on a stem. Better than v3's twig-tangle and worse than the bar. §5 shows this is also what blocks
+   the scale-convention fork, which makes it the most load-bearing remaining gap rather than a
+   cosmetic one.
+3. **The crown is still less structural than exp-16's** — you see fewer limbs running through the
+   canopy. Unchanged from v3's item 1, and the canopy floor did not address it.
+4. **The crown sits slightly high and small.** Widest band 0.67–0.75 against exp-16's 0.58–0.67, and
+   26 against 38.5 in the 0.42–0.50 band. Chasing that decile further would be fitting to a
+   hand-drawn reference; recorded rather than tuned.
 
-**Order of operations was wrong in v2, and it alone cost half the colour budget.** v2 box
--downsampled 384→128 first and snapped second. Box-downsampling averages across *every* band edge in
-the frame, and each average then snaps to whatever entry is nearest — so a shader emitting five flat
-colours still delivers a crown of two dozen. Snapping at full resolution and taking the **block
-majority** second means a band edge stays an edge.
+**Not verified this increment:** `on-island.png` is the **v3** track's live-lab screenshot and has
+NOT been retaken — the browser pane in this session would not composite frames, so no live screenshot
+was possible. The mounted assets ARE regenerated, and `chapter2-round3-tree-candidates.test.ts`
+decodes the shipped PNGs independently and passes, so the lab will show v4; what is missing is a
+photograph of it. The island judgement above rests on the offline plate composite instead.
 
-**The orange flecks were a classification bug, not the twigs they were blamed on.** The mature crown
-carried a scatter of bright bark-coloured pixels, 3.8% of it, that read as noise. Tracing them back
-to the raw render showed values around (160,160,106) — Cycles **anti-aliases its own band edges**, so
-the raw frame carries a fringe of intermediate values at every boundary, and an absolute
-foliage-membership threshold dropped those fringes into the bark family, where the nearest brown is
-(152,106,60). A **nearest-family** test has no threshold to miss and removed them completely. The
-wood-taper written first to "stop twigs poking through" was treating a symptom; it is kept at a much
-lower setting, for the geometry reason only.
-
-## The handoff is proven, not asserted
-
-Moving the canopy from blades to clouds means one population shrinks while another grows, so the
-claim that matters is that the thing you can *see* never does. `measure.py --monotone` walks the
-delivered track and checks both silhouette and foliage-coloured area across all 19 frames; it exits
-non-zero if any frame loses either. **All 19 frames are strictly increasing on both.**
-
-## What the code owns (ADR-0280 D1, unchanged)
+## What the code owns (ADR-0280 D1, unchanged and reaffirmed by ADR-0289)
 
 - **Topology is a strict PREFIX.** Skeleton grown once, birth iteration per node, frontier eases out
   of **zero** length. Nothing is frozen to buy per-frame connectedness.
-- **Randomness is identity-keyed** (`h01` on a part's address), never a draw counter, with a mix that
-  genuinely avalanches.
+- **Randomness is identity-keyed** (`h01` on a part's address), never a draw counter.
 - **The camera is one declared scalar** — orthographic at 20°, framed **once** to the mature extent
   and byte-identical on every frame.
 - **Growth pacing is authored and measured** — 19 frames at equal silhouette-change arc length,
   computed author-time from an analytic projection of the skeleton.
-- **Determinism:** CPU Cycles, `seed = 20260801`, fixed samples, pinned 5.2.0 LTS — plus the numpy
-  version now recorded, since the skeleton is sensitive to it.
+- **Determinism:** CPU Cycles, `seed = 20260801`, fixed samples, pinned 5.2.0 LTS, numpy version
+  recorded.
 
 ## Registered and mounted
 
-`register_track.py` re-measures every delivered frame under the **lab's** one applied anchor rule
-(round-1's), normalises x, and emits `packages/app-surface/src/assets/code-blender/`. The track is
-the lab's fifth candidate: `?organicGrowth=r3-lab#/tree`, button **code-blender**.
+`register_track.py` re-measures every delivered frame under the **lab's** one applied anchor rule,
+normalises x, and emits `packages/app-surface/src/assets/code-blender/`. The track is the lab's fifth
+candidate: `?organicGrowth=r3-lab#/tree`, button **code-blender**. The hand-entered TypeScript numbers
+in `chapter2-round3-tree-candidates.ts` were updated from the emitted block and are re-derived from
+the shipped pixels by the suite.
 
-One emitter bug was fixed rather than hand-corrected around: the TypeScript block wrote each frame's
-*measured* contact row into `sourceAnchor.y`. No vertical shift is ever applied, so the registration
-identity `sourceAnchor + normalizationOffset == normalizedAnchor` can only hold with the **registered
-anchor row** there — v2's numbers were hand-corrected to 118 before they would pass, which is exactly
-the transcription step the emitter exists to remove. The per-frame measured row is reported in
-`frames[].measuredGroundRow` and bounded by `groundRowSpreadPx` against the shipped pixels, which is
-where a varying contact row belongs.
-
-`groundRowSpreadPx` stays **3** and the reason is unchanged: the camera is fixed and the trunk base
-is pinned at world z=0, but secondary growth thickens the trunk, so the near edge of its own
-footprint descends by `r·sin 20°` as it fattens. Buying a constant row would mean lifting the frame
-as the tree matures — the base drift D1 forbids.
-
-## 6. Honest assessment against exp-16
-
-`exp16-vs-v2-vs-v3.png` is the three-way. `on-island.png` is the five-way composite, and it is a
-**screenshot of the real lab on the real SVG island**, not a flat plate — the previous increment
-found two failures a transparent contact sheet had hidden, so judgement happens on the island.
-
-**Closed since v2, measurably**
-
-- Crown fragmentation: **24 → 7** distinct colours, against exp-16's 12.
-- The missing top highlight: **0% → 20.5%** of the crown, against exp-16's 20.4%, in the same warm
-  khaki exp-16 uses.
-- Band distribution now within a few points of exp-16 on every band (shade 24.9 vs 21.7, body 24.7 vs
-  29.0, highlight 20.5 vs 20.4, deep shade 8.7 vs 6.8).
-- Mean crown luma 123 against exp-16's 119, where v2 sat at 112 and read grey.
-- Crown mass 4531 px against exp-16's 4280, where v2 sat at 3917 and read thin.
-
-**Where it still loses, and this is the honest part**
-
-1. **The crown is denser and less structural than exp-16's.** exp-16's crown is **29% bark by area**
-   — you see the limbs running through the canopy, and that is a lot of what makes it read as a tree.
-   This one is 17%, and reads closer to a solid mass. Lowering the wood taper twice moved this less
-   than expected, because the twigs are geometrically *inside* the clouds rather than hidden by a
-   parameter. Opening the canopy is a structural change to cloud placement, not a tuning knob.
-2. **Seven colours is fewer than twelve.** The remaining five in exp-16 are all bark tones under 7%,
-   and their absence is the same finding as (1) from the other side. Fewer is not automatically
-   better; it is only better than *fragmented*.
-3. **Scale convention.** Unchanged and still not the owner's to have been asked: exp-16's frame-0
-   seedling is 65% of its mature height because each stage is drawn to fill the frame; this track
-   holds ONE camera framed to the mature extent, so its frame 0 is small. Literal scale with a
-   planted base and stylised scale where every stage fills the frame cannot both come from one
-   camera. **That fork is explicitly out of this spike's scope and remains open.**
-4. **Mid-stage readability.** exp-16's frames 4 and 9 are a characterful leafy whip; the equivalents
-   here are a small bush. Better than v2's busy twig-tangle, still not charming.
-5. **Root flare.** exp-16's buttress spans 37 px at 8% of tree height; this track's spans 10. The
-   base was v2's gap 2 and it is closed only partially.
+`groundRowSpreadPx` stays **3** and the reason is unchanged: the camera is fixed and the trunk base is
+pinned at world z=0, but secondary growth thickens the trunk, so the near edge of its own footprint
+descends by `r·sin 20°` as it fattens. Buying a constant row would mean lifting the frame as the tree
+matures — the base drift D1 forbids.
 
 **Not claimed.** No owner LOOK, no hero-tree selection, no technique adoption, no clean-route switch,
 no arc closure. This is a ceiling demonstration under ADR-0280 D4, where an honest "not good enough"

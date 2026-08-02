@@ -1,5 +1,9 @@
-# Exactly reproducible from the seed by the README command; 2.7 MB of intermediate.
+# Exactly reproducible from the seed by the README command; ~2.7 MB of intermediate each.
 raw/
 raw2/
+raw*/
+# Variant outputs from the exploratory flags (--framing, --skeleton). Reproducible the same
+# way; only the comparison SHEET they feed is committed.
+frames[A-Z]*/
 registry-block.ts.txt
 __pycache__/
