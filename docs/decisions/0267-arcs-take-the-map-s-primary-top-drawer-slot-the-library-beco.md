@@ -180,27 +180,46 @@ not settle the picture.
 
 **Costs and risks.**
 
-- **`arcRef` on `open-question` is a schema change** — a `.extend()` on the kind, mirroring
-  `Plan`. It is additive and optional, so on the `stepRefs`/`increments` precedent it needs no
-  `CURRENT_SCHEMA_VERSION` bump; that must be re-verified against `migrations.ts` when it is built.
-- **D7 rests on ADR-0239, which the owner RATIFIED on 2026-07-29 — the decision fork is settled,
-  the implementation is not.** `storytree arc list --pg` returns 22 arcs with **no live/closed
-  distinction**: finished arcs render identically to live ones, because closure is prose in
-  `endState`. A surface that opens on 22 undifferentiated arcs, most of them done, restores no
-  context — it manufactures the confusion it exists to remove — so D7's "currently running" is
-  simply not answerable until 0239 lands. ADR-0239 supplies exactly what D7 needs: a stored `arc`
-  `lifecycle` enum, an `arc close` verb, and default active-only filtering in `arc list`.
+- **`arcRef` on `open-question` was a schema change, and it is now BUILT** (increment 1, PR #1020) —
+  a `.extend()` on the kind, mirroring `Plan` but OPTIONAL where the plan's is required, so a question
+  can be raised before any arc owns it and every pre-existing question still validates. Additive and
+  optional, so on the `stepRefs`/`increments` precedent it needed no `CURRENT_SCHEMA_VERSION` bump —
+  this ADR asked for that to be re-verified against `migrations.ts` rather than assumed on the
+  precedent, and it was: all three registered migrations only DROP fields, so each no-ops on a doc
+  carrying the new edge, and the verification is now an executable test rather than a claim.
 
-  *Recorded precisely, because the repo and the decision disagree right now:* the owner's
-  ratification is reported from the design conversation, and the **status flip had not reached
-  `origin/main` when this was written** — `git show origin/main:docs/decisions/0239-…` still read
-  `status: proposed`, and no `claude/ratify-adr-0239` branch existed on the remote (checked twice,
-  2026-07-29 and 2026-07-30). The flip and the implementation are chipped separately. Treat 0239 as
-  **decided and in flight**: build against it, but re-check its landed status before depending on
-  the verb or the filter existing.
-- **The infrastructure gap is real and is another session's job.** There is no arc view in the
-  studio beyond a flat artifact card, and the derived arc → children join is CLI-only. Building
-  the join into the studio's read path is companion work, not part of this decision.
+  *Measured 2026-08-03:* the edge exists, and nothing carries it yet. The live `open-question` tier
+  holds exactly one question (`oq-public-live-forest-on-the-website`, raised 2026-08-02) and it has no
+  `arcRef`, so `arc show` renders "(none)" for all 17 active arcs. That is the **third open item
+  below** — whether escalation must author an open-question — surfacing as an empty view, not a defect
+  in the derived join.
+- **D7 rests on ADR-0239, which has since LANDED — the dependency is satisfied, not pending.**
+  ADR-0239 reads `status: accepted` and its implementation shipped as PR #1016: the `Arc` schema
+  carries a stored `lifecycle` enum, `storytree arc close` writes the transition atomically from a
+  required terminal increment, `arc list` defaults to active-only with `--all` / `--closed` widening
+  it, and `lifecycleOf`'s `arc` branch reads the stored field instead of the old hardcoded
+  `"active"`. D7's "currently running" is therefore answerable now. Verified 2026-08-03 in
+  `packages/library/src/knowledge.ts`, `packages/library/src/lifecycle.ts` and
+  `packages/cli/src/arc.ts`, not taken from the ADR's prose.
+
+  *Why D7 was written the way it was, kept as history because it is the rationale:* when this ADR
+  was drafted `arc list --pg` returned 22 arcs with **no live/closed distinction** — a finished arc
+  rendered identically to a live one, because closure was prose in `endState`. A surface opening on
+  22 undifferentiated arcs, most of them done, restores no context; it manufactures the confusion it
+  exists to remove. Measured 2026-08-03 the default list returns **17 active**, with 15 closed behind
+  `--all` — the differentiated worklist D7 needs. (This bullet previously instructed a builder to
+  "re-check its landed status before depending on the verb or the filter existing", because the
+  status flip had not yet reached `origin/main` when it was written. That instruction is discharged:
+  the flip and the implementation are both on `main`.)
+- **The infrastructure gap was real; its read half is now CLOSED, its UI half is not.** This bullet
+  originally named two gaps and called them "another session's job". The join half is DONE
+  (increment 1, PR #1020): the derived arc → children join is no longer CLI-only — `deriveArcRollup`
+  / `loadArcRollup` / `loadArcRollups` live in `packages/drive/src/arc-rollup.ts`, and both
+  `storytree arc show` and `GET /api/arcs` + `/api/arcs/<id>` render from that ONE value, so the CLI
+  and the studio cannot drift apart. What REMAINS open is the UI half: no component under
+  `apps/studio/src` consumes that endpoint, so the studio still shows an arc only as a flat artifact
+  card. That is deliberate — the visual design is the owner's next deliverable (see "What is
+  deliberately NOT decided here"), so the read path was built ahead of it and no UI was.
 - **The Library's demotion leaves it in an interim state** until D3's open redesign lands: reachable
   but no longer privileged, with no decided replacement shape. That is accepted deliberately rather
   than blocking the slot reassignment on a Library redesign.
@@ -221,9 +240,9 @@ not settle the picture.
 - [ADR-0204](0204-retire-the-studio-banner-full-bleed-forest-with-a-hud-avatar.md) — the forest map
   is the landing surface; **not** overturned by D2.
 - [ADR-0239](0239-arc-closure-is-stored-state-an-arc-lifecycle-field-written-f.md) — arc closure as
-  stored state (`lifecycle` enum + `arc close` + default active-only `arc list`). **Owner-ratified
-  2026-07-29**; the status flip and implementation are in flight (see Consequences). It is what makes
-  D7's "currently running" answerable.
+  stored state (`lifecycle` enum + `arc close` + default active-only `arc list`). **`accepted` and
+  LANDED** (PR #1016); it is what makes D7's "currently running" answerable, and it is answerable now
+  (see Consequences).
 - [ADR-0023](0023-library-cli-choose-your-own-adventure.md) — the pull-based Library model, whose
   agent-facing CLI surface D3 leaves untouched.
 - `arc-orientation-surface-arc` — the arc this ADR was produced by.

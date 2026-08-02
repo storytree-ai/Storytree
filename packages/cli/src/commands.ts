@@ -34,6 +34,13 @@ import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { arcCommand, arcHelp, arcNew, arcEdit, arcIncrementAdd, arcClose, arcScopeOf, type ArcWriteDeps } from "./arc.js";
+import {
+  proposalHelp,
+  proposalList,
+  proposalNew,
+  type ProposalBody,
+  type ProposalWriteDeps,
+} from "./proposal.js";
 import { planCommand, planHelp, type CountCommitsSince } from "./plan.js";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import { CLI_AREAS } from "./cli-areas.js";
@@ -1876,6 +1883,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     evidence?: string;
     route?: string;
     "discharged-by"?: string;
+    proposal?: string;
+    summary?: string;
+    motivation?: string;
+    scope?: string;
+    migration?: string;
+    readiness?: string;
+    risks?: string;
     source?: string;
     force?: boolean;
     fix?: boolean;
@@ -1957,6 +1971,18 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         route: { type: "string" },
         // `storytree friction route --discharged-by <ref>` — the delivery stamp (remedy landed).
         "discharged-by": { type: "string" },
+        // `storytree friction route --route tool --proposal <id>` — the ADR-0287 D1 emission: the
+        // `proposal` artifact the tool route produces, cited in the item's `references`.
+        proposal: { type: "string" },
+        // `storytree proposal new` — the six required body fields + optional risks (long prose via
+        // @path). `--change` is NOT here: it is already declared (multiple) for `storytree drift`, and
+        // the proposal area reads that same array, joining repeats into paragraphs.
+        summary: { type: "string" },
+        motivation: { type: "string" },
+        scope: { type: "string" },
+        migration: { type: "string" },
+        readiness: { type: "string" },
+        risks: { type: "string" },
         source: { type: "string" },
         // `storytree worktree prune` — destructive, so force+yes are BOTH required to remove.
         force: { type: "boolean", default: false },
@@ -2446,6 +2472,54 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     );
   }
 
+  if (area === "proposal") {
+    // The Library's parked-remedy tier (ADR-0287 D1) — the `tool` friction route's OUTPUT. A
+    // scaffolder for the same reason `arc new` is one: the alternative is reading KIND_SPECS for six
+    // required fields and hand-stamping timestamps into doc JSON. Long prose (--summary/--motivation/
+    // --change/--scope/--migration/--readiness/--risks/--description) accepts `@path`, resolved here
+    // exactly as arc's are, so multi-line values survive the shell.
+    if (help || sub === undefined) return proposalHelp();
+    if (sub === "list") return proposalList({ store: deps.store, pg: values.pg === true });
+    if (sub === "new") {
+      let body: ProposalBody & { description?: string };
+      try {
+        body = {
+          ...(values.summary !== undefined ? { summary: await resolveAtPathValue(values.summary) } : {}),
+          ...(values.motivation !== undefined ? { motivation: await resolveAtPathValue(values.motivation) } : {}),
+          // `--change` is declared `multiple` for `storytree drift`, so it arrives as an array here.
+          // Repeats join into paragraphs rather than being silently dropped — one flag, one meaning
+          // per area, and no second flag name for the field the schema calls `change`.
+          ...(values.change !== undefined
+            ? { change: (await Promise.all(values.change.map((c) => resolveAtPathValue(c)))).join("\n\n") }
+            : {}),
+          ...(values.scope !== undefined ? { scope: await resolveAtPathValue(values.scope) } : {}),
+          ...(values.migration !== undefined ? { migration: await resolveAtPathValue(values.migration) } : {}),
+          ...(values.readiness !== undefined ? { readiness: await resolveAtPathValue(values.readiness) } : {}),
+          ...(values.risks !== undefined ? { risks: await resolveAtPathValue(values.risks) } : {}),
+          ...(values.description !== undefined ? { description: await resolveAtPathValue(values.description) } : {}),
+        };
+      } catch (e) {
+        return { ok: false, body: `could not read a @file value: ${(e as Error).message}`, next: ["storytree proposal --help"] };
+      }
+      const writeDeps: ProposalWriteDeps = {
+        store: deps.store,
+        writable: deps.writable === true,
+        ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
+        now: new Date().toISOString(),
+        pg: values.pg === true,
+      };
+      return proposalNew(writeDeps, third, {
+        ...(values.title !== undefined ? { title: values.title } : {}),
+        ...body,
+      });
+    }
+    return {
+      ok: false,
+      body: `unknown proposal command "${sub}". try: storytree proposal list --pg  |  storytree proposal new --title "..." --pg`,
+      next: ["storytree proposal --help", "storytree proposal list --pg"],
+    };
+  }
+
   if (area === "plan") {
     // The consumption-time freshness check (ADR-0183 D2): git-log the paths the plan names since
     // its anchor; drift past threshold → re-plan, not repair. The git seam is injectable for tests.
@@ -2686,6 +2760,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(values.route !== undefined ? { route: values.route } : {}),
         ...(reason !== undefined ? { reason } : {}),
         ...(values["discharged-by"] !== undefined ? { dischargedBy: values["discharged-by"] } : {}),
+        // The ADR-0287 D1 emission: the proposal the `tool` route produces, cited in `references`.
+        ...(values.proposal !== undefined ? { proposal: values.proposal } : {}),
       }, ctx);
     }
     if (sub === "list") {
