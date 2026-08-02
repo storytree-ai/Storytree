@@ -143,6 +143,42 @@ test("containsPath is segment-boundary aware — a sibling PREFIX never matches"
   assert.equal(sibling.startsWith(root), true);
 });
 
+test("containsPath compares across MIXED SEPARATORS — the brick this wall shipped with", () => {
+  // The regression, found 2026-08-02 the first time the wall ran against a real session rather than
+  // a fixture. Topology roots reach this function `/`-normalised (that is what `locateWorktree`
+  // produces and what the receipt therefore stores); canonical targets come back from
+  // `realpathSync.native` with `\`. Compared literally, a session's OWN worktree classified as
+  // `outside` and the wall refused every write it exists to permit.
+  //
+  // No fixture caught it because every fixture builds both sides with the same `path.join`. So the
+  // assertion has to construct the disagreement deliberately.
+  const slashedRoot = "C:/code/storytree/.claude/worktrees/alpha";
+  const nativeRoot = "C:\\code\\storytree\\.claude\\worktrees\\alpha";
+  const slashedTarget = "C:/code/storytree/.claude/worktrees/alpha/packages/mine.ts";
+  const nativeTarget = "C:\\code\\storytree\\.claude\\worktrees\\alpha\\packages\\mine.ts";
+  // Whichever side carries which separator, the answer must be the same.
+  assert.equal(containsPath(slashedRoot, nativeTarget, true), true, "the shape the hook builds");
+  assert.equal(containsPath(nativeRoot, slashedTarget, true), true, "and the mirror of it");
+  // The boundary guard must survive the normalisation, not be traded away for it.
+  assert.equal(
+    containsPath(slashedRoot, "C:\\code\\storytree\\.claude\\worktrees\\alpha-evil\\x.ts", true),
+    false,
+  );
+});
+
+test("classifyTarget places a `/`-rooted worktree over a `\\`-rooted target as WORKTREE, not outside", () => {
+  // The same bug one layer up, where it did its damage: this is the exact shape the hook builds —
+  // receipt roots from `locateWorktree`, target from `realpath`.
+  const zone = classifyTarget("C:\\code\\storytree\\.claude\\worktrees\\alpha\\src\\x.ts", {
+    primaryRoot: "C:/code/storytree",
+    mintedWorktrees: [
+      { sessionId: "alpha", root: "C:/code/storytree/.claude/worktrees/alpha", branch: "claude/alpha" },
+    ],
+    caseInsensitive: true,
+  });
+  assert.equal(zone.kind, "worktree");
+});
+
 test("containsPath folds case only when told to — the Windows drive-case rule", () => {
   const inside = path.join(PRIMARY, "src", "a.ts");
   assert.equal(containsPath(PRIMARY.toUpperCase(), inside.toLowerCase(), true), true);

@@ -46,10 +46,23 @@ final increment landed the retirement on 2026-07-17, PRs #760–#766; their bodi
 **Correction ([ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md), per
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Decision 3's
 primary-checkout lobby and claim-before-worktree ceremony stand, but the admitted fail-open gap is
-overtaken. The lobby is mechanically read-only to every agent harness; generic writes require a
-recognised repository-minted worktree with matching live claim and branch, and an unavailable
-ledger refuses writes. SessionStart nudges and `check:declared` remain feedback/defence in depth,
-not the first enforcement point.
+overtaken **as a decision**: ADR-0255 D1 rules the lobby mechanically read-only to every agent
+harness, and ADR-0257 D5/D7 require generic writes to carry a recognised repository-minted worktree
+with matching live claim and branch, with an unavailable ledger refusing new writes. SessionStart
+nudges and `check:declared` are thereby demoted to feedback/defence in depth rather than the first
+enforcement point.
+
+*(Build state corrected in place 2026-08-02, the correction above unchanged in substance — the
+paragraph stated a decided state in the present indicative and read as achieved. Measured on that
+date: ADR-0257 increment 3 installed the STATIC half on the developer machine, so a lobby write by
+`Write`/`Edit`/`NotebookEdit` IS refused before mutation there and `check:declared` is genuinely no
+longer the first enforcement point for those tools. The other three clauses are not yet true. "Every
+agent harness" — only Claude; the Codex adapter is unbuilt. "Generic writes require a … matching live
+claim and branch" — that is the claim-aware `PreToolUse` half, which is install-on-demand and was
+unregistered at the end of that day, so nothing evaluates a claim on the write path. "An unavailable
+ledger refuses writes" — nothing reads the ledger on the write path at all. Add to that: no layer
+binds a **shell**, and the wall is installed on one machine. Read the build state from ADR-0257,
+which owns it.)*
 
 ## Context
 

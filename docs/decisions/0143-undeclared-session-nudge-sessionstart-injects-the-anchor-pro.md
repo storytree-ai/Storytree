@@ -16,13 +16,20 @@ that altitude was rejected and what was chosen instead.
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the nudge and
 landing-time `check:declared` wall stand as feedback and defence in depth. The rejection of a
 creation gate is overtaken for GENERIC WRITES by the repository-minted claim-first ceremony already
-built in ADR-0200: ADR-0255 D1 makes the primary checkout a mechanically read-only agent lobby, with
-a separate cross-harness pre-write authority guard refusing mutation before the late gate. Ambient
-noticeboard hooks remain never-blocking; the authority guard is a different surface. *(Precision
-correction 2026-08-02, decision unchanged: this used to read "the primary checkout **is now** a
-mechanically read-only agent lobby", which described a DECIDED state as an achieved one. It is not
-enforced yet — ADR-0257 increment 2 landed the Claude write-time wall switched OFF, so today the
-nudge and the landing-time `check:declared` arm are the whole ratchet.)*
+built in ADR-0200: ADR-0255 D1 **decides** that the primary checkout is a mechanically read-only
+agent lobby, with a separate cross-harness pre-write authority guard refusing mutation before the
+late gate. Ambient noticeboard hooks remain never-blocking; the authority guard is a different
+surface. *(Precision correction 2026-08-02, decision unchanged, and corrected twice the same day as
+increments landed. It first read "the primary checkout **is now** a mechanically read-only agent
+lobby", which stated a DECIDED state as an achieved one. The repair then read "It is not enforced yet
+… so today the nudge and the landing-time `check:declared` arm are the whole ratchet", which
+increment 3 overtook hours later. Neither is true now. What holds: ADR-0257 increment 3 installed the
+STATIC half of that wall on the developer machine, so a `Write`/`Edit`/`NotebookEdit` into the lobby
+is refused before mutation there — the nudge and `check:declared` are no longer the whole ratchet for
+file tools on that box. What does NOT hold: the guard is **not cross-harness** in force (Codex is
+untouched), the claim-aware half is unregistered, no layer binds a **shell**, and nothing is
+installed on any other machine. This ADR's own two mechanisms are unaffected either way; read the
+build state from ADR-0257, which owns it, not from here.)*
 
 ## Context
 

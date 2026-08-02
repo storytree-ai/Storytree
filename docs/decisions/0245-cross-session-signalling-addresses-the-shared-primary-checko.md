@@ -43,18 +43,22 @@ ADR's machinery). The honest relationship is **complementary defence in depth, d
 not duplication:
 
 - **This ADR is the GATE-TIME arm** — keyed on **dirty**, it refuses the *landing* once the shared
-  checkout already carries uncommitted work. It is BUILT (D5.2) and is the only enforcement of this
-  hazard that is IN FORCE today (re-checked 2026-08-02, see the write-time entry below).
+  checkout already carries uncommitted work. It is BUILT (D5.2), and it is the only arm that covers a
+  **shell** (re-checked 2026-08-02, see the write-time entry below).
 - **ADR-0255 is the WRITE-TIME arm** — keyed on an *agent write attempt*, it aims to stop the
   checkout becoming dirty at all, via a claim-bound authority boundary. *(Build state corrected in
-  place 2026-08-02 — this entry used to read "It is **not built**: no pre-tool write policy or
-  filesystem/broker wall exists in this repo yet". ADR-0257 increment 2 (2026-08-02) BUILT the Claude
-  half and **shipped it switched off**: a `PreToolUse` adapter, `packages/cli/write-authority-hook.mjs`,
-  behind `STORYTREE_WRITE_AUTHORITY` defaulting OFF, plus a static `permissions.deny` block that is
-  generated but installed nowhere. So a pre-tool write policy now EXISTS while **nothing about the
-  live enforcement picture has changed** — the wall refuses no write until a separate flip PR turns it
-  on, and Codex, shell containment and the signed receipt remain absent entirely. The bullet above
-  therefore still holds, and holds only until that flip.)*
+  place 2026-08-02, twice in one day as increments landed — this entry first read "It is **not
+  built**", then "BUILT … and **shipped it switched off**". Both are now overtaken. ADR-0257
+  increment 3 (2026-08-02) FLIPPED the wall on, on the developer machine: the static
+  `permissions.deny` block generated from `repo-manifest.json` is **installed** at USER level, so a
+  lobby write by `Write`/`Edit`/`NotebookEdit` is now refused **before mutation** rather than at this
+  ADR's landing gate; and the `PreToolUse` adapter's switch now defaults ON, with
+  `STORYTREE_WRITE_AUTHORITY=off` as the human kill switch. **So the live enforcement picture HAS
+  changed, and this ADR's arm is no longer the only one in force.** What the flip did NOT change, and
+  what keeps the arm below load-bearing: the deny block binds the **file tools only** — neither layer
+  of that wall binds a **shell**, so a `Bash` command still dirties the lobby unobserved until this
+  gate. The semantic half of the wall is install-on-demand and was **unregistered** at the end of
+  2026-08-02. Codex is untouched entirely, and the receipt is still unsigned.)*
 
 What ADR-0255 amends here is **D5's ranking, not D5's machinery**: the merge gate is no longer "the
 boundary that matters" (this ADR's D5.2 wording) but the late backstop behind a write-time wall.
@@ -63,8 +67,13 @@ layer and its Consequences keep "the late gate ... as defence in depth", and its
 alternatives reject the gate only as *the authority boundary*. Two reasons the gate arm remains
 load-bearing even once the wall lands: ADR-0255 D7 preserves an explicit **human** recovery path (a
 human editing the primary checkout directly is not an agent harness, so no pre-tool policy observes
-it), and ADR-0255 D8's proof bar is behavioural and unmet, so until it is met this arm is the whole
-ratchet. **Removing or disabling D5.2 would be an owner decision, not a curator one.**
+it), and ADR-0255 D8's proof bar is behavioural and unmet. *(Corrected in place 2026-08-02: this
+sentence used to close "so until it is met this arm is the whole ratchet". After ADR-0257 increment
+3 the ratchet has TWO rungs for the file tools — the installed deny block refuses first, this gate
+catches what got past it — and remains a single rung for a **shell**, which no layer of the wall
+binds. A third reason has also emerged and is stronger than either: the wall is **machine-scoped**,
+installed user-level on one developer box, so CI and every remote/container session are covered by
+this arm alone.)* **Removing or disabling D5.2 would be an owner decision, not a curator one.**
 
 D1/D2's reasoning — the fault is a *condition of the checkout*, never an accusable session — is
 adopted by ADR-0255 D1 (which addresses the checkout, not an identity) and survives intact. D3/D4
@@ -251,8 +260,13 @@ wrong-headed hard block would be worse than the problem. So the ratchet is gradu
 existing WARN-then-FAIL precedents:
 
 1. **WARN (hooks, D3)** — advisory, offline, fail-silent, cursor-once. Never blocks.
-   **PARKED — not built** (see Status). The ratchet therefore currently has one rung, not two: a
-   dirty lobby is silent until the gate. That is the accepted cost of the park.
+   **PARKED — not built** (see Status). *(Corrected in place 2026-08-02, the park itself unchanged:
+   this used to conclude "The ratchet therefore currently has one rung, not two: a dirty lobby is
+   silent until the gate." Since ADR-0257 increment 3 that holds only for a **shell**. A lobby write
+   attempted through `Write`/`Edit`/`NotebookEdit` is refused before mutation by the installed
+   `permissions.deny` block, so for the file tools the lobby is not silent — it never goes dirty. The
+   D3 park remains the accepted cost for everything the wall does not bind: shells, Codex, and every
+   machine without the wall installed.)*
 2. **FAIL (`check:declared`)** — close the SKIP that fails open (Context fact 2). When
    `deriveIdentity()` is null **and** the cwd is the primary checkout of a repo that has a
    `.claude/worktrees/` directory **and** the tree is dirty, FAIL with the `worktree create` ceremony
@@ -328,11 +342,14 @@ the seam; the story/capability decomposition to build it is the `story-author`'s
   authority. It amends this ADR's D5 ranking, not its machinery (see Status).
 - [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) — accepted
   2026-07-28; hardens ADR-0255's wall to agent-inescapable and binds it to shared checkouts.
-  **Accepted, PARTLY built and shipped OFF** *(corrected in place 2026-08-02 — this used to read
-  "Accepted, still unbuilt")*: increment 2 landed the Claude `PreToolUse` adapter behind a
-  default-off switch and generated, but did not install, the static deny block. Its D9 proof bar is
-  behavioural and covers two surfaces, so it is unmet on both counts — **D5.2 below remains the only
-  enforcement of this hazard in force**, until the flip PR turns the wall on.
+  **Accepted, PARTLY built, and ENFORCING on the developer machine since increment 3** *(corrected
+  in place 2026-08-02 — this read "Accepted, still unbuilt", then "PARTLY built and shipped OFF";
+  increments 2 and 3 landed the same day)*: increment 2 landed the Claude `PreToolUse` adapter and
+  generated the static deny block without installing it; increment 3 installed the block user-level
+  and defaulted the switch ON. Its D9 proof bar is behavioural and covers two surfaces, so it remains
+  unmet on both counts. **D5.2 below is no longer the only enforcement of this hazard in force** —
+  the deny block now refuses a lobby file-tool write before mutation — but it is still **the only arm
+  covering a shell**, and the only arm anywhere off that one machine.
 - [ADR-0162](0162-manage-session-onboarding-cost-optimize-the-cost-centers-the.md) — the per-turn startup budget the `UserPromptSubmit` probe
   must respect.
 - Friction (the adjudicated inputs, routed to this ADR):

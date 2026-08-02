@@ -145,8 +145,23 @@ export function platformCaseInsensitive(platform: string = process.platform): bo
 }
 
 /** Strip a trailing separator (except on a bare root) and fold case when the platform folds it. */
+/**
+ * Normalise a path for COMPARISON only (never for display or I/O).
+ *
+ * SEPARATORS ARE UNIFIED TO `/`, and that is load-bearing rather than tidy. The two sides of every
+ * comparison here arrive from different places and disagree on Windows: the topology roots come from
+ * `locateWorktree`, which does string work on a `/`-normalised copy, while canonical targets come
+ * back from `realpathSync.native` in native `\` form. Comparing them literally made a session's OWN
+ * worktree classify as `outside`, so the wall refused every write including the ones it exists to
+ * permit — a brick, indistinguishable in practice from a wall that refuses nothing.
+ *
+ * Every fixture in the suites below builds both sides with the same `path.join`, so their separators
+ * always agreed and the bug was invisible to 49 passing tests. It surfaced the first time the wall
+ * ran for real (2026-08-02), which is the whole argument for behavioural proof over unit coverage.
+ */
 function normaliseForCompare(p: string, caseInsensitive: boolean): string {
-  const trimmed = p.length > 1 ? p.replace(/[\\/]+$/, "") : p;
+  const slashed = p.replace(/\\/g, "/");
+  const trimmed = slashed.length > 1 ? slashed.replace(/\/+$/, "") : slashed;
   return caseInsensitive ? trimmed.toLowerCase() : trimmed;
 }
 
@@ -159,8 +174,10 @@ export function containsPath(root: string, target: string, caseInsensitive: bool
   const t = normaliseForCompare(target, caseInsensitive);
   if (r.length === 0) return false;
   if (t === r) return true;
-  // A bare root ("/" or "C:\") already ends in a separator; anything else needs one appended.
-  const boundary = /[\\/]$/.test(r) ? r : r + path.sep;
+  // Both sides are `/`-normalised above, so the boundary is `/` on every platform. Using
+  // `path.sep` here was the other half of the mixed-separator brick: on Windows it appended `\` to
+  // an already-forward-slashed root, and nothing ever matched.
+  const boundary = r.endsWith("/") ? r : `${r}/`;
   return t.startsWith(boundary);
 }
 

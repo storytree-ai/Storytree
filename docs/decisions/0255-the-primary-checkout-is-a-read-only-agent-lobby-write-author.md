@@ -25,7 +25,10 @@ ratification (ADR-0110); no second end-of-flow ask.
 > **D7** gains a narrow, tamper-evident, expiring claim-receipt exception to offline-read-only.
 > **D2, D3, D5, D6 and D8 stand unchanged** — including D5's harness-neutrality, which ADR-0257
 > *instantiates* rather than amends by making the Codex adapter concrete (see the note at D5).
-> Nothing in either ADR is built yet.
+> *(Build state corrected in place 2026-08-02, the amendment summary above unchanged: this line read
+> "Nothing in either ADR is built yet." ADR-0257's increments 1–3 have since built the Claude half
+> and turned it on — see the note at the end of this Status block for exactly what is and is not in
+> force.)*
 
 **Amends** [ADR-0033](0033-session-presence-notice-board.md): its never-blocking contract continues
 to govern ambient noticeboard automation, but a separate write-authority guard is blocking by
@@ -43,10 +46,11 @@ ceremony applies across harnesses rather than only to Storytree-owned spawners.
 *(edge recorded by the librarian pass on 2026-07-28 — this ADR was authored without citing it, and
 both ADRs independently amend ADR-0200 for the same hazard; the edge below is a record of what this
 body already effects, not a new decision)*. ADR-0245 diagnosed the same fault — uncommitted work in
-the shared primary checkout — and shipped the only enforcement of it that is **in force** today
-*(re-checked 2026-08-02: ADR-0257 increment 2 landed a write-time wall in the tree, but switched off
-and installed nowhere, so it enforces nothing yet)*: its **D5.2 gate-time backstop**,
-`check:declared`'s lobby arm. **That arm stands and stays built.** D4 below
+the shared primary checkout — and shipped the first enforcement of it to be **in force**
+*(build state corrected in place 2026-08-02: this read "the only enforcement … in force today", with
+a parenthetical that the write-time wall "enforces nothing yet". ADR-0257 increment 3 flipped the
+wall on the same day, so it is no longer the only one — see the note at the end of this block)*: its
+**D5.2 gate-time backstop**, `check:declared`'s lobby arm. **That arm stands and stays built.** D4 below
 already places it in the feedback layer, and "Rejected alternatives" rejects the merge gate only as
 *the authority boundary*, never as defence in depth — "the late gate remains defence in depth" is
 this ADR's own words. What is amended is ADR-0245 D5's **ranking**: the gate is no longer "the
@@ -60,8 +64,35 @@ this ADR's wall keys on *an agent write attempt* and prevents the checkout becom
 ADR-0245 D5.2 keys on *dirty* and refuses the landing once it already is. The residual cases the
 wall cannot cover are exactly what keeps the gate arm live — D7 preserves an explicit human
 recovery/maintenance path (a human editing the primary checkout is not an agent harness and no
-pre-tool policy sees it), and until the authority layer is built and behaviourally proved under D8,
-ADR-0245 D5.2 is the *only* rung on the ratchet.
+pre-tool policy sees it), and D8's behavioural proof bar is still unmet. *(Corrected in place
+2026-08-02: this closed "ADR-0245 D5.2 is the *only* rung on the ratchet". Increment 3 added a second
+rung for the file tools. D5.2 remains the only rung for a **shell**, and the only rung on any machine
+without the wall installed — which is every machine except one.)*
+
+**BUILD STATE — what is actually in force, 2026-08-02.** This ADR is a DECISION about what the lobby
+must be; the sentences above describe that decision and are not claims of installation. Read the
+build state only from here, and from [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md),
+which owns it:
+
+- **IN FORCE, on the developer machine only:** the static `permissions.deny` block of D1, generated
+  from `repo-manifest.json` and installed USER-level, which refuses `Write`/`Edit`/`NotebookEdit`
+  across the primary checkout while leaving `.claude/worktrees` writable. A lobby write by a file
+  tool is refused before mutation. **The lobby is mechanically read-only to the FILE TOOLS of ONE
+  harness on ONE machine — nothing broader.**
+- **INSTALL-ON-DEMAND, and unregistered as of 2026-08-02:** the semantic half — the `PreToolUse`
+  adapter that knows about claims, branches, detached HEAD and junction escapes. It was registered
+  and exercised end-to-end, then unregistered because the only checkout carrying the post-flip script
+  was an ephemeral worktree. **Nothing evaluates a claim on the write path today.**
+- **NOT BUILT AT ALL:** any Codex-side enforcement (so D5's harness-neutrality is decided, not
+  achieved), D4's trusted mint actuator, D8's brokered common-directory access, and **shell/`Bash`
+  containment on either surface** — a shell can still write anywhere the process can.
+- The claim receipt of D7 exists but is **UNSIGNED**; the deny block makes it tamper-resistant to the
+  file tools and to nothing else.
+
+Two readings this note exists to refuse. It is **not** true that "the primary checkout is a
+mechanically read-only agent lobby" without qualification — that describes the decision, not the
+world. It is equally **not** true that "nothing enforces it" — the static half is real, installed and
+behaviourally verified. D8's proof bar is what closes the gap between the two, and it is unmet.
 
 ## Context
 
@@ -74,7 +105,12 @@ enforcement does not make that sentence true for a general-purpose agent harness
 - `check:declared` deliberately skips the primary checkout, missing database credentials and an
   unreachable ledger, then runs only at the landing gate;
 - `.claude/settings.json` supplies Claude-specific, fail-silent orientation hooks; it is not a
-  Codex policy surface and contains no pre-write refusal;
+  Codex policy surface and contains no pre-write refusal. *(Still literally true of the COMMITTED
+  project file, re-verified 2026-08-02 — it declares neither `permissions.deny` nor a `PreToolUse`
+  entry, and ADR-0257 increment 3 records why it structurally cannot: the deny rules are unavoidably
+  absolute machine paths, so a committed block would be keyed to one box and would deny every
+  worktree its own sources. Do not read this fact as "no pre-write refusal exists" — the wall is
+  installed USER-level, outside the repository, and is in force there.)*
 - a Codex Local task or a child spawned from it inherits the saved checkout as its runtime working
   directory, while a worktree path in a prompt is advisory text rather than an authority boundary;
 - full-access agent tools can write an absolute path outside their current working directory, so
@@ -220,9 +256,13 @@ projections of one rule.
    stamp one today", and the reason has changed rather than gone away. ADR-0257 increment 2 does now
    stamp a receipt from both claim ceremonies, with a finite `expiresAt` and live-branch
    re-validation, but it is **UNSIGNED** — the "signed with material the writer cannot reach" clause
-   above is the one part not built — and the hook that would honour it ships behind a default-off
-   switch. So no write is admitted by a receipt today, and the narrow offline exception is not yet
-   in effect.)*
+   above is the one part not built. [Re-corrected the same day, after increment 3: the reason
+   attached here used to be "and the hook that would honour it ships behind a default-off switch".
+   That is now inverted — the switch defaults ON and `STORYTREE_WRITE_AUTHORITY=off` is the human
+   kill switch. The CONCLUSION is unchanged; the reason for it is now a different one — the hook that
+   reads the receipt is **install-on-demand and was unregistered** at the end of 2026-08-02, so
+   nothing consults a receipt on the write path.] So no write is admitted by a receipt today, and the
+   narrow offline exception is not yet in effect.)*
 
 8. **The cross-surface proof is behavioural.** This decision is not green until the supported
    Claude and Codex surfaces both prove:
@@ -259,8 +299,11 @@ projections of one rule.
 - Offline agent authoring is deliberately unavailable. This is stricter than the current
   `check:declared` skip arms and will interrupt work when the ledger is down. *(Amended by ADR-0257
   D5, see D7 above: an already-minted workspace holding a valid unexpired receipt keeps writing
-  within its recorded scope through the nightly sleep window. A **new** mint still refuses offline,
-  and this bullet reads unqualified until the receipt is built.)*
+  within its recorded scope through the nightly sleep window. A **new** mint still refuses offline.
+  Corrected in place 2026-08-02: this closed "and this bullet reads unqualified until the receipt is
+  built" — the receipt IS built as of ADR-0257 increment 2, so the condition needs restating rather
+  than removing. The bullet reads unqualified until the receipt is **signed** and the hook that
+  honours it is **registered**; neither holds today, so no receipt admits any write.)*
 - Git worktree creation, commits and landing touch shared Git metadata. The permission profile needs
   carefully bounded metadata access or a brokered actuator; a broad `.git` write grant would reopen
   the escape this ADR closes.

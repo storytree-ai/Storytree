@@ -26,8 +26,9 @@ open-questions §3 (b) claim granularity and (c) the conflict-resolution ceremon
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's
 build-scoped claim and dry-run/offline mechanics stand. Its non-worktree build no-op does NOT grant
 generic agent write authority outside a claim-bound workspace: ADR-0255 generalises
-claim-before-worktree to every agent source write and makes the primary checkout read-only across
-harnesses.
+claim-before-worktree to every agent source write and rules the primary checkout read-only across
+harnesses. *(That is the DECISION, not the installed state — as of 2026-08-02 only the Claude file
+tools are bound, on one machine. ADR-0255's Status block carries the authoritative build state.)*
 
 ## Context
 
