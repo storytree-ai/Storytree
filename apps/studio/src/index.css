@@ -4221,6 +4221,19 @@ button.legend-tile:hover {
   color: var(--text);
   border-color: var(--border-strong);
 }
+/* ADR-0286: a gear ACTION row (the Forest intro's "Regrow the forest"). The footer's buttons are
+   flex children of a row, so `flex: 1` sizes them; inside a control row the button is a block on
+   its own line and has to claim the width itself. */
+.world-gear-row.action .world-gear-action {
+  width: 100%;
+  flex: none;
+  text-align: center;
+}
+.world-gear-row.action .world-gear-action:disabled {
+  color: var(--muted);
+  background: var(--surface-2);
+  cursor: default;
+}
 
 /* ── desktop credentials dock (topbar, ADR-0179) ───────────────────────────── */
 .credentials-dock {
