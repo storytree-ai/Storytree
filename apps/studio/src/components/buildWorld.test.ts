@@ -101,12 +101,12 @@ describe('buildWorld — the ADR-0169 trail network (roads route as trails, both
 
   // ADR-0283 D2 (owner-directed 2026-08-02): DAG rows are the ONLY layout. `?layout=stress` /
   // `?layout=solar` are retired, so there is no second arrangement to hold the one-TrailNetwork
-  // model against — and no solar layer to build.
-  it('lays out DAG rows whatever the URL said, and populates no solar layer', () => {
+  // model against. (The companion `world.solar` assertion retired with the FIELD — the radial
+  // layer is off `HexWorld` entirely now, so typecheck pins its absence, not a runtime expect.)
+  it('lays out DAG rows whatever the URL said', () => {
     const world = buildWorld(fixture());
     const keys = world.trails.edges.map((e) => `${e.from}->${e.to}`);
     expect(keys).toContain('foundation->mid');
-    expect(world.solar).toBeUndefined();
   });
 
   it('is deterministic — same stories, byte-identical network', () => {

@@ -62,9 +62,9 @@ import {
   readRenderScene,
   type ControlSpec,
 } from '../lib/worldSettings.js';
-// ADR-0283 D2: `../lib/solarLayout.js` and `../lib/stressLayout.js` are no longer imported here —
-// DAG rows are the one map arrangement. The modules stay (tested, and `stressSeeds` still serves
-// `overviewConstellation.ts`); nothing on the map reaches them.
+// ADR-0283 D2: `../lib/stressLayout.js` is no longer imported here — DAG rows are the one map
+// arrangement. The module stays (tested) because `stressSeeds` still serves
+// `overviewConstellation.ts`; its radial sibling `solarLayout.ts` had no caller left and is deleted.
 import { arrivalGrowPlan } from '../lib/trailReveal.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
 import {
@@ -260,20 +260,6 @@ export interface HexWorld {
    *  once), per-edge ordered segment chains, forced cave portals. Hidden by default;
    *  revealed on island focus (§3). Empty (no segments) when there are no edges. */
   trails: TrailNetwork;
-  /** DORMANT since ADR-0283 D2 — `buildWorld` never populates this. It carried the radial
-   *  layout's concentric orbit GRID + perimeter-docked hub spokes (ADR-0074 §6 + the
-   *  2026-06-20 path refresh); that arrangement is retired, so every renderer's
-   *  `world.solar &&` guard is now permanently false. The field and `StudioWorldChrome`'s
-   *  guarded pass are left in place rather than deleted (the ADR leaves that call to the
-   *  increment) — but nothing on the map reaches them. */
-  solar?: {
-    /** The hub-cluster centre the orbit rings are concentric about. */
-    center: Pt;
-    /** Faint orbit-ring radii, inner → outer — the circle grid the islands sit on. */
-    rings: number[];
-    /** Provider-side `consumed_by` wiring (hub → organism), perimeter-docked + straight. */
-    spokes: { from: string; to: string; d: string }[];
-  };
   width: number;
   height: number;
   offset: Pt;
@@ -732,10 +718,9 @@ export function buildWorld(
         )
       : { segments: [], edges: [], caves: [], dropped: [] };
 
-  // ADR-0283 D2: the radial `solar` assembly that used to build `world.solar` here — the hub
-  // centre, the rank orbit rings and the `consumed_by` spoke lines — is gone with the layout it
-  // served. `HexWorld['solar']` stays optional on the shared type and is simply never populated,
-  // so the renderers that guard on it draw nothing.
+  // ADR-0283 D2: the radial `solar` assembly that used to build a `world.solar` layer here — the
+  // hub centre, the rank orbit rings and the `consumed_by` spoke lines — is gone with the layout
+  // it served, and the `HexWorld` field it fed went with it.
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
   const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
@@ -790,7 +775,7 @@ export type { SubstrateMode };
 //
 // `worldToScene` is the studio's thin FOLD of its `HexWorld` into the core's neutral
 // `SceneInput` contract (the design fork → option b: `buildWorld` stays studio-side
-// because it carries studio chrome — solar layout, building stamps; the core owns the
+// because it carries studio chrome — building stamps, bookshelf consumers; the core owns the
 // LOOK, the surface folds its data into the contract). It folds ONLY presentation
 // facts the surface owns — the proof/live-data → status fold is already in the
 // (presented) stories, blooms come from `verdictBloom`, wisps from in-flight builds,
@@ -1069,9 +1054,9 @@ function territoryToScene(
 }
 
 /** Fold a studio `HexWorld` into the core's `SceneInput`. The routed trail network
- *  passes through VERBATIM (edge tooltips were folded in at routing time); solar
- *  SPOKES stay studio chrome (not in the scene path). `territories` is in owner
- *  order, the index `relaxedCells` / `drawTiles` / `wheatSets` key on. */
+ *  passes through VERBATIM (edge tooltips were folded in at routing time).
+ *  `territories` is in owner order, the index `relaxedCells` / `drawTiles` /
+ *  `wheatSets` key on. */
 export function worldToScene(
   world: HexWorld,
   relaxedCells: RelaxedCell[] | null,
@@ -1284,9 +1269,9 @@ export function readChapter2Round3Lab(search: string = defaultSearch()): boolean
  * `?layout=solar` no longer resolve to anything and fall through to rows like any unknown param,
  * and the gear picker that offered them retired with them (worldSettings). This is a product call
  * about what the map IS, not an Act 2 convenience: every growth, arrival and pathway choreography
- * from here on has exactly one arrangement to be correct against. The placement modules
- * (`lib/solarLayout.ts`, `lib/stressLayout.ts`) are left in place and tested but unreached from
- * the map; `stressSeeds` still serves `overviewConstellation.ts`.
+ * from here on has exactly one arrangement to be correct against. Of the two placement modules,
+ * `lib/solarLayout.ts` is DELETED (no caller survived the retirement) and `lib/stressLayout.ts`
+ * stays, tested but unreached from the map — `stressSeeds` still serves `overviewConstellation.ts`.
  */
 
 /**
@@ -2431,7 +2416,7 @@ export function TreeView({
   const territoryClassById = useCallback(
     (id: string, status: string): string => {
       const cls = ['hex-territory', `st-${status}`];
-      if (HUB_IDS.has(id)) cls.push('is-hub'); // solar-mode central wiring hub
+      if (HUB_IDS.has(id)) cls.push('is-hub'); // on-map emphasis for the cli/store hubs
       // The only focus affordance on the map is a cheap shore border on the SELECTED island
       // (`.is-selected`) — no ancestor/descendant/dim recolour (owner 2026-07-06).
       if (id === selectedStory) cls.push('is-selected');
@@ -2766,9 +2751,9 @@ export function TreeView({
             {renderScene && worldPresentationModel ? (
               // ADR-0093 Unit D: render FROM the shared scene-graph via the thin React mapper — now
               // the DEFAULT (the `?render=legacy`/`inline` escape hatch falls to the inline `<g>`
-              // below). The studio-only chrome that is NOT in the shared core — the solar spokes and
-              // the distributed-consumer building stamps — is layered ON TOP as a sibling `<g>`
-              // (StudioWorldChrome, ADR-0093 Decision 2), so the flip regresses neither. The
+              // below). The studio-only chrome that is NOT in the shared core — the
+              // distributed-consumer building stamps and the per-nameplate identity-key glyph — is
+              // layered ON TOP as a sibling `<g>` (StudioWorldChrome, ADR-0093 Decision 2). The
               // Shared-Islands panel / session dock / settings gear are React `<div>`s outside this
               // `<svg>` and are untouched.
               <>
@@ -2790,9 +2775,6 @@ export function TreeView({
               </>
             ) : (
             <g transform={`translate(${world.offset.x} ${world.offset.y})`}>
-              {/* (The solar ORBIT GRID note that stood here described rings this render never
-                  drew, for a layout ADR-0283 D2 retired. Nothing computes `world.solar` now.) */}
-
               {/* the pale coast */}
               <g className="hex-coast">
                 {world.empties.map((h) => {
@@ -2825,11 +2807,9 @@ export function TreeView({
                 }}
               />
 
-              {/* (The solar SPOKE pass — the de-noised hub→organism `consumed_by` wiring — stood
-                  here behind a `world.solar &&` guard. ADR-0283 D2 retired the layout that
-                  populated it, so it drew nothing and is gone with the arrangement. The
-                  `depends_on` edges are the ADR-0169 trail network, which only the scene render
-                  draws; this legacy `?render=legacy` escape shows the world WITHOUT trails.) */}
+              {/* (No edge layer here: the `depends_on` edges are the ADR-0169 trail network, which
+                  only the scene render draws, so this legacy `?render=legacy` escape shows the
+                  world WITHOUT trails.) */}
 
               {/* trees, contract-density flora, nameplates, wisps — per territory */}
               {world.territories.map((t) => (
@@ -3406,12 +3386,11 @@ function StoryStamp({
 /**
  * The studio-only world CHROME that is NOT in the shared scene-graph (ADR-0093 Decision 2: studio
  * chrome layers ON TOP of `<SceneView>`, never pushed into the framework-agnostic core). With the
- * scene render now the DEFAULT (ADR-0093 Unit D), this overlay restores the three pieces that lived
- * only in the old inline `<g>` and are NOT in the shared core (so the flip regresses nothing):
- *  - the solar SPOKES (`world.solar.spokes`, the de-noised hub→organism `consumed_by` wiring) —
- *    DORMANT since ADR-0283 D2: the radial layout it belonged to is retired and `buildWorld` never
- *    populates `world.solar`, so this pass renders nothing on the real map. The guarded branch and
- *    its `.solar-spoke-net` markup are kept rather than deleted;
+ * scene render now the DEFAULT (ADR-0093 Unit D), this overlay restores the pieces that lived
+ * only in the old inline `<g>` and are NOT in the shared core (so the flip regresses nothing).
+ * (A third piece, the solar SPOKES, stood here behind a `world.solar &&` guard until ADR-0283 D2
+ * retired the radial layout that populated it; the guard could no longer be true, so the pass and
+ * its `.solar-spoke-net` markup are gone with the arrangement.) What remains:
  *  - the distributed-consumer building STAMPS each island carries (`Territory.stamps`, ADR-0102) — the
  *    scene draws the trees/flora/plates/wisps, but the stamps are studio chrome, so they ride here; and
  *  - the per-nameplate IDENTITY-KEY glyph (`world-plate-key` + `IconGlyph`, ADR-0102) — each island's
@@ -3442,15 +3421,6 @@ export const StudioWorldChrome = memo(function StudioWorldChrome({
 }): React.JSX.Element {
   return (
     <g className="studio-world-chrome" transform={`translate(${world.offset.x} ${world.offset.y})`}>
-      {/* SOLAR spokes (solar mode only) — the same low-salience perimeter-docked wiring the inline
-          path drew, layered UNDER the stamps so the icons stay legible. */}
-      {world.solar && (
-        <g className="solar-spoke-net">
-          {world.solar.spokes.map((s) => (
-            <path key={`${s.from}->${s.to}`} className="solar-spoke" d={s.d} />
-          ))}
-        </g>
-      )}
       {/* The distributed-consumer building stamps each island carries (ADR-0102) — the `?buildings=on`
           escape only; `t.stamps` is empty in the default (buildings-off) pathways world (ADR-0228). */}
       {world.territories.map((t) =>

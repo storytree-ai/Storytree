@@ -200,11 +200,6 @@ function chromeProbeWorld(): HexWorld {
     empties: [],
     drawTiles: [],
     trails: { segments: [], edges: [], caves: [], dropped: [] },
-    solar: {
-      center: { x: 100, y: 100 },
-      rings: [],
-      spokes: [{ from: 'studio', to: 'library', d: 'M 0 0 L 10 10' }],
-    },
     territories: [
       {
         story: { id: 'studio', title: 'Studio', status: 'healthy', capabilities: [] },

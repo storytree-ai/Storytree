@@ -16,7 +16,7 @@
 // "de-noise visually, never drop edges"). Hybrid scope: ONLY `render: building`
 // islands promote to stamps; every other edge stays a road.
 //
-// Why a standalone, framework-free module (mirrors solarLayout / connectionSet):
+// Why a standalone, framework-free module (mirrors stressLayout / connectionSet):
 //   * Pure number/graph math (no React, no DOM) -> unit-testable in the node-env
 //     vitest suite (buildingLayout.test.ts) -- Stage-1 red-green of the geometry +
 //     promotion (ADR-0070 two-stage proof; the APPEARANCE -- the icon art, the "city" --

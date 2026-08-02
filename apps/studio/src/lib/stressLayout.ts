@@ -13,11 +13,14 @@
 // trails. A lone high consumer of a deep foundation relaxes DOWN toward it instead of
 // floating at the top of its rank band — shortening that trail without hiding it.
 //
-// Why a standalone, framework-free module (mirrors solarLayout / worldSettings):
+// Why a standalone, framework-free module (mirrors buildingLayout / worldSettings):
 //   • Pure number math (no React, no DOM) → unit-testable Stage-1 red-green of the
 //     placement GEOMETRY (ADR-0070; the APPEARANCE is owner-attested, never self-signed).
-//   • buildWorld consumes `stressSeeds` to seed island positions ONLY in stress mode;
-//     the `dag` seed block is untouched, so the default world stays byte-identical.
+//   • buildWorld USED to consume `stressSeeds` for the `stress` mode's island positions.
+//     ADR-0283 D2 retired that mode — the map is DAG rows, full stop — so nothing on the
+//     map reaches this any more. The module survives its radial sibling `solarLayout.ts`
+//     (deleted in the same pass) because `stressSeeds` still has a live caller:
+//     `overviewConstellation.ts` wraps it for the Library overview constellation.
 //   • Seeds flow into the SAME hex-snap / growth-floor / territory-growth pipeline as
 //     every other mode — this changes only WHERE islands sit, never what they encode
 //     (ADR-0062 one-element-per-signal preserved upstream).
@@ -111,7 +114,8 @@ function r2(n: number): number {
 /**
  * Seed every node's island centre by localized stress majorization with a soft
  * y-hierarchy anchor. Keyed by index in `nodes` (exactly the story-index buildWorld's
- * downstream arrays use), so it drops into the seed-placement block like `solarSeeds`.
+ * downstream arrays used), so it dropped into the seed-placement block as one mode among
+ * several — a shape `overviewConstellation.ts` still consumes.
  *
  * Pure + deterministic and ORDER-INDEPENDENT: each id lands in the same place
  * regardless of input array order (init hashes from the id; the majorization sweep

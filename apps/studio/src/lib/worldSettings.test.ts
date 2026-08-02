@@ -8,7 +8,9 @@
 //
 // ADR-0073 made roads the one world; ADR-0076 retired the river-trail ROUTING system
 // (connections are now thin perimeter-docked lines with nothing to tune), so the
-// road-routing dials are GONE — only Layout (DAG vs solar) and Ground (tiling) remain.
+// road-routing dials are GONE. Layout (DAG vs solar) and Ground (tiling) outlived them in the
+// picker, but ADR-0283 D2 and ADR-0233 have since retired those two as well — the surviving groups
+// are Art style + Selection, which is what the group case below pins.
 //
 // ADR-0088 (Shared Islands panel, amends ADR-0076 §2): the building islands moved OFF the
 // map into a permanent left panel, so the `buildingIsland` GEAR TOGGLE lost its meaning (the

@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 //
 // Stage-1 red-green of the studio-only world CHROME overlay (ADR-0093 Unit D): with the shared
-// scene-graph now the DEFAULT render, the chrome that lived ONLY in the inline `<g>` — the solar
-// spokes (`world.solar.spokes`) and the distributed-consumer building STAMPS (`Territory.stamps`) —
-// is layered ON TOP of `<SceneView>` (ADR-0093 Decision 2: studio chrome layers on top, never pushed
-// into the shared core). This pins that the overlay still emits both, so the flip to scene-default
-// regresses neither. The chrome's PLACEMENT inside the one `<svg>` is wiring (typecheck + the
-// operator-attested deep-link); its content is pinned here.
+// scene-graph now the DEFAULT render, the chrome that lived ONLY in the inline `<g>` — the
+// distributed-consumer building STAMPS (`Territory.stamps`) and the per-nameplate identity-key
+// glyph — is layered ON TOP of `<SceneView>` (ADR-0093 Decision 2: studio chrome layers on top,
+// never pushed into the shared core). This pins that the overlay still emits them, so the flip to
+// scene-default regresses nothing. The chrome's PLACEMENT inside the one `<svg>` is wiring
+// (typecheck + the operator-attested deep-link); its content is pinned here.
+//
+// The overlay's third piece, the solar spokes, went with ADR-0283 D2: the radial layout that
+// populated `world.solar` is retired, the field is off `HexWorld`, and the two cases that used to
+// hand-build one to exercise the guarded pass are gone with the branch they covered.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
@@ -14,10 +18,8 @@ import { StudioWorldChrome, type HexWorld } from './TreeView';
 
 afterEach(cleanup);
 
-/** A minimal world with two territories (one carrying stamps); `withSolar` adds the spoke layer
- *  (omitted entirely for the dag-mode case, since `solar` is optional, not nullable). */
-function mkWorld(opts: { withSolar?: boolean } = {}): HexWorld {
-  const withSolar = opts.withSolar ?? true;
+/** A minimal world with two territories (one carrying stamps). */
+function mkWorld(): HexWorld {
   const base = {
     width: 200,
     height: 200,
@@ -61,18 +63,6 @@ function mkWorld(opts: { withSolar?: boolean } = {}): HexWorld {
         buildingGlyph: false,
       },
     ],
-    ...(withSolar
-      ? {
-          solar: {
-            center: { x: 100, y: 100 },
-            rings: [],
-            spokes: [
-              { from: 'cli', to: 'library', d: 'M 0 0 L 10 10' },
-              { from: 'studio', to: 'library', d: 'M 5 5 L 15 15' },
-            ],
-          },
-        }
-      : {}),
   } as unknown as HexWorld;
   return base;
 }
@@ -92,17 +82,6 @@ function renderChrome(world: HexWorld, onStampClick = vi.fn(), buildings = true)
 }
 
 describe('StudioWorldChrome — the on-top studio chrome overlay', () => {
-  it('renders the solar spokes when the world is in solar mode', () => {
-    const root = renderChrome(mkWorld());
-    expect(root.querySelector('.solar-spoke-net')).toBeTruthy();
-    expect(root.querySelectorAll('.solar-spoke').length).toBe(2);
-  });
-
-  it('omits the spoke net when there is no solar layer (dag mode)', () => {
-    const root = renderChrome(mkWorld({ withSolar: false }));
-    expect(root.querySelector('.solar-spoke-net')).toBeNull();
-  });
-
   it('renders the distributed-consumer building stamps each island carries', () => {
     const root = renderChrome(mkWorld());
     // studio carries two stamps; cli carries none → exactly two stamps in the overlay.
