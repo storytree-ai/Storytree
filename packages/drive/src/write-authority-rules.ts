@@ -8,16 +8,25 @@
  * in a directory that is denied by your permission settings", a write to a non-denied sibling path
  * succeeds (the positive control), and the rule takes effect without restarting the session.
  *
- * WHY THIS LAYER EXISTS AT ALL, GIVEN THE HOOK. Three properties the `PreToolUse` hook cannot match:
+ * THIS IS THE WHOLE WALL (ADR-0284). The claim-aware `PreToolUse` half ADR-0257 D1 paired this with
+ * was RETIRED, not deferred — it was never registered, and its code is deleted. Three properties
+ * this layer has that the hook structurally could not:
  *   - It costs NOTHING. Deny rules are evaluated in-process by the harness; no subprocess is spawned,
  *     so the steady-state tax on a session is zero rather than the hook's measured ~450 ms per write.
- *   - It is harder to escape. Per the Claude Code permission docs, deny rules are evaluated
- *     REGARDLESS of what a `PreToolUse` hook returns, they block even under `bypassPermissions`, and
- *     a `settings.local.json` cannot override a project-level deny. A hook is ordinary code that can
- *     crash, be misconfigured, or be absent; this is enforced by the harness itself.
- *   - It still holds when the hook does not run at all.
- * The hook remains necessary for everything a static text rule cannot know — claim, branch, detached
- * HEAD, and junction escapes. Neither layer is the wall alone; ADR-0257 D1 asks for both.
+ *   - It cannot fail open. Per the Claude Code permission docs, deny rules are evaluated REGARDLESS
+ *     of what a `PreToolUse` hook returns, they block even under `bypassPermissions`, and no
+ *     more-local `allow` can override a deny. A hook blocks ONLY on exit code 2 — an absent script,
+ *     a missing interpreter, a timeout or a crash all let the write through.
+ *   - It cannot brick a session. It is a list of paths, not path arithmetic on the hot path of every
+ *     write; #1076 shipped exactly that bug and refused every write in the fleet.
+ * What it CANNOT know is claim, branch, detached HEAD, or a junction escape. ADR-0284 D1 de-scopes the
+ * hazard that needed those: worktree-to-worktree writes had zero evidenced instances in five weeks of
+ * heavy concurrent use, and are not built against until an incident is actually filed.
+ *
+ * WHAT IS NOT COVERED, stated so it is never implied otherwise (ADR-0284 D8): shell writes are
+ * uncontained (no harness sandbox exists on native Windows, and where it exists it confines Bash
+ * only), and Codex is uncontained (its worktrees live outside this checkout). Both documented
+ * cross-session incidents were Codex. That gap is ADR-0257 D2/D3/D7 and remains open.
  *
  * WHY IT IS GENERATED RATHER THAN HAND-WRITTEN. Claude Code's rules match gitignore-style, and
  * critically a broad `deny` CANNOT carry an `allow` exception — so "deny the whole checkout except
@@ -32,6 +41,7 @@
  * why `.claude` is expanded child-by-child below instead of being emitted as one rule, and why the
  * test asserts the exclusion directly rather than trusting this comment.
  */
+import path from "node:path";
 
 /** The file tools the static layer binds. Bash is NOT one — shell containment is a separate,
  *  unbuilt increment (ADR-0257 D2/D3 for Codex), and this must not be read as covering it. */
@@ -39,10 +49,10 @@ export const GATED_TOOLS = ["Write", "Edit", "NotebookEdit"] as const;
 
 /**
  * `.claude` children denied in the LOBBY. Enumerated because `.claude/worktrees` must stay writable
- * and a deny cannot carry an exception. `receipts` is here for a second reason: it is what makes the
- * unsigned claim receipt tamper-resistant to the file tools (ADR-0257 D5, partially).
+ * and a deny cannot carry an exception. (`receipts` was here until ADR-0284 D4 retired the claim
+ * receipt along with the hook that was its only consumer — nothing writes that directory now.)
  */
-export const DENIED_CLAUDE_CHILDREN = ["agents", "receipts", "settings.json", "launch.json"] as const;
+export const DENIED_CLAUDE_CHILDREN = ["agents", "settings.json", "launch.json"] as const;
 
 /** `.claude` children that must NEVER appear in a deny rule, whatever the manifest says. */
 export const NEVER_DENY_CLAUDE_CHILDREN = ["worktrees"] as const;
@@ -139,46 +149,52 @@ export function rulesDenyingWorktrees(rules: readonly string[]): string[] {
  *   - A committed absolute block is keyed to one machine, and the conformance test below computes
  *     its expectation from wherever the checkout happens to be — so it would fail in every worktree
  *     and in CI.
- *   - `.claude/settings.local.json` is gitignored, therefore ABSENT in a freshly minted worktree —
- *     precisely the sessions the wall exists to bind.
+ *   - `.claude/settings.local.json` cannot carry it either. Claude Code resolves that file THROUGH
+ *     worktrees to the main checkout, so it is one shared file for the whole fleet, not a per-worktree
+ *     one. (ADR-0257 gave a different reason — "gitignored, therefore absent in a fresh worktree" —
+ *     which is wrong: it is shared, not absent. Corrected in place per ADR-0139; the conclusion the
+ *     wrong reason supported is unaffected. Verified behaviourally 2026-08-02: a deny rule written
+ *     into a worktree's own `settings.local.json` does not bind that session, while the user-level
+ *     block demonstrably does.)
  * User-level is the only file every worktree session on this machine loads. The cost is that nothing
  * in the repository records that the wall is live, which is what `installWallSettings` +
  * `storytree write-authority` exist to make reproducible rather than folklore.
  */
-export const WALL_HOOK_SCRIPT = "packages/cli/write-authority-hook.mjs";
-
-/** Matcher for the `PreToolUse` registration — the same tools the static layer denies. */
-export const WALL_HOOK_MATCHER = GATED_TOOLS.join("|");
 
 /**
- * The hook command. ABSOLUTE by design (ADR-0257 D2 asks the same of the Codex adapter): a
- * project-relative command would resolve inside whichever worktree is running, so checking out an
- * older branch there would silently swap the wall for an older one. `--root` bounds the
- * machine-scoped registration to the protected checkout so unrelated repositories are untouched.
- *
- * `scriptRoot` is SEPARATE from `protectedRoot` because the script has to come from a checkout that
- * carries the wall code AND a populated `node_modules` (the hook loads its typed decision core
- * through tsx, and a copy outside a workspace would fail to resolve it — which DENIES, fail-closed,
- * i.e. it would brick every write). The protected checkout cannot be assumed to be that host: it is
- * a read-only lobby whose branch is whatever a human last left there, and on 2026-08-02 that branch
- * predated the wall entirely. Splitting the two lets the wall be hosted by a pinned checkout while
- * still protecting the lobby.
+ * The retired `PreToolUse` script (ADR-0284 D2). Kept ONLY as the fingerprint for stripping a legacy
+ * registration out of a settings file that still carries one — the script itself is deleted, and a
+ * registration pointing at a missing script is worse than none: it reports a wall that enforces
+ * nothing.
  */
-export function wallHookCommand(protectedRoot: string, scriptRoot: string = protectedRoot): string {
-  const abs = (p: string): string => p.replace(/\\/g, "/").replace(/\/+$/, "");
-  return `node ${abs(scriptRoot)}/${WALL_HOOK_SCRIPT} --root ${abs(protectedRoot)}`;
+const LEGACY_WALL_HOOK_SCRIPT = "packages/cli/write-authority-hook.mjs";
+
+/** The worktree a path belongs to, derived by path SHAPE alone. */
+export interface LocatedWorktree {
+  readonly primaryRoot: string;
+  readonly sessionId: string;
+  readonly worktreeRoot: string;
 }
 
 /**
- * A marker that only a POST-FLIP hook script contains. The installer greps for it before registering.
+ * PURE: locate the session worktree containing `cwd` — `<primaryRoot>/.claude/worktrees/<sessionId>`
+ * — with no `git` spawn (a spawn measured ~500 ms; this is string work). Returns null when `cwd` is
+ * not inside a managed worktree.
  *
- * The registration names an absolute script inside a real checkout, so what actually runs is whatever
- * that checkout's branch holds — and increment 2's hook is inert by default and ignores `--root`.
- * Registering it would produce the worst state available: a wall that looks installed, reports
- * success, and enforces nothing. Checking a capability marker rather than a version string keeps the
- * test about what the script can DO.
+ * Its one remaining caller is `protectedRoot()` in the installer, which needs to find the PRIMARY
+ * checkout whether the command is run from the lobby or from inside a worktree. It moved here from
+ * the receipt module when ADR-0284 D2/D4 deleted that module.
  */
-export const WALL_HOOK_CAPABILITY_MARKER = "parseRootArg";
+export function locateWorktree(cwd: string): LocatedWorktree | null {
+  const norm = path.resolve(cwd).replace(/\\/g, "/");
+  const marker = "/.claude/worktrees/";
+  const at = norm.toLowerCase().lastIndexOf(marker);
+  if (at === -1) return null;
+  const primaryRoot = norm.slice(0, at);
+  const sessionId = norm.slice(at + marker.length).split("/")[0] ?? "";
+  if (primaryRoot === "" || sessionId === "") return null;
+  return { primaryRoot, sessionId, worktreeRoot: `${primaryRoot}${marker}${sessionId}` };
+}
 
 /** The shape of the settings file this installer touches. Everything else is preserved verbatim. */
 export interface ClaudeSettings {
@@ -192,11 +208,13 @@ interface HookEntry {
   hooks?: Array<{ type?: string; command?: string; timeout?: number }>;
 }
 
-/** Does this registration point at our hook? Used to REPLACE rather than duplicate on re-install. */
+/** Does this registration point at the retired hook? Used to STRIP it (ADR-0284 D2). */
 function isWallHookEntry(entry: unknown): boolean {
   const e = entry as HookEntry | null;
   if (e === null || typeof e !== "object") return false;
-  return (e.hooks ?? []).some((h) => typeof h.command === "string" && h.command.includes(WALL_HOOK_SCRIPT));
+  return (e.hooks ?? []).some(
+    (h) => typeof h.command === "string" && h.command.includes(LEGACY_WALL_HOOK_SCRIPT),
+  );
 }
 
 /**
@@ -212,7 +230,6 @@ export function installWallSettings(
   current: ClaudeSettings,
   manifest: ManifestRootSlice,
   primaryRoot: string,
-  opts: { readonly hookCommand?: string | null } = {},
 ): ClaudeSettings {
   const base = toPermissionPath(primaryRoot);
   const generated = lobbyDenyRules(manifest, primaryRoot);
@@ -221,22 +238,16 @@ export function installWallSettings(
   const kept = (current.permissions?.deny ?? []).filter((r) => !ours.test(r));
   const deny = [...new Set([...kept, ...generated])].sort();
 
+  // ADR-0284 D2: the semantic half is retired, so this only ever STRIPS. A machine that ran an
+  // earlier install still carries the registration; re-running the command removes it rather than
+  // leaving a hook pointing at a deleted script. Every unrelated PreToolUse entry is preserved.
   const preTool = Array.isArray(current.hooks?.["PreToolUse"])
     ? (current.hooks["PreToolUse"] as unknown[]).filter((e) => !isWallHookEntry(e))
     : [];
 
-  // `hookCommand: null` REMOVES the registration rather than leaving one behind. A registration
-  // pointing at a script that is missing, or at a pre-flip one that is inert by default, is worse
-  // than none: it reports the wall as installed while enforcing nothing.
-  const command = opts.hookCommand === undefined ? wallHookCommand(primaryRoot) : opts.hookCommand;
-  const registration =
-    command === null
-      ? []
-      : [{ matcher: WALL_HOOK_MATCHER, hooks: [{ type: "command", command, timeout: 30 }] }];
-
   return {
     ...current,
     permissions: { ...(current.permissions ?? {}), deny },
-    hooks: { ...(current.hooks ?? {}), PreToolUse: [...preTool, ...registration] },
+    hooks: { ...(current.hooks ?? {}), PreToolUse: preTool },
   };
 }

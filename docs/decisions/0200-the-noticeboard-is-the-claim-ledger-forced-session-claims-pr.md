@@ -58,11 +58,21 @@ date: ADR-0257 increment 3 installed the STATIC half on the developer machine, s
 `Write`/`Edit`/`NotebookEdit` IS refused before mutation there and `check:declared` is genuinely no
 longer the first enforcement point for those tools. The other three clauses are not yet true. "Every
 agent harness" — only Claude; the Codex adapter is unbuilt. "Generic writes require a … matching live
-claim and branch" — that is the claim-aware `PreToolUse` half, which is install-on-demand and was
-unregistered at the end of that day, so nothing evaluates a claim on the write path. "An unavailable
-ledger refuses writes" — nothing reads the ledger on the write path at all. Add to that: no layer
-binds a **shell**, and the wall is installed on one machine. Read the build state from ADR-0257,
-which owns it.)*
+claim and branch" — that is the claim-aware `PreToolUse` half, which
+[ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) D2 **RETIRED and
+deleted** later the same day, so nothing evaluates a claim on the write path and nothing will. "An
+unavailable ledger refuses writes" — nothing reads the ledger on the write path at all, and ADR-0284
+D4 closes ADR-0257 D5 outright, so that clause is void rather than pending. Add to that: no layer
+binds a **shell**, and the wall is installed on one machine. **Read the build state from ADR-0284,
+which now owns it** — this note earlier pointed at ADR-0257, whose own build-state prose ADR-0284
+overtakes.)*
+
+*(One consequence worth stating plainly here, because this ADR is where the claim ledger's authority
+is decided: **the claim ledger never became a write-authority input, and per ADR-0284 it will not
+be.** Claims coordinate; they do not gate a filesystem write. The one mechanism that would have made
+Decision 3's ceremony mechanically binding on a generic write is retired. What binds is a static path
+list that knows nothing of claims, plus this ADR's own D3 landing gate — see ADR-0245 D5.2, and note
+its recorded narrowness there.)*
 
 ## Context
 

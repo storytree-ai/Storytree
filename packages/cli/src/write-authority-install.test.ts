@@ -48,16 +48,11 @@ interface Harness {
   writes: string[];
 }
 
-/** A post-flip hook script is one that carries the capability marker the installer greps for. */
-const HOOK_SCRIPT_POST_FLIP = "export function parseRootArg(argv) { return null }";
-const HOOK_SCRIPT_PRE_FLIP = "export function wallEnabled(env) { return false }";
-
 function harness(
   over: {
     cwd?: string;
     settings?: string | null;
     manifest?: string | null;
-    hookScript?: string | null;
   } = {},
 ): Harness {
   const files = new Map<string, string>();
@@ -66,12 +61,6 @@ function harness(
   if (manifest !== null) files.set(path.join(PRIMARY, "repo-manifest.json"), manifest);
   const settings = over.settings === undefined ? null : over.settings;
   if (settings !== null) files.set(userSettingsPath("C:\\Users\\dev"), settings);
-  const hook = over.hookScript === undefined ? HOOK_SCRIPT_POST_FLIP : over.hookScript;
-  // The installer resolves the script with forward slashes, as it appears in the registration.
-  if (hook !== null) {
-    files.set(`${PRIMARY.replace(/\\/g, "/")}/packages/cli/write-authority-hook.mjs`, hook);
-  }
-
   return {
     files,
     writes,
@@ -115,7 +104,9 @@ test("`install` without --write touches NOTHING and says so", () => {
   assert.deepEqual(h.writes, []);
 });
 
-test("`install --write` writes the settings file once, with the deny block and the hook", () => {
+test("`install --write` writes the settings file once, with the deny block and NO hook", () => {
+  // ADR-0284 D2: the semantic half is retired. An install that quietly registered one would put a
+  // fail-open hook back on the write path — the exact state this ADR removed.
   const h = harness();
   const got = writeAuthorityCommand("install", { write: true }, h.io);
   assert.equal(got.ok, true);
@@ -123,13 +114,10 @@ test("`install --write` writes the settings file once, with the deny block and t
 
   const written = JSON.parse(h.files.get(userSettingsPath("C:\\Users\\dev")) ?? "{}") as {
     permissions?: { deny?: string[] };
-    hooks?: { PreToolUse?: Array<{ hooks?: Array<{ command?: string }> }> };
+    hooks?: { PreToolUse?: unknown[] };
   };
   assert.ok((written.permissions?.deny ?? []).some((r) => r.startsWith("Write(")));
-  assert.ok(
-    written.hooks?.PreToolUse?.[0]?.hooks?.[0]?.command?.includes("write-authority-hook.mjs"),
-    "the PreToolUse registration is the semantic half — installing only the deny block is half a wall",
-  );
+  assert.deepEqual(written.hooks?.PreToolUse, []);
 });
 
 test("`rules` prints the block and never writes", () => {
@@ -165,66 +153,45 @@ test("a missing repo-manifest.json refuses rather than emitting an empty block",
 });
 
 // ---------------------------------------------------------------------------
-// The hook HOST check — the failure this flip actually hit
+// The retired semantic half (ADR-0284 D2)
 // ---------------------------------------------------------------------------
 
-test("an ABSENT hook script is not registered, and the command says the wall is partial", () => {
-  // The real state on 2026-08-02: the lobby sat on a branch predating the wall, so the script the
-  // registration names did not exist. A failing PreToolUse hook does not block, so registering it
-  // anyway would have produced a settings file that claims a wall and enforces nothing.
-  const h = harness({ hookScript: null });
+test("a legacy registration is STRIPPED, and the strip is reported rather than silent", () => {
+  // A machine that ran a pre-0284 install still carries a registration naming the now DELETED hook
+  // script. A PreToolUse hook blocks only on exit code 2, so one pointing at a missing script
+  // enforces nothing while the settings file reads as though a wall is installed — strictly worse
+  // than no registration. Unrelated hooks must survive untouched.
+  const legacy = JSON.stringify({
+    hooks: {
+      PreToolUse: [
+        { matcher: "Bash", hooks: [{ type: "command", command: "echo hi" }] },
+        {
+          matcher: "Write|Edit|NotebookEdit",
+          hooks: [
+            {
+              type: "command",
+              command: `node ${PRIMARY_SLASH}/packages/cli/write-authority-hook.mjs --root ${PRIMARY_SLASH}`,
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const h = harness({ settings: legacy });
   const got = writeAuthorityCommand("install", { write: true }, h.io);
-  assert.equal(got.ok, false);
-  assert.match(got.body, /NOT REGISTERED/);
-  assert.match(got.body, /PARTIALLY INSTALLED/);
+  assert.equal(got.ok, true);
+  assert.match(got.body, /STRIPPED 1 stale write-authority registration/);
 
   const written = JSON.parse(h.files.get(userSettingsPath("C:\\Users\\dev")) ?? "{}") as {
     permissions?: { deny?: string[] };
-    hooks?: { PreToolUse?: unknown[] };
+    hooks?: { PreToolUse?: Array<{ matcher?: string }> };
   };
-  // The static floor still lands — it is the half that works regardless of the host.
-  assert.ok((written.permissions?.deny ?? []).length > 0);
-  assert.deepEqual(written.hooks?.PreToolUse, []);
-});
-
-test("--hook-from sources the script elsewhere while still protecting the lobby", () => {
-  // The unblock for the state this flip actually landed in: the protected lobby had no wall code,
-  // but another checkout on the machine did. The registration must then run THAT script and still
-  // pass `--root` for the lobby — protecting one checkout with a hook hosted by another.
-  const h = harness({ hookScript: null });
-  const hostRoot = `${PRIMARY_SLASH}-runtime`;
-  h.files.set(`${hostRoot}/packages/cli/write-authority-hook.mjs`, HOOK_SCRIPT_POST_FLIP);
-
-  const got = writeAuthorityCommand("install", { write: true, hookFrom: hostRoot }, h.io);
-  assert.equal(got.ok, true);
-  const written = JSON.parse(h.files.get(userSettingsPath("C:\\Users\\dev")) ?? "{}") as {
-    hooks?: { PreToolUse?: Array<{ hooks?: Array<{ command?: string }> }> };
-  };
-  const command = written.hooks?.PreToolUse?.[0]?.hooks?.[0]?.command ?? "";
-  assert.match(command, /storytree-runtime\/packages\/cli\/write-authority-hook\.mjs/);
-  assert.ok(command.endsWith(`--root ${PRIMARY_SLASH}`), command);
-});
-
-test("a PRE-FLIP hook script is refused — inert by default is worse than absent", () => {
-  const h = harness({ hookScript: HOOK_SCRIPT_PRE_FLIP });
-  const got = writeAuthorityCommand("install", { write: true }, h.io);
-  assert.equal(got.ok, false);
-  assert.match(got.body, /predates the flip/);
-});
-
-test("a stale registration is REMOVED when the host stops being verifiable", () => {
-  // Install cleanly, then let the host regress (a branch switch in the lobby). Re-installing must
-  // take the registration back out rather than leaving one that silently falls open.
-  const good = harness();
-  writeAuthorityCommand("install", { write: true }, good.io);
-  const installed = good.files.get(userSettingsPath("C:\\Users\\dev")) ?? "{}";
-
-  const regressed = harness({ settings: installed, hookScript: null });
-  writeAuthorityCommand("install", { write: true }, regressed.io);
-  const written = JSON.parse(regressed.files.get(userSettingsPath("C:\\Users\\dev")) ?? "{}") as {
-    hooks?: { PreToolUse?: unknown[] };
-  };
-  assert.deepEqual(written.hooks?.PreToolUse, []);
+  assert.ok((written.permissions?.deny ?? []).length > 0, "the static floor still lands");
+  assert.deepEqual(
+    written.hooks?.PreToolUse?.map((e) => e.matcher),
+    ["Bash"],
+    "only the wall's own registration is removed",
+  );
 });
 
 test("an unknown subcommand is refused with the usable ones named", () => {
@@ -237,7 +204,12 @@ test("no subcommand prints help, and help never writes", () => {
   const h = harness();
   const got = writeAuthorityCommand(undefined, {}, h.io);
   assert.equal(got.ok, true);
-  assert.match(got.body, /STORYTREE_WRITE_AUTHORITY=off/);
+  // The help must state the gap rather than let a reader infer coverage from the word "wall"
+  // (ADR-0284 D8). The old `STORYTREE_WRITE_AUTHORITY=off` kill switch is gone with the hook it
+  // gated — deny rules cannot be env-gated, so advertising it would have been a false remedy.
+  assert.match(got.body, /STATIC ONLY/);
+  assert.match(got.body, /Shell writes and Codex are uncontained/);
+  assert.doesNotMatch(got.body, /STORYTREE_WRITE_AUTHORITY/);
   assert.deepEqual(h.writes, []);
 });
 

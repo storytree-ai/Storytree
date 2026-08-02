@@ -98,6 +98,28 @@ resolves but does NOT follow links — precisely the escape vector the header na
 pre-existing tests GREEN** and reds only the four new real-substrate tests, including the end-to-end
 refusal. The defect class is therefore not hypothetical for this file; it is reproducible on demand.
 
+> **The exemplar file was DELETED on 2026-08-02, after this ADR was accepted — annotated in place
+> per ADR-0139; the DECISION is unaffected.** [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md)
+> retired the claim-aware half of the write-authority wall, taking `packages/drive/src/write-authority.ts`
+> and its suite with it. The two paragraphs above can therefore no longer be re-run against `HEAD`:
+> `builtinRealpath`, the 28 fake-injecting tests, and the four real-substrate tests that were **this
+> instrument's first drain** are all gone. Three things follow, and only the third is a task:
+> 1. **The finding stands and is not weakened.** It was a measured demonstration on a real file at a
+>    real commit, and `git show f34b35a7^:packages/drive/src/write-authority.test.ts` reproduces it
+>    exactly. An exemplar that later leaves the tree does not retroactively become an argument — and
+>    ADR-0284 cites this very defect class approvingly, as one reason the deleted layer was not worth
+>    finishing.
+> 2. **The instrument is unaffected and still sweeping.** It reads the tree as it is; measured
+>    2026-08-02 after the deletion, `check:verification-decay` reports `chartered coverage: 5/5`.
+> 3. **The ceiling may now be baselined against a population that no longer exists.** The drained
+>    seam left the tree, which SHRINKS the measured population — ADR-0269 governs enlargement, not
+>    shrinkage, so nothing forced a re-baseline and nothing went red. Whoever next touches this
+>    instrument should confirm the ceiling still means what it meant; a shrinking population quietly
+>    loosening a ceiling is the same drift ADR-0269 exists to prevent in the other direction.
+>
+> When a fresh exemplar of this shape is wanted, take a live one from the instrument's current warn
+> list rather than reviving this one.
+
 ## Decision
 
 **1. A fifth cheap instrument is chartered.** It locates injected IO seams whose default
@@ -175,7 +197,11 @@ defect admitted.
   population-enlargement rule governing any future re-baseline of this instrument's ceiling.
 - [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md) /
   [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md) — the write-authority
-  wall whose `builtinRealpath` is this ADR's sharpest instance and the first drain.
+  wall whose `builtinRealpath` **was** this ADR's sharpest instance and the first drain.
+- [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) — retired that
+  layer on 2026-08-02 and deleted the exemplar module and its suite. See the annotation in Context:
+  the finding stands (recoverable at `f34b35a7^`), the instrument is unaffected, and the only open
+  item is confirming this instrument's ceiling against the now-smaller population.
 - `asset:a-mocked-seam-leaves-its-default-implementation-unproven` — the principle stating the shape
   and its remedy (ADD a real-substrate test, never replace the fakes); PR #1052.
 - `asset:an-advisory-list-stays-readable-or-stops-being-advisory` — the arc guardrail the population
@@ -183,4 +209,5 @@ defect admitted.
 - `packages/cli/src/check-verification-decay.ts` / `packages/cli/src/verification-decay.ts` — the
   instrument registry and pure judge; where the aperture and ceiling are recorded and reasoned.
 - `packages/drive/src/write-authority.test.ts` — the first drain, and the mutation demonstration
-  described in Context.
+  described in Context. *(**Deleted 2026-08-02 by ADR-0284**; read it at
+  `git show f34b35a7^:packages/drive/src/write-authority.test.ts`.)*

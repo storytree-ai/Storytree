@@ -57,8 +57,14 @@ not duplication:
   changed, and this ADR's arm is no longer the only one in force.** What the flip did NOT change, and
   what keeps the arm below load-bearing: the deny block binds the **file tools only** — neither layer
   of that wall binds a **shell**, so a `Bash` command still dirties the lobby unobserved until this
-  gate. The semantic half of the wall is install-on-demand and was **unregistered** at the end of
-  2026-08-02. Codex is untouched entirely, and the receipt is still unsigned.)*
+  gate. **The semantic half of the wall was RETIRED later the same day** — corrected in place a
+  third time: this read "install-on-demand and was **unregistered**", and
+  [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) D2 deleted the
+  hook, the receipt and the `STORYTREE_WRITE_AUTHORITY` switch instead of finishing them, because a
+  `PreToolUse` hook fails open and cannot be an authority boundary. **So the write-time arm is now
+  permanently the static deny block alone, and this ADR's gate arm is permanently load-bearing rather
+  than an interim backstop.** There is no receipt to be unsigned, and Codex remains untouched with no
+  adapter scheduled.)*
 
 What ADR-0255 amends here is **D5's ranking, not D5's machinery**: the merge gate is no longer "the
 boundary that matters" (this ADR's D5.2 wording) but the late backstop behind a write-time wall.
@@ -67,7 +73,10 @@ layer and its Consequences keep "the late gate ... as defence in depth", and its
 alternatives reject the gate only as *the authority boundary*. Two reasons the gate arm remains
 load-bearing even once the wall lands: ADR-0255 D7 preserves an explicit **human** recovery path (a
 human editing the primary checkout directly is not an agent harness, so no pre-tool policy observes
-it), and ADR-0255 D8's proof bar is behavioural and unmet. *(Corrected in place 2026-08-02: this
+it), and ADR-0255 D8's proof bar is behavioural and unmet *(that second reason lapsed later the same
+day — ADR-0284 D7 RETIRES D8 rather than leaving it unmet, so it no longer argues for anything; the
+human-recovery reason and the two below are what keep this arm load-bearing, and they are now
+permanent rather than interim)*. *(Corrected in place 2026-08-02: this
 sentence used to close "so until it is met this arm is the whole ratchet". After ADR-0257 increment
 3 the ratchet has TWO rungs for the file tools — the installed deny block refuses first, this gate
 catches what got past it — and remains a single rung for a **shell**, which no layer of the wall
@@ -283,6 +292,21 @@ existing WARN-then-FAIL precedents:
    > with the guidance; dirty without `.claude/worktrees/` (the CI/plain-clone shape) → silent
    > exit 0; managed but clean → silent exit 0. `.claude/worktrees/` is untracked, which is what
    > makes it a safe CI discriminator.
+   >
+   > **NARROWER THAN THE PROSE ABOVE AND ELSEWHERE IMPLIES — corrected in place 2026-08-02 per
+   > ADR-0139, read against the code rather than the description.** In
+   > `packages/cli/src/check-declared.ts`, `evaluateLobbyFromGit()` is called in exactly one place:
+   > inside `if (identity === null)` at the top of `main()`, i.e. **only when `deriveIdentity()`
+   > returns null**, which by construction means the session is NOT in a repository-minted worktree.
+   > A session running the gate from its own worktree returns down the claim-checking path and
+   > **never asks the lobby question at all**. So the practical coverage is: *a session running the
+   > gate FROM the dirty lobby is refused; a worktree session landing work while the lobby sits dirty
+   > beside it is not.* That is still the fail-open hole this clause was written to close — the
+   > 2026-07-26/27 shape was a lobby-resident session — but it is not the general "the gate notices a
+   > dirty lobby" that ADR-0255 and ADR-0257 both describe. Recorded here rather than changed: the
+   > DECISION is unaffected, and widening the arm is a separate call.
+   > See [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md)
+   > Consequences, which names this as a follow-up against the layer that stays.
 3. **Never automatic remediation.** No auto-stash, no auto-move, no auto-commit of another session's
    work. Attribution is unprovable (D1) and the action is destructive; the fix is always the
    ceremony, run by whoever owns the work.
@@ -349,7 +373,15 @@ the seam; the story/capability decomposition to build it is the `story-author`'s
   and defaulted the switch ON. Its D9 proof bar is behavioural and covers two surfaces, so it remains
   unmet on both counts. **D5.2 below is no longer the only enforcement of this hazard in force** —
   the deny block now refuses a lobby file-tool write before mutation — but it is still **the only arm
-  covering a shell**, and the only arm anywhere off that one machine.
+  covering a shell**, and the only arm anywhere off that one machine. *(Final correction, later the
+  same day: "PARTLY built" and the D9 sentence are both overtaken — ADR-0284 RETIRED the semantic
+  half and the switch rather than finishing them, and retired D9 with what it proved. The static deny
+  block is the whole of ADR-0257 that runs, permanently.)*
+- [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) — accepted
+  2026-08-02; amends ADR-0257 and is the current word on the write-time arm. It makes this ADR's
+  D5.2 gate arm **permanently** load-bearing rather than an interim backstop, and cites it as the
+  only arm covering a shell — while also recording that the arm is narrower than either ADR
+  described (see the note at D5.2).
 - [ADR-0162](0162-manage-session-onboarding-cost-optimize-the-cost-centers-the.md) — the per-turn startup budget the `UserPromptSubmit` probe
   must respect.
 - Friction (the adjudicated inputs, routed to this ADR):

@@ -99,13 +99,6 @@ import { nodeBuild, nodeHelp, nodeResolve, specView } from "@storytree/drive";
 import { orchestrate } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
-import {
-  deleteReceiptFile,
-  locateWorktree,
-  mintReceipt,
-  writeReceiptFile,
-} from "@storytree/drive";
-import type { SessionReceiptLike } from "@storytree/drive";
 import { renderOfferFollowUps } from "@storytree/context-traversal-capture";
 import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
 import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
@@ -1977,9 +1970,6 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         // read is declaring it followed (ADR-0260 D3). Registered so the flag parses; the VALUE is
         // read from argv by the capture boundary in `main.ts`, never from here.
         "from-offer": { type: "string" },
-        // `storytree write-authority install --hook-from <checkout>` — source the wall's hook script
-        // from a checkout other than the protected one (ADR-0257 D1 increment 3).
-        "hook-from": { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -2100,28 +2090,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         },
       );
     }
-    // The write-authority receipt writer (ADR-0257 D5), or null when this process is not running
-    // inside a managed worktree — where there is no session to authorise and nothing to stamp.
-    // Kept local to the dispatch so the receipt's I/O never leaks into the pure command module.
-    const sessionReceipts = (id: SessionIdentity | null): SessionReceiptLike | null => {
-      if (id === null) return null;
-      const located = locateWorktree(process.cwd());
-      if (located === null || located.sessionId !== id.sessionId) return null;
-      return {
-        mint: (claims) =>
-          writeReceiptFile(
-            mintReceipt({
-              sessionId: id.sessionId,
-              worktreeRoot: located.worktreeRoot,
-              primaryRoot: located.primaryRoot,
-              branch: id.branch,
-              claims,
-              now: new Date(),
-            }),
-          ),
-        revoke: () => deleteReceiptFile(located.primaryRoot, located.sessionId),
-      };
-    };
+    // (The write-authority receipt was stamped here until ADR-0284 D4 retired it with the hook that
+    // was its only consumer. Its removal is what deletes the 12-hour TTL that would have refused a
+    // long session mid-work, and the ledger dependency on the write path.)
 
     // The board's ledger read (ADR-0200 D7): the SAME PgClaimStore that drives the ledger verbs
     // rides `presence.ledger`; capture the method so the narrowing survives the closure (a fake
@@ -2137,11 +2108,6 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       {
         identity,
         now: () => new Date(),
-        // The write-authority receipt (ADR-0257 D5). Wired HERE because it is filesystem I/O and
-        // needs the checkout roots, which `noticeboard.ts` deliberately does not know. The roots
-        // come from cwd's path shape, so a session outside a managed worktree mints nothing — the
-        // fail-closed direction, and the same locator the PreToolUse hook uses.
-        receipts: sessionReceipts(identity),
         // Claim-at-declare (ADR-0142): the anchored node's work-time claim IS the declare now
         // (presence retired, ADR-0200 D7).
         claims: deps.presence?.claims ?? null,
@@ -2271,14 +2237,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "write-authority") {
-    // ADR-0257 D1/D6 increment 3 — install/inspect the write-authority wall. The deny block is
-    // DERIVED from repo-manifest.json, so it needs a caller that can regenerate it; installing by
-    // hand is how the wall and the repo surface drift apart. Offline, no store.
-    return writeAuthorityCommand(sub, {
-      write: values.write === true,
-      help,
-      ...(values["hook-from"] !== undefined ? { hookFrom: values["hook-from"] } : {}),
-    });
+    // ADR-0257 D1/D6, narrowed to the static block by ADR-0284 — install/inspect the wall. The deny
+    // block is DERIVED from repo-manifest.json, so it needs a caller that can regenerate it;
+    // installing by hand is how the wall and the repo surface drift apart. Offline, no store.
+    return writeAuthorityCommand(sub, { write: values.write === true, help });
   }
 
   if (area === "tree") {

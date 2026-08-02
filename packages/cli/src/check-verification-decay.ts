@@ -247,7 +247,14 @@ const CEILINGS = {
    *
    * THE BASELINE IS NET OF ONE DRAIN, taken in the same landing rather than counted then repaired:
    * `builtinRealpath` (`packages/drive/src/write-authority.ts`) was covered against a real filesystem
-   * before this ceiling was measured, and the instrument correctly no longer locates it. It also does
+   * before this ceiling was measured, and the instrument correctly no longer located it.
+   *
+   * THAT MODULE HAS SINCE BEEN DELETED (ADR-0284 D2 retired the write-authority wall's semantic
+   * half), which is worth stating because a shrinking population is the direction ADR-0269 does NOT
+   * govern — it fences enlargement, so a ceiling silently outgrowing its population would never go
+   * red. RE-MEASURED after the deletion: still 24 located, so the ceiling is exactly AT its
+   * population and still bites. It did not gain slack, because the drained symbol was COVERED and so
+   * was never in the located set — removing it took nothing out of the count. It also does
    * not locate `defaultWorktreeIo`, which `worktree-idle-signal.test.ts` genuinely drives — that pair
    * is this instrument's own validation, and it is the reason the number is trusted: a hand-run
    * name-keyed probe the same day reported BOTH as uncovered and was wrong about both.
