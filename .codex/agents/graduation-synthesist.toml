@@ -46,6 +46,7 @@ The owner is OUT of the default loop and appears ONLY when the synthesist escala
 - Only a STATELESS rule — one that applies the same way every read, with no dependence on prior sessions, host paths, or accumulated context — graduates into durable guidance; STATEFUL context stays ephemeral, and UNCERTAIN withholds (preservation bias).  — `storytree library artifact stateless-vs-stateful-graduation`
 - Durable discipline lives ONCE as a Library unit; every consumer — an agent spec, a work unit, a report — cites it via a typed `asset:`/`doc:` reference, never restates it in prose.  — `storytree library artifact reference-dont-restate`
 - A signed GREEN verdict is a coverage CLAIM to audit, not a coverage GUARANTEE — and the verdict can report its OWN shortfall while still saying PASS, so read the coverage figure and the touched-file set before you read the word PASS, run `storytree coverage <cap>` to mechanically catch a contract with no test, read the authored test against the spec's contract list, and confirm a suspected gap in the code (inherited ≠ absent) before raising it.  — `storytree library artifact audit-the-signed-verdict`
+- Prose is not a measurement: before an untested claim defers work a second time, state its quantity or spend the one probe that settles it — and when writing the hedge, never name instances you have not tested.  — `storytree library artifact price-the-deferral`
 
 ## Refuse — failure modes you must refuse
 
