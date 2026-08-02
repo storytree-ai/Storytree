@@ -33,18 +33,57 @@
 // measurement of the check's OUTPUT against varied committed input, not a reconstruction of each
 // day's historical drift. The exit code is the invariant either way.)
 //
-// TWO INDEPENDENT AXES, each redding on its own and NEVER summed. Unlike `check:surface-coverage`,
-// this gate does not have to be argued into a second axis — ADR-0120 already classifies every drift
-// into two kinds with OPPOSITE remedy directions, and neither subsumes the other:
+// THE APERTURE WAS WRONG, AND THAT IS WHAT ADR-0290 CORRECTS — read this before reading the ceilings.
+// Everything above is still true about ACCUMULATION and is untouched. What it got wrong is WHOSE
+// accumulation. This check compares the committed seed against the LIVE store: the seed is one
+// branch's working tree, the live store is shared by every concurrent session and by the studio. So a
+// per-branch surface was being joined against a machine-shared one and the total charged, at a ZERO
+// ceiling, to whoever ran the gate next — which is routinely not the party that caused it.
 //
-//   - VALUE-DRIFT — live is a valid current body that DIFFERS from the seed: a genuine edit. Which
-//     side is canonical is not inferable, so it is resolved by direction — export live→seed, or
-//     re-edit on the live surface. Editorial divergence; the accumulating list.
+// Measured on branch claude/sleepy-northcutt-4d5383, 2026-08-02, before any of ADR-0290 landed:
+// HEAD == origin/main (`git rev-list --left-right --count origin/main...HEAD` → `0 0`), working tree
+// clean, zero commits, zero live writes. The check exited 1 with `3 value-drift` naming
+// `friction-adjudication`, `merge-ceremony`, `the-same-file-in-another-tree-is-a-different-file`. A
+// session that had done nothing, on a branch identical to main, could not land. It cannot be
+// staleness (the branch IS main) and cannot be that session's edit (there is no diff), so all three
+// were siblings' undrained live edits. Six sessions filed that defect independently rather than as
+// reinforcements, which is itself the measurement that the guidance loop had stopped converging.
+//
+// SO THE AXES ARE NOW SCOPED BY AUTHORSHIP, NOT LOOSENED. The ceilings stay at ZERO. What changed is
+// the population each one measures, computed from two EXACT signals — the branch's own seed diff
+// against the merge base (git), and the latest live writer per artifact
+// (`events.library_event.actor`) — in `corpus-content-attribution.ts`, which owns that reasoning.
+// This is the ADR-0269 4(f) aperture decomposition, and it is a NARROWING in one direction and a
+// WIDENING in another, which is what distinguishes it from gaming:
+//
+//   NARROWED — drift no signal attributes to this branch no longer reds it. It is still printed, still
+//     named, still counted, and now additionally carries its writer and the reason it is not yours, so
+//     nothing prints more quietly than before (ADR-0095: no silent caps).
+//   WIDENED — a live-only export-scope artifact THIS BRANCH authored now reds, and the check has been
+//     structurally blind to that population its entire life. `diffCorpusContent` iterated the SEED
+//     scope and skipped any id live carried but the seed did not, so a durable artifact created live
+//     and never exported was neither value-drift nor degraded-live; it was nothing. Measured
+//     2026-07-30: a GREEN `OK — every seed body matches live across 177 export-scope artifacts`
+//     alongside an `export-corpus --pg` dry run reporting one pending addition in the same shell.
+//
+// A raise was never available and is not what happened: ADR-0269 forbids one, and the population did
+// not enlarge — it was mis-defined. Softening the check beneath a ceiling remains the named gaming
+// failure mode on `process:verification-decay-detection`, and the WIDENING axis is the direct evidence
+// that this is not that.
+//
+// THE THREE AXES, each redding on its own and NEVER summed, with genuinely different remedies:
+//
+//   - AUTHORED VALUE-DRIFT — an artifact this branch is answerable for whose live body is a valid
+//     current body differing from seed. Which side is canonical is still not inferable and still
+//     ADR-0120's per-artifact judgement — but it is THIS session's judgement to make, because this
+//     session made the edit. Discharged per artifact: `export-corpus --id <id> --pg --write`.
 //   - DEGRADED-LIVE — live is BELOW THE SCHEMA FLOOR (e.g. an artifact stored in the rendered
 //     `{body, category}` shape a `--pg` mishap or a studio asset-edit can leave). Here direction is
 //     NOT a judgement: the SEED is canonical by construction, and `computeExportedSeed` REFUSES to
 //     export such a body because writing it would corrupt the seed. A data-integrity fault, not an
 //     edit.
+//   - AUTHORED LIVE-ONLY — an export-scope artifact this branch created live and never carried into
+//     the seed. Same remedy as the first axis, opposite blind spot.
 //
 // That they must not be summed is MEASURED, not asserted. Against the live store on 2026-07-28
 // (value-drift=14, degraded-live=0), simulating the realistic concurrent case — a sibling drains one
@@ -52,6 +91,16 @@
 // degraded-live=1. The SUM stayed at exactly 14. A summed ceiling of 14 saw nothing on either side of
 // that change; the split pair (V=14, D=0) reds. A schema-floor breach would have hidden inside
 // editorial headroom, which is the more severe class hiding inside the noisier one.
+//
+// DEGRADED-LIVE IS DELIBERATELY *NOT* ATTRIBUTION-SCOPED, and that is a decision rather than an
+// oversight — it is the one axis where a foreign red is affordable. Its remedy is per-artifact
+// (`artifact edit <id> --file <seed> --pg`), its direction needs no judgement (the seed is canonical
+// by construction), and it writes only the LIVE store — so unlike the export, discharging someone
+// else's degraded body puts nothing foreign in your commit under your name, which is the hazard the
+// rest of ADR-0290 exists to remove. It has also read ZERO at every one of the nine sampled seed
+// revisions in the control above, so scoping it would buy nothing and cost the corruption guard. The
+// one caveat belongs in the printed remedy, not here: restoring from a STALE branch's seed writes a
+// stale body live, so merge `origin/main` before restoring.
 //
 // THE SUBSTRATE GUARD IS INVERTED RELATIVE TO ITS SIBLINGS, and that is the finding, not a detail. The
 // expectation going in was `surface-coverage-drain.ts`'s: that a missing substrate would INFLATE the
@@ -72,115 +121,83 @@
 // carried where it always was — the shell SKIPs and exits 0 on an unreachable DB or absent creds, the
 // path that predates this ceiling and is unchanged by it.
 //
+// ATTRIBUTION, BY CONTRAST, FAILS CLOSED. If the git or event-log signals could not be read, the shell
+// hands every drifted id in as AUTHORED — the pre-ADR-0290 behaviour — and prints why. The asymmetry
+// is deliberate and argued in `corpus-content-attribution.ts`: a wrongly-charged red costs a merge or
+// a routed report, while a wrongly-excused red lands a one-sided edit that no later gate will catch,
+// because the next session's check would excuse it as foreign too.
+//
 // IT GATES ACCUMULATION ONLY. No number here decides which side of a drift is canonical — that stays
 // ADR-0120's per-artifact judgement, exactly as before. A breach is discharged by a drain that is
 // already in the operating discipline: export live→seed where live is canonical, or restore seed→live
 // where it is not (ADR-0252 D3: a ceiling's remedy is a drain, never a raise).
 //
-// THE ALL-OR-NOTHING LIMITATION — STATED HERE, THEN RESOLVED, AND THE RESOLUTION WAS NOT THE ONE THIS
-// HEADER PREDICTED. The sanctioned value-drift drain is a single act: `storytree library export-corpus
-// --pg --write` rewrites every drifted seed body at once, and there is no per-artifact verb in the
-// live→seed direction (the seed→live direction has one — `artifact edit <id> --file <seed> --pg`). So
-// a session that breached V by one could not discharge only its own item; it had to run the batched
-// export over all of them — a librarian judgement across every drifted artifact — or hand-edit one
-// seed entry. That is why V shipped baselined at the real count rather than at zero, and this header
-// predicted "a future increment may find the honest repair is a per-artifact export verb rather than a
-// lower V."
+// THE ALL-OR-NOTHING LIMITATION IS NOW CLOSED, AND IT TOOK BOTH HALVES. This header used to record
+// that the value-drift drain was a single act — `export-corpus --pg --write` rewriting every drifted
+// seed body at once, with no per-artifact verb in the live→seed direction — so a session that
+// breached V by one could not discharge only its own item. ADR-0263 removed the first half by
+// narrowing the export scope to the durable tier (the batch went from 13 updates + 236 additions to
+// 13 + 14; measured to move V by exactly ZERO on the way through, which is what distinguished it from
+// gaming the measure). ADR-0290 removes the second: `export-corpus --id <id> --pg --write` scopes the
+// write to named artifacts through `computeExportedSeed`'s single narrowing point, so a session
+// discharges exactly what it authored and carries no sibling's body.
 //
-// It was not the verb. It was the POPULATION (ADR-0263, 2026-07-29). The export scope was a DENYLIST —
-// every structured kind except agent/template/ephemeral — so `friction` (2026-07-06), `arc`
-// (2026-07-11) and `uat-criterion` (2026-07-18), all introduced AFTER `export-corpus.ts` (2026-06-27),
-// enrolled in the seed export silently, by default. Measured: the batch the drain required was 13
-// updates + 236 additions (+6074/-108 lines, `knowledge.json` 584 KB → 2.17 MB), of which 222 were
-// transient artifacts the seed has never carried. THAT is what made the batch unrunnable, not the
-// verb's granularity. Narrowing the scope to the durable tier took the same drain to 13 updates + 14
-// additions (+390/-108) — a diff a librarian can read per-artifact — and it was then run: 11 artifacts
-// live-canonical, 2 (`stack-claude-agent-sdk`, `stack-pi-coding-agent`) MIXED and repaired live first,
-// because a blanket export would have deleted four corpus-unique, code-verified facts an ADR-0232-era
-// rewrite had dropped. The narrowing moved V by exactly ZERO on the way through (13 before, 13 after —
-// all 13 drifted were durable-tier), which is what distinguishes it from gaming the measure.
+// WHAT REMAINS TRUE ABOUT THE UNSCOPED EXPORT — a green `check:corpus-content` is still NOT a promise
+// that a BARE `export-corpus --write` is a no-op, because the unscoped append pass still adds every
+// live-only artifact, including ones this check now reports but does not charge. Read the dry run
+// (`export-corpus --pg`, no `--write`) before writing, and make the per-artifact direction call on any
+// `added (live-only)` id you did not author — it can be a graduation that never reached the seed
+// (export it) or an artifact deliberately retired live (do NOT export it; drop the live row).
+// `process:library-edit-ceremony` owns that judgement. The `--id` form is what makes obeying it cheap.
 //
-// THAT NARROWING IS REAL, BUT IT DOES NOT MAKE THE EXPORT EQUAL TO THIS CHECK'S FINDING — corrected
-// 2026-07-30 (librarian pass, ADR-0139 in-place correction). This header previously concluded "a
-// per-artifact export verb is therefore NOT needed: at a drained backlog, 'all' IS the one thing this
-// session changed." The premise is FALSE, and the two functions disagree by construction:
-//
-//   - `diffCorpusContent` (export-corpus.ts) iterates the SEED scope and does `const l =
-//     liveById.get(s.id); if (!l) continue;` — so an artifact present LIVE and absent from the SEED is
-//     invisible to this check on BOTH axes. It is not value-drift and not degraded-live; it is
-//     nothing.
-//   - `computeExportedSeed` (export-corpus.ts) loops over ALL LIVE docs and APPENDS every live-only
-//     export-scope doc to the seed (`created`).
-//
-// So the export writes a strict SUPERSET of what this check names, and the gap is exactly the
-// live-only population. MEASURED 2026-07-30 against the live store: `check:corpus-content` printed
-// `OK — every seed body matches live across 177 export-scope artifacts` and exited 0, while
-// `export-corpus --pg` (dry run) in the same shell reported `0 update(s) + 1 addition(s)` —
-// `oq-diff-view-altitude`, an open-question the owner had RETIRED under ADR-0267 D5 and whose seed row
-// `origin/main` had already dropped. A blind `--write` on a GREEN check would have written that
-// retirement back out of existence — the fourth resurrection of that id (`events.library_event` seq
-// 2694/2696/2702 deleted, 2695/2698/2742 created).
-//
-// THE OPERATIONAL RULE: a green `check:corpus-content` is NOT a promise that `export-corpus --write`
-// is a no-op or that it will carry only your edit. Read the dry run (`export-corpus --pg`, no
-// `--write`) before writing, and make the per-artifact direction call on any `added (live-only)` id
-// you did not author — a live-only export-scope artifact can be a graduation that never reached the
-// seed (export it) or an artifact deliberately retired live (do NOT export it; drop the live row).
-// `process:library-edit-ceremony` owns that judgement.
-//
-// WHAT THIS CORRECTION DOES NOT DECIDE: whether a per-artifact export verb should exist. The old
-// conclusion above was reasoning FROM the false premise, so it is withdrawn rather than inverted —
-// the question is simply open, and settling it is not this header's to do.
-//
-// PURE by construction: no `node:` import, no filesystem, no clock, no `pg`. The live read lives in
-// the shell `check-corpus-content.ts`, which also sets the exit code.
+// PURE by construction: no `node:` import, no filesystem, no clock, no `pg`. The live read, the git
+// reads and the event read live in the shell `check-corpus-content.ts`, which also sets the exit code.
 
-/** The tunable ceiling constants — one per axis, never summed. */
+/** The tunable ceilings — one per axis, never summed. */
 export interface CorpusContentDrainConfig {
-  /** Export-scope artifacts whose live body is a valid CURRENT body differing from seed. Strictly above this reds. */
-  valueDriftCeiling: number;
-  /** Export-scope artifacts whose live body is BELOW THE SCHEMA FLOOR. Strictly above this reds. */
+  /**
+   * Export-scope artifacts THIS BRANCH is answerable for whose live body is a valid CURRENT body
+   * differing from seed. Strictly above this reds.
+   */
+  authoredDriftCeiling: number;
+  /** Export-scope artifacts whose live body is BELOW THE SCHEMA FLOOR, whoever wrote it. Strictly above this reds. */
   degradedLiveCeiling: number;
+  /**
+   * Export-scope artifacts THIS BRANCH created LIVE and never carried into the seed. Strictly above
+   * this reds. A population the check was structurally blind to before ADR-0290.
+   */
+  authoredLiveOnlyCeiling: number;
 }
 
 /**
- * THE CEILINGS, both BASELINED on a real sweep rather than picked in advance — the run of 2026-07-29
- * against the live store, AFTER the drain, found `value-drift=0, degraded-live=0` over 174
- * export-scope seed artifacts, all 174 present live. Setting each axis to exactly what a real run
- * found ships the ceiling GREEN on an honest baseline (a breach is strictly `>`), so it can only ever
- * be TIGHTENED. This one has been: `valueDriftCeiling` was 14 from 2026-07-28 to 2026-07-29 and is now
- * ZERO, which is the resting place the previous baseline named and could not yet reach.
+ * THE CEILINGS, all THREE at ZERO, and each zero earned differently. The first two were baselined on
+ * real sweeps rather than picked in advance — the run of 2026-07-29 against the live store, AFTER the
+ * ADR-0263 drain, found `value-drift=0, degraded-live=0` over 174 export-scope seed artifacts, all 174
+ * present live. Setting an axis to exactly what a real run found ships the ceiling GREEN on an honest
+ * baseline (a breach is strictly `>`), so it can only ever be TIGHTENED.
  *
- * `valueDriftCeiling: 0` — ZERO HEADROOM, reached by draining and never by a raise (ADR-0252 D3). The
- * previous 14 was not a tolerance for drift; it was the size of a backlog whose only sanctioned remedy
- * was a batch export that would also have written 222 transient artifacts into the seed. ADR-0263
- * removed that coupling (see the header), the backlog was drained to zero, and the ceiling follows the
- * measurement down. What zero buys is what 14 bought, one artifact earlier: the FIRST unreconciled
- * artifact fails the gate. The differential control above shows why that matters — this list has been
- * at 18, and at 122, with nothing failing.
+ * `authoredDriftCeiling: 0` — ZERO HEADROOM on a NARROWED APERTURE (ADR-0290; ADR-0269 4(f)). This
+ * axis was `valueDriftCeiling`, and its history is worth keeping: 14 from 2026-07-28 to 2026-07-29,
+ * then ZERO once the ADR-0263 drain reached it. Neither number was ever a tolerance for drift — 14 was
+ * the size of a backlog whose only sanctioned remedy was a batch export that would also have written
+ * 222 transient artifacts into the seed. What ADR-0290 changes is not the NUMBER but WHOSE drift the
+ * number counts. The measured reason is in this module's header: on 2026-08-02 a branch identical to
+ * `origin/main`, with a clean tree and no live writes, was blocked by three artifacts it had not
+ * touched. Charging that to the branch is not a zero-tolerance ceiling; it is a ceiling over the wrong
+ * population, and no value of the constant fixes it.
  *
- * **The remedy for a breach is one command**, and that is what makes zero affordable rather than
- * punitive: `storytree library export-corpus --pg --write`. At a drained backlog the UPDATE half of
- * that batch is just the artifact this session edited. If the update half ever costs more than that,
- * the cause is a SIBLING's undrained edit, not this ceiling — drain it, or route it back to that
- * session.
+ * **The remedy for a breach is now exactly one artifact wide**, which is what makes zero affordable
+ * rather than punitive: `pnpm storytree library export-corpus --id <id> --pg --write`. Before
+ * ADR-0290 the only sanctioned drain rewrote every drifted body at once, so "discharge your own item"
+ * meant "commit every sibling's in-flight edit under your name" — the measured cost of that shape was
+ * ~20 minutes of hand-written restore scripting per landing, and in one case a foreign artifact's
+ * citation to an ADR that was still on an unpushed branch.
  *
- * **But "one command" is not "only your artifact" — READ THE DRY RUN FIRST.** The export also
- * ADDS every live-only export-scope artifact (`computeExportedSeed`'s append pass), and this check
- * cannot see one: `diffCorpusContent` iterates the SEED scope and skips any id live carries but seed
- * does not, so a live-only artifact is neither value-drift nor degraded-live. The export therefore
- * writes a strict SUPERSET of what a breach here names, and a GREEN verdict is no evidence that
- * `--write` is a no-op (measured 2026-07-30: clean over 177, one pending live-only addition — see the
- * header). Run `export-corpus --pg` without `--write`, and make the per-artifact direction call on
- * any `added (live-only)` id you did not author.
- *
- * **A raise is never the discharge.** The one legitimate upward move is a genuinely enlarged measured
- * POPULATION — the export SCOPE widening to admit kinds it excludes today (ADR-0263's table:
- * `agent`, `template`, `plan`, `friction`, `arc`, `uat-criterion`) — re-baselined on that new
- * population's first real sweep with the reason recorded here. Note that narrowing the scope was
- * measured NOT to move this axis at all (13 before, 13 after), so scope changes are not a lever on
- * this number in either direction. Raising it to accommodate work being landed is the named gaming
- * failure mode on `process:verification-decay-detection`.
+ * **A green verdict is still not a promise that a BARE `--write` is a no-op — READ THE DRY RUN.** The
+ * unscoped export ADDS every live-only export-scope artifact, including ones now reported here but not
+ * charged to this branch. Measured 2026-07-30: clean over 177 alongside one pending live-only addition
+ * (`oq-diff-view-altitude`, an owner-retired open question a blind `--write` would have resurrected
+ * into the committed seed). Scope the write, or read the dry run and make the direction call.
  *
  * `degradedLiveCeiling: 0` is the real, honest baseline and not an aspiration: every one of the nine
  * sampled seed revisions in the header's control read `degraded-live=0`, so this axis has been at zero
@@ -189,33 +206,50 @@ export interface CorpusContentDrainConfig {
  * REFUSES to propagate, so it cannot drain in the same direction as its sibling and will sit there
  * indefinitely. Its remedy is per-artifact and already sanctioned
  * (`artifact edit <id> --file <seed> --pg`), and it has happened before — a version-floor regression is
- * exactly this shape. The next one reds the gate on its first appearance. The two axes now hold the
- * same number for DIFFERENT reasons, and they are still evaluated independently and never summed:
- * V is zero because its backlog was drained, D because it never had one.
+ * exactly this shape. The next one reds the gate on its first appearance. It is also the one axis
+ * NOT scoped by authorship; the header states why, and the short form is that discharging a stranger's
+ * degraded body writes only the live store and so puts nothing foreign in your commit.
  *
- * WITH BOTH CEILINGS AT ZERO THERE IS NO BAND LEFT BENEATH THEM, so the `warn` level now reports only
- * the substrate shortfall (`unverified`) — a sweep that compared fewer live rows than the seed scope.
- * That is the intended end state, not a softening: `check:corpus-content`'s formatter is untouched, it
- * still prints every drifted id exactly as before, and what changed is that the same finding now
- * carries a non-zero exit instead of a WARN. Nothing prints more quietly than it did. Softening the
- * check beneath its ceiling is the named gaming failure mode on
- * `process:verification-decay-detection`.
+ * `authoredLiveOnlyCeiling: 0` is zero at BIRTH rather than by drain, and that is defensible only
+ * because it is scoped to authorship from the start. There is no pre-existing backlog to inherit: the
+ * axis asks "did THIS branch create a durable artifact live and leave the seed without it", which for
+ * a branch that has created none is trivially zero, and for one that has is a duty
+ * `process:library-edit-ceremony` step 4 already imposes. Discharged by the same one-artifact command
+ * as the first axis. What it closes is a hole the check has carried since it landed — a live-only
+ * artifact was counted on NEITHER axis while `computeExportedSeed` appended it anyway.
+ *
+ * **A raise is never the discharge.** The one legitimate upward move is a genuinely enlarged measured
+ * POPULATION — the export SCOPE widening to admit kinds it excludes today (ADR-0263's table:
+ * `agent`, `template`, `plan`, `friction`, `arc`, `uat-criterion`) — re-baselined on that new
+ * population's first real sweep with the reason recorded here. Note that narrowing the export scope
+ * was measured NOT to move the drift axis at all (13 before, 13 after), so scope changes are not a
+ * lever on these numbers in either direction. Raising one to accommodate work being landed is the
+ * named gaming failure mode on `process:verification-decay-detection`.
+ *
+ * WITH EVERY CEILING AT ZERO THERE IS NO BAND LEFT BENEATH THEM, so the `warn` level reports only what
+ * is deliberately not charged: the substrate shortfall (`unverified`) and the unattributed drift the
+ * shell prints in full. That is the intended end state, not a softening — every id the check named
+ * before is still named, with strictly more information attached.
  */
 export const DEFAULT_CORPUS_CONTENT_DRAIN_CONFIG: CorpusContentDrainConfig = {
-  valueDriftCeiling: 0,
+  authoredDriftCeiling: 0,
   degradedLiveCeiling: 0,
+  authoredLiveOnlyCeiling: 0,
 };
 
 /**
- * The minimal projection of the diff the ceiling needs — deliberately decoupled from
- * `CorpusContentDiff` so this core (and its test) stay free of the store's types. The caller renders
- * each drift to the id a breach names it by.
+ * The minimal projection of the sweep the ceiling needs — deliberately decoupled from
+ * `CorpusContentDiff` and from `DriftAttribution` so this core (and its test) stay free of the store's
+ * types and of the git/event IO. The caller renders each drift to the id a breach names it by, and has
+ * already charged each one (`corpus-content-attribution.ts`).
  */
 export interface CorpusContentDrifts {
-  /** (a) ids whose live body is a valid current body differing from seed. */
-  valueDrift: readonly string[];
-  /** (b) ids whose live body is below the schema floor — the seed is canonical. */
+  /** (a) ids THIS BRANCH is answerable for whose live body is a valid current body differing from seed. */
+  authoredValueDrift: readonly string[];
+  /** (b) ids whose live body is below the schema floor — the seed is canonical. NOT authorship-scoped. */
   degradedLive: readonly string[];
+  /** (c) ids THIS BRANCH created live that the seed does not carry at all. */
+  authoredLiveOnly: readonly string[];
 }
 
 /** The context the ceiling is evaluated from: whether the live tier was actually compared against. */
@@ -228,14 +262,21 @@ export interface CorpusContentDrainContext {
    * reconciled corpus (measured: an empty live store reports `clean: true` over 0 of 160).
    */
   comparedLive: number;
+  /**
+   * Drift the sweep found but did NOT charge to this branch — stale plus foreign. Carried so the
+   * verdict can state what it deliberately deferred; it never affects the level. Zero when attribution
+   * is unavailable, because that path charges everything.
+   */
+  deferred?: number | undefined;
 }
 
 /** The computed verdict — `level: "red"` drives a non-zero exit, so landing needs a drain. */
 export interface CorpusContentDrainVerdict {
-  /** `ok` (clean over a fully compared population) · `warn` (drift within ceilings, or an unverified population) · `red` (a breach). */
+  /** `ok` (clean over a fully compared population) · `warn` (deferred drift, or an unverified population) · `red` (a breach). */
   level: "ok" | "warn" | "red";
-  valueDriftCount: number;
+  authoredDriftCount: number;
   degradedLiveCount: number;
+  authoredLiveOnlyCount: number;
   /** Ceiling breaches, one per breached AXIS. Non-empty iff `level === "red"`. */
   breaches: string[];
   /**
@@ -248,39 +289,50 @@ export interface CorpusContentDrainVerdict {
 }
 
 /**
- * Evaluate the corpus-content drain ceiling over one sweep's classified drift lists. Pure — inject the
+ * Evaluate the corpus-content drain ceilings over one sweep's charged drift lists. Pure — inject the
  * compared population.
  *
- * The two axes are evaluated INDEPENDENTLY and never summed: `valueDrift > V`, or `degradedLive > D`,
- * ⇒ `red`. A breach is enforced regardless of the compared population, because a deficient live store
- * can only DELETE comparison candidates: the reported counts are a lower bound, so a breach on a
- * partial sweep is still a real breach. The population instead guards the OTHER end — it withholds the
- * `ok` verdict from a sweep that compared less than the whole seed scope.
+ * The three axes are evaluated INDEPENDENTLY and never summed. A breach is enforced regardless of the
+ * compared population, because a deficient live store can only DELETE comparison candidates: the
+ * reported counts are a lower bound, so a breach on a partial sweep is still a real breach. The
+ * population instead guards the OTHER end — it withholds the `ok` verdict from a sweep that compared
+ * less than the whole seed scope.
  */
 export function evaluateCorpusContentDrain(
   drifts: CorpusContentDrifts,
   ctx: CorpusContentDrainContext,
   config: CorpusContentDrainConfig = DEFAULT_CORPUS_CONTENT_DRAIN_CONFIG,
 ): CorpusContentDrainVerdict {
-  const valueDriftCount = drifts.valueDrift.length;
+  const authoredDriftCount = drifts.authoredValueDrift.length;
   const degradedLiveCount = drifts.degradedLive.length;
+  const authoredLiveOnlyCount = drifts.authoredLiveOnly.length;
 
   const breaches: string[] = [];
 
-  // Axis A — the editorial backlog. Fail-closed strictly above V.
-  if (valueDriftCount > config.valueDriftCeiling) {
+  // Axis A — the editorial backlog THIS BRANCH owns. Fail-closed strictly above A.
+  if (authoredDriftCount > config.authoredDriftCeiling) {
     breaches.push(
-      `${valueDriftCount} artifact(s) carry a live body differing from seed, past the ceiling ` +
-        `(V=${config.valueDriftCeiling}): ${drifts.valueDrift.join(", ")}`,
+      `${authoredDriftCount} artifact(s) this branch authored carry a live body differing from seed, ` +
+        `past the ceiling (A=${config.authoredDriftCeiling}): ${drifts.authoredValueDrift.join(", ")}`,
     );
   }
 
   // Axis B — the schema-floor faults. INDEPENDENT of axis A, never summed with it: a below-floor live
-  // body is not discharged by the editorial backlog being short, or the reverse.
+  // body is not discharged by the editorial backlog being short, or the reverse. Not authorship-scoped
+  // — see the module header for why this is the one axis where a foreign red is affordable.
   if (degradedLiveCount > config.degradedLiveCeiling) {
     breaches.push(
       `${degradedLiveCount} artifact(s) carry a live body BELOW THE SCHEMA FLOOR, past the ceiling ` +
         `(D=${config.degradedLiveCeiling}): ${drifts.degradedLive.join(", ")}`,
+    );
+  }
+
+  // Axis C — the population the check was blind to. A durable artifact created live and never carried
+  // into the seed is an unfinished ceremony exactly like axis A, with the opposite shape.
+  if (authoredLiveOnlyCount > config.authoredLiveOnlyCeiling) {
+    breaches.push(
+      `${authoredLiveOnlyCount} artifact(s) this branch created live are ABSENT from the seed, past ` +
+        `the ceiling (L=${config.authoredLiveOnlyCeiling}): ${drifts.authoredLiveOnly.join(", ")}`,
     );
   }
 
@@ -293,17 +345,19 @@ export function evaluateCorpusContentDrain(
         "absent or truncated live tier reports as clean (`storytree library sync-corpus --pg`)"
       : undefined;
 
+  const anyCharged = authoredDriftCount > 0 || degradedLiveCount > 0 || authoredLiveOnlyCount > 0;
   const level: CorpusContentDrainVerdict["level"] =
     breaches.length > 0
       ? "red"
-      : valueDriftCount > 0 || degradedLiveCount > 0 || unverified !== undefined
+      : anyCharged || (ctx.deferred ?? 0) > 0 || unverified !== undefined
         ? "warn"
         : "ok";
 
   return {
     level,
-    valueDriftCount,
+    authoredDriftCount,
     degradedLiveCount,
+    authoredLiveOnlyCount,
     breaches,
     ...(unverified === undefined ? {} : { unverified }),
     config,

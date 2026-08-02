@@ -256,6 +256,97 @@ test("computeExportedSeed: overwrites value-drift, ADDS live-only, SKIPS degrade
   if (agentDoc) assert.ok(!r.updated.includes(agentDoc.id) && !r.skippedDegraded.includes(agentDoc.id));
 });
 
+test("SCOPED export (ADR-0290): --id writes ONLY the named artifacts, and carries no sibling's body", async () => {
+  // THE DEFECT THIS CLOSES, measured 2026-08-01 on branch claude/loving-babbage-4cef08: a session that
+  // authored exactly ONE new principle had to run the whole export to reconcile it, and the dry run
+  // reported `2 update(s) + 1 addition(s)` — the two updates provably another session's, written ~90
+  // minutes earlier per `events.library_event`. Landing its own artifact meant either freezing a
+  // sibling's in-flight wording into the committed seed under its own commit, or ~20 minutes of
+  // hand-written restore scripting. Four more sessions filed the same shape.
+  const { docs: seedDocs, entries } = await realSeed();
+  const exportable = seedDocs.filter(isExportableLiveDoc);
+  const mineId = exportable[0]!.id;
+  const siblingId = exportable[1]!.id;
+  const siblingLiveOnlyId = "sibling-live-only-fixture";
+
+  const live: StoredDoc[] = seedDocs.map((d) => {
+    if (d.id === mineId) return { ...d, doc: { ...(d.doc as object), description: "MY EDIT" } };
+    if (d.id === siblingId) return { ...d, doc: { ...(d.doc as object), description: "A SIBLING'S EDIT" } };
+    return d;
+  });
+  live.push({
+    id: siblingLiveOnlyId,
+    kind: exportable[0]!.kind,
+    doc: { ...(exportable[0]!.doc as object), id: siblingLiveOnlyId, title: "A sibling's live-only artifact" },
+    createdAt: "2026-08-01T00:00:00.000Z",
+    updatedAt: "2026-08-01T00:00:00.000Z",
+  });
+
+  // UNSCOPED — the pre-ADR-0290 shape, kept as the contrast that makes the fix legible. It sweeps all
+  // three: both drifted bodies AND the append pass's live-only artifact.
+  const all = computeExportedSeed(entries, live);
+  assert.deepEqual([...all.updated].sort(), [mineId, siblingId].sort(), "unscoped sweeps the sibling's edit");
+  assert.deepEqual([...all.created], [siblingLiveOnlyId], "…and appends its live-only artifact too");
+
+  // SCOPED — exactly one artifact moves. Both passes respect the scope, which is the part that matters:
+  // narrowing only the overwrite pass would still have appended the sibling's live-only artifact.
+  const scoped = computeExportedSeed(entries, live, { ids: new Set([mineId]) });
+  assert.deepEqual([...scoped.updated], [mineId]);
+  assert.deepEqual([...scoped.created], [], "the append pass is scoped too, not just the overwrite pass");
+  assert.equal(scoped.noop, false);
+
+  const out = new Map(scoped.entries.map((e) => [e.id, e]));
+  assert.equal((out.get(mineId) as Record<string, unknown>)["description"], "MY EDIT");
+  assert.notEqual(
+    (out.get(siblingId) as Record<string, unknown>)["description"],
+    "A SIBLING'S EDIT",
+    "the sibling's drifted body is left exactly as the seed had it",
+  );
+  assert.ok(!out.has(siblingLiveOnlyId), "and its live-only artifact never reaches the seed");
+  assert.equal(scoped.entries.length, entries.length, "a scoped update adds no entries");
+});
+
+test("SCOPED export: the invariants are unconditional — scope removes candidates, it never adds a permission", async () => {
+  // The failure worth pinning: a second code path for the scoped case that quietly relaxed a rule.
+  // There is only one narrowing point, so each invariant is asserted THROUGH the scope rather than
+  // around it — a degraded body named explicitly is still refused, an out-of-scope KIND named
+  // explicitly is still not exported, and an unknown id is a no-op rather than an error.
+  const { docs: seedDocs, entries } = await realSeed();
+  const exportable = seedDocs.filter(isExportableLiveDoc);
+  const degradeId = exportable[0]!.id;
+  const ts = "2026-08-02T00:00:00.000Z";
+
+  const live: StoredDoc[] = seedDocs.map((d) =>
+    d.id === degradeId ? { ...d, doc: degraded(degradeId, d.kind) } : d,
+  );
+  live.push({
+    id: "live-arc-scoped-fixture",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "live-arc-scoped-fixture",
+      title: "arc fixture",
+      description: "an out-of-scope kind named explicitly",
+      references: [],
+      createdAt: ts,
+      updatedAt: ts,
+      intent: "prove scoping grants no permission",
+      endState: "the seed still carries no arc",
+    },
+    createdAt: ts,
+    updatedAt: ts,
+  });
+
+  const r = computeExportedSeed(entries, live, {
+    ids: new Set([degradeId, "live-arc-scoped-fixture", "no-such-artifact-anywhere"]),
+  });
+  assert.ok(r.skippedDegraded.includes(degradeId), "a degraded body is refused even when named");
+  assert.ok(!r.updated.includes(degradeId), "…and never overwrites the canonical seed body");
+  assert.ok(!r.created.includes("live-arc-scoped-fixture"), "an out-of-scope KIND is still not exported");
+  assert.deepEqual([...r.updated], [], "an unknown id is a no-op, not an error");
+  assert.equal(r.entries.length, entries.length, "nothing was added or deleted");
+});
+
 test("computeExportedSeed: idempotent — a second run over the same live store is a no-op", async () => {
   const { docs, entries } = await realSeed();
   // First run canonicalises the seed from live (may upcast any below-floor seed bodies to v2).
