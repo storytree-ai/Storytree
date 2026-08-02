@@ -256,7 +256,7 @@ artifact making no new policy (ADR-0034 §2 / ADR-0154). The questions, answered
 | `process` | derived ceremony | librarian; must cite its deciding ADR (ADR-0154) |
 | `definition` | reference tier | librarian |
 | `adr` | **born-`proposed` ADR — THE owner escalation** | synthesist drafts with the alignment check below; **owner ratifies** (this IS "a dedicated subagent says so") |
-| `tool` | capability work routed to **story-author** (agent-side, ADR-0158 discipline); a `spawn_task` chip only when the synthesist judges owner visibility warranted | story-author / the normal prove-it-gate |
+| `tool` | capability work routed to **story-author** (agent-side, ADR-0158 discipline); a `spawn_task` chip only when the synthesist judges owner visibility warranted — *[Amended by [ADR-0287](0287-the-tool-route-emits-a-proposal-and-the-proposal-tier-carrie.md) (2026-08-02): routing to `tool` now ALSO emits a `proposal` artifact, cited in the item's `references`. `tool` was the only route emitting no artifact, so it archived on routing and nothing downstream read it — measured 6 of 125 delivered, and `grep '"tool"' packages/cli/src/check-*.ts` returns zero matches. The **synthesist authors the proposal**, because story-author is fail-closed fenced to `stories/**` and cannot write a Library artifact; story-author CONSUMES it. The route enum is unchanged.]* | synthesist authors the proposal; **story-author consumes it** / the normal prove-it-gate |
 
 **Verification proportional to blast radius:** the ADR route is contained (born `proposed`,
 owner-held); the principle/guardrail/edit routes flow through the render pipeline into **every
