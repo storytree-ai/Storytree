@@ -70,6 +70,16 @@ each island's incident trails drawing on as it lands. The sequence is derived fr
 scripted or hand-authored, so the forest grows in the order the project was actually built. A
 different graph regrows differently, and the same graph regrows identically every time.
 
+**AMENDED twice, in MECHANISM only.**
+[ADR-0283](0283-act-2-growth-follows-the-edge-pathways-grow-from-settled-nod.md) replaced "trails
+draw on as the island lands" with growth along the EDGE: a settled island grows its outgoing
+pathways, and the island at the far end forms where one arrives. Then
+[ADR-0285](0285-an-island-forms-the-moment-a-pathway-reaches-it-not-when-all.md) removed this
+decision's ordering invariant — an island no longer waits for EVERY island it stands on to settle,
+only for the pathway that reaches it (waiting for the deepest dependency turned out to re-impose DAG
+depth as the schedule). What is NOT amended is this decision's actual subject: the order is still
+derived from the real story graph, never scripted, and still regrows identically for the same graph.
+
 ### D4 — This increment requires no new artwork and spends no generations
 
 Island growth, path growth, the small-plant tracks, the procedural trees and the authored hero track

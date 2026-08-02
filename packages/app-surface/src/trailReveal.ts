@@ -36,6 +36,13 @@ export interface RevealSegment {
   id: string;
   /** Chain-position stagger: `chainIndex * REVEAL_STAGGER_MS` (earliest across edges). */
   delayMs: number;
+  /** CURSOR-DRIVEN draw-on, 0→1: how far the front has travelled along this segment RIGHT NOW.
+   *  Present only for the Act 2 forest regrow (ADR-0283 D1), where the app's own cursor owns the
+   *  pathway growth because the schedule needs to know the instant a pathway ARRIVES — a CSS
+   *  keyframe cannot be sampled. When present the consumer writes it straight onto the mask's
+   *  `stroke-dashoffset` and suppresses the keyframe; when absent the CSS beat below
+   *  (`delayMs` + the 0.35s stroke animation) owns the growth exactly as it always has. */
+  drawn?: number;
   /** True ⇒ the mask grows from the segment path's geometric END (the chain walks it
    *  against its drawn direction), so growth always moves away from the island. */
   fromEnd: boolean;

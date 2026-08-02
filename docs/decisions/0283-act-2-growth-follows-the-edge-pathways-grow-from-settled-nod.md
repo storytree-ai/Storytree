@@ -53,8 +53,15 @@ Growth is scheduled along EDGES, not in ranks:
 2. When an island has settled, each of its **outgoing pathways grows outward from it**, along the
    real routed trail geometry, in the direction of the dependent.
 3. A downstream island begins to form only when a pathway has **arrived** at it — that is, only once
-   at least one incoming edge has finished drawing. It still may not form before EVERY island it
-   stands on has settled (ADR-0282's ordering invariant is unchanged and stays tested).
+   at least one incoming edge has finished drawing. ~~It still may not form before EVERY island it
+   stands on has settled (ADR-0282's ordering invariant is unchanged and stays tested).~~
+   **AMENDED by [ADR-0285](0285-an-island-forms-the-moment-a-pathway-reaches-it-not-when-all.md)
+   (2026-08-02):** that second clamp is removed — the arrival IS the start time, with nothing else
+   gating it. Measured on the real corpus, the clamp rather than the arrival set the start time for
+   26 of 36 reached islands, which re-imposed DAG depth as the schedule: the wave barrier this
+   decision set out to remove, in an edge-shaped costume. The causal invariant that remains — a
+   pathway leaves only a SETTLED island, so nothing appears before the island that reached it —
+   still holds and is still tested. Everything else in D1 stands.
 
 The visible claim becomes causal rather than merely ordered: nothing appears unconnected, and every
 island is visibly reached before it exists. This REPLACES the wave-barrier schedule and the

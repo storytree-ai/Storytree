@@ -19,6 +19,7 @@ import {
   type SvgIslandAccretionPoint,
 } from './svg-island-accretion.js';
 import type { ForestRegrowState } from './forest-regrow.js';
+import type { RevealSegment, TrailRevealPlan } from './trailReveal.js';
 
 export interface ForestRegrowAccretionPlans {
   readonly byStory: ReadonlyMap<string, SvgIslandAccretionPlan>;
@@ -81,6 +82,53 @@ export function forestRegrowLayerSignature(state: ForestRegrowState): string {
     .map((g) => `${g.storyId}:${g.progress.toFixed(4)}`)
     .join(',');
   return `${state.absentStoryIds.size}|${state.hiddenSegmentIds.size}|${growing}`;
+}
+
+/**
+ * The same stability trick for the PATHWAY half (ADR-0283 D1): a signature of everything the
+ * cursor-driven trail masks actually draw. Segments that are fully drawn or not started carry no
+ * mask at all, so only the in-flight front is in here — which is also why the plan below stays
+ * small however big the forest is.
+ */
+export function forestRegrowTrailSignature(state: ForestRegrowState): string {
+  return state.drawingSegments.map((s) => `${s.id}:${s.drawn.toFixed(4)}`).join(',');
+}
+
+/**
+ * Turn the regrow's in-flight pathway fronts into the `TrailRevealPlan` the existing per-segment
+ * mask hookup already consumes (`SceneView`'s `ctx.reveal` → `mask="url(#trail-m-…)"`).
+ *
+ * This is a DELIBERATE mechanism change, not a reuse: increment 1 rode `arrivalGrowPlan`'s CSS
+ * beat (a per-segment `animation-delay` plus a 0.35 s keyframe), which starts when the mask
+ * element mounts and cannot be sampled. ADR-0283 D1 makes the moment a pathway ARRIVES the thing
+ * the schedule is built on, so the growth has to be a number the app holds — hence `drawn`, taken
+ * straight off the cursor. The DOM shape (a pathLength-normalised mask stroke) is unchanged; only
+ * what advances the dash-offset moved from the stylesheet to the plan.
+ *
+ * `usageById` is the routed network's per-segment usage, used for the mask stroke width exactly
+ * as `arrivalGrowPlan` uses it. A segment missing from it falls back to 1.
+ */
+export function forestRegrowTrailPlan(
+  state: ForestRegrowState,
+  usageById: ReadonlyMap<string, number>,
+): TrailRevealPlan | null {
+  if (state.drawingSegments.length === 0) return null;
+  const segments: RevealSegment[] = state.drawingSegments
+    .map((growth) => ({
+      id: growth.id,
+      // The cursor owns the timing now, so there is no stagger left to express.
+      delayMs: 0,
+      drawn: growth.drawn,
+      fromEnd: growth.fromEnd,
+      dir: 'both' as const,
+      revealedUsage: usageById.get(growth.id) ?? 1,
+    }))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return {
+    focusId: 'forest-regrow',
+    segments,
+    byId: new Map(segments.map((segment) => [segment.id, segment])),
+  };
 }
 
 /**

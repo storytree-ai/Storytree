@@ -23,6 +23,9 @@ export function Act2IntroControl({
   const landed = state.landedStoryIds.size;
   const total = plan.steps.length;
   const percent = Math.round(player.progress * 100);
+  // ADR-0283 D1: pathways are the schedule now, so how many are mid-growth is the honest
+  // moment-to-moment readout. `wave` survives beside it as what it actually is — DAG depth.
+  const growingPaths = state.drawingSegments.length;
 
   return (
     <div className="act2-intro" data-act2-progress={player.progress.toFixed(4)}>
@@ -53,15 +56,27 @@ export function Act2IntroControl({
           <>Reduced motion — settled on the grown forest.</>
         ) : (
           <>
-            wave {state.settled ? plan.waveCount : player.wave + 1} of {plan.waveCount} ·{' '}
-            {landed}/{total} islands · {percent}%
+            depth {state.settled ? plan.waveCount : player.wave + 1} of {plan.waveCount} ·{' '}
+            {landed}/{total} islands · {growingPaths} pathway
+            {growingPaths === 1 ? '' : 's'} growing · {percent}%
           </>
         )}
       </p>
       <p className="act2-intro-note">
-        Grown outward from {plan.baseStoryIds.length} base{' '}
-        {plan.baseStoryIds.length === 1 ? 'node' : 'nodes'} in the story graph’s own dependency
-        order.
+        {plan.baseStoryIds.length} base{' '}
+        {plan.baseStoryIds.length === 1 ? 'node' : 'nodes'} form from nothing; every other island
+        forms only where a pathway reaches it.
+        {plan.unreachedStoryIds.length > 0 && (
+          // The honest fallback, named rather than hidden: a `depends_on` the router could not
+          // route has no pathway that can arrive, so those islands land a beat after their
+          // ground instead of being stranded off the map.
+          <>
+            {' '}
+            {plan.unreachedStoryIds.length} island
+            {plan.unreachedStoryIds.length === 1 ? ' has' : 's have'} no routable pathway and
+            land{plan.unreachedStoryIds.length === 1 ? 's' : ''} unreached.
+          </>
+        )}
       </p>
     </div>
   );
