@@ -133,9 +133,9 @@ export const CONTROLS: readonly ControlSpec[] = [
   // the same schedule scatters across the plane, because that optimiser places for short trails
   // rather than for depth. The picker entry, the `?layout=` query values and the documented
   // alternatives all go; `?layout=anything` now falls through to rows like any unmanaged param.
-  // The placement MODULES (`lib/stressLayout.ts`, `lib/solarLayout.ts`) are left in place and
-  // tested — `stressSeeds` still has a live caller in `overviewConstellation.ts` — but nothing on
-  // the map reaches them any more.
+  // Of the placement MODULES, `lib/stressLayout.ts` is left in place and tested — `stressSeeds`
+  // still has a live caller in `overviewConstellation.ts` — but nothing on the map reaches it any
+  // more; `lib/solarLayout.ts` had no caller left at all and is deleted.
 
   // ---- Ground ----
   // ADR-0233 retired the `substrate` "Ground tiling" gear select (mesh / hex / relaxed-quad /
@@ -333,8 +333,9 @@ export function buildShareUrl(origin: string, search: string, hash: string): str
 /**
  * ADR-0093 Unit D: the shared scene-graph (the studio React mapper, `SceneView`) is now the
  * DEFAULT forest-world render — absence ⇒ scene. The studio-only chrome that was inline-only
- * (solar spokes, the distributed-consumer building stamps) is layered ON TOP of `<SceneView>`
- * as sibling `<g>` (ADR-0093 Decision 2), so nothing regresses. The inline `<g>` render is kept
+ * (the distributed-consumer building stamps, the per-nameplate identity-key glyph) is layered ON
+ * TOP of `<SceneView>` as sibling `<g>` (ADR-0093 Decision 2), so nothing regresses. The inline
+ * `<g>` render is kept
  * reachable for ONE release as a safety net via the `?render=legacy` / `?render=inline` escape
  * hatch — once the scene render is operator-attested across a release it can be deleted outright.
  *

@@ -85,12 +85,9 @@ describe('buildWorld — building-class stories live OFF the map (ADR-0088)', ()
     expect(edges.some((e) => e.from === 'alpha' && e.to === 'beta')).toBe(true);
   });
 
-  // ADR-0283 D2 retired the selectable layouts, so the solar-mode sibling of the case above is
-  // gone with the arrangement it guarded: `world.solar` is never populated now, and there is one
-  // road model to keep building-free rather than one per layout.
-  it('populates no solar layer at all — DAG rows are the one arrangement (ADR-0283 D2)', () => {
-    expect(buildWorld(corpus(), { buildings: true }).solar).toBeUndefined();
-  });
+  // (ADR-0283 D2 retired the selectable layouts, so the solar-mode sibling of the case above went
+  // with the arrangement it guarded — there is one road model to keep building-free, not one per
+  // layout. The case that pinned `world.solar` undefined retired with the FIELD itself.)
 
   it('no on-map nameplate carries the building glyph anymore (the glyph moved to the panel)', () => {
     const world = buildWorld(corpus(), { buildings: true });
