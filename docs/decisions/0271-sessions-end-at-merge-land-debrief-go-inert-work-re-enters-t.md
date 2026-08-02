@@ -88,6 +88,14 @@ owner can find each new session in the picker by the name the debrief gave it; *
 open and where it lives** — arc, ADR, or chip. A landing without a debrief is an unfinished
 ceremony.
 
+*[Amended by ADR-0288 (2026-08-02): (b) no longer forces a chip. "not merely mentioned" was the
+clause that made queuing mandatory — under it a session could not say "I considered this and it is
+not worth a session", which the 2026-08-02 self-load audit measured as the generator of 88%
+agent-started sessions and 16/19 chips minted within four minutes of their own merge. (b) now reads:
+every follow-up **chipped** — named by its chip title — **or considered and declined, with its
+one-line reason**. Declining is free; SILENCE is not — the judgment became sayable, the omission did
+not. (a) and (c) are untouched, and a landing without a debrief is still an unfinished ceremony.]*
+
 **D3 — Inert is not mute.** A landed session remains fully conversational: questions, analysis,
 and read-only exploration are always answered — never refused, never fought. What it does not do
 after landing is open new **work**: writes, claims, builds, PRs. When the owner asks for new work

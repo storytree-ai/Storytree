@@ -102,6 +102,17 @@ the next unit forks to a different workstream or surface; roughly three continua
 decision, or attestation — owner-gated work always re-enters through a chip, never by a session
 waiting on the owner (that wait is the parked shape this arc exists to kill).
 
+*[Clarified and narrowed by ADR-0288 (2026-08-02). All four hard ends STAND — ADR-0288 D4 re-affirms
+them explicitly and declines the offered alternative of restoring in-session discretion at a
+workstream fork. What ADR-0288 corrects is a misreading this clause acquired downstream: D2 governs
+whether **this session** may carry the next unit, and — on three of its four ends — never governed
+whether the work gets **queued** at all. The generated `session-orchestrator` prose fused D2 with
+ADR-0271 D2(b) into "NOT a judgment call … chip it into a fresh session", a mandate to queue that
+neither ADR alone contains; that fusion is retired. The fourth end IS narrowed: "owner-gated work
+always re-enters through a chip" now reads "**when** it re-enters, it re-enters through a chip, never
+by a session waiting on the owner" — the anti-waiting rule is untouched. Queuing a follow-up is now
+gated on ADR-0288 D2's worth-a-session bar, and declining is a stated, free outcome.]*
+
 **D3 — ADR-0271 D2/D3/D4 survive unchanged.** The debrief becomes per-*landing* (naming what
 landed, what continues with its reason, and every chip by title); inert-is-not-mute applies at the
 final end; the owner-confirmed janitor sweep is untouched. The per-PR ceremony — gate, pre-PR
