@@ -113,3 +113,57 @@ describe('buildWorld — the ADR-0169 trail network (roads route as trails, both
     expect(buildWorld(fixture()).trails).toEqual(buildWorld(fixture()).trails);
   });
 });
+
+// ── ADR-0286: the pale coast is ATTRIBUTED, island by island ──
+//
+// The moat is derived from the UNION of claimed land, so it had no owner — and while it had none,
+// the Act 2 regrow's per-story hide could not reach it: the map drew the whole forest's hexagonal
+// silhouette from frame one, announcing every island before it existed. Naming the island each
+// coast hex grew out of is what gives the hide a handle.
+describe('buildWorld — the coast belongs to an island (ADR-0286)', () => {
+  const story = (id: string, dependsOn: string[] = []): TreeStory => ({
+    id,
+    title: id,
+    outcome: '',
+    status: 'mapped',
+    proofMode: 'UAT',
+    uatWitness: 'machine',
+    dependsOn,
+    consumedBy: [],
+    capabilities: [cap(`${id}-a`)],
+  });
+  const fixture = (): TreeStory[] => [
+    story('foundation'),
+    story('mid', ['foundation']),
+    story('top', ['mid']),
+  ];
+
+  it('gives every coast hex an owning territory index', () => {
+    const world = buildWorld(fixture());
+    expect(world.empties.length).toBeGreaterThan(0);
+    for (const hex of world.empties) {
+      expect(typeof hex.owner, `coast hex ${hex.q},${hex.r} needs an owner`).toBe('number');
+      expect(hex.owner).toBeGreaterThanOrEqual(0);
+      expect(hex.owner).toBeLessThan(world.territories.length);
+    }
+  });
+
+  it('spreads the coast across EVERY island, never parks it all on one', () => {
+    const world = buildWorld(fixture());
+    const owners = new Set(world.empties.map((h) => h.owner));
+    // The point of attribution is that hiding one island hides only ITS moat. If every hex named
+    // the same territory the hide would be all-or-nothing again, just spelled differently.
+    expect(owners.size).toBe(world.territories.length);
+  });
+
+  it('is deterministic — the same stories attribute the same hexes to the same islands', () => {
+    expect(buildWorld(fixture()).empties).toEqual(buildWorld(fixture()).empties);
+  });
+
+  it('leaves the coast geometry itself untouched (attribution adds, it does not move)', () => {
+    const world = buildWorld(fixture());
+    const bare = world.empties.map((h) => ({ q: h.q, r: h.r }));
+    // A hex is still a hex at the same axial coordinate; `owner` rides alongside.
+    expect(new Set(bare.map((h) => `${h.q},${h.r}`)).size).toBe(bare.length);
+  });
+});

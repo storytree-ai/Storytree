@@ -108,8 +108,18 @@ is re-composed. This increment prefers to need none; if one becomes unavoidable 
 
 Semantic state, normalized progress, ordering, timing, easing, holds, the control, Back, Replay,
 reduced-motion settlement, sockets, painter order and the retained final scene are the app's. Reduced
-motion settles on the fully grown forest. The clean route stays unchanged. No asset-owned clock, no
-second renderer, no remount key standing in for a cursor.
+motion settles on the fully grown forest. No asset-owned clock, no second renderer, no remount key
+standing in for a cursor.
+
+**AMENDED in REACH only.** This decision also promised "the clean route stays unchanged", which was
+the right call while the regrow was unproven and reachable only behind `?act2=intro`. It is no longer
+true and the sentence is gone from the paragraph above:
+[ADR-0286](0286-the-forest-regrows-on-first-arrival-each-session-paced-by-a.md) plays the regrow on
+the FIRST arrival at the map each browser session, so the clean `#/tree` route is no longer
+byte-for-byte what it was. What is NOT amended is this decision's actual subject — that the APP owns
+every one of those behaviours. The clock, the cursor, the session flag, the speed dial and the
+reduced-motion settlement added by ADR-0286 are all app-side, and reduced motion still settles on the
+fully grown forest without playing.
 
 ### D7 — The website port is a later initiative
 
@@ -147,6 +157,12 @@ already forbids.
 
 ## References
 
+- [ADR-0283](0283-act-2-growth-follows-the-edge-pathways-grow-from-settled-nod.md) and
+  [ADR-0285](0285-an-island-forms-the-moment-a-pathway-reaches-it-not-when-all.md) — the two
+  amendments to D3's mechanism and ordering invariant.
+- [ADR-0286](0286-the-forest-regrows-on-first-arrival-each-session-paced-by-a.md) — the amendment to
+  D6's reach: the regrow plays on first arrival each session, so the clean route is no longer
+  byte-identical.
 - [ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) — app-owned SVG
   island as the sole land substrate; organic tracks are author-time only.
 - [ADR-0277](0277-occlusion-registered-cutouts-are-plant-only.md) — retained plant tracks.

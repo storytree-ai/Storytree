@@ -60,6 +60,7 @@ import {
   controlByKey,
   readControlValue,
   readRenderScene,
+  GROUP_INTRO,
   type ControlSpec,
 } from '../lib/worldSettings.js';
 // ADR-0283 D2: `../lib/stressLayout.js` is no longer imported here — DAG rows are the one map
@@ -137,6 +138,7 @@ import {
   trailFillWidth,
   wispBand,
   type SceneInput,
+  type SceneEmptyHex,
   type SceneGardenInput,
   type SceneVegHeroTrees,
   type SceneVegetationInput,
@@ -160,6 +162,9 @@ import { parseStyleSheet, type SpriteStyleSheet } from '../lib/sprite-sheet.js';
 import { SemanticGrowthDemo } from './SemanticGrowthDemo.js';
 import {
   readAct2Intro,
+  act2IntroAlreadyArrived,
+  act2IntroStorage,
+  markAct2IntroArrived,
   useAct2Intro,
   useStableForestRegrowTrails,
   useReducedMotion,
@@ -188,6 +193,7 @@ function requireControl(key: string): ControlSpec {
 const ART_STYLE_CTL = requireControl('artStyle');
 const ART_SCALE_CTL = requireControl('artScale');
 const SELECTION_MOTION_CTL = requireControl('selectionMotion');
+const REGROW_SPEED_CTL = requireControl('regrowSpeed');
 
 /** Shared empty id-set (the DAG path passes no hub ids). */
 const EMPTY_ID_SET: ReadonlySet<string> = new Set();
@@ -251,8 +257,10 @@ export interface Territory {
 
 export interface HexWorld {
   territories: Territory[];
-  /** Pale coast tiles (1–2 rings beyond claimed land). */
-  empties: Axial[];
+  /** Pale coast tiles (1–2 rings beyond claimed land), each carrying the index of the territory
+   *  whose land it grew out of (ADR-0286 — the handle the Act 2 regrow's per-story hide needs;
+   *  `SceneEmptyHex.owner`). */
+  empties: SceneEmptyHex[];
   /** Claimed tiles in global back-to-front draw order, with territory index. */
   drawTiles: { h: Axial; owner: number }[];
   /** The `depends_on` edges routed as the ADR-0169 trail network (BOTH layouts — the
@@ -658,24 +666,32 @@ export function buildWorld(
   });
 
   // The pale coast: up to two rings of unclaimed hexes around the land.
-  const empties: Axial[] = [];
+  //
+  // Each coast hex is ATTRIBUTED to the territory whose land it grew out of (ADR-0286). The moat
+  // is derived from the UNION of claimed tiles, so it has no owner of its own — but the Act 2
+  // regrow hides an island until it forms, and an unowned moat kept drawing the whole forest's
+  // silhouette from frame one. Propagating the owner outward through the ring walk is the honest
+  // attribution: ring 0 inherits the claimed tile it touched, ring 1 inherits the ring-0 hex it
+  // grew from. A hex two islands both reach is claimed by whichever the walk reaches it from
+  // first, which is deterministic because `owner` is built in territory order.
+  const empties: SceneEmptyHex[] = [];
   const emptySet = new Set<string>();
-  let ring: Axial[] = [...owner.keys()].map((k) => {
+  let ring: { h: Axial; owner: number }[] = [...owner.entries()].map(([k, idx]) => {
     const parts = k.split(',');
-    return { q: Number(parts[0]), r: Number(parts[1]) };
+    return { h: { q: Number(parts[0]), r: Number(parts[1]) }, owner: idx };
   });
   for (let depth = 0; depth < 2; depth++) {
-    const next: Axial[] = [];
+    const next: { h: Axial; owner: number }[] = [];
     for (const t of ring) {
       for (const d of AXIAL_DIRS) {
-        const cand = { q: t.q + d.q, r: t.r + d.r };
+        const cand = { q: t.h.q + d.q, r: t.h.r + d.r };
         const key = axialKey(cand);
         if (owner.has(key) || emptySet.has(key)) continue;
         // Thin the outer ring for an organic coastline.
         if (depth === 1 && rand01(hash(`coast:${key}`)) < 0.45) continue;
         emptySet.add(key);
-        empties.push(cand);
-        next.push(cand);
+        empties.push({ ...cand, owner: t.owner });
+        next.push({ h: cand, owner: t.owner });
       }
     }
     ring = next;
@@ -1289,6 +1305,13 @@ export function readArtStyle(search: string = defaultSearch()): string {
  *  footprint) — multiplies the derived sprite fit; inert while `artStyle` is `vector`. */
 export function readArtScale(search: string = defaultSearch()): number {
   return readControlValue(search, ART_SCALE_CTL) as number;
+}
+
+/** How fast the Act 2 regrow crosses its plan (worldSettings' `regrowSpeed` number control,
+ *  ADR-0286). 1 = the plan's own duration; the 0.6 default stretches it. Scales the CLOCK only —
+ *  the schedule the story graph derives is identical at every speed. */
+export function readRegrowSpeed(search: string = defaultSearch()): number {
+  return readControlValue(search, REGROW_SPEED_CTL) as number;
 }
 
 /** What MOVES when an island is selected (worldSettings' `selectionMotion` select, default
@@ -2215,13 +2238,47 @@ export function TreeView({
     [search],
   );
   const chapter2Round3Lab = useMemo(() => readChapter2Round3Lab(search), [search]);
-  // ── the Act 2 intro (ADR-0282): the whole forest regrown from its base nodes ──
-  // Unlike the witness stages above this is NOT a variant controller — there is no early return,
-  // no separate stage and no synthetic world. It runs on the REAL map with the real corpus; the
-  // gate adds a cursor and a control and changes nothing else, so `?act2=intro` shows the same
-  // forest, the same islands and the same roads the clean route does.
+  // ── the Act 2 intro (ADR-0282, ADR-0286): the whole forest regrown from its base nodes ──
+  // Unlike the witness stages above this is NOT a variant controller — there is no early return, no
+  // separate stage and no synthetic world. It runs on the REAL map with the real corpus: the same
+  // forest, the same islands and the same roads the settled map draws. All that is ever added is a
+  // cursor over them.
+  // ADR-0286 moved WHEN it runs. It is no longer gated behind `?act2=intro`: it plays on the first
+  // arrival at the map each browser session, and its owner-facing controls (replay + speed) live in
+  // the gear panel. `?act2=intro` now means "play whatever the session flag says, and mount the
+  // diagnostic readout" — a stable URL for watching it, not the way in.
   const act2Intro = useMemo(() => readAct2Intro(search), [search]);
   const act2ReducedMotion = useReducedMotion();
+  const act2Speed = useMemo(() => readRegrowSpeed(search), [search]);
+  // ADR-0286: the regrow plays on the FIRST arrival at the map in a browser session, and the map is
+  // static for the rest of it. Read once at mount (a ref, so React's double-invoked render in dev
+  // cannot re-ask a question whose answer this component is about to change), and RECORDED in an
+  // effect rather than during render — the read is pure, the write is the side effect.
+  // `?act2=intro` overrides the flag entirely: that route always plays.
+  const act2FirstVisitRef = useRef<boolean | null>(null);
+  if (act2FirstVisitRef.current === null) {
+    act2FirstVisitRef.current = !act2IntroAlreadyArrived(act2IntroStorage());
+  }
+  useEffect(() => {
+    markAct2IntroArrived(act2IntroStorage());
+  }, []);
+  // A START TOKEN rather than a boolean: the gear's "Regrow the forest" bumps it, and the effect
+  // below plays whichever token it has not played yet. That makes the first arrival and every later
+  // replay the SAME path, so there is no second way to start a regrow that could drift from the first.
+  const [act2StartToken, setAct2StartToken] = useState(() =>
+    act2FirstVisitRef.current === true || readAct2Intro(defaultSearch()) ? 1 : 0,
+  );
+  // True until the FIRST arrival's run actually starts. It tells the player to open a fresh plan on
+  // NOTHING rather than on the settled forest — otherwise the render that first has a scene commits
+  // the whole grown map (the single most expensive paint on this surface) a frame before the effect
+  // below rewinds it, and the intro opens with a flash of its own ending. A ref, not state: it is
+  // read only where the cursor is seeded, and flipping it must not re-render anything.
+  const act2PendingStartRef = useRef(act2StartToken > 0);
+  // The machinery is built only once a regrow has actually been asked for. Deriving the plan is
+  // cheap; the accretion plans below are a scene walk per island, and a session that has already
+  // seen the intro should not pay for one. Once asked for, it STAYS on for the life of the page so
+  // Regrow can replay without rebuilding anything.
+  const act2Enabled = act2Intro || act2StartToken > 0;
   // The routed geometry the regrow's pathways grow ALONG (ADR-0283 D1): each segment's drawn
   // length in world units, so a long haul takes longer to travel than a short spur instead of
   // every pathway costing the same. Derived once per world — never per frame.
@@ -2239,14 +2296,16 @@ export function TreeView({
     return lengths;
   }, [world]);
   const act2Player = useAct2Intro({
-    enabled: act2Intro,
+    enabled: act2Enabled,
     stories,
     reducedMotion: act2ReducedMotion,
+    speed: act2Speed,
+    pendingStart: act2PendingStartRef.current,
     // The ORDER comes from the story graph's own `depends_on` (ADR-0282 D3); the routed network
     // supplies only which segments join which islands, so a road the router had to drop can never
     // silently reorder the forest.
     edges: world?.trails.edges ?? null,
-    segmentLengths: act2Intro ? trailSegLengths : null,
+    segmentLengths: act2Enabled ? trailSegLengths : null,
   });
   const scene = useMemo(
     () =>
@@ -2278,13 +2337,13 @@ export function TreeView({
   // never touched by the cursor; the per-frame half below only re-selects cell scales.
   const act2AccretionPlans = useMemo(
     () =>
-      act2Intro && scene && world
+      act2Enabled && scene && world
         ? deriveForestRegrowAccretionPlans(
             scene,
             new Map(world.territories.map((t) => [t.story.id, t.centroid])),
           )
         : null,
-    [act2Intro, scene, world],
+    [act2Enabled, scene, world],
   );
   // The per-frame render layer: which islands and roads exist yet, plus the accretion state of
   // every island still growing. Null unless the regrow is actually mid-flight, so a settled forest
@@ -2296,6 +2355,54 @@ export function TreeView({
     act2Player.state,
     act2AccretionPlans,
     act2Player.regrowing,
+  );
+
+  // ADR-0286: play the pending token, once the map can actually regrow.
+  //
+  // WAITING ON `act2AccretionPlans` is the load-bearing part. Starting the cursor before the scene
+  // exists would run the schedule against no accretion plans, so islands would blink in whole
+  // instead of forming — the run would be over before the growth was possible. The token is only
+  // marked played once the run really starts, so an arrival that lands before the tree does still
+  // gets its regrow when the tree arrives.
+  //
+  // Reduced motion never starts one: `useAct2Intro` holds the fully grown forest, which is the
+  // settled picture the viewer asked for (ADR-0282 D6).
+  const act2PlayedToken = useRef(0);
+  const act2Replay = act2Player.replay;
+  const act2Settle = act2Player.settle;
+  useEffect(() => {
+    if (act2StartToken <= act2PlayedToken.current) return;
+    if (act2ReducedMotion) {
+      // Nothing to play, but the token is spent — otherwise turning reduced motion OFF mid-session
+      // would suddenly launch an intro nobody asked for. The cursor must ALSO stop being held at
+      // nothing, or a reduced-motion viewer would sit in front of an empty map.
+      act2PlayedToken.current = act2StartToken;
+      act2PendingStartRef.current = false;
+      act2Settle();
+      return;
+    }
+    if (!act2AccretionPlans) return;
+    act2PlayedToken.current = act2StartToken;
+    act2PendingStartRef.current = false;
+    act2Replay();
+  }, [act2StartToken, act2ReducedMotion, act2AccretionPlans, act2Replay, act2Settle]);
+
+  // The gear panel's non-URL button (worldSettings holds the speed dial beside it). Memoised as an
+  // array so the panel's own `grouped()` memo is not rebuilt on every render of this component.
+  const act2GearActions = useMemo(
+    () => [
+      {
+        key: 'regrow',
+        group: GROUP_INTRO,
+        label: '▶ Regrow the forest',
+        hint: act2ReducedMotion
+          ? 'Reduced motion is on, so the forest stays settled rather than replaying.'
+          : 'Replay the growth from nothing — the same run that plays on your first arrival at the map.',
+        disabled: act2ReducedMotion,
+        onClick: () => setAct2StartToken((token) => token + 1),
+      },
+    ],
+    [act2ReducedMotion],
   );
 
   // ISLAND ARRIVAL: when a re-pulled tree payload contains stories absent from the
@@ -2775,7 +2882,9 @@ export function TreeView({
               </>
             ) : (
             <g transform={`translate(${world.offset.x} ${world.offset.y})`}>
-              {/* the pale coast */}
+              {/* the pale coast. This is the `?render=legacy` escape hatch, not the canonical
+                  render (ADR-0093 Unit D), so it draws the whole moat at once and carries no
+                  ADR-0286 per-island reveal — the Act 2 regrow runs on the scene path. */}
               <g className="hex-coast">
                 {world.empties.map((h) => {
                   const c = hexCenter(h);
@@ -2846,10 +2955,11 @@ export function TreeView({
               onClose={() => setSessionDock(false)}
             />
           )}
-          {/* The Act 2 intro control (ADR-0282): the owner clicks it and the whole forest regrows
-              from nothing, outward from the base nodes, in the story graph's own dependency order.
-              Gated on the exact `?act2=intro` value — absent ⇒ not mounted, and the clean route
-              renders byte-for-byte as before. */}
+          {/* The Act 2 intro's DIAGNOSTIC readout (ADR-0282, narrowed by ADR-0286): depth, islands
+              landed, pathways growing, percent, plus the full transport for stepping to a
+              particular beat. The owner-facing replay + speed live in the gear panel now; this is
+              what a measurement run and a close look need. Gated on the exact `?act2=intro` value —
+              absent ⇒ not mounted, and the map carries no regrow chrome at all. */}
           {act2Intro && <Act2IntroControl player={act2Player} reducedMotion={act2ReducedMotion} />}
           {/* `?arrive=` demo: replay the arrival — remounts the scene subtree so the
               CSS animations run again. Absent flag ⇒ no button (default world untouched). */}
@@ -2865,7 +2975,7 @@ export function TreeView({
           {/* The world-tuning gear (bottom-right): sliders/toggles/selects bound to
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
-          <WorldSettingsPanel search={search} onCommit={commitSearch} />
+          <WorldSettingsPanel search={search} onCommit={commitSearch} actions={act2GearActions} />
           {/* The Library lens (ADR-0188 inc 9): the two-pane panel remold behind `?overlay=library`
               — an overlay within .world-frame, never a route away. A constant SIDE panel (the
               finder's shelf/scope/search + the pinned selection card) over a single-job CANVAS
