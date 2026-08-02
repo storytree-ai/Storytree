@@ -11,6 +11,7 @@ import { parseJudgeResult } from "./judge-result.js";
 /** Context arguments for one independent judgment call — no shared builder scratch. */
 export interface JudgeContext {
   readonly criterionId: string;
+  readonly revisionId: string;
   readonly title: string;
   readonly detailBody: string;
   readonly detailHash: string;
@@ -46,6 +47,7 @@ export class ScriptedJudge implements JudgePort {
     // context fields are required args (fresh per call) but the script is the
     // canned judgment — we still validate shape through parseJudgeResult.
     void context.title;
+    void context.revisionId;
     void context.detailBody;
     void context.detailHash;
     void context.requiredTier;

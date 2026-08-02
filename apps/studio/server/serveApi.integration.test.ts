@@ -18,7 +18,8 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { UserDoc } from '@storytree/studio-members';
-import type { Attestation } from '@storytree/proof-protocol';
+import { criterionRevisionId, type Attestation } from '@storytree/proof-protocol';
+import { canonicalUatCriterionContent } from '@storytree/library';
 import { mergeUser, wouldOrphanAdminsOnRemove, wouldOrphanAdminsOnRole } from '@storytree/studio-members';
 import { createStudioServer } from './serve';
 import { parseSeedAdmins } from './guestPolicy';
@@ -30,6 +31,26 @@ const ADMIN = 'owner@example.com'; // bootstrap seed admin (no row needed)
 const MEMBER = 'member@example.com'; // an active member row
 const INVITED = 'invited@example.com'; // an invited row — activates on first request
 const STRANGER = 'stranger@example.com'; // no row, not seeded → non-member
+const C1 = 'uatc_000000000000000000000001';
+const C2 = 'uatc_000000000000000000000002';
+const P1 = '**Machine check** _(witness: machine)_: checked.';
+const P2 = '**Human check** _(witness: human)_: seen.';
+const R1 = criterionRevisionId(canonicalUatCriterionContent(`1. ${P1}`));
+const R2 = criterionRevisionId(canonicalUatCriterionContent(`2. ${P2}`));
+const STORY_MD = `---
+id: "demo-story"
+tier: story
+title: "Demo"
+outcome: "Demo outcome"
+status: proposed
+proof_mode: UAT
+---
+
+## Story UAT
+
+1. ${P1} (criterion-id: ${C1})(revision-id: ${R1})
+2. ${P2} (criterion-id: ${C2})(revision-id: ${R2})
+`;
 
 const iap = (email: string): Record<string, string> => ({
   [IAP_EMAIL_HEADER]: `accounts.google.com:${email}`,
@@ -161,6 +182,8 @@ beforeAll(async () => {
   await fs.writeFile(path.join(distDir, 'index.html'), '<html>studio spa</html>');
   await fs.mkdir(path.join(distDir, 'assets'));
   await fs.writeFile(path.join(distDir, 'assets', 'app.js'), 'console.log("app")');
+  await fs.mkdir(path.join(distDir, 'stories', 'demo-story'), { recursive: true });
+  await fs.writeFile(path.join(distDir, 'stories', 'demo-story', 'story.md'), STORY_MD);
 
   server = createStudioServer({
     distDir,
@@ -527,7 +550,7 @@ describe('attestations: member reads, admin records (ADR-0044)', () => {
     const res = await fetch(`${base}/api/attestations`, {
       method: 'POST',
       headers: iap(MEMBER),
-      body: JSON.stringify({ testId: 'demo-story#uat-1', outcome: 'pass' }),
+      body: JSON.stringify({ storyId: 'demo-story', criterionId: C1, outcome: 'pass' }),
     });
     expect(res.status).toBe(403);
     expect(seen.recordedAttestation).toBeUndefined();
@@ -537,11 +560,13 @@ describe('attestations: member reads, admin records (ADR-0044)', () => {
     const res = await fetch(`${base}/api/attestations`, {
       method: 'POST',
       headers: iap(ADMIN),
-      body: JSON.stringify({ testId: 'demo-story#uat-2', outcome: 'pass', note: 'looked right', signer: 'forged@evil.com' }),
+      body: JSON.stringify({ storyId: 'demo-story', criterionId: C2, outcome: 'pass', note: 'looked right', signer: 'forged@evil.com' }),
     });
     expect(res.status).toBe(201);
     expect(seen.recordedAttestation).toMatchObject({
-      testId: 'demo-story#uat-2',
+      testId: C2,
+      criterionId: C2,
+      revisionId: R2,
       outcome: 'pass',
       witness: 'human',
       signer: ADMIN, // stamped from IAP identity, NOT the forged body field

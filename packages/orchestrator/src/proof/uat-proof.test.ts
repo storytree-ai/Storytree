@@ -40,6 +40,19 @@ function failEvent(unitId: string): StoreEvent {
   return { ...e, doc: { ...(e.doc as Verdict), outcome: "fail" } };
 }
 
+const C1 = { criterionId: "uatc_111111111111111111111111", revisionId: "uatr1:1111111111111111" };
+const C2 = { criterionId: "uatc_222222222222222222222222", revisionId: "uatr1:2222222222222222" };
+const C3 = { criterionId: "uatc_333333333333333333333333", revisionId: "uatr1:3333333333333333" };
+
+function criterionEvent(
+  criterion: typeof C1,
+  outcome: "pass" | "fail" = "pass",
+  proofMode: Verdict["proofMode"] = "story",
+): StoreEvent {
+  const base = passEvent(criterion.criterionId, proofMode);
+  return { ...base, doc: { ...(base.doc as Verdict), ...criterion, outcome } };
+}
+
 // ── checkUatProof: the sign-time trust guard ───────────────────────────────────────────────────
 
 test("guard: a human test is proven by an operator-attested verdict signed by a person", () => {
@@ -131,65 +144,69 @@ test("rollup: no declared tests => null (nothing to prove)", () => {
 });
 
 test("rollup: all tests signed pass => healthy", () => {
-  const tests = [{ id: "s#uat-1" }, { id: "s#uat-2" }];
-  const events = [passEvent("s#uat-1", "operator-attested"), passEvent("s#uat-2", "story")];
+  const tests = [C1, C2];
+  const events = [criterionEvent(C1, "pass", "operator-attested"), criterionEvent(C2)];
   assert.equal(rollupStoryUat(tests, events), "healthy");
 });
 
 test("rollup: any test still unproven => null (under-claim, never over-claim)", () => {
-  const tests = [{ id: "s#uat-1" }, { id: "s#uat-2" }];
-  const events = [passEvent("s#uat-1")];
+  const tests = [C1, C2];
+  const events = [criterionEvent(C1)];
   assert.equal(rollupStoryUat(tests, events), null);
 });
 
 test("rollup: a test that regressed (pass then fail) withers the story to unhealthy", () => {
-  const tests = [{ id: "s#uat-1" }, { id: "s#uat-2" }];
-  const events = [passEvent("s#uat-1"), passEvent("s#uat-2"), failEvent("s#uat-2")];
+  const tests = [C1, C2];
+  const events = [criterionEvent(C1), criterionEvent(C2), criterionEvent(C2, "fail")];
   assert.equal(rollupStoryUat(tests, events), "unhealthy");
 });
 
 test("rollup: a regression wins even when every other test passes", () => {
-  const tests = [{ id: "s#uat-1" }, { id: "s#uat-2" }, { id: "s#uat-3" }];
+  const tests = [C1, C2, C3];
   const events = [
-    passEvent("s#uat-1"),
-    passEvent("s#uat-3"),
-    passEvent("s#uat-2"),
-    failEvent("s#uat-2"),
+    criterionEvent(C1),
+    criterionEvent(C3),
+    criterionEvent(C2),
+    criterionEvent(C2, "fail"),
   ];
   assert.equal(rollupStoryUat(tests, events), "unhealthy");
 });
 
 test("rollup: a first-attempt fail (no prior pass) abstains, never withers — a failed attempt invents nothing", () => {
-  const tests = [{ id: "s#uat-1" }, { id: "s#uat-2" }];
-  const events = [passEvent("s#uat-1"), failEvent("s#uat-2")];
+  const tests = [C1, C2];
+  const events = [criterionEvent(C1), criterionEvent(C2, "fail")];
   assert.equal(rollupStoryUat(tests, events), null);
 });
 
-test("rollup: a single-test story greens on its one pass", () => {
-  assert.equal(rollupStoryUat([{ id: "s#uat-1" }], [passEvent("s#uat-1")]), "healthy");
+test("rollup: a single-test story greens on its one exact-revision pass", () => {
+  assert.equal(rollupStoryUat([C1], [criterionEvent(C1)]), "healthy");
+});
+
+test("rollup: positional UAT obligations and verdicts never receive current proof credit", () => {
+  assert.equal(rollupStoryUat([{ id: "s#uat-1" }], [passEvent("s#uat-1")]), null);
 });
 
 // ── rollupStoryGreen: the story-crown roll-up = (caps healthy) AND (UAT healthy) (ADR-0083 Fork A) ──
 
 test("story-green: all caps + all UAT pass => healthy", () => {
   const caps = ["s.cap-a", "s.cap-b"];
-  const tests = [{ id: "s#uat-1" }];
-  const events = [passEvent("s.cap-a", "capability"), passEvent("s.cap-b", "capability"), passEvent("s#uat-1")];
+  const tests = [C1];
+  const events = [passEvent("s.cap-a", "capability"), passEvent("s.cap-b", "capability"), criterionEvent(C1)];
   assert.equal(rollupStoryGreen(caps, tests, events), "healthy");
 });
 
 test("story-green: UAT green but a capability still unproven (mapped) => null (under-claim, the necessary condition)", () => {
   const caps = ["s.cap-a", "s.cap-b"];
-  const tests = [{ id: "s#uat-1" }];
+  const tests = [C1];
   // s.cap-b never earned a signed pass — the crown cannot be green while it stands unproven.
-  const events = [passEvent("s.cap-a", "capability"), passEvent("s#uat-1")];
+  const events = [passEvent("s.cap-a", "capability"), criterionEvent(C1)];
   assert.equal(rollupStoryGreen(caps, tests, events), null);
 });
 
 test("story-green: caps green but UAT unproven => null (six green plants are not sufficient, ADR-0082)", () => {
   const caps = ["s.cap-a"];
-  const tests = [{ id: "s#uat-1" }, { id: "s#uat-2" }];
-  const events = [passEvent("s.cap-a", "capability"), passEvent("s#uat-1")];
+  const tests = [C1, C2];
+  const events = [passEvent("s.cap-a", "capability"), criterionEvent(C1)];
   assert.equal(rollupStoryGreen(caps, tests, events), null);
 });
 
@@ -200,25 +217,24 @@ test("story-green: caps green but NO UAT declared => null (UAT clause is also ne
 
 test("story-green: a red capability (signed fail) withers the crown to unhealthy even with green UAT", () => {
   const caps = ["s.cap-a"];
-  const tests = [{ id: "s#uat-1" }];
-  const events = [passEvent("s.cap-a", "capability"), failEvent("s.cap-a"), passEvent("s#uat-1")];
+  const tests = [C1];
+  const events = [passEvent("s.cap-a", "capability"), failEvent("s.cap-a"), criterionEvent(C1)];
   assert.equal(rollupStoryGreen(caps, tests, events), "unhealthy");
 });
 
 test("story-green: a UAT regression withers the crown to unhealthy even with green caps", () => {
   const caps = ["s.cap-a"];
-  const tests = [{ id: "s#uat-1" }];
-  const events = [passEvent("s.cap-a", "capability"), passEvent("s#uat-1"), failEvent("s#uat-1")];
+  const tests = [C1];
+  const events = [passEvent("s.cap-a", "capability"), criterionEvent(C1), criterionEvent(C1, "fail")];
   assert.equal(rollupStoryGreen(caps, tests, events), "unhealthy");
 });
 
 test("story-green: ZERO capabilities (a foundational port) satisfies the cap clause VACUOUSLY — green is its UAT alone", () => {
-  const tests = [{ id: "proof-protocol#uat-1" }];
-  assert.equal(rollupStoryGreen([], tests, [passEvent("proof-protocol#uat-1")]), "healthy");
+  assert.equal(rollupStoryGreen([], [C1], [criterionEvent(C1)]), "healthy");
 });
 
 test("story-green: ZERO capabilities with UAT still unproven => null (vacuous caps, but the UAT clause fails)", () => {
-  assert.equal(rollupStoryGreen([], [{ id: "p#uat-1" }], []), null);
+  assert.equal(rollupStoryGreen([], [C1], []), null);
 });
 
 test("story-green: ZERO capabilities AND no UAT => null (nothing greens it)", () => {
@@ -264,9 +280,9 @@ test("coverage: a cap with its OWN signed fail still withers the crown, even if 
 
 test("coverage: omitted (greenfield) => the pre-ADR-0097 rule — each cap must earn its own verdict", () => {
   const caps = ["s.cap-a"];
-  const tests = [{ id: "s#uat-1" }];
+  const tests = [C1];
   // No coverage arg: cap-a must be proven on its own. Only the UAT is signed → still null.
-  const events = [passEvent("s#uat-1")];
+  const events = [criterionEvent(C1)];
   assert.equal(rollupStoryGreen(caps, tests, events), null);
 });
 
@@ -322,8 +338,8 @@ test("cap-status: the crown agrees with the per-cap fold — every cap rollupCap
 test("oq-gate: a would-be-green crown with an OPEN gating OQ does NOT roll up green (blocked → null)", () => {
   // Prove the full path: the crown rolls up healthy, but one open OQ attached to the process blocks it.
   const caps = ["s.cap-a"];
-  const tests = [{ id: "s#uat-1" }];
-  const events = [passEvent("s.cap-a", "capability"), passEvent("s#uat-1")];
+  const tests = [C1];
+  const events = [passEvent("s.cap-a", "capability"), criterionEvent(C1)];
   const crown = rollupStoryGreen(caps, tests, events);
   assert.equal(crown, "healthy"); // everything is driven green…
   assert.equal(gateStoryGreenOnOpenQuestions(crown, 1), null); // …but the open fork withholds the green

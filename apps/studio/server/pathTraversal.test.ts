@@ -10,8 +10,14 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { criterionRevisionId } from '@storytree/proof-protocol';
+import { canonicalUatCriterionContent } from '@storytree/library';
 
 import { containedPath, uatContextForStory } from './apiRouter.js';
+
+const PROSE = '**See it work** _(witness: human)_: the operator sees it. **Success —** seen.';
+const CRITERION_ID = 'uatc_000000000000000000000001';
+const REVISION_ID = criterionRevisionId(canonicalUatCriterionContent(`1. ${PROSE}`));
 
 const STORY_MD = `---
 id: "demo-story"
@@ -26,7 +32,7 @@ proof_mode: UAT
 
 ## Story UAT
 
-1. **See it work** _(witness: human)_: the operator sees it. **Success —** seen.
+1. ${PROSE} (criterion-id: ${CRITERION_ID})(revision-id: ${REVISION_ID})
 `;
 
 describe('containedPath (the shared traversal guard)', () => {
@@ -70,7 +76,7 @@ describe('uatContextForStory refuses a traversal storyId', () => {
   it('reads a valid in-base story (positive control)', async () => {
     const ctx = await uatContextForStory(storiesDir, 'demo-story');
     expect(ctx).not.toBeNull();
-    expect(ctx?.tests.map((t) => t.id)).toContain('demo-story#uat-1');
+    expect(ctx?.tests.map((t) => t.criterionId)).toHaveLength(1);
   });
 
   it('returns null for a `../` storyId even though a story.md exists at the escaped path', async () => {

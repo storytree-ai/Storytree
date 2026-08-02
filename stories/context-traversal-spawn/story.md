@@ -130,14 +130,14 @@ capacity the runtime declared and nothing when it declared none, and replay unde
 statement that admits what it does not observe — and that the boundary those lanes come from is
 actually WIRED: a build CALLS an installed observer, rather than a seam nothing composes.
 
-1. **One authoring slice becomes a linked parent/child lane triple.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Observe one
+1. **One authoring slice becomes a linked parent/child lane triple.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Observe one _(criterion-id: uatc_3ee0e7d2b5158438f850c121)_ _(revision-id: uatr1:60666349a1c16bdd)_
    build authoring slice's run accounting through the story-owned observer. **Success —** exactly
    three events in chronological order: a `spawn_handoff` and a `result_return` on the PARENT
    session, and a `model_context` on an explicitly-named CHILD session; the child id is a
    deterministic string derived from declared build identity (never from time, ordering, or
    adjacency) and is never equal to the parent; both edge events carry the same explicit `edgeId`;
    and every emitted event parses clean through increment 1's `ContextTraversalEvent`.
-2. **Both lanes survive as bytes in their own per-session traces.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Run the build
+2. **Both lanes survive as bytes in their own per-session traces.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Run the build _(criterion-id: uatc_be05a78a3906baa8b9e9397c)_ _(revision-id: uatr1:a22e2a2f5bdeae93)_
    capture against a temporary trace directory with an explicit parent session id. **Success —** the
    directory holds a parent trace file carrying the handoff and return, and a separate child trace
    file carrying that child's `model_context`; both are asserted by LISTING the directory and reading
@@ -147,14 +147,14 @@ actually WIRED: a build CALLS an installed observer, rather than a seam nothing 
    segment (`leaf-slice-spawn-observations` contract 11): the sink names one file per session and
    swallows a failed write, so an illegal character would make this leg unsatisfiable and invisible
    at once.
-3. **Only metadata ever reaches the bytes, and capture changes nothing else.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Thread a
+3. **Only metadata ever reaches the bytes, and capture changes nothing else.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Thread a _(criterion-id: uatc_395bf5cc8865a1a12651f077)_ _(revision-id: uatr1:04869694730a8955)_
    canary string through every free-text-looking input, then re-run with no resolvable parent
    session id, with `STORYTREE_TRAVERSAL=off`, and against an unwritable directory. **Success —** the
    canary appears nowhere in any written bytes — no prompt, no context body, no tool result, no
    hidden reasoning, no credential, no spawn payload, no returned result content; the two opt-out
    runs create no file at all; the unwritable run returns normally without throwing; and no run alters
    an exit code, an envelope, or a verdict.
-4. **The child's window is one honest observation and its capacity is a pass-through, never an estimate.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Observe
+4. **The child's window is one honest observation and its capacity is a pass-through, never an estimate.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Observe _(criterion-id: uatc_f5af5e29ddb9342bd9eb1b81)_ _(revision-id: uatr1:694283a84b6f3ad7)_
    slices with and without reported token usage, and with and without a runtime-declared context
    window. **Success —** each child `model_context` states
    `cumulativeInputTokens === addedInputTokens === inputTokens + cacheCreationInputTokens +
@@ -169,7 +169,7 @@ actually WIRED: a build CALLS an installed observer, rather than a seam nothing 
    replay still reports capacity unknown for a `model_context` that carries none;
    `payloadTokenCount` is ABSENT on every handoff; and a slice that reported no usage emits the
    handoff and return but NO `model_context`.
-5. **The replay declares coverage for every kind it shows.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Replay a trace holding
+5. **The replay declares coverage for every kind it shows.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-1)_ Replay a trace holding _(criterion-id: uatc_09aa131d8afc905a5ad9f554)_ _(revision-id: uatr1:fcb9af45e15cf4c6)_
    both terminal read events and build spawn events through the multi-adapter replay. **Success —**
    every event kind present in the replay is named `supported` by at least one declared adapter;
    both adapter ids print their full supported AND omitted lists; the build adapter's declaration is
@@ -177,7 +177,7 @@ actually WIRED: a build CALLS an installed observer, rather than a seam nothing 
    or omitted — declaring `field:context_window_capacity` SUPPORTED (coverage states what the adapter
    CAN observe, not what any one trace happens to contain) and `field:candidate_follow_causality`
    explicitly OMITTED; and a corrupt line yields a partial-read notice instead of a throw.
-6. **A build's spawn boundary actually reaches an installed observer.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-2)_ Drive an
+6. **A build's spawn boundary actually reaches an installed observer.** _(witness: machine)_ _(proof-gate: context-traversal-spawn#gate-2)_ Drive an _(criterion-id: uatc_83f44c24f013ec7124d3ca64)_ _(revision-id: uatr1:42f87b862cd2a0db)_
    offline `--real` build chain with a canned live author supplied through the `liveAuthorOverride`
    accounting seam (ADR-0243 D1) and a spy observer installed at drive's `onLeafSlices` opt.
    **Success —** the observer is CALLED — once per built node, carrying that node's own unit id and

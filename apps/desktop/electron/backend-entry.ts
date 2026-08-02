@@ -695,9 +695,7 @@ async function main(): Promise<void> {
         events !== null &&
         rollupStoryGreen(
           unit.spec.capabilities,
-          [...unit.spec.uatTestCriteria.filter((t) => !t.wouldBe), ...unit.spec.reliabilityGates].map((o) => ({
-            id: o.id,
-          })),
+          [...unit.spec.uatTestCriteria.filter((t) => !t.wouldBe), ...unit.spec.reliabilityGates],
           events as Parameters<typeof rollupStoryGreen>[2],
           unit.spec.reliabilityGates.map((g) => ({ id: g.id, covers: g.covers })),
         ) === "healthy";
@@ -729,33 +727,35 @@ async function main(): Promise<void> {
     }
 
     const body = await readJsonObject(req);
-    const testId = typeof body["testId"] === "string" ? body["testId"].trim() : "";
-    const match = /^(.+)#uat-\d+$/.exec(testId);
-    if (match === null) {
+    const storyId = typeof body["storyId"] === "string" ? body["storyId"].trim() : "";
+    const criterionId =
+      typeof body["criterionId"] === "string" ? body["criterionId"].trim() : "";
+    if (storyId.length === 0 || criterionId.length === 0) {
       res.statusCode = 400;
       res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ error: "testId must have the shape <story>#uat-<n>" }));
+      res.end(JSON.stringify({ error: "storyId and criterionId are required" }));
       return true;
     }
 
     const { findNodeSpecFile, loadNodeSpec, resolvedWitnessOf } = await import("@storytree/orchestrator");
-    const specFile = findNodeSpecFile(storiesDir, match[1]!);
+    const specFile = findNodeSpecFile(storiesDir, storyId);
     const spec = specFile === null ? null : loadNodeSpec(specFile);
     if (spec === null || spec.tier !== "story") {
       res.statusCode = 400;
       res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ error: `story "${match[1]}" was not found` }));
+      res.end(JSON.stringify({ error: `story "${storyId}" was not found` }));
       return true;
     }
 
     const signer = await requestElectronMain<string>({ type: "broker:identity" });
     const attestingSession = deriveChatIdentity(repoRoot);
     const result = await attestLocalUat({
-      testId,
+      criterionId,
       outcome: body["outcome"] === "fail" ? "fail" : "pass",
       at: new Date().toISOString(),
       tests: spec.uatTestCriteria.map((test) => ({
-        id: test.id,
+        criterionId: test.criterionId,
+        revisionId: test.revisionId,
         witness: resolvedWitnessOf(test, spec.reliabilityGates),
       })),
       signer,
@@ -812,7 +812,7 @@ async function main(): Promise<void> {
       findNodeSpecFile, loadNodeSpec,
       deriveAttestations,
       resolvedWitnessOf, unresolvedUatLegs,
-      rollupStatus, rollupStoryUat,
+      rollupCriterionStatus, rollupStoryUat,
     } = await import("@storytree/orchestrator");
     // Load story UAT context from disk (same logic as uatContextForStory in apiRouter.ts).
     // findNodeSpecFile + loadNodeSpec are synchronous FS reads; any error → null, never a crash.
@@ -830,7 +830,7 @@ async function main(): Promise<void> {
         const derived = deriveAttestations(evts);
         const out: Record<string, Record<string, unknown>> = {};
         for (const [testId, entry] of derived) {
-          if (testId.startsWith(`${storyId}#`)) out[testId] = entry as Record<string, unknown>;
+          out[testId] = entry as Record<string, unknown>;
         }
         return out;
       }).catch((): Record<string, Record<string, unknown>> => ({})),
@@ -842,21 +842,32 @@ async function main(): Promise<void> {
     // so the binary can never fork between studio and desktop).
     const resolved = tests.map((t) => ({ ...t, witness: resolvedWitnessOf(t, gates) }));
     const adopted = status !== "" && status !== "mapped" && status !== "retired";
-    const unresolvedWitnesses = adopted ? unresolvedUatLegs(tests).map((t) => t.id) : [];
+    const unresolvedWitnesses = adopted
+      ? unresolvedUatLegs(tests).map((t) => t.criterionId)
+      : [];
     // Proven state from signed verdicts (advisory — absent on a down DB).
-    let provenOf: ((id: string) => "pass" | "fail" | undefined) | null = null;
+    let provenOf:
+      | ((criterion: { criterionId: string; revisionId: string }) =>
+          | "pass"
+          | "fail"
+          | undefined)
+      | null = null;
     let storyUat: "healthy" | "unhealthy" | null | undefined;
     if (events !== null) {
-      provenOf = (id) => {
-        const s = rollupStatus(id, events);
+      provenOf = (criterion) => {
+        const s = rollupCriterionStatus(criterion, events);
         return s === "healthy" ? "pass" : s === "unhealthy" ? "fail" : undefined;
       };
       const rolled = rollupStoryUat(tests, events);
       storyUat = rolled === "healthy" || rolled === "unhealthy" ? rolled : null;
     }
     const rows = resolved.map((t) => {
-      const proven = provenOf?.(t.id);
-      return { ...t, ...(marksMap[t.id] ?? {}), ...(proven !== undefined ? { proven } : {}) };
+      const proven = provenOf?.(t);
+      return {
+        ...t,
+        ...(marksMap[t.criterionId] ?? {}),
+        ...(proven !== undefined ? { proven } : {}),
+      };
     });
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");

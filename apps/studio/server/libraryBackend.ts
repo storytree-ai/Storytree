@@ -24,7 +24,7 @@ import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import type { UserDoc } from '@storytree/studio-members';
 import type { ClaimDocT, DepartedClaim } from '@storytree/notice-board';
-import type { Attestation, Verdict } from '@storytree/proof-protocol';
+import type { Attestation, StoredAttestation, Verdict } from '@storytree/proof-protocol';
 // Type-only: the document-store seam the arc rollup reads through (see LibraryBackend.docStore).
 // `@storytree/storage-protocol`'s main entry is pure/browser-safe, but a TYPE import cannot emit a
 // runtime require either way — which is what keeps `vite build`'s plain-ESM config load happy.
@@ -46,7 +46,10 @@ import type { ClaimActivity, ClaimRow } from './inFlightActivity';
 import { deriveOfflineAssets, type KnowledgeUnitLike } from './deriveOfflineCorpus';
 
 /** Latest-per-(testId,witness) attestation marks for one story's tests, keyed by test id. */
-export type StoryAttestations = Record<string, { human?: Attestation; machine?: Attestation }>;
+export type StoryAttestations = Record<
+  string,
+  { human?: StoredAttestation; machine?: StoredAttestation }
+>;
 
 /** Fields the API validates from a create/update asset request (no server-stamped timestamps). */
 export interface AssetInput {
@@ -257,7 +260,7 @@ export interface LibraryBackend {
 
   // ----- per-UAT-test attestations (ADR-0044 attestation-surface) -----
   // A SIGNED vouch log, deliberately separate from verdicts. listAttestations is the DISPLAY
-  // projection (latest human/machine per test) filtered to one story's `<story>#uat-*` tests;
+  // projection (latest human/machine per exact criterion binding) joined to Markdown-owned ids;
   // recordAttestation appends one validated signal. NEVER touches events.verdict (d.2), and the
   // story island hue is unaffected (d.3) — these live in the detail only.
   /** Latest human/machine marks for the story's tests, keyed by test id. `{}` for json/down DB. */
@@ -483,15 +486,15 @@ export class JsonBackend implements LibraryBackend {
   // ----- attestations (data/attestations.json) — the offline mirror of PgAttestationStore.
   // Append-only array; the display projection is derived via @storytree/orchestrator (lazy). -----
 
-  async listAttestations(storyId: string): Promise<StoryAttestations> {
+  async listAttestations(_storyId: string): Promise<StoryAttestations> {
     // deriveAttestations is the farmer's projection compute — it MOVED to @storytree/orchestrator
     // (ADR-0068 step 1), loaded lazily like the other Node-only farmer modules.
     const orchestrator = await loadOrchestratorModule();
-    const stored = await readStore<Attestation[]>(this.#attestationsFile, []);
+    const stored = await readStore<StoredAttestation[]>(this.#attestationsFile, []);
     const map = orchestrator.deriveAttestations(stored.map((doc, i) => ({ seq: i + 1, doc })));
     const out: StoryAttestations = {};
     for (const [testId, entry] of map) {
-      if (testId.startsWith(`${storyId}#`)) out[testId] = entry;
+      out[testId] = entry;
     }
     return out;
   }
@@ -502,7 +505,7 @@ export class JsonBackend implements LibraryBackend {
     // loaded lazily on first write — fail-closed at the write boundary.
     const { Attestation: AttestationDoc } = await loadContractModule();
     const validated = AttestationDoc.parse(att);
-    const all = await readStore<Attestation[]>(this.#attestationsFile, []);
+    const all = await readStore<StoredAttestation[]>(this.#attestationsFile, []);
     all.push(validated);
     await writeStore(this.#attestationsFile, all);
     return validated;
@@ -1163,13 +1166,13 @@ export class PgBackend implements LibraryBackend {
 
   // ----- attestations (PgAttestationStore over events.attestation) -----
 
-  async listAttestations(storyId: string): Promise<StoryAttestations> {
+  async listAttestations(_storyId: string): Promise<StoryAttestations> {
     const { attestations } = await this.#ready();
     const orchestrator = await loadOrchestratorModule();
     const map = orchestrator.deriveAttestations(await attestations.readEvents());
     const out: StoryAttestations = {};
     for (const [testId, entry] of map) {
-      if (testId.startsWith(`${storyId}#`)) out[testId] = entry;
+      out[testId] = entry;
     }
     return out;
   }

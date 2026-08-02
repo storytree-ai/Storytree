@@ -15,6 +15,7 @@ import type { UatTestCriterion, ReliabilityGate } from "@storytree/library";
 import {
   loadNodeSpec,
   rollupCapStatus,
+  rollupCriterionStatus,
   rollupStatus,
   rollupStoryGreen,
   rollupStoryUat,
@@ -325,14 +326,22 @@ export async function treeCommand(
   if (uatTestCriteria.length > 0) {
     const marks = await readAttestations(deps.attestations ?? null);
     lines.push("", "UAT test criteria:");
-    const idWidth = Math.max(...uatTestCriteria.map((t) => t.id.length));
+    const idWidth = Math.max(...uatTestCriteria.map((t) => t.criterionId.length));
     for (const t of uatTestCriteria) {
-      const proven = provenMark(t.id);
+      const status = verdictEvents === null ? null : rollupCriterionStatus(t, verdictEvents);
+      const proven =
+        verdictEvents === null
+          ? ""
+          : status === "healthy"
+            ? "✓"
+            : status === "unhealthy"
+              ? "✗"
+              : "–";
       const provenCol = proven === "" ? "" : `  proven=${proven}`;
-      const vouch = attestationMark(marks, t.id);
+      const vouch = attestationMark(marks, t.criterionId);
       const vouchCol = vouch === "" ? "" : `  ${vouch}`;
       lines.push(
-        `  ${t.id.padEnd(idWidth)}  witness=${t.witness.padEnd(7)}${provenCol}  ${t.title}${vouchCol}`,
+        `  ${t.criterionId.padEnd(idWidth)}  witness=${t.witness.padEnd(7)}${provenCol}  ${t.title}${vouchCol}`,
       );
     }
   }

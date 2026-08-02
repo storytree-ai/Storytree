@@ -18,10 +18,10 @@ uat_witness: machine
 arc: model-uat-promotion
 # Packages-forward ownership (ADR-0192): this NEW story owns a NEW workspace package/port,
 # `@storytree/model-uat` (`packages/model-uat`). Every proof-bound source below lives in that building.
-# It imports no other @storytree package in this increment, so the story is a dependency root.
+# It consumes proof-protocol's exact criterion binding and revision-id vocabulary (ADR-0253).
 # Existing `@storytree/library` parser consumers are integrated only AFTER these proofs through an
 # explicit adapter/re-export + package edge owned by the consuming story; no proof source squats there.
-depends_on: []
+depends_on: [proof-protocol]
 # Deciding ADRs (ADR-0037 §2): 0209 (add `model` as a distinct capability-tiered witness below
 # irreducible human — this story's charter); 0082 (per-test witness earns green — the binary model this
 # story extends to three kinds); 0106 (the adopt pass resolves each leg's witness — extended here beyond
@@ -197,32 +197,32 @@ model, its tier; the machinery resolves an eligible judge or an honest hold whil
 untagged criterion stays legacy-unresolved, and every route from that legacy state into model
 judgment is refused.
 
-1. **Classify the three kinds through the public port.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ Import
+1. **Classify the three kinds through the public port.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ Import _(criterion-id: uatc_21a05878775fd9686d340d4f)_ _(revision-id: uatr1:4527412ae369727a)_
    `Criterion`, `ClassifiedWitness`, `Tier`, the registry API, and
    `resolveStoryWitnesses`/`resolveWitness` from the `@storytree/model-uat` ROOT barrel, then parse a
    criterion tagged `machine`, one tagged `model`, and one tagged `human`. **Success —** every public
    symbol resolves through `src/index.ts`; `model` is DISTINCT from `machine`; the three kinds
    round-trip through the public parser/validator. An empty barrel fails this leg.
-2. **Preserve legacy parsing without defaulting to model.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ An existing
+2. **Preserve legacy parsing without defaulting to model.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ An existing _(criterion-id: uatc_5c6e5d713558fcb57c9fbaad)_ _(revision-id: uatr1:6f3e01337252d8fd)_
    untagged criterion is presented to the parser before its staged migration. **Success —** it parses
    as legacy-unresolved `either` and continues the current conservative path; it carries no model tier,
    cannot enter model judgment, and remains visibly due for explicit reclassification. A new or
    migrated criterion must explicitly declare `machine`, `model`, or `human` (ADR-0209 D8).
-3. **A model criterion declares its tier.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A `model` criterion tagged
+3. **A model criterion declares its tier.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A `model` criterion tagged _(criterion-id: uatc_122b8e1ebdd04e08ce6db12b)_ _(revision-id: uatr1:20c5cdb257e2577e)_
    `advanced` and one tagged `frontier` parse their tiers; a `model` criterion with no tier, and a
    `machine`/`human` criterion carrying a tier, are refused. **Success —** tier ∈ {advanced, frontier}
    is required on and only on a `model` criterion; a below-`advanced` or unknown tier is refused at the
    parse boundary (ADR-0209 D2).
-4. **The curated concrete judges satisfy their admitted rungs.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ Resolve
+4. **The curated concrete judges satisfy their admitted rungs.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ Resolve _(criterion-id: uatc_ee1c9168e130b50126743f67)_ _(revision-id: uatr1:4d38e2ba6e334d24)_
    against the seed registry. **Success —** the available advanced entry is exactly
    `claude-opus-4-8`, the available frontier entry is exactly `claude-fable-5`, an advanced criterion
    resolves to the advanced Opus entry, and a frontier criterion resolves to Fable. A frontier judge
    still substitutes upward when it is the eligible stronger judge; an advanced judge never satisfies
    a frontier requirement (ADR-0209 D2).
-5. **An unavailable tier HOLDS, honestly.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A `frontier` criterion is resolved
+5. **An unavailable tier HOLDS, honestly.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A `frontier` criterion is resolved _(criterion-id: uatc_b8d649e60dfb66b7c9a77dcd)_ _(revision-id: uatr1:65b600cefa88d3b8)_
    against a registry with no available frontier judge. **Success —** it resolves to a distinct HOLD —
    NOT downgraded to `advanced`, NOT routed to a lower model, NOT relabelled `human` (ADR-0209 D2/D4).
-6. **Only the curated concrete allowlist confers eligibility.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A
+6. **Only the curated concrete allowlist confers eligibility.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A _(criterion-id: uatc_f20d7e917c904ae29279cff8)_ _(revision-id: uatr1:3b1aeb0a820e5000)_
    self-declared/unregistered model and GPT-5.6 Sol are considered beside the seed. **Success —** the
    seed's available ids are exactly `claude-opus-4-8` and `claude-fable-5`; GPT-5.6 Sol is absent or
    unavailable, the self-declared model is ineligible, and only an explicit versioned registry entry

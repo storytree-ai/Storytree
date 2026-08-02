@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Criterion } from "@storytree/model-uat";
+import { EXACT_CRITERION } from "./criterion.test-helpers.js";
 import { InMemoryStore } from "@storytree/storage-protocol";
 
 /**
@@ -117,7 +118,7 @@ test("uat-3: the root barrel binds a criterion to a detail id and displayTitle s
   const bindDetail = need<CriterionPointerModule["bindDetail"]>("bindDetail");
   const displayTitle = need<CriterionPointerModule["displayTitle"]>("displayTitle");
 
-  const criterion = Criterion.parse({ id: "demo-story#uat-1", title: "The one-line title" });
+  const criterion = Criterion.parse({ ...EXACT_CRITERION, title: "The one-line title" });
   const binding = bindDetail(criterion, "demo-story#detail-1");
   assert.equal(binding.detailArtifactId, "demo-story#detail-1");
   assert.equal(displayTitle(binding), "The one-line title");
@@ -128,7 +129,7 @@ test("uat-3: displayTitle never surfaces a resolved detail body's prose, even wh
   const displayTitle = need<CriterionPointerModule["displayTitle"]>("displayTitle");
   const UatCriterionDetail = need<DetailKindModule["UatCriterionDetail"]>("UatCriterionDetail");
 
-  const criterion = Criterion.parse({ id: "demo-story#uat-1", title: "The one-line title" });
+  const criterion = Criterion.parse({ ...EXACT_CRITERION, title: "The one-line title" });
   const binding = bindDetail(criterion, "demo-story#detail-1");
   const detail = UatCriterionDetail.parse(WELL_FORMED_DETAIL);
   const title = displayTitle({ criterion: binding.criterion, detail });

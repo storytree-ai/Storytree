@@ -4,16 +4,19 @@ import assert from "node:assert/strict";
 import { Criterion, SEED_MODEL_REGISTRY, resolveJudge } from "@storytree/model-uat";
 
 import { validateModelJudgeResult } from "./spine-validation.js";
+import { C1, OTHER, R1 } from "./test-bindings.js";
 
 const modelCriterion = Criterion.parse({
-  id: "demo#uat-1",
+  criterionId: C1,
+  revisionId: R1,
   title: "one-liner",
   witness: "model",
   tier: "advanced",
 });
 
 const passResult = {
-  criterionId: "demo#uat-1",
+  criterionId: C1,
+  revisionId: R1,
   outcome: "PASS" as const,
   evidenceRefs: ["asset:ev"],
   rationale: "matches success",
@@ -65,7 +68,7 @@ test("spine-refuses-ineligible-or-stale: each dishonest input refuses", () => {
   assert.equal(
     reasonOf({
       ...base,
-      criterion: Criterion.parse({ id: "demo#uat-1", title: "t", witness: "machine" }),
+      criterion: Criterion.parse({ criterionId: C1, revisionId: R1, title: "t", witness: "machine" }),
     }),
     "non-model-witness",
   );
@@ -85,7 +88,7 @@ test("spine-refuses-ineligible-or-stale: each dishonest input refuses", () => {
   assert.equal(
     reasonOf({
       ...base,
-      result: { ...passResult, criterionId: "other#uat-9" },
+      result: { ...passResult, criterionId: OTHER },
     }),
     "missing-evidence",
   );

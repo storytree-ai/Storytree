@@ -189,9 +189,10 @@ export function storytreeDataApi(options: StorytreeDataApiOptions = {}): Plugin 
             events !== null &&
             rollupStoryGreen(
               unit.spec.capabilities,
-              [...unit.spec.uatTestCriteria.filter((t) => !t.wouldBe), ...unit.spec.reliabilityGates].map(
-                (o) => ({ id: o.id }),
-              ),
+              [
+                ...unit.spec.uatTestCriteria.filter((t) => !t.wouldBe),
+                ...unit.spec.reliabilityGates,
+              ],
               events,
               unit.spec.reliabilityGates.map((g) => ({ id: g.id, covers: g.covers })),
             ) === 'healthy';

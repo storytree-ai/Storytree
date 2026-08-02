@@ -254,7 +254,7 @@ selects a buildable node in the studio world, clicks **Build** in the island sid
 coarse live transcript stream the phase trail, and sees the run finish at a real signed verdict —
 the node's hue updating in the world — entirely on their own machine.
 
-1. **The studio is running against the live store, so the worker can persist a verdict.**
+1. **The studio is running against the live store, so the worker can persist a verdict.** _(criterion-id: uatc_84e580bdf4115de90e35b68e)_ _(revision-id: uatr1:282cf28df059352b)_
    _(witness: machine)(detail: studio-build#uat-1)_ Start the studio with the live store up: `pnpm db:up`, then
    `pnpm --filter studio dev` (the live backend is the default). **Success —** the data-api line logs
    `library/comments → Cloud SQL Postgres`, and `GET /api/health` reports the live store reachable
@@ -264,7 +264,7 @@ the node's hue updating in the world — entirely on their own machine.
    **No spec discharges this at HEAD:** `healthApi.integration.test.ts` asserts the payload SHAPE over a
    fully injected `HealthDeps` whose `db: 'ok'` is a literal the test supplied, so it structurally cannot
    witness reachability.
-2. **The island panel composes the node's surface and gates the Build control on buildability.**
+2. **The island panel composes the node's surface and gates the Build control on buildability.** _(criterion-id: uatc_4cc7aac36abad3cdf3033b46)_ _(revision-id: uatr1:bdebee604bbca47c)_
    _(witness: machine)_ Open `#/tree`, click a buildable node (e.g. a `drive-machinery` node) to open the
    island side panel. **Success —** the `<aside className="tree-detail">` panel renders the node's status
    badge, UAT verdict line, and capability sub-DAG, AND a **Build** control is present — present ONLY for
@@ -276,7 +276,7 @@ the node's hue updating in the world — entirely on their own machine.
    absence-with-a-reason, and `treeBuildable.test.ts` pins the `buildable`/`goGreen` flags the panel
    branches on — but NO test renders the composite `aside.tree-detail`, so the badge + verdict line +
    sub-DAG half is undischarged.
-3. **The Build click dispatches an accepted intent and the world marks the node in flight.**
+3. **The Build click dispatches an accepted intent and the world marks the node in flight.** _(criterion-id: uatc_6ee9d656d0101a623bab3e57)_ _(revision-id: uatr1:4f426a6e0846a017)_
    _(witness: machine)_ Click **Build**. **Success —** the client POSTs `/api/build { unitId }`, the
    server answers `202` with a `runId`, the panel flips into a "building…" state showing the transcript
    region, and the node's in-flight `building` work-event surfaces through the existing `/api/activity`
@@ -289,7 +289,7 @@ the node's hue updating in the world — entirely on their own machine.
    `BuildSection.test.tsx:69-83` pins the click → single POST → "building…" flip — but nothing couples an
    accepted intent to a lit wisp: `inFlightBuilds.test.ts` folds rows only (its own header defers the
    live SQL) and `activityApi.integration.test.ts` stubs `inFlightBuilds` outright.
-4. **The panel polls, and the coarse transcript accumulates the phase trail in order.**
+4. **The panel polls, and the coarse transcript accumulates the phase trail in order.** _(criterion-id: uatc_b668fc727a5fc8bf95b9b474)_ _(revision-id: uatr1:cf16cc9443cf90a6)_
    _(witness: machine)(detail: studio-build#uat-4)_ Watch the transcript. **Success —** the panel POLLS `GET /api/build?runId=…`
    repeatedly and the coarse transcript GROWS line by line across successive REAL polls — the phase trail
    (AUTHOR_TEST → … → GATE) and progress lines, in order — then the loop stops at the terminal poll and
@@ -301,13 +301,13 @@ the node's hue updating in the world — entirely on their own machine.
    and `buildRegistry.test.ts:52-68` proves ordered accumulation inside the registry — but no test polls
    the real `GET /api/build` endpoint twice (`buildApi.integration.test.ts:89-94` GETs once), and the
    phase TRAIL is seeded into a fixture at `:110` yet asserted nowhere.
-5. **A second build while one is running is refused.** _(witness: machine)_
+5. **A second build while one is running is refused.** _(witness: machine)_ _(criterion-id: uatc_e561d5c581c5ea3374ec5e07)_ _(revision-id: uatr1:4b5ab3273c013e40)_
    _(proof-gate: studio-build#gate-1)_ Attempt a second build while the first is running (click Build
    again, or POST a second intent). **Success —** the server REFUSES the concurrent build (`409`, "a
    build is already running") — the single-build-at-a-time guard holds; the running build is unaffected.
    *(Unchanged by the 2026-07-25 re-adjudication — already machine, and still the one leg bound to the
    observe gate below.)*
-6. **The run reaches a terminal envelope and the world repaints in place, with no manual reload.**
+6. **The run reaches a terminal envelope and the world repaints in place, with no manual reload.** _(criterion-id: uatc_db68af6799a98ffdcfa7e9d5)_ _(revision-id: uatr1:6be3060c4dedc110)_
    _(witness: machine)(detail: studio-build#uat-6)_ Let the build finish. **Success —** `GET /api/build?runId=…` reports a TERMINAL
    status carrying the final build envelope (verdict line, signer, cost, phase trail); the panel shows
    that verdict; and the node's hue in the world updates to reflect the freshly signed `events.verdict`
@@ -320,7 +320,7 @@ the node's hue updating in the world — entirely on their own machine.
    the `phase trail` line sit in fixtures and are asserted NOWHERE, and the repaint is entirely
    undischarged: only `onTerminal` firing exactly once is pinned (`BuildSection.test.tsx:232-257`), never
    that the callback re-pulls `/api/tree` or that a hue changed.
-7. **The verdict's provenance is the spine's, and the frontend never touched it.**
+7. **The verdict's provenance is the spine's, and the frontend never touched it.** _(criterion-id: uatc_82ff49ccf66f8dacce8affee)_ _(revision-id: uatr1:842a0495fc3f4630)_
    _(witness: machine)(detail: studio-build#uat-7)_ Confirm the verdict is real and persisted. **Success —** `storytree tree
    <unitId>` (or the DB directly) shows the new signed verdict in `events.verdict` carrying a SPINE
    signer — a gate verdict produced by the spine's observed red→green (ADR-0091's "the verdict is
@@ -333,7 +333,7 @@ the node's hue updating in the world — entirely on their own machine.
    unresolved acceptance question** — the accepted node route is declared NON-persisting under "Known
    implementation gap", which this leg's `events.verdict` row would contradict; see "Open modeling calls"
    item 3, which this re-adjudication surfaces rather than settles.
-8. **The NODE route's no-land walls hold.** _(witness: machine)(detail: studio-build#uat-8)_ Confirm the scope-routed walls on the
+8. **The NODE route's no-land walls hold.** _(witness: machine)(detail: studio-build#uat-8)_ Confirm the scope-routed walls on the _(criterion-id: uatc_b4173ad8a474d2938b6022b5)_ _(revision-id: uatr1:0452675ea9918025)_
    node path (this walkthrough's steps 1–7). **Success —** the node build was the single-node `--live`
    local smoke: it opened NO git worktree, pushed NO branch, and landed nothing — and the remaining walls
    hold: no hosted run, no `--real` toggle on a single node, no manual `gh pr merge`. *(Machine, not
@@ -344,7 +344,7 @@ the node's hue updating in the world — entirely on their own machine.
    that `--real`, persisting, parked-branch shape — the OPPOSITE of the accepted wall. No test observes
    git at all; the `park` claim there is only that a transcript LINE mentions parking. Making this leg
    pass is a CODE obligation, not a re-tag.
-9. **A real subscription-billed `--live` run drives the loop to a genuinely signed verdict.**
+9. **A real subscription-billed `--live` run drives the loop to a genuinely signed verdict.** _(criterion-id: uatc_4e688a6e4149741b5dd0a736)_ _(revision-id: uatr1:cdaa053d02444e1e)_
    _(witness: human)_ The operator triggers ONE real build from the studio UI and lets it run: a real
    Claude Agent SDK leaf genuinely authors the synthetic `add(2,3)` pair, the real prove-it-gate observes
    a genuine RED then GREEN from real exit codes, and the spine SIGNS. **Success —** the owner's
@@ -354,7 +354,7 @@ the node's hue updating in the world — entirely on their own machine.
    billed run". Every MECHANIC observable during such a run is machine-witnessed above, provable against
    an offline scripted `PhaseAuthor` run of the same shape per ADR-0010 §5 — this leg is the spend and
    the genuineness, nothing else.)*
-10. **The STORY route's approve-to-land opens a non-draft PR that CI auto-merges to trunk.**
+10. **The STORY route's approve-to-land opens a non-draft PR that CI auto-merges to trunk.** _(criterion-id: uatc_891f34bd18df9ce452617b82)_ _(revision-id: uatr1:ee0c0d1ba6ce7e80)_
     _(witness: human)_ Select a real-buildable STORY (no capability drilled) and click **Build**: the
     worker routes to `story build <id> --real`, which authors each capability for real and, on a GREEN
     chain, opens a **non-draft PR that CI auto-merges to trunk** (ADR-0022; `claude/real/*` promotion
@@ -365,7 +365,7 @@ the node's hue updating in the world — entirely on their own machine.
     click itself on the human rung, and no agent may self-authorize a landing. The ROUTING half — that a
     story id resolves to `storyBuild` with `openPr: true` and a node id never does — is already machine,
     pinned at `buildWorker.test.ts:113-159`.)*
-11. **The build affordance and the live transcript read right.** _(witness: human)_ The Build control
+11. **The build affordance and the live transcript read right.** _(witness: human)_ The Build control _(criterion-id: uatc_72ffbf1a7b0b8c71e61e53c4)_ _(revision-id: uatr1:b5b14c3763c02cf0)_
     sits well in the island side panel, the "building…" state and the growing coarse transcript feel
     ALIVE rather than stalled, the teal in-flight wisp reads as in-flight on the map, and the finished
     verdict reads clearly. **Success —** the owner's stage-2 visual verdict (ADR-0070).

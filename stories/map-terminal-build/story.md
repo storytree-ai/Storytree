@@ -267,7 +267,7 @@ the user reviews it and presses Enter to run a real build as their own Claude Co
 SDK-driven dispatch. Where the terminal is absent, clicking Build dispatches the in-app build exactly as
 before.
 
-1. **The Build command composes correctly for the unit's scope.** _(witness: machine)_ A story-scope Build
+1. **The Build command composes correctly for the unit's scope.** _(witness: machine)_ A story-scope Build _(criterion-id: uatc_b07259986f069bd596907ee9)_ _(revision-id: uatr1:230deb354c1673c3)_
    composes `pnpm storytree story build <id> --real --store pg`; a node-scope Build composes `pnpm
    storytree node build <id> --real --store pg`; the unit id is embedded verbatim. **Success —**
    [`compose-build-command`](compose-build-command.md)'s signed verdict (a pure red→green).
@@ -275,19 +275,19 @@ before.
    — `apps/studio/src/lib/buildCommand.ts:15` — emits the `pnpm ` prefix, exactly as open modeling call 1
    settled and as the three passing `cbc-*` tests assert. Corrected in place: had this leg been executed
    as written it would have understated the command it is meant to pin.)*
-2. **The terminal dock accepts the seed and pre-fills it without running it.** _(witness: machine)_ A new
+2. **The terminal dock accepts the seed and pre-fills it without running it.** _(witness: machine)_ A new _(criterion-id: uatc_a70068a45105d3afc6f8255a)_ _(revision-id: uatr1:e0ff90f034b580c5)_
    seed opens a **fresh tab** (never the active Claude Code session — ADR-0186), switches to it, and writes
    the command as a pre-fill with NO trailing newline; a pre-spawn seed is written once the new tab's
    session resolves; a token bump opens another fresh tab; an absent seed leaves the dock byte-identical.
    **Success —** [`terminal-tabs`' seed-opens-new-tab](../terminal-tabs/seed-opens-new-tab.md)'s signed
    verdict (behaviour over the mocked xterm + bridge) — a consumed dependency, not a cap of this story
    (originally this story's `terminal-dock-seed`, superseded by the ADR-0186 re-decision).
-3. **On the desktop, the Build button seeds the terminal instead of dispatching in-app.** _(witness:
+3. **On the desktop, the Build button seeds the terminal instead of dispatching in-app.** _(witness: _(criterion-id: uatc_130790b19621b3789ac8e97e)_ _(revision-id: uatr1:ed78096936ee28e8)_
    machine)_ With the bridge present + a callback, a Build click seeds the composed command and does NOT
    POST `api.build`; with the bridge absent (or no callback) it dispatches `api.build` as today; the Adopt
    path is untouched. **Success —** [`map-build-seeds-terminal`](map-build-seeds-terminal.md)'s signed
    verdict (the branch over a mocked bridge + spy).
-4. **Clicking Build drops a runnable command into the REAL terminal, pre-filled and NOT run.** _(witness:
+4. **Clicking Build drops a runnable command into the REAL terminal, pre-filled and NOT run.** _(witness: _(criterion-id: uatc_865913dcc84077215e5b7175)_ _(revision-id: uatr1:bebdddf8150ee479)_
    machine)(detail: map-terminal-build#uat-4)_ The INTEGRATED walk over the real seam rather than a mocked
    one: in the desktop app the member clicks Build on a node/story; the composed command travels the
    TreeView `seed` glue to the real `window.desktopTerminal` bridge, lands in a fresh tab, and sits there
@@ -302,7 +302,7 @@ before.
    Enter runs a real billed build — are SPLIT OUT to legs 6 and 7. Deliberately UNBOUND: this story
    declares no reliability gate, so the binding gap is recorded rather than rubber-stamped over absent
    machinery (ADR-0097 §2). That gap is PRE-EXISTING — no leg here was bound before this pass.)*
-5. **Where the terminal is absent, clicking Build is unchanged.** _(witness: machine)_ On a bridge-absent
+5. **Where the terminal is absent, clicking Build is unchanged.** _(witness: machine)_ On a bridge-absent _(criterion-id: uatc_1a746f62e0b216cf0850e273)_ _(revision-id: uatr1:12179a95a334c5a7)_
    surface (the hosted / dev studio in a plain browser, no `window.desktopTerminal`), clicking Build POSTs
    the in-app build and polls to a verdict exactly as before — no regression, no seed attempted.
    **Success —** [`map-build-seeds-terminal`](map-build-seeds-terminal.md)'s signed verdict, contract
@@ -313,7 +313,7 @@ before.
    judgment: no success condition here lacks a compiler. Because the machine half is ALREADY covered by
    the contract above, this leg REFERENCES that verdict instead of being split — restating a compiled
    fact as a human success condition would launder it into an unrepeatable signature.)*
-6. **The seeded command is the invocation the owner actually wants.** _(witness: human)(detail:
+6. **The seeded command is the invocation the owner actually wants.** _(witness: human)(detail: _(criterion-id: uatc_a011b79159dd94012486cb91)_ _(revision-id: uatr1:776452095f26ccde)_
    map-terminal-build#uat-6)_ Shown the pre-filled command, the owner accepts its FORM — specifically the
    `pnpm ` prefix the composer emits (`pnpm storytree story build <id> --real --store pg`), which
    ADR-0174's own text does not write and which open modeling call 1 explicitly left to the owner.
@@ -322,7 +322,7 @@ before.
    but whether this is the invocation the owner wants on their shell is an owner value call no code can
    decide. This basis dissolves under neither a new harness nor cheaper spend; it is discharged only when
    the owner settles the prefix.)*
-7. **Pressing Enter runs a real, billed build from the seeded command.** _(witness: human)(detail:
+7. **Pressing Enter runs a real, billed build from the seeded command.** _(witness: human)(detail: _(criterion-id: uatc_00996f29a26216200b5a5c92)_ _(revision-id: uatr1:57583a6171feb4ca)_
    map-terminal-build#uat-7)_ The owner presses Enter on the pre-filled command in the native shell; a
    real build runs as their own Claude Code and — for a story-scope seed — opens the auto-merging PR
    (ADR-0136). **Success —** the owner's verdict that the seeded command launched the build they intended.

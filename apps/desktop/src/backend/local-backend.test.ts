@@ -21,7 +21,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Verdict } from "@storytree/proof-protocol";
+import { Verdict, criterionRevisionId } from "@storytree/proof-protocol";
+import { canonicalUatCriterionContent } from "@storytree/library";
 
 import { createLocalBackend, createBrokerForestWriter } from "./local-backend.js";
 import type { LocalBackendDeps, ForestWriter } from "./local-backend.js";
@@ -139,12 +140,18 @@ test("local-backend: GET /api/tree returns { stories: [] } from real discovery o
 // ===========================================================================
 
 const TS = "2026-06-27T10:00:00.000Z";
+const STORY_CRITERION_ID = "uatc_000000000000000000000001";
+const STORY_CRITERION_PROSE = "**The one leg** (witness: machine) — it works end to end.";
+const STORY_REVISION_ID = criterionRevisionId(
+  canonicalUatCriterionContent(`1. ${STORY_CRITERION_PROSE}`),
+);
 
 /** A full signed PASS verdict event for `unitId` (rollupStatus requires the doc to parse as a Verdict). */
 function passEvent(
   seq: number,
   unitId: string,
   proofMode: "capability" | "story" | "contract",
+  revisionId?: string,
 ): { kind: string; seq: number; doc: unknown } {
   return {
     kind: "signing",
@@ -157,6 +164,7 @@ function passEvent(
       signer: "ci@example.com",
       runId: `run-${unitId}`,
       at: TS,
+      ...(revisionId === undefined ? {} : { criterionId: unitId, revisionId }),
     }),
   };
 }
@@ -183,7 +191,7 @@ async function seedStoriesDir(): Promise<{ dir: string; cleanup: () => Promise<v
       "",
       "## Story UAT",
       "",
-      "1. **The one leg** (witness: machine) — it works end to end.",
+      `1. ${STORY_CRITERION_PROSE} (criterion-id: ${STORY_CRITERION_ID})(revision-id: ${STORY_REVISION_ID})`,
     ].join("\n"),
     "utf8",
   );
@@ -224,7 +232,7 @@ test("local-backend: GET /api/tree paints proof-health — a signed-verdict fixt
       latestVerdicts: async () => ({ "cap-a": { outcome: "pass", at: TS } }),
       verdictEvents: async () => [
         passEvent(1, "cap-a", "capability"),
-        passEvent(2, "alpha#uat-1", "story"),
+        passEvent(2, STORY_CRITERION_ID, "story", STORY_REVISION_ID),
       ],
     });
     const handler = createLocalBackend({ storiesDir: dir, docsDir: NO_DOCS_DIR, backend, store: "pg" });

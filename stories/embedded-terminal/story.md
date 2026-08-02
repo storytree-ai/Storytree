@@ -331,7 +331,7 @@ permanent regression case, never speculative breadth).
 and watches a wisp light on the forest map for that Claude Code session — the interactive surface being
 the real tool, the observability layer watching it through the existing seams with no new code.
 
-1. **A terminal sits in the dock.** _(witness: machine)(detail: embedded-terminal#uat-1)_ The member opens the desktop app; with a valid
+1. **A terminal sits in the dock.** _(witness: machine)(detail: embedded-terminal#uat-1)_ The member opens the desktop app; with a valid _(criterion-id: uatc_a311ba8bd853bebf8a1eb587)_ _(revision-id: uatr1:13b9763209fd4a21)_
    repo selected (the `terminal-repo-picker` gate — satisfied in the harness by pre-writing the userData
    `repo-selection.json`, as `session-survival.e2e.mjs` already does), a terminal panel sits in the same
    `.world-frame` dock slot the chat occupied. **Success —** in the real Electron renderer the forest page
@@ -342,18 +342,18 @@ the real tool, the observability layer watching it through the existing seams wi
    observables in the integrated harness. Mounting the dock stays glue at the capability tier — no
    isolatable red→green in swapping which already-proven component mounts — but that is a tiering call,
    not a witness kind.)*
-2. **The pty lifecycle is honest over the whole spawn → I/O → resize → dispose cycle.** _(witness:
+2. **The pty lifecycle is honest over the whole spawn → I/O → resize → dispose cycle.** _(witness: _(criterion-id: uatc_d19150c1c780f2bdd9e556be)_ _(revision-id: uatr1:944231d7250f9f60)_
    machine)_ Over a fake pty, the pty-session-manager spawns a session, routes the pty's output to the
    session's sink, forwards typed input and resizes to the right session, isolates concurrent sessions,
    and fails closed on an unknown/disposed id. **Success —** [`pty-session-manager`](pty-session-manager.md)'s
    signed verdict (the backend lifecycle, no real native module).
-3. **The renderer terminal dock wires to the bridge and degrades honestly.** _(witness: machine)_ Over a
+3. **The renderer terminal dock wires to the bridge and degrades honestly.** _(witness: machine)_ Over a _(criterion-id: uatc_624d374c52bba0e2bd7ce5d7)_ _(revision-id: uatr1:9eca9b765d599015)_
    mocked xterm + mocked `desktopTerminal` bridge, the dock spawns on open, pipes bridge data into the
    terminal and terminal input back to the bridge, resizes with the dock, toggles visibility keeping the
    terminal mounted, and renders a disabled "terminal unavailable here" state where the bridge is absent.
    **Success —** [`terminal-dock-panel`](terminal-dock-panel.md)'s signed verdict (geometry + wiring,
    xterm mocked).
-4. **A REAL pty hosts a real interactive shell in the member's checkout.** _(witness: machine)(detail: embedded-terminal#uat-4)_ The dock
+4. **A REAL pty hosts a real interactive shell in the member's checkout.** _(witness: machine)(detail: embedded-terminal#uat-4)_ The dock _(criterion-id: uatc_4a73475c396b1635baf9f5d1)_ _(revision-id: uatr1:d5928c87db3d120b)_
    spawns a REAL node-pty in the selected repo; typed input reaches the real shell and its output comes
    back, and a full-screen interactive program (alternate screen buffer, redraw on keypress) drives the
    same session — the property that makes an interactive TUI work at all. **Success —** a line command
@@ -362,7 +362,7 @@ the real tool, the observability layer watching it through the existing seams wi
    xterm/mocked bridge capability 3 signs. *(`session-survival.e2e.mjs` already spawns the real pty, types
    `echo survival-probe` and reads it back this way, so the native-module half of this leg is harnessed
    today; only the interactive-program assertion is net-new.)*
-5. **Real Claude Code runs interactively in the embedded terminal.** _(witness: human)_ The member types
+5. **Real Claude Code runs interactively in the embedded terminal.** _(witness: human)_ The member types _(criterion-id: uatc_855b0712c20d7cf71a4cc78a)_ _(revision-id: uatr1:8dc44ae2214f9202)_
    `claude` and drives a real session in-app — its own turn knobs, slash commands, permission modes, plan
    mode, MCP and skills all working (ADR-0174: the terminal's Claude Code has all of it for free).
    **Success —** the owner's attestation that real Claude Code, not an imitation of it, is the interactive
@@ -371,7 +371,7 @@ the real tool, the observability layer watching it through the existing seams wi
    and "all of Claude Code's affordances work" is a judgment about a third-party interactive product
    rather than about our pty. Leg 4 machine-proves the part with a compiler — that the pty faithfully
    hosts a real interactive program.)*
-6. **Scrollback, reflow and keys behave like a real terminal.** _(witness: machine)(detail: embedded-terminal#uat-6)_ Over the REAL xterm
+6. **Scrollback, reflow and keys behave like a real terminal.** _(witness: machine)(detail: embedded-terminal#uat-6)_ Over the REAL xterm _(criterion-id: uatc_43d8956b3d08b704da13ce47)_ _(revision-id: uatr1:4b9fc94f98a35707)_
    and REAL pty in the integrated harness: output beyond the viewport is retained in scrollback (the dock
    constructs xterm at scrollback 5000, aligned with the main-held headless screen model, ADR-0190);
    resizing the dock RESIZES the pty and reflows the session (the serialized screen returns at the new
@@ -382,14 +382,14 @@ the real tool, the observability layer watching it through the existing seams wi
    `tdp-toggles-visibility-keeping-terminal-mounted`, `tdp-constructs-with-aligned-scrollback` — but a mock
    cannot exhibit reflow or scrollback retention, so this leg is the real-renderer half, not a
    restatement.)*
-7. **It READS as one coherent terminal.** _(witness: human)_ Colours, glyph rendering, the dock chrome and
+7. **It READS as one coherent terminal.** _(witness: human)_ Colours, glyph rendering, the dock chrome and _(criterion-id: uatc_ae47c159f21ca01c37b53aa8)_ _(revision-id: uatr1:fc1b0d9b981352ca)_
    the terminal body read as ONE coherent terminal inside the native shell — not a web widget imitating a
    terminal. **Success —** the owner's two-stage visual verdict (ADR-0070 stage 2). *(Irreducible: "reads
    like a real terminal" is an aesthetic judgment with no compiler, and ADR-0209 keeps look, feel and
    lived experience on the human rung — never model-judged, never machine-asserted. The MECHANICS this leg
    used to carry — scrollback, reflow, keys, the collapse/resize dock — moved to leg 6, where they have
    one.)*
-8. **The existing observability seams watch a session started in the terminal — a wisp lights.**
+8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:f9547fb6ce34ad2d)_
    _(witness: machine)(detail: embedded-terminal#uat-8)_ A session started in the embedded terminal takes its claim through the EXISTING
    CLI seam — `storytree noticeboard declare --node embedded-terminal --pg`, run in the terminal's real
    pty (ADR-0142) — and the map paints a wisp for it with NO new observer code, proving the ADR-0174

@@ -17,7 +17,8 @@ import {
 
 function leg(witness: UatTestCriterionWitness, n = 1, proofGateId?: string): UatTestCriterion {
   return {
-    id: `story#uat-${n}`,
+    criterionId: `uatc_${n.toString(16).padStart(24, "0")}`,
+    revisionId: `uatr1:${n.toString(16).padStart(16, "0")}`,
     title: `leg ${n}`,
     witness,
     wouldBe: false,
@@ -168,8 +169,8 @@ test("isUnresolvedWitness: only `either` is unresolved", () => {
 test("unresolvedUatLegs: returns the legs still `either` (the invariant violation), empty when clean", () => {
   const legs = [leg("machine", 1, "story#gate-1"), leg("either", 2), leg("human", 3), leg("either", 4)];
   assert.deepEqual(
-    unresolvedUatLegs(legs).map((l) => l.id),
-    ["story#uat-2", "story#uat-4"],
+    unresolvedUatLegs(legs).map((l) => l.criterionId),
+    ["uatc_000000000000000000000002", "uatc_000000000000000000000004"],
   );
   assert.deepEqual(unresolvedUatLegs([leg("human", 1), leg("machine", 2, "story#gate-1")]), []);
 });

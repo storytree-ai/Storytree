@@ -330,7 +330,7 @@ real Claude Code in one tab, clicks **Build** on the forest map, and watches a *
 with the composed `pnpm storytree … build <id> --real --store pg` command — the Claude Code tab
 **untouched** — reviews it, and presses Enter to run the build as their own Claude Code in that new tab.
 
-1. **The session panel READS as VS Code-style session tabs.** _(witness: human)_ With a repo already
+1. **The session panel READS as VS Code-style session tabs.** _(witness: human)_ With a repo already _(criterion-id: uatc_4727b6900361b757678ad6bd)_ _(revision-id: uatr1:16ff003c56e83f0f)_
    chosen, the member expands the terminal and looks at the session panel beside the pane (down the right
    of the dock body): does it read as VS Code-style session tabs — the **active row legible at a glance**,
    each row's label readable, the **"+"** and per-row **"×"** affordances clear, the panel sitting cleanly
@@ -342,7 +342,7 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    active row marked, "+"/"×" present and wired, the chrome per-dock — is machine-proven at legs 2 and 6;
    only its appearance is witnessed here. `apps/studio/src/index.css` names this leg as the attestation
    for the dock's terminal palette, so the LOOK verdict must stay at position 1.)*
-2. **The multi-session tab lifecycle is honest over create / switch / close / dispose, per-tab behaviours intact.**
+2. **The multi-session tab lifecycle is honest over create / switch / close / dispose, per-tab behaviours intact.** _(criterion-id: uatc_77d4915cf9dbe8402433cdbb)_ _(revision-id: uatr1:68be6023b590fd73)_
    _(witness: machine)_ Over the mocked xterm + `desktopTerminal` bridge, the dock spawns the
    first tab on open, opens an independent session on "+", shows the selected tab's pane on switch (others
    hidden, sessions preserved), disposes exactly the closed tab's session on "×" (others untouched), scopes
@@ -351,13 +351,13 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    — with the eight `terminal-dock-panel` behaviours re-proven on the active tab.
    **Success —** [`multi-session-tabs`](multi-session-tabs.md)'s signed verdict (geometry + per-tab wiring,
    xterm mocked).
-3. **A seed opens a FRESH tab and never touches the active session.** _(witness: machine)_ Over the mocked
+3. **A seed opens a FRESH tab and never touches the active session.** _(witness: machine)_ Over the mocked _(criterion-id: uatc_198a39009b09f8b3b1220923)_ _(revision-id: uatr1:36306cfc1a1810bf)_
    xterm + bridge, a new seed opens a new tab, spawns its session, switches to it, and pre-fills the command
    there with NO trailing newline; the previously-active tab's session receives NO write; a pre-spawn seed
    writes once its new session resolves; a token bump opens ANOTHER fresh tab; an absent seed leaves the
    dock byte-identical. **Success —** [`seed-opens-new-tab`](seed-opens-new-tab.md)'s signed verdict
    (behaviour over the mocked seams) — the load-bearing ADR-0186 safety wall, machine-proven.
-4. **A Build lands in a fresh tab while REAL Claude Code runs in another, and Enter fires the real build.**
+4. **A Build lands in a fresh tab while REAL Claude Code runs in another, and Enter fires the real build.** _(criterion-id: uatc_79f9db93ca0e89aaaec2d522)_ _(revision-id: uatr1:44d9c8569b23aae5)_
    _(witness: human)_ With the member's own interactive **Claude Code** session live in tab 1 — a paid
    subscription session, not a plain shell — they click Build on a node/story; a new tab opens pre-filled,
    and **tab 1's Claude Code is exactly as it was**: no injected text, no interrupted input, nothing sent
@@ -369,7 +369,7 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    a fresh tab opens, is pre-filled and un-run, and the previously-active REAL pty's screen is unchanged —
    is machine-proven at leg 7 over a plain shell; only the live-Claude-Code and real-spend halves are
    irreducible here.)*
-5. **The tabs FEEL like ONE coherent tabbed terminal.** _(witness: human)_ Switching, closing, per-tab
+5. **The tabs FEEL like ONE coherent tabbed terminal.** _(witness: human)_ Switching, closing, per-tab _(criterion-id: uatc_d577cb72741acfe165720a6b)_ _(revision-id: uatr1:733bd64e47960522)_
    scrollback, colours, resize reflow and focus add up to one coherent tabbed terminal inside the native
    shell — not N docks bolted together; nothing jars, nothing reads as borrowed. **Success —** the owner's
    stage-2 verdict (ADR-0070). *(operator-attested and irreducible — coherence and feel have no compiler
@@ -377,7 +377,7 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    scrollback preserved across a switch, colour output landing in its own pane, resize reflowing the active
    pty, keystrokes following the active row, a close reaping exactly one pty — are machine-proven at leg 8;
    only whether they add up to one coherent surface is witnessed here.)*
-6. **The session panel creates, switches and closes REAL sessions in the native shell.** _(witness:
+6. **The session panel creates, switches and closes REAL sessions in the native shell.** _(witness: _(criterion-id: uatc_d79072069efa32c40f89ee29)_ _(revision-id: uatr1:aa8510036eb64c63)_
    machine)(detail: terminal-tabs#uat-6)_ In the Electron `_electron` harness with `userData/repo-selection.json` pre-written to a real
    checkout (the `session-survival.e2e.mjs` precedent) and `/api/*` Playwright-routed to fixtures,
    expanding the dock spawns ONE real node-pty and renders one panel row; the panel's `+` spawns a SECOND
@@ -386,7 +386,7 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    1's (never a re-spawn), and the toggle + `headerRight` render exactly once throughout — the panel
    driving REAL ptys across the real IPC bridge, which the mocked-bridge jsdom verdict at leg 2 cannot
    show.
-7. **A Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched.**
+7. **A Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched.** _(criterion-id: uatc_abc366dff450e75d3ab91e60)_ _(revision-id: uatr1:d0d321dfbbe2c07e)_
    _(witness: machine)(detail: terminal-tabs#uat-7)_ In the same harness, with a real pty in tab 1 carrying typed, un-submitted input,
    open the fixture's `proposed` story panel and click Build — with the bridge present the dock **seeds
    instead of POSTing** `/api/build` (the desktop re-point). **Success —** a SECOND session appears, its
@@ -394,7 +394,7 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    prompt with **no trailing newline and no execution**, and tab 1's snapshot is **identical** to the one
    taken before the click — the load-bearing ADR-0186 safety wall proven over REAL ptys end-to-end, not
    over the mocked bridge leg 3 signs.
-8. **Per-tab scrollback, colour, resize and focus survive switching and closing.** _(witness: machine)(detail: terminal-tabs#uat-8)_
+8. **Per-tab scrollback, colour, resize and focus survive switching and closing.** _(witness: machine)(detail: terminal-tabs#uat-8)_ _(criterion-id: uatc_811ce13a1c65a2644a7f2a2b)_ _(revision-id: uatr1:36ba89318a6e3301)_
    Over two real ptys in the same harness: write a distinct marker into each, switch rows and read both
    back; emit ANSI colour into one; resize the dock; type after a switch; close one row. **Success —** each
    session's `desktopTerminal.snapshot` retains only its OWN marker across switches, the colour bytes

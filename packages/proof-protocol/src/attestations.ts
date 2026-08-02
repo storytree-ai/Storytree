@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Outcome, UatWitness } from "./enums.js";
+import { CriterionId, CriterionRevisionId } from "./criterion-binding.js";
 
 /**
  * The attestation DATA shapes (ADR-0044, published per ADR-0068 §3).
@@ -22,9 +23,9 @@ const signerField = z.string().refine((s) => s.trim().length > 0, {
  * resolved identity; `relayedBy` records the agent/session that SCRIBED a relayed human
  * attestation. Strict: unknown fields rejected, so this can never be coerced into a verdict.
  */
-export const Attestation = z
+const AttestationData = z
   .object({
-    /** The UAT test id this signal is keyed by (`<story>#uat-<n>`). */
+    /** Compatibility key: current attestations set this to the opaque criterionId. */
     testId: z.string().min(1),
     /** What was observed: the test passed or failed when witnessed. */
     outcome: Outcome,
@@ -40,13 +41,35 @@ export const Attestation = z
     relayedBy: z.string().optional(),
   })
   .strict();
+
+/** Preserved pre-ADR-0253 positional attestation history. Never accepted by new writers. */
+export const LegacyAttestation = AttestationData;
+export type LegacyAttestation = z.infer<typeof LegacyAttestation>;
+
+/** A new attestation, bound to the exact authored criterion and immutable revision. */
+export const Attestation = AttestationData.extend({
+  criterionId: CriterionId,
+  revisionId: CriterionRevisionId,
+}).superRefine((value, ctx) => {
+  if (value.testId !== value.criterionId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["testId"],
+      message: "a current attestation testId must equal criterionId",
+    });
+  }
+});
 export type Attestation = z.infer<typeof Attestation>;
+
+/** Read shape for the append-only log: exact current rows plus untouched legacy rows. */
+export const StoredAttestation = z.union([Attestation, LegacyAttestation]);
+export type StoredAttestation = z.infer<typeof StoredAttestation>;
 
 /**
  * The display projection for one test: the latest human and/or machine attestation. A DATA shape
  * only; the derivation (`deriveAttestations`) that builds it stays in core.
  */
 export interface TestAttestations {
-  human?: Attestation;
-  machine?: Attestation;
+  human?: StoredAttestation;
+  machine?: StoredAttestation;
 }

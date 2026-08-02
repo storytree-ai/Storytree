@@ -219,7 +219,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > Legs 1, 2, 5 and 9 carry seed-canonical `uat-criterion` detail artifacts (ADR-0209 D5, under the owner's
 > narrower bar: a detail ONLY where the one-line title is too thin to judge against, never one per leg).
 
-1. **One wisp per claimed story, anchored on the STORY's territory.** _(witness: machine)(detail: wisp-as-story-claim#uat-1)_ Fold a set of
+1. **One wisp per claimed story, anchored on the STORY's territory.** _(witness: machine)(detail: wisp-as-story-claim#uat-1)_ Fold a set of _(criterion-id: uatc_d267439415d002238392d7b8)_ _(revision-id: uatr1:7fae5863e09358c8)_
    live claims — one per session, some landing on capability units, some on story units, some on unknown
    ids — through the real surface path (`worldToScene` → `buildScene`,
    `apps/studio/src/components/TreeView.tsx` / `packages/forest-world/src/scene.ts`) and walk the resulting
@@ -229,7 +229,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    whole-island orbit exists per story however many grades are present — hover and queue bodies may coexist
    with it, a second island orbit may not (the work claim is an exclusive mutex, ADR-0200 D2, and wisp
    COUNT encodes SESSIONS, ADR-0212).
-2. **The claim GRADE is the position channel.** _(witness: machine)(detail: wisp-as-story-claim#uat-2)_ Build the scene with one claim of each
+2. **The claim GRADE is the position channel.** _(witness: machine)(detail: wisp-as-story-claim#uat-2)_ Build the scene with one claim of each _(criterion-id: uatc_989445a3b7008767a9e59506)_ _(revision-id: uatr1:f61efef77732c3f2)_
    grade on one territory, plus one grade-absent claim, and assert each body's placement. **Success —** an
    `exploring` claim sits on a SMALL LOCAL orbit beside the story tree (`HOVER_ORBIT_R`), its rest spot on
    a parent `g` so the rotation cannot sweep the centroid; a `waiting` claim is STATIONARY and index-placed
@@ -238,7 +238,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    ADR-0200 D2). Substantially discharged already by `packages/forest-world/src/scene.test.ts` (the
    window-shop, queue-order, work and grade-absent walks) and `packages/app-surface/src/SceneView.test.tsx`
    (the rendered classes and orbit durations).
-3. **Contention resolves — refused and told the holder, or queued.** _(witness: machine)_ Two sessions
+3. **Contention resolves — refused and told the holder, or queued.** _(witness: machine)_ Two sessions _(criterion-id: uatc_47e392690c2b1f9b7b96005a)_ _(revision-id: uatr1:1a9cf1aab1ab6d9a)_
    contend for the `work` claim on one unit through the real `PgClaimStore`. **Success —** exactly one
    acquires; the loser's `claim` returns `{acquired: false, heldBy}` NAMING the live holder, appends a
    `conflict-refused` audit event, and writes nothing to `events.node_claim`, while `upgrade` instead
@@ -249,7 +249,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    claim under real concurrency). *(Machine, not human: "exactly one winner, and the loser is told who
    holds it" is a returned value and an audit row — there is nothing here for an eye to judge. This half
    was fused onto a look leg only because it is WITNESSED on the map.)*
-4. **The three stages READ apart at a glance.** _(witness: human)_ With the studio on the real forest map
+4. **The three stages READ apart at a glance.** _(witness: human)_ With the studio on the real forest map _(criterion-id: uatc_bc61c6ca51eed99ae92668cf)_ _(revision-id: uatr1:3f37d3fa62244063)_
    against the live store, watch a story carrying an `exploring`, a `waiting` and a `work` claim at once.
    **Success —** the owner's verdict that the three stages are legible as three DIFFERENT things without
    reading a tooltip — the window-shopper reads as *someone is looking here*, the queue as *someone is
@@ -258,7 +258,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    leg 2 pins the POSITIONS in scene coordinates and can never say the reading lands. **This is the leg the
    owner's 2026-07-17 hover / queue / orbit attestation was given against**; per ADR-0209 D6 it returns
    unstamped pending open modeling call 1.)*
-5. **The active subagent's colour state is STAMPED, and it SHIFTS.** _(witness: machine)(detail: wisp-as-story-claim#uat-5)_ Drive one claimed
+5. **The active subagent's colour state is STAMPED, and it SHIFTS.** _(witness: machine)(detail: wisp-as-story-claim#uat-5)_ Drive one claimed _(criterion-id: uatc_7b39f68835e41d1f472d4fc1)_ _(revision-id: uatr1:17eb530972d07a8e)_
    story through authoring → proving → supplementing and read the colour state off the data the surface
    consumes. **Success —** the pure mapping returns exactly one of three mutually distinct, never-green
    tokens for each subagent role and each claim intent (`subagentColourState`,
@@ -269,7 +269,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    real run actually produces CHANGES across the three phases of work. The two mapping halves are green
    today; **the SHIFT is not, and no live producer drives all three states** — see the detail's producer
    gap.
-6. **The three colour states are distinguishable to the eye.** _(witness: human)_ On the real map, look at
+6. **The three colour states are distinguishable to the eye.** _(witness: human)_ On the real map, look at _(criterion-id: uatc_22327f01d6f542a1610c9b88)_ _(revision-id: uatr1:ca68b7c32f7771fc)_
    claim wisps in the authoring, proving and supplementing states. **Success —** the owner's verdict that
    the three read as three different states at map scale and map opacity — not three shades of one colour —
    and that none of them reads as *green / proven*. *(operator-attested and irreducible — perceptual colour
@@ -277,7 +277,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    as three distinguishable COLOURS; leg 7 proves the structural absence of bloom vocabulary, which is not
    the claim that a claim wisp does not LOOK green. **NOT covered by the 2026-07-17 attestation** — that
    signature was on hover / queue / orbit and the departure fades, not on colour.)*
-7. **The claim layer never wears the bloom's visual vocabulary — even under a green band.**
+7. **The claim layer never wears the bloom's visual vocabulary — even under a green band.** _(criterion-id: uatc_8c9b5b23c10dc585a257193b)_ _(revision-id: uatr1:919336692177f8f5)_
    _(witness: machine)_ Walk the claim, hover, queue and departing families in the scene core and in the
    rendered DOM, across every grade and every colour state, including the at-risk case of a story whose
    work body carries a GREEN build phase band (ADR-0212 channel 3 folded the retired build wisp's red→green
@@ -291,7 +291,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    *(Machine, not human: a disjoint kind / class / field set is a structural comparison. That the two
    families are SEPARATE CODE is this leg; that they LOOK apart is leg 8, and one has never implied the
    other.)*
-8. **Claimed LOOKS clearly different from proven-green.** _(witness: human)_ On the real map, put a
+8. **Claimed LOOKS clearly different from proven-green.** _(witness: human)_ On the real map, put a _(criterion-id: uatc_2d6143eedb6a8264b6348039)_ _(revision-id: uatr1:e00db1e95e0d64f6)_
    claimed-but-not-proven story beside a story carrying a real signed-verdict green **bloom** — and, the
    harder case, one story carrying BOTH at once. **Success —** the owner's verdict that the two read as
    clearly different things and that the map does not silently inflate proof; if they look alike this leg
@@ -301,7 +301,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    the claim that they look apart: `--claim-hue` and `--bloom-hue` resolve through CSS variable chains no
    jsdom test can evaluate, and the both-at-once co-presence case is rendered by no test today (open
    modeling call 5). **NOT covered by the 2026-07-17 attestation.**)*
-9. **The CI merge releases the branch's claims — every grade, audited, waiter promoted.**
+9. **The CI merge releases the branch's claims — every grade, audited, waiter promoted.** _(criterion-id: uatc_89597d2010852d4ef712a33a)_ _(revision-id: uatr1:53d8c3cefe6eb5b2)_
    _(witness: machine)(detail: wisp-as-story-claim#uat-9)_ Merge a real PR whose branch holds claims, then read the ledger. **Success —**
    every `events.node_claim` row for the merged branch is gone whatever its grade, one `released`
    `claim_event` row exists per cleared claim, the oldest LIVE waiter on each cleared unit is promoted in
@@ -314,7 +314,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    the machine evidence the clear fired" is what that capability already calls its own evidence. The
    workflow being un-harnessed by the prove-it-gate is a COST, not a judgment gap — open modeling call
    4.)*
-10. **The departure window: fades by age, then gone — no zombie.** _(witness: machine)_ Release a claim and
+10. **The departure window: fades by age, then gone — no zombie.** _(witness: machine)_ Release a claim and _(criterion-id: uatc_38393cb281430ed91e51f2c9)_ _(revision-id: uatr1:7cebb1a11ddf673d)_
     observe the departing body across the window. **Success —** the released claim surfaces as a
     `departing-wisp` family body inside `DEPARTURE_WINDOW_MS` (120 s,
     `packages/notice-board/src/claim.ts`) carrying an `ageRatio` that drives both the fade and the upward
@@ -327,7 +327,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
     `ageRatio`). **Residual gap —** the studio-side fold that feeds all of it (`departureAgeRatio` and the
     per-territory `departures` mapping in `TreeView.tsx`) has NO test: no spec passes `departuresByStory`
     through `worldToScene`, so the window is proven on both sides of a seam that is itself unproven.
-11. **The departure reads as *just left*, not as *lost*.** _(witness: human)_ Watch a real claim release on
+11. **The departure reads as *just left*, not as *lost*.** _(witness: human)_ Watch a real claim release on _(criterion-id: uatc_6043c4cee1fb3bf6f7af8410)_ _(revision-id: uatr1:684147ea58676cb7)_
     the map. **Success —** the owner's verdict that the fade reads as a session having WALKED AWAY —
     finished, departed — and never as a claim that was dropped, crashed, or silently vanished. This leg
     exists because the opposite reading was a REAL RECORDED DEFECT

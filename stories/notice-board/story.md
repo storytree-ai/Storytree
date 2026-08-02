@@ -175,41 +175,41 @@ other, a second work-claimant is refused (or queues and is promoted on release),
 once, a departed session reads as gone, a build leaves session presence untouched, and offline nothing
 breaks.
 
-1. **Forced claim at workspace creation.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_
+1. **Forced claim at workspace creation.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_ _(criterion-id: uatc_23871ce92f9e79b8747079f7)_ _(revision-id: uatr1:13d44ea496729175)_
    Drive `storytree worktree create --node cite-event --intent "building cite-event"` through its
    injected ledger and worktree-IO seams. **Success —** the command records the `exploring` take before
    any worktree IO (a failed take performs zero IO), derives a self-describing worktree identity, and
    returns the start payload (claim taken + board digest); the store/schema assertions pin the
    `(unit, session)` exploring-row and `claimed` audit-write shapes.
-2. **See the neighbour on the ledger.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_
+2. **See the neighbour on the ledger.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_ _(criterion-id: uatc_0adad18649cf6b986e508dcf)_ _(revision-id: uatr1:bad6ab45a00bc915)_
    Render the board over an injected ledger containing session A's exploring claim. **Success —** the
    board lists session A grouped under its session with the `exploring` grade, branch, intent prose,
    and age — read from the ledger, with no retired presence section.
-3. **Upgrade to work; a second work-claimant queues.** _(witness: machine)_
+3. **Upgrade to work; a second work-claimant queues.** _(witness: machine)_ _(criterion-id: uatc_8d3fe086f1122eaa57978332)_ _(revision-id: uatr1:599e13b9e892ae14)_
    _(proof-gate: notice-board#gate-1)_ Drive A's exploring→work upgrade and B's competing upgrade
    through the transaction seam. **Success —** A holds the work slot and B deterministically lands in
    the **`waiting` queue** with a `queued` audit event; no second work insert is issued, and the schema
    pins exclusivity to the partial unique work-grade index. Separately, a direct competing work-grade
    claim is refused and names A as the holder.
-4. **Atomic promotion on release.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_
+4. **Atomic promotion on release.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_ _(criterion-id: uatc_99235bc8a7dcb1cfb9a90511)_ _(revision-id: uatr1:6d504105a0a31d16)_
    Release or downgrade A through the transaction seam with B as the oldest live waiter.
    **Success —** the store selects B, flips it to `work`, and appends the `promoted` audit event inside
    the same single `BEGIN`/`COMMIT`; stale waiters are skipped.
-5. **Overlap deltas arrive once.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_
+5. **Overlap deltas arrive once.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_ _(criterion-id: uatc_7cb9ff4a5ff7babd9e7f65dc)_ _(revision-id: uatr1:6beec29c8a09964a)_
    Drive B's overlap read through the cursor/query seam and render the returned deltas into an envelope.
    **Success —** the cursor advances with delivery, own-session and unheld-unit events are excluded, a
    repeated read is silent, and several events for one busy unit collapse to one digest line.
-6. **Liveness + departure.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_
+6. **Liveness + departure.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_ _(criterion-id: uatc_9d1e7ab2b02f55fde74174f2)_ _(revision-id: uatr1:a6f59293a85aae4d)_
    Feed trace/statusline activity into a session's heartbeat seam, then fold a released claim through
    the departure window and scene projection. **Success —** activity bumps only the session's claim
    heartbeat; the 2 h reclaim predicate keeps fresh claims and drops abandoned ones; a release becomes a
    bounded **departure** carrying fade age before disappearing, with no presence reaper.
-7. **A build leaves session presence untouched (ADR-0199).** _(witness: machine)_
+7. **A build leaves session presence untouched (ADR-0199).** _(witness: machine)_ _(criterion-id: uatc_72d517487547c2fe9f576861)_ _(revision-id: uatr1:e166d1706ed1dbf9)_
    _(proof-gate: notice-board#gate-1)_ Drive the build command with a worktree identity through its
    injected stores. **Success —** identity feeds only the per-unit claim; the build path writes its
    `building`/phase work-events plus that claim, writes no `events.session` declaration/done lifecycle,
    and releases `(spec.id, sessionId)` in `finally` when the build completes.
-8. **Offline degrade + the gate wall.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_
+8. **Offline degrade + the gate wall.** _(witness: machine)_ _(proof-gate: notice-board#gate-1)_ _(criterion-id: uatc_2193965a6ecab624ea9bee82)_ _(revision-id: uatr1:ee6549079fe1cbf4)_
    Inject no ledger/store into the offline command paths. **Success —** `storytree tree cite-event`
    renders the hierarchy with no ledger block or error; `storytree noticeboard` renders the empty
    offline board without error; `worktree create` refuses with `pnpm db:up` guidance and no worktree IO;

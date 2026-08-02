@@ -12,7 +12,8 @@ import { resolveWitness } from "./witness-resolution.js";
 
 function criterion(proofGateId?: string): UatTestCriterion {
   return {
-    id: "story#uat-7",
+    criterionId: "uatc_0123456789abcdef01234567",
+    revisionId: "uatr1:0123456789abcdef",
     title: "machine criterion",
     witness: "machine",
     wouldBe: false,
@@ -52,7 +53,7 @@ test("proof-binding outcome: evidence preserves the resolver's exact eligible ga
 
   assert.deepEqual(outcome, {
     outcome: "evidence",
-    criterionId: "story#uat-7",
+    criterionId: "uatc_0123456789abcdef01234567",
     gateId: "story#gate-2",
     gateKind: "observe",
     proofCommand: "pnpm --filter @storytree/library test",
@@ -79,7 +80,7 @@ test("proof-binding outcome: every resolver refusal remains non-runnable with it
       machineResolution(current.criterion, current.gates),
     );
     assert.equal(outcome.outcome, "refused", current.label);
-    assert.equal(outcome.criterionId, "story#uat-7", current.label);
+    assert.equal(outcome.criterionId, "uatc_0123456789abcdef01234567", current.label);
     assert.equal(outcome.reason, current.reason, current.label);
     assert.equal(outcome.declaredGateId, current.criterion.proofGateId, current.label);
     assert.equal("proofCommand" in outcome, false, current.label);

@@ -68,28 +68,28 @@ consumes nothing.
 journey, and replay its deterministic observations while preserving every uncertainty and identity
 boundary ADR-0235 settles.
 
-1. **Cross the real factory boundary through the story-owned adapter.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Create a
+1. **Cross the real factory boundary through the story-owned adapter.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Create a _(criterion-id: uatc_f4b86cb85b2b44623c6be874)_ _(revision-id: uatr1:a9a9cf768bebee82)_
    runner with the production `createOrientationRunner` factory, then pass that runner and a
    structured trace store to the story-owned decorator. Invoke a front-matter-derived focused-tree
    read followed by `tree spec` for the same canonical node. **Success —** the unchanged runner
    responses return, and replay contains two unique chronological `visitId` values under one stable
    `sessionId` and canonical `nodeId`; the front-matter and full-payload visits remain distinct,
    with no returned markdown copied into telemetry.
-2. **Record search/list coverage without claiming a follow.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Invoke the
+2. **Record search/list coverage without claiming a follow.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Invoke the _(criterion-id: uatc_4efa086fe3ca31a282e8dc17)_ _(revision-id: uatr1:8aea752a4afe676d)_
    decorated runner's Library artifact-list boundary, then request one returned artifact.
    **Success —** the search/list observation records only operation and canonical result ids; the
    artifact request is a full-payload visit, but no followed edge appears because the adapter
    receives no explicit followed-edge identity.
-3. **Expose the adapter's honest coverage.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Query the wrapper's coverage
+3. **Expose the adapter's honest coverage.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Query the wrapper's coverage _(criterion-id: uatc_d05be13138fa617a83a6d052)_ _(revision-id: uatr1:bbc5b381f7f101bc)_
    declaration. **Success —** it names only the tree/Library search-list, front-matter, and
    full-payload observations emitted by this adapter; it explicitly omits model-token/capacity,
    candidate-follow causality, spawn/handoff/return, agents, noticeboard, direct CLI, SDK,
    owned-loop, and every other runtime adapter. Missing capacity remains unknown.
-4. **Refuse inferred causality.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Place visits close together in time without an
+4. **Refuse inferred causality.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Place visits close together in time without an _(criterion-id: uatc_e9ee0be93d55175c7711a3d2)_ _(revision-id: uatr1:16ae6e64fde8e323)_
    explicit followed edge, and include a revisit carrying an explicit prior-visit reference.
    **Success —** temporal proximity creates no causal edge; the revisit is a new forward
    chronological visit linked only to its declared earlier visit.
-5. **Prove future parent/child shapes without inventing live wiring.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Parse and
+5. **Prove future parent/child shapes without inventing live wiring.** _(witness: machine)_ _(proof-gate: context-traversal-telemetry#gate-1)_ Parse and _(criterion-id: uatc_5eaa8f7cf499b481be00e78d)_ _(revision-id: uatr1:50b5a1451106ae63)_
    replay schema fixtures carrying explicit spawn-handoff and result-return edges. **Success —**
    parent and child windows remain independent and link only through explicit edge identity; this
    is schema/replay proof only, while the orientation adapter declares those event kinds unsupported

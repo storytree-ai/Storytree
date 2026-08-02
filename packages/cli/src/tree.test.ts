@@ -20,9 +20,22 @@ import { tmpdir } from "node:os";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 
 import { treeCommand, type TreeDeps } from "./tree.js";
+import { authoredUat, fixtureBinding, fixtureCriterionId } from "./uat-test-fixtures.js";
+
+const P1 = "**First check** _(witness: machine)_: it parses.";
+const P2 = "**Human look** _(witness: human)_: it looks right.";
+const B1 = fixtureBinding(1, P1);
+const B2 = fixtureBinding(2, P2);
+const C1 = fixtureCriterionId(1);
+const C2 = fixtureCriterionId(2);
 
 /** A signed-verdict event for a per-test UAT id, shaped for the verdict reader seam. */
-function verdictEvent(seq: number, unitId: string, outcome: "pass" | "fail") {
+function verdictEvent(
+  seq: number,
+  unitId: string,
+  outcome: "pass" | "fail",
+  revisionId?: string,
+) {
   return {
     seq,
     kind: SIGNING_EVENT_KIND,
@@ -34,6 +47,7 @@ function verdictEvent(seq: number, unitId: string, outcome: "pass" | "fail") {
       signer: "owner@example.com",
       runId: `run-${seq}`,
       at: "2026-06-20T00:00:00.000Z",
+      ...(revisionId === undefined ? {} : { criterionId: unitId, revisionId }),
     },
   };
 }
@@ -51,7 +65,7 @@ before(() => {
 
   writeFileSync(
     join(storyDir, "story.md"),
-    [
+    authoredUat([
       "---",
       "id: demo-story",
       "tier: story",
@@ -71,14 +85,14 @@ before(() => {
       // `(would-be)` heading would relax them, which the dedicated would-be test below exercises).
       "## Story UAT",
       "",
-      "1. **First check** _(witness: machine)_: it parses.",
-      "2. **Human look** _(witness: human)_: it looks right.",
-    ].join("\n"),
+      `1. ${P1}`,
+      `2. ${P2}`,
+    ].join("\n")),
   );
 
   writeFileSync(
     join(storyDir, "cap-a.md"),
-    [
+    authoredUat([
       "---",
       "id: cap-a",
       "tier: capability",
@@ -89,7 +103,7 @@ before(() => {
       "---",
       "",
       "cap-a body.",
-    ].join("\n"),
+    ].join("\n")),
   );
 
   // cap-b depends on cap-a
@@ -135,7 +149,7 @@ before(() => {
   mkdirSync(brownDir);
   writeFileSync(
     join(brownDir, "story.md"),
-    [
+    authoredUat([
       "---",
       "id: brown-story",
       "tier: story",
@@ -158,7 +172,7 @@ before(() => {
       "## Reliability Gates",
       "",
       "1. **The suite is green** _(gate: observe)_ _(covers: covered-cap)_ `pnpm --filter brown test`.",
-    ].join("\n"),
+    ].join("\n")),
   );
   for (const capId of ["covered-cap", "pocket-cap"]) {
     writeFileSync(
@@ -264,8 +278,8 @@ test("focused view renders the UAT test criteria block from the spec; marks abse
   const env = await treeCommand("demo-story", deps);
   assert.equal(env.ok, true);
   assert.ok(env.body.includes("UAT test criteria:"), "body has a UAT test criteria block");
-  assert.ok(env.body.includes("demo-story#uat-1"), "lists the first test id");
-  assert.ok(env.body.includes("demo-story#uat-2"), "lists the second test id");
+  assert.ok(env.body.includes(C1), "lists the first authored criterion id");
+  assert.ok(env.body.includes(C2), "lists the second authored criterion id");
   assert.ok(env.body.includes("witness=machine"), "shows the declared witness kind");
   assert.ok(env.body.includes("First check") && env.body.includes("Human look"), "shows titles");
   assert.ok(!env.body.includes("◉") && !env.body.includes("▣"), "no attestation marks offline");
@@ -279,7 +293,9 @@ test("focused view shows attestation marks when the reader answers (human seal v
         {
           seq: 1,
           doc: {
-            testId: "demo-story#uat-2",
+            testId: C2,
+            criterionId: C2,
+            revisionId: B2.revisionId,
             outcome: "pass",
             witness: "human",
             signer: "owner@example.com",
@@ -300,7 +316,7 @@ test("focused view shows attestation marks when the reader answers (human seal v
   assert.equal(env.ok, true);
   assert.ok(env.body.includes("◉ human:pass"), "the voucht test renders the human seal + outcome");
   // uat-1 has no attestation → the never-voucht dash; and the marks are never the gate ✓/✗.
-  assert.ok(/demo-story#uat-1\s+witness=machine\s+First check\s+–/.test(env.body), "unvoucht test → –");
+  assert.ok(new RegExp(`${C1}\\s+witness=machine\\s+First check\\s+–`).test(env.body), "unvoucht test → –");
   assert.ok(!env.body.includes("✓") && !env.body.includes("✗"), "attestation marks are not the verdict glyphs");
 });
 
@@ -314,8 +330,8 @@ test("focused view: a story crown greens when all capabilities AND per-test UAT 
         verdictEvent(1, "cap-a", "pass"),
         verdictEvent(2, "cap-b", "pass"),
         verdictEvent(3, "cap-c", "pass"),
-        verdictEvent(4, "demo-story#uat-1", "pass"),
-        verdictEvent(5, "demo-story#uat-2", "pass"),
+        verdictEvent(4, C1, "pass", B1.revisionId),
+        verdictEvent(5, C2, "pass", B2.revisionId),
       ];
     },
   };
@@ -325,8 +341,8 @@ test("focused view: a story crown greens when all capabilities AND per-test UAT 
   assert.match(env.body, /Story: demo-story ✓/, "the crown wears the proven glyph");
   assert.match(env.body, /UAT proof: GREEN/, "the story UAT rolled up green");
   assert.match(env.body, /story green: GREEN/, "the crown greens (all caps healthy AND UAT proven)");
-  assert.match(env.body, /demo-story#uat-1\s+witness=machine\s+proven=✓/, "uat-1 proven ✓");
-  assert.match(env.body, /demo-story#uat-2\s+witness=human\s+proven=✓/, "uat-2 proven ✓");
+  assert.match(env.body, new RegExp(`${C1}\\s+witness=machine\\s+proven=✓`), "first criterion proven ✓");
+  assert.match(env.body, new RegExp(`${C2}\\s+witness=human\\s+proven=✓`), "second criterion proven ✓");
 });
 
 // (8b) ADR-0083 Fork A: capabilities-green is a NECESSARY condition — UAT all green but a capability
@@ -338,8 +354,8 @@ test("focused view: a green UAT does NOT green the crown while a capability is u
         verdictEvent(1, "cap-a", "pass"),
         verdictEvent(2, "cap-b", "pass"),
         // cap-c never earned a signed pass — the crown cannot be green while it stands unproven.
-        verdictEvent(3, "demo-story#uat-1", "pass"),
-        verdictEvent(4, "demo-story#uat-2", "pass"),
+        verdictEvent(3, C1, "pass", B1.revisionId),
+        verdictEvent(4, C2, "pass", B2.revisionId),
       ];
     },
   };
@@ -354,7 +370,7 @@ test("focused view: a green UAT does NOT green the crown while a capability is u
 test("focused view: a story with one unproven test under-claims (crown –, the test proven=–)", async () => {
   const verdicts = {
     async readEvents() {
-      return [verdictEvent(1, "demo-story#uat-1", "pass")];
+      return [verdictEvent(1, C1, "pass", B1.revisionId)];
     },
   };
   const deps: TreeDeps = { storiesDir, lookupConfig, verdicts, now: () => NOW };
@@ -362,8 +378,8 @@ test("focused view: a story with one unproven test under-claims (crown –, the 
   assert.equal(env.ok, true);
   assert.match(env.body, /Story: demo-story –/, "the crown under-claims (not every test proven)");
   assert.match(env.body, /UAT proof: unproven/, "the story UAT under-claims");
-  assert.match(env.body, /demo-story#uat-1\s+witness=machine\s+proven=✓/, "the proven test → ✓");
-  assert.match(env.body, /demo-story#uat-2\s+witness=human\s+proven=–/, "the unproven test → –");
+  assert.match(env.body, new RegExp(`${C1}\\s+witness=machine\\s+proven=✓`), "the proven test → ✓");
+  assert.match(env.body, new RegExp(`${C2}\\s+witness=human\\s+proven=–`), "the unproven test → –");
 });
 
 // ── ADR-0097: brownfield adoption — would-be UAT relaxation + (covers:) crown coverage ──

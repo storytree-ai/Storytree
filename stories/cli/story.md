@@ -133,16 +133,16 @@ regression leg.
 offline, is refused an offline write, and (DB up) pulls live — each command returning a typed
 envelope.
 
-1. **Dispatch + envelope, offline:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree library`. **Success —**
+1. **Dispatch + envelope, offline:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree library`. **Success —** _(criterion-id: uatc_fc00d80d290a86727a30e2eb)_ _(revision-id: uatr1:465bc8f7961ae8ba)_
    the shim seeds an in-memory store and returns `ok:true` with the dashboard banner + a `next:`
    block — no DB needed.
-2. **Reach another organism:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree tree drive-machinery`.
+2. **Reach another organism:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree tree drive-machinery`. _(criterion-id: uatc_6488d065398e1216c9ae3d07)_ _(revision-id: uatr1:fc9b707fd31d53b3)_
    **Success —** the same binary dispatches to the tree surface and renders the hierarchy offline
    (no presence lines, no error) — proving the verb router reaches a second organism.
-3. **Write gate:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree library artifact new --file <doc.json>`
+3. **Write gate:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree library artifact new --file <doc.json>` _(criterion-id: uatc_0230af87290a0b4ac797495a)_ _(revision-id: uatr1:7581bb82c65cbfac)_
    WITHOUT `--pg`. **Success —** `ok:false` with "writes go to the shared store … run with --pg" and
    a non-zero exit — the offline-safe write gate.
-4. **Credential hydration + live pull:** _(witness: machine)_ with `pnpm db:up`, run `pnpm storytree
+4. **Credential hydration + live pull:** _(witness: machine)_ with `pnpm db:up`, run `pnpm storytree _(criterion-id: uatc_dba01a60e8f19040a6732eea)_ _(revision-id: uatr1:a6be2db1ea9b6a79)_
    library artifact <id> --pg` (no env prefix). **Success —** `secrets.ts` hydrated
    `STORYTREE_DB_USER`, the live read returned `ok:true` — the shim wired the live store in.
    > **Witness re-adjudicated `human` → `machine` 2026-07-25 (ADR-0209 D8), deliberately UNBOUND.**

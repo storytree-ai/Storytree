@@ -1,0 +1,1697 @@
+{
+  "version": 1,
+  "dispositions": [
+    {
+      "legacyTestId": "agent#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "agent#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "agent#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "agent#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "agent#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "agent#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-guide#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-guide#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-guide#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-guide#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-guide#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Known mixed-history collision: this positional key named materially different fourth criteria across app-surface revisions. Historical rows require row-level review and earn no current credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-9",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-10",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "app-surface#uat-11",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "binding-staleness#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "binding-staleness#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "binding-staleness#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "binding-staleness#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "binding-staleness#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-drive-bridge#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-drive-bridge#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-drive-bridge#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-drive-bridge#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-drive-bridge#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-drive-bridge#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-subagent-spawn#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-subagent-spawn#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-subagent-spawn#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-subagent-spawn#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-subagent-spawn#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-subagent-spawn#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "chat-subagent-spawn#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "ci-cd#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "ci-cd#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "ci-cd#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "ci-cd#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "ci-cd#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "ci-cd#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "ci-cd#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "cli#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "cli#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "cli#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "cli#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-capture#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-capture#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-capture#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-capture#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-capture#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-capture#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-capture#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-capture#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-spawn#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-spawn#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-spawn#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-spawn#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-spawn#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-spawn#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-telemetry#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-telemetry#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-telemetry#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-telemetry#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-telemetry#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-transcript#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-transcript#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-transcript#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-transcript#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-transcript#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "context-traversal-transcript#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-9",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-10",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop#uat-11",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop-build-mount#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "desktop-build-mount#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "drive-machinery#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "drive-machinery#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "drive-machinery#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "drive-machinery#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "drive-machinery#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "drive-machinery#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "drive-machinery#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "embedded-terminal#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "embedded-terminal#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "embedded-terminal#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "embedded-terminal#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "embedded-terminal#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "embedded-terminal#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "embedded-terminal#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "embedded-terminal#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "feedback-graduation#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "feedback-graduation#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "feedback-graduation#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "feedback-graduation#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "headless-orchestrator#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "headless-orchestrator#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "headless-orchestrator#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "headless-orchestrator#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "headless-orchestrator#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-review#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-review#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-review#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-review#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-review#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-review#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-review#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-review#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-review#uat-9",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-tech-tree-overlay#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-tech-tree-overlay#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-tech-tree-overlay#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-tech-tree-overlay#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-tech-tree-overlay#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "library-tech-tree-overlay#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "map-terminal-build#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "map-terminal-build#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "map-terminal-build#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "map-terminal-build#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "map-terminal-build#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "map-terminal-build#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "map-terminal-build#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-judged-uat#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-judged-uat#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-judged-uat#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-judged-uat#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-judged-uat#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-judged-uat#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-pilot#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-pilot#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-pilot#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-pilot#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-pilot#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-pilot#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-witness#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-witness#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-witness#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-witness#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-witness#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "model-uat-witness#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "notice-board#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "notice-board#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "notice-board#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "notice-board#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "notice-board#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "notice-board#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "notice-board#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "notice-board#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "proof-binding-integrity#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "proof-binding-integrity#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "proof-binding-integrity#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "proof-binding-integrity#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "scoped-glue-actuator#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "scoped-glue-actuator#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "scoped-glue-actuator#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "scoped-glue-actuator#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "scoped-glue-actuator#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "scoped-glue-actuator#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "spawn-visibility#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "spawn-visibility#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "spawn-visibility#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "spawn-visibility#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "spawn-visibility#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "spawn-visibility#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "spawn-visibility#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-9",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-10",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-11",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-12",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio#uat-13",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-9",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-10",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-build#uat-11",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-cloud#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-cloud#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-cloud#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-cloud#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-cloud#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-cloud#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-cloud#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-cloud#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-members#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-members#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-members#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-members#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-members#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-members#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-members#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "studio-members#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-repo-picker#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-repo-picker#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-repo-picker#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-repo-picker#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-repo-picker#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-repo-picker#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-repo-picker#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-repo-picker#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-tabs#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-tabs#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-tabs#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-tabs#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-tabs#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-tabs#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-tabs#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "terminal-tabs#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-attestation#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-attestation#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-attestation#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-attestation#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-attestation#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-attestation#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-attestation#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-criterion-detail#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-criterion-detail#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-criterion-detail#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-criterion-detail#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-criterion-detail#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-criterion-detail#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-detail-studio#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-detail-studio#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-detail-studio#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "uat-detail-studio#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-9",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-10",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-11",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-12",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "website-experience#uat-13",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-1",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-2",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-3",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-4",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-5",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-6",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-7",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-8",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-9",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-10",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    },
+    {
+      "legacyTestId": "wisp-as-story-claim#uat-11",
+      "reviewedAt": "2026-08-02",
+      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
+      "disposition": "unresolved"
+    }
+  ]
+}

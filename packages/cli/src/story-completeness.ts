@@ -134,7 +134,8 @@ const WITNESS_TAG = /\(witness:\s*[A-Za-z]+\)/i;
 /**
  * The 1-based ordinals of `## UAT Test Criteria` legs that carry NO `(witness: …)` tag (PURE, no I/O). A
  * complete machine-UAT names its witness on every leg; an untagged leg defaults to `either` silently,
- * so this surfaces exactly which legs under-declare. Positional ordinals mirror `uatTestCriterionId`.
+ * so this surfaces exactly which legs under-declare. Ordinals here are display locations only and
+ * never criterion identity or proof keys (ADR-0253).
  */
 function untaggedLegOrdinals(body: string): number[] {
   const heading = STORY_UAT_HEADING.exec(body);

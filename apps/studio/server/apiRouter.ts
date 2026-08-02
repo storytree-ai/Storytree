@@ -793,7 +793,9 @@ export function resolveUatRowWitnesses(
 ): { tests: ResolvedUatLeg[]; unresolvedWitnesses: string[] } {
   const resolved = tests.map((t) => ({ ...t, witness: resolver.resolvedWitnessOf(t, gates) }));
   const adopted = status !== '' && status !== 'mapped' && status !== 'retired';
-  const unresolvedWitnesses = adopted ? resolver.unresolvedUatLegs(tests).map((t) => t.id) : [];
+  const unresolvedWitnesses = adopted
+    ? resolver.unresolvedUatLegs(tests).map((t) => t.criterionId)
+    : [];
   return { tests: resolved, unresolvedWitnesses };
 }
 
@@ -835,12 +837,17 @@ export async function handleAttestations(
     // verdict, DELIBERATELY DISTINCT from the vouch marks (`human`/`machine`). It greens the story
     // crown via the AND-roll-up; the vouch never does. Derived through the SAME `rollupStatus` /
     // `rollupStoryUat` compute the CLI tree + the crown roll-up use, so the studio can't drift from it.
-    let provenOf: ((id: string) => 'pass' | 'fail' | undefined) | null = null;
+    let provenOf:
+      | ((criterion: Pick<UatTestCriterion, 'criterionId' | 'revisionId'>) =>
+          | 'pass'
+          | 'fail'
+          | undefined)
+      | null = null;
     let storyUat: 'healthy' | 'unhealthy' | null | undefined;
     if (events) {
-      const { rollupStatus, rollupStoryUat } = await loadOrchestrator();
-      provenOf = (id) => {
-        const status = rollupStatus(id, events);
+      const { rollupCriterionStatus, rollupStoryUat } = await loadOrchestrator();
+      provenOf = (criterion) => {
+        const status = rollupCriterionStatus(criterion, events);
         return status === 'healthy' ? 'pass' : status === 'unhealthy' ? 'fail' : undefined;
       };
       storyUat = storyUatRollup(rollupStoryUat(tests, events));
@@ -857,7 +864,7 @@ export async function handleAttestations(
           const { parseCriterionPointers } = await import('@storytree/uat-criterion');
           const body = await fs.readFile(storyFile, 'utf8');
           for (const binding of parseCriterionPointers(storyId, body)) {
-            detailByCriterionId.set(binding.criterion.id, binding.detailArtifactId);
+            detailByCriterionId.set(binding.criterion.criterionId, binding.detailArtifactId);
           }
         } catch {
           // Malformed detail tags must not blank the attestations panel — omit pointers.
@@ -865,11 +872,11 @@ export async function handleAttestations(
       }
     }
     const rows = resolvedTests.map((t) => {
-      const proven = provenOf?.(t.id);
-      const detailArtifactId = detailByCriterionId.get(t.id);
+      const proven = provenOf?.(t);
+      const detailArtifactId = detailByCriterionId.get(t.criterionId);
       return {
         ...t,
-        ...(marks[t.id] ?? {}),
+        ...(marks[t.criterionId] ?? {}),
         ...(proven ? { proven } : {}),
         ...(detailArtifactId !== undefined ? { detailArtifactId } : {}),
       };
@@ -884,15 +891,26 @@ export async function handleAttestations(
 
   if (method === 'POST') {
     const input = await readJsonBody<Record<string, unknown>>(req);
-    const testId = asString(input.testId).trim();
-    if (!testId) throw new HttpError(400, 'testId is required');
+    const storyId = asString(input.storyId).trim();
+    const criterionId = asString(input.criterionId).trim();
+    if (!storyId || !criterionId) {
+      throw new HttpError(400, 'storyId and criterionId are required');
+    }
+    const criterion = (await uatTestCriteriaForStory(ctx.paths.storiesDir, storyId)).find(
+      (candidate) => candidate.criterionId === criterionId,
+    );
+    if (!criterion) {
+      throw new HttpError(400, `no current UAT criterion "${criterionId}" in story "${storyId}"`);
+    }
     const outcome = input.outcome === 'fail' ? 'fail' : 'pass';
     const note = asString(input.note).trim();
     // Hosted mode stamps the verified admin as the signer (can't be forged); dev keeps the client
     // field (open localhost posture). An in-UI signature is a DIRECT human vouch — no relayedBy.
     const signer = caller ?? (asString(input.signer).trim() || 'operator');
     const doc: Attestation = {
-      testId,
+      testId: criterion.criterionId,
+      criterionId: criterion.criterionId,
+      revisionId: criterion.revisionId,
       outcome,
       witness: 'human',
       signer,
@@ -927,12 +945,6 @@ export async function handleAttestations(
 //    land in the live store greens nothing (the json backend refuses, like the CLI's `--pg`).
 // Admin-only by the dispatch gate's method rule (POST, not /api/comments).
 
-/** The story id a `<story>#uat-<n>` test belongs to (the `uat.ts` `storyOf` rule). */
-function uatStoryOf(testId: string): string {
-  const hash = testId.indexOf('#');
-  return hash > 0 ? testId.slice(0, hash) : testId;
-}
-
 /**
  * Narrow `rollupStoryUat`'s broad `Status` return to the wire's 3-state story-UAT roll-up. The
  * compute only ever yields healthy/unhealthy/null at runtime (ADR-0082 d.3), but its declared type is
@@ -945,7 +957,7 @@ function storyUatRollup(rolled: string | null): 'healthy' | 'unhealthy' | null {
 
 /** The fields the verdict builder needs about the test + the observation being signed. */
 export interface UatVerdictInput {
-  test: { id: string; witness: UatTestCriterion['witness'] };
+  test: Pick<UatTestCriterion, 'criterionId' | 'revisionId' | 'witness'>;
   outcome: 'pass' | 'fail';
   /** The resolved (verified) operator identity — never client-supplied. */
   signer: string;
@@ -972,7 +984,9 @@ export function buildUatVerdict(
   if (!guard.ok) return { ok: false, reason: guard.reason };
   const note = input.note?.trim();
   const verdict: Verdict = {
-    unitId: input.test.id,
+    unitId: input.test.criterionId,
+    criterionId: input.test.criterionId,
+    revisionId: input.test.revisionId,
     proofMode: 'operator-attested',
     outcome: input.outcome,
     commitSha: input.commitSha,
@@ -999,22 +1013,24 @@ export async function handleUatAttest(
 ): Promise<void> {
   if ((req.method ?? 'GET') !== 'POST') throw new HttpError(405, 'method not allowed');
   const input = await readJsonBody<Record<string, unknown>>(req);
-  const testId = asString(input.testId).trim();
-  if (!testId) throw new HttpError(400, 'testId is required');
+  const storyId = asString(input.storyId).trim();
+  const criterionId = asString(input.criterionId).trim();
+  if (!storyId || !criterionId) {
+    throw new HttpError(400, 'storyId and criterionId are required');
+  }
   const outcome = input.outcome === 'fail' ? 'fail' : 'pass';
   const note = asString(input.note).trim();
 
   // The test must be a real DECLARED unit — its witness drives the trust guard. A typo'd id never
   // signs a verdict against nothing (the CLI `uat attest` posture).
-  const storyId = uatStoryOf(testId);
   const tests = await uatTestCriteriaForStory(ctx.paths.storiesDir, storyId);
-  const test = tests.find((t) => t.id === testId);
+  const test = tests.find((t) => t.criterionId === criterionId);
   if (!test) {
     throw new HttpError(
       400,
       tests.length === 0
-        ? `no UAT test "${testId}" — story "${storyId}" declares no UAT test criteria (or its spec did not load)`
-        : `no UAT test "${testId}" in story "${storyId}"; declared: ${tests.map((t) => t.id).join(', ')}`,
+        ? `no UAT criterion "${criterionId}" — story "${storyId}" declares no UAT test criteria (or its spec did not load)`
+        : `no UAT criterion "${criterionId}" in story "${storyId}"; declared: ${tests.map((t) => t.criterionId).join(', ')}`,
     );
   }
 
@@ -1054,7 +1070,14 @@ export async function handleUatAttest(
   const events = (await ctx.backend.verdictEvents?.()) ?? null;
   const storyUat = events ? storyUatRollup(rollupStoryUat(tests, events)) : undefined;
   sendJson(res, 201, {
-    verdict: { unitId: saved.unitId, outcome: saved.outcome, signer: saved.signer, at: saved.at },
+    verdict: {
+      unitId: saved.unitId,
+      criterionId: test.criterionId,
+      revisionId: test.revisionId,
+      outcome: saved.outcome,
+      signer: saved.signer,
+      at: saved.at,
+    },
     ...(storyUat !== undefined ? { storyUat } : {}),
   });
 }
@@ -1164,8 +1187,11 @@ export async function readTree(
   storiesDir: string,
 ): Promise<{
   payload: TreePayload;
-  uatTestCriteriaByStory: Map<string, { id: string }[]>;
-  uatCriteriaByStory: Map<string, { id: string }[]>;
+  uatTestCriteriaByStory: Map<
+    string,
+    ({ criterionId: string; revisionId: string } | { id: string })[]
+  >;
+  uatCriteriaByStory: Map<string, { criterionId: string; revisionId: string }[]>;
   coverageByStory: Map<string, { id: string; covers?: readonly string[] }[]>;
 }> {
   const stories: TreeStory[] = [];
@@ -1173,12 +1199,15 @@ export async function readTree(
   // would-be legs filtered out per ADR-0097) AND the `## Reliability Gates` (ADR-0085, the brownfield
   // obligation set) — collected as the specs load so the /api/tree handler can roll each story's
   // per-obligation verdicts up into its crown without re-reading every spec. Keyed by `{ id }` only.
-  const uatTestCriteriaByStory = new Map<string, { id: string }[]>();
+  const uatTestCriteriaByStory = new Map<
+    string,
+    ({ criterionId: string; revisionId: string } | { id: string })[]
+  >();
   // The story's WITNESSABLE UAT test criteria ALONE (forest-parcels inc-2 marker walk) — the SAME
   // would-be filter as above, but deliberately NOT unioned with `## Reliability Gates`: the crown's
   // green obligation set and the `TreeStory.uatCriteria` summary are different obligations (ADR-0085
   // gates are a brownfield adoption mechanism, not a UAT criterion). Feeds `applyUatCriteria`.
-  const uatCriteriaByStory = new Map<string, { id: string }[]>();
+  const uatCriteriaByStory = new Map<string, { criterionId: string; revisionId: string }[]>();
   // ADR-0097: per-story capability COVERAGE — the reliability gates (with their `(covers:)` lists), so
   // a brownfield cap with no driven verdict greens via an adopted gate that declares it covered.
   const coverageByStory = new Map<string, { id: string; covers?: readonly string[] }[]>();
@@ -1282,7 +1311,10 @@ export async function readTree(
       if (witnessableUat.length > 0) {
         uatCriteriaByStory.set(
           ent.name,
-          witnessableUat.map((t) => ({ id: t.id })),
+          witnessableUat.map((t) => ({
+            criterionId: t.criterionId,
+            revisionId: t.revisionId,
+          })),
         );
       }
       // The reliability gates double as per-cap coverage (ADR-0097): id + the caps each `(covers:)`.
@@ -1314,12 +1346,15 @@ export async function readTree(
  */
 export function applyUatCrowns(
   stories: TreeStory[],
-  uatTestCriteriaByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  uatTestCriteriaByStory: ReadonlyMap<
+    string,
+    readonly ({ criterionId: string; revisionId: string } | { id: string })[]
+  >,
   coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
   rollup: (
     capabilityIds: readonly string[],
-    tests: readonly { id: string }[],
+    tests: readonly ({ criterionId: string; revisionId: string } | { id: string })[],
     events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
     coverage?: readonly { id: string; covers?: readonly string[] }[],
   ) => string | null,
@@ -1334,7 +1369,13 @@ export function applyUatCrowns(
     if (rolled === 'healthy' || rolled === 'unhealthy') {
       // The crown's timestamp spans BOTH clauses — a cap-driven wither shows the capability's verdict
       // time, not just the UAT's (the union of the per-test ids and the capability ids).
-      const at = latestVerdictAt(events, new Set([...tests.map((t) => t.id), ...capabilityIds]));
+      const at = latestVerdictAt(
+        events,
+        new Set([
+          ...tests.map((t) => ('criterionId' in t ? t.criterionId : t.id)),
+          ...capabilityIds,
+        ]),
+      );
       story.verdict = { outcome: rolled === 'healthy' ? 'pass' : 'fail', at: at ?? '' };
     } else {
       // unproven: drop any own-unit verdict so the world never paints a crown the proof doesn't
@@ -1359,20 +1400,23 @@ export function applyUatCrowns(
  */
 export function applyUatCriteria(
   stories: TreeStory[],
-  uatCriteriaByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  uatCriteriaByStory: ReadonlyMap<
+    string,
+    readonly { criterionId: string; revisionId: string }[]
+  >,
   events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }> | null,
   rollup?: (
-    id: string,
+    criterion: { criterionId: string; revisionId: string },
     events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
   ) => string | null,
 ): void {
   for (const story of stories) {
     const tests = uatCriteriaByStory.get(story.id) ?? [];
     story.uatCriteria = tests.map((t): UatCriterionSummary => {
-      const status = events && rollup ? rollup(t.id, events) : null;
+      const status = events && rollup ? rollup(t, events) : null;
       const state: UatCriterionSummary['state'] =
         status === 'healthy' ? 'proven' : status === 'unhealthy' ? 'failing' : 'pending';
-      return { id: t.id, state };
+      return { id: t.criterionId, state };
     });
   }
 }
@@ -2137,8 +2181,13 @@ export async function handleApiRequest(
       // ALWAYS set (even with no verdict events / a down DB, when every entry reads 'pending'), so the
       // field is never silently missing on the wire. `rollupStatus` is the SAME per-test proof read
       // `applyUatCrowns` / the attestations route's `provenOf` use.
-      const { rollupStatus } = await loadOrchestrator();
-      applyUatCriteria(payload.stories, uatCriteriaByStory, verdictEvents, rollupStatus);
+      const { rollupCriterionStatus } = await loadOrchestrator();
+      applyUatCriteria(
+        payload.stories,
+        uatCriteriaByStory,
+        verdictEvents,
+        rollupCriterionStatus,
+      );
       // ADR-0083 Fork A (refining ADR-0082): a story that declares per-test UAT test criteria greens from the
       // AND of (all capabilities proven healthy) AND (the per-test UAT roll-up) — overriding any
       // own-unit verdict set above. Skipped when the backend has no verdict events (json / down DB)

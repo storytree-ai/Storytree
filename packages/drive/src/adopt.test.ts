@@ -66,7 +66,14 @@ function gate(n: number, over: Partial<ReliabilityGate> = {}): ReliabilityGate {
 }
 
 function leg(n: number, witness: UatTestCriterionWitness, over: Partial<UatTestCriterion> = {}): UatTestCriterion {
-  return { id: `library#uat-${n}`, title: `leg ${n}`, witness, wouldBe: false, ...over };
+  return {
+    criterionId: `uatc_${n.toString(16).padStart(24, "0")}`,
+    revisionId: `uatr1:${n.toString(16).padStart(16, "0")}`,
+    title: `leg ${n}`,
+    witness,
+    wouldBe: false,
+    ...over,
+  };
 }
 
 interface RecordingStore {
@@ -206,15 +213,15 @@ test("ADR-0106: adopt observe-signs a machine leg, leaves human + either legs fo
   assert.equal(env.ok, true);
   // gate-1 + the ONE machine leg are signed; the human and the (undecided→human) `either` legs are NOT.
   const ids = appendedUnitIds(store);
-  assert.deepEqual(ids.sort(), ["library#gate-1", "library#uat-1"]);
-  assert.ok(!ids.includes("library#uat-2") && !ids.includes("library#uat-3"));
+  assert.deepEqual(ids.sort(), ["library#gate-1", leg(1, "machine").criterionId]);
+  assert.ok(!ids.includes(leg(2, "human").criterionId) && !ids.includes(leg(3, "either").criterionId));
   // every signed row is an `adopted` machine verdict signed by the spine.
   for (const ev of store.appended) {
     assert.equal(ev.doc.proofMode, "adopted");
     assert.equal(ev.doc.signer, SPINE_PRINCIPAL);
   }
   assert.match(env.body, /1\/1 machine observe-signed · 2 await your witness · 0 deferred/);
-  assert.match(env.body, /library#uat-2 \(human\) — awaits your "I saw it work"/);
+  assert.match(env.body, /uatc_000000000000000000000002 \(human\) — awaits your "I saw it work"/);
 });
 
 test("ADR-0106: the shared observe suite runs ONCE for the gate + the machine legs it covers (memoized)", async () => {
@@ -256,7 +263,7 @@ test("ADR-0106: a machine leg whose covering observe gate declares no command is
   const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
   assert.equal(env.ok, false);
   assert.equal(store.appended.length, 0); // nothing observable → nothing signed
-  assert.match(env.body, /library#uat-1 \(machine\) — covering gate library#gate-1 declares no command/);
+  assert.match(env.body, /uatc_000000000000000000000001 \(machine\) — covering gate library#gate-1 declares no command/);
 });
 
 test("ADR-0106: an aspirational (wouldBe) leg is not an obligation — never classified or signed", async () => {
@@ -296,8 +303,8 @@ test("uat-bound-command-adoption: an unbound machine leg fails the whole UAT-sig
   assert.deepEqual(ids, ["library#gate-1"]);
   // … but leg-1's otherwise-valid binding does not save it: NEITHER leg is signed — no fallback to
   // another gate, and no partial UAT verdict set, once any machine leg in the story is unbound.
-  assert.ok(!ids.includes("library#uat-1"));
-  assert.ok(!ids.includes("library#uat-2"));
+  assert.ok(!ids.includes(leg(1, "machine").criterionId));
+  assert.ok(!ids.includes(leg(2, "machine").criterionId));
 });
 
 test("uat-bound-command-adoption: a machine leg with NO explicit proof-gate binding is refused even when the story declares exactly ONE observe gate — runAdopt consumes only a leg's resolved binding, never an independently re-derived sole-gate fallback (mirrors resolveWitness's own no-fallback contract, witness-resolution.test.ts)", async () => {
@@ -314,6 +321,6 @@ test("uat-bound-command-adoption: a machine leg with NO explicit proof-gate bind
   // reliability-gate signing stays a separate behaviour: the gate itself still signs its own verdict …
   assert.deepEqual(ids, ["library#gate-1"]);
   // … but the unbound leg is NEVER rescued by there being only one observe gate to fall back to.
-  assert.ok(!ids.includes("library#uat-1"));
-  assert.match(env.body, /library#uat-1 \(machine\) — no proof-gate binding/);
+  assert.ok(!ids.includes(leg(1, "machine").criterionId));
+  assert.match(env.body, /uatc_000000000000000000000001 \(machine\) — no proof-gate binding/);
 });

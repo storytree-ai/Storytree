@@ -74,34 +74,34 @@ gap under Open modeling calls.
 
 ## UAT Test Criteria
 
-1. **Bootstrap admin:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the seeded admin
+1. **Bootstrap admin:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the seeded admin _(criterion-id: uatc_16e17662d5ba469edb7377bc)_ _(revision-id: uatr1:4bcab9209ba14e89)_
    reaches `/api/me` with its verified identity header. **Success —** the response resolves an active
    admin and the seed is persisted as an active admin user row.
-2. **Invite:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the admin POSTs
+2. **Invite:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the admin POSTs _(criterion-id: uatc_90b7f952124f26e6eaa46b3a)_ _(revision-id: uatr1:adb1d912ba4bb75d)_
    `dev@example.com` as a member through the shared `/api/users` route the Members panel calls.
    **Success —** the response and user projection contain an `invited` member row; this in-app route
    crosses no gcloud or IAM boundary.
-3. **Activate:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the invited email reaches
+3. **Activate:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the invited email reaches _(criterion-id: uatc_f37ee96162f82a9bb8dd545a)_ _(revision-id: uatr1:decc643625d68b31)_
    `/api/me` with its verified identity header. **Success —** its row is persisted `active`; the
    resolved member can read corpus APIs, and a resolved member's comment write is stamped from the
    verified identity rather than from the client-supplied author field.
-4. **Role wall:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ a resolved member POSTs
+4. **Role wall:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ a resolved member POSTs _(criterion-id: uatc_b2fa92d5f919f1a56d322813)_ _(revision-id: uatr1:2190bfd8ce229fc3)_
    an asset edit and a user invitation through their API routes. **Success —** both are 403, and the
    refused asset write leaves no asset mutation; the corresponding admin requests succeed.
-5. **Stranger:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ an uninvited verified
+5. **Stranger:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ an uninvited verified _(criterion-id: uatc_f71ee15e9dc5d4ae8deac1a2)_ _(revision-id: uatr1:e444d74ecb62a6eb)_
    identity requests `/api/me` and each corpus API. **Success —** `/api/me` reports `member: false`,
    corpus requests return 403 with `requestAccess`, and the frontend load-state projects that result
    to the request-access wall.
-6. **No lockout:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the sole admin tries to
+6. **No lockout:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the sole admin tries to _(criterion-id: uatc_4c2ed36bb3a1e59d5d9a2344)_ _(revision-id: uatr1:ef07ea073c2ff513)_
    DELETE themselves or PATCH their role to member through `/api/users`. **Success —** both return
    409 and the guarded user mutation does not occur.
-7. **Remove:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ an admin DELETEs
+7. **Remove:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ an admin DELETEs _(criterion-id: uatc_caeb6702bd8022ab71349e27)_ _(revision-id: uatr1:4b0d1dbf5acbf226)_
    `dev@example.com` through `/api/users`. **Success —** the next `/api/me` resolves that identity as
    `member: false`. Comment history staying attributed is STRUCTURAL, not asserted by this leg's
    proof command: the users handler is handed only the user-store methods, so removal has no
    comment-mutating call to make, and authorship was stamped from the verified identity back at
    comment creation (asserted separately, leg 3).
-8. **Mark a builder (ADR-0117):** _(witness: machine)(detail: studio-members#uat-8)_ an admin grants
+8. **Mark a builder (ADR-0117):** _(witness: machine)(detail: studio-members#uat-8)_ an admin grants _(criterion-id: uatc_226051427c57b95a23dd2e01)_ _(revision-id: uatr1:98636a68354a32fa)_
    `friend@example.com` the **builder** role through the same in-app `/api/users` route the Members
    panel calls — no gcloud, no Cloud SQL IAM grant. **Success —** the grant is accepted and the user
    projection holds a `builder` row for that email; that identity then reads and comments with the

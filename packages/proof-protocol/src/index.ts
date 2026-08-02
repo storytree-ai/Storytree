@@ -10,6 +10,7 @@
  * parity-guarded against core in the tests so they can never silently drift.
  */
 export * from "./enums.js";
+export * from "./criterion-binding.js";
 export * from "./proof.js";
 export * from "./anchor.js";
 export * from "./attestations.js";

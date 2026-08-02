@@ -143,7 +143,7 @@ settings or to perform a fresh Cloud Run rollout.
 landing path; that path opens a ready PR, proves the merge candidate, lands only after green, clears
 the branch's coordination claim, and dispatches the keyless Studio deployment.
 
-1. **Open non-draft.** _(witness: machine)_ _(proof-gate: ci-cd#gate-1)_ Exercise the real landing
+1. **Open non-draft.** _(witness: machine)_ _(proof-gate: ci-cd#gate-1)_ Exercise the real landing _(criterion-id: uatc_0cd3b083f869648d3517ecec)_ _(revision-id: uatr1:2c028fda14d0f5bc)_
    dependency composition's three independent surfaces in the required procedure: observe
    `runGate`, proceed to `openLandingPr` only after that result is green, then use `pollPrChecks`.
    **Success —** `runGate` maps the local gate's real exit code without rewriting red; the PR-opening
@@ -152,31 +152,31 @@ the branch's coordination claim, and dispatches the keyless Studio deployment.
    classifies the `verify` rollup without ever invoking `gh pr merge`. The composition exposes these
    tools independently: gate-before-PR is the required caller procedure, not a state machine that
    makes `openLandingPr` unreachable after a red gate.
-2. **Prove the merge candidate.** _(witness: machine)_ _(proof-gate: ci-cd#gate-2)_ Audit the real
+2. **Prove the merge candidate.** _(witness: machine)_ _(proof-gate: ci-cd#gate-2)_ Audit the real _(criterion-id: uatc_012819fb72fb3003e1873509)_ _(revision-id: uatr1:102ad02d7c173346)_
    `verify` job definition. **Success —** PRs into `main` use checkout's merge candidate and the job
    retains the collision/merged-branch guards, manifest/boundary/generated-view/web checks, conservative
    affected-or-full typecheck and test selection, and the unconditional Studio build; `automerge`
    still declares `needs: verify`.
-3. **The local/CI delta is explicit.** _(witness: machine)_ _(proof-gate: ci-cd#gate-3)_ Compare the
+3. **The local/CI delta is explicit.** _(witness: machine)_ _(proof-gate: ci-cd#gate-3)_ Compare the _(criterion-id: uatc_0f5aacd3f9ee77943bbae299)_ _(revision-id: uatr1:374cc8729191baa0)_
    root `gate` script with the real `verify` definition. **Success —** their shared blocking floor is
    present in both, while the current deliberate differences remain visible: CI adds PR-only guards,
    merge-ref execution, affected selection, web checkout, and build; local gate adds its live/advisory
    health tails. This is the honest current relationship, not the obsolete claim that build is the
    only difference.
-4. **Auto-merge on green.** _(witness: machine)_ _(proof-gate: ci-cd#gate-4)_ Audit the real
+4. **Auto-merge on green.** _(witness: machine)_ _(proof-gate: ci-cd#gate-4)_ Audit the real _(criterion-id: uatc_68ad91538c34aa3b6d77347d)_ _(revision-id: uatr1:e503bbee33db19bc)_
    `automerge` job. **Success —** it needs `verify`, admits only a pull request that is non-draft and
    lacks `hold`, and its sole merge command uses `--merge --delete-branch`, preserving ancestry.
-5. **Merged coordination claims retire.** _(witness: machine)_ _(proof-gate: ci-cd#gate-5)_ Drive
+5. **Merged coordination claims retire.** _(witness: machine)_ _(proof-gate: ci-cd#gate-5)_ Drive _(criterion-id: uatc_97ca2fdf0d8a83081b3f6cbf)_ _(revision-id: uatr1:333f88e67365ba72)_
    the branch-claim release seam and audit its workflow wiring. **Success —** the full merged branch
    name reaches `releaseClaimsByBranch`; zero claims are a clean no-op; store failure is swallowed;
    and the keyless WIF/install/writer steps remain `continue-on-error`. This is the current
    notice-board ledger boundary after `events.session` presence retired under ADR-0200.
-6. **The Studio deployment handoff is complete.** _(witness: machine)_
+6. **The Studio deployment handoff is complete.** _(witness: machine)_ _(criterion-id: uatc_321b38ce5a608bd7f1a19307)_ _(revision-id: uatr1:b2e22376de7cd044)_
    _(proof-gate: ci-cd#gate-6)_ Audit both workflow definitions. **Success —** the automerge job
    loudly dispatches `deploy-studio.yml` on `main` for the declared Studio-affecting path set, and the
    deploy workflow retains keyless WIF, Cloud Build with a short-SHA tag, the full runtime-SA/IAP/env
    posture, serialized rollouts, and the newest-created-equals-newest-ready smoke assertion.
-7. **The repository-owned path has no unproven merge door.** _(witness: machine)_
+7. **The repository-owned path has no unproven merge door.** _(witness: machine)_ _(criterion-id: uatc_411c12c77343632e71b22770)_ _(revision-id: uatr1:a18801a48f50864c)_
    _(proof-gate: ci-cd#gate-7)_ Audit the landing seam together with the workflow's only merge command.
    **Success —** contributor-side landing code opens and observes a PR but cannot merge it; the sole
    repository-owned `gh pr merge` occurrence is in `automerge`, which is downstream of `verify`.

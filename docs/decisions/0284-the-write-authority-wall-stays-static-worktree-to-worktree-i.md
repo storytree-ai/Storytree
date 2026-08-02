@@ -145,19 +145,33 @@ by evidence, not by argument. The deleted code was competently built and its rem
 work — the canonicalisation and containment logic in particular would have been the right shared core
 for a Codex adapter, and a future Codex effort will recover it from git rather than import it.
 
-**Known holes in what remains, not fixed here.** `repo-manifest.json` lists `web` as a file when it is
-a submodule directory, so the generated rule is an exact path and the whole `web/` tree stays writable
-in the lobby; and the lobby's root `node_modules/` carries no rule at all. These are follow-ups
-against the layer that stays, not reasons to keep the layer that goes.
+**Known holes in what remains — the list is now FULLY DISCHARGED.** Three were named on acceptance as
+follow-ups against the layer that stays, not as reasons to keep the layer that goes. All three closed
+within a day of it, and this paragraph is corrected in place per ADR-0139 rather than superseded: the
+decision is unaffected, only the implementation moved.
 
-*(This paragraph listed THREE holes on acceptance; the third is now CLOSED and has been removed from
-the list above — corrected in place 2026-08-02 per ADR-0139. It named ADR-0245 D5.2's gate-time
-lobby arm as "far narrower than either ADR
-describes — in `check-declared.ts` it is reached only when `deriveIdentity()` is null and then only
-in the primary checkout, so a worktree session's gate never checks whether the lobby is dirty". That
-scoping was fixed later the same day: the lobby question is pure git and needs no session identity,
-so it now runs for every session against the primary checkout's tree, and the caller's location is
-no longer an input to the decision. See ADR-0245 D5.2's build note.)*
+- **The whole `web/` tree stayed file-tool-writable in the lobby.** `repo-manifest.json` lists `web`
+  under `root.files`, so the generator emitted the exact-path rule `Write(//c/code/storytree/web)`,
+  which matches the literal path and nothing beneath it — and `web` is the storytree-web submodule, a
+  populated site tree in the primary checkout. **Closed by PR #1085.** The manifest was NOT
+  misclassified and must never be "fixed": `check-manifest.mjs` sorts tracked paths by `git ls-files`,
+  which reports a submodule as ONE gitlink entry, so `web` genuinely IS a root file to the gate that
+  owns the manifest — moving it to `root.dirs` makes `pnpm check:manifest` block. The bug was in the
+  RULE GENERATOR, and that is where the fix went: `lobbyDenyRules` now emits BOTH an exact-path and a
+  `/**` tree rule for every `root.files` entry. Both forms rather than a filesystem probe,
+  deliberately — a probe answers "file" for an uninitialised submodule, i.e. exactly on the machines
+  whose working tree is bare, which would silently re-open the hole at the next `git submodule
+  update`. The inert half costs nothing: a real file has no children for `/**` to match.
+- **The lobby's root `node_modules/` carried no rule at all.** The manifest is an allow-list over the
+  TRACKED surface, so an untracked directory is invisible to it by construction and had to be named
+  separately or nothing would deny it. **Closed by PR #1085**: `node_modules` now sits beside `.git`
+  in `EXTRA_DENIED_DIRS`, which exists precisely to carry what the manifest cannot see.
+- **ADR-0245 D5.2's gate-time lobby arm was far narrower than either ADR described** — in
+  `check-declared.ts` it was reached only when `deriveIdentity()` returned null and then only in the
+  primary checkout, so a worktree session's gate never checked whether the lobby was dirty.
+  **Closed by PR #1086**: the lobby question is pure git and needs no session identity, so it now runs
+  for every session against the primary checkout's tree, and the caller's location is no longer an
+  input to the decision. See ADR-0245 D5.2's build note.
 
 ## References
 

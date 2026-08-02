@@ -1,220 +1,75 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { UatTestCriterion, parseUatTestCriteria, uatTestCriterionId } from "./uat-test-criteria.js";
 
-/**
- * Offline unit tests for the `uat-test-units` capability (ADR-0044 d.1). The two
- * contracts: `stable-addressable-tests` (UAT prose → stable, unique ids + titles,
- * re-parse-stable) and `witness-kind-validated` (witness enum validated, invalid
- * refused, absent defaults conservatively).
- */
+import {
+  UatTestCriterion,
+  canonicalUatCriterionContent,
+  criterionRevisionId,
+  parseUatTestCriteria,
+} from "./uat-test-criteria.js";
 
 const STORY = "demo-story";
 
-/** A story body mirroring the `## Story UAT (would-be)` shape, with mixed witness tags. */
-const BODY = `---
-id: demo-story
----
+function line(ordinal: number, prose: string): string {
+  const id = `uatc_${ordinal.toString(16).padStart(24, "0")}`;
+  const revision = criterionRevisionId(canonicalUatCriterionContent(`${ordinal}. ${prose}`));
+  return `${ordinal}. ${prose} _(criterion-id: ${id})_ _(revision-id: ${revision})_`;
+}
 
-# Demo
+const BODY = `## UAT Test Criteria (would-be)
 
-Some framing prose.
+${line(1, "**Decompose** _(witness: machine)_ _(proof-gate: demo-story#gate-2)_: stable.")}
+${line(2, "**Human relay** _(witness: human)_: observed.")}
+${line(3, "**Undecided:** conservative default.")}
 
-## Story UAT (would-be)
+## Other
 
-1. **Decompose** _(witness: machine)_: a story's UAT prose resolves to addressable ids.
-   **Success —** each test has a stable id and a witness.
-2. **Human relay** _(witness: human)_: the owner tells the agent "test 2 works".
-   **Success —** one signal for that test id, signer = the owner.
-3. **Machine:** an automated UAT run attests a machine test.
-   **Success —** a machine signal for that test id.
-4. **No roll-up:** all of a story's tests are attested.
-   **Success —** the world island's hue is unchanged.
-
-## Open modeling calls
-
-- not a UAT test.
+1. not a criterion.
 `;
 
-// ── stable-addressable-tests ────────────────────────────────────────────────
-
-test("stable-addressable-tests: prose resolves to positional <story>#uat-<n> ids with titles", () => {
-  const tests = parseUatTestCriteria(STORY, BODY);
-  assert.equal(tests.length, 4, "four numbered UAT items → four tests");
-  assert.deepEqual(
-    tests.map((t) => t.id),
-    ["demo-story#uat-1", "demo-story#uat-2", "demo-story#uat-3", "demo-story#uat-4"],
-    "ids are positional <story>#uat-<n>",
-  );
-  assert.deepEqual(
-    tests.map((t) => t.title),
-    ["Decompose", "Human relay", "Machine", "No roll-up"],
-    "titles are the bold leads, colon stripped",
-  );
+test("parser reads authored criteria, titles, witnesses, and would-be state", () => {
+  const criteria = parseUatTestCriteria(STORY, BODY);
+  assert.equal(criteria.length, 3);
+  assert.deepEqual(criteria.map((criterion) => criterion.title), ["Decompose", "Human relay", "Undecided"]);
+  assert.deepEqual(criteria.map((criterion) => criterion.witness), ["machine", "human", "either"]);
+  assert.ok(criteria.every((criterion) => criterion.wouldBe));
 });
 
-test("stable-addressable-tests: ids are unique", () => {
-  const tests = parseUatTestCriteria(STORY, BODY);
-  assert.equal(new Set(tests.map((t) => t.id)).size, tests.length, "no duplicate ids");
+test("plain heading creates hard obligations and the legacy heading remains readable", () => {
+  const item = line(1, "**A leg** _(witness: human)_: works.");
+  const modern = parseUatTestCriteria(STORY, `## UAT Test Criteria\n\n${item}`);
+  const legacy = parseUatTestCriteria(STORY, `## Story UAT\n\n${item}`);
+  assert.deepEqual(modern, legacy);
+  assert.equal(modern[0]?.wouldBe, false);
 });
 
-test("stable-addressable-tests: re-parsing the same body is stable (deep-equal)", () => {
-  assert.deepEqual(parseUatTestCriteria(STORY, BODY), parseUatTestCriteria(STORY, BODY), "deterministic");
+test("no UAT section yields an empty list", () => {
+  assert.deepEqual(parseUatTestCriteria(STORY, "# Just a story\n"), []);
 });
 
-test("stable-addressable-tests: uatTestCriterionId is the single id scheme home", () => {
-  assert.equal(uatTestCriterionId("s", 3), "s#uat-3");
+test("invalid witness is refused and an absent witness stays either", () => {
+  const bad = line(1, "**Bad** _(witness: nobody)_: nope.");
+  assert.throws(() => parseUatTestCriteria(STORY, `## UAT Test Criteria\n\n${bad}`), /invalid witness/i);
+  assert.equal(parseUatTestCriteria(STORY, `## UAT Test Criteria\n\n${line(1, "**Open**: later.")}`)[0]?.witness, "either");
 });
 
-test("stable-addressable-tests: a story with no UAT section yields [] (backward-compatible)", () => {
-  assert.deepEqual(parseUatTestCriteria(STORY, "# Just a heading\n\nno uat here\n"), []);
+test("proof-gate binding is exact and malformed/duplicate bindings are refused", () => {
+  assert.equal(parseUatTestCriteria(STORY, BODY)[0]?.proofGateId, "demo-story#gate-2");
+  const malformed = line(1, "**Bad** _(witness: machine)_ _(proof-gate: nope)_: no.");
+  assert.throws(() => parseUatTestCriteria(STORY, `## UAT Test Criteria\n\n${malformed}`), /malformed proof-gate/i);
+  const duplicate = line(1, "**Bad** _(proof-gate: demo-story#gate-1)_ _(proof-gate: demo-story#gate-2)_: no.");
+  assert.throws(() => parseUatTestCriteria(STORY, `## UAT Test Criteria\n\n${duplicate}`), /duplicate proof-gate/i);
 });
 
-test("stable-addressable-tests: only the Story UAT section is parsed, not other numbered lists", () => {
-  const body = `## Capabilities
-
-1. one
-2. two
-
-## Story UAT
-
-1. **Only this one:** counts.
-`;
-  const tests = parseUatTestCriteria(STORY, body);
-  assert.equal(tests.length, 1, "the Capabilities list is ignored");
-  assert.equal(tests[0]!.title, "Only this one");
-});
-
-// ── would-be relaxation (ADR-0097) ──────────────────────────────────────────
-
-test("would-be: legs under a `## Story UAT (would-be)` heading are flagged wouldBe:true", () => {
-  // BODY uses the `## Story UAT (would-be)` heading — every leg is aspirational.
-  const tests = parseUatTestCriteria(STORY, BODY);
-  assert.equal(tests.length, 4);
-  assert.ok(tests.every((t) => t.wouldBe === true), "all legs under (would-be) are aspirational");
-});
-
-test("would-be: legs under a plain `## Story UAT` heading are real obligations (wouldBe:false)", () => {
-  const body = "## Story UAT\n\n1. **A real scripted leg** _(witness: machine)_ `pnpm test`.\n";
-  const tests = parseUatTestCriteria(STORY, body);
-  assert.equal(tests.length, 1);
-  assert.equal(tests[0]!.wouldBe, false, "no (would-be) qualifier → a hard obligation");
-});
-
-test("would-be: the schema default is false (a direct UatTestCriterion doc omitting it round-trips)", () => {
-  assert.equal(UatTestCriterion.parse({ id: "s#uat-1", title: "t" }).wouldBe, false);
-});
-
-// ── witness-kind-validated ──────────────────────────────────────────────────
-
-test("witness-kind-validated: declared witness tags are honoured", () => {
-  const tests = parseUatTestCriteria(STORY, BODY);
-  assert.equal(tests[0]!.witness, "machine", "explicit (witness: machine)");
-  assert.equal(tests[1]!.witness, "human", "explicit (witness: human)");
-});
-
-test("witness-kind-validated: absent witness defaults conservatively to either", () => {
-  const tests = parseUatTestCriteria(STORY, BODY);
-  assert.equal(tests[2]!.witness, "either", "no tag → either");
-  assert.equal(tests[3]!.witness, "either", "no tag → either");
-});
-
-test("witness-kind-validated: the schema refuses an invalid witness value", () => {
-  assert.throws(
-    () => UatTestCriterion.parse({ id: "s#uat-1", title: "t", witness: "nobody" }),
-    "unknown witness refused at the schema boundary",
-  );
-});
-
-test("witness-kind-validated: the schema default applies when witness is omitted", () => {
-  const parsed = UatTestCriterion.parse({ id: "s#uat-1", title: "t" });
-  assert.equal(parsed.witness, "either", "omitted → either");
-});
-
-test("witness-kind-validated: an explicit but invalid prose tag is refused (not defaulted)", () => {
-  const body = "## Story UAT\n\n1. **Bad** (witness: nobody): oops.\n";
-  assert.throws(() => parseUatTestCriteria(STORY, body), /invalid witness/, "refused, not silently either");
-});
-
-test("witness-kind-validated: the schema is strict — unknown fields rejected", () => {
-  assert.throws(() => UatTestCriterion.parse({ id: "s#uat-1", title: "t", witness: "human", extra: 1 }));
-});
-
-// ── proof-gate binding (uat-machine-proof-binding) ──────────────────────────
-//
-// A real, non-aspirational `_(witness: machine)_` leg must name the reliability gate it is
-// observed/signed against via `_(proof-gate: story-id#gate-n)_`. The parser preserves that id
-// EXACTLY — it never infers a gate from ordering, title, package, or `(covers:)`.
-
-test("proof-gate binding: a `_(proof-gate: story-id#gate-n)_` annotation is captured on the leg", () => {
-  const body =
-    "## Story UAT\n\n1. **A driven leg** _(witness: machine)_ _(proof-gate: demo-story#gate-2)_: a real scripted leg.\n";
-  const tests = parseUatTestCriteria(STORY, body);
-  assert.equal(tests.length, 1);
-  assert.equal(
-    tests[0]!.proofGateId,
-    "demo-story#gate-2",
-    "the prose annotation binds the machine leg to its declared gate",
-  );
-});
-
-test("proof-gate binding: the captured id is preserved exactly, not case-normalized", () => {
-  const body =
-    "## Story UAT\n\n1. **A driven leg** _(witness: machine)_ _(proof-gate: Demo-Story#Gate-10)_: a real scripted leg.\n";
-  const tests = parseUatTestCriteria(STORY, body);
-  assert.equal(
-    tests[0]!.proofGateId,
-    "Demo-Story#Gate-10",
-    "the id is preserved verbatim — unlike the witness tag, it is never lowercased",
-  );
-});
-
-test("proof-gate binding: a leg with no annotation leaves proofGateId undefined (human/either legs may omit it)", () => {
-  const body = "## Story UAT\n\n1. **A human leg** _(witness: human)_: the owner watches it work.\n";
-  const tests = parseUatTestCriteria(STORY, body);
-  assert.equal(tests[0]!.proofGateId, undefined, "no (proof-gate:) tag → undefined, never inferred");
-});
-
-test("proof-gate binding: the schema accepts and round-trips an explicit proofGateId field", () => {
-  const parsed = UatTestCriterion.parse({ id: "s#uat-1", title: "t", proofGateId: "s#gate-1" });
-  assert.equal(parsed.proofGateId, "s#gate-1", "an explicit proofGateId round-trips through the schema");
-});
-
-test("proof-gate binding: a malformed proof-gate id (not shaped story-id#gate-n) is refused, not silently accepted", () => {
-  const body =
-    "## Story UAT\n\n1. **A driven leg** _(witness: machine)_ _(proof-gate: not-a-valid-gate-id)_: a real scripted leg.\n";
-  assert.throws(
-    () => parseUatTestCriteria(STORY, body),
-    /malformed proof-gate/i,
-    "an id not shaped story-id#gate-n fails at this parsing boundary, it is not passed through verbatim",
-  );
-});
-
-test("proof-gate binding: duplicate proof-gate annotations on the same leg are refused, not silently first-wins", () => {
-  const body =
-    "## Story UAT\n\n1. **A driven leg** _(witness: machine)_ _(proof-gate: demo-story#gate-2)_ _(proof-gate: demo-story#gate-3)_: a real scripted leg.\n";
-  assert.throws(
-    () => parseUatTestCriteria(STORY, body),
-    /duplicate proof-gate/i,
-    "two proof-gate annotations on one leg fails at this parsing boundary, the second is not silently dropped",
-  );
-});
-
-// ---------------------------------------------------------------------------
-// Heading dual-accept (ADR-0206): the new `## UAT Test Criteria` heading parses
-// identically to the legacy `## Story UAT` (which the fixtures above cover in bulk).
-// ---------------------------------------------------------------------------
-
-test("heading dual-accept: `## UAT Test Criteria` parses to the same ids as the legacy heading", () => {
-  const legs = "\n\n1. **First** _(witness: machine)_: a.\n2. **Second** _(witness: human)_: b.\n";
-  const modern = parseUatTestCriteria(STORY, `## UAT Test Criteria${legs}`);
-  const legacy = parseUatTestCriteria(STORY, `## Story UAT${legs}`);
-  assert.deepEqual(modern, legacy, "both headings yield identical criteria");
-  assert.equal(modern[0]?.id, uatTestCriterionId(STORY, 1), "ids stay <story>#uat-<n> under the new heading");
-});
-
-test("heading dual-accept: `## UAT Test Criteria (would-be)` flags wouldBe:true like the legacy form", () => {
-  const body = "## UAT Test Criteria (would-be)\n\n1. **Aspirational** _(witness: human)_: later.\n";
-  const [leg] = parseUatTestCriteria(STORY, body);
-  assert.equal(leg?.wouldBe, true, "the (would-be) qualifier composes with the new heading");
+test("schema defaults remain conservative but exact identity/revision are mandatory", () => {
+  const base = {
+    criterionId: "uatc_0123456789abcdef01234567",
+    revisionId: "uatr1:0123456789abcdef",
+    title: "A criterion",
+  };
+  const parsed = UatTestCriterion.parse(base);
+  assert.equal(parsed.witness, "either");
+  assert.equal(parsed.wouldBe, false);
+  assert.equal(UatTestCriterion.safeParse({ title: "missing binding" }).success, false);
+  assert.equal(UatTestCriterion.safeParse({ ...base, extra: true }).success, false);
 });

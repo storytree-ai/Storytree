@@ -353,12 +353,12 @@ drives a registered node from spec to a landed, signed, persisted proof.
 **Goal —** Drive one registered node through a genuine red→green proof and land the proven commit
 through the merge gate, refusing every dishonest shortcut along the way.
 
-1. **Orient** _(witness: machine)(detail: drive-machinery#uat-1)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree node` lists the registered (buildable) and REAL-buildable nodes.
+1. **Orient** _(witness: machine)(detail: drive-machinery#uat-1)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree node` lists the registered (buildable) and REAL-buildable nodes. _(criterion-id: uatc_fe41d841f6b38c81c2cd1e0c)_ _(revision-id: uatr1:0558e0a0fe377acf)_
    **Success —** a help envelope naming both sets. *(proven: `node-build.test.ts:102`)*
-2. **Prove the glue first** _(witness: machine)(detail: drive-machinery#uat-2)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree node build verdict-line --dry-run`. **Success —** the
+2. **Prove the glue first** _(witness: machine)(detail: drive-machinery#uat-2)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree node build verdict-line --dry-run`. **Success —** the _(criterion-id: uatc_e4ec2bdd541d8b575ea8fd3f)_ _(revision-id: uatr1:eab3c95cd0bfc6d5)_
    full phase trail, a signed (in-memory) verdict, a derived rollup, and the honest dry-run
    framing. *(proven: `node-build.test.ts:17`, `:74`)*
-3. **The REAL build** _(witness: machine)(detail: drive-machinery#uat-3)_ _(proof-gate: drive-machinery#gate-6)_: `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh
+3. **The REAL build** _(witness: machine)(detail: drive-machinery#uat-3)_ _(proof-gate: drive-machinery#gate-6)_: `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh _(criterion-id: uatc_c0f650ea4c3035ae8f7e5b1c)_ _(revision-id: uatr1:48ac587ee38977f9)_
    detached worktree; the live leaf authors the REAL test under the write wall; the spine observes
    the genuine red, the leaf implements, the spine observes the genuine green, commits the
    authored files, signs on the genuinely clean tree; the verdict persists to `events.verdict`;
@@ -371,23 +371,23 @@ through the merge gate, refusing every dishonest shortcut along the way.
    — minted for this conversion via `witnessable-verdict` itself: run `real-mrftf7c3`, commit
    `69590a6`, a genuine red→green; the earlier `verdict-line` run `real-mq7ky4ck` is the historical
    first.)*
-4. **Land it** _(witness: machine)(detail: drive-machinery#uat-4)_ _(proof-gate: drive-machinery#gate-5)_: open the PR from the promotion branch; CI auto-merges on green, NON-SQUASH, so the
+4. **Land it** _(witness: machine)(detail: drive-machinery#uat-4)_ _(proof-gate: drive-machinery#gate-5)_: open the PR from the promotion branch; CI auto-merges on green, NON-SQUASH, so the _(criterion-id: uatc_3e86045325b8284e156fe886)_ _(revision-id: uatr1:3a583901a5d86eb2)_
    verdict's `commitSha` stays an ancestor of `main` (ADR-0031/0022). **Success —** the proven
    commit is reachable from `main`. *(proven: `drive-machinery#gate-5` —
    `promotion-ancestry.check.ts` asserts every attested REAL-proof commit (`0e8f4ba` verdict-line,
    `47c9e43` node-resolve-report, and the three uat-machine binding proofs) is an ancestor of HEAD, so
    a squash that orphaned the original SHA would fail it; the live residue — a real PR auto-merged into
    the real `main` — is the CI auto-merge/non-squash rail's standing guarantee, ADR-0022/0031.)*
-5. **Chain a story** _(witness: machine)(detail: drive-machinery#uat-5)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree story build library --dry-run`. **Success —** capabilities
+5. **Chain a story** _(witness: machine)(detail: drive-machinery#uat-5)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree story build library --dry-run`. **Success —** capabilities _(criterion-id: uatc_2bb0f5162edab352e64e66bf)_ _(revision-id: uatr1:ffdf9990d5a809f7)_
    topo-ordered from `depends_on`, the story's UAT node last, every node signed over ONE event
    log, halt-is-never-a-pass. *(proven: `packages/cli/src/story-build.test.ts:17` — the integration test stays cli-resident;
    ADR-0112 moved only the `story build` driver it exercises into `@storytree/drive`; the live chain
    attested: library 8/8 signed passes, $0.48)*
-6. **Refuse the dishonest paths** _(witness: machine)(detail: drive-machinery#uat-6)_ _(proof-gate: drive-machinery#gate-4)_: `--store pg` with `--dry-run` is refused (a scripted PASS
+6. **Refuse the dishonest paths** _(witness: machine)(detail: drive-machinery#uat-6)_ _(proof-gate: drive-machinery#gate-4)_: `--store pg` with `--dry-run` is refused (a scripted PASS _(criterion-id: uatc_21d6fd739ddeeaade11b1b92)_ _(revision-id: uatr1:68a3e82ba9457056)_
    persisted would be a forged healthy); a live story build with an unprocessed operator answer on
    a deciding ADR's OQ is refused with the three paths out. *(proven:
    `story-build.test.ts:90`/`:124`, `oq-gate.test.ts:141`)*
-7. **An agent actually USES it end to end (the dogfood acceptance)** _(witness: machine)(detail: drive-machinery#uat-7)_ _(proof-gate: drive-machinery#gate-7)_: a fresh orchestrator agent,
+7. **An agent actually USES it end to end (the dogfood acceptance)** _(witness: machine)(detail: drive-machinery#uat-7)_ _(proof-gate: drive-machinery#gate-7)_: a fresh orchestrator agent, _(criterion-id: uatc_5e54367bd5f458a7ef3d2b09)_ _(revision-id: uatr1:30344311ad98c613)_
    onboarding from CLAUDE.md alone (the inner loop never named for it), drives a unit through steps
    1–4 to a genuine signed verdict — proving the machinery is not just correct but *usable without
    coaching*, the load-bearing question behind ADR-0057. **Success —** the agent discovers the inner

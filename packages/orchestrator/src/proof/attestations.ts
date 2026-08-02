@@ -1,4 +1,4 @@
-import { Attestation } from "@storytree/proof-protocol";
+import { StoredAttestation } from "@storytree/proof-protocol";
 import type { TestAttestations } from "@storytree/proof-protocol";
 
 /**
@@ -17,7 +17,7 @@ import type { TestAttestations } from "@storytree/proof-protocol";
  * (testId, witness) the LAST well-formed attestation wins. Full history is retained
  * upstream — this is only the display projection.
  *
- * Conservative parsing: a doc that does not fully parse as an {@link Attestation}
+ * Conservative parsing: a doc that does not fully parse as a {@link StoredAttestation}
  * grants nothing (it is skipped). The result is keyed ONLY by test id — never a
  * story id — so attestations can never roll up to a story-level signal (ADR-0044 d.3).
  */
@@ -27,7 +27,7 @@ export function deriveAttestations(
   const sorted = [...events].sort((a, b) => a.seq - b.seq);
   const result = new Map<string, TestAttestations>();
   for (const event of sorted) {
-    const parsed = Attestation.safeParse(event.doc);
+    const parsed = StoredAttestation.safeParse(event.doc);
     if (!parsed.success) continue;
     const att = parsed.data;
     const bucket = result.get(att.testId) ?? {};

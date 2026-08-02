@@ -76,18 +76,18 @@ distinction between a runnable observe chain and refusal.
 **Goal —** For every real machine UAT claim a reader can inspect the precise runnable evidence chain,
 or see an explicit reason the claim is not evidence.
 
-1. **A valid machine binding exposes its exact chain.** _(witness: machine)_ Given a machine criterion
+1. **A valid machine binding exposes its exact chain.** _(witness: machine)_ Given a machine criterion _(criterion-id: uatc_1ea8471e291f248a3cdf4075)_ _(revision-id: uatr1:5b9a15b09b789646)_
    bound to a declared command-bearing observe gate, inspect it. **Success —** it displays that full
    gate id, `observe` kind, literal command argv, and the matching `storytree gate run <full-gate-id>
    --pg` invocation; changing declaration order cannot change the result.
-2. **Every invalid machine binding is visibly refused.** _(witness: machine)_ Inspect fixtures for an
+2. **Every invalid machine binding is visibly refused.** _(witness: machine)_ Inspect fixtures for an _(criterion-id: uatc_ca26fd1c2206e2727626070b)_ _(revision-id: uatr1:bd80dae9511cde74)_
    absent annotation, unknown gate, non-observe gate, and commandless observe gate. **Success —** each
    produces one visible refusal carrying its specific reason, no runnable chain, and no inferred
    substitute.
-3. **The corpus audit accounts for the whole machine population.** _(witness: machine)_ Scan corpus
+3. **The corpus audit accounts for the whole machine population.** _(witness: machine)_ Scan corpus _(criterion-id: uatc_29e9d8fb7e84054c8abaf53e)_ _(revision-id: uatr1:e3f69e309db986de)_
    fixtures containing valid and invalid machine legs plus non-machine legs. **Success —** the output
    has exactly one outcome per machine leg and none for other witnesses; a refused row remains present.
-4. **The runtime keeps evidence and refusal distinct.** _(witness: machine)_ Open a valid and a refused
+4. **The runtime keeps evidence and refusal distinct.** _(witness: machine)_ Open a valid and a refused _(criterion-id: uatc_f85178cd919eb5ade194592b)_ _(revision-id: uatr1:4cfe9a386a43c56a)_
    machine leg in the runtime surface. **Success —** the valid leg exposes the literal chain while the
    refused leg exposes only its reason; neither presentation offers a green verdict, executes a command,
    or hides the refusal.
