@@ -92,6 +92,57 @@ test("the shared .git common directory is denied — the metadata side door (ADR
   assert.ok(rules.includes("Write(//c/code/storytree/.git/**)"));
 });
 
+test("the lobby's own node_modules is denied, though the manifest cannot list it", () => {
+  // Found by review of the INSTALLED block (2026-08-02): it carried no `node_modules` rule at all,
+  // because the manifest is an allow-list over TRACKED paths and `node_modules` is untracked — so
+  // nothing generated one and nothing said so. Not tidiness: the lobby's tree is what the primary
+  // checkout's gate and hooks run against, and a `node_modules` out of step with the lockfile
+  // surfaces as TS2307 / ERR_MODULE_NOT_FOUND in a session that did not cause it.
+  const rules = lobbyDenyRules(readManifest(), "C:\\code\\storytree");
+  for (const tool of GATED_TOOLS) {
+    assert.ok(
+      rules.includes(`${tool}(//c/code/storytree/node_modules/**)`),
+      `the lobby's node_modules is writable by ${tool}`,
+    );
+  }
+  // …and it must not reach a worktree's own node_modules, which every session depends on.
+  assert.deepEqual(rulesDenyingWorktrees(rules), []);
+  assert.ok(!rules.some((r) => r.includes("/worktrees/")));
+});
+
+test("a manifest `root.files` entry that is really a DIRECTORY is denied as a tree — the `web` hole", () => {
+  // Verified against the installed block on 2026-08-02: the only rule for the storytree-web submodule
+  // was `Write(//c/code/storytree/web)`, an EXACT path. It matches the literal path `web` and nothing
+  // under it, so the whole `web/` tree was file-tool-writable in the primary checkout.
+  //
+  // The manifest is not wrong to list it under `root.files`: `check-manifest.mjs` classifies by
+  // `git ls-files`, which reports a submodule as ONE gitlink entry, so `web` IS a root file to the
+  // gate that owns the manifest — moving it to `root.dirs` would make `pnpm check:manifest` block.
+  // The generator is what must stop trusting the bucket name.
+  const manifest = readManifest();
+  assert.ok("web" in manifest.root.files, "`web` left root.files — re-point this regression test");
+  const rules = lobbyDenyRules(manifest, "C:\\code\\storytree");
+  for (const tool of GATED_TOOLS) {
+    assert.ok(
+      rules.includes(`${tool}(//c/code/storytree/web/**)`),
+      `the web/ submodule tree is writable by ${tool}`,
+    );
+  }
+});
+
+test("every `root.files` entry gets BOTH an exact-path and a tree rule", () => {
+  // The general form of the `web` fix. Emitting both — rather than probing the filesystem — is what
+  // makes it correct when a submodule is uninitialised, i.e. absent or an empty directory: a probe
+  // would answer "file" there and re-open the hole on the next `git submodule update`. The inert half
+  // costs nothing, because a real file has no children for `/**` to match.
+  const manifest = readManifest();
+  const rules = lobbyDenyRules(manifest, "C:\\code\\storytree");
+  for (const file of Object.keys(manifest.root.files)) {
+    assert.ok(rules.includes(`Write(//c/code/storytree/${file})`), `no exact rule for "${file}"`);
+    assert.ok(rules.includes(`Write(//c/code/storytree/${file}/**)`), `no tree rule for "${file}"`);
+  }
+});
+
 test("every gated file tool gets its own rule — a deny binds one tool at a time", () => {
   const rules = lobbyDenyRules(readManifest(), "C:\\code\\storytree");
   for (const tool of GATED_TOOLS) {
