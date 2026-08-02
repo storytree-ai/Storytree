@@ -132,7 +132,9 @@ breaks siblings, whatever branch is checked out.
    sessions to *pass through* it; the failure mode is a session that **stays and starts working**.
 2. `check:declared` (ADR-0200 D3) opens with `if (identity === null) return;` — it **SKIPs silently**
    for exactly the session that is misbehaving. The one fail-closed claim gate we have fails **open**
-   against this fault.
+   against this fault. *(Problem statement as of 2026-07-26, kept as the record of what motivated
+   D5.2. That early return is no longer the shape of the code: D5.2's lobby arm now runs ahead of
+   the identity branch, unconditionally, for every session — see its build note below.)*
 3. The ADR-0200 D4 delta footer rides `--pg` envelopes keyed on `events.claim_cursor.session_id`, and
    `attachDeltaFooter` returns unchanged when identity is null. The existing push channel
    **structurally cannot reach a lobby session** — it has no cursor row and no claim set to intersect.
@@ -293,20 +295,33 @@ existing WARN-then-FAIL precedents:
    > exit 0; managed but clean → silent exit 0. `.claude/worktrees/` is untracked, which is what
    > makes it a safe CI discriminator.
    >
-   > **NARROWER THAN THE PROSE ABOVE AND ELSEWHERE IMPLIES — corrected in place 2026-08-02 per
-   > ADR-0139, read against the code rather than the description.** In
-   > `packages/cli/src/check-declared.ts`, `evaluateLobbyFromGit()` is called in exactly one place:
-   > inside `if (identity === null)` at the top of `main()`, i.e. **only when `deriveIdentity()`
-   > returns null**, which by construction means the session is NOT in a repository-minted worktree.
-   > A session running the gate from its own worktree returns down the claim-checking path and
-   > **never asks the lobby question at all**. So the practical coverage is: *a session running the
-   > gate FROM the dirty lobby is refused; a worktree session landing work while the lobby sits dirty
-   > beside it is not.* That is still the fail-open hole this clause was written to close — the
-   > 2026-07-26/27 shape was a lobby-resident session — but it is not the general "the gate notices a
-   > dirty lobby" that ADR-0255 and ADR-0257 both describe. Recorded here rather than changed: the
-   > DECISION is unaffected, and widening the arm is a separate call.
+   > **WAS NARROWER THAN THE PROSE ABOVE AND ELSEWHERE IMPLIED, AND IS NOW WIDENED TO MATCH —
+   > corrected in place twice on 2026-08-02 per ADR-0139.** The first correction recorded the gap,
+   > read against the code rather than the description: in `packages/cli/src/check-declared.ts`,
+   > `evaluateLobbyFromGit()` was called in exactly one place — inside `if (identity === null)` at
+   > the top of `main()`, i.e. only when `deriveIdentity()` returned null, which by construction
+   > means the session is NOT in a repository-minted worktree — and then skipped itself again unless
+   > the caller's toplevel WAS the primary checkout. So the practical coverage was: *a session
+   > running the gate FROM the dirty lobby is refused; a worktree session landing work while the
+   > lobby sits dirty beside it is not.* That was backwards in effect: since ADR-0257 increment 3
+   > made the primary checkout unwritable to the file tools, a session running a gate from inside
+   > the lobby is the rarest shape there is, while worktree sessions — effectively all of them —
+   > passed in silence.
+   >
+   > **The second correction is the fix: the arm is now asked for EVERY session.** The
+   > lobby question needs no session identity and no DB — it is pure git, and its subject is the
+   > shared primary checkout, which is the same one from every worktree hanging off it. So
+   > `evaluateLobbyFromGit()` runs unconditionally at the top of `main()`, ahead of the identity
+   > branch, and `evaluateLobby()` no longer takes an `isPrimaryCheckout` leg at all; the caller's
+   > location is not an input to the decision. `git status --porcelain` runs with `cwd` set to the
+   > primary checkout, so it reports that tree alone and a session's own worktree dirt is never the
+   > subject. Every git failure remains a SKIP. The arm now IS the general "the gate notices a dirty
+   > lobby" that ADR-0255 and ADR-0257 both describe. Proven by five end-to-end tests over real
+   > throwaway git fixtures (a worktree caller with a dirty lobby FAILs, with a clean lobby passes,
+   > with only its OWN tree dirty passes, a non-repo cwd SKIPs, and a missing `.claude/worktrees/`
+   > SKIPs) alongside the original offline table-tests.
    > See [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md)
-   > Consequences, which names this as a follow-up against the layer that stays.
+   > Consequences, which named this as a follow-up against the layer that stays; it is now closed.
 3. **Never automatic remediation.** No auto-stash, no auto-move, no auto-commit of another session's
    work. Attribution is unprovable (D1) and the action is destructive; the fix is always the
    ceremony, run by whoever owns the work.

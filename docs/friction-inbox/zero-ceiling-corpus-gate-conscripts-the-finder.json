@@ -1,0 +1,22 @@
+{
+  "kind": "friction",
+  "id": "zero-ceiling-corpus-gate-conscripts-the-finder",
+  "title": "The zero-ceiling corpus gate makes the session that FINDS the drift commit siblings' in-flight prose",
+  "description": "check:corpus-content blocks landing at V=0 for drift authored by other sessions, so the finder must export live→seed and commit prose that is forward-referencing against origin/main.",
+  "schemaVersion": 3,
+  "references": [
+    "asset:library-edit-ceremony",
+    "doc:decisions/0263-narrow-the-live-to-seed-export-scope-to-the-durable-tier-an.md",
+    "doc:decisions/0252-verification-decay-detection-continuous-mechanical-warns-a-j.md"
+  ],
+  "provenance": {
+    "branch": "claude/epic-kilby-e0a6fb",
+    "date": "2026-08-02",
+    "source": "retro"
+  },
+  "createdAt": "2026-08-02T15:02:01.351Z",
+  "updatedAt": "2026-08-02T15:02:01.351Z",
+  "statement": "check:corpus-content blocks landing at a ZERO ceiling on seed/live drift regardless of who authored it, so the session that happens to run the gate is conscripted into adjudicating and committing other sessions' in-flight artifact prose under its own name — including prose that is forward-referencing against origin/main.",
+  "evidence": "Session epic-kilby-e0a6fb (2026-08-02) authored ZERO artifacts — its only commit, d6128cb3, touches docs/research/** exclusively and `git diff HEAD -- apps/studio/data/knowledge.json` was empty. check:corpus-content still went RED and blocked landing, first on 2 artifacts (merge-ceremony, the-same-file-in-another-tree-is-a-different-file), then 3 as a sibling edited live mid-session (friction-adjudication). A librarian-curator pass judged LIVE canonical for all three, corroborated by locating the sibling worktrees holding the matching unpushed code (stoic-bouman-d1b593 / ecstatic-merkle-268429 / charming-elion-17944b). Reconciling therefore meant committing, under this session's name (fd1a5ee6, knowledge.json +12/-11), seed prose asserting `packages/cli/src/proposal.ts` exists and citing ADR-0288 — NEITHER of which is on origin/main or any pushed branch. If this PR merges first, main's committed seed briefly describes code that is not there. Direct cost to this session: one librarian subagent (151k tokens, ~16 min) plus two extra full gate runs, none of it on its own work.",
+  "impact": "A session that touched no artifact pays an unbounded, unrelated tax to land: here one librarian-curator subagent (151k tokens, ~16 min) plus two extra full gate runs. Worse than the cost, the only green path commits seed prose describing code that is not on main, so if this PR merges before the three sibling PRs, main's committed seed transiently asserts a file and an ADR that do not exist there. The zero ceiling was set to stop drift accumulating (ADR-0252 D3, ADR-0263), and it does — but it places the whole burden on the finder rather than the author, and there is no way to land a green unrelated change while a sibling holds an uncommitted live edit."
+}

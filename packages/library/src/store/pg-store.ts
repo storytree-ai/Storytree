@@ -231,4 +231,28 @@ export class PgLibraryStore implements Store {
           );
     return res.rows.map(toStoreEvent);
   }
+
+  /**
+   * The MOST RECENT writer of every artifact — one row per id, the `actor`/`at` of its highest-`seq`
+   * event. The authorship half of a live-versus-seed reconciliation: the projection
+   * (`events.library_artifact`) records a body and nothing about who put it there, so a caller holding
+   * only a drift list cannot tell its own unexported edit from a sibling's.
+   *
+   * LATEST WRITER, deliberately — not "did this actor ever write it". A live body is whatever the last
+   * upsert left, so if a sibling wrote after you, the body under discussion is theirs and so is the
+   * direction call. One `DISTINCT ON` query over the whole log rather than {@link readEvents}'s full
+   * history, which returns every event ever written.
+   *
+   * `deleted` rows are included: a retire is a write like any other, and its actor is exactly who a
+   * caller investigating a resurrected artifact needs. Callers filtering to LIVE ids get only
+   * non-deleted rows anyway, because a deleted id has no projection row to have drifted.
+   */
+  async latestWriters(): Promise<Map<string, { actor: string; at: string }>> {
+    const res = await this.#pool.query<{ id: string; actor: string; at: Date | string }>(
+      `SELECT DISTINCT ON (id) id, actor, at
+       FROM events.library_event
+       ORDER BY id, seq DESC`,
+    );
+    return new Map(res.rows.map((r) => [r.id, { actor: r.actor, at: toIso(r.at) }]));
+  }
 }

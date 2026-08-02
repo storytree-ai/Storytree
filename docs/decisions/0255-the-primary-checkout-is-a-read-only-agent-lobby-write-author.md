@@ -134,7 +134,13 @@ enforcement does not make that sentence true for a general-purpose agent harness
 - `deriveIdentity()` recognises only repository-minted `.claude/worktrees/<name>` checkouts and
   returns no session identity in the primary checkout;
 - `check:declared` deliberately skips the primary checkout, missing database credentials and an
-  unreachable ledger, then runs only at the landing gate;
+  unreachable ledger, then runs only at the landing gate; *(the first clause is now HISTORICAL —
+  marked in place 2026-08-02. It described the state this ADR was written against, and ADR-0245
+  D5.2's lobby arm already qualified it. As of 2026-08-02 that arm's scoping was corrected so it runs
+  unconditionally for every session, so `check:declared` no longer skips the primary checkout at all:
+  it asks the dirty-lobby question first, from wherever the gate is invoked. The other two clauses —
+  it still skips on absent creds or an unreachable ledger, and the whole check still runs only at the
+  landing gate — remain literally true, and they are what the argument below rests on.)*
 - `.claude/settings.json` supplies Claude-specific, fail-silent orientation hooks; it is not a
   Codex policy surface and contains no pre-write refusal. *(Still literally true of the COMMITTED
   project file, re-verified 2026-08-02 — it declares neither `permissions.deny` nor a `PreToolUse`

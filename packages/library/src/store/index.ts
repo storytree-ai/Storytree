@@ -37,6 +37,7 @@ export type { SyncCorpusResult, CorpusDiff } from "./sync-corpus.js";
 export {
   isExportScopeKind,
   isExportableLiveDoc,
+  canonicalJson,
   diffCorpusContent,
   diffSeedCorpusContent,
   computeExportedSeed,
@@ -46,6 +47,7 @@ export type {
   DriftClass,
   CorpusContentDrift,
   CorpusContentDiff,
+  ExportSeedOptions,
   ExportSeedResult,
 } from "./export-corpus.js";
 export { batchMigrate } from "./batch-migrate.js";
