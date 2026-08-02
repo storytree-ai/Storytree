@@ -4,6 +4,7 @@ import test from "node:test";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { Proposal } from "@storytree/library";
 
+import { branchOfActor, currentGitBranch, defaultCliActor } from "./cli-actor.js";
 import { run } from "./commands.js";
 import {
   proposalDescriptionFrom,
@@ -92,6 +93,38 @@ test("a scaffolded proposal is immediately readable by the LIST and ARTIFACT rea
   assert.match(artifact.body, /## The change/);
   assert.match(artifact.body, /## Migration plan/);
   assert.match(artifact.body, /## Readiness/);
+});
+
+test("proposal new stamps the branch-attributed CLI actor, so ADR-0290 can see whose proposal it is", async () => {
+  // Measured 2026-08-03 in a board drain session: the three proposals this seat had just authored
+  // came back from `check:corpus-content` as `LIVE-ONLY … not yours [3]`. The cause was one
+  // hard-coded string here — every other CLI write path (arc.ts, friction.ts, commands.ts) passes
+  // `defaultCliActor()`, this one passed the bare legacy `"cli"`. `branchOfActor("cli")` is null,
+  // which the attribution reads as UNATTRIBUTED and charges as not-this-branch's, and the check's
+  // printed remedy for a not-yours live-only row is to LEAVE IT — so a session following the label
+  // never exports its own proposal and it stays live-only forever. That is a silent, self-inflicted
+  // loss of exactly the delivery signal ADR-0287 created the proposal tier to carry.
+  const store = new InMemoryStore();
+  // No `actor` — the real CLI path, where the default is what gets stamped.
+  const res = await proposalNew({ store, writable: true, now: NOW, pg: true }, undefined, body());
+  assert.equal(res.ok, true, res.body);
+
+  const events = await store.readEvents({ id: "one-seed-sync-verb" });
+  assert.equal(events.length, 1);
+  // The whole spec: this path stamps whatever `defaultCliActor()` says, never a literal of its own.
+  assert.equal(events[0]?.actor, defaultCliActor());
+  // Honest about this test's reach (asset:unrun-check-is-unverified-not-refuted): the assertion
+  // above DISCRIMINATES only where git can name a branch — then the stamp is `cli@<branch>` and the
+  // old literal is not. On a detached HEAD (CI checks out a merge ref) `defaultCliActor()` is itself
+  // the bare `"cli"`, so correct and buggy genuinely coincide and there is nothing to catch. That is
+  // the spec, not a gap: the rule is "delegate to defaultCliActor", and the branch case is what
+  // every dev checkout — where the drain ceremony actually runs — exercises.
+  assert.equal(branchOfActor(events[0]?.actor ?? ""), currentGitBranch());
+
+  // An explicit actor still wins — the studio/desktop identify their own writers (cli-actor.ts).
+  const store2 = new InMemoryStore();
+  await proposalNew(writeDeps(store2), undefined, body());
+  assert.equal((await store2.readEvents({ id: "one-seed-sync-verb" }))[0]?.actor, "test");
 });
 
 test("proposal new names EVERY missing required field in one refusal", async () => {

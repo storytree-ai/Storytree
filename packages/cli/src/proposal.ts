@@ -36,6 +36,7 @@ import { upcastAndValidate } from "@storytree/library";
 // The ADR scaffolder's kebab-caser, reused rather than copied — `arc new`'s precedent for exactly
 // this (a second implementation would be a drift seam for no gain).
 import { kebabSlug } from "./adr.js";
+import { defaultCliActor } from "./cli-actor.js";
 import type { Envelope } from "./envelope.js";
 
 /** The read context: the doc store, plus the honest offline hint. */
@@ -51,7 +52,13 @@ export interface ProposalWriteDeps {
   store: Store;
   /** True when the store persists (the live --pg store). A write refuses when false. */
   writable: boolean;
-  /** Recorded as the event `actor` on writes; defaults to "cli". */
+  /**
+   * Recorded as the event `actor` on writes; defaults to {@link defaultCliActor} (`cli@<branch>`),
+   * the ADR-0290 attribution stamp every other CLI write path uses. The bare `"cli"` this once
+   * hard-coded reads as UNATTRIBUTED to `branchOfActor`, so `check:corpus-content` labelled a
+   * proposal "not yours" to the session that had just authored it — and its printed remedy for that
+   * label is to leave the row alone, which strands the proposal live-only.
+   */
   actor?: string;
   /** An ISO timestamp (composition-root clock): stamps createdAt/updatedAt. */
   now: string;
@@ -252,7 +259,7 @@ export async function proposalNew(
     id: proposalId,
     kind: "proposal",
     doc: valid,
-    actor: deps.actor ?? "cli",
+    actor: deps.actor ?? defaultCliActor(),
   });
 
   return {
