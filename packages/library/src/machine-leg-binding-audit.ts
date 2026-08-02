@@ -51,7 +51,7 @@ export function auditMachineLegBindings(
       if (criterion.witness !== "machine") continue;
       const resolution = resolveWitness(criterion, gates);
       if (resolution.witness !== "machine") {
-        throw new Error(`${criterion.id}: an explicit machine criterion resolved outside the machine branch`);
+        throw new Error(`${criterion.criterionId}: an explicit machine criterion resolved outside the machine branch`);
       }
       rows.push({
         provenance: { storyId: story.storyId, sourcePath: story.sourcePath },

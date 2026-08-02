@@ -297,7 +297,12 @@ export const api = {
   // Permission-gated: hosted admins sign server-side; desktop members with `canAttestUat` sign
   // locally and persist through the authenticated broker. Neither path trusts a client signer, and
   // both refuse a machine-witness test (a click is not a machine proof).
-  signUat: (input: { testId: string; outcome?: 'pass' | 'fail'; note?: string }): Promise<UatVerdictResult> =>
+  signUat: (input: {
+    storyId: string;
+    criterionId: string;
+    outcome?: 'pass' | 'fail';
+    note?: string;
+  }): Promise<UatVerdictResult> =>
     http('/api/uat/attest', jsonInit('POST', input)),
 
   listUsers: (): Promise<Member[]> => http('/api/users'),

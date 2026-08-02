@@ -1,15 +1,17 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-08-02
 arc: verification-integrity-arc
 ---
 # ADR-0253: Criterion identity is immutable across UAT revisions
 
 ## Status
 
-proposed (2026-07-27) — a criterion-identity preflight found a concrete collision in the
-positional UAT key. This records the safety conditions and viable design forks before any data or
-runtime migration. The owner has **not** selected the identity representation, revision anchor,
-migration policy, or cutover; this ADR therefore authorises none of them.
+accepted (2026-08-02) — the criterion-identity preflight found a concrete collision in the
+positional UAT key, and the owner selected the identity and lineage model in conversation on
+2026-08-02: an authored opaque criterion id, a linked sequence of immutable content-bound revisions,
+evidence bound to the exact identity-plus-revision pair, and an explicit legacy-disposition ledger.
+Owner direction in conversation IS the ratification (ADR-0110); no second end-of-flow ask.
 
 ## Context
 
@@ -48,35 +50,43 @@ ordinal, or a best-effort parser reconstruction is not that review.
 
 ## Decision
 
-**Proposed safety contract — not a selected implementation.** Any migration away from positional
-criterion keys must satisfy all of the following. The owner chooses the concrete model and migration
-after reviewing the alternatives below.
+**Selected model — authored identity, linked revisions, explicit migration ledger.** The Markdown
+criterion remains the human-readable source, but its identity is no longer derived from its list
+position. Each criterion carries an authored opaque id. Its meaning advances through immutable
+revision records linked by `previousRevisionId`, and proof names the exact revision it observed.
 
 1. **A criterion has an immutable identity independent of its list position.** Reordering or
-   renumbering must not make one criterion become another. A new, split, merged, or materially
-   re-written claim gets a new identity unless an explicit continuity decision says otherwise.
-2. **Evidence binds an identity to the revision it proved.** A verdict or attestation must carry, or
-   resolve through an immutable record to, both the criterion identity and a revision/binding anchor
-   for the precise criterion text/meaning in force when it was signed. The anchor's exact shape
-   (revision id, canonical-content hash, or another versioned binding) is deliberately open; it must
-   be able to distinguish an old claim from a changed one.
-3. **Every legacy positional key receives an explicit disposition.** A migration record must say one
+   renumbering must not make one criterion become another. A wording or meaning revision of the same
+   acceptance claim keeps the identity and advances its revision chain; new, split, merged, or
+   replacement acceptance work gets a new identity with explicit lineage where applicable.
+2. **A criterion's revisions form a linked sequence.** The first revision has no predecessor; each
+   later revision carries its own immutable, content-bound `revisionId` and points to the immediately
+   preceding revision through `previousRevisionId`. Reordering or renumbering alone creates no new
+   revision. A material change to the acceptance meaning creates a new revision on the same identity.
+   Split, merged, or genuinely new acceptance work receives a new criterion identity; explicit
+   lineage edges may relate those identities, but they do not splice different claims into one
+   revision chain.
+3. **Evidence binds an identity to the exact revision it proved.** A verdict or attestation must carry,
+   or resolve through an immutable record to, both `criterionId` and `revisionId` for the precise
+   criterion meaning in force when it was signed. Evidence on an earlier revision remains attributable
+   history and never silently advances to the current head.
+4. **Every legacy positional key receives an explicit disposition.** A migration record must say one
    of: (a) **mapped**, with a reviewed one-to-one target identity and the applicable historical
    revision/binding; (b) **superseded**, meaning the old claim has been replaced and its evidence
    stays historical only; or (c) **unresolved**, meaning continuity is unknown. No default map by
    ordinal, heading, title, or current parser output is allowed.
-4. **Unresolved and superseded history earns no current proof credit.** It remains visible and
+5. **Unresolved and superseded history earns no current proof credit.** It remains visible and
    attributable as history, but cannot make a current criterion healthy, satisfy a witness
    requirement, or pre-fill an attestation. A current criterion without a verified mapped proof
    requires a fresh machine run or a fresh human attestation for its current revision.
-5. **A dual-read bridge, if one is selected, follows the new model rather than substituting for it.**
-   First create the immutable identity, revision/binding, and explicit legacy-disposition model;
-   then a read path may show old and new evidence together. During that bridge it must resolve only
-   recorded mappings and must visibly retain superseded/unresolved state. It must never silently
-   treat a legacy `<story>#uat-<n>` row as a current verdict or attestation. Legacy retirement is a
-   later, separately verified step.
+6. **Migration projects immutable history through the ledger; it does not rewrite old events.** First
+   create the immutable identity, linked revision records, and explicit legacy dispositions. A
+   dual-read path may then show legacy and new evidence together, but it resolves only reviewed
+   mappings and visibly retains superseded/unresolved state. It must never silently treat a legacy
+   `<story>#uat-<n>` row as a current verdict or attestation. Retiring the legacy read path is a later,
+   separately verified cutover after every positional row has a disposition.
 
-### Alternatives for owner decision
+### Alternatives considered
 
 | Candidate | Shape | Strength | Cost / unresolved trade-off |
 | --- | --- | --- | --- |
@@ -85,14 +95,16 @@ after reviewing the alternatives below.
 | C. External identity/revision registry keyed from a story anchor | Markdown remains mostly prose; a registry holds immutable ids, revision bindings, and the legacy disposition ledger. | Can minimise visible story syntax and support a review workflow. | Adds a second source that must be atomically maintained and made inspectable; drift risk is material. |
 | D. Content-derived identity | Canonicalized criterion content (possibly plus a semantic scope) produces the identity or revision key. | Cheap deduplication and clear change detection. | Cannot represent continuity through wording edits or distinguish intentionally similar criteria without extra policy; content alone is insufficient for human-proof lineage. |
 
-These candidates can be combined — for example, an authored opaque id with a canonical-content
-revision hash and an external migration ledger. This ADR does **not** choose among them, does not
-decide whether old event rows are rewritten or projected through a mapping, and does not approve
-any automatic classification of history.
+**Selected: A, combined with a linked content-bound revision record and a migration-only ledger.**
+The ledger is not a second canonical identity source: authored Markdown owns `criterionId`; immutable
+revision records own the linked history; the ledger owns only the reviewed disposition of legacy
+positional evidence. B was rejected as a larger canonical-source migration, C as an ongoing second
+identity source with drift risk, and D as insufficient to represent continuity through wording edits
+or intentionally similar criteria. No history is classified automatically.
 
 ## Consequences
 
-**If accepted and implemented:** the system can distinguish “the same criterion, revised” from “a
+**Good.** Once implemented, the system can distinguish “the same criterion, revised” from “a
 different criterion now occupying this ordinal,” while retaining historical proof without laundering
 it into current credit. Reordering a story becomes safe because it no longer changes criterion
 identity.
@@ -101,10 +113,10 @@ identity.
 migration needs a reviewed ledger and an honest unresolved path. Some presently green or attested
 positional rows will correctly stop counting until they are mapped with evidence or re-proven.
 
-**Non-consequence:** this proposal does not change current runtime behaviour, store schema, event
+**Non-consequence:** this decision does not itself change current runtime behaviour, store schema, event
 history, UI, story prose, seed data, or verdict status. The app-surface increment independently
 reconciled its own criterion and signed state as recorded above; that instance being current again
-does not resolve the general positional-identity defect or ratify any migration alternative.
+does not implement the general positional-identity decision recorded here.
 
 ## References
 

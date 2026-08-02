@@ -14,10 +14,10 @@ test("pilot-stories-have-zero-either: every pilot criterion is classified", () =
     const criteria = parseCriteria(storyId, body);
     assert.ok(criteria.length > 0, `${storyId} has criteria`);
     for (const c of criteria) {
-      assert.notEqual(c.witness, "either", `${c.id} must not be either`);
+      assert.notEqual(c.witness, "either", `${c.criterionId} must not be either`);
       assert.ok(
         c.witness === "machine" || c.witness === "model" || c.witness === "human",
-        `${c.id} witness=${c.witness}`,
+        `${c.criterionId} witness=${c.witness}`,
       );
     }
   }
@@ -28,9 +28,9 @@ test("pilot-model-legs-declare-tier: model floors are explicit; non-model carry 
     const body = readFileSync(join(REPO_ROOT, "stories", storyId, "story.md"), "utf8");
     for (const c of parseCriteria(storyId, body)) {
       if (c.witness === "model") {
-        assert.ok(c.tier === "advanced" || c.tier === "frontier", `${c.id} needs tier`);
+        assert.ok(c.tier === "advanced" || c.tier === "frontier", `${c.criterionId} needs tier`);
       } else {
-        assert.equal(c.tier, undefined, `${c.id} must not carry tier`);
+        assert.equal(c.tier, undefined, `${c.criterionId} must not carry tier`);
       }
     }
   }

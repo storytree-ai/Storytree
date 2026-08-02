@@ -5,7 +5,21 @@ import {
   auditMachineLegBindings,
   type MachineLegBindingAuditStory,
 } from "./machine-leg-binding-audit.js";
-import { parseUatTestCriteria } from "./uat-test-criteria.js";
+import {
+  canonicalUatCriterionContent,
+  criterionRevisionId,
+  parseUatTestCriteria,
+} from "./uat-test-criteria.js";
+
+function criterionId(prefix: "a" | "b", ordinal: number): string {
+  return `uatc_${prefix.repeat(23)}${ordinal.toString(16)}`;
+}
+
+function uatLine(prefix: "a" | "b", ordinal: number, prose: string): string {
+  const id = criterionId(prefix, ordinal);
+  const revision = criterionRevisionId(canonicalUatCriterionContent(`${ordinal}. ${prose}`));
+  return `${ordinal}. ${prose} (criterion-id: ${id}) (revision-id: ${revision})`;
+}
 
 const alpha: MachineLegBindingAuditStory = {
   storyId: "alpha",
@@ -14,9 +28,9 @@ const alpha: MachineLegBindingAuditStory = {
 
 ## UAT Test Criteria
 
-1. **Bound check:** (witness: machine) (proof-gate: alpha#gate-2)
-2. **Operator check:** (witness: human)
-3. **Undecided check:** (witness: either)
+${uatLine("a", 1, "**Bound check:** (witness: machine) (proof-gate: alpha#gate-2)")}
+${uatLine("a", 2, "**Operator check:** (witness: human)")}
+${uatLine("a", 3, "**Undecided check:** (witness: either)")}
 
 ## Reliability Gates
 
@@ -32,12 +46,12 @@ const zeta: MachineLegBindingAuditStory = {
 
 ## UAT Test Criteria
 
-1. **No binding:** (witness: machine)
-2. **Unknown binding:** (witness: machine) (proof-gate: zeta#gate-9)
-3. **Ineligible binding:** (witness: machine) (proof-gate: zeta#gate-3)
-4. **Commandless binding:** (witness: machine) (proof-gate: zeta#gate-4)
-5. **Human control:** (witness: human)
-6. **Either control:** (witness: either)
+${uatLine("b", 1, "**No binding:** (witness: machine)")}
+${uatLine("b", 2, "**Unknown binding:** (witness: machine) (proof-gate: zeta#gate-9)")}
+${uatLine("b", 3, "**Ineligible binding:** (witness: machine) (proof-gate: zeta#gate-3)")}
+${uatLine("b", 4, "**Commandless binding:** (witness: machine) (proof-gate: zeta#gate-4)")}
+${uatLine("b", 5, "**Human control:** (witness: human)")}
+${uatLine("b", 6, "**Either control:** (witness: either)")}
 
 ## Reliability Gates
 
@@ -66,7 +80,7 @@ test("machine-leg binding audit: emits one deterministic provenance-bearing row 
       provenance: { storyId: "alpha", sourcePath: "stories/alpha/story.md" },
       outcome: {
         outcome: "evidence",
-        criterionId: "alpha#uat-1",
+        criterionId: criterionId("a", 1),
         gateId: "alpha#gate-2",
         gateKind: "observe",
         proofCommand: "pnpm --filter @storytree/library test",
@@ -75,13 +89,13 @@ test("machine-leg binding audit: emits one deterministic provenance-bearing row 
     },
     {
       provenance: { storyId: "zeta", sourcePath: "stories/zeta/story.md" },
-      outcome: { outcome: "refused", criterionId: "zeta#uat-1", reason: "missing-binding" },
+      outcome: { outcome: "refused", criterionId: criterionId("b", 1), reason: "missing-binding" },
     },
     {
       provenance: { storyId: "zeta", sourcePath: "stories/zeta/story.md" },
       outcome: {
         outcome: "refused",
-        criterionId: "zeta#uat-2",
+        criterionId: criterionId("b", 2),
         reason: "unknown-gate",
         declaredGateId: "zeta#gate-9",
       },
@@ -90,7 +104,7 @@ test("machine-leg binding audit: emits one deterministic provenance-bearing row 
       provenance: { storyId: "zeta", sourcePath: "stories/zeta/story.md" },
       outcome: {
         outcome: "refused",
-        criterionId: "zeta#uat-3",
+        criterionId: criterionId("b", 3),
         reason: "ineligible-gate",
         declaredGateId: "zeta#gate-3",
       },
@@ -99,7 +113,7 @@ test("machine-leg binding audit: emits one deterministic provenance-bearing row 
       provenance: { storyId: "zeta", sourcePath: "stories/zeta/story.md" },
       outcome: {
         outcome: "refused",
-        criterionId: "zeta#uat-4",
+        criterionId: criterionId("b", 4),
         reason: "missing-command",
         declaredGateId: "zeta#gate-4",
       },
@@ -114,8 +128,8 @@ test("machine-leg binding audit: a newly parsed unbound machine leg grows the re
   const extended: MachineLegBindingAuditStory = {
     ...alpha,
     body: alpha.body.replace(
-      "2. **Operator check:** (witness: human)",
-      "2. **New unbound machine check:** (witness: machine)\n3. **Operator check:** (witness: human)",
+      uatLine("a", 2, "**Operator check:** (witness: human)"),
+      `${uatLine("b", 1, "**New unbound machine check:** (witness: machine)")}\n${uatLine("a", 2, "**Operator check:** (witness: human)")}`,
     ),
   };
 
@@ -123,6 +137,6 @@ test("machine-leg binding audit: a newly parsed unbound machine leg grows the re
   assert.equal(after.length, before.length + 1);
   assert.deepEqual(after[1], {
     provenance: { storyId: "alpha", sourcePath: "stories/alpha/story.md" },
-    outcome: { outcome: "refused", criterionId: "alpha#uat-2", reason: "missing-binding" },
+    outcome: { outcome: "refused", criterionId: criterionId("b", 1), reason: "missing-binding" },
   });
 });

@@ -12,7 +12,13 @@ import { resolveUatRowWitnesses } from './apiRouter';
 const resolver = { resolvedWitnessOf, unresolvedUatLegs };
 
 function leg(n: number, witness: UatTestCriterion['witness'], wouldBe = false): UatTestCriterion {
-  return { id: `s#uat-${n}`, title: `leg ${n}`, witness, wouldBe };
+  return {
+    criterionId: `uatc_${n.toString(16).padStart(24, '0')}`,
+    revisionId: `uatr1:${n.toString(16).padStart(16, '0')}`,
+    title: `leg ${n}`,
+    witness,
+    wouldBe,
+  };
 }
 function gate(kind: ReliabilityGate['kind'], n = 1): ReliabilityGate {
   return { id: `s#gate-${n}`, title: `g${n}`, kind, covers: [] };
@@ -38,13 +44,16 @@ describe('resolveUatRowWitnesses (ADR-0106)', () => {
       'proposed',
       resolver,
     );
-    expect(unresolvedWitnesses).toEqual(['s#uat-2', 's#uat-3']);
+    expect(unresolvedWitnesses).toEqual([
+      'uatc_000000000000000000000002',
+      'uatc_000000000000000000000003',
+    ]);
   });
 
   it('a healthy / unhealthy story is adopted too — the guard still fires', () => {
     for (const status of ['healthy', 'unhealthy', 'building']) {
       const { unresolvedWitnesses } = resolveUatRowWitnesses([leg(1, 'either')], [], status, resolver);
-      expect(unresolvedWitnesses).toEqual(['s#uat-1']);
+      expect(unresolvedWitnesses).toEqual(['uatc_000000000000000000000001']);
     }
   });
 

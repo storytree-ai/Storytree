@@ -123,19 +123,19 @@ owner reads, without touching a terminal.
 > its full action and success conditions inline here, and this file stays the canonical, versioned
 > surface for them, so the dead pointers are DELETED rather than backfilled.
 
-1. **Grant.** _(witness: machine)_
+1. **Grant.** _(witness: machine)_ _(criterion-id: uatc_cf832d40045d76c96a9fb153)_ _(revision-id: uatr1:8ab2d240e8e5a9b7)_
    The owner grants `dev@example.com` `roles/iap.httpsResourceAccessor` on the production Cloud Run
    IAP resource using the runbook (`infra/studio-cloud.md` §5), then enumerates that resource's IAM
    policy. **Success —** the real IAP policy contains exactly the granted user on the served studio
    resource.
-2. **Sign in.** _(witness: machine)_
+2. **Sign in.** _(witness: machine)_ _(criterion-id: uatc_7f0c7763d324ffb43169bb76)_ _(revision-id: uatr1:f490699b9d6d71a7)_
    The dev opens the production studio URL, completes Google's real sign-in, and reaches the served
    studio with no local setup or forged identity header. **Success —** the deployed world renders from
    the live store under `dev@example.com`, carrying verdict-derived hues and whatever session CLAIM
    wisps the live claim ledger holds at that moment. *(Corrected 2026-07-26: this leg read "active
    wisps" from the pre-ADR-0200 world. The advisory presence layer is retired — a wisp is a story
    claim now, so a harness must seed a live claim rather than assume one is orbiting.)*
-3. **Browse.** _(witness: machine)_
+3. **Browse.** _(witness: machine)_ _(criterion-id: uatc_74a8267a8cb36c8780ff3a88)_ _(revision-id: uatr1:e1720299519d5445)_
    In that authenticated production browser session, the dev navigates the story world, a story
    panel, the Library lens over the map, and an ADR. **Success —** every deployed read surface renders
    from its real served route/API and the journey completes without a read or authorization error.
@@ -143,24 +143,24 @@ owner reads, without touching a terminal.
    dec 6 retired the standalone `#/library` page — `parseRoute` redirects every `/library` path to the
    tree route — so the Library is reached as an overlay lens over the forest map, and a harness that
    deep-links `#/library` will silently land on the map instead of failing.)*
-4. **Comment.** _(witness: machine)_
+4. **Comment.** _(witness: machine)_ _(criterion-id: uatc_ccd2aaa5cb592dc7b6a8d213)_ _(revision-id: uatr1:40ead13fdbfc2327)_
    _(proof-gate: studio-cloud#gate-1)_ POST a comment carrying a forged client author through the
    mounted hosted route table as a member. **Success —** the backend persistence seam receives the
    comment with `author` stamped to the verified member email, never the client value.
-5. **Scope walls.** _(witness: machine)_
+5. **Scope walls.** _(witness: machine)_ _(criterion-id: uatc_19fa35837d4f215bac5faf3c)_ _(revision-id: uatr1:a4017dd0df2ed8fd)_
    _(proof-gate: studio-cloud#gate-1)_ Exercise member asset writes, hosted DB control, and comment
    ownership through the mounted route table. **Success —** member asset writes and DB control are
    `403`, the member can patch their own comment, another author's comment is `403`, and an admin may
    perform the privileged asset/comment operations.
-6. **No identity, no API.** _(witness: machine)_
+6. **No identity, no API.** _(witness: machine)_ _(criterion-id: uatc_53f880acb76b7ab23c01619b)_ _(revision-id: uatr1:a307e9ef3b58990a)_
    _(proof-gate: studio-cloud#gate-1)_ Request the static SPA and guarded API routes without the IAP
    identity header. **Success —** `/` and a real static asset return `200`, while every sampled
    `/api/*` route — including health, membership, corpus, and DB control — returns `401`.
-7. **Revoke.** _(witness: machine)_
+7. **Revoke.** _(witness: machine)_ _(criterion-id: uatc_79977112ba53b5410622e661)_ _(revision-id: uatr1:476854f0f2907be8)_
    The owner removes `dev@example.com`'s `roles/iap.httpsResourceAccessor` binding from the
    production IAP resource, then the dev starts a fresh visit. **Success —** the real IAP policy no
    longer contains the user and Google's edge denies the next visit before any studio API is reached.
-8. **Broker a build (ADR-0117).** _(witness: machine)_ The owner marks `friend@example.com` a
+8. **Broker a build (ADR-0117).** _(witness: machine)_ The owner marks `friend@example.com` a _(criterion-id: uatc_57f6f0fcb7addad5b9f35c44)_ _(revision-id: uatr1:aa5a8227739592b0)_
    **builder** in the deployed Members panel; the friend's thick-local desktop performs a REAL local
    build and POSTs its already-signed verdict through the production hosted write-broker into the
    live shared store. **Success —** the broker validates shape, attribution, and builder scope and

@@ -399,7 +399,7 @@ the OS keychain), drives a real build through the local backend, and watches it 
 that blooms in the shared forest — the renderer never holding the credential or importing the agent, the
 credential never leaving the machine.
 
-1. **Launch — the native shell renders the COMPILED studio, no Vite, no source.** _(witness: machine)_
+1. **Launch — the native shell renders the COMPILED studio, no Vite, no source.** _(witness: machine)_ _(criterion-id: uatc_9e9d308422ea6863a6bcee98)_ _(revision-id: uatr1:b0f743aed28f0eb6)_
    The packaged app opens; the Electron main serves the compiled studio dist over `127.0.0.1` and
    navigates the window there off its launch page, and the renderer mounts the real studio SPA.
    **Success —** in the `_electron` harness the window reaches an `http://127.0.0.1:<port>` origin with
@@ -408,7 +408,7 @@ credential never leaving the machine.
    `/src/**` request (ADR-0090 d.4's carries-no-source guard, observably). *(Machine, not human: "the
    studio renders" is a DOM/URL/network observable, and the existing harness already drives exactly this
    launch — the appearance verdict is leg 9's, not this leg's.)*
-2. **The credentials surface is one-way — nothing reads back, the renderer stores nothing.**
+2. **The credentials surface is one-way — nothing reads back, the renderer stores nothing.** _(criterion-id: uatc_47241898f5714f414284c9f0)_ _(revision-id: uatr1:0d70140121ce0e78)_
    _(witness: machine)(detail: desktop#uat-2)_ In the running Electron app the member's credential surface exposes no recovery
    path: `window.desktopAuth` offers `status`/`store`/`signOut` and NO getter, `status(kind)` resolves a
    BOOLEAN, the panel's inputs never pre-fill from a stored value, and after a store attempt no raw
@@ -418,7 +418,7 @@ credential never leaving the machine.
    two-kind broker independence, typed IPC, operation-bridge lifetime, and the panel's one-way store /
    feature gate — is `credential-broker`'s contracts 1–9; this leg adds the integrated claim that the
    REAL bridge exposes no read-back.
-3. **A credential survives a real restart in the OS keychain, then removes cleanly.** _(witness: human)_
+3. **A credential survives a real restart in the OS keychain, then removes cleanly.** _(witness: human)_ _(criterion-id: uatc_f017c21eae754d091713d18f)_ _(revision-id: uatr1:a8bb3332f308b058)_
    On a real desktop app the operator stores each kind independently (Claude subscription `oauth`,
    Anthropic `api-key`), REPLACES one, quits and relaunches, confirms the replacement is still held, and
    removes it through Sign out/Remove leaving no plaintext on disk. **Success —** the owner's
@@ -426,14 +426,14 @@ credential never leaving the machine.
    runs through `@napi-rs/keyring` against the real macOS Keychain / Windows Credential Manager /
    libsecret, which a headless runner has no equivalent of; `apps/desktop/src/keychain/napi-adapter.ts`
    records this exemption at the source, and `set` has no offline fallback to observe.)*
-4. **The local backend is live (no 503).** _(witness: machine)(detail: desktop#uat-4)_ With the desktop main process running
+4. **The local backend is live (no 503).** _(witness: machine)(detail: desktop#uat-4)_ With the desktop main process running _(criterion-id: uatc_c41cb0d4c1bf3a45c39312a6)_ _(revision-id: uatr1:057291595a474651)_
    for real — the sidecar spawned, NOT the harness's e2e mode — a `GET /api/*` read route
    (`tree`/`docs`/`activity`) returns a real envelope body. **Success —** the response is the composed
    organism drivers' envelope and NOT `static-server.ts`'s `503 {"error":"no backend in the desktop
    shell …"}` fallback. *(Machine, not human: a 503 stub versus a real envelope is a byte comparison with
    no judgment in it. It is live-gated — the sidecar's fail-closed boot needs a git checkout and a
    reachable store — which makes it expensive, not irreducible.)*
-5. **The credential reaches the in-process backend; the renderer never holds the raw token.**
+5. **The credential reaches the in-process backend; the renderer never holds the raw token.** _(criterion-id: uatc_eb82eaac877cccb9a9beea4f)_ _(revision-id: uatr1:92c090fcf68e68ce)_
    _(witness: machine)(detail: desktop#uat-5)_ A build/orchestrate driver invocation in the running local backend receives the
    brokered credential in-process — no TLS hop — while no `/api/*` response body and no
    renderer-reachable surface ever carries that value. **Success —** with a FAKE credential held for the
@@ -442,7 +442,7 @@ credential never leaving the machine.
    boundary; this leg adds that the real Electron main actually wired it.) *(Machine, not human: "the
    token appears in this byte stream" is decidable, and a FAKE credential means no spend and no live
    studio.)*
-6. **The brokered-forest probe fails CLOSED when the broker is unreachable or the member is not a builder.**
+6. **The brokered-forest probe fails CLOSED when the broker is unreachable or the member is not a builder.** _(criterion-id: uatc_4875477c492273d4088adf87)_ _(revision-id: uatr1:04897584f5417812)_
    _(witness: machine)_ Before the member is marked a `builder`, or when the broker is down,
    the readiness probe refuses with clear guidance (you are not yet an authorized builder — ask the
    owner / the broker is unreachable — is the studio up?) rather than hanging or forging success.
@@ -450,7 +450,7 @@ credential never leaving the machine.
    injected broker-POST seam (a reachable/authorized double and an unreachable/forbidden double drive
    both paths). *(Machine: the fail-closed branch needs no live broker at all — it is exactly what an
    injected seam proves. Only the AUTHORIZED path needs the live grant, and that is leg 8.)*
-7. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.**
+7. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.** _(criterion-id: uatc_da3559fd2874e2df93362733)_ _(revision-id: uatr1:6841ee14c731ef06)_
    _(witness: human)_ The member triggers a build from the UI; the local backend drives the real `story
    build --real` (or a node `--live` smoke) on their machine — a real checkout + git + pnpm + worktrees —
    the spine observes RED then GREEN from real exit codes and SIGNS LOCALLY, then the local backend **POSTs
@@ -461,19 +461,19 @@ credential never leaving the machine.
    (ADR-0091) — and CI later re-proves it independently. *(operator-attested and irreducible — a real
    `--real`/`--live` build is subscription-billed REAL SPEND and the brokered write lands on the live
    hosted studio; an agent may never burn the spend or write outward unattended.)*
-8. **The owner's in-app `builder` grant opens the brokered write path.** _(witness: human)_ After the
+8. **The owner's in-app `builder` grant opens the brokered write path.** _(witness: human)_ After the _(criterion-id: uatc_1207e89e3a5adfdc8c21359f)_ _(revision-id: uatr1:7afcb9cc7915a1b3)_
    owner marks the member a **builder** in the live Members panel (an in-app grant — no `gcloud`, no
    Cloud SQL IAM grant; ADR-0117 d.2), the member's brokered write path connects against the real hosted
    broker. **Success —** the owner's attestation that the grant they performed authorized the write.
    *(operator-attested and irreducible — the grant is a privileged action only the owner can take, and
    it is exercised against the live hosted studio; no agent may self-grant it,
    `agent-never-self-exempts`.)*
-9. **It feels like one app, chat included.** _(witness: human)_ Launch, sign-in, the live loop, the chat
+9. **It feels like one app, chat included.** _(witness: human)_ Launch, sign-in, the live loop, the chat _(criterion-id: uatc_68916cbdc50b5505b99be121)_ _(revision-id: uatr1:496c48a6c39fa0c6)_
    panel (the consumed app-guide chat surface, absorbed from headless-orchestrator's Phase 2, ADR-0175), and the approval-to-land gate read as one
    coherent native application. **Success —** the owner's two-stage visual verdict (ADR-0070 / ADR-0113
    §9): the appearance is witnessed, not machine-asserted. *(operator-attested and irreducible — "reads
    as one coherent app" has no compiler; ADR-0209 keeps look, feel and lived coherence on the human rung.)*
-10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).**
+10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).** _(criterion-id: uatc_ed15427cfebc9e03b298775e)_ _(revision-id: uatr1:3506081c43f4188c)_
     _(witness: machine)(detail: desktop#uat-10)_ Before the sidecar wires any backend, the launch-precondition gate runs: with no
     git checkout it refuses IMMEDIATELY naming the unmet precondition and NEVER wakes the DB; with a
     checkout it reuses `ensureLiveDb` to probe and bounded-auto-wake the live store, proceeding to the ONE
@@ -488,7 +488,7 @@ credential never leaving the machine.
     APPEARANCE while doing so is leg 11.)* *(This is the defect-driven regression case ADR-0176 was
     root-caused from — the Story UAT grows by appending a permanent case per real failure, never
     speculative breadth.)*
-11. **The splash → refuse+retry window reads right.** _(witness: human)_ The Electron splash and the
+11. **The splash → refuse+retry window reads right.** _(witness: human)_ The Electron splash and the _(criterion-id: uatc_d9cb12a4d1e69998baa5dad3)_ _(revision-id: uatr1:dce2d1280f373483)_
     refuse+retry window the failed launch lands on read clearly and let the member retry.
     **Success —** the owner's stage-2 visual verdict (ADR-0070 / ADR-0176 §5). *(operator-attested and
     irreducible — the refusal's LOOK has no compiler; leg 10 already machine-pins that the refusal

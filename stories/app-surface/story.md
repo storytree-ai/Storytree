@@ -140,39 +140,39 @@ machine-green result or owner LOOK verdict is claimed.
 existing SVG island beneath registered organic tracks through deterministic, reversible product
 controls, ready for the owner's LOOK judgment.
 
-1. **The world presentation is deterministic and authority-free.** _(witness: machine)_
+1. **The world presentation is deterministic and authority-free.** _(witness: machine)_ _(criterion-id: uatc_64fcbdd6348c342b802efad7)_ _(revision-id: uatr1:1360310da77be333)_
    _(proof-gate: app-surface#gate-1)_ Fold and render the same representative world fixture twice.
    **Success —** models and semantic renders are equal; the view has no fetch/store/clock authority
    and reports only typed world events.
-2. **TreeView is the real first consumer.** _(witness: machine)_
+2. **TreeView is the real first consumer.** _(witness: machine)_ _(criterion-id: uatc_039b8b6ddb147d375c932c7e)_ _(revision-id: uatr1:fbb603b227a97a7c)_
    _(proof-gate: app-surface#gate-2)_ Inspect and exercise the real forest shell.
    **Success —** it mounts the public shared view with no second private scene mapper while
    legend/inspector/chat/camera remain Studio siblings. The previously recorded coverage gap around
    fully rendered state folding and selection callbacks remains a gap until executable proof closes
    it; this rewrite does not upgrade that evidence.
-3. **Existing art and selector policy survive.** _(witness: machine)_
+3. **Existing art and selector policy survive.** _(witness: machine)_ _(criterion-id: uatc_fcd45a1512795648a5521f4e)_ _(revision-id: uatr1:5a8c8405599ad790)_
    _(proof-gate: app-surface#gate-1)_ Exercise default, Vector, unknown and partially covered
    Storybook cases plus moved selector fixtures. **Success —** fallback, sizing, ground contact,
    depth order, trail reveal and arrival growth retain their existing behaviour.
-4. **The semantic walk exposes six honest states.** _(witness: machine)_
+4. **The semantic walk exposes six honest states.** _(witness: machine)_ _(criterion-id: uatc_f5cd373a0b8a0e3f9a1875d4)_ _(revision-id: uatr1:a89d634715328b1e)_
    _(proof-gate: app-surface#gate-3)_ Advance the public player through its representative frames.
    **Success —** observed keys are exactly `empty`, `land`, `proposed`, `claimed`, `signed-proof`,
    `healthy`; presence remains distinct from proof; healthy presentation appears only last.
-5. **Navigation and reduced motion preserve semantics.** _(witness: machine)_
+5. **Navigation and reduced motion preserve semantics.** _(witness: machine)_ _(criterion-id: uatc_5b9f6145b996d8c392101b81)_ _(revision-id: uatr1:c86bc0bae4f05041)_
    _(proof-gate: app-surface#gate-3)_ Walk Back and Replay under full and reduced motion.
    **Success —** equal actions yield equal semantic snapshots; reduced motion removes spatial
    interpolation and delay without changing any settled cue.
-6. **The earlier semantic witness remains isolated from clean Studio.** _(witness: machine)_
+6. **The earlier semantic witness remains isolated from clean Studio.** _(witness: machine)_ _(criterion-id: uatc_4ea0ef71ec37e25732fb26fc)_ _(revision-id: uatr1:0193cee3155c6280)_
    _(proof-gate: app-surface#gate-4)_ Exercise clean Studio and its existing exact semantic-demo
    query. **Success —** clean Studio remains ordinary; only the exact flag mounts the public
    six-frame demo through the real composition path.
-7. **Native land grows without changing the island or camera.** _(witness: machine)_
+7. **Native land grows without changing the island or camera.** _(witness: machine)_ _(criterion-id: uatc_e92ecfa2a181ca2b109d7a8f)_ _(revision-id: uatr1:b7d5b8e676d14e8e)_
    _(proof-gate: app-surface#gate-5)_ Exercise boundary and representative progress plus repeated
    navigation traces. **Success —** the established SVG island/coast/ground grows in place at the
    established view box, world parcel and painter slot; equal progress yields equal geometry state;
    the retained final land is the real app SVG; no raster land frame, complete-scene composite,
    second renderer, random value or asset clock participates.
-8. **Small-plant tracks are local, registered and product-driven.** _(witness: machine)_
+8. **Small-plant tracks are local, registered and product-driven.** _(witness: machine)_ _(criterion-id: uatc_deda5e5db5d7520161632855)_ _(revision-id: uatr1:4596e689a361c681)_
    _(proof-gate: app-surface#gate-6)_ Validate and decode every referenced small-plant and flower
    frame, then walk full and reduced-motion traces. **Success —** provenance, fixed dimensions,
    order, reference camera, ground sockets, normalization, mature footprint and painter slots
@@ -180,17 +180,17 @@ controls, ready for the owner's LOOK judgment.
    Back/Replay settle identically; the SVG land remains visible; no runtime PixelLab dependency or
    unbounded count-keyed family exists, and Experiment 8's cutout-trunk plus registered-canopy/
    overlap-collar assembly does not return as the hero-tree treatment.
-9. **The corrected real-consumer route is exact and ordinary Studio stays ordinary.**
+9. **The corrected real-consumer route is exact and ordinary Studio stays ordinary.** _(criterion-id: uatc_0af87458e18a9d4495d21191)_ _(revision-id: uatr1:dae2278cc6ae9dc6)_
    _(witness: machine)_(proof-gate: app-surface#gate-7)_ Exercise clean, near-miss and exact
    organic-growth queries. **Success —** only the exact query mounts one public product player over
    the real composition path with native land plus registered organic tracks; clean and near-miss
    routes retain existing controller, selection, camera, chrome and art policy.
-10. **The hosted witness is viewable within its recorded browser budget.** _(witness: machine)_
+10. **The hosted witness is viewable within its recorded browser budget.** _(witness: machine)_ _(criterion-id: uatc_2693bf5955c1b6add7a8162c)_ _(revision-id: uatr1:77472a1815d7dfeb)_
     Open the deployed real-app witness at representative desktop and mobile viewports; capture
     request, decode, frame-pacing and commit evidence. **Success —** the whole planted composition
     and controls remain reachable, compressed/decode costs stay inside the declared budget, the
     retained final scene survives navigation, and no vendor request occurs.
-11. **The corrected composition earns the owner-held LOOK verdict.**
+11. **The corrected composition earns the owner-held LOOK verdict.** _(criterion-id: uatc_ea05f4b2c024e6500cd143fd)_ _(revision-id: uatr1:247230155a22de8a)_
     _(witness: human)(detail: app-surface#uat-11)_ Stand up and verify the clean forest deep-link plus
     exact organic-growth witness. Walk forward, Back and Replay through native island formation,
     rooted tree/canopy growth, ground plants and the retained scene at desktop/mobile sizes; sample

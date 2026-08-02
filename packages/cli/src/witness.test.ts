@@ -23,8 +23,8 @@ test("witness (bare) shows the workflow help: list · attest · vouch + the back
   const env = await run(["witness"], { store: await seeded() });
   assert.equal(env.ok, true);
   assert.match(env.body, /storytree witness list <story-id>/);
-  assert.match(env.body, /storytree witness attest <story>#uat-<n>/);
-  assert.match(env.body, /storytree witness vouch <story>#uat-<n>/);
+  assert.match(env.body, /storytree witness attest <story-id> <uatc_id>/);
+  assert.match(env.body, /storytree witness vouch <story-id> <uatc_id>/);
   assert.match(env.body, /storytree witness vouch list/);
   // teaches the verdict-vs-vouch distinction and advertises the aliases
   assert.match(env.body, /operator-attested/);

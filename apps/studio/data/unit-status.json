@@ -1,79 +1,8 @@
 {
-  "_comment": "GENERATED from signed verdicts (events.verdict) -- DO NOT EDIT. Regenerate with `pnpm build:status` (build-unit-status.ts). `healthy` is DERIVED from verdicts, never authored (ADR-0020/0040, ADR-0120).",
+  "_comment": "GENERATED from signed verdicts (events.verdict) -- DO NOT EDIT. Regenerate with `pnpm build:status` (build-unit-status.ts). `healthy` is DERIVED from verdicts, never authored (ADR-0020/0040, ADR-0120). Legacy positional UAT ids are preserved history and intentionally omitted from current proof credit (ADR-0253).",
   "units": [
     {
       "id": "agent#gate-1",
-      "status": "healthy",
-      "latestVerdict": {
-        "outcome": "pass",
-        "proofMode": "adopted",
-        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
-        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
-        "signer": "spine@storytree",
-        "approvedBy": "hua.mick@gmail.com"
-      }
-    },
-    {
-      "id": "agent#uat-1",
-      "status": "healthy",
-      "latestVerdict": {
-        "outcome": "pass",
-        "proofMode": "adopted",
-        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
-        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
-        "signer": "spine@storytree",
-        "approvedBy": "hua.mick@gmail.com"
-      }
-    },
-    {
-      "id": "agent#uat-2",
-      "status": "healthy",
-      "latestVerdict": {
-        "outcome": "pass",
-        "proofMode": "adopted",
-        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
-        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
-        "signer": "spine@storytree",
-        "approvedBy": "hua.mick@gmail.com"
-      }
-    },
-    {
-      "id": "agent#uat-3",
-      "status": "healthy",
-      "latestVerdict": {
-        "outcome": "pass",
-        "proofMode": "adopted",
-        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
-        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
-        "signer": "spine@storytree",
-        "approvedBy": "hua.mick@gmail.com"
-      }
-    },
-    {
-      "id": "agent#uat-4",
-      "status": "healthy",
-      "latestVerdict": {
-        "outcome": "pass",
-        "proofMode": "adopted",
-        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
-        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
-        "signer": "spine@storytree",
-        "approvedBy": "hua.mick@gmail.com"
-      }
-    },
-    {
-      "id": "agent#uat-5",
-      "status": "healthy",
-      "latestVerdict": {
-        "outcome": "pass",
-        "proofMode": "operator-attested",
-        "runId": "studio-uat-attest:2026-06-26T13:47:08.024Z",
-        "commitSha": "e21ee4d4bd96808bc7b62f7a154ed5a44ccc086d",
-        "signer": "operator"
-      }
-    },
-    {
-      "id": "agent#uat-6",
       "status": "healthy",
       "latestVerdict": {
         "outcome": "pass",

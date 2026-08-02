@@ -109,24 +109,24 @@ the accumulated signal warrants.
 > judgment gap; a schema or generated-agent check can prove wiring but cannot honestly prove that
 > judgment.
 
-1. **Cite (reinforce)** _(witness: machine)_ _(proof-gate: feedback-graduation#gate-1)_: reinforce an
+1. **Cite (reinforce)** _(witness: machine)_ _(proof-gate: feedback-graduation#gate-1)_: reinforce an _(criterion-id: uatc_a37bd1982dbf19f121cdfff0)_ _(revision-id: uatr1:90dc464b4a920069)_
    existing friction item with concrete recurrence evidence. **Success —** the command appends an
    attributable `{ branch, date, evidence }` entry to `reinforcedBy`, re-filing
    the same id is refused, and recurrence is represented by those links rather than a stored vote
    counter. *(proven by `friction.test.ts`: “reinforce appends a reinforcedBy entry (never a twin)”
    and “new refuses re-filing an existing id”.)*
-2. **Cite (link across artifacts)** _(witness: machine)_ _(proof-gate: feedback-graduation#gate-1)_:
+2. **Cite (link across artifacts)** _(witness: machine)_ _(proof-gate: feedback-graduation#gate-1)_: _(criterion-id: uatc_c628af1bba458b7c60a5afe9)_ _(revision-id: uatr1:24bc0e85d6af42f7)_
    capture a friction item whose shared `references` points to an implicated Library artifact.
    **Success —** a resolvable reference is accepted as the cross-artifact edge and an unresolved
    reference is refused, so signal cannot claim a dangling graph link. *(proven by
    `friction.test.ts`: “new refuses an unresolvable reference; a resolvable one passes”.)*
-3. **Archive** _(witness: machine)_ _(proof-gate: feedback-graduation#gate-1)_: route a handled item
+3. **Archive** _(witness: machine)_ _(proof-gate: feedback-graduation#gate-1)_: route a handled item _(criterion-id: uatc_4373de56ee04814cef691bb0)_ _(revision-id: uatr1:beb5000e76d5e965)_
    to `nothing` with a reason, then reinforce the archived item with later recurrence evidence.
    **Success —** `route: nothing` projects to `archived`, a missing `--reason` is refused, and the
    retained item still accepts a `reinforcedBy` entry instead of being deleted. *(proven by
    `friction.test.ts`: “lifecycleOf projects open / archived from route”, “route refuses a missing
    --reason”, and “reinforce records a recurrence on an ARCHIVED item”.)*
-4. **Synthesis** _(witness: human)_: the graduation-synthesist reads the connected friction signal
+4. **Synthesis** _(witness: human)_: the graduation-synthesist reads the connected friction signal _(criterion-id: uatc_03ea0411c6fce01ae8ff93bd)_ _(revision-id: uatr1:89b76b760f74c199)_
    with comments, agent-memory candidates, and the decision log, applies the
    `friction-adjudication` process and `friction-justification-bar`, and routes the durable essence.
    **Success —** the chosen `route` and its `routeReason` clear the justification bar against the

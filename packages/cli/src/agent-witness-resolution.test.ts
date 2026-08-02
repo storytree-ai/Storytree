@@ -39,7 +39,7 @@ test("ADR-0106 instance: each machine leg resolves to observe via agent#gate-1; 
   const spec = agentSpec();
   for (const leg of spec.uatTestCriteria) {
     const resolution = resolveWitness(leg, spec.reliabilityGates);
-    if (leg.id === "agent#uat-5") {
+    if (leg.witness === "human") {
       assert.deepEqual(resolution, { witness: "human" });
     } else {
       assert.deepEqual(resolution, {
@@ -77,11 +77,15 @@ test("ADR-0106 instance: adopting `agent` observe-signs gate-1 + the 5 machine l
 
   const env = await runAdopt("agent", {}, deps);
   assert.equal(env.ok, true);
+  const machineCriterionIds = spec.uatTestCriteria
+    .filter((criterion) => criterion.witness === "machine")
+    .map((criterion) => criterion.criterionId);
   // gate-1 + the five machine legs (1–4, 6) each earn an `adopted` verdict; leg 5 (human) does NOT.
   assert.deepEqual(
     appended.map((e) => e.doc.unitId).sort(),
-    ["agent#gate-1", "agent#uat-1", "agent#uat-2", "agent#uat-3", "agent#uat-4", "agent#uat-6"],
+    ["agent#gate-1", ...machineCriterionIds].sort(),
   );
   assert.match(env.body, /5\/5 machine observe-signed · 1 await your witness · 0 deferred/);
-  assert.match(env.body, /agent#uat-5 \(human\) — awaits your "I saw it work"/);
+  const humanCriterion = spec.uatTestCriteria.find((criterion) => criterion.witness === "human")!;
+  assert.match(env.body, new RegExp(`${humanCriterion.criterionId} \\(human\\) — awaits your "I saw it work"`));
 });

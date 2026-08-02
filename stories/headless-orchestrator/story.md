@@ -368,7 +368,7 @@ runtime surfaces a proposed unit — having written, built, signed, and landed N
 > opened by later ACCEPTED decisions, not by drift — which is exactly why leg 5's original blanket "NO
 > build/gate drive, NO landing by the agent" could not simply be re-tagged machine and left standing.
 
-1. **The read-only tool surface exposes the three surfaces and refuses every write.**
+1. **The read-only tool surface exposes the three surfaces and refuses every write.** _(criterion-id: uatc_dd56230157c85996da0a5bc1)_ _(revision-id: uatr1:b6eddfbb22380020)_
    _(witness: machine)_ Construct the orientation tool surface over the in-memory seed store
    (`writable: false`) + the real `stories/` corpus and call each tool. **Success —** the `tree` tool
    returns the work-hierarchy envelope body, the `library` tool returns the dashboard / an artifact
@@ -384,7 +384,7 @@ runtime surfaces a proposed unit — having written, built, signed, and landed N
    `tree`, `library`, `noticeboard`, `agents` — not three; the title's "three surfaces" is the ADR-0108
    orientation triad, and `agents` (the self-onboarding read) was added later. Contract
    `ots-exposes-exactly-the-read-surfaces` pins the exact four.)*
-2. **A headless session runs the injected prompt with the tools wired and surfaces the proposal.**
+2. **A headless session runs the injected prompt with the tools wired and surfaces the proposal.** _(criterion-id: uatc_7fa2dd3d2ef76ccd587e9256)_ _(revision-id: uatr1:3f06d4b7fa73a030)_
    _(witness: machine)_ Drive the runner with a `ScriptedModel`-equivalent injected `queryFn` (zero
    live calls) whose scripted session calls an orientation tool, then emits a final proposal in its
    result message. **Success —** the runner wires the orientation tools into the `query()` options,
@@ -401,7 +401,7 @@ runtime surfaces a proposed unit — having written, built, signed, and landed N
    **The loud error is a RETURNED result, not a throw:** a session ending with no result message yields
    `{ ok: false, error: "SDK session ended without a result message" }` (`:402-407`) — the runner never
    throws, so an assertion shaped as `assert.throws` would also go red.)*
-3. **The composition renders the real agent and drives a session against the real seed corpus.**
+3. **The composition renders the real agent and drives a session against the real seed corpus.** _(criterion-id: uatc_4b91382f4d89adc135be0f42)_ _(revision-id: uatr1:b1df8d5ef36af858)_
    _(witness: machine)_ Call the Phase-1 programmatic entry with an injected `queryFn`. **Success —**
    it renders the REAL `session-orchestrator` system prompt via `renderAgentPrompt` (a non-empty prompt
    carrying the orchestrator's role + injected guidance, NOT a stub), renders that prompt off the real
@@ -416,7 +416,7 @@ runtime surfaces a proposed unit — having written, built, signed, and landed N
    asserting the composition wired seed-backed orientation deps would have gone red against correct code.
    What IS true, and what `orchestrate.test.ts` actually pins, is that the system prompt handed to the
    runner is the REAL rendered `session-orchestrator` off the seed store.)*
-4. **The live runtime orients on the real three surfaces and proposes.** _(witness: human)(detail: headless-orchestrator#uat-4)_ Run the
+4. **The live runtime orients on the real three surfaces and proposes.** _(witness: human)(detail: headless-orchestrator#uat-4)_ Run the _(criterion-id: uatc_b99e6bbd2913b4f032252d69)_ _(revision-id: uatr1:9cd3a8b79f37584d)_
    programmatic entry LIVE (a real subscription `query()`, no injected `queryFn`) against the real seed
    corpus (and, with the DB up, the live notice board), then JUDGE the unit it proposed. **Success —** the
    owner's verdict that the agent, running the session-orchestrator prompt over the real three surfaces,
@@ -433,7 +433,7 @@ runtime surfaces a proposed unit — having written, built, signed, and landed N
    signed no verdict, and landed nothing" — because legs 2 and 3 already compile the tool dispatch and the
    proposal extraction, and re-adjudicated leg 5 now compiles the no-write / no-build / no-land walls.
    Restating a compiled fact as something the owner signs launders it into an unrepeatable signature.)*
-5. **Confirm the Phase-1 scope walls hold.** _(witness: machine)(detail: headless-orchestrator#uat-5)_
+5. **Confirm the Phase-1 scope walls hold.** _(witness: machine)(detail: headless-orchestrator#uat-5)_ _(criterion-id: uatc_7255f046a499b13e9a81d841)_ _(revision-id: uatr1:9ac5ef5256f76fff)_
    Drive THIS story's Phase-1 entry — the terminal `orchestrate` command
    (`packages/cli/src/commands.ts:2231-2276`) over the composition — and inspect what it actually
    constructed. **Success —** the runtime served a SINGLE orchestration: with one composition in flight a

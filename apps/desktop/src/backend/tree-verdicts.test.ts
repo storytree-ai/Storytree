@@ -26,7 +26,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Verdict } from "@storytree/proof-protocol";
+import { Verdict, criterionRevisionId } from "@storytree/proof-protocol";
+import { canonicalUatCriterionContent } from "@storytree/library";
 
 import {
   readTreeWithCaps,
@@ -41,9 +42,22 @@ import {
 // ---------------------------------------------------------------------------
 
 const TS = "2026-06-27T10:00:00.000Z";
+const C1 = "uatc_000000000000000000000001";
+const C2 = "uatc_000000000000000000000002";
+
+function authoredCriterionLine(ordinal: number, prose: string): string {
+  const criterionId = ordinal === 1 ? C1 : C2;
+  const revisionId = criterionRevisionId(canonicalUatCriterionContent(`${ordinal}. ${prose}`));
+  return `${ordinal}. ${prose} (criterion-id: ${criterionId})(revision-id: ${revisionId})`;
+}
 
 /** A full signed PASS verdict event for `unitId` (rollupStatus requires the doc to parse as a Verdict). */
-function passEvent(seq: number, unitId: string, proofMode: "capability" | "story" | "contract"): DTVerdictEvent {
+function passEvent(
+  seq: number,
+  unitId: string,
+  proofMode: "capability" | "story" | "contract",
+  revisionId?: string,
+): DTVerdictEvent {
   return {
     kind: "signing",
     seq,
@@ -55,6 +69,7 @@ function passEvent(seq: number, unitId: string, proofMode: "capability" | "story
       signer: "ci@example.com",
       runId: `run-${unitId}`,
       at: TS,
+      ...(revisionId === undefined ? {} : { criterionId: unitId, revisionId }),
     }),
   };
 }
@@ -85,7 +100,7 @@ async function seedStories(): Promise<{ dir: string; cleanup: () => Promise<void
       "",
       "## Story UAT",
       "",
-      "1. **The one leg** (witness: machine) — it works end to end.",
+      authoredCriterionLine(1, "**The one leg** (witness: machine) — it works end to end."),
     ].join("\n"),
     "utf8",
   );
@@ -133,8 +148,10 @@ test("tree-verdicts: readTreeWithCaps reads full capabilities + the per-story UA
     assert.equal(alpha.capabilities[0]?.id, "cap-a", "the cap id is the spec id");
     assert.equal(alpha.capabilities[0]?.title, "Capability A", "the cap title comes from its spec");
     assert.deepEqual(
-      uatTestCriteriaByStory.get("alpha")?.map((t) => t.id),
-      ["alpha#uat-1"],
+      uatTestCriteriaByStory.get("alpha")?.map((t) =>
+        "criterionId" in t ? t.criterionId : t.id,
+      ),
+      [C1],
       "the per-test UAT obligation is collected (its id rolls into the crown)",
     );
   } finally {
@@ -247,9 +264,14 @@ test("tree-verdicts: foldVerdicts greens the plant (own verdict) AND the island 
   const { dir, cleanup } = await seedStories();
   try {
     const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    const alphaCriterion = uatTestCriteriaByStory.get("alpha")?.[0];
+    assert.ok(alphaCriterion && "criterionId" in alphaCriterion);
     await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
       latestVerdicts: { "cap-a": { outcome: "pass", at: TS } },
-      verdictEvents: [passEvent(1, "cap-a", "capability"), passEvent(2, "alpha#uat-1", "story")],
+      verdictEvents: [
+        passEvent(1, "cap-a", "capability"),
+        passEvent(2, alphaCriterion.criterionId, "story", alphaCriterion.revisionId),
+      ],
       openQuestions: [],
     });
     const alpha = stories[0];
@@ -405,8 +427,8 @@ async function seedMixedStory(): Promise<{ dir: string; cleanup: () => Promise<v
       "",
       "## UAT Test Criteria",
       "",
-      "1. **First leg** _(witness: machine)_: it works.",
-      "2. **Second leg** _(witness: human)_: it also works.",
+      authoredCriterionLine(1, "**First leg** _(witness: machine)_: it works."),
+      authoredCriterionLine(2, "**Second leg** _(witness: human)_: it also works."),
       "",
       "## Reliability Gates",
       "",
@@ -428,14 +450,16 @@ test("tree-verdicts: readTreeWithCaps' uatCriteriaByStory collects only witnessa
   try {
     const { uatCriteriaByStory, uatTestCriteriaByStory } = await readTreeWithCaps(dir);
     assert.deepEqual(
-      uatCriteriaByStory.get("mixed")?.map((t) => t.id),
-      ["mixed#uat-1", "mixed#uat-2"],
+      uatCriteriaByStory.get("mixed")?.map((t) => t.criterionId),
+      [C1, C2],
       "only the two UAT legs — the reliability gate is excluded",
     );
     // The crown's union DOES include the gate — proving the two maps are deliberately different sets.
     assert.deepEqual(
-      uatTestCriteriaByStory.get("mixed")?.map((t) => t.id).sort(),
-      ["mixed#gate-1", "mixed#uat-1", "mixed#uat-2"].sort(),
+      uatTestCriteriaByStory.get("mixed")?.map((t) =>
+        "criterionId" in t ? t.criterionId : t.id,
+      ).sort(),
+      ["mixed#gate-1", C1, C2].sort(),
       "the crown's own-obligation union still includes the gate (a different, wider set)",
     );
   } finally {
@@ -447,6 +471,7 @@ test("tree-verdicts: foldVerdicts derives uatCriteria state from the SAME signed
   const { dir, cleanup } = await seedMixedStory();
   try {
     const { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    const criteria = uatCriteriaByStory.get("mixed")!;
     await foldVerdicts(
       stories,
       uatTestCriteriaByStory,
@@ -454,12 +479,12 @@ test("tree-verdicts: foldVerdicts derives uatCriteria state from the SAME signed
       {
         latestVerdicts: null,
         verdictEvents: [
-          passEvent(1, "mixed#uat-1", "story"),
+          passEvent(1, C1, "story", criteria[0]!.revisionId),
           // mixed#uat-2 regressed: rollupStatus is conservative — a bare fail with no prior pass
           // grants nothing (abstains to 'pending'); 'failing' is reached only via demotion after a
           // proven pass, the same path rollupStoryGreen's `unhealthy` uses.
-          passEvent(2, "mixed#uat-2", "story"),
-          { kind: "signing", seq: 3, doc: { unitId: "mixed#uat-2", proofMode: "story", outcome: "fail", commitSha: "ca".repeat(20), signer: "ci@example.com", runId: "run-fail", at: TS } },
+          passEvent(2, C2, "story", criteria[1]!.revisionId),
+          { kind: "signing", seq: 3, doc: { unitId: C2, criterionId: C2, revisionId: criteria[1]!.revisionId, proofMode: "story", outcome: "fail", commitSha: "ca".repeat(20), signer: "ci@example.com", runId: "run-fail", at: TS } },
         ],
         openQuestions: [],
       },
@@ -470,8 +495,8 @@ test("tree-verdicts: foldVerdicts derives uatCriteria state from the SAME signed
     assert.deepEqual(
       mixed.uatCriteria,
       [
-        { id: "mixed#uat-1", state: "proven" },
-        { id: "mixed#uat-2", state: "failing" },
+        { id: C1, state: "proven" },
+        { id: C2, state: "failing" },
       ],
       "signed pass -> proven, signed fail -> failing, mirroring the studio's applyUatCriteria",
     );
@@ -496,8 +521,8 @@ test("tree-verdicts: foldVerdicts with no verdict events yields 'pending' for ev
     assert.deepEqual(
       mixed.uatCriteria,
       [
-        { id: "mixed#uat-1", state: "pending" },
-        { id: "mixed#uat-2", state: "pending" },
+        { id: C1, state: "pending" },
+        { id: C2, state: "pending" },
       ],
       "a down DB / json backend under-claims to pending, never fabricates proven/failing",
     );

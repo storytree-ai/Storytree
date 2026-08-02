@@ -303,49 +303,49 @@ speculative breadth).
 embedded terminal opens in that repo — the terminal refusing to run until they pick, the selection
 surviving a relaunch, the studio-standalone build degrading honestly, and the picker reading right.
 
-1. **The repo selection lifecycle is honest over validate → persist → resolve.** _(witness: machine)_
+1. **The repo selection lifecycle is honest over validate → persist → resolve.** _(witness: machine)_ _(criterion-id: uatc_0d1b120243f0c67745b1b371)_ _(revision-id: uatr1:8b4ec3f81c086d7f)_
    Over injected fake `DirProbe` + `SelectionStore` ports, `repo-selection` accepts a valid git dir,
    rejects a missing/non-dir/non-git path with a typed reason (no throw), persists a valid selection and
    not an invalid one, reads it back via `current()`, and `resolveCwd(fallback)` returns the selected dir
    when valid else the fallback. **Success —** [`repo-selection`](repo-selection.md)'s signed verdict (the
    backend lifecycle, no real fs).
-2. **The renderer picker reflects, picks, cancels, and degrades honestly.** _(witness: machine)_ Over a
+2. **The renderer picker reflects, picks, cancels, and degrades honestly.** _(witness: machine)_ Over a _(criterion-id: uatc_3559ea6c62ac371f65e8a886)_ _(revision-id: uatr1:b9099d9a96be27b5)_
    mocked `desktopRepo` bridge, the picker reflects the current selection on mount, calls `pick()` on
    click and updates the shown selection on a resolved path, leaves it unchanged on a cancelled (null)
    pick, and renders a disabled "repo picker unavailable" state where the bridge is absent — never calling
    the bridge, never hanging, never crashing. **Success —** [`repo-picker-panel`](repo-picker-panel.md)'s
    signed verdict (geometry + wiring, the bridge mocked).
-3. **The embedded terminal spawns in the picked repo.** _(witness: machine)(detail: terminal-repo-picker#uat-3)_ In the Electron
+3. **The embedded terminal spawns in the picked repo.** _(witness: machine)(detail: terminal-repo-picker#uat-3)_ In the Electron _(criterion-id: uatc_74b4d2149f15ed9ae409ac6c)_ _(revision-id: uatr1:ae2a5c0999123b9c)_
    `_electron` harness with `dialog.showOpenDialog` stubbed in the main to return a known git checkout,
    `desktopRepo.pick()` validates and persists it through the REAL `node:fs` probe and the REAL userData
    store; expanding the terminal spawns a REAL node-pty, and `pwd` echoed through that shell reports the
    picked directory — not the serve root. **Success —** the real pty's `cwd` is the picked directory,
    read back from the main-held scrollback (`desktopTerminal.snapshot`), the renderer-independent
    observable.
-4. **The fail-closed gate holds end-to-end.** _(witness: machine)(detail: terminal-repo-picker#uat-4)_ With NO valid selection the gate
+4. **The fail-closed gate holds end-to-end.** _(witness: machine)(detail: terminal-repo-picker#uat-4)_ With NO valid selection the gate _(criterion-id: uatc_9a9874898ed0a4bcd63ef842)_ _(revision-id: uatr1:d06ab87fa68e51f9)_
    renders `.terminal-gate-message` ("Select a repository to start the terminal") and
    `desktopTerminal.list()` stays EMPTY — no pty is spawned at all; after a stubbed pick the dock renders
    and a pty spawns in that repo; a stubbed pick of a DIFFERENT repo remounts the cwd-keyed dock and a
    FRESH session id appears with the new cwd. **Success —** the real terminal is genuinely refused until
    a valid repo exists and reopens on a change, observed across the real bridge and a real pty (not the
    mocked-bridge wiring capability 3 signs).
-5. **The selection survives an app relaunch.** _(witness: machine)(detail: terminal-repo-picker#uat-5)_ Launch against a clean userData, pick
+5. **The selection survives an app relaunch.** _(witness: machine)(detail: terminal-repo-picker#uat-5)_ Launch against a clean userData, pick _(criterion-id: uatc_603f610cc0366abbb554227d)_ _(revision-id: uatr1:373affe900ba50f7)_
    (stubbed dialog), assert the selection persisted to `repo-selection.json`; close the app; relaunch
    against the SAME userData; `repo:get` returns the same path with no second pick, and the terminal
    reopens there. **Success —** the selection is durable across a real process restart, proven by two
    sequential real app launches.
-6. **The studio-standalone build degrades honestly.** _(witness: machine)_ Where `window.desktopRepo` is
+6. **The studio-standalone build degrades honestly.** _(witness: machine)_ Where `window.desktopRepo` is _(criterion-id: uatc_f6d1cb710dabeb5c800f5674)_ _(revision-id: uatr1:3d9e2306fc42b067)_
    absent — the hosted/dev studio in a plain browser, since only the Electron preload defines the bridge
    — the picker renders a disabled "repo picker unavailable" state and the gate renders `TerminalDock`
    directly, never calling the bridge, never hanging, never crashing. **Success —**
    [`repo-picker-panel`](repo-picker-panel.md)'s and [`terminal-repo-gate`](terminal-repo-gate.md)'s
    signed absent-bridge verdicts.
-7. **The native OS directory dialog opens and is usable.** _(witness: human)_ The member clicks "Choose
+7. **The native OS directory dialog opens and is usable.** _(witness: human)_ The member clicks "Choose _(criterion-id: uatc_7a3b2d98cf30074c51c67eac)_ _(revision-id: uatr1:59c0b960aae358a1)_
    repo…" and a REAL native OS directory chooser appears, titled for this purpose, and returns their
    chosen checkout. **Success —** the owner's attestation that the one call legs 3–5 stub behaves in the
    real OS. *(operator-attested and irreducible — an OS-level modal sits outside every harness the proof
    spine owns, and "usable" is an owner judgment, not an observable.)*
-8. **The picker and the gate read right.** _(witness: human)_ The repo picker reads and sits well beside
+8. **The picker and the gate read right.** _(witness: human)_ The repo picker reads and sits well beside _(criterion-id: uatc_61d6aa93f4a17ddfb756654a)_ _(revision-id: uatr1:dd2640efeaddf992)_
    the terminal dock, and the gate's "Select a repository to start the terminal" message reads right in
    its place. **Success —** the owner's stage-2 visual verdict (ADR-0070). *(operator-attested and
    irreducible — look and feel have no compiler and are never machine-asserted nor model-judged,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Outcome, ProofMode } from "./enums.js";
+import { CriterionId, CriterionRevisionId } from "./criterion-binding.js";
 
 /**
  * The verdict DATA shapes (ADR-0068 §3) — the published SHAPE readers validate
@@ -67,7 +68,7 @@ export type ContractCoverageAxis = z.infer<typeof ContractCoverageAxis>;
  * predates it — and every current producer that does not set it — validates and round-trips
  * unchanged, gaining the tag on parse.
  */
-export const Verdict = z
+const VerdictData = z
   .object({
     unitId: z.string(),
     proofMode: ProofMode,
@@ -89,6 +90,10 @@ export const Verdict = z
      * docs that omit it parse unchanged. A reader keys its parse on this before trusting fields.
      */
     outputVersion: VerdictOutputVersion.default("v1"),
+    /** ADR-0253: exact UAT criterion identity. Present only together with revisionId. */
+    criterionId: CriterionId.optional(),
+    /** ADR-0253: exact immutable UAT criterion revision. Present only together with criterionId. */
+    revisionId: CriterionRevisionId.optional(),
     /**
      * ADR-0016 binding anchor: the content-hash (hashSpan) of the proved span at sign time — what
      * lets a verdict know WHICH code it proved, so drift is computable later. OPTIONAL for back-compat:
@@ -108,7 +113,38 @@ export const Verdict = z
     at: z.string(),
   })
   .strict();
+
+export const Verdict = VerdictData.superRefine((value, ctx) => {
+  const hasCriterion = value.criterionId !== undefined;
+  const hasRevision = value.revisionId !== undefined;
+  if (hasCriterion !== hasRevision) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: hasCriterion ? ["revisionId"] : ["criterionId"],
+      message: "criterionId and revisionId must be present together",
+    });
+  }
+  if (value.criterionId !== undefined && value.unitId !== value.criterionId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["unitId"],
+      message: "a criterion verdict unitId must equal criterionId",
+    });
+  }
+});
 export type Verdict = z.infer<typeof Verdict>;
+
+/** A new UAT verdict. Legacy/non-UAT verdicts remain readable through Verdict. */
+export const CriterionVerdict = Verdict.superRefine((value, ctx) => {
+  if (value.criterionId === undefined || value.revisionId === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["criterionId"],
+      message: "criterion verdicts require the exact criterionId and revisionId",
+    });
+  }
+});
+export type CriterionVerdict = z.infer<typeof CriterionVerdict>;
 
 /**
  * The persisted signed-proof event row (ADR-0017 event store). The durable record of a

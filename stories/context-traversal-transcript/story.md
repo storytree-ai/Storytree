@@ -124,7 +124,7 @@ each other; the ingest composes both and increment 2's sink.
 occupancy series that can fall, correlated to the right session, named per window, and idempotent —
 with every ADR-0235 honesty rule intact.
 
-1. **A real spawned ingest writes a falling occupancy series.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_
+1. **A real spawned ingest writes a falling occupancy series.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_ _(criterion-id: uatc_80bd59185c3160fb51a2c4ba)_ _(revision-id: uatr1:1d0a1d0b9cc61852)_
    Build a temporary transcript root holding one project directory whose transcript records assistant
    messages under a `cwd` of `<tmp>/.claude/worktrees/<sessionId>`, with per-request resident totals
    that RISE and then FALL. Spawn the real CLI binary
@@ -133,29 +133,29 @@ with every ADR-0235 honesty rule intact.
    **Success —** the trace directory holds one session file whose replay contains one
    `model_context` event per request, in order, whose `residentInputTokens` series is non-monotonic —
    it goes down at least once — written by a process that has since exited.
-2. **Occupancy is the resident total, not the billing total.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_
+2. **Occupancy is the resident total, not the billing total.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_ _(criterion-id: uatc_4b2c037dd7574f5450c9b3fd)_ _(revision-id: uatr1:4357b55f88f8f4a2)_
    In the same spawned run, one request's `cache_read_input_tokens` dominates its `input_tokens` by
    three orders of magnitude. **Success —** that event's `residentInputTokens` equals the sum of the
    request's three input axes, its `cumulativeInputTokens` is strictly larger (the running billing
    total), and `contextWindowCapacity` is absent as a KEY — the transcript declares no window size
    and none is invented.
-3. **Two windows in one session stay two windows.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_
+3. **Two windows in one session stay two windows.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_ _(criterion-id: uatc_f7e9c84c49eea4685c300d31)_ _(revision-id: uatr1:49d9b0d829d22a07)_
    The temporary transcript root holds a SECOND transcript written under the same worktree `cwd`.
    **Success —** the replay holds both windows' events under one `sessionId`, every event carries the
    `windowId` of the transcript it came from, the two `windowId` values differ, and each window's
    `cumulativeInputTokens` restarts from its own first request rather than continuing the other's.
-4. **A foreign session's transcript is never correlated.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_
+4. **A foreign session's transcript is never correlated.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_ _(criterion-id: uatc_269685e94dabe5cbf9852658)_ _(revision-id: uatr1:c7a8c68f45bd9022)_
    The temporary transcript root also holds a transcript written under the MAIN checkout `cwd` and
    one written under a worktree whose name has the target session id as a strict prefix. **Success —**
    neither contributes any event, the spawned command still exits 0, and its rendered body states how
    many transcript files it scanned and how many windows it correlated — an uncorrelated file is
    reported, never silently dropped.
-5. **Re-ingesting the same transcripts appends nothing.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_
+5. **Re-ingesting the same transcripts appends nothing.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_ _(criterion-id: uatc_e8ef7fe3eed5bcbed7903559)_ _(revision-id: uatr1:a701031e0f439e14)_
    Spawn the same ingest command a second time against the unchanged directories. **Success —** the
    session trace file's BYTE LENGTH is unchanged, the replay's event count is unchanged, and the
    second run's envelope reports zero appended — asserted against the file contents, not merely
    against a parsed count.
-6. **No transcript content reaches the trace.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_
+6. **No transcript content reaches the trace.** _(witness: machine)_ _(proof-gate: context-traversal-transcript#gate-1)_ _(criterion-id: uatc_74f6b07e4ea15603fe4013d8)_ _(revision-id: uatr1:a13458bc5262c3db)_
    Every assistant message in the temporary transcripts carries canary prose in its text content, and
    one carries it in a tool result. **Success —** the session file's BYTES do not contain the canary,
    and the rendered envelope does not either — ADR-0235 clause 6 asserted on bytes, exactly as

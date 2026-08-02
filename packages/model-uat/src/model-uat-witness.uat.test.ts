@@ -11,6 +11,7 @@ import type { WitnessResolution } from "./model-uat-witness.js";
 // `index.ts` currently exports. A downstream story depends on the package root, not
 // on reaching into `model-uat-witness.js` directly.
 import * as ModelUatPackageRoot from "./index.js";
+import { authoredCriteria, EXACT_CRITERION } from "./criterion.test-helpers.js";
 
 /**
  * Story UAT for `model-uat-witness` (ADR-0209): the integrated acceptance walkthrough proving the
@@ -33,13 +34,13 @@ const STORY = "model-uat-witness-demo";
 // Leg 1 + 2 — classify the three kinds, and legacy stays unresolved
 // ---------------------------------------------------------------------------
 
-const JOURNEY_BODY = `## UAT Test Criteria
+const JOURNEY_BODY = authoredCriteria(`## UAT Test Criteria
 
 1. **Machine leg** _(witness: machine)_: a deterministic, spine-observed proof.
 2. **Human leg** _(witness: human)_: irreducible operator judgment.
 3. **Model leg, advanced** _(witness: model)(tier: advanced)_: judged by an eligible registered judge.
 4. **Legacy leg:** an existing untagged criterion awaiting explicit migration.
-`;
+`);
 
 test("UAT leg 1: the three kinds classify explicitly and distinctly", () => {
   const results = resolveStoryWitnesses(STORY, JOURNEY_BODY, SEED_MODEL_REGISTRY);
@@ -71,7 +72,7 @@ test("UAT leg 2: an untagged legacy criterion stays unresolved and never default
 });
 
 test("UAT leg 2 (direct call): resolveWitness on a bare-parsed legacy criterion is legacy-unresolved", () => {
-  const legacy = Criterion.parse({ id: `${STORY}#uat-9`, title: "Untagged" });
+  const legacy = Criterion.parse({ ...EXACT_CRITERION, title: "Untagged" });
   const resolution: WitnessResolution = resolveWitness(legacy, SEED_MODEL_REGISTRY);
   assert.equal(resolution.status, "legacy-unresolved");
 });
@@ -80,15 +81,15 @@ test("UAT leg 2 (direct call): resolveWitness on a bare-parsed legacy criterion 
 // Leg 3 — a model criterion declares its tier, and the facade surfaces it
 // ---------------------------------------------------------------------------
 
-const ADVANCED_BODY = `## UAT Test Criteria
+const ADVANCED_BODY = authoredCriteria(`## UAT Test Criteria
 
 1. **Model leg, advanced** _(witness: model)(tier: advanced)_: judged by a registered advanced-or-stronger judge.
-`;
+`);
 
-const FRONTIER_BODY = `## UAT Test Criteria
+const FRONTIER_BODY = authoredCriteria(`## UAT Test Criteria
 
 1. **Model leg, frontier** _(witness: model)(tier: frontier)_: judged by a registered frontier judge.
-`;
+`);
 
 test("UAT leg 3: an advanced-tier model criterion resolves eligible under a frontier-only registry (tier surfaced)", () => {
   const frontierOnly: ModelRegistry = {
@@ -111,7 +112,7 @@ test("UAT leg 3: a frontier-tier model criterion carries its own declared tier t
 });
 
 test("UAT leg 3: the facade refuses at the parse boundary exactly as the underlying parser does", () => {
-  const missingTierBody = "## UAT Test Criteria\n\n1. **Bad** _(witness: model)_: no tier declared.\n";
+  const missingTierBody = authoredCriteria("## UAT Test Criteria\n\n1. **Bad** _(witness: model)_: no tier declared.\n");
   assert.throws(
     () => resolveStoryWitnesses(STORY, missingTierBody, SEED_MODEL_REGISTRY),
     /tier/i,

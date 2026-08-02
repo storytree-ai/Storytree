@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CriterionId, CriterionRevisionId } from "@storytree/proof-protocol";
 
 /**
  * The `judge-result-shape` capability (ADR-0209 D3): a model-judge's structured
@@ -17,8 +18,10 @@ const SELF_SIGNING_KEYS = ["signature", "signedBy", "verdictSeal", "seal"] as co
 
 export const JudgeResult = z
   .object({
-    /** Stable criterion id, `<story>#uat-<n>`. */
-    criterionId: z.string().min(1),
+    /** Markdown-authored opaque criterion id. */
+    criterionId: CriterionId,
+    /** Exact immutable content revision judged. */
+    revisionId: CriterionRevisionId,
     /** Structured ternary outcome. */
     outcome: JudgeOutcome,
     /** Evidence references supporting the judgment. */

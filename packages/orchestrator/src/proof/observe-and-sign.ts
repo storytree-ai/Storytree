@@ -60,7 +60,11 @@ export interface AdoptedVerdictStore {
 /** Every seam {@link observeAndSign} touches, injected for determinism. */
 export interface ObserveAndSignSpec {
   /** The author-declared gate being adopted (only the fields the compute reads). */
-  gate: Pick<ReliabilityGate, "id" | "kind" | "proofCommand">;
+  gate: Pick<ReliabilityGate, "id" | "kind" | "proofCommand"> &
+    (
+      | { criterionId: string; revisionId: string }
+      | { criterionId?: never; revisionId?: never }
+    );
   /** The session repo's HEAD + clean-tree state; the verdict pins this commit. */
   gitState: () => Promise<ObserveGitState>;
   /** The spine's out-of-band observation of the declared command (exit code as data). */
@@ -150,6 +154,9 @@ export async function observeAndSign(spec: ObserveAndSignSpec): Promise<ObserveA
   //    refusal nothing was written.
   const verdict: Verdict = {
     unitId: gate.id,
+    ...(gate.criterionId === undefined
+      ? {}
+      : { criterionId: gate.criterionId, revisionId: gate.revisionId }),
     proofMode: "adopted",
     outcome: "pass",
     commitSha: tree.commitSha,

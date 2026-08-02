@@ -13,7 +13,8 @@
  * DO NOT import from any organism's `/store` subpath — the seam keeps this module offline-testable.
  */
 
-import type { Attestation } from "@storytree/proof-protocol";
+import type { UatTestCriterion } from "@storytree/library";
+import type { Attestation, StoredAttestation } from "@storytree/proof-protocol";
 import { resolveSignerFromEnv, type SignerResult } from "@storytree/orchestrator";
 
 import type { Envelope } from "./envelope.js";
@@ -25,7 +26,7 @@ import type { SessionIdentity } from "@storytree/drive";
 
 export interface AttestationStoreLike {
   record(att: Attestation): Promise<Attestation>;
-  history(testId: string): Promise<Attestation[]>;
+  history(testId: string): Promise<StoredAttestation[]>;
   /** All attestation rows for the tree view's per-test marks (attestation-surface). */
   readEvents(): Promise<ReadonlyArray<{ seq: number; doc: unknown }>>;
 }
@@ -33,6 +34,8 @@ export interface AttestationStoreLike {
 export interface AttestDeps {
   /** The live attestation store when --pg; null offline (writes/reads both need it). */
   store: AttestationStoreLike | null;
+  /** Current Markdown-owned criteria for resolving the exact revision at write time. */
+  loadUatTestCriteria: (storyId: string) => UatTestCriterion[];
   /** Session identity (the scribing agent) for `relayedBy`; null outside a worktree. */
   identity: SessionIdentity | null;
   /** Injectable signer resolver (flag → STORYTREE_SIGNER → git email); fail-closed. */
@@ -51,23 +54,19 @@ export interface AttestOpts {
 export interface AttestInvocation {
   mode: "record" | "list";
   testId: string | undefined;
+  /** Required for record because an opaque criterion id does not encode its owning story. */
+  storyId?: string | undefined;
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** The story id a test belongs to (`<story>#uat-<n>` → `<story>`). */
-function storyOf(testId: string): string {
-  const hash = testId.indexOf("#");
-  return hash > 0 ? testId.slice(0, hash) : testId;
-}
-
 function needsPg(verb: string): Envelope {
   return {
     ok: false,
     body: `attest ${verb} needs the live store (--pg). Bring the DB up and retry with --pg.`,
-    next: ["pnpm db:up", "storytree attest <story>#uat-<n> --outcome pass --witness human --pg"],
+    next: ["pnpm db:up", "storytree attest <story-id> <uatc_id> --outcome pass --witness human --pg"],
   };
 }
 
@@ -79,8 +78,8 @@ export function attestHelp(): Envelope {
       "human or a machine saw a specific test work. A vouch is NOT a gate verdict — it lives in",
       "events.attestation, never events.verdict, and never greens the story.",
       "",
-      "  storytree attest <story>#uat-<n> [flags] --pg   record an attestation",
-      "  storytree attest list <story>#uat-<n> --pg      show a test's attestation history",
+      "  storytree attest <story-id> <uatc_id> [flags] --pg   record an exact-revision attestation",
+      "  storytree attest list <stored-key> --pg             show current or preserved legacy history",
       "",
       "flags:",
       "  --outcome pass|fail     what was observed            (default pass)",
@@ -89,7 +88,8 @@ export function attestHelp(): Envelope {
       "  --relayed-by <id>       the agent that scribed        (default: this session)",
       "  --note <text>           free-text note",
       "",
-      "test ids come from a story's UAT prose: storytree tree <story> --pg.",
+      "current criterion ids come from Markdown: storytree tree <story> --pg.",
+      "Legacy <story>#uat-<n> keys are readable history only; new attestations require an opaque id.",
     ].join("\n"),
     next: ["storytree tree <story> --pg"],
   };
@@ -104,7 +104,7 @@ export async function attestCommand(
   opts: AttestOpts,
   deps: AttestDeps,
 ): Promise<Envelope> {
-  const { mode, testId } = inv;
+  const { mode, testId, storyId } = inv;
 
   // -- list --------------------------------------------------------------------
   if (mode === "list") {
@@ -112,7 +112,7 @@ export async function attestCommand(
     if (testId === undefined || testId.trim().length === 0) {
       return {
         ok: false,
-        body: "attest list needs a test id: storytree attest list <story>#uat-<n> --pg",
+        body: "attest list needs a stored key: storytree attest list <uatc_id-or-legacy-key> --pg",
         next: ["storytree tree <story> --pg"],
       };
     }
@@ -121,7 +121,7 @@ export async function attestCommand(
       return {
         ok: true,
         body: `No attestations recorded for "${testId}" yet.`,
-        next: [`storytree attest ${testId} --outcome pass --witness human --pg`],
+        next: ["storytree witness list <story-id> --pg"],
       };
     }
     const lines = [`Attestations for "${testId}" (${history.length}, oldest first):`];
@@ -130,16 +130,33 @@ export async function attestCommand(
       const note = a.note !== undefined ? `  — ${a.note}` : "";
       lines.push(`  [${a.witness}] ${a.outcome}  signer=${a.signer}  ${a.at}${relay}${note}`);
     }
-    return { ok: true, body: lines.join("\n"), next: [`storytree tree ${storyOf(testId)} --pg`] };
+    return { ok: true, body: lines.join("\n"), next: ["storytree tree <story-id> --pg"] };
   }
 
   // -- record ------------------------------------------------------------------
   if (deps.store === null) return needsPg("record");
-  if (testId === undefined || testId.trim().length === 0) {
+  if (
+    storyId === undefined ||
+    storyId.trim().length === 0 ||
+    testId === undefined ||
+    testId.trim().length === 0
+  ) {
     return {
       ok: false,
-      body: "attest needs a test id: storytree attest <story>#uat-<n> --outcome pass --witness human --pg",
+      body: "attest needs a story id and criterion id: storytree attest <story-id> <uatc_id> --outcome pass --witness human --pg",
       next: ["storytree tree <story> --pg"],
+    };
+  }
+  const story = storyId.trim();
+  const criterionId = testId.trim();
+  const criterion = deps
+    .loadUatTestCriteria(story)
+    .find((candidate) => candidate.criterionId === criterionId);
+  if (criterion === undefined) {
+    return {
+      ok: false,
+      body: `no current UAT criterion "${criterionId}" in story "${story}"; refusing to bind a new attestation by position or migration history.`,
+      next: [`storytree witness list ${story} --pg`],
     };
   }
 
@@ -159,7 +176,7 @@ export async function attestCommand(
       ok: false,
       body:
         `${resolved.error}\nName the operator who observed: --signer <email> (or set git user.email / STORYTREE_SIGNER).`,
-      next: [`storytree attest ${testId} --outcome ${outcome} --witness ${witness} --signer <email> --pg`],
+      next: [`storytree attest ${story} ${criterionId} --outcome ${outcome} --witness ${witness} --signer <email> --pg`],
     };
   }
 
@@ -169,7 +186,9 @@ export async function attestCommand(
   const relayedBy = witness === "human" ? (opts.relayedBy ?? deps.identity?.sessionId) : opts.relayedBy;
 
   const doc: Attestation = {
-    testId: testId.trim(),
+    testId: criterion.criterionId,
+    criterionId: criterion.criterionId,
+    revisionId: criterion.revisionId,
     outcome,
     witness,
     signer: resolved.signer,
@@ -196,6 +215,6 @@ export async function attestCommand(
   return {
     ok: true,
     body: lines.join("\n"),
-    next: [`storytree attest list ${saved.testId} --pg`, `storytree tree ${storyOf(saved.testId)} --pg`],
+    next: [`storytree attest list ${saved.testId} --pg`, `storytree tree ${story} --pg`],
   };
 }

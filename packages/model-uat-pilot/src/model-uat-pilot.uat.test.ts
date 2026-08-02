@@ -34,7 +34,7 @@ test("uat-2: Zero legacy-unresolved on the three pilots", () => {
   for (const storyId of PILOT_STORY_IDS) {
     const body = readFileSync(join(REPO_ROOT, "stories", storyId, "story.md"), "utf8");
     for (const c of parseCriteria(storyId, body)) {
-      assert.notEqual(c.witness, "either", c.id);
+      assert.notEqual(c.witness, "either", c.criterionId);
       if (c.witness === "model") {
         assert.ok(c.tier === "advanced" || c.tier === "frontier");
       }
@@ -47,7 +47,11 @@ test("uat-3: Every pilot criterion has a resolvable detail", () => {
 });
 
 test("uat-4: Silent model default is refused", () => {
-  const untagged = Criterion.parse({ id: "fixture#uat-1", title: "Legacy" });
+  const untagged = Criterion.parse({
+    criterionId: "uatc_0123456789abcdef01234567",
+    revisionId: "uatr1:0123456789abcdef",
+    title: "Legacy",
+  });
   assert.equal(untagged.witness, "either");
   assert.equal(isMigratedCriterion(untagged), false);
 });

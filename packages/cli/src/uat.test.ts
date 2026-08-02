@@ -57,10 +57,17 @@ function fakeStore(seed: StoreEvent[] = []) {
   };
 }
 
+const C1 = "uatc_000000000000000000000001";
+const C2 = "uatc_000000000000000000000002";
+const C3 = "uatc_000000000000000000000003";
+const R1 = "uatr1:0000000000000001";
+const R2 = "uatr1:0000000000000002";
+const R3 = "uatr1:0000000000000003";
+
 const DEMO_TESTS: UatTestCriterion[] = [
-  { id: "demo#uat-1", title: "Human relay", witness: "human", wouldBe: false },
-  { id: "demo#uat-2", title: "Machine run", witness: "machine", wouldBe: false },
-  { id: "demo#uat-3", title: "Either", witness: "either", wouldBe: false },
+  { criterionId: C1, revisionId: R1, title: "Human relay", witness: "human", wouldBe: false },
+  { criterionId: C2, revisionId: R2, title: "Machine run", witness: "machine", wouldBe: false },
+  { criterionId: C3, revisionId: R3, title: "Either", witness: "either", wouldBe: false },
 ];
 
 function baseDeps(over: Partial<UatDeps> = {}): UatDeps {
@@ -91,7 +98,7 @@ test("list: a story with no UAT test criteria reports so (ok)", async () => {
 test("list: offline (no store) renders tests but drops the PROVEN column", async () => {
   const r = await uatCommand({ mode: "list", target: "demo" }, {}, baseDeps({ store: null }));
   assert.equal(r.ok, true);
-  assert.match(r.body, /demo#uat-1/);
+  assert.match(r.body, new RegExp(C1));
   assert.match(r.body, /witness=human/);
   assert.doesNotMatch(r.body, /proven=/);
   assert.match(r.body, /proven state needs the live store/);
@@ -101,11 +108,13 @@ test("list: with the store shows per-test PROVEN glyphs and the story roll-up", 
   // Seed a signed pass for uat-1 only — so the story under-claims (not all proven).
   const f = fakeStore();
   await f.store.appendEvent({
-    id: "r:demo#uat-1",
+    id: `r:${C1}`,
     kind: SIGNING_EVENT_KIND,
     type: "created",
     doc: {
-      unitId: "demo#uat-1",
+      unitId: C1,
+      criterionId: C1,
+      revisionId: R1,
       proofMode: "operator-attested",
       outcome: "pass",
       commitSha: "abc",
@@ -116,22 +125,27 @@ test("list: with the store shows per-test PROVEN glyphs and the story roll-up", 
   });
   const r = await uatCommand({ mode: "list", target: "demo" }, {}, baseDeps({ store: f.store }));
   assert.equal(r.ok, true);
-  assert.match(r.body, /demo#uat-1.*proven=✓/);
-  assert.match(r.body, /demo#uat-2.*proven=–/);
+  assert.match(r.body, new RegExp(`${C1}.*proven=✓`));
+  assert.match(r.body, new RegExp(`${C2}.*proven=–`));
   assert.match(r.body, /story UAT: unproven/);
 });
 
 // ── uat attest: refusals (the honesty walls) ─────────────────────────────────────
 
 test("attest: refuses an unknown test id", async () => {
-  const r = await uatCommand({ mode: "attest", target: "demo#uat-9" }, {}, baseDeps());
+  const unknown = "uatc_000000000000000000000009";
+  const r = await uatCommand(
+    { mode: "attest", storyId: "demo", target: unknown },
+    {},
+    baseDeps(),
+  );
   assert.equal(r.ok, false);
-  assert.match(r.body, /no UAT test "demo#uat-9"/);
+  assert.match(r.body, new RegExp(`no UAT criterion "${unknown}"`));
 });
 
 test("attest: refuses a bad --outcome", async () => {
   const r = await uatCommand(
-    { mode: "attest", target: "demo#uat-1" },
+    { mode: "attest", storyId: "demo", target: C1 },
     { outcome: "maybe" },
     baseDeps(),
   );
@@ -141,7 +155,7 @@ test("attest: refuses a bad --outcome", async () => {
 
 test("attest: refuses an unresolved signer", async () => {
   const r = await uatCommand(
-    { mode: "attest", target: "demo#uat-1" },
+    { mode: "attest", storyId: "demo", target: C1 },
     {},
     baseDeps({ resolveSigner: () => ({ ok: false, error: "no signer" }) }),
   );
@@ -152,7 +166,7 @@ test("attest: refuses an unresolved signer", async () => {
 test("attest: a machine-witness test refuses operator attestation (run the machine proof)", async () => {
   const f = fakeStore();
   const r = await uatCommand(
-    { mode: "attest", target: "demo#uat-2" },
+    { mode: "attest", storyId: "demo", target: C2 },
     {},
     baseDeps({ store: f.store }),
   );
@@ -164,7 +178,7 @@ test("attest: a machine-witness test refuses operator attestation (run the machi
 test("attest: a sandbox (agent) signer can never self-attest a human test", async () => {
   const f = fakeStore();
   const r = await uatCommand(
-    { mode: "attest", target: "demo#uat-1" },
+    { mode: "attest", storyId: "demo", target: C1 },
     { signer: "sandbox:claude-opus-4-8@run-9" },
     baseDeps({ store: f.store }),
   );
@@ -176,7 +190,7 @@ test("attest: a sandbox (agent) signer can never self-attest a human test", asyn
 test("attest: the building session can never self-attest its own human test", async () => {
   const f = fakeStore();
   const r = await uatCommand(
-    { mode: "attest", target: "demo#uat-1" },
+    { mode: "attest", storyId: "demo", target: C1 },
     { signer: "goofy-aryabhata" }, // == the session identity
     baseDeps({ store: f.store, identity: { sessionId: "goofy-aryabhata", branch: "x" } }),
   );
@@ -186,7 +200,7 @@ test("attest: the building session can never self-attest its own human test", as
 
 test("attest: refuses without --pg (the store is null)", async () => {
   const r = await uatCommand(
-    { mode: "attest", target: "demo#uat-1" },
+    { mode: "attest", storyId: "demo", target: C1 },
     {},
     baseDeps({ store: null }),
   );
@@ -197,7 +211,7 @@ test("attest: refuses without --pg (the store is null)", async () => {
 test("attest: refuses on a dirty tree (the verdict pins a commit)", async () => {
   const f = fakeStore();
   const r = await uatCommand(
-    { mode: "attest", target: "demo#uat-1" },
+    { mode: "attest", storyId: "demo", target: C1 },
     {},
     baseDeps({ store: f.store, gitState: () => ({ commitSha: "abc", clean: false }) }),
   );
@@ -211,14 +225,16 @@ test("attest: refuses on a dirty tree (the verdict pins a commit)", async () => 
 test("attest: a human test signs an operator-attested verdict into events.verdict", async () => {
   const f = fakeStore();
   const r = await uatCommand(
-    { mode: "attest", target: "demo#uat-1" },
+    { mode: "attest", storyId: "demo", target: C1 },
     { note: "saw the relay land" },
     baseDeps({ store: f.store }),
   );
   assert.equal(r.ok, true);
   assert.equal(f.verdicts.length, 1);
   const v = f.verdicts[0]!;
-  assert.equal(v.unitId, "demo#uat-1");
+  assert.equal(v.unitId, C1);
+  assert.equal(v.criterionId, C1);
+  assert.equal(v.revisionId, R1);
   assert.equal(v.proofMode, "operator-attested");
   assert.equal(v.outcome, "pass");
   assert.equal(v.signer, "owner@example.com");
@@ -230,7 +246,7 @@ test("attest: a human test signs an operator-attested verdict into events.verdic
 test("attest: an either-witness test admits an operator attestation", async () => {
   const f = fakeStore();
   const r = await uatCommand(
-    { mode: "attest", target: "demo#uat-3" },
+    { mode: "attest", storyId: "demo", target: C3 },
     {},
     baseDeps({ store: f.store }),
   );
@@ -242,11 +258,13 @@ test("attest: the story greens only once EVERY declared test has a signed pass",
   // demo has 3 tests; uat-2 is machine-witness, so seed its machine pass first.
   const f = fakeStore();
   await f.store.appendEvent({
-    id: "m:demo#uat-2",
+    id: `m:${C2}`,
     kind: SIGNING_EVENT_KIND,
     type: "created",
     doc: {
-      unitId: "demo#uat-2",
+      unitId: C2,
+      criterionId: C2,
+      revisionId: R2,
       proofMode: "capability",
       outcome: "pass",
       commitSha: "abc",
@@ -258,12 +276,12 @@ test("attest: the story greens only once EVERY declared test has a signed pass",
   const deps = baseDeps({ store: f.store });
 
   // After attesting uat-1, the story is still unproven (uat-3 missing).
-  const r1 = await uatCommand({ mode: "attest", target: "demo#uat-1" }, {}, deps);
+  const r1 = await uatCommand({ mode: "attest", storyId: "demo", target: C1 }, {}, deps);
   assert.equal(r1.ok, true);
   assert.match(r1.body, /story UAT:  unproven/);
 
   // Attesting the last test (uat-3) greens the story's UAT.
-  const r2 = await uatCommand({ mode: "attest", target: "demo#uat-3" }, {}, deps);
+  const r2 = await uatCommand({ mode: "attest", storyId: "demo", target: C3 }, {}, deps);
   assert.equal(r2.ok, true);
   assert.match(r2.body, /story UAT:  GREEN/);
 });
@@ -273,11 +291,13 @@ test("attest: a signed fail withers a previously-green story to unhealthy", asyn
   const deps = baseDeps({ store: f.store });
   // Prove uat-2 (machine) up front so a 3-test story can be fully green.
   await f.store.appendEvent({
-    id: "m:demo#uat-2",
+    id: `m:${C2}`,
     kind: SIGNING_EVENT_KIND,
     type: "created",
     doc: {
-      unitId: "demo#uat-2",
+      unitId: C2,
+      criterionId: C2,
+      revisionId: R2,
       proofMode: "capability",
       outcome: "pass",
       commitSha: "abc",
@@ -286,10 +306,14 @@ test("attest: a signed fail withers a previously-green story to unhealthy", asyn
       at: "2026-06-20T00:00:00.000Z",
     },
   });
-  await uatCommand({ mode: "attest", target: "demo#uat-1" }, {}, deps);
-  await uatCommand({ mode: "attest", target: "demo#uat-3" }, {}, deps);
+  await uatCommand({ mode: "attest", storyId: "demo", target: C1 }, {}, deps);
+  await uatCommand({ mode: "attest", storyId: "demo", target: C3 }, {}, deps);
   // Now regress uat-1 with a signed fail.
-  const r = await uatCommand({ mode: "attest", target: "demo#uat-1" }, { outcome: "fail" }, deps);
+  const r = await uatCommand(
+    { mode: "attest", storyId: "demo", target: C1 },
+    { outcome: "fail" },
+    deps,
+  );
   assert.equal(r.ok, true);
   assert.match(r.body, /story UAT:  WITHERED/);
 });

@@ -311,22 +311,22 @@ the panel reading and behaving like one continuous conversation throughout.
 > **(c)** leg 5's re-adjudication to `machine` makes it walkable WITHOUT the UI at all (it drives the
 > sidecar route + the drive guard in-process), which is a real gain, not a workaround.
 
-1. **The transcript persists across turns.** _(witness: machine)_ _(proof-gate: app-guide#gate-1)_ The
+1. **The transcript persists across turns.** _(witness: machine)_ _(proof-gate: app-guide#gate-1)_ The _(criterion-id: uatc_68cf75456b5e5d05de9ec7d2)_ _(revision-id: uatr1:7c635066284f9b3c)_
    member sends several prompts in a row; each `› <prompt>` echo and its reply APPENDS below the last, prior
    exchanges stay visible, and the surface auto-scrolls to the newest line. **Success —** a persistent
    multi-turn scrollback, never a replace-on-send exchange; the named studio suite tests provide positive,
    deterministic evidence for this `multi-turn-transcript` behaviour.
-2. **The input grows and caps.** _(witness: machine)_ _(proof-gate: app-guide#gate-1)_ The member types /
+2. **The input grows and caps.** _(witness: machine)_ _(proof-gate: app-guide#gate-1)_ The member types / _(criterion-id: uatc_900ddbae4fabec17da85c4c6)_ _(revision-id: uatr1:25270ce1fb4c2e04)_
    pastes a multi-line prompt; the input grows to fit up to a max, then scrolls inside itself; plain Enter
    sends, Shift+Enter inserts a newline. **Success —** the height recompute, cap, internal scrolling, and
    preserved keybindings behave as declared; the named studio suite tests provide positive, deterministic
    evidence for this `auto-grow-input` behaviour.
-3. **Reset clears and aborts.** _(witness: machine)_ _(proof-gate: app-guide#gate-1)_ The member clicks
+3. **Reset clears and aborts.** _(witness: machine)_ _(proof-gate: app-guide#gate-1)_ The member clicks _(criterion-id: uatc_9f5912771ca744fcae515a44)_ _(revision-id: uatr1:f6fc79695d194b5d)_
    reset mid-conversation; the transcript clears to idle, the in-flight stream aborts (no ghost reply), and
    the input returns to its resting one-row height. **Success —** the clear-to-idle, abort, and input reset
    behaviours occur without an app restart; the named studio suite tests provide positive, deterministic
    evidence for this `transcript-reset` behaviour.
-4. **It reads like one continuous conversation.** _(witness: human)(detail: app-guide#uat-4)_ Hold a real
+4. **It reads like one continuous conversation.** _(witness: human)(detail: app-guide#uat-4)_ Hold a real _(criterion-id: uatc_912f608f4b58430b772cec95)_ _(revision-id: uatr1:a99d796ff73bca9a)_
    conversation on the mounted panel inside the native desktop shell and judge the WHOLE surface: does it
    read as ONE continuous conversation, or as a sequence of separate exchanges sharing a box? **Success —**
    the owner's two-stage visual verdict (ADR-0070): the conversational feel is witnessed, not
@@ -338,7 +338,7 @@ the panel reading and behaving like one continuous conversation throughout.
    unrepeatable signature. What is left is only the judgment. See the PRECONDITION SCOPE NOTE above: the
    panel is currently unmounted, so this leg is not walkable until the deferred build re-mounts it — a
    fact about scheduling, not about the witness.)*
-5. **(OPTIONAL / STRETCH) A wedged backend session recovers without a restart.**
+5. **(OPTIONAL / STRETCH) A wedged backend session recovers without a restart.** _(criterion-id: uatc_5102b68997d2cd5fdbf4e954)_ _(revision-id: uatr1:c5941a43069cb8fa)_
    _(witness: machine)(detail: app-guide#uat-5)_ With the drive composition single-session guard in the
    in-flight state, a `POST /api/chat/reset` on the chat sidecar clears it and a subsequent session is
    admitted — no app restart. **Success —** the route answers `200`, the guard

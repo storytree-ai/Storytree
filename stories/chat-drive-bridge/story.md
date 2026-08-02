@@ -451,32 +451,32 @@ accepts it with one explicit click; that click dispatches the real drive worker;
 RED→GREEN and signs; a non-draft PR opens for CI; and the build's coarse progress streams back into the
 conversation — the human's click being the only path to the build, and the agent having signed nothing.
 
-1. **The agent declares a non-spoofable proposed unit id.** _(witness: machine)_ Drive the headless
+1. **The agent declares a non-spoofable proposed unit id.** _(witness: machine)_ Drive the headless _(criterion-id: uatc_7fbed0269776431ef13c3d83)_ _(revision-id: uatr1:fb0283a034c68bc9)_
    orchestrator with a scripted `queryFn` whose session invokes the typed `propose_unit({ unitId })`
    read-only tool, then ends. **Success —** the runner returns `{ ok: true, proposal: <text>,
    proposedUnitId: <id> }` — the id comes from the agent's structural tool invocation (a typed signal),
    NOT from parsing the free-text proposal; the tool is read-only (no write tool exists on the surface);
    and a session that never calls `propose_unit` returns `proposedUnitId: undefined` (no forged id).
-2. **The id is threaded to the stream's terminal `done` event.** _(witness: machine)_ Drive
+2. **The id is threaded to the stream's terminal `done` event.** _(witness: machine)_ Drive _(criterion-id: uatc_c17f8c2885fc7e599cc8ebd7)_ _(revision-id: uatr1:96b7ba54e33f3234)_
    `startChatStream` (through `orchestrate`) with the same scripted session. **Success —** the terminal
    `done` event carries `proposedUnitId` alongside `proposal` / `costUsd` / `turns`, reusing the
    Phase-1/2 chain verbatim (the real `session-orchestrator` render, no fork) — so the SSE wire delivers
    a machine-actionable id to the client.
-3. **A human-accepted id dispatches the real worker and streams progress back.** _(witness: machine)_
+3. **A human-accepted id dispatches the real worker and streams progress back.** _(witness: machine)_ _(criterion-id: uatc_206995b49d4cdf147660d484)_ _(revision-id: uatr1:af5cccccb1f709c8)_
    Call the chat-side build dispatch with an ACCEPTED unit id and an injected scripted build runner over
    the real registry + the real discovery/seed. **Success —** the dispatch validates the unit is
    buildable, routes it to `runBuildJob` against the registry (returning a runId), the worker's coarse
    progress lines are forwarded back over the chat surface, and an UN-buildable / unknown id is refused
    with a typed error (never dispatched) — the dispatch is a build INTENT only (no signing key, no
    verdict path).
-4. **The accept affordance is the only path to the build, and it is explicit.** _(witness: machine)_
+4. **The accept affordance is the only path to the build, and it is explicit.** _(witness: machine)_ _(criterion-id: uatc_865aba7f1be766417e8c7f20)_ _(revision-id: uatr1:ea8811feb2205b31)_
    Render the chat thin client given a `done` frame carrying a `proposedUnitId`. **Success —** a Build
    affordance appears ONLY because the frame carries a `proposedUnitId` (a `done` frame without one
    shows no Build button); clicking it POSTs the accepted id through the `api` seam (the dispatch) and
    the panel renders the dispatched run's progress; there is NO code path by which a free-text "yes"
    parsed from the conversation triggers a build (ADR-0108 d.3); and the thin client imports no
    agent/drive/model (ADR-0004).
-5. **Live: a chat proposal, accepted by a click, drives a real signed build and opens a PR.**
+5. **Live: a chat proposal, accepted by a click, drives a real signed build and opens a PR.** _(criterion-id: uatc_329bcfb0db6d738d16bab9da)_ _(revision-id: uatr1:579b6943540715da)_
    _(witness: human)(detail: chat-drive-bridge#uat-5)_ In the desktop app, hold a REAL chat conversation
    (a real subscription `query()`), get a proposal carrying a unit id, and CLICK Build to accept it.
    **Success —** the run is genuine on both counts only a human can vouch for: the SDK session was REALLY
@@ -492,7 +492,7 @@ conversation — the human's click being the only path to the build, and the age
    signature. What is left is only what the compiler cannot reach: that the spend and the outward write
    were real. NOTE the spend is understated as authored — since ADR-0144 a chat-accepted NODE id also
    routes to a persisting `--real` build, so there is no cheap variant of this walk.)*
-6. **The chat surface reads as one accept-and-watch experience.**
+6. **The chat surface reads as one accept-and-watch experience.** _(criterion-id: uatc_188a7c4e2678cbab2662c478)_ _(revision-id: uatr1:b06ab4e71d311317)_
    _(witness: human)(detail: chat-drive-bridge#uat-6)_ **Success —** the proposal card, the Build button,
    and the live build progress read well inside the native shell — the approval gate is LEGIBLE (does it
    *read* as a deliberate authorization rather than one more chat reply), the progress feels alive, and

@@ -430,7 +430,7 @@ nothing, signed nothing, and never reached for the whole-story `--real` build.
 > What did NOT survive: the `spawn_glue_worker` mount, the `spawnGlueWorker` dep, and the whole live
 > walkthrough legs 5–6 describe.
 
-1. **A spawned glue worker is write-fenced to caller-declared paths and honours the task prompt.**
+1. **A spawned glue worker is write-fenced to caller-declared paths and honours the task prompt.** _(criterion-id: uatc_4144b34c5efc5273e4a20161)_ _(revision-id: uatr1:963f74f218453c16)_
    _(witness: machine)_ Drive the generalised runner with an injected scripted `queryFn` whose session
    Writes inside a declared path (e.g. `apps/desktop/electron/backend-entry.ts`) and attempts one write
    outside it (e.g. `packages/agent/src/evil.ts`). **Success —** the inside write is allowed, the outside
@@ -455,7 +455,7 @@ nothing, signed nothing, and never reached for the whole-story `--real` build.
    `gws-typed-result-never-a-verdict`; the tests that LANDED are named `sws-*`, not `gws-*` — the
    generalisation to a role-neutral core renamed them off the glue-worker role. Those three are the
    story's only contract ids that still resolve to living tests.)*
-2. **`spawn_glue_worker` runs claim→handler and threads the fence; `spawn_builder` sheds its phantom knob.**
+2. **`spawn_glue_worker` runs claim→handler and threads the fence; `spawn_builder` sheds its phantom knob.** _(criterion-id: uatc_4c4d3e6ccbb40691803b8c9b)_ _(revision-id: uatr1:a8bf20efa5ba0e18)_
    _(witness: machine)_ Drive `buildSpawnTools` with a recording claim store + a recording glue
    handler. **Success —** invoking `spawn_glue_worker` (schema `{ unitId, paths, userPrompt }`) runs the
    claim gate STRICTLY BEFORE the handler; a refused claim returns the holder-naming refusal TEXT to the
@@ -473,7 +473,7 @@ nothing, signed nothing, and never reached for the whole-story `--real` build.
    (`:135`). The `spawn_builder` clause, by contrast, is TRUE AND STILL LANDED: the phantom `userPrompt`
    is gone and `:49` still carries the ADR-0160 D5.i rationale in place. So the D5.i honesty fix outlived
    the actuator that motivated it — the only part of this leg a machine could observe today.)*
-3. **The composition renders the real glue-worker agent fail-closed and wires the path fence.**
+3. **The composition renders the real glue-worker agent fail-closed and wires the path fence.** _(criterion-id: uatc_dd77a59ac6be69518cfd4441)_ _(revision-id: uatr1:b7e9b39bc4c76152)_
    _(witness: machine)_ Build the glue deps over the real seed. **Success —** the glue worker's system
    prompt is the REAL rendered `glue-worker` agent (`renderAgentPrompt(store, "glue-worker")`, non-empty,
    carries the glue-worker role — not a stub); a store with no `glue-worker` agent yields a typed error
@@ -491,7 +491,7 @@ nothing, signed nothing, and never reached for the whole-story `--real` build.
    would still return a real prompt today; what no longer exists is any caller that asks for it on this
    path. An agent checking "is the glue-worker agent gone?" and concluding the leg is intact would have
    the fact right and the leg wrong.)*
-4. **The composed surface holds every wall.** _(witness: machine)_ Drive the spawn-capable session with a
+4. **The composed surface holds every wall.** _(witness: machine)_ Drive the spawn-capable session with a _(criterion-id: uatc_5e1c72ab050ed55eda756dd9)_ _(revision-id: uatr1:6028442d93035d2a)_
    scripted `queryFn` whose session invokes `spawn_glue_worker`. **Success —** the glue tool is advertised
    only when spawn deps are present (a dep-less session is byte-identical to today's surface); the tool
    call runs claim→handler in order; the chat session's own tool surface carries NO `Write`/`Edit`/`Bash`
@@ -504,7 +504,7 @@ nothing, signed nothing, and never reached for the whole-story `--real` build.
    `headless-orchestrator` and are asserted there. Read as a whole this leg is unwalkable; read
    clause-by-clause it now asserts other stories' contracts. That is a modelling residue of the
    retirement, recorded rather than repaired — this pass adjudicates witnesses, it does not re-tier.)*
-5. **Live: a scoped glue intent is delegated to a path-fenced worker, not over-routed.**
+5. **Live: a scoped glue intent is delegated to a path-fenced worker, not over-routed.** _(criterion-id: uatc_ba556afec8c776bf44347cc5)_ _(revision-id: uatr1:f59aabadd0f053ef)_
    _(witness: machine)(detail: scoped-glue-actuator#uat-5)_ In the desktop app, converse a scoped glue
    intent — *"add these 3 routes to `apps/desktop/electron/backend-entry.ts` and stop."* **Success —** the
    orchestrator takes the owning story-claim, spawns `spawn_glue_worker` scoped to
@@ -527,7 +527,7 @@ nothing, signed nothing, and never reached for the whole-story `--real` build.
    verdict through a UI paint invites exactly the harness-for-judgment substitution this pass is
    correcting; the claim row is the fact. Per ADR-0209 §6 this leg is UNSTAMPED until a spec judges it,
    and no spec can exist while the actuator is deleted — machine, unbound, and unwalkable.)*
-6. **Live: the scoped edit lands through the existing gate→CI path, walls intact.**
+6. **Live: the scoped edit lands through the existing gate→CI path, walls intact.** _(criterion-id: uatc_18e3d2544bc6df559ff9a24c)_ _(revision-id: uatr1:882424f716078e10)_
    _(witness: machine)(detail: scoped-glue-actuator#uat-6)_ **Success —** the chat lands the glue edit
    through `run_gate` (`pnpm gate` re-proves the whole tree, including the owning story's registered
    tests) then `open_landing_pr` (a NON-DRAFT PR; CI independently re-proves the merge with main,

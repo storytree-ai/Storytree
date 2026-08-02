@@ -9,7 +9,7 @@ export type ProofBindingOutcomeKind = (typeof PROOF_BINDING_OUTCOME_KINDS)[numbe
 export type MachineWitnessResolution = Extract<WitnessResolution, { witness: "machine" }>;
 
 /** The parsed criterion fields that identify an outcome and its declared binding. */
-export type ProofBindingCriterion = Pick<UatTestCriterion, "id" | "proofGateId">;
+export type ProofBindingCriterion = Pick<UatTestCriterion, "criterionId" | "proofGateId">;
 
 /** A display-only adoption command. Executing or signing stays with the drive adoption path. */
 export type AdoptionInvocation = readonly [
@@ -52,7 +52,7 @@ export function proofBindingOutcome(
   if (resolution.coverage === "observe") {
     return {
       outcome: "evidence",
-      criterionId: criterion.id,
+      criterionId: criterion.criterionId,
       gateId: resolution.observedBy,
       gateKind: "observe",
       proofCommand: resolution.proofCommand,
@@ -62,7 +62,7 @@ export function proofBindingOutcome(
 
   return {
     outcome: "refused",
-    criterionId: criterion.id,
+    criterionId: criterion.criterionId,
     reason: resolution.refusal,
     ...(criterion.proofGateId !== undefined ? { declaredGateId: criterion.proofGateId } : {}),
   };

@@ -18,7 +18,8 @@ test("harness-asserts-pilot-complete: real corpus + seed pass", () => {
 
 test("harness-refuses-silent-model-default: untagged fixture is not migrated", () => {
   const untagged = Criterion.parse({
-    id: "fixture#uat-1",
+    criterionId: "uatc_0123456789abcdef01234567",
+    revisionId: "uatr1:0123456789abcdef",
     title: "Untagged legacy",
     // witness defaults to either
   });

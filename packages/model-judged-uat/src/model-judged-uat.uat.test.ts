@@ -24,6 +24,7 @@ import {
   validateModelJudgeResult,
   classifyEscalation,
 } from "@storytree/model-judged-uat";
+import { C1, C2, C3, C6, R1, R2, R3, R6 } from "./test-bindings.js";
 
 const detail = {
   action: "Inspect the delivered surface.",
@@ -38,7 +39,8 @@ test("uat-1: The judge-result shape validates through the public port", () => {
   assert.equal(JudgeOutcome.parse("INCONCLUSIVE"), "INCONCLUSIVE");
   for (const outcome of ["PASS", "FAIL", "INCONCLUSIVE"] as const) {
     const parsed = parseJudgeResult({
-      criterionId: "model-judged-uat#uat-1",
+      criterionId: C1,
+      revisionId: R1,
       outcome,
       evidenceRefs: ["asset:ev"],
       rationale: "public barrel round-trip",
@@ -47,7 +49,8 @@ test("uat-1: The judge-result shape validates through the public port", () => {
   }
   assert.throws(() =>
     parseJudgeResult({
-      criterionId: "x",
+      criterionId: C1,
+      revisionId: R1,
       outcome: "PASS",
       evidenceRefs: ["e"],
       rationale: "r",
@@ -58,8 +61,9 @@ test("uat-1: The judge-result shape validates through the public port", () => {
 
 test("uat-2: The judge seam is independent, fresh, and read-only", () => {
   const judge = new ScriptedJudge({
-    "model-judged-uat#uat-2": {
-      criterionId: "model-judged-uat#uat-2",
+    [C2]: {
+      criterionId: C2,
+      revisionId: R2,
       outcome: "PASS",
       evidenceRefs: ["asset:ev"],
       rationale: "scripted",
@@ -67,7 +71,8 @@ test("uat-2: The judge seam is independent, fresh, and read-only", () => {
   });
   assertReadOnlyJudgePort(judge);
   const result = judge.judge({
-    criterionId: "model-judged-uat#uat-2",
+    criterionId: C2,
+    revisionId: R2,
     title: "one-liner",
     detailBody: detail.action,
     detailHash: computeDetailHash(detail),
@@ -80,7 +85,8 @@ test("uat-2: The judge seam is independent, fresh, and read-only", () => {
 
 test("uat-3: The spine admits only eligible, hash-fresh, well-shaped results", () => {
   const criterion = Criterion.parse({
-    id: "model-judged-uat#uat-3",
+    criterionId: C3,
+    revisionId: R3,
     title: "one-liner",
     witness: "model",
     tier: "advanced",
@@ -93,7 +99,8 @@ test("uat-3: The spine admits only eligible, hash-fresh, well-shaped results", (
 
   const admitted = validateModelJudgeResult({
     result: {
-      criterionId: "model-judged-uat#uat-3",
+      criterionId: C3,
+      revisionId: R3,
       outcome: "PASS",
       evidenceRefs: ["asset:ev"],
       rationale: "ok",
@@ -109,7 +116,8 @@ test("uat-3: The spine admits only eligible, hash-fresh, well-shaped results", (
 
   const stale = validateModelJudgeResult({
     result: {
-      criterionId: "model-judged-uat#uat-3",
+      criterionId: C3,
+      revisionId: R3,
       outcome: "PASS",
       evidenceRefs: ["asset:ev"],
       rationale: "ok",
@@ -172,7 +180,8 @@ test("uat-5: A FAIL cannot be laundered into human green", () => {
 
 test("uat-6: Offline scripted end-to-end matches the public contract", () => {
   const criterion = Criterion.parse({
-    id: "model-judged-uat#uat-6",
+    criterionId: C6,
+    revisionId: R6,
     title: "end-to-end",
     witness: "model",
     tier: "advanced",
@@ -183,15 +192,17 @@ test("uat-6: Offline scripted end-to-end matches the public contract", () => {
   const hash = computeDetailHash(detail);
 
   const judge = new ScriptedJudge({
-    "model-judged-uat#uat-6": {
-      criterionId: "model-judged-uat#uat-6",
+    [C6]: {
+      criterionId: C6,
+      revisionId: R6,
       outcome: "INCONCLUSIVE",
       evidenceRefs: ["asset:ev"],
       rationale: "ambiguous at advanced",
     },
   });
   const result = judge.judge({
-    criterionId: "model-judged-uat#uat-6",
+    criterionId: C6,
+    revisionId: R6,
     title: criterion.title,
     detailBody: detail.action,
     detailHash: hash,

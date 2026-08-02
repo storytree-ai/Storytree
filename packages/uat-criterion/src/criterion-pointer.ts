@@ -18,7 +18,8 @@ import type { UatCriterionDetail } from "./detail-kind.js";
 
 /**
  * A validated detail artifact id: a single non-empty, whitespace-free token
- * (mirroring the `<story>#uat-<n>` / `<story>#detail-<n>` id scheme). Empty,
+ * (detail artifact ids are independent of criterion identity and may retain legacy-looking names).
+ * Empty,
  * whitespace-only, and multi-token strings are refused.
  */
 export const DetailArtifactId = z
@@ -169,7 +170,7 @@ export function parseCriterionPointers(storyId: string, body: string): Criterion
   items.forEach((item, index) => {
     const criterion = criteria[index];
     if (criterion === undefined) return;
-    const detailArtifactId = itemDetailArtifactId(item, criterion.id);
+    const detailArtifactId = itemDetailArtifactId(item, criterion.criterionId);
     if (detailArtifactId === undefined) return;
     bindings.push(bindDetail(criterion, detailArtifactId));
   });

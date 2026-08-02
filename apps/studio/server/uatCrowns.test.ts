@@ -58,14 +58,27 @@ function verdictEvent(seq: number, unitId: string, outcome: 'pass' | 'fail', at:
   };
 }
 
+const C1 = { criterionId: 'uatc_111111111111111111111111', revisionId: 'uatr1:1111111111111111' };
+const C2 = { criterionId: 'uatc_222222222222222222222222', revisionId: 'uatr1:2222222222222222' };
+
+function criterionVerdictEvent(
+  seq: number,
+  criterion: typeof C1,
+  outcome: 'pass' | 'fail',
+  at: string,
+) {
+  const event = verdictEvent(seq, criterion.criterionId, outcome, at);
+  return { ...event, doc: { ...event.doc, ...criterion } };
+}
+
 describe('applyUatCrowns', () => {
   it('greens a story crown when every capability AND per-test verdict passes', () => {
     const stories = [story('demo', { capabilities: [cap('demo.cap-a')] })];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }, { id: 'demo#uat-2' }]]]);
+    const map = new Map([['demo', [C1, C2]]]);
     const events = [
       verdictEvent(1, 'demo.cap-a', 'pass', '2026-06-20T00:30:00.000Z'),
-      verdictEvent(2, 'demo#uat-1', 'pass', '2026-06-20T01:00:00.000Z'),
-      verdictEvent(3, 'demo#uat-2', 'pass', '2026-06-20T02:00:00.000Z'),
+      criterionVerdictEvent(2, C1, 'pass', '2026-06-20T01:00:00.000Z'),
+      criterionVerdictEvent(3, C2, 'pass', '2026-06-20T02:00:00.000Z'),
     ];
     applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-06-20T02:00:00.000Z' });
@@ -73,8 +86,8 @@ describe('applyUatCrowns', () => {
 
   it('a foundational port (zero capabilities) greens on its UAT alone (vacuous capability clause)', () => {
     const stories = [story('proof-protocol', { capabilities: [] })];
-    const map = new Map([['proof-protocol', [{ id: 'proof-protocol#uat-1' }]]]);
-    const events = [verdictEvent(1, 'proof-protocol#uat-1', 'pass', '2026-06-20T02:00:00.000Z')];
+    const map = new Map([['proof-protocol', [C1]]]);
+    const events = [criterionVerdictEvent(1, C1, 'pass', '2026-06-20T02:00:00.000Z')];
     applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-06-20T02:00:00.000Z' });
   });
@@ -87,28 +100,28 @@ describe('applyUatCrowns', () => {
         verdict: { outcome: 'pass', at: 'stale' },
       }),
     ];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }]]]);
+    const map = new Map([['demo', [C1]]]);
     // The UAT is proven, but demo.cap-a never earned a signed pass.
-    const events = [verdictEvent(1, 'demo#uat-1', 'pass', '2026-06-20T01:00:00.000Z')];
+    const events = [criterionVerdictEvent(1, C1, 'pass', '2026-06-20T01:00:00.000Z')];
     applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toBeUndefined();
   });
 
   it('under-claims (no crown verdict) when a per-test verdict is still unproven', () => {
     const stories = [story('demo', { verdict: { outcome: 'pass', at: 'stale' } })];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }, { id: 'demo#uat-2' }]]]);
-    const events = [verdictEvent(1, 'demo#uat-1', 'pass', '2026-06-20T01:00:00.000Z')];
+    const map = new Map([['demo', [C1, C2]]]);
+    const events = [criterionVerdictEvent(1, C1, 'pass', '2026-06-20T01:00:00.000Z')];
     applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toBeUndefined();
   });
 
   it('withers a story crown to fail when a proven test regressed', () => {
     const stories = [story('demo')];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }, { id: 'demo#uat-2' }]]]);
+    const map = new Map([['demo', [C1, C2]]]);
     const events = [
-      verdictEvent(1, 'demo#uat-1', 'pass', '2026-06-20T01:00:00.000Z'),
-      verdictEvent(2, 'demo#uat-2', 'pass', '2026-06-20T02:00:00.000Z'),
-      verdictEvent(3, 'demo#uat-2', 'fail', '2026-06-20T03:00:00.000Z'),
+      criterionVerdictEvent(1, C1, 'pass', '2026-06-20T01:00:00.000Z'),
+      criterionVerdictEvent(2, C2, 'pass', '2026-06-20T02:00:00.000Z'),
+      criterionVerdictEvent(3, C2, 'fail', '2026-06-20T03:00:00.000Z'),
     ];
     applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toEqual({ outcome: 'fail', at: '2026-06-20T03:00:00.000Z' });
@@ -116,10 +129,10 @@ describe('applyUatCrowns', () => {
 
   it('withers a story crown to fail when a CAPABILITY regressed, even with green UAT (the at spans both clauses)', () => {
     const stories = [story('demo', { capabilities: [cap('demo.cap-a')] })];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }]]]);
+    const map = new Map([['demo', [C1]]]);
     const events = [
       verdictEvent(1, 'demo.cap-a', 'pass', '2026-06-20T01:00:00.000Z'),
-      verdictEvent(2, 'demo#uat-1', 'pass', '2026-06-20T02:00:00.000Z'),
+      criterionVerdictEvent(2, C1, 'pass', '2026-06-20T02:00:00.000Z'),
       verdictEvent(3, 'demo.cap-a', 'fail', '2026-06-20T03:00:00.000Z'),
     ];
     applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);

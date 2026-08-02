@@ -28,8 +28,11 @@ class FakeClient {
 }
 
 function att(over: Partial<Attestation> = {}): Attestation {
+  const criterionId = over.criterionId ?? "uatc_000000000000000000000002";
   return {
-    testId: "demo-story#uat-2",
+    testId: over.testId ?? criterionId,
+    criterionId,
+    revisionId: "uatr1:0000000000000002",
     outcome: "pass",
     witness: "human",
     signer: "owner@example.com",
@@ -50,7 +53,7 @@ test("record: INSERTs into events.attestation with the scalar columns + jsonb do
   assert.ok(call.text.includes("INSERT INTO events.attestation"), "targets events.attestation");
   // VALUES ($1=test_id, $2=outcome, $3=witness, $4=signer, $5=relayed_by, $6=doc)
   assert.deepEqual(call.values.slice(0, 5), [
-    "demo-story#uat-2",
+    "uatc_000000000000000000000002",
     "pass",
     "human",
     "owner@example.com",
@@ -110,7 +113,11 @@ test("history: filters by test id and skips a malformed stored row", async () =>
   const client = new FakeClient();
   client.rows = [{ doc: att() }, { doc: { junk: true } }, { doc: att({ outcome: "fail" }) }];
   const store = new PgAttestationStore(client);
-  const hist = await store.history("demo-story#uat-2");
+  const hist = await store.history("uatc_000000000000000000000002");
   assert.equal(hist.length, 2, "the malformed row is skipped");
-  assert.equal(client.calls[0]!.values[0], "demo-story#uat-2", "queried by the test id");
+  assert.equal(
+    client.calls[0]!.values[0],
+    "uatc_000000000000000000000002",
+    "queried by the criterion id",
+  );
 });

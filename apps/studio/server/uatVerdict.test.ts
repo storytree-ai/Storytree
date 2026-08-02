@@ -17,16 +17,25 @@ const base = {
   commitSha: 'cafebabecafebabecafebabecafebabecafebabe',
   at: '2026-06-21T00:00:00.000Z',
 };
+const C1 = 'uatc_000000000000000000000001';
+const C2 = 'uatc_000000000000000000000002';
+const C3 = 'uatc_000000000000000000000003';
+const R1 = 'uatr1:0000000000000001';
 
 describe('buildUatVerdict (the studio "I saw it work" honesty walls)', () => {
   it('builds a real operator-attested verdict for a human-witness test signed by a person', () => {
-    const got = buildUatVerdict({ ...base, test: { id: 'demo#uat-1', witness: 'human' } }, checkUatProof);
+    const got = buildUatVerdict(
+      { ...base, test: { criterionId: C1, revisionId: R1, witness: 'human' } },
+      checkUatProof,
+    );
     expect(got.ok).toBe(true);
     if (!got.ok) return;
     // It is a REAL gate verdict (validates against the published Verdict shape), not a vouch.
     expect(() => Verdict.parse(got.verdict)).not.toThrow();
     expect(got.verdict).toMatchObject({
-      unitId: 'demo#uat-1',
+      unitId: C1,
+      criterionId: C1,
+      revisionId: R1,
       proofMode: 'operator-attested',
       outcome: 'pass',
       commitSha: base.commitSha,
@@ -42,7 +51,11 @@ describe('buildUatVerdict (the studio "I saw it work" honesty walls)', () => {
 
   it('carries an optional note as operator-attested evidence', () => {
     const got = buildUatVerdict(
-      { ...base, test: { id: 'demo#uat-1', witness: 'human' }, note: '  looked right  ' },
+      {
+        ...base,
+        test: { criterionId: C1, revisionId: R1, witness: 'human' },
+        note: '  looked right  ',
+      },
       checkUatProof,
     );
     expect(got.ok).toBe(true);
@@ -55,12 +68,18 @@ describe('buildUatVerdict (the studio "I saw it work" honesty walls)', () => {
   });
 
   it('proves an `either`-witness test by an operator attestation', () => {
-    const got = buildUatVerdict({ ...base, test: { id: 'demo#uat-3', witness: 'either' } }, checkUatProof);
+    const got = buildUatVerdict(
+      { ...base, test: { criterionId: C3, revisionId: R1, witness: 'either' } },
+      checkUatProof,
+    );
     expect(got.ok).toBe(true);
   });
 
   it('REFUSES a machine-witness test — a click cannot stand in for a machine proof (ADR-0082 d.2)', () => {
-    const got = buildUatVerdict({ ...base, test: { id: 'demo#uat-2', witness: 'machine' } }, checkUatProof);
+    const got = buildUatVerdict(
+      { ...base, test: { criterionId: C2, revisionId: R1, witness: 'machine' } },
+      checkUatProof,
+    );
     expect(got.ok).toBe(false);
     if (got.ok) return;
     expect(got.reason).toMatch(/machine/i);
@@ -68,7 +87,11 @@ describe('buildUatVerdict (the studio "I saw it work" honesty walls)', () => {
 
   it('REFUSES an agent/`sandbox:` signer on a human test (ADR-0007 no-self-exempt)', () => {
     const got = buildUatVerdict(
-      { ...base, test: { id: 'demo#uat-1', witness: 'human' }, signer: 'sandbox:run-42' },
+      {
+        ...base,
+        test: { criterionId: C1, revisionId: R1, witness: 'human' },
+        signer: 'sandbox:run-42',
+      },
       checkUatProof,
     );
     expect(got.ok).toBe(false);
@@ -78,7 +101,11 @@ describe('buildUatVerdict (the studio "I saw it work" honesty walls)', () => {
 
   it('REFUSES a blank signer (fail-closed)', () => {
     const got = buildUatVerdict(
-      { ...base, test: { id: 'demo#uat-1', witness: 'human' }, signer: '   ' },
+      {
+        ...base,
+        test: { criterionId: C1, revisionId: R1, witness: 'human' },
+        signer: '   ',
+      },
       checkUatProof,
     );
     expect(got.ok).toBe(false);

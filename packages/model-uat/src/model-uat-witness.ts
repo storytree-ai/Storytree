@@ -51,7 +51,7 @@ export function resolveWitness(criterion: Criterion, registry: ModelRegistry): W
       const requiredTier = criterion.tier;
       if (requiredTier === undefined) {
         // Unreachable: the Criterion schema refuses a `model` witness with no tier.
-        throw new Error(`${criterion.id}: model witness with no declared tier — refused upstream`);
+        throw new Error(`${criterion.criterionId}: model witness with no declared tier — refused upstream`);
       }
       const judgeResolution = resolveJudge(requiredTier, registry);
       if (judgeResolution.status === "eligible") {

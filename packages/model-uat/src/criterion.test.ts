@@ -6,11 +6,12 @@ import {
   CRITERION_WITNESSES,
   CriterionWitness,
   Criterion,
-  criterionId,
+  legacyCriterionId,
   parseCriteria,
   isClassifiedWitness,
   isLegacyUnresolved,
 } from "./criterion.js";
+import { authoredCriteria, EXACT_CRITERION } from "./criterion.test-helpers.js";
 
 /**
  * Offline unit tests for the `three-kind-witness` capability (ADR-0209 D1/D8).
@@ -31,13 +32,13 @@ const STORY = "demo-story";
  * `model` witness must declare its preclassified minimum tier, so a fixture exercising
  * `model` classification must supply one.
  */
-const BODY = `## UAT Test Criteria
+const BODY = authoredCriteria(`## UAT Test Criteria
 
 1. **Decompose** _(witness: machine)_: a criterion resolves to addressable ids.
 2. **Human relay** _(witness: human)_: the owner tells the agent it works.
 3. **Model judged** _(witness: model)(tier: advanced)_: a model attests structured judgment.
 4. **Not yet migrated:** a legacy untagged criterion.
-`;
+`);
 
 // ── the three classified kinds ──────────────────────────────────────────────
 
@@ -90,18 +91,23 @@ test("explicit classification: a criterion tagged (witness: model) classifies as
   assert.equal(isClassifiedWitness(criteria[2]!.witness), true);
 });
 
-test("explicit classification: ids are positional <story>#uat-<n>, stable across re-parse", () => {
+test("explicit classification: ids are authored opaque identities, stable across re-parse", () => {
   const first = parseCriteria(STORY, BODY);
   const second = parseCriteria(STORY, BODY);
   assert.deepEqual(
-    first.map((c) => c.id),
-    ["demo-story#uat-1", "demo-story#uat-2", "demo-story#uat-3", "demo-story#uat-4"],
+    first.map((c) => c.criterionId),
+    [
+      "uatc_000000000000000000000001",
+      "uatc_000000000000000000000002",
+      "uatc_000000000000000000000003",
+      "uatc_000000000000000000000004",
+    ],
   );
   assert.deepEqual(first, second, "re-parsing the same body is deterministic");
 });
 
-test("criterionId is the single id-scheme home", () => {
-  assert.equal(criterionId("s", 3), "s#uat-3");
+test("legacyCriterionId is explicitly migration-only", () => {
+  assert.equal(legacyCriterionId("s", 3), "s#uat-3");
 });
 
 // ── legacy compatibility without model default (ADR-0209 D8) ───────────────
@@ -130,7 +136,7 @@ test("legacy compatibility: a story with no UAT section yields [] (backward-comp
 });
 
 test("legacy compatibility: the schema default for an omitted witness is `either`, never `model`", () => {
-  const parsed = Criterion.parse({ id: "s#uat-1", title: "t" });
+  const parsed = Criterion.parse({ ...EXACT_CRITERION, title: "t" });
   assert.equal(parsed.witness, "either");
   assert.notEqual(parsed.witness, "model");
 });
@@ -138,16 +144,16 @@ test("legacy compatibility: the schema default for an omitted witness is `either
 // ── explicit-but-invalid witness is refused, never defaulted ───────────────
 
 test("invalid witness: an explicit but unknown prose tag is refused, not silently either", () => {
-  const body = "## UAT Test Criteria\n\n1. **Bad** (witness: nobody): oops.\n";
+  const body = authoredCriteria("## UAT Test Criteria\n\n1. **Bad** (witness: nobody): oops.\n");
   assert.throws(() => parseCriteria(STORY, body), /invalid witness/i, "refused at the parsing boundary");
 });
 
 test("invalid witness: the schema refuses an unknown witness value directly", () => {
-  assert.throws(() => Criterion.parse({ id: "s#uat-1", title: "t", witness: "nobody" }));
+  assert.throws(() => Criterion.parse({ ...EXACT_CRITERION, title: "t", witness: "nobody" }));
 });
 
 test("invalid witness: the schema rejects unknown fields (strict)", () => {
-  assert.throws(() => Criterion.parse({ id: "s#uat-1", title: "t", witness: "human", extra: 1 }));
+  assert.throws(() => Criterion.parse({ ...EXACT_CRITERION, title: "t", witness: "human", extra: 1 }));
 });
 
 // ── model tier classification (ADR-0209 D2) ─────────────────────────────────
@@ -159,30 +165,30 @@ test("invalid witness: the schema rejects unknown fields (strict)", () => {
 // (or an unrecognised tier value) is refused at the parse boundary — never
 // silently defaulted or clamped up.
 
-const TIER_ADVANCED_BODY = `## UAT Test Criteria
+const TIER_ADVANCED_BODY = authoredCriteria(`## UAT Test Criteria
 
 1. **Model judged, advanced** _(witness: model)(tier: advanced)_: judged by a registered advanced-tier model.
-`;
+`);
 
-const TIER_FRONTIER_BODY = `## UAT Test Criteria
+const TIER_FRONTIER_BODY = authoredCriteria(`## UAT Test Criteria
 
 1. **Model judged, frontier** _(witness: model)(tier: frontier)_: judged by a frontier-tier model.
-`;
+`);
 
-const TIER_MISSING_BODY = `## UAT Test Criteria
+const TIER_MISSING_BODY = authoredCriteria(`## UAT Test Criteria
 
 1. **Model judged, no tier** _(witness: model)_: a model witness with no preclassified minimum.
-`;
+`);
 
-const TIER_UNKNOWN_BODY = `## UAT Test Criteria
+const TIER_UNKNOWN_BODY = authoredCriteria(`## UAT Test Criteria
 
 1. **Model judged, unknown tier** _(witness: model)(tier: basic)_: an unrecognised tier value.
-`;
+`);
 
-const TIER_ON_NON_MODEL_BODY = `## UAT Test Criteria
+const TIER_ON_NON_MODEL_BODY = authoredCriteria(`## UAT Test Criteria
 
 1. **Machine with a tier** _(witness: machine)(tier: advanced)_: tier is exclusive to the model witness.
-`;
+`);
 
 test("tier classification: (witness: model)(tier: advanced) parses to the advanced tier", () => {
   const criteria = parseCriteria(STORY, TIER_ADVANCED_BODY);
@@ -223,25 +229,25 @@ test("tier classification: a non-model criterion carrying a tier annotation is r
 // ── model tier classification: schema-level refinement ─────────────────────
 
 test("tier schema: a model criterion with tier=advanced parses successfully", () => {
-  const parsed = Criterion.parse({ id: "s#uat-1", title: "t", witness: "model", tier: "advanced" });
+  const parsed = Criterion.parse({ ...EXACT_CRITERION, title: "t", witness: "model", tier: "advanced" });
   assert.equal(parsed.tier, "advanced");
 });
 
 test("tier schema: a model criterion with tier=frontier parses successfully", () => {
-  const parsed = Criterion.parse({ id: "s#uat-1", title: "t", witness: "model", tier: "frontier" });
+  const parsed = Criterion.parse({ ...EXACT_CRITERION, title: "t", witness: "model", tier: "frontier" });
   assert.equal(parsed.tier, "frontier");
 });
 
 test("tier schema: a model criterion with no tier is refused (ambiguous minimum forbidden)", () => {
-  assert.throws(() => Criterion.parse({ id: "s#uat-1", title: "t", witness: "model" }));
+  assert.throws(() => Criterion.parse({ ...EXACT_CRITERION, title: "t", witness: "model" }));
 });
 
 test("tier schema: a model criterion with an unknown tier string is refused", () => {
-  assert.throws(() => Criterion.parse({ id: "s#uat-1", title: "t", witness: "model", tier: "basic" }));
+  assert.throws(() => Criterion.parse({ ...EXACT_CRITERION, title: "t", witness: "model", tier: "basic" }));
 });
 
 test("tier schema: a non-model criterion (machine/human/either) carrying a tier is refused", () => {
-  assert.throws(() => Criterion.parse({ id: "s#uat-1", title: "t", witness: "machine", tier: "advanced" }));
-  assert.throws(() => Criterion.parse({ id: "s#uat-1", title: "t", witness: "human", tier: "frontier" }));
-  assert.throws(() => Criterion.parse({ id: "s#uat-1", title: "t", witness: "either", tier: "advanced" }));
+  assert.throws(() => Criterion.parse({ ...EXACT_CRITERION, title: "t", witness: "machine", tier: "advanced" }));
+  assert.throws(() => Criterion.parse({ ...EXACT_CRITERION, title: "t", witness: "human", tier: "frontier" }));
+  assert.throws(() => Criterion.parse({ ...EXACT_CRITERION, title: "t", witness: "either", tier: "advanced" }));
 });

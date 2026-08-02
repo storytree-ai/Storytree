@@ -126,7 +126,7 @@ type LoadNodeSpec = (file: string) => {
   capabilities: string[];
   decisions: number[];
   render?: string | undefined;
-  uatTestCriteria: { id: string; wouldBe?: boolean }[];
+  uatTestCriteria: { criterionId: string; revisionId: string; wouldBe?: boolean }[];
   reliabilityGates: { id: string; covers?: readonly string[] }[];
   // ADR-0020 coverage-honesty follow-on: the capability's declared `## Contracts`, parsed via
   // `parseContracts` and already folded in by `loadNodeSpec` — the count feeds `DTCapability.testCount`.
@@ -181,16 +181,25 @@ function loadCapability(
  */
 export async function readTreeWithCaps(storiesDir: string): Promise<{
   stories: DTStory[];
-  uatTestCriteriaByStory: Map<string, { id: string }[]>;
+  uatTestCriteriaByStory: Map<
+    string,
+    ({ criterionId: string; revisionId: string } | { id: string })[]
+  >;
   /** The story's WITNESSABLE UAT test criteria ALONE (forest-parcels inc-2 marker walk) — the same
    *  would-be filter as `uatTestCriteriaByStory`, but NEVER unioned with `## Reliability Gates`. Feeds
    *  `applyUatCriteria`. Mirrors the studio's readTree `uatCriteriaByStory` verbatim. */
-  uatCriteriaByStory: Map<string, { id: string }[]>;
+  uatCriteriaByStory: Map<string, { criterionId: string; revisionId: string }[]>;
   coverageByStory: Map<string, { id: string; covers?: readonly string[] }[]>;
 }> {
   const stories: DTStory[] = [];
-  const uatTestCriteriaByStory = new Map<string, { id: string }[]>();
-  const uatCriteriaByStory = new Map<string, { id: string }[]>();
+  const uatTestCriteriaByStory = new Map<
+    string,
+    ({ criterionId: string; revisionId: string } | { id: string })[]
+  >();
+  const uatCriteriaByStory = new Map<
+    string,
+    { criterionId: string; revisionId: string }[]
+  >();
   const coverageByStory = new Map<string, { id: string; covers?: readonly string[] }[]>();
   if (!existsSync(storiesDir))
     return { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
@@ -243,7 +252,10 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
       if (witnessableUat.length > 0) {
         uatCriteriaByStory.set(
           ent.name,
-          witnessableUat.map((t) => ({ id: t.id })),
+          witnessableUat.map((t) => ({
+            criterionId: t.criterionId,
+            revisionId: t.revisionId,
+          })),
         );
       }
       if (spec.reliabilityGates.length > 0) {
@@ -337,17 +349,23 @@ export function applyCapCoverage(
  */
 export function applyUatCriteria(
   stories: DTStory[],
-  uatCriteriaByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  uatCriteriaByStory: ReadonlyMap<
+    string,
+    readonly { criterionId: string; revisionId: string }[]
+  >,
   events: readonly DTVerdictEvent[] | null,
-  rollup?: (id: string, events: readonly DTVerdictEvent[]) => string | null,
+  rollup?: (
+    criterion: { criterionId: string; revisionId: string },
+    events: readonly DTVerdictEvent[],
+  ) => string | null,
 ): void {
   for (const story of stories) {
     const tests = uatCriteriaByStory.get(story.id) ?? [];
     story.uatCriteria = tests.map((t): DTUatCriterion => {
-      const status = events && rollup ? rollup(t.id, events) : null;
+      const status = events && rollup ? rollup(t, events) : null;
       const state: DTUatCriterion["state"] =
         status === "healthy" ? "proven" : status === "unhealthy" ? "failing" : "pending";
-      return { id: t.id, state };
+      return { id: t.criterionId, state };
     });
   }
 }
@@ -360,12 +378,15 @@ export function applyUatCriteria(
  */
 export function applyUatCrowns(
   stories: DTStory[],
-  uatTestCriteriaByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  uatTestCriteriaByStory: ReadonlyMap<
+    string,
+    readonly ({ criterionId: string; revisionId: string } | { id: string })[]
+  >,
   coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   events: readonly DTVerdictEvent[],
   rollup: (
     capabilityIds: readonly string[],
-    tests: readonly { id: string }[],
+    tests: readonly ({ criterionId: string; revisionId: string } | { id: string })[],
     events: readonly DTVerdictEvent[],
     coverage?: readonly { id: string; covers?: readonly string[] }[],
   ) => string | null,
@@ -377,7 +398,13 @@ export function applyUatCrowns(
     const coverage = coverageByStory.get(story.id) ?? [];
     const rolled = rollup(capabilityIds, tests, events, coverage);
     if (rolled === "healthy" || rolled === "unhealthy") {
-      const at = latestVerdictAt(events, new Set([...tests.map((t) => t.id), ...capabilityIds]));
+      const at = latestVerdictAt(
+        events,
+        new Set([
+          ...tests.map((t) => ("criterionId" in t ? t.criterionId : t.id)),
+          ...capabilityIds,
+        ]),
+      );
       story.verdict = { outcome: rolled === "healthy" ? "pass" : "fail", at: at ?? "" };
     } else {
       delete story.verdict; // unproven: never paint a crown the proof doesn't support
@@ -424,12 +451,18 @@ export function applyOpenQuestionGate(
  */
 export async function foldVerdicts(
   stories: DTStory[],
-  uatTestCriteriaByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  uatTestCriteriaByStory: ReadonlyMap<
+    string,
+    readonly ({ criterionId: string; revisionId: string } | { id: string })[]
+  >,
   coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   overlay: VerdictOverlay,
   /** The lantern-walk membership (forest-parcels inc-2) — optional/back-compat: an omitted map still
    *  folds every other layer, it just leaves `uatCriteria` unset (like a pre-inc-2 caller). */
-  uatCriteriaByStory?: ReadonlyMap<string, readonly { id: string }[]>,
+  uatCriteriaByStory?: ReadonlyMap<
+    string,
+    readonly { criterionId: string; revisionId: string }[]
+  >,
 ): Promise<void> {
   // 1. each unit's OWN latest verdict (a capability/legacy story's own unit verdict, never a roll-up).
   if (overlay.latestVerdicts) {
@@ -446,10 +479,18 @@ export async function foldVerdicts(
   // forest-parcels inc-2: the lantern-walk summary — ALWAYS folded (even with no verdict events / a
   // down DB, when every entry reads 'pending'), so `uatCriteria` is never silently missing on the wire.
   if (uatCriteriaByStory) {
-    const { rollupStatus } = (await loadOrchestrator()) as unknown as {
-      rollupStatus: (id: string, events: readonly DTVerdictEvent[]) => string | null;
+    const { rollupCriterionStatus } = (await loadOrchestrator()) as unknown as {
+      rollupCriterionStatus: (
+        criterion: { criterionId: string; revisionId: string },
+        events: readonly DTVerdictEvent[],
+      ) => string | null;
     };
-    applyUatCriteria(stories, uatCriteriaByStory, overlay.verdictEvents, rollupStatus);
+    applyUatCriteria(
+      stories,
+      uatCriteriaByStory,
+      overlay.verdictEvents,
+      rollupCriterionStatus,
+    );
   }
 
   // 2-4 need the RAW event stream + the proof compute — skipped when the backend can't answer (the json
@@ -459,7 +500,7 @@ export async function foldVerdicts(
     const { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } = (await loadOrchestrator()) as unknown as {
       rollupStoryGreen: (
         capabilityIds: readonly string[],
-        tests: readonly { id: string }[],
+        tests: readonly ({ criterionId: string; revisionId: string } | { id: string })[],
         events: readonly DTVerdictEvent[],
         coverage?: readonly { id: string; covers?: readonly string[] }[],
       ) => string | null;
