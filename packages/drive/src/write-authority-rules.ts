@@ -36,6 +36,14 @@
  * exists as the enforced allow-list of exactly that surface (`pnpm check:manifest`), so deriving the
  * deny block from it means the wall and the repo surface cannot drift apart.
  *
+ * TWO THINGS THE MANIFEST CANNOT ANSWER ON ITS OWN, both found by review of the installed block and
+ * fixed here rather than papered over:
+ *   - It sorts paths by GIT's view, so a submodule (`web`) lands in `root.files` even though it is a
+ *     directory. `lobbyDenyRules` therefore emits both an exact-path and a tree rule for every
+ *     `root.files` entry instead of trusting the bucket name — see the comment there.
+ *   - It only ever sees TRACKED paths, so the lobby's own `node_modules` is invisible to it. That is
+ *     covered by `EXTRA_DENIED_DIRS` alongside `.git`, with the reasoning stated there.
+ *
  * THE ONE ENTRY THAT MUST NEVER BE DENIED is `.claude/worktrees` — every session's workspace lives
  * under it, so denying it (or denying `.claude` wholesale) would freeze the entire fleet. That is
  * why `.claude` is expanded child-by-child below instead of being emitted as one rule, and why the
@@ -58,12 +66,28 @@ export const DENIED_CLAUDE_CHILDREN = ["agents", "settings.json", "launch.json"]
 export const NEVER_DENY_CLAUDE_CHILDREN = ["worktrees"] as const;
 
 /**
- * Additional lobby paths denied although `repo-manifest.json` does not list them: the shared Git
- * common directory. A linked worktree's commits and refs pass through it (ADR-0257 D8), so a file
- * tool that could rewrite the primary index, HEAD, config or hooks would reopen the whole hazard
- * through the metadata side door.
+ * Additional lobby paths denied although `repo-manifest.json` does not list them. The manifest is an
+ * allow-list over the TRACKED surface (`git ls-files`), so anything untracked is invisible to it by
+ * design — which means these have to be named here or nothing denies them at all.
+ *
+ *   - `.git` — the shared Git common directory. A linked worktree's commits and refs pass through it
+ *     (ADR-0257 D8), so a file tool that could rewrite the primary index, HEAD, config or hooks would
+ *     reopen the whole hazard through the metadata side door.
+ *   - `node_modules` — the lobby's installed dependency tree, and a cross-session hazard in its own
+ *     right rather than mere tidiness. Every worktree resolves the workspace through its OWN
+ *     `node_modules`, but the lobby's copy is what the primary checkout's gate, scripts and hooks run
+ *     against; a session that edited a package in it would corrupt a tree nobody is watching. The
+ *     failure mode is already documented in this repo's agent memory as the post-merge relink trap:
+ *     a `node_modules` out of step with the lockfile surfaces as `TS2307` on a package you never
+ *     touched, `ERR_MODULE_NOT_FOUND`, or `'tsc' is not recognized` — errors that never name the real
+ *     cause, in a session that did not cause it. It is also the one lobby directory an agent has a
+ *     standing reason to reach into (chasing a dependency's source), which is exactly the combination
+ *     the wall exists to refuse.
+ *
+ * Neither can collide with `.claude/worktrees`: both rules are anchored at the primary root, and a
+ * worktree's own `node_modules` lives under `.claude/worktrees/<session>/`, a different prefix.
  */
-export const EXTRA_DENIED_DIRS = [".git"] as const;
+export const EXTRA_DENIED_DIRS = [".git", "node_modules"] as const;
 
 /**
  * Convert an absolute filesystem path to Claude Code's permission-rule path form.
@@ -94,10 +118,29 @@ export interface ManifestRootSlice {
 /**
  * PURE: the `permissions.deny` entries that make `primaryRoot` a read-only lobby for the file tools.
  *
- * Directories become `<path>/**`; single files become an exact path. `.claude` is expanded into its
- * denied children so `.claude/worktrees` stays writable. Output is sorted and de-duplicated so the
- * generated block is byte-stable — a drifting diff on every run would make the conformance test
- * useless as a signal.
+ * Directories become `<path>/**`; entries in `root.files` get BOTH an exact path AND a `/**` tree
+ * rule. `.claude` is expanded into its denied children so `.claude/worktrees` stays writable. Output
+ * is sorted and de-duplicated so the generated block is byte-stable — a drifting diff on every run
+ * would make the conformance test useless as a signal.
+ *
+ * WHY `root.files` GETS THE TREE RULE TOO, when the bucket is named "files". Because the bucket does
+ * not mean what its name says, and the manifest is not wrong to do it. `check-manifest.mjs` sorts a
+ * tracked path into `root.files` vs `root.dirs` by `git ls-files` output — `parts.length === 1` is a
+ * file — and git reports a SUBMODULE as one gitlink entry, not as the tree beneath it. So `web` (the
+ * storytree-web submodule) is correctly listed under `root.files` for the gate that owns the manifest,
+ * and moving it to `root.dirs` to satisfy this generator would make `pnpm check:manifest` block. The
+ * manifest stays the single source of truth for WHICH paths make up the lobby surface; resolving what
+ * each one is SHAPED like is this generator's job.
+ *
+ * Emitting both forms, rather than probing the filesystem for a directory, is deliberate: an
+ * uninitialised submodule is an empty directory or absent entirely, so a probe would answer "file" on
+ * exactly the machines whose working tree is bare — reopening the hole the moment someone ran
+ * `git submodule update`. Both-forms keeps the generator pure and correct in every checkout state.
+ * The cost is the inert half: `<a-real-file>/**` matches nothing, because a file has no children.
+ *
+ * The hole this closes was real and verified against the installed block (2026-08-02): the generated
+ * rule was `Write(//c/code/storytree/web)`, which matches only the literal path `web` — leaving the
+ * entire `web/` tree file-tool-writable in the primary checkout.
  */
 export function lobbyDenyRules(manifest: ManifestRootSlice, primaryRoot: string): string[] {
   const base = toPermissionPath(primaryRoot);
@@ -113,7 +156,10 @@ export function lobbyDenyRules(manifest: ManifestRootSlice, primaryRoot: string)
     targets.push(`${base}/${dir}/**`);
   }
   for (const dir of EXTRA_DENIED_DIRS) targets.push(`${base}/${dir}/**`);
-  for (const file of Object.keys(manifest.root.files)) targets.push(`${base}/${file}`);
+  for (const file of Object.keys(manifest.root.files)) {
+    targets.push(`${base}/${file}`);
+    targets.push(`${base}/${file}/**`);
+  }
 
   const rules = new Set<string>();
   for (const target of targets) {

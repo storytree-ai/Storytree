@@ -418,8 +418,12 @@ The decisions, in order:
    config rather than merely citing it) is future work under **oq-artifact-code-backing**.
 
 2. **`requiredReading` → `context`, retyped as the assembly manifest.** A typed, non-empty list of
-   `asset:` refs — exactly the units whose content the `storytree agents <name>` renderer injects
-   into the role's system prompt. **ADR references are BANNED in `context`:** agents are told ADRs
+   `asset:` refs — exactly the units the `storytree agents <name>` renderer assembles into the role's
+   system prompt. (Their full bodies are injected inline only on the SDK-leaf / spawn path; since
+   [ADR-0156](0156-subagent-prompts-are-essentials-only-the-cli-serves-ceremony.md) this command
+   renders each `context` ref as a per-step door and the CLI serves the body just-in-time. The
+   manifest — which units a role assembles from — is what this decision fixes; the render mode is
+   ADR-0156's.) **ADR references are BANNED in `context`:** agents are told ADRs
    exist and get a **search tool** instead — `storytree library search <query> --kind <kind>`,
    federating over Library artifacts AND `docs/decisions/`, with ADR hits returned as `doc:` refs.
    That verb is the named **first consumer of ADR-0023 §6's deferred search**; it is recorded here,
