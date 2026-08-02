@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@storytree/model-uat": "workspace:*",
+    "@storytree/proof-protocol": "workspace:*",
     "@storytree/uat-criterion": "workspace:*",
     "zod": "^3.24.1"
   },

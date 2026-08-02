@@ -4833,10 +4833,10 @@ export function UatTestCriteriaSection({
 
   // The "I saw it work" operator-attested VERDICT (events.verdict) — the higher-rigor signature that
   // greens the story crown (ADR-0082). Refreshes the per-test proven glyph AND re-pulls the world.
-  const signVerdict = async (testId: string): Promise<void> => {
-    setBusy(`sign:${testId}`);
+  const signVerdict = async (criterionId: string): Promise<void> => {
+    setBusy(`sign:${criterionId}`);
     try {
-      await api.signUat({ testId, outcome: 'pass' });
+      await api.signUat({ storyId, criterionId, outcome: 'pass' });
       await load();
       onCrownRefresh();
     } catch (e) {
@@ -4874,7 +4874,7 @@ export function UatTestCriteriaSection({
             // ADR-0106 d.5: the owner surface is BINARY — a permitted operator confirms a `human` leg not yet
             // proven ("I saw it work"); a `machine` leg shows NO affordance (adopt/build signs it).
             const canSign = canAttestUat && proven !== 'pass' && t.witness === 'human';
-            const signBusy = busy === `sign:${t.id}`;
+            const signBusy = busy === `sign:${t.criterionId}`;
 
             // ONE right-edge glyph (owner redesign): the icon SHAPE is the witness (robot=machine,
             // person=human), its COLOUR (CSS) the proven state. The single actionable case is a `human`
@@ -4916,7 +4916,7 @@ export function UatTestCriteriaSection({
               );
 
             return (
-              <tr key={t.id} className="uat-row">
+              <tr key={t.criterionId} className="uat-row">
                 <td className="uat-test-criterion-cell">{titleNode}</td>
                 {/* The single witness/state glyph at the RIGHT edge (owner redesign) — where the eye
                     lands for a per-row action. A muted person icon here is the "I saw it work" button;
@@ -4926,7 +4926,7 @@ export function UatTestCriteriaSection({
                     type="button"
                     className={`uat-witness witness-${t.witness} proven-${proven ?? 'none'}${canSign ? ' is-signable' : ''}`}
                     disabled={!canSign || signBusy}
-                    onClick={canSign ? () => void signVerdict(t.id) : undefined}
+                    onClick={canSign ? () => void signVerdict(t.criterionId) : undefined}
                     title={witnessTitle}
                     aria-label={witnessAria}
                   >

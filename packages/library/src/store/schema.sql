@@ -148,7 +148,8 @@ CREATE TABLE IF NOT EXISTS events.usage_event (
   at                    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Per-UAT-test attestations (ADR-0044): append-only SIGNED signals keyed by test id (`<story>#uat-<n>`).
+-- Per-UAT-criterion attestations: append-only signed signals. Current rows bind an exact
+-- (criterionId, revisionId); legacy positional test ids remain readable and are migration-classified.
 -- A vouch is NOT a proof — this is a DELIBERATELY SEPARATE log from events.verdict (the conflation
 -- ADR-0044 d.2 forbids): nothing here ever paints the gate-green hue, and there is NO story roll-up
 -- (d.3). The latest-per-(test_id,witness) projection is derived in JS (deriveAttestations), like the

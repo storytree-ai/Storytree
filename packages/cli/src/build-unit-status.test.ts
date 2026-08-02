@@ -57,6 +57,14 @@ test("deriveUnitStatuses: malformed signing docs and non-signing events grant no
   assert.deepEqual(rows.map((r) => r.id), ["u1"], "only the well-formed verdict counts");
 });
 
+test("deriveUnitStatuses: legacy positional UAT verdicts earn no current proof credit", () => {
+  const rows = deriveUnitStatuses([
+    verdict(1, "agent#uat-1", "pass"),
+    verdict(2, "ordinary-unit", "pass"),
+  ]);
+  assert.deepEqual(rows.map((row) => row.id), ["ordinary-unit"]);
+});
+
 test("renderUnitStatusFile: stable @generated JSON, marked DO NOT EDIT, trailing newline", () => {
   const out = renderUnitStatusFile(deriveUnitStatuses([verdict(1, "u1", "pass")]));
   assert.match(out, /DO NOT EDIT/);

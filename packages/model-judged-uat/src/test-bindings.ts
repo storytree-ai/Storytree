@@ -1,0 +1,9 @@
+export const C1 = "uatc_000000000000000000000001";
+export const C2 = "uatc_000000000000000000000002";
+export const C3 = "uatc_000000000000000000000003";
+export const C6 = "uatc_000000000000000000000006";
+export const OTHER = "uatc_ffffffffffffffffffffffff";
+export const R1 = "uatr1:0000000000000001";
+export const R2 = "uatr1:0000000000000002";
+export const R3 = "uatr1:0000000000000003";
+export const R6 = "uatr1:0000000000000006";

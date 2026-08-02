@@ -55,7 +55,7 @@ export type Anchor = z.infer<typeof Anchor>;
  */
 export const ChangeEvent = z
   .object({
-    /** The proof unit whose binding this change touches (`#uat-N`, a contract id, …). */
+    /** The proof unit whose binding this change touches (an opaque UAT criterion id, a contract id, …). */
     unitId: z.string().min(1),
     /** The bound span's hash before the change (the hashSpan it diverged FROM). */
     hashBefore: z.string().min(1),

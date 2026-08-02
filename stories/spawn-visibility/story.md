@@ -397,20 +397,20 @@ leg 5 (re-adjudicated 2026-07-26 — legs 6 and 7 are machine, unharnessed).
 transcript as the subagent starts and finishes, and — for a story the spawn just authored — watches
 its island appear live on the forest map with its claim wisp lit, without reloading anything.
 
-1. **The spawn trace is surfaced as an ordered chat event and still bumps the heartbeat.**
+1. **The spawn trace is surfaced as an ordered chat event and still bumps the heartbeat.** _(criterion-id: uatc_bce0303470cb532601c23b58)_ _(revision-id: uatr1:76345d5c24ebaa1f)_
    _(witness: machine)_ _(proof-gate: spawn-visibility#gate-1)_ Drive `startChatStream` with a scripted `queryFn` and a scripted spawn double
    that fires `spawn_started` then `spawn_finished`. **Success —** the stream yields two non-terminal
    `spawn` events (`{ type: "spawn", phase: "started"|"finished", role, unitId, ok? }`) in order,
    interleaved with any `delta`s on the SAME FIFO, before the terminal `done`; each trace ALSO bumped
    the claim heartbeat (ADR-0138 §4 preserved); and a session run WITHOUT spawn deps yields NO `spawn`
    events (byte-identical to today).
-2. **The advisory claims read survives a DB cold-start.** _(witness: machine)_ _(proof-gate: spawn-visibility#gate-2)_ Run the advisory reader
+2. **The advisory claims read survives a DB cold-start.** _(witness: machine)_ _(proof-gate: spawn-visibility#gate-2)_ Run the advisory reader _(criterion-id: uatc_82b8c868d39adbfa88b1608e)_ _(revision-id: uatr1:40c4eb075e8bd118)_
    over an injected `inFlightClaims` fn that resolves slower than 4s but under the softened budget.
    **Success —** the claims read returns the claim (not null) because it got the per-read override /
    one retry; the other four overlay reads keep their 4s budget (a slow verdicts/activity/presence read
    still nulls at 4s — `/api/tree` never hangs); and a GENUINELY failing/absent claims read still
    returns null (the ADR-0033 advisory contract intact, never a throw).
-3. **The chat panel renders the spawn line off the wire frame.** _(witness: machine)_ _(proof-gate: spawn-visibility#gate-3)_ Render
+3. **The chat panel renders the spawn line off the wire frame.** _(witness: machine)_ _(proof-gate: spawn-visibility#gate-3)_ Render _(criterion-id: uatc_a8d191b854955d8fb93787e2)_ _(revision-id: uatr1:e0516d4d36497c41)_
    `<ChatPanel/>` given a scripted `api` stream that emits a `spawn` frame (`phase: "started"`, role
    `story-author`) then `phase: "finished"`. **Success —** the panel's `ChatEvent` union + `isChatEvent`
    guard accept the `spawn` frame, the panel renders a "🔧 spawning story-author for `<id>`…" line that
@@ -420,7 +420,7 @@ its island appear live on the forest map with its claim wisp lit, without reload
    `started` → "🔧 spawning `<role>` for `<id>`…", `finished` with `ok === false` → "✗ `<role>` failed",
    `finished` otherwise → "✓ `<role>` finished". This leg walks only the started→finished-ok path; the
    failure branch is UNCOVERED by it and is not claimed green here.)*
-4. **A story-author finish triggers a live tree reload.** _(witness: machine)(detail: spawn-visibility#uat-4)_ _(proof-gate: spawn-visibility#gate-3)_ Render the dock/panel
+4. **A story-author finish triggers a live tree reload.** _(witness: machine)(detail: spawn-visibility#uat-4)_ _(proof-gate: spawn-visibility#gate-3)_ Render the dock/panel _(criterion-id: uatc_5eb5ed411bdf3959e1d5477c)_ _(revision-id: uatr1:24dfa72590a3f049)_
    given a `spawn`-finished frame for a `story-author`. **Success —** `ChatDock` invokes the injected
    `reloadTree` callback EXACTLY once for a story-author finish (and NOT for a builder finish, nor for
    `started`), the callback is a plain prop (no drive/agent import), and the reload path is the same
@@ -432,7 +432,7 @@ its island appear live on the forest map with its claim wisp lit, without reload
    (`TreeView.tsx:2561` records this). The callback wiring is real and is exercised by
    `apps/studio/src/components/ChatDock.reload.test.tsx`, but ONLY at the component seam — a green
    there says nothing about the composed app, which is the detail artifact's false-pass fence.)*
-5. **Live: the spawn line READS as a spawn happening.** _(witness: human)(detail: spawn-visibility#uat-5)_ With a real
+5. **Live: the spawn line READS as a spawn happening.** _(witness: human)(detail: spawn-visibility#uat-5)_ With a real _(criterion-id: uatc_31f7ba86ebc04936049e2366)_ _(revision-id: uatr1:ea706f070c802f90)_
    spawn running in a live transcript, judge the rendered spawn line's LEGIBILITY. **Success —** the
    operator judges the line reads at a glance as "a subagent is working right now", stays visually
    distinguishable from the surrounding `delta` prose, and reads as RESOLVING when it flips to the
@@ -447,7 +447,7 @@ its island appear live on the forest map with its claim wisp lit, without reload
    orchestrator chat, RETIRED by ADR-0174 for an embedded terminal running real Claude Code — there is
    no in-app conversation left in which to spawn. Recorded, not deleted: this is a retired story kept as
    history, and the leg stands honestly unstamped, not green.)*
-6. **The just-authored story's island is PRESENT on the map after a spawn-finished reload.**
+6. **The just-authored story's island is PRESENT on the map after a spawn-finished reload.** _(criterion-id: uatc_54c928ac0034b9e5f69b0644)_ _(revision-id: uatr1:485c5a00d4733238)_
    _(witness: machine)(detail: spawn-visibility#uat-6)_ With `stories/<id>/` present on disk, deliver a
    `spawn`-finished frame for a `story-author` to the composed dock+map surface and let the reload
    settle. **Success —** the rendered forest map then contains a node for `<id>` that was ABSENT before
@@ -461,7 +461,7 @@ its island appear live on the forest map with its claim wisp lit, without reload
    `proof-gate:` is bound — none of the three declared gates covers this end-to-end assertion — so per
    ADR-0209 §6 this leg returns to UNSTAMPED: correct and honest, not green. The map's LOOK, whether the
    island reads well where it lands, belongs to the map stories' appearance UAT, not to this story.)*
-7. **The fresh claim's wisp is PRESENT on the map after a >4s cold-start claims read.**
+7. **The fresh claim's wisp is PRESENT on the map after a >4s cold-start claims read.** _(criterion-id: uatc_e2e8f08e273621cb0bbd2346)_ _(revision-id: uatr1:ffac531178f38e3c)_
    _(witness: machine)(detail: spawn-visibility#uat-7)_ Drive the composed overlay with an
    `inFlightClaims` read that resolves slower than the shared 4s but inside the softened budget, then
    let the first poll after the spawn land. **Success —** that poll carries the just-taken claim and the

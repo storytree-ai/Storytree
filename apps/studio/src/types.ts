@@ -676,6 +676,8 @@ export interface TreePayload {
  */
 export interface AttestationMark {
   testId: string;
+  criterionId?: string;
+  revisionId?: string;
   outcome: 'pass' | 'fail';
   witness: 'human' | 'machine';
   /** The resolved signing identity (the operator who observed, or the machine runner). */
@@ -695,7 +697,9 @@ export interface AttestationMark {
  * `machine` are the actual recorded vouch marks (absent = un-attested → blank).
  */
 export interface UatTestCriterionRow {
-  id: string;
+  criterionId: string;
+  revisionId: string;
+  previousRevisionId?: string;
   /**
    * Story-owned one-line acceptance intent (ADR-0209 D7 / `displayTitle`). Never the detail
    * artifact's action/success/evidence prose — that lives behind {@link detailArtifactId}.
@@ -748,7 +752,14 @@ export interface AttestationsPayload {
  * story's fresh UAT roll-up so the UI can confirm whether the signature greened the crown.
  */
 export interface UatVerdictResult {
-  verdict: { unitId: string; outcome: 'pass' | 'fail'; signer: string; at: string };
+  verdict: {
+    unitId: string;
+    criterionId: string;
+    revisionId: string;
+    outcome: 'pass' | 'fail';
+    signer: string;
+    at: string;
+  };
   storyUat?: 'healthy' | 'unhealthy' | null;
 }
 

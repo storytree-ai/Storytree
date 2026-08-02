@@ -60,6 +60,10 @@ export function deriveUnitStatuses(events: readonly StatusEvent[]): UnitStatusRo
 
   const rows: UnitStatusRow[] = [];
   for (const [id, v] of latest) {
+    // ADR-0253: positional UAT ids are preserved evidence keys, never current proof units. This
+    // generic projection has no Markdown + migration-ledger context with which to establish an
+    // explicit mapped binding, so it must refuse them rather than display historical proof as green.
+    if (/^.+#uat-\d+$/.test(id)) continue;
     const status = rollupStatus(id, events);
     if (status === null) continue; // projection abstains → not proven, omit
     rows.push({
@@ -87,7 +91,8 @@ export function renderUnitStatusFile(rows: readonly UnitStatusRow[]): string {
         _comment:
           "GENERATED from signed verdicts (events.verdict) -- DO NOT EDIT. Regenerate with " +
           "`pnpm build:status` (build-unit-status.ts). `healthy` is DERIVED from verdicts, never " +
-          "authored (ADR-0020/0040, ADR-0120).",
+          "authored (ADR-0020/0040, ADR-0120). Legacy positional UAT ids are preserved history " +
+          "and intentionally omitted from current proof credit (ADR-0253).",
         units: rows,
       },
       null,

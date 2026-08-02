@@ -38,12 +38,12 @@ import type { ForestWrite, ForestWriteResult } from "./forest-readiness.js";
 // ---------------------------------------------------------------------------
 
 function declaredTest(id: string, witness: UatTestCriterionWitness): LocalUatDeclaredTest {
-  return { id, witness };
+  return { criterionId: id, revisionId: "uatr1:0000000000000001", witness };
 }
 
-const HUMAN_TEST = declaredTest("desktop#uat-1", "human");
-const MACHINE_TEST = declaredTest("desktop#uat-2", "machine");
-const EITHER_TEST = declaredTest("desktop#uat-3", "either");
+const HUMAN_TEST = declaredTest("uatc_000000000000000000000001", "human");
+const MACHINE_TEST = declaredTest("uatc_000000000000000000000002", "machine");
+const EITHER_TEST = declaredTest("uatc_000000000000000000000003", "either");
 const DECLARED_TESTS: readonly LocalUatDeclaredTest[] = [HUMAN_TEST, MACHINE_TEST, EITHER_TEST];
 
 const OPERATOR = "owner@example.com";
@@ -71,7 +71,7 @@ function baseInput(
   overrides: Partial<AttestLocalUatInput> = {},
 ): AttestLocalUatInput {
   return {
-    testId: HUMAN_TEST.id,
+    criterionId: HUMAN_TEST.criterionId,
     outcome: "pass",
     at: AT,
     tests: DECLARED_TESTS,
@@ -100,7 +100,9 @@ test("luat-persists-a-real-human-verdict-through-the-broker: a trusted human sig
   // The persisted payload must itself validate as a real proof-protocol Verdict — not a hand-shaped
   // object that merely LOOKS like one.
   const verdict = Verdict.parse(write.payload);
-  assert.equal(verdict.unitId, HUMAN_TEST.id);
+  assert.equal(verdict.unitId, HUMAN_TEST.criterionId);
+  assert.equal(verdict.criterionId, HUMAN_TEST.criterionId);
+  assert.equal(verdict.revisionId, HUMAN_TEST.revisionId);
   assert.equal(verdict.proofMode, "operator-attested");
   assert.equal(verdict.outcome, "pass");
   assert.equal(verdict.commitSha, CLEAN_SHA);
@@ -120,14 +122,14 @@ test("luat-persists-a-real-human-verdict-through-the-broker: a trusted human sig
 
 test("luat-persists-a-real-human-verdict-through-the-broker: an 'either' leg also signs and persists through the same human path", async () => {
   const { writer, calls } = makeWriter({ persisted: true, status: 201, body: { ok: true } });
-  const input = baseInput(writer, { testId: EITHER_TEST.id, outcome: "fail" });
+  const input = baseInput(writer, { criterionId: EITHER_TEST.criterionId, outcome: "fail" });
 
   const result = await attestLocalUat(input);
 
   assert.equal(result.ok, true, "an 'either' leg admits an operator attestation, still no self-exempt");
   assert.equal(calls.length, 1);
   const verdict = Verdict.parse(calls[0]?.payload);
-  assert.equal(verdict.unitId, EITHER_TEST.id);
+  assert.equal(verdict.unitId, EITHER_TEST.criterionId);
   assert.equal(verdict.outcome, "fail");
 });
 
@@ -145,7 +147,9 @@ test("luat-persists-a-real-human-verdict-through-the-broker: a signature offered
 
 test("luat-refuses-untrustworthy-proof-before-writing: a machine-witness leg cannot be greened by a human click", async () => {
   const { writer, calls } = makeWriter({ persisted: true, status: 201, body: {} });
-  const result = await attestLocalUat(baseInput(writer, { testId: MACHINE_TEST.id }));
+  const result = await attestLocalUat(
+    baseInput(writer, { criterionId: MACHINE_TEST.criterionId }),
+  );
 
   assert.equal(result.ok, false);
   assert.equal(calls.length, 0, "the writer is never called for a refused machine-witness leg");
@@ -203,7 +207,9 @@ test("luat-refuses-untrustworthy-proof-before-writing: a malformed (non-hex) com
 
 test("luat-refuses-untrustworthy-proof-before-writing: an unknown test id refuses — a typo never mints a verdict", async () => {
   const { writer, calls } = makeWriter({ persisted: true, status: 201, body: {} });
-  const result = await attestLocalUat(baseInput(writer, { testId: "desktop#uat-does-not-exist" }));
+  const result = await attestLocalUat(
+    baseInput(writer, { criterionId: "uatc_ffffffffffffffffffffffff" }),
+  );
 
   assert.equal(result.ok, false);
   assert.equal(calls.length, 0);
@@ -211,7 +217,7 @@ test("luat-refuses-untrustworthy-proof-before-writing: an unknown test id refuse
 
 test("luat-refuses-untrustworthy-proof-before-writing: a blank test id refuses", async () => {
   const { writer, calls } = makeWriter({ persisted: true, status: 201, body: {} });
-  const result = await attestLocalUat(baseInput(writer, { testId: "   " }));
+  const result = await attestLocalUat(baseInput(writer, { criterionId: "   " }));
 
   assert.equal(result.ok, false);
   assert.equal(calls.length, 0);

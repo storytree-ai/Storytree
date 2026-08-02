@@ -158,6 +158,7 @@ export { deriveAttestations } from "./proof/attestations.js";
 export type { UatProofCheck, UatProofResult } from "./proof/uat-proof.js";
 export {
   checkUatProof,
+  rollupCriterionStatus,
   rollupStoryUat,
   rollupStoryGreen,
   rollupCapStatus,

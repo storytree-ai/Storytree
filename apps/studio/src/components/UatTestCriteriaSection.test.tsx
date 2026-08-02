@@ -32,8 +32,18 @@ import { UatTestCriteriaSection } from './TreeView';
 /** Flush the async fetch the mount effect (and any post-click reload) kicks off. */
 const flush = () => act(async () => {});
 
-function payload(tests: UatTestCriterionRow[], over: Partial<AttestationsPayload> = {}): AttestationsPayload {
-  return { storyId: 'agent', tests, ...over };
+type RowFixture = Omit<UatTestCriterionRow, 'criterionId' | 'revisionId'> & { id: string };
+
+function payload(tests: RowFixture[], over: Partial<AttestationsPayload> = {}): AttestationsPayload {
+  return {
+    storyId: 'agent',
+    tests: tests.map(({ id, ...row }) => ({
+      ...row,
+      criterionId: id,
+      revisionId: 'uatr1:0000000000000001',
+    })),
+    ...over,
+  };
 }
 
 beforeEach(() => {
@@ -128,9 +138,17 @@ describe('UatTestCriteriaSection — witness-icon row (ADR-0082 redesign)', () =
     await flush();
 
     expect(apiMock.signUat).toHaveBeenCalledTimes(1);
-    expect(apiMock.signUat).toHaveBeenCalledWith({ testId: 'agent#uat-2', outcome: 'pass' });
+    expect(apiMock.signUat).toHaveBeenCalledWith({
+      storyId: 'agent',
+      criterionId: 'agent#uat-2',
+      outcome: 'pass',
+    });
     // clicking the machine icon does nothing (no onClick) — signUat fired exactly once, from the human.
-    expect(apiMock.signUat).not.toHaveBeenCalledWith({ testId: 'agent#uat-1', outcome: 'pass' });
+    expect(apiMock.signUat).not.toHaveBeenCalledWith({
+      storyId: 'agent',
+      criterionId: 'agent#uat-1',
+      outcome: 'pass',
+    });
     // signing a per-test verdict re-pulls the panel AND repaints the world crown.
     expect(onCrownRefresh).toHaveBeenCalledTimes(1);
   });

@@ -536,6 +536,9 @@ importers:
       '@storytree/model-uat':
         specifier: workspace:*
         version: link:../model-uat
+      '@storytree/proof-protocol':
+        specifier: workspace:*
+        version: link:../proof-protocol
       '@storytree/uat-criterion':
         specifier: workspace:*
         version: link:../uat-criterion
@@ -555,6 +558,9 @@ importers:
 
   packages/model-uat:
     dependencies:
+      '@storytree/proof-protocol':
+        specifier: workspace:*
+        version: link:../proof-protocol
       zod:
         specifier: ^3.24.1
         version: 3.25.76

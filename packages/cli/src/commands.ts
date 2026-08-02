@@ -1830,9 +1830,14 @@ function makeAttestOpts(values: {
 }
 
 /** Wire the live attestation seams (store, identity, signer, clock) — shared by `attest` and `witness vouch`. */
-function makeAttestDeps(deps: RunDeps, identity: SessionIdentity | null): AttestDeps {
+function makeAttestDeps(
+  deps: RunDeps,
+  identity: SessionIdentity | null,
+  storiesDir: string,
+): AttestDeps {
   return {
     store: deps.attestations ?? null,
+    loadUatTestCriteria: (storyId) => loadStoryUatTestCriteria(storiesDir, storyId),
     identity,
     resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
     now: () => new Date(),
@@ -1853,9 +1858,9 @@ function witnessHelp(): Envelope {
       "it was adopted or built (it cuts across both, so it is its own workflow).",
       "",
       "  storytree witness list <story-id> [--pg]            a story's UAT test criteria + proven state (was `uat list`)",
-      "  storytree witness attest <story>#uat-<n> --pg       sign an operator-attested verdict (was `uat attest`)",
-      "  storytree witness vouch <story>#uat-<n> --pg        record a lower-rigor attestation vouch (was `attest`)",
-      "  storytree witness vouch list <story>#uat-<n> --pg   a test's vouch history (was `attest list`)",
+      "  storytree witness attest <story-id> <uatc_id> --pg   sign an exact-revision operator verdict (was `uat attest`)",
+      "  storytree witness vouch <story-id> <uatc_id> --pg    record an exact-revision lower-rigor vouch (was `attest`)",
+      "  storytree witness vouch list <stored-key> --pg       current or preserved legacy vouch history",
       "",
       "`witness attest` mints a real `operator-attested` verdict (events.verdict) — it can green a story's",
       "UAT. A `witness vouch` is a signal only (events.attestation), never greens the story (ADR-0044). The",
@@ -2341,11 +2346,16 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // `attest` is the back-compat alias for `witness vouch` (ADR-0118) — the SAME code path.
     if (help || sub === undefined) return attestHelp();
     const identity = sessionIdentity(deps);
+    const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
     const isList = sub === "list";
     return attestCommand(
-      { mode: isList ? "list" : "record", testId: isList ? third : sub },
+      {
+        mode: isList ? "list" : "record",
+        storyId: isList ? undefined : sub,
+        testId: isList ? third : third,
+      },
       makeAttestOpts(values),
-      makeAttestDeps(deps, identity),
+      makeAttestDeps(deps, identity, storiesDir),
     );
   }
 
@@ -2357,7 +2367,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
     const uatDeps = makeUatDeps(deps, identity, storiesDir);
     const uatOpts = makeUatOpts(values);
-    if (sub === "attest") return uatCommand({ mode: "attest", target: third }, uatOpts, uatDeps);
+    if (sub === "attest") {
+      return uatCommand({ mode: "attest", storyId: third, target: fourth }, uatOpts, uatDeps);
+    }
     if (sub === "list") return uatCommand({ mode: "list", target: third }, uatOpts, uatDeps);
     // bare: `storytree uat <story-id>` lists that story's tests.
     return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
@@ -2375,14 +2387,20 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // `witness vouch <test>` (record) / `witness vouch list <test>` (history) — was `attest` / `attest list`.
       const isList = third === "list";
       return attestCommand(
-        { mode: isList ? "list" : "record", testId: isList ? fourth : third },
+        {
+          mode: isList ? "list" : "record",
+          storyId: isList ? undefined : third,
+          testId: fourth,
+        },
         makeAttestOpts(values),
-        makeAttestDeps(deps, identity),
+        makeAttestDeps(deps, identity, storiesDir),
       );
     }
     const uatDeps = makeUatDeps(deps, identity, storiesDir);
     const uatOpts = makeUatOpts(values);
-    if (sub === "attest") return uatCommand({ mode: "attest", target: third }, uatOpts, uatDeps);
+    if (sub === "attest") {
+      return uatCommand({ mode: "attest", storyId: third, target: fourth }, uatOpts, uatDeps);
+    }
     if (sub === "list") return uatCommand({ mode: "list", target: third }, uatOpts, uatDeps);
     // bare `witness <story-id>` lists that story's UAT test criteria (mirrors bare `uat <story>`).
     return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);

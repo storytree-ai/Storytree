@@ -127,8 +127,8 @@ export interface NodeSpec {
   guidance: string | undefined;
   /**
    * The story's UAT prose parsed into addressable test units (ADR-0044 `uat-test-units`): one per
-   * `## UAT Test Criteria` numbered item, with a stable `<id>#uat-<n>` id and a witness kind. `[]` for a
-   * capability/contract spec (no Story UAT section) — the attestation surface keys off these ids.
+   * `## UAT Test Criteria` numbered item, with an authored opaque id, content revision, and witness
+   * kind. `[]` for a capability/contract spec (no Story UAT section).
    */
   uatTestCriteria: UatTestCriterion[];
   /**

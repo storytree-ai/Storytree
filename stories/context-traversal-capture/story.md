@@ -127,28 +127,28 @@ uninstantiable until a candidate set exists.
 performed and nothing else, then replay that trace from the command line — with every ADR-0235
 uncertainty and every ADR-0241 honesty rule intact.
 
-1. **A real spawned read command writes a replayable visit.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real
+1. **A real spawned read command writes a replayable visit.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real _(criterion-id: uatc_7d2fd64553fdd66d3d23248c)_ _(revision-id: uatr1:1ff82f7c25357a12)_
    CLI binary (`node packages/cli/launch.mjs library artifact plan`) with
    `STORYTREE_TRAVERSAL_DIR` and `STORYTREE_SESSION_ID` pointed at a temporary directory, offline
    and without `--pg`. **Success —** the temporary directory holds one session trace file whose
    replay contains exactly one `full_payload_read` for canonical node `plan`, under the supplied
    `sessionId`, written by a process that has since exited.
-2. **Two invocations join into one session with distinct visits.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In the SAME
+2. **Two invocations join into one session with distinct visits.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In the SAME _(criterion-id: uatc_6e39dfcc18d5caa4aa3c64a5)_ _(revision-id: uatr1:63ba2bacb36c23cd)_
    session id, spawn a second command at a different read strength
    (`tree spec context-traversal-telemetry`). **Success —** the replay holds two events under one
    `sessionId` with two distinct `visitId` values, the front-matter and full-payload kinds stay
    distinct, and no event carries `parentVisitId`, `priorVisitId`, or `followedEdgeId` — cross-process
    adjacency creates no causal edge.
-3. **A write command leaves no owner prose on disk.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn a write-shaped
+3. **A write command leaves no owner prose on disk.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn a write-shaped _(criterion-id: uatc_411c5b920d3cc42fc2fb2a4f)_ _(revision-id: uatr1:3e7eb060347651e7)_
    command carrying canary prose in its arguments (`noticeboard declare --working-on "<canary>"
    --node x`, which refuses offline). **Success —** no new event is appended, and the session file's
    BYTES do not contain the canary — asserted against the file contents, not merely against parsed
    objects.
-4. **The captured session replays from the command line.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn
+4. **The captured session replays from the command line.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn _(criterion-id: uatc_65130d5b0ef6482a5b443cf7)_ _(revision-id: uatr1:1e4a7006a96937cd)_
    `traversal show <sessionId>` against the same directory. **Success —** it exits 0 and the rendered
    body names both visits in chronological order, keeps the read-strength distinction visible,
    reports context capacity as unknown, and prints the adapter's supported/omitted coverage block.
-5. **Capture is additive and opt-out-clean.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Re-run the same read command with
+5. **Capture is additive and opt-out-clean.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Re-run the same read command with _(criterion-id: uatc_11abf3bd67912119d765e77a)_ _(revision-id: uatr1:c1fb11dbcf0067ef)_
    `STORYTREE_TRAVERSAL=off`, and again with no resolvable session identity. **Success —** no trace
    file is created in either run, and each command's envelope PAYLOAD and exit code are
    byte-identical to the same command run with capture entirely absent. The payload is what
@@ -159,7 +159,7 @@ uncertainty and every ADR-0241 honesty rule intact.
    the offer-carrying lines appear ONLY where an offer is genuinely recorded, and never on a run that
    captured nothing, since a printed id naming a candidate set that does not exist is an id an agent
    can return into a forged edge.
-6. **A real `agents` render writes a depth, not a flat column.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real
+6. **A real `agents` render writes a depth, not a flat column.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real _(criterion-id: uatc_6b22fe35e0d9d416355d515a)_ _(revision-id: uatr1:bfbeadbe7ad9f435)_
    CLI binary (`node packages/cli/launch.mjs agents <a-real-agent-id>`) into a fresh temporary
    directory, offline and without `--pg`, then spawn `traversal show <sessionId>` against the same
    directory. **Success —** the replay's FIRST event is a `full_payload_read` of that agent carrying
@@ -169,7 +169,7 @@ uncertainty and every ADR-0241 honesty rule intact.
    The pure capability proves the descent over caller-supplied events, which is strictly weaker than
    "the real CLI, spawned, writes a parent-linked child visit and renders it" — this leg closes that
    gap at a boundary where spawning is free.
-7. **A real artifact read records the branches it did NOT take.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real
+7. **A real artifact read records the branches it did NOT take.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real _(criterion-id: uatc_cb75462a2561f8db0825a9a2)_ _(revision-id: uatr1:3fa49ba3844329a1)_
    CLI binary (`node packages/cli/launch.mjs library artifact plan`) into a fresh temporary directory,
    offline and without `--pg`, and run NOTHING after it — so nothing in the session ever follows what
    that read offered. Then spawn `traversal show <sessionId>` against the same directory.
@@ -183,7 +183,7 @@ uncertainty and every ADR-0241 honesty rule intact.
    caveats. This is the load-bearing leg for ADR-0260 D2: an implementation that recorded offers
    lazily — only once something followed — would leave this trace with no candidate set at all and
    would still pass every other leg above.
-8. **A real followed command declares its edge, and a bare one declares none.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In one
+8. **A real followed command declares its edge, and a bare one declares none.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In one _(criterion-id: uatc_4bbb8909ea3e832c7033ae7a)_ _(revision-id: uatr1:4cfc5cbe322171bc)_
    temporary directory and one session, spawn the real CLI three times, offline and without `--pg`:
    the offering read (`library artifact plan`); then the follow-up command that read PRINTED, run
    verbatim as an agent would paste it; then a BARE read of a different node the same offer put on

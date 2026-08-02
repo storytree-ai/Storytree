@@ -362,26 +362,26 @@ story, spawns the story-author to author it (or the missing contract), spawns th
 drive a change red→green, watches the spine sign — having itself written nothing, signed nothing, and
 landed nothing.
 
-1. **A spawned story-author session is write-fenced and returns a typed result.**
+1. **A spawned story-author session is write-fenced and returns a typed result.** _(criterion-id: uatc_a6adc168580b6f517d56f0a9)_ _(revision-id: uatr1:37cbdb285b825091)_
    _(witness: machine)_ Drive the story-author spawn runner with an injected scripted `queryFn` whose
    session writes inside `stories/<id>/` and attempts one write outside it. **Success —** the inside
    write is allowed, the outside write is DENIED fail-closed before it lands (the violation recorded
    on the typed result), `Bash` is never in the session's tool surface, and the runner returns
    `{ ok: true, summary }` — a result shape with no verdict/signing field; a dead/empty session
    returns `{ ok: false, error }`, never a forged success.
-2. **The builder dispatch routes through the existing worker and refuses garbage.**
+2. **The builder dispatch routes through the existing worker and refuses garbage.** _(criterion-id: uatc_44fb5fc2ef8339fe5e1fcebb)_ _(revision-id: uatr1:d39bdafa567014dd)_
    _(witness: machine)_ Call the builder spawn dispatch with a buildable unit id over an injected
    scripted routed runner + the real registry/discovery/seed. **Success —** the unit is validated
    buildable and dispatched to the SAME routed worker the accept click uses (a typed `{ runId }`
    back), the worker's coarse progress folds back as conversation TEXT, an unknown/unbuildable id is a
    typed refusal (never dispatched), and no verdict object exists anywhere on the dispatch's surface.
-3. **No claim, no subagent — and a live spawn never ages out.** _(witness: machine)_ Run the claim
+3. **No claim, no subagent — and a live spawn never ages out.** _(witness: machine)_ Run the claim _(criterion-id: uatc_4656da28bd2ddfe3f5c9d464)_ _(revision-id: uatr1:aa8acbc99f59d11b)_
    gate over both `ClaimResult` arms with an injected claim store and a recording spawn fn.
    **Success —** the claim (work-kind intent stamped) is acquired BEFORE the spawn fn runs; a refused
    claim returns a typed wait decision naming the holder (`sessionId`/`branch`/`intent`) and the spawn
    fn is NEVER invoked; trace signals during the spawned run bump the claim heartbeat (ADR-0138 §4);
    a blank story id is a fail-closed refusal, never a claim-free spawn.
-4. **The composed surface holds every wall.** _(witness: machine)_ Drive the spawn-capable session
+4. **The composed surface holds every wall.** _(witness: machine)_ Drive the spawn-capable session _(criterion-id: uatc_bebc9b04ff1a0c4c0e5b99ba)_ _(revision-id: uatr1:d516f67eb2fb2b66)_
    with a scripted `queryFn` whose session invokes `spawn_story_author`. **Success —** the two spawn
    tools are advertised only when spawn deps are present (a dep-less session is byte-identical to the
    ORIENTATION-ONLY baseline — `tools: []` plus the read-only orientation tools, and nothing else);
@@ -399,7 +399,7 @@ landed nothing.
    > from the old wording would have gone RED against correct code (the same failure shape as the
    > ADR-0152 landing-wall claim corrected on leg 7). The leg's id, position, and `machine` witness
    > are unchanged; only the factually wrong description moved.
-5. **Live: the chat brings a story in by spawning the story-author.**
+5. **Live: the chat brings a story in by spawning the story-author.** _(criterion-id: uatc_65f364261f271dee7271115d)_ _(revision-id: uatr1:ee6835bd189837f0)_
    _(witness: human)(detail: chat-subagent-spawn#uat-5)_ In the desktop app, converse until the
    orchestrator decides a story should exist. **Success —** the orchestrator takes the story-claim
    (visible as the story's wisp — authoring colour, witnessed properly in wisp-as-story-claim's
@@ -410,7 +410,7 @@ landed nothing.
    machine leg and are deliberately NOT restated as human conditions: the write fence + typed
    non-verdict result by leg 1, the claim-before-spawn ordering and the holder-naming refusal of a
    concurrent claimant by leg 3, and "the chat itself wrote no file" by leg 7's absence audit.)*
-6. **Live: a bug becomes a contract and is driven through the gate.**
+6. **Live: a bug becomes a contract and is driven through the gate.** _(criterion-id: uatc_10e4514e1271034569a02b50)_ _(revision-id: uatr1:e00526bb66704d7e)_
    _(witness: human)(detail: chat-subagent-spawn#uat-6)_ Raise a real defect in conversation.
    **Success —** the orchestrator makes decision 4's consultative judgment (under-specified story →
    spawn the story-author to add the missing contract, then spawn the builder to drive it;
@@ -426,7 +426,7 @@ landed nothing.
    the trunk only through the existing human-gated ceremony" — that clause is REMOVED because
    ADR-0152 lifted the landing wall for the desktop orchestrator; the surviving, still-true claim is
    that CI independently re-proves before the trunk (ADR-0022) and the spine remains the sole signer.)*
-7. **The scope walls are ABSENCES on the composed surface — no live walk required.**
+7. **The scope walls are ABSENCES on the composed surface — no live walk required.** _(criterion-id: uatc_388554633704363c1a1cb308)_ _(revision-id: uatr1:496aeea5ebfe3ae4)_
    _(witness: machine)(detail: chat-subagent-spawn#uat-7)_ Audit the assembled
    `runHeadlessOrchestrator` session and the spawn tool definitions it mounts, with and without spawn
    deps. **Success —** the session's own `tools` is `[]` and its `allowedTools` names ONLY in-process

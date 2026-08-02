@@ -308,30 +308,30 @@ authored deliverable each time, with every honesty wall held.
 **Goal —** Behind one `PhaseAuthor` seam, each runtime implementation authors a slice on demand,
 refusing every out-of-scope write and never forging a success.
 
-1. **The seam is runtime-agnostic.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ A consumer holds a `PhaseAuthor` and calls
+1. **The seam is runtime-agnostic.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ A consumer holds a `PhaseAuthor` and calls _(criterion-id: uatc_022a155228bc9924c4875e84)_ _(revision-id: uatr1:312668809f22a2a6)_
    `author("AUTHOR_TEST", prompt)`. **Success —** it returns `{ ok: true }` on a completed slice or
    `{ ok: false, error }` fail-closed, and the consumer never had to know which runtime answered.
    *(proven offline: `sdk-author.test.ts` exercises `ClaudeAgentAuthor.author` over an injected
    `queryFn`; `codex-author.test.ts` exercises `CodexPhaseAuthor` over an injected runner; the
    owned-loop side is `OwnedLoopAuthor`, mapped in drive-machinery.)*
-2. **The model is swappable.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ Drive the owned loop with a `ScriptedModel` (zero live calls);
+2. **The model is swappable.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ Drive the owned loop with a `ScriptedModel` (zero live calls); _(criterion-id: uatc_06cc2a84373bb97a0aa7e0ae)_ _(revision-id: uatr1:2441ddc87ac124ea)_
    running past the scripted end is a LOUD error, never silent. **Success —** a turn runs to a
    natural stop with all `@anthropic-ai/sdk` imports confined to `model.ts`. *(proven:
    `model.test.ts`, `run-turn.test.ts`)*
-3. **The tool surface is confined.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ A leaf's file tool addresses a path outside the workspace.
+3. **The tool surface is confined.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ A leaf's file tool addresses a path outside the workspace. _(criterion-id: uatc_87dfb002958176d8e4b566ea)_ _(revision-id: uatr1:a6d85288a5986842)_
    **Success —** the executor refuses with a `PathEscapeError` and the refusal returns as a tool
    result, never a thrown crash. *(proven: `fs-tools.test.ts` — path-escape + error-as-result;
    `tool-executor.test.ts` — unknown tool / throwing handler captured as `is_error`)*
-4. **A step fails closed.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ The model returns malformed or wrong-shape JSON. **Success —**
+4. **A step fails closed.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ The model returns malformed or wrong-shape JSON. **Success —** _(criterion-id: uatc_07ab4bbca22ca84a6772c53e)_ _(revision-id: uatr1:e4aa47517761c91a)_
    `runStepValidated` retries, then HALTS to `ValidationFailed` — never reports a forged success.
    *(proven: `step.test.ts`)*
-5. **The selected live runtime authors a real slice.** _(witness: human)_ With Claude as the
+5. **The selected live runtime authors a real slice.** _(witness: human)_ With Claude as the _(criterion-id: uatc_027e3e8ad2253d327fc15c07)_ _(revision-id: uatr1:4c500bf040db5eed)_
    compatibility default or Codex selected explicitly via `--runtime codex`, the leaf runs one
    subscription-funded invocation. **Success —** phase scope is enforced before any write lands,
    out-of-scope writes are recorded violations, and no red/green claim or verdict is accepted from
    the leaf; the spine reruns the registered command out of band. *(write-scope decisions proven
    offline in `sdk-author.test.ts` and `codex-author.test.ts`; live invocations are need-gated.)*
-6. **Feedback is a doorbell, not a shell.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ The spine exposes its proof/typecheck commands as
+6. **Feedback is a doorbell, not a shell.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ The spine exposes its proof/typecheck commands as _(criterion-id: uatc_bf5fccace84b18f4b3615108)_ _(revision-id: uatr1:34cceb5367cb06ad)_
    bounded in-process MCP tools (`mcp__spine__run_proof` …). **Success —** the leaf can iterate
    write→run→fix, but it controls ZERO arguments (fixed commands), the output is feedback only, and
    the attested red/green stays the spine's own out-of-band runs after the leaf stops. *(proven:

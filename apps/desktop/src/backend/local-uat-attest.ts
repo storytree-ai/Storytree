@@ -34,14 +34,15 @@ import type { ForestWriter } from "./local-backend.js";
 
 /** One declared UAT leg from the story's test context — only the fields the trust guard needs. */
 export interface LocalUatDeclaredTest {
-  id: string;
+  criterionId: string;
+  revisionId: string;
   witness: UatTestCriterionWitness;
 }
 
 /** Everything {@link attestLocalUat} needs, all injected — no global state, no hidden reads. */
 export interface AttestLocalUatInput {
-  /** The declared UAT test id being attested (e.g. `desktop#uat-1`). */
-  testId: string;
+  /** The Markdown-authored opaque UAT criterion id being attested. */
+  criterionId: string;
   /** What the local human observed. */
   outcome: "pass" | "fail";
   /** Injected ISO sign time — keeps the compute deterministic and derives the verdict's `runId`. */
@@ -73,8 +74,8 @@ const COMMIT_SHA_RE = /^[0-9a-f]{40}$/i;
  */
 export async function attestLocalUat(input: AttestLocalUatInput): Promise<AttestLocalUatResult> {
   // 1a. The test id must be a real, well-formed id.
-  const testId = input.testId.trim();
-  if (testId.length === 0) {
+  const criterionId = input.criterionId.trim();
+  if (criterionId.length === 0) {
     return {
       ok: false,
       reason: "blank test id — a local UAT attestation needs a real declared test id.",
@@ -100,11 +101,11 @@ export async function attestLocalUat(input: AttestLocalUatInput): Promise<Attest
   }
 
   // 1d. The test id must resolve against the declared context — a typo never mints a verdict.
-  const test = input.tests.find((t) => t.id === testId);
+  const test = input.tests.find((t) => t.criterionId === criterionId);
   if (test === undefined) {
     return {
       ok: false,
-      reason: `unknown test id "${testId}" — not among the declared UAT test criteria.`,
+      reason: `unknown criterion id "${criterionId}" — not among the declared UAT test criteria.`,
     };
   }
 
@@ -149,7 +150,9 @@ export async function attestLocalUat(input: AttestLocalUatInput): Promise<Attest
   const runId = `local-uat-attest:${input.at}`;
   const note = input.note?.trim();
   const candidate: unknown = {
-    unitId: test.id,
+    unitId: test.criterionId,
+    criterionId: test.criterionId,
+    revisionId: test.revisionId,
     proofMode: "operator-attested",
     outcome,
     commitSha,

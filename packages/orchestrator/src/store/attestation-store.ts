@@ -1,5 +1,8 @@
-import type { Attestation } from "@storytree/proof-protocol";
-import { Attestation as AttestationDoc } from "@storytree/proof-protocol";
+import type { Attestation, StoredAttestation } from "@storytree/proof-protocol";
+import {
+  Attestation as AttestationDoc,
+  StoredAttestation as StoredAttestationDoc,
+} from "@storytree/proof-protocol";
 
 /**
  * ADR-0044 `attestation-signals`: the Postgres-backed per-UAT-test attestation log.
@@ -65,7 +68,7 @@ export class PgAttestationStore {
   /**
    * All attestation rows as `{ seq, doc }`, ascending by `seq` — the input shape
    * `deriveAttestations` consumes. The caller derives the latest-per-(testId,witness)
-   * projection (and filters to a story's `<story>#uat-*` tests) in JS.
+   * projection. Current callers join its opaque criterion ids to Markdown; legacy keys remain history.
    */
   async readEvents(): Promise<Array<{ seq: number; doc: unknown }>> {
     const res = await this.#client.query("SELECT seq, doc FROM events.attestation ORDER BY seq");
@@ -76,14 +79,14 @@ export class PgAttestationStore {
    * Full append-only history for one test id, ascending. A malformed stored row is
    * skipped (conservative parsing) rather than crashing the read.
    */
-  async history(testId: string): Promise<Attestation[]> {
+  async history(testId: string): Promise<StoredAttestation[]> {
     const res = await this.#client.query(
       "SELECT doc FROM events.attestation WHERE test_id = $1 ORDER BY seq",
       [testId],
     );
-    const out: Attestation[] = [];
+    const out: StoredAttestation[] = [];
     for (const row of res.rows as Array<{ doc: unknown }>) {
-      const parsed = AttestationDoc.safeParse(row.doc);
+      const parsed = StoredAttestationDoc.safeParse(row.doc);
       if (parsed.success) out.push(parsed.data);
     }
     return out;

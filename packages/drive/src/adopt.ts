@@ -261,23 +261,29 @@ export async function runAdopt(
   for (const { leg, outcome } of legResolutions) {
     if (outcome.kind === "human") {
       humanLegs += 1;
-      legLines.push(`  ◻ ${leg.id} (human) — awaits your "I saw it work" verdict (ADR-0082)`);
+      legLines.push(`  ◻ ${leg.criterionId} (human) — awaits your "I saw it work" verdict (ADR-0082)`);
       continue;
     }
     if (outcome.kind === "refused") {
-      legLines.push(`  ✗ ${leg.id} (machine) — ${outcome.reason}`);
+      legLines.push(`  ✗ ${leg.criterionId} (machine) — ${outcome.reason}`);
       continue;
     }
     // outcome.kind === "observe": would resolve fine on its own — but ANY invalid/unbound sibling
     // machine leg refuses the WHOLE UAT-signing pass (uat-bound-command-adoption: no partial verdict).
     if (anyMachineRefused) {
       legLines.push(
-        `  ✗ ${leg.id} (machine) — not signed: an invalid/unbound sibling machine leg refuses the whole UAT-signing pass (no partial verdict)`,
+        `  ✗ ${leg.criterionId} (machine) — not signed: an invalid/unbound sibling machine leg refuses the whole UAT-signing pass (no partial verdict)`,
       );
       continue;
     }
     const res = await observeAndSign({
-      gate: { id: leg.id, kind: "observe", proofCommand: outcome.proofCommand },
+      gate: {
+        id: leg.criterionId,
+        criterionId: leg.criterionId,
+        revisionId: leg.revisionId,
+        kind: "observe",
+        proofCommand: outcome.proofCommand,
+      },
       gitState,
       observe,
       approverInputs,
@@ -287,9 +293,9 @@ export async function runAdopt(
     });
     if (res.ok) {
       signedLegs += 1;
-      legLines.push(`  ✓ ${leg.id} (machine) adopted — observed via ${outcome.observedBy} (\`${outcome.proofCommand}\`)`);
+      legLines.push(`  ✓ ${leg.criterionId} (machine) adopted — observed via ${outcome.observedBy} (\`${outcome.proofCommand}\`)`);
     } else {
-      legLines.push(`  ✗ ${leg.id} (machine) — ${res.reason}`);
+      legLines.push(`  ✗ ${leg.criterionId} (machine) — ${res.reason}`);
     }
   }
 

@@ -153,22 +153,22 @@ becomes real and lazy.
 events as that code moves, and `storytree drift <unit>` reads the stored binding + change log and
 classifies it — refusing to re-UAT on a cosmetic/undescribed change.
 
-1. **A verdict records its code.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-1)_ A
+1. **A verdict records its code.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-1)_ A _(criterion-id: uatc_eddefa6d5b093d9f920feb29)_ _(revision-id: uatr1:337676032c715ad0)_
    signed `Verdict` carries the `boundHash` of the span it proved.
    **Success —** the field round-trips through the schema; a verdict without it still parses (back-compat),
    asserted in `packages/proof-protocol/src/shapes.test.ts`. *(proven by `boundhash-on-verdict`)*
-2. **The store holds change events.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-2)_ The
+2. **The store holds change events.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-2)_ The _(criterion-id: uatc_5c21ca51ab701f2da96ae69f)_ _(revision-id: uatr1:eebc2d5aabd9e376)_
    `ChangeStore` contract appends + reads `ChangeEvent`s, held to a reusable parity bar. **Success —**
    the `changeStoreParitySuite` is green against `InMemoryStore` — an empty log reads `[]`, an appended
    event round-trips unchanged, a `unitId` filter selects only its own, and insertion order is preserved
    (`packages/storage-protocol/src/change-event-store.test.ts`). *(proven by `change-event-store`)*
-3. **The gate emits as it proves.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-3)_ When a
+3. **The gate emits as it proves.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-3)_ When a _(criterion-id: uatc_e86cbe78a9f321c3b12aca91)_ _(revision-id: uatr1:a0b3e3cf7328ac9d)_
    unit is (re)proven with a binding, the gate stamps `verdict.boundHash` and emits a `ChangeEvent`;
    without a binding it signs exactly as before. **Success —** the orchestrator test observes BOTH
    branches — with a binding the verdict carries the bound hash and exactly one change event is emitted
    carrying it, without one the field is absent and no event is emitted
    (`packages/orchestrator/src/gate-emits-change.test.ts`). *(proven by `gate-emits-change`)*
-4. **Drift reads the store.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-4)_ The
+4. **Drift reads the store.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-4)_ The _(criterion-id: uatc_ede9962b4bf236d6cb7f93ea)_ _(revision-id: uatr1:82c688ff8afc6717)_
    store-reading drift path — `runDriftFromStore` in `packages/cli/src/drift.ts` — reads the unit's
    stored anchor + change log and classifies fresh | stale | drifted-undescribed, taking no explicit
    `--bound`/`--change` arguments. **Success —** the three states are distinguished from `InMemoryStore`
@@ -177,7 +177,7 @@ classifies it — refusing to re-UAT on a cosmetic/undescribed change.
    the `storytree drift <unit>` command: that command is not wired, and pretending otherwise here would
    be a leg that can never go red — see the recorded gap under **Honest status**.
    *(proven by `drift-reads-store`)*
-5. **Source-drift too.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-3)_ A pure classifier
+5. **Source-drift too.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-3)_ A pure classifier _(criterion-id: uatc_9efe0576a211f525648cbfb7)_ _(revision-id: uatr1:47f094d2983559c3)_
    flags an artifact whose upstream `derives_from` source changed.
    **Success —** described change → stale, undescribed → demoted, unchanged → fresh, asserted over the
    pure classifier in `packages/orchestrator/src/proof/source-drift.test.ts`. *(proven by `source-drift`)*

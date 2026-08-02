@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  CriterionId,
+  CriterionRevisionId,
+  criterionRevisionId,
+} from "@storytree/proof-protocol";
 
 /**
  * The `three-kind-witness` capability (ADR-0209 D1/D8): a UAT criterion's `witness`
@@ -62,7 +67,7 @@ export type Tier = z.infer<typeof Tier>;
 // ---------------------------------------------------------------------------
 
 /**
- * One addressable UAT criterion. `id` is the stable `<story>#uat-<n>` join key;
+ * One addressable UAT criterion. `criterionId` is the authored opaque join key;
  * `witness` classifies who/what may attest it. Strict: unknown fields rejected.
  *
  * `witness` defaults to `either` — the conservative legacy default (ADR-0209 D8): an
@@ -77,8 +82,10 @@ export type Tier = z.infer<typeof Tier>;
  */
 export const Criterion = z
   .object({
-    /** Stable criterion id, `<story>#uat-<n>`. */
-    id: z.string().min(1),
+    /** Authored opaque identity and exact immutable content revision (ADR-0253). */
+    criterionId: CriterionId,
+    revisionId: CriterionRevisionId,
+    previousRevisionId: CriterionRevisionId.optional(),
     /** Human-readable title (the prose item's bold lead). */
     title: z.string().min(1),
     /** Who/what may attest this criterion. */
@@ -88,6 +95,13 @@ export const Criterion = z
   })
   .strict()
   .superRefine((val, ctx) => {
+    if (val.previousRevisionId === val.revisionId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["previousRevisionId"],
+        message: "previousRevisionId must name the preceding revision",
+      });
+    }
     if (val.witness === "model") {
       if (val.tier === undefined) {
         ctx.addIssue({
@@ -112,8 +126,8 @@ export type Criterion = z.infer<typeof Criterion>;
 // Id scheme
 // ---------------------------------------------------------------------------
 
-/** PURE: the stable criterion id for a story's nth UAT criterion (1-based). */
-export function criterionId(storyId: string, ordinal: number): string {
+/** Migration-only positional key. Never a current criterion identity. */
+export function legacyCriterionId(storyId: string, ordinal: number): string {
   return `${storyId}#uat-${ordinal}`;
 }
 
@@ -136,6 +150,10 @@ const WITNESS_TAG = /\(witness:\s*([A-Za-z]+)\)/i;
  * silently defaulted or clamped up).
  */
 const TIER_TAG = /\(tier:\s*([A-Za-z]+)\)/i;
+const CRITERION_ID_TAG = /\(criterion-id:\s*([^)]*)\)/i;
+const REVISION_ID_TAG = /\(revision-id:\s*([^)]*)\)/i;
+const PREVIOUS_REVISION_ID_TAG = /\(previous-revision-id:\s*([^)]*)\)/i;
+const IDENTITY_METADATA_TAG = /_?\((?:criterion-id|revision-id|previous-revision-id|lineage):[^)]*\)_?/gi;
 
 /** Extract the `## UAT Test Criteria` section (between its heading and the next `##`). `null` when absent. */
 function criteriaSection(body: string): string | null {
@@ -203,10 +221,46 @@ function itemTier(item: string, id: string): Tier | undefined {
   return parsed.data;
 }
 
+function oneIdentityTag(item: string, pattern: RegExp, label: string): string {
+  const matches = [...item.matchAll(new RegExp(pattern.source, "gi"))];
+  if (matches.length !== 1) {
+    throw new Error(`${label}: expected exactly one (${label}: ...) annotation, found ${matches.length}`);
+  }
+  return matches[0]?.[1]?.trim() ?? "";
+}
+
+function itemCriterionId(item: string): string {
+  return CriterionId.parse(oneIdentityTag(item, CRITERION_ID_TAG, "criterion-id"));
+}
+
+function itemRevisionId(item: string): string {
+  return CriterionRevisionId.parse(oneIdentityTag(item, REVISION_ID_TAG, "revision-id"));
+}
+
+function itemPreviousRevisionId(item: string): string | undefined {
+  const matches = [...item.matchAll(new RegExp(PREVIOUS_REVISION_ID_TAG.source, "gi"))];
+  if (matches.length > 1) throw new Error("duplicate previous-revision-id annotations");
+  if (matches.length === 0) return undefined;
+  return CriterionRevisionId.parse(matches[0]?.[1]?.trim());
+}
+
+/** Canonical content matches the disk-canonical Library parser: position and identity history excluded. */
+export function canonicalCriterionContent(item: string): string {
+  return item
+    .replace(/^\d+\.[^\n\S]+/, "")
+    .replace(IDENTITY_METADATA_TAG, " ")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.trim().replace(/\s+/g, " "))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 /**
  * PURE: parse a story's markdown `body` into addressable {@link Criterion} units.
- * Each numbered item under `## UAT Test Criteria` becomes one criterion with a
- * positional, stable id (`<story>#uat-<n>`, 1-based). A story with no such section
+ * Each numbered item under `## UAT Test Criteria` becomes one criterion with its
+ * authored opaque identity and content-bound revision. A story with no such section
  * yields `[]`; an item with no witness annotation defaults to `either`; an explicit
  * but invalid witness value throws at the parsing boundary. A `model` witness must
  * also carry a `(tier: advanced|frontier)` annotation (ADR-0209 D2) — missing,
@@ -217,13 +271,31 @@ export function parseCriteria(storyId: string, body: string): Criterion[] {
   const section = criteriaSection(body);
   if (section === null) return [];
   const items = splitItems(section);
-  return items.map((item, index) => {
-    const id = criterionId(storyId, index + 1);
+  const criteria = items.map((item) => {
+    const criterionId = itemCriterionId(item);
+    const revisionId = itemRevisionId(item);
+    const expectedRevisionId = criterionRevisionId(canonicalCriterionContent(item));
+    if (revisionId !== expectedRevisionId) {
+      throw new Error(
+        `${criterionId}: revision-id ${revisionId} does not bind current content (expected ${expectedRevisionId})`,
+      );
+    }
+    const previousRevisionId = itemPreviousRevisionId(item);
     return Criterion.parse({
-      id,
+      criterionId,
+      revisionId,
+      ...(previousRevisionId !== undefined ? { previousRevisionId } : {}),
       title: itemTitle(item),
-      witness: itemWitness(item, id),
-      tier: itemTier(item, id),
+      witness: itemWitness(item, criterionId),
+      tier: itemTier(item, criterionId),
     });
   });
+  const seen = new Set<string>();
+  for (const criterion of criteria) {
+    if (seen.has(criterion.criterionId)) {
+      throw new Error(`${storyId}: duplicate criterion-id ${criterion.criterionId}`);
+    }
+    seen.add(criterion.criterionId);
+  }
+  return criteria;
 }

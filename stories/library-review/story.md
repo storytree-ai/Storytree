@@ -155,31 +155,31 @@ every surface; the list grows only when a real defect earns a permanent case. Ea
 witness — the backend legs are machine-exercised (`_(witness: machine)_`); the UI legs an agent cannot
 drive are human-witness actions (`_(witness: human)_`, ADR-0070 / ADR-0040), recorded not skipped.
 
-1. **Open an open-question in Review.** _(witness: human)(detail: library-review#uat-1)_ Open a library open-question in the studio
+1. **Open an open-question in Review.** _(witness: human)(detail: library-review#uat-1)_ Open a library open-question in the studio _(criterion-id: uatc_50675817f38dafb3d307de22)_ _(revision-id: uatr1:c45ed3b712f91d3a)_
    and flip the View → Review toggle. **Success —** the surface enters Review mode; the commenting +
    suggesting affordances appear, View was read-only.
-2. **Comment at a block position.** _(witness: human)(detail: library-review#uat-2)_ In Review mode, drop an inline comment above a
+2. **Comment at a block position.** _(witness: human)(detail: library-review#uat-2)_ In Review mode, drop an inline comment above a _(criterion-id: uatc_76b48b635e2a58dabf134d05)_ _(revision-id: uatr1:f162af5d3872ecda)_
    specific block (not a side panel; not a text selection). **Success —** the comment thread renders
    IN the document flow above that block, like a code-review thread.
-3. **The comment persisted with a block anchor.** _(witness: machine)(detail: library-review#uat-3)_ Inspect the stored comment.
+3. **The comment persisted with a block anchor.** _(witness: machine)(detail: library-review#uat-3)_ Inspect the stored comment. _(criterion-id: uatc_76681235d644938d2598380c)_ _(revision-id: uatr1:8fbc03c2b562c8eb)_
    **Success —** it carries a block-position anchor (which block), NOT a `quote`/`prefix`/`suffix`
    text-span anchor — the block-position model end-to-end.
-4. **Propose a suggestion.** _(witness: human)(detail: library-review#uat-4)_ As a member, edit a block's prose in Review mode and
+4. **Propose a suggestion.** _(witness: human)(detail: library-review#uat-4)_ As a member, edit a block's prose in Review mode and _(criterion-id: uatc_579e8c23c11391ebd2396159)_ _(revision-id: uatr1:4cabbf0e6953dd9f)_
    submit it as a suggestion. **Success —** a suggestion record is created `open` (a proposal, not a
    direct overwrite); the surface shows the PROPOSED RESULT by default with the original collapsed
    behind a "show change" toggle — no strikethrough.
-5. **The suggestion is a proposal, not an overwrite.** _(witness: machine)(detail: library-review#uat-5)_ Inspect the stored doc +
+5. **The suggestion is a proposal, not an overwrite.** _(witness: machine)(detail: library-review#uat-5)_ Inspect the stored doc + _(criterion-id: uatc_8d2b3ad46f16f3f8c1dda241)_ _(revision-id: uatr1:c6b13b978aa7f39d)_
    the suggestion record. **Success —** the document is UNCHANGED; the suggestion holds the proposed
    replacement with status `open`, author = the member.
-6. **A member cannot accept/reject.** _(witness: machine)(detail: library-review#uat-6)_ As a member, attempt accept and reject on
+6. **A member cannot accept/reject.** _(witness: machine)(detail: library-review#uat-6)_ As a member, attempt accept and reject on _(criterion-id: uatc_afeb19036c9f6e66ceb082e5)_ _(revision-id: uatr1:ffb445a61d9cae9b)_
    the suggestion. **Success —** both refused (member scope); the suggestion stays `open`.
-7. **The owner accepts.** _(witness: human)(detail: library-review#uat-7)_ As the owner/admin, click Accept. **Success —**
+7. **The owner accepts.** _(witness: human)(detail: library-review#uat-7)_ As the owner/admin, click Accept. **Success —** _(criterion-id: uatc_2c1854c481f8d507d1b88ebd)_ _(revision-id: uatr1:aee83238ae66332a)_
    the suggestion flips `open → accepted`, the edit is applied to the document through the admin
    asset-write path, and re-deciding the now-closed suggestion is refused.
-8. **Live refresh, no reload.** _(witness: human)(detail: library-review#uat-8)_ With the open-question open, a second comment /
+8. **Live refresh, no reload.** _(witness: human)(detail: library-review#uat-8)_ With the open-question open, a second comment / _(criterion-id: uatc_ee3daee25bc4403dc413100a)_ _(revision-id: uatr1:bdfcd2940eee27cc)_
    suggestion is posted (another session / a scripted POST). **Success —** it appears on the Review
    surface within the poll window WITHOUT a manual reload (the 30 s visibility-gated refresh feed).
-9. **The old text-selection commenting is gone.** _(witness: machine)(detail: library-review#uat-9)_ Search the built studio for the
+9. **The old text-selection commenting is gone.** _(witness: machine)(detail: library-review#uat-9)_ Search the built studio for the _(criterion-id: uatc_d5785439b3378b3c34aef9d1)_ _(revision-id: uatr1:9bc1edae4437f438)_
    removed path. **Success —** `annotate.ts` quote-matching, the select-to-highlight popover, the
    `kind:'text'` comment anchor, and the range `<mark>` highlights are absent; `pnpm --filter studio
    test` + `pnpm --filter studio typecheck` are green — a clean swap, no two systems side by side.

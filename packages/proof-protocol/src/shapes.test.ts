@@ -241,7 +241,9 @@ test("DriftState round-trips a valid option and rejects an unknown one", () => {
 
 test("Attestation round-trips a valid doc and rejects a malformed one", () => {
   const valid = {
-    testId: "stories/library#uat-1",
+    testId: "uatc_0123456789abcdef01234567",
+    criterionId: "uatc_0123456789abcdef01234567",
+    revisionId: "uatr1:0123456789abcdef",
     outcome: "pass" as const,
     witness: "human" as const,
     signer: "hua.mick@gmail.com",

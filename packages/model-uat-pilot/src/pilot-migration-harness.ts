@@ -83,10 +83,10 @@ export function assertPilotMigrationComplete(paths: PilotPaths): void {
     }
     for (const c of criteria) {
       if (c.witness === "either") {
-        throw new Error(`${c.id}: still legacy-unresolved either (ADR-0209 D8)`);
+        throw new Error(`${c.criterionId}: still legacy-unresolved either (ADR-0209 D8)`);
       }
       if (c.witness === "model" && c.tier === undefined) {
-        throw new Error(`${c.id}: model criterion missing tier`);
+        throw new Error(`${c.criterionId}: model criterion missing tier`);
       }
     }
     const pointers = parseCriterionPointers(storyId, body);
@@ -95,20 +95,20 @@ export function assertPilotMigrationComplete(paths: PilotPaths): void {
         `${storyId}: detail pointers ${pointers.length} !== criteria ${criteria.length}`,
       );
     }
-    const byId = new Map(pointers.map((p) => [p.criterion.id, p]));
+    const byId = new Map(pointers.map((p) => [p.criterion.criterionId, p]));
     for (const c of criteria) {
-      const binding = byId.get(c.id);
+      const binding = byId.get(c.criterionId);
       if (binding === undefined) {
-        throw new Error(`${c.id}: missing (detail: …) pointer`);
+        throw new Error(`${c.criterionId}: missing (detail: …) pointer`);
       }
       const detail = loadDetail(paths.repoRoot, binding.detailArtifactId);
       if (detail.id !== binding.detailArtifactId) {
         throw new Error(
-          `${c.id}: detail id mismatch seed=${detail.id} pointer=${binding.detailArtifactId}`,
+          `${c.criterionId}: detail id mismatch seed=${detail.id} pointer=${binding.detailArtifactId}`,
         );
       }
       if (displayTitle({ criterion: c, detail }) !== c.title) {
-        throw new Error(`${c.id}: displayTitle must stay story-owned`);
+        throw new Error(`${c.criterionId}: displayTitle must stay story-owned`);
       }
     }
   }

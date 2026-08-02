@@ -1,5 +1,14 @@
-import type { Status, Verdict } from "@storytree/proof-protocol";
-import type { UatTestCriterionWitness } from "@storytree/library";
+import {
+  CriterionVerdict,
+  SIGNING_EVENT_KIND,
+  Verdict,
+  type CriterionBinding,
+  type Status,
+} from "@storytree/proof-protocol";
+import type {
+  LegacyUatDispositionLedger,
+  UatTestCriterionWitness,
+} from "@storytree/library";
 
 import { rollupStatus, type RollupEvent } from "./rollup.js";
 
@@ -36,6 +45,56 @@ export interface UatProofCheck {
 
 /** The guard's verdict: legitimate, or refused with a reason. */
 export type UatProofResult = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Roll one current criterion revision. Exact current verdicts and explicitly
+ * mapped legacy rows are the only relevant events; stale/unresolved/superseded
+ * history is deliberately invisible to current proof credit.
+ */
+export function rollupCriterionStatus(
+  target: CriterionBinding,
+  events: readonly RollupEvent[],
+  legacyLedger?: LegacyUatDispositionLedger,
+): Status | null {
+  let status: Status | null = null;
+  const mappedLegacyIds = new Set(
+    legacyLedger?.dispositions
+      .filter(
+        (entry) =>
+          entry.disposition === "mapped" &&
+          entry.criterionId === target.criterionId &&
+          entry.revisionId === target.revisionId,
+      )
+      .map((entry) => entry.legacyTestId) ?? [],
+  );
+
+  for (const event of [...events].sort((a, b) => a.seq - b.seq)) {
+    if (event.kind !== SIGNING_EVENT_KIND) continue;
+    const exact = CriterionVerdict.safeParse(event.doc);
+    let verdict: Verdict | null = null;
+    if (
+      exact.success &&
+      exact.data.criterionId === target.criterionId &&
+      exact.data.revisionId === target.revisionId
+    ) {
+      verdict = exact.data;
+    } else {
+      const legacy = Verdict.safeParse(event.doc);
+      if (
+        legacy.success &&
+        legacy.data.criterionId === undefined &&
+        legacy.data.revisionId === undefined &&
+        mappedLegacyIds.has(legacy.data.unitId)
+      ) {
+        verdict = legacy.data;
+      }
+    }
+    if (verdict === null) continue;
+    if (verdict.outcome === "pass") status = "healthy";
+    else if (status === "healthy") status = "unhealthy";
+  }
+  return status;
+}
 
 /**
  * SIGN-TIME guard (ADR-0082 d.2): is this verdict a LEGITIMATE proof of a UAT test with the given
@@ -111,13 +170,22 @@ export function checkUatProof({
  * ADR-0044 §3) — six green plants still do not make a green crown.
  */
 export function rollupStoryUat(
-  tests: readonly { readonly id: string }[],
+  tests: readonly (
+    | { readonly criterionId: string; readonly revisionId: string }
+    | { readonly id: string }
+  )[],
   events: readonly RollupEvent[],
+  legacyLedger?: LegacyUatDispositionLedger,
 ): Status | null {
   if (tests.length === 0) return null;
   let allHealthy = true;
   for (const t of tests) {
-    const status = rollupStatus(t.id, events);
+    const status =
+      "criterionId" in t
+        ? rollupCriterionStatus(t, events, legacyLedger)
+        : /^.+#uat-\d+$/.test(t.id)
+          ? null // ADR-0253: a positional legacy key is never a current proof obligation.
+          : rollupStatus(t.id, events); // reliability gates and other non-UAT own-proof obligations
     if (status === "unhealthy") return "unhealthy";
     if (status !== "healthy") allHealthy = false;
   }
@@ -167,11 +235,15 @@ export function rollupStoryUat(
  */
 export function rollupStoryGreen(
   capabilityIds: readonly string[],
-  tests: readonly { readonly id: string }[],
+  tests: readonly (
+    | { readonly criterionId: string; readonly revisionId: string }
+    | { readonly id: string }
+  )[],
   events: readonly RollupEvent[],
   coverage: readonly { readonly id: string; readonly covers?: readonly string[] }[] = [],
+  legacyLedger?: LegacyUatDispositionLedger,
 ): Status | null {
-  const uat = rollupStoryUat(tests, events);
+  const uat = rollupStoryUat(tests, events, legacyLedger);
   if (uat === "unhealthy") return "unhealthy";
 
   let capsAllHealthy = true;

@@ -147,9 +147,9 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
 > ids, so *Human verdict* and *Machine* must stay at 2 and 3. The old leg 6 was narrowed IN PLACE and
 > its irreducible human half APPENDED as leg 7 rather than interleaved.
 
-1. **Decompose** _(witness: machine)_: a story's UAT prose resolves to addressable test ids with
+1. **Decompose** _(witness: machine)_: a story's UAT prose resolves to addressable test ids with _(criterion-id: uatc_076b7e695fa9a4c068e71b97)_ _(revision-id: uatr1:fc1a6ea562a05a62)_
    witness kinds. **Success —** each test has a stable id and a `witness`.
-2. **Human verdict** _(witness: machine)(detail: uat-attestation#uat-2)_: a permitted operator
+2. **Human verdict** _(witness: machine)(detail: uat-attestation#uat-2)_: a permitted operator _(criterion-id: uatc_023a51aaaea120055d0ad955)_ _(revision-id: uatr1:7037d180f3570e6b)_
    signs "I saw it work" for a human-witness test — the studio row's muted person icon, or
    `storytree witness attest <story>#uat-<n> --pg` (the ADR-0118 canonical verb; `uat attest` still
    works as a back-compat alias). **Success —** a signed `operator-attested` verdict lands in
@@ -158,12 +158,12 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
    signer, a `sandbox:` identity, and the building session itself — and that test reads PROVEN ✓.
    *(Re-adjudicated `human` → `machine` 2026-07-26: the leg's SUBJECT is a human signature, but its
    success condition is a verdict's shape, signer and derived state, all of which have compilers.)*
-3. **Machine** _(witness: machine)_: an automated UAT run proves a `machine` test. **Success —** a
+3. **Machine** _(witness: machine)_: an automated UAT run proves a `machine` test. **Success —** a _(criterion-id: uatc_b551ee8c331f7ba4abb747b6)_ _(revision-id: uatr1:dd78e322d1f1ce41)_
    signed machine verdict for that test id; it reads PROVEN ✓.
-4. **Story roll-up** _(witness: machine)_: every per-test verdict for the story passes.
+4. **Story roll-up** _(witness: machine)_: every per-test verdict for the story passes. _(criterion-id: uatc_656099008b06476c25330283)_ _(revision-id: uatr1:d5e2042b7691e6c9)_
    **Success —** the story's own UAT crown greens as the AND-roll-up (`rollupStoryUat`); a single
    signed `fail` withers it.
-5. **Vouch never greens** _(witness: machine)(detail: uat-attestation#uat-5)_: a lower-rigor vouch
+5. **Vouch never greens** _(witness: machine)(detail: uat-attestation#uat-5)_: a lower-rigor vouch _(criterion-id: uatc_2e712e4b36459c0030e82aac)_ _(revision-id: uatr1:0e6749e2688384ce)_
    ("I also eyeballed it") is recorded for a test — `storytree witness vouch <story>#uat-<n> --pg`
    (the ADR-0118 canonical verb; `storytree attest` still works as a back-compat alias), or
    `POST /api/attestations`. **Success —** it lands in `events.attestation` only (signer,
@@ -171,7 +171,7 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
    and the story-UAT roll-up (`rollupStoryUat`) are unchanged, the island hue is unchanged, and no
    green is forged. *(Re-adjudicated `human` → `machine` 2026-07-26: this is an ISOLATION claim — the
    load-bearing half is the absence of a write — and an absence is machine-observable.)*
-6. **The proof tier and the vouch tier are never conflated on any surface.**
+6. **The proof tier and the vouch tier are never conflated on any surface.** _(criterion-id: uatc_3df6631198729794e56861e6)_ _(revision-id: uatr1:292bf7b5d4951044)_
    _(witness: machine)(detail: uat-attestation#uat-6)_ With one test carrying a signed verdict, one
    carrying only a vouch, and one carrying neither, read both surfaces. **Success —**
    `storytree tree <story>` renders the two in SEPARATE columns — `proven=✓/✗/–` derived from
@@ -182,7 +182,7 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
    with no vouch column. *(Restated 2026-07-26 to what the surfaces actually do — see the stale-prose
    note above — and re-adjudicated `human` → `machine`: which mark, which column, and which state can
    reach a row are all structural.)*
-7. **A vouch never READS as a gate-proven pass.** _(witness: human)(detail: uat-attestation#uat-7)_
+7. **A vouch never READS as a gate-proven pass.** _(witness: human)(detail: uat-attestation#uat-7)_ _(criterion-id: uatc_ea4e9866fcc9534b19c4b7b4)_ _(revision-id: uatr1:85e758fcf130fdf8)_
    The owner looks at a story whose UAT carries all three states — one test PROVEN, one carrying only
    a vouch, one blank — in the studio panel and in `storytree tree <story>`, and judges whether the
    rigor tiers are unmistakable: can a reader tell, WITHOUT being told, which mark is a gate verdict

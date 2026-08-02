@@ -370,7 +370,7 @@ relocated registry, and
 streams the worker's coarse progress back — all offline over a scripted runner, with no verdict ever
 handed in and no app importing another app's server.
 
-1. **The worker lives in a shared package, importing nothing from `apps/*`, and the studio still builds.**
+1. **The worker lives in a shared package, importing nothing from `apps/*`, and the studio still builds.** _(criterion-id: uatc_4840168f18bf2c73f3a547b8)_ _(revision-id: uatr1:244dfa46ad675ff3)_
    _(witness: machine)_ _(proof-gate: desktop-build-mount#gate-3)_ Import the worker trio (`BuildRegistry`, `runBuildJob`, `dispatchAcceptedBuild`,
    the `BuildContext` type) from `@storytree/drive/build-worker`, and run the relocated worker's own suite +
    the re-pointed studio server suite. **Success —** the subpath resolves and the trio is exported (it does
@@ -379,7 +379,7 @@ handed in and no app importing another app's server.
    importers (`apiRouter.ts`, `devApi.ts`) re-point at the package and the existing server suites
    (`buildWorker.test.ts`, `buildRegistry.test.ts`, the two integration
    suites) stay green from the new home (parity — no behaviour changed, only the home).
-2. **The desktop mounts a build route over the relocated worker.** _(witness: machine)_ _(proof-gate: desktop-build-mount#gate-2)_ Stand up the
+2. **The desktop mounts a build route over the relocated worker.** _(witness: machine)_ _(proof-gate: desktop-build-mount#gate-2)_ Stand up the _(criterion-id: uatc_ddf8f52175c8a0912bab6196)_ _(revision-id: uatr1:3877ddcedbc5496d)_
    desktop build-route dispatcher on a real `node:http` server with an injected scripted `BuildContext`
    (real `BuildRegistry`, a scripted runner, an injected `isBuildable`). **Success —** `POST /api/build
    {unitId}` validates buildable, mints a run, returns 202 `{ runId }` (fire-and-forget); `GET

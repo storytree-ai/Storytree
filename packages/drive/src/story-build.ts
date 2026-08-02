@@ -70,7 +70,7 @@ import type { EmitWispDeps } from "./wisp-smoke.js";
  * capabilities, the per-test verdicts come from `storytree uat attest` / machine proofs.
  */
 function storyUatProofLine(
-  tests: readonly { readonly id: string }[],
+  tests: readonly { readonly criterionId: string; readonly revisionId: string }[],
   events: readonly { kind: string; seq: number; doc: unknown }[],
 ): string {
   const rolled = rollupStoryUat(tests, events);
@@ -94,7 +94,10 @@ function storyUatProofLine(
  */
 function storyGreenLine(
   capabilityIds: readonly string[],
-  tests: readonly { readonly id: string }[],
+  tests: readonly (
+    | { readonly criterionId: string; readonly revisionId: string }
+    | { readonly id: string }
+  )[],
   events: readonly { kind: string; seq: number; doc: unknown }[],
   coverage: readonly { readonly id: string; readonly covers?: readonly string[] }[] = [],
 ): string {

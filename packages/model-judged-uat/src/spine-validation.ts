@@ -35,6 +35,7 @@ export type SpineValidationResult =
 export interface SignableModelUatPayload {
   readonly signableForSpine: true;
   readonly criterionId: string;
+  readonly revisionId: string;
   readonly judgeId: string;
   readonly judgeTier: Tier;
   readonly requiredTier: Tier;
@@ -124,13 +125,19 @@ export function validateModelJudgeResult(input: SpineValidationInput): SpineVali
     };
   }
 
-  if (!result.evidenceRefs.some((ref) => ref.length > 0) || result.criterionId !== input.criterion.id) {
+  if (
+    !result.evidenceRefs.some((ref) => ref.length > 0) ||
+    result.criterionId !== input.criterion.criterionId ||
+    result.revisionId !== input.criterion.revisionId
+  ) {
     return {
       status: "refused",
       reason: "missing-evidence",
       detail:
-        result.criterionId !== input.criterion.id
-          ? `result criterionId "${result.criterionId}" does not bind criterion "${input.criterion.id}"`
+        result.criterionId !== input.criterion.criterionId
+          ? `result criterionId "${result.criterionId}" does not bind criterion "${input.criterion.criterionId}"`
+          : result.revisionId !== input.criterion.revisionId
+            ? `result revisionId "${result.revisionId}" does not bind current revision "${input.criterion.revisionId}"`
           : "evidence refs are empty",
     };
   }
@@ -138,6 +145,7 @@ export function validateModelJudgeResult(input: SpineValidationInput): SpineVali
   const payload: SignableModelUatPayload = {
     signableForSpine: true,
     criterionId: result.criterionId,
+    revisionId: result.revisionId,
     judgeId: judge.id,
     judgeTier: judge.tier,
     requiredTier,

@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { storyUatCompleteness } from "./story-completeness.js";
+import { authoredUat } from "./uat-test-fixtures.js";
 
 /**
  * ADR-0092 (gate-as-proof for a machine-witnessed story's own UAT node): the per-story
@@ -18,7 +19,7 @@ import { storyUatCompleteness } from "./story-completeness.js";
 const FILE = "stories/library/story.md";
 
 /** A complete, fully-witnessed machine-UAT story record: every completeness check passes. */
-const COMPLETE_MACHINE_STORY = [
+const COMPLETE_MACHINE_STORY_RAW = [
   "---",
   'id: "demo"',
   "tier: story",
@@ -42,6 +43,7 @@ const COMPLETE_MACHINE_STORY = [
   "The story is proven when the UAT passes against the real organism.",
   "",
 ].join("\n");
+const COMPLETE_MACHINE_STORY = authoredUat(COMPLETE_MACHINE_STORY_RAW);
 
 test("GREEN against a complete, fully-witnessed machine-UAT story record", () => {
   assert.deepEqual(storyUatCompleteness(FILE, COMPLETE_MACHINE_STORY), []);
@@ -60,10 +62,7 @@ test("GREEN against the REAL library story.md (the checker is grounded against t
 });
 
 test("RED on a missing `## UAT Test Criteria` section (the integrated acceptance journey)", () => {
-  const noUat = COMPLETE_MACHINE_STORY.replace(
-    "## Story UAT\n\n1. **First leg:** _(witness: machine)_ run the thing. **Success —** it works.\n2. **Second leg:** _(witness: machine)_ run the other thing. **Success —** it also works.\n\n",
-    "",
-  );
+  const noUat = COMPLETE_MACHINE_STORY.replace(/## Story UAT[\s\S]*?(?=\n## Proof)/, "");
   const fails = storyUatCompleteness(FILE, noUat);
   assert.ok(
     fails.some((f) => /UAT Test Criteria/.test(f)),
@@ -72,10 +71,10 @@ test("RED on a missing `## UAT Test Criteria` section (the integrated acceptance
 });
 
 test("RED on a UAT leg that does not declare its witness (silent `either` default)", () => {
-  const untagged = COMPLETE_MACHINE_STORY.replace(
+  const untagged = authoredUat(COMPLETE_MACHINE_STORY_RAW.replace(
     "2. **Second leg:** _(witness: machine)_ run the other thing. **Success —** it also works.",
     "2. **Second leg:** run the other thing. **Success —** it also works.",
-  );
+  ));
   const fails = storyUatCompleteness(FILE, untagged);
   assert.ok(
     fails.some((f) => /leg\(s\) 2 .* witness/.test(f)),
@@ -84,7 +83,7 @@ test("RED on a UAT leg that does not declare its witness (silent `either` defaul
 });
 
 test("RED on an EXPLICIT-but-invalid witness tag (fails closed, not a crash)", () => {
-  const bad = COMPLETE_MACHINE_STORY.replace("(witness: machine)_ run the thing", "(witness: nobody)_ run the thing");
+  const bad = authoredUat(COMPLETE_MACHINE_STORY_RAW.replace("(witness: machine)_ run the thing", "(witness: nobody)_ run the thing"));
   const fails = storyUatCompleteness(FILE, bad);
   assert.ok(
     fails.some((f) => /invalid witness/.test(f)),
@@ -93,10 +92,10 @@ test("RED on an EXPLICIT-but-invalid witness tag (fails closed, not a crash)", (
 });
 
 test("RED on a human-witnessed story (a human UAT is a ceremony, not a machine gate-as-proof)", () => {
-  const human = COMPLETE_MACHINE_STORY.replace("uat_witness: machine", "uat_witness: human").replace(
+  const human = authoredUat(COMPLETE_MACHINE_STORY_RAW.replace("uat_witness: machine", "uat_witness: human").replace(
     /_\(witness: machine\)_/g,
     "_(witness: human)_",
-  );
+  ));
   const fails = storyUatCompleteness(FILE, human);
   assert.ok(
     fails.some((f) => /uat_witness.*must be "machine"/.test(f)),
@@ -115,10 +114,10 @@ test("RED on unfilled `<…>` scaffold placeholders (a fresh story scaffold's ge
 
 test("an inline `<id>`-style code span does NOT false-trip the placeholder detector", () => {
   // `<id>` has no internal whitespace, and code spans are stripped — a finished story uses these freely.
-  const withCode = COMPLETE_MACHINE_STORY.replace(
+  const withCode = authoredUat(COMPLETE_MACHINE_STORY_RAW.replace(
     "run the thing. **Success —** it works.",
     "run `storytree library artifact <id>` and `--set <field>=<value>`. **Success —** it works.",
-  );
+  ));
   assert.deepEqual(storyUatCompleteness(FILE, withCode), []);
 });
 

@@ -1,13 +1,13 @@
 /**
  * `storytree uat` command (ADR-0082 — the per-test UAT write surface).
  *
- * A story's UAT decomposes into addressable per-test units (`<story>#uat-<n>`, ADR-0044
- * `uat-test-units`), and each test earns a REAL signed verdict by its declared witness: a `machine`
+ * A story's UAT decomposes into addressable criteria with authored opaque ids and content-bound
+ * revisions (ADR-0253), and each criterion earns a REAL signed verdict by its declared witness: a `machine`
  * test by a machine proof (the gate), a `human` test by an `operator-attested` verdict signed by a
  * real person, an `either` test by whichever is produced. The story's OWN UAT then greens as the
  * AND-roll-up of those per-test verdicts (ADR-0082 d.3).
  *
- *   storytree uat attest <story>#uat-<n> [--outcome pass|fail] --pg   sign an operator attestation
+ *   storytree uat attest <story-id> <uatc_id> [--outcome pass|fail] --pg   sign an operator attestation
  *   storytree uat list <story-id> [--pg]                              a story's UAT test criteria + proven state
  *
  * `attest` is the OPERATOR-ATTESTED path only — it mints an `operator-attested` {@link Verdict} into
@@ -30,7 +30,7 @@ import type { StoreEvent } from "@storytree/storage-protocol";
 import type { UatTestCriterion, UatTestCriterionWitness } from "@storytree/library";
 import {
   checkUatProof,
-  rollupStatus,
+  rollupCriterionStatus,
   rollupStoryUat,
   type SignerResult,
 } from "@storytree/orchestrator";
@@ -83,27 +83,26 @@ export interface UatOpts {
 
 export interface UatInvocation {
   mode: "attest" | "list";
-  /** The test id for `attest` (`<story>#uat-<n>`), the story id for `list`. */
+  /** The opaque criterion id for `attest`, the story id for `list`. */
   target: string | undefined;
+  /** Required for attest: opaque criterion ids intentionally do not encode their story. */
+  storyId?: string | undefined;
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** The story id a test belongs to (`<story>#uat-<n>` → `<story>`). */
-function storyOf(testId: string): string {
-  const hash = testId.indexOf("#");
-  return hash > 0 ? testId.slice(0, hash) : testId;
-}
-
 /**
  * The PROVEN glyph for one test, derived from the SIGNED verdicts in the event log (never a vouch):
  * ✓ a signed pass, ✗ a signed fail, – nothing signed yet. Distinct from the ADR-0044 attestation
  * marks (◉/▣) — those are a relayed vouch, this is the gate verdict.
  */
-function provenGlyph(events: readonly StoreEvent[], testId: string): "✓" | "✗" | "–" {
-  const status = rollupStatus(testId, events);
+function provenGlyph(
+  events: readonly StoreEvent[],
+  criterion: Pick<UatTestCriterion, "criterionId" | "revisionId">,
+): "✓" | "✗" | "–" {
+  const status = rollupCriterionStatus(criterion, events);
   if (status === "healthy") return "✓";
   if (status === "unhealthy") return "✗";
   return "–";
@@ -125,7 +124,7 @@ export function uatHelp(): Envelope {
       "REAL signed verdict by its declared witness, and the story's own UAT greens as the AND-roll-up.",
       "",
       "  storytree uat list <story-id> [--pg]              a story's UAT test criteria, witness + PROVEN state",
-      "  storytree uat attest <story>#uat-<n> [flags] --pg sign an operator attestation for one test",
+      "  storytree uat attest <story-id> <uatc_id> [flags] --pg sign an operator attestation for one criterion",
       "",
       "attest flags:",
       "  --outcome pass|fail   what the operator observed        (default pass)",
@@ -136,7 +135,8 @@ export function uatHelp(): Envelope {
       "lower-rigor events.attestation vouch that `storytree attest` writes. It refuses a machine-witness",
       "test (run the machine proof), an agent self-attestation, a dirty tree, and the offline store.",
       "",
-      "test ids come from a story's UAT prose: storytree uat list <story-id> --pg.",
+      "criterion ids come from Markdown and are shown by: storytree uat list <story-id> --pg.",
+      "Legacy <story>#uat-<n> keys remain preserved history and cannot receive current proof.",
     ].join("\n"),
     next: ["storytree uat list <story-id> --pg", "storytree tree <story-id> --pg"],
   };
@@ -151,7 +151,9 @@ export async function uatCommand(
   opts: UatOpts,
   deps: UatDeps,
 ): Promise<Envelope> {
-  return inv.mode === "list" ? uatList(inv.target, deps) : uatAttest(inv.target, opts, deps);
+  return inv.mode === "list"
+    ? uatList(inv.target, deps)
+    : uatAttest(inv.storyId, inv.target, opts, deps);
 }
 
 // ── list ─────────────────────────────────────────────────────────────────────
@@ -176,11 +178,13 @@ async function uatList(storyId: string | undefined, deps: UatDeps): Promise<Enve
   // The proven state needs the signed-verdict log; offline (no --pg) the PROVEN column is absent,
   // exactly like the tree's verdict glyphs — the test list + witness still render.
   const events = deps.store === null ? null : await deps.store.readEvents();
-  const idWidth = Math.max(...tests.map((t) => t.id.length));
+  const idWidth = Math.max(...tests.map((t) => t.criterionId.length));
   const lines = [`UAT test criteria for "${storyId}" (${tests.length}):`, ""];
   for (const t of tests) {
-    const proven = events === null ? "" : `  proven=${provenGlyph(events, t.id)}`;
-    lines.push(`  ${t.id.padEnd(idWidth)}  witness=${t.witness.padEnd(7)}  ${t.title}${proven}`);
+    const proven = events === null ? "" : `  proven=${provenGlyph(events, t)}`;
+    lines.push(
+      `  ${t.criterionId.padEnd(idWidth)}  witness=${t.witness.padEnd(7)}  ${t.title}${proven}`,
+    );
   }
   lines.push("");
   lines.push(
@@ -198,7 +202,7 @@ async function uatList(storyId: string | undefined, deps: UatDeps): Promise<Enve
     ok: true,
     body: lines.join("\n"),
     next: [
-      `storytree uat attest ${tests[0]!.id} --outcome pass --pg`,
+      `storytree uat attest ${storyId} ${tests[0]!.criterionId} --outcome pass --pg`,
       `storytree tree ${storyId} --pg`,
     ],
   };
@@ -207,32 +211,38 @@ async function uatList(storyId: string | undefined, deps: UatDeps): Promise<Enve
 // ── attest ───────────────────────────────────────────────────────────────────
 
 async function uatAttest(
-  testId: string | undefined,
+  storyId: string | undefined,
+  criterionId: string | undefined,
   opts: UatOpts,
   deps: UatDeps,
 ): Promise<Envelope> {
-  if (testId === undefined || testId.trim().length === 0) {
+  if (
+    storyId === undefined ||
+    storyId.trim().length === 0 ||
+    criterionId === undefined ||
+    criterionId.trim().length === 0
+  ) {
     return {
       ok: false,
-      body: "uat attest needs a test id: storytree uat attest <story>#uat-<n> --outcome pass --pg",
+      body: "uat attest needs a story id and criterion id: storytree uat attest <story-id> <uatc_id> --outcome pass --pg",
       next: ["storytree uat list <story-id> --pg"],
     };
   }
-  const id = testId.trim();
-  const storyId = storyOf(id);
+  const story = storyId.trim();
+  const id = criterionId.trim();
 
   // The test must be a real DECLARED unit — its witness drives the trust guard. A typo'd id never
   // signs a verdict against nothing.
-  const tests = deps.loadUatTestCriteria(storyId);
-  const test = tests.find((t) => t.id === id);
+  const tests = deps.loadUatTestCriteria(story);
+  const test = tests.find((t) => t.criterionId === id);
   if (test === undefined) {
     return {
       ok: false,
       body:
         tests.length === 0
-          ? `no UAT test "${id}" — story "${storyId}" declares no UAT test criteria (or its spec did not load).`
-          : `no UAT test "${id}" in story "${storyId}". declared: ${tests.map((t) => t.id).join(", ")}.`,
-      next: [`storytree uat list ${storyId} --pg`],
+          ? `no UAT criterion "${id}" — story "${story}" declares no UAT test criteria (or its spec did not load).`
+          : `no UAT criterion "${id}" in story "${story}". declared: ${tests.map((t) => t.criterionId).join(", ")}.`,
+      next: [`storytree uat list ${story} --pg`],
     };
   }
 
@@ -248,7 +258,7 @@ async function uatAttest(
       ok: false,
       body:
         `${resolved.error}\nName the operator who observed: --signer <email> (or set git user.email / STORYTREE_SIGNER).`,
-      next: [`storytree uat attest ${id} --outcome ${outcome} --signer <email> --pg`],
+      next: [`storytree uat attest ${story} ${id} --outcome ${outcome} --signer <email> --pg`],
     };
   }
   const signer = resolved.signer;
@@ -267,8 +277,8 @@ async function uatAttest(
       body: `refused — ${guard.reason}`,
       next:
         test.witness === "machine"
-          ? [`storytree node build ${storyId} --real   (a machine-witness test is proven by its machine proof)`]
-          : [`storytree uat attest ${id} --outcome ${outcome} --signer <a real operator email> --pg`],
+          ? [`storytree node build ${story} --real   (a machine-witness test is proven by its machine proof)`]
+          : [`storytree uat attest ${story} ${id} --outcome ${outcome} --signer <a real operator email> --pg`],
     };
   }
 
@@ -277,7 +287,7 @@ async function uatAttest(
     return {
       ok: false,
       body: "uat attest writes a signed verdict to the live store (events.verdict) — run with --pg (bring the DB up first: pnpm db:up).",
-      next: ["pnpm db:up", `storytree uat attest ${id} --outcome ${outcome} --pg`],
+      next: ["pnpm db:up", `storytree uat attest ${story} ${id} --outcome ${outcome} --pg`],
     };
   }
 
@@ -298,7 +308,7 @@ async function uatAttest(
         "refused — the working tree is DIRTY. An operator attestation pins a commit (the state observed);\n" +
         "signing against uncommitted edits would attest a commit that does not match what you saw.\n" +
         "Commit (or stash) first, then attest the clean commit.",
-      next: ["git status", `storytree uat attest ${id} --outcome ${outcome} --pg`],
+      next: ["git status", `storytree uat attest ${story} ${id} --outcome ${outcome} --pg`],
     };
   }
 
@@ -306,6 +316,8 @@ async function uatAttest(
   const runId = `uat-attest:${at}`;
   const verdict: Verdict = {
     unitId: id,
+    criterionId: test.criterionId,
+    revisionId: test.revisionId,
     proofMode: "operator-attested",
     outcome,
     commitSha: git.commitSha,
@@ -352,6 +364,6 @@ async function uatAttest(
   return {
     ok: true,
     body: lines.join("\n"),
-    next: [`storytree uat list ${storyId} --pg`, `storytree tree ${storyId} --pg`],
+    next: [`storytree uat list ${story} --pg`, `storytree tree ${story} --pg`],
   };
 }

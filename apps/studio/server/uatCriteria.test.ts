@@ -15,8 +15,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { SIGNING_EVENT_KIND } from '@storytree/proof-protocol';
-import { rollupStatus } from '@storytree/orchestrator';
+import { SIGNING_EVENT_KIND, criterionRevisionId } from '@storytree/proof-protocol';
+import { canonicalUatCriterionContent } from '@storytree/library';
+import { rollupCriterionStatus } from '@storytree/orchestrator';
 
 import { applyUatCriteria, readTree } from './apiRouter.js';
 import type { TreeStory } from '../src/types';
@@ -42,6 +43,8 @@ function verdictEvent(seq: number, unitId: string, outcome: 'pass' | 'fail', at:
     seq,
     doc: {
       unitId,
+      criterionId: unitId,
+      revisionId: REVISION,
       proofMode: 'operator-attested',
       outcome,
       commitSha: 'cafebabe',
@@ -52,6 +55,18 @@ function verdictEvent(seq: number, unitId: string, outcome: 'pass' | 'fail', at:
   };
 }
 
+const REVISION = 'uatr1:0000000000000001';
+const C1 = 'uatc_000000000000000000000001';
+const C2 = 'uatc_000000000000000000000002';
+const C3 = 'uatc_000000000000000000000003';
+const criterion = (criterionId: string) => ({ criterionId, revisionId: REVISION });
+
+function authoredLine(ordinal: number, prose: string): string {
+  const criterionId = [C1, C2, C3][ordinal - 1]!;
+  const revisionId = criterionRevisionId(canonicalUatCriterionContent(`${ordinal}. ${prose}`));
+  return `${ordinal}. ${prose} (criterion-id: ${criterionId})(revision-id: ${revisionId})`;
+}
+
 // ---------------------------------------------------------------------------
 // applyUatCriteria (pure) — the per-test state derivation
 // ---------------------------------------------------------------------------
@@ -59,10 +74,10 @@ function verdictEvent(seq: number, unitId: string, outcome: 'pass' | 'fail', at:
 describe('applyUatCriteria', () => {
   it('a signed pass verdict yields state "proven"', () => {
     const stories = [story('demo')];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }]]]);
-    const events = [verdictEvent(1, 'demo#uat-1', 'pass', '2026-07-17T00:00:00.000Z')];
-    applyUatCriteria(stories, map, events, rollupStatus);
-    expect(stories[0]!.uatCriteria).toEqual([{ id: 'demo#uat-1', state: 'proven' }]);
+    const map = new Map([['demo', [criterion(C1)]]]);
+    const events = [verdictEvent(1, C1, 'pass', '2026-07-17T00:00:00.000Z')];
+    applyUatCriteria(stories, map, events, rollupCriterionStatus);
+    expect(stories[0]!.uatCriteria).toEqual([{ id: C1, state: 'proven' }]);
   });
 
   it('a regressed (previously-passed, now-failed) verdict yields state "failing"', () => {
@@ -70,83 +85,88 @@ describe('applyUatCriteria', () => {
     // healthy" — it only DEMOTES a prior pass): a first-ever fail is 'pending', not 'failing'. The
     // 'failing' state is reached the same way `unhealthy` is — a regression after a proven pass.
     const stories = [story('demo')];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }]]]);
+    const map = new Map([['demo', [criterion(C1)]]]);
     const events = [
-      verdictEvent(1, 'demo#uat-1', 'pass', '2026-07-17T00:00:00.000Z'),
-      verdictEvent(2, 'demo#uat-1', 'fail', '2026-07-17T01:00:00.000Z'),
+      verdictEvent(1, C1, 'pass', '2026-07-17T00:00:00.000Z'),
+      verdictEvent(2, C1, 'fail', '2026-07-17T01:00:00.000Z'),
     ];
-    applyUatCriteria(stories, map, events, rollupStatus);
-    expect(stories[0]!.uatCriteria).toEqual([{ id: 'demo#uat-1', state: 'failing' }]);
+    applyUatCriteria(stories, map, events, rollupCriterionStatus);
+    expect(stories[0]!.uatCriteria).toEqual([{ id: C1, state: 'failing' }]);
   });
 
   it('a first-ever fail (no prior pass) does NOT over-claim "failing" — rollupStatus abstains to "pending"', () => {
     const stories = [story('demo')];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }]]]);
-    const events = [verdictEvent(1, 'demo#uat-1', 'fail', '2026-07-17T00:00:00.000Z')];
-    applyUatCriteria(stories, map, events, rollupStatus);
-    expect(stories[0]!.uatCriteria).toEqual([{ id: 'demo#uat-1', state: 'pending' }]);
+    const map = new Map([['demo', [criterion(C1)]]]);
+    const events = [verdictEvent(1, C1, 'fail', '2026-07-17T00:00:00.000Z')];
+    applyUatCriteria(stories, map, events, rollupCriterionStatus);
+    expect(stories[0]!.uatCriteria).toEqual([{ id: C1, state: 'pending' }]);
   });
 
   it('no signed verdict for the id yields state "pending"', () => {
     const stories = [story('demo')];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }]]]);
-    applyUatCriteria(stories, map, [], rollupStatus);
-    expect(stories[0]!.uatCriteria).toEqual([{ id: 'demo#uat-1', state: 'pending' }]);
+    const map = new Map([['demo', [criterion(C1)]]]);
+    applyUatCriteria(stories, map, [], rollupCriterionStatus);
+    expect(stories[0]!.uatCriteria).toEqual([{ id: C1, state: 'pending' }]);
   });
 
   it('a null events source (json backend / down DB) yields "pending" for every criterion, never throws', () => {
     const stories = [story('demo')];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }, { id: 'demo#uat-2' }]]]);
-    applyUatCriteria(stories, map, null, rollupStatus);
+    const map = new Map([
+      ['demo', [criterion(C1), criterion(C2)]],
+    ]);
+    applyUatCriteria(stories, map, null, rollupCriterionStatus);
     expect(stories[0]!.uatCriteria).toEqual([
-      { id: 'demo#uat-1', state: 'pending' },
-      { id: 'demo#uat-2', state: 'pending' },
+      { id: C1, state: 'pending' },
+      { id: C2, state: 'pending' },
     ]);
   });
 
   it('omitting the rollup function entirely (no injected rollup) also yields "pending", never throws', () => {
     const stories = [story('demo')];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }]]]);
-    const events = [verdictEvent(1, 'demo#uat-1', 'pass', '2026-07-17T00:00:00.000Z')];
+    const map = new Map([['demo', [criterion(C1)]]]);
+    const events = [verdictEvent(1, C1, 'pass', '2026-07-17T00:00:00.000Z')];
     applyUatCriteria(stories, map, events); // no rollup injected
-    expect(stories[0]!.uatCriteria).toEqual([{ id: 'demo#uat-1', state: 'pending' }]);
+    expect(stories[0]!.uatCriteria).toEqual([{ id: C1, state: 'pending' }]);
   });
 
   it('a story with no membership entry gets an empty uatCriteria array (never left undefined)', () => {
     const stories = [story('legacy')];
-    applyUatCriteria(stories, new Map(), null, rollupStatus);
+    applyUatCriteria(stories, new Map(), null, rollupCriterionStatus);
     expect(stories[0]!.uatCriteria).toEqual([]);
   });
 
   it('one entry per witnessable criterion, each independently resolved (mixed proven/failing/pending)', () => {
     const stories = [story('demo')];
     const map = new Map([
-      ['demo', [{ id: 'demo#uat-1' }, { id: 'demo#uat-2' }, { id: 'demo#uat-3' }]],
+      [
+        'demo',
+        [criterion(C1), criterion(C2), criterion(C3)],
+      ],
     ]);
     const events = [
-      verdictEvent(1, 'demo#uat-1', 'pass', '2026-07-17T01:00:00.000Z'),
+      verdictEvent(1, C1, 'pass', '2026-07-17T01:00:00.000Z'),
       // demo#uat-2 regressed: a prior pass, then a fail — rollupStatus's demotion path to 'unhealthy'.
-      verdictEvent(2, 'demo#uat-2', 'pass', '2026-07-17T01:30:00.000Z'),
-      verdictEvent(3, 'demo#uat-2', 'fail', '2026-07-17T02:00:00.000Z'),
+      verdictEvent(2, C2, 'pass', '2026-07-17T01:30:00.000Z'),
+      verdictEvent(3, C2, 'fail', '2026-07-17T02:00:00.000Z'),
       // demo#uat-3 has no verdict at all.
     ];
-    applyUatCriteria(stories, map, events, rollupStatus);
+    applyUatCriteria(stories, map, events, rollupCriterionStatus);
     expect(stories[0]!.uatCriteria).toEqual([
-      { id: 'demo#uat-1', state: 'proven' },
-      { id: 'demo#uat-2', state: 'failing' },
-      { id: 'demo#uat-3', state: 'pending' },
+      { id: C1, state: 'proven' },
+      { id: C2, state: 'failing' },
+      { id: C3, state: 'pending' },
     ]);
   });
 
   it('a regression (a later fail after an earlier pass) resolves to "failing", not "proven" (last event wins)', () => {
     const stories = [story('demo')];
-    const map = new Map([['demo', [{ id: 'demo#uat-1' }]]]);
+    const map = new Map([['demo', [criterion(C1)]]]);
     const events = [
-      verdictEvent(1, 'demo#uat-1', 'pass', '2026-07-17T01:00:00.000Z'),
-      verdictEvent(2, 'demo#uat-1', 'fail', '2026-07-17T02:00:00.000Z'),
+      verdictEvent(1, C1, 'pass', '2026-07-17T01:00:00.000Z'),
+      verdictEvent(2, C1, 'fail', '2026-07-17T02:00:00.000Z'),
     ];
-    applyUatCriteria(stories, map, events, rollupStatus);
-    expect(stories[0]!.uatCriteria).toEqual([{ id: 'demo#uat-1', state: 'failing' }]);
+    applyUatCriteria(stories, map, events, rollupCriterionStatus);
+    expect(stories[0]!.uatCriteria).toEqual([{ id: C1, state: 'failing' }]);
   });
 });
 
@@ -176,8 +196,8 @@ beforeAll(async () => {
       [
         '## UAT Test Criteria',
         '',
-        '1. **First leg** _(witness: machine)_: it works.',
-        '2. **Second leg** _(witness: human)_: it also works.',
+        authoredLine(1, '**First leg** _(witness: machine)_: it works.'),
+        authoredLine(2, '**Second leg** _(witness: human)_: it also works.'),
       ].join('\n'),
       [
         '',
@@ -197,7 +217,7 @@ beforeAll(async () => {
       [
         '## UAT Test Criteria (would-be)',
         '',
-        '1. **Someday leg** _(witness: human)_: not yet scripted.',
+        authoredLine(1, '**Someday leg** _(witness: human)_: not yet scripted.'),
       ].join('\n'),
     ),
   );
@@ -212,9 +232,9 @@ afterAll(async () => {
 describe('readTree uatCriteriaByStory (membership, forest-parcels inc-2)', () => {
   it('collects only the witnessable UAT legs, excluding reliability gates', async () => {
     const { uatCriteriaByStory } = await readTree(dir);
-    expect(uatCriteriaByStory.get('mixed')?.map((t) => t.id)).toEqual([
-      'mixed#uat-1',
-      'mixed#uat-2',
+    expect(uatCriteriaByStory.get('mixed')?.map((t) => t.criterionId)).toEqual([
+      C1,
+      C2,
     ]);
   });
 
@@ -230,11 +250,11 @@ describe('readTree uatCriteriaByStory (membership, forest-parcels inc-2)', () =>
 
   it('applying applyUatCriteria over the real membership + no events yields "pending" legs only for "mixed"', async () => {
     const { payload, uatCriteriaByStory } = await readTree(dir);
-    applyUatCriteria(payload.stories, uatCriteriaByStory, null, rollupStatus);
+    applyUatCriteria(payload.stories, uatCriteriaByStory, null, rollupCriterionStatus);
     const mixed = payload.stories.find((s) => s.id === 'mixed');
     expect(mixed?.uatCriteria).toEqual([
-      { id: 'mixed#uat-1', state: 'pending' },
-      { id: 'mixed#uat-2', state: 'pending' },
+      { id: C1, state: 'pending' },
+      { id: C2, state: 'pending' },
     ]);
     const aspirational = payload.stories.find((s) => s.id === 'aspirational');
     expect(aspirational?.uatCriteria).toEqual([]); // aspirational legs never surface here
