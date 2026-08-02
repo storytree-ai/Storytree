@@ -41,6 +41,7 @@ import { explainDocValidationError, upcastAndValidate, Friction, FrictionRoute, 
 import { defaultCliActor } from "./cli-actor.js";
 import type { Envelope } from "./envelope.js";
 import { lifecycleOf, type FrictionLifecycle } from "./friction-lifecycle.js";
+import { ASSET_REF_PREFIX, citedAssetIds } from "./proposal-citation.js";
 
 /** The narrowed write surface the friction verbs need (a structural subset of `RunDeps`). */
 export interface FrictionDeps {
@@ -622,22 +623,20 @@ export async function reinforceFriction(
  */
 const PROPOSAL_ROUTE = "tool";
 
-/** The `asset:<id>` reference token — the corpus pointer a friction item cites its proposal with. */
-const ASSET_REF_PREFIX = "asset:";
-
 /**
  * The `asset:` refs on a doc that resolve to a live `proposal`. Reads the store, so a ref pointing
  * at a deleted or wrong-kind artifact does NOT count as an emission — the fence is that the item
  * cites a proposal that exists, never that a matching-looking string is present.
+ *
+ * WHICH ids are cited comes from the shared token rule in `proposal-citation.ts`; only the
+ * RESOLUTION is local. `check:proposal-drain` resolves the same edge in bulk against an in-memory
+ * id set (a `getDoc` per ref across the whole worklist would be N×M live queries), so the two must
+ * agree on what a citation IS without agreeing on how to look it up.
  */
 async function citedProposals(doc: Record<string, unknown>, store: Store): Promise<string[]> {
-  const refs = Array.isArray(doc["references"])
-    ? (doc["references"] as unknown[]).filter((r): r is string => typeof r === "string")
-    : [];
   const found: string[] = [];
-  for (const ref of refs) {
-    if (!ref.startsWith(ASSET_REF_PREFIX)) continue;
-    const target = await store.getDoc(ref.slice(ASSET_REF_PREFIX.length));
+  for (const id of citedAssetIds(doc["references"])) {
+    const target = await store.getDoc(id);
     if (target?.kind === "proposal") found.push(target.id);
   }
   return found;
