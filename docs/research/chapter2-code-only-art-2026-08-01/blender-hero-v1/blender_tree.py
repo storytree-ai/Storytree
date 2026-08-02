@@ -68,6 +68,66 @@ CANVAS = 128                         # the delivered pixel canvas
 ANCHOR_ROW = 118.0                   # where the trunk's ground contact lands, in canvas px
 SKIP_RENDER = "--no-render" in argv  # skeleton/retime only, for fast iteration
 VERBOSE = "--verbose" in argv
+# THE SCALE CONVENTION (the open art-direction fork, §6 item 3 of the README).
+#   fixed     — ADR-0280 D1 as decided: ONE camera framed to the mature extent, held
+#               byte-identical on every frame. Apparent size tracks TRUE size, so the
+#               seedling is 13% of the mature height and genuinely small in frame.
+#   per-stage — one camera PER FRAME, framed to that frame's own extent, so every stage
+#               fills the canvas and growth reads as width/density instead of height.
+#               This is the convention exp-16 uses from its frame 03 onward.
+#   eased     — per-stage framing with exp-16's own softened OPENING: apparent size is a
+#               compressed monotone function of true size, floored at `--open-frac`
+#               (0.65, measured off exp-16's frame 00, not chosen here).
+# `fixed` is byte-identical to the delivered track — the flag adds a branch, it does not
+# move the default. The retiming, the skeleton and every material are shared by all three,
+# so the ONLY difference between the variants is the camera.
+# WHO GROWS THE SKELETON (the ecosystem question, owner-raised 2026-08-02).
+#   space-colonisation — ours, hand-rolled: attractor cloud + iterative growth, and the
+#                        birth iteration falls out of the growth loop for free.
+#   sapling            — Blender's `Sapling Tree Gen` extension (Weber & Penn 1995),
+#                        installed from extensions.blender.org. It generates a MATURE
+#                        tree only, so the growth is still ours: we read its armature as
+#                        a parent graph and synthesise a birth wave over it (see
+#                        build_skeleton_sapling). ADR-0280 D1's "code owns growth, camera
+#                        and pacing" is untouched; only "code owns SKELETON" changes.
+# Exactly one variable differs between the two, which is the point — the canopy, the pipe
+# model, the cel bands, the camera, the pacing and the whole raster back half are shared.
+SKELETON = arg("--skeleton", "space-colonisation")
+SAP_PRESET = arg("--sap-preset", "quaking_aspen")
+if SKELETON not in ("space-colonisation", "sapling"):
+    raise SystemExit(f"--skeleton must be space-colonisation|sapling, got {SKELETON!r}")
+# Normalisation target for a borrowed skeleton: the space-colonisation tree's mature
+# SILHOUETTE top, max(node z + its pipe radius) = 2.82. That is deliberately the outer
+# surface rather than the last node CENTRE (2.537) — the two differ by a mature tip
+# radius, and the silhouette is what the shared canopy/leaf/flare constants below are
+# sized against. Those constants are absolute world numbers, so a borrowed skeleton is
+# scaled to hand the shared machinery the same world size. (The camera frames to the
+# measured extent either way, so this is about the constants, not about the framing.)
+SAP_TARGET_H = 2.82
+SAP_SEG = float(arg("--sap-seg", "0.075"))        # uniform resample length, ~ our median
+SAP_MAX_BIRTH = float(arg("--sap-max-birth", "27"))   # = the space-colonisation tree's
+# How much of the trunk carries NO branches. Sapling's mature presets self-prune hard
+# (the aspen's first lateral sits at ~40% of trunk height), and a mature-tree topology
+# with a bare lower bole has no plausible JUVENILE inside it — every prefix is a pole.
+# Lowering it is the legitimate lever for making the early frames read as a young tree.
+SAP_BASE_SIZE = arg("--sap-base-size", "")
+# HOW a borrowed mature form is turned into a growth sequence — the whole difficulty of
+# the hybrid, and worth two honest attempts rather than one:
+#   arc    — birth = arc length from the root. The naive wave, and it is UNFAIR to
+#            Sapling: the trunk is the straightest path in the tree, so the apex is
+#            reached in far less arc than the outer twigs and the tree hits 59% of its
+#            mature height by frame 3, leaving fifteen frames of twig infill.
+#   height — birth charges more for climbing than for reaching out, so the leader ascends
+#            steadily across the whole track and each lateral fills in shortly after the
+#            leader passes its attachment height. That is how a tree actually gains
+#            height, and it is the model the space-colonisation loop produces for free.
+SAP_BIRTH = arg("--sap-birth", "height")
+SAP_W_OUT = float(arg("--sap-w-out", "0.35"))     # cost of horizontal travel, vs 1.0 up
+FRAMING = arg("--framing", "fixed")
+OPEN_FRAC = float(arg("--open-frac", "0.65"))
+EASE_GAMMA = float(arg("--ease-gamma", "0.4"))
+if FRAMING not in ("fixed", "per-stage", "eased"):
+    raise SystemExit(f"--framing must be fixed|per-stage|eased, got {FRAMING!r}")
 # `--only 18,9` renders a SUBSET of the delivered frames. The retiming, the camera and
 # the frame indices are unchanged, so a single-frame render is byte-identical to that
 # frame of a full run — it is the tight loop for the colour work, not a different tree.
@@ -195,6 +255,15 @@ LOW_Z = (0.60, 0.98)           # Keep it SPARSE and HIGH: a dense low ring grows
 
 # secondary growth (gap 1's fix): girth is a function of AGE, not of position
 PIPE_E = 2.15
+# A uniform multiplier on the TIP radius, and therefore — the pipe model being
+# homogeneous of degree 1 — on every radius in the tree. It exists because the mature
+# trunk radius is set by tip radius times a function of TIP COUNT, so a skeleton with a
+# different branch density inherits a wrong trunk: small_maple's 7456 bones drove the
+# mature trunk to 0.77 on a 2.82-tall tree, a bole 55% as wide as the tree is tall.
+# Calibrated ONCE against the space-colonisation trunk after the skeleton is known; stays
+# exactly 1.0 for the space-colonisation skeleton, which is what it was tuned on.
+R_SCALE = 1.0
+SC_TRUNK_R = 0.1159            # the space-colonisation tree's mature trunk radius
 R_TIP_MIN = 0.0125             # a first-season shoot
 R_TIP_MAX = 0.0265             # a lignified twig
 TAU_AGE = 26.0                 # iterations to e-fold toward R_TIP_MAX
@@ -391,9 +460,217 @@ def build_skeleton():
     return nodes
 
 
-NODES = build_skeleton()
+def _sapling_preset(name):
+    """Read one of Sapling's nine shipped species presets into operator kwargs.
+
+    Sapling's preset files are an SPDX comment header followed by a single dict LITERAL
+    of operator properties — not the `op.<prop> = <value>` operator-preset scripts other
+    Blender add-ons use. Parsing them for `op.` assignments therefore silently yields an
+    EMPTY dict and every preset quietly renders Sapling's DEFAULT tree, which is exactly
+    the wrong-but-plausible result this comment exists to stop recurring.
+
+    Unknown props are DROPPED rather than raised on, so a preset carrying keys this
+    build's operator no longer declares still loads what it can.
+    """
+    import ast
+    import os as _os
+    mod = __import__("bl_ext.blender_org.sapling_tree_gen", fromlist=["*"])
+    path = _os.path.join(_os.path.dirname(mod.__file__), "presets", f"{name}.py")
+    if not _os.path.isfile(path):
+        avail = sorted(f[:-3] for f in _os.listdir(_os.path.dirname(path))
+                       if f.endswith(".py"))
+        raise SystemExit(f"no Sapling preset {name!r} at {path}; have {avail}")
+    body = "".join(l for l in open(path, encoding="utf-8")
+                   if not l.lstrip().startswith("#")).strip()
+    raw = ast.literal_eval(body)
+    if not isinstance(raw, dict) or not raw:
+        raise SystemExit(f"Sapling preset {name!r} did not parse to a non-empty dict")
+    return raw
+
+
+def _tree_add(kw):
+    """Call Sapling, dropping any property this build's operator does not declare.
+
+    Do NOT try to pre-filter against `bpy.types.CURVE_OT_tree_add.bl_rna.properties` —
+    that lists only the 14 GENERIC operator keys (bl_idname, options, ...) and none of
+    the add-on's own, so filtering by it silently discards every real property and
+    renders Sapling's default tree under every preset name. The failure is invisible:
+    you get a tree, it just isn't the one you asked for. Ask the operator instead, by
+    calling it and removing whatever it rejects.
+    """
+    import re
+    kw, dropped = dict(kw), []
+    while True:
+        try:
+            bpy.ops.curve.tree_add(**kw)
+            if dropped:
+                print(f"SAPLING dropped unknown props: {dropped}", flush=True)
+            return kw
+        except TypeError as exc:
+            m = re.search(r'keyword "([^"]+)"', str(exc))
+            if not m or m.group(1) not in kw:
+                raise
+            dropped.append(m.group(1))
+            kw.pop(m.group(1))
+
+
+def build_skeleton_sapling():
+    """A Sapling-generated MATURE tree, read back as our own Node graph.
+
+    Sapling answers a different question than we do: it produces one finished tree, not a
+    growth sequence. Re-running it with smaller parameters to get younger stages does NOT
+    work — the generator reshuffles, so frame k would not be frame k+1 with branches
+    removed, and the track would read as a morph. That is exactly the failure ADR-0280
+    D1's strict-prefix invariant exists to prevent.
+
+    So the division of labour is: Sapling owns the mature FORM, we own GROWTH. We take
+    its armature (which carries an explicit parent hierarchy), rebuild it as our Node
+    list, and synthesise a birth wave outward from the root at constant extension rate.
+    Because every segment has positive length, birth is strictly increasing along any
+    root->tip path, which makes the prefix property hold BY CONSTRUCTION rather than by
+    tuning — the same guarantee the space-colonisation loop gives, from a different
+    source.
+    """
+    import addon_utils
+    # Order matters: read_factory_settings reloads preferences and takes the add-on with
+    # it, so enabling first silently leaves the operator unregistered.
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    addon_utils.enable("bl_ext.blender_org.sapling_tree_gen",
+                       default_set=False, persistent=True)
+    kwargs = _sapling_preset(SAP_PRESET)
+    kwargs.update(do_update=True, useArm=True, showLeaves=False, seed=SEED % 1000)
+    if SAP_BASE_SIZE != "":
+        kwargs["baseSize"] = float(SAP_BASE_SIZE)
+    kwargs = _tree_add(kwargs)
+    print(f"SAPLING preset={SAP_PRESET} applied={len(kwargs)} props "
+          f"baseSize={kwargs.get('baseSize')} levels={kwargs.get('levels')} "
+          f"scale={kwargs.get('scale')} branches={kwargs.get('branches')}", flush=True)
+    arm = next((o for o in bpy.data.objects if o.type == "ARMATURE"), None)
+    if arm is None:
+        raise SystemExit("Sapling produced no armature — cannot read a hierarchy")
+
+    # Hierarchy order, so a parent is always emitted before its children. Every consumer
+    # downstream (live_depth's single reverse pass, the pipe model) relies on that.
+    order, stack = [], [b for b in arm.data.bones if b.parent is None]
+    while stack:
+        b = stack.pop(0)
+        order.append(b)
+        stack.extend(b.children)
+
+    def key(v):
+        return (round(v.x, 5), round(v.y, 5), round(v.z, 5))
+
+    nodes, at = [], {}
+    for b in order:
+        hk = key(b.head_local)
+        if hk in at:
+            par = at[hk]
+        elif b.parent is None:
+            nodes.append(Node(np.array(b.head_local, dtype=float), -1, 0.0))
+            par = at[hk] = len(nodes) - 1
+        else:
+            # A lateral branch whose head does not coincide with any emitted node: attach
+            # it to its bone parent's tail. Sapling occasionally parents a lateral to the
+            # NEXT trunk segment, so position is the more reliable join and this is the
+            # fallback, not the rule.
+            par = at.get(key(b.parent.tail_local))
+            if par is None:
+                continue
+        idx = len(nodes)
+        nodes.append(Node(np.array(b.tail_local, dtype=float), par, 0.0))
+        nodes[par].kids.append(idx)
+        at[key(b.tail_local)] = idx
+
+    # Normalise to our world scale: every canopy/leaf/flare constant is absolute.
+    zmax = max(float(n.p[2]) for n in nodes)
+    s = SAP_TARGET_H / zmax
+    for n in nodes:
+        n.p = n.p * s
+
+    # RESAMPLE to a uniform segment length before anything else. Sapling's bone lengths
+    # are wildly uneven — the quaking aspen's trunk is 3 bones spanning 13 units while a
+    # twig segment is 0.08 — so an arc-length birth wave over the raw bones spends the
+    # first third of the track extending a BARE POLE (measured: live=1 for three frames).
+    # Uniform segments also give the mesh emitter enough rings along the bole to carry
+    # taper and flare, which the 3-bone trunk did not.
+    # Resampling is per CHAIN — the maximal single-child run between two junctions — not
+    # per edge. Per-edge splitting can only ADD nodes, which is fine for the 158-bone
+    # default tree but ruinous for a preset like small_maple (7093 bones, most of them
+    # sub-pixel twig segments at a 128 canvas). Walking chains lets one pass both SPLIT a
+    # 13-unit trunk bone and MERGE a run of tiny twig bones to the same target length.
+    raw = nodes
+    nodes = [Node(raw[0].p.copy(), -1, 0.0)]
+    remap, junctions = {0: 0}, [0]
+    while junctions:
+        j0 = junctions.pop()
+        for first in raw[j0].kids:
+            path, cur = [j0, first], first
+            while len(raw[cur].kids) == 1:
+                cur = raw[cur].kids[0]
+                path.append(cur)
+            pts = [raw[k].p for k in path]
+            seg = [float(np.linalg.norm(pts[k + 1] - pts[k])) for k in range(len(pts) - 1)]
+            total = sum(seg)
+            steps = max(1, int(round(total / SAP_SEG)))
+            at = remap[j0]
+            for j in range(1, steps + 1):
+                # walk `target` along the polyline so a merged run keeps the chain's shape
+                target, k, run = total * j / steps, 0, 0.0
+                while k < len(seg) - 1 and run + seg[k] < target:
+                    run += seg[k]
+                    k += 1
+                t = (target - run) / seg[k] if seg[k] > 1e-12 else 1.0
+                nodes.append(Node(pts[k] + (pts[k + 1] - pts[k]) * min(1.0, t), at, 0.0))
+                nodes[at].kids.append(len(nodes) - 1)
+                at = len(nodes) - 1
+            remap[path[-1]] = at
+            if raw[path[-1]].kids:
+                junctions.append(path[-1])
+
+    # The birth wave: growth propagates outward from the root at constant extension rate,
+    # so birth is arc length from the root — one unit per segment, now that segments are
+    # uniform. Rescaled so the deepest node is born at the SAME iteration the
+    # space-colonisation tree's is, which is what lets every N-keyed gate below (blades,
+    # cotyledons, cloud onset, AGE_TAIL, TAU_AGE) carry over unretuned. Positive segment
+    # lengths make birth strictly increasing root->tip, so the prefix property holds by
+    # construction.
+    for i, n in enumerate(nodes):
+        if n.parent < 0:
+            continue
+        d = n.p - nodes[n.parent].p
+        if SAP_BIRTH == "arc":
+            cost = float(np.linalg.norm(d))
+        else:
+            # Climbing is the expensive move; reaching out and drooping are cheap. A
+            # lateral therefore completes soon after the leader passes its attachment
+            # height, instead of racing the leader to the top.
+            cost = abs(float(d[2])) + SAP_W_OUT * float(math.hypot(d[0], d[1]))
+        n.birth = nodes[n.parent].birth + cost
+    deepest = max(n.birth for n in nodes)
+    for n in nodes:
+        n.birth *= SAP_MAX_BIRTH / deepest
+
+    # kids[0] must be the trunk CONTINUATION, not whichever lateral Sapling emitted first
+    # — the root-flare walk follows kids[0] up the bole. Straightest child wins.
+    for n in nodes:
+        if len(n.kids) > 1:
+            d = n.p - (nodes[n.parent].p if n.parent >= 0 else n.p - np.array([0, 0, 1.0]))
+            nd = d / (np.linalg.norm(d) or 1.0)
+            n.kids.sort(key=lambda k: -float(
+                (nodes[k].p - n.p) @ nd / (np.linalg.norm(nodes[k].p - n.p) or 1.0)))
+
+    print(f"SKEL source=sapling preset={SAP_PRESET} bones={len(arm.data.bones)} "
+          f"raw_nodes={len(raw)} nodes={len(nodes)} zmax_raw={zmax:.3f} scale={s:.4f} "
+          f"seg={SAP_SEG} birth={SAP_BIRTH} maxbirth={max(n.birth for n in nodes):.2f} "
+          f"baseSize={kwargs.get('baseSize', 'preset')}", flush=True)
+    return nodes
+
+
+NODES = build_skeleton_sapling() if SKELETON == "sapling" else build_skeleton()
 NMAX_BIRTH = max(n.birth for n in NODES)
 N_FLOOR = 2.0
+print(f"SKEL apex_z={max(float(n.p[2]) for n in NODES):.3f} "
+      f"source={SKELETON}", flush=True)
 
 
 def cloud_seats(nodes):
@@ -484,7 +761,8 @@ def frame_state(N):
     for i in range(n_all - 1, -1, -1):
         if not alive[i]:
             continue
-        r0 = R_TIP_MIN + (R_TIP_MAX - R_TIP_MIN) * (1.0 - math.exp(-age[i] / TAU_AGE))
+        r0 = R_SCALE * (R_TIP_MIN + (R_TIP_MAX - R_TIP_MIN)
+                        * (1.0 - math.exp(-age[i] / TAU_AGE)))
         s = sum(r[k] ** PIPE_E for k in NODES[i].kids if alive[k])
         r[i] = max(r0, s ** (1.0 / PIPE_E) if s > 0 else 0.0)
 
@@ -546,6 +824,14 @@ def frame_state(N):
 # tree grows inside a stable frame and its ground contact never drifts.
 EL = math.radians(ELEV_DEG)
 _UPV = np.array([0.0, math.sin(EL), math.cos(EL)])     # camera up, in world
+# Calibrate the tip radius against the mature trunk (see R_SCALE). One pass is exact:
+# scaling every tip radius by c scales every pipe-model radius by c.
+if SKELETON != "space-colonisation":
+    _r0 = float(frame_state(NMAX_BIRTH + AGE_TAIL)["r"][0])
+    R_SCALE = SC_TRUNK_R / _r0
+    print(f"SKEL trunk calibration: raw r0={_r0:.4f} -> R_SCALE={R_SCALE:.5f} "
+          f"(target {SC_TRUNK_R})", flush=True)
+
 _MAT = frame_state(NMAX_BIRTH + AGE_TAIL)
 _TOP = max((NODES[i].p[2] + _MAT["r"][i]) for i in range(len(NODES)))
 for _c in _MAT["lobes"]:
@@ -558,8 +844,65 @@ _HALFW += LEAF_LEN * 0.7
 
 _V = 1.0 - 2.0 * ANCHOR_ROW / CANVAS          # ground row, in NDC (+1 top, -1 bottom)
 PAD = 0.06
-SPAN = max(2.0 * _TOP * math.cos(EL) / ((1.0 - _V) - PAD), 2.0 * _HALFW / (1.0 - PAD))
+
+
+def _span_for(top, halfw):
+    """The one framing rule, applied to whatever extent it is handed. Isolated so the
+    mature camera and a per-stage camera are provably the SAME rule at two extents —
+    the fork is about which extent to feed it, not about two different projections."""
+    return max(2.0 * top * math.cos(EL) / ((1.0 - _V) - PAD), 2.0 * halfw / (1.0 - PAD))
+
+
+SPAN = _span_for(_TOP, _HALFW)
 TZ = -_V * SPAN / (2.0 * math.cos(EL))         # camera target height
+# The camera the SCENE is built with. `fixed` never moves it off the mature values above;
+# the other two conventions rebind it per frame in the drive loop. `to_screen` below
+# deliberately keeps reading SPAN/TZ, because the retiming is an author-time measurement
+# of GROWTH and must be identical across all three variants — otherwise a scale-convention
+# comparison would also be comparing two different pacings.
+CAM_SPAN, CAM_TZ = SPAN, TZ
+
+
+def frame_extent(st):
+    """This frame's own extent, by the same construction the mature block uses: live
+    nodes at their partially-extended positions, plus their pipe radius, plus the lobes.
+    At maturity every node is alive at frac 1, so this returns the mature extent exactly
+    — which is why frame 18 is framed identically under all three conventions."""
+    top = 0.0
+    halfw = 0.0
+    for i, nd in enumerate(NODES):
+        if not st["alive"][i]:
+            continue
+        p = (nd.p if nd.parent < 0 else
+             NODES[nd.parent].p + (nd.p - NODES[nd.parent].p) * st["frac"][i])
+        top = max(top, float(p[2] + st["r"][i]))
+        halfw = max(halfw, abs(float(p[0])))
+    for _ci, c, rad in st["lobes"]:
+        top = max(top, float(c[2] + rad * 0.95))
+        halfw = max(halfw, float(abs(c[0]) + rad))
+    return top + LEAF_LEN * 0.7, halfw + LEAF_LEN * 0.7
+
+
+def camera_for(st):
+    """(span, tz) for one frame under the selected scale convention.
+
+    Rendered tree height is CANVAS * top * cos(EL) / span, so holding `top/span` constant
+    holds apparent height constant. `per-stage` does exactly that. `eased` interpolates
+    the apparent height between OPEN_FRAC of mature at the seedling and 1.0 at maturity,
+    as a compressed function of the TRUE relative size — the tree still visibly grows,
+    it just never opens too small to read.
+    """
+    if FRAMING == "fixed":
+        return SPAN, TZ
+    top, halfw = frame_extent(st)
+    span = _span_for(top, halfw)
+    if FRAMING == "eased":
+        s = (top - _TOP0) / (_TOP - _TOP0) if _TOP > _TOP0 else 1.0
+        f = OPEN_FRAC + (1.0 - OPEN_FRAC) * max(0.0, min(1.0, s)) ** EASE_GAMMA
+        # target apparent height = f * mature apparent height
+        span = SPAN * (top / _TOP) / f
+        span = max(span, _span_for(0.0, halfw))    # never crop this frame's own width
+    return span, -_V * span / (2.0 * math.cos(EL))
 
 
 def to_screen(p):
@@ -573,6 +916,11 @@ def to_screen(p):
 # ---------------------------------------------------------------- pacing (retiming)
 def n_of_u(u):
     return N_FLOOR + (0.055 + 0.945 * u ** 1.22) * (NMAX_BIRTH + AGE_TAIL - N_FLOOR)
+
+
+# The seedling's extent — the low end of the `eased` convention's compression, so its
+# opening frame lands at exactly OPEN_FRAC of the mature apparent height.
+_TOP0 = frame_extent(frame_state(n_of_u(0.0)))[0]
 
 
 def cheap_silhouette(st, size=96):
@@ -1037,7 +1385,7 @@ def build_scene(st, shadow_pass):
         # the shadow alone and the raster back half can composite it as its own value.
         for ob in objs:
             ob.visible_camera = False
-        bpy.ops.mesh.primitive_plane_add(size=SPAN * 3.0, location=(0, 0, 0.0))
+        bpy.ops.mesh.primitive_plane_add(size=CAM_SPAN * 3.0, location=(0, 0, 0.0))
         plane = bpy.context.active_object
         plane.is_shadow_catcher = True
 
@@ -1047,8 +1395,8 @@ def build_scene(st, shadow_pass):
 def setup_camera_and_light(shadow_pass=False):
     cam_data = bpy.data.cameras.new("cam")
     cam_data.type = "ORTHO"
-    cam_data.ortho_scale = SPAN
-    target = mathutils.Vector((0.0, 0.0, TZ))
+    cam_data.ortho_scale = CAM_SPAN
+    target = mathutils.Vector((0.0, 0.0, CAM_TZ))
     cam = bpy.data.objects.new("cam", cam_data)
     cam.location = target + mathutils.Vector((0.0, -14.0 * math.cos(EL), 14.0 * math.sin(EL)))
     cam.rotation_euler = (math.pi / 2 - EL, 0.0, 0.0)
@@ -1119,7 +1467,27 @@ meta = {
     "supersample_res": RES,
     "canvas": [CANVAS, CANVAS],
     "camera_elevation_deg": ELEV_DEG,
-    "camera": "orthographic; framed ONCE to the mature extent and identical every frame",
+    "skeleton": SKELETON,
+    "skeletonSource": (
+        f"Blender 'Sapling Tree Gen' extension (Weber & Penn 1995) from "
+        f"extensions.blender.org, preset {SAP_PRESET!r}, normalised to apex z="
+        f"{SAP_TARGET_H}; GROWTH, girth, canopy, camera, pacing and the raster back half "
+        f"remain ours (ADR-0280 D1 minus the skeleton clause)"
+        if SKELETON == "sapling" else
+        "ours: space colonisation into a rounded attractor envelope, birth iteration "
+        "recorded by the growth loop itself (ADR-0280 D1 in full)"),
+    "framing": FRAMING,
+    "camera": {
+        "fixed": "orthographic; framed ONCE to the mature extent and identical every frame",
+        "per-stage": "orthographic; framed PER FRAME to that frame's own extent, so every "
+                     "stage fills the canvas and growth reads as width and density rather "
+                     "than height. The ground row is held at the same NDC position in every "
+                     "frame, so the base stays planted in frame while the scale changes",
+        "eased": f"orthographic; framed PER FRAME so apparent height is a compressed "
+                 f"monotone function of true height, floored at {OPEN_FRAC:g} of the mature "
+                 f"apparent height at the seedling (exp-16's measured opening) and reaching "
+                 f"1.0 at maturity, gamma {EASE_GAMMA:g}",
+    }[FRAMING],
     "ortho_scale": round(SPAN, 6),
     "target_z": round(TZ, 6),
     "planned_anchor": [CANVAS / 2.0, ANCHOR_ROW],
@@ -1146,6 +1514,10 @@ if not SKIP_RENDER:
 for i, u in enumerate(PICKS):
     N = n_of_u(u)
     st = frame_state(N)
+    # Rebind the camera BEFORE the scene is built — the shadow plane is sized off it too.
+    # Under `fixed` this is a no-op assignment of the mature values.
+    CAM_SPAN, CAM_TZ = camera_for(st)
+    _top_i = frame_extent(st)[0]
     meta["frames"].append({
         "i": i, "u": round(u, 6), "N": round(N, 4),
         "live_nodes": int(st["alive"].sum()),
@@ -1153,12 +1525,20 @@ for i, u in enumerate(PICKS):
         "trunk_r": round(float(st["r"][0]), 5),
         "t_root": round(st["t_root"], 4),
         "cotyledon": round(st["cot"], 4),
+        "ortho_scale": round(CAM_SPAN, 6),
+        "target_z": round(CAM_TZ, 6),
+        # what the scale convention actually BUYS, in the units the fork is argued in:
+        # this frame's apparent height as a fraction of the mature frame's.
+        "true_height_frac": round(_top_i / _TOP, 4),
+        "apparent_height_frac": round((_top_i / CAM_SPAN) / (_TOP / SPAN), 4),
     })
     if SKIP_RENDER:
         print(f"PLAN {i:02d} u={u:.4f} N={N:.2f} live={int(st['alive'].sum())} "
               f"lobes={len(st['lobes'])} blades={int((st['leaf'] > 0.05).sum())} "
               f"r0={st['r'][0]:.4f} root={st['t_root']:.2f} "
-              f"cot={st['cot']:.2f}", flush=True)
+              f"cot={st['cot']:.2f} span={CAM_SPAN:.4f} "
+              f"true={_top_i / _TOP:.3f} apparent="
+              f"{(_top_i / CAM_SPAN) / (_TOP / SPAN):.3f}", flush=True)
         continue
     if ONLY is not None and i not in ONLY:
         continue
