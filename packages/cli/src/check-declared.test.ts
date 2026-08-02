@@ -3,8 +3,12 @@
 // the script's main() and are not exercised here.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
-import { evaluateDeclared, evaluateLobby } from "./check-declared.js";
+import { evaluateDeclared, evaluateLobby, evaluateLobbyFromGit } from "./check-declared.js";
 
 const SESSION = "lucid-carson-2fe321";
 
@@ -63,7 +67,6 @@ test("ok on multiple mixed grades — the message lists every claimed unit", () 
 // The fingerprint is a CONJUNCTION; every test below drops exactly one leg and must SKIP.
 
 const LOBBY = {
-  isPrimaryCheckout: true,
   hasManagedWorktreesDir: true,
   branch: "codex/adr-library-cleanup",
   primaryCheckout: "C:/code/storytree",
@@ -98,9 +101,17 @@ test("lobby: SKIP in CI / a plain clone — no .claude/worktrees means this is n
   assert.equal(res.message, "");
 });
 
-test("lobby: SKIP when this is not the primary checkout — a build worktree is not the lobby", () => {
-  const res = evaluateLobby({ ...LOBBY, isPrimaryCheckout: false });
-  assert.equal(res.verdict, "skip");
+test("lobby: the decision has NO caller-location leg — only the lobby's own facts", () => {
+  // The regression fence for the 2026-08-02 scoping fix. `isPrimaryCheckout` used to be a leg of
+  // the conjunction, which made a worktree caller SKIP no matter how dirty the lobby was. Where
+  // the gate is invoked from is not an input any more, so it cannot suppress the verdict: the
+  // fields below are ALL of them, and every one describes the primary checkout.
+  assert.deepEqual(Object.keys(LOBBY).sort(), [
+    "branch",
+    "dirtyPaths",
+    "hasManagedWorktreesDir",
+    "primaryCheckout",
+  ]);
 });
 
 test("lobby: an unknown branch (detached HEAD) still FAILs and says so, never a crash", () => {
@@ -117,4 +128,106 @@ test("lobby: the message counts every dirty path but truncates the list", () => 
   assert.match(res.message, /\+11 more/);
   // The full 14 are never dumped into the gate output.
   assert.ok(!res.message.includes("f13.ts"), "the tail of a long dirty list is truncated");
+});
+
+// ── The lobby arm END TO END, over real git — the regression fence for the 2026-08-02 scoping fix ─
+//
+// `evaluateLobby` is deliberately caller-blind now, so it CANNOT express "a worktree session runs
+// the gate" — the bug lived entirely in how the facts were gathered and when the probe was reached.
+// These drive `evaluateLobbyFromGit` against throwaway repos instead: a primary checkout with a
+// managed worktree hanging off it, exactly the real shape. Offline, no DB, no network.
+
+/** Build `<tmp>/primary` (one commit, `.claude/worktrees/` present) + a worktree at `…/wt`. */
+function makeFixture(): { root: string; primary: string; worktree: string } {
+  const root = mkdtempSync(path.join(tmpdir(), "storytree-lobby-"));
+  const primary = path.join(root, "primary");
+  mkdirSync(primary);
+  const run = (...args: string[]): void => {
+    execFileSync("git", args, { cwd: primary, stdio: "ignore" });
+  };
+  run("init");
+  run("config", "user.email", "gate@storytree.test");
+  run("config", "user.name", "gate");
+  run("config", "commit.gpgsign", "false");
+  writeFileSync(path.join(primary, "tracked.txt"), "committed\n");
+  run("add", "-A");
+  run("commit", "-m", "initial");
+  // The real repo excludes the managed-worktree dir via .git/info/exclude (NOT .gitignore), which
+  // is what keeps nested worktrees from dirtying the lobby they live in. Mirror that, or every
+  // fixture below would read as dirty for a reason the production repo does not have.
+  writeFileSync(path.join(primary, ".git", "info", "exclude"), ".claude/\n");
+  mkdirSync(path.join(primary, ".claude", "worktrees"), { recursive: true });
+  const worktree = path.join(primary, ".claude", "worktrees", "wt");
+  run("worktree", "add", "-b", "claude/session", worktree);
+  return { root, primary, worktree };
+}
+
+function withFixture(fn: (f: ReturnType<typeof makeFixture>) => void): void {
+  const f = makeFixture();
+  try {
+    fn(f);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true, maxRetries: 3 });
+  }
+}
+
+test("lobby e2e: a WORKTREE session with a dirty lobby FAILs — the bug this arm shipped with", () => {
+  // Before the fix this was a silent exit 0: `evaluateLobbyFromGit()` was only reached when
+  // `deriveIdentity()` was null, and then skipped itself again unless the caller stood in the
+  // lobby. Every worktree session — i.e. effectively all of them — landed past a dirty lobby.
+  withFixture(({ primary, worktree }) => {
+    writeFileSync(path.join(primary, "tracked.txt"), "someone else's uncommitted edit\n");
+    const res = evaluateLobbyFromGit(worktree);
+    assert.equal(res.verdict, "fail");
+    assert.match(res.message, /PRIMARY CHECKOUT/);
+    assert.match(res.message, /tracked\.txt/);
+    assert.match(res.message, /ADR-0245/);
+    // Reported from a worktree, so it must not read as an accusation against the reader.
+    assert.match(res.message, /If the work is NOT yours/);
+  });
+});
+
+test("lobby e2e: a WORKTREE session with a CLEAN lobby passes silently", () => {
+  withFixture(({ worktree }) => {
+    const res = evaluateLobbyFromGit(worktree);
+    assert.equal(res.verdict, "skip");
+    assert.equal(res.message, "");
+  });
+});
+
+test("lobby e2e: the session's OWN dirty worktree is NOT the subject — only the lobby is", () => {
+  // The arm must never fire on the caller's own in-progress work; that is normal and claimed.
+  withFixture(({ primary, worktree }) => {
+    writeFileSync(path.join(worktree, "tracked.txt"), "my own work in progress\n");
+    writeFileSync(path.join(worktree, "untracked-scratch.txt"), "mine too\n");
+    assert.equal(evaluateLobbyFromGit(worktree).verdict, "skip");
+    // Sanity: the same probe DOES fire once the lobby itself is dirtied, so the skip above is the
+    // subject being right rather than the probe being dead.
+    writeFileSync(path.join(primary, "tracked.txt"), "lobby dirt\n");
+    assert.equal(evaluateLobbyFromGit(worktree).verdict, "fail");
+  });
+});
+
+test("lobby e2e: a git failure SKIPs — a check that cannot read the repo never invents a red gate", () => {
+  const outside = mkdtempSync(path.join(tmpdir(), "storytree-nonrepo-"));
+  try {
+    // Not a repository at all: `rev-parse --git-common-dir` exits non-zero, so there is no lobby
+    // to judge. Silent exit 0 — the same contract CI and plain clones rely on.
+    const res = evaluateLobbyFromGit(outside);
+    assert.equal(res.verdict, "skip");
+    assert.equal(res.message, "");
+  } finally {
+    rmSync(outside, { recursive: true, force: true, maxRetries: 3 });
+  }
+});
+
+test("lobby e2e: no .claude/worktrees in the primary checkout SKIPs — the CI / plain-clone shape", () => {
+  withFixture(({ primary }) => {
+    writeFileSync(path.join(primary, "tracked.txt"), "dirty but unmanaged\n");
+    // Probed from the primary checkout itself, so the cwd stays valid once the marker is removed —
+    // a SKIP here is the missing `.claude/worktrees/`, never a git failure in disguise.
+    assert.equal(evaluateLobbyFromGit(primary).verdict, "fail");
+    rmSync(path.join(primary, ".claude"), { recursive: true, force: true, maxRetries: 3 });
+    assert.equal(evaluateLobbyFromGit(primary).verdict, "skip");
+  });
 });

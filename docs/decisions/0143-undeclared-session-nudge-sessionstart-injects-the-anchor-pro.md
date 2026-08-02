@@ -96,13 +96,22 @@ Two never-blocking mechanisms, replacing discipline with structure without a cre
    `packages/cli/src/check-declared.ts`.]**
    **[Corrected 2026-07-26 per [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md)
    D5.2, which closed one of those SKIP arms: "not a session worktree" no longer returns silently.
-   Before falling through, `check:declared` now asks a pure-git lobby question and **FAILs** on the
-   strict conjunction *primary checkout* AND `.claude/worktrees/` present AND *tree dirty* — the one arm
-   that reaches a session which, having no worktree identity, cannot hold a claim at all. The remaining
+   `check:declared` asks a pure-git lobby question and **FAILs** on the conjunction
+   `.claude/worktrees/` present AND *the primary checkout's tree is dirty*. The remaining
    SKIP arms (no DB creds / DB unreachable / unexpected error / any git failure) and the CI-unaffected
    property do stand: `.claude/worktrees/` is untracked, so a CI checkout or a plain clone is false on
    the conjunction and still skips silently. See `evaluateLobby` in
-   `packages/cli/src/check-declared.ts`.]**
+   `packages/cli/src/check-declared.ts`. **Re-corrected in place 2026-08-02**: this note read
+   "*Before falling through*, … the strict conjunction *primary checkout* AND … — the one arm that
+   reaches a session which, having no worktree identity, cannot hold a claim at all", which described
+   the arm's original scoping and is no longer the shape of the code. The lobby question needs no
+   session identity, so it no longer falls under the identity branch and no longer takes the caller's
+   location as an input: it runs unconditionally, ahead of everything else, for **every** session, and
+   its subject is always the primary checkout's tree (`git status --porcelain` runs with `cwd` set
+   there, so a worktree's own dirt is never the subject). The old wording had it backwards in effect —
+   it covered only a caller standing in the lobby, which since ADR-0257 made that checkout unwritable
+   is the rarest shape there is, while every worktree session skipped the question. See ADR-0245
+   D5.2's build note.]**
 
 The enforcement ladder is unchanged above this: build-claim hard-refusal (ADR-0121), the merge
 ceremony + merged-branch guard (ADR-0142), and — when ADR-0137 Phase 3 lands — claim-at-spawn
