@@ -44,6 +44,9 @@ import {
 import { planCommand, planHelp, type CountCommitsSince } from "./plan.js";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import { CLI_AREAS } from "./cli-areas.js";
+// ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
+// seed↔live drift to the session that must reconcile it instead of to whoever gates next.
+import { defaultCliActor } from "./cli-actor.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
 import {
@@ -455,7 +458,7 @@ export async function newArtifact(
       next: [`storytree library artifact edit ${id} --set <field>=<value>`],
     };
   }
-  const saved = await deps.store.upsertDoc({ id, kind, doc: valid, actor: deps.actor ?? "cli" });
+  const saved = await deps.store.upsertDoc({ id, kind, doc: valid, actor: deps.actor ?? defaultCliActor() });
   return {
     ok: true,
     body: `created ${saved.id}  [${saved.kind}].`,
@@ -708,7 +711,7 @@ export async function editArtifact(
     };
   }
   const { id: vid, kind } = idKindOf(valid as Record<string, unknown>);
-  const saved = await deps.store.upsertDoc({ id: vid || id, kind, doc: valid, actor: deps.actor ?? "cli" });
+  const saved = await deps.store.upsertDoc({ id: vid || id, kind, doc: valid, actor: deps.actor ?? defaultCliActor() });
   return {
     ok: true,
     body: `updated ${saved.id} (${summary}).`,
@@ -788,7 +791,7 @@ export async function retireArtifact(
   }
 
   const dropped = await deps.store.deleteDoc(id, {
-    actor: deps.actor ?? "cli",
+    actor: deps.actor ?? defaultCliActor(),
     reason,
     ...(opts.supersededBy !== undefined ? { supersededBy: opts.supersededBy } : {}),
   });
@@ -820,7 +823,7 @@ export async function retireArtifact(
  */
 export async function syncAgentsCommand(deps: RunDeps): Promise<Envelope> {
   if (deps.writable !== true) return notWritable(deps.store);
-  const r = await syncSeedAgents(deps.store, { actor: deps.actor ?? "cli" });
+  const r = await syncSeedAgents(deps.store, { actor: deps.actor ?? defaultCliActor() });
   const lines = [
     r.inSync
       ? `IN SYNC — the live agent tier equals the seed's ${r.seed.length} agents.`
@@ -853,7 +856,7 @@ export async function syncAgentsCommand(deps: RunDeps): Promise<Envelope> {
  */
 export async function syncCorpusCommand(deps: RunDeps): Promise<Envelope> {
   if (deps.writable !== true) return notWritable(deps.store);
-  const r = await syncSeedCorpus(deps.store, { actor: deps.actor ?? "cli" });
+  const r = await syncSeedCorpus(deps.store, { actor: deps.actor ?? defaultCliActor() });
   const lines = [
     r.created.length === 0
       ? `NOTHING TO MIGRATE — the live store already holds all ${r.seed.length} seed non-agent artifacts.`
@@ -879,32 +882,68 @@ export async function syncCorpusCommand(deps: RunDeps): Promise<Envelope> {
 }
 
 /**
- * `storytree library export-corpus --pg [--write]` — the INVERSE of `sync-corpus` (ADR-0120): carry the
- * canonical LIVE non-agent tier back into the seed (`apps/studio/data/knowledge.json`), the gap ADR-0103
- * left as "later work". DRY-RUN by default (reports what it WOULD change, writes nothing); `--write`
- * rewrites knowledge.json. Owner-directed policy (ADR-0120 a): OVERWRITE a seed body that drifted from
- * a valid live one + ADD live-only artifacts, but NEVER delete a seed entry, NEVER touch agents/templates,
- * and NEVER write a degraded/below-floor live body (it is refused and reported for a seed→live restore).
+ * `storytree library export-corpus [--id <id>…] --pg [--write]` — the INVERSE of `sync-corpus`
+ * (ADR-0120): carry the canonical LIVE durable tier back into the seed
+ * (`apps/studio/data/knowledge.json`), the gap ADR-0103 left as "later work". DRY-RUN by default
+ * (reports what it WOULD change, writes nothing); `--write` rewrites knowledge.json. Owner-directed
+ * policy (ADR-0120 a): OVERWRITE a seed body that drifted from a valid live one + ADD live-only
+ * artifacts, but NEVER delete a seed entry, NEVER touch agents/templates, and NEVER write a
+ * degraded/below-floor live body (it is refused and reported for a seed→live restore).
  * Needs --pg (it reads the LIVE store); writing the file is a local edit to the seed.
+ *
+ * `--id <id>` (repeatable) SCOPES the write to named artifacts — ADR-0290's drain. Without it this is
+ * one act over the whole corpus, which is why a session that had to reconcile ONE artifact could only
+ * do so by also writing every other drifted body (a sibling's in-flight edit, landing in its commit
+ * under its name) plus every live-only artifact on top. Measured cost of that shape: ~20 minutes of
+ * hand-written restore scripting per landing, and in one case a foreign artifact's citation to an ADR
+ * that existed on no pushed branch. `check:corpus-content` now prints the exact `--id` invocation for
+ * what it charges to you.
+ *
+ * The scope is applied inside `computeExportedSeed` at ONE narrowing point, so a scoped run cannot
+ * diverge in policy from an unscoped one — an unknown id is a no-op, and every invariant above holds
+ * unchanged. A bare (unscoped) run is deliberately still available and deliberately still all-or-
+ * nothing: dry-run it first.
  */
-export async function exportCorpusCommand(deps: RunDeps, opts: { write: boolean }): Promise<Envelope> {
+export async function exportCorpusCommand(
+  deps: RunDeps,
+  opts: { write: boolean; ids?: readonly string[] | undefined },
+): Promise<Envelope> {
   if (deps.writable !== true) return notWritable(deps.store);
   const write = opts.write === true;
+  const ids = opts.ids !== undefined && opts.ids.length > 0 ? new Set(opts.ids) : undefined;
 
   const knowledgePath = path.join(repoRoot(), "apps", "studio", "data", "knowledge.json");
   const seedEntries = JSON.parse(readFileSync(knowledgePath, "utf8")) as SeedEntry[];
   const live = await deps.store.queryDocs();
-  const r = computeExportedSeed(seedEntries, live);
+  const r = computeExportedSeed(seedEntries, live, ids === undefined ? {} : { ids });
+
+  // A scoped run that matched nothing is reported as such rather than as "nothing to export": the two
+  // states look identical in the counts and have opposite causes (already reconciled vs a typo'd id).
+  const unmatched = ids === undefined ? [] : [...ids].filter((id) => !live.some((d) => d.id === id)).sort();
+
+  const scopeLine =
+    ids === undefined
+      ? "SCOPE: the WHOLE export-scope tier (all-or-nothing — it also sweeps any sibling's drift and APPENDS every live-only artifact). Use --id to scope."
+      : `SCOPE: ${ids.size} named artifact(s) — ${[...ids].sort().join(", ")}. Nothing outside this set is read or written.`;
 
   const lines = [
     r.noop
-      ? "NOTHING TO EXPORT — every export-scope seed body already matches the live store."
+      ? "NOTHING TO EXPORT — every export-scope seed body in scope already matches the live store."
       : `${write ? "EXPORTED" : "WOULD EXPORT"} ${r.updated.length} update(s) + ${r.created.length} addition(s) from live → seed.`,
+    "",
+    scopeLine,
     "",
     `overwritten from live (${r.updated.length}): ${r.updated.join(", ") || "(none)"}`,
     `added (live-only) (${r.created.length}): ${r.created.join(", ") || "(none)"}`,
     `REFUSED — degraded/below-floor live body, restore seed→live instead (${r.skippedDegraded.length}): ${r.skippedDegraded.join(", ") || "(none)"}`,
   ];
+
+  if (unmatched.length > 0) {
+    lines.push(
+      "",
+      `NOT FOUND LIVE (${unmatched.length}): ${unmatched.join(", ")} — no live row, so nothing to export from. Check the id, or the artifact may have been retired live.`,
+    );
+  }
 
   if (write && !r.noop) {
     writeFileSync(knowledgePath, JSON.stringify(r.entries, null, 2) + "\n", "utf8");
@@ -916,12 +955,17 @@ export async function exportCorpusCommand(deps: RunDeps, opts: { write: boolean 
     lines.push("", "DRY-RUN — nothing written. Re-run with --write to apply.");
   }
 
+  const applyHint =
+    ids === undefined
+      ? "storytree library export-corpus --pg --write   (apply — ALL of the above)"
+      : `storytree library export-corpus ${[...ids].sort().map((id) => `--id ${id}`).join(" ")} --pg --write   (apply)`;
+
   return {
     ok: true,
     body: lines.join("\n"),
     next: write
       ? ["pnpm check:corpus-content   (the body-level drift report)"]
-      : ["storytree library export-corpus --pg --write   (apply)", "pnpm check:corpus-content   (the body-level drift report)"],
+      : [applyHint, "pnpm check:corpus-content   (the body-level drift report)"],
   };
 }
 
@@ -1181,7 +1225,8 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library tree focus <id>          the local DAG of one artifact",
       "  storytree library sync-agents [--pg]       reconcile the agent tier to the seed (ADR-0055)",
       "  storytree library sync-corpus [--pg]       migrate seed-only non-agent artifacts into live (ADR-0103)",
-      "  storytree library export-corpus [--pg]     export live non-agent bodies back to the seed (ADR-0120)",
+      "  storytree library export-corpus [--id <id>…] [--pg]  export live durable bodies back to the seed (ADR-0120;",
+      "                                             --id scopes the write to named artifacts, ADR-0290)",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
       "  (coming soon: artifact comment)",
     ].join("\n"),
@@ -1835,6 +1880,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     json?: string;
     file?: string;
     set?: string[];
+    /** `library export-corpus --id <id>` (repeatable) — scope the live→seed export (ADR-0290). */
+    id?: string[];
     "dry-run"?: boolean;
     live?: boolean;
     real?: boolean;
@@ -1964,6 +2011,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         "lease-days": { type: "string" },
         review: { type: "boolean", default: false },
         readings: { type: "string" },
+        // `storytree library export-corpus --id <id>` (repeatable) — scope the live→seed export to
+        // named artifacts (ADR-0290), so a session discharges what it authored and carries no
+        // sibling's body into its commit.
+        id: { type: "string", multiple: true },
         write: { type: "boolean", default: false },
         step: { type: "string" },
         "agent-type": { type: "string" },
@@ -2388,7 +2439,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
         // Branch is audit-only and only used on the live (--pg) path; skip the git spawn offline.
         branch: deps.adr ? currentBranch() : "offline",
-        actor: deps.actor ?? "cli",
+        actor: deps.actor ?? defaultCliActor(),
         // The `decided:` date for an owner-directed scaffold (ADR-0110); composition-root clock.
         today: new Date().toISOString().slice(0, 10),
       },
@@ -2817,7 +2868,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (sub === "sync-agents") return syncAgentsCommand(deps);
   if (sub === "sync-corpus") return syncCorpusCommand(deps);
-  if (sub === "export-corpus") return exportCorpusCommand(deps, { write: values.write === true });
+  if (sub === "export-corpus") {
+    return exportCorpusCommand(deps, {
+      write: values.write === true,
+      ...(Array.isArray(values.id) ? { ids: values.id } : {}),
+    });
+  }
 
   if (sub === "graduate") {
     // Default the memory dir to the harness store keyed by the MAIN checkout (works from a worktree);

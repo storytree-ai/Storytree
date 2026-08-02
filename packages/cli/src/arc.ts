@@ -5,6 +5,7 @@ import { arcIsClosed, loadArcRollup, storyArcStamps, type ArcRollup } from "@sto
 // The ADR scaffolder's kebab-caser, reused rather than copied: `arc new` derives an id slug from a
 // title exactly as `adr new` derives a filename slug, and a second implementation would be a drift
 // seam for no gain. The dependency runs one way only (`adr.ts` knows nothing of arcs).
+import { defaultCliActor } from "./cli-actor.js";
 import { kebabSlug } from "./adr.js";
 import type { Envelope } from "./envelope.js";
 
@@ -459,7 +460,7 @@ export async function arcNew(
       next: [usage],
     };
   }
-  const saved = await deps.store.upsertDoc({ id: arcId, kind: "arc", doc: valid, actor: deps.actor ?? "cli" });
+  const saved = await deps.store.upsertDoc({ id: arcId, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
 
   return {
     ok: true,
@@ -533,7 +534,7 @@ export async function arcEdit(
   } catch (e) {
     return { ok: false, body: `edit would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree arc show ${id} --pg`] };
   }
-  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? "cli" });
+  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
   const changed = [opts.intent !== undefined ? "intent" : null, opts.endState !== undefined ? "endState" : null]
     .filter((s): s is string => s !== null)
     .join(", ");
@@ -588,7 +589,7 @@ export async function arcIncrementAdd(
   } catch (e) {
     return { ok: false, body: `increment would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree arc show ${id} --pg`] };
   }
-  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? "cli" });
+  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
   const count = Array.isArray((valid as Record<string, unknown>)["increments"])
     ? ((valid as Record<string, unknown>)["increments"] as unknown[]).length
     : 0;
@@ -690,7 +691,7 @@ export async function arcClose(
     return { ok: false, body: `close would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree arc show ${id} --pg`] };
   }
   // ONE upsert — the terminal increment and the flip land together or not at all.
-  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? "cli" });
+  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
   const count = Array.isArray((valid as Record<string, unknown>)["increments"])
     ? ((valid as Record<string, unknown>)["increments"] as unknown[]).length
     : 0;

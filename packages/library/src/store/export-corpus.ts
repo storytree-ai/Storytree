@@ -37,8 +37,15 @@ export function isExportScopeKind(kind: string): boolean {
 /** A loose knowledge.json entry — the whole object IS the doc body (it carries its own id + kind). */
 export type SeedEntry = Record<string, unknown> & { id: string; kind: string };
 
-/** Stable, key-sorted JSON so a mere field-ORDER difference is never read as content drift. */
-function canon(v: unknown): string {
+/**
+ * Stable, key-sorted JSON so a mere field-ORDER difference is never read as content drift.
+ *
+ * Exported because "do these two bodies differ" is asked in more than one place — the drift diff here,
+ * and `check:corpus-content`'s comparison of one seed revision against another (ADR-0290 attribution).
+ * Sharing the normalizer is what stops those two from disagreeing about what a difference IS: a
+ * re-serialisation that reorders keys must not read as an edit on either side.
+ */
+export function canonicalJson(v: unknown): string {
   const norm = (x: unknown): unknown => {
     if (x === null || typeof x !== "object") return x;
     if (Array.isArray(x)) return x.map(norm);
@@ -95,6 +102,22 @@ export interface CorpusContentDrift {
 export interface CorpusContentDiff {
   /** Export-scope ids present in BOTH seed and live whose bodies differ, classified (sorted by id). */
   readonly drifted: readonly CorpusContentDrift[];
+  /**
+   * Export-scope ids the LIVE store carries and the seed does not (sorted) — the population this diff
+   * is structurally blind to on both drift axes, reported so a caller can no longer be silent about it.
+   *
+   * It is NOT drift: there is nothing to compare, so it is neither `value-drift` nor `degraded-live`.
+   * It matters because {@link computeExportedSeed} APPENDS every one of these to the seed, so the
+   * export writes a strict SUPERSET of what `drifted` names. Measured 2026-07-30: a caller printed
+   * `OK — every seed body matches live across 177 export-scope artifacts` and exited 0 while the
+   * export in the same shell reported one pending addition (`oq-diff-view-altitude`, an owner-retired
+   * open question a blind `--write` would have resurrected into the committed seed).
+   *
+   * A live-only id has two OPPOSITE causes and the direction call is per-artifact (`library-edit-
+   * ceremony`): a graduation that reached live but never the seed (export it), or an artifact
+   * deliberately RETIRED live while a stale branch still carries the seed row (drop the live row).
+   */
+  readonly liveOnly: readonly string[];
   /** Export-scope seed ids compared. */
   readonly compared: number;
   /**
@@ -120,6 +143,7 @@ export interface CorpusContentDiff {
 export function diffCorpusContent(seed: readonly StoredDoc[], live: readonly StoredDoc[]): CorpusContentDiff {
   const liveById = new Map(live.filter((d) => isExportScopeKind(d.kind)).map((d) => [d.id, d]));
   const seedScope = seed.filter((d) => isExportScopeKind(d.kind));
+  const seedIds = new Set(seedScope.map((d) => d.id));
   const drifted: CorpusContentDrift[] = [];
   let comparedLive = 0;
   for (const s of seedScope) {
@@ -131,11 +155,15 @@ export function diffCorpusContent(seed: readonly StoredDoc[], live: readonly Sto
     const eb = exportableBody(l);
     // Compare against what the export WOULD write (the upcast structured body, or the raw body if the
     // live doc is degraded) so a v(n)→v2 upcast that already equals the seed is not flagged as drift.
-    if (canon(s.doc) === canon(eb ?? bodyOf(l))) continue;
+    if (canonicalJson(s.doc) === canonicalJson(eb ?? bodyOf(l))) continue;
     drifted.push({ id: s.id, kind: s.kind, cls: eb ? "value-drift" : "degraded-live" });
   }
+  // The other direction, which the seed walk above cannot reach: ids live carries and the seed does
+  // not. `computeExportedSeed` appends every one of them, so a caller that reports only `drifted`
+  // understates what the export writes — see {@link CorpusContentDiff.liveOnly}.
+  const liveOnly = [...liveById.keys()].filter((id) => !seedIds.has(id)).sort((a, b) => a.localeCompare(b));
   drifted.sort((a, b) => a.id.localeCompare(b.id));
-  return { drifted, compared: seedScope.length, comparedLive, clean: drifted.length === 0 };
+  return { drifted, liveOnly, compared: seedScope.length, comparedLive, clean: drifted.length === 0 };
 }
 
 /** Convenience: diff the SEED corpus against a live `target` store (read-only). */
@@ -160,16 +188,44 @@ export interface ExportSeedResult {
   readonly noop: boolean;
 }
 
+/** Narrow the export to specific artifact ids — see {@link computeExportedSeed}'s `ids` contract. */
+export interface ExportSeedOptions {
+  /**
+   * When present, the export considers ONLY these live ids: every other live doc is invisible to both
+   * the overwrite pass and the append pass, so a seed entry outside the set is returned untouched.
+   *
+   * This is the drain granularity `check:corpus-content` needs. Unscoped, the export is one act over
+   * the whole corpus, so a session that must reconcile ONE artifact can only do it by also writing
+   * every OTHER drifted body — a sibling's in-flight edit lands in its commit under its name — and by
+   * appending every live-only artifact on top, which the drift axes cannot even see. Scoping is what
+   * lets a session discharge exactly what it authored.
+   *
+   * An id in the set that live does not carry is simply a no-op here (nothing to write from). The
+   * NEVER-DELETE and NEVER-WRITE-A-DEGRADED-BODY invariants are unchanged and unconditional: scoping
+   * removes candidates, it never adds a permission.
+   */
+  ids?: ReadonlySet<string> | undefined;
+}
+
 /**
  * Compute the new knowledge.json contents from the live store — pure (entries in, entries out), so it
  * is unit-testable offline against an {@link InMemoryStore}. The CLI wrapper reads the live store +
  * the seed file, calls this, and writes the file. See the module doc for policy.
+ *
+ * Pass {@link ExportSeedOptions.ids} to scope the write to specific artifacts. The scope is applied
+ * ONCE, by filtering the live input — the overwrite pass, the append pass and the degraded-body
+ * refusal all read that same narrowed map, so a scoped run cannot diverge in policy from an unscoped
+ * one. There is deliberately no second code path.
  */
 export function computeExportedSeed(
   seedEntries: readonly SeedEntry[],
   live: readonly StoredDoc[],
+  opts: ExportSeedOptions = {},
 ): ExportSeedResult {
-  const liveById = new Map(live.filter((d) => isExportScopeKind(d.kind)).map((d) => [d.id, d]));
+  const scope = opts.ids;
+  const inScope = (d: StoredDoc): boolean =>
+    isExportScopeKind(d.kind) && (scope === undefined || scope.has(d.id));
+  const liveById = new Map(live.filter(inScope).map((d) => [d.id, d]));
   const seedIds = new Set(seedEntries.map((e) => e.id));
 
   const updated: string[] = [];
@@ -183,7 +239,7 @@ export function computeExportedSeed(
     const eb = exportableBody(l);
     // Compare against what would be written (upcast structured body, else raw) — a v(n)→v2 upcast that
     // already matches the seed is a no-op, not an overwrite.
-    if (canon(entry) === canon(eb ?? bodyOf(l))) {
+    if (canonicalJson(entry) === canonicalJson(eb ?? bodyOf(l))) {
       unchanged++;
       return entry;
     }
@@ -196,10 +252,12 @@ export function computeExportedSeed(
     return entry; // degraded live — keep the canonical seed body, report for restore
   });
 
-  // Append live-only export-scope artifacts that are exportable.
+  // Append live-only export-scope artifacts that are exportable. Iterates the SAME narrowed map the
+  // overwrite pass read, so a scoped run appends only what it was asked for — the append pass is
+  // where an unscoped export silently carries a sibling's live-only artifact into the seed.
   const created: string[] = [];
-  for (const d of live) {
-    if (!isExportScopeKind(d.kind) || seedIds.has(d.id)) continue;
+  for (const d of liveById.values()) {
+    if (seedIds.has(d.id)) continue;
     const eb = exportableBody(d);
     if (!eb) {
       skippedDegraded.push(d.id);
