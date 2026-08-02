@@ -6,10 +6,11 @@
 // enforcement of that ceremony — the rung moved from advisory (the ADR-0143 WARN on a missing
 // presence declaration) to ENFORCING: a session that holds NO live claim FAILS the gate
 // (ADR-0200 D3: an unclaimed session cannot reach the merge ceremony). Any grade counts —
-// an `exploring` birth claim and a `work` declare claim both pass. The SKIP arms stay exit-0
-// (CI is DB-free and MUST stay green):
+// an `exploring` birth claim and a `work` declare claim both pass. The LOBBY arm below runs first
+// and independently, for every session. The SKIP arms stay exit-0 (CI is DB-free and MUST stay
+// green):
 //
-//   - not a .claude/worktrees/* session -> the LOBBY arm below, then SKIP silently.
+//   - not a .claude/worktrees/* session -> no claim to check, SKIP silently.
 //   - no DB creds / DB unreachable / timeout / unexpected error             -> SKIP.
 //   - session holds >= 1 live claim (any grade)                             -> OK.
 //   - session holds ZERO live claims                                        -> FAIL (exit 1),
@@ -18,11 +19,25 @@
 // THE LOBBY ARM (ADR-0245 D5.2) closes the SKIP that failed OPEN for exactly the misbehaving
 // session. A session working in the PRIMARY CHECKOUT has no worktree identity, so `deriveIdentity()`
 // is null: it cannot hold a claim, cannot appear in `events.node_claim`, and is invisible to the
-// board — which is why the pre-0245 gate returned silently for it. Before that silent return, this
-// check now asks a question that needs no identity and no DB, only git:
+// board — which is why the pre-0245 gate returned silently for it. Ahead of the identity branch,
+// this check asks a question that needs no identity and no DB, only git:
 //
-//   primary checkout + managed worktrees present + tree DIRTY               -> FAIL (exit 1),
+//   managed worktrees present + the PRIMARY CHECKOUT's tree is DIRTY        -> FAIL (exit 1),
 //     naming the CONDITION and the worktree ceremony — never a session.
+//
+// THE SUBJECT IS THE PRIMARY CHECKOUT, NOT THE CALLER. The arm shipped scoped to a caller standing
+// IN the lobby — `evaluateLobbyFromGit()` was reached only inside `if (identity === null)` and then
+// skipped itself again unless the toplevel WAS the primary checkout. Both gates are gone. The
+// coverage that produced was backwards: it refused only a session running the gate FROM the lobby,
+// which since ADR-0257's static `permissions.deny` block (the primary checkout is unwritable to the
+// file tools) is the session least likely to be running a gate at all, while every worktree
+// session — i.e. all of them — landed work past a dirty lobby in silence. ADR-0245 D5.2 and
+// ADR-0257 both describe this arm as the general "the gate notices a dirty lobby" backstop, and
+// ADR-0257 leans on it as the only arm that covers a **shell**; it now is one. The lobby question
+// is pure git and needs no session identity, so it is asked for EVERY session, from wherever the
+// gate is invoked: `git status --porcelain` runs with `cwd` = the primary checkout, which reports
+// that checkout's tree ALONE — a worktree's own dirt lives in its own index and is never the
+// subject here.
 //
 // Keyed on DIRTY, never on PRESENT: the lobby is a legitimate place (ADR-0200 D3 opens sessions
 // there; ADR-0220's auto-repair does git surgery there), so orienting, reading, `db:status` and
@@ -99,25 +114,31 @@ export function evaluateDeclared(input: {
 const DIRTY_PATHS_SHOWN = 3;
 
 /**
- * PURE: the lobby decision (ADR-0245 D5.2) — is this an unclaimable session mutating the shared
- * primary checkout? "fail" only on the full CONJUNCTION; every other shape is "skip" with an empty
- * message, so the caller stays silent exactly as it did before. The git probes that gather these
- * facts are I/O and live in main(), mirroring {@link evaluateDeclared}.
+ * PURE: the lobby decision (ADR-0245 D5.2) — is the shared primary checkout carrying uncommitted
+ * work that no claim can name? "fail" only on the full CONJUNCTION; every other shape is "skip"
+ * with an empty message, so the caller stays silent exactly as it did before. The git probes that
+ * gather these facts are I/O and live in {@link evaluateLobbyFromGit}, mirroring
+ * {@link evaluateDeclared}.
  *
- * - `isPrimaryCheckout` — the toplevel IS the parent of the common git dir (not a worktree).
+ * Every field describes the PRIMARY CHECKOUT, never the caller: there is deliberately no
+ * `isPrimaryCheckout` leg, because where the gate happens to be invoked from has no bearing on
+ * whether the lobby is dirty. It was such a leg until 2026-08-02, which scoped the arm to a
+ * lobby-resident caller and let every worktree session past in silence (see the header).
+ *
  * - `hasManagedWorktreesDir` — `.claude/worktrees/` exists: this checkout drives managed sessions.
  *   UNTRACKED in git, so a CI checkout or a plain clone is false here and always skips.
- * - `dirtyPaths` — `git status --porcelain` lines; EMPTY means a clean lobby, which is legitimate.
- * - `branch` — reported for orientation; null (detached HEAD) still fails, it never crashes.
+ * - `dirtyPaths` — the primary checkout's `git status --porcelain` lines; EMPTY means a clean
+ *   lobby, which is legitimate.
+ * - `branch` — the primary checkout's branch, reported for orientation; null (detached HEAD) still
+ *   fails, it never crashes.
  */
 export function evaluateLobby(input: {
-  isPrimaryCheckout: boolean;
   hasManagedWorktreesDir: boolean;
   branch: string | null;
   primaryCheckout: string;
   dirtyPaths: readonly string[];
 }): { verdict: "skip" | "fail"; message: string } {
-  if (!input.isPrimaryCheckout || !input.hasManagedWorktreesDir || input.dirtyPaths.length === 0) {
+  if (!input.hasManagedWorktreesDir || input.dirtyPaths.length === 0) {
     return { verdict: "skip", message: "" };
   }
   const shown = input.dirtyPaths.slice(0, DIRTY_PATHS_SHOWN).map((l) => l.trim());
@@ -130,24 +151,33 @@ export function evaluateLobby(input: {
       `  checkout:    ${input.primaryCheckout} (${where})`,
       `  uncommitted: ${input.dirtyPaths.length} path(s) — ${shown.join(", ")}${rest > 0 ? `, +${rest} more` : ""}`,
       "",
-      "A session working in the primary checkout has NO worktree identity, so it cannot hold a claim,",
-      "is invisible on the notice board, and its uncommitted work can be swept into an unrelated",
-      "session's commit or red another session's gate. Move this work to a managed worktree:",
+      "The primary checkout is the shared lobby: work there has NO worktree identity, so it cannot",
+      "hold a claim, is invisible on the notice board, and can be swept into an unrelated session's",
+      "commit or red another session's gate. This is reported from wherever the gate runs — the",
+      "subject is the lobby, not your worktree (your own uncommitted work is never counted here).",
+      "",
+      "If the work IS yours, move it to a managed worktree:",
       '  pnpm storytree worktree create --node <unit-id> --intent "<what>" --pg',
       "",
-      "If the work is NOT yours, leave it exactly as it is: attribution is unprovable from an",
-      "uncommitted tree, and stashing or committing a stranger's work destroys it. Steer the owning",
-      "session instead (`pnpm storytree noticeboard --pg` shows who is claimed where).",
+      "If the work is NOT yours — the common case from a worktree — leave it exactly as it is:",
+      "attribution is unprovable from an uncommitted tree, and stashing or committing a stranger's",
+      "work destroys it. Steer the owning session instead (`pnpm storytree noticeboard --pg` shows",
+      "who is claimed where).",
     ].join("\n"),
   };
 }
 
-/** Run a git command from `cwd`, returning trimmed stdout — or null on any failure. */
+/**
+ * Run a git command from `cwd`, returning trimmed stdout — or null on any failure. git's own stderr
+ * is swallowed: every failure here is a SKIP, so letting a `fatal: not a git repository` through
+ * would print an alarming line into an otherwise silent, passing gate.
+ */
 function git(args: readonly string[], cwd?: string): string | null {
   try {
     return (
       execFileSync("git", [...args], {
         encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
         ...(cwd !== undefined ? { cwd } : {}),
       }) as string
     ).trim();
@@ -159,21 +189,24 @@ function git(args: readonly string[], cwd?: string): string | null {
 /**
  * Gather the lobby facts from git alone (no DB, no network) and decide. Returns "skip" on ANY git
  * failure — a check that cannot read the repo must never invent a red gate.
+ *
+ * Callable from ANY session: the common git dir resolves to the same place from the primary
+ * checkout and from every worktree hanging off it, so the primary checkout is located — and its
+ * dirtiness read — identically either way. `cwd` defaults to the process cwd and exists so the
+ * tests can point the whole probe at a throwaway fixture repo instead of chdir-ing.
  */
-function evaluateLobbyFromGit(): { verdict: "skip" | "fail"; message: string } {
-  const toplevel = git(["rev-parse", "--show-toplevel"]);
-  const commonDir = git(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
-  if (toplevel === null || commonDir === null) return { verdict: "skip", message: "" };
+export function evaluateLobbyFromGit(cwd?: string): { verdict: "skip" | "fail"; message: string } {
+  // Shared across the primary checkout and all its worktrees; its parent IS the primary checkout.
+  const commonDir = git(["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd);
+  if (commonDir === null) return { verdict: "skip", message: "" };
 
-  // The primary checkout is the parent of the common git dir; a worktree's toplevel differs from it.
   const primaryCheckout = path.dirname(commonDir);
-  const isPrimaryCheckout = path.resolve(toplevel) === path.resolve(primaryCheckout);
+  // Run FROM the primary checkout, so this reports that tree alone and never the caller's worktree.
   const porcelain = git(["status", "--porcelain"], primaryCheckout);
   if (porcelain === null) return { verdict: "skip", message: "" };
 
   const branchRaw = git(["rev-parse", "--abbrev-ref", "HEAD"], primaryCheckout);
   return evaluateLobby({
-    isPrimaryCheckout,
     hasManagedWorktreesDir: existsSync(path.join(primaryCheckout, ".claude", "worktrees")),
     branch: branchRaw === null || branchRaw === "HEAD" ? null : branchRaw,
     primaryCheckout: primaryCheckout.replaceAll("\\", "/"),
@@ -182,17 +215,19 @@ function evaluateLobbyFromGit(): { verdict: "skip" | "fail"; message: string } {
 }
 
 async function main(): Promise<void> {
-  const identity = deriveIdentity();
-  if (identity === null) {
-    // Not a session worktree. Before the historic silent return, ask the pure-git lobby question
-    // (ADR-0245 D5.2) — this is the one arm that reaches a session with no claimable identity.
-    const lobby = evaluateLobbyFromGit();
-    if (lobby.verdict === "fail") {
-      console.error(lobby.message);
-      process.exitCode = 1;
-    }
-    return;
+  // The lobby question (ADR-0245 D5.2) is pure git: it needs no session identity and no DB, and its
+  // subject — the shared primary checkout — is the same one for every session. So it is asked FIRST
+  // and UNCONDITIONALLY, ahead of the identity branch and the live read. Scoping it to
+  // `identity === null` is what made it miss every worktree session (see the header).
+  const lobby = evaluateLobbyFromGit();
+  if (lobby.verdict === "fail") {
+    console.error(lobby.message);
+    process.exitCode = 1;
   }
+
+  const identity = deriveIdentity();
+  // Not a session worktree: no claim to check. The lobby arm above has already had its say.
+  if (identity === null) return;
 
   loadLocalSecrets();
   if (process.env["STORYTREE_DB_USER"] === undefined) {

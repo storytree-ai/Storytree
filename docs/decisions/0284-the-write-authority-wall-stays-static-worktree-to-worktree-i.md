@@ -147,11 +147,17 @@ for a Codex adapter, and a future Codex effort will recover it from git rather t
 
 **Known holes in what remains, not fixed here.** `repo-manifest.json` lists `web` as a file when it is
 a submodule directory, so the generated rule is an exact path and the whole `web/` tree stays writable
-in the lobby; the lobby's root `node_modules/` carries no rule at all; and ADR-0245 D5.2's gate-time
-lobby arm is far narrower than either ADR describes — in `check-declared.ts` it is reached only when
-`deriveIdentity()` is null and then only in the primary checkout, so a worktree session's gate never
-checks whether the lobby is dirty. These are follow-ups against the layer that stays, not reasons to
-keep the layer that goes.
+in the lobby; and the lobby's root `node_modules/` carries no rule at all. These are follow-ups
+against the layer that stays, not reasons to keep the layer that goes.
+
+*(This paragraph listed THREE holes on acceptance; the third is now CLOSED and has been removed from
+the list above — corrected in place 2026-08-02 per ADR-0139. It named ADR-0245 D5.2's gate-time
+lobby arm as "far narrower than either ADR
+describes — in `check-declared.ts` it is reached only when `deriveIdentity()` is null and then only
+in the primary checkout, so a worktree session's gate never checks whether the lobby is dirty". That
+scoping was fixed later the same day: the lobby question is pure git and needs no session identity,
+so it now runs for every session against the primary checkout's tree, and the caller's location is
+no longer an input to the decision. See ADR-0245 D5.2's build note.)*
 
 ## References
 
