@@ -20,14 +20,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { locateWorktree } from "./write-authority-receipt.js";
 import {
   GATED_TOOLS,
   installWallSettings,
   lobbyDenyRules,
+  locateWorktree,
   rulesDenyingWorktrees,
   toPermissionPath,
-  wallHookCommand,
   type ManifestRootSlice,
 } from "./write-authority-rules.js";
 
@@ -79,10 +78,11 @@ test("every top-level directory in the manifest is denied, so the lobby cannot r
   }
 });
 
-test("`.claude` is expanded child-by-child, denying receipts but never worktrees", () => {
+test("`.claude` is expanded child-by-child, never denying worktrees", () => {
   const rules = lobbyDenyRules(readManifest(), "C:\\code\\storytree");
-  assert.ok(rules.includes("Write(//c/code/storytree/.claude/receipts/**)"));
   assert.ok(rules.includes("Write(//c/code/storytree/.claude/agents/**)"));
+  // `receipts` was denied until ADR-0284 D4 retired the receipt; nothing writes that directory now.
+  assert.ok(!rules.some((r) => r.includes("/.claude/receipts")));
   assert.ok(rules.includes("Write(//c/code/storytree/.claude/settings.json)"));
   assert.ok(!rules.some((r) => r.includes("/.claude/worktrees")));
 });
@@ -132,7 +132,8 @@ test("installWallSettings is IDEMPOTENT — re-running installs no duplicates", 
   const once = installWallSettings({}, MANIFEST_FIXTURE, "C:\\code\\storytree");
   const twice = installWallSettings(once, MANIFEST_FIXTURE, "C:\\code\\storytree");
   assert.deepEqual(twice.permissions?.deny, once.permissions?.deny);
-  assert.equal((twice.hooks?.["PreToolUse"] as unknown[]).length, 1);
+  // ADR-0284 D2: the semantic half is retired, so an install registers NO hook at all.
+  assert.deepEqual(twice.hooks?.["PreToolUse"], []);
 });
 
 test("installWallSettings PRUNES stale rules for this checkout when the manifest shrinks", () => {
@@ -158,26 +159,32 @@ test("installWallSettings keeps deny rules that are NOT this wall's", () => {
   assert.ok(out.permissions?.deny?.includes("Bash(rm:*)"));
 });
 
-test("installWallSettings keeps OTHER PreToolUse hooks and replaces only its own", () => {
-  const mine = installWallSettings(
-    { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo hi" }] }] } },
-    MANIFEST_FIXTURE,
-    "C:\\code\\storytree",
-  );
-  const entries = mine.hooks?.["PreToolUse"] as Array<{ matcher?: string }>;
-  assert.equal(entries.length, 2);
-  assert.ok(entries.some((e) => e.matcher === "Bash"));
-  // …and a re-install still leaves exactly one of ours beside it.
-  const again = installWallSettings(mine, MANIFEST_FIXTURE, "C:\\code\\storytree");
-  assert.equal((again.hooks?.["PreToolUse"] as unknown[]).length, 2);
-});
-
-test("the hook command is ABSOLUTE and carries the --root scope bound", () => {
-  // Relative would resolve inside whichever worktree is running, so checking out an older branch
-  // there would silently swap the wall for an older one. `--root` is what stops a user-level
-  // registration from firing in every other repository on the machine.
-  const cmd = wallHookCommand("C:\\code\\storytree");
-  assert.equal(cmd, "node C:/code/storytree/packages/cli/write-authority-hook.mjs --root C:/code/storytree");
+test("installWallSettings STRIPS a legacy wall registration and keeps every other hook", () => {
+  // ADR-0284 D2. A machine that ran a pre-0284 install still carries a registration naming the now
+  // DELETED hook script. Leaving it is the worst state available: a `PreToolUse` hook blocks only on
+  // exit code 2, so one pointing at a missing script enforces nothing while the settings file reads
+  // as though a wall is installed. Unrelated hooks are none of our business and must survive.
+  const before = {
+    hooks: {
+      PreToolUse: [
+        { matcher: "Bash", hooks: [{ type: "command", command: "echo hi" }] },
+        {
+          matcher: "Write|Edit|NotebookEdit",
+          hooks: [
+            {
+              type: "command",
+              command:
+                "node C:/code/storytree/packages/cli/write-authority-hook.mjs --root C:/code/storytree",
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const out = installWallSettings(before, MANIFEST_FIXTURE, "C:\\code\\storytree");
+  const entries = out.hooks?.["PreToolUse"] as Array<{ matcher?: string }>;
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0]?.matcher, "Bash");
 });
 
 // ---------------------------------------------------------------------------

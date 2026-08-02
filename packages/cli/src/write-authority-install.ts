@@ -14,12 +14,17 @@
  * and shared with every other project on the machine, so `--write` is required to touch it. The bare
  * form prints exactly what would change.
  *
- * WHAT IT INSTALLS is the pair ADR-0257 D1 asks for, both halves machine-scoped (see
- * `write-authority-rules.ts` for why user-level is the only file that can carry them):
- *   - `permissions.deny` — the static containment floor. Costs nothing, holds under
- *     `bypassPermissions`, and still holds when the hook does not run at all.
- *   - the `PreToolUse` registration — the semantic layer: claim, branch, detached HEAD, and the
- *     junction/symlink escapes that a text rule cannot see.
+ * WHAT IT INSTALLS is `permissions.deny` — the static containment floor, machine-scoped (see
+ * `write-authority-rules.ts` for why user-level is the only file that can carry it). Costs nothing,
+ * holds under `bypassPermissions`, cannot be overridden by a more-local allow, and cannot brick a
+ * session.
+ *
+ * IT NO LONGER REGISTERS A HOOK (ADR-0284 D2). The semantic half was retired rather than deferred:
+ * a `PreToolUse` hook blocks only on exit code 2, so an absent script, a missing interpreter, a
+ * timeout or a crash all let the write through — it cannot be the agent-inescapable boundary
+ * ADR-0257 D1 asked for. Re-running this command STRIPS any registration a previous install left
+ * behind. What it no longer covers is stated rather than implied: shell writes and Codex are
+ * uncontained (ADR-0284 D8).
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import * as os from "node:os";
@@ -32,9 +37,6 @@ import {
   locateWorktree,
   repoRoot,
   rulesDenyingWorktrees,
-  wallHookCommand,
-  WALL_HOOK_CAPABILITY_MARKER,
-  WALL_HOOK_SCRIPT,
   type ClaudeSettings,
   type ManifestRootSlice,
 } from "@storytree/drive";
@@ -79,41 +81,6 @@ export function protectedRoot(io: WallInstallIo): string {
   return located !== null ? located.primaryRoot : io.repoRoot();
 }
 
-/**
- * Can the hook at `root` actually be registered? The registration names an ABSOLUTE script inside a
- * real checkout, so what runs is whatever that checkout's branch holds — which is not necessarily
- * this one. Two ways that goes wrong, both silent:
- *   - the script is ABSENT (the checkout is on a branch predating the wall). The hook command fails,
- *     and a failing `PreToolUse` hook does not block — so every write proceeds while the settings
- *     file says a wall is installed.
- *   - the script is PRE-FLIP (increment 2): inert unless `STORYTREE_WRITE_AUTHORITY` is set, and
- *     blind to `--root`, so it would also fire in every unrelated repository on the machine.
- * Either way the honest move is to refuse the registration and say so, not to install a wall that
- * reports success and enforces nothing.
- */
-export function hookHostStatus(
-  io: WallInstallIo,
-  root: string,
-): { ok: true } | { ok: false; why: string } {
-  const script = `${root.replace(/\\/g, "/").replace(/\/+$/, "")}/${WALL_HOOK_SCRIPT}`;
-  const body = io.readFile(script);
-  if (body === null) {
-    return {
-      ok: false,
-      why: `the hook script is not present at ${script} — that checkout is on a branch that predates the wall`,
-    };
-  }
-  if (!body.includes(WALL_HOOK_CAPABILITY_MARKER)) {
-    return {
-      ok: false,
-      why:
-        `the hook script at ${script} predates the flip: it is inert unless ` +
-        "STORYTREE_WRITE_AUTHORITY is set, and ignores the --root scope bound",
-    };
-  }
-  return { ok: true };
-}
-
 function readManifest(io: WallInstallIo, root: string): ManifestRootSlice | null {
   const raw = io.readFile(path.join(root, "repo-manifest.json"));
   if (raw === null) return null;
@@ -134,19 +101,17 @@ function help(): Envelope {
   return {
     ok: true,
     body: [
-      "storytree write-authority — the session-isolation write-authority wall (ADR-0257).",
+      "storytree write-authority — the session-isolation write-authority wall (ADR-0257/0284).",
       "",
       "  rules              print the generated permissions.deny block for this checkout",
       "  install            DRY RUN: show what would change in ~/.claude/settings.json",
-      "  install --write    install/refresh the deny block + the PreToolUse registration",
-      "",
-      "  --hook-from <checkout>   source the hook script from another checkout — use when the",
-      "                           protected lobby sits on a branch that predates the wall.",
+      "  install --write    install/refresh the deny block",
       "",
       "The block is DERIVED from repo-manifest.json, so re-run `install --write` whenever a",
       "top-level entry is added or removed — never hand-edit it.",
       "",
-      "Kill switch (human maintenance only): STORYTREE_WRITE_AUTHORITY=off.",
+      "The wall is STATIC ONLY (ADR-0284). Shell writes and Codex are uncontained; `install --write`",
+      "also strips any PreToolUse registration left by an earlier version.",
     ].join("\n"),
     next: HELP_NEXT,
   };
@@ -158,7 +123,7 @@ function help(): Envelope {
  */
 export function writeAuthorityCommand(
   sub: string | undefined,
-  opts: { write?: boolean; help?: boolean; hookFrom?: string },
+  opts: { write?: boolean; help?: boolean },
   io: WallInstallIo = defaultWallInstallIo,
 ): Envelope {
   if (opts.help === true || sub === undefined) return help();
@@ -223,35 +188,32 @@ export function writeAuthorityCommand(
     }
   }
 
-  // `--hook-from` names the checkout that HOSTS the hook script, when that is not the protected one.
-  // The lobby is a read-only checkout sitting on whatever branch a human last left there, so it is
-  // the worst possible place to source a security boundary from; a pinned checkout is the better
-  // host. Absent the flag, host and protected checkout are the same, which is the simple case.
-  const scriptRoot = opts.hookFrom !== undefined && opts.hookFrom !== "" ? opts.hookFrom : root;
-  const host = hookHostStatus(io, scriptRoot);
-  const hookCommand = host.ok ? wallHookCommand(root, scriptRoot) : null;
-  const next = installWallSettings(current, manifest, root, { hookCommand });
+  const next = installWallSettings(current, manifest, root);
   const before = current.permissions?.deny ?? [];
   const after = next.permissions?.deny ?? [];
   const added = after.filter((r) => !before.includes(r));
   const removed = before.filter((r) => !after.includes(r));
 
+  // A registration left by a pre-ADR-0284 install is stripped, not left pointing at a deleted
+  // script. Reported explicitly, because silently removing a thing called a wall would be its own
+  // kind of dishonesty.
+  const beforeHooks = Array.isArray(current.hooks?.["PreToolUse"])
+    ? (current.hooks["PreToolUse"] as unknown[]).length
+    : 0;
+  const afterHooks = (next.hooks?.["PreToolUse"] as unknown[] | undefined)?.length ?? 0;
+
   const summary = [
     `settings file:       ${settingsPath}`,
     `protected checkout:  ${root}`,
     `deny rules:          ${before.length} → ${after.length} (+${added.length}, -${removed.length})`,
-    `PreToolUse hook:     ${hookCommand ?? "NOT REGISTERED"}`,
+    `PreToolUse hook:     retired (ADR-0284 D2) — the wall is the static block only`,
   ];
-  if (!host.ok) {
+  if (beforeHooks > afterHooks) {
     summary.push(
       "",
-      "The SEMANTIC half cannot be installed:",
-      `  ${host.why}.`,
-      "",
-      "  The static deny block below still installs and is the containment floor — the lobby is",
-      "  unwritable by the file tools. What is missing is the claim / branch / detached-HEAD /",
-      "  symlink-escape decision. Point the protected checkout at a commit carrying the wall and",
-      "  re-run this command; any stale registration has been REMOVED rather than left falling open.",
+      `  STRIPPED ${beforeHooks - afterHooks} stale write-authority registration(s) pointing at the`,
+      "  deleted hook script. A hook blocks only on exit code 2, so one naming a missing script",
+      "  enforced nothing while reporting a wall.",
     );
   }
   if (added.length > 0) summary.push("", "added:", ...added.map((r) => `  + ${r}`));
@@ -259,7 +221,7 @@ export function writeAuthorityCommand(
 
   if (opts.write !== true) {
     return {
-      ok: host.ok,
+      ok: true,
       body: [...summary, "", "DRY RUN — nothing written. Re-run with --write to install."].join("\n"),
       next: ["storytree write-authority install --write"],
     };
@@ -267,16 +229,16 @@ export function writeAuthorityCommand(
 
   io.writeFile(settingsPath, `${JSON.stringify(next, null, 2)}\n`);
   return {
-    ok: host.ok,
+    ok: true,
     body: [
       ...summary,
       "",
-      host.ok
-        ? "INSTALLED (both halves)."
-        : "PARTIALLY INSTALLED (static half only).",
-      "Both layers bind IMMEDIATELY — in this session and every other, with no restart. Measured",
-      "2026-08-02: a PreToolUse registration added mid-session fired on the very next tool call.",
-      "So an install takes effect at once; so does a mistake in one.",
+      "INSTALLED. The deny block binds IMMEDIATELY — in this session and every other, with no",
+      "restart. So an install takes effect at once; so does a mistake in one.",
+      "",
+      "NOT covered, and not implied to be (ADR-0284 D8): shell writes (no harness sandbox exists on",
+      "native Windows) and Codex (its worktrees live outside this checkout). Both documented",
+      "cross-session incidents were Codex; that gap is ADR-0257 D2/D3/D7 and is still open.",
     ].join("\n"),
     next: ["storytree write-authority rules", "storytree noticeboard --pg"],
   };

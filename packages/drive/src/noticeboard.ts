@@ -51,28 +51,13 @@ export interface ClaimLedgerReadLike {
   listLiveClaims(): Promise<ClaimDocT[]>;
 }
 
-/** The outcome of a receipt write — never thrown, so a receipt problem can't lose a taken claim. */
-export type ReceiptOutcome = { ok: true } | { ok: false; why: string };
-
-/**
- * The write-authority RECEIPT seam (ADR-0257 D5). `declare` stamps a receipt after the claims are
- * taken, and `done` revokes it — so the expensive ledger read the wall would otherwise perform on
- * every file write is paid HERE, once, where the ledger is already being consulted.
- *
- * Duck-typed and optional, in this module's house style: the implementation lives in the CLI (it is
- * filesystem I/O and needs the checkout roots), so `noticeboard.ts` stays offline-testable and a
- * caller that supplies no receipts seam simply mints none.
- */
-export interface SessionReceiptLike {
-  mint(claims: readonly { unitId: string; branch: string }[]): ReceiptOutcome;
-  revoke(): ReceiptOutcome;
-}
+// (A write-authority RECEIPT seam lived here — `declare` stamped one, `done` revoked it — so the
+// wall could prove a claim without dialling the ledger on every write. ADR-0284 D4 retired it with
+// the hook that was its only consumer.)
 
 export interface NoticeboardDeps {
   identity: SessionIdentity | null;
   now: () => Date;
-  /** The receipt writer (ADR-0257 D5); null/absent = mint nothing (the wall then refuses this session). */
-  receipts?: SessionReceiptLike | null;
   /** The write-claim store (ADR-0142); null = offline — declare/done refuse politely. */
   claims?: SessionClaimStoreLike | null;
   /** The claim-ledger read (ADR-0200 D7); null = offline — the board renders empty. */
@@ -279,19 +264,6 @@ export async function noticeboardCommand(
       }
     }
 
-    // Stamp the write-authority receipt (ADR-0257 D5) from the claims that ACTUALLY landed — never
-    // from `opts.nodes`, or a refused claim would mint authority it does not hold. Reported, never
-    // fatal: the claim is the coordination truth, and a missing receipt fails CLOSED anyway.
-    const receiptLines: string[] = [];
-    if (deps.receipts != null && acquired.length > 0) {
-      const stamped = deps.receipts.mint(acquired);
-      receiptLines.push(
-        stamped.ok
-          ? "  receipt:    stamped (write-authority, ADR-0257 D5)"
-          : `  receipt:    NOT stamped (${stamped.why}) — the write-authority wall will refuse this session's writes while it is switched on`,
-      );
-    }
-
     const body = [
       `Declared session "${deps.identity.sessionId}" on the claim ledger.`,
       `  branch:     ${deps.identity.branch}`,
@@ -299,7 +271,6 @@ export async function noticeboardCommand(
       `  nodes:      ${opts.nodes.join(", ")}`,
       "  claims:",
       ...claimLines,
-      ...receiptLines,
     ].join("\n");
 
     return {
@@ -336,10 +307,6 @@ export async function noticeboardCommand(
   // surfaced (stale-reclaim and the CI merge clear are the backstops), never a crash.
   try {
     const released = await claims.releaseClaimsBySession(deps.identity.sessionId);
-    // Revoke write authority IMMEDIATELY rather than letting the receipt lapse at `expiresAt`: a
-    // session that has handed its units back must not keep writing for the rest of the TTL
-    // (ADR-0257 D5 — "a release … refuses the next write"). Best-effort, like the release itself.
-    if (deps.receipts != null) deps.receipts.revoke();
     const note =
       released > 0
         ? `Released ${released} story claim${released !== 1 ? "s" : ""}.`

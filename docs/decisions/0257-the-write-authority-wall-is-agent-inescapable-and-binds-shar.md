@@ -27,6 +27,16 @@ literal form only — increment 2 makes `worktree create` stamp a receipt. What 
 really guarding survives in full: the receipt is UNSIGNED, so it is not yet the authority artifact
 D5 requires. See the increment-2 note below.)*
 
+> **AMENDED 2026-08-02 by [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md),
+> before the semantic half was ever registered. READ THAT FIRST.** The owner de-scoped the
+> worktree-to-worktree hazard (zero evidenced instances in five weeks) and RETIRED the `PreToolUse`
+> half rather than deferring it: the hook, the receipt and the decision core are **deleted**. What
+> stands from this ADR is the static deny block (D1's containment floor), the diagnosis of the lobby
+> hazard, and the Codex decisions D2/D3/D7 — which are now the only live thread, because both
+> documented incidents were Codex. D5 is CLOSED (not open); D9's proof bar is retired with what it
+> proved. The build-state bullets below are kept as the record of what increments 1–3 produced;
+> read them as history, not as current state.
+
 **Accepted is not built — and as of 2026-08-02 it is PARTLY built, on Claude only, and now
 ENFORCING on the developer machine.** What went green on 2026-07-28 was *what the wall must be*, not
 that any of it existed. Increment 1 (2026-07-29, #1001) added the pure decision —
@@ -34,23 +44,30 @@ that any of it existed. Increment 1 (2026-07-29, #1001) added the pure decision 
 into the write path and shipped it switched off. Increment 3 (2026-08-02) flipped it on; what that
 changed is recorded after the increment-2 notes below.
 
-- **The Claude `PreToolUse` adapter EXISTS** (`packages/cli/write-authority-hook.mjs`) and is proven
-  behaviourally: it spawns against real sibling worktrees and refuses the cross-session write, the
+- **The Claude `PreToolUse` adapter EXISTED** (`packages/cli/write-authority-hook.mjs`) and was proven
+  behaviourally: it spawned against real sibling worktrees and refused the cross-session write, the
   lobby write, the `..` escape, a detached HEAD, a rewound branch, and an absent/expired/malformed
-  receipt. The transport fork the arc recorded is settled — the hook loads the typed decision through
+  receipt. The transport fork the arc recorded is settled — the hook loaded the typed decision through
   tsx (MEASURED ~450 ms per write, against ~20 s for a ledger dial and ~2.3 s for the full CLI graph),
-  so there is ONE implementation rather than a hand-rolled `.mjs` copy of the path logic.
-- **The receipt of D5 is PARTLY built.** It is stamped by both claim ceremonies — `worktree create`
-  (correcting the Codex reviewer's "does not stamp one today") and `noticeboard declare` — carries a
-  finite `expiresAt`, is revoked by `noticeboard done`, and is re-validated on every write against the
-  LIVE HEAD branch. It is **NOT SIGNED**. Since increment 3 the static deny block is installed, so it
-  now has tamper-resistance against the FILE TOOLS — and that is all: the block does not bind a shell,
-  so a `Bash` command can still forge one. **D5 is therefore OPEN**, and a green status here must not
-  be read as closing it — the signing-key custody fork this ADR names is still unresolved.
+  so there was ONE implementation rather than a hand-rolled `.mjs` copy of the path logic. *(Deleted
+  by ADR-0284 D2 — never registered. Its behavioural suite could not see the two things that killed
+  it: the harness lets a `PreToolUse` hook FAIL OPEN on anything but exit code 2, and a write to the
+  harness scratchpad or the agent-memory directory is refused as "outside this repository", which
+  would have broken every compliant session on its first such write.)*
+- **The receipt of D5 was PARTLY built.** It was stamped by both claim ceremonies — `worktree create`
+  (correcting the Codex reviewer's "does not stamp one today") and `noticeboard declare` — carried a
+  finite `expiresAt`, was revoked by `noticeboard done`, and was re-validated on every write against
+  the LIVE HEAD branch. It was **NOT SIGNED**, and a `Bash` command could forge one. *(Retired by
+  ADR-0284 D4 with the hook that was its only consumer, which CLOSES D5 rather than leaving it open:
+  the signing-key custody fork did not need resolving, it needed deleting. A defect found on the way
+  out and worth recording: `evaluateReceiptAuthority` built the repo topology FROM receipt fields and
+  never cross-checked them, so a forged receipt naming the lobby as its own worktree classified the
+  whole repository as inside it.)*
 - **The static containment of D1 is GENERATED** (`write-authority-rules.ts`, from `repo-manifest.json`
   so the lobby surface cannot drift from the wall). Increment 2 wrote it nowhere; increment 3 installs
   it. What increment 2 verified empirically on Windows was the harness DENY MECHANISM the generator
   targets, with a rule installed by hand; increment 3 verified the generated block itself, in force.
+  **This is the half that stands** (ADR-0284 D3).
 
 **As of increment 2 nothing was enforced.** The hook shipped behind `STORYTREE_WRITE_AUTHORITY`,
 defaulting OFF, and no deny block was installed — because static rules cannot be env-gated and,
@@ -62,18 +79,26 @@ fleet (measured: zero live claims on the ledger) and it landed:
 
 - **The switch defaults ON.** `STORYTREE_WRITE_AUTHORITY=off` is now the human kill switch. The
   invariant is *registered means enforcing* — a hook wired into settings yet silently inert, because
-  an env var was never set, is no longer a reachable state.
+  an env var was never set, is no longer a reachable state. *(Both the switch and the hook it gated
+  are gone — ADR-0284 D2. Deny rules cannot be env-gated, so there is no kill switch for what
+  remains: lifting the static half means editing `permissions.deny` directly.)*
 - **The wall installs USER-level, not in the repository**, through
   `storytree write-authority install --write`. Three mechanics force this and none of them is taste:
   the deny rules are unavoidably ABSOLUTE (a single-leading-slash rule anchors at the settings file's
   own directory, so a "relative" block would resolve against each WORKTREE's root and deny every
   session its own `packages/**`); a committed absolute block is keyed to one machine and fails in
-  every worktree and in CI; and `.claude/settings.local.json` is gitignored, hence absent in a freshly
-  minted worktree — precisely the sessions the wall must bind. The hook registration carries
-  `--root <checkout>` so a user-level registration does not fire in every other repository on the
-  machine. That bound also keeps **remote/web container sessions unaffected**, which is D6's
+  every worktree and in CI; and `.claude/settings.local.json` cannot carry it either — Claude Code
+  resolves that file THROUGH worktrees to the main checkout, so it is one SHARED file for the whole
+  fleet rather than a per-worktree one. *(This third mechanic originally read "gitignored, hence
+  absent in a freshly minted worktree". That reason was wrong — the file is shared, not absent —
+  and is corrected in place per ADR-0139; the conclusion it supported is unaffected. Verified
+  behaviourally 2026-08-02: a deny rule written into a worktree's own `settings.local.json` does not
+  bind that session, while the user-level block demonstrably does.)* The hook registration carried
+  `--root <checkout>` so a user-level registration did not fire in every other repository on the
+  machine. That bound also kept **remote/web container sessions unaffected**, which is D6's
   single-tenant exemption — they are plain clones, and a committed registration would refuse every
-  write in them.
+  write in them. *(Moot since ADR-0284 D2: there is no registration. The deny rules name absolute
+  paths on one machine, so remote sessions are untouched by construction.)*
 - **The generated block is installed by a command, never by hand**, because it is DERIVED from
   `repo-manifest.json`; a derived artifact that can only be produced by hand rots at the first
   manifest change. The conformance test that increment 2 left self-arming now points at the installed
@@ -83,7 +108,10 @@ fleet (measured: zero live claims on the ledger) and it landed:
   sat on `claude/act2-intro-decisions`, which predated the wall entirely — the script did not exist.
   The installer therefore verifies the host script is present AND post-flip before registering, and
   REMOVES a stale registration rather than leaving one that falls open; `--hook-from <checkout>` lets
-  a pinned checkout host the wall for a lobby that cannot.
+  a pinned checkout host the wall for a lobby that cannot. *(ADR-0284 D2 read this the other way and
+  retired the hook because of it: an install-time presence check is a SNAPSHOT, and a boundary whose
+  integrity depends on a git branch not moving is a convention, not a wall. The host check and
+  `--hook-from` are deleted; `install --write` now only strips a legacy registration.)*
 - **A brick was found and fixed, and only running the wall for real could find it.** Installed, the
   wall refused EVERY write including the session's own claimed worktree, reporting them as "outside
   this repository". `normaliseForCompare` in `write-authority.ts` folded case and trailing separators
@@ -95,31 +123,35 @@ fleet (measured: zero live claims on the ledger) and it landed:
   necessary and not sufficient — and it is now pinned by regression tests at both layers.
 
 **What is in force on the dev machine today:** the static deny block (93 rules), verified
-behaviourally — a `Write` into the lobby is refused, a write inside a worktree succeeds. The
-**semantic half is installed on demand**: it was registered, exercised end-to-end (own worktree
-allowed; sibling worktree refused *by name*; lobby refused), then unregistered because the only host
-carrying the post-flip script was an ephemeral worktree. It re-registers with one command once a
-durable checkout carries this code.
+behaviourally — a `Write` into the lobby is refused, a write inside a worktree succeeds. **That is
+the whole wall, permanently** (ADR-0284 D2/D3). The semantic half was registered once, exercised
+end-to-end (own worktree allowed; sibling worktree refused *by name*; lobby refused), then
+unregistered because the only host carrying the post-flip script was an ephemeral worktree — and it
+was retired before it was ever registered again.
 
-**Read that split precisely, because the static half is CLAIM-BLIND and the two halves do not cover
-the same hazard.** The deny block is a list of absolute paths; it cannot know a claim, a branch or a
-session. It denies the LOBBY and permits everything under `.claude/worktrees` — necessarily, since
-denying that would freeze the fleet, and a deny rule cannot carry an allow-exception. So with only
-the static half registered, **one session writing into a SIBLING session's worktree is not refused by
-anything.** That is the cross-session collision this arc was cut for — "a sibling's write lands in
-your diff" — and it is bound only by the semantic half, which is exactly the half currently
-unregistered. What increment 3 achieved is therefore the LOBBY hazard, not session isolation:
-the primary checkout is closed to Claude's file tools, and worktree-to-worktree remains open.
-*(Verified 2026-08-02 against the installed block: 93 rules, none matching `.claude/worktrees`.)*
+**Read that split precisely, because the static half is CLAIM-BLIND.** The deny block is a list of
+absolute paths; it cannot know a claim, a branch or a session. It denies the LOBBY and permits
+everything under `.claude/worktrees` — necessarily, since denying that would freeze the fleet, and a
+deny rule cannot carry an allow-exception. So **one session writing into a SIBLING session's worktree
+is not refused by anything.** What increment 3 achieved is therefore the LOBBY hazard, not session
+isolation: the primary checkout is closed to Claude's file tools, and worktree-to-worktree remains
+open. *(Verified 2026-08-02 against the installed block: 93 rules, none matching `.claude/worktrees`.)*
+**ADR-0284 D1 accepts that gap deliberately** rather than treating it as unfinished work: five weeks
+of heavy concurrent use produced zero evidenced worktree-to-worktree writes, against 13 for the lobby.
+It returns as work if an incident is filed.
 
 **Still absent entirely:** the whole Codex adapter (D2/D3/D7), the lobby's trusted mint actuator (D4),
-brokered common-directory access (D8), and Bash/shell containment on either surface. **D9's bar is NOT
-met** — it demands proof under real concurrent load on both supported desktop surfaces, and the
-evidence to date is a spawned-hook suite plus a single-session behavioural install on one.
+brokered common-directory access (D8), and Bash/shell containment on either surface — the last of
+which is structural on this machine, since harness sandboxing does not support native Windows and
+confines only Bash where it does exist. **D9's bar is retired** by ADR-0284 D7 along with the semantic
+layer it was written to prove; the static block's conformance test against the installed file is the
+proof that remains.
 [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) D5.2's gate-time
 lobby arm is no longer the *only* live enforcement — since increment 3 this ADR's static layer refuses
 lobby writes before mutation — but it still stands as the landing-gate backstop this ADR sits in front
-of rather than replaces, and it remains the only arm that covers a shell.
+of rather than replaces, and it remains the only arm that covers a shell. *(Narrower than it reads:
+in `check-declared.ts` that arm is reached only when `deriveIdentity()` is null and then only in the
+primary checkout, so a worktree session's gate never checks whether the lobby is dirty.)*
 
 **Amends** [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md). The
 `amends: [255]` edge **now binds** (it bound on acceptance, 2026-07-28). ADR-0255 D2, D3, D5, D6 and
