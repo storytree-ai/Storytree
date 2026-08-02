@@ -102,6 +102,7 @@ export {
   type ScenePlantInput,
   type SceneTerritoryInput,
   type SceneInput,
+  type SceneEmptyHex,
   BAKED_STONE_DEF,
   buildScene,
   buildTrails,

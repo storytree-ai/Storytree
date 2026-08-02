@@ -30,17 +30,41 @@ import {
 
 const COMMIT_DEBOUNCE_MS = 140;
 
-/** Group the schema into its ordered sections (first-seen order). */
-function grouped(): { group: string; controls: ControlSpec[] }[] {
-  const out: { group: string; controls: ControlSpec[] }[] = [];
-  for (const c of CONTROLS) {
-    let bucket = out.find((b) => b.group === c.group);
+/**
+ * A panel button that DOES something rather than binding a URL dial (ADR-0286).
+ *
+ * The schema in `worldSettings` is state — a value the URL carries and the world reads back. "Regrow
+ * the forest" is neither: it is a one-shot on a clock that lives in React. Rather than inventing a
+ * fake param for it (which would then have to be scrubbed from every shared link), the panel takes
+ * actions as a prop and drops each one into its named group beside that group's dials.
+ */
+export interface WorldSettingsAction {
+  /** Stable key — also the test handle. */
+  key: string;
+  /** The section this action sits in. Matches a control `group` to join it, or names a new one. */
+  group: string;
+  label: string;
+  hint?: string;
+  disabled?: boolean;
+  onClick: () => void;
+}
+
+type Section = { group: string; controls: ControlSpec[]; actions: WorldSettingsAction[] };
+
+/** Group the schema into its ordered sections (first-seen order), folding in any actions. An
+ *  action whose group has no controls still gets a section, appended after the schema's own. */
+function grouped(actions: readonly WorldSettingsAction[]): Section[] {
+  const out: Section[] = [];
+  const bucketFor = (group: string): Section => {
+    let bucket = out.find((b) => b.group === group);
     if (!bucket) {
-      bucket = { group: c.group, controls: [] };
+      bucket = { group, controls: [], actions: [] };
       out.push(bucket);
     }
-    bucket.controls.push(c);
-  }
+    return bucket;
+  };
+  for (const c of CONTROLS) bucketFor(c.group).controls.push(c);
+  for (const a of actions) bucketFor(a.group).actions.push(a);
   return out;
 }
 
@@ -52,16 +76,22 @@ function fmtNumber(c: NumberControl, v: number): string {
   return Number(v.toFixed(dp)).toString();
 }
 
+const NO_ACTIONS: readonly WorldSettingsAction[] = [];
+
 export function WorldSettingsPanel({
   search,
   onCommit,
+  actions = NO_ACTIONS,
 }: {
   search: string;
   onCommit: (nextSearch: string) => void;
+  /** Non-URL buttons to fold into the panel (see {@link WorldSettingsAction}). Absent ⇒ the panel
+   *  is byte-identical to the pure-schema one. */
+  actions?: readonly WorldSettingsAction[];
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const sections = useMemo(() => grouped(), []);
+  const sections = useMemo(() => grouped(actions), [actions]);
 
   return (
     <div className="world-gear-dock">
@@ -136,7 +166,7 @@ function WorldSettingsBody({
   onReset,
 }: {
   search: string;
-  sections: { group: string; controls: ControlSpec[] }[];
+  sections: Section[];
   copied: boolean;
   onChange: (nextSearch: string) => void;
   onCopy: () => void;
@@ -149,6 +179,20 @@ function WorldSettingsBody({
         {sections.map((sec) => (
           <fieldset key={sec.group} className="world-gear-group">
             <legend>{sec.group}</legend>
+            {sec.actions.map((a) => (
+              <div key={a.key} className="world-gear-row action">
+                <button
+                  type="button"
+                  className="world-gear-action"
+                  data-gear-action={a.key}
+                  disabled={a.disabled === true}
+                  onClick={a.onClick}
+                >
+                  {a.label}
+                </button>
+                {a.hint && <span className="world-gear-hint">{a.hint}</span>}
+              </div>
+            ))}
             {sec.controls.map((c) => (
               <ControlRow key={c.key} control={c} search={search} onChange={onChange} />
             ))}

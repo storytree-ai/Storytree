@@ -1,0 +1,16 @@
+{
+  "model": "gemini-3-pro-image",
+  "sdk": "@google/genai 2.13.0",
+  "backend": "Gemini API via repository-documented ADC -> Secret Manager key path",
+  "imageConfig": {
+    "aspectRatio": "1:1",
+    "imageSize": "1K"
+  },
+  "inputImages": [],
+  "calls": 1,
+  "startedAt": "2026-07-30T13:53:15.636Z",
+  "elapsedSeconds": 26.5,
+  "mimeType": "image/jpeg",
+  "finishReason": "STOP",
+  "prompt": "Create ONE coherent 3 by 3 sprite sheet showing exactly nine chronological growth stages of the SAME fantasy story tree. This is fresh original game art, not a copy of any existing asset.\n\nLAYOUT\n- A square 3x3 grid, read left-to-right then top-to-bottom.\n- Nine equal invisible cells on one perfectly flat pure white (#FFFFFF) background.\n- No grid lines, borders, labels, numbers, text, checkerboard, ground, island, soil tile, cast shadow, or decorations outside the tree.\n- Keep generous blank white gutters so adjacent stages never touch.\n- In every cell, the tree's root socket is fixed at exactly the same lower-centre position. The root tips and trunk base must not move at all between cells. No camera change, no whole-tree translation, no rotation, and no centre-scale pop.\n\nNINE STAGES\n1. tiny rooted sapling with a short ochre stem, two small leaves, and one restrained lime bud;\n2. the same root and stem, trunk rising upward;\n3. trunk taller, first major branch extending from an already-visible fork;\n4. more major branches extending parent-first from visible trunk forks, still sparse foliage;\n5. exactly five clearly separated canopy cluster buds appearing only at supported branch tips;\n6. those same five clusters partly filling, with branch structure still legible;\n7. those same five clusters fuller and denser;\n8. nearly mature crown, same five-cluster topology;\n9. mature asymmetrical story tree, same root, trunk, branches, and five canopy clusters.\n\nART DIRECTION\n- crisp handcrafted pixel art with deliberately blocky pixels and no painterly blur;\n- Storytree-like calm 2.5D low-top-down view: trunk and roots seen slightly from above, not a side-view platformer tree and not a fully top-down icon;\n- warm ochre/copper bark with deep umber creases;\n- deep forest-green and teal canopy shadows;\n- restrained lime proof-bloom accents only, never neon-dominant;\n- readable asymmetrical silhouette, selective dark outlines, compact game-sprite shading;\n- one consistent warm upper-left light across all nine cells;\n- canopy clusters remain visibly separable so a later deterministic runtime rig could reveal one stable cluster per capability.\n\nHard negatives: no flying leaves, no falling particles, no magical swirls, no duplicate trees inside a cell, no unrelated poses, no moving roots, no changing viewpoint, no image-frame border."
+}

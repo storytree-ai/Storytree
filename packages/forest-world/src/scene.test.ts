@@ -201,6 +201,36 @@ test('empties + hits are one per input', () => {
   assert.equal(allByKind(mustByKind(scene, 'hits-layer'), 'hit').length, 2);
 });
 
+// ADR-0286: the coast is derived from the UNION of claimed land, so it carries no owner of its
+// own — and while it carried none, the Act 2 regrow's per-story hide could not reach it and the
+// moat drew the whole forest's silhouette before any island existed. An ATTRIBUTED coast hex names
+// the island it grew out of; an unattributed one stays exactly as it was.
+test('an attributed coast hex names its island; an unattributed one carries no id', () => {
+  const scene = buildScene(
+    mkInput({
+      empties: [
+        { q: 0, r: 0, owner: 0 },
+        { q: 1, r: 0, owner: 1 },
+        { q: 2, r: 0 },
+      ],
+    }),
+  );
+  const empties = allByKind(mustByKind(scene, 'empties-layer'), 'empty');
+  assert.deepEqual(
+    empties.map((e) => e.id),
+    ['library', 'cli', undefined],
+  );
+});
+
+// The honesty wall: an owner index no territory answers to must not invent a story id. It falls
+// back to unattributed (always drawn), never to some other island's coast.
+test('a coast hex whose owner index is out of range stays unattributed', () => {
+  const scene = buildScene(mkInput({ empties: [{ q: 0, r: 0, owner: 99 }] }));
+  const empties = allByKind(mustByKind(scene, 'empties-layer'), 'empty');
+  assert.equal(empties.length, 1);
+  assert.equal(empties[0]?.id, undefined);
+});
+
 // ---------- the trail network (ADR-0169 §2) ----------
 
 test('the trails layer is FULL passes in order — shadow < casing < fill < ghost — then the edge metadata', () => {

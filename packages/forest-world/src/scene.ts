@@ -583,14 +583,34 @@ export interface SceneTerritoryInput {
   };
 }
 
+/**
+ * One pale coast hex, optionally ATTRIBUTED to the territory whose land it grew out of (its
+ * index in `territories`, the same index every other `owner` here keys on).
+ *
+ * Why attribution exists at all: the coast is derived from the UNION of all claimed land, so it
+ * is naturally one global moat with no owner. That was fine while it only ever drew the settled
+ * forest — but the Act 2 regrow (ADR-0282) hides an island until it forms, and an unattributed
+ * moat kept drawing the WHOLE forest's silhouette from frame one, pre-announcing every island
+ * before it existed (ADR-0286). Naming the island each coast hex belongs to is what lets a
+ * per-story hide reach it.
+ *
+ * OPTIONAL on purpose: absent ⇒ the hex renders exactly as it did before this field existed, with
+ * no id on its node and nothing per-story to key on. Every caller that does not attribute its
+ * coast (the website fold, every test fixture) is byte-identical.
+ */
+export interface SceneEmptyHex extends Axial {
+  readonly owner?: number;
+}
+
 /** The whole scene's structural input. `territories` is in OWNER order — the same
  *  index `relaxedCells[].owner` / `drawTiles[].owner` / `wheatSets[i]` key on. */
 export interface SceneInput {
   offset: Pt;
   width: number;
   height: number;
-  /** Pale coast tiles (1–2 rings beyond claimed land). */
-  empties: Axial[];
+  /** Pale coast tiles (1–2 rings beyond claimed land), each optionally ATTRIBUTED to the
+   *  territory whose land it grew out of ({@link SceneEmptyHex}). */
+  empties: SceneEmptyHex[];
   /** Mesh substrate cells; `null` ⇒ the classic extruded-hex ground (`drawTiles`). */
   relaxedCells: RelaxedCell[] | null;
   /** Claimed tiles + owning-territory index (used when `relaxedCells` is null). */
@@ -2798,7 +2818,12 @@ function buildEmpties(input: SceneInput): SceneG {
   return g(
     input.empties.map((h) => {
       const c = hexCenter(h);
-      return path(hexPath(c.x, c.y, HEX_R - 0.6), { kind: 'empty' });
+      // ADR-0286: a coast hex carries the id of the island it grew out of, when the caller
+      // attributed it — that id is the only handle a per-story hide has on this layer. An
+      // unattributed hex (or an owner index no territory answers to) stays id-less, exactly as
+      // every coast hex was before attribution existed.
+      const id = h.owner === undefined ? undefined : input.territories[h.owner]?.id;
+      return path(hexPath(c.x, c.y, HEX_R - 0.6), id === undefined ? { kind: 'empty' } : { kind: 'empty', id });
     }),
     { kind: 'empties-layer' },
   );

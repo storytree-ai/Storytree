@@ -45,6 +45,7 @@ A design fork worth an ADR: name it in the plan's escalation points and surface 
 - A fork whose subject is the WORK HIERARCHY — package layout, dependency-graph edges, where a module lives, story/capability boundaries — is decided by spawning the `story-author` agent (the role that owns WHAT), NOT by escalating to the human owner; raise it to the owner only when the structural call is genuinely irreversible, outward-facing, or unsettleable from the corpus.  — `storytree library artifact route-structural-forks-to-story-author`
 - Raise an owner-facing fork (an `open-question`) only when the DECISION ITSELF is the owner's to make — it is irreversible, outward-facing, or value-laden and unsettleable from the existing decision log — never merely because the agent is unsure; a reversible, internal call with a defensible engineering answer is decided and recorded (an ADR if it outlives its unit, else the unit's own guidance), not parked as an OQ.  — `storytree library artifact owner-fork-bar`
 - Durable discipline lives ONCE as a Library unit; every consumer — an agent spec, a work unit, a report — cites it via a typed `asset:`/`doc:` reference, never restates it in prose.  — `storytree library artifact reference-dont-restate`
+- Prose is not a measurement: before an untested claim defers work a second time, state its quantity or spend the one probe that settles it — and when writing the hedge, never name instances you have not tested.  — `storytree library artifact price-the-deferral`
 
 ## Refuse — failure modes you must refuse
 

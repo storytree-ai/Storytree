@@ -1,12 +1,19 @@
-// Act2IntroControl — the owner-reachable control that regrows the whole forest (ADR-0282).
+// Act2IntroControl — the Act 2 regrow's DIAGNOSTIC panel, mounted only under `?act2=intro`.
 //
-// One obvious primary button plus the transport the app owns: Back a wave, Replay from nothing,
-// and Skip to the settled forest. It renders NOTHING of the world itself — it only moves the
-// cursor that `useAct2Intro` holds, so the forest it regrows is the real map behind it.
+// It was the owner-facing control (ADR-0282). It is not any more: ADR-0286 moved the two things an
+// owner wants — replay, and how fast — into the gear panel's "Forest intro" section, and the regrow
+// itself now plays on the first arrival at the map each browser session. Permanent transport chrome
+// over the product was the wrong shape once the intro became something you simply arrive at.
 //
-// The readout is deliberately factual (wave, island count, percent) rather than decorative: the
-// owner holds the LOOK verdict (ADR-0070), and a control that narrates what the graph is doing is
-// more use to that judgement than one that performs.
+// What it still earns its place with is the READOUT, which the gear deliberately does not carry:
+// depth, islands landed, pathways growing, percent, plus the plan's own account of the base nodes
+// and any island no pathway can reach. That is what a measurement run and a look verdict need, and
+// the full transport (Back a wave, Skip to grown) is what makes a specific beat inspectable.
+//
+// It renders NOTHING of the world itself — it only moves the cursor that `useAct2Intro` holds, so
+// the forest it regrows is the real map behind it. The readout is deliberately factual rather than
+// decorative: the owner holds the LOOK verdict (ADR-0070), and a control that narrates what the
+// graph is doing is more use to that judgement than one that performs.
 
 import type { Act2IntroPlayer } from './act2Intro.js';
 

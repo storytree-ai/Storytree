@@ -115,8 +115,26 @@ quiet indefinitely; one that keeps costing sessions escalates on its own. Ceilin
 policy follow the `check:friction-drain` shape exactly: fail-closed on the queue, fail-open on the
 substrate (SKIP offline / no creds / unreadable), local gate only, never CI.
 
-Applied to today's state, the corpus-gate cluster would already be RED: it recurred three times on
-2026-08-01 alone.
+The comparison is PROSPECTIVE from a proposal's `createdAt`: a reinforcement dated before it is the
+historical pressure that justified parking the proposal, and stays quiet. Had a proposal for the
+corpus-gate cluster already existed on 2026-08-01, its three recurrences that day would have redded
+it — that is the sensitivity this rule is tuned for.
+
+**Correction (2026-08-03, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+the gloss here originally read "Applied to today's state, the corpus-gate cluster would already be RED:
+it recurred three times on 2026-08-01 alone", which contradicted two explicit clauses of this ADR and
+predicted the wrong outcome for D4.** Nothing is re-decided: the rule in bold above is unchanged, and
+D4's text is untouched. D4 backfills proposals for items *selected because they already carry
+reinforcements*, and justifies staying targeted on the ground that a full backfill "would front-load a
+large adjudication pass and immediately breach any ceiling"; D3's own rationale is that a ceiling must
+not "force premature builds". Both clauses require the comparison to run forward from the proposal's
+creation — otherwise every one of D4's ~10–20 backfilled proposals would red on arrival, the exact
+outcome D4 designs against. That is what the built check does (`if (day < createdDay) continue;` in
+`evaluateProposalDrain`, `packages/cli/src/proposal-drain.ts`), so a D4-backfilled proposal starts
+QUIET on the very recurrences that selected it and reds on the NEXT hit. Recorded because the session
+that builds D4 would otherwise read the old sentence, see quiet proposals on arrival, and conclude the
+check was broken. Curator correction made during the librarian pass on the PR that built D3, and
+flagged to the owner in that PR's debrief so it can be overruled.
 
 ### D4 — targeted backfill (owner call)
 

@@ -76,7 +76,20 @@ function island(id: string, dx: number): SceneInput['territories'][number] {
   };
 }
 
-function forestScene(): SceneNode {
+/**
+ * The pale coast, ADR-0286-attributed: two hexes belonging to each island, plus one the caller
+ * could not attribute. The unattributed hex is the absence lock's positive control — it must draw
+ * at EVERY cursor, or the hide is reaching further than the attribution it is keyed on.
+ */
+const EMPTIES: SceneInput['empties'] = [
+  { q: 0, r: 0, owner: 0 },
+  { q: 1, r: 0, owner: 0 },
+  { q: 8, r: 0, owner: 1 },
+  { q: 9, r: 0, owner: 1 },
+  { q: 4, r: 4 },
+];
+
+function forestScene(empties: SceneInput['empties'] = []): SceneNode {
   const cellsFor = (owner: number, dx: number): NonNullable<SceneInput['relaxedCells']> =>
     [0, 10, 20].flatMap((y) =>
       [0, 10, 20].map((x) => ({
@@ -90,7 +103,7 @@ function forestScene(): SceneNode {
     offset: { x: 7, y: 11 },
     width: 140,
     height: 60,
-    empties: [],
+    empties,
     relaxedCells: [...cellsFor(0, 0), ...cellsFor(1, 90)],
     drawTiles: [],
     wheatSets: [new Set(), new Set()],
@@ -121,8 +134,11 @@ function ctxFor(layer?: SceneCtx['forestRegrowLayer']): SceneCtx {
   };
 }
 
-function draw(layer?: SceneCtx['forestRegrowLayer']): HTMLElement {
-  const scene = forestScene();
+function draw(
+  layer?: SceneCtx['forestRegrowLayer'],
+  empties: SceneInput['empties'] = [],
+): HTMLElement {
+  const scene = forestScene(empties);
   return render(
     <svg>
       <SceneView scene={scene} ctx={ctxFor(layer)} />
@@ -138,6 +154,9 @@ function layerAt(progress: number): NonNullable<SceneCtx['forestRegrowLayer']> {
   expect(plans.ungrown, 'both fixture islands carry connected land').toEqual([]);
   return forestRegrowRenderLayer(forestRegrowAtProgress(plan, progress), plans);
 }
+
+const emptyHexes = (container: HTMLElement): number =>
+  container.querySelectorAll('.hex-empty').length;
 
 const storyNodes = (container: HTMLElement, id: string): number =>
   container.querySelectorAll(`[data-story-id="${id}"]`).length;
@@ -158,6 +177,53 @@ describe('the forest regrow render layer', () => {
     cleanup();
     const settled = draw(layerAt(1)).innerHTML;
     expect(settled).toBe(plain);
+  });
+
+  // ── ADR-0286: the pale coast is per-island, and it lands with the SETTLED island ──
+  //
+  // Before this, the moat was one global layer with no owner, so it drew the whole forest's
+  // hexagonal silhouette from frame one — every island announced before it existed. The owner
+  // named it as the single biggest thing undercutting "grows from nothing".
+
+  it('draws no attributed coast hex before its island has landed', () => {
+    const container = draw(layerAt(0), EMPTIES);
+    // Only the unattributed hex — the hide reaches exactly as far as the attribution does.
+    expect(emptyHexes(container)).toBe(1);
+  });
+
+  it('still withholds an island’s coast while that island is mid-accretion', () => {
+    const plan = deriveForestRegrowPlan(GRAPH, TRAILS.edges);
+    const root = plan.stepByStory.get(ROOT)!;
+    const midRoot = (root.start + root.end) / 2;
+    const scene = forestScene();
+    const plans = deriveForestRegrowAccretionPlans(scene, ANCHORS);
+    const state = forestRegrowAtProgress(plan, midRoot);
+    expect(state.growing.map((g) => g.storyId), 'ROOT is the island in flight').toEqual([ROOT]);
+    const container = draw(forestRegrowRenderLayer(state, plans), EMPTIES);
+    // The coast rings an island's FINAL footprint, so revealing it at the START of accretion would
+    // draw a pale halo around a single cell — the same pre-announcement, one island at a time.
+    expect(emptyHexes(container)).toBe(1);
+  });
+
+  it('reveals a landed island’s coast while a story still absent keeps none', () => {
+    const plan = deriveForestRegrowPlan(GRAPH, TRAILS.edges);
+    const root = plan.stepByStory.get(ROOT)!;
+    const leaf = plan.stepByStory.get(LEAF)!;
+    // After ROOT has fully accreted, before LEAF's pathway has arrived.
+    const between = (root.end + leaf.start) / 2;
+    expect(between).toBeGreaterThan(root.end);
+    expect(between).toBeLessThan(leaf.start);
+    const container = draw(layerAt(between), EMPTIES);
+    // ROOT's two hexes + the unattributed one; LEAF's two are still withheld.
+    expect(emptyHexes(container)).toBe(3);
+  });
+
+  it('draws the whole coast on the settled forest, byte-for-byte as with no layer', () => {
+    const plain = draw(undefined, EMPTIES);
+    expect(emptyHexes(plain)).toBe(EMPTIES.length);
+    const html = plain.innerHTML;
+    cleanup();
+    expect(draw(layerAt(1), EMPTIES).innerHTML).toBe(html);
   });
 
   it('draws nothing at all for a story the regrow has not reached', () => {
