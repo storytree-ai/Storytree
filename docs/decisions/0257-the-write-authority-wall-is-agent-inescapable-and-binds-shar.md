@@ -149,9 +149,12 @@ proof that remains.
 [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) D5.2's gate-time
 lobby arm is no longer the *only* live enforcement — since increment 3 this ADR's static layer refuses
 lobby writes before mutation — but it still stands as the landing-gate backstop this ADR sits in front
-of rather than replaces, and it remains the only arm that covers a shell. *(Narrower than it reads:
-in `check-declared.ts` that arm is reached only when `deriveIdentity()` is null and then only in the
-primary checkout, so a worktree session's gate never checks whether the lobby is dirty.)*
+of rather than replaces, and it remains the only arm that covers a shell. *(It reads accurately as
+of 2026-08-02. It briefly did not: in `check-declared.ts` that arm was reached only when
+`deriveIdentity()` was null and then only in the primary checkout, so a worktree session's gate never
+checked whether the lobby was dirty. The scoping was fixed the same day — the arm is pure git, needs
+no session identity, and now runs for every session against the primary checkout's tree; see
+ADR-0245 D5.2's build note.)*
 
 **Amends** [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md). The
 `amends: [255]` edge **now binds** (it bound on acceptance, 2026-07-28). ADR-0255 D2, D3, D5, D6 and
