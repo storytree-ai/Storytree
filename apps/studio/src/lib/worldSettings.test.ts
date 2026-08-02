@@ -51,7 +51,11 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     // `selectionMotion` joins them (owner-directed 2026-07-27): selecting an island lights its
     // one-hop routes as two-lane hued lanes, and this dial is what MOVES when it does — draw +
     // pulse once (default), a looping march, or still. The lanes themselves are not optional.
-    const expected = ['artStyle', 'artScale', 'selectionMotion'];
+    // `regrowSpeed` joins them (ADR-0286, owner-directed 2026-08-02): the Act 2 regrow now plays on
+    // the first arrival at the map each browser session, and how fast it plays is the one piece of
+    // that the URL carries. Its sibling — the "Regrow the forest" replay button — is an ACTION with
+    // no URL state, so it is supplied to the panel by TreeView rather than declared here.
+    const expected = ['artStyle', 'artScale', 'selectionMotion', 'regrowSpeed'];
     expect([...keys].sort()).toEqual([...expected].sort());
     // The retired river/pond dials, road-routing dials, the removed building toggles
     // (building-DRAWER, then building-ISLAND), the retired grounded-art `garden` / `cosy` / `veg`
@@ -88,7 +92,7 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     }
   });
 
-  it('groups controls under Art style + Selection (Layout, Panels, World art, Ground gone)', () => {
+  it('groups controls under Art style + Selection + Forest intro (Layout, Panels, World art, Ground gone)', () => {
     const groups = new Set(CONTROLS.map((c) => c.group));
     // ADR-0283 D2 retired the `layout` select — the only Layout control — so the section goes too.
     expect(groups.has('Layout')).toBe(false);
@@ -104,7 +108,10 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     expect(groups.has('Art style')).toBe(true);
     // the two-lane selection highlight's motion dial gets its own section
     expect(groups.has('Selection')).toBe(true);
-    expect(groups.size).toBe(2);
+    // ADR-0286: the Act 2 regrow's own section — the speed dial here, the replay ACTION folded in
+    // by TreeView (a button is not URL state, so it is not in this schema).
+    expect(groups.has('Forest intro')).toBe(true);
+    expect(groups.size).toBe(3);
   });
 
   it('keys are unique', () => {
@@ -154,7 +161,7 @@ describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
 
 describe('worldSettings — resetControls drops every managed param', () => {
   it('returns empty when only managed params were present', () => {
-    expect(resetControls('?artStyle=storybook&artScale=1.4&selectionMotion=march')).toBe('');
+    expect(resetControls('?artStyle=storybook&artScale=1.4&selectionMotion=march&regrowSpeed=1.5')).toBe('');
   });
 
   it('preserves unmanaged params', () => {
@@ -268,5 +275,36 @@ describe('worldSettings — artScale dial (derived sprite sizing)', () => {
     expect(readControlValue('?artScale=1.5', ctl('artScale'))).toBe(1.5);
     expect(readControlValue('?artScale=wat', ctl('artScale'))).toBe(1);
     expect(readControlValue('?artScale=0', ctl('artScale'))).toBe(0.05); // clampMin, never zero-size art
+  });
+});
+
+// ── ADR-0286: the Act 2 regrow's speed dial ──
+//
+// `1` is the plan's OWN duration — the pace that falls out of the routed pathway geometry (about
+// 6 s on the current forest since ADR-0285 removed the ordering clamp). The owner watched that and
+// called it too fast, so the DEFAULT is deliberately not 1: 0.6x stretches the run to roughly ten
+// seconds. That makes the clean, param-free URL the slower one, which is the point.
+describe('worldSettings — regrowSpeed dial (Act 2 regrow pace, ADR-0286)', () => {
+  it('defaults to the owner-chosen 0.6x, and writing that default keeps the URL clean', () => {
+    expect(readControlValue('', ctl('regrowSpeed'))).toBe(0.6);
+    expect(setControlValue('?regrowSpeed=1.5', ctl('regrowSpeed'), 0.6)).toBe('');
+  });
+
+  it('reads a written value back, and falls to the default on nonsense', () => {
+    expect(readControlValue('?regrowSpeed=1.5', ctl('regrowSpeed'))).toBe(1.5);
+    expect(readControlValue('?regrowSpeed=wat', ctl('regrowSpeed'))).toBe(0.6);
+  });
+
+  it('never resolves to a speed that would stall the cursor', () => {
+    // A zero or negative rate would freeze the regrow on frame one (or run it backwards), so the
+    // parser's clamp — not just the slider's UI bounds — has to hold the floor.
+    expect(readControlValue('?regrowSpeed=0', ctl('regrowSpeed'))).toBe(0.05);
+    expect(readControlValue('?regrowSpeed=-4', ctl('regrowSpeed'))).toBe(0.05);
+    expect(readControlValue('?regrowSpeed=999', ctl('regrowSpeed'))).toBe(10);
+  });
+
+  it('round-trips a non-default value into the URL', () => {
+    expect(setControlValue('', ctl('regrowSpeed'), 1.25)).toBe('?regrowSpeed=1.25');
+    expect(readControlValue(setControlValue('', ctl('regrowSpeed'), 1.25), ctl('regrowSpeed'))).toBe(1.25);
   });
 });

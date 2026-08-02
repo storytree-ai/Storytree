@@ -292,7 +292,9 @@ graduated rule self-sealing: sessions obey it and questioning it reads as defect
 
 - **Machine, blocking:** the `friction new` capture validator (evidence, cap, refs) + schema
   strictness; the drain ceiling (where the store is reachable); `adr-health` edges on the ADR route;
-  inbox-staging schema in the gate.
+  inbox-staging schema in the gate. (This row named ONE drain ceiling when this ADR landed. A second
+  now sits here — `check:proposal-drain`, the `tool` route's delivery gate — added by ADR-0287 D3,
+  not by this ADR; see the second correction under D8.)
 - **Machine, WARN:** drain-age advisories below the ceiling. (`check:graduation-worklist` sat here
   when this ADR landed — unchanged BY it. It has since moved to the blocking row above; see the
   correction under D8.)
@@ -330,6 +332,22 @@ obligation rots") now applies to the queue it was learned from. What made that a
 once the count is normally zero can a ceiling be honest rather than permanently red. Recorded here
 because a reader of D7's table alone would place a blocking check in the WARN row and "fix" the red
 by removing it — the exact stale-prose harm ADR-0139 exists to prevent.
+
+**Correction (2026-08-03, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+D7's "Machine, blocking" row named a single drain ceiling; there are now TWO, and the second one gates
+this loop's own `tool` route.** [ADR-0287](0287-the-tool-route-emits-a-proposal-and-the-proposal-tier-carrie.md)
+amends D5's `tool` routing-table row so that routing EMITS a `proposal` the item cites (D1 — machine-
+enforced: `friction route --route tool` refuses until the citation resolves against the store), and its
+D3 adds `check:proposal-drain`, under which an open proposal goes RED once a friction item citing it
+gains a reinforcement dated after the proposal's `createdAt`. It is blocking in exactly the sense this
+row means — `process.exitCode = 1` inside `pnpm gate` (`packages/cli/src/check-proposal-drain.ts`, over
+the pure judge `packages/cli/src/proposal-drain.ts`), local-only, SKIPping on an unreachable substrate.
+It differs from every sibling ceiling in one way worth recording: it is RECURRENCE-driven rather than a
+count, so there is no ceiling integer to raise and the only discharges are the real ones — the remedy
+lands and its source friction is stamped `--discharged-by`. **Nothing in this ADR is re-decided:** D7
+mapped the enforcement that existed when it landed, and this check was authorised elsewhere, by
+ADR-0287. Recorded for the same reason as the correction above — a reader of D7's table alone would
+take the blocking row as complete and be surprised by a red from a check it never names.
 
 ## Success measures — how we know it's working (the north star is effectiveness, not inbox health)
 

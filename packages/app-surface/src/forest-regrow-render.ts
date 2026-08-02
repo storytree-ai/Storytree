@@ -76,6 +76,10 @@ export function deriveForestRegrowAccretionPlans(
  *
  * Each growing island contributes its local progress at the precision the renderer actually uses
  * (`toFixed(4)`), so two cursors that would paint identical cell scales compare equal.
+ *
+ * The ADR-0286 coast set needs no term of its own: it is `absent ∪ growing`, and both halves are
+ * already determined here — the absent set by its size (monotone within a plan, as above), the
+ * growing set by the ids listed. Two states with the same signature therefore hide the same moat.
  */
 export function forestRegrowLayerSignature(state: ForestRegrowState): string {
   const growing = state.growing
@@ -144,7 +148,12 @@ export function forestRegrowRenderLayer(
 ): ForestRegrowRenderLayer {
   const accretionByStory = new Map<string, ReturnType<typeof svgIslandAccretionAtProgress>>();
   const cellRevealByPath = new Map<string, SvgIslandAccretionCellReveal>();
+  // ADR-0286: the pale coast waits for the SETTLED island, so it is hidden for everything that has
+  // not landed — absent islands and accreting ones alike. Built here rather than in the schedule
+  // because it is a render-side reveal rule, not a change to when an island forms.
+  const hiddenEmptyStoryIds = new Set<string>(state.absentStoryIds);
   for (const growth of state.growing) {
+    hiddenEmptyStoryIds.add(growth.storyId);
     const plan = plans.byStory.get(growth.storyId);
     if (!plan) continue; // an ungrown island: it appears whole, on schedule
     const accretion = svgIslandAccretionAtProgress(plan, growth.progress);
@@ -153,6 +162,7 @@ export function forestRegrowRenderLayer(
   }
   return {
     hiddenStoryIds: state.absentStoryIds,
+    hiddenEmptyStoryIds,
     hiddenSegmentIds: state.hiddenSegmentIds,
     accretionByStory,
     cellRevealByPath,

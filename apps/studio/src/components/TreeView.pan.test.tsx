@@ -39,6 +39,7 @@ vi.mock('./LibraryDrawer.js', () => ({ LibraryDrawer: () => null }));
 vi.mock('./TerminalRepoGate.js', () => ({ TerminalRepoGate: () => null }));
 vi.mock('./RepoPicker.js', () => ({ RepoPicker: () => null }));
 
+import { ACT2_INTRO_SESSION_KEY } from './act2Intro.js';
 import { api } from '../api';
 import { StudioWorldChrome, TreeView, type HexWorld } from './TreeView';
 
@@ -181,6 +182,11 @@ function dragPastSlop(viewport: HTMLElement): void {
 beforeEach(() => {
   // Keep the mount offline: vector art has no sprite-sheet manifest fetch in jsdom.
   window.history.replaceState(null, '', '/?artStyle=vector');
+  // ADR-0286: mark this browser session as having already ARRIVED at the map, so no Act 2 regrow
+  // plays. These are PAN tests — they need the settled forest to drag, which is exactly what a
+  // returning visitor in the same session gets. Without it every test file is a fresh jsdom and
+  // therefore a first visit, and the map under the pointer would be mid-regrow.
+  window.sessionStorage.setItem(ACT2_INTRO_SESSION_KEY, '1');
   vi.mocked(api.tree).mockResolvedValue({ stories: [STORY], builds: [], claims: [] });
 });
 
