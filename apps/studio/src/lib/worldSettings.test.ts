@@ -8,17 +8,20 @@
 //
 // ADR-0073 made roads the one world; ADR-0076 retired the river-trail ROUTING system
 // (connections are now thin perimeter-docked lines with nothing to tune), so the
-// road-routing dials are GONE — only Layout (DAG vs solar) and Ground (tiling) remain.
+// road-routing dials are GONE. Layout (DAG vs solar) and Ground (tiling) outlived them in the
+// picker, but ADR-0283 D2 and ADR-0233 have since retired those two as well — the surviving groups
+// are Art style + Selection, which is what the group case below pins.
 //
 // ADR-0088 (Shared Islands panel, amends ADR-0076 §2): the building islands moved OFF the
 // map into a permanent left panel, so the `buildingIsland` GEAR TOGGLE lost its meaning (the
-// panel is permanent, not a flag) and was removed from the gear schema — only Layout and
-// Ground survive in the gear now (Panels is gone).
+// panel is permanent, not a flag) and was removed from the gear schema. ADR-0283 D2 then retired the
+// Layout picker itself, so the gear carries Art style + Selection and nothing else.
 
 import { describe, it, expect } from 'vitest';
 import {
   CONTROLS,
   controlByKey,
+  MANAGED_KEYS,
   setControlValue,
   readControlValue,
   resetControls,
@@ -37,9 +40,10 @@ function ctl(key: string): ControlSpec {
 describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
   it('exposes exactly the surviving dials, each with a key/label/group/kind/hint', () => {
     const keys = CONTROLS.map((c) => c.key);
-    // Layout (DAG / dependency-aware / solar) — owner-KEPT — plus the sprite-art-sheets `artStyle`
-    // select + its `artScale` size dial (sprites derive their size from the vector body they replace;
-    // the dial multiplies the fit). The grounded-art `garden` / `cosy` toggles were retired by
+    // The sprite-art-sheets `artStyle` select + its `artScale` size dial (sprites derive their size
+    // from the vector body they replace; the dial multiplies the fit). The `layout` select went with
+    // ADR-0283 D2 (owner-directed 2026-08-02): DAG rows are the ONE arrangement now, not the default
+    // among three, so there is nothing to pick. The grounded-art `garden` / `cosy` toggles were retired by
     // ADR-0228, the `veg` vegetation-vocabulary toggle by ADR-0231, and the `substrate` "Ground tiling"
     // select by ADR-0233 (mesh is now the one tiling, not a dial). The `buildingIsland` toggle was
     // REMOVED with ADR-0088 (the shared-island panel is permanent, not a gear flag), so the gear carries
@@ -47,13 +51,14 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     // `selectionMotion` joins them (owner-directed 2026-07-27): selecting an island lights its
     // one-hop routes as two-lane hued lanes, and this dial is what MOVES when it does — draw +
     // pulse once (default), a looping march, or still. The lanes themselves are not optional.
-    const expected = ['layout', 'artStyle', 'artScale', 'selectionMotion'];
+    const expected = ['artStyle', 'artScale', 'selectionMotion'];
     expect([...keys].sort()).toEqual([...expected].sort());
     // The retired river/pond dials, road-routing dials, the removed building toggles
     // (building-DRAWER, then building-ISLAND), the retired grounded-art `garden` / `cosy` / `veg`
     // toggles AND the retired `substrate` ground-tiling select must be GONE (genuinely stripped, not
-    // shelved — ADR-0073 / ADR-0076 / ADR-0088 / ADR-0228 / ADR-0231 / ADR-0233).
+    // shelved — ADR-0073 / ADR-0076 / ADR-0088 / ADR-0228 / ADR-0231 / ADR-0233 / ADR-0283).
     for (const gone of [
+      'layout',
       'roads',
       'roadStraighten',
       'bundleFar',
@@ -83,9 +88,10 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     }
   });
 
-  it('groups controls under Layout and Art style (Panels + World art + Ground gone)', () => {
+  it('groups controls under Art style + Selection (Layout, Panels, World art, Ground gone)', () => {
     const groups = new Set(CONTROLS.map((c) => c.group));
-    expect(groups.has('Layout')).toBe(true);
+    // ADR-0283 D2 retired the `layout` select — the only Layout control — so the section goes too.
+    expect(groups.has('Layout')).toBe(false);
     // The building-island toggle (the only Panels control) was removed — no Panels section.
     expect(groups.has('Panels')).toBe(false);
     // The "World art" section held only the `veg` toggle, retired by ADR-0231 (vegetation is now
@@ -98,7 +104,7 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     expect(groups.has('Art style')).toBe(true);
     // the two-lane selection highlight's motion dial gets its own section
     expect(groups.has('Selection')).toBe(true);
-    expect(groups.size).toBe(3);
+    expect(groups.size).toBe(2);
   });
 
   it('keys are unique', () => {
@@ -107,23 +113,21 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
   });
 });
 
-describe('worldSettings — layout control (ADR-0229 dag default / ADR-0074 §6 solar)', () => {
-  it('defaults to dag and writing dag REMOVES the param (ADR-0229 attested default, amends ADR-0171)', () => {
-    expect(readControlValue('', ctl('layout'))).toBe('dag');
-    expect(setControlValue('?layout=stress', ctl('layout'), 'dag')).toBe('');
+describe('worldSettings — the layout picker is RETIRED (ADR-0283 D2)', () => {
+  // Rows were already the DEFAULT (ADR-0229, 2026-07-23, amending ADR-0171); what goes here is the
+  // ALTERNATIVES. Every growth, arrival and pathway choreography now has exactly one arrangement to
+  // be correct against, which is the point — an edge-driven regrow reads down a row layout as a
+  // front, and scatters across the plane under stress-majorization placement.
+  it('offers no layout control at all', () => {
+    expect(controlByKey('layout')).toBeUndefined();
+    expect(MANAGED_KEYS).not.toContain('layout');
   });
 
-  it('writes layout=stress / layout=solar when a non-default world is picked', () => {
-    expect(setControlValue('', ctl('layout'), 'stress')).toBe('?layout=stress');
-    expect(readControlValue('?layout=stress', ctl('layout'))).toBe('stress');
-    expect(setControlValue('', ctl('layout'), 'solar')).toBe('?layout=solar');
-    expect(readControlValue('?layout=solar', ctl('layout'))).toBe('solar');
-  });
-
-  it('normalizes aliases and unknowns to the dag default', () => {
-    expect(readControlValue('?layout=radial', ctl('layout'))).toBe('solar');
-    expect(readControlValue('?layout=stress-majorization', ctl('layout'))).toBe('stress');
-    expect(readControlValue('?layout=whatever', ctl('layout'))).toBe('dag');
+  it('leaves every former ?layout= value as an ordinary unmanaged param', () => {
+    // Not honoured, not normalized, not stripped by reset — just inert, like `?nonsense=1`.
+    for (const value of ['stress', 'solar', 'radial', 'stress-majorization', 'dag', 'whatever']) {
+      expect(resetControls(`?layout=${value}`)).toBe(`?layout=${value}`);
+    }
   });
 });
 
@@ -134,8 +138,8 @@ describe('worldSettings — layout control (ADR-0229 dag default / ADR-0074 §6 
 
 describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
   it('orders ?…params before the #/tree hash', () => {
-    const url = buildShareUrl('https://x.test/', '?layout=solar', '#/tree');
-    expect(url).toBe('https://x.test/?layout=solar#/tree');
+    const url = buildShareUrl('https://x.test/', '?artStyle=daylight', '#/tree');
+    expect(url).toBe('https://x.test/?artStyle=daylight#/tree');
   });
 
   it('omits the ? when there are no params', () => {
@@ -143,14 +147,14 @@ describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
   });
 
   it('keeps a focused deep-link hash intact', () => {
-    const url = buildShareUrl('https://x.test/', '?layout=solar', '#/tree/some-story');
-    expect(url).toBe('https://x.test/?layout=solar#/tree/some-story');
+    const url = buildShareUrl('https://x.test/', '?artStyle=daylight', '#/tree/some-story');
+    expect(url).toBe('https://x.test/?artStyle=daylight#/tree/some-story');
   });
 });
 
 describe('worldSettings — resetControls drops every managed param', () => {
   it('returns empty when only managed params were present', () => {
-    expect(resetControls('?artStyle=storybook&layout=solar')).toBe('');
+    expect(resetControls('?artStyle=storybook&artScale=1.4&selectionMotion=march')).toBe('');
   });
 
   it('preserves unmanaged params', () => {
@@ -164,7 +168,7 @@ describe('worldSettings — readRenderScene (scene is now the DEFAULT, ADR-0093 
   it('defaults to the SCENE render when no ?render param is present', () => {
     // The flip: absence => scene (the shared scene-graph is the canonical render now).
     expect(readRenderScene('')).toBe(true);
-    expect(readRenderScene('?layout=solar')).toBe(true);
+    expect(readRenderScene('?artStyle=daylight')).toBe(true);
   });
 
   it('the ?render=legacy / ?render=inline escape hatch selects the inline render', () => {

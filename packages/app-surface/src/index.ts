@@ -10,7 +10,12 @@ export {
   forestRegrowAtProgress,
   FOREST_REGROW_TUNING,
   type ForestRegrowIslandGrowth,
+  type ForestRegrowOptions,
+  type ForestRegrowPathway,
   type ForestRegrowPlan,
+  type ForestRegrowReach,
+  type ForestRegrowSegmentDraw,
+  type ForestRegrowSegmentGrowth,
   type ForestRegrowState,
   type ForestRegrowStep,
   type ForestRegrowStory,
@@ -21,6 +26,8 @@ export {
   deriveForestRegrowAccretionPlans,
   forestRegrowLayerSignature,
   forestRegrowRenderLayer,
+  forestRegrowTrailPlan,
+  forestRegrowTrailSignature,
   type ForestRegrowAccretionPlans,
 } from './forest-regrow-render.js';
 export {
