@@ -22,6 +22,9 @@ function toolResult(forId: string, ts: string): string {
 function thinking(ts: string): string {
   return JSON.stringify({ type: "assistant", timestamp: ts, message: { content: [{ type: "thinking", thinking: "…" }] } });
 }
+function codexItem(payload: Record<string, unknown>, ts: string): string {
+  return JSON.stringify({ type: "response_item", timestamp: ts, payload });
+}
 
 test("extractToolTarget: pulls the classification hint per tool", () => {
   assert.equal(extractToolTarget("Read", { file_path: "a.ts" }), "a.ts");
@@ -75,6 +78,52 @@ test("parseTranscript: an unpaired trailing tool_use gets latency 0, never throw
   assert.equal(parsed.sessionId, "unknown");
 });
 
+test("parseTranscript: auto-detects Codex rollout calls and normalizes shell/delegation latency", () => {
+  const jsonl = [
+    JSON.stringify({
+      type: "session_meta",
+      timestamp: "2026-08-03T00:00:00.000Z",
+      payload: { session_id: "codex-sess" },
+    }),
+    codexItem({
+      type: "custom_tool_call",
+      call_id: "c1",
+      name: "exec",
+      input: 'const r = await tools.shell_command({ command: "Get-Content AGENTS.md" });',
+    }, "2026-08-03T00:00:01.000Z"),
+    codexItem({ type: "custom_tool_call_output", call_id: "c1" }, "2026-08-03T00:00:02.500Z"),
+    codexItem({
+      type: "function_call",
+      call_id: "c2",
+      name: "spawn_agent",
+      arguments: JSON.stringify({ task_name: "worker" }),
+    }, "2026-08-03T00:00:03.000Z"),
+    codexItem({ type: "function_call_output", call_id: "c2" }, "2026-08-03T00:00:03.100Z"),
+  ].join("\n");
+
+  const parsed = parseTranscript(jsonl);
+  assert.equal(parsed.harness, "codex");
+  assert.equal(parsed.sessionId, "codex-sess");
+  assert.deepEqual(parsed.calls.map((c) => c.tool), ["PowerShell", "Agent"]);
+  assert.deepEqual(parsed.calls.map((c) => c.latencyMs), [1500, 100]);
+  assert.equal(measureOnboarding(parsed.calls).onboardingMs, 1500);
+});
+
+test("parseTranscript: Codex apply_patch is the first real-work action", () => {
+  const jsonl = [
+    codexItem({
+      type: "custom_tool_call",
+      call_id: "c1",
+      name: "exec",
+      input: 'await tools.apply_patch("*** Begin Patch")',
+    }, "2026-08-03T00:00:01.000Z"),
+    codexItem({ type: "custom_tool_call_output", call_id: "c1" }, "2026-08-03T00:00:02.000Z"),
+  ].join("\n");
+  const parsed = parseTranscript(jsonl);
+  assert.equal(parsed.calls[0]?.tool, "Edit");
+  assert.equal(measureOnboarding(parsed.calls).firstWorkIndex, 0);
+});
+
 // ---- CLI command -----------------------------------------------------------
 
 /** A transcript whose active onboarding (one 60s ENV probe) breaches the low Explore budget. */
@@ -90,6 +139,16 @@ test("onboardingCommand: budgets prints the SLA table", () => {
   assert.equal(env.ok, true);
   assert.match(env.body, /Explore/);
   assert.match(env.body, /session-orchestrator/);
+});
+
+test("onboardingCommand: refuses an unknown transcript shape instead of reporting a false zero", () => {
+  const env = onboardingCommand(
+    ["report", "/fake.jsonl"],
+    {},
+    { readFile: () => JSON.stringify({ type: "something-new" }) },
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /unsupported onboarding transcript shape/);
 });
 
 test("onboardingCommand: report on a breaching transcript flags the breach + routes remediation", () => {
