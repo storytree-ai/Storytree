@@ -111,12 +111,26 @@ purchase remains an owner action.
   between f03 and f12), so its convention is closer to a constant apparent height with growth reading
   as width and density. The divergence from a fixed camera is therefore the whole MIDDLE of the
   track, not the opening — the fork is BROADER than this bullet assumed, and it does not dissolve.
-  It remains undecided, but on a different axis than taste: magnifying the early frames exposes a
-  mid-stage character weakness (a smooth mass with a bare leader, against exp-16's leafy whip), so
-  the fixed camera is currently HIDING that weakness rather than causing it. `fixed` is retained and
-  the fork is blocked on mid-stage character. Evidence:
+  It remains undecided, but on a different axis than taste.
+  **Corrected again in place 2026-08-03 (ADR-0139); the decision is still unchanged — the blocker
+  this bullet recorded has been DISCHARGED.** As first written, the bullet said that magnifying the
+  early frames exposed a mid-stage character weakness (a smooth mass with a bare leader, against
+  exp-16's leafy whip), that the fixed camera was HIDING that weakness rather than causing it, and
+  that the fork was therefore **blocked on mid-stage character**. The v5 increment closed the
+  weakness at its cause: the gap was in the SKELETON and not the canopy — nothing could branch below
+  z=0.80 while the bole ran to 0.90, so every branch in the track was born within a tenth of the
+  leader's own tip — and a third attractor ring below the bole break drops the f09 foliage floor from
+  45% to 32%. Under `eased`, v5's f04 and f09 read as leafy whips carrying tufts up the stem and
+  standing on a visible root fan. **The fork is NOT blocked: it is a live owner choice, and the
+  increment that discharged the blocker makes no recommendation either way.** `fixed` is still what
+  ships, as the default of an undecided fork rather than as a retained mitigation. What survives
+  unchanged from the correction above is the premise fix — exp-16 holds 91–99% of its mature height
+  from f03 and is non-monotone — so the divergence is still the whole MIDDLE of the track. One defect
+  the fork would still surface is recorded rather than tuned: at f00 the canopy sits below a bare
+  leader tip, invisible under the delivered 16 px `fixed` frame and a stick with a bobble at 77 px
+  under `eased`. Evidence:
   `docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/README.md` §5 and
-  `framing-fork.png`.
+  `framing-fork.png`, re-rendered on the v5 frames.
 
 **Bad, or at least owed.**
 

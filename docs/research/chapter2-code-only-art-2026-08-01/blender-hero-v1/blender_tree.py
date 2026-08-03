@@ -271,6 +271,24 @@ LOW_Z = (0.80, 1.15)           # SPARSE and HIGH: a dense low ring grows a perma
                                # 29% of exp-16's crown by area — and not a second tier of
                                # foliage hanging beside the trunk.
 
+# A THIRD ring, lower still, and the one that makes the mid frames a WHIP rather than a
+# pole with a tuft (README §6 item 2). The gap was diagnosed in the canopy for two
+# increments and is not there: the lowest thing a v4 tree could branch to sat at z=0.80,
+# the bole runs to 0.90, so every branch in the track was born within a tenth of the
+# leader's tip. At frame 6 that is a bare stem carrying one tuft, and no cloud rule can
+# put foliage on a stem that has no shoots. exp-16's f04 carries side shoots from a fifth
+# of its height, which is what a canopy needs somewhere to sit.
+#
+# It is the SAME hedge risk the ring above warns about, and the answer is the one v4
+# built: the canopy floor strips foliage below 40% of the live top, so these lignify into
+# bare stubs on the bole exactly as the leader overtops them. They are kept SHORT because
+# the other thing they touch is the WAIST — ADR-0289 D2's second defect. Measured room:
+# exp-16's half-width is 9.5 and 7.5 in the two deciles these land in, and v4 came in at
+# 5 and 4, so there is about a 4 px budget and MID_R spends 3 of it.
+N_MID = 6
+MID_R = (0.15, 0.28)
+MID_Z = (0.42, 0.86)
+
 # secondary growth (gap 1's fix): girth is a function of AGE, not of position
 PIPE_E = 2.15
 # A uniform multiplier on the TIP radius, and therefore — the pipe model being
@@ -314,6 +332,25 @@ N_CLOUD_FULL = 6.0             # gone there is nothing else to carry the opening
                                # green tuft on a two-internode stem is a tree beginning to
                                # form, which is now the whole requirement (ADR-0289 D1)
 N_CLOUD = 22                   # fewer, larger clouds: the count IS the band budget
+# ... but 22 seats sampled from the WHOLE skeleton are 22 seats spent on the mature
+# crown, because that is where 340 of the 352 nodes are. The nine nodes alive at frame 4
+# fell into TWO of them, so the mid-track tree could only ever be one or two masses on a
+# stem — README §6 item 2, and the gap that also blocks the scale-convention fork. A
+# track that animates growth has to resolve the juvenile prefix as finely as the crown,
+# so a fixed number of seats is sampled from the prefix FIRST and the rest continue as
+# before. These are additional seats, not a reallocation: the crown keeps its 22.
+N_CLOUD_YOUNG = 7              # seats reserved for the juvenile prefix
+YOUNG_PREFIX = 0.34            # ... which is every node born below this fraction of the
+                               # mature tree's height
+# A cloud's absolute size floors are what a whip cannot afford: CLOUD_BASE and CLOUD_MIN
+# are world radii tuned for a mature crown, and on a 0.68-unit seedling one of them is a
+# ball a quarter of the tree's height across. Both are scaled by the same maturity scalar
+# that eases the shell rules in, so a tuft on a whip is a tuft.
+CLOUD_FLOOR_YOUNG = 0.55       # the absolute floors, as a fraction of themselves, at the
+                               # seedling. Measured DOWN from 1.0 rather than up: at 0.34
+                               # the mid-track tufts fell under a delivered pixel each and
+                               # the whip read as bare, which trades one defect for the
+                               # opposite one.
 CLOUD_ORDERS = 4.6             # a node bears canopy within this many orders of a live tip
 CLOUD_ORDERS_YOUNG = 20.0      # ... but a SAPLING has no interior: 20 exceeds the depth of
                                # any young tree here, so while young the rule is OFF rather
@@ -364,10 +401,40 @@ CANOPY_FEATHER = 0.13          # ... ramping to full over this much more of it
 CANOPY_MATURE_Z = 1.00         # the live top, as a fraction of the MATURE top, at which
                                # both shell rules reach full strength
 
-# base (gap 2's fix)
-N_ROOT = 7
-FLARE_H = 0.12                 # height over which the bole flares into the roots
-FLARE_AMT = 0.85               # peak extra radius at the soil, as a fraction
+# ---------------------------------------------------------------- base
+# The buttress. v2 gave the tree one (gap 2) and v4 measured what it is worth: exp-16's
+# base row spans 46 px at 5% of its height where this track's spanned 14, the largest
+# single difference left in the half-width profile. Three separate causes, all fixed here.
+#
+# 1. THE FLARE NEVER REACHED FULL STRENGTH. `t_root` normalised the live trunk radius
+#    against a hard-coded 0.175, and this skeleton's mature trunk is 0.1173 — so the
+#    delivered mature frame was drawn at 72% of its own authored flare and no number in
+#    the file said so. It is now normalised against the MATURE trunk radius, measured
+#    once from the mature frame (`R0_MATURE`) exactly as `R_SCALE` already is, so full
+#    growth means full flare by construction rather than by a constant that happens to
+#    match a skeleton.
+# 2. THE FLARE WAS TOO SHORT to be a buttress. exp-16 is still 37 px wide at 8% of its
+#    height; an exp(-z/0.12) decay is 15% of its peak by then, so ours read as a fillet
+#    at the soil rather than as ridges climbing the bole.
+# 3. THE SPURS WERE TOO SHORT, full stop.
+N_ROOT = 9
+FLARE_H = 0.22                 # height over which the bole flares into the roots
+FLARE_AMT = 0.95               # peak extra radius at the soil, as a fraction
+
+# ROOTS ARRIVE WITH THE TREE, NOT WITH THE TRUNK. Keyed on girth alone the buttress was
+# absent for the first third of the track — `t_root` was 0.06 at frame 4 — and exp-16
+# carries a root fan 35-45% of its own height wide from frame ZERO. That fan is a large
+# part of what makes its mid frames read as a rooted whip rather than as a stick, so the
+# spurs' REACH is a FRACTION OF THE LIVE TREE'S OWN HEIGHT and their GIRTH follows the
+# trunk they leave. A seedling standing on visible roots is not a botanically plausible
+# seedling, and ADR-0289 D1 is what says it does not have to be.
+#
+# The fraction is the same idea as CANOPY_FLOOR at the other end of the tree, and it was
+# reached the same way — by getting it wrong first. Ramping the reach toward the MATURE
+# world length made the fan arrive early in absolute units, so a 32 px seedling stood on
+# a 28 px span of one-pixel spokes: a rake, not a root. Self-similar, the fan is a fixed
+# share of whatever tree is standing there, which is what exp-16 shows at every stage.
+R0_MATURE = 0.1173             # recalibrated below, once the mature frame is known
 
 
 # ---------------------------------------------------------------- skeleton
@@ -434,6 +501,12 @@ def build_skeleton():
         th = h01(i, 201) * math.tau
         rr = LOW_R[0] + (LOW_R[1] - LOW_R[0]) * h01(i, 203)
         zz = LOW_Z[0] + (LOW_Z[1] - LOW_Z[0]) * h01(i, 205)
+        attr.append(np.array([math.cos(th) * rr, math.sin(th) * rr * 0.85, zz]))
+    # ... and the mid ring, below the bole break, so the whip has somewhere to put shoots
+    for i in range(N_MID):
+        th = h01(i, 211) * math.tau
+        rr = MID_R[0] + (MID_R[1] - MID_R[0]) * h01(i, 213)
+        zz = MID_Z[0] + (MID_Z[1] - MID_Z[0]) * h01(i, 215)
         attr.append(np.array([math.cos(th) * rr, math.sin(th) * rr * 0.85, zz]))
     attr = np.array(attr)
     alive = np.ones(len(attr), dtype=bool)
@@ -746,17 +819,41 @@ def cloud_seats(nodes):
     canopy WEIGHT rule was, and the canopy floor is where that is fixed. A low seat costs
     nothing once weight is floored, because the nodes it owns score zero at maturity.
 
+    The OPPOSITE move is the one that was missing, and it is v5's. Sampling the whole
+    skeleton spends seats where the nodes are, and 97% of them are in the mature crown —
+    so the juvenile prefix, which is every frame before about frame 8, got two seats and
+    could only render as one or two masses. N_CLOUD_YOUNG seats are therefore sampled
+    from the PREFIX first, by the same farthest-point rule at a smaller scale, and the
+    crown's own N_CLOUD then continue from there. This is not the trapped move above: it
+    ADDS seats low rather than withdrawing them from the crown, and the same canopy floor
+    that makes a low seat harmless at maturity makes these harmless too.
+
     Nothing hangs under the middle of the crown, because an interior node is many orders
     from a live tip and carries no canopy weight — the void that lets you watch the limbs
     run up into the foliage falls out of the outer-orders rule rather than being carved."""
     P = np.array([n.p for n in nodes])
-    first = int(np.argmax(P[:, 2]))            # the leader apex: the canopy's first seat
-    seats = [first]
-    d = np.linalg.norm(P - P[first], axis=1)
-    while len(seats) < min(N_CLOUD, len(nodes)):
-        nxt = int(np.argmax(d))
-        seats.append(nxt)
-        d = np.minimum(d, np.linalg.norm(P - P[nxt], axis=1))
+    zmax = float(P[:, 2].max())
+    juv = np.nonzero(P[:, 2] <= YOUNG_PREFIX * zmax)[0]
+    seats = []
+    d = np.full(len(nodes), np.inf)
+
+    def take(i):
+        seats.append(int(i))
+        np.minimum(d, np.linalg.norm(P - P[int(i)], axis=1), out=d)
+
+    if len(juv):
+        take(juv[int(np.argmax(P[juv][:, 2]))])       # the tallest juvenile node
+        dj = np.linalg.norm(P[juv] - P[seats[0]], axis=1)
+        while len(seats) < min(N_CLOUD_YOUNG, len(juv)):
+            nxt = juv[int(np.argmax(dj))]
+            take(nxt)
+            dj = np.minimum(dj, np.linalg.norm(P[juv] - P[nxt], axis=1))
+    else:
+        take(int(np.argmax(P[:, 2])))
+    # ... then the crown, farthest-point as before. The first pick is the apex, since it
+    # is the point farthest from everything already seated.
+    while len(seats) < min(N_CLOUD_YOUNG + N_CLOUD, len(nodes)):
+        take(int(np.argmax(d)))
     owner = np.argmin(np.linalg.norm(P[:, None, :] - P[seats][None, :, :], axis=2), axis=1)
     return [np.nonzero(owner == k)[0] for k in range(len(seats))]
 
@@ -781,7 +878,14 @@ def live_depth(alive):
 
 def root_spec():
     """Buttress spurs. Each climbs the bole (rise) and descends outward to the soil,
-    tapering — the shape that reads as PLANTED rather than as a pole on the ground."""
+    tapering — the shape that reads as PLANTED rather than as a pole on the ground.
+
+    `reach` and `rise` are stated as fractions of the MATURE tree's height and scaled by
+    the live tree's, per the N_ROOT block. Both are roughly doubled against v4, which is
+    the third of the three causes listed there: measured, the widest spur reached 0.32
+    world units from the axis (13 delivered px) where exp-16's buttress needs about 0.55.
+    The direction magnitude below still shortens the spurs that point across the camera,
+    so the range is authored against the widest one."""
     out = []
     for i in range(N_ROOT):
         th = (i + 0.5) / N_ROOT * math.tau + hsym(i, 61) * 0.24
@@ -792,8 +896,8 @@ def root_spec():
         d = np.array([math.cos(th), dy, 0.0])
         out.append({
             "dir": d / max(np.linalg.norm(d), 1e-9) * (0.55 + 0.45 * abs(math.cos(th))),
-            "reach": 0.27 + 0.17 * h01(i, 63),
-            "rise": 0.17 + 0.13 * h01(i, 67),
+            "reach": 0.40 + 0.24 * h01(i, 63),
+            "rise": 0.28 + 0.18 * h01(i, 67),
             "thick": 0.62 + 0.42 * h01(i, 71),
             "wob": hsym(i, 73) * 0.05,
         })
@@ -801,6 +905,11 @@ def root_spec():
 
 
 ROOTS = root_spec()
+# The half-width the buttress adds, per unit of `t_plant`. The camera extent has to know
+# about it now that the fan arrives on the seedling: under `fixed` it changes nothing
+# (the mature crown is wider), but a per-stage camera framed to a young frame's wood
+# would otherwise crop the very organ that frame is being magnified to show.
+ROOT_HALFW = max(abs(float(rs["dir"][0])) * rs["reach"] for rs in ROOTS)
 
 
 # ---------------------------------------------------------------- per-frame state
@@ -869,7 +978,12 @@ def frame_state(N):
         # gap between two live regions it happens to own
         spread = math.sqrt(float((w * ((P - c) ** 2).sum(axis=1)).sum() / tot))
         sat = min(1.0, (tot / CLOUD_SAT) ** 0.45)
-        rad = min(CLOUD_CAP, max(CLOUD_MIN, CLOUD_EXT * spread + CLOUD_BASE)) * sat
+        # the absolute floors are a mature crown's; on a whip they are the ball. `fk` is
+        # the same maturity scalar the shell rules ease in on, so one number describes
+        # "how much of a crown is this" everywhere it is asked.
+        fk = CLOUD_FLOOR_YOUNG + (1.0 - CLOUD_FLOOR_YOUNG) * mat
+        rad = min(CLOUD_CAP, max(CLOUD_MIN * fk,
+                                 CLOUD_EXT * spread + CLOUD_BASE * fk)) * sat
         # identity-keyed size variety: a crown of same-sized lumps reads as cauliflower,
         # and exp-16's canopy is conspicuously a few big masses among smaller ones
         rad *= 0.74 + 0.52 * h01(ci, 81)
@@ -886,10 +1000,14 @@ def frame_state(N):
         if rad > 0.012:
             lobes.append((ci, c, rad))
 
-    # the base: flare and buttress grow with the trunk, so a seedling has neither
-    t_root = float(np.clip((r[0] - R_TIP_MIN) / (0.175 - R_TIP_MIN), 0.0, 1.0)) ** 0.75
+    # the base, as TWO scalars — see the N_ROOT block. GIRTH follows the trunk, against
+    # the mature trunk radius rather than a constant, so a mature tree gets the flare the
+    # file authors. REACH follows the tree's own height and arrives early, because a
+    # visible root fan is most of what makes exp-16's young frames read as planted.
+    t_root = float(np.clip((r[0] - R_TIP_MIN) / (R0_MATURE - R_TIP_MIN), 0.0, 1.0)) ** 0.75
+    t_plant = float(np.clip(ztop / Z_MATURE, 0.0, 1.0)) if Z_MATURE > 0 else 1.0
     return {"alive": alive, "frac": frac, "age": age, "r": r, "wn": wn,
-            "lobes": lobes, "t_root": t_root, "N": N}
+            "lobes": lobes, "t_root": t_root, "t_plant": t_plant, "N": N}
 
 
 # ---------------------------------------------------------------- camera framing
@@ -906,12 +1024,21 @@ if SKELETON != "space-colonisation":
           f"(target {SC_TRUNK_R})", flush=True)
 
 _MAT = frame_state(NMAX_BIRTH + AGE_TAIL)
+# ... and the mature TRUNK radius, which is what the flare is normalised against. Same
+# one-pass shape as R_SCALE above: nothing consumed before this point reads `t_root` (the
+# retiming proxy draws wood and canopy, never roots), so the mature frame can be measured
+# with the placeholder and the placeholder then replaced. v4 left this a hard-coded 0.175
+# against a mature trunk of 0.1173 and drew every frame at 72% of its authored flare.
+R0_MATURE = float(_MAT["r"][0])
+print(f"SKEL mature trunk r0={R0_MATURE:.4f} (flare normalisation)", flush=True)
+_MAT = frame_state(NMAX_BIRTH + AGE_TAIL)
 _TOP = max((NODES[i].p[2] + _MAT["r"][i]) for i in range(len(NODES)))
 for _c in _MAT["lobes"]:
     _TOP = max(_TOP, float(_c[1][2] + _c[2] * 0.95))
 _HALFW = max(abs(NODES[i].p[0]) for i in range(len(NODES)))
 for _c in _MAT["lobes"]:
     _HALFW = max(_HALFW, float(abs(_c[1][0]) + _c[2]))
+_HALFW = max(_HALFW, ROOT_HALFW * _MAT["t_plant"])
 
 _V = 1.0 - 2.0 * ANCHOR_ROW / CANVAS          # ground row, in NDC (+1 top, -1 bottom)
 PAD = 0.06
@@ -951,7 +1078,7 @@ def frame_extent(st):
     for _ci, c, rad in st["lobes"]:
         top = max(top, float(c[2] + rad * 0.95))
         halfw = max(halfw, float(abs(c[0]) + rad))
-    return top, halfw
+    return top, max(halfw, ROOT_HALFW * st["t_plant"])
 
 
 def camera_for(st):
@@ -1218,14 +1345,24 @@ def emit_wood(buf, st):
 
 
 def emit_roots(buf, st):
-    """Buttress spurs: up the bole, then out and down to the soil. Gap 2."""
+    """Buttress spurs: up the bole, then out and down to the soil. Gap 2.
+
+    Two scalars, not one (see N_ROOT): `t_plant` sets how far a spur reaches and how high
+    it climbs, and arrives with the tree; `t_root` sets girth, and follows the trunk.
+
+    A spur thinner than a delivered PIXEL is not drawn thin — it is drawn absent, and the
+    young tree loses the root fan that is most of its character. So the girth carries an
+    absolute floor of one canvas pixel, stated in the units the floor is about. It binds
+    only while the trunk is a seedling's: at maturity `base_r * thick` is five times it."""
     t = st["t_root"]
-    if t < 0.04:
+    tp = st["t_plant"]
+    if tp < 0.02:
         return
     base_r = st["r"][0]
+    r_floor = SPAN / CANVAS * 0.5          # one delivered pixel across
     for k, rs in enumerate(ROOTS):
-        reach = rs["reach"] * t
-        rise = rs["rise"] * min(1.0, t * 1.35)
+        reach = rs["reach"] * tp
+        rise = rs["rise"] * min(1.0, tp * 1.35)
         if reach < 0.012:
             continue
         d = rs["dir"]
@@ -1237,8 +1374,11 @@ def emit_roots(buf, st):
             w = rs["wob"] * math.sin(u * 2.6)
             pts.append(mathutils.Vector((d[0] * lat - d[1] * w, d[1] * lat + d[0] * w,
                                          max(hgt, 0.004))))
-            radii.append(max(base_r * rs["thick"] * (0.52 * (1.0 - u) ** 0.85 + 0.045),
-                             0.006))
+            # ... and the spur keeps some girth out to its tip. v4's taper ran to 4.5% of
+            # the base, so the outer half of every spur was sub-pixel and the buttress
+            # read as a fillet with whiskers rather than as ridges reaching the soil.
+            radii.append(max(max(base_r * rs["thick"], r_floor)
+                             * (0.50 * (1.0 - u) ** 0.70 + 0.105), 0.006))
         # The spur starts ON the trunk axis, so its opening ring must stay INSIDE the
         # flared bole — otherwise the open pipe pokes through the silhouette and reads
         # as a black notch cut out of the trunk.
@@ -1517,6 +1657,7 @@ for i, u in enumerate(PICKS):
         "lobes": len(st["lobes"]),
         "trunk_r": round(float(st["r"][0]), 5),
         "t_root": round(st["t_root"], 4),
+        "t_plant": round(st["t_plant"], 4),
         "canopy_weight": round(float(st["wn"].sum()), 4),
         "ortho_scale": round(CAM_SPAN, 6),
         "target_z": round(CAM_TZ, 6),
@@ -1533,7 +1674,7 @@ for i, u in enumerate(PICKS):
         _PREV_AREA[:] = [_sil, _can]
         print(f"PLAN {i:02d} u={u:.4f} N={N:.2f} live={int(st['alive'].sum())} "
               f"lobes={len(st['lobes'])} sil={_sil:5d} canopy={_can:5d} "
-              f"r0={st['r'][0]:.4f} root={st['t_root']:.2f} "
+              f"r0={st['r'][0]:.4f} root={st['t_root']:.2f} plant={st['t_plant']:.2f} "
               f"true={_top_i / _TOP:.3f} apparent="
               f"{(_top_i / CAM_SPAN) / (_TOP / SPAN):.3f}{_drop}", flush=True)
         continue
