@@ -61,8 +61,18 @@ ADR-0002 specified:
   organs proven wired together, not in isolation.
 - The **contract is unchanged** — the isolated unit-test leaf.
 
-The result is a clean test pyramid bounded by the organism: **unit (contract) →
+The result is a clean proof ladder bounded by the organism: **unit (contract) →
 integration (capability) → acceptance/UAT (story)**.
+
+*(Wording corrected in place 2026-08-03 per ADR-0139 — this line previously read "a clean test
+pyramid", which contradicts the rules directly above it and the corpus they produced. The rules are
+integration-FIRST inside the boundary: no stubs within the organism, capabilities proven against real
+in-story collaborators, and the isolated unit test confined to the contract leaf. Measured on
+2026-08-03 by `proof_mode:` across `stories/*/*.md`, the corpus is **219 `integration-test` nodes to 11
+`contract-test`** (by `tier:`, 231 capability to 10 contract) — the inverse of a pyramid's broad unit
+base, and closer to a honeycomb. The ladder's ORDER is what this line is
+about; "pyramid" additionally implied a SHAPE this ADR never decided and the code never had. The
+decision itself is unchanged.)*
 
 ### 3. Two dependency graphs, at two altitudes
 

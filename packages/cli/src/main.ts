@@ -25,7 +25,7 @@ import { PgWorkStore, PgAttestationStore } from "@storytree/orchestrator/store";
 
 import type { AdrAllocatorLike } from "./adr.js";
 import type { AttestationStoreLike } from "./attest.js";
-import { run } from "./commands.js";
+import { isRawEnvelope, run } from "./commands.js";
 import { formatEnvelope, withDeltaFooter, type Envelope } from "./envelope.js";
 import { deriveIdentity } from "@storytree/drive";
 import type { ClaimLedgerStoreLike, SessionClaimStoreLike } from "@storytree/drive";
@@ -233,9 +233,18 @@ export async function main(): Promise<void> {
       ...(actor !== undefined ? { actor } : {}),
       ...(offer !== null ? { offerId: offer.candidateSetId } : {}),
     });
-    // ADR-0200 D4: the cursor-once delta footer rides the render the agent already reads.
-    process.stdout.write(formatEnvelope(await attachDeltaFooter(env, pullDeltas)));
-    process.exitCode = env.ok ? 0 : 1;
+    if (isRawEnvelope(env)) {
+      // `library artifact <id> --raw <field>` — the ONE deliberate exception to the envelope
+      // convention: the field's exact stored bytes ALONE. No `formatEnvelope` (it strips trailing
+      // whitespace and appends its own newline) and no delta footer (it appends to `body`) — either
+      // one would defeat piping the value to a file, which is the whole point of the read.
+      process.stdout.write(env.raw);
+      process.exitCode = 0;
+    } else {
+      // ADR-0200 D4: the cursor-once delta footer rides the render the agent already reads.
+      process.stdout.write(formatEnvelope(await attachDeltaFooter(env, pullDeltas)));
+      process.exitCode = env.ok ? 0 : 1;
+    }
     await captureInvocation(argv, readArgv, env.ok, store, captureSessionId, offer?.visitId);
   } finally {
     await close();

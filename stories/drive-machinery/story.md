@@ -316,49 +316,46 @@ buildable node); the authored capability files above follow the seed's contracts
 The integrated **acceptance walkthrough** proving the organism's outcome end to end: one operator
 drives a registered node from spec to a landed, signed, persisted proof.
 
-> **HONEST status — the acceptance journey was originally part-scripted, part-attested (now HISTORY).**
-> Steps 1–2 and 5–6 are offline-automated TODAY (citations inline). Steps 3–4's full live shape — a
-> real leaf, the real proof command, persistence, promotion, and the non-squash landing — happened
-> ONCE for real (verdict-line: run `real-mq7ky4ck`, commit `0e8f4ba` now in `main`'s ancestry) with a
-> scripted offline twin for the mechanics; step 7 (an agent actually USES it without coaching) was the
-> paid blind dogfood, 2026-06-15, 3/3 probes end to end. Those live legs BEGAN as operator-attested
-> history — that history stands, but the current state below has moved past it.
->
-> **Legs 3/4/7 all convert to machine (ADR-0184) — the conversion is now COMPLETE.** The
-> parser [`uat-machine-proof-binding`](uat-machine-proof-binding.md), exact resolver
-> [`uat-machine-gate-resolution`](uat-machine-gate-resolution.md), and drive consumption
-> [`uat-bound-command-adoption`](uat-bound-command-adoption.md) established the strict no-fallback
-> binding rule each converted leg names its gate through. ADR-0184 overtakes the earlier "these three
-> remain `human`" call (ADR-0180): that call conflated a genuine judgment gap (no compiler for the
-> claim) with cost — but the `--real` leaf is subscription-funded (ADR-0030); the metered Cursor leaf
-> that the "no paid inner loop" reasoning named has since been RETIRED (ADR-0198, superseding
-> ADR-0177), so live builds are Claude-subscription only and cost is never a reason to keep a leg
-> human. **Leg 4 is converted**: its free, deterministic observe gate-5
-> (`promotion-ancestry.check.ts`) machine-witnesses that the attested REAL-proof commits reached
-> `main` non-squash. **Leg 3 is converted**: its live-artifact observe gate-6
-> (`witnessable-verdict.check.ts`) machine-witnesses that a recent spine-driven DRIVEN-tier passing
-> verdict for a drive-machinery node exists in `events.verdict` and landed in `main`'s ancestry.
-> **Leg 7 is now converted too**: its live-artifact observe gate-7 (`dogfood-witness.check.ts`)
-> machine-witnesses that a fresh, UNCOACHED `claude -p` agent — spawned by the executable cold-start
-> probe `dogfood-probe.run.ts` with CLAUDE.md as its only coaching — discovered the inner loop and
-> drove a `dogfood-probe-*` node it authored to a signed verdict (first live pass: run `mrfuze9m`,
-> `dogfood-probe-mrfuze9m` → a signed `contract` verdict at commit `2ea1b68`, 76 turns). The
-> deliberate live runs that PRODUCE these verdicts stay out-of-band (ADR-0010 §5); the gates only
-> witness the persisted signed passes. **So drive-machinery's Story UAT is now FULLY machine-witnessed
-> — no leg is `human`.** The consequence ADR-0184 records: because no UAT leg is human anymore, the
-> story's closure no longer waits on an operator ceremony for a machine-observable outcome (ADR-0184
-> Consequences). An honest end-state, not a forged machine label — each leg's gate witnesses a real
-> persisted signed pass, never an offline mechanics suite dressed up as acceptance.
-
 **Goal —** Drive one registered node through a genuine red→green proof and land the proven commit
-through the merge gate, refusing every dishonest shortcut along the way.
+through the merge gate, so that a fresh agent can do the same without coaching.
 
-1. **Orient** _(witness: machine)(detail: drive-machinery#uat-1)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree node` lists the registered (buildable) and REAL-buildable nodes. _(criterion-id: uatc_fe41d841f6b38c81c2cd1e0c)_ _(revision-id: uatr1:0558e0a0fe377acf)_
-   **Success —** a help envelope naming both sets. *(proven: `node-build.test.ts:102`)*
-2. **Prove the glue first** _(witness: machine)(detail: drive-machinery#uat-2)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree node build verdict-line --dry-run`. **Success —** the _(criterion-id: uatc_e4ec2bdd541d8b575ea8fd3f)_ _(revision-id: uatr1:eab3c95cd0bfc6d5)_
-   full phase trail, a signed (in-memory) verdict, a derived rollup, and the honest dry-run
-   framing. *(proven: `node-build.test.ts:17`, `:74`)*
-3. **The REAL build** _(witness: machine)(detail: drive-machinery#uat-3)_ _(proof-gate: drive-machinery#gate-6)_: `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh _(criterion-id: uatc_c0f650ea4c3035ae8f7e5b1c)_ _(revision-id: uatr1:48ac587ee38977f9)_
+Three legs. Each one witnesses a **real persisted artifact** — a signed verdict in `events.verdict`, a
+commit in `main`'s ancestry — which is the shape this story's own prose has demanded all along: *"each
+leg's gate witnesses a real persisted signed pass, never an offline mechanics suite dressed up as
+acceptance."* Under ADR-0294 D2 the four legs that named `pnpm --filter <pkg> test` were the capability
+rung re-signed at the story rung and were deleted on 2026-08-03, each with its proving node named (table
+below; `stories/uat-legacy-dispositions.json` records them `superseded`). What remains is the journey
+itself, and only the journey.
+
+The four deleted criteria and the node that already proves each, for audit:
+
+| deleted criterion | claim | proven at |
+| --- | --- | --- |
+| `uatc_fe41d841f6b38c81c2cd1e0c` | *Orient* — `pnpm storytree node` lists the registered and REAL-buildable nodes in a help envelope | [`build-drive-cli`](build-drive-cli.md) (capability) — `packages/cli/src/node-build.test.ts:102`, covered by gate-2 |
+| `uatc_e4ec2bdd541d8b575ea8fd3f` | *Prove the glue first* — the `--dry-run` phase trail, in-memory signed verdict, derived rollup, honest dry-run framing | [`build-drive-cli`](build-drive-cli.md) (capability) — `packages/cli/src/node-build.test.ts:17`, `:74`, covered by gate-2. A **dry run is not the real thing**, so this was never a step of the journey above |
+| `uatc_2bb0f5162edab352e64e66bf` | *Chain a story* — `story build <id> --dry-run` topo-orders capabilities from `depends_on`, story UAT node last, one event log, halt-is-never-a-pass | [`story-topo-build`](story-topo-build.md) + [`story-real-chain`](story-real-chain.md) (capabilities) — `packages/cli/src/story-build.test.ts:17`, covered by gate-1/gate-2. Also a dry run |
+| `uatc_21d6fd739ddeeaade11b1b92` | *Refuse the dishonest paths* — `--store pg` with `--dry-run` refused; a live story build with an unprocessed operator answer refused | [`build-drive-cli`](build-drive-cli.md) — `story-build.test.ts:90`/`:124` (gate-2) and [`oq-hygiene-gate`](oq-hygiene-gate.md) — `oq-gate.test.ts:141` (gate-3) |
+
+Every assertion above still runs, under the same commands, and every capability still greens: the
+deletion removed a second signature at the story rung, not the evidence (ADR-0294 D2).
+
+> **Where the earlier honesty note went.** This section used to carry a long blockquote reconciling
+> which legs were scripted, which attested, and which had been converted human→machine by ADR-0184. All
+> three surviving legs are ADR-0184 conversions and their gates are described in full under **Reliability
+> Gates**, so that reconciliation is now history rather than current state and is not restated here
+> (ADR-0139: an accepted record carries no overtaken prose; `git log -p` holds the prior text). The one
+> claim from it worth keeping is the standard the whole section is now built on, quoted above: a leg's
+> gate witnesses a real persisted signed pass, never an offline mechanics suite dressed up as acceptance.
+
+> **Gate-4 no longer hosts a leg.** `drive-machinery#gate-4` was minted solely to prove deleted leg 6,
+> whose two refusal assertions spanned the `cli` and `drive` suites. It is left in place deliberately:
+> gate ids are POSITIONAL (`parseReliabilityGates`), so removing it would renumber gates 5/6/7 and
+> silently re-point the signed verdicts and the `(proof-gate:)` bindings of the three legs above onto
+> different gates. It remains a truthful observe gate over two suites that are already covered by gates
+> 2 and 3 — redundant, not dishonest. Retiring it is a separate, id-aware change.
+
+
+1. **The REAL build** _(witness: machine)(detail: drive-machinery#uat-3)_ _(proof-gate: drive-machinery#gate-6)_: `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh _(criterion-id: uatc_c0f650ea4c3035ae8f7e5b1c)_ _(revision-id: uatr1:48ac587ee38977f9)_
    detached worktree; the live leaf authors the REAL test under the write wall; the spine observes
    the genuine red, the leaf implements, the spine observes the genuine green, commits the
    authored files, signs on the genuinely clean tree; the verdict persists to `events.verdict`;
@@ -371,23 +368,14 @@ through the merge gate, refusing every dishonest shortcut along the way.
    — minted for this conversion via `witnessable-verdict` itself: run `real-mrftf7c3`, commit
    `69590a6`, a genuine red→green; the earlier `verdict-line` run `real-mq7ky4ck` is the historical
    first.)*
-4. **Land it** _(witness: machine)(detail: drive-machinery#uat-4)_ _(proof-gate: drive-machinery#gate-5)_: open the PR from the promotion branch; CI auto-merges on green, NON-SQUASH, so the _(criterion-id: uatc_3e86045325b8284e156fe886)_ _(revision-id: uatr1:3a583901a5d86eb2)_
+2. **Land it** _(witness: machine)(detail: drive-machinery#uat-4)_ _(proof-gate: drive-machinery#gate-5)_: open the PR from the promotion branch; CI auto-merges on green, NON-SQUASH, so the _(criterion-id: uatc_3e86045325b8284e156fe886)_ _(revision-id: uatr1:3a583901a5d86eb2)_
    verdict's `commitSha` stays an ancestor of `main` (ADR-0031/0022). **Success —** the proven
    commit is reachable from `main`. *(proven: `drive-machinery#gate-5` —
    `promotion-ancestry.check.ts` asserts every attested REAL-proof commit (`0e8f4ba` verdict-line,
    `47c9e43` node-resolve-report, and the three uat-machine binding proofs) is an ancestor of HEAD, so
    a squash that orphaned the original SHA would fail it; the live residue — a real PR auto-merged into
    the real `main` — is the CI auto-merge/non-squash rail's standing guarantee, ADR-0022/0031.)*
-5. **Chain a story** _(witness: machine)(detail: drive-machinery#uat-5)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree story build library --dry-run`. **Success —** capabilities _(criterion-id: uatc_2bb0f5162edab352e64e66bf)_ _(revision-id: uatr1:ffdf9990d5a809f7)_
-   topo-ordered from `depends_on`, the story's UAT node last, every node signed over ONE event
-   log, halt-is-never-a-pass. *(proven: `packages/cli/src/story-build.test.ts:17` — the integration test stays cli-resident;
-   ADR-0112 moved only the `story build` driver it exercises into `@storytree/drive`; the live chain
-   attested: library 8/8 signed passes, $0.48)*
-6. **Refuse the dishonest paths** _(witness: machine)(detail: drive-machinery#uat-6)_ _(proof-gate: drive-machinery#gate-4)_: `--store pg` with `--dry-run` is refused (a scripted PASS _(criterion-id: uatc_21d6fd739ddeeaade11b1b92)_ _(revision-id: uatr1:68a3e82ba9457056)_
-   persisted would be a forged healthy); a live story build with an unprocessed operator answer on
-   a deciding ADR's OQ is refused with the three paths out. *(proven:
-   `story-build.test.ts:90`/`:124`, `oq-gate.test.ts:141`)*
-7. **An agent actually USES it end to end (the dogfood acceptance)** _(witness: machine)(detail: drive-machinery#uat-7)_ _(proof-gate: drive-machinery#gate-7)_: a fresh orchestrator agent, _(criterion-id: uatc_5e54367bd5f458a7ef3d2b09)_ _(revision-id: uatr1:30344311ad98c613)_
+3. **An agent actually USES it end to end (the dogfood acceptance)** _(witness: machine)(detail: drive-machinery#uat-7)_ _(proof-gate: drive-machinery#gate-7)_: a fresh orchestrator agent, _(criterion-id: uatc_5e54367bd5f458a7ef3d2b09)_ _(revision-id: uatr1:30344311ad98c613)_
    onboarding from CLAUDE.md alone (the inner loop never named for it), drives a unit through steps
    1–4 to a genuine signed verdict — proving the machinery is not just correct but *usable without
    coaching*, the load-bearing question behind ADR-0057. **Success —** the agent discovers the inner
@@ -396,7 +384,6 @@ through the merge gate, refusing every dishonest shortcut along the way.
 
 End state — a genuine proof earned, signed, persisted, promoted, landed, AND shown to be usable by a
 fresh agent without coaching; every shortcut walled.
-
 ## Reliability Gates
 
 The drive machinery is **brownfield** (`status: mapped`): its dominant behaviour is observationally

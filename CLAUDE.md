@@ -24,7 +24,8 @@ artifact <term>`).
 world — and an `accepted` ADR can have a body that is partly overtaken while it stays green (the
 canonical trap: ADR-0011 §5 "DBOS/Postgres durable execution stands" is dead, overtaken by ADR-0019;
 **do not** revert wording toward "DBOS stands"). Don't hand-track this — **query the live decision
-log:** `storytree adr list --load-bearing` (★ the curated calibrate-to-these set, ADR-0139) and
+log:** `storytree adr list --load-bearing` (the calibrate-to-these set, ADR-0139: the curated ★ seed
+PLUS every accepted ADR that ☆ reaches it through an `amends` edge, transitively) and
 `storytree adr list --current` (every accepted, non-superseded ADR, with its reversal edges printed
 inline). The list is derived from `docs/decisions/` on disk, so it can never drift; it is **no longer
 hand-maintained here**.
@@ -286,15 +287,23 @@ file conflicts).
   **removed** — superseded by this window (ADR-0114). A manual `db:up` still works any
   time inside the sleep window (a no-op if already up); re-`db:up` if a query can't connect after the
   overnight stop.
-  **Probe, don't assume — never conclude the DB is unreachable from the environment.** Verify with a
-  direct connector `SELECT 1` (via `@storytree/library/store` `createPool`) before deciding it's down.
+  **Probe, don't assume — never conclude the DB is unreachable from the environment.** The definitive
+  check is a verb now, not a script to re-derive: **`pnpm db:probe`** runs the canonical direct-connector
+  `createPool` + `SELECT 1` through the CLI's own composition root (secrets hydration, the
+  `PoolHandle` shape and `closePool` teardown all handled for you), and prints `reachable — SELECT 1
+  answered in N ms` or the exact failure; exit 0 = reachable, 1 = not. **Don't hand-roll it** — the
+  three traps that cost four attempts on 2026-07-13 (bare `tsx` not resolving from a worktree root,
+  `createPool` refusing without `STORYTREE_DB_USER`, `createPool` returning a `PoolHandle {pool,
+  connector}` rather than a `Pool`) are all inside the verb.
   A `db:up`/preflight "unreachable within Ns" at status **RUNNABLE** is almost always a slow cold-start
   (it can exceed the whole readiness poll — ~21 min has been seen after the overnight stop), not a
   wedge: wait + re-probe. **`db:up` names which case it hit on the way out (ADR-0060):** exit **75**
   (`EX_TEMPFAIL`) = the start took and the instance is STILL WARMING, so re-probe and do NOT issue
-  another start/stop; exit **1** = the activation PATCH did not take, so waiting won't help. A
-  direct `SELECT 1` is the definitive check (it connected in ~340 ms once warm while `db:up`'s own poll
-  was still timing out). The TLS-re-termination caveat above applies to REMOTE sessions only.
+  another start/stop; exit **1** = the activation PATCH did not take, so waiting won't help. `db:up`'s
+  readiness poll and `db:probe` now run the SAME function (`probeDb` in `packages/drive/src/db-control.ts`),
+  so the two can no longer disagree — the old failure was `db:up` reporting "did not accept connections
+  within 420s" TWICE while a direct `SELECT 1` answered in ~6 s: the POLL was the blocker, not the
+  database. The TLS-re-termination caveat above applies to REMOTE sessions only.
   Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/library/src/store/load-corpus.ts`.
 - Prove-it-gate: `packages/orchestrator/src/prove-it-gate.ts` (+ `.e2e.test.ts`). Red-green is enforced
   spine-side (phase machine + per-phase write-scope + spine-observed RED/GREEN + a signed verdict).
@@ -361,10 +370,21 @@ consolidation pass (active ⟺ load-bearing); until then it remains the worklist
 filters on.
 
 **The current-state / load-bearing set is a CLI query, not a list hand-kept here (ADR-0139, restating
-ADR-0086 §A):** `storytree adr list --load-bearing` (★ the curated calibrate-to-these set) ·
+ADR-0086 §A):** `storytree adr list --load-bearing` (the calibrate-to-these set) ·
 `--current` (every accepted, non-superseded ADR + edges) · `--status <s>`. It reads `docs/decisions/`
 on disk — offline, no DB — so it can never drift from the files. When you land or overtake a decision,
 **spawn the `librarian-curator`** to keep status / edges / the `load_bearing` set honest.
+
+**`--load-bearing` follows `amends` edges — the tag alone under-reported it.** The set is the curated
+`load_bearing: true` ★ seed CLOSED over accepted `amends` edges: an accepted ADR that amends anything
+in the set is ☆ **in** it, transitively. Under ADR-0139 an `amends` edge means the target stays
+current but is *no longer wholly self-describing*, so the amendment belongs beside it — ADR-0271
+landed accepted+`amends: [142]` but untagged and was invisible here for a day, while ★0142 rendered
+green. Reach is derived from the ADR-0037 edge, never a second hand-kept tag, so it cannot drift and
+it survives ADR-0139 retiring `load_bearing`. A `proposed` or `superseded` amender is **never** pulled
+in (that would overstate the current set) — it still shows as a status-labelled back-edge on its
+target, e.g. `amended by 0080, 0265 (proposed)`. If the set ever grows too large to calibrate on, the
+remedy is ADR-0139's consolidation, **not** a filter that hides edges.
 
 **Status is a projection of the `## Status` prose, never an invented flip.** An agent MAY flip an ADR
 `proposed → accepted` (the green flip) once the decision is made and the prose supports it (ADR-0084);

@@ -121,28 +121,32 @@ consumed_by) is **acyclic** (ADR-0058): the CLI is a pure source — nothing imp
 
 ## UAT Test Criteria
 
-The integrated acceptance walkthrough that proves the whole `cli` organism end-to-end — *an agent
-runs a few core commands* (ADR-0074 §3), the minimum that proves the goal. **All four legs are machine
-exercises** — each success condition is a compiler-decidable observation (an `ok:` field, an exit code,
-a refusal string, a populated env var), with no aesthetic or owner value call anywhere in the walk. The
-three offline legs bind to the CLI suite's observe gate; leg 4 is machine but UNBOUND, because no
-harness runs the live `--pg` path yet. The list is **expandable** — each real defect earns a permanent
-regression leg.
+The integrated acceptance walkthrough that proves the whole `cli` organism end-to-end — *an agent runs
+a core command against the real thing* (ADR-0074 §3), the minimum that proves the goal.
 
-**Goal —** One agent reaches multiple organisms through the one binary: it explores the library
-offline, is refused an offline write, and (DB up) pulls live — each command returning a typed
-envelope.
+**Goal —** One agent reaches the live library through the one binary, with no environment prefix: the
+shim hydrates its credentials and wires the live store in, and the read comes back as a typed envelope.
 
-1. **Dispatch + envelope, offline:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree library`. **Success —** _(criterion-id: uatc_fc00d80d290a86727a30e2eb)_ _(revision-id: uatr1:465bc8f7961ae8ba)_
-   the shim seeds an in-memory store and returns `ok:true` with the dashboard banner + a `next:`
-   block — no DB needed.
-2. **Reach another organism:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree tree drive-machinery`. _(criterion-id: uatc_6488d065398e1216c9ae3d07)_ _(revision-id: uatr1:fc9b707fd31d53b3)_
-   **Success —** the same binary dispatches to the tree surface and renders the hierarchy offline
-   (no presence lines, no error) — proving the verb router reaches a second organism.
-3. **Write gate:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree library artifact new --file <doc.json>` _(criterion-id: uatc_0230af87290a0b4ac797495a)_ _(revision-id: uatr1:7581bb82c65cbfac)_
-   WITHOUT `--pg`. **Success —** `ok:false` with "writes go to the shared store … run with --pg" and
-   a non-zero exit — the offline-safe write gate.
-4. **Credential hydration + live pull:** _(witness: machine)_ with `pnpm db:up`, run `pnpm storytree _(criterion-id: uatc_dba01a60e8f19040a6732eea)_ _(revision-id: uatr1:a6be2db1ea9b6a79)_
+One leg. The three offline legs that used to precede it (`library` dashboard, `tree <id>`, the
+without-`--pg` write refusal) were each bound to `pnpm --filter @storytree/cli test` — the same command
+that greens [`unified-command-dispatch`](unified-command-dispatch.md), whose own suite asserts all three
+directly. Under ADR-0294 D2 that is the capability rung re-signed at the story rung, so they were deleted
+on 2026-08-03 with the proving node named per criterion (table below;
+`stories/uat-legacy-dispositions.json` records them `superseded`).
+
+The three deleted criteria and the node that already proves each, for audit:
+
+| deleted criterion | claim | proven at |
+| --- | --- | --- |
+| `uatc_fc00d80d290a86727a30e2eb` | *dispatch + envelope, offline* — `storytree library` seeds an in-memory store and returns `ok:true` with the dashboard banner + a `next:` block, no DB | [`unified-command-dispatch`](unified-command-dispatch.md) (capability) — `packages/cli/src/cli.test.ts`, *"library dashboard reports a total + categories and maps artifacts by id"* and the doctrine-pointer/`next:` tests; observed by gate-1 |
+| `uatc_6488d065398e1216c9ae3d07` | *reach another organism* — the same binary dispatches to the tree surface and renders the hierarchy offline | [`unified-command-dispatch`](unified-command-dispatch.md) (capability) — `cli.test.ts`, *"tree focus `<id>` renders the node's outbound source refs"* and *"a node: ref renders as a Story node through the REAL binary, on both artifact surfaces"*; also `tree-dispatch.test.ts`; observed by gate-1 |
+| `uatc_0230af87290a0b4ac797495a` | *write gate* — `artifact new` without `--pg` returns `ok:false` with "writes go to the shared store … run with --pg" and a non-zero exit | [`cli-resident-corpus-tools`](cli-resident-corpus-tools.md) (capability) — `cli.test.ts`, *"a write without --pg is refused with guidance (not an ephemeral write)"*; observed by gate-1 |
+
+Every assertion above still runs under `pnpm --filter @storytree/cli test` and both capabilities still
+green on it — the deletion removed a second signature at the story rung, not the evidence.
+
+
+1. **Credential hydration + live pull:** _(witness: machine)_ with `pnpm db:up`, run `pnpm storytree _(criterion-id: uatc_dba01a60e8f19040a6732eea)_ _(revision-id: uatr1:b9554fd833374c8c)_ _(previous-revision-id: uatr1:a6be2db1ea9b6a79)_
    library artifact <id> --pg` (no env prefix). **Success —** `secrets.ts` hydrated
    `STORYTREE_DB_USER`, the live read returned `ok:true` — the shim wired the live store in.
    > **Witness re-adjudicated `human` → `machine` 2026-07-25 (ADR-0209 D8), deliberately UNBOUND.**
@@ -155,7 +159,8 @@ envelope.
    > **No `(proof-gate:)` is asserted, and none may be added until a harness truly runs this.** Binding
    > it to `cli#gate-1` would be a rubber-stamp (ADR-0097 §2): that gate's command is `pnpm --filter
    > @storytree/cli test`, which does not exercise the live `--pg` path at all. Unbound, `resolveWitness`
-   > fails CLOSED (`coverage: "refused"`) and no adopt can sign it.
+   > fails CLOSED (`coverage: "refused"`) and no adopt can sign it. Under ADR-0295 D1 the honest witness
+   > for it is a model driving this exact command against a live DB, not a new unit test.
    > **Known stranded verdict —** a `studio-adopt` run on 2026-07-04 observe-signed `cli#uat-4` as
    > `adopted`/pass at `c79fe948` (on main), citing evidence "observed green at a clean HEAD: `pnpm
    > --filter @storytree/cli test`". That evidence was never true for this leg: the CLI suite reports
@@ -163,11 +168,11 @@ envelope.
    > should be superseded when a real harness lands — it is recorded here, not silently reused.
    > **Half already covered, elsewhere —** the hydration half IS machine-proven today, by
    > `packages/drive/src/secrets.test.ts` (env-wins, exact key list) in the **`@storytree/drive`** suite,
-   > not this story's gate. Only the live-read half is genuinely unharnessed.
+   > not this story's gate. Only the live-read half is genuinely unharnessed — and that is exactly why
+   > this leg is the one that survived ADR-0294: it has no lower-tier node that already proves it.
 
-End state — multiple organisms reached through one binary, the envelope/exit-code contract held, and
-the write gate + credential hydration proven.
-
+End state — the live store reached through one binary, credentials hydrated without an env prefix, and
+the envelope contract held.
 ## Reliability Gates
 
 The CLI hub entered as **brownfield**: `packages/cli` has a real, passing, OFFLINE

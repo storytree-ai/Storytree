@@ -66,22 +66,22 @@ function useSprite(kind: string, status?: string): SpriteDef | null {
 export type RowKey = 'tree' | 'flora' | 'proof' | 'activity' | 'claim';
 
 /**
- * Status fan order: the growth ladder, then the failure state. `building` and
- * `retired` never reach the legend — the world folds building into proposed
- * and prunes retired entirely (worldStatus.ts, ADR-0038).
+ * Status fan order: the growth ladder. `building`, `retired` and `unhealthy`
+ * never reach the legend — the world folds building into proposed, folds
+ * unhealthy into mapped (ADR-0296), and prunes retired entirely
+ * (worldStatus.ts, ADR-0038/0296).
  */
-const STATUS_ORDER = ['proposed', 'mapped', 'healthy', 'unhealthy'] as const;
+const STATUS_ORDER = ['proposed', 'mapped', 'healthy'] as const;
 
-/** Statuses an ALIVE plant can wear in the world — unhealthy flora always renders dead. */
-const ALIVE_STATUSES = STATUS_ORDER.filter((st) => st !== 'unhealthy');
+/** Statuses an ALIVE plant can wear in the world. Since ADR-0296 withdrew the
+ *  withered form from the picture, every rendered status is an alive one. */
+const ALIVE_STATUSES = STATUS_ORDER;
 
 export interface LegendFacts {
   /** status → instance counts across both tiers ('unknown' = spec error / no status). */
   statusTotals: Map<string, { stories: number; caps: number }>;
   /** Any unit wears healthy — which, post ADR-0040, only a signed pass can paint. */
   anyProven: boolean;
-  /** Any capability renders the dead silhouette (signed ✗ or authored unhealthy). */
-  anyDeadFlora: boolean;
 }
 
 /**
@@ -97,7 +97,6 @@ export function legendFacts(stories: TreeStory[]): LegendFacts {
     statusTotals.set(key, cur);
   };
   let anyProven = false;
-  let anyDeadFlora = false;
   for (const s of stories) {
     const st = s.status ?? 'unknown';
     bump(st, 'stories');
@@ -106,13 +105,11 @@ export function legendFacts(stories: TreeStory[]): LegendFacts {
       const cst = c.status ?? 'unknown';
       bump(cst, 'caps');
       if (cst === 'healthy') anyProven = true;
-      if (cst === 'unhealthy') anyDeadFlora = true;
     }
   }
   return {
     statusTotals,
     anyProven,
-    anyDeadFlora,
   };
 }
 
@@ -456,12 +453,7 @@ function legendModel(
       key: 'flora',
       label: 'test coverage',
       visible: stories.some((s) => s.capabilities.length > 0),
-      icons: (
-        <>
-          <PlantIcon status={ALIVE_STATUSES.find((st) => totals(st).caps > 0) ?? 'unknown'} />
-          {facts.anyDeadFlora && <PlantIcon status="unhealthy" dead />}
-        </>
-      ),
+      icons: <PlantIcon status={ALIVE_STATUSES.find((st) => totals(st).caps > 0) ?? 'unknown'} />,
     },
     {
       // Always visible: "no proof on screen" is itself a state of the world —
@@ -470,12 +462,7 @@ function legendModel(
       key: 'proof',
       label: 'proof',
       visible: true,
-      icons: (
-        <>
-          {facts.anyProven && <PlantIcon status="healthy" />}
-          {facts.anyDeadFlora && <PlantIcon status="unhealthy" dead />}
-        </>
-      ),
+      icons: <>{facts.anyProven && <PlantIcon status="healthy" />}</>,
     },
     {
       // The world's live-activity layer (ADR-0045): a signed verdict landing
@@ -606,19 +593,14 @@ export function LegendDrawerBody({
             label="alive"
             note="colour = status, same key as the trees"
           />
-          <Tile
-            icon={<PlantIcon status="unhealthy" dead />}
-            label="withered"
-            note="failed its last signed run, or unhealthy"
-            absent={!facts.anyDeadFlora}
-          />
         </div>
         <p className="legend-cap">
           Flora density is a compressed view of each capability&apos;s declared,{' '}
           <strong>test-proven contracts</strong>: more behavioural obligations grow a denser drift,
-          but one plant is not one source test. Colour and withering carry capability status: deep
-          green = the last signed run passed (the only green source, ADR-0040), withered = a signed
-          fail or authored unhealthy, every other hue = the authored ladder, unproven.
+          but one plant is not one source test. Colour carries capability status: deep green = the
+          last signed run passed (the only green source, ADR-0040), every other hue = the authored
+          ladder, unproven. A signed <em>fail</em> draws no distinct flora — it under-claims to
+          unproven (ADR-0296); the node panel&apos;s verdict line is where a failure reads.
         </p>
       </>,
     );
@@ -634,19 +616,15 @@ export function LegendDrawerBody({
             note="the last signed run passed"
             absent={!facts.anyProven}
           />
-          <Tile
-            icon={<PlantIcon status="unhealthy" dead />}
-            label="withered"
-            note="failed its last signed run, or authored unhealthy"
-            absent={!facts.anyDeadFlora}
-          />
         </div>
         <p className="legend-cap">
           Hue only ever reports a <strong>signed</strong> prove-it-gate verdict — authored status
           can never paint green, and a story's crown answers only to its <strong>own</strong> UAT
-          (“all capabilities pass” and “the story passed UAT” are different claims). With the live
-          store down, verdicts are absent and the world <strong>under-claims</strong>: trees fall
-          back to the authored ladder — the store banner is the signal.
+          (“all capabilities pass” and “the story passed UAT” are different claims). A signed{' '}
+          <em>fail</em> paints no state of its own (ADR-0296): a failed unit falls back to the
+          authored ladder, and the node panel&apos;s verdict line is where the failure reads. With
+          the live store down, verdicts are absent and the world <strong>under-claims</strong> the
+          same way — the store banner is the signal.
         </p>
       </>,
     );
