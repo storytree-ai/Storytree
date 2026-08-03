@@ -672,6 +672,77 @@ test("release (nothing of ours): DELETE removes nothing → returns false, no 'r
   assert.ok(commits(client));
 });
 
+// ── ClaimResult.displaced: what the take ABSORBED that was already the caller's ──
+//
+// `events.node_claim` is keyed (unit_id, session_id), so a build claiming under its LAUNCHING
+// session's identity OVERWRITES that session's own row instead of adding one. `acquired: true`
+// covers both, which is how a build's unconditional release destroyed a claim it never took (the
+// ADR-0199 class, second instance). `displaced` is the fact that tells them apart; the consumer is
+// `decideClaimExit` in @storytree/drive.
+
+test("claim (FRESH take, nothing of ours displaced): displaced is ABSENT — releasing it later is correct", async () => {
+  const client = new FakeClaimClient();
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+  assert.equal(res.acquired, true);
+  assert.equal(
+    res.acquired === true && res.displaced,
+    undefined,
+    "the take created the row, so the taker owns it and the ADR-0121 mutex must still free it",
+  );
+});
+
+test("claim (RE-ENTRANT, our own work row refreshed): displaced carries the row we overwrote", async () => {
+  const client = new FakeClaimClient();
+  // The session already holds the work claim — this is the exact seq=969 → seq=978 step from the
+  // measured trace, where a `--real` build re-claimed the session's own declared row.
+  client.existingForUpdate = heldRow({ session_id: "session-B", intent: "orchestrate" });
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+
+  assert.equal(res.acquired, true);
+  assert.equal(res.acquired === true && res.reclaimed, false, "our own row is not a reclaim");
+  assert.equal(
+    res.acquired === true && res.displaced?.intent,
+    "orchestrate",
+    "the caller must be able to see the declaration it displaced, and leave it alone on exit",
+  );
+});
+
+test("claim (RECLAIM of ANOTHER session's stale row): displaced is ABSENT — a stranger's row is not ours to keep", async () => {
+  const client = new FakeClaimClient();
+  const stale = new Date(NOW.getTime() - CLAIM_STALE_RECLAIM_MS - 1).toISOString();
+  client.existingForUpdate = heldRow({ session_id: "session-A", heartbeat_at: stale });
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+
+  assert.equal(res.acquired, true);
+  assert.equal(res.acquired === true && res.reclaimed, true);
+  assert.equal(
+    res.acquired === true && res.displaced,
+    undefined,
+    "reclaimed is a different question from displaced: we took this row, so we release it",
+  );
+});
+
+test("claim (work take FOLDING our own exploring row): displaced carries the folded shared row", async () => {
+  const client = new FakeClaimClient();
+  client.foldDeleteReturns = [heldRow({ session_id: "session-B", grade: "exploring", intent: "orient" })];
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+
+  assert.equal(res.acquired, true);
+  assert.equal(
+    res.acquired === true && res.displaced?.grade,
+    "exploring",
+    "the fold DELETES our shared row, so releasing the work row afterwards would leave the session with nothing",
+  );
+});
+
+test("claim (REFUSED by a live holder): no displaced field on the refusal arm", async () => {
+  const client = new FakeClaimClient();
+  client.existingForUpdate = heldRow({ session_id: "session-A" });
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+  assert.equal(res.acquired, false);
+  assert.ok(!("displaced" in res));
+});
+
 // ── releaseClaimsByBranch (A1, ADR-0138 §4): the CI merge bulk-clear ──────────
 // The DB-level atomicity is proven live in claim-store-release-by-branch.live.test.ts (the --real
 // arm). This offline control-flow test keeps the method EXERCISED in the package suite + CI, where

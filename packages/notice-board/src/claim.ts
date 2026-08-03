@@ -125,7 +125,27 @@ export interface ClaimRequest {
  * grade-aware callers discriminate the queue with `"queued" in result`.
  */
 export type ClaimResult =
-  | { acquired: true; claim: ClaimDocT; reclaimed: boolean }
+  | {
+      acquired: true;
+      claim: ClaimDocT;
+      reclaimed: boolean;
+      /**
+       * The caller's OWN pre-existing row that this take absorbed — the re-entrant work row, or the
+       * shared exploring/waiting row a work take folds. Absent when the take genuinely created a row
+       * that did not exist for this session.
+       *
+       * Exists because `events.node_claim` is keyed `(unit_id, session_id)`: a build claiming under
+       * its LAUNCHING session's identity does not add a row, it OVERWRITES that session's own — so a
+       * caller that releases on the way out destroys a claim it never took. Without this field the
+       * caller cannot tell the two apart (`acquired: true` covers both), which is how a session's
+       * declaration silently vanished across its own `--real` builds. Consumed by
+       * `decideClaimExit` in `@storytree/drive` (a run releases only what its own take created).
+       *
+       * NOT the same question as `reclaimed`, which is about taking over ANOTHER session's stale
+       * claim. Both can be true at once: reclaiming a stale holder while folding our own shared row.
+       */
+      displaced?: ClaimDocT;
+    }
   | { acquired: false; heldBy: ClaimDocT }
   | { acquired: false; queued: true; waiting: ClaimDocT; heldBy: ClaimDocT };
 

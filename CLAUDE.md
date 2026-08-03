@@ -286,15 +286,23 @@ file conflicts).
   **removed** — superseded by this window (ADR-0114). A manual `db:up` still works any
   time inside the sleep window (a no-op if already up); re-`db:up` if a query can't connect after the
   overnight stop.
-  **Probe, don't assume — never conclude the DB is unreachable from the environment.** Verify with a
-  direct connector `SELECT 1` (via `@storytree/library/store` `createPool`) before deciding it's down.
+  **Probe, don't assume — never conclude the DB is unreachable from the environment.** The definitive
+  check is a verb now, not a script to re-derive: **`pnpm db:probe`** runs the canonical direct-connector
+  `createPool` + `SELECT 1` through the CLI's own composition root (secrets hydration, the
+  `PoolHandle` shape and `closePool` teardown all handled for you), and prints `reachable — SELECT 1
+  answered in N ms` or the exact failure; exit 0 = reachable, 1 = not. **Don't hand-roll it** — the
+  three traps that cost four attempts on 2026-07-13 (bare `tsx` not resolving from a worktree root,
+  `createPool` refusing without `STORYTREE_DB_USER`, `createPool` returning a `PoolHandle {pool,
+  connector}` rather than a `Pool`) are all inside the verb.
   A `db:up`/preflight "unreachable within Ns" at status **RUNNABLE** is almost always a slow cold-start
   (it can exceed the whole readiness poll — ~21 min has been seen after the overnight stop), not a
   wedge: wait + re-probe. **`db:up` names which case it hit on the way out (ADR-0060):** exit **75**
   (`EX_TEMPFAIL`) = the start took and the instance is STILL WARMING, so re-probe and do NOT issue
-  another start/stop; exit **1** = the activation PATCH did not take, so waiting won't help. A
-  direct `SELECT 1` is the definitive check (it connected in ~340 ms once warm while `db:up`'s own poll
-  was still timing out). The TLS-re-termination caveat above applies to REMOTE sessions only.
+  another start/stop; exit **1** = the activation PATCH did not take, so waiting won't help. `db:up`'s
+  readiness poll and `db:probe` now run the SAME function (`probeDb` in `packages/drive/src/db-control.ts`),
+  so the two can no longer disagree — the old failure was `db:up` reporting "did not accept connections
+  within 420s" TWICE while a direct `SELECT 1` answered in ~6 s: the POLL was the blocker, not the
+  database. The TLS-re-termination caveat above applies to REMOTE sessions only.
   Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/library/src/store/load-corpus.ts`.
 - Prove-it-gate: `packages/orchestrator/src/prove-it-gate.ts` (+ `.e2e.test.ts`). Red-green is enforced
   spine-side (phase machine + per-phase write-scope + spine-observed RED/GREEN + a signed verdict).
