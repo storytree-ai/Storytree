@@ -818,3 +818,146 @@ test("arc list --all / --closed parse as flags and widen the default worklist (A
   assert.equal(closed.ok, true, closed.body);
   assert.match(closed.body, /shipped-arc/);
 });
+
+// ---- `library artifact <id> --raw <field>` — the bare-bytes read (proposal
+// `library-artifact-can-read-one-raw-stored-field`) ---------------------------------------------
+//
+// The write side has `--set field=@path`; nothing read one back, so a partial edit to a long prose
+// field could not round-trip the untouched parts. The assertion that matters is BYTE IDENTITY: a
+// test that only checked "some output appeared" would pass on the lossy render.
+
+/** A field value chosen to be destroyed by any rendering path: blank lines, indentation, trailing space. */
+const ROUND_TRIP_VALUE =
+  "First line of the stored prose.\n" +
+  "\n" +
+  "  - an indented bullet with two trailing spaces  \n" +
+  "  - a second bullet holding a `backtick` and a **bold** run\n" +
+  "\n" +
+  "A closing paragraph, then hard trailing whitespace:   \n\n";
+
+async function storeWithRawDoc(): Promise<InMemoryStore> {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "raw-read-subject",
+    kind: "definition",
+    doc: {
+      kind: "definition",
+      id: "raw-read-subject",
+      title: "Raw read subject",
+      description: "a doc whose long field must round-trip byte-for-byte",
+      oneLine: ROUND_TRIP_VALUE,
+      whatItIs: "x",
+      whatItIsNot: "y",
+      references: ["asset:merge-ceremony", "asset:arc"],
+      createdAt: "2026-08-03T00:00:00.000Z",
+      updatedAt: "2026-08-03T00:00:00.000Z",
+    },
+  });
+  return store;
+}
+
+test("artifact <id> --raw <field> returns the field's EXACT stored bytes (the round trip)", async () => {
+  const env = await run(["library", "artifact", "raw-read-subject", "--raw", "oneLine"], {
+    store: await storeWithRawDoc(),
+  });
+  assert.equal(env.ok, true, env.body);
+  const raw = (env as { raw?: unknown }).raw;
+  assert.equal(typeof raw, "string", "--raw carries the bare bytes on the envelope");
+  assert.equal(raw, ROUND_TRIP_VALUE, "the value round-trips byte-for-byte");
+  // WHY the envelope cannot be the emitter: `formatEnvelope` strips trailing whitespace and appends
+  // its own newline, so the formatted text is NOT the stored value. `main` must bypass it.
+  assert.notEqual(formatEnvelope(env), ROUND_TRIP_VALUE);
+});
+
+test("artifact <id> --raw <absent field> exits non-zero, names the field, and lists what the doc has", async () => {
+  const env = await run(["library", "artifact", "raw-read-subject", "--raw", "notAField"], {
+    store: await storeWithRawDoc(),
+  });
+  assert.equal(env.ok, false, "an absent field is a miss, not empty output");
+  assert.equal((env as { raw?: unknown }).raw, undefined, "a miss emits no bare bytes");
+  assert.match(env.body, /notAField/, "the missing field is named");
+  assert.match(env.body, /oneLine/, "the fields the doc DOES have are listed");
+});
+
+test("artifact <id> --raw <non-string field> emits its JSON", async () => {
+  const env = await run(["library", "artifact", "raw-read-subject", "--raw", "references"], {
+    store: await storeWithRawDoc(),
+  });
+  assert.equal(env.ok, true, env.body);
+  const raw = (env as { raw?: unknown }).raw;
+  assert.equal(typeof raw, "string");
+  assert.deepEqual(JSON.parse(raw as string), ["asset:merge-ceremony", "asset:arc"]);
+});
+
+test("artifact <unknown id> --raw <field> is guidance, not bare bytes", async () => {
+  const env = await run(["library", "artifact", "does-not-exist", "--raw", "oneLine"], {
+    store: await storeWithRawDoc(),
+  });
+  assert.equal(env.ok, false);
+  assert.equal((env as { raw?: unknown }).raw, undefined);
+});
+
+// ---- `library artifact list <category>` — the listable set comes from the SCHEMA (proposal
+// `an-empty-tier-reports-empty-not-an-unknown-kind`) ---------------------------------------------
+//
+// The population is STAGED in each test, never inherited from whichever tier happens to be empty
+// today: an inherited precondition inverts the moment someone writes a row.
+
+/** A store holding exactly one `definition` — every other schema kind is genuinely at zero. */
+async function storeWithOneDefinition(): Promise<InMemoryStore> {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "the-only-row",
+    kind: "definition",
+    doc: {
+      kind: "definition",
+      id: "the-only-row",
+      title: "The only row",
+      description: "d",
+      oneLine: "o",
+      whatItIs: "x",
+      whatItIsNot: "y",
+      references: [],
+      createdAt: "2026-08-03T00:00:00.000Z",
+      updatedAt: "2026-08-03T00:00:00.000Z",
+    },
+  });
+  return store;
+}
+
+test("artifact list <schema kind with ZERO rows> reports the tier EMPTY at ok:true", async () => {
+  // A new kind starts empty by definition, and a lifecycle tier draining to zero is the SUCCESS
+  // state — both must read as a fact about the population, never as "the kind does not exist".
+  const env = await run(["library", "artifact", "list", "proposal"], {
+    store: await storeWithOneDefinition(),
+  });
+  assert.equal(env.ok, true, `an empty schema kind lists empty, not unknown: ${env.body}`);
+  assert.match(env.body, /^proposal {2}\(0\)$/, "the same shape a populated tier uses");
+});
+
+test("artifact list advertises every SCHEMA kind, including the ones at zero", async () => {
+  const env = await run(["library", "artifact", "list", "not-a-real-kind"], {
+    store: await storeWithOneDefinition(),
+  });
+  assert.equal(env.ok, false, "a kind the schema does not define is still a genuine user error");
+  assert.match(env.body, /unknown category "not-a-real-kind"/);
+  // The available list can never again advertise a narrower world than the schema defines.
+  for (const kind of ["definition", "proposal", "friction", "arc", "plan", "uat-criterion"]) {
+    assert.ok(env.body.includes(kind), `available categories names ${kind}`);
+  }
+});
+
+test("artifact list still lists a kind the store holds but the knowledge schema does not name", async () => {
+  // `template` artifacts (ADR-0210) carry a kind outside the knowledge union and list today —
+  // the schema-derived set is a WIDENING, so nothing that works loses.
+  const store = await storeWithOneDefinition();
+  await store.upsertDoc({
+    id: "template-thing",
+    kind: "template",
+    doc: { kind: "template", id: "template-thing", title: "Template — thing", body: "b" },
+  });
+  const env = await run(["library", "artifact", "list", "template"], { store });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /template {2}\(1\)/);
+  assert.match(env.body, /template-thing/);
+});

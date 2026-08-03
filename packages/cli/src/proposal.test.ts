@@ -266,10 +266,10 @@ test("proposalDescriptionFrom takes the summary's first sentence, capped at a wo
 // ---------------------------------------------------------------------------
 // `proposal list` — listable AT ZERO
 //
-// This deliberately does not defer to `library artifact list proposal`, which derives its category
-// list from kinds that HAVE instances and so answers `unknown category "proposal"` on an empty tier
-// (friction `an-empty-artifact-kind-is-reported-as-a-kind-that-does-not-exist`). A tier whose job is
-// to carry a delivery signal must be readable at zero, because zero is the finding.
+// A tier whose job is to carry a delivery signal must be readable at zero, because zero is the
+// finding. This verb reads the tier directly and SAYS so in words; the generic surface now also
+// answers honestly at zero (proposal `an-empty-tier-reports-empty-not-an-unknown-kind` made
+// `listCategory`'s category set schema-derived), so the two differ in framing rather than in truth.
 // ---------------------------------------------------------------------------
 
 test("proposal list on an empty tier is a first-class answer, not `unknown category`", async () => {
@@ -279,12 +279,13 @@ test("proposal list on an empty tier is a first-class answer, not `unknown categ
   assert.match(env.body, /0 proposal\(s\)/);
   assert.match(env.body, /the tier is EMPTY, which is a finding rather than a missing kind/);
 
-  // The differential that makes the above meaningful: the generic surface, on the same empty store,
-  // reports the kind as if it did not exist. Pin it so the reason this verb exists stays visible —
-  // and so a future fix to `listCategory` is a deliberate change here, not a silent one.
+  // The generic surface, on the same empty store, no longer denies the kind: it reports the tier
+  // EMPTY in its ordinary `<kind>  (0)` shape at ok:true. Pinned as the standing floor — a
+  // regression to `unknown category` here would put the false denial back for every kind at once.
   const generic = await run(["library", "artifact", "list", "proposal"], { store });
-  assert.equal(generic.ok, false);
-  assert.match(generic.body, /unknown category "proposal"/);
+  assert.equal(generic.ok, true, generic.body);
+  assert.match(generic.body, /^proposal {2}\(0\)$/);
+  assert.doesNotMatch(generic.body, /unknown category/);
 });
 
 test("proposal list orders by creation, oldest first, and offers each artifact", async () => {
