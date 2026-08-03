@@ -121,11 +121,29 @@ Exactly which channels carry which signal is an implementation and LOOK question
 not a decision here. The **requirement** is that capability count and status remain readable in the
 tree after the swap.
 
-### D4 — The plants are the retained pose-to-pose plant track
+### D4 — The plants are the retained pose-to-pose plant track — DORMANT: the shipped map has no plants
 
 The small plants use the track ADR-0277 D2 retained, on the same shared-track basis as D2 above. Its
 registered ground socket is what makes a per-object rooted sprout honest rather than a scale about a
 centre.
+
+**This decision reaches nothing on the shipped map, and the Context above predates the reason.**
+ADR-0226's unified vocabulary retired the per-capability plant ring: a capability is now a PARCEL of
+~52 small `parcel-flora` marks (2,083 across the 40-island corpus), and the surface emits no
+`kind:'flora'` node at all. The plant-track code path is built and tested and applies to zero
+objects. The GROWTH half of this decision — every small mark sprouting from its own measured ground
+contact rather than the whole group popping — IS delivered, and it is what D1 and D4 were jointly
+after; what is dormant is the plant TRACK specifically.
+
+Closing that gap would mean giving each capability parcel its own plant sprite, which is a scene
+change in `@storytree/forest-world` and therefore an ADR and story-author call rather than something
+to invent inside an increment. At the ADR-0070 stage-2 LOOK on 2026-08-03 the owner attested the
+increment and **deferred the track** — "skip the grass for now" — so the code path stays dormant
+against a surface that has plants again. `act2-tree-and-plant-growth-arc` amended the corresponding
+end-state bullet and closed on the same day; the arc's increment log carries the measured detail.
+
+This is a correction in place, not a re-decision (ADR-0139): the decision about HOW a plant would
+grow is unchanged and still correct — the world it addressed was removed underneath it.
 
 ### D5 — The stagger is decorative and deterministic; it claims nothing
 
