@@ -136,6 +136,13 @@ that builds D4 would otherwise read the old sentence, see quiet proposals on arr
 check was broken. Curator correction made during the librarian pass on the PR that built D3, and
 flagged to the owner in that PR's debrief so it can be overruled.
 
+**Confirmed empirically when D4 was built (2026-08-03).** With the eleven backfilled proposals in the
+tier, `check:proposal-drain` reported `WARN — 16 open · 0 uncited · 0 delivered · 16 total` and named
+no recurrence: every backfilled proposal was quiet on the reinforcements that selected it, exactly as
+this correction predicts and as the retired gloss did not. The two same-day WARNs it did print are the
+day-granularity rule working — one of them on a proposal whose source friction was reinforced by the
+very session that parked it, which is the case D3's strict `>` exists to keep out of the red.
+
 ### D4 — targeted backfill (owner call)
 
 Backfill proposals only for `tool` items that are demonstrably still live: the five-item corpus-gate
@@ -144,6 +151,28 @@ as they are — many are stale, duplicative or already obsolete, and a full back
 large adjudication pass and immediately breach any ceiling. Not-backfilled items are not lost: recurrence
 re-opens them through the normal reinforce path, and the next adjudication of a recurrence emits a
 proposal under D1.
+
+**Annotation (2026-08-03, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+four of the five named corpus-gate items were DELIVERED by
+[ADR-0290](0290-the-corpus-content-ceiling-measures-what-the-branch-authored.md) (PR #1090, merged
+2026-08-02T16:02Z) between this ADR being written and D4 being built, so the list above no longer
+describes a live backlog.** Nothing is re-decided: the backfill stays targeted, and the governing
+qualifier is still "demonstrably still live" — which is precisely what selected against them. Measured
+while building D4: `live-to-seed-drain-is-all-or-nothing-so-its-ceiling-cannot-reach-zero` is delivered
+by ADR-0290 D6 (`export-corpus --id`, the per-artifact drain its `routeReason` asked for);
+`corpus-content-v-count-understates-what-the-export-sweeps` by D4 (the live-only population is printed
+on every path); `corpus-content-gate-red-on-sibling-mid-stream-live-edit` by D1/D2/D3 (ANOTHER WRITER is
+never charged); and `a-drain-ceiling-a-sibling-breached-reds-a-session-that-touched-nothing-it-guards`
+on its corpus-CONTENT half by D3 (BEHIND MAIN, with `git merge origin/main` as the remedy instead of the
+export).
+
+What survives is the corpus-**SYNC** half: `grep -c "origin/main\|merge-base\|library_event"` returns
+15 / 11 / 4 across `check-corpus-content.ts`, `corpus-content-attribution.ts` and
+`corpus-content-drain.ts`, and ZERO in both `check-corpus-sync.ts` and `sync-drain.ts`. So two of the
+five remain live, share one proposal, and none of the delivered four was parked — parking a landed
+remedy is the inverse of the signal D3 meters. Recorded because the list reads as a worklist: a later
+session would otherwise mint four proposals for work already on `main`. Built in increment 3 of
+`friction-delivery-signal-arc`, which parked 11 proposals across 14 still-live `tool` items.
 
 ## Consequences
 
