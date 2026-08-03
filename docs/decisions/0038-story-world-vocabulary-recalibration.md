@@ -56,7 +56,10 @@ problems (owner feedback, 2026-06-12):
    indistinguishable from a zero-cap proposed tree; a **full brownfield-brown canopy** = `mapped`
    (the glossary's own word: real,
    observationally verified, not yet UAT-proven — was teal); a **full deep-green canopy** =
-   `healthy` (proven through the gate); **withered** = `unhealthy` (unchanged).
+   `healthy` (proven through the gate); ~~**withered** = `unhealthy` (unchanged)~~ — the withered
+   form was WITHDRAWN from the world by
+   [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md); `unhealthy`
+   now folds to `mapped`, exactly as `building` folds to `proposed` in point 3 below.
 3. **`building` wears `proposed` in the world.** A display-level fold (same seam as the prune):
    wisps say "being worked on", the proposed state says "still free to iterate" — one visual
    state covers both honestly. The `Status` enum and authored frontmatter keep `building`; only

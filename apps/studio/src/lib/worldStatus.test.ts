@@ -51,15 +51,21 @@ const story = (
 describe('worldStatus', () => {
   it('folds building into proposed and passes everything else through', () => {
     expect(worldStatus('building')).toBe('proposed');
-    for (const st of ['proposed', 'mapped', 'healthy', 'unhealthy', 'retired', null] as const) {
+    for (const st of ['proposed', 'mapped', 'healthy', 'retired', null] as const) {
       expect(worldStatus(st)).toBe(st);
     }
+  });
+
+  it('folds unhealthy into mapped — the world draws no withered form (ADR-0296)', () => {
+    expect(worldStatus('unhealthy')).toBe('mapped');
   });
 });
 
 describe('provenStatus (ADR-0040: hue is the verdict)', () => {
   it('a signed pass is the ONLY green source — it overrides any authored rung', () => {
-    for (const st of ['proposed', 'building', 'mapped', 'healthy', null] as const) {
+    // `unhealthy` is in this list since ADR-0296: with the state withdrawn from the
+    // picture, the authored-unhealthy-beats-a-pass override went with it.
+    for (const st of ['proposed', 'building', 'mapped', 'healthy', 'unhealthy', null] as const) {
       expect(provenStatus(st, pass)).toBe('healthy');
     }
   });
@@ -68,15 +74,34 @@ describe('provenStatus (ADR-0040: hue is the verdict)', () => {
     expect(provenStatus('healthy', undefined)).toBe('mapped');
   });
 
-  it('wither is unchanged: signed fail OR authored unhealthy', () => {
-    for (const st of ['proposed', 'mapped', 'healthy', null] as const) {
-      expect(provenStatus(st, fail)).toBe('unhealthy');
-    }
-    expect(provenStatus('unhealthy', undefined)).toBe('unhealthy');
+  // ADR-0296 withdrew `unhealthy` from the world's rendered vocabulary. These pin the
+  // replacement contract: nothing the fold emits is ever `unhealthy`, and a signed fail
+  // UNDER-claims to an unproven rung rather than painting a withered form. ADR-0040's
+  // invariant is preserved in the conservative direction — a fail still never greens.
+  it('a signed fail never renders unhealthy — it under-claims to the authored ladder', () => {
+    expect(provenStatus('healthy', fail)).toBe('mapped');
+    expect(provenStatus('mapped', fail)).toBe('mapped');
+    expect(provenStatus('proposed', fail)).toBe('proposed');
+    expect(provenStatus('building', fail)).toBe('proposed');
+    expect(provenStatus(null, fail)).toBeNull();
   });
 
-  it('authored unhealthy wins even over a signed pass (the disagreement never greens)', () => {
-    expect(provenStatus('unhealthy', pass)).toBe('unhealthy');
+  it('a signed fail still never paints green (ADR-0040 holds)', () => {
+    for (const st of ['proposed', 'building', 'mapped', 'healthy', 'unhealthy', null] as const) {
+      expect(provenStatus(st, fail)).not.toBe('healthy');
+    }
+  });
+
+  it('authored unhealthy folds to mapped — real, but not proven green', () => {
+    expect(provenStatus('unhealthy', undefined)).toBe('mapped');
+  });
+
+  it('the fold NEVER emits unhealthy, whatever it is handed', () => {
+    for (const st of ['proposed', 'building', 'mapped', 'healthy', 'unhealthy', null] as const) {
+      for (const v of [pass, fail, undefined]) {
+        expect(provenStatus(st, v)).not.toBe('unhealthy');
+      }
+    }
   });
 
   it('offline (no verdict) falls back to the authored ladder — never over-claims', () => {
@@ -116,9 +141,10 @@ describe('presentStories', () => {
     expect(out[0]?.status).toBe('proposed');
   });
 
-  it('a story UAT pass greens the crown; a UAT fail withers it', () => {
+  it('a story UAT pass greens the crown; a UAT fail leaves it on the authored rung', () => {
     expect(presentStories([story('s', 'proposed', [], pass)])[0]?.status).toBe('healthy');
-    expect(presentStories([story('s', 'proposed', [], fail)])[0]?.status).toBe('unhealthy');
+    // ADR-0296: the fail no longer withers the crown — it simply fails to green it.
+    expect(presentStories([story('s', 'proposed', [], fail)])[0]?.status).toBe('proposed');
   });
 
   it('authored healthy stops painting green on both tiers (the hand-painting door stays shut)', () => {
