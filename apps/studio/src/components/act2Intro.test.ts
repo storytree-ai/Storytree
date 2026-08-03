@@ -12,6 +12,7 @@ import {
   forestRegrowGraphKey,
   markAct2IntroArrived,
   readAct2Intro,
+  readVegetationGrowthOff,
   waveAtProgress,
   waveStartProgress,
 } from './act2Intro.js';
@@ -20,6 +21,22 @@ import {
   type ForestRegrowStory,
   type ForestRegrowTrailEdge,
 } from '@storytree/app-surface';
+
+describe('readVegetationGrowthOff — the ADR-0292 LOOK kill switch', () => {
+  it('turns the arc off on the one exact value', () => {
+    expect(readVegetationGrowthOff('?veg2=off')).toBe(true);
+    expect(readVegetationGrowthOff('?act2=intro&veg2=off')).toBe(true);
+  });
+
+  it('leaves the growth ON for absence, empty, and every near miss', () => {
+    // Same reasoning as the gate below, inverted: this parameter DISABLES a decided ADR's behaviour
+    // on the clean route, so a loose reader would silently switch the arc off for anyone whose URL
+    // happened to carry a `veg2` key at all.
+    for (const search of ['', '?', '?veg2=', '?veg2=false', '?veg2=on', '?veg2=off-x', '?veg=off']) {
+      expect(readVegetationGrowthOff(search)).toBe(false);
+    }
+  });
+});
 
 describe('readAct2Intro', () => {
   it('mounts on the one exact value', () => {
