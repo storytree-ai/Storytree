@@ -57,8 +57,10 @@ export function lifecycleOf(kind: string, doc: LifecycleDoc): Lifecycle {
           return "open";
       }
 
+    // `proposal` used to share this branch; ADR-0298 retired the kind. Its successor is an entry on
+    // an arc, whose open/closed state is the entry's own `realized` field and is read there — an
+    // ArcProposal is not a doc, so it never reaches this projection.
     case "open-question":
-    case "proposal":
       return "open";
 
     case "arc":

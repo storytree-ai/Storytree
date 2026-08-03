@@ -62,29 +62,42 @@ async function fileNew(
 const NODE_RESOLVER = { nodeExists: (id: string) => id === "cli" };
 
 /**
- * Scaffold a proposal through the REAL dispatch — the artifact ADR-0287 D1 makes the `tool` route's
- * output. Composed outward on purpose: every `tool` routing below now runs against a doc the actual
- * `proposal new` verb wrote, so a writer whose output the fence cannot recognise fails here rather
- * than in production.
+ * Scaffold an ARC through the REAL dispatch — the initiative a `tool` routing's remedy parks on
+ * (ADR-0298 D2). Composed outward on purpose: every `tool` routing below runs against docs the actual
+ * `arc new` / `arc proposal add` verbs wrote, so a writer whose output the fence cannot recognise
+ * fails here rather than in production.
  */
-async function newProposal(s: InMemoryStore, id: string) {
+async function newArc(s: InMemoryStore, id: string) {
   return run(
     [
-      "proposal", "new", id,
-      "--title", `Proposal ${id}`,
-      "--summary", "collapse the three export ceremonies into one command",
-      "--motivation", "three near-identical seed ceremonies, each with its own zero ceiling",
-      "--change", "`export-corpus` + `sync-corpus` + `sync-agents` -> one `library sync`",
-      "--scope", "packages/cli only; the store schema is UNCHANGED",
-      "--migration", "1. add the verb  2. re-point the three gate checks  3. retire the old flags",
-      "--readiness", "the gate is green and no session holds a --pg write",
+      "arc", "new", id,
+      "--title", `Arc ${id}`,
+      "--intent", "collapse the three export ceremonies into one command",
+      "--end-state", "one `library sync` verb, and the three zero ceilings answer to it",
       "--pg",
     ],
     { store: s, writable: true },
   );
 }
 
-/** Route an item to `tool`, emitting + citing its proposal (the ADR-0287 D1 two-step, in one call). */
+/** Park one entry on `arcId` naming `frictionId` — the half the fence checks EXISTS (ADR-0298 D2). */
+async function parkOnArc(s: InMemoryStore, arcId: string, entryId: string, frictionId: string) {
+  return run(
+    [
+      "arc", "proposal", "add", arcId,
+      "--id", entryId,
+      "--title", `Park ${entryId}`,
+      "--summary", "collapse the three export ceremonies into one command",
+      "--motivation", "three near-identical seed ceremonies, each with its own zero ceiling",
+      "--scope", "packages/cli only; the store schema is UNCHANGED",
+      "--friction", frictionId,
+      "--pg",
+    ],
+    { store: s, writable: true },
+  );
+}
+
+/** Route an item to `tool`, parking + citing its arc entry (the ADR-0298 D2 two-step, in one call). */
 async function routeToTool(
   s: InMemoryStore,
   dirs: { inboxDir: string; docsDir: string },
@@ -93,9 +106,11 @@ async function routeToTool(
   extra: string[] = [],
   branch: string = BRANCH,
 ) {
-  await newProposal(s, `${id}-proposal`);
+  const arcId = `${id}-arc`;
+  await newArc(s, arcId);
+  await parkOnArc(s, arcId, `${id}-remedy`, id);
   return run(
-    ["friction", "route", id, "--route", "tool", "--reason", reason, "--proposal", `${id}-proposal`, ...extra, "--pg"],
+    ["friction", "route", id, "--route", "tool", "--reason", reason, "--arc", arcId, ...extra, "--pg"],
     liveDeps(s, dirs, branch),
   );
 }
@@ -270,9 +285,10 @@ test("defect 3: route --reason and reinforce --evidence read a value from @path"
   const reason = "question 1 -> the evidence supports it.\n\nquestion 2 -> a fence is cheaper.\n";
   const reasonFile = path.join(dirs.docsDir, "reason.txt");
   writeFileSync(reasonFile, reason, "utf8");
-  await newProposal(s, "f-atpath-proposal");
+  await newArc(s, "f-atpath-arc");
+  await parkOnArc(s, "f-atpath-arc", "f-atpath-remedy", "f-atpath");
   const routed = await run(
-    ["friction", "route", "f-atpath", "--route", "tool", "--reason", `@${reasonFile}`, "--proposal", "f-atpath-proposal", "--pg"],
+    ["friction", "route", "f-atpath", "--route", "tool", "--reason", `@${reasonFile}`, "--arc", "f-atpath-arc", "--pg"],
     { store: s, writable: true, friction: frictionDeps(dirs) },
   );
   assert.equal(routed.ok, true, routed.body);
@@ -642,16 +658,17 @@ test("list marks a discharged archived item so the two ends of a route are tella
 });
 
 // ---------------------------------------------------------------------------
-// the `tool` route's EMISSION fence (ADR-0287 D1)
+// the `tool` route's EMISSION fence (ADR-0298 D2, replacing ADR-0287 D1's proposal artifact)
 //
 // `tool` was the one route naming no artifact kind: it named a destination (story-author) and
 // stopped, so the item archived — satisfying `check:friction-drain`, the loop's only fail-closed
 // gate — while nothing was built (6 of 125 delivered, measured 2026-08-02). These tests pin the
-// symmetry: routing to `tool` now requires a `proposal` and cites it, exactly as every other route
-// emits its own kind. The route ENUM is deliberately untouched (no ninth route; 125 live rows).
+// symmetry: routing to `tool` requires a PARKED ENTRY on the arc that owns the remedy, and cites
+// that arc, exactly as every other route emits its own kind. The route ENUM is deliberately
+// untouched (no ninth route; ~125 live rows).
 // ---------------------------------------------------------------------------
 
-test("routing to `tool` is refused until the item cites a proposal (ADR-0287 D1)", async () => {
+test("routing to `tool` is refused until the item cites an arc that parks it (ADR-0298 D2)", async () => {
   const s = store();
   const dirs = tempDirs();
   await fileNew(s, frictionDoc("t-bare"), dirs, { writable: true });
@@ -661,10 +678,12 @@ test("routing to `tool` is refused until the item cites a proposal (ADR-0287 D1)
     { store: s, writable: true, friction: frictionDeps(dirs) },
   );
   assert.equal(bare.ok, false);
-  assert.match(bare.body, /routing to `tool` requires a `proposal` artifact, cited in this item's references/);
-  // The refusal hands over BOTH commands in order — the affordance paired with the fence.
-  assert.match(bare.body, /storytree proposal new --title/);
-  assert.match(bare.body, /--proposal <proposal-id>/);
+  assert.match(bare.body, /routing to `tool` requires a PARKED ENTRY on the arc that owns the remedy/);
+  // The refusal hands over the commands in order — the affordance paired with the fence — and it
+  // says FOLD FIRST, which is the behaviour ADR-0298 D6 exists to produce.
+  assert.match(bare.body, /FOLD FIRST, CHARTER SECOND/);
+  assert.match(bare.body, /storytree arc proposal add <arc-id>/);
+  assert.match(bare.body, /--arc <arc-id>/);
 
   // NOTHING was written on the way to the refusal: the item is still open and unrouted, so a
   // refused routing can never be mistaken for an archived one.
@@ -673,38 +692,83 @@ test("routing to `tool` is refused until the item cites a proposal (ADR-0287 D1)
   assert.equal(untouched["routeReason"], undefined);
 });
 
-test("`tool` + --proposal writes the route AND the asset: citation in one validated upsert", async () => {
+test("an arc carrying NO entry that names this item is refused — citing one is not parking one (ADR-0298 D2)", async () => {
+  // The half a citation-only fence would miss: naming a live arc would otherwise satisfy the route
+  // while no remedy exists anywhere, which is the pre-ADR-0287 failure in a new costume.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("t-empty"), dirs, { writable: true });
+  await newArc(s, "empty-arc");
+
+  const refused = await run(
+    ["friction", "route", "t-empty", "--route", "tool", "--reason", "r", "--arc", "empty-arc", "--pg"],
+    liveDeps(s, dirs),
+  );
+  assert.equal(refused.ok, false);
+  assert.match(refused.body, /carries no PARKED entry naming this friction item/);
+  assert.equal(((await s.getDoc("t-empty"))?.doc as Record<string, unknown>)["route"], undefined);
+
+  // An entry naming a DIFFERENT friction is equally not a parking of this one.
+  await parkOnArc(s, "empty-arc", "someone-elses", "another-friction");
+  const stillRefused = await run(
+    ["friction", "route", "t-empty", "--route", "tool", "--reason", "r", "--arc", "empty-arc", "--pg"],
+    liveDeps(s, dirs),
+  );
+  assert.equal(stillRefused.ok, false);
+  assert.match(stillRefused.body, /carries no PARKED entry naming this friction item/);
+});
+
+test("a DELIVERED remedy routes to `tool` with no parked entry at all (ADR-0298 D3's exemption)", async () => {
+  // Demanding an entry here would force a false record: the work already landed, so parking it as
+  // deferred is untrue. Measured on the retired tier — five delivered `tool` items were left
+  // permanently unstamped rather than mint that row, understating the loop's own delivery number.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("t-landed"), dirs, { writable: true });
+
+  const stamped = await run(
+    ["friction", "route", "t-landed", "--route", "tool", "--reason", "already built", "--discharged-by", "#1090", "--pg"],
+    liveDeps(s, dirs),
+  );
+  assert.equal(stamped.ok, true, stamped.body);
+  const doc = (await s.getDoc("t-landed"))?.doc as Record<string, unknown>;
+  assert.equal(doc["route"], "tool");
+  assert.equal(doc["dischargedBy"], "#1090");
+});
+
+test("`tool` + --arc writes the route AND the asset: citation in one validated upsert", async () => {
   const s = store();
   const dirs = tempDirs();
   await fileNew(s, frictionDoc("t-cite"), dirs, { writable: true });
-  await newProposal(s, "one-seed-sync-verb");
+  await newArc(s, "one-seed-sync-arc");
+  await parkOnArc(s, "one-seed-sync-arc", "one-seed-sync-verb", "t-cite");
 
   const routed = await run(
-    ["friction", "route", "t-cite", "--route", "tool", "--reason", "q7: a verb beats prose", "--proposal", "one-seed-sync-verb", "--pg"],
+    ["friction", "route", "t-cite", "--route", "tool", "--reason", "q7: a verb beats prose", "--arc", "one-seed-sync-arc", "--pg"],
     liveDeps(s, dirs),
   );
   assert.equal(routed.ok, true, routed.body);
-  assert.match(routed.body, /remedy parked as proposal one-seed-sync-verb/);
+  assert.match(routed.body, /remedy parked on arc one-seed-sync-arc/);
 
   const parsed = Friction.safeParse((await s.getDoc("t-cite"))?.doc);
   assert.ok(parsed.success, "the whole doc is re-validated, citation included");
   assert.equal(parsed.data.route, "tool");
-  assert.deepEqual(parsed.data.references, ["asset:one-seed-sync-verb"]);
+  assert.deepEqual(parsed.data.references, ["asset:one-seed-sync-arc"]);
 
   // Re-routing is idempotent on the citation — a second pass must not stack duplicate refs.
   const again = await run(
-    ["friction", "route", "t-cite", "--route", "tool", "--reason", "q7: a verb beats prose", "--proposal", "asset:one-seed-sync-verb", "--pg"],
+    ["friction", "route", "t-cite", "--route", "tool", "--reason", "q7: a verb beats prose", "--arc", "asset:one-seed-sync-arc", "--pg"],
     liveDeps(s, dirs),
   );
   assert.equal(again.ok, true, again.body);
   const after = (await s.getDoc("t-cite"))?.doc as Record<string, unknown>;
-  assert.deepEqual(after["references"], ["asset:one-seed-sync-verb"], "an `asset:`-prefixed value is normalised, not double-added");
+  assert.deepEqual(after["references"], ["asset:one-seed-sync-arc"], "an `asset:`-prefixed value is normalised, not double-added");
 });
 
-test("an already-citing item re-routes without repeating --proposal (the --discharged-by path stays open)", async () => {
+test("an already-citing item re-routes without repeating --arc (the --discharged-by path stays open)", async () => {
   // The fence is on the CITATION, not the flag. `friction route` has no stamp-only path — adding
-  // `--discharged-by` later means re-running the whole route — so demanding `--proposal` again would
-  // have closed the documented delivery-stamp path for every backfilled item.
+  // `--discharged-by` later means re-running the whole route — so demanding `--arc` again would
+  // have closed the documented delivery-stamp path for every already-parked item.
   const s = store();
   const dirs = tempDirs();
   await fileNew(s, frictionDoc("t-stamp"), dirs, { writable: true });
@@ -717,7 +781,7 @@ test("an already-citing item re-routes without repeating --proposal (the --disch
   assert.equal(stamped.ok, true, stamped.body);
   const doc = (await s.getDoc("t-stamp"))?.doc as Record<string, unknown>;
   assert.equal(doc["dischargedBy"], "#1088");
-  assert.deepEqual(doc["references"], ["asset:t-stamp-proposal"]);
+  assert.deepEqual(doc["references"], ["asset:t-stamp-arc"]);
 });
 
 // ---------------------------------------------------------------------------
@@ -872,40 +936,42 @@ test("standingRouteSetter names who SET the standing route, not the latest write
   assert.equal(standingRouteSetter([{ type: "created", doc: {}, actor: "cli", at: "x" }], "adr"), undefined);
 });
 
-test("a --proposal that is missing, or is another kind, is refused with the write-it-first order", async () => {
+test("an --arc that is missing, or is another kind, is refused with the park-it-first order", async () => {
   const s = store();
   const dirs = tempDirs();
   await fileNew(s, frictionDoc("t-ghost"), dirs, { writable: true });
 
   const missing = await run(
-    ["friction", "route", "t-ghost", "--route", "tool", "--reason", "r", "--proposal", "never-written", "--pg"],
+    ["friction", "route", "t-ghost", "--route", "tool", "--reason", "r", "--arc", "never-chartered", "--pg"],
     { store: s, writable: true, friction: frictionDeps(dirs) },
   );
   assert.equal(missing.ok, false);
-  assert.match(missing.body, /--proposal "never-written" does not exist — write the proposal FIRST/);
+  assert.match(missing.body, /--arc "never-chartered" does not exist/);
+  // The refusal names the FOLD-first order, not just the charter escape hatch (ADR-0298 D6).
+  assert.match(missing.body, /Folding into an EXISTING arc is the default/);
 
-  // Ids are shared across kinds, so pointing at a non-proposal is a distinct, honest refusal — and
+  // Ids are shared across kinds, so pointing at a non-arc is a distinct, honest refusal — and
   // proves the fence resolves the ref rather than pattern-matching the string.
   const wrongKind = await run(
-    ["friction", "route", "t-ghost", "--route", "tool", "--reason", "r", "--proposal", "t-ghost", "--pg"],
+    ["friction", "route", "t-ghost", "--route", "tool", "--reason", "r", "--arc", "t-ghost", "--pg"],
     { store: s, writable: true, friction: frictionDeps(dirs) },
   );
   assert.equal(wrongKind.ok, false);
-  assert.match(wrongKind.body, /is a friction, not a proposal/);
+  assert.match(wrongKind.body, /is a friction, not an arc/);
 });
 
-test("--proposal is refused on the seven routes that already name their own output kind", async () => {
+test("--arc is refused on the seven routes that already name their own output kind", async () => {
   const s = store();
   const dirs = tempDirs();
   await fileNew(s, frictionDoc("t-wrong-route"), dirs, { writable: true });
-  await newProposal(s, "some-proposal");
+  await newArc(s, "some-arc");
 
   const env = await run(
-    ["friction", "route", "t-wrong-route", "--route", "principle", "--reason", "r", "--proposal", "some-proposal", "--pg"],
+    ["friction", "route", "t-wrong-route", "--route", "principle", "--reason", "r", "--arc", "some-arc", "--pg"],
     { store: s, writable: true, friction: frictionDeps(dirs) },
   );
   assert.equal(env.ok, false);
-  assert.match(env.body, /--proposal is the `tool` route's emission/);
+  assert.match(env.body, /--arc is the `tool` route's emission/);
 
   // The other seven routes are otherwise unchanged — no emission is demanded of them.
   const principle = await run(

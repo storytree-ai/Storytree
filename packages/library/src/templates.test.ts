@@ -17,7 +17,6 @@ const EXPECTED_ORDER = [
   "template-open-question",
   "template-process",
   "template-agent",
-  "template-proposal",
   "template-friction",
   "template-arc",
   "template-plan",

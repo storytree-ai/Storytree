@@ -293,8 +293,9 @@ graduated rule self-sealing: sessions obey it and questioning it reads as defect
 - **Machine, blocking:** the `friction new` capture validator (evidence, cap, refs) + schema
   strictness; the drain ceiling (where the store is reachable); `adr-health` edges on the ADR route;
   inbox-staging schema in the gate. (This row named ONE drain ceiling when this ADR landed. A second
-  now sits here — `check:proposal-drain`, the `tool` route's delivery gate — added by ADR-0287 D3,
-  not by this ADR; see the second correction under D8.)
+  now sits here — `check:arc-proposal-drain`, the `tool` route's delivery gate — added by ADR-0287 D3
+  and carried onto the arc-borne shape by ADR-0298 D3, not by this ADR; see the second correction
+  under D8.)
 - **Machine, WARN:** drain-age advisories below the ceiling. (`check:graduation-worklist` sat here
   when this ADR landed — unchanged BY it. It has since moved to the blocking row above; see the
   correction under D8.)
@@ -336,15 +337,19 @@ by removing it — the exact stale-prose harm ADR-0139 exists to prevent.
 **Correction (2026-08-03, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
 D7's "Machine, blocking" row named a single drain ceiling; there are now TWO, and the second one gates
 this loop's own `tool` route.** [ADR-0287](0287-the-tool-route-emits-a-proposal-and-the-proposal-tier-carrie.md)
-amends D5's `tool` routing-table row so that routing EMITS a `proposal` the item cites (D1 — machine-
+amended D5's `tool` routing-table row so that routing EMITS an artifact the item cites (D1 — machine-
 enforced: `friction route --route tool` refuses until the citation resolves against the store), and its
-D3 adds `check:proposal-drain`, under which an open proposal goes RED once a friction item citing it
-gains a reinforcement dated after the proposal's `createdAt`. It is blocking in exactly the sense this
-row means — `process.exitCode = 1` inside `pnpm gate` (`packages/cli/src/check-proposal-drain.ts`, over
-the pure judge `packages/cli/src/proposal-drain.ts`), local-only, SKIPping on an unreachable substrate.
+D3 added the delivery ceiling. **[ADR-0298](0298-proposals-fold-into-arcs-the-deferred-work-tier-is-an-arc-en.md)
+then superseded ADR-0287 and retired the `proposal` kind, so the emitted artifact is now a PARKED ENTRY
+on the arc that owns the remedy** — and the routing is refused until that arc BOTH resolves and carries
+an entry naming the item. The ceiling survived the fold unchanged in rule: `check:arc-proposal-drain`,
+under which an open entry goes RED once a friction item it names gains a reinforcement dated after the
+entry's `parked` stamp. It is blocking in exactly the sense this row means — `process.exitCode = 1`
+inside `pnpm gate` (`packages/cli/src/check-arc-proposal-drain.ts`, over the pure judge
+`packages/cli/src/arc-proposal-drain.ts`), local-only, SKIPping on an unreachable substrate.
 It differs from every sibling ceiling in one way worth recording: it is RECURRENCE-driven rather than a
 count, so there is no ceiling integer to raise and the only discharges are the real ones — the remedy
-lands and its source friction is stamped `--discharged-by`. **Nothing in this ADR is re-decided:** D7
+lands and is marked with `arc proposal realize`, or its source friction is stamped `--discharged-by`. **Nothing in this ADR is re-decided:** D7
 mapped the enforcement that existed when it landed, and this check was authorised elsewhere, by
 ADR-0287. Recorded for the same reason as the correction above — a reader of D7's table alone would
 take the blocking row as complete and be surprised by a red from a check it never names.

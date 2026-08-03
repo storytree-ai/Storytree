@@ -30,6 +30,27 @@ export interface ArcRollupIncrement {
   outcome?: string;
 }
 
+/**
+ * One PARKED unit of work on the arc (ADR-0298 D1) — the successor to the retired `proposal` kind.
+ * Read defensively like every other leg here: the schema validates on WRITE, this view never throws
+ * on a malformed row.
+ *
+ * Deliberately projected SEPARATELY from `increments` rather than merged into one timeline: the two
+ * have opposite lifecycles (parked vs landed), and a surface that showed them together would present
+ * unbuilt intentions as things that happened (ADR-0298 D4).
+ */
+export interface ArcRollupProposal {
+  id?: string;
+  title?: string;
+  /** When it was parked — the delivery ceiling's comparison point (ADR-0298 D3). */
+  parked?: string;
+  summary?: string;
+  /** The source friction ids — the ceiling's join. */
+  frictionRefs?: string[];
+  /** Present ⇒ the work landed and the entry no longer presses. */
+  realized?: { date?: string; pr?: string; note?: string };
+}
+
 /** A plan that cites this arc (`plan.arcRef`, ADR-0183 D3). */
 export interface ArcRollupPlan {
   id: string;
@@ -81,6 +102,8 @@ export interface ArcRollup {
   endState: string;
   /** The durable residue: the append-at-landing log (ADR-0183 D1), in authored order. */
   increments: ArcRollupIncrement[];
+  /** The parked work the arc owns (ADR-0298 D1), in authored order — unbuilt, never a landing. */
+  proposals: ArcRollupProposal[];
   plans: ArcRollupPlan[];
   adrs: ArcRollupAdr[];
   /** Story directory names carrying this arc's frontmatter stamp. */
@@ -186,6 +209,10 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
     ? (doc["increments"] as ArcRollupIncrement[])
     : [];
 
+  const proposals = Array.isArray(doc["proposals"])
+    ? (doc["proposals"] as ArcRollupProposal[])
+    : [];
+
   const plans = input.planDocs
     .filter((p) => arcRefOf(p) === id)
     .map((p) => {
@@ -232,6 +259,7 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
     intent: str(doc, "intent"),
     endState: str(doc, "endState"),
     increments,
+    proposals,
     plans,
     adrs,
     stories,

@@ -68,7 +68,6 @@ test("llw-adr-and-defaults-project-lifecycle — adr status + the stateless-kind
   assert.equal(lifecycleOf("adr", { status: "superseded" }), "archived");
 
   assert.equal(lifecycleOf("open-question", {}), "open");
-  assert.equal(lifecycleOf("proposal", {}), "open");
 
   // An arc carrying no stored `lifecycle` is still in flight — the field is optional-with-default
   // (ADR-0239 D1), so absence must never be read as closure.

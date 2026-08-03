@@ -13,10 +13,16 @@ import { renderAgentPrompt } from "@storytree/library/store";
 
 /**
  * The curation pass that runs at the END of a green story build (ADR-0065): a librarian-curator,
- * scoped to the story nodes just built, judges the open-questions / proposals in that neighbourhood
- * and CLEANS UP — it auto-retires a clearly-overtaken open-question (with a recorded rationale),
- * raises or reframes one, raises/edits a proposal, and on any OTHER artifact kind it can only
- * COMMENT + ESCALATE, never silently edit. This is the inverse of ADR-0032's graduation loop
+ * scoped to the story nodes just built, judges the open-questions in that neighbourhood and CLEANS
+ * UP — it auto-retires a clearly-overtaken open-question (with a recorded rationale), raises or
+ * reframes one, and on any OTHER artifact kind it can only COMMENT + ESCALATE, never silently edit.
+ *
+ * IT USED TO WRITE PROPOSALS TOO, and ADR-0298 removed that half rather than re-pointing it at arcs.
+ * The kind is retired, and its successor — a parked entry on the arc that owns the remedy — is
+ * deliberately NOT reachable from here: parking is the ADJUDICATOR's seat (ADR-0298 D2), and this
+ * pass is scoped to one story neighbourhood, so it holds no view of which INITIATIVE owns a remedy.
+ * A curator that cannot see the arcs would charter or mis-file them, which is exactly the
+ * homeless-item failure ADR-0298 exists to end. The escalate path is what it keeps. This is the inverse of ADR-0032's graduation loop
  * (pruning open-questions instead of growing them), and like it the JUDGMENT is the agent's
  * intelligence — never a deterministic scan ("graduation is intelligence, not arithmetic").
  *
@@ -24,36 +30,35 @@ import { renderAgentPrompt } from "@storytree/library/store";
  *   - the {@link CuratorRunner} produces structured {@link CurationAction}s (a scripted runner here;
  *     the live SDK-spawned librarian-curator lands in a follow-up). The runner only JUDGES.
  *   - {@link enactCuration} APPLIES the actions, kind-fenced SPINE-SIDE: the runner can ask to
- *     retire any id, but enactment verifies the target really is an open-question (resp. a proposal)
+ *     retire any id, but enactment verifies the target really is an open-question
  *     before any write, and a write to any OTHER kind has no path at all. So the fence holds even if
  *     the agent misbehaves — judgment is the leaf's, the wall is the spine's (ADR-0020 posture).
  */
 
 /** The library kinds the curator may WRITE. Every other kind is read + comment + escalate only. */
-export const WRITABLE_KINDS = { openQuestion: "open-question", proposal: "proposal" } as const;
+export const WRITABLE_KINDS = { openQuestion: "open-question" } as const;
 
 /** The event/comment actor a curator write is attributed to. */
 export const CURATOR_ACTOR = "librarian-curator";
 
 /**
  * One intent the curator emits. The union is deliberately kind-specific: there is NO
- * `edit-definition` / `retire-guardrail` variant, so the authority table (open-question +
- * proposal writable; everything else comment/escalate only) is encoded in the type itself, and
- * {@link enactCuration} additionally verifies the live target kind before mutating.
+ * `edit-definition` / `retire-guardrail` variant, so the authority table (open-question writable;
+ * everything else comment/escalate only) is encoded in the type itself, and {@link enactCuration}
+ * additionally verifies the live target kind before mutating. The proposal-writing variants were
+ * removed by ADR-0298 along with the kind they wrote.
  */
 export type CurationAction =
   | { type: "retire-open-question"; id: string; reason: string; supersededBy?: string }
   | { type: "raise-open-question"; doc: Record<string, unknown> }
   | { type: "reframe-open-question"; id: string; set: Record<string, unknown> }
-  | { type: "create-proposal"; doc: Record<string, unknown> }
-  | { type: "edit-proposal"; id: string; set: Record<string, unknown> }
   | { type: "comment"; artifactId: string; body: string }
   | { type: "escalate"; artifactId: string; body: string };
 
 /**
  * What the curator judges over (ADR-0065 scope = the story nodes being iterated). The runner is
- * handed the built story's id + node ids + deciding ADRs, the open-questions / proposals already
- * loaded from the live store, and the parsed ADR metas — enough to work out which artifacts are
+ * handed the built story's id + node ids + deciding ADRs, the open-questions already loaded from
+ * the live store, and the parsed ADR metas — enough to work out which artifacts are
  * relevant and whether any open-question is overtaken, without roaming the whole corpus.
  */
 export interface CurationContext {
@@ -61,7 +66,6 @@ export interface CurationContext {
   nodeIds: string[];
   decisions: number[];
   openQuestions: StoredDoc[];
-  proposals: StoredDoc[];
   adrs: AdrMeta[];
 }
 
@@ -128,8 +132,8 @@ function topicAnchor(): CommentAnchor {
 
 /**
  * Apply a curator's {@link CurationAction}s to the store, KIND-FENCED. Each write verifies the live
- * target kind first (retire / reframe → open-question; edit → proposal; raise/create refuse an
- * existing id, edit-first-curation); a mismatch is REFUSED, never forced. Comments + escalations go
+ * target kind first (retire / reframe / raise → open-question; raise refuses an existing id,
+ * edit-first-curation); a mismatch is REFUSED, never forced. Comments + escalations go
  * to the live comment store when present, else they are recorded as report lines. Never throws on a
  * single bad action — it collects refusals so the enclosing build is never failed by curation.
  */
@@ -196,16 +200,6 @@ export async function enactCuration(
             actor,
           );
           record(out, result, "reframed open-question");
-          break;
-        }
-        case "create-proposal": {
-          const result = await createDoc(deps.store, action.doc, WRITABLE_KINDS.proposal, actor);
-          record(out, result, "created proposal");
-          break;
-        }
-        case "edit-proposal": {
-          const result = await patchDoc(deps.store, action.id, action.set, WRITABLE_KINDS.proposal, actor);
-          record(out, result, "edited proposal");
           break;
         }
         case "comment": {
@@ -296,15 +290,15 @@ function record(out: CurationOutcome, result: DocResult, verb: string): void {
 
 /**
  * Run the whole curation pass and return its build-header report lines — NEVER throwing (curation
- * is advisory and must never fail the enclosing build, ADR-0067). It loads the open-questions +
- * proposals from the library store, assembles the {@link CurationContext} for the story nodes built,
+ * is advisory and must never fail the enclosing build, ADR-0067). It loads the open-questions
+ * from the library store, assembles the {@link CurationContext} for the story nodes built,
  * lets the {@link CuratorRunner} judge, and enacts the result kind-fenced. A null `library` means
  * the live curator is not wired for this run (e.g. an offline dry-run with no store injected) — it
  * reports a one-line deferral and does nothing.
  */
 export interface CurationPassInput {
   runner: CuratorRunner;
-  /** The library store to read OQs/proposals from + enact against; null = deferred (nothing to run). */
+  /** The library store to read OQs from + enact against; null = deferred (nothing to run). */
   library: Store | null;
   comments?: CommentSink | null;
   context: { storyId: string; nodeIds: string[]; decisions: number[]; adrs: AdrMeta[] };
@@ -320,16 +314,12 @@ export async function runCurationPass(input: CurationPassInput): Promise<string[
   }
   try {
     const library = input.library;
-    const [openQuestions, proposals] = await Promise.all([
-      library.queryDocs({ kind: WRITABLE_KINDS.openQuestion }),
-      library.queryDocs({ kind: WRITABLE_KINDS.proposal }),
-    ]);
+    const openQuestions = await library.queryDocs({ kind: WRITABLE_KINDS.openQuestion });
     const ctx: CurationContext = {
       storyId: input.context.storyId,
       nodeIds: input.context.nodeIds,
       decisions: input.context.decisions,
       openQuestions,
-      proposals,
       adrs: input.context.adrs,
     };
     const actions = await input.runner.run(ctx);
@@ -362,24 +352,21 @@ export const CURATOR_AGENT_ID = "librarian-curator";
 /**
  * The structured-output contract appended to the rendered agent body — the curator emits ONLY a
  * JSON array of intents (no write tools exist), and the spine enacts them kind-fenced. The retire
- * discipline (confident-only, with a cited reason) and the write fence (OQ + proposal only) are
- * stated here so the prompt and {@link enactCuration} agree.
+ * discipline (confident-only, with a cited reason) and the write fence (OQ only, since ADR-0298
+ * retired the proposal kind) are stated here so the prompt and {@link enactCuration} agree.
  */
 const CURATOR_OUTPUT_CONTRACT = [
   "## How you run (the post-build curation pass)",
   "",
-  "You are spawned once, after a story's build goes green, to clean up the open-questions and",
-  "proposals connected to that story. The user message gives you the neighbourhood: the story's",
-  "nodes, its deciding ADRs (with current status), and the open-questions + proposals around it.",
-  "Judge ONLY that neighbourhood.",
+  "You are spawned once, after a story's build goes green, to clean up the open-questions connected",
+  "to that story. The user message gives you the neighbourhood: the story's nodes, its deciding ADRs",
+  "(with current status), and the open-questions around it. Judge ONLY that neighbourhood.",
   "",
   "Emit your decisions as a SINGLE fenced ```json block containing an array of action objects, and",
   "NOTHING else (no prose before or after). Each object is one of:",
   '  { "type": "retire-open-question", "id": "<oq-id>", "reason": "<why it is clearly overtaken — cite what landed>", "supersededBy": "<doc:decisions/NNNN-... | optional>" }',
   '  { "type": "reframe-open-question", "id": "<oq-id>", "set": { "<field>": "<new value>" } }',
   '  { "type": "raise-open-question", "doc": { "id": "...", "kind": "open-question", "title": "...", "description": "...", "stakes": "...", "statement": "...", "context": "...", "options": "...", "createdAt": "<iso>", "updatedAt": "<iso>" } }',
-  '  { "type": "create-proposal", "doc": { "id": "...", "kind": "proposal", "title": "...", "description": "...", "summary": "...", "motivation": "...", "change": "...", "scope": "...", "migration": "...", "readiness": "...", "createdAt": "<iso>", "updatedAt": "<iso>" } }',
-  '  { "type": "edit-proposal", "id": "<id>", "set": { "<field>": "<new value>" } }',
   '  { "type": "comment", "artifactId": "<id>", "body": "<observation>" }',
   '  { "type": "escalate", "artifactId": "<id>", "body": "<discrepancy the owner should decide>" }',
   "",
@@ -387,9 +374,11 @@ const CURATOR_OUTPUT_CONTRACT = [
   "- RETIRE only an open-question you are CONFIDENT is overtaken — its blocking premise has been",
   "  settled by a landed decision. Give a concrete reason naming what overtook it. When unsure,",
   "  REFRAME or COMMENT instead; never retire on a hunch.",
-  "- You may WRITE only open-question and proposal artifacts. Any concern about a definition /",
-  "  principle / guardrail / techstack / process / agent is a COMMENT, and an ESCALATE if it needs an",
-  "  owner decision — never an edit.",
+  "- You may WRITE only open-question artifacts. Any concern about a definition / principle /",
+  "  guardrail / techstack / process / agent is a COMMENT, and an ESCALATE if it needs an owner",
+  "  decision — never an edit.",
+  "- Deferred WORK is not yours to park. A remedy worth building later belongs on the arc that owns",
+  "  it (ADR-0298), which the friction adjudicator places; from here it is an ESCALATE.",
   "- If nothing needs doing, emit an empty array: []",
 ].join("\n");
 
@@ -459,11 +448,6 @@ export function serializeCurationContext(ctx: CurationContext): string {
       "",
     );
   }
-  lines.push(`## Proposals in this neighbourhood (${ctx.proposals.length})`);
-  if (ctx.proposals.length === 0) lines.push("  (none)");
-  for (const p of ctx.proposals) {
-    lines.push(`### ${p.id}`, `title: ${bodyField(p.doc, "title")}`, `summary: ${bodyField(p.doc, "summary")}`, "");
-  }
   lines.push("Now emit your JSON array of curation actions (or [] if nothing needs doing).");
   return lines.join("\n");
 }
@@ -472,8 +456,6 @@ const ACTION_TYPES = new Set<CurationAction["type"]>([
   "retire-open-question",
   "raise-open-question",
   "reframe-open-question",
-  "create-proposal",
-  "edit-proposal",
   "comment",
   "escalate",
 ]);
@@ -499,13 +481,11 @@ function coerceAction(raw: unknown): CurationAction | null {
       const supersededBy = str(o.supersededBy);
       return { type, id, reason, ...(supersededBy !== null ? { supersededBy } : {}) };
     }
-    case "raise-open-question":
-    case "create-proposal": {
+    case "raise-open-question": {
       const doc = obj(o.doc);
       return doc === null ? null : { type, doc };
     }
-    case "reframe-open-question":
-    case "edit-proposal": {
+    case "reframe-open-question": {
       const id = str(o.id);
       const set = obj(o.set);
       return id === null || set === null ? null : { type, id, set };
