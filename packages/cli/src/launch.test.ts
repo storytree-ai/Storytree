@@ -49,3 +49,41 @@ test("root `storytree` script is wired to the launcher", () => {
     "root storytree script must invoke the direct launcher",
   );
 });
+
+// ---- `--raw <field>` puts the value ALONE on stdout ------------------------------------------
+//
+// The bare-bytes read (proposal `library-artifact-can-read-one-raw-stored-field`) is the ONE
+// deliberate exception to the envelope convention, and the exception only pays off at the process
+// boundary: anything else on stdout — a heading, `doctrine:`, `next:`, the delta footer — defeats
+// piping it to a file. `run` returning the right bytes does not prove `main` writes them, so this
+// spawns the CLI for real. It reads a REAL multi-KB seed field (7 KB of `process` prose), not a
+// fixture, because the whole point is that a long field survives.
+test("library artifact <id> --raw <field> writes the exact stored bytes and nothing else", () => {
+  const SEED = fileURLToPath(new URL("../../../apps/studio/data/knowledge.json", import.meta.url));
+  const seeded = JSON.parse(readFileSync(SEED, "utf8")) as Array<Record<string, unknown>>;
+  const subject = seeded.find((d) => d["id"] === "merge-ceremony");
+  assert.ok(subject, "the seed carries the merge-ceremony process");
+  const expected = subject["steps"];
+  assert.equal(typeof expected, "string");
+  assert.ok((expected as string).length > 2000, "a genuinely multi-KB field, not a fixture");
+
+  const { status, stdout } = runLauncher(["library", "artifact", "merge-ceremony", "--raw", "steps"]);
+  assert.equal(status, 0, "a found field exits 0");
+  assert.equal(stdout, expected, "stdout IS the stored value — byte for byte, nothing appended");
+  // Stated as its own assertions so a regression names what leaked rather than dumping a 7 KB diff.
+  assert.doesNotMatch(stdout, /\nnext:\n/, "no next: block");
+  assert.doesNotMatch(stdout, /\ndoctrine:\n/, "no doctrine block");
+  assert.doesNotMatch(stdout, /^# /, "no artifact heading");
+});
+
+test("library artifact <id> --raw <absent field> exits non-zero and writes no bare bytes", () => {
+  const { status, stdout } = runLauncher([
+    "library",
+    "artifact",
+    "merge-ceremony",
+    "--raw",
+    "notAStoredField",
+  ]);
+  assert.notEqual(status, 0, "an absent field is a miss");
+  assert.match(stdout, /notAStoredField/, "the miss names the field it could not read");
+});

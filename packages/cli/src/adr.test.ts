@@ -17,6 +17,10 @@ import {
   type AdrCommandDeps,
 } from "./adr.js";
 import type { AdrMeta } from "@storytree/drive";
+// The `decided:` date is stamped at the COMPOSITION ROOT, so its proof drives `run` end to end —
+// `adrCommand` only ever sees an already-injected `today`.
+import { InMemoryStore } from "@storytree/storage-protocol";
+import { run } from "./commands.js";
 
 // ---- pure helpers --------------------------------------------------------------------------
 
@@ -429,4 +433,73 @@ test("scaffold stamps arc provenance (ADR-0183 D3) only when given", () => {
 
   // Unstamped stays exactly as before — no arc key at all.
   assert.doesNotMatch(scaffold(185, "Arc-less", { supersedes: [], amends: [] }), /arc:/);
+});
+
+// ---- the `decided:` stamp is the OWNER's local date (proposal
+// `adr-new-decided-stamps-the-owners-local-date`) ------------------------------------------------
+//
+// `adr.ts` already treats `today` as injected data — the defect was upstream, at the composition
+// root, which computed it from the UTC clock. Any session running before ~10:00 Australia/Sydney
+// therefore recorded the decision as the PREVIOUS day, in BOTH the `decided:` frontmatter and the
+// `## Status` prose, and both had to be hand-corrected on every owner-directed ADR.
+
+/** 23:30 UTC on the 10th is already 09:30 on the 11th in Sydney — the exact off-by-one window. */
+const ACROSS_THE_DATE_LINE = new Date("2026-07-10T23:30:00Z");
+
+async function adrNewThroughRun(
+  dir: string,
+  number: number,
+  extraArgv: string[],
+  now: Date,
+): Promise<{ env: Awaited<ReturnType<typeof run>>; file: string }> {
+  const { allocator } = fakeAllocator(number);
+  const env = await run(["adr", "new", "--title", "A decided thing", "--decided", ...extraArgv], {
+    store: new InMemoryStore(),
+    adr: allocator,
+    adrDecisionsDir: dir,
+    now: () => now,
+  });
+  const scaffolded = readdirSync(dir).find((f) => f.endsWith(".md")) ?? "";
+  return { env, file: scaffolded === "" ? "" : readFileSync(path.join(dir, scaffolded), "utf8") };
+}
+
+test("adr new --decided stamps the OWNER-LOCAL date, not the UTC one — in BOTH places", async () => {
+  await withDecisionsDir(async (dir) => {
+    const { file } = await adrNewThroughRun(dir, 300, [], ACROSS_THE_DATE_LINE);
+    // The frontmatter stamp.
+    assert.match(file, /^---\nstatus: accepted\ndecided: 2026-07-11\n---\n/, "frontmatter decided:");
+    // AND the Status prose — the defect surfaced in two places, so a fix correcting one is a half-fix.
+    assert.match(
+      file,
+      /decided\/directed by the owner in conversation on 2026-07-11/,
+      "## Status prose",
+    );
+    assert.doesNotMatch(file, /2026-07-10/, "the UTC date appears nowhere in the scaffold");
+  });
+});
+
+test("adr new --decided-date <YYYY-MM-DD> overrides the derived date", async () => {
+  await withDecisionsDir(async (dir) => {
+    const { file } = await adrNewThroughRun(
+      dir,
+      301,
+      ["--decided-date", "2026-06-01"],
+      ACROSS_THE_DATE_LINE,
+    );
+    assert.match(file, /^---\nstatus: accepted\ndecided: 2026-06-01\n---\n/);
+    assert.match(file, /decided\/directed by the owner in conversation on 2026-06-01/);
+  });
+});
+
+test("adr new --decided-date refuses a value that is not YYYY-MM-DD", async () => {
+  await withDecisionsDir(async (dir) => {
+    const { allocator } = fakeAllocator(302);
+    const env = await run(
+      ["adr", "new", "--title", "Bad date", "--decided", "--decided-date", "1 June 2026"],
+      { store: new InMemoryStore(), adr: allocator, adrDecisionsDir: dir },
+    );
+    assert.equal(env.ok, false);
+    assert.match(env.body, /YYYY-MM-DD/);
+    assert.equal(readdirSync(dir).length, 0, "nothing is scaffolded on a bad date");
+  });
 });
