@@ -1207,6 +1207,38 @@ export function selectedStore(): StudioStore {
   return process.env['STORYTREE_STUDIO_STORE'] === 'json' ? 'json' : 'pg';
 }
 
+/**
+ * The blank-credential refusal, exported so it is directly testable. Returns the refusal message, or
+ * `null` when there is nothing to refuse.
+ *
+ * ONLY the blank case. An ABSENT `STORYTREE_DB_USER` is left alone — the CLI hydrates it from
+ * `~/.storytree/secrets.json`, and a genuinely credential-less run has its own paths. What is refused
+ * is `STORYTREE_DB_USER=`, which is how a shell says "not configured" and what a mangled command
+ * substitution produces. Read as a credential it travels to the Cloud SQL connector and comes back as
+ * `{"store":"pg","db":"unreachable"}` with `/api/tree` 503ing — measured 2026-08-02 (branch
+ * `claude/musing-hertz-44d3ee`), ~25 minutes spent on a database that was never down, while a direct
+ * connector `SELECT 1` answered `{"ok":1}` throughout. That is worse than a wasted probe: it
+ * manufactures exactly the evidence `asset:probe-dont-assume-db-reachability` tells a session to
+ * trust, and sends the next one down the `db:up` / `db:status` / ADR-0250 tree — a whole diagnostic
+ * branch rooted at the wrong substrate.
+ *
+ * IT NAMES THE VARIABLE AND THE HYDRATION SOURCE, NEVER THE DATABASE. The genuine unreachable path is
+ * deliberately untouched: a real connector failure must still say the database is unreachable, because
+ * there it is.
+ */
+export function blankDbCredentialRefusal(env: NodeJS.ProcessEnv = process.env): string | null {
+  const raw = env['STORYTREE_DB_USER'];
+  if (typeof raw !== 'string' || raw.trim().length > 0) return null;
+  return (
+    'STORYTREE_DB_USER is SET BUT EMPTY. That is a mangled export, not a credential — and it is not a ' +
+    'database problem: left alone it reaches the Cloud SQL connector and is reported back to you as ' +
+    '`db: unreachable` for a database that is fine.\n' +
+    '  → unset it, and it hydrates from ~/.storytree/secrets.json (the one rotation point), or\n' +
+    '  → export a real IAM email, or\n' +
+    '  → run offline instead: STORYTREE_STUDIO_STORE=json'
+  );
+}
+
 /** Build the backend for the active store. The pg pool inside PgBackend is still created lazily. */
 export function createBackend(opts: {
   assetsFile: string;
@@ -1216,6 +1248,13 @@ export function createBackend(opts: {
   /** knowledge.json — enables the offline JsonBackend's derive-on-first-read seed (ADR-0210). */
   knowledgeFile?: string;
 }): LibraryBackend {
+  // Refused AT STARTUP, before any connector call — deliberately not inside `PgBackend.#ready()`,
+  // where `health()`'s catch-all would fold it straight back into the `db: 'unreachable'` verdict this
+  // exists to stop being printed for a healthy database.
+  if (selectedStore() === 'pg') {
+    const refusal = blankDbCredentialRefusal();
+    if (refusal !== null) throw new Error(refusal);
+  }
   return selectedStore() === 'pg'
     ? new PgBackend()
     : new JsonBackend({
