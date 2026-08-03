@@ -1,5 +1,5 @@
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
-import { upcastAndValidate } from "@storytree/library";
+import { explainDocValidationError, upcastAndValidate } from "@storytree/library";
 import { arcIsClosed, loadArcRollup, storyArcStamps, type ArcRollup } from "@storytree/drive";
 
 // The ADR scaffolder's kebab-caser, reused rather than copied: `arc new` derives an id slug from a
@@ -294,11 +294,18 @@ function arcNotWritable(verb: string): Envelope {
   };
 }
 
-/** Load an arc doc for a write, or return the honest miss/wrong-kind envelope (the arcShow messaging). */
+/**
+ * Load an arc doc for a write, or return the honest miss/wrong-kind envelope (the arcShow messaging).
+ *
+ * `storedKeys` is the key set AS READ FROM THE STORE, captured before any caller mutates the copy.
+ * It exists so a validation refusal can charge an unknown field BY AUTHORSHIP: a key the caller
+ * added is a typo, a key that was already stored is SCHEMA SKEW — this checkout predates the PR that
+ * taught the schema about it (see {@link explainDocValidationError}).
+ */
 async function loadArcForWrite(
   deps: ArcWriteDeps,
   id: string,
-): Promise<{ doc: Record<string, unknown> } | { error: Envelope }> {
+): Promise<{ doc: Record<string, unknown>; storedKeys: readonly string[] } | { error: Envelope }> {
   const stored = await deps.store.getDoc(id);
   if (!stored || stored.kind !== "arc") {
     return {
@@ -313,7 +320,7 @@ async function loadArcForWrite(
   }
   const doc =
     typeof stored.doc === "object" && stored.doc !== null ? { ...(stored.doc as Record<string, unknown>) } : {};
-  return { doc };
+  return { doc, storedKeys: Object.keys(doc) };
 }
 
 /**
@@ -558,7 +565,11 @@ export async function arcEdit(
   try {
     valid = upcastAndValidate(base);
   } catch (e) {
-    return { ok: false, body: `edit would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree arc show ${id} --pg`] };
+    return {
+      ok: false,
+      body: `edit would make "${id}" invalid:\n${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}`,
+      next: [`storytree arc show ${id} --pg`],
+    };
   }
   const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
   const changed = [opts.intent !== undefined ? "intent" : null, opts.endState !== undefined ? "endState" : null]
@@ -613,7 +624,11 @@ export async function arcIncrementAdd(
   try {
     valid = upcastAndValidate(base);
   } catch (e) {
-    return { ok: false, body: `increment would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree arc show ${id} --pg`] };
+    return {
+      ok: false,
+      body: `increment would make "${id}" invalid:\n${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}`,
+      next: [`storytree arc show ${id} --pg`],
+    };
   }
   const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
   const count = Array.isArray((valid as Record<string, unknown>)["increments"])
@@ -748,7 +763,7 @@ export async function arcProposalAdd(
   } catch (e) {
     return {
       ok: false,
-      body: `parking "${entryId}" would make arc "${arcId}" invalid:\n${(e as Error).message}`,
+      body: `parking "${entryId}" would make arc "${arcId}" invalid:\n${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}`,
       next: [`storytree arc show ${arcId} --pg`],
     };
   }
@@ -856,7 +871,7 @@ export async function arcProposalRealize(
   } catch (e) {
     return {
       ok: false,
-      body: `realizing "${entryId}" would make arc "${arcId}" invalid:\n${(e as Error).message}`,
+      body: `realizing "${entryId}" would make arc "${arcId}" invalid:\n${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}`,
       next: [`storytree arc show ${arcId} --pg`],
     };
   }
@@ -943,7 +958,11 @@ export async function arcClose(
   try {
     valid = upcastAndValidate(base);
   } catch (e) {
-    return { ok: false, body: `close would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree arc show ${id} --pg`] };
+    return {
+      ok: false,
+      body: `close would make "${id}" invalid:\n${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}`,
+      next: [`storytree arc show ${id} --pg`],
+    };
   }
   // ONE upsert — the terminal increment and the flip land together or not at all.
   const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });

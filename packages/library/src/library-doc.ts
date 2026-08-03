@@ -89,8 +89,26 @@ export function upcastAndValidate(input: unknown): LibraryDoc {
  *
  * The write surface's own hints (which fields it stamps, which verb to use instead) belong to the
  * CALLER — the `artifact edit --set` precedent, where `commands.ts` owns the unsettable-field set.
+ *
+ * SCHEMA SKEW is reported separately, and that distinction is the point of `opts.storedKeys`. Pass
+ * the keys the doc had AS READ FROM THE STORE and an unknown key is charged BY AUTHORSHIP — the
+ * same move ADR-0290 made for `check:corpus-content`. A key the caller introduced is a typo; a key
+ * that was ALREADY IN THE STORED DOC is not the caller's at all: the library tier is live-canonical
+ * (ADR-0023), so a `--pg` write can add a doc field BEFORE the schema that validates it reaches
+ * `main`, and every session on main-derived code is then hard-refused on an artifact it never
+ * touched. Measured 2026-08-03: ADR-0298's sweep wrote `proposals` onto four arcs (including
+ * `verification-integrity-arc`, the busiest in the tree) about 1h40m before PR #1128 landed the
+ * schema half. For that window `arc increment add` refused with a bare zod dump naming the KEY, so
+ * the refusal read as "you passed a bad field" — and it arrived at the merge ceremony's residue
+ * step, after automerge, when the branch is dead and there is nothing left to fix it with. Four
+ * tool-calls went into establishing that the blocker was neither the session's data nor a bug.
+ * Without `storedKeys` the behaviour is unchanged, so every existing caller keeps its current text.
  */
-export function explainDocValidationError(input: unknown, err: unknown): string {
+export function explainDocValidationError(
+  input: unknown,
+  err: unknown,
+  opts?: { storedKeys?: readonly string[] },
+): string {
   const raw = err instanceof Error ? err.message : String(err);
 
   // Mirror upcastAndValidate: the doc that FAILED is the upcast one, so diagnose that shape.
@@ -138,10 +156,42 @@ export function explainDocValidationError(input: unknown, err: unknown): string 
     }
   }
 
-  const lines = [`checked against the ${label} schema — what is actually wrong:`];
-  if (missing.length > 0) lines.push(`  ✗ missing required field(s): ${missing.join(", ")}`);
-  if (unknownKeys.length > 0) lines.push(`  ✗ field(s) this kind does not have: ${unknownKeys.join(", ")}`);
-  for (const line of other) lines.push(`  ✗ ${line}`);
-  lines.push(`a ${label} takes: ${Object.keys(schema.shape).sort().join(", ")}.`);
+  // Charge each unknown key by AUTHORSHIP. A key already present in the doc as READ FROM THE STORE
+  // was not introduced by this write, so "this kind does not have it" is the wrong diagnosis and
+  // "remove it" is the wrong remedy — the field is another session's landed work.
+  const storedKeys = new Set(opts?.storedKeys ?? []);
+  const skewed = unknownKeys.filter((k) => storedKeys.has(k));
+  const authored = unknownKeys.filter((k) => !storedKeys.has(k));
+
+  const lines: string[] = [];
+
+  if (skewed.length > 0) {
+    lines.push(
+      `SCHEMA SKEW — the STORED document already carries field(s) this checkout's schema does not know: ${skewed.join(", ")}`,
+      "",
+      "Your write did not introduce them. The library tier is live-canonical (ADR-0023), so a `--pg`",
+      "write can add a doc field before the code that validates it reaches `main` — this checkout",
+      "predates that landing.",
+      "",
+      "  Fix:  git fetch origin && git merge origin/main     (then re-run this command)",
+      "",
+      "  Do NOT strip the field to get past this. It is another session's landed work, and removing",
+      "  it destroys that work — the write would persist the stripped doc back to the live store.",
+      "",
+      "If `main` genuinely does not carry the field yet, the schema half is still in flight on another",
+      "branch. No ref-scoped search can see that (a `git grep origin/main` correctly reports it absent,",
+      "which reads as `never authored` rather than `authored and not yet landed`). Wait for it to land.",
+    );
+    if (authored.length > 0 || missing.length > 0 || other.length > 0) lines.push("");
+  }
+
+  if (authored.length > 0 || missing.length > 0 || other.length > 0) {
+    lines.push(`checked against the ${label} schema — what is actually wrong:`);
+    if (missing.length > 0) lines.push(`  ✗ missing required field(s): ${missing.join(", ")}`);
+    if (authored.length > 0) lines.push(`  ✗ field(s) this kind does not have: ${authored.join(", ")}`);
+    for (const line of other) lines.push(`  ✗ ${line}`);
+    lines.push(`a ${label} takes: ${Object.keys(schema.shape).sort().join(", ")}.`);
+  }
+
   return lines.join("\n");
 }
