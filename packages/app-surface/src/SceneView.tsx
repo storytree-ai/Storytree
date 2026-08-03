@@ -597,8 +597,14 @@ function vegetationTrackImage(
     height: fmt(place.height),
     preserveAspectRatio: 'none',
     imageRendering: 'pixelated',
-    // The wrapper `<g>` keeps the handlers and the preserved hit target; the artwork itself is inert.
-    pointerEvents: 'none',
+    // HITTABLE, deliberately — and NOT `pointer-events: none` like the decorative organic-pose layer
+    // this borrowed its shape from. An SVG `<g>` receives a pointer event only through a child that
+    // was itself hit, so an inert image would leave the wrapper's handlers unreachable everywhere the
+    // artwork covers. Worse, TreeView's Electron-safe selection is a COORDINATE hit-test
+    // (`elementFromPoint(...).closest('[data-story-id]')`, the pointer-capture-retarget fix): an inert
+    // tree lets that probe fall straight through the canopy to bare `<svg>` and select nothing. Caught
+    // by `apps/desktop/e2e/node-click.e2e.mjs`, which is the wall built for exactly this bug class.
+    // The vector bodies this replaces were all hittable; this restores that, it does not add reach.
     'aria-hidden': true,
     className: `veg-track veg-track-${render.role}${render.status ? ` st-${render.status}` : ''}`,
     'data-veg-track': place.trackId,
