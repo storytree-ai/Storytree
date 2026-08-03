@@ -47,6 +47,19 @@ our canopy". Under simultaneous growth there is no frame in which the limbs are 
 there was never a moment where the structure could register. Sequencing the phases addresses the
 same complaint from the other end, without touching the canopy rules.
 
+*(Corrected in place 2026-08-03 per ADR-0139; the DECISION is untouched and the paragraph's argument
+survives, but the number it argues from was the wrong instrument. The v7 increment measured that
+crown GREEN FRACTION mixes two independent causes — `measure()` scored green on `G > R and G > B`,
+which exp-16's own warm highlight band (173,167,114) and darkest foliage band (92,90,46) both fail,
+so 27% of its "non-green" crown is foliage. By nearest family the gap was BARK: 670 px of exp-16's
+mature crown against 206 — and the v8 increment then CLOSED it, to 631 px (15.3% of crown against
+exp-16's 15.7%), by opening the lower canopy geometrically rather than by any shading change
+(corrected again 2026-08-03, same rule, the decision still untouched). This paragraph's claim that
+sequencing addresses the complaint "from the other end" is also now measured rather than argued, and
+the answer is that it did NOT move the mature frame — at the final frame the two tracks are the same
+tree, which the v6 increment then recorded. What sequencing bought is watchability of the wood phase,
+which is what D1 actually claims.)*
+
 ## Decision
 
 **The track has TWO phases. The wood extends and branches alone; the leaves flush onto a tree that
@@ -92,6 +105,11 @@ is already a tree.**
 - It is a plausible answer to the crown-structure gap that three increments measured and none
   closed, reached from the other side: the limbs get frames of their own instead of competing with
   foliage for the same ones.
+  **Corrected in place 2026-08-03 (ADR-0139); the decision is unchanged.** This was a prediction, and
+  measurement answered it no: sequencing did not move the mature frame at all (the Context correction
+  above records it), and the gap was closed on 2026-08-03 by canopy GEOMETRY instead — the v8
+  increment's height-scaled lobe radius took in-crown bark 206 → 631 px against exp-16's 670. The
+  wood phase's watchability is what this decision actually bought, and it is what D1 claims.
 
 **Bad, or at least owed.**
 

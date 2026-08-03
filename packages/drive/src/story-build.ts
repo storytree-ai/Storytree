@@ -29,6 +29,13 @@ import type {
 } from "@storytree/orchestrator";
 
 import { backstopJobs, observeBackstop } from "./chain-backstop.js";
+import type { ClaimDocT } from "@storytree/notice-board";
+
+import {
+  decideClaimExit,
+  displacedClaimNotice,
+  releaseClaimWithNotice,
+} from "./claim-release.js";
 import { effectiveVerdictStore, ensureLiveDb } from "./db-control.js";
 import type { LeafSlicesObserver } from "./node-build.js";
 import type { EnsureDbResult } from "./db-control.js";
@@ -606,6 +613,11 @@ export async function storyBuild(
   // lone `node build`; this covers the story chain). Live exactly when verdicts persist (--store pg)
   // and identity is worktree-derivable. A build run never writes session presence (ADR-0199) —
   // the identity feeds ONLY the claim; the launching session's declaration survives the chain.
+  //
+  // "Survives the chain" needed `claimDisplaced` below to be true: the take uses the LAUNCHING
+  // session's identity and `events.node_claim` is keyed `(unit_id, session_id)`, so it overwrites
+  // that session's own row rather than adding one — and an unconditional release then destroyed a
+  // claim the chain never took (claim-release.ts carries the event-log trace).
   const claimStore = opts.claim?.store !== undefined ? opts.claim.store : storeChoice.claim;
   const claimIdentity = opts.identity !== undefined ? opts.identity : deriveIdentity();
 
@@ -620,6 +632,8 @@ export async function storyBuild(
   // try would leak the Cloud SQL pool for the process lifetime.
   let worktree: BuildWorktree | undefined;
   let claimHeld = false;
+  /** The session's OWN claim this chain's take absorbed, if any — a borrow, not a take. */
+  let claimDisplaced: ClaimDocT | undefined;
   try {
     // Refuse a duplicate concurrent story build before cutting a worktree or spending (ADR-0121) —
     // the ENFORCING twin of presence; a second `story build <same>` on the shared store is refused.
@@ -648,6 +662,7 @@ export async function storyBuild(
         };
       }
       claimHeld = true;
+      claimDisplaced = claimRes.displaced;
     }
 
     // REAL mode: ONE shared worktree for the whole chain — each node authors + commits into it in
@@ -1019,12 +1034,20 @@ export async function storyBuild(
       ],
     };
   } finally {
-    // Release the story claim (ADR-0121); swallow failures (it ages out via stale-reclaim).
+    // Release the story claim (ADR-0121) — but ONLY the one this chain's own take created; a claim
+    // the launching session already held was borrowed, not taken, so the chain leaves it (else the
+    // session's declaration silently vanishes across its own builds — the ADR-0199 class). Either
+    // way it says so; failures are still swallowed (it ages out via stale-reclaim).
     if (claimHeld && claimStore !== null && claimIdentity !== null) {
-      try {
-        await claimStore.release(story.id, claimIdentity.sessionId);
-      } catch {
-        // swallow
+      const caller = `story build ${story.id} ${real ? "--real" : live ? "--live" : "--dry-run"}`;
+      const exit = decideClaimExit(claimDisplaced);
+      if (exit.action === "release") {
+        await releaseClaimWithNotice(
+          { release: (unitId, sessionId) => claimStore.release(unitId, sessionId) },
+          { unitId: story.id, sessionId: claimIdentity.sessionId, caller },
+        );
+      } else {
+        console.error(displacedClaimNotice(caller, exit.displaced));
       }
     }
     if (worktree !== undefined) await worktree.remove();

@@ -1579,6 +1579,20 @@ export interface HealthDeps {
  * The stamp is omitted (not an error) when git can't answer; a probe rejection is belt-and-
  * braces flattened to the same absence. Exported for the integration test (the dbControl.ts
  * pattern).
+ *
+ * It also stamps `pid` — the OS process id of the process answering. Without it a readiness
+ * probe can only observe "something on this port is healthy" and is read as "MY server is
+ * healthy"; the two diverge exactly when a sibling session already holds the port, which is
+ * the normal state of this shared dev box (measured 2026-08-02: a 200 + the right 45-story
+ * /api/tree shape from a FOREIGN server while this session's own listen() had died on
+ * EADDRINUSE). `scripts/studio.mjs` compares this against the pid it spawned, so a port
+ * collision is reported instead of silently measured. TWO LIMITS, by construction:
+ *   - A pid identifies a process on THIS machine, so the comparison is meaningful only for a
+ *     LOCALHOST launcher. The field is emitted unconditionally (one code path, no environment
+ *     guess that could fail OPEN on the very check it feeds) but the hosted Cloud Run response
+ *     carries a pid nobody can compare — nothing reads it there, and nothing should.
+ *   - It identifies a foreign LISTENER, never a foreign BUILD: the same session restarting a
+ *     stale build under its own pid still measures the wrong code. That is `code`'s job above.
  */
 export async function handleHealth(
   req: IncomingMessage,
@@ -1590,7 +1604,8 @@ export async function handleHealth(
     deps.health(),
     deps.codeStamp().catch(() => null),
   ]);
-  sendJson(res, 200, { store: deps.store, ...health, ...(code ? { code } : {}) });
+  // `pid` last so a future HealthProbe field can never shadow the identity stamp.
+  sendJson(res, 200, { store: deps.store, ...health, ...(code ? { code } : {}), pid: process.pid });
 }
 
 /**

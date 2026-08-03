@@ -17,6 +17,10 @@ import {
   type AdrCommandDeps,
 } from "./adr.js";
 import type { AdrMeta } from "@storytree/drive";
+// The `decided:` date is stamped at the COMPOSITION ROOT, so its proof drives `run` end to end —
+// `adrCommand` only ever sees an already-injected `today`.
+import { InMemoryStore } from "@storytree/storage-protocol";
+import { run } from "./commands.js";
 
 // ---- pure helpers --------------------------------------------------------------------------
 
@@ -139,10 +143,12 @@ test("renderAdrList --current keeps only accepted (drops proposed + superseded r
   assert.doesNotMatch(lines, /0086 .*proposed/);
 });
 
-test("renderAdrList --load-bearing keeps only the tagged set", () => {
+test("renderAdrList --load-bearing keeps the tagged set and what its amends edges reach", () => {
   const lines = renderAdrList(SAMPLE, { loadBearing: true }).join("\n");
   assert.match(lines, /0011/);
   assert.match(lines, /0019/);
+  assert.match(lines, /0271/); // reached: accepted, amends ★0142
+  // An unrelated superseder and a proposed ADR are neither tagged nor reached.
   assert.doesNotMatch(lines, /0027/);
   assert.doesNotMatch(lines, /0086/);
 });
@@ -164,12 +170,75 @@ test("renderAdrList shows the derived amended-by back-edge, even when the amende
   assert.match(lines, /amends 0142/); // 0271's outgoing edge
   assert.match(lines, /amended by 0271/); // 0142's derived back-edge
 
-  // Computed from the FULL set BEFORE the display filter — the ADR-0142/0271 case: a `--load-bearing`
-  // cut hides the amender's own row (0271 isn't tagged), yet 0142 still carries the pointer, so the
-  // primary calibration surface never shows an amended leg unqualified.
-  const loadBearing = renderAdrList(SAMPLE, { loadBearing: true }).join("\n");
-  assert.doesNotMatch(loadBearing, /0271 {2}accepted/); // the amender's ROW is filtered out
-  assert.match(loadBearing, /amended by 0271/); // …its back-edge on 0142 survives
+  // Computed from the FULL set BEFORE the display filter, so a back-edge survives a cut that hides
+  // the amender's own row. An ACCEPTED amender is no longer such a case (it is now pulled INTO
+  // `--load-bearing` by reach — see the reach tests below); a still-undecided one is, and must
+  // still leave its pointer on the amended ADR.
+  const loadBearing = renderAdrList(REACH, { loadBearing: true }).join("\n");
+  assert.doesNotMatch(loadBearing, /0265 {2}proposed/); // the proposed amender's ROW is filtered out
+  assert.match(loadBearing, /amended by .*0265 \(proposed\)/); // …its back-edge on 0142 survives
+});
+
+// ---- --load-bearing calibration reach (the-load-bearing-view-follows-amends-edges) ------------
+//
+// The curated ★ tag alone made `--load-bearing` CONFIDENTLY INCOMPLETE: an accepted ADR that
+// amends a load-bearing one overtakes part of it, yet was absent from the exact surface CLAUDE.md
+// sends every session to calibrate on — and absence is undetectable from that surface. Reach is
+// now DERIVED from the `amends` edge that already exists in the frontmatter (ADR-0037), so it
+// cannot drift from the files and survives ADR-0139 retiring the `load_bearing` tag.
+const REACH: AdrListing[] = [
+  listing(142, "accepted", "Branch dies on merge", { loadBearing: true }), // ★ the curated seed
+  listing(271, "accepted", "Sessions end at merge", { amends: [142] }), // ☆ one hop
+  listing(275, "accepted", "Sessions may continue past merge", { amends: [271] }), // ☆ two hops
+  listing(265, "proposed", "An undecided amendment", { amends: [142] }), // undecided → not reached
+  listing(177, "superseded", "A dead amendment", { amends: [142] }), // dead → not reached
+  listing(500, "accepted", "Unrelated to the set", {}), // no edge → not reached
+];
+
+test("--load-bearing reaches an accepted ADR that amends the curated set", () => {
+  const lines = renderAdrList(REACH, { loadBearing: true }).join("\n");
+  assert.match(lines, /0142 {2}accepted/); // the curated seed
+  assert.match(lines, /0271 {2}accepted/); // reached: it amends ★0142
+});
+
+test("--load-bearing reach is TRANSITIVE — an amender of a reached ADR is reached too", () => {
+  // One hop would re-create the reported gap one level out: 0275 overtakes part of 0271, which
+  // itself overtakes part of ★0142. A reader calibrating on this surface needs the whole chain.
+  const lines = renderAdrList(REACH, { loadBearing: true }).join("\n");
+  assert.match(lines, /0275 {2}accepted/);
+});
+
+test("--load-bearing reach never promotes an UNDECIDED or DEAD amendment", () => {
+  const lines = renderAdrList(REACH, { loadBearing: true }).join("\n");
+  // The inverse error: a derived view that pulls in a `proposed` amender OVERSTATES the current
+  // set, and a `superseded` one resurrects a dead decision. Only `accepted` edges propagate.
+  assert.doesNotMatch(lines, /0265 {2}proposed/);
+  assert.doesNotMatch(lines, /0177 {2}superseded/);
+  // …and an accepted ADR with no edge into the set stays out.
+  assert.doesNotMatch(lines, /0500 {2}accepted/);
+});
+
+test("renderAdrList marks curated ★ and edge-reached ☆ so growth in the set is attributable", () => {
+  const lines = renderAdrList(REACH, { loadBearing: true }).join("\n");
+  assert.match(lines, /★ 0142 {2}accepted/); // hand-curated
+  assert.match(lines, /☆ 0271 {2}accepted/); // derived from the edge
+  assert.match(lines, /☆ 0275 {2}accepted/);
+});
+
+test("back-edges label a non-accepted amender with its status (never as a live amendment)", () => {
+  const lines = renderAdrList(REACH, {}).join("\n");
+  // ★0142 is amended by one accepted, one proposed and one superseded ADR. Rendered bare they read
+  // identically — the reader cannot tell a live amendment from an undecided or a dead one.
+  assert.match(lines, /amended by 0177 \(superseded\), 0265 \(proposed\), 0271$/m);
+});
+
+test("back-edge status labels apply to superseded-by too", () => {
+  const mixed: AdrListing[] = [
+    listing(400, "superseded", "The target"),
+    listing(410, "proposed", "An undecided superseder", { supersedes: [400] }),
+  ];
+  const lines = renderAdrList(mixed, {}).join("\n");
+  assert.match(lines, /superseded by 0410 \(proposed\)$/m);
 });
 
 test("renderAdrList dedupes + sorts both derived back-edges (two amenders, one twice)", () => {
@@ -364,4 +433,73 @@ test("scaffold stamps arc provenance (ADR-0183 D3) only when given", () => {
 
   // Unstamped stays exactly as before — no arc key at all.
   assert.doesNotMatch(scaffold(185, "Arc-less", { supersedes: [], amends: [] }), /arc:/);
+});
+
+// ---- the `decided:` stamp is the OWNER's local date (proposal
+// `adr-new-decided-stamps-the-owners-local-date`) ------------------------------------------------
+//
+// `adr.ts` already treats `today` as injected data — the defect was upstream, at the composition
+// root, which computed it from the UTC clock. Any session running before ~10:00 Australia/Sydney
+// therefore recorded the decision as the PREVIOUS day, in BOTH the `decided:` frontmatter and the
+// `## Status` prose, and both had to be hand-corrected on every owner-directed ADR.
+
+/** 23:30 UTC on the 10th is already 09:30 on the 11th in Sydney — the exact off-by-one window. */
+const ACROSS_THE_DATE_LINE = new Date("2026-07-10T23:30:00Z");
+
+async function adrNewThroughRun(
+  dir: string,
+  number: number,
+  extraArgv: string[],
+  now: Date,
+): Promise<{ env: Awaited<ReturnType<typeof run>>; file: string }> {
+  const { allocator } = fakeAllocator(number);
+  const env = await run(["adr", "new", "--title", "A decided thing", "--decided", ...extraArgv], {
+    store: new InMemoryStore(),
+    adr: allocator,
+    adrDecisionsDir: dir,
+    now: () => now,
+  });
+  const scaffolded = readdirSync(dir).find((f) => f.endsWith(".md")) ?? "";
+  return { env, file: scaffolded === "" ? "" : readFileSync(path.join(dir, scaffolded), "utf8") };
+}
+
+test("adr new --decided stamps the OWNER-LOCAL date, not the UTC one — in BOTH places", async () => {
+  await withDecisionsDir(async (dir) => {
+    const { file } = await adrNewThroughRun(dir, 300, [], ACROSS_THE_DATE_LINE);
+    // The frontmatter stamp.
+    assert.match(file, /^---\nstatus: accepted\ndecided: 2026-07-11\n---\n/, "frontmatter decided:");
+    // AND the Status prose — the defect surfaced in two places, so a fix correcting one is a half-fix.
+    assert.match(
+      file,
+      /decided\/directed by the owner in conversation on 2026-07-11/,
+      "## Status prose",
+    );
+    assert.doesNotMatch(file, /2026-07-10/, "the UTC date appears nowhere in the scaffold");
+  });
+});
+
+test("adr new --decided-date <YYYY-MM-DD> overrides the derived date", async () => {
+  await withDecisionsDir(async (dir) => {
+    const { file } = await adrNewThroughRun(
+      dir,
+      301,
+      ["--decided-date", "2026-06-01"],
+      ACROSS_THE_DATE_LINE,
+    );
+    assert.match(file, /^---\nstatus: accepted\ndecided: 2026-06-01\n---\n/);
+    assert.match(file, /decided\/directed by the owner in conversation on 2026-06-01/);
+  });
+});
+
+test("adr new --decided-date refuses a value that is not YYYY-MM-DD", async () => {
+  await withDecisionsDir(async (dir) => {
+    const { allocator } = fakeAllocator(302);
+    const env = await run(
+      ["adr", "new", "--title", "Bad date", "--decided", "--decided-date", "1 June 2026"],
+      { store: new InMemoryStore(), adr: allocator, adrDecisionsDir: dir },
+    );
+    assert.equal(env.ok, false);
+    assert.match(env.body, /YYYY-MM-DD/);
+    assert.equal(readdirSync(dir).length, 0, "nothing is scaffolded on a bad date");
+  });
 });

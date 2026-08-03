@@ -53,6 +53,7 @@ describe('/api/health', () => {
       db: 'ok',
       schema: { code: 2, db: 2 },
       code: moved,
+      pid: process.pid,
     });
   });
 
@@ -60,14 +61,14 @@ describe('/api/health', () => {
     deps = { store: 'json', health: async () => ({ db: 'n/a' }), codeStamp: async () => fresh };
     const res = await fetch(`${base}/api/health`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ store: 'json', db: 'n/a', code: fresh });
+    expect(await res.json()).toEqual({ store: 'json', db: 'n/a', code: fresh, pid: process.pid });
   });
 
   it('omits the stamp (still 200) when the probe has no answer', async () => {
     deps = { store: 'pg', health: async () => ({ db: 'unreachable' }), codeStamp: async () => null };
     const res = await fetch(`${base}/api/health`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ store: 'pg', db: 'unreachable' });
+    expect(await res.json()).toEqual({ store: 'pg', db: 'unreachable', pid: process.pid });
   });
 
   it('flattens a probe REJECTION to the same absence — health never 500s over the stamp', async () => {
@@ -80,12 +81,38 @@ describe('/api/health', () => {
     };
     const res = await fetch(`${base}/api/health`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ store: 'pg', db: 'ok' });
+    expect(await res.json()).toEqual({ store: 'pg', db: 'ok', pid: process.pid });
   });
 
   it('refuses non-GET', async () => {
     deps = { store: 'pg', health: async () => ({ db: 'ok' }), codeStamp: async () => null };
     const res = await fetch(`${base}/api/health`, { method: 'POST' });
     expect(res.status).toBe(405);
+  });
+
+  // The identity stamp (scripts/studio.mjs): WHO is answering, not merely that something is. Without
+  // it a readiness probe observes "something on this port is healthy" and is read as "MY server is
+  // healthy" — which diverges precisely when a sibling session already holds the port. Asserted on
+  // its own, and across every leg above, because it must survive a degraded store and an absent code
+  // stamp: the moments a launcher is MOST likely to be racing a foreign listener are exactly the
+  // moments the rest of the envelope is thin.
+  it("carries the answering PROCESS's own pid, whatever else the envelope is missing", async () => {
+    deps = { store: 'pg', health: async () => ({ db: 'unreachable' }), codeStamp: async () => null };
+    const res = await fetch(`${base}/api/health`);
+    const body = (await res.json()) as { pid: unknown };
+    expect(body.pid).toBe(process.pid);
+    expect(Number.isInteger(body.pid)).toBe(true);
+  });
+
+  it('never lets a store probe shadow the pid stamp', async () => {
+    // `pid` is written LAST in handleHealth for this reason: a HealthProbe that ever grew a `pid` of
+    // its own would otherwise silently redefine identity to whatever the STORE reported.
+    deps = {
+      store: 'pg',
+      health: async () => ({ db: 'ok', pid: 999_999 } as unknown as Awaited<ReturnType<HealthDeps['health']>>),
+      codeStamp: async () => null,
+    };
+    const res = await fetch(`${base}/api/health`);
+    expect(((await res.json()) as { pid: number }).pid).toBe(process.pid);
   });
 });

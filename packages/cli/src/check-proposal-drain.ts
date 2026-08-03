@@ -28,7 +28,7 @@ import {
   type RecurrenceHit,
   type ReinforcementRecord,
 } from "./proposal-drain.js";
-import { loadLocalSecrets } from "./secrets.js";
+import { loadLocalSecrets, presentEnv } from "./secrets.js";
 
 const TAG = "[check:proposal-drain]";
 /** Bound the live reads so a stopped DB can't hang the gate (matches check:friction-drain). */
@@ -182,7 +182,7 @@ async function main(): Promise<void> {
   // Match the CLI: hydrate STORYTREE_DB_USER from ~/.storytree/secrets.json when unset (env wins).
   loadLocalSecrets();
 
-  if (process.env["STORYTREE_DB_USER"] === undefined) {
+  if (presentEnv("STORYTREE_DB_USER") === undefined) {
     console.log(`${TAG} SKIP — no STORYTREE_DB_USER (DB creds absent); proposal tier unverified.`);
     return;
   }

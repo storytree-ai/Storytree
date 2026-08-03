@@ -106,13 +106,13 @@ person would call a sapling.
 
 **Annotated in place 2026-08-03 (ADR-0139); the decision is unchanged, and this caution is retained
 because it is TRUE OF WHAT IT MEASURED — round 4's four code tracks.** It is no longer a current-state
-verdict on code, and should not be read as one. Two of its three axes have moved under the later
-`code-blender` lineage that ADR-0280 D2a opened (`docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/`):
-**root flare is closed** — the v5 track's base-band half-width measures 22 against exp-16's 23, and
-its 5%-of-height row 40 px against 46 — and **young-tree proportions are narrowed**, the mid-track
-foliage floor having dropped to 32% where the canopy now runs down the stem instead of sitting on top
-of it. Crown separation still favours exp-16 (crown green fraction 70% against 51%) and is recorded
-there as unaddressed.
+verdict on code, and should not be read as one. All three of its axes have since moved under the later
+`code-blender` lineage that ADR-0280 D2a opened (`docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/`),
+though not at once: **root flare is closed** — the v5 track's base-band half-width measures 22 against
+exp-16's 23, and its 5%-of-height row 40 px against 46 — and **young-tree proportions are narrowed**,
+the mid-track foliage floor having dropped to 32% where the canopy now runs down the stem instead of
+sitting on top of it. Crown separation still favoured exp-16 at that reading (crown green fraction 70%
+against 51%) and was recorded there as unaddressed; the corrections below follow it to its close.
 **Re-annotated in place 2026-08-03 (ADR-0139); the decision is unchanged and so is this paragraph's
 conclusion — but two of its three numbers are v5 measurements, and one of them now describes frames
 that no longer exist.** All three readings above were taken on the v5 track;
@@ -121,8 +121,22 @@ into two phases — the wood extends and branches alone, then the leaves flush �
 frames they characterise were re-rendered. Taking them one at a time, because they did not move
 together. **Root flare stands as written**: v6's mature frame is essentially unchanged, its half-width
 profile matching v5's to within a pixel, so the closure this bullet records is not affected.
-**Crown separation stands, at 71% against exp-16's 51%** rather than 70% — still the standing gap,
-and ADR-0293 did not move it, because at the final frame the two tracks are the same tree.
+**Crown separation was the last of the three to stand, and it stood until 2026-08-03.** ADR-0293 did
+not move it, because at the final frame the two tracks are the same tree.
+*(Corrected again 2026-08-03, same pass-in-place rule; the instrument correction is the durable half
+and it stands unchanged. The v7 increment measured that crown GREEN FRACTION conflates two independent
+causes: `measure()` scored green on `G > R and G > B`, and exp-16's own warm top-highlight band
+(173,167,114) and darkest foliage band (92,90,46) both fail that test, so 27% of its "non-green" crown
+is its own foliage. Read the bark number, not the green fraction; `measure.py` now prints both and no
+longer leads with the green one. On that instrument the gap was 670 px of exp-16's mature crown against
+the code track's 206 — a 3.3x deficit, not the 1.4x this bullet's green figures imply. Corrected a
+third time in place 2026-08-03 (ADR-0139); the DECISION is untouched and only the standing-gap
+measurement is overtaken. The v8 increment closed it to **631 px of in-crown bark, 15.3% of crown,
+against exp-16's 670 (15.7%)**, and the lever was GEOMETRY — a lobe's radius scaled by where it sits
+between the canopy floor and the live top, the lost radius paid back as an outward push so the crown
+keeps its rim. Crown separation is no longer the standing gap; the foliage floor is, at 48% against
+exp-16's 44%. Evidence:
+`docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/README.md` §3 and §6.)*
 **The young-tree clause is the one that is now WRONG, and it is corrected rather than restated**: under
 ADR-0293 the early and mid frames carry NO canopy at all for the whole wood phase (frames 00 through
 06 of 19 on the delivered option, with `con` at 0 and no cloud emitted), so "the canopy now runs down
