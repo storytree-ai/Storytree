@@ -73,24 +73,79 @@ function builtinRunGit(args: string[]): string {
 }
 
 /**
- * Derive session identity from the git worktree.
+ * The refusal prose shared by every identity-gated verb (declare / done / claim). One copy, because
+ * three drifting copies is how a widened rule keeps teaching the old one.
+ */
+export const IDENTITY_REFUSAL_BODY =
+  "Identity is derived from the session worktree (ADR-0033 Decision 1) — from ANY git-registered " +
+  "linked worktree, whatever its parent path (`.claude/worktrees/<name>`, " +
+  "`.codex/worktrees/<n>/storytree`, or your own convention; `git worktree list` shows them). " +
+  "The PRIMARY CHECKOUT is deliberately refused: the shared lobby has no isolated identity to " +
+  "claim under. Run this command from inside a worktree — there is deliberately no flag to " +
+  "supply an identity manually.";
+
+/** Trailing-separator-tolerant last path component, for paths git hands back in either separator. */
+function basename(p: string): string {
+  const parts = p.trim().replace(/[/\\]+$/, "").split(/[/\\]/);
+  return parts[parts.length - 1] ?? "";
+}
+
+/** Compare two git-reported absolute paths for identity, tolerating separator + trailing-slash skew. */
+function samePath(a: string, b: string): boolean {
+  const norm = (p: string) => p.trim().replaceAll("\\", "/").replace(/\/+$/, "");
+  return norm(a) === norm(b);
+}
+
+/**
+ * Derive session identity from the git worktree — from ANY worktree git itself has REGISTERED, not
+ * from a hard-coded path prefix (the ADR-0033 D1 decision is "the session worktree", never
+ * specifically `.claude/`). Widened because a registered linked worktree at
+ * `.codex/worktrees/<n>/storytree` was refused three times across three branches while `git worktree
+ * list` showed it: the session HAD the isolation the rule exists to guarantee, and only the prefix
+ * match disagreed. Since ADR-0200 D3 that refusal fences a whole runtime out of `check:declared` and
+ * therefore out of the merge ceremony, and ADR-0232 makes Codex a first-class leaf, so it recurs by
+ * construction.
  *
- * `sessionId` = basename of the toplevel, but ONLY when the toplevel sits
- * under a `.claude/worktrees/` directory (both `/` and `\` separators accepted).
- * `branch` = current HEAD branch name.
+ * `branch` = current HEAD branch name. `sessionId` resolves in this order:
  *
- * Returns `null` for a plain checkout, an empty basename, or any git error.
+ *  1. `.claude/worktrees/<name>` -> `<name>`, the historical rule, byte-for-byte. It stays FIRST and
+ *     separate rather than folding into rule 2 because the two can genuinely disagree: a slot
+ *     RENAMED after creation keeps git's original admin-dir name, and this box carries exactly that
+ *     — `.claude/worktrees/gemini-subagents-preserved` is admin dir `gemini-subagents`. Folding the
+ *     rules would silently re-key such a session's existing claims.
+ *  2. Any other registered linked worktree -> the basename of its git ADMIN dir
+ *     (`<common>/worktrees/<id>`), NOT of its path. Git mints that id itself and de-duplicates it
+ *     per repository, which is the path-qualification the proposal's Risks section demands: on this
+ *     box six Codex worktrees share the path basename `storytree` and five `--real` replicas share
+ *     `wt`, so a path-basename identity would collapse six sessions onto ONE claim — strictly worse
+ *     than the refusal being fixed. Git has already spread them as `storytree`..`storytree5`.
+ *  3. The PRIMARY CHECKOUT -> null, detected as git-dir === git-common-dir. Load-bearing and
+ *     UNCHANGED: the shared lobby has no isolated identity, and `check:declared`'s lobby arm
+ *     depends on it staying true.
+ *
+ * Returns `null` for the primary checkout, an empty basename, or any git error (unchanged).
  */
 export function deriveIdentity(
   runGit: (args: string[]) => string = builtinRunGit,
 ): SessionIdentity | null {
   try {
     const toplevel = runGit(["rev-parse", "--show-toplevel"]);
-    // Match: .../.claude/worktrees/<name>  (both / and \ separators, name is last path component)
+    // Rule 1: .../.claude/worktrees/<name> (both / and \ separators, name is last path component).
     const match = /[/\\]\.claude[/\\]worktrees[/\\]([^/\\]+)\s*$/.exec(toplevel);
-    if (match === null) return null;
-    const sessionId = match[1];
-    if (sessionId === undefined || sessionId.length === 0) return null;
+    let sessionId = match?.[1] ?? "";
+
+    if (sessionId.length === 0) {
+      // Rules 2 + 3. `--path-format=absolute` so both answers are comparable (and both absolute);
+      // already the house form in `presence-hook.sh` and `check-declared.ts`.
+      const gitDir = runGit(["rev-parse", "--path-format=absolute", "--git-dir"]);
+      const commonDir = runGit(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+      // Rule 3: equal means this is the primary checkout (or a submodule root) — no session identity.
+      if (samePath(gitDir, commonDir)) return null;
+      // Rule 2: linked worktree — git's own registry key, unique per repository by construction.
+      sessionId = basename(gitDir);
+    }
+
+    if (sessionId.length === 0) return null;
     const branch = runGit(["rev-parse", "--abbrev-ref", "HEAD"]);
     return { sessionId, branch };
   } catch {
@@ -205,13 +260,7 @@ export async function noticeboardCommand(
       };
     }
     if (deps.identity === null) {
-      return {
-        ok: false,
-        body:
-          "Identity is derived from the session worktree (ADR-0033 Decision 1). " +
-          "Run this command from inside a recognised .claude/worktrees/<name> checkout — " +
-          "there is deliberately no flag to supply an identity manually.",
-      };
+      return { ok: false, body: IDENTITY_REFUSAL_BODY };
     }
     const workingOn = opts.workingOn;
     if (workingOn === undefined || workingOn.trim().length === 0) {
@@ -295,13 +344,7 @@ export async function noticeboardCommand(
     };
   }
   if (deps.identity === null) {
-    return {
-      ok: false,
-      body:
-        "Identity is derived from the session worktree (ADR-0033 Decision 1). " +
-        "Run this command from inside a recognised .claude/worktrees/<name> checkout — " +
-        "there is deliberately no flag to supply an identity manually.",
-    };
+    return { ok: false, body: IDENTITY_REFUSAL_BODY };
   }
   // A done session is working nothing, so its wisps go out. Fail-soft: a release hiccup is
   // surfaced (stale-reclaim and the CI merge clear are the backstops), never a crash.

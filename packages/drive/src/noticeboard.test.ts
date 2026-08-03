@@ -59,17 +59,120 @@ test("deriveIdentity: recognises a .claude/worktrees/<name> path with backslashe
   assert.equal(result.branch, "claude/some-branch");
 });
 
-test("deriveIdentity: returns null for a plain checkout (not under .claude/worktrees/)", () => {
-  const result = deriveIdentity((args) => {
-    if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
-      return "/home/user/projects/storytree";
-    }
-    if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") {
-      return "main";
-    }
-    return "";
-  });
-  assert.equal(result, null);
+/**
+ * A fake over the exact answers `deriveIdentity` asks git for, shaped like real git: a LINKED
+ * worktree reports `--git-dir` = `<common>/worktrees/<adminId>` against a `--git-common-dir` of
+ * `<common>`, while the PRIMARY CHECKOUT reports the same path for both. Every fixture below is a
+ * real reading taken from `git rev-parse` on the dev box, not an invented shape.
+ */
+function gitFake(opts: {
+  toplevel: string;
+  gitDir: string;
+  commonDir: string;
+  branch?: string;
+}): (args: string[]) => string {
+  return (args: string[]): string => {
+    if (args[1] === "--show-toplevel") return opts.toplevel;
+    if (args[2] === "--git-dir") return opts.gitDir;
+    if (args[2] === "--git-common-dir") return opts.commonDir;
+    if (args[1] === "--abbrev-ref") return opts.branch ?? "main";
+    throw new Error(`unexpected git args: ${args.join(" ")}`);
+  };
+}
+
+test("deriveIdentity: THE PRIMARY CHECKOUT stays refused — git-dir === git-common-dir (ADR-0033 D1's load-bearing half)", () => {
+  // Unchanged by the widening and asserted separately from it: the shared lobby has no isolated
+  // identity to claim under, and `check:declared`'s lobby arm depends on this staying true.
+  assert.equal(
+    deriveIdentity(
+      gitFake({
+        toplevel: "/home/user/projects/storytree",
+        gitDir: "/home/user/projects/storytree/.git",
+        commonDir: "/home/user/projects/storytree/.git",
+      }),
+    ),
+    null,
+  );
+  // Same verdict when git hands the two answers back with skewed separators / a trailing slash.
+  assert.equal(
+    deriveIdentity(
+      gitFake({
+        toplevel: "C:/code/storytree",
+        gitDir: "C:\\code\\storytree\\.git",
+        commonDir: "C:/code/storytree/.git/",
+      }),
+    ),
+    null,
+    "separator or trailing-slash skew must not read as a linked worktree",
+  );
+});
+
+test("deriveIdentity: THE FIX — a git-registered linked worktree OUTSIDE .claude/ resolves (the Codex shape)", () => {
+  // The decisive 2026-07-25 observation: `git worktree list` registered this checkout and
+  // `noticeboard declare` refused it anyway, fencing a whole runtime out of the merge ceremony.
+  const result = deriveIdentity(
+    gitFake({
+      toplevel: "C:/Users/mickh/.codex/worktrees/0a10/storytree",
+      gitDir: "C:/code/storytree/.git/worktrees/storytree4",
+      commonDir: "C:/code/storytree/.git",
+      branch: "codex/some-branch",
+    }),
+  );
+  assert.ok(result !== null, "a registered linked worktree must resolve, whatever its parent path");
+  assert.equal(result.sessionId, "storytree4");
+  assert.equal(result.branch, "codex/some-branch");
+
+  // Not a Codex-specific carve-out — any registered linked worktree at any path.
+  const sibling = deriveIdentity(
+    gitFake({
+      toplevel: "C:/code/storytree-adr0253",
+      gitDir: "C:/code/storytree/.git/worktrees/storytree-adr0253",
+      commonDir: "C:/code/storytree/.git",
+    }),
+  );
+  assert.equal(sibling?.sessionId, "storytree-adr0253");
+});
+
+test("deriveIdentity: worktrees sharing a PATH basename get DISTINCT identities — the collision the widening must not create", () => {
+  // The proposal's Risks section, and it is not hypothetical: on the dev box SIX Codex worktrees
+  // share the path basename `storytree` and five `--real` replicas share `wt`. Deriving from the
+  // path basename would collapse them onto ONE claim — strictly worse than the refusal being
+  // fixed. Git's admin-dir id is already de-duplicated per repository, so it path-qualifies for us.
+  const first = deriveIdentity(
+    gitFake({
+      toplevel: "C:/Users/mickh/.codex/worktrees/274b/storytree",
+      gitDir: "C:/code/storytree/.git/worktrees/storytree",
+      commonDir: "C:/code/storytree/.git",
+    }),
+  );
+  const second = deriveIdentity(
+    gitFake({
+      toplevel: "C:/Users/mickh/.codex/worktrees/4744/storytree",
+      gitDir: "C:/code/storytree/.git/worktrees/storytree1",
+      commonDir: "C:/code/storytree/.git",
+    }),
+  );
+  assert.equal(first?.sessionId, "storytree");
+  assert.equal(second?.sessionId, "storytree1");
+  assert.notEqual(
+    first?.sessionId,
+    second?.sessionId,
+    "two sessions on one claim is worse than the refusal this fix removes",
+  );
+});
+
+test("deriveIdentity: a RENAMED .claude/worktrees slot keeps its slot name, not git's admin id", () => {
+  // Why rule 1 stays first and separate instead of folding into the git-dir rule. Real fixture:
+  // `.claude/worktrees/gemini-subagents-preserved` has admin dir `gemini-subagents` because the
+  // directory was renamed after creation. Folding the rules would silently re-key its live claims.
+  const result = deriveIdentity(
+    gitFake({
+      toplevel: "C:/code/storytree/.claude/worktrees/gemini-subagents-preserved",
+      gitDir: "C:/code/storytree/.git/worktrees/gemini-subagents",
+      commonDir: "C:/code/storytree/.git",
+    }),
+  );
+  assert.equal(result?.sessionId, "gemini-subagents-preserved");
 });
 
 test("deriveIdentity: returns null when git throws (not a git repo or other error)", () => {
