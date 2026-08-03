@@ -24,6 +24,9 @@ out/
 *.log
 npm-debug.log*
 pnpm-debug.log*
+# `pnpm gate:bg` run artifacts — a per-worktree log + its sibling `.exit` status file
+# (the `.exit` does not match *.log above, so the whole dir is ignored here).
+.gate-logs/
 
 # Test / coverage
 coverage/

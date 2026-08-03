@@ -57,7 +57,7 @@ import { deriveIdentity } from "@storytree/drive";
 import { createPool, closePool } from "@storytree/library/store";
 import { PgClaimStore } from "@storytree/notice-board/store";
 
-import { loadLocalSecrets } from "./secrets.js";
+import { loadLocalSecrets, presentEnv } from "./secrets.js";
 
 const TAG = "[check:declared]";
 /** Bound the live read so a stopped DB can't hang the gate (> the ~6s Cloud SQL cold handshake). */
@@ -230,7 +230,7 @@ async function main(): Promise<void> {
   if (identity === null) return;
 
   loadLocalSecrets();
-  if (process.env["STORYTREE_DB_USER"] === undefined) {
+  if (presentEnv("STORYTREE_DB_USER") === undefined) {
     console.log(`${TAG} SKIP — no STORYTREE_DB_USER (DB creds absent); claim unverified.`);
     return;
   }

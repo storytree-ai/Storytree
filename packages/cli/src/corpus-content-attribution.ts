@@ -1,5 +1,13 @@
-// Who a seed↔live drift belongs to — the PURE, IO-free core of `check:corpus-content`'s attribution
-// pass (ADR-0290).
+// Who a seed↔live difference belongs to — the PURE, IO-free attribution core BOTH corpus checks
+// share: `check:corpus-content`'s drift pass (ADR-0290) and `check:corpus-sync`'s absence pass.
+//
+// IT SERVES TWO CHECKS, and that is deliberate rather than incidental. `check:corpus-sync` was blind
+// to both of ADR-0290's signals (measured 2026-08-03: `grep -c "origin/main\|merge-base\|library_event"`
+// returned ZERO in `check-corpus-sync.ts` and `sync-drain.ts`), and the cost of that blindness is
+// WORSE than corpus-content's: a wrong content remedy publishes a stranger's prose, while a wrong sync
+// remedy REVERSES AN OWNER DECISION. This module was WIDENED to carry the second classifier rather
+// than forked, because two checks that disagree about what "behind main" means make a gate's own
+// printed output untrustworthy — see {@link classifyAbsence} below for that half.
 //
 // THE DEFECT THIS EXISTS TO CLOSE, as inputs → wrong outcome. `check:corpus-content` compares the
 // committed seed against the LIVE store, and live is not in git. The seed is one branch's working
@@ -66,8 +74,9 @@
 // reports as `foreign`. Both are WARN, so an unfetched `origin/main` costs a worse message and never a
 // wrong verdict.
 //
-// PURE by construction: no `node:` import, no filesystem, no `git`, no `pg`. The git reads and the
-// event read live in the shell `check-corpus-content.ts`.
+// PURE by construction: no `node:` import, no filesystem, no `git`, no `pg`. The git reads live in
+// `seed-revisions.ts`; the event reads live in the shells `check-corpus-content.ts` /
+// `check-corpus-sync.ts`.
 
 /** Which party a single drifted artifact is answerable to — see the module doc. */
 export type DriftOwner = "authored" | "stale" | "foreign";
@@ -157,6 +166,151 @@ export function attributeDrift(
     authored: only(all, "authored"),
     stale: only(all, "stale"),
     foreign: only(all, "foreign"),
+    ...(evidence.unattributable === undefined ? {} : { unattributable: evidence.unattributable }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// check:corpus-sync — WHY an artifact is absent from live, before a remedy is prescribed
+// ---------------------------------------------------------------------------
+//
+// THE DEFECT THIS EXISTS TO CLOSE. `check:corpus-sync` reports every seed-only id with ONE
+// unconditional instruction — "DRAIN it — `pnpm storytree library sync-corpus --pg`. Never raise the
+// ceiling." — and it has no idea WHY the id is absent. On a branch cut before an owner-directed live
+// RETIREMENT, obeying that instruction resurrects the retired artifact. Measured on
+// `oq-diff-view-altitude` (retired live under ADR-0267 D5): `events.library_event` records
+// created(1472) → deleted(2694) → created(2695) → deleted(2696) → created(2698) → deleted(2702) →
+// created(2742) → deleted(2756). FOUR resurrections, each one a session correctly obeying a
+// correct-looking instruction from the gate itself — which is the one place prose cannot reach, since
+// no guidance outranks a gate's own printed output at the moment of failure.
+//
+// It is not a hypothetical population either. Of the five ids `sync-drain.ts`'s differential control
+// names as "still absent from live today … they left the SEED instead" — `oq-fix-drive-build-shape`,
+// `rename-tests-to-uat-test-criteria`, `rename-tree-to-forest`, `retire-generated-assets-json`,
+// `solar-system-world` — ALL FIVE have `deleted` as their latest live event. Every one of them would
+// be resurrected by the printed remedy if a stale branch still carried its seed row.
+//
+// THREE CAUSES, from three signals, on ADR-0290 D3's one-label-per-cause precedent:
+//
+//   - NEVER MIGRATED — the ordinary migration gap this check was built for: an ADR-0095 graduation
+//     wrote the artifact into the seed and nothing ever synced it live. Remedy unchanged
+//     (`sync-corpus --pg`), and this is the ONLY cause charged against the ceiling.
+//   - RETIRED LIVE — the event log shows the id was created and then DELETED. Re-creating it reverses
+//     an owner decision, so it is reported with its retiring event and never drained, never charged.
+//   - BEHIND MAIN — `origin/main`'s seed no longer carries the row, and this branch simply has not
+//     merged that. Remedy is `git merge origin/main` and explicitly NOT `sync-corpus`, which on a
+//     stale base re-authors a row main has already dropped. Never charged.
+//
+// PRECEDENCE IS AUTHORED > RETIRED LIVE > BEHIND MAIN, and each step is load-bearing.
+//
+// AUTHORED FIRST, mirroring {@link attributeDrift}: a branch that ADDED this id to the seed since the
+// merge base has just graduated it, which is precisely the population the check exists to catch. That
+// step is why "origin/main does not carry the row" cannot be tested on its own — main does not carry a
+// brand-new graduation either, so a bare main-differential would excuse every genuine migration gap as
+// staleness and silently stop the check doing its job.
+//
+// RETIRED LIVE BEFORE BEHIND MAIN because it is the label that answers "why must I not drain this?"
+// with an audit fact rather than a git state, and because the two are routinely BOTH true (a
+// retirement drops the seed row on main, so a stale branch sees both at once). Nothing is lost by the
+// ordering: when main has also dropped the row, the retirement's `because` carries the merge remedy
+// too, so a stale session is told the fact AND the action rather than one or the other.
+//
+// FAIL-CLOSED ON UNMEASURABLE ATTRIBUTION (ADR-0290 D7, and the same asymmetry argument as the drift
+// half above): if git or the event log cannot be read, EVERY absence degrades to `never-migrated` —
+// exactly today's behaviour — and the reason is printed. A wrongly-charged red costs a merge; a
+// wrongly-excused one lands a one-sided edit no later gate catches.
+//
+// IT RAISES NO CEILING AND ADDS NO TUNABLE. M=0 stands (ADR-0252 D3). What changes is the APERTURE —
+// which absences are the branch's to answer for — on the same ADR-0269 4(f) reasoning ADR-0290
+// recorded: the population was not enlarged, it was WRONG.
+
+/** Why a seed artifact is absent from the live store — see the section doc. */
+export type AbsenceCause = "never-migrated" | "retired-live" | "behind-main";
+
+/** The measured evidence the absence classifier is computed from. */
+export interface AbsenceEvidence {
+  /** The branch the gate is running on — for the printed messages. `null` when git could not say. */
+  readonly branch: string | null;
+  /**
+   * Ids present in the WORKING seed but absent at `git merge-base origin/main HEAD` — what this
+   * branch ADDED. Added, not merely changed: an edit to a long-standing row is not a graduation.
+   */
+  readonly seedAddedByBranch: ReadonlySet<string>;
+  /**
+   * Ids whose LATEST live event is `deleted`, with that retiring event — the artifact existed and was
+   * deliberately retired. Latest-event rather than ever-deleted: a retired-then-refiled artifact is
+   * live again and its absence would mean something else entirely.
+   */
+  readonly retiredLive: ReadonlyMap<string, { actor: string; at: string }>;
+  /** Ids `origin/main`'s seed does not carry. Diagnostic of staleness once authorship is excluded. */
+  readonly absentFromMainSeed: ReadonlySet<string>;
+  /**
+   * Why attribution could not be measured, if it could not. Set ⇒ every absence is charged as
+   * `never-migrated` (the pre-change behaviour) rather than excused.
+   */
+  readonly unattributable?: string | undefined;
+}
+
+/** One absence, with the cause it was charged to and the evidence line that placed it there. */
+export interface AttributedAbsence {
+  readonly id: string;
+  readonly cause: AbsenceCause;
+  /** Short human-readable reason — printed next to the id so a verdict is never bare. */
+  readonly because: string;
+}
+
+/** The classified population — the three lists the ceiling and the report are built from. */
+export interface AbsenceAttribution {
+  /** The ONLY charged list: a real migration gap this branch must drain. */
+  readonly neverMigrated: readonly AttributedAbsence[];
+  readonly retiredLive: readonly AttributedAbsence[];
+  readonly behindMain: readonly AttributedAbsence[];
+  /** Echoed from the evidence so a caller can print the fallback reason it is acting under. */
+  readonly unattributable?: string | undefined;
+}
+
+const onlyAbsence = (all: readonly AttributedAbsence[], cause: AbsenceCause): AttributedAbsence[] =>
+  all.filter((a) => a.cause === cause);
+
+/**
+ * Classify each seed-only id by WHY it is absent from live. Pure — inject the evidence.
+ *
+ * See the section doc above for the precedence argument and the fail-closed posture.
+ */
+export function classifyAbsence(
+  absentIds: readonly string[],
+  evidence: AbsenceEvidence,
+): AbsenceAttribution {
+  const branch = evidence.branch ?? "this branch";
+  const all: AttributedAbsence[] = absentIds.map((id) => {
+    if (evidence.unattributable !== undefined) {
+      return { id, cause: "never-migrated" as const, because: "cause unmeasured — charged, not excused" };
+    }
+    if (evidence.seedAddedByBranch.has(id)) {
+      return { id, cause: "never-migrated" as const, because: `${branch} added it to the seed — a graduation that never synced` };
+    }
+    const retired = evidence.retiredLive.get(id);
+    if (retired !== undefined) {
+      return {
+        id,
+        cause: "retired-live" as const,
+        because:
+          `retired live by ${retired.actor} at ${retired.at}` +
+          (evidence.absentFromMainSeed.has(id)
+            ? "; origin/main's seed has already dropped the row, so merging main clears this"
+            : "; the seed row is still on main — finish the retirement by dropping it, never by syncing"),
+      };
+    }
+    if (evidence.absentFromMainSeed.has(id)) {
+      return { id, cause: "behind-main" as const, because: "origin/main's seed no longer carries the row" };
+    }
+    return { id, cause: "never-migrated" as const, because: "no live create event — never migrated" };
+  });
+
+  return {
+    neverMigrated: onlyAbsence(all, "never-migrated"),
+    retiredLive: onlyAbsence(all, "retired-live"),
+    behindMain: onlyAbsence(all, "behind-main"),
     ...(evidence.unattributable === undefined ? {} : { unattributable: evidence.unattributable }),
   };
 }
