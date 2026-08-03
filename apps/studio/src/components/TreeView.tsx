@@ -154,6 +154,7 @@ import {
   laneLayout,
   normalizeWorldPresentationModel,
   deriveForestRegrowAccretionPlans,
+  deriveIslandVegetationPlans,
   WorldSceneView,
   type WorldPresentationEvents,
   type WorldPresentationModel,
@@ -162,6 +163,7 @@ import { parseStyleSheet, type SpriteStyleSheet } from '../lib/sprite-sheet.js';
 import { SemanticGrowthDemo } from './SemanticGrowthDemo.js';
 import {
   readAct2Intro,
+  readVegetationGrowthOff,
   act2IntroAlreadyArrived,
   act2IntroStorage,
   markAct2IntroArrived,
@@ -169,6 +171,7 @@ import {
   useStableForestRegrowTrails,
   useReducedMotion,
   useStableForestRegrowLayer,
+  useStableVegetationLayer,
 } from './act2Intro.js';
 import { Act2IntroControl } from './Act2IntroControl.js';
 
@@ -2308,15 +2311,17 @@ export function TreeView({
     edges: world?.trails.edges ?? null,
     segmentLengths: act2Enabled ? trailSegLengths : null,
   });
-  const scene = useMemo(
+  // Held apart from `scene` on purpose: the per-island `caps` / `radius` / `status` the ADR-0292
+  // vegetation variation reads live on the SceneInput, not on the drawable tree the scene walk
+  // produces. Deriving them a second time from `world` would be a second definition of the same fold.
+  const sceneInput = useMemo(
     () =>
       world
-        ? buildScene(
-            worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, null, null, vegetation),
-          )
+        ? worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, null, null, vegetation)
         : null,
     [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, vegetation],
   );
+  const scene = useMemo(() => (sceneInput ? buildScene(sceneInput) : null), [sceneInput]);
 
   // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the
   // pure selector (lib/trailReveal): which segments, in what stagger order, from which
@@ -2356,6 +2361,50 @@ export function TreeView({
     act2Player.state,
     act2AccretionPlans,
     act2Player.regrowing,
+  );
+
+  // ── ADR-0292: per-object vegetation growth ──────────────────────────────────────────────────────
+  //
+  // ON by default. The decision is the owner's own (they chose exp-16 in conversation, ADR-0292 D2),
+  // and the arc's end state describes them watching the regrow on the CLEAN route at the default
+  // speed — which a flag would put behind a URL they have to remember. `?veg2=off` is the kill switch
+  // for the LOOK comparison, not a gate on the decision: with it the map renders exactly as it did
+  // before this arc, so the two can be held side by side.
+  //
+  // The APPEARANCE is unattested (ADR-0070 stage 2 is the owner's, and nothing here signs it).
+  const vegetationGrowthOff = useMemo(() => readVegetationGrowthOff(search), [search]);
+  // The expensive half — one walk of each island's flora, seeding every beat — keyed on the SCENE
+  // alone, exactly like the accretion plans above. The cursor never touches it.
+  const vegetationPlans = useMemo(
+    () =>
+      scene && sceneInput && !vegetationGrowthOff
+        ? deriveIslandVegetationPlans(
+            scene,
+            sceneInput.territories.map((t) => ({
+              storyId: t.id,
+              caps: t.caps,
+              radius: t.radius,
+              status: t.status,
+            })),
+            // The active art style, so a growth track inherits the size that is actually on screen.
+            // Load-bearing: the shipped default is the owner-attested Storybook sheet, which draws the
+            // tree at roughly a quarter of its vector body — sizing from the body alone put a tree 4x
+            // too large on every island.
+            { spriteSheet, artScale },
+          )
+        : null,
+    [scene, sceneInput, vegetationGrowthOff, spriteSheet, artScale],
+  );
+  const vegetationStoryIds = useMemo(
+    () => (sceneInput ? sceneInput.territories.map((t) => t.id) : []),
+    [sceneInput],
+  );
+  // The per-frame half. `null` state (no run in flight) holds every island at 1, so the settled map
+  // gets ONE layer object for the whole session and `SceneView`'s memo bail-out survives every pan.
+  const vegetationLayer = useStableVegetationLayer(
+    vegetationPlans,
+    act2Player.regrowing ? act2Player.state : null,
+    vegetationStoryIds,
   );
 
   // ADR-0286: play the pending token, once the map can actually regrow.
@@ -2566,6 +2615,7 @@ export function TreeView({
             spriteSheet,
             artScale,
             forestRegrowLayer: act2RegrowLayer,
+            vegetationLayer,
           })
         : null,
     [
@@ -2575,6 +2625,7 @@ export function TreeView({
       arrivalIds,
       growPlan,
       act2RegrowLayer,
+      vegetationLayer,
       neighbourPlan,
       laneLayoutPlan,
       selectionMotion,
