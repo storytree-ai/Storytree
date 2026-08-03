@@ -56,6 +56,11 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
   // The claim rung (ADR-0200 D3). Its SKIP/FAIL semantics are unchanged by its position — including
   // the ADR-0245 D5.2 lobby arm that FAILs a dirty primary checkout — it just answers sooner.
   "check:declared",
+  // The wall-clock fence (ADR-0276 D3). A static scan of test FILES — it needs neither a compile nor
+  // a passing suite, and it belongs ahead of `pnpm -r test` on its own subject matter: a session
+  // should learn its new timing assertion is fenced in seconds, not after the ten minutes this very
+  // check exists to stop being wasted (3 of 4 overnight gate runs, 9–42 min each, on docs-only diffs).
+  "check:test-timing",
 ]);
 
 /** One `&&`-separated step of the chain, in order, with the `check:*` name it runs (if any). */
