@@ -439,6 +439,105 @@ test("arc kind (ADR-0183 D1): the increment log validates and fails closed", () 
   assert.throws(() => validateLibraryDoc(onAPrinciple), "increments on a non-arc kind must be rejected");
 });
 
+test("arc kind (ADR-0298 D1): the parked-work list validates and fails closed on the ceiling's own fields", () => {
+  const parked = {
+    id: "widen-the-identity-derivation",
+    title: "Session identity derives from any registered linked worktree",
+    parked: "2026-08-03T00:06:56.911Z",
+    summary: "Widen the noticeboard's identity derivation to admit any git-registered linked worktree.",
+    motivation: "The claim is mandatory and the verb refuses, so a whole runtime is fenced out of landing work.",
+  };
+
+  // An arc with no parked work is normal — `proposals` is optional, exactly like `increments`.
+  assert.doesNotThrow(() => validateLibraryDoc(minimalDoc("arc")), "proposals is optional");
+
+  // The five optional body fields are the retired `proposal` KIND_SPECS table, carried verbatim, so
+  // nothing a proposal could say has nowhere to go (ADR-0298 D1).
+  const full = {
+    ...minimalDoc("arc"),
+    proposals: [
+      {
+        ...parked,
+        change: "deriveIdentity admits any `git worktree list` entry, not only `.claude/worktrees/<name>`.",
+        scope: "packages/drive/src/noticeboard.ts and its CLI dispatch, plus tests.",
+        migration: "1. widen the helper. 2. red-green a Codex-shaped path. 3. re-check presence-hook.sh.",
+        readiness: "No precondition — the change is local and covered by unit tests.",
+        risks: "A wider prefix could admit a path that is not a session; the git registration check fences it.",
+        frictionRefs: ["friction-codex-root-session-cannot-declare-presence"],
+      },
+    ],
+  };
+  const parsedFull = validateLibraryDoc(full) as { proposals?: ReadonlyArray<Record<string, unknown>> };
+  assert.equal(parsedFull.proposals?.length, 1);
+  assert.equal(parsedFull.proposals?.[0]?.["scope"], "packages/drive/src/noticeboard.ts and its CLI dispatch, plus tests.");
+
+  // `realized` is ABSENT while parked — that absence is what the delivery ceiling reads as "still
+  // pressing" (ADR-0298 D3), so it must never be defaulted into existence.
+  const stillParked = { ...minimalDoc("arc"), proposals: [parked] };
+  const parsedParked = validateLibraryDoc(stillParked) as {
+    proposals?: ReadonlyArray<{ realized?: unknown }>;
+  };
+  assert.equal(parsedParked.proposals?.[0]?.realized, undefined, "an unrealized entry must carry no realized field");
+
+  // ...and when the work lands it carries the landing.
+  const done = {
+    ...minimalDoc("arc"),
+    proposals: [{ ...parked, realized: { date: "2026-08-04", pr: "#1130" } }],
+  };
+  const parsedDone = validateLibraryDoc(done) as {
+    proposals?: ReadonlyArray<{ realized?: { date: string; pr?: string } }>;
+  };
+  assert.deepEqual(parsedDone.proposals?.[0]?.realized, { date: "2026-08-04", pr: "#1130" });
+
+  // THE CEILING'S TWO LOAD-BEARING FIELDS FAIL CLOSED. `parked` is the comparison point a recurrence
+  // is dated against; an entry without one is unevaluable, so it is refused at the schema rather than
+  // silently sitting quiet forever.
+  for (const [drop, why] of [
+    ["parked", "the delivery ceiling has no date to compare a recurrence against"],
+    ["id", "the entry is unaddressable, so `arc proposal realize` can never discharge it"],
+    ["title", "a parked entry with no title is unreadable in a list or a gate report"],
+    ["summary", "an entry with no statement of the change is not a parked remedy"],
+    ["motivation", "an entry with no reason is exactly the thin filing the tier exists to prevent"],
+  ] as const) {
+    const without: Record<string, unknown> = { ...parked };
+    delete without[drop];
+    assert.throws(
+      () => validateLibraryDoc({ ...minimalDoc("arc"), proposals: [without] }),
+      `a parked entry without \`${drop}\` must be rejected: ${why}`,
+    );
+  }
+
+  // A stray field inside an entry fails closed (ArcProposal is .strict()) — including the one a
+  // session migrating off the retired kind would most plausibly carry over.
+  assert.throws(
+    () => validateLibraryDoc({ ...minimalDoc("arc"), proposals: [{ ...parked, kind: "proposal" }] }),
+    "a stray entry field must be rejected",
+  );
+  assert.throws(
+    () => validateLibraryDoc({ ...minimalDoc("arc"), proposals: [{ ...parked, realized: { pr: "#1130" } }] }),
+    "a realization without a date must be rejected",
+  );
+
+  // proposals is arc-only: it is not in commonShape, so no other kind may grow a parallel tier.
+  assert.throws(
+    () => validateLibraryDoc({ ...minimalDoc("principle"), proposals: [parked] }),
+    "proposals on a non-arc kind must be rejected",
+  );
+});
+
+test("the `proposal` KIND is retired (ADR-0298 D1) — it is gone from the union, KIND_SPECS and the seed scope", () => {
+  // Deliberately asserted rather than left to the KIND_SPECS↔zod parity tests above: those iterate
+  // over what EXISTS, so a re-added kind would satisfy every one of them. This is the guard against
+  // the kind quietly coming back — the whole decision is that there is exactly ONE place an unstarted
+  // intention lives, and a second one is the failure ADR-0298 exists to end.
+  assert.equal(Object.hasOwn(KIND_SPECS, "proposal"), false, "KIND_SPECS must carry no proposal entry");
+  assert.equal(SEED_SCOPE_KINDS.has("proposal"), false, "proposal must not be seed-scope");
+  assert.throws(
+    () => Knowledge.parse({ ...minimalDoc("open-question"), kind: "proposal" }),
+    "the discriminated union must not accept a proposal doc",
+  );
+});
+
 test("arc kind (ADR-0239 D1): the stored lifecycle flag defaults to active and is enum-fenced", () => {
   // OPTIONAL-WITH-DEFAULT (the `plan.status` precedent): an arc authored before the field validates
   // unchanged and parses as `active`. This is what makes ADR-0239 D1 a zero-migration change — no

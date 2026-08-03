@@ -33,7 +33,7 @@ describe('JsonBackend offline seed (ADR-0210)', () => {
     return file;
   };
 
-  it('seeds the runtime store on first read (derived corpus + the 13 templates) and writes it to disk', async () => {
+  it('seeds the runtime store on first read (derived corpus + the 12 templates) and writes it to disk', async () => {
     const knowledgeFile = await seedKnowledge([
       {
         id: 'k1',
@@ -48,7 +48,7 @@ describe('JsonBackend offline seed (ADR-0210)', () => {
 
     const assets = await backend({ knowledgeFile }).listAssets();
     expect(assets.map((a) => a.id)).toContain('k1');
-    expect(assets.filter((a) => a.category === 'template')).toHaveLength(13);
+    expect(assets.filter((a) => a.category === 'template')).toHaveLength(12);
 
     // durability: the derived store is written to the gitignored runtime file
     const onDisk = JSON.parse(

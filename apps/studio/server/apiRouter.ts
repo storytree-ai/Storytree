@@ -94,7 +94,8 @@ const ASSET_CATEGORIES: AssetCategory[] = [
   'techstack',
   'process',
   'agent',
-  'proposal',
+  // `proposal` was here until ADR-0298 retired the kind — deferred work is now an entry on the arc
+  // that owns it (`Arc.proposals`), so it renders inside the arc rather than as a category.
   'template',
   'adr',
   'open-question',

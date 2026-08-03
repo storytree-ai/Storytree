@@ -8,6 +8,7 @@ import type { Comment } from "@storytree/library/store";
 
 import {
   CURATOR_ACTOR,
+  WRITABLE_KINDS,
   ScriptedCuratorRunner,
   SdkCuratorRunner,
   enactCuration,
@@ -32,25 +33,6 @@ function oqDoc(id: string, over: Record<string, unknown> = {}): Record<string, u
     statement: "the question?",
     context: "why it is open now",
     options: "A vs B",
-    references: [],
-    createdAt: ISO,
-    updatedAt: ISO,
-    ...over,
-  };
-}
-
-function proposalDoc(id: string, over: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    id,
-    kind: "proposal",
-    title: `P ${id}`,
-    description: "one-line",
-    summary: "the change",
-    motivation: "why",
-    change: "before to after",
-    scope: "blast radius",
-    migration: "ordered steps",
-    readiness: "preconditions",
     references: [],
     createdAt: ISO,
     updatedAt: ISO,
@@ -144,26 +126,29 @@ test("reframe-open-question patches an OQ; refuses a non-OQ target", async () =>
   assert.equal(refused.refused.length, 1, "reframing a definition is refused — comment+escalate instead");
 });
 
-// --- proposals -----------------------------------------------------------------------------------
+// --- the retired proposal write (ADR-0298) -------------------------------------------------------
 
-test("create-proposal + edit-proposal work; editing a non-proposal is refused", async () => {
-  const store = new InMemoryStore();
-  const created = await enactCuration({ store }, [
-    { type: "create-proposal", doc: proposalDoc("p1") },
-  ]);
-  assert.equal(created.enacted.length, 1);
+test("the curator can no longer write deferred work at all — the proposal actions are GONE (ADR-0298)", () => {
+  // The kind is retired and its successor is an entry on an arc, which this seat deliberately cannot
+  // reach: parking is the adjudicator's (ADR-0298 D2), and a pass scoped to ONE story neighbourhood
+  // has no view of which initiative owns a remedy. Asserted on the write fence and the accepted
+  // action set rather than left to the type, because a coerced action arrives at runtime as JSON
+  // from a model — the type alone fences nothing there.
+  assert.deepEqual(Object.values(WRITABLE_KINDS), ["open-question"], "open-question is the only writable kind");
 
-  const edited = await enactCuration({ store }, [
-    { type: "edit-proposal", id: "p1", set: { summary: "a revised change" } },
-  ]);
-  assert.equal(edited.enacted.length, 1);
-  assert.equal((await store.getDoc("p1"))?.doc && ((await store.getDoc("p1"))!.doc as { summary: string }).summary, "a revised change");
+  for (const type of ["create-proposal", "edit-proposal"]) {
+    assert.equal(
+      parseCuratorActions(`[{"type":"${type}","id":"p1","doc":{},"set":{}}]`).length,
+      0,
+      `a model emitting ${type} is dropped, not enacted`,
+    );
+  }
 
-  await store.upsertDoc({ id: "oq-z", kind: "open-question", doc: oqDoc("oq-z") });
-  const refused = await enactCuration({ store }, [
-    { type: "edit-proposal", id: "oq-z", set: { summary: "x" } },
-  ]);
-  assert.equal(refused.refused.length, 1, "edit-proposal on an open-question is refused (kind fence)");
+  // The escalate path is what the curator keeps for work it thinks should be built later.
+  assert.equal(
+    parseCuratorActions('[{"type":"escalate","artifactId":"x","body":"this wants building"}]').length,
+    1,
+  );
 });
 
 // --- comment / escalate (any kind) ---------------------------------------------------------------
@@ -218,7 +203,6 @@ test("ScriptedCuratorRunner returns its fixed actions and the function form sees
     nodeIds: ["s", "cap-a"],
     decisions: [16, 65],
     openQuestions: [],
-    proposals: [],
     adrs: [],
   };
   const fixed: CurationAction[] = [{ type: "comment", artifactId: "a", body: "b" }];
@@ -310,7 +294,6 @@ test("serializeCurationContext surfaces the OQ ids and the deciding-ADR statuses
     openQuestions: [
       { id: "oq-x", kind: "open-question", doc: oqDoc("oq-x", { stakes: "S-MARKER" }), createdAt: ISO, updatedAt: ISO },
     ],
-    proposals: [],
     adrs: [{ number: 23, file: "0023-x.md", status: "proposed", supersedes: [], amends: [], loadBearing: false }],
   };
   void store;
@@ -345,7 +328,6 @@ test("SdkCuratorRunner serializes, runs the (injected) SDK, and parses the outpu
     nodeIds: ["s"],
     decisions: [],
     openQuestions: [{ id: "oq-old", kind: "open-question", doc: oqDoc("oq-old"), createdAt: ISO, updatedAt: ISO }],
-    proposals: [],
     adrs: [],
   });
   assert.equal(actions.length, 1);
@@ -360,7 +342,7 @@ test("SdkCuratorRunner yields no actions when the SDK session fails (best-effort
     systemPrompt: "SYS",
     runSdk: async (): Promise<SdkCuratorResult> => ({ ok: false, text: "", costUsd: 0, turns: 0, error: "boom" }),
   });
-  const actions = await runner.run({ storyId: "s", nodeIds: [], decisions: [], openQuestions: [], proposals: [], adrs: [] });
+  const actions = await runner.run({ storyId: "s", nodeIds: [], decisions: [], openQuestions: [], adrs: [] });
   assert.equal(actions.length, 0);
 });
 

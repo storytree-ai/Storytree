@@ -63,7 +63,6 @@ test("the seed scope is an ALLOWLIST of the durable tier, not a denylist (ADR-02
     "techstack",
     "process",
     "open-question",
-    "proposal",
   ]) {
     assert.equal(isExportScopeKind(k), true, `${k} is durable-tier and belongs in the seed`);
   }
@@ -78,6 +77,10 @@ test("the seed scope is an ALLOWLIST of the durable tier, not a denylist (ADR-02
     ["friction", "transient signal: it files and DRAINS, essence graduates out (ADR-0168/0095)"],
     ["arc", "initiative state + pointers, mutated by every landing (ADR-0183 D1)"],
     ["uat-criterion", "work-hierarchy tier, kept out of the knowledge tier (ADR-0120 D4)"],
+    // `proposal` was IN this allowlist until ADR-0298 retired the kind. Its successor is an entry on
+    // an arc, and `arc` is already OUT above — so deferred work now generates NO seed traffic at all,
+    // which is the point rather than an accident (ADR-0298 Consequences).
+    ["proposal", "RETIRED by ADR-0298 — deferred work is an Arc.proposals entry, and arc is not seed-scope"],
   ] as const) {
     assert.equal(isExportScopeKind(k), false, `${k} is out of seed scope — ${why}`);
   }
