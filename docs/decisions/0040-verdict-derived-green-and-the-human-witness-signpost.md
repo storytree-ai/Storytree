@@ -57,16 +57,23 @@ Seven owner calls, one coherent reshape of how proof is displayed and witnessed:
    verdict is the only green source at that tier (otherwise the hand-painting door reopens); an
    authored `healthy` with no signed pass under-claims to **mapped** (brownfield: real, not yet
    proven). The authored ladder keeps its other jobs (proposed = amber, mapped = brown,
-   retired = absent, building wears proposed — ADR-0038). **Wither semantics are unchanged**:
+   retired = absent, building wears proposed — ADR-0038). ~~**Wither semantics are unchanged**:
    last signed run failed OR authored unhealthy — and authored `unhealthy` wins even over a
-   signed pass (the disagreement shows in the panel's verdict line, never as a green plant).
+   signed pass.~~ **WITHDRAWN by [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md):**
+   the world renders no `unhealthy` state at all. A signed fail no longer withers — it falls
+   through to the authored ladder and under-claims to unproven, and the authored-`unhealthy`-beats-
+   a-pass override is gone with it. The failure reads on the panel's verdict line. **The green half
+   of this decision stands unchanged**, as does the never-over-claim invariant: a fail still can
+   never paint green.
    The seam is `provenStatus` in `apps/studio/src/lib/worldStatus.ts`: everything downstream of
    the fetch still sees only the presented world.
 
 2. **Story green = the story's OWN UAT verdict only.** The existing no-roll-up decision
    (ADR-0033 owner decision 4) is unchanged: the crown goes deep-green only from a signed pass
    on the story's UAT node, never from child verdicts — six green plants do not make a green
-   crown. A signed UAT *fail* withers the crown (same `provenStatus` fold).
+   crown. ~~A signed UAT *fail* withers the crown (same `provenStatus` fold).~~ Since
+   [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md) a fail simply
+   fails to green the crown, leaving it on its authored rung.
 
 3. **Story writers declare who witnesses the UAT.** New optional story-frontmatter field
    `uat_witness: human | machine` (`UatWitness` on the `Story` tier in
@@ -95,8 +102,10 @@ Seven owner calls, one coherent reshape of how proof is displayed and witnessed:
    (including the undeclared default) render a signpost; machine-witnessed stories get none.
    It stands **dashed-blank** until the story's UAT verdict is signed, then shows a **filled
    seal** in the verdict's hue — the FILL is the new bit (the ceremony happened); the hue is a
-   deliberate small echo of the crown. A signed fail reads distinctly: withered crown + a red
-   seal vs. a blank sign.
+   deliberate small echo of the crown. ~~A signed fail reads distinctly: withered crown + a red
+   seal vs. a blank sign.~~ Since
+   [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md) there is no
+   withered crown; the seal is what distinguishes a signed fail from an unsigned story.
 
 6. **Offline under-claims.** With the DB down / verdicts absent, hues fall back to the authored
    ladder — a proven world reads amber/brown, never green: the world under-claims, never
@@ -123,8 +132,9 @@ Seven owner calls, one coherent reshape of how proof is displayed and witnessed:
   temp one.
 - An invalid `uat_witness` value fails the spec load loudly (zod enum) — never a silent
   default.
-- The legend's proof row speaks the new vocabulary: proven green / withered / awaiting
-  witness / witnessed, plus the offline under-claim note. The `legendFacts` badge facts
+- The legend's proof row speaks the new vocabulary: proven green / ~~withered /~~ awaiting
+  witness / witnessed, plus the offline under-claim note. (The withered tile was removed by
+  [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md).) The `legendFacts` badge facts
   (capPass/capFail/signPass/signFail/anyUnproven) are replaced by hue + signpost facts.
 - The world is now *less* precise at a glance about never-built-vs-offline (the dropped
   "no-mark" badge state); that distinction lives in the panel's `– never built` line and the
