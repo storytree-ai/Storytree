@@ -137,6 +137,19 @@ Act 2 ships to the website only after the owner is satisfied with it in the app.
 decision authorises a website-local reimplementation of product UI, art or animation, which ADR-0237
 already forbids.
 
+**The successor initiative is now decided — 2026-08-03,
+[ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md).** "A later
+initiative" is no longer unnamed: the public website's forest becomes a projection of the REAL
+corpus — allow-listed, redacted, generated at publish time, shipped as a static artifact and
+regenerated on merge to `main` — rendering map and legend only, with no endpoint, no database
+connection and no runtime fetch. Both clauses above survive it. The owner-satisfaction gate is
+untouched, and no website-local reimplementation is authorised: ADR-0299 D4 keeps the **scene graph
+shared** (`packages/forest-world` synced into `web/src/lib/forest-world/`, held byte-fresh by
+`check:web-engine`) and returns the **paint** to ADR-0093's original seam for that passive view
+only, naming the condition — the view being used to TEACH interactions rather than to be watched —
+under which ADR-0237 D6 reasserts and the migration is owed. This ADR is not amended by it; the
+pointer is forward only.
+
 ### D8 — Explicitly rejected
 
 - A per-territory authored raster track, or any art budget that scales with story count.
@@ -185,6 +198,9 @@ already forbids.
   topology rig; its 2026-08-02 evidence note records what round 4 measured about that reversal.
 - [ADR-0237](0237-chapter-2-is-a-scripted-mode-of-the-real-app-share-product-u.md) — Chapter 2 is a
   scripted mode of the real shared app; no website-local reimplementation.
+- [ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md) — D7's
+  "later initiative", now decided: the website's forest is a baked, redacted projection of the real
+  corpus, map and legend only. Forward pointer; this ADR is not amended by it.
 - [ADR-0272](0272-a-forest-map-pan-frame-is-rasterisation-not-density-pan-move.md) — a forest-map
   frame's cost is rasterisation; measure it.
 - [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) — the owner holds

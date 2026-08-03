@@ -34,7 +34,17 @@ cite, do not restate), or the renderer/boundary ADRs
 ([ADR-0237](0237-chapter-2-is-a-scripted-mode-of-the-real-app-share-product-u.md), 2026-07-24).**
 The site shape and staged/private-data boundary stand. For Chapter 2, "parent-built artifact" now
 includes the framework-bearing shared app surface, its product CSS and its current art manifests;
-the site still supplies only fictional data and read-only scripted control.
+the site still supplies only fictional data and read-only scripted control. *(That last clause is
+now Chapter-2-scoped — see the ADR-0299 note immediately below.)*
+
+**Amended by
+[ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md) (2026-08-03).**
+D4's fictional-data boundary is narrowed **at the fictional clause only**: a published artifact may
+now carry allow-listed REAL corpus data, for exactly one view — a baked, redacted forest map and
+legend, generated at publish time and shipped as a static file the site imports at build. The
+no-live-access half is untouched and is restated verbatim there. Act 1, the inflection and the
+Chapter 2 teaching walk keep their fiction. D2's site shape, D5's a11y-only escapes and D6's
+replay-only posture stand unchanged.
 
 ## Context
 
@@ -96,6 +106,18 @@ that boundary. Cite — do not restate —
 [ADR-0066](0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md) /
 [ADR-0093](0093-shared-forest-world-render-core-for-studio-and-the-public-we.md).
 
+**Corrected in place 2026-08-03
+([ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md)).** "Fictional /
+staged data" above is no longer true in full. One view — the forest observation view, map and legend
+only — is a projection of the **real** corpus: an allow-listed, redacted snapshot generated at
+publish time and committed or deployed as a static file the website imports at build, regenerated on
+merge to `main`. Everything else remains fiction (Act 1, the inflection, the Chapter 2 teaching
+walk). The clause that moved is *fictional → real*, **not** *private → public*: there is still no
+public API, no endpoint, no database connection and no runtime fetch, so "never private source or
+live store data" above stands verbatim, as do ADR-0056/0066. What a stranger may see is fixed by an
+explicit allow-list held by a test that fails on an unclassified field (ADR-0299 D2), and the panels
+that would have carried the excluded fields are absent from the public view entirely (D3).
+
 ### D5 — A11y-only escapes
 
 The only non-experience exits for a capable visitor are **none**. Escapes that remain are
@@ -115,6 +137,7 @@ deep-link — there is no anchor URL that lands mid-walk as a first-class entry.
 | Site frame (this ADR) | **ADR-0215** |
 | Act 2 visitor experience | [ADR-0213](0213-act-2-experience-one-continuous-orchestrator-led-walk.md) |
 | Act 1 choreography (felt overwhelm → finale → transform) | [ADR-0216](0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md) |
+| Public forest observation view (real corpus, redacted, baked; map + legend only) | [ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md) — added 2026-08-03 |
 | Renderer / shared core / grounding | [0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md) / [0093](0093-shared-forest-world-render-core-for-studio-and-the-public-we.md) / [0056](0056-ground-the-public-website-s-claims-to-the-corpus-via-data-gr.md) / [0066](0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md) — cite |
 | LOOK proof | Stays [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) operator-attested — appearance and feel never self-signed |
 
@@ -149,6 +172,11 @@ deep-link — there is no anchor URL that lands mid-walk as a first-class entry.
   [0172](0172-retire-the-remaining-brochure-pages-the-experience-is-the-en.md).
 - Sibling Act 2 (not superseded here): [0213](0213-act-2-experience-one-continuous-orchestrator-led-walk.md).
 - Sibling Act 1 (not superseded here): [0216](0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md).
+- Amending (not superseding) this ADR:
+  [0237](0237-chapter-2-is-a-scripted-mode-of-the-real-app-share-product-u.md) (D4's parent-built
+  artifact broadened to the shared app surface),
+  [0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md) (D4's fictional
+  clause narrowed to admit allow-listed real corpus data in one baked, redacted view).
 - Cited: [0056](0056-ground-the-public-website-s-claims-to-the-corpus-via-data-gr.md),
   [0066](0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md),
   [0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md),

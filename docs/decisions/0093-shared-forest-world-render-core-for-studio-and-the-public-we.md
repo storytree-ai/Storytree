@@ -35,6 +35,15 @@ Chapter 2 product path: Chapter 2 consumes a parent-built shared app-surface art
 same React product presentation, sprite renderer/assets and semantic motion the studio uses. The
 site still supplies fictional data and never receives the live store or operable app actions.
 
+**Scoped by [ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md)
+(2026-08-03).** Two halves of the paragraph above now hold only for the Chapter 2 TEACHING path.
+(1) "The site still supplies fictional data" — the separate forest OBSERVATION view supplies real,
+allow-listed corpus data baked into a published static artifact. (2) The retirement of the
+string-SVG mapper is likewise teaching-path-only: the observation view deliberately keeps
+`worldSvg.ts` and shares the scene graph rather than the app-surface artifact, which is this ADR's
+ORIGINAL seam. "Never receives the live store or operable app actions" stands verbatim for both
+paths.
+
 ## Context
 
 Two render engines draw the **same forest-world metaphor**:
@@ -139,7 +148,12 @@ leverage.
    it fictional presentation frames. Both artifacts obey the same source/data boundary.
 
 4. **Shared = the LOOK only by default; Chapter 2 deliberately shares product presentation**
-   (ADR-0237). Never the live data, the store, the corpus, or operable actions. Outside Chapter 2 the
+   (ADR-0237). Never the live data, the store, the corpus, or operable actions. **Corpus clause
+   narrowed by [ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md)
+   (2026-08-03):** corpus-DERIVED data may now reach the site, but only as a redacted, allow-listed
+   projection baked into a published static artifact, and only for the forest observation view. The
+   live data, the store and operable actions are still never received — nothing connects, and the
+   "no private data crosses" purpose of this line is carried by that allow-list instead. Outside Chapter 2 the
    original geometry + shapes line stands. Inside Chapter 2, the shared artifact also carries the
    real app's presentational chrome and read-only interactions so the experience cannot reconstruct
    the product. This is the precise line that keeps
@@ -223,6 +237,9 @@ recommendations below). The original options are kept for the record.
 - [ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) / [ADR-0052](0052-render-delegatable-agents-to-claude-agents-subagent-files.md)
   — the generated-view + drift-gate pattern the `check:web-engine` sync reuses.
 - [ADR-0050](0050-adr-number-allocation.md) — how this ADR's number (0093) was allocated.
+- [ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md) — the public forest
+  observation view; returns to this ADR's original shared-the-look seam while narrowing Decision 4's
+  corpus clause to permit a redacted, baked projection.
 - `web/src/lib/world.ts`, `web/src/lib/worldSvg.ts` — the pure string-SVG render brought to studio
   parity 2026-06-22 (the seed of the shared core); `apps/studio/src/components/TreeView.tsx` — the
   studio render to share.
