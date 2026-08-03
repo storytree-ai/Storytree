@@ -23,7 +23,7 @@
 
 import { createPool, closePool, PgLibraryStore, diffSeedAgents, AGENT_KIND } from "@storytree/library/store";
 
-import { loadLocalSecrets } from "./secrets.js";
+import { loadLocalSecrets, presentEnv } from "./secrets.js";
 import { evaluateAgentsSyncDrain } from "./sync-drain.js";
 
 const TAG = "[check:agents-sync]";
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
   // Match the CLI: hydrate STORYTREE_DB_USER from ~/.storytree/secrets.json when unset (env wins).
   loadLocalSecrets();
 
-  if (process.env["STORYTREE_DB_USER"] === undefined) {
+  if (presentEnv("STORYTREE_DB_USER") === undefined) {
     console.log(`${TAG} SKIP — no STORYTREE_DB_USER (DB creds absent); live agent tier unverified.`);
     return;
   }

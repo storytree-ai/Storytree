@@ -11,6 +11,18 @@ arc: model-uat-promotion
 
 accepted (2026-07-26) — decided/directed by the owner in conversation on 2026-07-26. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**PARTLY NARROWED — read this before decision 1 (corrected in place 2026-08-03, ADR-0139).** Amended by
+[ADR-0295](0295-the-uat-driver-s-own-verdict-is-the-witness-model-driven-uat.md): a UAT criterion may
+now be witnessed by **the model that DROVE it** — a headless/browser run of the journey — and that is
+the default. So decision 1's clause *"no independent read-only model judge in the UAT path"* is no
+longer true as written. What remains true, and is the part to carry forward: the witness split is still
+**binary (`human` | `machine`)**, there is still no `model` witness *kind*, no capability tier, no
+eligibility registry and no escalation ladder — a model driver produces a `machine` outcome. ADR-0295
+revives none of ADR-0209's rubric-judge machinery, so **decisions 2–6 below (including the retirement
+worklist in decision 5) STAND and are still live work.** The measured reason for the narrowing: this
+ADR's null result was gathered on a population of criteria already shrunk toward what a package suite
+can assert (ADR-0294).
+
 Amends [ADR-0209](0209-tier-model-judged-uat-below-irreducible-human-witness.md): its decisions 1–4 (the
 `model` witness kind, the capability tiers, the independent judge, the escalation ladder) are
 REVERSED. Its decisions 5–7 (per-criterion detail artifacts, verdict anchoring to a detail revision,

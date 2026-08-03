@@ -99,7 +99,32 @@ test("corpus RED: a single seed-only artifact breaches (M=0)", () => {
   );
   assert.equal(v.level, "red");
   assert.equal(v.count, 1);
-  assert.match(v.breaches[0] ?? "", /of 174 are absent from the live store/);
+  assert.match(v.breaches[0] ?? "", /of 174 never migrated to the live store/);
+});
+
+test("corpus APERTURE: only a NEVER-MIGRATED absence is charged, and the deferred ones are named", () => {
+  // The narrowing (see `CorpusSyncGap.missing`). The ceiling did not move — M is still 0 — but the two
+  // populations whose correct remedy is NOT the drain no longer breach it: an artifact an owner
+  // retired live, and a row `origin/main` has already dropped. Measured live 2026-08-03, this exact
+  // shape: the pre-change check exited 1 on `a-cli-flags-owning-area-is-declared-and-checked` and
+  // `a-gate-check-prose-matches-its-own-exit-code` — both retired live minutes earlier by a sibling —
+  // and told the session to `sync-corpus` them back.
+  const v = evaluateCorpusSyncDrain({ missing: [], seedScope: 211 }, { seedUnitsRead: 223, deferred: 2 });
+  assert.equal(v.level, "ok", "two deferred absences do not breach a zero ceiling");
+  assert.deepEqual(v.breaches, []);
+});
+
+test("corpus APERTURE: a deferred absence is REPORTED in the breach line, never silently dropped", () => {
+  // ADR-0095: no silent caps. A narrowed aperture that hid what it excluded would read as "nothing
+  // else was absent", which is the class of false clean this whole module exists to prevent.
+  const v = evaluateCorpusSyncDrain(
+    { missing: ["freshly-graduated"], seedScope: 211 },
+    { seedUnitsRead: 223, deferred: 3 },
+  );
+  assert.equal(v.level, "red", "a genuine gap still reds at M=0");
+  assert.equal(v.count, 1);
+  assert.match(v.breaches[0] ?? "", /a further 3 absence\(s\) are reported under another cause/);
+  assert.match(v.breaches[0] ?? "", /NOT charged/);
 });
 
 test("corpus GREEN: the reconciled baseline is `ok`", () => {
