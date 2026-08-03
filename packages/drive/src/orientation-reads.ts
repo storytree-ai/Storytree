@@ -16,7 +16,7 @@ import path from "node:path";
 
 import { findNodeSpecFile } from "@storytree/orchestrator";
 import type { Store } from "@storytree/storage-protocol";
-import { NODE_REF_PREFIX } from "@storytree/library";
+import { KIND_SPECS, NODE_REF_PREFIX } from "@storytree/library";
 import { renderStoredDoc, renderAgentEssentials, renderAgentStep } from "@storytree/library/store";
 
 import { emitNodeEnvelope, type Envelope } from "./envelope.js";
@@ -101,6 +101,20 @@ export async function artifactView(store: Store, id: string | undefined): Promis
 /**
  * `library artifact list <category>` — the ids + titles in one category (kind). An unknown or
  * missing category lists the available categories instead — guidance, not a dead end.
+ *
+ * The listable set is SCHEMA-derived (every kind `KIND_SPECS` defines, unioned with any kind the
+ * store actually holds), because the population is not the authority on what exists: deriving it
+ * from the rows present made a kind unlistable for exactly as long as it took someone to write its
+ * first row, and read a lifecycle tier draining to zero — which for `proposal` is the SUCCESS state
+ * — as `unknown category`. Both are false; an empty tier is a fact about the population, never a
+ * fault in the query, so the two answers split: a kind outside the schema stays an `ok: false`
+ * error with the available list, while a schema kind holding ZERO rows lists empty at `ok: true` in
+ * the same `<kind> (n):` shape a populated tier uses. The UNION keeps store-only kinds listable —
+ * `template` artifacts (ADR-0210) carry a kind the knowledge union does not name and they list
+ * today — so the set is strictly widening and every invocation that works keeps working.
+ *
+ * The CLI's `listCategory` (`packages/cli/src/commands.ts`) holds the same rule for the terminal
+ * surface; the CLI dispatch does not route through here, so the two are proven separately.
  */
 export async function artifactList(store: Store, category: string | undefined): Promise<Envelope> {
   const docs = await store.queryDocs();
@@ -112,8 +126,8 @@ export async function artifactList(store: Store, category: string | undefined): 
     list.push({ id: d.id, title });
     byKind.set(d.kind, list);
   }
-  const kinds = [...byKind.keys()].sort();
-  if (category === undefined || !byKind.has(category)) {
+  const kinds = [...new Set([...Object.keys(KIND_SPECS), ...byKind.keys()])].sort();
+  if (category === undefined || !kinds.includes(category)) {
     const which = category === undefined ? "no category given" : `unknown category "${category}"`;
     return {
       ok: false,
