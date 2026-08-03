@@ -2,8 +2,9 @@
 raw/
 raw2/
 raw*/
-# Variant outputs from the exploratory flags (--framing, --skeleton). Reproducible the same
-# way; only the comparison SHEET they feed is committed.
+# Variant outputs from the exploratory flags (--framing, --skeleton, --crown-normals).
+# Reproducible the same way; only the comparison SHEET they feed is committed.
 frames[A-Z]*/
+work/
 registry-block.ts.txt
 __pycache__/

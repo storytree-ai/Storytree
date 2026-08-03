@@ -47,6 +47,16 @@ our canopy". Under simultaneous growth there is no frame in which the limbs are 
 there was never a moment where the structure could register. Sequencing the phases addresses the
 same complaint from the other end, without touching the canopy rules.
 
+*(Corrected in place 2026-08-03 per ADR-0139; the DECISION is untouched and the paragraph's argument
+survives, but the number it argues from was the wrong instrument. The v7 increment measured that
+crown GREEN FRACTION mixes two independent causes — `measure()` scored green on `G > R and G > B`,
+which exp-16's own warm highlight band (173,167,114) and darkest foliage band (92,90,46) both fail,
+so 27% of its "non-green" crown is foliage. By nearest family the gap is BARK: 670 px of exp-16's
+mature crown against 206. This paragraph's claim that sequencing addresses the complaint "from the
+other end" is also now measured rather than argued, and the answer is that it did NOT move the mature
+frame — at the final frame the two tracks are the same tree, which the v6 increment then recorded.
+What sequencing bought is watchability of the wood phase, which is what D1 actually claims.)*
+
 ## Decision
 
 **The track has TWO phases. The wood extends and branches alone; the leaves flush onto a tree that

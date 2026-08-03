@@ -8,23 +8,26 @@ growth). Blender occupies the FINISH slot only. No .blend is a source of truth; 
 file is. Output is NOT deliverable until it passes pixelise.py — a raw Blender frame
 shipped as-is is the ADR-0145 failure reproduced (ADR-0280 D2a).
 
-This is v4. Its two targets are the silhouette defects ADR-0289 D2 names, both of them
-in this file's own CANOPY code rather than in the skeleton:
+This is v7, and its target is CROWN STRUCTURE — the one gap that has survived every
+increment since v3. See the `crown proxy normals` block below for the mechanism; the
+short version is that our canopy is a pile of ~20 blobs each carrying its OWN
+light-to-dark ramp, where exp-16's crown carries ONE gradient with the lobe boundaries
+drawn on it. The fix is the first of the three techniques the owner triaged into the arc
+from a Ghibli-style Blender tutorial: normals transferred from a smooth crown proxy, so
+the whole canopy shades as one volume. The proxy is ANALYTIC and generated from the live
+lobe set, because ADR-0280 D1 forbids a hand-sculpted asset.
 
-  1. FOLIAGE AT THE TRUNK — canopy mass appeared against the bole because the rule that
-     places it was purely TOPOLOGICAL (outer orders of live shoot), and a lateral that
-     ends low on the bole is an outer order. A CANOPY FLOOR supplies the missing
-     geometric half: no node bears canopy below a fraction of the LIVE tree's own top.
-  2. THE INVERTED PEAR — the crown envelope was an ellipsoid as tall as it was wide,
-     starting at 29% of tree height, so the tree read as an oval on a short stick with
-     no waist. Raised and shortened onto a bole, measured against exp-16's own
-     half-width-by-height profile rather than judged by eye.
+It also corrects the instrument that named the gap. `measure.py` stated crown structure
+as GREEN FRACTION (ours 71%, exp-16 51%), and that number conflates two independent
+things: exp-16's crown really does carry ~4x our visible bark, but a third of its
+"non-green" is its own warm highlight band (173,167,114), which fails a naive G>R test.
+Measured by nearest FAMILY instead, the honest gap is bark: 670 px of exp-16's crown
+against 185 of ours. `measure.py` now reports both, so the next increment aims at the
+right organ.
 
-v3's four levers (clouds carry the crown, authored cel bands, the top highlight, the
-break-up mask) are unchanged and still carry the colour result. What v4 DELETES, under
-the licence ADR-0289 D1 grants, is the seedling apparatus: leaf blades, the
-blade-to-cloud handoff, the age-dependent first flush and the cotyledon organ. The track
-animates a tree FORMING, so one canopy mechanism serves the whole of it.
+v3's four colour levers (clouds carry the crown, authored cel bands, the top highlight,
+the break-up mask), v4's canopy floor and inverted pear, v5's root flare and mid-stage
+whip, and ADR-0293's two-phase staging are all unchanged.
 
 Invariants held (ADR-0280 D1, reaffirmed by ADR-0289):
   · Topology is a strict PREFIX. The skeleton is grown once; every node records its
@@ -430,6 +433,118 @@ CANOPY_FLOOR = 0.40            # no canopy weight below this fraction of the liv
 CANOPY_FEATHER = 0.13          # ... ramping to full over this much more of it
 CANOPY_MATURE_Z = 1.00         # the live top, as a fraction of the MATURE top, at which
                                # both shell rules reach full strength
+
+# THE FLOOR IS A FUNNEL, NOT A PLANE — and this, not the shading, is what "you cannot see
+# the limbs running through our canopy" actually was. The gap had been carried since v3 as
+# a GREEN FRACTION (ours 71%, exp-16 51%), and that number turns out to conflate two
+# independent things: a third of exp-16's "non-green" crown is its own warm highlight
+# band, which fails a naive G>R test. Measured by nearest FAMILY instead, the honest
+# statement is BARK: 670 px of exp-16's mature crown against 185 of ours, a 3.6x gap.
+#
+# Blending the canopy normals toward the crown proxy above moves it NOT AT ALL — measured
+# across the whole `--crown-normals` fork, bark held at 185-188 px from mix 0.0 to 1.0,
+# because normals decide which BAND a canopy pixel takes and never whether a pixel is
+# canopy. So the two halves of the old "crown structure" gap have two different causes,
+# and this is the geometric one.
+#
+# CANOPY_FLOOR above is a horizontal PLANE at a fraction of the live top: below it no
+# node bears canopy, above it every node does. exp-16's is not a plane. Its trunk forks
+# into a candelabra of primary limbs that splay up and OUT, and its canopy sits on the
+# ENDS of them, leaving an open cone above the fork through which the limbs read — the
+# lower centre of its crown is bare wood and sky. Ours fills that cone, so the same
+# limbs exist and are simply behind cloud. That is why lowering WOOD_HIDE never fixed it
+# in v3 (the taper only thins a twig, it cannot move a cloud off one) and why v6's
+# two-phase staging did not either (at f18 the two tracks are the same tree).
+#
+# So the floor gains a RADIAL term: it is lifted near the trunk axis and unchanged at the
+# rim. Same self-similar form as everything else at this end of the tree — the radius is
+# a fraction of the LIVE crown's own half-width, not a world constant, so one rule serves
+# a whip and a mature crown. The void it carves is the "crown's central void" v3 claimed
+# fell out of the outer-orders weight for free; measured, it does not.
+CANOPY_CORE_R = 0.46           # radial extent of the lift, as a fraction of the live
+                               # crown's own half-width: 1.0 would lift the whole crown
+CANOPY_CORE_LIFT = 0.20        # ... and how much higher the floor sits on the axis, in
+                               # the same units as CANOPY_FLOOR (fraction of live top)
+
+# ------------------------------------------------------- crown proxy normals
+# THE CANOPY SHADES AS ONE VOLUME — the first of the three techniques the owner triaged
+# into this arc from a Ghibli-style Blender tutorial (the video's Data Transfer +
+# Auto Smooth step), and the one aimed at the arc's oldest surviving gap.
+#
+# THE DEFECT, measured rather than described. `banded()` keys colour on the surface
+# normal, and our crown is a pile of ~20 closed ellipsoids, so EVERY lobe presents every
+# facing angle and carries its own full light-to-dark ramp. exp-16's crown carries ONE
+# gradient across the whole canopy with the lobe boundaries drawn ON it. That single
+# difference is also where the warm top highlight went, and the arithmetic says so: the
+# highlight is just the top band of N·L, so a pile of blobs scatters it into twenty small
+# caps instead of pooling it into one. Ours holds 830 px of (173,167,114) on the mature
+# frame against exp-16's 874 — nearly the same ABSOLUTE highlight — spread over a 4706 px
+# crown against 4280. The highlight never thinned; the crown grew around it.
+#
+# THE WIRING IS OURS, NOT THE VIDEO'S, and both halves of that are forced. ADR-0280 D1
+# forbids a hand-sculpted proxy mesh, and a Data Transfer modifier would need a
+# nearest-surface mapping heuristic we would then have to tune. So the proxy is ANALYTIC
+# and generated from the canopy we already author: an ellipsoid fitted to the lobe set
+# THIS frame emitted, whose normal is exact everywhere and needs no mapping at all. It
+# also tracks the crown through ADR-0293's flush for free, where a fixed proxy sized to
+# CROWN_C/CROWN_R would be wrong on every frame but the last.
+#
+# Verified before it was built, because the whole technique rests on it: Cycles'
+# Geometry>Normal — the socket `banded()` already reads — honours custom split normals.
+# A sphere with all normals forced to +Z renders as ONE band where the same sphere smooth
+# -shaded hits all five. So no shader changes, the band list is untouched, and this is
+# not the video's EEVEE-only `Shader to RGB` route by another name.
+#
+# It is a BLEND, not a replacement: the lobe normals carry the clump silhouettes and the
+# proxy carries the volume. At 1.0 the canopy is a bare ellipsoid and the clumps stop
+# reading entirely, so the delivered value is picked from rendered frames like every
+# other art-direction number here (`--crown-normals`, and 0.0 is exactly v6).
+#
+# WHERE 0.22 CAME FROM, and it is not "as unified as possible". `measure.py` now reports
+# the highlight's connected CAPS, and read against exp-16 rather than against the extreme
+# that metric has a peak rather than a slope: exp-16 does NOT pool its highlight into one
+# region (12 caps, largest 30% of it) — it carries a few LARGE caps on a shared value
+# structure. Measured on the mature frame, every row with the funnel floor below in place
+# so the fork moves exactly one variable:
+#
+#     mix   highlight        caps   largest   cap sizes             bark
+#     0.00     826 (17.6%)     12       21%   177 168 148 103 72    206   <- v6's shading
+#     0.22     889 (19.0%)     11       25%   221 217 155 135 60    206   <- delivered
+#     0.32     902 (19.2%)      9       54%   486 159 143  50 37    207
+#     0.45     909 (19.4%)      7       76%   687 160  37  19  3    207
+#     1.00     821 (17.5%)     11       79%   650 130  24   7  3    206
+#     exp-16   874 (20.4%)     12       30%   261 244 198  83 45    670
+#
+# Between 0.32 and 0.45 the separate caps PERCOLATE into one blob, and past that the
+# highlight FALLS again — a bare ellipsoid presents less area to the key than a crown of
+# clumps does. 0.22 buys essentially all the highlight 0.32 does (19.0 vs 19.2) while
+# landing on exp-16's cap architecture instead of overshooting it, so the pick is the
+# reference's STRUCTURE rather than the largest number in a column.
+#
+# Read the last column too, because it is the honest limit of this technique: BARK IS
+# 206-207 PX AT EVERY MIX FROM 0 TO 1. Normals decide which band a canopy pixel takes and
+# never whether a pixel is canopy, so nothing here touches how much limb you can see —
+# that is the funnel floor's column, and even it only reaches 206 against exp-16's 670.
+CROWN_NORMAL_MIX = float(arg("--crown-normals", "0.22"))
+if not 0.0 <= CROWN_NORMAL_MIX <= 1.0:
+    raise SystemExit(f"--crown-normals must be 0..1, got {CROWN_NORMAL_MIX}")
+
+
+def crown_proxy(lobes):
+    """The smooth crown proxy: an analytic ellipsoid fitted to the live lobe set.
+
+    Centre is mass-weighted (r**3, so a big lobe pulls harder than a tuft). Each
+    half-extent is the farthest lobe SURFACE on that axis rather than the farthest
+    centre, so the proxy spans the canopy the viewer sees. Pure numpy, so the
+    `--no-render` plan can print it without launching a render.
+    """
+    P = np.array([c for _ci, c, _r in lobes], dtype=np.float64)
+    R = np.array([r for _ci, _c, r in lobes], dtype=np.float64)
+    w = R ** 3
+    ctr = (P * w[:, None]).sum(axis=0) / w.sum()
+    ext = (np.abs(P - ctr) + R[:, None]).max(axis=0)
+    return ctr, np.maximum(ext, 1e-4)
+
 
 # ---------------------------------------------------------------- base
 # The buttress. v2 gave the tree one (gap 2) and v4 measured what it is worth: exp-16's
@@ -977,9 +1092,13 @@ def frame_state(N):
     # drawn at a fraction of its length, so reading either end off nd.p lets the floor
     # climb to a height the viewer cannot yet see — the canopy would recede from limbs
     # that have not visibly been overtopped.
-    zf = np.array([nd.p[2] if nd.parent < 0 else
-                   NODES[nd.parent].p[2] + (nd.p[2] - NODES[nd.parent].p[2]) * frac[i]
+    # x and y are eased for the same reason z is: the radial term of the canopy floor
+    # below reads them, and an un-eased frontier node would sit at its full reach while
+    # being drawn at a fraction of it.
+    PF = np.array([nd.p if nd.parent < 0 else
+                   NODES[nd.parent].p + (nd.p - NODES[nd.parent].p) * frac[i]
                    for i, nd in enumerate(NODES)])
+    XF, YF, zf = PF[:, 0], PF[:, 1], PF[:, 2]
     ztop = float(zf[alive].max()) if alive.any() else 0.0
     grown = min(1.0, ztop / (CANOPY_MATURE_Z * Z_MATURE)) if Z_MATURE > 0 else 1.0
     mat = grown * grown * (3 - 2 * grown)         # 0 at the seedling, 1 at the crown
@@ -997,7 +1116,21 @@ def frame_state(N):
     # the crown at all? Measured against the LIVE tree's own top, so it rises with the
     # tree and one rule serves a sapling apex and a mature crown shell.
     if ztop > 1e-6:
-        wz = np.clip((zf / ztop - CANOPY_FLOOR * mat) / CANOPY_FEATHER, 0.0, 1.0)
+        # ... and it is a FUNNEL: lifted on the trunk axis, unchanged at the rim, so the
+        # primary limbs above the fork stand in open air instead of behind cloud. The
+        # radius is normalised against the LIVE crown's own half-width — measured off the
+        # nodes that currently bear canopy weight rather than off the mature envelope, so
+        # a whip's tiny crown gets a whip-sized void rather than the mature one.
+        rxy = np.hypot(XF, YF)
+        lit = wn > 1e-6
+        rtop = float(rxy[lit].max()) if lit.any() else 0.0
+        if rtop > 1e-6:
+            core = np.clip(1.0 - rxy / (CANOPY_CORE_R * rtop), 0.0, 1.0)
+            core = core * core * (3 - 2 * core)
+        else:
+            core = np.zeros_like(rxy)
+        floor = (CANOPY_FLOOR + CANOPY_CORE_LIFT * core) * mat
+        wz = np.clip((zf / ztop - floor) / CANOPY_FEATHER, 0.0, 1.0)
         wn = wn * (wz * wz * (3 - 2 * wz))
     wn = wn * alive * con
     lobes = []
@@ -1289,6 +1422,46 @@ class MeshBuf:
         return ob
 
 
+def apply_crown_normals(ob, lobes):
+    """Pull every canopy vertex's shading normal toward the crown proxy's, so the whole
+    canopy shades as one volume. Returns the mix actually applied.
+
+    The base is the mesh's OWN smooth normals, not an analytic ellipsoid normal
+    recomputed from the lobe axes. That matters: blob() adds a low-frequency vertex
+    displacement, and an analytic base would silently drop its contribution — which would
+    change the render at mix=0 and make the whole measurement dirty. Read this way,
+    mix=0 is an exact no-op and the flag is a clean one-variable fork.
+
+    Applied to the CANOPY only. The wood keeps its own normals, because limbs reading as
+    limbs is the other half of the same gap.
+    """
+    if CROWN_NORMAL_MIX <= 0.0 or len(lobes) < 2:
+        return 0.0                      # one lobe already IS its own volume
+    me = ob.data
+    nv = len(me.vertices)
+    ctr, ext = crown_proxy(lobes)
+
+    co = np.empty(nv * 3, dtype=np.float64)
+    me.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    base = np.empty(nv * 3, dtype=np.float64)
+    me.vertex_normals.foreach_get("vector", base)
+    base = base.reshape(-1, 3)
+
+    # the outward normal of sum(((v-ctr)/ext)**2) = 1, which is that surface's gradient
+    prox = (co - ctr) / (ext ** 2)
+    ln = np.linalg.norm(prox, axis=1, keepdims=True)
+    prox = np.divide(prox, ln, out=np.zeros_like(prox), where=ln > 1e-9)
+
+    out = base * (1.0 - CROWN_NORMAL_MIX) + prox * CROWN_NORMAL_MIX
+    on = np.linalg.norm(out, axis=1, keepdims=True)
+    # a vertex whose two normals oppose blends to nothing — keep its own rather than hand
+    # Blender a zero vector it would quietly substitute for
+    out = np.where(on > 1e-6, out / np.maximum(on, 1e-12), base)
+    me.normals_split_custom_set_from_vertices([mathutils.Vector(v) for v in out])
+    return CROWN_NORMAL_MIX
+
+
 RINGS = 7
 
 
@@ -1545,7 +1718,9 @@ def build_scene(st, shadow_pass):
         lb = MeshBuf()
         for _ci, c, rad in st["lobes"]:
             lb.blob(c, rad, _ci)
-        objs.append(lb.object("lobes", fol))
+        lobe_ob = lb.object("lobes", fol)
+        apply_crown_normals(lobe_ob, st["lobes"])
+        objs.append(lobe_ob)
 
     if shadow_pass:
         # Ground contact. The tree casts but is invisible to camera, so alpha carries
@@ -1670,6 +1845,16 @@ meta = {
     "numpy": np.__version__,
     "shading": "cel bands from the surface normal (emission + constant ramp), not a "
                "smooth diffuse response; the band list IS the crown's colour budget",
+    "crown_normal_mix": CROWN_NORMAL_MIX,
+    "crownNormals": (
+        f"canopy shading normals blended {CROWN_NORMAL_MIX:g} of the way toward an "
+        f"ANALYTIC crown proxy — an ellipsoid fitted per frame to that frame's own lobe "
+        f"set — so the canopy shades as one volume instead of as a pile of blobs. The "
+        f"Ghibli-tutorial Data Transfer step, rewired: no proxy MESH and no "
+        f"nearest-surface mapping, because ADR-0280 D1 forbids a sculpted asset. Cycles' "
+        f"Geometry>Normal honours custom split normals, so the band list is untouched"
+        if CROWN_NORMAL_MIX > 0 else
+        "off — canopy lobes keep their own smooth normals (the v6 track)"),
     "leaf_breakup": LEAF_BREAKUP,
     "foliage_bands": [list(c) for _p, c in FOLIAGE_BANDS],
     "bark_bands": [list(c) for _p, c in BARK_BANDS],
@@ -1712,9 +1897,13 @@ for i, u in enumerate(PICKS):
         # A flush that begins while mat < 1 is still being shaped by the shell easing, and
         # a juvenile seat that owns a live lobe is still earning its place.
         _juv = sum(1 for ci, _c, _r in st["lobes"] if ci < N_CLOUD_YOUNG)
+        # the crown proxy the canopy borrows its normals from, so its shape can be read
+        # off the plan rather than inferred from a render
+        _px = ("-" if len(st["lobes"]) < 2 else
+               "x".join(f"{v:.2f}" for v in crown_proxy(st["lobes"])[1]))
         print(f"PLAN {i:02d} u={u:.4f} N={N:.2f} live={int(st['alive'].sum())} "
               f"lobes={len(st['lobes'])}({_juv}juv) mat={st['mat']:.2f} "
-              f"con={st['con']:.2f} sil={_sil:5d} canopy={_can:5d} "
+              f"con={st['con']:.2f} proxy={_px} sil={_sil:5d} canopy={_can:5d} "
               f"r0={st['r'][0]:.4f} root={st['t_root']:.2f} plant={st['t_plant']:.2f} "
               f"true={_top_i / _TOP:.3f} apparent="
               f"{(_top_i / CAM_SPAN) / (_TOP / SPAN):.3f}{_drop}", flush=True)

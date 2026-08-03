@@ -218,7 +218,7 @@
    "trunk_r": 0.063,
    "t_root": 0.5612,
    "t_plant": 0.6282,
-   "canopy_weight": 0.3091,
+   "canopy_weight": 0.2956,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.5681,
@@ -233,7 +233,7 @@
    "trunk_r": 0.06959,
    "t_root": 0.6153,
    "t_plant": 0.6518,
-   "canopy_weight": 1.0116,
+   "canopy_weight": 0.9771,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.5893,
@@ -248,7 +248,7 @@
    "trunk_r": 0.07504,
    "t_root": 0.6588,
    "t_plant": 0.6876,
-   "canopy_weight": 3.1551,
+   "canopy_weight": 3.0793,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.6214,
@@ -263,7 +263,7 @@
    "trunk_r": 0.07639,
    "t_root": 0.6694,
    "t_plant": 0.711,
-   "canopy_weight": 5.9397,
+   "canopy_weight": 5.8296,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.6424,
@@ -274,11 +274,11 @@
    "u": 0.59633,
    "N": 20.9703,
    "live_nodes": 189,
-   "lobes": 13,
+   "lobes": 12,
    "trunk_r": 0.08062,
    "t_root": 0.7024,
    "t_plant": 0.7475,
-   "canopy_weight": 11.5693,
+   "canopy_weight": 11.4388,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.6751,
@@ -289,11 +289,11 @@
    "u": 0.614679,
    "N": 21.6144,
    "live_nodes": 222,
-   "lobes": 15,
+   "lobes": 14,
    "trunk_r": 0.08378,
    "t_root": 0.7267,
    "t_plant": 0.7715,
-   "canopy_weight": 15.7274,
+   "canopy_weight": 15.5353,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.6967,
@@ -308,7 +308,7 @@
    "trunk_r": 0.0875,
    "t_root": 0.755,
    "t_plant": 0.8083,
-   "canopy_weight": 23.0489,
+   "canopy_weight": 22.7028,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.7346,
@@ -323,7 +323,7 @@
    "trunk_r": 0.0898,
    "t_root": 0.7722,
    "t_plant": 0.8329,
-   "canopy_weight": 25.836,
+   "canopy_weight": 25.3995,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.7776,
@@ -334,11 +334,11 @@
    "u": 0.678899,
    "N": 23.9015,
    "live_nodes": 285,
-   "lobes": 18,
+   "lobes": 17,
    "trunk_r": 0.09154,
    "t_root": 0.7853,
    "t_plant": 0.8576,
-   "canopy_weight": 35.6991,
+   "canopy_weight": 35.2933,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.8141,
@@ -349,11 +349,11 @@
    "u": 0.706422,
    "N": 24.8966,
    "live_nodes": 313,
-   "lobes": 18,
+   "lobes": 17,
    "trunk_r": 0.09481,
    "t_root": 0.8095,
    "t_plant": 0.8937,
-   "canopy_weight": 45.0132,
+   "canopy_weight": 44.7642,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.8381,
@@ -368,7 +368,7 @@
    "trunk_r": 0.09976,
    "t_root": 0.8457,
    "t_plant": 0.9567,
-   "canopy_weight": 66.8604,
+   "canopy_weight": 66.6827,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 0.9016,
@@ -383,7 +383,7 @@
    "trunk_r": 0.1216,
    "t_root": 1.0,
    "t_plant": 1.0,
-   "canopy_weight": 119.3298,
+   "canopy_weight": 119.0652,
    "ortho_scale": 3.07623,
    "target_z": 1.381074,
    "true_height_frac": 1.0,
@@ -547,8 +547,8 @@
     84,
     119
    ],
-   "alphaPx": 1107,
-   "treePx": 1103,
+   "alphaPx": 1106,
+   "treePx": 1102,
    "shadowPx": 4
   },
   {
@@ -563,8 +563,8 @@
     86,
     119
    ],
-   "alphaPx": 1327,
-   "treePx": 1323,
+   "alphaPx": 1323,
+   "treePx": 1319,
    "shadowPx": 4
   },
   {
@@ -579,8 +579,8 @@
     89,
     120
    ],
-   "alphaPx": 1691,
-   "treePx": 1683,
+   "alphaPx": 1686,
+   "treePx": 1678,
    "shadowPx": 8
   },
   {
@@ -595,8 +595,8 @@
     91,
     120
    ],
-   "alphaPx": 1939,
-   "treePx": 1931,
+   "alphaPx": 1935,
+   "treePx": 1927,
    "shadowPx": 8
   },
   {
@@ -611,8 +611,8 @@
     99,
     120
    ],
-   "alphaPx": 2460,
-   "treePx": 2447,
+   "alphaPx": 2459,
+   "treePx": 2446,
    "shadowPx": 13
   },
   {
@@ -627,8 +627,8 @@
     103,
     120
    ],
-   "alphaPx": 2976,
-   "treePx": 2951,
+   "alphaPx": 2972,
+   "treePx": 2947,
    "shadowPx": 25
   },
   {
@@ -643,8 +643,8 @@
     107,
     120
    ],
-   "alphaPx": 3492,
-   "treePx": 3457,
+   "alphaPx": 3489,
+   "treePx": 3454,
    "shadowPx": 35
   },
   {
@@ -659,8 +659,8 @@
     109,
     120
    ],
-   "alphaPx": 4032,
-   "treePx": 3991,
+   "alphaPx": 4031,
+   "treePx": 3990,
    "shadowPx": 41
   },
   {
@@ -675,9 +675,9 @@
     112,
     120
    ],
-   "alphaPx": 4839,
-   "treePx": 4727,
-   "shadowPx": 112
+   "alphaPx": 4827,
+   "treePx": 4714,
+   "shadowPx": 113
   },
   {
    "file": "frame-18.png",
@@ -691,8 +691,8 @@
     112,
     121
    ],
-   "alphaPx": 5629,
-   "treePx": 5425,
+   "alphaPx": 5612,
+   "treePx": 5408,
    "shadowPx": 204
   }
  ]

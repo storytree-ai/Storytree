@@ -123,6 +123,14 @@ together. **Root flare stands as written**: v6's mature frame is essentially unc
 profile matching v5's to within a pixel, so the closure this bullet records is not affected.
 **Crown separation stands, at 71% against exp-16's 51%** rather than 70% — still the standing gap,
 and ADR-0293 did not move it, because at the final frame the two tracks are the same tree.
+*(Corrected again 2026-08-03, same pass-in-place rule, and the CONCLUSION is unchanged and in fact
+strengthened — only the instrument was wrong. The v7 increment measured that crown GREEN FRACTION
+conflates two independent causes: `measure()` scored green on `G > R and G > B`, and exp-16's own warm
+top-highlight band (173,167,114) and darkest foliage band (92,90,46) both fail that test, so 27% of
+its "non-green" crown is its own foliage. Classified by nearest FAMILY, the gap is BARK — 670 px of
+exp-16's mature crown against the code track's 206 — so crown separation favours exp-16 by 3.3x, not
+by the 1.4x this bullet's figures imply. Read the bark number, not the green fraction; `measure.py`
+now prints both and no longer leads with the green one.)*
 **The young-tree clause is the one that is now WRONG, and it is corrected rather than restated**: under
 ADR-0293 the early and mid frames carry NO canopy at all for the whole wood phase (frames 00 through
 06 of 19 on the delivered option, with `con` at 0 and no cloud emitted), so "the canopy now runs down
