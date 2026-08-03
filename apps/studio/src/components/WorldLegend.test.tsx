@@ -105,9 +105,8 @@ describe('legendFacts', () => {
     // The sapling state was folded into `young` (ADR-0038 / owner 2026-06-21): the legend
     // no longer surfaces a distinct sapling fact.
     expect('saplingPresent' in facts).toBe(false);
-    // no presented green or withered flora — offline under-claims
+    // no presented green — offline under-claims
     expect(facts.anyProven).toBe(false);
-    expect(facts.anyDeadFlora).toBe(false);
   });
 
   it('presented healthy = a signed pass painted it — anyProven on either tier', () => {
@@ -116,9 +115,11 @@ describe('legendFacts', () => {
     expect(legendFacts([story('s', 'mapped', [cap('c', 'mapped')])]).anyProven).toBe(false);
   });
 
-  it('a presented-unhealthy capability withers flora (signed ✗ or authored unhealthy)', () => {
+  it('the dead-flora fact is GONE — the legend no longer has a withered state to ground (ADR-0296)', () => {
+    // Was `anyDeadFlora`. With `unhealthy` withdrawn from the rendered vocabulary the legend has
+    // no withered tile to gate, so the fact it was computed for no longer exists.
     const facts = legendFacts([story('s', 'mapped', [cap('c', 'unhealthy')])]);
-    expect(facts.anyDeadFlora).toBe(true);
+    expect('anyDeadFlora' in facts).toBe(false);
   });
 
   it('a zero-cap story takes its status FORM (young / withered), not a distinct sapling', () => {
@@ -266,8 +267,10 @@ describe('WorldLegend (adaptive bar)', () => {
     const onToggleStatus = vi.fn();
     renderLegend(offlineWorld(), { onToggleStatus });
     fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
-    // healthy / unhealthy don't occur in this world
-    expect(screen.getAllByText('not in world yet')).toHaveLength(2);
+    // healthy doesn't occur in this world. `unhealthy` is no longer a fan state at all
+    // — ADR-0296 withdrew it from the world's rendered vocabulary, so the fan is
+    // proposed / mapped / healthy and only healthy is absent here.
+    expect(screen.getAllByText('not in world yet')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: /^proposed/ }));
     expect(onToggleStatus).toHaveBeenCalledWith('proposed');
     // building and retired are not legend STATUS states — the world folds
@@ -330,10 +333,15 @@ describe('WorldLegend — sprite art sheet (ADR-0230)', () => {
     expect(document.querySelector('.legend-bar .story-tree')).toBeNull();
   });
 
-  it('the withered (unhealthy) tree resolves the `tree:unhealthy` sprite in the drawer fan', () => {
-    // the fan always shows all four statuses; unhealthy resolves the withered sprite, not the vector.
+  it('the withered sprites are never reached — `unhealthy` left the picture (ADR-0296)', () => {
+    // The sheet still CARRIES `tree:unhealthy` / `flora:unhealthy` (the art is retained, not
+    // deleted), and the fold means the legend can no longer be handed the state. Even fed a raw
+    // `unhealthy` world directly — bypassing `provenStatus` — the legend draws neither withered
+    // sprite. This is the pin that the withdrawal is complete on the legend surface.
     renderLegend([story('s', 'unhealthy', [cap('c', 'unhealthy')])], { spriteSheet: sheet });
     fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
-    expect(spriteHrefs()).toContain('/art-sheets/test/tree-withered.png');
+    expect(spriteHrefs()).not.toContain('/art-sheets/test/tree-withered.png');
+    expect(spriteHrefs()).not.toContain('/art-sheets/test/flora-dead.png');
+    expect(screen.queryByText('withered')).toBeNull();
   });
 });

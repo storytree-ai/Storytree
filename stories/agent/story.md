@@ -226,120 +226,79 @@ red/green/verdict authority and keeps every honesty property OUTSIDE the leaf (A
 
 ## UAT Test Criteria
 
-The integrated **acceptance walkthrough** proving the organism's outcome end to end: a spine drives
-the SAME two authoring slices through the runtime implementations behind one seam and gets an
-authored deliverable each time, with every honesty wall held.
+The integrated **acceptance walkthrough** proving the organism's outcome end to end: a spine drives a
+real authoring slice through a selected runtime behind one seam and gets an authored deliverable, with
+every honesty wall held.
 
-> **HONEST status — `mapped`, no single scripted UAT spans the whole journey live.** The offline
-> legs (1–4, 6) are automated TODAY by the package's own suite (citations inline). Leg 5 — a REAL
-> SDK/CLI invocation authoring against a live subscription — is not a standing test in this package:
-> the Claude leg is **operator-attested** history from the drive-machinery dogfood, while the Codex
-> leg is need-gated to a host with saved ChatGPT authentication. The offline path proves each leaf's
-> seam, authentication refusal, result mapping, and write-scope decision. This UAT is therefore
-> part-scripted, part-attested — exactly the drive-machinery honesty pattern.
->
-> **Per-leg witness (ADR-0106).** The adopt pass resolves each leg's witness, never defaulting it onto
-> the human: legs 1–4 and 6 are `witness: machine`, each explicitly bound to `agent#gate-1` — the
-> package's own offline suite (`pnpm --filter @storytree/agent test`) demonstrably covers them, so
-> Adopt observe-and-signs them through that exact command. Leg
-> 5 is `witness: human` — the live subscription invocation is experiential/operator-attested, with no standing offline
-> test, so it (and it alone) awaits the operator's "I saw it work" (ADR-0082). No leg rests `either`.
->
-> *(Scope note 2026-07-26: that "awaits" is now HISTORY, not current state — the adopt pass ran on
-> 2026-06-26 and legs 1–4 and 6 carry signed `adopted` verdicts, while leg 5 carries both an
-> attestation and an `operator-attested` verdict. See the two blockquotes below.)*
+**Goal —** Behind one `PhaseAuthor` seam, the selected runtime authors a slice on demand, refusing every
+out-of-scope write and never forging a success.
 
-> **TWO SIGNED ROWS POINT AT `#uat-5`, AND THE CLAIM THERE HAS BROADENED SINCE THEY WERE SIGNED —
-> READ THIS BEFORE READING LEG 5 (recorded 2026-07-26 during the ADR-0209 §8 re-adjudication; the
-> remedy is an OPEN OWNER CALL, deliberately NOT made here).**
->
-> **What is stored.** Verified by direct query against the live store, not inferred:
-> - `events.attestation` seq **7** — `test_id: agent#uat-5`, `outcome: pass`, `witness: human`,
->   signer **`operator`**, `relayed_by` NULL, at **2026-06-26T13:37:41Z**. It carries **no `note`**.
-> - `events.verdict` — an **`operator-attested`** PASS for `agent#uat-5`, `runId`
->   `studio-uat-attest:2026-06-26T13:47:08.024Z`, pinning commit `e21ee4d4`, signer **`operator`**,
->   **no `approvedBy`**, evidence exactly `[{ ref: "operator", kind: "operator-attested" }]`.
->   `apps/studio/data/unit-status.json` DERIVES `agent#uat-5` → **`healthy`** from this verdict.
->
-> **`operator` is a placeholder, not a person.** It is the studio's fallback signer when there is no
-> verified IAP caller and no client-supplied signer (`apps/studio/server/apiRouter.ts` — `const signer
-> = caller ?? 'operator'` on the verdict path, `caller ?? (… || 'operator')` on the attestation path),
-> i.e. the open localhost dev posture. Of the **8** attestation rows corpus-wide, this is the only
-> human-witness row with neither an identified signer nor a note; of the **18** `operator-attested`
-> verdicts corpus-wide, it is the **only one** not signed `hua.mick@gmail.com`. So the walk behind it
-> is unrecorded: nothing states which runtime ran, against what, or what was observed.
->
-> **The claim has since BROADENED under the signed id.** At the pinned commit `e21ee4d4` leg 5 read
-> *"The live runtime authors a real slice — `ClaudeAgentAuthor` runs one `query()`…"*: Claude-only.
-> On **2026-07-24** (the ADR-0232 Codex leaf) it became *"The **selected** live runtime authors a real
-> slice — with Claude as the compatibility default **or Codex selected explicitly via `--runtime
-> codex`**…"*. The Codex leaf did not exist when the rows were signed, so both rows now sit under a
-> claim strictly wider than the one signed. This is NOT the `embedded-terminal#uat-5` failure mode (an
-> id RENUMBERED onto a different claim, PR #916) — the id, position, title-sense and witness are
-> continuous here. It is the milder sibling: **same claim, widened**. Recorded so the difference is
-> not flattened.
->
-> **The re-adjudication verdict for leg 5 is WITHHELD, not made.** On the merits the leg would move:
-> its stated basis — *"experiential/operator-attested, with no standing offline test"*, *"proving a
-> live runtime needs the paid leaf"* — is a **harness/cost statement, not a judgment gap**, and every
-> clause of its success condition compiles (scope enforced before a write lands, out-of-scope writes
-> recorded as violations, no verdict accepted from the leaf). Both leaves are **subscription-funded**,
-> not metered spend (ADR-0232 has Codex refuse a USD cap outright), so the spend wall does not apply
-> either; under `human-witness-is-a-judgment-gap-not-cost` that is `machine`, witnessed by a
-> deliberate need-gated spine-signed run. **It is left `human` anyway**, for two reasons that are about
-> the record and the code, not the merits: (i) changing the witness would retroactively invalidate both
-> signed rows above — the studio's own sign-time trust guard REFUSES an `operator-attested` verdict on
-> a `machine` leg — and would silently drop a unit that currently derives `healthy`; and (ii) the
-> witness vector, the leg COUNT (6) and `agent#uat-5 → { witness: "human" }` are hard-pinned by a real
-> passing test OUTSIDE `stories/**` (`packages/cli/src/agent-witness-resolution.test.ts`), so a flip
-> **or an append** turns `pnpm --filter @storytree/cli test` red. Leg 5 is therefore **UNSTAMPED and
-> unchanged** (ADR-0209 §6), and this note is the honest residue.
->
-> **The remedy is the owner's.** At least three options stand, named without preference: (i) leave both
-> rows and let this note carry the correction; (ii) the owner re-signs leg 5 as itself — under an
-> identified signer, with a note naming the runtime and the walk — re-grounding the widened claim;
-> (iii) leg 5 is re-adjudicated to `machine` as a coordinated change that also amends the pinning test
-> and supersedes the two `operator` rows. No agent may pick: granting the rows forward would be an
-> agent restoring green it was never given (`agent-never-self-exempts`), and discarding them would
-> destroy real signed state. Writing this down is a PREREQUISITE of all three, not an election of (i).
-> This is `wisp-as-story-claim`'s open call — *does an owner attestation carry forward onto a changed
-> leg?* — with a second real instance; that general call stays with that story and is not decided here.
+One leg. The other five were **properties of modules, not steps in a journey** — ADR-0294 D1 names this
+story's own leg 1 (*"the seam is runtime-agnostic"*) as its worked example of the shape that does not
+belong in a UAT section — and each was bound to `pnpm --filter @storytree/agent test`, the same command
+that greens its own capability. They were deleted on 2026-08-03 with the proving node named per
+criterion (table below; `stories/uat-legacy-dispositions.json` records them `superseded`).
 
-**Goal —** Behind one `PhaseAuthor` seam, each runtime implementation authors a slice on demand,
-refusing every out-of-scope write and never forging a success.
+The five deleted criteria and the node that already proves each, for audit:
 
-1. **The seam is runtime-agnostic.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ A consumer holds a `PhaseAuthor` and calls _(criterion-id: uatc_022a155228bc9924c4875e84)_ _(revision-id: uatr1:312668809f22a2a6)_
-   `author("AUTHOR_TEST", prompt)`. **Success —** it returns `{ ok: true }` on a completed slice or
-   `{ ok: false, error }` fail-closed, and the consumer never had to know which runtime answered.
-   *(proven offline: `sdk-author.test.ts` exercises `ClaudeAgentAuthor.author` over an injected
-   `queryFn`; `codex-author.test.ts` exercises `CodexPhaseAuthor` over an injected runner; the
-   owned-loop side is `OwnedLoopAuthor`, mapped in drive-machinery.)*
-2. **The model is swappable.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ Drive the owned loop with a `ScriptedModel` (zero live calls); _(criterion-id: uatc_06cc2a84373bb97a0aa7e0ae)_ _(revision-id: uatr1:2441ddc87ac124ea)_
-   running past the scripted end is a LOUD error, never silent. **Success —** a turn runs to a
-   natural stop with all `@anthropic-ai/sdk` imports confined to `model.ts`. *(proven:
-   `model.test.ts`, `run-turn.test.ts`)*
-3. **The tool surface is confined.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ A leaf's file tool addresses a path outside the workspace. _(criterion-id: uatc_87dfb002958176d8e4b566ea)_ _(revision-id: uatr1:a6d85288a5986842)_
-   **Success —** the executor refuses with a `PathEscapeError` and the refusal returns as a tool
-   result, never a thrown crash. *(proven: `fs-tools.test.ts` — path-escape + error-as-result;
-   `tool-executor.test.ts` — unknown tool / throwing handler captured as `is_error`)*
-4. **A step fails closed.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ The model returns malformed or wrong-shape JSON. **Success —** _(criterion-id: uatc_07ab4bbca22ca84a6772c53e)_ _(revision-id: uatr1:e4aa47517761c91a)_
-   `runStepValidated` retries, then HALTS to `ValidationFailed` — never reports a forged success.
-   *(proven: `step.test.ts`)*
-5. **The selected live runtime authors a real slice.** _(witness: human)_ With Claude as the _(criterion-id: uatc_027e3e8ad2253d327fc15c07)_ _(revision-id: uatr1:4c500bf040db5eed)_
+| deleted criterion | claim | proven at |
+| --- | --- | --- |
+| `uatc_022a155228bc9924c4875e84` | *the seam is runtime-agnostic* — `author("AUTHOR_TEST", …)` returns `{ok:true}` or fail-closed `{ok:false,error}` and the consumer never knows which runtime answered | [`phase-author-seam`](phase-author-seam.md) (capability) — `sdk-author.test.ts` over an injected `queryFn`, `codex-author.test.ts` over an injected runner; observed by gate-1. **ADR-0294 D1's named example of a property, not a journey step** |
+| `uatc_06cc2a84373bb97a0aa7e0ae` | *the model is swappable* — `ScriptedModel` drives the owned loop with zero live calls, running past the scripted end is a LOUD error, `@anthropic-ai/sdk` imports confined to `model.ts` | [`model-runtime-seam`](model-runtime-seam.md) (capability) — `model.test.ts`, `run-turn.test.ts`; observed by gate-1 |
+| `uatc_87dfb002958176d8e4b566ea` | *the tool surface is confined* — a path outside the workspace is refused with `PathEscapeError` returned as a tool result, never a thrown crash | [`leaf-tool-surface`](leaf-tool-surface.md) (capability) — `fs-tools.test.ts` (path-escape + error-as-result), `tool-executor.test.ts` (unknown tool / throwing handler captured as `is_error`); observed by gate-1 |
+| `uatc_07ab4bbca22ca84a6772c53e` | *a step fails closed* — malformed/wrong-shape model JSON makes `runStepValidated` retry then HALT to `ValidationFailed`, never a forged success | [`owned-turn-loop`](owned-turn-loop.md) (capability) — `step.test.ts`; observed by gate-1 |
+| `uatc_bf5fccace84b18f4b3615108` | *feedback is a doorbell, not a shell* — bounded in-process MCP tools, leaf controls ZERO arguments, output is feedback only, attested red/green stays the spine's out-of-band runs | [`live-sdk-leaf`](live-sdk-leaf.md) (capability) — `sdk-author.test.ts` (`executeFeedback` / `formatFeedbackOutput`); observed by gate-1 |
+
+Every assertion above still runs under `pnpm --filter @storytree/agent test` and every capability still
+greens on it — the deletion removed a second signature at the story rung, not the evidence.
+
+> **The surviving leg's witness is an OPEN OWNER CALL and was deliberately NOT changed by this pass.**
+> Leg 1 above is the former `agent#uat-5`. Its `witness: human` tag, its `uatc_` identity and its
+> revision are all carried forward untouched; only its list position moved, which under
+> [ADR-0253](../../docs/decisions/0253-criterion-identity-is-immutable-across-uat-revisions.md) is not
+> identity. The record it needs:
+>
+> - **Two signed rows exist against the legacy positional key `agent#uat-5`** — `events.attestation`
+>   seq 7 (`outcome: pass`, `witness: human`, signer `operator`, `relayed_by` NULL, 2026-06-26T13:37:41Z,
+>   no note), and an `operator-attested` PASS verdict (`runId`
+>   `studio-uat-attest:2026-06-26T13:47:08.024Z`, commit `e21ee4d4`, signer `operator`, no `approvedBy`,
+>   evidence exactly `[{ ref: "operator", kind: "operator-attested" }]`). `operator` is the studio's
+>   fallback signer on open localhost dev (`apps/studio/server/apiRouter.ts`), not a person, so the walk
+>   behind them is unrecorded.
+> - **Neither row grants green today.** This section previously stated that
+>   `apps/studio/data/unit-status.json` derives `agent#uat-5 → healthy` from that verdict. That is no
+>   longer true and is corrected in place per ADR-0139: since the ADR-0253 cutover the file carries
+>   *"Legacy positional UAT ids are preserved history and intentionally omitted from current"*, and
+>   `agent#uat-5` appears nowhere in it. The leg holds **no proof credit**, exactly as ADR-0294 records
+>   for all 282 criteria. Deleting this story's other five legs therefore stranded nothing.
+> - **The claim under those rows had already broadened** before this pass: at commit `e21ee4d4` the leg
+>   was Claude-only; the ADR-0232 Codex leaf widened it on 2026-07-24. Same claim, widened — not the
+>   `embedded-terminal#uat-5` renumbering failure (PR #916).
+>
+> **The remedy remains the owner's, and no agent may pick it.** On the merits the leg would move to
+> `machine`: every clause of its success condition compiles, both leaves are subscription-funded rather
+> than metered, and under `human-witness-is-a-judgment-gap-not-cost` a harness/cost statement is not a
+> judgment gap — a reading [ADR-0295](../../docs/decisions/0295-the-uat-driver-s-own-verdict-is-the-witness-model-driven-uat.md)
+> D1/D5 strengthens, since a live runtime invocation is a journey a model driver can execute and D5
+> narrows `human` to genuine taste. It is left `human` anyway, because flipping it would retroactively
+> invalidate the two rows above (the studio's sign-time guard refuses an `operator-attested` verdict on
+> a `machine` leg) and that is state only the owner may discard. The three standing options are
+> unchanged and named without preference: (i) leave both rows and let this note carry the correction;
+> (ii) the owner re-signs the leg as itself, under an identified signer with a note naming the runtime
+> and the walk; (iii) it is re-adjudicated to `machine` as a coordinated change that also supersedes the
+> two `operator` rows. This is `wisp-as-story-claim`'s open call — *does an owner attestation carry
+> forward onto a changed leg?* — with a second real instance; that general call stays with that story.
+
+
+1. **The selected live runtime authors a real slice.** _(witness: human)_ With Claude as the _(criterion-id: uatc_027e3e8ad2253d327fc15c07)_ _(revision-id: uatr1:b7b5052c7e21a3a2)_ _(previous-revision-id: uatr1:4c500bf040db5eed)_
    compatibility default or Codex selected explicitly via `--runtime codex`, the leaf runs one
    subscription-funded invocation. **Success —** phase scope is enforced before any write lands,
    out-of-scope writes are recorded violations, and no red/green claim or verdict is accepted from
    the leaf; the spine reruns the registered command out of band. *(write-scope decisions proven
    offline in `sdk-author.test.ts` and `codex-author.test.ts`; live invocations are need-gated.)*
-6. **Feedback is a doorbell, not a shell.** _(witness: machine)_ _(proof-gate: agent#gate-1)_ The spine exposes its proof/typecheck commands as _(criterion-id: uatc_bf5fccace84b18f4b3615108)_ _(revision-id: uatr1:34cceb5367cb06ad)_
-   bounded in-process MCP tools (`mcp__spine__run_proof` …). **Success —** the leaf can iterate
-   write→run→fix, but it controls ZERO arguments (fixed commands), the output is feedback only, and
-   the attested red/green stays the spine's own out-of-band runs after the leaf stops. *(proven:
-   `sdk-author.test.ts` — `executeFeedback` / `formatFeedbackOutput`)*
 
-End state — one seam, three runtime implementations, every honesty wall (path confinement,
-fail-closed steps, scoped writes, no-self-verdict) held; the spine never named a model.
-
+End state — one seam, three runtime implementations, every honesty wall (path confinement, fail-closed
+steps, scoped writes, no-self-verdict) held; the spine never named a model.
 ## Reliability Gates
 
 The agent runtime is **brownfield in origin** (`status:` was `mapped`, flipped to `proposed` by the

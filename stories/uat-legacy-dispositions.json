@@ -3,27 +3,27 @@
   "dispositions": [
     {
       "legacyTestId": "agent#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_022a155228bc9924c4875e84` (\"the seam is runtime-agnostic\") is proven by the capability `phase-author-seam`, at `packages/agent/src/sdk-author.test.ts` (over an injected `queryFn`) and `codex-author.test.ts` (over an injected runner), observed by `agent#gate-1`. This is the criterion ADR-0294 D1 quotes as its worked example of a property of a module rather than a journey step.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "agent#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_06cc2a84373bb97a0aa7e0ae` (\"the model is swappable\" — `ScriptedModel` drives the loop with zero live calls, running past the scripted end is a LOUD error, `@anthropic-ai/sdk` imports confined to `model.ts`) is proven by the capability `model-runtime-seam`, at `packages/agent/src/model.test.ts` and `run-turn.test.ts`, observed by `agent#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "agent#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_87dfb002958176d8e4b566ea` (\"the tool surface is confined\" — a path outside the workspace is refused with `PathEscapeError` returned as a tool result, never a thrown crash) is proven by the capability `leaf-tool-surface`, at `packages/agent/src/fs-tools.test.ts` (path-escape + error-as-result) and `tool-executor.test.ts` (unknown tool / throwing handler captured as `is_error`), observed by `agent#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "agent#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_07ab4bbca22ca84a6772c53e` (\"a step fails closed\" — malformed/wrong-shape model JSON makes `runStepValidated` retry then HALT to `ValidationFailed`, never a forged success) is proven by the capability `owned-turn-loop`, at `packages/agent/src/step.test.ts`, observed by `agent#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "agent#uat-5",
@@ -33,9 +33,9 @@
     },
     {
       "legacyTestId": "agent#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_bf5fccace84b18f4b3615108` (\"feedback is a doorbell, not a shell\" — bounded in-process MCP tools, the leaf controls ZERO arguments, output is feedback only) is proven by the capability `live-sdk-leaf`, at `packages/agent/src/sdk-author.test.ts` (`executeFeedback` / `formatFeedbackOutput`), observed by `agent#gate-1`. NOTE: `agent#uat-5` is NOT deleted — it survives as the story's single journey leg, with its `witness: human` tag and its two signed `operator` rows left untouched as an explicit open OWNER call.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-guide#uat-1",
@@ -135,33 +135,33 @@
     },
     {
       "legacyTestId": "binding-staleness#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_eddefa6d5b093d9f920feb29` (a signed `Verdict` carries the `boundHash` of the span it proved; one without it still parses) is proven by the capability `boundhash-on-verdict`, at `packages/proof-protocol/src/shapes.test.ts`, observed by `binding-staleness#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "binding-staleness#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_5c21ca51ab701f2da96ae69f` (the `ChangeStore` contract appends + reads `ChangeEvent`s to a reusable parity bar) is proven by the capability `change-event-store`, at `packages/storage-protocol/src/change-event-store.test.ts`, which runs the shared `changeStoreParitySuite` against `InMemoryStore` — empty reads `[]`, append round-trips, `unitId` filters, insertion order preserved. Observed by `binding-staleness#gate-2`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "binding-staleness#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_e86cbe78a9f321c3b12aca91` (the gate stamps `verdict.boundHash` and emits exactly one `ChangeEvent` with a binding, and signs unchanged without one) is proven by the capability `gate-emits-change`, at `packages/orchestrator/src/gate-emits-change.test.ts`, which asserts BOTH branches. Observed by `binding-staleness#gate-3`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "binding-staleness#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_ede9962b4bf236d6cb7f93ea` (`runDriftFromStore` classifies fresh | stale | drifted-undescribed from the stored anchor + change log, and an absent anchor is guidance not a crash) is proven by the capability `drift-reads-store`, at `packages/cli/src/drift-from-store.test.ts` — four tests matching the four success clauses one-to-one. Observed by `binding-staleness#gate-4`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "binding-staleness#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_9efe0576a211f525648cbfb7` (the pure source-drift classifier: described upstream change -> stale, undescribed -> demoted, unchanged -> fresh) is proven by the capability `source-drift`, at `packages/orchestrator/src/proof/source-drift.test.ts`. Observed by `binding-staleness#gate-3`. With this deletion `binding-staleness` declares ZERO UAT criteria and greens through the ADR-0085 own-proof union (ADR-0294 D4) — it is a thin cross-cutting story with no journey to walk.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-drive-bridge#uat-1",
@@ -285,21 +285,21 @@
     },
     {
       "legacyTestId": "cli#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_fc00d80d290a86727a30e2eb` (dispatch + envelope offline — `storytree library` seeds an in-memory store and returns `ok:true` with the dashboard banner + a `next:` block) is proven by the capability `unified-command-dispatch`, at `packages/cli/src/cli.test.ts` (\"library dashboard reports a total + categories and maps artifacts by id\", plus the doctrine-pointer and `next:` tests), observed by `cli#gate-1` — the same command the criterion named.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "cli#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_6488d065398e1216c9ae3d07` (reach another organism — the same binary dispatches to the tree surface and renders the hierarchy offline) is proven by the capability `unified-command-dispatch`, at `packages/cli/src/cli.test.ts` (\"tree focus <id> renders the node's outbound source refs\"; \"a node: ref renders as a Story node through the REAL binary, on both artifact surfaces\") and `tree-dispatch.test.ts`, observed by `cli#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "cli#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_0230af87290a0b4ac797495a` (the write gate — `artifact new` without `--pg` returns `ok:false` with the \"run with --pg\" guidance and a non-zero exit) is proven by the capability `cli-resident-corpus-tools`, at `packages/cli/src/cli.test.ts` (\"a write without --pg is refused with guidance (not an ephemeral write)\"), observed by `cli#gate-1`. NOTE: `cli#uat-4` is NOT deleted — the live `--pg` read has no lower-tier node that proves it, so under ADR-0294 D2 it was re-authored as the story's single journey step rather than deleted.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "cli#uat-4",
@@ -537,15 +537,15 @@
     },
     {
       "legacyTestId": "drive-machinery#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_fe41d841f6b38c81c2cd1e0c` (\"Orient\" — `pnpm storytree node` lists registered + REAL-buildable nodes) is proven by the capability `build-drive-cli`, at `packages/cli/src/node-build.test.ts:102`, observed by `drive-machinery#gate-2` — the same command the criterion itself named. Every assertion still runs; the capability still greens.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "drive-machinery#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_e4ec2bdd541d8b575ea8fd3f` (\"Prove the glue first\" — the `--dry-run` phase trail, in-memory signed verdict, derived rollup) is proven by the capability `build-drive-cli`, at `packages/cli/src/node-build.test.ts:17` and `:74`, observed by `drive-machinery#gate-2`. Also fails ADR-0294 D1 independently: a dry run is not the real thing, so it was never a step of the journey.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "drive-machinery#uat-3",
@@ -561,15 +561,15 @@
     },
     {
       "legacyTestId": "drive-machinery#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_2bb0f5162edab352e64e66bf` (\"Chain a story\" — `story build --dry-run` topo-orders capabilities, story UAT node last, halt-is-never-a-pass) is proven by the capabilities `story-topo-build` and `story-real-chain`, at `packages/cli/src/story-build.test.ts:17`, observed by `drive-machinery#gate-1`/`gate-2`. Also a dry run, not the real thing.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "drive-machinery#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_21d6fd739ddeeaade11b1b92` (\"Refuse the dishonest paths\") is proven in two places one rung down: the capability `build-drive-cli` at `packages/cli/src/story-build.test.ts:90` and `:124` (the `--store pg` + `--dry-run` refusal), and the capability `oq-hygiene-gate` at `packages/drive/src/oq-gate.test.ts:141` (the unprocessed-operator-answer refusal) — observed by `drive-machinery#gate-2` and `gate-3` respectively. Note: `drive-machinery#gate-4` was minted solely to host this leg and is deliberately RETAINED, because gate ids are positional and removing it would renumber gates 5/6/7 and silently re-point the surviving legs' bindings.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "drive-machinery#uat-7",
@@ -1011,21 +1011,21 @@
     },
     {
       "legacyTestId": "proof-binding-integrity#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_1ea8471e291f248a3cdf4075` (a valid machine binding exposes its exact chain — full gate id, `observe` kind, literal command argv, matching `gate run` invocation, order-independent) is proven by the contract `proof-binding-outcome-contract`, at `packages/library/src/proof-binding-outcome.test.ts` (\"evidence preserves the resolver's exact eligible gate and literal declared command\"). The module is BUILT (`packages/library/src/proof-binding-outcome.ts`).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "proof-binding-integrity#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_ca26fd1c2206e2727626070b` (every invalid machine binding yields one visible refusal with its specific reason, no inferred substitute) is proven by the contract `proof-binding-outcome-contract`, at `packages/library/src/proof-binding-outcome.test.ts` (\"every resolver refusal remains non-runnable with its stable class\" and \"only an evidence branch is accepted by an evidence-only reader\").",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "proof-binding-integrity#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-03",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_29e9d8fb7e84054c8abaf53e` (the corpus audit emits exactly one outcome per machine leg and none for other witnesses, a refused row staying present) is proven by the capability `machine-leg-binding-audit`, at `packages/library/src/machine-leg-binding-audit.test.ts` (\"emits one deterministic provenance-bearing row for every and only machine criterion\" + \"a newly parsed unbound machine leg grows the report by one refusal\"). The module is BUILT (`packages/library/src/machine-leg-binding-audit.ts`).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "proof-binding-integrity#uat-4",
