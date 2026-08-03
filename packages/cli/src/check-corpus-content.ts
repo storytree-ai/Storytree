@@ -50,16 +50,11 @@
 // invisible). The reason is stated in `corpus-content-attribution.ts` — a wrongly-charged red costs a
 // merge or a routed report, a wrongly-excused red lands a one-sided edit no later gate will catch.
 
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
-import type { SeedEntry } from "@storytree/library/store";
 import {
-  canonicalJson,
   closePool,
   createPool,
   diffCorpusContent,
@@ -74,13 +69,20 @@ import {
   DEFAULT_CORPUS_CONTENT_DRAIN_CONFIG as CEILING,
   evaluateCorpusContentDrain,
 } from "./corpus-content-drain.js";
-import { loadLocalSecrets } from "./secrets.js";
+import { loadLocalSecrets, presentEnv } from "./secrets.js";
+// The git seed reads are SHARED with `check:corpus-sync` so the two checks cannot come to disagree
+// about what "behind main" means (`seed-revisions.ts`).
+import {
+  changedSeedIds,
+  git,
+  repoRoot as resolveSeedRepoRoot,
+  seedEntriesAt,
+  workingSeedEntries,
+} from "./seed-revisions.js";
 
 const TAG = "[check:corpus-content]";
 /** Bound the live read so a stopped DB can't hang the gate (matches check:corpus-sync). */
 const LIVE_READ_TIMEOUT_MS = 10_000;
-/** The one committed seed, relative to the repo root — the path `git show <rev>:<path>` also takes. */
-const SEED_REL = "apps/studio/data/knowledge.json";
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -101,56 +103,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 
 /** The repo the seed belongs to — a PARAMETER (ADR-0246), so a scratch-root control run still works. */
 function repoRoot(): string {
-  return resolveRepoRoot({
-    env: process.env[REPO_ROOT_ENV],
-    derived: path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", ".."),
-  }).root;
-}
-
-/** Run git in the seed's repo, or `null` on any failure. Never throws — every caller degrades. */
-function git(root: string, args: readonly string[]): string | null {
-  try {
-    return execFileSync("git", ["-C", root, ...args], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-      maxBuffer: 64 * 1024 * 1024,
-    }).trim();
-  } catch {
-    return null;
-  }
-}
-
-/** The seed entries at a git revision, keyed by id, or `null` if that revision has no readable seed. */
-function seedEntriesAt(root: string, rev: string): Map<string, SeedEntry> | null {
-  const raw = git(root, ["show", `${rev}:${SEED_REL}`]);
-  if (raw === null) return null;
-  try {
-    const entries = JSON.parse(raw) as SeedEntry[];
-    return new Map(entries.map((e) => [e.id, e]));
-  } catch {
-    return null;
-  }
-}
-
-/** The seed entries in the WORKING TREE (uncommitted edits included), or `null` if unreadable. */
-function workingSeedEntries(root: string): Map<string, SeedEntry> | null {
-  try {
-    const entries = JSON.parse(readFileSync(path.join(root, SEED_REL), "utf8")) as SeedEntry[];
-    return new Map(entries.map((e) => [e.id, e]));
-  } catch {
-    return null;
-  }
-}
-
-/** Ids whose seed entry differs between two revisions of the file — added, removed, or edited. */
-function changedSeedIds(a: Map<string, SeedEntry>, b: Map<string, SeedEntry>): Set<string> {
-  const changed = new Set<string>();
-  for (const id of new Set([...a.keys(), ...b.keys()])) {
-    const l = a.get(id);
-    const r = b.get(id);
-    if (l === undefined || r === undefined || canonicalJson(l) !== canonicalJson(r)) changed.add(id);
-  }
-  return changed;
+  return resolveSeedRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
 }
 
 const list = (ids: readonly string[]): string => (ids.length > 0 ? ids.join(", ") : "(none)");
@@ -158,7 +111,7 @@ const list = (ids: readonly string[]): string => (ids.length > 0 ? ids.join(", "
 async function main(): Promise<void> {
   loadLocalSecrets();
 
-  if (process.env["STORYTREE_DB_USER"] === undefined) {
+  if (presentEnv("STORYTREE_DB_USER") === undefined) {
     console.log(`${TAG} SKIP — no STORYTREE_DB_USER (DB creds absent); live↔seed content unverified.`);
     return;
   }

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 import { branchOfActor, cliActorFor, CLI_ACTOR_PREFIX } from "./cli-actor.js";
 import type { DriftAttributionEvidence } from "./corpus-content-attribution.js";
-import { attributeDrift } from "./corpus-content-attribution.js";
+import type { AbsenceEvidence } from "./corpus-content-attribution.js";
+import { attributeDrift, classifyAbsence } from "./corpus-content-attribution.js";
 
 /**
  * Who a seed↔live drift is charged to (ADR-0290). Pure — the classifier takes measured evidence, so
@@ -198,4 +199,109 @@ test("STAMP: an unattributed live write is charged to nobody, so pre-stamp histo
   const a = attributeDrift([...legacyWriters.keys()], evidence({ liveWrittenByBranch: mine }));
   assert.deepEqual(a.authored.map((d) => d.id), ["deep-modules"]);
   assert.deepEqual(a.foreign.map((d) => d.id), ["merge-ceremony", "friction-adjudication"]);
+});
+
+// ---------------------------------------------------------------------------
+// check:corpus-sync — classifying WHY an artifact is absent (the widened half)
+// ---------------------------------------------------------------------------
+
+/**
+ * WHY an artifact is absent from live, before a remedy is prescribed. Pure, like the drift half above.
+ *
+ * THE RED→GREEN PAIR is the measured harm: `oq-diff-view-altitude` was retired live under ADR-0267 D5
+ * and the check's one unconditional remedy told stale sessions to `sync-corpus` it back, four times
+ * over (`events.library_event` created 1472 → deleted 2694 → created 2695 → deleted 2696 → created
+ * 2698 → deleted 2702 → created 2742 → deleted 2756). The first test replays that shape and asserts it
+ * is neither charged nor drained. Everything after exists so the fix cannot become a blanket excuse:
+ * a genuine graduation still charges, and an unmeasurable cause charges everything.
+ */
+
+const RETIRE = { actor: "cli@claude/curator", at: "2026-07-29T16:40:19.256Z" };
+
+function absenceEvidence(over: Partial<AbsenceEvidence> = {}): AbsenceEvidence {
+  return {
+    branch: BRANCH,
+    seedAddedByBranch: new Set<string>(),
+    retiredLive: new Map<string, { actor: string; at: string }>(),
+    absentFromMainSeed: new Set<string>(),
+    ...over,
+  };
+}
+
+test("RED→GREEN: a RETIRED-LIVE artifact is reported with its retiring event, never charged and never drained", () => {
+  // The defect, replayed: before this, `oq-diff-view-altitude` was one undifferentiated seed-only id
+  // and the gate's own printed remedy resurrected it.
+  const a = classifyAbsence(["oq-diff-view-altitude"], absenceEvidence({
+    retiredLive: new Map([["oq-diff-view-altitude", RETIRE]]),
+  }));
+  assert.deepEqual(a.neverMigrated, [], "nothing is charged");
+  assert.deepEqual(a.retiredLive.map((x) => x.id), ["oq-diff-view-altitude"]);
+  assert.match(a.retiredLive[0]!.because, /retired live by cli@claude\/curator/, "the retiring event is named");
+  assert.match(a.retiredLive[0]!.because, /never by syncing/);
+});
+
+test("a retirement whose seed row main has ALREADY dropped carries the merge remedy too", () => {
+  // Both signals are routinely true at once (a retirement drops the seed row on main, so a stale
+  // branch sees both). The label answers WHY; the `because` still hands over the action.
+  const a = classifyAbsence(["oq-diff-view-altitude"], absenceEvidence({
+    retiredLive: new Map([["oq-diff-view-altitude", RETIRE]]),
+    absentFromMainSeed: new Set(["oq-diff-view-altitude"]),
+  }));
+  assert.equal(a.retiredLive.length, 1);
+  assert.match(a.retiredLive[0]!.because, /merging main clears this/);
+  assert.deepEqual(a.neverMigrated, []);
+});
+
+test("BEHIND MAIN: a row origin/main has dropped is not this branch's gap — merge, never sync", () => {
+  const a = classifyAbsence(["retire-generated-assets-json"], absenceEvidence({
+    absentFromMainSeed: new Set(["retire-generated-assets-json"]),
+  }));
+  assert.deepEqual(a.neverMigrated, [], "not charged");
+  assert.deepEqual(a.behindMain.map((x) => x.id), ["retire-generated-assets-json"]);
+});
+
+test("NEVER MIGRATED still charges: an ordinary migration gap is unchanged by the classification", () => {
+  const a = classifyAbsence(["freshly-graduated"], absenceEvidence());
+  assert.deepEqual(a.neverMigrated.map((x) => x.id), ["freshly-graduated"]);
+  assert.match(a.neverMigrated[0]!.because, /never migrated/);
+});
+
+test("AUTHORED WINS: a graduation THIS BRANCH added is charged even though main does not carry it either", () => {
+  // The step that makes a bare main-differential wrong. Main does not carry a brand-new graduation
+  // either, so testing only "absent from main's seed" would excuse every genuine migration gap as
+  // staleness — silently switching the check off in its main direction.
+  const a = classifyAbsence(["my-new-principle"], absenceEvidence({
+    seedAddedByBranch: new Set(["my-new-principle"]),
+    absentFromMainSeed: new Set(["my-new-principle"]),
+  }));
+  assert.deepEqual(a.neverMigrated.map((x) => x.id), ["my-new-principle"], "charged, not excused as stale");
+  assert.match(a.neverMigrated[0]!.because, /added it to the seed/);
+  assert.deepEqual(a.behindMain, []);
+});
+
+test("FAIL-CLOSED: an unmeasurable cause charges every absence and says why (ADR-0290 D7)", () => {
+  // A wrongly-charged red costs a merge; a wrongly-excused one lands a one-sided edit no later gate
+  // catches. So an unreadable signal degrades to the PRE-classification behaviour, never to a pass —
+  // including for ids the other signals would otherwise have excused.
+  const a = classifyAbsence(["a", "b", "c"], absenceEvidence({
+    retiredLive: new Map([["a", RETIRE]]),
+    absentFromMainSeed: new Set(["b"]),
+    unattributable: "the live event log could not be read, so no retirement can be seen",
+  }));
+  assert.deepEqual(a.neverMigrated.map((x) => x.id), ["a", "b", "c"], "everything charged");
+  assert.deepEqual(a.retiredLive, []);
+  assert.deepEqual(a.behindMain, []);
+  assert.equal(a.unattributable, "the live event log could not be read, so no retirement can be seen");
+  for (const x of a.neverMigrated) assert.match(x.because, /charged, not excused/);
+});
+
+test("a mixed population splits three ways, and only the gap is charged", () => {
+  const a = classifyAbsence(["gap", "retired", "stale", "mine"], absenceEvidence({
+    seedAddedByBranch: new Set(["mine"]),
+    retiredLive: new Map([["retired", RETIRE]]),
+    absentFromMainSeed: new Set(["stale"]),
+  }));
+  assert.deepEqual(a.neverMigrated.map((x) => x.id), ["gap", "mine"]);
+  assert.deepEqual(a.retiredLive.map((x) => x.id), ["retired"]);
+  assert.deepEqual(a.behindMain.map((x) => x.id), ["stale"]);
 });
