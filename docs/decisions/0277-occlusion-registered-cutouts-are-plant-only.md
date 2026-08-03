@@ -142,7 +142,7 @@ closure or clean-route adoption.
   it states that decision does not close or de-prioritise this arc. The clarification is the owner's,
   not an agent's, and until it is taken, D2 stands as written for the plant tracks already authored.
   **TAKEN 2026-08-03 by the owner, recorded in
-  [ADR-0291](0291-every-island-grows-the-owner-s-exp-16-tree-from-one-shared-t.md) D7:** the
+  [ADR-0292](0292-every-island-grows-the-owner-s-exp-16-tree-from-one-shared-t.md) D7:** the
   already-generated, committed, owner-approved tracks — this D2 plant track and the exp-16 tree — are
   **grandfathered as accepted art**. ADR-0280 D3 governs NEW art from here and does not retroactively
   unaccept them. D2 therefore stands as written, now on an owner's answer rather than on the absence

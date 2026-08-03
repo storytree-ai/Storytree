@@ -4,7 +4,7 @@ decided: 2026-08-03
 amends: [282, 283]
 arc: act2-tree-and-plant-growth-arc
 ---
-# ADR-0291: Every island grows the owner's exp-16 tree from one shared track, varied by code, and no motion survives the settle
+# ADR-0292: Every island grows the owner's exp-16 tree from one shared track, varied by code, and no motion survives the settle
 
 ## Status
 
