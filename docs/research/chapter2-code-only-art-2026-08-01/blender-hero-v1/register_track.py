@@ -214,6 +214,14 @@ manifest = {
             "growthPacing": ("19 frames placed at equal SILHOUETTE-CHANGE arc length, measured "
                              "author-time from an analytic projection of the skeleton, not at "
                              "equal time (ADR-0280 D1: growth pacing is authored)"),
+            "staging": ("TWO PHASES (ADR-0293, owner-directed): the wood extends and branches "
+                        "ALONE, then the leaves flush onto a tree that is already a tree. The "
+                        "canopy carries no weight before the flush begins, so the early frames "
+                        "are bare wood by construction rather than by a threshold. Where the "
+                        "phase boundary sits is an owner pick from rendered options, not a "
+                        "derived number; the frame budget either side of it is NOT authored — "
+                        "the pacing rule above re-allocates it from the measured silhouette "
+                        "change, so moving the boundary moves the frames with it"),
             "contactShadow": ("a second Blender pass: the tree casts but is invisible to camera, "
                               "so alpha carries the shadow alone. Composited at alpha 96 — the "
                               "only semi-transparent pixels in the track — because the island is "

@@ -112,7 +112,27 @@ verdict on code, and should not be read as one. Two of its three axes have moved
 its 5%-of-height row 40 px against 46 — and **young-tree proportions are narrowed**, the mid-track
 foliage floor having dropped to 32% where the canopy now runs down the stem instead of sitting on top
 of it. Crown separation still favours exp-16 (crown green fraction 70% against 51%) and is recorded
-there as unaddressed. The sapling clause is doubly retired: ADR-0289 D1 removed the requirement that
+there as unaddressed.
+**Re-annotated in place 2026-08-03 (ADR-0139); the decision is unchanged and so is this paragraph's
+conclusion — but two of its three numbers are v5 measurements, and one of them now describes frames
+that no longer exist.** All three readings above were taken on the v5 track;
+[ADR-0293](0293-the-chapter-2-growth-track-grows-the-wood-first-and-flushes.md) then re-cut the track
+into two phases — the wood extends and branches alone, then the leaves flush — so the mid-track
+frames they characterise were re-rendered. Taking them one at a time, because they did not move
+together. **Root flare stands as written**: v6's mature frame is essentially unchanged, its half-width
+profile matching v5's to within a pixel, so the closure this bullet records is not affected.
+**Crown separation stands, at 71% against exp-16's 51%** rather than 70% — still the standing gap,
+and ADR-0293 did not move it, because at the final frame the two tracks are the same tree.
+**The young-tree clause is the one that is now WRONG, and it is corrected rather than restated**: under
+ADR-0293 the early and mid frames carry NO canopy at all for the whole wood phase (frames 00 through
+06 of 19 on the delivered option, with `con` at 0 and no cloud emitted), so "the canopy now runs down
+the stem" no longer describes the track, and the 32% mid-track foliage floor was measured on a leafy
+mid-frame the track no longer produces. No v6 replacement figure is offered here, deliberately: a
+mid-track foliage floor is not a meaningful measure of a phase whose canopy is empty by design, and
+inventing a substitute number would be worse than recording the gap. What survives is the direction —
+young-tree proportions are no longer the axis on which the code track loses — and it survives for a
+different reason than this bullet gives.
+The sapling clause is doubly retired: ADR-0289 D1 removed the requirement that
 any frame be a botanically plausible seedling, so the standard this sentence measures the code tracks
 against is one the arc no longer holds them to. Nothing here is owner-attested; the LOOK verdict
 remains the owner's (ADR-0070).

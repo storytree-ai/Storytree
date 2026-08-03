@@ -327,10 +327,25 @@ AGE_TAIL = 8.0                # pure secondary growth after extension stops
 # sapling apex and a mature crown shell. Cloud SEATS are farthest-point sampled from the
 # mature skeleton ONCE and every node is assigned to one, so a cloud can never appear,
 # merge or split between frames; only its live membership changes.
-N_CLOUD_ON = 2.0               # canopy from the FIRST frame (= N_FLOOR): with the blades
-N_CLOUD_FULL = 6.0             # gone there is nothing else to carry the opening, and a
-                               # green tuft on a two-internode stem is a tree beginning to
-                               # form, which is now the whole requirement (ADR-0289 D1)
+# THE TWO PHASES (ADR-0293, owner-directed). Every version through v5 grew wood and leaves
+# TOGETHER from the first frame, and the owner's verdict on the v5 track was that "the
+# leaves forming while the trunk grows looks really ugly — can we just grow the trunk and
+# branches and then put the leaves on". So the canopy no longer rides the whole track: the
+# wood extends and branches ALONE, and the leaves flush onto a tree that is already a tree.
+#
+# This is a STAGING change and nothing else. The skeleton, its birth iterations, the camera
+# and the prefix invariant are untouched (ADR-0280 D1); the canopy rules — outer orders,
+# the crown floor, the seats — are untouched too. Only WHEN each cloud starts carrying
+# weight moves, which is exactly the scalar that was already here.
+#
+# Keyed on the reveal iteration N rather than on height, because the flush has to be able
+# to run PAST the point where the tree stops extending: the skeleton is fully alive at
+# NMAX_BIRTH (28) and AGE_TAIL carries 8 more iterations of pure secondary growth, so a
+# height-keyed flush would finish before the last third of the track exists.
+LEAF_ON = float(arg("--leaf-on", "17"))     # reveal iteration where the first leaves break
+LEAF_FULL = float(arg("--leaf-full", "32"))  # ... and where the flush is complete
+# Both are flags because WHERE the phase boundary sits is an art-direction choice with a
+# rendered answer, not a number to argue about — the same treatment `--framing` gets.
 N_CLOUD = 22                   # fewer, larger clouds: the count IS the band budget
 # ... but 22 seats sampled from the WHOLE skeleton are 22 seats spent on the mature
 # crown, because that is where 340 of the 352 nodes are. The nine nodes alive at frame 4
@@ -367,7 +382,22 @@ CLOUD_MIN, CLOUD_CAP = 0.085, 0.352
 CLOUD_SQUASH = 0.93            # a cloud is a ROUNDED mass. v2's 0.82 plus a near-vertical
                                # key made each lobe a flat-topped plate, and a pile of
                                # plates reads as stacked lily pads rather than as canopy
-WOOD_HIDE = 0.32               # how far a twig tapers away under its own canopy weight
+# How far a twig tapers away under its own canopy weight. 0.32 was enough while the leaves
+# were always AHEAD of the wood: a cloud was already wider than the twigs it sat on, so the
+# taper only had to kill the millimetre of bark poking through a lobe.
+#
+# ADR-0293 inverts that. In a two-phase track the twigs reach their FULL length in the wood
+# phase and the clouds then grow outward from inside them, so through the whole flush every
+# outer twig stands proud of the foliage that is arriving on it — measured on the first cut
+# as a fringe of bare spikes around the crown from the first leafy frame to about two thirds
+# of the way through. There is no length lever: a twig's extent is its skeleton. What there
+# is is RADIUS, and a sub-pixel twig is an absent twig at 128 px, which is the same
+# mechanism the flecks were killed with. So the taper goes deep enough that a fully leafed
+# twig disappears into its own cloud.
+#
+# It is keyed on `wn`, which is zero for the whole wood phase, so the winter tree is drawn
+# at full girth and none of this touches it.
+WOOD_HIDE = 0.78               # how far a twig tapers away under its own canopy weight
 
 # THE CANOPY FLOOR — ADR-0289 D2's first named defect, "we seem to be added the greenary
 # at the trunk for some reason". The outer-orders rule above is TOPOLOGICAL: it asks how
@@ -955,7 +985,11 @@ def frame_state(N):
     mat = grown * grown * (3 - 2 * grown)         # 0 at the seedling, 1 at the crown
 
     dh = live_depth(alive)
-    con = np.clip((N - N_CLOUD_ON) / (N_CLOUD_FULL - N_CLOUD_ON), 0.0, 1.0)
+    # the FLUSH (ADR-0293): zero until the wood phase is over, then a smooth ramp to full.
+    # It multiplies every node's canopy weight, so a cloud's own radius comes up with it
+    # (`sat` reads the summed weight) — leaves thicken onto the branches rather than
+    # switching on at full size.
+    con = np.clip((N - LEAF_ON) / (LEAF_FULL - LEAF_ON), 0.0, 1.0)
     con = con * con * (3 - 2 * con)
     orders = CLOUD_ORDERS_YOUNG + (CLOUD_ORDERS - CLOUD_ORDERS_YOUNG) * mat
     wn = np.clip(1.0 - dh / orders, 0.0, 1.0) * np.clip(age / CLOUD_RISE, 0.0, 1.0)
@@ -1007,7 +1041,8 @@ def frame_state(N):
     t_root = float(np.clip((r[0] - R_TIP_MIN) / (R0_MATURE - R_TIP_MIN), 0.0, 1.0)) ** 0.75
     t_plant = float(np.clip(ztop / Z_MATURE, 0.0, 1.0)) if Z_MATURE > 0 else 1.0
     return {"alive": alive, "frac": frac, "age": age, "r": r, "wn": wn,
-            "lobes": lobes, "t_root": t_root, "t_plant": t_plant, "N": N}
+            "lobes": lobes, "t_root": t_root, "t_plant": t_plant, "mat": mat,
+            "con": float(con), "N": N}
 
 
 # ---------------------------------------------------------------- camera framing
@@ -1672,8 +1707,14 @@ for i, u in enumerate(PICKS):
         _drop = ("  <-- SHRANK" if _PREV_AREA and
                  (_sil < _PREV_AREA[0] or _can < _PREV_AREA[1]) else "")
         _PREV_AREA[:] = [_sil, _can]
+        # `mat` and the juvenile-seat count answer ADR-0293's open question — whether the
+        # young-canopy apparatus still has anything to serve once the leaves arrive late.
+        # A flush that begins while mat < 1 is still being shaped by the shell easing, and
+        # a juvenile seat that owns a live lobe is still earning its place.
+        _juv = sum(1 for ci, _c, _r in st["lobes"] if ci < N_CLOUD_YOUNG)
         print(f"PLAN {i:02d} u={u:.4f} N={N:.2f} live={int(st['alive'].sum())} "
-              f"lobes={len(st['lobes'])} sil={_sil:5d} canopy={_can:5d} "
+              f"lobes={len(st['lobes'])}({_juv}juv) mat={st['mat']:.2f} "
+              f"con={st['con']:.2f} sil={_sil:5d} canopy={_can:5d} "
               f"r0={st['r'][0]:.4f} root={st['t_root']:.2f} plant={st['t_plant']:.2f} "
               f"true={_top_i / _TOP:.3f} apparent="
               f"{(_top_i / CAM_SPAN) / (_TOP / SPAN):.3f}{_drop}", flush=True)

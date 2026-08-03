@@ -107,6 +107,10 @@ def show(m):
 FOLIAGE_BANDS = np.array([[92, 90, 46], [101, 118, 65], [121, 141, 83],
                           [135, 148, 89], [173, 167, 114]], dtype=np.int32)
 FLOOR_MIN_PX = 3       # foliage pixels a row needs before it counts as canopy
+FOLIAGE_NOISE_PX = 6   # ... and pixels a WHOLE FRAME needs before its canopy is real
+                       # (see monotone(); a leafless frame's shaded bark can land on a
+                       # foliage band, and 6 is well under the 29 the first leafy frame
+                       # of the delivered track carries)
 
 
 def foliage_mask(rgba):
@@ -183,7 +187,19 @@ def monotone(d):
     the whole track: total alpha and foliage-coloured alpha must be non-decreasing.
 
     A tolerance is allowed on the total only for the contact shadow, which is semi
-    -transparent and legitimately re-shapes as the crown widens."""
+    -transparent and legitimately re-shapes as the crown widens.
+
+    FOLIAGE_NOISE_PX exists because ADR-0293 made "this frame has no canopy at all" a
+    legitimate state, and the classifier cannot tell a leafless frame from a leafy one.
+    Measured on the first two-phase track: frame 00 is a 30-pixel hairline whose canopy is
+    provably empty (`con` is 0 there — no cloud is emitted), yet THREE of its trunk pixels
+    quantise onto the darkest foliage band (92,90,46) exactly. Frame 01 has none, so the
+    series read 3 -> 0 and the check called a leafless frame a foliage regression. Below
+    the floor the count is noise about which band a handful of shaded bark pixels landed
+    on, not a measurement of canopy. This is the same lesson `shape()`'s FLOOR_MIN_PX
+    already learned — a metric a single pixel can move sends the next iteration after the
+    wrong thing — and it does NOT loosen the real obligation: once a canopy exists at all
+    it is dozens of pixels and every later frame is compared exactly as before."""
     reg = json.load(open(os.path.join(d, "registration.json")))
     bands = np.array(reg["palette"]["foliageBands"], dtype=np.int32)
     rows = []
@@ -194,7 +210,8 @@ def monotone(d):
         fol = np.zeros(solid.shape, dtype=bool)
         for c in bands:
             fol |= (np.abs(rgb - c).sum(axis=2) < 1) & solid
-        rows.append((name, int(solid.sum()), int(fol.sum())))
+        n_fol = int(fol.sum())
+        rows.append((name, int(solid.sum()), n_fol if n_fol >= FOLIAGE_NOISE_PX else 0))
     print(f"{'frame':<14}{'silhouette':>12}{'foliage':>10}   monotone?")
     bad = 0
     for i, (n, s, f) in enumerate(rows):
