@@ -274,9 +274,16 @@ export class PgClaimStore {
       }
 
       const claim = rowToDoc(acquiredRow as ClaimRow);
+      // What this take ABSORBED that already belonged to the caller (ClaimResult.displaced): the
+      // re-entrant work row, or the shared row folded above. A caller whose take merely refreshed
+      // its session's own claim must not release it on the way out — it borrowed the row, it did not
+      // take it. `existing` from ANOTHER session is a reclaim, never ours, so it is not displacement.
+      const displacedRow =
+        existing !== undefined && existing.session_id === candidate.sessionId ? existing : folded;
+      const displaced = displacedRow !== undefined ? rowToDoc(displacedRow) : undefined;
       await this.#appendEvent(client, candidate.unitId, eventType, candidate.sessionId, claim);
       await client.query("COMMIT");
-      return { acquired: true, claim, reclaimed };
+      return { acquired: true, claim, reclaimed, ...(displaced !== undefined ? { displaced } : {}) };
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;

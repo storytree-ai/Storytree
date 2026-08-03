@@ -3,7 +3,15 @@
 // REST effects. Thin I/O shell — the decisions it calls are unit-tested in db-control.ts; this is
 // just argv → effect → stdout.
 
-import { ensureLiveDb, statusLiveDbViaRest, stopLiveDbViaRest } from "@storytree/drive";
+import {
+  ensureLiveDb,
+  probeLiveDbDetailed,
+  renderDbProbe,
+  statusLiveDbViaRest,
+  stopLiveDbViaRest,
+} from "@storytree/drive";
+
+import { loadLocalSecrets } from "./secrets.js";
 
 async function main(): Promise<void> {
   // Root scripts delegate via `pnpm --filter @storytree/cli db -- <action>` (the storytree-script
@@ -36,8 +44,32 @@ async function main(): Promise<void> {
       console.log(`${s.state}\t${s.activationPolicy}`);
       return;
     }
+    case "probe": {
+      // The canonical probe-don't-assume check CLAUDE.md names, as a COMMAND (it was prose only, so
+      // every session re-derived it). Runs through the CLI's normal composition root, which is the
+      // whole point: `loadLocalSecrets()` hydrates STORYTREE_DB_USER, and the `PoolHandle` shape +
+      // `closePool` teardown are handled once, where they are already handled.
+      //
+      // Deliberately does NOT start the instance and does NOT consult the Admin API: it answers ONE
+      // question — can this machine reach the DB right now, and how fast. `db:up` owns starting (and
+      // ADR-0060's 75/1 vocabulary); `db:status` owns state/activationPolicy. So the exits here are
+      // the plain pair: 0 = reachable, 1 = not.
+      //
+      // A trailing `--pg` is accepted and ignored: every `db` action is live by definition, and the
+      // flag is muscle memory from the `storytree … --pg` write commands.
+      loadLocalSecrets();
+      const result = await probeLiveDbDetailed();
+      const line = renderDbProbe(result);
+      if (result.reachable) {
+        console.log(line);
+        return;
+      }
+      console.error(line);
+      process.exitCode = 1;
+      return;
+    }
     default:
-      console.error("usage: db-cli <up|down|status>");
+      console.error("usage: db-cli <up|down|status|probe>");
       process.exitCode = 2;
   }
 }

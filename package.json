@@ -48,6 +48,7 @@
     "db:up": "pnpm --filter @storytree/cli run db -- up",
     "db:down": "pnpm --filter @storytree/cli run db -- down",
     "db:status": "pnpm --filter @storytree/cli run db -- status",
+    "db:probe": "pnpm --filter @storytree/cli run db -- probe",
     "studio:up": "node scripts/studio.mjs up",
     "studio:down": "node scripts/studio.mjs down",
     "studio:status": "node scripts/studio.mjs status",

@@ -40,6 +40,11 @@ export * from "./noticeboard.js";
 // the noticeboard IS the claim ledger; declare/done live in ./noticeboard.js as the claim-taking
 // anchor ceremony + bulk release (presence retired, ADR-0200 D7).
 export * from "./noticeboard-claims.js";
+// Claim-release honesty (the second instance of the ADR-0199 class): a run releases only the claim
+// its OWN take created, and every release that is not an explicit ceremony names the claim, the
+// caller and the time — so a silently-cleared claim is discovered when it happens, not a full gate
+// cycle later at `check:declared`.
+export * from "./claim-release.js";
 // The session-isolation wall (ADR-0255 D1, ADR-0257 D1, narrowed by ADR-0284): the STATIC
 // `permissions.deny` block that makes the primary checkout unwritable by the agent's file tools,
 // generated from `repo-manifest.json` so the lobby surface and the wall cannot drift apart.

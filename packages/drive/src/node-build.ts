@@ -46,12 +46,17 @@ import {
   TEST_DB_ENV,
 } from "@storytree/library/store";
 import { PgClaimStore } from "@storytree/notice-board/store";
-import type { ClaimRequest, ClaimResult } from "@storytree/notice-board";
+import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
 import { PgWorkStore } from "@storytree/orchestrator/store";
 
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 import { renderAgentPrompt } from "@storytree/library/store";
 import { phaseActivityWriter } from "./phase-activity.js";
+import {
+  decideClaimExit,
+  displacedClaimNotice,
+  releaseClaimWithNotice,
+} from "./claim-release.js";
 import { effectiveVerdictStore, ensureLiveDb } from "./db-control.js";
 import type { EnsureDbResult } from "./db-control.js";
 import type { Envelope } from "./envelope.js";
@@ -1140,11 +1145,19 @@ export async function nodeBuild(
   // The per-unit write-claim around the build (ADR-0121). A build run never writes session
   // presence (ADR-0199) — the worktree identity here feeds ONLY the claim; the launching
   // session's own declaration survives its builds.
+  //
+  // That last clause was FALSE for the claim ledger until `claimDisplaced` below. `events.node_claim`
+  // is keyed `(unit_id, session_id)` and this take uses the LAUNCHING session's identity, so it
+  // OVERWRITES the session's own row rather than adding one — and the unconditional release in the
+  // `finally` then destroyed a claim the build never took. See claim-release.ts for the event-log
+  // trace; it is ADR-0199's shape surviving in the claim layer.
   const claimStore = opts.claim?.store !== undefined ? opts.claim.store : storeChoice.claim;
   const claimIdentity = opts.identity !== undefined ? opts.identity : deriveIdentity();
 
   const runId = `${mode}-${Date.now().toString(36)}`;
   let claimHeld = false;
+  /** The session's OWN claim this build's take absorbed, if any — a borrow, not a take. */
+  let claimDisplaced: ClaimDocT | undefined;
   try {
     // Acquire the claim BEFORE any worktree/spend; a second concurrent builder of the SAME unit is
     // HARD-REFUSED (unlike presence, which swallows failures and proceeds). Null store/identity = no
@@ -1175,6 +1188,7 @@ export async function nodeBuild(
         };
       }
       claimHeld = true;
+      claimDisplaced = claimRes.displaced;
     }
 
     let result: ProveResult;
@@ -1349,13 +1363,22 @@ export async function nodeBuild(
       ],
     };
   } finally {
-    // Release the claim (ADR-0121) before closing the pool. A failed release is swallowed — the claim
-    // ages out via stale-reclaim, and a release failure must never fail an otherwise-good build.
+    // Release the claim (ADR-0121) before closing the pool — but ONLY the claim this build's own take
+    // created. When the take merely refreshed a row the launching session already held, the build
+    // borrowed the claim and leaves it (otherwise it silently clears the session's declaration and
+    // `check:declared` FAILs at the merge ceremony, hours later — the ADR-0199 class). Either way it
+    // SAYS SO, and a failed release is still swallowed: the claim ages out via stale-reclaim, and a
+    // release failure must never fail an otherwise-good build.
     if (claimHeld && claimStore !== null && claimIdentity !== null) {
-      try {
-        await claimStore.release(spec.id, claimIdentity.sessionId);
-      } catch {
-        // swallow
+      const caller = `node build ${spec.id} ${modeFlag}`;
+      const exit = decideClaimExit(claimDisplaced);
+      if (exit.action === "release") {
+        await releaseClaimWithNotice(
+          { release: (unitId, sessionId) => claimStore.release(unitId, sessionId) },
+          { unitId: spec.id, sessionId: claimIdentity.sessionId, caller },
+        );
+      } else {
+        console.error(displacedClaimNotice(caller, exit.displaced));
       }
     }
     await storeChoice.close();
