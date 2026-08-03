@@ -300,7 +300,7 @@ function waveDepths(
 
 /** Deterministic key for one edge — a graph may hold several edges between the same pair. */
 function edgeKey(edge: ForestRegrowTrailEdge): string {
-  return `${edge.from} ${edge.to}`;
+  return `${edge.from}\u0000${edge.to}`;
 }
 
 /**

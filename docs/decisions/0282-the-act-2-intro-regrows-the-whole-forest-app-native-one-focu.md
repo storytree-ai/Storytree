@@ -63,6 +63,16 @@ tree uses is NOT decided here — it remains the open question of
 `chapter2-pixellab-organic-growth-arc`, and this ADR must not be read as selecting exp-16 or any
 sibling. The seam is the count, not the candidate: one authored track at a time, the rest procedural.
 
+**AMENDED by [ADR-0291](0291-every-island-grows-the-owner-s-exp-16-tree-from-one-shared-t.md)
+(2026-08-03), in the COUNT.** The owner selected exp-16 and directed it onto every island, from ONE
+SHARED track that all islands reference. The decode-and-memory reasoning in this decision's Context
+("mounting the 23-frame authored raster track on 45 territories is a decode and memory non-starter")
+was measured against 45 *different* tracks; one shared track is 19 decodes and 116 KB whatever the
+island count, because an island displays whichever of the same frames its own cursor has reached.
+The sentence above about the count no longer describes what is built. What is NOT amended is this
+decision's actual subject — that **art cost must never scale with story count** — which ADR-0291
+upholds exactly: the 41st island adds zero images.
+
 ### D3 — The order is the story graph's own dependency order
 
 The regrow walks the real DAG outward from the base nodes — the stories with no `depends_on` — with
@@ -133,7 +143,12 @@ already forbids.
 - A generated island, coast or scene composite (ADR-0274 D1).
 - A scripted or hand-authored growth order that is not derived from the real dependency graph.
 - A separate desktop renderer, or a studio-server import from the desktop backend.
-- Reading D2 as a hero-tree selection, or this ADR as closure of the organic-growth arc.
+- ~~Reading D2 as a hero-tree selection~~, or this ADR as closure of the organic-growth arc.
+  **AMENDED by [ADR-0291](0291-every-island-grows-the-owner-s-exp-16-tree-from-one-shared-t.md)
+  (2026-08-03):** the struck clause was holding the hero-tree question FOR the owner, and the owner
+  has now answered it directly in conversation — exp-16. The fence is discharged, not defeated: no
+  agent selected the tree. The second half stands — ADR-0291 is likewise not closure of
+  `chapter2-pixellab-organic-growth-arc` (see ADR-0277 D6).
 - Spending PixelLab generations in this increment.
 
 ## Consequences
