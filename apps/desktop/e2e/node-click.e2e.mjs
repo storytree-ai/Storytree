@@ -42,10 +42,14 @@ test('forest map: a story-node click opens the detail panel (clean + jittered); 
     // Panel waits go through waitForPanel (evaluate polling), never a Playwright DOM-wait task —
     // a wait task armed right after the click's hash navigation can wedge permanently in this
     // Electron (see waitForPanel in harness.mjs for the full trap).
+    // findStoryTarget resolves the point through the APP's own selection predicate, so a target here
+    // is one the app can select — a centre that lands on unselectable map (an island's coast rim) is
+    // skipped rather than returned. `at` hands the point to the panel wait, so a miss reports what was
+    // actually under it instead of a bare panelOpen=false.
     const t1 = await findStoryTarget(win);
     assert.ok(t1, 'should find a clickable story node');
     await win.mouse.click(t1.cx, t1.cy);
-    await waitForPanel(win, { present: true });
+    await waitForPanel(win, { present: true, at: t1 });
     assert.ok(await panelOpen(win), 'a clean click on a node opens the detail panel');
 
     // 2) a JITTERED click (~7px between press and release) still selects — not eaten as a micro-drag
@@ -56,7 +60,7 @@ test('forest map: a story-node click opens the detail panel (clean + jittered); 
     await win.mouse.down();
     await win.mouse.move(t2.cx + 6, t2.cy + 4); // < DRAG_SLOP (10px), so still a click, not a pan
     await win.mouse.up();
-    await waitForPanel(win, { present: true });
+    await waitForPanel(win, { present: true, at: t2 });
     assert.ok(await panelOpen(win), 'a jittered click on a node opens the detail panel');
 
     // 3) clicking far-off empty map clears the selection
@@ -64,7 +68,7 @@ test('forest map: a story-node click opens the detail panel (clean + jittered); 
     const t3 = await findStoryTarget(win);
     assert.ok(t3, 'should find a clickable story node (clear case)');
     await win.mouse.click(t3.cx, t3.cy);
-    await waitForPanel(win, { present: true });
+    await waitForPanel(win, { present: true, at: t3 });
     const empty = await findEmptyPoint(win);
     if (empty) {
       await win.mouse.click(empty.x, empty.y);
