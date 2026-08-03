@@ -290,13 +290,19 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
 // Replaces the hand-maintained `CLAUDE.md` "Load-bearing ADRs" + "reversals" sections with a query
 // derived from the live frontmatter, so the list can never drift from the files. Two cuts:
 //   --current        every accepted, non-superseded ADR (the derived backbone — honest by construction)
-//   --load-bearing   only the curated `load_bearing: true` set (the editorial calibrate-to-these list)
+//   --load-bearing   the calibrate-to-these set: the curated `load_bearing: true` seed, CLOSED over
+//                    accepted `amends` edges (see `loadBearingReach`)
 // Outgoing edges (supersedes / amends — binary since ADR-0139 retired supersedes-in-part) and BOTH
 // derived back-edges (`superseded by` / `amended by`) are shown inline so the reversal story reads off
 // the graph, not off prose. Both directions matter on `--load-bearing`: ADR-0139 frames `amends` as
 // strictly additive, but in practice an amending ADR can retire a clause of its target (ADR-0271 does,
 // to ADR-0142 §3) — without the back-edge a session calibrating on this view reads the retired leg
 // unqualified. Read-only + offline (it reads docs/decisions on disk) — no DB, no API key.
+//
+// A back-edge to a non-accepted ADR is LABELLED with that status. Rendered bare, an undecided or a
+// dead amendment reads exactly like a live one: ★0020 listed `amended by 0080, …, 0265` with 0265
+// still `proposed`, and ★0011's sole amender (0177) is `superseded`. The first OVERSTATES the current
+// set (a derived view must never promote an undecided edge); the second resurrects a dead decision.
 
 /** A parsed ADR for the `list` view: frontmatter meta + the H1 title. */
 export interface AdrListing {
@@ -336,31 +342,84 @@ function backEdges(
 }
 
 /**
+ * PURE: the set `--load-bearing` renders — the curated `load_bearing: true` seed, closed transitively
+ * over ACCEPTED `amends` edges pointing into it.
+ *
+ * The curated tag alone made this view CONFIDENTLY INCOMPLETE. `storytree adr list --load-bearing` is
+ * the exact surface CLAUDE.md sends every new session to calibrate on, yet an accepted ADR that amends
+ * a load-bearing one — which under ADR-0139 means the target STAYS current but is no longer wholly
+ * self-describing — appeared nowhere in it unless someone remembered a second, hand-maintained tag.
+ * ADR-0271 landed exactly that way (accepted, `amends: [142]`, untagged) and was caught a day later by
+ * a librarian pass, by accident. A consumer of the view cannot detect the omission from the view.
+ *
+ * So reach is DERIVED from the edge that already exists in the frontmatter (ADR-0037) rather than from
+ * a parallel tag. That is what makes it tractable, what keeps it honest by construction, and what
+ * keeps it working when ADR-0139 retires the `load_bearing` tag (at which point the seed shrinks and
+ * this closure carries the view).
+ *
+ * TRANSITIVE, not one hop: 0288 amends 0275 amends 0271 amends ★0142, and each link overtakes part of
+ * the one below. Stopping at one hop would re-create the reported gap one level out — the same
+ * undetectable-from-the-surface omission, just further along the chain.
+ *
+ * Only `accepted` edges propagate. A `proposed` amender is undecided, so promoting it would OVERSTATE
+ * the current set (the inverse error); a `superseded` one is dead. Both are still SHOWN as labelled
+ * back-edges on their target — excluded from the set, never hidden from the reader.
+ */
+export function loadBearingReach(listings: readonly AdrListing[]): Set<number> {
+  const reach = new Set<number>();
+  for (const l of listings) if (l.meta.loadBearing) reach.add(l.meta.number);
+  // Fixpoint over the amends graph. Each pass either grows the set or terminates, and the set is
+  // bounded by the corpus, so this converges (2 passes on the real corpus as of 2026-08-03).
+  for (;;) {
+    const before = reach.size;
+    for (const l of listings) {
+      if (l.meta.status !== "accepted" || reach.has(l.meta.number)) continue;
+      if (l.meta.amends.some((t) => reach.has(t))) reach.add(l.meta.number);
+    }
+    if (reach.size === before) return reach;
+  }
+}
+
+/**
  * PURE: filter + format the listing rows. Derived `superseded by` / `amended by` back-edges are
  * computed from the FULL set (before the display filter), so a row's reversal or amendment is shown
- * even when the superseding / amending ADR is filtered out of view — the ADR-0142/0271 case, where
- * the amender isn't load-bearing but the amended ADR is, and `--load-bearing` is the primary
- * calibration surface. `★` marks a `load_bearing` current-state ADR.
+ * even when the superseding / amending ADR is filtered out of view — e.g. a still-`proposed` amender,
+ * whose row `--load-bearing` drops but whose pointer the amended ADR must still carry.
+ *
+ * `★` marks a hand-curated `load_bearing` ADR, `☆` one reached through the amends graph
+ * ({@link loadBearingReach}). Two marks, not one, because deriving reach GROWS the set (96 curated →
+ * 137 on the 2026-08-03 corpus) and a view that lists too much is its own calibration failure — the
+ * split keeps that growth attributable at a glance, and each ☆ row prints the `amends` edge that put
+ * it there. The right response to a set that grows too large is ADR-0139's consolidation pass, never a
+ * filter that hides edges.
  */
 export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFilter): string[] {
   const supersededBy = backEdges(listings, (m) => m.supersedes);
   const amendedBy = backEdges(listings, (m) => m.amends);
+  const reach = loadBearingReach(listings);
+  const statusOf = new Map(listings.map((l) => [l.meta.number, l.meta.status]));
+  /** `0271` for an accepted ADR, `0265 (proposed)` for anything else — never a bare live-looking ref. */
+  const label = (n: number): string => {
+    const s = statusOf.get(n);
+    return s === undefined || s === "accepted" ? pad(n) : `${pad(n)} (${s})`;
+  };
   const sorted = [...listings].sort((a, b) => a.meta.number - b.meta.number);
   const rows: string[] = [];
   for (const l of sorted) {
     const m = l.meta;
     if (filter.current === true && m.status !== "accepted") continue;
-    if (filter.loadBearing === true && !m.loadBearing) continue;
+    if (filter.loadBearing === true && !reach.has(m.number)) continue;
     if (filter.status !== undefined && m.status !== filter.status) continue;
-    rows.push(`${m.loadBearing ? "★" : " "} ${pad(m.number)}  ${m.status.padEnd(10)} ${l.title}`);
+    const mark = m.loadBearing ? "★" : reach.has(m.number) ? "☆" : " ";
+    rows.push(`${mark} ${pad(m.number)}  ${m.status.padEnd(10)} ${l.title}`);
     const edges: string[] = [];
     if (m.supersedes.length > 0) edges.push(`supersedes ${m.supersedes.map(pad).join(", ")}`);
     if (m.amends.length > 0) edges.push(`amends ${m.amends.map(pad).join(", ")}`);
     if (m.arc !== undefined) edges.push(`arc ${m.arc}`);
     const back = supersededBy.get(m.number);
-    if (back !== undefined && back.length > 0) edges.push(`superseded by ${back.map(pad).join(", ")}`);
+    if (back !== undefined && back.length > 0) edges.push(`superseded by ${back.map(label).join(", ")}`);
     const amended = amendedBy.get(m.number);
-    if (amended !== undefined && amended.length > 0) edges.push(`amended by ${amended.map(pad).join(", ")}`);
+    if (amended !== undefined && amended.length > 0) edges.push(`amended by ${amended.map(label).join(", ")}`);
     for (const e of edges) rows.push(`            ${e}`);
   }
   return rows;
@@ -416,10 +475,19 @@ function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Envelope {
         ? opts.status
         : "all";
   const lines = [
-    `storytree adr — ${rows.filter((r) => !r.startsWith(" ".repeat(12))).length} ADRs [${cut}]   ★ = load-bearing`,
-    "",
-    ...(rows.length > 0 ? rows : ["  (none match)"]),
+    `storytree adr — ${rows.filter((r) => !r.startsWith(" ".repeat(12))).length} ADRs [${cut}]` +
+      `   ★ = curated load-bearing · ☆ = reached via an amends edge`,
   ];
+  if (opts.loadBearing === true) {
+    // Name the split, so the growth deriving reach causes is visible on the surface itself rather
+    // than being something a reader has to know about.
+    const reach = loadBearingReach(listings);
+    const curated = listings.filter((l) => l.meta.loadBearing).length;
+    lines.push(
+      `  ${curated} curated ★ + ${reach.size - curated} reached ☆ — an accepted ADR amending the set is IN it (ADR-0037 edges, ADR-0139 semantics).`,
+    );
+  }
+  lines.push("", ...(rows.length > 0 ? rows : ["  (none match)"]));
   if (parseErrors.length > 0) {
     lines.push("", `⚠️  ${parseErrors.length} file(s) failed to parse:`, ...parseErrors.map((e) => `  ${e}`));
   }
@@ -452,7 +520,14 @@ export function adrHelp(): Envelope {
       "",
       "`list` is read-only + offline (it reads docs/decisions on disk):",
       "  --current        every accepted, non-superseded ADR (the derived backbone)",
-      "  --load-bearing   the curated calibrate-to-these set (★, the CLAUDE.md list, now live)",
+      "  --load-bearing   the calibrate-to-these set (the CLAUDE.md list, now live): the curated ★",
+      "                   `load_bearing: true` seed CLOSED over accepted `amends` edges — an accepted",
+      "                   ADR that amends the set is ☆ IN it, transitively. Under ADR-0139 an amends",
+      "                   edge means the target stays current but is no longer wholly self-describing,",
+      "                   so the amendment belongs on the calibration surface. Derived from the edge,",
+      "                   not a second hand-kept tag, so it survives ADR-0139 retiring `load_bearing`.",
+      "                   A proposed or superseded amender is NEVER pulled in (that would overstate the",
+      "                   current set) — it still shows as a status-labelled back-edge on its target.",
       "  --status <s>     filter to proposed | accepted | superseded",
       "",
       "writes need --pg (bring the DB up first: pnpm db:up). Offline new/next fall back to max+1 with a",

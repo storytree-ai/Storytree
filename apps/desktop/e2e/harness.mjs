@@ -17,6 +17,15 @@
 // navigation before driving the renderer (driving the launch page loses the `#/tree` hash in the swap —
 // the 2026-07-10..14 CI wedge).
 //
+// WHY THE MAP IS STATIC (the third determinism leg, 2026-08-03): since ADR-0286 the FIRST map mount of
+// a browser session plays an arrival regrow that materialises the world island by island over many
+// seconds, and ADR-0292 grows each island's vegetation frame by frame on that same cursor. None of it
+// moves the camera, so `waitForForestSettled`'s transform-stability poll could not see it and returned
+// onto a half-built map (measured: 3 of 5 launches came back with 1 of 4 islands in the DOM). So
+// launchOffline ARRIVES before the map mounts — it sets the app's own session flag — and every spec
+// reads the static steady state a real second visit gets. Clicking mid-regrow is a real scenario, but
+// it is a spec of its own, not a source of flake in the pointer-capture wall.
+//
 // WHY REAL-INPUT CLICKS + RELOAD-RESET: the node-click bug this suite guards reproduces ONLY in Electron
 // (pointer capture retargets a captured click), so we drive `win.mouse` real input, never `.click()` on a
 // locator (see memory: forest-map-click-verify-needs-movement). Selecting a node ZOOMS the camera and
@@ -178,6 +187,18 @@ export async function launchOffline() {
     // registered above persist across the navigation.
     await waitForStudioOrigin(win);
     await win.evaluate(() => {
+      // ARRIVE BEFORE THE MAP MOUNTS (ADR-0286's Act 2 arrival regrow). The regrow plays on the FIRST
+      // TreeView mount of a browser session — which, for this harness, is the reload below: the app
+      // boots on Home, so the map has never mounted when we set the hash. Left to run, it materialises
+      // the world island by island over many seconds, and the specs then read a map that is still
+      // being built: measured across 5 launches, 3 returned from waitForForestSettled with 1 of 4
+      // islands in the DOM and the tree candidates 1-3px wide. Setting the session flag the app itself
+      // uses (ACT2_INTRO_SESSION_KEY, apps/studio/src/components/act2Intro.ts) mounts the STATIC map —
+      // the steady state every later visit in a real session gets, and the state this suite's subject
+      // (pointer capture) actually lives in. It survives the reload and every resetToForest, so all
+      // four cases read the same map. Clicking DURING the regrow is a real scenario, but it is a
+      // different spec than this pointer-capture wall — not something to smuggle in as flake.
+      sessionStorage.setItem('storytree.act2.arrived', '1');
       location.hash = '#/tree';
     });
     await win.reload();
@@ -272,18 +293,59 @@ export const panelOpen = (win) => win.evaluate(() => !!document.querySelector('.
  * in this Electron (playwright-core 1.61.1, observed on Windows): it times out on an element that
  * IS attached, while a per-read evaluate sees the DOM truthfully throughout. Throws with the
  * observed state on timeout so the spec's failure names what the DOM actually held.
+ *
+ * Pass the clicked target as `at` and a timeout also reports WHAT WAS UNDER THAT POINT when the wait
+ * expired — the element chain, the story the app would resolve there, and whether the map was still
+ * regrowing. Without it a miss says only `panelOpen=false`, which names the symptom and nothing else:
+ * the 2026-08-03 CI red (PR #1106) cost a forensic session to get back to facts this line now prints.
  */
-export async function waitForPanel(win, { present, timeout = 4000 } = {}) {
+export async function waitForPanel(win, { present, timeout = 4000, at = null } = {}) {
   const deadline = Date.now() + timeout;
   for (;;) {
     const open = await panelOpen(win);
     if (open === present) return;
     if (Date.now() > deadline) {
       throw new Error(
-        `timed out (${timeout}ms) waiting for .tree-detail to be ${present ? 'attached' : 'detached'} (panelOpen=${open})`,
+        `timed out (${timeout}ms) waiting for .tree-detail to be ${present ? 'attached' : 'detached'} ` +
+          `(panelOpen=${open})${await describePoint(win, at)}`,
       );
     }
     await win.waitForTimeout(100);
+  }
+}
+
+/** What the DOM holds at a clicked point, for a panel-wait failure message: the element chain from the
+ *  hit element up, the story the app's own hit-test would resolve there (null ⇒ the click could only
+ *  have CLEARED the selection), and the map's regrow/story state. Never throws — a diagnostic that
+ *  fails must not replace the real failure. */
+async function describePoint(win, at) {
+  if (!at) return '';
+  try {
+    const d = await win.evaluate(
+      ([x, y]) => {
+        const desc = (el) =>
+          `${el.tagName}${el.getAttribute('class') ? `.${el.getAttribute('class').trim().split(/\s+/).join('.')}` : ''}`;
+        const el = document.elementFromPoint(x, y);
+        const chain = [];
+        for (let e = el; e && chain.length < 5; e = e.parentElement) chain.push(desc(e));
+        const idEl = el && el.closest('[data-story-id]');
+        return {
+          chain: chain.join(' < ') || '(nothing at the point)',
+          resolves: idEl ? idEl.getAttribute('data-story-id') : null,
+          regrowing: !!document.querySelector('svg.act2-regrowing, .arrive-island'),
+          stories: [...new Set([...document.querySelectorAll('[data-story-id]')].map((e) => e.getAttribute('data-story-id')))].sort().join(','),
+        };
+      },
+      [at.cx, at.cy],
+    );
+    return (
+      `\n  clicked (${at.cx},${at.cy}) expecting story '${at.id}'` +
+      `\n  the app's hit-test resolves that point to: ${d.resolves ?? 'NO STORY (this click could only clear)'}` +
+      `\n  under the point: ${d.chain}` +
+      `\n  map: regrowing=${d.regrowing} stories=[${d.stories}]`
+    );
+  } catch (probeErr) {
+    return `\n  (could not probe the click point: ${probeErr.message})`;
   }
 }
 
@@ -313,6 +375,21 @@ export async function waitForForestSettled(win, { timeout = 25_000 } = {}) {
   // hero), NOT a `g.story-tree`, so waiting on the tree class would hang. `g.hex-flora` is present
   // regardless of the tree kind or the async hero-kit load.
   await win.locator('g.hex-flora').first().waitFor({ state: 'attached', timeout });
+  // Then wait out any ARRIVAL REGROW still in flight (ADR-0286). The camera-stability poll below
+  // cannot see one: the regrow materialises islands in place and never moves the camera, so the
+  // transform is byte-stable across two reads while stories are still absent from the DOM entirely
+  // (`regrowHides` renders them as null) and trees are still growing frame by frame. launchOffline
+  // arrives ahead of the mount so this should already be true; it stays as the BACKSTOP, so a future
+  // entry animation cannot silently re-open the same window. Bounded, and non-fatal on expiry — a
+  // stuck animation should fail on the spec's own assertion, with its own message, not here.
+  const regrowDeadline = Date.now() + 15_000;
+  for (;;) {
+    const regrowing = await win
+      .evaluate(() => !!document.querySelector('svg.act2-regrowing, .arrive-island'))
+      .catch(() => false);
+    if (!regrowing || Date.now() > regrowDeadline) break;
+    await win.waitForTimeout(100);
+  }
   const readTransform = () =>
     win.evaluate(() => {
       const g = document.querySelector('g.world-camera');
@@ -343,17 +420,28 @@ export async function resetToForest(win) {
 }
 
 /**
- * Find a clickable story node in the CURRENT view and return its on-screen centre (+ the story id the
- * point resolves to). Re-find before EACH click: a selection zooms the camera, so coordinates from a
- * prior step go stale. Returns null when no node's centre resolves to a clickable story element.
+ * Find a clickable story node in the CURRENT view and return its on-screen centre + the story id the
+ * point resolves to. Re-find before EACH click: a selection zooms the camera, so coordinates from a
+ * prior step go stale. Returns null when NO candidate's centre resolves to a selectable story.
+ *
+ * THE PREDICATE IS THE APP'S OWN, DELIBERATELY: a point counts only when it resolves to a
+ * `[data-story-id]` — exactly what TreeView's coordinate hit-test requires to select
+ * (`elementFromPoint(...).closest('[data-story-id]')`, the pointer-capture-retarget fix). It used to
+ * accept the looser `closest('g.hex-flora,…,.coast-fill-group,…')` family, which is STRICTLY WEAKER
+ * than the app's: `coast` is absent from SceneView's id stamp (only territory/ground/tile/hit/flora
+ * are stamped), so a centre landing on an island's coast RIM matched `.coast-fill-group`, returned a
+ * target with `id: null`, sailed through the caller's `assert.ok(target)` — and then died 4s later on
+ * the panel wait with nothing but `panelOpen=false` to show for it. Measured on the offline fixture:
+ * 99 points on the rendered map matched the old predicate while being unselectable by the app. A
+ * candidate the app cannot select must be SKIPPED (try the next island), never returned.
+ *
+ * Candidate points come from each island's central tree — a `g.story-tree` (flag-off / pre-hero), or
+ * a `.baked-art` node: a `<use>` before ADR-0292, a `<g>` wrapping the growth-track `<image>` since.
+ * That swap widened the candidate box (a padded frame canvas, not the tree's own geometry) and so
+ * moved its CENTRE, which is what started landing centres on the rim in the first place.
  */
 export const findStoryTarget = (win) =>
   win.evaluate(() => {
-    const HIT = 'g.hex-flora,g.story-tree,.baked-art,.relaxed-tile,.coast-fill-group,.world-story-hit,[data-story-id]';
-    // Candidate points come from each island's central tree — a `g.story-tree` (flag-off / pre-hero) OR a
-    // `.baked-art` `<use>` (the autumn-tree hero, the ADR-0226 default). Both sit at the island centre
-    // inside its `g.hex-flora` territory group, so `elementFromPoint(...).closest(HIT)` resolves to the
-    // story either way. Without the `.baked-art` fallback the default forest has no candidates.
     const trees = [...document.querySelectorAll('g.story-tree, .baked-art')]
       .map((t) => t.getBoundingClientRect())
       .filter((r) => r.width > 6 && r.left > 40 && r.top > 110 && r.bottom < window.innerHeight - 60);
@@ -361,11 +449,9 @@ export const findStoryTarget = (win) =>
       const cx = Math.round(r.left + r.width / 2);
       const cy = Math.round(r.top + r.height / 2);
       const el = document.elementFromPoint(cx, cy);
-      const hit = el && el.closest(HIT);
-      if (hit) {
-        const idEl = el.closest('[data-story-id]');
-        return { cx, cy, id: idEl ? idEl.getAttribute('data-story-id') : null };
-      }
+      const idEl = el && el.closest('[data-story-id]');
+      const id = idEl && idEl.getAttribute('data-story-id');
+      if (id) return { cx, cy, id };
     }
     return null;
   });
