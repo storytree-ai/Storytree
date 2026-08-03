@@ -579,7 +579,7 @@ const CODE_BLENDER_TREE_TRACK: OrganicPoseTrack = Object.freeze({
   normalizationMode: 'author-import-time-only',
   depthSlot: 'hero-tree-organic',
   matureFootprint: Object.freeze({ x: 21, y: 3, width: 92, height: 119 }),
-  encodedBytes: 31_210,
+  encodedBytes: 30_939,
   decodedRgbaBytes: 1_245_184,
   provenance: Object.freeze({
     prompt:
@@ -604,7 +604,7 @@ export const CHAPTER2_ROUND3_CODE_BLENDER_REGISTRY: RegisteredOrganicPoseRegistr
   id: 'chapter2-round3-code-blender-v1',
   tracks: Object.freeze([CODE_BLENDER_TREE_TRACK, CHAPTER2_PLANT_SAMPLE_TRACK]),
   budget: Object.freeze({
-    maxEncodedBytes: 55_745,
+    maxEncodedBytes: 55_474,
     maxDecodedRgbaBytes: 1_429_504,
     maxFrameCount: 24,
     maxLayerCount: 2,
@@ -831,7 +831,7 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
     canvas: Object.freeze({ width: 128, height: 128 }),
     groundAnchor: Object.freeze({ x: 62, y: 120 }),
     budget: Object.freeze({
-      encodedBytes: 55_745,
+      encodedBytes: 55_474,
       decodedRgbaBytes: 1_429_504,
       frameCount: 24,
       layerCount: 2,
@@ -847,10 +847,10 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
       experimentDeclaredDriftPx: 0,
       framesShifted: 11,
       maxAbsShiftPx: 2,
-      bodyCentroidSpreadBeforePx: 3.7802,
-      bodyCentroidSpreadAfterPx: 7.2427,
-      bodyCentroidMaxStepBeforePx: 1.8295,
-      bodyCentroidMaxStepAfterPx: 3.4045,
+      bodyCentroidSpreadBeforePx: 3.7867,
+      bodyCentroidSpreadAfterPx: 7.2493,
+      bodyCentroidMaxStepBeforePx: 1.8429,
+      bodyCentroidMaxStepAfterPx: 3.4017,
     }),
   }),
 ]);
@@ -894,7 +894,7 @@ export const CHAPTER2_ROUND3_LAB_BUDGET = Object.freeze({
     exceedsPriorCeiling: Object.freeze(['decodedRgbaBytes', 'frameCount']),
   }),
   shippedTotal: Object.freeze({
-    encodedBytes: 457_223,
+    encodedBytes: 456_952,
     decodedRgbaBytesIfEveryTrackDecoded: 7_688_192,
     frameCount: 77,
     heroTreeTracks: 5,

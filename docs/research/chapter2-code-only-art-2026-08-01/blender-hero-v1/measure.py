@@ -6,6 +6,22 @@ crown holds TWELVE colours in large flat regions with a bright warm top-highligh
 fifth of the canopy, while a physically-lit render quantises into two dozen speckled
 values. This measures that, on the same crown definition, for any track.
 
+The crown report states CROWN STRUCTURE as two separate numbers, because the one number
+it used to state it as was measuring both at once and neither cleanly:
+
+  · BARK IN CROWN — how much limb you can see through the canopy, by nearest family.
+    This is the geometric half, and it is what "exp-16 shows limbs running through its
+    canopy and ours does not" always meant: 670 px against v6's 185.
+  · WARM HIGHLIGHT — how much of the crown carries the top band, AND in how many
+    connected caps. This is the shading half. The cap count is what tells a crown
+    shading as ONE volume from a pile of blobs each carrying its own cap.
+
+They move independently — pulling the canopy's normals toward a crown proxy lifts the
+highlight and leaves bark untouched to the pixel — so a single figure that mixes them
+sends the next increment after the wrong organ, which is what happened for four of them.
+`green_frac` is kept, because earlier findings are stated in it, but it is not the
+headline: a naive G>R>B test scores exp-16's own highlight band as not-green.
+
   python measure.py <dir-with-frame-NN.png> [more dirs ...] [--frame 18] [--island]
   python measure.py <dir> [more dirs ...] --shape [--frame 18]
   python measure.py <delivered-dir> --monotone
@@ -42,6 +58,53 @@ PLATE = np.array([124, 191, 106], dtype=np.float32)
 PLATE_SHADE = np.array([106, 173, 92], dtype=np.float32)
 
 
+FOLIAGE_BANDS = np.array([[92, 90, 46], [101, 118, 65], [121, 141, 83],
+                          [135, 148, 89], [173, 167, 114]], dtype=np.int32)
+HIGHLIGHT = FOLIAGE_BANDS[-1]   # the warm top band exp-16 holds over a fifth of its crown
+FLOOR_MIN_PX = 3       # foliage pixels a row needs before it counts as canopy
+FOLIAGE_NOISE_PX = 6   # ... and pixels a WHOLE FRAME needs before its canopy is real
+                       # (see monotone(); a leafless frame's shaded bark can land on a
+                       # foliage band, and 6 is well under the 29 the first leafy frame
+                       # of the delivered track carries)
+
+
+def caps(mask):
+    """Connected components of `mask`, sizes largest first. Four-connected and
+    hand-rolled, to keep this file's dependencies at numpy + Pillow like the rest of it.
+
+    This is the instrument for "does the crown read as ONE volume or as a pile of
+    blobs", and it exists because that question had been argued in adjectives for four
+    increments. A crown of separate lobes cannot pool a highlight: each lobe presents
+    every facing angle, so the top band of N·L lands as one small cap per lobe. A crown
+    that shades as one volume pools it. So the SHAPE of the highlight is the measurement,
+    and it discriminates hard — the v6 track scatters its highlight into 14 caps whose
+    largest holds 21% of it, and the same tree with its canopy normals pulled toward a
+    crown proxy groups them into four caps of comparable size.
+
+    Read it against exp-16 rather than against the extreme: exp-16 does NOT pool its
+    highlight into one region either (12 caps, largest 30%). It carries a few LARGE caps
+    on a shared value structure, and a track that pools everything into a single 80% blob
+    has overshot it just as surely as one that scatters into twenty.
+    """
+    seen = np.zeros(mask.shape, dtype=bool)
+    out = []
+    h, w = mask.shape
+    for y, x in zip(*np.nonzero(mask)):
+        if seen[y, x]:
+            continue
+        stack, n = [(y, x)], 0
+        seen[y, x] = True
+        while stack:
+            cy, cx = stack.pop()
+            n += 1
+            for ny, nx in ((cy + 1, cx), (cy - 1, cx), (cy, cx + 1), (cy, cx - 1)):
+                if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and not seen[ny, nx]:
+                    seen[ny, nx] = True
+                    stack.append((ny, nx))
+        out.append(n)
+    return sorted(out, reverse=True)
+
+
 def crown_mask(rgba):
     """The crown = opaque pixels above the trunk band. Defined identically for every
     track so the counts are comparable: the top 62% of the tree's own bbox height.
@@ -71,6 +134,18 @@ def measure(rgba, mask, label):
     cols = [((int(k) >> 16, (int(k) >> 8) & 255, int(k) & 255), int(c))
             for k, c in zip(uniq[order], counts[order])]
     green = int(((px[:, 1] > px[:, 0]) & (px[:, 1] > px[:, 2])).sum())
+    # BARK, by nearest family — and this is the number "you cannot see the limbs running
+    # through our canopy" actually is. It was carried for four increments as GREEN
+    # FRACTION (ours 71%, exp-16 51%) and that proxy conflates two independent things: a
+    # naive G>R>B test scores exp-16's own warm highlight band (173,167,114) and its
+    # darkest foliage band (92,90,46) as NOT green, so 27% of its "non-green" crown is
+    # foliage. Measured by family instead, the honest gap on the mature frame is 670 px
+    # of bark in exp-16's crown against 185 in v6's — 15.7% vs 3.9%, where the green
+    # fraction had said 49% vs 29%. green_frac is kept because two increments' findings
+    # are stated in it, but it is no longer the headline.
+    d = np.abs(px[:, None, :] - FOLIAGE_BANDS[None, :, :]).sum(axis=2).min(axis=1)
+    bark = int((d >= 40).sum())
+    hcaps = caps(mask & (np.abs(rgb - HIGHLIGHT).sum(axis=2) == 0))
     lum = (px.astype(np.float32) * W).sum(axis=1)
     # the brightest BAND: the single most-used colour among the top-quartile-luma pixels
     thr = np.percentile(lum, 75)
@@ -84,6 +159,9 @@ def measure(rgba, mask, label):
     return {
         "label": label, "px": n, "colours": len(uniq),
         "green_frac": green / n,
+        "bark": bark, "bark_frac": bark / n,
+        "highlight": sum(hcaps), "highlight_frac": sum(hcaps) / n,
+        "highlight_caps": hcaps,
         "top": cols[:6],
         "bright": (bcol, bshare, bshare / n),
         "mean_lum": float(lum.mean()),
@@ -96,21 +174,23 @@ def show(m):
         print("  (empty)")
         return
     top = "  ".join(f"{c}×{k}" for c, k in m["top"][:4])
+    hc = m["highlight_caps"]
+    big = hc[0] / sum(hc) if hc else 0.0
     print(f"  {m['label']:<28} px={m['px']:<5} colours={m['colours']:<3} "
           f"green={m['green_frac']*100:.0f}%  top4cover={m['cover4']*100:.0f}%  "
           f"lum={m['mean_lum']:.0f}")
+    # the two numbers the crown-structure gap is actually made of, kept apart because
+    # they have DIFFERENT causes: bark is geometry (what occludes what) and the highlight
+    # is shading (which band a canopy pixel takes). Blending the canopy normals toward a
+    # crown proxy moves the second by a fifth and the first by nothing at all.
+    print(f"      bark in crown  {m['bark']}px ({m['bark_frac']*100:.1f}%)"
+          f"   [limbs running through the canopy]")
+    print(f"      warm highlight {tuple(int(c) for c in HIGHLIGHT)} = {m['highlight']}px "
+          f"({m['highlight_frac']*100:.1f}% of crown) in {len(hc)} caps, "
+          f"largest {big*100:.0f}%  {hc[:5]}")
     print(f"      brightest band {m['bright'][0]} = {m['bright'][1]}px "
           f"({m['bright'][2]*100:.0f}% of crown)")
     print(f"      top4: {top}")
-
-
-FOLIAGE_BANDS = np.array([[92, 90, 46], [101, 118, 65], [121, 141, 83],
-                          [135, 148, 89], [173, 167, 114]], dtype=np.int32)
-FLOOR_MIN_PX = 3       # foliage pixels a row needs before it counts as canopy
-FOLIAGE_NOISE_PX = 6   # ... and pixels a WHOLE FRAME needs before its canopy is real
-                       # (see monotone(); a leafless frame's shaded bark can land on a
-                       # foliage band, and 6 is well under the 29 the first leafy frame
-                       # of the delivered track carries)
 
 
 def foliage_mask(rgba):
