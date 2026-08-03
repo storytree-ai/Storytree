@@ -62,12 +62,25 @@ halted-is-never-a-pass applies to flake-retries too):
    `apps/studio/vitest.setup.ts` — the third instance of the precedented ceiling fix (studio + app-
    surface testTimeout). A genuinely-missing element still fails; a passing `waitFor` resolves the
    moment its condition holds, so green runs get no slower.
-3. **A fence against recurrence** (follow-up): a fail-closed `check:test-timing` in the gate + CI —
-   the drain-ceiling pattern (ADR-0252 D3) over wall-clock measurement in gate-tier test files
+3. **A fence against recurrence** (LANDED 2026-08-03): a fail-closed `check:test-timing` in the gate
+   + CI — the drain-ceiling pattern (ADR-0252 D3) over wall-clock measurement in gate-tier test files
    (`performance.now` / `process.hrtime`), ceiling = the one sanctioned env-gated survivor
    (routing), any new file blocked with the remedy named (fake timers / injected clock / the
-   `STORYTREE_PERF` gate / a bench file). Plus a Library guardrail carrying the rule into
-   agent-authored test guidance — prevention at authoring time, not just red at gate time.
+   `STORYTREE_PERF` gate / a bench file). Plus the rule carried into agent-authored test guidance —
+   prevention at authoring time, not just red at gate time.
+
+   Two things about the delivered shape, recorded so a reader is not surprised by the diff. **The
+   fence carries a SECOND axis this text did not anticipate:** an allow-list naming one file is a
+   blanket pardon for that file, so deleting the `if (process.env.STORYTREE_PERF === '1')` guard
+   would restore the exact flake increment 1 removed while the unsanctioned count sat honestly at
+   zero. The survivor is therefore held to its env gate independently (G=0), and a sanctioned entry
+   whose file no longer exists breaches there too. **And the authoring-time half is an EDIT, not a
+   new guardrail:** the rule went into the existing `test-creation-principles` principle — the
+   corpus's canonical test-authoring artifact — rather than minting an eighteenth guardrail that
+   would restate, in prose, a fence the code now enforces at a zero ceiling. `edit-first-curation`
+   makes edit the default and a new artifact the justified exception; a second copy of an enforced
+   rule is not that exception. The decision here is unchanged — the rule reaches authoring guidance —
+   only the vehicle is named accurately.
 4. **The gate stops skipping silently** (follow-up): `pnpm -r --no-bail test`, tail checks that
    always run, and an aggregate scoreboard naming every red and every skip. Orthogonal to the
    still-undecided gate diff-scoping (overnight-audit remedies #2/#4): this changes failure
@@ -85,8 +98,15 @@ class with zero confirmed flakes; the fence blocks its growth and it can drain o
   (and prints) every gate pass, so it cannot rot unnoticed.
 - Until increment 4 lands, a mid-gate flake still silently skips the tail checks — re-run them
   manually after any `-r test` failure (the standing trap).
-- Until increment 3 lands, nothing but review stops a NEW wall-clock assertion entering; the
-  window is accepted as small (days, not weeks).
+- The window in which nothing but review stopped a NEW wall-clock assertion entering opened
+  2026-07-31 and CLOSED 2026-08-03 with increment 3. `check:test-timing` now reds the gate and CI at
+  a zero ceiling on the first unsanctioned occurrence in any gate-tier test file, naming it
+  `file:line` with the four remedies. The baseline it shipped on is genuinely clean — 476 test files
+  across 24 gate-tier workspaces, one wall-clock file, and it is the sanctioned, still-env-gated
+  survivor — so there is no headroom to absorb a regression.
+- A NEW permanent exemption now costs an `SANCTIONED_WALL_CLOCK` entry and the ADR-0269 evidence bar,
+  which is the intended price. The escape hatch for a genuine timing need is not that list: it is the
+  `STORYTREE_PERF` gate (keep the functional assertions gate-tier, guard the bound) or a bench file.
 - A genuinely-hung `waitFor` now takes 15 s to fail instead of 1 s — slower diagnostics on real
   breaks, the same trade both testTimeout precedents accepted.
 
@@ -98,5 +118,11 @@ class with zero confirmed flakes; the fence blocks its growth and it can drain o
 - Evidence: overnight audit 2026-07-31; `apps/studio/vitest.config.ts` and
   `packages/app-surface/vitest.config.ts` comments (the precedented ceiling rationale);
   PR #1010 / #1014 / #1033 flake post-mortems.
-- Code (this PR): `packages/forest-world/src/routing.test.ts` (env-gated bound),
+- Code (increments 1+2): `packages/forest-world/src/routing.test.ts` (env-gated bound),
   `apps/studio/vitest.setup.ts` (`asyncUtilTimeout` floor).
+- Code (increment 3): `packages/cli/src/test-timing-gate.ts` (the sweep, the aperture, and the
+  comment/string masker), `packages/cli/src/test-timing-drain.ts` (the two zero ceilings and their
+  measured baselines), `packages/cli/src/check-test-timing.ts` (the shell), the `check:test-timing`
+  root script wired cheap-first into the `gate` chain and into `PRE_EXPENSIVE_CHECKS`
+  (`packages/cli/src/gate-order.ts`), the CI step in `.github/workflows/ci.yml`, and the
+  authoring-time rule in the `test-creation-principles` principle.

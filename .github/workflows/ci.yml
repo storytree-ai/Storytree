@@ -122,6 +122,19 @@ jobs:
       - name: Surface coverage (bijection drain ceiling)
         run: pnpm check:surface-coverage
 
+      # Wall-clock fence over gate-tier test files (ADR-0276 D3). A duration bound on a box shared
+      # with concurrent sessions measures CPU starvation, not the routine — the one such assertion in
+      # the suite measured 386ms quiet and 6185ms loaded, and redded 3 of 4 overnight gate runs on
+      # DOCS-ONLY diffs while catching zero real regressions. It reds at a ZERO ceiling on two axes:
+      # an unsanctioned `performance.now`/`process.hrtime` in any gate-tier test file, or the one
+      # sanctioned survivor losing the `STORYTREE_PERF` gate that earns its exemption. Ceiling +
+      # baselines: packages/cli/src/test-timing-drain.ts. DB-free (pure file reads), so like
+      # check:surface-coverage it runs local AND here. Deliberately OUTSIDE the ADR-0195 affected-only
+      # narrowing below — a new timing assertion can land in any workspace's tests, and the affected
+      # filter would scan only the edited one.
+      - name: Test timing (wall-clock fence)
+        run: pnpm check:test-timing
+
       # Clone the PINNED web submodule so the grounding check validates the exact vendored site.
       # storytree-web is PUBLIC, so this needs no creds (unlike the private legacy/Agentic, which is
       # why the checkout above takes no submodules). ADR-0056.
