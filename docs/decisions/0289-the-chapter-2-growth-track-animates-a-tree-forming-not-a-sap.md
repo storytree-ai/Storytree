@@ -125,12 +125,28 @@ purchase remains an owner action.
   increment that discharged the blocker makes no recommendation either way.** `fixed` is still what
   ships, as the default of an undecided fork rather than as a retained mitigation. What survives
   unchanged from the correction above is the premise fix — exp-16 holds 91–99% of its mature height
-  from f03 and is non-monotone — so the divergence is still the whole MIDDLE of the track. One defect
-  the fork would still surface is recorded rather than tuned: at f00 the canopy sits below a bare
-  leader tip, invisible under the delivered 16 px `fixed` frame and a stick with a bobble at 77 px
-  under `eased`. Evidence:
-  `docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/README.md` §5 and
-  `framing-fork.png`, re-rendered on the v5 frames.
+  from f03 and is non-monotone — so the divergence is still the whole MIDDLE of the track.
+  **Corrected a third time in place 2026-08-03 (ADR-0139); the decision is STILL unchanged — the fork
+  remains undecided and remains the owner's, and nothing below recommends a side.** What changed is
+  the SUBJECT: [ADR-0293](0293-the-chapter-2-growth-track-grows-the-wood-first-and-flushes.md) re-cut
+  the track into two phases (wood, then flush), the frames were re-rendered, and three of this
+  bullet's statements became claims about frames that no longer exist. (a) The EVIDENCE POINTER was
+  wrong the moment v6 landed: `framing-fork.png` sits at a fixed path and has been re-rendered on the
+  v6 frames, so a reader following the citation saw a different picture than the sentence described —
+  it is now correct as a pointer to the CURRENT fork rendering, and the v5 rendering it used to show
+  is recoverable from git. (b) The f00 DEFECT this bullet recorded — "the canopy sits below a bare
+  leader tip … a stick with a bobble at 77 px under `eased`" — no longer describes the track at all:
+  under ADR-0293 f00 carries NO canopy (`con` is 0, no cloud emitted, measured), so there is no bobble
+  and f00 is a bare pole standing on a root fan. (c) The v5 reading that "under `eased`, v5's f04 and
+  f09 read as leafy whips" stays TRUE OF v5 and is kept as the record of what discharged the blocker,
+  but it is no longer true of the shipped track — those frames are now inside the wood phase. Read
+  together these move the picture rather than the decision: the opening frame got BARER at the same
+  time as it stayed smallest, and a magnifying convention magnifies the opening frame most, so v6's
+  own record reports the fork tilting back toward keeping `fixed` — by a wider margin than the reason
+  v5 discharged. That is an observation, not a recommendation and not a ratification; `fixed` still
+  ships as the default of an undecided fork. Evidence:
+  `docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/README.md` §4 and §5, and
+  `framing-fork.png`, re-rendered on the v6 frames.
 
 **Bad, or at least owed.**
 
