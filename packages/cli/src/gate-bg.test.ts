@@ -23,17 +23,39 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveRepoBash } from "../../../scripts/resolve-bash.mjs";
+
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const script = path.join(repoRoot, "scripts", "gate-bg.sh");
 
-/** Run the wrapper around `inner`, returning its own exit status and stdout. */
+// The SAME bash the product uses (pnpm gate:bg -> scripts/gate-bg.mjs). Resolving it here rather
+// than spawning bare "bash" is load-bearing, not tidiness: on Windows with WSL installed, PATH
+// resolves bash to the WSL launcher, which cannot open an absolute Windows path and exits 127 —
+// redding this whole file, and with it "pnpm -r test", for reasons that name neither WSL nor PATH.
+const bash = resolveRepoBash();
+
+/**
+ * Run the wrapper around `inner`, returning its own exit status and stdout.
+ *
+ * GATE_BG_LOG is STRIPPED from the inherited environment before `env` is layered on. That is not
+ * hygiene, it is a fix: the variable is a documented override of the very thing
+ * "the default log path is worktree-anchored and unique per run" exists to assert, so a session
+ * that backgrounds its own gate with `GATE_BG_LOG=… pnpm gate:bg` leaks that path into `pnpm -r
+ * test` and the default-path test then measures the OVERRIDE. Measured 2026-08-04: both runs came
+ * back with the caller's scratchpad path, so the uniqueness assertion compared a value to itself
+ * and the "in the worktree's .gate-logs" assertion failed against a path outside the worktree.
+ * A test that silently inherits an override of its own subject proves nothing — the same shape as
+ * the WSL/PATH defect this file's `bash` resolution now fences.
+ */
 function runWrapper(
   inner: string,
   env: Record<string, string> = {},
 ): { status: number; stdout: string } {
-  const res = spawnSync("bash", [script, "sh", "-c", inner], {
+  const hermetic = { ...process.env };
+  delete hermetic["GATE_BG_LOG"];
+  const res = spawnSync(bash, [script, "sh", "-c", inner], {
     encoding: "utf8",
-    env: { ...process.env, ...env },
+    env: { ...hermetic, ...env },
   });
   assert.equal(res.error, undefined, `spawning bash failed: ${String(res.error)}`);
   return { status: res.status ?? -1, stdout: `${res.stdout}${res.stderr}` };
@@ -41,7 +63,7 @@ function runWrapper(
 
 /** Run a raw shell snippet and report the status the CALLING shell would observe. */
 function rawShellStatus(snippet: string): number {
-  const res = spawnSync("bash", ["-c", snippet], { encoding: "utf8" });
+  const res = spawnSync(bash, ["-c", snippet], { encoding: "utf8" });
   assert.equal(res.error, undefined, `spawning bash failed: ${String(res.error)}`);
   return res.status ?? -1;
 }
@@ -180,7 +202,7 @@ test("propagation survives losing pipefail — PIPESTATUS is doing the work, not
   try {
     const copy = path.join(dir, "gate-bg-nopipefail.sh");
     writeFileSync(copy, stripped);
-    const res = spawnSync("bash", [copy, "sh", "-c", "exit 1"], {
+    const res = spawnSync(bash, [copy, "sh", "-c", "exit 1"], {
       encoding: "utf8",
       env: { ...process.env, GATE_BG_LOG: path.join(dir, "run.log") },
     });
