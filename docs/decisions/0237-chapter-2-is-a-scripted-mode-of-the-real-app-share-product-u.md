@@ -41,6 +41,20 @@ tracks may now enter as registered local appearance assets. The shared app still
 state, timing, deterministic playback, anchors, painter order and reduced motion, and the owner
 still holds the LOOK verdict.
 
+**Amended by
+[ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md) (2026-08-03).**
+The shared-app-surface decision stands for the Chapter 2 teaching walk. Two clauses are **scoped,
+not reversed**, and both scopings turn on the same distinction: this ADR governs a path where a
+visitor is TAUGHT real product interactions, and ADR-0299 adds a separate, passive **forest
+observation view** — map and legend only, no interactions to get wrong. **D6's** "may not own a
+substitute world mapper" binds the teaching path only; the observation view keeps the website's own
+string-SVG paint (`web/src/lib/worldSvg.ts`) while the scene graph stays shared. **D7's**
+"staged/fictional" clause is narrowed for that view alone: its data is real corpus content,
+allow-listed and redacted, baked at publish time. D7's read-only clause is unchanged and
+strengthened; no live or private connection crosses in either case. If the observation view is ever
+used to TEACH interactions rather than to be watched, D6 reasserts in full and the website-side
+migration is owed.
+
 ## Context
 
 The repository already contains two materially different versions of the product:
@@ -73,7 +87,9 @@ Three forces remain load-bearing:
 
 1. **The public boundary stays real.** The website remains a diorama over deterministic fictional
    data; it does not connect to the private corpus, store, backend or operable app actions
-   (ADR-0056/0066/0215).
+   (ADR-0056/0066/0215). *(Scoped 2026-08-03 by ADR-0299: "fictional" now holds for everything
+   except the baked, redacted forest observation view. The no-connection half — the load-bearing
+   half — stands verbatim.)*
 2. **One component must mean one product.** Reusing scene data while duplicating the mapper, CSS,
    sprite policy or chrome is not reuse at the level a visitor sees. Product presentation must have
    one implementation consumed by the studio and Chapter 2.
@@ -186,10 +202,33 @@ studio frame, sprite resolver or product animation rules.
 The old website mapper may survive for a non-product use only if a remaining consumer is named and
 proved. It is not reachable from Chapter 2 after migration.
 
+**Scoped in place 2026-08-03
+([ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md) D4).** The
+"may not own a substitute world mapper" prohibition binds the **teaching path** — the migrated
+Chapter 2 walk, where a visitor is shown real product interactions and an imitation can look
+plausible while showing yesterday's art, interactions and semantics. It does **not** bind the
+passive forest observation view ADR-0299 introduces: that view teaches no interactions and has none
+to get wrong, and consuming `@storytree/app-surface` there would bundle React and the full product
+surface into a public static site, enlarging exactly the exposure that decision closes. There, the
+seam is this ADR's parent (ADR-0093) in its original form — scene graph shared and held byte-fresh
+by `check:web-engine`, paint owned by the website (`web/src/lib/worldSvg.ts`). The consumer this
+paragraph asks to be "named and proved" is therefore now named. Two facts recorded as found rather
+than assumed: this D6's website-side migration was never in fact performed —
+`chapter2-real-app-surface-arc` delivered the parent-side surface (PR #892, #958) and closed
+2026-07-30 on an owner verdict to retire that route — and the website imports zero `@storytree`
+packages today. If the observation view is ever used to TEACH interactions, this clause reasserts in
+full.
+
 ### D7 — What stands
 
 - The experience remains 2.5D isometric. R3F/real 3D does not return.
 - Chapter 2 remains staged/fictional and read-only; no live/private data crosses.
+  **Scoped 2026-08-03 ([ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md)
+  D1/D6):** "staged/fictional" holds for the Chapter 2 teaching walk, and `act2-script.ts` /
+  `act2-studio.ts` remain site-owned fiction. The separate forest observation view is **real and
+  redacted** — an allow-listed projection of the corpus, baked at publish time. "Read-only" and "no
+  live/private data crosses" are unchanged and stronger there: no public API, no endpoint, no
+  database connection, no runtime fetch, and no mutation callback reaches the public controller.
 - The visitor-paced continuous walk, principles, diagrams, plain-language narration, inspectability,
   a11y fallback and operator-held LOOK proof stand.
 - Act 1 and the physical Act 1-to-2 transformation remain website experience content.
@@ -249,6 +288,10 @@ proved. It is not reachable from Chapter 2 after migration.
 - [ADR-0282](0282-the-act-2-intro-regrows-the-whole-forest-app-native-one-focu.md) — the Act 2 intro
   is built in this shared surface first and ported to the website afterwards; the forest regrows
   app-native at any story count.
+- [ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md) — the public
+  forest observation view: real corpus data, allow-listed and redacted, baked at publish time, map
+  and legend only. Scopes D6 (to the teaching path) and D7's staged/fictional clause; strengthens
+  D7's read-only clause.
 - [ADR-0056](0056-ground-the-public-website-s-claims-to-the-corpus-via-data-gr.md) /
   [ADR-0066](0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md) — the public
   grounding and no-private-data boundary that stands.

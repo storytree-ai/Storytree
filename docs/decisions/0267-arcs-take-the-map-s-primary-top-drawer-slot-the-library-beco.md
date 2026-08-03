@@ -193,6 +193,13 @@ not settle the picture.
   `arcRef`, so `arc show` renders "(none)" for all 17 active arcs. That is the **third open item
   below** — whether escalation must author an open-question — surfacing as an empty view, not a defect
   in the derived join.
+
+  *Updated later the same day (2026-08-03):* that question was ANSWERED by
+  [ADR-0299](0299-the-public-website-shows-the-real-forest-as-a-baked-redacted.md) and retired, so
+  the live `open-question` tier is now **empty**. Nothing above is falsified and the third open item
+  is sharpened rather than settled: the tier reached zero because its only occupant was discharged,
+  not because the edge or the join failed. Until escalation is required to author an open-question,
+  `arc show`'s question view has no population to render at all.
 - **D7 rests on ADR-0239, which has since LANDED — the dependency is satisfied, not pending.**
   ADR-0239 reads `status: accepted` and its implementation shipped as PR #1016: the `Arc` schema
   carries a stored `lifecycle` enum, `storytree arc close` writes the transition atomically from a
