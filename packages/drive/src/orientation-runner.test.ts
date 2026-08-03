@@ -21,6 +21,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { InMemoryStore } from "@storytree/storage-protocol";
 import type { Store } from "@storytree/storage-protocol";
 
 import { createOrientationRunner } from "./orientation-runner.js";
@@ -221,6 +222,70 @@ test("orientation runner: [library artifact list <category>] lists ids; unknown 
   });
   assert.equal(miss.ok, false);
   assert.match(miss.body, /available categories/);
+});
+
+// ---- the listable set comes from the SCHEMA, not from the rows that happen to exist -----------
+//
+// The same defect PR #1111 fixed CLI-side (`listCategory` in packages/cli/src/commands.ts) had a
+// second, population-derived copy here — this is the orientation-runner surface, a different code
+// path the CLI dispatch never enters. The population is STAGED in each test, never inherited from
+// whichever tier happens to be empty today: an inherited precondition inverts the moment someone
+// writes a row.
+
+/** A store holding exactly one `definition` — every other schema kind is genuinely at zero. */
+async function storeWithOneDefinition(): Promise<InMemoryStore> {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "the-only-row",
+    kind: "definition",
+    doc: { kind: "definition", id: "the-only-row", title: "The only row" },
+  });
+  return store;
+}
+
+test("orientation runner: [library artifact list <schema kind with ZERO rows>] reports the tier EMPTY at ok:true", async () => {
+  // A new kind starts empty by definition, and a lifecycle tier draining to zero is the SUCCESS
+  // state — both must read as a fact about the population, never as "the kind does not exist".
+  const runner = makeRunner({ store: await storeWithOneDefinition() });
+  const env = await runner(["library", "artifact", "list", "proposal"], {
+    store: null,
+    writable: false,
+  });
+  assert.equal(env.ok, true, `an empty schema kind lists empty, not unknown: ${env.body}`);
+  assert.match(env.body, /^proposal \(0\):$/, "the same shape a populated tier uses");
+});
+
+test("orientation runner: [library artifact list] advertises every SCHEMA kind, including the ones at zero", async () => {
+  const runner = makeRunner({ store: await storeWithOneDefinition() });
+  const env = await runner(["library", "artifact", "list", "not-a-real-kind"], {
+    store: null,
+    writable: false,
+  });
+  assert.equal(env.ok, false, "a kind the schema does not define is still a genuine user error");
+  assert.match(env.body, /unknown category "not-a-real-kind"/);
+  // The available list can never again advertise a narrower world than the schema defines.
+  for (const kind of ["definition", "proposal", "friction", "arc", "plan", "uat-criterion"]) {
+    assert.ok(env.body.includes(kind), `available categories names ${kind}`);
+  }
+});
+
+test("orientation runner: [library artifact list] still lists a kind the store holds but the knowledge schema does not name", async () => {
+  // `template` artifacts (ADR-0210) carry a kind outside the knowledge union and list today —
+  // the schema-derived set is a WIDENING, so nothing that works loses.
+  const store = await storeWithOneDefinition();
+  await store.upsertDoc({
+    id: "template-thing",
+    kind: "template",
+    doc: { kind: "template", id: "template-thing", title: "Template — thing" },
+  });
+  const runner = makeRunner({ store });
+  const env = await runner(["library", "artifact", "list", "template"], {
+    store: null,
+    writable: false,
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /template \(1\):/);
+  assert.match(env.body, /template-thing/);
 });
 
 test("orientation runner: [agents] lists available agents (self-onboarding entry), fail-soft when none", async () => {
