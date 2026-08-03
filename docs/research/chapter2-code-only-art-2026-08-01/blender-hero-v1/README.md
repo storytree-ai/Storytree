@@ -36,7 +36,7 @@ Blender's bundled 2.3.4. `--only 4,9,18` renders a subset for the tight loop; su
 identical to those frames of a full run. The plan line prints the crown proxy's extent and, since
 this increment, **the bark proxy** (§1).
 
-**Six exploratory flags, all defaulting to the delivered track.** `--low-shrink` and `--low-splay`
+**Seven exploratory flags, all defaulting to the delivered track.** `--low-shrink` and `--low-splay`
 are new (§3); `--core-lift` is new but exists only to calibrate the bark proxy (§1) and to keep v7's
 exhausted-lever measurement runnable; `--crown-normals` (v7 §3), `--leaf-on`/`--leaf-full` (ADR-0293,
 owner-picked), `--framing fixed|per-stage|eased` (§5) and `--skeleton` (settled by ADR-0289 D3) are
@@ -139,6 +139,29 @@ toward the rim: keep the outer lobes full, empty only the middle. Measured at sh
 for 169 and 300 px of bark — about **85 px of bark per point of floor**, against a lever whose whole
 purpose is bark. Pushing the shrink to 1.0 to pay for it does not get it back (477). The fade was
 deleted rather than left as a knob at zero.
+
+**v7's shading fork was RE-MEASURED on the opened crown rather than inherited**, because the
+low-crown lever changed the very lobes those normals are blended against, and a measurement table
+describing a superseded shape is the same silent-staleness trap as a stale picture. Five one-frame
+renders, one pass, `crown-normals-fork.png` re-rendered with them:
+
+| mix | highlight | caps | largest | bark |
+|---|---|---|---|---|
+| 0.00 | 729 (17.7%) | 13 | 24% | 631 |
+| **0.22 (delivered)** | **759 (18.4%)** | **13** | **28%** | **631** |
+| 0.32 | 751 (18.2%) | 13 | 32% | 630 |
+| 0.45 | 709 (17.2%) | 8 | 38% | 629 |
+| 1.00 | 476 (11.5%) | 13 | 76% | 629 |
+| exp-16 | 874 (20.4%) | 12 | 30% | 670 |
+
+Two things fall out. **v7's central claim re-verifies at the new geometry**: bark is 629–631 px at
+every mix from 0 to 1, flat, exactly as it was 206–207 flat on the closed crown — shading decides
+which band a canopy pixel takes and never whether a pixel is canopy. And **0.22 survives and is now
+the strict optimum** where it used to be a considered compromise: it is the outright peak of the
+highlight column (0.32 and 0.45 were both slightly higher on the v7 crown) and its largest cap at 28%
+is the nearest row to exp-16's 30%. The percolation point moved out too — the caps used to collapse
+into one blob between 0.32 and 0.45 and now hold to 0.45. Nothing was re-tuned; the default is
+unchanged. It is simply now a statement about the tree we ship.
 
 **The funnel floor now contributes nothing to bark**, and that is worth recording so nobody re-turns
 it. Rendered at the delivered shrink, `CANOPY_CORE_LIFT` 0.20 → 631 px of bark and 0.00 → **631**, the

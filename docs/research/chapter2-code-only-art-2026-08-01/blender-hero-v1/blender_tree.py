@@ -589,24 +589,34 @@ CANOPY_CORE_LIFT = float(arg("--core-lift", "0.20"))
 # structure. Measured on the mature frame, every row with the funnel floor below in place
 # so the fork moves exactly one variable:
 #
+# RE-MEASURED ON THE v8 CROWN, because the table below was taken on the v7 geometry and
+# the low-crown lever above changed the very lobes these normals are blended against. A
+# measurement table that describes a superseded shape is the same silent-staleness trap the
+# fork PICTURES have (see the README's §5 note on `frames/contact-sheet.png`), and it is
+# worth five one-frame renders to not carry it. All five rows re-rendered in one pass:
+#
 #     mix   highlight        caps   largest   cap sizes             bark
-#     0.00     826 (17.6%)     12       21%   177 168 148 103 72    206   <- v6's shading
-#     0.22     889 (19.0%)     11       25%   221 217 155 135 60    206   <- delivered
-#     0.32     902 (19.2%)      9       54%   486 159 143  50 37    207
-#     0.45     909 (19.4%)      7       76%   687 160  37  19  3    207
-#     1.00     821 (17.5%)     11       79%   650 130  24   7  3    206
+#     0.00     729 (17.7%)     13       24%   178 141 129  91 77    631   <- v6's shading
+#     0.22     759 (18.4%)     13       28%   216 175 125 122 43    631   <- delivered
+#     0.32     751 (18.2%)     13       32%   243 182 129 120 33    630
+#     0.45     709 (17.2%)      8       38%   266 190 128 105 13    629
+#     1.00     476 (11.5%)     13       76%   363  67  25   8  3    629
 #     exp-16   874 (20.4%)     12       30%   261 244 198  83 45    670
 #
-# Between 0.32 and 0.45 the separate caps PERCOLATE into one blob, and past that the
-# highlight FALLS again — a bare ellipsoid presents less area to the key than a crown of
-# clumps does. 0.22 buys essentially all the highlight 0.32 does (19.0 vs 19.2) while
-# landing on exp-16's cap architecture instead of overshooting it, so the pick is the
-# reference's STRUCTURE rather than the largest number in a column.
+# 0.22 SURVIVES THE RE-MEASUREMENT AND IS NOW THE STRICT OPTIMUM, where on the closed crown
+# it was a considered compromise. It is the peak of the highlight column outright (759, over
+# 0.32's 751 and 0.45's 709 — on the v7 crown those two were both slightly HIGHER than it),
+# and its largest cap at 28% is the nearest to exp-16's 30% of any row. Opening the lower
+# crown moved the percolation point too: the caps used to collapse into one blob between
+# 0.32 and 0.45, and now hold their structure to 0.45 and only percolate by 1.00. Nothing
+# had to be re-tuned — the default is unchanged — but that is now a measured statement about
+# the delivered tree rather than one inherited from a tree we no longer ship.
 #
-# Read the last column too, because it is the honest limit of this technique: BARK IS
-# 206-207 PX AT EVERY MIX FROM 0 TO 1. Normals decide which band a canopy pixel takes and
-# never whether a pixel is canopy, so nothing here touches how much limb you can see —
-# that is the funnel floor's column, and even it only reaches 206 against exp-16's 670.
+# Read the last column too, because it is the honest limit of this technique, and it is the
+# claim v8 re-verified rather than assumed: BARK IS 629-631 PX AT EVERY MIX FROM 0 TO 1, as
+# it was 206-207 flat on the closed crown. Normals decide which band a canopy pixel takes
+# and never whether a pixel is canopy, so nothing here touches how much limb you can see —
+# that is the low-crown lever's column, and it is what took bark from 206 to 631.
 CROWN_NORMAL_MIX = float(arg("--crown-normals", "0.22"))
 if not 0.0 <= CROWN_NORMAL_MIX <= 1.0:
     raise SystemExit(f"--crown-normals must be 0..1, got {CROWN_NORMAL_MIX}")
