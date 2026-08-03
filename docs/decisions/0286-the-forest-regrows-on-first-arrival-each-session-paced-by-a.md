@@ -103,17 +103,29 @@ once), so there is no second way to begin a regrow that could drift from the fir
 built only once a regrow has been asked for — a session that has already seen it pays for no plan
 and no per-island accretion walk.
 
-### D4 — the default pace is 0.6× the graph's own
+### D4 — the default pace is the dial's slowest setting
 
 `1` on the dial means the plan's OWN duration — the pace the routed pathway geometry derives,
-**measured 6.8 s** on the real 40-island corpus. The default is **0.6×**, which measures **11.6–12.9 s**,
-with the dial as the escape in both directions (0.25×–2×). For scale: increment 1 ran 12.4 s and was
-never called long; increment 2 ran 7.0 s and was.
+**measured 6.8 s** on the real 40-island corpus. The default is **0.25×**, the dial's floor, with the
+dial opening upward from there (0.25×–2×). For scale: increment 1 ran 12.4 s and was never called
+long; increment 2 ran 7.0 s and was.
+
+**AMENDED 2026-08-03, by the owner, on the LOOK verdict this decision was built toward.** This shipped
+at 0.6× (measured 11.6–12.9 s), reasoning that ~12 s was near increment 1's uncriticised 12.4 s. The
+owner watched the finished regrow, stamped it — *"this looks great"* — and in the same breath took the
+pace to the floor: *"I think we down the speed to 0.25, the lowest setting."* The 0.6× figure is
+recorded here as what was tried rather than edited away, because it is the evidence that this dial
+needed a look and not an argument: the ~12 s estimate was defensible and still wrong.
+
+The default therefore sits ON `min`, deliberately. That is not a boundary to tidy later — the owner
+asked for the slowest the control offers, so the floor is a value someone chose. If a future look
+wants slower still, `min` moves and the default follows it; `clampMin` (0.05, below `min` and
+unreachable from the slider) is what actually protects the cursor from a hand-written URL.
 
 A default that is not 1× is deliberate and slightly odd, so: the alternative was to re-tune
 `FOREST_REGROW_TUNING` and keep the dial at 1×, which would have moved every island's position in
 the run and put ADR-0285's measured numbers out of date for a pacing preference. Scaling the clock
-instead leaves the schedule exactly as attested. The clean, param-free URL is the slower one, which
+instead leaves the schedule exactly as attested. The clean, param-free URL is the slowest one, which
 is the point — this is a look call, biased toward legible over brisk, and it is the owner's to move.
 
 **Speed scales the CLOCK, never the schedule.** Every island's `start`/`end` is a fraction of the
@@ -144,7 +156,14 @@ Across the first 15% of the run: **0–19**. Reproduced in every run taken, incl
 ones — it is a structural claim, not a timing one.
 
 **Pace (D4).** 1× → **6.8 s** against increment 2's 7.0 s: the schedule is unchanged, which is the
-point of scaling the clock. Default 0.6× → **12.9 s / 11.6 s**.
+point of scaling the clock. 0.6× → **12.9 s / 11.6 s**.
+
+**Pace at the amended default (D4, 2026-08-03).** 0.25× → **30.2 s / 29.6 s** on two clean runs, and
+**23.4 s** for the auto-play on first arrival (which starts as soon as the scene exists rather than
+after a settle, so it is the shorter and more representative number — it is what a visitor actually
+waits through). Same bracketed protocol, opening and closing idle floors both 16.7 ms. Re-measured on
+the day's corpus, which had grown to 968 coast hexes; the ghost-hex claim held unchanged at **0** on
+the first frame.
 
 **Frame cost.** Painting frames, p50 by nodes then on the map, against increment 2's baseline:
 
