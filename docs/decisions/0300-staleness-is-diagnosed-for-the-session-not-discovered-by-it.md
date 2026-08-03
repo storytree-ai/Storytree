@@ -1,17 +1,20 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-08-04
 arc: session-staleness-arc
 ---
 # ADR-0300: Staleness is diagnosed for the session, not discovered by it
 
 ## Status
 
-proposed — written 2026-08-04 by the session the owner asked to survey the factory after halting most
-of it ("felt like there was session sprawl and the system was thrashing"). The owner delegated the
-choice of fix ("happy for you to land whatever fix you think is best, i'll review it in the morning")
-but did not direct these decisions, so this is NOT born accepted under ADR-0110 — D1 is already built
-and D2–D4 are stated here for the owner's ratification. If any decision is rejected, the built half of
-D1 stands on its own as a message-quality fix and can be kept or reverted independently.
+accepted — the owner ratified this on 2026-08-04 ("accept ADR-0300"), reviewing it as landed rather
+than as a proposal.
+
+It was deliberately born `proposed` the night before, and the distinction is worth keeping in the
+record: the owner had delegated the CHOICE of fix ("happy for you to land whatever fix you think is
+best, i'll review it in the morning") but had not directed these decisions, so ADR-0110's design-time
+alignment did not apply and signing them as the owner's would have been an invention. D1 was already
+built and shipped in PR #1131; D2–D4 were stated for exactly this ratification. All four now stand.
 
 ## Context
 
