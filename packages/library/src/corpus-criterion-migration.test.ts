@@ -18,7 +18,15 @@ test("disk-canonical UAT corpus has authored exact identities and a complete exp
       return parseUatTestCriteria(storyId, readFileSync(storyPath, "utf8"));
     });
 
-  assert.ok(criteria.length >= 282, "the migrated 282-criterion cutover corpus remains present");
+  // ADR-0294 retired the `>= 282` floor that stood here. That assertion encoded the ADR-0253 cutover
+  // moment ("the migrated 282-criterion corpus remains present"), and it was true only while criteria
+  // were never deleted. ADR-0294 D2 deletes every criterion whose proof already exists one rung down —
+  // deliberately, and targeting roughly 60 — so a population floor would now fail BY DESIGN and is
+  // corrected in place (ADR-0139: an accepted record carries no overtaken prose; `git log -p` holds it).
+  // What is still load-bearing, and is asserted below, is the part deletion must NOT touch: the cutover
+  // LEDGER is frozen at 282 reviewed keys, and a deleted criterion's history becomes `superseded`
+  // rather than silently dropped (ADR-0294 Cost/watch; ADR-0253 D4).
+  assert.ok(criteria.length > 0, "the disk-canonical corpus still declares UAT criteria");
   assert.equal(
     new Set(criteria.map((criterion) => criterion.criterionId)).size,
     criteria.length,
@@ -43,4 +51,23 @@ test("disk-canonical UAT corpus has authored exact identities and a complete exp
     ),
     "every legacy key has an explicit, reviewable disposition",
   );
+
+  // ADR-0294 D2's honesty wall, as far as a machine can check it. No mechanical check can verify that
+  // the named lower-tier node ACTUALLY proves the deleted claim — the ADR says so explicitly, and that
+  // adjudication stays human. What IS checkable: a criterion deleted by that pass must leave a
+  // `superseded` entry that NAMES where the proof now lives, so a reader can audit the claim rather
+  // than discovering an unexplained absence.
+  for (const entry of ledger.dispositions) {
+    if (entry.disposition !== "superseded") continue;
+    assert.match(
+      entry.rationale,
+      /ADR-0294/,
+      `${entry.legacyTestId}: a superseded disposition must cite the deciding ADR`,
+    );
+    assert.match(
+      entry.rationale,
+      /proven by the (capability|contract|capabilities)|proven in two places|is proven by/,
+      `${entry.legacyTestId}: a superseded disposition must NAME the lower-tier node that proves the deleted claim (ADR-0294 D2)`,
+    );
+  }
 });

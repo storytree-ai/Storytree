@@ -146,60 +146,38 @@ resolves the intra-story deps automatically.
 
 ## UAT Test Criteria
 
-The integrated acceptance walkthrough proving the organism's outcome end to end: a proven unit's drift
-becomes real and lazy.
+**This story declares ZERO UAT criteria (ADR-0294 D2/D4).** It is a thin cross-cutting story — five
+additive slices that landed in four different package suites — and there is no integrated journey a
+person or an agent walks through it. Its five former criteria were each a *property of a module*, and
+each one's own prose already named the capability that proves it; under ADR-0294 D2 a criterion whose
+proof exists one rung down is **deleted, not re-pointed**, so they were deleted on 2026-08-03 with the
+proving node named per criterion (recorded in `stories/uat-legacy-dispositions.json`, disposition
+`superseded`). What the story is proven by is unchanged and is stated in full under **Reliability
+Gates** below — a zero-UAT story greens honestly through the ADR-0085 own-proof union
+(`packages/drive/src/tree.ts` — `ownObligations = [...hardUatTestCriteria, ...reliabilityGates]`).
 
-**Goal —** Prove that a unit can carry a binding, the gate records what code it proved and emits change
-events as that code moves, and `storytree drift <unit>` reads the stored binding + change log and
-classifies it — refusing to re-UAT on a cosmetic/undescribed change.
+The deletions and the node that already proves each, for audit:
 
-1. **A verdict records its code.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-1)_ A _(criterion-id: uatc_eddefa6d5b093d9f920feb29)_ _(revision-id: uatr1:337676032c715ad0)_
-   signed `Verdict` carries the `boundHash` of the span it proved.
-   **Success —** the field round-trips through the schema; a verdict without it still parses (back-compat),
-   asserted in `packages/proof-protocol/src/shapes.test.ts`. *(proven by `boundhash-on-verdict`)*
-2. **The store holds change events.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-2)_ The _(criterion-id: uatc_5c21ca51ab701f2da96ae69f)_ _(revision-id: uatr1:eebc2d5aabd9e376)_
-   `ChangeStore` contract appends + reads `ChangeEvent`s, held to a reusable parity bar. **Success —**
-   the `changeStoreParitySuite` is green against `InMemoryStore` — an empty log reads `[]`, an appended
-   event round-trips unchanged, a `unitId` filter selects only its own, and insertion order is preserved
-   (`packages/storage-protocol/src/change-event-store.test.ts`). *(proven by `change-event-store`)*
-3. **The gate emits as it proves.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-3)_ When a _(criterion-id: uatc_e86cbe78a9f321c3b12aca91)_ _(revision-id: uatr1:a0b3e3cf7328ac9d)_
-   unit is (re)proven with a binding, the gate stamps `verdict.boundHash` and emits a `ChangeEvent`;
-   without a binding it signs exactly as before. **Success —** the orchestrator test observes BOTH
-   branches — with a binding the verdict carries the bound hash and exactly one change event is emitted
-   carrying it, without one the field is absent and no event is emitted
-   (`packages/orchestrator/src/gate-emits-change.test.ts`). *(proven by `gate-emits-change`)*
-4. **Drift reads the store.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-4)_ The _(criterion-id: uatc_ede9962b4bf236d6cb7f93ea)_ _(revision-id: uatr1:82c688ff8afc6717)_
-   store-reading drift path — `runDriftFromStore` in `packages/cli/src/drift.ts` — reads the unit's
-   stored anchor + change log and classifies fresh | stale | drifted-undescribed, taking no explicit
-   `--bound`/`--change` arguments. **Success —** the three states are distinguished from `InMemoryStore`
-   data, and an absent anchor is clean guidance rather than a crash
-   (`packages/cli/src/drift-from-store.test.ts`). Scoped deliberately to the store-reading PATH, not to
-   the `storytree drift <unit>` command: that command is not wired, and pretending otherwise here would
-   be a leg that can never go red — see the recorded gap under **Honest status**.
-   *(proven by `drift-reads-store`)*
-5. **Source-drift too.** _(witness: machine)_ _(proof-gate: binding-staleness#gate-3)_ A pure classifier _(criterion-id: uatc_9efe0576a211f525648cbfb7)_ _(revision-id: uatr1:47f094d2983559c3)_
-   flags an artifact whose upstream `derives_from` source changed.
-   **Success —** described change → stale, undescribed → demoted, unchanged → fresh, asserted over the
-   pure classifier in `packages/orchestrator/src/proof/source-drift.test.ts`. *(proven by `source-drift`)*
+| deleted criterion | claim | proven at |
+| --- | --- | --- |
+| `uatc_eddefa6d5b093d9f920feb29` | a signed `Verdict` carries the `boundHash` of the span it proved, and one without it still parses | [`boundhash-on-verdict`](boundhash-on-verdict.md) (capability) — `packages/proof-protocol/src/shapes.test.ts`, observed by gate-1 |
+| `uatc_5c21ca51ab701f2da96ae69f` | the `ChangeStore` contract appends + reads `ChangeEvent`s to a reusable parity bar | [`change-event-store`](change-event-store.md) (capability) — `packages/storage-protocol/src/change-event-store.test.ts`, which runs the shared `changeStoreParitySuite` against `InMemoryStore`; observed by gate-2 |
+| `uatc_e86cbe78a9f321c3b12aca91` | the gate stamps `verdict.boundHash` + emits one `ChangeEvent` with a binding, and signs unchanged without one | [`gate-emits-change`](gate-emits-change.md) (capability) — `packages/orchestrator/src/gate-emits-change.test.ts` asserts BOTH branches; observed by gate-3 |
+| `uatc_ede9962b4bf236d6cb7f93ea` | `runDriftFromStore` classifies fresh \| stale \| drifted-undescribed from stored anchor + change log, and an absent anchor is guidance not a crash | [`drift-reads-store`](drift-reads-store.md) (capability) — `packages/cli/src/drift-from-store.test.ts`, four tests matching the four success clauses one-to-one; observed by gate-4 |
+| `uatc_9efe0576a211f525648cbfb7` | the pure source-drift classifier: described → stale, undescribed → demoted, unchanged → fresh | [`source-drift`](source-drift.md) (capability) — `packages/orchestrator/src/proof/source-drift.test.ts`; observed by gate-3 |
 
-End state — staleness is a real, lazy, described-change-gated signal computed from a unit's stored
-binding + change log, never a blanket re-UAT and never an explicit-args toy.
+Nothing above stopped running. Every assertion still executes under the same four gate commands, and
+each capability still greens on its own suite — the deletion removed a *second signature* over that
+evidence at the story rung, not the evidence (ADR-0294 D2: "provably lossless").
 
-> **HONEST status —** every leg above is DECIDED `machine`, adjudicated 2026-07-26 under ADR-0209 §8.
-> Before that pass they carried NO witness annotation at all, so they parsed undecided and resolved to
-> human by the fail-closed default (ADR-0106) — a default, never a judgment. Each of the five success
-> conditions is a compiling fact with a standing offline test, so none of them is the no-compiler
-> judgment gap the human rung exists for; each leg names the exact observe gate below that proves it,
-> and each of those four commands was run and read for this pass. Nothing was stranded by the
-> re-tagging: this story had zero attestation rows and zero verdict rows.
->
-> So the story's own UAT is now machine-witnessable end to end — an adopt pass observe-and-signs all
-> five legs, and no leg awaits an operator's "I saw it work". What still holds the crown is unchanged:
-> every capability healthy, every reliability gate signed, and the recorded command-wiring gap under
-> **Honest status** settled by the owner. Separately, a `story build --real` still WITHHOLDS this story
-> node, because the frontmatter declares no story-tier machine witness and no story-tier `real:` arm —
-> a Build-path question, not a claim that the walkthrough above needs a human. This story's green path
-> is Adopt, not Build.
+> **Superseded note (kept as history).** Before 2026-08-03 this section carried those five legs, all
+> tagged `witness: machine` in the 2026-07-26 ADR-0209 §8 adjudication and each bound to one of the four
+> observe gates below. That adjudication was correct about the *witness* — every success clause
+> compiles — and is exactly why the legs are duplicates rather than journey steps: what a package suite
+> can assert is the capability rung, not the story rung (ADR-0294 Context; ADR-0295 §Context makes the
+> same point about the pre-filtered population the ADR-0247 sweep ran on). This story had zero
+> attestation rows and zero verdict rows against those legs, and under ADR-0253 none of them held proof
+> credit, so nothing green was lost.
 
 ## Reliability Gates
 
