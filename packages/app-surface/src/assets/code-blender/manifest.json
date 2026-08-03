@@ -25,17 +25,17 @@
       "y": 120
     },
     "maxAnchorResidualPx": 0.5,
-    "measuredContactAnchorSpreadPx": 3.1619,
-    "framesRequiringAShift": 11,
+    "measuredContactAnchorSpreadPx": 2.348,
+    "framesRequiringAShift": 9,
     "totalFrames": 19,
     "maxAbsShiftPx": 2,
     "groundRowSpreadPx": 4,
     "groundRowSpreadReason": "the camera is fixed and the trunk base is pinned at world z=0, but SECONDARY GROWTH thickens the trunk, so the front of its own footprint descends by r*sin(20 deg) as it fattens. Pinning the bottom row to a constant would mean shifting the frame upward as the tree matures \u2014 the tree would appear to rise out of the ground. This track states the band instead of buying a constant row with base drift (ADR-0280 D1).",
     "costOfApplyingTheAppliedRule": {
-      "bodyCentroidSpreadBeforePx": 3.7867,
-      "bodyCentroidSpreadAfterPx": 7.2493,
-      "bodyCentroidMaxFrameToFrameStepBeforePx": 1.8429,
-      "bodyCentroidMaxFrameToFrameStepAfterPx": 3.4017
+      "bodyCentroidSpreadBeforePx": 3.5112,
+      "bodyCentroidSpreadAfterPx": 5.9378,
+      "bodyCentroidMaxFrameToFrameStepBeforePx": 1.7126,
+      "bodyCentroidMaxFrameToFrameStepAfterPx": 2.9788
     }
   },
   "tracks": [
@@ -81,7 +81,7 @@
         "samples": 72,
         "shadow_samples": 32,
         "supersample_res": 384,
-        "ortho_scale": 3.07623,
+        "ortho_scale": 3.068451,
         "nodes": 352,
         "iterations": 28,
         "lobes": 29
@@ -89,7 +89,7 @@
       "growthPacing": "19 frames placed at equal SILHOUETTE-CHANGE arc length, measured author-time from an analytic projection of the skeleton, not at equal time (ADR-0280 D1: growth pacing is authored)",
       "staging": "TWO PHASES (ADR-0293, owner-directed): the wood extends and branches ALONE, then the leaves flush onto a tree that is already a tree. The canopy carries no weight before the flush begins, so the early frames are bare wood by construction rather than by a threshold. Where the phase boundary sits is an owner pick from rendered options, not a derived number; the frame budget either side of it is NOT authored \u2014 the pacing rule above re-allocates it from the measured silhouette change, so moving the boundary moves the frames with it",
       "contactShadow": "a second Blender pass: the tree casts but is invisible to camera, so alpha carries the shadow alone. Composited at alpha 96 \u2014 the only semi-transparent pixels in the track \u2014 because the island is the substrate (ADR-0274 D1) and a shadow darkens it rather than replacing it. Clipped at the tree's own contact row so it cannot define the ground socket.",
-      "encodedBytes": 30939,
+      "encodedBytes": 32569,
       "decodedRgbaBytes": 1245184
     },
     {
@@ -124,7 +124,7 @@
   },
   "budget": {
     "restatedFor": "code-blender",
-    "encodedBytes": 55474,
+    "encodedBytes": 57104,
     "decodedRgbaBytes": 1429504,
     "frameCount": 24,
     "simultaneousOrganicLayers": 2,

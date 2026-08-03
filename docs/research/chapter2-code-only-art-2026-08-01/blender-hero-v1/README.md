@@ -1,14 +1,18 @@
-# Blender hero tree v7 — the canopy shades as one volume, and the metric that hid the rest
+# Blender hero tree v8 — the lower crown opens, and the limbs finally read through it
 
 **Date:** 2026-08-03 · **Blender:** 5.2.0 LTS, headless, CPU Cycles · **Cost:** $0 · **Vendor calls:** 0
 
-The target is CROWN STRUCTURE, the one gap that has survived every increment since v3 and the only
-one v6 left standing. The approach is the owner's: a Ghibli-style Blender tree tutorial was triaged
-into the arc's intent, and its top genuinely-new item — **normals transferred from a smooth crown
-proxy, so the canopy shades as one volume rather than as a pile of blobs** — aims straight at it.
+The target is the ONE gap v7 left standing, and v7 had already named its mechanism: **you cannot see
+limbs running through our canopy.** Measured as bark inside the crown mask, **206 px against exp-16's
+670** — a gap carried since v3, proven in v7 to be geometry rather than shading (bark held flat
+across the entire `--crown-normals` fork) and not the canopy floor's height either (the funnel yields
+~160 px of bark per unit of lift, so exp-16 would need a floor three tree-heights up).
+
+**Delivered: 206 → 631 px (4.4% → 15.3% of crown) against exp-16's 670 (15.7%),** with the widest
+band, the colour count and `--monotone` all held, and with v7's one-point luma drift closed for free.
 
 **Nothing here is owner-attested.** The LOOK verdict is the owner's (ADR-0070) and §6 records the
-author's honest assessment, which includes a gap this increment did NOT close and now knows why.
+author's honest assessment, including the one thing this cost.
 
 ## Reproduce
 
@@ -29,166 +33,216 @@ this machine — no wheel for Python 3.14.5.
 --no-render` (~10 s). The plain-Python route **iterates a different tree**: the space-colonisation
 reductions are numpy-version sensitive, and system numpy 2.4.4 grows a different skeleton from
 Blender's bundled 2.3.4. `--only 4,9,18` renders a subset for the tight loop; subset frames are
-identical to those frames of a full run. The plan line now also prints the crown proxy's extent.
+identical to those frames of a full run. The plan line prints the crown proxy's extent and, since
+this increment, **the bark proxy** (§1).
 
-**Four exploratory flags, all defaulting to the delivered track.** `--crown-normals <0..1>` is new
-(§3); `--leaf-on`/`--leaf-full` (ADR-0293, owner-picked), `--framing fixed|per-stage|eased` (§5) and
-`--skeleton space-colonisation|sapling` (settled by ADR-0289 D3) are unchanged. The
-`--crown-normals` fork was rendered at 0.00 / 0.22 / 0.32 / 0.45 / 1.00 into `crown-normals-fork.png`:
+**Seven exploratory flags, all defaulting to the delivered track.** `--low-shrink` and `--low-splay`
+are new (§3); `--core-lift` is new but exists only to calibrate the bark proxy (§1) and to keep v7's
+exhausted-lever measurement runnable; `--crown-normals` (v7 §3), `--leaf-on`/`--leaf-full` (ADR-0293,
+owner-picked), `--framing fixed|per-stage|eased` (§5) and `--skeleton` (settled by ADR-0289 D3) are
+unchanged.
 
-```
-for m in 0.0 0.22 0.32 0.45 1.0; do
-  blender --background --python blender_tree.py -- --out work/raw-$m --frames 19 --res 384 \
-      --samples 72 --shadow-samples 32 --crown-normals $m --only 18
-  python pixelise.py work/raw-$m work/$m 128
-done
-```
+## 1. The geometry was decided before any of it was rendered
 
-## 1. The instrument was measuring the wrong thing, and that is the increment's most useful finding
+Every candidate for opening the lower crown is a change to **where the lobes are and how big they
+are** — which `frame_state` already knows, in world units, ten seconds into a `--no-render` run. A
+ten-minute render to rank a fork whose answer is in the lobe list is the same waste `cheap_silhouette`
+removed for growth pacing three increments ago. So `bark_proxy()` rasterises the frame's wood discs
+(with the `WOOD_HIDE` taper applied, so a sub-pixel twig is an absent twig) and its lobe discs at the
+same 128 px the track ships at, takes the top 62% of the bbox exactly as `crown_mask()` does, and
+counts wood not covered by canopy.
 
-"You can see the limbs running through exp-16's canopy and not through ours" has been carried since
-v3 as one number: **crown GREEN FRACTION, ours 71% against exp-16's 51%.** That number is a blend of
-two independent things, and the half it is mostly made of is not the half it was named for.
+**It was calibrated against the delivered pixels before it was trusted**, on the one fork whose
+rendered answer v7 had already measured — `CANOPY_CORE_LIFT`:
 
-`measure()` scored a pixel green on `G > R and G > B`. exp-16's own warm top-highlight band
-(173,167,114) fails that test, and so does its darkest foliage band (92,90,46). So **27% of exp-16's
-"non-green" crown is its own foliage.** Classified by nearest FAMILY instead — the rule the raster
-back half already uses — the honest statement is bark:
+| core-lift | rendered bark | proxy bark |
+|---|---|---|
+| 0.00 | 187 | 163 |
+| 0.20 | 207 | 186 |
+| 0.34 | 242 | 212 |
 
-| mature crown | px | colours | **bark** | warm highlight | in caps | largest cap | lum |
+Ordering exact, slope 89% of the real one, and the crown area it reports (4671 px) lands within 0.4%
+of what `measure.py` reads off the render (4689). It **under-reports by design**: it has no depth, so
+a lobe BEHIND a limb occludes in the proxy and does not in the render. The sign of that error is
+known and it shrank as the crown opened — the delivered frame proxies 619 and renders 631. It is a
+RANKING instrument; every number quoted as delivered in this file is `measure.py` on shipped pixels.
+
+## 2. Two candidates were falsified before either was rendered
+
+v7 §6 proposed the next lever as "lobe COUNT and SEPARATION in the bottom of the crown, **or primary
+limbs thick enough to stand proud of it**". With the crown mask pinned to the delivered silhouette so
+every variant is counted in the same 4671 px region:
+
+| mature frame, proxy px | bark |
+|---|---|
+| v7 as delivered | 186 |
+| **lobes removed entirely** | **1292 (27.7% of crown)** |
+| taper off (`WOOD_HIDE` = 0), lobes as delivered | 186 |
+| crown limbs (z/top ≥ 0.5) **1.5× / 2× / 3× / 4×** thicker, lobes as delivered | **186 / 186 / 186 / 186** |
+
+**The ceiling is not the problem.** Take the canopy away and 1292 px of wood stand in that crown
+region, against exp-16's 670 rendered (~585 in proxy units). The limbs we want to see are already
+there; they are covered.
+
+**Thicker limbs buy exactly nothing** — not approximately, identically, at every multiple out to 4× —
+because the wood sits wholly inside the canopy silhouette and a thicker hidden limb is still hidden.
+The second half of v7's proposed lever is FALSE on this skeleton, and it cost no renders to know.
+(The taper row says the same thing from the other side, and explains why lowering `WOOD_HIDE` never
+fixed this in v3.) The canopy has to open.
+
+## 3. The lever: a lobe's radius is a function of its height — and the shrink is paid OUTWARD
+
+`CANOPY_LOW_SHRINK` scales a lobe's radius by where it sits between the canopy floor and the live
+top: smallest at the floor, untouched at the apex, eased in on the same `mat` maturity scalar both
+shell rules already use, in the same `z/ztop` units the floor is already expressed in. One scalar,
+self-similar, so a whip is left alone — which is also what keeps `--monotone` honest.
+
+**Shrinking in place works and costs the silhouette**, which is why there are two scalars and not
+one. Rendered at splay 0:
+
+| variant | crown px | bark | warm highlight | caps / largest | lum | widest band | foliage floor |
 |---|---|---|---|---|---|---|---|
-| exp-16 | 4280 | 12 | **670 (15.7%)** | 874 (20.4%) | 12 | 30% | 119 |
-| v6 (PR #1105) | 4706 | 8 | **185 (3.9%)** | 830 (17.6%) | 14 | 21% | 125 |
-| **v7 (delivered)** | **4689** | **8** | **206 (4.4%)** | **889 (19.0%)** | **11** | **25%** | **126** |
+| v7 | 4689 | 206 (4.4%) | 889 (19.0%) | 11 / 25% | 126 | 0.58–0.67 | 44% |
+| shrink 0.35 | 4340 | 319 (7.4%) | 812 (18.7%) | 12 / 28% | 124 | 0.58–0.67 | 46% |
+| shrink 0.50 | 4195 | 386 (9.2%) | 773 (18.4%) | 10 / 29% | 123 | **0.75–0.83** | 48% |
+| shrink 0.75 | 3978 | 507 (12.7%) | 712 (17.9%) | 11 / 31% | 120 | **0.75–0.83** | 49% |
 
-The gap was never 71-vs-51. It is **670 bark pixels against 185** — 3.6x, where the green fraction
-said 1.4x the other way. `measure.py` now prints bark and highlight as separate lines, because they
-have separate causes and a figure that mixes them sends the next increment after the wrong organ,
-which is what happened to four of them.
+exp-16's widest band is 0.58–0.67 and v7 matched it to the band. Shrinking moved ours **up the tree**
+and turned the pear back into a lollipop — ADR-0289 D2's second named defect arriving from the other
+direction. The reason is one geometric line: **shrinking a lobe in place retreats its OUTER edge, and
+the outer edge is what the silhouette is made of.**
 
-The second new column matters as much. **The highlight's connected CAPS** is the instrument for "does
-the crown read as one volume or as a pile of blobs", a question argued in adjectives for four
-increments. A crown of separate lobes cannot pool a highlight — each lobe presents every facing angle,
-so the top band of N·L lands as one small cap per lobe. v6 scatters its highlight into 14 caps whose
-largest holds 21% of it. That is the defect, stated as a number for the first time.
+exp-16 is wide at those heights AND shows bark, because its low canopy sits on the ENDS of splayed
+limbs: the rim is where the foliage is and the middle is where the sky is. So `CANOPY_LOW_SPLAY` pays
+the shrink outward — a lobe that loses radius is pushed horizontally out by what it lost, and its
+INNER edge retreats instead. At 1.0 the outer surface does not move at all, so the half-width profile,
+the widest band and the camera's mature extent are held **by construction rather than by tuning**:
 
-## 2. Verified before it was built
+| variant | crown px | bark | warm highlight | caps / largest | lum | widest band | floor |
+|---|---|---|---|---|---|---|---|
+| shrink 0.75, splay 0 | 3978 | 507 (12.7%) | 712 (17.9%) | 11 / 31% | 120 | 0.75–0.83 | 49% |
+| shrink 0.75, splay 1.0 | 4236 | 551 (13.0%) | 787 (18.6%) | 11 / 28% | 120 | **0.58–0.67** | 48% |
+| **shrink 0.90, splay 1.0 (delivered)** | **4123** | **631 (15.3%)** | **759 (18.4%)** | **13 / 28%** | **119** | **0.58–0.67** | 48% |
+| exp-16 | 4280 | 670 (15.7%) | 874 (20.4%) | 12 / 30% | 119 | 0.58–0.67 | 44% |
 
-The whole technique rests on one fact about our renderer, so it was probed in ninety seconds rather
-than assumed: **Cycles' `Geometry > Normal` — the socket `banded()` already reads — honours custom
-split normals.** A sphere with all normals forced to +Z renders as ONE band where the same sphere
-smooth-shaded hits all five. So no shader changes, the authored band list is untouched, and this is
-not the video's EEVEE-only `Shader to RGB` route smuggled in by another name (ADR-0280 D2a pins CPU
-Cycles; that node is closed to us).
+**0.90 is the reference's number, not the column's largest** — the same rule that picked
+`--crown-normals` 0.22. Bark lands at 15.3% against 15.7%, and the crown closes on exp-16 from the
+other side (4689 → 4123 against 4280). Going to 1.0 overshoots the bark and undershoots the crown,
+which is copying a number rather than a structure.
 
-## 3. The proxy is analytic, and the mix was picked from the reference's structure
+## 4. What was rejected, and one lever that is now measurably redundant
 
-The tutorial reaches this with a Data Transfer modifier off a hand-sculpted proxy mesh. **Both halves
-of that are unavailable** — ADR-0280 D1 forbids a sculpted asset, and the modifier needs a
-nearest-surface mapping heuristic we would then have to tune. So the proxy is an **analytic ellipsoid
-fitted per frame to the lobe set that frame emitted**: exact normal everywhere, no mapping, generated
-from the canopy we already author, and it tracks the crown through ADR-0293's flush for free where a
-fixed proxy sized to `CROWN_C`/`CROWN_R` would be wrong on every frame but the last.
+**The rim fade is a bad trade, and it is the repair that looks most faithful.** Since exp-16's canopy
+is on the ENDS of its limbs, the obvious way to recover the foliage floor is to fade the shrink
+toward the rim: keep the outer lobes full, empty only the middle. Measured at shrink 0.90 / splay 1.0
+(proxy px): fade 0.0 → 619, fade 0.5 → 450, fade 1.0 → 319, recovering two and three points of floor
+for 169 and 300 px of bark — about **85 px of bark per point of floor**, against a lever whose whole
+purpose is bark. Pushing the shrink to 1.0 to pay for it does not get it back (477). The fade was
+deleted rather than left as a knob at zero.
 
-It is a blend — the lobe normals carry the clump silhouettes, the proxy carries the volume — and
-`--crown-normals 0.0` is **byte-identical to the delivered v6 frame**, so the fork moves one variable.
+**v7's shading fork was RE-MEASURED on the opened crown rather than inherited**, because the
+low-crown lever changed the very lobes those normals are blended against, and a measurement table
+describing a superseded shape is the same silent-staleness trap as a stale picture. Five one-frame
+renders, one pass, `crown-normals-fork.png` re-rendered with them:
 
-**0.22 is not "as unified as possible", and the reason is that exp-16 is not either.** Read against
-the reference rather than against the extreme, the cap metric has a peak:
+| mix | highlight | caps | largest | bark |
+|---|---|---|---|---|
+| 0.00 | 729 (17.7%) | 13 | 24% | 631 |
+| **0.22 (delivered)** | **759 (18.4%)** | **13** | **28%** | **631** |
+| 0.32 | 751 (18.2%) | 13 | 32% | 630 |
+| 0.45 | 709 (17.2%) | 8 | 38% | 629 |
+| 1.00 | 476 (11.5%) | 13 | 76% | 629 |
+| exp-16 | 874 (20.4%) | 12 | 30% | 670 |
 
-| mix | highlight | caps | largest | cap sizes | bark |
-|---|---|---|---|---|---|
-| 0.00 | 826 (17.6%) | 12 | 21% | 177 168 148 103 72 | 206 |
-| **0.22 (delivered)** | **889 (19.0%)** | **11** | **25%** | **221 217 155 135 60** | **206** |
-| 0.32 | 902 (19.2%) | 9 | 54% | 486 159 143 50 37 | 207 |
-| 0.45 | 909 (19.4%) | 7 | 76% | 687 160 37 19 3 | 207 |
-| 1.00 | 821 (17.5%) | 11 | 79% | 650 130 24 7 3 | 206 |
-| exp-16 | 874 (20.4%) | 12 | 30% | 261 244 198 83 45 | 670 |
+Two things fall out. **v7's central claim re-verifies at the new geometry**: bark is 629–631 px at
+every mix from 0 to 1, flat, exactly as it was 206–207 flat on the closed crown — shading decides
+which band a canopy pixel takes and never whether a pixel is canopy. And **0.22 survives and is now
+the strict optimum** where it used to be a considered compromise: it is the outright peak of the
+highlight column (0.32 and 0.45 were both slightly higher on the v7 crown) and its largest cap at 28%
+is the nearest row to exp-16's 30%. The percolation point moved out too — the caps used to collapse
+into one blob between 0.32 and 0.45 and now hold to 0.45. Nothing was re-tuned; the default is
+unchanged. It is simply now a statement about the tree we ship.
 
-exp-16 does **not** pool its highlight into one region — it carries a few large caps on a shared
-value structure. Between 0.32 and 0.45 our separate caps percolate into a single blob, and past that
-the highlight *falls* again, because a bare ellipsoid presents less area to the key than a crown of
-clumps does. 0.22 buys essentially all the highlight 0.32 does and lands on exp-16's cap architecture
-instead of overshooting it. `crown-normals-fork.png` is the picture; the owner can move it.
+**The funnel floor now contributes nothing to bark**, and that is worth recording so nobody re-turns
+it. Rendered at the delivered shrink, `CANOPY_CORE_LIFT` 0.20 → 631 px of bark and 0.00 → **631**, the
+same number: the radial lift was a weak proxy for this job and the real lever subsumes it entirely.
+It is KEPT at 0.20 because it is still worth 17 px of warm highlight (759 vs 742) and one point of
+floor is not worth churning a v7 decision for — but it is spent as a bark lever, twice over now.
 
-## 4. The canopy floor is a funnel, not a plane
+## 5. The scale-convention fork is unchanged, and `framing-fork.png` is re-rendered anyway
 
-Read the last column of that table: **bark is 206–207 px at every mix from 0 to 1.** Normals decide
-which band a canopy pixel takes and never whether a pixel *is* canopy, so the technique provably
-cannot move the limb half of the gap. That half is geometry, and it got its own lever.
+Both v8 changes are canopy-only and ADR-0293 gives frames 00–06 no canopy at all, so the whole wood
+phase is untouched — and that is exactly the part of the track the framing fork turns on. v6's and
+v7's reading therefore stands: under `eased`/`per-stage` f00 is a bare pole with a root fan, magnified
+into a fence post, tilting the fork back toward keeping `fixed`. `framing-fork.png` is re-rendered on
+the v8 frames regardless, because it is owner-facing evidence for an OPEN fork and it goes stale in
+silence.
 
-`CANOPY_FLOOR` is a horizontal plane at a fraction of the live top. exp-16's is not. Its trunk forks
-into a candelabra of primary limbs that splay up and out, its canopy sits on the ENDS of them, and
-the open cone above the fork is where you read the limbs. So the floor gains a radial term: lifted
-near the trunk axis, unchanged at the rim, normalised against the live crown's own half-width like
-every other rule at this end of the tree. It moved bark **185 → 206**, and the foliage floor from 43%
-to **44%, exactly exp-16's**, at no cost to the silhouette profile (identical to v6 to the pixel).
+`frames/contact-sheet.png` — the delivered track's own 19-frame strip — was found **labelled v6**,
+which is to say it had been stale for two increments including the one that wrote the rule about
+stale evidence. Nothing regenerates it: `pixelise.py` writes the frames beside it and never touches
+it, so it is a committed artifact with no producer in the reproduce block. It is refreshed here and
+the command is now written down, which is the actual fix:
 
-**The lever is then close to exhausted, and that is recorded so nobody re-turns the knob.** Measured
-at a fixed mix so the three points are comparable, `CANOPY_CORE_LIFT` 0.00 → 187 px of bark,
-0.20 → 207, 0.34 → 242: about 160 px per unit of lift. Reaching exp-16's 670 would need a lift near
-**3.0** — a floor three tree-heights above the ground. It is the wrong knob, not an under-turned one.
-
-## 5. The scale-convention fork is unchanged, and this is checkable rather than asserted
-
-Both changes are canopy-only, and ADR-0293 gives frames 00–06 no canopy at all. So the whole wood
-phase is **byte-identical to v6** (verified by hash on f00/f04/f06), which is exactly the part of the
-track the framing fork turns on. v6's finding therefore stands untouched: under `eased`/`per-stage`
-f00 is a bare pole with a root fan, magnified into a fence post, so two-phase staging tilts the fork
-back toward keeping `fixed`. `framing-fork.png` is **re-rendered on the v7 frames anyway** — it is
-owner-facing evidence for an open fork and it goes stale silently, so it is never left to be inferred.
+```
+python sheet.py frames/contact-sheet.png "v8=frames" --frames 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18 --zoom 2
+```
 
 `staging-fork.png` is deliberately NOT re-rendered: it is the picture the owner actually picked B
-from, and a decided fork's evidence is a record of what was shown, not a live view.
+from, and a decided fork's evidence is a record of what was shown, not a live view. ADR-0293's
+staging boundary was CHECKED rather than assumed — `measure.py --monotone` reports frame 06 with zero
+foliage and frame 07 with 20 px, so the wood phase is still f00–f06 and the flush still begins at f07.
+(It is a live constraint, not a formality: an intermediate shrink of 0.62 re-timed the frames enough
+to push f07 below the leaf-on threshold and would have moved the boundary the owner picked.)
 
 ## 6. Honest assessment
 
-`exp16-vs-v6-vs-v7.png` is the three-way, every cell composited on the island's green plate.
+`exp16-vs-v7-vs-v8.png` is the three-way, every cell composited on the island's green plate.
 
 **What the change bought**
 
-- The crown now carries **one** light-to-dark gradient with the clumps reading on it, where v6 was a
-  field of separate bubbles each with its own bright cap. Highlight caps 14 → 11 and the largest
-  21% → 25% against exp-16's 12 and 30%; the warm highlight 17.6% → **19.0%** against 20.4%.
-- The highlight was never thin. It was **scattered**: 830 px in v6 against exp-16's 874 in a crown
-  10% larger. Naming it as fragmentation rather than as deficit is what let one lever move it.
-- Crown colour count **held at 8** across the whole fork, and all 19 frames are strictly increasing on
-  both silhouette and foliage area (`measure.py --monotone`, exit 0).
-- Mature half-width profile identical to v6 to the pixel, widest band still exp-16's 0.58–0.67,
-  foliage floor now exactly exp-16's 44%.
-- Registration essentially did not move: contact-anchor spread (3.1619), frames needing a shift (11),
-  max shift, ground-row spread, the source anchors, the normalisation offsets and the registered
-  ground row (120) are all **exactly v6's** — the anchor rule reads a root fan and trunk footprint
-  this increment never touches. Only the body-centroid figures shift in the third decimal (spread
-  3.7802 → 3.7867 before, 7.2427 → 7.2493 after), because the crown they average over changed.
-  Encoded bytes **31,210 → 30,939**: the track got slightly smaller.
+- **The limb gap is closed to within 6%: 206 → 631 px of in-crown bark against exp-16's 670**, 4.4% →
+  15.3% of crown against 15.7%. The trunk now forks into limbs you can follow up into the canopy with
+  sky between the lobes, which is the read the reference has and this track has never had.
+- **The crown converges on the reference from the other side too** — 4689 px → 4123 against 4280,
+  where v7 was 10% larger than exp-16 and v8 is 4% smaller.
+- **v7's one open drift closed for free.** v7 §6 item 2 recorded mean crown luma at 126 against
+  exp-16's 119, "the wrong way by one", and declined to chase it because that would mean moving
+  authored band positions. It is now **119, exactly exp-16's**, because the pixels that changed were
+  bright canopy becoming shaded bark rather than any band moving.
+- Highlight cap architecture held against the reference: 13 caps with the largest at 28%, against
+  exp-16's 12 and 30% (v7: 11 and 25%).
+- Crown colour count **held at 8**; all 19 frames strictly increasing on both silhouette and foliage
+  area (`measure.py --monotone`, exit 0); widest half-width band still exp-16's 0.58–0.67.
+- Registration got **better**, not just different: contact-anchor spread 3.1619 → 2.348, frames
+  needing a shift 11 → 9, body-centroid spread after normalisation 7.2493 → 5.9378 and its max
+  frame-to-frame step 3.4017 → 2.9788. The mature footprint narrows 92 → 88 px wide. Encoded bytes
+  30,939 → 32,569 — the track grew slightly, restated in the registry ceilings, which are the
+  measured actuals with zero headroom by design.
 
-**What it did not buy, and the diagnosis is the deliverable**
+**What it cost, and it is one number**
 
-1. **The limb gap is still open: 206 px of crown bark against exp-16's 670.** It is now known not to
-   be a shading problem (bark is flat across the entire normals fork) and not a floor-height problem
-   (the funnel's response is ~160 px per unit lift and exp-16 would need 3.0). The remaining cause is
-   structural and specific: **exp-16 is a drawing, so its open lower crown is open from the front.
-   Ours is a closed 3D shell, and a void carved inside a shell is invisible through it.** Its low
-   canopy is a handful of DISCRETE lobes on the ends of splayed limbs with sky between them; ours is
-   enough lobes at that height to merge into a continuous band. The next lever is therefore lobe
-   COUNT and SEPARATION in the bottom of the crown, or primary limbs thick enough to stand proud of
-   it — not another shading technique. That is the first time this gap has had a named mechanism.
-2. **Mean crown luma drifted 125 → 126** against exp-16's 119, the wrong way by one. Not tuned, because
-   chasing it would mean moving the authored band positions that four increments have held.
+1. **The foliage floor moved 44% → 48%.** exp-16's is 44% and v7 matched it exactly; our lowest
+   foliage now sits about five pixels higher on a 119 px tree. It is the direct consequence of the
+   lever — shrinking the lowest lobes lifts the lowest foliage pixel with them, and the splay is
+   horizontal because vertical is the one direction an upside-down pear cannot afford (ADR-0289 D2).
+   §4 records the repair that was tried, measured, and rejected at 85 px of bark per point of floor.
+   The half-width profile below the widest band thins with it (band 5: 29 → 18 against exp-16's 38).
+2. **The warm highlight gives back some of v7's gain**: 889 px (19.0%) → 759 (18.4%) against exp-16's
+   874 (20.4%). Not tuned back, because the crown is 12% smaller and much of what left the highlight
+   became the bark this increment was for — the two are the same pixels.
 3. The mid-flush bare twig tips (v6 §3) are unchanged and still un-tuned on purpose.
 
-**The owner's other two triaged techniques were not needed and are not spent.** A rim light on an
-extra bright band (#2) was aimed at the highlight, and #1 closed most of that gap on its own without
-touching the colour budget, so spending a ninth band on it now would be paying for something already
-bought. Negative-power point lights (#3) were admitted only "if a measurement moves" — none did.
-Both remain available; neither can touch the limb gap, for the reason in item 1.
+**The owner's other two triaged techniques are still unspent, and still cannot touch what is left.** A
+rim light on an extra bright band (#2) and negative-power point lights (#3) are both shading, and §2's
+table is the proof that shading cannot move bark. What remains open is the floor, and that is
+geometry with a measured price.
 
 **Not verified, blocker unchanged and identified:** `on-island.png` is still the **v3** track's
-live-lab screenshot. The lab is reachable and driveable, but every screenshot fails with *"the Browser
-pane is not displayed"* and a session cannot cause a pane to be displayed. The mounted assets ARE
-regenerated and `chapter2-round3-tree-candidates.test.ts` decodes the shipped PNGs independently and
-passes (234 tests, exit 0).
+live-lab screenshot. The lab is reachable and driveable, but every Browser-pane screenshot fails with
+*"the pane is not displayed"* and a session cannot cause a pane to be displayed. The mounted assets
+ARE regenerated and `chapter2-round3-tree-candidates.test.ts` decodes the shipped PNGs independently
+and passes (304 tests, exit 0).
 
 ## What the code owns (ADR-0280 D1, unchanged)
 
@@ -200,23 +254,25 @@ passes (234 tests, exit 0).
 - **Growth pacing is authored and measured** — frames at equal silhouette-change arc length.
 - **The crown proxy is generated, not sculpted** — an analytic ellipsoid fitted to the frame's own
   lobes. No `.blend`, no imported mesh, no Data Transfer modifier.
+- **The crown's opening is one scalar pair**, normalised against the live tree's own floor and top —
+  no per-lobe authoring, no hand-placed gaps.
 - **Determinism:** CPU Cycles, `seed = 20260801`, fixed samples, pinned 5.2.0 LTS, numpy recorded.
 
 ## Registered and mounted
 
 `register_track.py` re-measures every delivered frame under the **lab's** one applied anchor rule,
 normalises x, and emits `packages/app-surface/src/assets/code-blender/`. The track is the lab's fifth
-candidate: `?organicGrowth=r3-lab#/tree`, button **code-blender**. The hand-entered TypeScript numbers
-in `chapter2-round3-tree-candidates.ts` were updated from the emitted block — encoded bytes, the two
-registry/candidate ceilings, the four body-centroid figures and the lab's `shippedTotal` — and are
-re-derived from the shipped pixels by the suite. The source anchors, normalisation offsets and
-`CODE_BLENDER_ANCHOR` are unchanged, because the anchor rule reads a root fan this increment does not
-touch.
+candidate: `?organicGrowth=r3-lab#/tree`, button **code-blender**. Every hand-entered TypeScript number
+in `chapter2-round3-tree-candidates.ts` was re-synced from the emitted `registry-block.ts.txt` — the
+source anchors, the normalisation offsets, the mature footprint, encoded bytes, BOTH the registry and
+candidate ceilings, the four body-centroid figures, the contact-anchor spread, the shifted-frame count
+and the lab's `shippedTotal` — and the suite re-derives all of them from the shipped pixels.
+`CODE_BLENDER_ANCHOR` is unchanged at (62,120).
 
 `groundRowSpreadPx` stays **4**, for the reason it has always had: the camera is fixed and the trunk
 base is pinned at world z=0, but secondary growth thickens the trunk and the root spurs, so the near
 edge of the base footprint descends by `r·sin 20°` as it fattens.
 
 **Not claimed.** No owner LOOK on the track, no hero-tree selection, no technique adoption, no clean
--route switch, no arc closure. This is a ceiling demonstration under ADR-0280 D4, where an honest
-"not good enough" is an accepted outcome.
+-route switch, no arc closure. A ceiling demonstration under ADR-0280 D4, where an honest "not good
+enough" is an accepted outcome.

@@ -461,9 +461,91 @@ CANOPY_MATURE_Z = 1.00         # the live top, as a fraction of the MATURE top, 
 # a fraction of the LIVE crown's own half-width, not a world constant, so one rule serves
 # a whip and a mature crown. The void it carves is the "crown's central void" v3 claimed
 # fell out of the outer-orders weight for free; measured, it does not.
+# THE LOWER CROWN IS A SHELL, AND A VOID CARVED INSIDE A SHELL IS INVISIBLE THROUGH IT.
+# This is the last of the crown-structure gap and the funnel above does not close it: v7
+# delivered 206 px of in-crown bark against exp-16's 670, with the funnel's own response
+# measured at ~160 px per unit of lift, so the plane-to-funnel move is spent.
+#
+# THE MECHANISM, named in v7 §6 and confirmed here by measurement. exp-16 is a DRAWING, so
+# its open lower crown is open FROM THE FRONT: its trunk forks into a candelabra of ~5
+# primary limbs, its canopy lobes sit on the ENDS of them, and there is sky and bark in the
+# gaps between them. Ours is a closed 3D shell of ~20 lobes whose lower ones merge into a
+# continuous band, and the limbs run BEHIND it. Everything the funnel does is carve a void
+# INSIDE that band, where the viewer cannot see it.
+#
+# TWO THINGS WERE MEASURED BEFORE ANY OF THIS WAS BUILT, both with `bark_proxy()` on the
+# mature frame against the crown mask pinned to the delivered silhouette:
+#
+#   · THE CEILING IS NOT THE PROBLEM. Remove the lobes entirely and 1292 proxy px of wood
+#     stand in that same crown region — against exp-16's 670 rendered, ~585 in proxy units.
+#     The limbs we want to see ARE there; they are covered.
+#   · THICKENING THE LIMBS BUYS EXACTLY NOTHING. Scaling every crown limb's radius 1.5x,
+#     2x, 3x and 4x moved in-crown bark from 186 to 186, 186, 186 and 186 — not
+#     approximately, identically — because the wood sits wholly inside the canopy
+#     silhouette and a thicker hidden limb is still hidden. "Primary limbs thick enough to
+#     stand proud of it", the other half of v7's proposed next lever, is therefore FALSE on
+#     this skeleton and is not worth a render. The canopy has to open.
+#
+# So the canopy opens, by the same one-scalar self-similar form as every other rule at this
+# end of the tree: a lobe's radius is scaled by where it sits between the CANOPY FLOOR and
+# the LIVE top. At the floor a lobe is at its smallest, at the apex it is untouched, and
+# the crown keeps a solid mass on top while gaps open low where the limbs are. It is eased
+# in on `mat` like both shell rules, so a whip — every lobe of which is near its own live
+# top — is untouched, which is also what keeps `--monotone` honest.
+#
+# ... AND THE SHRINK ALONE COSTS THE SILHOUETTE, which is why there are two scalars here
+# and not one. Rendered at shrink 0.35/0.50/0.75 with no splay, bark went 206 -> 319/386/507
+# — but exp-16's widest band is 0.58-0.67 and v7 matched it exactly, while 0.50 and 0.75
+# moved OURS to 0.75-0.83 and lifted the foliage floor from exp-16's own 44% to 48-49%.
+# The crown's shoulders climbed the tree and the pear turned back into a lollipop, which is
+# ADR-0289 D2's second named defect arriving from the other direction.
+#
+# The reason is a one-line geometric fact: shrinking a lobe in place retreats its OUTER
+# edge, and the outer edge is the one the silhouette is made of. exp-16 is wide at those
+# heights AND shows bark, because its low canopy sits on the ENDS of splayed limbs — the
+# rim is where the foliage is and the middle is where the sky is. So the shrink is paid
+# for OUTWARD: a lobe that loses radius is pushed horizontally out by what it lost, and its
+# INNER edge retreats instead. At 1.0 the outer surface does not move at all, so the
+# half-width profile, the widest band and the camera's mature extent are held by
+# construction rather than by tuning. The push is horizontal because the vertical is the
+# one direction an upside-down pear cannot afford (ADR-0289 D2), the same reason the
+# shell push below clamps its z component to zero.
+#
+# WHERE 0.90 CAME FROM: the reference, not the largest number in the column — the same rule
+# that picked `--crown-normals` 0.22. Rendered at splay 1.0, in-crown bark runs
+# 0.75 -> 551 px (13.0% of crown) and 0.90 -> 631 (15.3%) against exp-16's 670 (15.7%),
+# while the crown itself closes on the reference from the other side (v7 4689 px, 0.90
+# 4123, exp-16 4280). Going to 1.0 OVERSHOOTS the bark and undershoots the crown, which is
+# copying a number rather than a structure.
+CANOPY_LOW_SHRINK = float(arg("--low-shrink", "0.90"))
+                               # how much smaller a lobe sitting AT the canopy floor is
+                               # than one at the live top. 0 is the v7 crown.
+CANOPY_LOW_SPLAY = float(arg("--low-splay", "1.0"))
+                               # ... and how much of the lost radius is paid back as an
+                               # outward push. 1.0 holds the outer surface exactly; 0 is
+                               # the in-place shrink that costs the widest band.
+#
+# THE ONE COST IS THE FOLIAGE FLOOR, and the obvious repair was tried and is a BAD TRADE,
+# recorded so it is not re-tried. Shrinking the lowest lobes lifts the lowest foliage pixel
+# with them: exp-16's floor is 44% of tree height, v7 matched it exactly, and this delivers
+# 48%. The faithful-looking fix is to fade the shrink toward the RIM, since exp-16's canopy
+# is on the ENDS of its limbs — keep the outer lobes full, empty only the middle. Measured
+# on the mature frame at shrink 0.90/splay 1.0, a rim fade of 0.5 recovers TWO points of
+# floor and costs 169 px of bark, and a fade of 1.0 recovers three and costs 300: about 85
+# px of bark per point of floor, against a lever whose whole purpose is bark. Raising the
+# shrink to 1.0 to pay for it does not get the bark back (477 against 619). The fade was
+# removed rather than left as a knob at zero; four points of floor is what this costs.
 CANOPY_CORE_R = 0.46           # radial extent of the lift, as a fraction of the live
                                # crown's own half-width: 1.0 would lift the whole crown
-CANOPY_CORE_LIFT = 0.20        # ... and how much higher the floor sits on the axis, in
+#
+# THE LEVER IS ~EXHAUSTED and the flag below exists to prove that rather than to invite a
+# re-turn: measured on rendered frames at a fixed mix, lift 0.00 -> 187 px of bark,
+# 0.20 -> 207, 0.34 -> 242, about 160 px per unit of lift. Reaching exp-16's 670 would
+# need a lift near 3.0 — a floor three tree-heights above the ground. It is the wrong
+# knob, not an under-turned one. Those three points are also the CALIBRATION SET for
+# `bark_proxy()` below, which is why the constant is reachable from the command line.
+CANOPY_CORE_LIFT = float(arg("--core-lift", "0.20"))
+                               # ... and how much higher the floor sits on the axis, in
                                # the same units as CANOPY_FLOOR (fraction of live top)
 
 # ------------------------------------------------------- crown proxy normals
@@ -507,24 +589,34 @@ CANOPY_CORE_LIFT = 0.20        # ... and how much higher the floor sits on the a
 # structure. Measured on the mature frame, every row with the funnel floor below in place
 # so the fork moves exactly one variable:
 #
+# RE-MEASURED ON THE v8 CROWN, because the table below was taken on the v7 geometry and
+# the low-crown lever above changed the very lobes these normals are blended against. A
+# measurement table that describes a superseded shape is the same silent-staleness trap the
+# fork PICTURES have (see the README's §5 note on `frames/contact-sheet.png`), and it is
+# worth five one-frame renders to not carry it. All five rows re-rendered in one pass:
+#
 #     mix   highlight        caps   largest   cap sizes             bark
-#     0.00     826 (17.6%)     12       21%   177 168 148 103 72    206   <- v6's shading
-#     0.22     889 (19.0%)     11       25%   221 217 155 135 60    206   <- delivered
-#     0.32     902 (19.2%)      9       54%   486 159 143  50 37    207
-#     0.45     909 (19.4%)      7       76%   687 160  37  19  3    207
-#     1.00     821 (17.5%)     11       79%   650 130  24   7  3    206
+#     0.00     729 (17.7%)     13       24%   178 141 129  91 77    631   <- v6's shading
+#     0.22     759 (18.4%)     13       28%   216 175 125 122 43    631   <- delivered
+#     0.32     751 (18.2%)     13       32%   243 182 129 120 33    630
+#     0.45     709 (17.2%)      8       38%   266 190 128 105 13    629
+#     1.00     476 (11.5%)     13       76%   363  67  25   8  3    629
 #     exp-16   874 (20.4%)     12       30%   261 244 198  83 45    670
 #
-# Between 0.32 and 0.45 the separate caps PERCOLATE into one blob, and past that the
-# highlight FALLS again — a bare ellipsoid presents less area to the key than a crown of
-# clumps does. 0.22 buys essentially all the highlight 0.32 does (19.0 vs 19.2) while
-# landing on exp-16's cap architecture instead of overshooting it, so the pick is the
-# reference's STRUCTURE rather than the largest number in a column.
+# 0.22 SURVIVES THE RE-MEASUREMENT AND IS NOW THE STRICT OPTIMUM, where on the closed crown
+# it was a considered compromise. It is the peak of the highlight column outright (759, over
+# 0.32's 751 and 0.45's 709 — on the v7 crown those two were both slightly HIGHER than it),
+# and its largest cap at 28% is the nearest to exp-16's 30% of any row. Opening the lower
+# crown moved the percolation point too: the caps used to collapse into one blob between
+# 0.32 and 0.45, and now hold their structure to 0.45 and only percolate by 1.00. Nothing
+# had to be re-tuned — the default is unchanged — but that is now a measured statement about
+# the delivered tree rather than one inherited from a tree we no longer ship.
 #
-# Read the last column too, because it is the honest limit of this technique: BARK IS
-# 206-207 PX AT EVERY MIX FROM 0 TO 1. Normals decide which band a canopy pixel takes and
-# never whether a pixel is canopy, so nothing here touches how much limb you can see —
-# that is the funnel floor's column, and even it only reaches 206 against exp-16's 670.
+# Read the last column too, because it is the honest limit of this technique, and it is the
+# claim v8 re-verified rather than assumed: BARK IS 629-631 PX AT EVERY MIX FROM 0 TO 1, as
+# it was 206-207 flat on the closed crown. Normals decide which band a canopy pixel takes
+# and never whether a pixel is canopy, so nothing here touches how much limb you can see —
+# that is the low-crown lever's column, and it is what took bark from 206 to 631.
 CROWN_NORMAL_MIX = float(arg("--crown-normals", "0.22"))
 if not 0.0 <= CROWN_NORMAL_MIX <= 1.0:
     raise SystemExit(f"--crown-normals must be 0..1, got {CROWN_NORMAL_MIX}")
@@ -1154,6 +1246,19 @@ def frame_state(N):
         # identity-keyed size variety: a crown of same-sized lumps reads as cauliflower,
         # and exp-16's canopy is conspicuously a few big masses among smaller ones
         rad *= 0.74 + 0.52 * h01(ci, 81)
+        # ... and the LOW-CROWN SHRINK: where this lobe sits between the canopy floor and
+        # the live top, in the same z/ztop units the floor is already expressed in, so one
+        # rule serves a whip and a mature crown. Small at the bottom of the crown, full at
+        # the apex — the gaps that open low are what lets the limbs read from the FRONT,
+        # which is the only place the viewer is. Eased on `mat` so a sapling, whose every
+        # lobe is near its own live top anyway, is left alone.
+        lost = 0.0
+        if CANOPY_LOW_SHRINK > 0.0 and ztop > 1e-6:
+            uz = np.clip((float(c[2]) / ztop - CANOPY_FLOOR) / (1.0 - CANOPY_FLOOR),
+                         0.0, 1.0)
+            full = rad
+            rad *= 1.0 - CANOPY_LOW_SHRINK * mat * (1.0 - uz * uz * (3 - 2 * uz))
+            lost = full - rad
         rv = c - CROWN_C
         # ... but NEVER downward. The push exists because foliage sits on the OUTSIDE of
         # the crown volume; applied as a full radial vector it also pushed every cloud
@@ -1164,6 +1269,12 @@ def frame_state(N):
         nrv = np.linalg.norm(rv)
         if nrv > 1e-9:
             c = c + rv / nrv * (0.22 * rad)
+        # ... and the SPLAY: pay the shrink outward, so what retreats is the lobe's inner
+        # edge and the crown keeps its rim. Purely horizontal — see CANOPY_LOW_SPLAY.
+        if lost > 1e-9 and CANOPY_LOW_SPLAY > 0.0:
+            nh = math.hypot(float(rv[0]), float(rv[1]))
+            if nh > 1e-6:
+                c = c + np.array([rv[0] / nh, rv[1] / nh, 0.0]) * (lost * CANOPY_LOW_SPLAY)
         if rad > 0.012:
             lobes.append((ci, c, rad))
 
@@ -1325,6 +1436,64 @@ def cheap_silhouette(st, size=96, wood=True):
     for _ci, c, rad in st["lobes"]:
         disc(c, rad)
     return m
+
+
+def bark_proxy(st, size=128):
+    """An author-time stand-in for `measure.py`'s BARK IN CROWN — how much limb you can
+    see running through the canopy — rasterised at the same 128 px the track ships at.
+
+    It exists because the limb gap is GEOMETRY (v7 §4 proved shading cannot touch it), and
+    geometry is decided before a single sample is traced: every candidate for opening the
+    lower crown is a change to where the lobes are and how big they are, which this file
+    already knows in `frame_state`. A ten-minute render to rank a fork whose answer is in
+    the lobe list is the same waste `cheap_silhouette` above already removed for pacing.
+
+    Wood discs with the WOOD_HIDE taper applied (a sub-pixel twig is an absent twig — the
+    proxy therefore reproduces the taper's whole point rather than drawing every twig at a
+    forced minimum radius the way `cheap_silhouette` does), lobe discs, crown = the top 62%
+    of the bbox exactly as `crown_mask()` defines it, bark = wood not covered by canopy.
+
+    IT HAS NO DEPTH, and that is a deliberate simplification with a known sign: a lobe
+    BEHIND a limb occludes it here and does not in the render, so the proxy UNDER-reports.
+    It is validated against the delivered pixels rather than trusted — see §1 of the v8
+    README for the fork it was calibrated on (`--core-lift`, the one fork whose rendered
+    answer was already measured). Use it to RANK candidates; the shipped number is always
+    `measure.py` on the rendered frames."""
+    k = size / CANVAS
+    yy, xx = np.mgrid[0:size, 0:size]
+    wood = np.zeros((size, size), dtype=bool)
+    leaf = np.zeros((size, size), dtype=bool)
+
+    def disc(m, p, rad):
+        cx, cy = to_screen(p)
+        cx, cy = cx * k, cy * k
+        rr = rad / SPAN * CANVAS * k
+        x0, x1 = max(0, int(cx - rr - 1)), min(size, int(cx + rr + 2))
+        y0, y1 = max(0, int(cy - rr - 1)), min(size, int(cy + rr + 2))
+        if x1 <= x0 or y1 <= y0:
+            return
+        m[y0:y1, x0:x1] |= (((xx[y0:y1, x0:x1] - cx) ** 2
+                             + (yy[y0:y1, x0:x1] - cy) ** 2) <= rr * rr)
+
+    r = st["r"] * (1.0 - WOOD_HIDE * st["wn"])
+    for i, nd in enumerate(NODES):
+        if not st["alive"][i] or nd.parent < 0:
+            continue
+        a = NODES[nd.parent].p
+        b = a + (nd.p - a) * st["frac"][i]
+        r1 = r[i] + (r[nd.parent] - r[i]) * (1.0 - st["frac"][i])
+        for t in (0.0, 0.25, 0.5, 0.75, 1.0):
+            disc(wood, a + (b - a) * t, r[nd.parent] + (r1 - r[nd.parent]) * t)
+    for _ci, c, rad in st["lobes"]:
+        disc(leaf, c, rad)
+    solid = wood | leaf
+    ys = np.nonzero(solid.any(axis=1))[0]
+    if not len(ys):
+        return 0, 0
+    top, bot = int(ys.min()), int(ys.max())
+    crown = solid.copy()
+    crown[top + int(round((bot - top + 1) * 0.62)):, :] = False
+    return int((crown & wood & ~leaf).sum()), int(crown.sum())
 
 
 def retime(fine=110):
@@ -1901,9 +2070,11 @@ for i, u in enumerate(PICKS):
         # off the plan rather than inferred from a render
         _px = ("-" if len(st["lobes"]) < 2 else
                "x".join(f"{v:.2f}" for v in crown_proxy(st["lobes"])[1]))
+        _bark, _crown = bark_proxy(st)
         print(f"PLAN {i:02d} u={u:.4f} N={N:.2f} live={int(st['alive'].sum())} "
               f"lobes={len(st['lobes'])}({_juv}juv) mat={st['mat']:.2f} "
-              f"con={st['con']:.2f} proxy={_px} sil={_sil:5d} canopy={_can:5d} "
+              f"con={st['con']:.2f} proxy={_px} bark={_bark:4d}/{_crown:5d} "
+              f"sil={_sil:5d} canopy={_can:5d} "
               f"r0={st['r'][0]:.4f} root={st['t_root']:.2f} plant={st['t_plant']:.2f} "
               f"true={_top_i / _TOP:.3f} apparent="
               f"{(_top_i / CAM_SPAN) / (_TOP / SPAN):.3f}{_drop}", flush=True)

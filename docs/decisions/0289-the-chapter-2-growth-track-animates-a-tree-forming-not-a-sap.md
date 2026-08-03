@@ -145,8 +145,10 @@ purchase remains an owner action.
   own record reports the fork tilting back toward keeping `fixed` — by a wider margin than the reason
   v5 discharged. That is an observation, not a recommendation and not a ratification; `fixed` still
   ships as the default of an undecided fork. Evidence:
-  `docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/README.md` §4 and §5, and
-  `framing-fork.png`, re-rendered on the v6 frames.
+  `docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/README.md` §5, and
+  `framing-fork.png` — both now stand on the v8 frames, whose two changes are canopy-only and leave
+  the wood phase this fork turns on untouched, so the reading above is unmoved; the earlier
+  renderings and section numbering are recoverable from git.
 
 **Bad, or at least owed.**
 
