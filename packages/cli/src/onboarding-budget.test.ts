@@ -30,6 +30,8 @@ test("classifyToolCall: reads split SOURCE vs KNOWLEDGE by path", () => {
   assert.equal(classifyToolCall(call("Glob", "**/*.ts")).costCenter, "SOURCE");
   // doc-ish paths are KNOWLEDGE even under packages/ (README) or docs/decisions (an ADR).
   assert.equal(classifyToolCall(call("Read", "CLAUDE.md")).costCenter, "KNOWLEDGE");
+  assert.equal(classifyToolCall(call("Read", "AGENTS.md")).costCenter, "KNOWLEDGE");
+  assert.equal(classifyToolCall(call("Read", "C:/Users/m/.codex/sessions/x.jsonl")).costCenter, "KNOWLEDGE");
   assert.equal(classifyToolCall(call("Read", "docs/decisions/0162-foo.md")).costCenter, "KNOWLEDGE");
   assert.equal(classifyToolCall(call("Read", "C:/Users/m/.claude/projects/x/memory/foo.md")).costCenter, "KNOWLEDGE");
   assert.equal(classifyToolCall(call("Read", "packages/cli/README.md")).costCenter, "KNOWLEDGE");
@@ -88,6 +90,8 @@ test("measureOnboarding: only per-tool latency is summed (idle/thinking between 
 
 test("budgetForAgentType: known types are tiered; unknown falls back to the default", () => {
   assert.equal(budgetForAgentType("Explore"), AGENT_BUDGETS["Explore"]);
+  assert.equal(budgetForAgentType("explorer"), AGENT_BUDGETS["Explore"]);
+  assert.equal(budgetForAgentType("planner"), AGENT_BUDGETS["Plan"]);
   assert.ok(budgetForAgentType("Explore") < budgetForAgentType("session-orchestrator"), "analysis budget < orchestrator");
   assert.ok(budgetForAgentType("frontend-builder") > budgetForAgentType("Explore"), "build budget > analysis");
   assert.equal(budgetForAgentType("no-such-agent"), DEFAULT_BUDGET_MS);

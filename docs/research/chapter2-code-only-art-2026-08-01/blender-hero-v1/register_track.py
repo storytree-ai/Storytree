@@ -242,19 +242,27 @@ manifest = {
     # growth reading as width. That makes the fork BROADER than the mis-statement implied —
     # the gap is the whole middle of the track, not one small opening frame — which is worth
     # knowing before ADR-0289's deflation of it is taken as a dissolution.
-    "knownWeakness": ("against exp-16 this track still loses on SCALE CONVENTION and on root "
-                      "flare. Measured across exp-16's 19 frames, it holds 91-99% of its mature "
-                      "height from frame 03 onward and is NON-monotone about it (110 px at f03, "
-                      "96 px at f12, 112 px at f18); only f00-f02 are smaller, at 65/70/82%. So "
-                      "its convention is close to a CONSTANT apparent height from stage 3, with "
-                      "growth reading as width (53 -> 95 px) and density rather than as height. "
-                      "This track holds ONE camera framed to the mature extent, so its apparent "
-                      "height ramps 14% -> 100% across the whole track. That is the ADR-0280 D1 "
-                      "invariant doing its job, not a bug, but it is an art-direction fork the "
-                      "owner has not been asked about, and the corrected measurement makes it "
-                      "broader than the earlier wording implied. Root flare is the other gap: "
-                      "exp-16's buttress spans 37 px at 8% of tree height against this track's "
-                      "~20."),
+    #
+    # Root flare was the other named gap here and is largely CLOSED, so the sentence claiming
+    # it is corrected in place rather than left standing: base-band half-width 10 -> 22 against
+    # exp-16's 23, and the 5%-of-height row 14 -> 40 px against 46.
+    "knownWeakness": ("against exp-16 this track still loses on SCALE CONVENTION, on crown "
+                      "structure, and on the steadiness of its own ground registration. Measured "
+                      "across exp-16's 19 frames, it holds 91-99% of its mature height from frame "
+                      "03 onward and is NON-monotone about it (110 px at f03, 96 px at f12, 112 "
+                      "px at f18); only f00-f02 are smaller, at 65/70/82%. So its convention is "
+                      "close to a CONSTANT apparent height from stage 3, with growth reading as "
+                      "width (53 -> 95 px) and density rather than as height. This track holds "
+                      "ONE camera framed to the mature extent, so its apparent height ramps 14% "
+                      "-> 100% across the whole track. That is the ADR-0280 D1 invariant doing "
+                      "its job, not a bug, but it is an art-direction fork the owner has not been "
+                      "asked about — and it is no longer blocked on anything of ours, since the "
+                      "mid-stage weakness that made magnifying the early frames unflattering is "
+                      "the one this increment fixed. Crown structure: our crown is 70% green "
+                      "against exp-16's 51%, i.e. fewer limbs run visibly through the foliage. "
+                      "Registration: the applied rule now reads a nine-spur root fan that is not "
+                      "left-right symmetric, so contact-anchor spread is 3.02 px against 1.76 "
+                      "before the buttress, paid at author time only."),
     "runtime": {
         "appOwns": ["semantic state", "normalized progress", "progress-to-frame selection",
                     "easing and deliberate holds", "Next, Back and Replay",

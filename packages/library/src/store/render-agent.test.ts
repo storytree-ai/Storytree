@@ -457,7 +457,7 @@ test("renderAgentStep: an agent with NO stepRefs authored treats every step as u
   assert.deepEqual(res.steps, []);
 });
 
-test("delegatableAgentIds excludes agents that own a dedicated surface (CLAUDE.md / SDK leaf)", async () => {
+test("delegatableAgentIds excludes agents that own a dedicated root or SDK-leaf surface", async () => {
   const store = await seeded();
   await store.upsertDoc({
     id: "session-orchestrator",
@@ -476,7 +476,10 @@ test("delegatableAgentIds excludes agents that own a dedicated surface (CLAUDE.m
     },
   });
   const ids = await delegatableAgentIds(store);
-  assert.ok(!ids.includes("session-orchestrator"), "the orchestrator owns CLAUDE.md, not a subagent file");
+  assert.ok(
+    !ids.includes("session-orchestrator"),
+    "the orchestrator owns root CLAUDE.md / AGENTS.md projections, not a subagent file",
+  );
   assert.ok(ids.includes("clean-agent"));
   assert.ok(ids.includes("broken-agent"));
   assert.equal(DEDICATED_SURFACE_AGENTS.has("session-orchestrator"), true);

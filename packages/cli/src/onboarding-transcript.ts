@@ -1,13 +1,12 @@
 /**
- * The Claude Code transcript adapter for the onboarding-budget monitor (ADR-0162 Phase 2).
+ * Harness adapters for the onboarding-budget monitor (ADR-0162 Phase 2 / ADR-0291).
  *
- * A session transcript is JSONL: one JSON object per line. The lines this monitor cares about are the
- * `tool_use` blocks (an `assistant` entry whose `message.content[]` carries `{ type:"tool_use",
- * name, input, id }`) and their matching `tool_result` blocks (a `user` entry whose content carries
- * `{ type:"tool_result", tool_use_id, is_error }`). Every entry has a top-level ISO `timestamp`.
+ * Both supported harnesses emit JSONL with top-level timestamps. Claude Code uses assistant/user
+ * `tool_use` / `tool_result` content blocks paired by id. Codex uses `response_item` call/output
+ * payloads paired by `call_id`; those calls normalize into the existing tool vocabulary.
  *
- * PARSING IS PURE over the text: {@link parseTranscript} pairs a `tool_use` with its `tool_result`
- * by id, computes the per-tool latency (`result_ts − use_ts` — the baseline's metric, ADR-0162
+ * PARSING IS PURE over the text: {@link parseTranscript} detects the harness, pairs calls/results,
+ * computes the per-tool latency (`result_ts − use_ts` — the baseline's metric, ADR-0162
  * Context; these are event-emission times, so the numbers are directional by design), extracts a
  * classification target from the tool input, and returns the ordered {@link TraceToolCall}[] the
  * budget core consumes. It never throws on a malformed line — it skips it.
@@ -73,6 +72,7 @@ function contentBlocks(entry: Record<string, unknown>): Record<string, unknown>[
 }
 
 export interface ParsedTranscript {
+  harness: "claude" | "codex" | "unknown";
   sessionId: string;
   calls: TraceToolCall[];
 }
@@ -87,7 +87,7 @@ export interface ParseTranscriptOpts {
  * measures. Tool calls are ordered by their `tool_use` timestamp; each latency is `result_ts −
  * use_ts` for the matching result, or 0 when there is no matching result (an unpaired trailing call).
  */
-export function parseTranscript(jsonl: string, opts: ParseTranscriptOpts = {}): ParsedTranscript {
+export function parseClaudeTranscript(jsonl: string, opts: ParseTranscriptOpts = {}): ParsedTranscript {
   const pending = new Map<string, PendingUse>();
   const resultMs = new Map<string, number>();
   const uses: PendingUse[] = [];
@@ -141,5 +141,112 @@ export function parseTranscript(jsonl: string, opts: ParseTranscriptOpts = {}): 
     return { tool: use.tool, target: use.target, latencyMs };
   });
 
-  return { sessionId: opts.sessionId ?? derivedSessionId ?? "unknown", calls };
+  return { harness: "claude", sessionId: opts.sessionId ?? derivedSessionId ?? "unknown", calls };
+}
+
+/** Parse a JSON object stored in a Codex call's string input/arguments, or return an empty object. */
+function parseCallArgs(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== "string") return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Normalize one Codex call into the existing harness-neutral budget vocabulary. */
+function codexToolTarget(payload: Record<string, unknown>): { tool: string; target: string } {
+  const name = typeof payload["name"] === "string" ? payload["name"] as string : "";
+  const raw = typeof payload["input"] === "string"
+    ? payload["input"] as string
+    : typeof payload["arguments"] === "string"
+      ? payload["arguments"] as string
+      : "";
+  const args = parseCallArgs(raw);
+
+  if (name === "exec") {
+    if (/tools\.apply_patch\s*\(/.test(raw)) return { tool: "Edit", target: raw };
+    if (/tools\.shell_command\s*\(/.test(raw)) return { tool: "PowerShell", target: raw };
+  }
+  if (/apply_patch|write|edit/i.test(name)) {
+    return { tool: "Edit", target: String(args["path"] ?? args["file_path"] ?? raw) };
+  }
+  if (/spawn_agent|followup_task|create_thread/i.test(name)) {
+    return { tool: "Agent", target: String(args["task_name"] ?? args["target"] ?? name) };
+  }
+  if (/shell_command|exec_command/i.test(name)) {
+    return { tool: "PowerShell", target: String(args["command"] ?? raw) };
+  }
+  if (/read|open|find|list|view|screenshot/i.test(name)) {
+    return { tool: "Read", target: String(args["path"] ?? args["ref_id"] ?? raw) };
+  }
+  return { tool: name || "CodexTool", target: raw };
+}
+
+/** Parse Codex rollout JSONL (`response_item` call/output pairs keyed by `call_id`). */
+export function parseCodexTranscript(jsonl: string, opts: ParseTranscriptOpts = {}): ParsedTranscript {
+  const pending = new Map<string, PendingUse>();
+  const resultMs = new Map<string, number>();
+  const uses: PendingUse[] = [];
+  let derivedSessionId: string | undefined;
+  let index = 0;
+
+  for (const line of jsonl.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    let entry: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (typeof parsed !== "object" || parsed === null) continue;
+      entry = parsed as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+
+    const payloadValue = entry["payload"];
+    const payload = typeof payloadValue === "object" && payloadValue !== null
+      ? payloadValue as Record<string, unknown>
+      : {};
+    if (entry["type"] === "session_meta" && derivedSessionId === undefined) {
+      const id = payload["session_id"] ?? payload["id"];
+      if (typeof id === "string") derivedSessionId = id;
+    }
+    if (entry["type"] !== "response_item") continue;
+
+    const type = payload["type"];
+    const callId = typeof payload["call_id"] === "string" ? payload["call_id"] as string : "";
+    const at = tsMs(entry["timestamp"]);
+    if (type === "custom_tool_call" || type === "function_call") {
+      const normalized = codexToolTarget(payload);
+      const use: PendingUse = { index: index++, ...normalized, useMs: at };
+      uses.push(use);
+      if (callId !== "") pending.set(callId, use);
+    } else if (type === "custom_tool_call_output" || type === "function_call_output") {
+      if (callId !== "" && !resultMs.has(callId)) resultMs.set(callId, at);
+    }
+  }
+
+  const useById = new Map<PendingUse, string>();
+  for (const [id, use] of pending) useById.set(use, id);
+  const calls = uses.map((use): TraceToolCall => {
+    const id = useById.get(use);
+    const rMs = id !== undefined ? resultMs.get(id) : undefined;
+    const latencyMs = rMs !== undefined && Number.isFinite(rMs) && Number.isFinite(use.useMs) && rMs > use.useMs
+      ? rMs - use.useMs
+      : 0;
+    return { tool: use.tool, target: use.target, latencyMs };
+  });
+  return { harness: "codex", sessionId: opts.sessionId ?? derivedSessionId ?? "unknown", calls };
+}
+
+/** Auto-detect the supported harness while preserving the original public entrypoint. */
+export function parseTranscript(jsonl: string, opts: ParseTranscriptOpts = {}): ParsedTranscript {
+  if (/"type"\s*:\s*"session_meta"|"type"\s*:\s*"response_item"/.test(jsonl)) {
+    return parseCodexTranscript(jsonl, opts);
+  }
+  if (/"type"\s*:\s*"(?:assistant|user)"/.test(jsonl) && /"tool_(?:use|result)"/.test(jsonl)) {
+    return parseClaudeTranscript(jsonl, opts);
+  }
+  return { harness: "unknown", sessionId: opts.sessionId ?? "unknown", calls: [] };
 }

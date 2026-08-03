@@ -1,6 +1,7 @@
 /**
  * `storytree onboarding` — the per-agent-type onboarding-budget monitor's CLI surface (ADR-0162
- * Phase 2). A POST-SESSION / OBSERVABILITY command: it reads a Claude Code session transcript, MEASURES
+ * Phase 2 / ADR-0291). A POST-SESSION / OBSERVABILITY command: it reads a supported Claude Code or
+ * Codex session transcript, MEASURES
  * the active onboarding cost, COMPARES it to the agent-type's budget, and on breach EMITS the ADR-0032
  * breach signal — routed as choose-your-own-adventure `next:` pointers to the owning Phase-1 fix. It
  * FLAGS, never HALTS (ADR-0162 §Why-not-a-gate); it runs offline and touches no session's hot path.
@@ -51,7 +52,7 @@ export function onboardingHelp(): Envelope {
       "  budgets",
       "      print the per-agent-type onboarding budgets (the SLA table).",
       "",
-      "Transcripts live under ~/.claude/projects/<project>/*.jsonl (one JSON object per line).",
+      "Claude: ~/.claude/projects/<project>/*.jsonl; Codex: ~/.codex/sessions/**/*.jsonl.",
     ].join("\n"),
     next: ["storytree onboarding budgets", "storytree onboarding report <transcript.jsonl>"],
   };
@@ -127,7 +128,18 @@ export function onboardingCommand(
   const agentType = opts.agentType ?? DEFAULT_AGENT_TYPE;
   // Fall back to the file basename (the session uuid) when the transcript carries no sessionId.
   const fallbackId = path.basename(transcriptPath).replace(/\.jsonl$/i, "");
-  const { sessionId, calls } = parseTranscript(jsonl, { sessionId: fallbackId });
+  const parsed = parseTranscript(jsonl);
+  if (parsed.harness === "unknown") {
+    return {
+      ok: false,
+      body:
+        `unsupported onboarding transcript shape in "${transcriptPath}" — expected Claude Code ` +
+        "tool_use/tool_result JSONL or Codex response_item call/output JSONL.",
+      next: ["storytree onboarding --help"],
+    };
+  }
+  const sessionId = parsed.sessionId === "unknown" ? fallbackId : parsed.sessionId;
+  const { calls } = parsed;
   const report = checkOnboardingBudget({ trace: calls, agentType, sessionId });
 
   const body =

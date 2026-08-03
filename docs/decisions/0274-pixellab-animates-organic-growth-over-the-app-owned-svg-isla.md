@@ -102,7 +102,22 @@ both tracks are live, and both are unattested.
 **Round 4's own caution, kept honest.** Code did not win the drawing. On root flare, crown
 separation and young-tree proportions the generated track beats every code track at every stage of
 the sequence except the single mature frame, and not one of the four code tracks produced anything a
-person would call a sapling. What code won is everything mechanical, and it won it for free: the
+person would call a sapling.
+
+**Annotated in place 2026-08-03 (ADR-0139); the decision is unchanged, and this caution is retained
+because it is TRUE OF WHAT IT MEASURED — round 4's four code tracks.** It is no longer a current-state
+verdict on code, and should not be read as one. Two of its three axes have moved under the later
+`code-blender` lineage that ADR-0280 D2a opened (`docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/`):
+**root flare is closed** — the v5 track's base-band half-width measures 22 against exp-16's 23, and
+its 5%-of-height row 40 px against 46 — and **young-tree proportions are narrowed**, the mid-track
+foliage floor having dropped to 32% where the canopy now runs down the stem instead of sitting on top
+of it. Crown separation still favours exp-16 (crown green fraction 70% against 51%) and is recorded
+there as unaddressed. The sapling clause is doubly retired: ADR-0289 D1 removed the requirement that
+any frame be a botanically plausible seedling, so the standard this sentence measures the code tracks
+against is one the arc no longer holds them to. Nothing here is owner-attested; the LOOK verdict
+remains the owner's (ADR-0070).
+
+What code won is everything mechanical, and it won it for free: the
 best code track's worst cut subdivided `0.676` to `0.953` in `0.8 s` for `$0.00` with byte-identical
 endpoints, where `6` irreplaceable generations moved exp-16's worst cut only `0.279` to `0.457` and
 hit a reported floor.
