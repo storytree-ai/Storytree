@@ -76,12 +76,23 @@ take already-parsed inputs and injected deps, so everything is testable without 
     NOT import the pg store here; the seam keeps this module offline-testable.
   - `interface SessionIdentity { sessionId: string; branch: string }`.
   - `function deriveIdentity(runGit: (args: string[]) => string): SessionIdentity | null` —
-    `sessionId` = the basename of `runGit(["rev-parse", "--show-toplevel"])` **only when** that
-    toplevel sits under a `.claude/worktrees/` directory (match both `/` and `\` separators);
-    `branch` = `runGit(["rev-parse", "--abbrev-ref", "HEAD"])`. Anything else — non-worktree
-    path, a git error (catch throws) — returns null. Export a default runGit built on
-    `node:child_process` `execFileSync("git", args, { encoding: "utf8" })` (trimmed), but the
-    function always takes it as a parameter (tests inject fakes).
+    identity comes from ANY worktree **git itself has registered**, never from a hard-coded path
+    prefix (ADR-0033 D1 decides "the session worktree", not specifically `.claude/`). `branch` =
+    `runGit(["rev-parse", "--abbrev-ref", "HEAD"])`. `sessionId` resolves in order: (1) a
+    `.claude/worktrees/<name>` toplevel from `runGit(["rev-parse", "--show-toplevel"])` yields
+    `<name>` (match both `/` and `\` separators) — the historical rule, kept FIRST and separate
+    because a slot renamed after creation keeps git's original admin-dir name and the two
+    genuinely disagree; (2) any other registered linked worktree yields the basename of its git
+    ADMIN dir — `runGit(["rev-parse", "--path-format=absolute", "--git-dir"])`, i.e.
+    `<common>/worktrees/<id>` — NOT of its path, because git mints and de-duplicates that id per
+    repository while path basenames collide (six Codex worktrees share `storytree`), and two
+    sessions on one claim is worse than the refusal this widening removes; (3) the PRIMARY
+    CHECKOUT — git-dir equal to `runGit(["rev-parse", "--path-format=absolute",
+    "--git-common-dir"])` — returns null, load-bearing and unchanged, since the shared lobby has
+    no isolated identity and `check:declared`'s lobby arm depends on it. A git error (catch
+    throws) returns null. Export a default runGit built on `node:child_process`
+    `execFileSync("git", args, { encoding: "utf8" })` (trimmed), but the function always takes it
+    as a parameter (tests inject fakes).
   - `interface NoticeboardDeps { store: PresenceStoreLike | null; identity: SessionIdentity | null; now: () => Date }`
     (`store` is null when `--pg` was not given; `identity` is null outside a recognisable worktree).
   - `async function noticeboardCommand(sub: string | undefined, opts: { workingOn?: string; nodes: string[] }, deps: NoticeboardDeps): Promise<Envelope>`
@@ -113,7 +124,10 @@ take already-parsed inputs and injected deps, so everything is testable without 
   drive `noticeboardCommand` + `deriveIdentity` directly with a tiny in-memory
   `PresenceStoreLike` fake (a Map of docs + an event array), fake `runGit` functions, and a fixed
   `now`. Cover: deriveIdentity recognises `.claude/worktrees/<name>` toplevels (both separator
-  styles) and returns null for a plain checkout and for a throwing git; declare/done with null
+  styles), resolves a registered linked worktree at any OTHER path off its git admin-dir id, keeps
+  two worktrees that share a path basename on DISTINCT identities, keeps a renamed slot on its slot
+  name, and returns null for the primary checkout (git-dir === git-common-dir, separator skew and
+  all) and for a throwing git; declare/done with null
   store → refusal whose `next` mentions `pnpm db:up` (writes need --pg); declare with null
   identity → refusal; declare with blank `workingOn` → refusal; a successful declare passes the
   built doc to the store (assert sessionId/branch came from identity, startedAt = the fixed now);
