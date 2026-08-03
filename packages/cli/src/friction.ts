@@ -38,7 +38,7 @@ import path from "node:path";
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { explainDocValidationError, upcastAndValidate, Friction, FrictionRoute, NODE_REF_PREFIX } from "@storytree/library";
 
-import { defaultCliActor } from "./cli-actor.js";
+import { branchOfActor, defaultCliActor } from "./cli-actor.js";
 import type { Envelope } from "./envelope.js";
 import { lifecycleOf, type FrictionLifecycle } from "./friction-lifecycle.js";
 import { ASSET_REF_PREFIX, citedAssetIds } from "./proposal-citation.js";
@@ -642,6 +642,53 @@ async function citedProposals(doc: Record<string, unknown>, store: Store): Promi
   return found;
 }
 
+// ---------------------------------------------------------------------------
+// the foreign-overwrite guard (compare-and-refuse on the standing adjudication)
+// ---------------------------------------------------------------------------
+
+/**
+ * WHO SET THE ROUTE THAT STANDS — the `actor`/`at` of the event where the CURRENT route value was
+ * last established, or `undefined` when the log cannot say.
+ *
+ * NOT "the latest writer", which is the obvious read and the wrong one: `reinforce` appends a
+ * `reinforcedBy` entry without touching the route, so a peer's reinforcement after an adjudication
+ * would otherwise name the reinforcer as the adjudicator. Walking the history forward and resetting
+ * on every event that carries a DIFFERENT route value leaves the first event of the final unbroken
+ * run — i.e. the write that put the standing route there, with every no-op write after it ignored.
+ *
+ * A `deleted` event resets too: an artifact retired and re-filed carries no adjudication across the
+ * gap.
+ *
+ * Pure — inject the events.
+ */
+export function standingRouteSetter(
+  events: readonly { type: string; doc: unknown; actor: string; at: string }[],
+  route: string,
+): { actor: string; at: string } | undefined {
+  let setter: { actor: string; at: string } | undefined;
+  for (const e of events) {
+    const doc = typeof e.doc === "object" && e.doc !== null ? (e.doc as Record<string, unknown>) : {};
+    if (e.type === "deleted" || doc["route"] !== route) {
+      setter = undefined;
+      continue;
+    }
+    setter ??= { actor: e.actor, at: e.at };
+  }
+  return setter;
+}
+
+/**
+ * Two actors are the SAME adjudicator only when both name a branch and the branches match.
+ *
+ * `null` on either side is UNATTRIBUTED, never "mine" (`branchOfActor`'s own contract, and the
+ * treatment `check:corpus-content` already gives it): the pre-ADR-0290 constant `"cli"`, the store's
+ * `"system"` / `"corpus-migration"`, every `STORYTREE_ACTOR` surface, and a detached-HEAD CLI run all
+ * land here. Two unattributed writes are not evidence of one author, so `null === null` must not pass.
+ */
+function sameAdjudicator(a: string | null, b: string | null): boolean {
+  return a !== null && b !== null && a === b;
+}
+
 /**
  * `storytree friction route <id> --route <enum> --reason "<justification>" [--proposal <id>]
  * [--discharged-by <ref>] --pg` — the adjudication write (ADR-0168 D5): set `route` (the closed
@@ -657,6 +704,34 @@ async function citedProposals(doc: Record<string, unknown>, store: Store): Promi
  * changes is that routing there stops discharging the obligation. The fence is on the CITATION, not
  * on the flag, so re-running an already-emitting route to add `--discharged-by` needs no repeat of
  * `--proposal` — which keeps the documented delivery-stamp path open for backfilled items.
+ *
+ * IT COMPARES BEFORE IT WRITES, and refuses a FOREIGN overwrite. This was a bare last-write-wins
+ * upsert, and the cost is measured rather than argued: on 2026-07-30 four items were routed twice
+ * within ~13 minutes (`events.library_event` seq 2731/2735, 2732/2737, 2733/2739+2740, 2738/2741),
+ * ~22,000 characters of verified peer justification were overwritten with no conflict surfaced at
+ * either seat, and TWO of the overwrites CHANGED THE ROUTE ENUM in a way that changed whether the
+ * owner is involved — `story-work-claim-refuses-disjoint-file-concurrency` went `adr` → `tool`,
+ * silently cancelling an owner escalation. Recovery was possible only because the event log retains
+ * superseded versions; a reader of the `library_artifact` projection would have seen no trace. The
+ * exposure RISES BY DESIGN: ADR-0168 D4's ceiling spawns concurrent board drains, so parallel
+ * adjudication is a designed-in condition rather than an accident, and no amount of prose discipline
+ * removes it.
+ *
+ * So: an item that ALREADY carries a route, whose standing route was set by a DIFFERENT (or
+ * unattributable) adjudicator, refuses — naming the route, the branch that set it, and when — unless
+ * `--re-route` is passed. The identity is the `cli@<branch>` actor ADR-0290 D2 already stamps; no new
+ * attribution mechanism is invented. The SAME branch re-routing its own item is never refused (a
+ * session correcting its own adjudication is the normal case), and the override keeps the legitimate
+ * re-adjudication paths open — a curator correcting a peer with cause, and the `--discharged-by`
+ * re-run when a routed remedy lands later.
+ *
+ * DELIBERATELY THE NARROW FIX. The deep fix — a locked read-modify-write — would widen the narrow
+ * `Store` port and INVERT a tested parity assertion (`storage-protocol/src/store-parity.ts`, which
+ * asserts the second writer's body always wins). That is a substrate decision needing its own ADR.
+ * This compares the doc it just read, so a write landing between the read and the upsert is still
+ * lost; what it removes is the SILENT case, which is every measured one. `library artifact edit --pg`
+ * carries the identical gap against the same contract and is untouched here — this is the beachhead,
+ * not the whole answer.
  */
 export async function routeFriction(
   deps: FrictionDeps,
@@ -666,6 +741,8 @@ export async function routeFriction(
     reason?: string | undefined;
     dischargedBy?: string | undefined;
     proposal?: string | undefined;
+    /** `--re-route`: overwrite another adjudicator's standing route on purpose. */
+    reRoute?: boolean | undefined;
   },
   ctx: FrictionContext,
 ): Promise<Envelope> {
@@ -699,6 +776,61 @@ export async function routeFriction(
   if (existing.kind !== "friction") return { ok: false, body: `"${id}" is a ${existing.kind}, not a friction item.`, next: [`storytree library artifact ${id}`] };
 
   const base = typeof existing.doc === "object" && existing.doc !== null ? { ...(existing.doc as Record<string, unknown>) } : {};
+
+  // ---- the foreign-overwrite guard: compare against the STORED adjudication before overwriting it --
+  // Only an item that already carries a route has an adjudication to destroy; a first routing is free.
+  const actor = deps.actor ?? defaultCliActor();
+  const standingRoute = typeof base["route"] === "string" ? (base["route"] as string) : undefined;
+  if (standingRoute !== undefined && standingRoute !== "" && opts.reRoute !== true) {
+    // FAIL-CLOSED on an unreadable log: a route we cannot attribute is treated as another's, not as
+    // ours. The asymmetry is the whole point — a wrong refusal costs one flag, a wrong pass costs a
+    // peer's seven-question audit record, unrecoverably from the projection.
+    let events: Awaited<ReturnType<typeof deps.store.readEvents>> | null = null;
+    try {
+      events = await deps.store.readEvents({ id });
+    } catch {
+      events = null;
+    }
+    const setter = events === null ? undefined : standingRouteSetter(events, standingRoute);
+    const setterBranch = setter === undefined ? null : branchOfActor(setter.actor);
+    if (!sameAdjudicator(setterBranch, branchOfActor(actor))) {
+      const who =
+        setter === undefined
+          ? events === null
+            ? "the event log could not be read, so no adjudicator can be named"
+            : "the event log carries no write that set it, so no adjudicator can be named"
+          : setterBranch === null
+            ? `set by ${setter.actor} at ${setter.at} — an UNATTRIBUTED write (a pre-ADR-0290 row, the ` +
+              "corpus migration, or a non-CLI surface), which is not evidence it was yours"
+            : `set by ${setterBranch} at ${setter.at}`;
+      return {
+        ok: false,
+        body: [
+          `"${id}" already carries route \`${standingRoute}\` — ${who}.`,
+          `You are ${branchOfActor(actor) ?? `${actor} (unattributed)`}.`,
+          "",
+          "Routing would REPLACE that adjudication's `routeReason` — the seven-question justification",
+          "record — with yours, and the projection would keep no trace. Four items were double-routed",
+          "inside 13 minutes on 2026-07-30 this way, destroying ~22,000 characters of peer reasoning and",
+          "silently cancelling an owner escalation.",
+          "",
+          "READ IT FIRST, then decide:",
+          `  storytree library artifact ${id} --pg`,
+          "",
+          "If you still mean to overwrite it — a correction with cause, or a `--discharged-by` stamp on a",
+          "remedy that has since landed — say so explicitly:",
+          `  storytree friction route ${id} --route ${route} --reason "…" --re-route --pg`,
+          "",
+          "(The name above is the MOST RECENT adjudicator to set this route, not necessarily the first.)",
+        ].join("\n"),
+        next: [
+          `storytree library artifact ${id} --pg`,
+          `storytree friction route ${id} --route ${route} --reason "…" --re-route --pg`,
+        ],
+      };
+    }
+  }
+
   base["route"] = route;
   base["routeReason"] = reason;
   if (dischargedBy !== undefined) base["dischargedBy"] = dischargedBy;
@@ -760,7 +892,8 @@ export async function routeFriction(
   } catch (e) {
     return { ok: false, body: `routing would make "${id}" invalid:\n${explainDocValidationError(base, e)}`, next: [`storytree library artifact ${id}`] };
   }
-  const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? defaultCliActor() });
+  // The SAME `actor` the guard compared against — the stamp and the check cannot drift apart.
+  const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor });
   return {
     ok: true,
     body: [

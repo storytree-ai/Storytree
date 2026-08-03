@@ -7,8 +7,9 @@ import { test } from "node:test";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { Friction } from "@storytree/library";
 
+import { cliActorFor } from "./cli-actor.js";
 import { run } from "./commands.js";
-import { hasConcreteEvidence, lifecycleOf, validateInboxDir } from "./friction.js";
+import { hasConcreteEvidence, lifecycleOf, standingRouteSetter, validateInboxDir } from "./friction.js";
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -90,12 +91,26 @@ async function routeToTool(
   id: string,
   reason: string,
   extra: string[] = [],
+  branch: string = BRANCH,
 ) {
   await newProposal(s, `${id}-proposal`);
   return run(
     ["friction", "route", id, "--route", "tool", "--reason", reason, "--proposal", `${id}-proposal`, ...extra, "--pg"],
-    { store: s, writable: true, friction: frictionDeps(dirs) },
+    liveDeps(s, dirs, branch),
   );
+}
+
+/**
+ * Live (`--pg`) run deps with the write ACTOR PINNED to a branch.
+ *
+ * Every test that routes an item TWICE needs this: the foreign-overwrite guard compares the standing
+ * route's `cli@<branch>` stamp against the current one, and an unpinned run falls back to
+ * `defaultCliActor()`, which reads ambient git. That passes on a developer's branch and refuses under
+ * CI's DETACHED HEAD (no branch ⇒ the unattributed `"cli"` ⇒ not provably the same adjudicator), so
+ * leaving it ambient would make the guard's own tests environment-dependent.
+ */
+function liveDeps(s: InMemoryStore, dirs: { inboxDir: string; docsDir: string }, branch: string = BRANCH) {
+  return { store: s, writable: true, actor: cliActorFor(branch), friction: frictionDeps(dirs) };
 }
 
 // ---------------------------------------------------------------------------
@@ -666,7 +681,7 @@ test("`tool` + --proposal writes the route AND the asset: citation in one valida
 
   const routed = await run(
     ["friction", "route", "t-cite", "--route", "tool", "--reason", "q7: a verb beats prose", "--proposal", "one-seed-sync-verb", "--pg"],
-    { store: s, writable: true, friction: frictionDeps(dirs) },
+    liveDeps(s, dirs),
   );
   assert.equal(routed.ok, true, routed.body);
   assert.match(routed.body, /remedy parked as proposal one-seed-sync-verb/);
@@ -679,7 +694,7 @@ test("`tool` + --proposal writes the route AND the asset: citation in one valida
   // Re-routing is idempotent on the citation — a second pass must not stack duplicate refs.
   const again = await run(
     ["friction", "route", "t-cite", "--route", "tool", "--reason", "q7: a verb beats prose", "--proposal", "asset:one-seed-sync-verb", "--pg"],
-    { store: s, writable: true, friction: frictionDeps(dirs) },
+    liveDeps(s, dirs),
   );
   assert.equal(again.ok, true, again.body);
   const after = (await s.getDoc("t-cite"))?.doc as Record<string, unknown>;
@@ -697,12 +712,164 @@ test("an already-citing item re-routes without repeating --proposal (the --disch
 
   const stamped = await run(
     ["friction", "route", "t-stamp", "--route", "tool", "--reason", "the original adjudication", "--discharged-by", "#1088", "--pg"],
-    { store: s, writable: true, friction: frictionDeps(dirs) },
+    liveDeps(s, dirs),
   );
   assert.equal(stamped.ok, true, stamped.body);
   const doc = (await s.getDoc("t-stamp"))?.doc as Record<string, unknown>;
   assert.equal(doc["dischargedBy"], "#1088");
   assert.deepEqual(doc["references"], ["asset:t-stamp-proposal"]);
+});
+
+// ---------------------------------------------------------------------------
+// the foreign-overwrite guard (compare-and-refuse)
+// ---------------------------------------------------------------------------
+
+/** The seven-question justification record a foreign overwrite destroys — long, and exactly restorable. */
+const PEER_REASON = [
+  "q1 recurrence: 4 sessions, 3 branches, 13 days.",
+  "q2 cost: ~22,000 characters of adjudication destroyed, unrecoverable from the projection.",
+  "q3 scope: routeFriction only — the deep locked read-modify-write is a substrate ADR.",
+  "q4 owner: yes — two route flips changed whether the owner is involved.",
+  "q5 alternative: prose discipline, rejected — 3 of 5 seats declined only because they were briefed.",
+  "q6 evidence: events.library_event seq 2731/2735, 2732/2737, 2733/2739+2740, 2738/2741.",
+  "q7 verdict: route `tool`, emit a proposal.",
+].join("\n");
+
+test("route refuses to overwrite ANOTHER branch's adjudication, and its routeReason survives byte-for-byte", async () => {
+  // THE LOAD-BEARING ASSERTION IS THE REASON, NOT THE ENUM. A test that only checked `route` would
+  // pass while the justification was still destroyed — which is precisely the measured harm: on
+  // 2026-07-30 four items were routed twice inside ~13 minutes and ~22,000 characters of verified peer
+  // reasoning went with them, with no conflict surfaced at either seat.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("x-drain"), dirs, { writable: true });
+
+  // Seat A adjudicates.
+  const a = await run(
+    ["friction", "route", "x-drain", "--route", "adr", "--reason", PEER_REASON, "--pg"],
+    liveDeps(s, dirs, "claude/seat-a"),
+  );
+  assert.equal(a.ok, true, a.body);
+
+  // Seat B, draining the same board concurrently, reaches the same item and routes it elsewhere.
+  const b = await run(
+    ["friction", "route", "x-drain", "--route", "nothing", "--reason", "reconstructible, archiving", "--pg"],
+    liveDeps(s, dirs, "claude/seat-b"),
+  );
+  assert.equal(b.ok, false, "a foreign overwrite is REFUSED");
+  assert.match(b.body, /already carries route `adr`/);
+  assert.match(b.body, /claude\/seat-a/, "the refusal names the branch that set the standing route");
+  assert.match(b.body, /--re-route/, "and names the override that would let it through");
+
+  const doc = (await s.getDoc("x-drain"))?.doc as Record<string, unknown>;
+  assert.equal(doc["route"], "adr", "seat A's route stands");
+  assert.equal(doc["routeReason"], PEER_REASON, "seat A's justification survives BYTE-FOR-BYTE");
+});
+
+test("the SAME branch re-routing its own item is never refused (correcting your own adjudication is normal)", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("x-self"), dirs, { writable: true });
+
+  const first = await run(
+    ["friction", "route", "x-self", "--route", "adr", "--reason", "first pass — escalate"],
+    { ...liveDeps(s, dirs, "claude/seat-a"), },
+  );
+  assert.equal(first.ok, true, first.body);
+
+  const corrected = await run(
+    ["friction", "route", "x-self", "--route", "nothing", "--reason", "on reflection: reconstructible"],
+    liveDeps(s, dirs, "claude/seat-a"),
+  );
+  assert.equal(corrected.ok, true, corrected.body);
+  const doc = (await s.getDoc("x-self"))?.doc as Record<string, unknown>;
+  assert.equal(doc["route"], "nothing");
+  assert.equal(doc["routeReason"], "on reflection: reconstructible");
+});
+
+test("--re-route lets a deliberate foreign overwrite through (re-adjudication is not walled off)", async () => {
+  // Without an override the guard would close the legitimate paths the proposal names: a curator
+  // correcting a peer with cause, and the `--discharged-by` re-run when a routed remedy lands later.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("x-override"), dirs, { writable: true });
+  await run(
+    ["friction", "route", "x-override", "--route", "adr", "--reason", PEER_REASON, "--pg"],
+    liveDeps(s, dirs, "claude/seat-a"),
+  );
+
+  const forced = await run(
+    ["friction", "route", "x-override", "--route", "nothing", "--reason", "peer erred: already an ADR", "--re-route", "--pg"],
+    liveDeps(s, dirs, "claude/seat-b"),
+  );
+  assert.equal(forced.ok, true, forced.body);
+  const doc = (await s.getDoc("x-override"))?.doc as Record<string, unknown>;
+  assert.equal(doc["route"], "nothing");
+  assert.equal(doc["routeReason"], "peer erred: already an ADR");
+});
+
+test("an UNATTRIBUTED standing route is treated as another's, not as yours (fail-closed)", async () => {
+  // The 125 pre-ADR-0290 `tool` rows carry the bare `"cli"` actor, and `branchOfActor` calls that
+  // UNATTRIBUTED rather than "not yours". Two unattributed writes are not evidence of one author, so
+  // `null === null` must not pass — otherwise every legacy row is silently overwritable, which is the
+  // whole population the guard exists to protect.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("x-legacy"), dirs, { writable: true });
+  await run(
+    ["friction", "route", "x-legacy", "--route", "adr", "--reason", PEER_REASON, "--pg"],
+    { store: s, writable: true, actor: "cli", friction: frictionDeps(dirs) },
+  );
+
+  const refused = await run(
+    ["friction", "route", "x-legacy", "--route", "nothing", "--reason", "archiving", "--pg"],
+    { store: s, writable: true, actor: "cli", friction: frictionDeps(dirs) },
+  );
+  assert.equal(refused.ok, false);
+  assert.match(refused.body, /UNATTRIBUTED/);
+  assert.equal((await s.getDoc("x-legacy"))?.doc && ((await s.getDoc("x-legacy"))!.doc as Record<string, unknown>)["routeReason"], PEER_REASON);
+});
+
+test("a FIRST routing is never refused — the guard only protects a standing adjudication", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("x-first"), dirs, { writable: true });
+  const env = await run(
+    ["friction", "route", "x-first", "--route", "adr", "--reason", "escalate"],
+    liveDeps(s, dirs, "claude/seat-b"),
+  );
+  assert.equal(env.ok, true, env.body);
+});
+
+test("standingRouteSetter names who SET the standing route, not the latest writer", async () => {
+  // `reinforce` appends a `reinforcedBy` entry without touching the route, so the obvious read —
+  // "the latest writer" — would name a peer's reinforcement as the adjudication. Walking forward and
+  // resetting on every differing route value leaves the first event of the final unbroken run.
+  const events = [
+    { type: "created", doc: {}, actor: "cli@claude/filer", at: "2026-07-30T10:00:00.000Z" },
+    { type: "updated", doc: { route: "adr" }, actor: "cli@claude/seat-a", at: "2026-07-30T11:00:00.000Z" },
+    { type: "updated", doc: { route: "adr" }, actor: "cli@claude/reinforcer", at: "2026-07-30T12:00:00.000Z" },
+  ];
+  assert.deepEqual(standingRouteSetter(events, "adr"), { actor: "cli@claude/seat-a", at: "2026-07-30T11:00:00.000Z" });
+
+  // A LATER change to a different route resets the run: the standing value's setter is whoever set it
+  // last, which is the most recent adjudicator rather than the original one.
+  const flipped = [
+    ...events,
+    { type: "updated", doc: { route: "nothing" }, actor: "cli@claude/seat-b", at: "2026-07-30T13:00:00.000Z" },
+    { type: "updated", doc: { route: "adr" }, actor: "cli@claude/seat-c", at: "2026-07-30T14:00:00.000Z" },
+  ];
+  assert.deepEqual(standingRouteSetter(flipped, "adr"), { actor: "cli@claude/seat-c", at: "2026-07-30T14:00:00.000Z" });
+
+  // A retire-and-refile carries no adjudication across the gap.
+  const refiled = [
+    { type: "updated", doc: { route: "adr" }, actor: "cli@claude/seat-a", at: "2026-07-30T11:00:00.000Z" },
+    { type: "deleted", doc: { route: "adr" }, actor: "cli@claude/curator", at: "2026-07-30T12:00:00.000Z" },
+  ];
+  assert.equal(standingRouteSetter(refiled, "adr"), undefined);
+
+  // No route ever set — nothing to name.
+  assert.equal(standingRouteSetter([{ type: "created", doc: {}, actor: "cli", at: "x" }], "adr"), undefined);
 });
 
 test("a --proposal that is missing, or is another kind, is refused with the write-it-first order", async () => {

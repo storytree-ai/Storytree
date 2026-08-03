@@ -310,7 +310,15 @@ export const DEFAULT_CORPUS_SYNC_DRAIN_CONFIG: CorpusSyncDrainConfig = {
 
 /** The minimal projection of `CorpusDiff` the ceiling needs — decoupled from the store's types. */
 export interface CorpusSyncGap {
-  /** Seed non-agent artifact ids absent from the live store — a sync would CREATE these. */
+  /**
+   * Seed non-agent artifact ids that are a GENUINE migration gap — absent from live, and classified
+   * `never-migrated` rather than retired-live or behind-main (`corpus-content-attribution.ts`).
+   *
+   * NARROWED, NOT LOOSENED. This used to be every seed-only id, which made the ceiling charge a branch
+   * for two populations whose correct remedy is NOT the drain: an artifact an owner deliberately
+   * retired live, and a row `origin/main` has already dropped. The ceiling below is unchanged at ZERO;
+   * what changed is which absences it is measured over (ADR-0269 4(f) aperture, ADR-0290's precedent).
+   */
   missing: readonly string[];
   /** Export-scope seed artifacts in the sweep — the denominator the check prints. */
   seedScope: number;
@@ -324,6 +332,12 @@ export interface CorpusSyncDrainContext {
    * `template` artifacts no seed file can remove, so an empty seed still certifies `OK — … (13)`.
    */
   seedUnitsRead: number;
+  /**
+   * Absences REPORTED under another cause and deliberately not charged (retired-live + behind-main).
+   * Named in the breach line so a narrowed aperture is never a silent cap (ADR-0095: no silent caps) —
+   * a reader can always see how many absences the count excluded and why.
+   */
+  deferred?: number;
 }
 
 /**
@@ -345,11 +359,15 @@ export function evaluateCorpusSyncDrain(
 ): SyncDrainVerdict {
   const count = gap.missing.length;
 
+  const deferred = ctx.deferred ?? 0;
   const breaches: string[] =
     count > config.missingCeiling
       ? [
-          `${count} seed non-agent artifact(s) of ${gap.seedScope} are absent from the live store, past ` +
-            `the ceiling (M=${config.missingCeiling}) — listed above`,
+          `${count} seed non-agent artifact(s) of ${gap.seedScope} never migrated to the live store, past ` +
+            `the ceiling (M=${config.missingCeiling}) — listed above` +
+            (deferred > 0
+              ? `; a further ${deferred} absence(s) are reported under another cause (retired live / behind main) and NOT charged`
+              : ""),
         ]
       : [];
 

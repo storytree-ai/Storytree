@@ -4,7 +4,7 @@ import * as os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { defaultSecretsFile, loadLocalSecrets, SECRET_KEYS } from "./secrets.js";
+import { defaultSecretsFile, loadLocalSecrets, presentEnv, SECRET_KEYS } from "./secrets.js";
 
 function withFixture(content: string | null, env: NodeJS.ProcessEnv): string[] {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "storytree-secrets-"));
@@ -50,4 +50,56 @@ test("missing file, malformed JSON, and non-object payloads are silent no-ops", 
 test("the default location is ~/.storytree/secrets.json and the key list is exact", () => {
   assert.equal(defaultSecretsFile(), path.join(os.homedir(), ".storytree", "secrets.json"));
   assert.deepEqual([...SECRET_KEYS], ["CLAUDE_CODE_OAUTH_TOKEN", "STORYTREE_DB_USER"]);
+});
+
+// ---------------------------------------------------------------------------
+// blank-is-unset (the credential read path)
+// ---------------------------------------------------------------------------
+
+test("presentEnv reads a blank or whitespace-only value as UNSET, and trims a real one", () => {
+  // The house precedent, applied to credentials: `resolveRepoRoot`'s `usable()` already settled the
+  // identical question for paths, on the reasoning that `VAR=` is how a shell says "not configured".
+  const env: NodeJS.ProcessEnv = { EMPTY: "", SPACES: "   ", TABBED: "\t\n", REAL: "  iam@example.com  " };
+  assert.equal(presentEnv("EMPTY", env), undefined);
+  assert.equal(presentEnv("SPACES", env), undefined);
+  assert.equal(presentEnv("TABBED", env), undefined);
+  assert.equal(presentEnv("ABSENT", env), undefined);
+  assert.equal(presentEnv("REAL", env), "iam@example.com");
+});
+
+test("RED→GREEN: a BLANK env value is hydrated over, so a mangled export self-heals", () => {
+  // The measured failure: `STORYTREE_DB_USER=` (a shell-mangled command substitution) read as PRESENT,
+  // which SUPPRESSED the very hydration that would have fixed it, travelled to the connector, and came
+  // back as `{"store":"pg","db":"unreachable"}` — ~25 minutes on a database that was never down.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "storytree-secrets-"));
+  const file = path.join(dir, "secrets.json");
+  fs.writeFileSync(file, JSON.stringify({ STORYTREE_DB_USER: "file@user.example" }));
+  const target: NodeJS.ProcessEnv = { STORYTREE_DB_USER: "", STORYTREE_SECRETS_FILE: file };
+  const filled = loadLocalSecrets(target);
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.deepEqual(filled, ["STORYTREE_DB_USER"]);
+  assert.equal(target["STORYTREE_DB_USER"], "file@user.example");
+});
+
+test("env-always-wins is PRESERVED for every non-blank value", () => {
+  // The one behaviour with any reach is that a blank is now overwritten. A real value must still win,
+  // or this would have quietly changed the precedence the whole credential model rests on.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "storytree-secrets-"));
+  const file = path.join(dir, "secrets.json");
+  fs.writeFileSync(file, JSON.stringify({ STORYTREE_DB_USER: "file@user.example" }));
+  const target: NodeJS.ProcessEnv = { STORYTREE_DB_USER: "real@set.example", STORYTREE_SECRETS_FILE: file };
+  const filled = loadLocalSecrets(target);
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.deepEqual(filled, []);
+  assert.equal(target["STORYTREE_DB_USER"], "real@set.example");
+});
+
+test("a whitespace-only export is a gap too — hydration is not fooled by `VAR='   '`", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "storytree-secrets-"));
+  const file = path.join(dir, "secrets.json");
+  fs.writeFileSync(file, JSON.stringify({ STORYTREE_DB_USER: "file@user.example" }));
+  const target: NodeJS.ProcessEnv = { STORYTREE_DB_USER: "   ", STORYTREE_SECRETS_FILE: file };
+  loadLocalSecrets(target);
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.equal(target["STORYTREE_DB_USER"], "file@user.example");
 });
