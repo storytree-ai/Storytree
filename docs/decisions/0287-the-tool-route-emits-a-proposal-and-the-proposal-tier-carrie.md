@@ -1,11 +1,26 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-08-02
 amends: [168]
 ---
 # ADR-0287: The tool route emits a proposal, and the proposal tier carries the delivery signal
 
 ## Status
+
+**superseded (2026-08-03) by
+[ADR-0298](0298-proposals-fold-into-arcs-the-deferred-work-tier-is-an-arc-en.md)**, which retires the
+`proposal` kind entirely and folds deferred work into arcs (owner-directed: *"proposals dont really
+earn a separate concept … just expand arcs to have a proposal shape"*). Kept as a browsable file per
+ADR-0139 — this was a genuine re-decision, not an overtaken claim, so it is superseded-and-replaced
+rather than corrected in place.
+
+**What survived and what did not.** D1/D2's mechanism is replaced: the `tool` route still emits a
+citable remedy, but it is now an entry on an arc rather than a free-standing `proposal` artifact. D3's
+delivery ceiling SURVIVES VERBATIM in ADR-0298 D3 — recurrence-driven, day-granular, strictly `>`,
+same-day WARN, no tunable number — with only the object it counts moved; do not read this ADR's
+supersession as retiring that guarantee. D4's targeted backfill was BUILT (eleven proposals parked on
+2026-08-03), and its eight surviving rows are rehomed onto arcs by ADR-0298 D7. The `amends: [168]`
+edge is carried forward by ADR-0298, so ADR-0168 D5's `tool` routing-table row does not revert.
 
 accepted (2026-08-02) — decided/directed by the owner in conversation on 2026-08-02. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 

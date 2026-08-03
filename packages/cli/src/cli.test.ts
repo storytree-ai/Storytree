@@ -928,11 +928,11 @@ async function storeWithOneDefinition(): Promise<InMemoryStore> {
 test("artifact list <schema kind with ZERO rows> reports the tier EMPTY at ok:true", async () => {
   // A new kind starts empty by definition, and a lifecycle tier draining to zero is the SUCCESS
   // state — both must read as a fact about the population, never as "the kind does not exist".
-  const env = await run(["library", "artifact", "list", "proposal"], {
+  const env = await run(["library", "artifact", "list", "open-question"], {
     store: await storeWithOneDefinition(),
   });
   assert.equal(env.ok, true, `an empty schema kind lists empty, not unknown: ${env.body}`);
-  assert.match(env.body, /^proposal {2}\(0\)$/, "the same shape a populated tier uses");
+  assert.match(env.body, /^open-question {2}\(0\)$/, "the same shape a populated tier uses");
 });
 
 test("artifact list advertises every SCHEMA kind, including the ones at zero", async () => {
@@ -942,7 +942,7 @@ test("artifact list advertises every SCHEMA kind, including the ones at zero", a
   assert.equal(env.ok, false, "a kind the schema does not define is still a genuine user error");
   assert.match(env.body, /unknown category "not-a-real-kind"/);
   // The available list can never again advertise a narrower world than the schema defines.
-  for (const kind of ["definition", "proposal", "friction", "arc", "plan", "uat-criterion"]) {
+  for (const kind of ["definition", "open-question", "friction", "arc", "plan", "uat-criterion"]) {
     assert.ok(env.body.includes(kind), `available categories names ${kind}`);
   }
 });

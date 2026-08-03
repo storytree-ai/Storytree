@@ -16,7 +16,7 @@ const unit = (over: Partial<KnowledgeUnitLike> & { id: string; kind: string }): 
 });
 
 describe('deriveOfflineAssets', () => {
-  it('maps knowledge units to assets (category = kind) then appends the 13 templates', async () => {
+  it('maps knowledge units to assets (category = kind) then appends the 12 templates', async () => {
     const assets = await deriveOfflineAssets([
       unit({ id: 'u1', kind: 'definition', references: ['doc:x.md'] }),
       unit({ id: 'u2', kind: 'principle' }),
@@ -31,12 +31,12 @@ describe('deriveOfflineAssets', () => {
     // the templates follow, matching libraryTemplates() exactly
     const templateIds = libraryTemplates().map((t) => t.id);
     expect(assets.slice(2).map((a) => a.id)).toEqual(templateIds);
-    expect(assets.filter((a) => a.category === 'template')).toHaveLength(13);
+    expect(assets.filter((a) => a.category === 'template')).toHaveLength(12);
   });
 
   it('an empty knowledge seed yields exactly the templates', async () => {
     const assets = await deriveOfflineAssets([]);
-    expect(assets).toHaveLength(13);
+    expect(assets).toHaveLength(12);
     expect(assets.every((a) => a.category === 'template')).toBe(true);
   });
 

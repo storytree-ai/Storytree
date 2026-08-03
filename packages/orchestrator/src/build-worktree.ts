@@ -82,16 +82,14 @@ export async function createBuildWorktree(
   const root = path.join(parent, "wt");
   await runGit(["worktree", "add", "--detach", root, "HEAD"], repoRoot);
   const headSha = (await runGit(["rev-parse", "HEAD"], root)).trim();
+  // Captured up front so teardown can drop THIS worktree's registration by name, without the
+  // repo-global sweep that used to orphan concurrent siblings (see {@link dropWorktree}).
+  const adminDir = await worktreeAdminDir(root);
 
   // Tear the half-provisioned worktree down + rethrow — a worktree whose install/add failed must
   // never look buildable (the ADR-0031 fail-closed posture, shared by install and addDeps).
   const teardownAndThrow = async (label: string, e: unknown): Promise<never> => {
-    try {
-      await runGit(["worktree", "remove", "--force", root], repoRoot);
-    } catch {
-      // Best-effort; the directory removal below still runs.
-    }
-    await removeDirBestEffort(parent);
+    await dropWorktree({ repoRoot, root, parent, adminDir });
     throw new Error(`worktree ${label} failed (the worktree was torn down): ${(e as Error).message}`, {
       cause: e,
     });
@@ -125,19 +123,83 @@ export async function createBuildWorktree(
     remove: async (): Promise<void> => {
       if (removed) return;
       removed = true;
-      try {
-        await runGit(["worktree", "remove", "--force", root], repoRoot);
-      } catch {
-        // Best-effort: fall through to the directory removal + prune below.
-      }
-      await removeDirBestEffort(parent);
-      try {
-        await runGit(["worktree", "prune"], repoRoot);
-      } catch {
-        // Pruning is housekeeping; a failure here must not mask the build result.
-      }
+      await dropWorktree({ repoRoot, root, parent, adminDir });
     },
   };
+}
+
+/** This worktree's registration dir (`<common>/.git/worktrees/<id>`); null if it can't be read. */
+async function worktreeAdminDir(root: string): Promise<string | null> {
+  try {
+    return (await runGit(["rev-parse", "--absolute-git-dir"], root)).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Tear ONE build worktree down: drop its registration, delete its temp tree, and — only if the
+ * registration outlived that — delete this worktree's own admin entry.
+ *
+ * Deliberately NOT `git worktree prune`, which is what used to run here. Prune is repo-GLOBAL, and
+ * `git worktree add` claims its admin dir with `mkdir` a moment BEFORE it writes the files (and the
+ * `locked` sentinel) that make prune skip it. A prune landing in that window deletes the entry of a
+ * worktree another process is mid-`add` on; that process then dies with `fatal: not a git
+ * repository` — either from `add` itself or, once its `.git` file points at the deleted entry, from
+ * the very next git command. Measured on this repo: four concurrent create/teardown lifecycles hit
+ * that failure repeatedly with the sweep in place and zero times across 32 lifecycles without it.
+ * The sweep could never be safe from inside this path — the orchestrator suite alone runs two files
+ * that cut build worktrees in parallel (`build-worktree.test.ts` + `resolve-prove-spec.test.ts`),
+ * and every session on the box shares one `.git`, so `--real` builds race each other too.
+ *
+ * Entries genuinely orphaned by a hard crash are left for the deliberate reaper (`storytree
+ * worktree prune`), which is a maintenance verb run on a quiet repo — not a hot concurrent path.
+ */
+async function dropWorktree(args: {
+  repoRoot: string;
+  root: string;
+  parent: string;
+  adminDir: string | null;
+}): Promise<void> {
+  let unregistered = true;
+  try {
+    await runGit(["worktree", "remove", "--force", args.root], args.repoRoot);
+  } catch {
+    // Best-effort (a Windows file-lock is the usual cause); the cleanup below still runs.
+    unregistered = false;
+  }
+  await removeDirBestEffort(args.parent);
+  // `git worktree remove` failed, but the checkout is gone now, so the registration is stale —
+  // delete just OURS. This is the targeted equivalent of the old prune, with none of its blast
+  // radius, and it is skipped entirely on the success path: git frees the admin id on removal and a
+  // concurrent `add` may already have claimed it, so an unconditional delete would recreate the
+  // exact bug above.
+  if (!unregistered && args.adminDir !== null) {
+    await removeAdminEntryIfOurs(args.adminDir, args.root);
+  }
+}
+
+/**
+ * Delete a stale worktree registration, but ONLY while it still points at `root` — an admin id is
+ * recycled as soon as it is freed, so ownership is re-checked at the last moment rather than
+ * assumed from the id we captured at creation.
+ */
+async function removeAdminEntryIfOurs(adminDir: string, root: string): Promise<void> {
+  try {
+    const pointer = await fs.readFile(path.join(adminDir, "gitdir"), "utf8");
+    if (!samePath(pointer.trim(), path.join(root, ".git"))) return;
+  } catch {
+    // No entry (already reaped) or unreadable — nothing safe to remove.
+    return;
+  }
+  await removeDirBestEffort(adminDir);
+}
+
+/** Compare two paths for identity, tolerating git's forward slashes and Windows' case-insensitivity. */
+function samePath(a: string, b: string): boolean {
+  const norm = (p: string): string =>
+    process.platform === "win32" ? path.resolve(p).toLowerCase() : path.resolve(p);
+  return norm(a) === norm(b);
 }
 
 /**
@@ -517,7 +579,8 @@ export async function retryOnWindowsFileLock<T>(
  * `storytree-real-*` temp dirs. `fs.rm`'s own `maxRetries` handles the common case; the outer
  * {@link retryOnWindowsFileLock} covers a lock that outlives them. Best-effort by construction —
  * `force` swallows ENOENT and a final failure is swallowed, never thrown: teardown housekeeping
- * must never mask the build result (the next `git worktree prune` + OS temp cleanup reclaim it).
+ * must never mask the build result (OS temp cleanup, and for a registration the deliberate
+ * `storytree worktree prune` reaper, reclaim it).
  */
 async function removeDirBestEffort(dir: string): Promise<void> {
   try {

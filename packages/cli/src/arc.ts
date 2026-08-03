@@ -186,6 +186,32 @@ export function renderArcRollup(rollup: ArcRollup, pg: boolean): string[] {
     lines.push(`  - ${inc.date ?? "?"}${inc.pr !== undefined ? `  ${inc.pr}` : ""}  ${inc.outcome ?? ""}`.trimEnd());
   }
 
+  // The parked work the arc owns (ADR-0298 D1). Rendered as its OWN section immediately after the
+  // increment log and never merged into it: the two have opposite lifecycles, and a reader who saw
+  // them interleaved would read unbuilt intentions as things that happened (D4).
+  const parked = rollup.proposals.filter((p) => p.realized === undefined);
+  const realized = rollup.proposals.filter((p) => p.realized !== undefined);
+  lines.push("", `## Parked work  (${parked.length} parked, ${realized.length} realized)`);
+  if (rollup.proposals.length === 0) {
+    lines.push("  (none — this arc has no deferred work parked on it)");
+  }
+  for (const p of parked) {
+    lines.push(`  - ${p.id ?? "?"}  [parked ${(p.parked ?? "?").slice(0, 10)}]  — ${p.title ?? ""}`.trimEnd());
+    if (p.summary) lines.push(`      ${p.summary}`);
+    // The friction ids are printed because they are what the delivery ceiling joins on (D3): a
+    // reader wondering why an entry went red can follow the edge without querying the store.
+    if (p.frictionRefs !== undefined && p.frictionRefs.length > 0) {
+      lines.push(`      from friction: ${p.frictionRefs.join(", ")}`);
+    }
+  }
+  for (const p of realized) {
+    const r = p.realized ?? {};
+    lines.push(
+      `  - ${p.id ?? "?"}  [realized ${r.date ?? "?"}${r.pr !== undefined ? ` ${r.pr}` : ""}]  — ${p.title ?? ""}`.trimEnd(),
+    );
+    if (r.note) lines.push(`      ${r.note}`);
+  }
+
   // Derived children (D3: every edge lives on the CHILD; this view is a query, never authored).
   lines.push("", `## Plans  (derived: plan.arcRef → ${rollup.id})`);
   if (rollup.plans.length === 0) {
@@ -620,6 +646,235 @@ export async function arcIncrementAdd(
   };
 }
 
+/** The body fields a parked entry carries, in the retired `proposal` KIND_SPECS order (ADR-0298 D1). */
+export interface ArcProposalBodyOpts {
+  summary?: string | undefined;
+  motivation?: string | undefined;
+  change?: string | undefined;
+  scope?: string | undefined;
+  migration?: string | undefined;
+  readiness?: string | undefined;
+  risks?: string | undefined;
+}
+
+/** The five OPTIONAL body fields, in render order — the shared list the add verb copies through. */
+const OPTIONAL_PROPOSAL_FIELDS = ["change", "scope", "migration", "readiness", "risks"] as const;
+
+/**
+ * `storytree arc proposal add <arc-id> --id <slug> --title "…" --summary <text|@file>
+ * --motivation <text|@file> [--change|--scope|--migration|--readiness|--risks <text|@file>]
+ * [--friction <id>]... --pg` — PARK one unit of deferred work on the arc that owns it (ADR-0298 D1).
+ *
+ * This is the successor to `storytree proposal new`, and the difference is the whole decision: there
+ * is no way to park work without naming an arc, so a remedy can no longer arrive detached from the
+ * initiative that carries it. Charter one first (`storytree arc new`) when none fits — that stays
+ * first-class and free (D6); what is refused is a HOMELESS item, not a new arc.
+ *
+ * `parked` is stamped from the composition-root clock and is never caller-supplied: it is the
+ * delivery ceiling's comparison point (D3), so a caller able to backdate it could silence the very
+ * recurrences that select an entry. Re-validates the WHOLE arc, then upserts.
+ */
+export async function arcProposalAdd(
+  deps: ArcWriteDeps,
+  arcId: string | undefined,
+  opts: ArcProposalBodyOpts & { id?: string | undefined; title?: string | undefined; friction?: string[] | undefined },
+): Promise<Envelope> {
+  if (!deps.writable) return arcNotWritable("proposal add");
+  if (arcId === undefined) {
+    return {
+      ok: false,
+      body: 'arc proposal add needs an arc id: storytree arc proposal add <arc-id> --id <slug> --title "…" --summary <text|@file> --motivation <text|@file> --pg',
+      next: ["storytree arc list --pg", 'storytree arc new --title "…" --intent @file --end-state @file --pg'],
+    };
+  }
+  const entryId = opts.id?.trim();
+  const title = opts.title?.trim();
+  const summary = opts.summary?.trim();
+  const motivation = opts.motivation?.trim();
+  const missing = [
+    entryId === undefined || entryId === "" ? "--id <slug>" : "",
+    title === undefined || title === "" ? '--title "…"' : "",
+    summary === undefined || summary === "" ? "--summary <text|@file>" : "",
+    motivation === undefined || motivation === "" ? "--motivation <text|@file>" : "",
+  ].filter((s) => s !== "");
+  if (missing.length > 0 || entryId === undefined || title === undefined || summary === undefined || motivation === undefined) {
+    return {
+      ok: false,
+      body:
+        `arc proposal add needs ${missing.join(", ")}.\n` +
+        "`--motivation` is required for the same reason `friction new` demands evidence: a parked entry with no stated cost of NOT doing it is the thin filing this tier exists to prevent (long prose: --field @path reads from a file).",
+      next: [`storytree arc show ${arcId} --pg`],
+    };
+  }
+
+  const found = await loadArcForWrite(deps, arcId);
+  if ("error" in found) return found.error;
+  const base = found.doc;
+
+  const prior = Array.isArray(base["proposals"]) ? [...(base["proposals"] as unknown[])] : [];
+  // A duplicate id inside one arc would make `arc proposal realize --id` ambiguous, so it is refused
+  // rather than resolved by a first-match rule nobody would predict.
+  const clash = prior.some(
+    (p) => typeof p === "object" && p !== null && (p as Record<string, unknown>)["id"] === entryId,
+  );
+  if (clash) {
+    return {
+      ok: false,
+      body: `arc ${arcId} already carries a parked entry "${entryId}" — ids are unique within an arc so \`arc proposal realize --id\` is unambiguous.`,
+      next: [`storytree arc show ${arcId} --pg`],
+    };
+  }
+
+  const frictionRefs = (opts.friction ?? []).map((f) => f.trim()).filter((f) => f !== "");
+  const entry: Record<string, unknown> = {
+    id: entryId,
+    title,
+    parked: deps.now,
+    summary,
+    motivation,
+  };
+  for (const field of OPTIONAL_PROPOSAL_FIELDS) {
+    const v = opts[field]?.trim();
+    if (v !== undefined && v !== "") entry[field] = v;
+  }
+  if (frictionRefs.length > 0) entry["frictionRefs"] = frictionRefs;
+
+  base["proposals"] = [...prior, entry];
+  base["updatedAt"] = deps.now;
+
+  let valid: unknown;
+  try {
+    valid = upcastAndValidate(base);
+  } catch (e) {
+    return {
+      ok: false,
+      body: `parking "${entryId}" would make arc "${arcId}" invalid:\n${(e as Error).message}`,
+      next: [`storytree arc show ${arcId} --pg`],
+    };
+  }
+  const saved = await deps.store.upsertDoc({ id: arcId, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
+  const parkedCount = (((valid as Record<string, unknown>)["proposals"] as unknown[]) ?? []).filter(
+    (p) => typeof p === "object" && p !== null && (p as Record<string, unknown>)["realized"] === undefined,
+  ).length;
+
+  // The obligation this write opens, stated where it is incurred rather than left to memory (the
+  // ADR-0239 D4 precedent). An entry with no `--friction` is unreachable by the recurrence ceiling
+  // and quiet forever — legitimate for work nobody filed friction about, and a silent gap otherwise,
+  // so it is named rather than hidden (ADR-0095: no silent caps).
+  const uncited =
+    frictionRefs.length === 0
+      ? "\n\nNOTE: no --friction given, so the delivery ceiling can never red this entry (it has no source to be reinforced). That is correct for work no friction item filed, and a gap otherwise."
+      : "";
+
+  return {
+    ok: true,
+    body:
+      `parked "${entryId}" on arc ${saved.id} — ${title}\n(${parkedCount} parked entr(ies) now.)` +
+      uncited,
+    next: [
+      `storytree arc show ${saved.id} --pg`,
+      ...(frictionRefs.length > 0
+        ? [
+            `storytree friction route ${frictionRefs[0]} --route tool --reason @<file> --arc ${saved.id} --pg`,
+          ]
+        : []),
+      `storytree arc proposal realize ${saved.id} --id ${entryId} --pr <ref> --pg   (when it lands)`,
+    ],
+  };
+}
+
+/**
+ * `storytree arc proposal realize <arc-id> --id <slug> [--pr <ref>] [--date <YYYY-MM-DD>]
+ * [--note <text|@file>] --pg` — mark a parked entry as LANDED (ADR-0298 D3/D4).
+ *
+ * This is the delivery ceiling's structural discharge, and it is deliberately cheap because it rides
+ * a step the closing leg already performs (ADR-0271: append the increment, release the claims). The
+ * retired tier's only discharge was a manual `friction --discharged-by` stamp, measured at 6-of-125
+ * and called a FLOOR precisely because it is expensive enough to skip.
+ *
+ * The entry is MARKED, never deleted: retiring a realized proposal left nothing behind but a
+ * retirement reason, whereas a realized entry sits next to the increment that discharged it.
+ */
+export async function arcProposalRealize(
+  deps: ArcWriteDeps,
+  arcId: string | undefined,
+  opts: { id?: string | undefined; pr?: string | undefined; date?: string | undefined; note?: string | undefined },
+): Promise<Envelope> {
+  if (!deps.writable) return arcNotWritable("proposal realize");
+  const entryId = opts.id?.trim();
+  if (arcId === undefined || entryId === undefined || entryId === "") {
+    return {
+      ok: false,
+      body: "arc proposal realize needs an arc id and --id <slug>: storytree arc proposal realize <arc-id> --id <slug> --pr <ref> --pg",
+      next: ["storytree arc list --pg"],
+    };
+  }
+  const found = await loadArcForWrite(deps, arcId);
+  if ("error" in found) return found.error;
+  const base = found.doc;
+
+  const prior = Array.isArray(base["proposals"]) ? [...(base["proposals"] as unknown[])] : [];
+  const idx = prior.findIndex(
+    (p) => typeof p === "object" && p !== null && (p as Record<string, unknown>)["id"] === entryId,
+  );
+  if (idx === -1) {
+    const known = prior
+      .map((p) => (typeof p === "object" && p !== null ? (p as Record<string, unknown>)["id"] : undefined))
+      .filter((s): s is string => typeof s === "string");
+    return {
+      ok: false,
+      body:
+        `arc ${arcId} carries no parked entry "${entryId}".` +
+        (known.length > 0 ? `\nparked here: ${known.join(", ")}` : "\n(this arc has no parked work.)"),
+      next: [`storytree arc show ${arcId} --pg`],
+    };
+  }
+  const entry = { ...(prior[idx] as Record<string, unknown>) };
+  if (entry["realized"] !== undefined) {
+    return {
+      ok: false,
+      body: `"${entryId}" on arc ${arcId} is already realized — realization is recorded once, like an increment.`,
+      next: [`storytree arc show ${arcId} --pg`],
+    };
+  }
+
+  const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
+  const pr = opts.pr?.trim();
+  const note = opts.note?.trim();
+  entry["realized"] = {
+    date,
+    ...(pr !== undefined && pr !== "" ? { pr } : {}),
+    ...(note !== undefined && note !== "" ? { note } : {}),
+  };
+  prior[idx] = entry;
+  base["proposals"] = prior;
+  base["updatedAt"] = deps.now;
+
+  let valid: unknown;
+  try {
+    valid = upcastAndValidate(base);
+  } catch (e) {
+    return {
+      ok: false,
+      body: `realizing "${entryId}" would make arc "${arcId}" invalid:\n${(e as Error).message}`,
+      next: [`storytree arc show ${arcId} --pg`],
+    };
+  }
+  const saved = await deps.store.upsertDoc({ id: arcId, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
+  const stillParked = (((valid as Record<string, unknown>)["proposals"] as unknown[]) ?? []).filter(
+    (p) => typeof p === "object" && p !== null && (p as Record<string, unknown>)["realized"] === undefined,
+  ).length;
+
+  return {
+    ok: true,
+    body: `realized "${entryId}" on arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}\n(${stillParked} still parked.)`,
+    next: [
+      `storytree arc increment add ${saved.id} --outcome @<file> --pr ${pr ?? "<ref>"} --pg   (the landing log)`,
+      `storytree arc show ${saved.id} --pg`,
+    ],
+  };
+}
+
 /**
  * `storytree arc close <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` — the
  * ONE closing verb (ADR-0239 D2): it appends the terminal increment AND sets `lifecycle: closed` in
@@ -725,6 +980,20 @@ export function arcHelp(): Envelope {
       "  storytree arc edit <id> [--intent <text|@file>] [--end-state <text|@file>] --pg",
       "  storytree arc increment add <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
       "        APPEND one landing to the increment log (ADR-0183 D1) — the merge-ceremony residue.",
+      "",
+      "park deferred work ON the arc that owns it (ADR-0298 — the retired `proposal` kind's successor):",
+      '  storytree arc proposal add <arc-id> --id <slug> --title "..." --summary <text|@file>',
+      "        --motivation <text|@file> [--change|--scope|--migration|--readiness|--risks <text|@file>]",
+      "        [--friction <id>]... --pg",
+      "        PARK one decided-but-unbuilt unit of work. There is no way to park without naming an arc:",
+      "        that is the decision, not an inconvenience — charter one first (`arc new`) when none fits.",
+      "        `--friction <id>` (repeatable) is the DELIVERY CEILING'S JOIN: the entry goes RED on a later",
+      "        session's gate once one of those friction items is reinforced after this entry was parked.",
+      "        An entry with no --friction can never red, and the command says so.",
+      "  storytree arc proposal realize <arc-id> --id <slug> [--pr <ref>] [--date] [--note <text|@file>] --pg",
+      "        Mark a parked entry LANDED — the ceiling's discharge, run in the closing leg beside",
+      "        `increment add`. The entry is MARKED, never deleted, so it sits next to the increment.",
+      "",
       "  storytree arc close <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
       "        The terminal increment AND lifecycle: closed, in one write (ADR-0239 D2). --outcome is",
       "        required — an arc never closes without prose stating the end-state condition it met, and",

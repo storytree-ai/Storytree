@@ -292,6 +292,39 @@ test("createBuildWorktree addDeps seam: the injected dep-adder runs AFTER instal
   );
 });
 
+test("teardown drops ONLY its own registration — never a repo-global sweep that orphans a concurrent sibling", async () => {
+  // The bug this pins: teardown used to end with a repo-global `git worktree prune`. `git worktree
+  // add` claims its admin dir with mkdir a moment before it writes the files that make prune skip
+  // it, so a prune from ANY concurrent process deletes the entry of a worktree mid-`add` — and that
+  // process dies with `fatal: not a git repository: (NULL)` on its next git command. It bit real
+  // sessions because the orchestrator suite runs two worktree-cutting files in parallel and every
+  // session on a box shares one `.git`. A fixture repo, never this one (branch/worktree refs).
+  const fixture = await fixtureRepo();
+  const siblingParent = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-sibling-"));
+  const siblingRoot = path.join(siblingParent, "wt");
+  try {
+    await git(["worktree", "add", "--detach", siblingRoot, fixture.sha], fixture.root);
+    const siblingAdmin = (await git(["rev-parse", "--absolute-git-dir"], siblingRoot)).trim();
+    // Registered, but its checkout is not on disk — the exact shape of a worktree another process
+    // is mid-`add` on, and precisely what `git worktree prune` deletes.
+    await fs.rm(siblingParent, { recursive: true, force: true, maxRetries: 5 });
+    await fs.access(siblingAdmin);
+
+    const wt = await createBuildWorktree(fixture.root);
+    const ownAdmin = (await git(["rev-parse", "--absolute-git-dir"], wt.root)).trim();
+    await wt.remove();
+
+    // Its OWN registration and checkout are gone — teardown still fully cleans up after itself.
+    await assert.rejects(fs.access(ownAdmin), "teardown must drop its own worktree registration");
+    await assert.rejects(fs.access(wt.root));
+    // The sibling's survived: no global sweep ran.
+    await fs.access(siblingAdmin);
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true, maxRetries: 5 });
+    await fs.rm(siblingParent, { recursive: true, force: true, maxRetries: 5 });
+  }
+});
+
 test("runWorktreeTypecheck / runRegressionSuite observe green/red by exit code only (offline node -e)", async () => {
   // The same honest observation the gate makes — exit 0 is the only green channel. Offline by
   // construction: the command IS the seam (any file+argv), so a `node -e` stands in for tsc/pnpm.

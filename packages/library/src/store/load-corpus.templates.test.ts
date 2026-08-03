@@ -11,13 +11,13 @@ import { libraryTemplates } from "../templates.js";
  * `knowledge.json` and the in-process `libraryTemplates()`; no DB, no API key), so a half-done
  * re-home that silently dropped the templates fails here.
  */
-test("loadCorpus seeds all 13 templates (re-homed from assets.json) plus the knowledge units", async () => {
+test("loadCorpus seeds all 12 templates (re-homed from assets.json) plus the knowledge units", async () => {
   const store = new InMemoryStore();
   const result = await loadCorpus(store);
 
   const templates = libraryTemplates();
   assert.equal(result.templates, templates.length, "every library template is loaded");
-  assert.equal(result.templates, 13, "the 13 canonical templates are loaded");
+  assert.equal(result.templates, 12, "the 12 canonical templates are loaded (13 until ADR-0298 retired `proposal`)");
   assert.ok(result.knowledge > 0, "the structured knowledge units are still loaded");
 
   for (const tpl of templates) {

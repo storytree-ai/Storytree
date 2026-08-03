@@ -1,6 +1,6 @@
 ---
 status: proposed
-amends: [168, 287]
+amends: [168, 298]
 ---
 # ADR-0297: The Library friction routes get a delivery backstop or an explicit exemption
 
@@ -15,7 +15,8 @@ taken. The owner ratifies through the existing flow.
 ## Context
 
 ADR-0168 D2 defines the routed lifecycle stage for EVERY friction route as *route set, output cited
-in `references`*. ADR-0287 D1 gave that requirement a mechanical fence for exactly one route: routing
+in `references`*. ADR-0287 D1 — now ADR-0298 D2 — gave that requirement a mechanical fence for exactly
+one route: routing
 to `tool` is refused unless the item cites a live `proposal`. The other seven routes accept any
 `--reason` string and require no artifact to exist.
 
@@ -29,7 +30,8 @@ Verified in source on this pass rather than taken from the friction item's prose
   the corresponding Library artifact was written. Twenty-three `check-*.ts` files were swept; the
   only friction-relevant hit is `check-friction-drain.ts` reading `route` to classify open-vs-archived
   for the count/age ceiling. It never checks what the route points at.
-- `check:proposal-drain` (ADR-0287 D3) is structurally scoped to `kind: "proposal"` joined against
+- `check:arc-proposal-drain` (ADR-0287 D3, carried onto the arc-borne shape by ADR-0298 D3) is
+  structurally scoped to the `tool` route's parked arc entries, joined against
   friction `references`, and only the `tool` route ever attaches that citation — so it is reachable
   only through `tool`. There is no Library-route equivalent.
 
@@ -96,7 +98,8 @@ The options, stated so the owner picks rather than reviews:
   artifact is cited. Strongest, and structurally impossible for `edit-existing` as written, since the
   target pre-exists. Would need a distinct test for that route (for example, the target's `updatedAt`
   advancing past the routing).
-- **(b) Symmetry with ADR-0287 D3 — a recurrence-driven delivery gate.** Mirror `check:proposal-drain`:
+- **(b) Symmetry with ADR-0287 D3 — a recurrence-driven delivery gate.** Mirror
+  `check:arc-proposal-drain`:
   red only when a Library-routed item gains a `reinforcedBy` dated after its routing, i.e. the trap
   demonstrably bit someone again. No tunable ceiling to raise; fails in the quiet direction, which
   ADR-0287 already accepted as a known risk.
@@ -140,8 +143,8 @@ separately filed.
 
 - `only-the-tool-route-is-fenced-so-a-library-route-archives-unbuilt` (the source friction item; live store, `friction` kind)
 - [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) — the friction feedback loop; D2's routed lifecycle and D5's route table. Accepted, load-bearing. AMENDED here: D5's route table gains a delivery obligation, or an explicit exemption, for the five Library routes.
-- [ADR-0287](0287-the-tool-route-emits-a-proposal-and-the-proposal-tier-carrie.md) — the `tool` route emits a proposal; D1 the emission fence, D3 `check:proposal-drain`, D4 the backfill (built 2026-08-03). Accepted, load-bearing via its `amends` edge to 0168. AMENDED here: its deliberate `tool`-only scoping is revisited against a re-measured base rate.
+- [ADR-0298](0298-proposals-fold-into-arcs-the-deferred-work-tier-is-an-arc-en.md) — the `tool` route's emission, which SUPERSEDED [ADR-0287](0287-the-tool-route-emits-a-proposal-and-the-proposal-tier-carrie.md) on 2026-08-03 by retiring the `proposal` kind and folding deferred work onto the arc that owns it. D2 is the emission fence (an arc that resolves AND carries a parked entry naming the item), D3 the delivery ceiling `check:arc-proposal-drain` (ADR-0287 D3's rule preserved verbatim, only the counted object moved). AMENDED here: the deliberate `tool`-only scoping of that fence is revisited against a re-measured base rate. **This ADR's fork is UNAFFECTED by the fold** — it asks whether the five LIBRARY routes get a backstop, and none of them emitted a proposal either before or after; option (b) simply now mirrors an arc-borne ceiling rather than a kind-borne one.
 - [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — why this is born `proposed`: design-time alignment IS ratification, and batch adjudication is not that.
 - [ADR-0290](0290-the-corpus-content-ceiling-measures-what-the-branch-authored.md) — the precedent that a ceiling must charge by authorship, the cost to weigh before adding one.
 - `asset:friction-adjudication` (the procedure), `asset:friction-justification-bar` (the floor), `asset:meter-fail-closed-caps-in-real-cost` (the cost rule this fork turns on).
-- `packages/cli/src/friction.ts` (`routeFriction`, the `tool`-only citation refusal); `packages/library/src/knowledge.ts` (`FrictionRoute`, the 8-member enum); `packages/cli/src/proposal-drain.ts` (the `tool`-only drain).
+- `packages/cli/src/friction.ts` (`routeFriction`, the `tool`-only citation refusal); `packages/library/src/knowledge.ts` (`FrictionRoute`, the 8-member enum); `packages/cli/src/arc-proposal-drain.ts` (the `tool`-only drain).

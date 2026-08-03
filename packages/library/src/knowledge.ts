@@ -6,7 +6,7 @@ import { Markdown } from "./schema.js";
  *
  * A knowledge unit is a curated markdown body whose structure is fixed per kind
  * (definition / principle / pattern / guardrail / techstack / process / open-question / agent /
- * proposal / friction / arc / plan).
+ * friction / arc / plan).
  * Round-1
  * authored every body against a per-kind template; Phase 1 makes that template the
  * *derived* artifact rather than the source.
@@ -65,7 +65,8 @@ export type KnowledgeKind =
   | "process"
   | "open-question"
   | "agent"
-  | "proposal"
+  // `proposal` was RETIRED by ADR-0298 — the deferred-work tier is an entry ON an arc
+  // ({@link ArcProposal} / `Arc.proposals`), never a kind of its own. Do not re-add it.
   | "friction"
   | "arc"
   | "plan"
@@ -397,74 +398,16 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
         "_What it surfaces rather than deciding — the boundary where it stops and routes to the human outer loop or the owning surface. Omit if it never escalates._",
     },
   ],
-  // A `proposal` captures the INTENT of a change worth doing later — a rename, a
-  // migration, a restructuring — so it can be parked in the library now and "kicked
-  // off when ready" (typically a quiet window with no active sessions). It is forward-
-  // looking like an open-question, but it is NOT a question: the decision is made, only
-  // the EXECUTION is deferred. The fields carry everything the executing session needs:
-  // the before→after change, the blast radius, the ordered migration steps, and the
-  // readiness preconditions that say it is safe to start.
-  proposal: [
-    {
-      field: "summary",
-      lead: true,
-      heading: "**The proposal.**",
-      required: true,
-      placeholder: "_The change being proposed, in one sentence — the decision is made; execution is deferred._",
-    },
-    {
-      field: "motivation",
-      lead: false,
-      heading: "Motivation",
-      required: true,
-      placeholder:
-        "_What prompts this — the friction it removes or the improvement it buys, and the cost of NOT doing it._",
-    },
-    {
-      field: "change",
-      lead: false,
-      heading: "The change",
-      required: true,
-      placeholder:
-        "_What concretely changes — the before→after mapping (renames, moved surfaces, new vocabulary). Name the old and the new term for each, exactly._",
-    },
-    {
-      field: "scope",
-      lead: false,
-      heading: "Scope",
-      required: true,
-      placeholder:
-        "_The blast radius: the surfaces, files, identifiers, and stored data the migration touches — and, explicitly, what it leaves UNCHANGED (the non-goals)._",
-    },
-    {
-      field: "migration",
-      lead: false,
-      heading: "Migration plan",
-      required: true,
-      placeholder:
-        "_The ordered steps to execute when this is kicked off — each step names the command, surface, or file it changes and how it is verified green._",
-    },
-    {
-      field: "readiness",
-      lead: false,
-      heading: "Readiness",
-      required: true,
-      placeholder:
-        "_The preconditions for safely running it (e.g. no active sessions on the noticeboard, the DB quiet, the gate green) and how a session knows it is time to start._",
-    },
-    {
-      field: "risks",
-      lead: false,
-      heading: "Risks",
-      required: false,
-      placeholder:
-        "_What could go wrong and the mitigation — half-applied renames, dangling references, data loss. Omit only if genuinely low-risk._",
-    },
-  ],
+  // NOTE: there is no `proposal` entry here. ADR-0298 retired the kind — deferred, decided-but-
+  // unbuilt work is an entry ON the arc that owns it ({@link ArcProposal} / `Arc.proposals`), which
+  // carries this table's fields verbatim as schema-level metadata rather than a rendered body.
+  //
   // A `friction` item is the employees' upward voice channel (ADR-0168 D2): a session files WHAT
   // FOUGHT IT — with evidence, fail-closed — and a dedicated adjudicator later routes it. It joins
-  // `open-question` and `proposal` in the Library's LIFECYCLE tier (transient-by-design, mandatory
-  // drain): raw friction never graduates as itself; only its durable essence is extracted into
+  // `open-question` in the Library's LIFECYCLE tier (transient-by-design, mandatory drain) — ADR-0168
+  // D2 named a third member, `proposal`, which ADR-0298 retired into `Arc.proposals`; the drain it
+  // carried did not go with it (see {@link ArcProposal}). Raw friction never graduates as itself;
+  // only its durable essence is extracted into
   // 'able' artifacts (ADR-0095 D5). Capture never classifies — there is no severity enum and no
   // taxonomy field; `route` is set only at adjudication (see FrictionRoute below, enum-fenced via
   // `.extend()`). The structured lifecycle fields (`provenance` / `reinforcedBy`) live OUTSIDE this
@@ -675,7 +618,13 @@ export const SEED_SCOPE_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>([
   "techstack",
   "process",
   "open-question",
-  "proposal",
+  // `proposal` used to sit here. ADR-0298 retired the kind, and its successor — a parked entry on an
+  // arc — is deliberately NOT seed-scope: `arc` is already OUT (initiative state and pointers, "not
+  // durable guidance", ADR-0183 D1), so deferred work stops generating seed traffic entirely. That
+  // closes a measured failure surface rather than merely tidying one: because proposals were
+  // seed-scope, a branch with a stale seed had `sync-corpus` resurrect proposals their owners had
+  // deleted (16 resurrections in one session, 2026-08-03), and `check:corpus-content` then labelled
+  // the resurrections YOURS and printed an export that would have made them permanent.
 ]);
 
 /**
@@ -844,6 +793,103 @@ export const ArcIncrement = z
 export type ArcIncrement = z.infer<typeof ArcIncrement>;
 
 /**
+ * The landing that discharged a parked entry (ADR-0298 D3/D4). Absent while the entry is parked;
+ * set in the SAME closing leg that appends the arc's `ArcIncrement` (ADR-0271), which is what makes
+ * a realized entry cheap to record — it rides a step the merge ceremony already performs.
+ *
+ * This is the delivery ceiling's structural discharge. The retired `proposal` tier had only one:
+ * a manual `friction --discharged-by` stamp, which ADR-0287's own Context measured at 6-of-125 and
+ * called "a FLOOR, not a precise rate" because applying it is expensive and known-skipped.
+ */
+export const ArcProposalRealization = z
+  .object({
+    /** When the work landed (ISO date). */
+    date: z.string().min(1),
+    /** The landing PR / ref, when there is one (e.g. "#1123"). */
+    pr: z.string().min(1).optional(),
+    /** What actually shipped, when it differs from what was parked. */
+    note: z.string().min(1).optional(),
+  })
+  .strict();
+export type ArcProposalRealization = z.infer<typeof ArcProposalRealization>;
+
+/**
+ * One PARKED unit of work on an `arc` (ADR-0298 D1) — the successor to the retired `proposal` kind.
+ *
+ * It captures the INTENT of a change worth doing later so it can be parked now and kicked off when
+ * ready. Forward-looking like an `open-question`, but NOT a question: **the decision is made, only
+ * the EXECUTION is deferred.** The body fields below are the retired kind's `KIND_SPECS` table
+ * carried over verbatim, so nothing a proposal could say has nowhere to go.
+ *
+ * WHY IT LIVES ON THE ARC AND NOT AS A KIND (ADR-0298 Context). `proposal` was change-sized and
+ * `arc` initiative-sized, but both answered "what is decided and not yet built" — and nothing said
+ * which a session should reach for, so sessions reached for the cheaper one and the remedy arrived
+ * with no owning initiative. Measured 2026-08-03: 8 live proposals, 0 reachable from any arc, and
+ * all 8 belonging to an arc that existed or should have.
+ *
+ * NOT AN INCREMENT, and the pair is the point (D4). {@link ArcIncrement} is appended AT LANDING and
+ * is the arc's durable residue — it must never hold unbuilt work, or it stops being evidence. This
+ * is appended AT PARKING, mutated once (`realized`), and prunable after. A parked entry that gets
+ * built BECOMES an increment, and the arc holding both halves is what makes a deferred intention
+ * traceable to the landing that discharged it — which no proposal ever was, since realizing one was
+ * a delete whose only residue was a retirement reason.
+ *
+ * SURFACE IS ALLOWED HERE, and that is a narrowing of ADR-0183 D4 rather than a breach of it (D5).
+ * D4 permits implementation surface in "anchored, disposable artifacts" and forbids it in durable
+ * undated ones. An entry passes both halves of that test: `parked` is REQUIRED (and load-bearing for
+ * the delivery ceiling, so it can never be quietly omitted), and the entry is realized and prunable
+ * the moment the work lands. The arc's own `intent` / `endState` still carry no file lists.
+ *
+ * Schema-level metadata like `increments` / `reinforcedBy` — never a KIND_SPECS body section, so it
+ * does not round-trip through markdown.
+ */
+export const ArcProposal = z
+  .object({
+    /**
+     * A slug unique WITHIN the arc, so the entry is addressable by `arc proposal realize <arc>
+     * --id <slug>` and nameable in a gate report.
+     */
+    id: z.string().min(1),
+    /** One line naming the change — what a reader sees in a list. */
+    title: z.string().min(1),
+    /**
+     * When it was parked (ISO timestamp). **The delivery ceiling's comparison point** (ADR-0298 D3),
+     * which is why it is required and why it is per-ENTRY: an arc long outlives any one parked item,
+     * so the arc's own age says nothing about when this remedy was deferred.
+     */
+    parked: z.string().min(1),
+    /**
+     * The source friction ids this entry remedies — **the delivery ceiling's join** (ADR-0298 D2).
+     * The friction item separately cites the ARC in its `references` (ADR-0168 D2's routed
+     * lifecycle), but that citation names only the arc; an arc may carry many entries, so it cannot
+     * say which one a recurrence presses on. This can. ADR-0287 needed no such pointer because a
+     * proposal was 1:1 with its friction; an entry is not.
+     */
+    frictionRefs: z.array(z.string().min(1)).optional(),
+    /** The landing that discharged it. Absent ⇒ still parked, and still pressing. */
+    realized: ArcProposalRealization.optional(),
+
+    // ---- the retired `proposal` KIND_SPECS body, carried verbatim ----
+
+    /** The change being proposed, in one sentence — the decision is made; execution is deferred. */
+    summary: z.string().min(1),
+    /** What prompts this — the friction it removes, and the cost of NOT doing it. */
+    motivation: z.string().min(1),
+    /** The before→after mapping (renames, moved surfaces, new vocabulary), old and new named exactly. */
+    change: z.string().min(1).optional(),
+    /** The blast radius — surfaces, files, identifiers, stored data — and explicitly the non-goals. */
+    scope: z.string().min(1).optional(),
+    /** The ordered steps to execute when this is kicked off, each with how it is verified green. */
+    migration: z.string().min(1).optional(),
+    /** The preconditions for safely running it, and how a session knows it is time to start. */
+    readiness: z.string().min(1).optional(),
+    /** What could go wrong and the mitigation. */
+    risks: z.string().min(1).optional(),
+  })
+  .strict();
+export type ArcProposal = z.infer<typeof ArcProposal>;
+
+/**
  * A `plan`'s git anchor (ADR-0183 D2): the commit the choreography was planned against.
  * Consumption begins with a mechanical freshness check — git-log the paths the plan names since
  * `sha`; drift past threshold means re-plan, not repair. This is the proof tier's anchor /
@@ -954,7 +1000,6 @@ export const Agent = buildKindSchema("agent").extend({
   // precedent). Frontmatter-only metadata; the renderers read it, the body never does.
   model: AgentModel.optional(),
 });
-export const Proposal = buildKindSchema("proposal");
 // The `friction` kind (ADR-0168 D2) tightens THREE fields beyond its KIND_SPECS table via
 // `.extend()` (the `stepRefs`/`branchEdges` precedent — `.strict()` and the `kind` literal are
 // preserved): `route` is enum-fenced to the closed adjudication set (a body field, so it still
@@ -990,8 +1035,15 @@ export const Friction = buildKindSchema("friction").extend({
 // deferral: the arc-close write finally has a field to land in, so the `archived` half of that ADR's
 // arc row stops being unreachable by construction. The flip is never free — `storytree arc close`
 // writes it in the SAME atomic write as the terminal increment that justifies it (D2).
+// ...and, since ADR-0298 D1, a third: `proposals`, the PARKED work the arc owns — the successor to
+// the retired `proposal` kind. Same schema-level shape and same OPTIONAL rule as `increments`, so
+// every arc authored before the field validates unchanged and there is NO `CURRENT_SCHEMA_VERSION`
+// bump and no migration. Deliberately a SECOND array rather than a flag on `increments`: the two
+// have opposite lifecycles (appended at parking vs at landing) and conflating them would put unbuilt
+// work in the log that is supposed to be evidence of what happened (D4).
 export const Arc = buildKindSchema("arc").extend({
   increments: z.array(ArcIncrement).optional(),
+  proposals: z.array(ArcProposal).optional(),
   lifecycle: ArcLifecycle.default("active"),
 });
 // The `plan` kind (ADR-0183 D2/D3) carries three structured fields beyond its KIND_SPECS table:
@@ -1021,7 +1073,6 @@ export const Knowledge = z.discriminatedUnion("kind", [
   Process,
   OpenQuestion,
   Agent,
-  Proposal,
   Friction,
   Arc,
   Plan,
@@ -1037,7 +1088,6 @@ export type TechStack = z.infer<typeof TechStack>;
 export type Process = z.infer<typeof Process>;
 export type OpenQuestion = z.infer<typeof OpenQuestion>;
 export type Agent = z.infer<typeof Agent>;
-export type Proposal = z.infer<typeof Proposal>;
 export type Friction = z.infer<typeof Friction>;
 export type Arc = z.infer<typeof Arc>;
 export type Plan = z.infer<typeof Plan>;

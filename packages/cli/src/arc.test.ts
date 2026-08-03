@@ -14,6 +14,8 @@ import {
   arcIdFromTitle,
   arcIncrementAdd,
   arcNew,
+  arcProposalAdd,
+  arcProposalRealize,
   arcScopeOf,
   storyArcStamps,
   type ArcViewDeps,
@@ -812,6 +814,189 @@ test("an EMPTY arc list offers the scaffolder, not the hand-authoring path it re
     // Offline the honest first move is still "re-run with --pg" — arcs are live-canonical.
     const offline = await arcCommand("list", undefined, depsFor(new InMemoryStore(), fx, false));
     assert.deepEqual(offline.next, ["storytree arc list --pg"]);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+
+// ---------------------------------------------------------------------------
+// PARKED WORK on an arc (ADR-0298 D1) — the retired `proposal` kind's successor
+// ---------------------------------------------------------------------------
+
+/** The two required body fields, so each test states only what it is actually about. */
+const BODY = {
+  summary: "expand @path once, at the flag-parsing boundary",
+  motivation: "three verbs already re-opened the hole; a per-callsite fix re-opens it a fourth time",
+};
+
+test("arc proposal add PARKS one validated entry, stamping the ceiling's own date (ADR-0298 D1/D3)", async () => {
+  const store = await seededStore();
+  const res = await arcProposalAdd(writeDeps(store), "map-arc", {
+    id: "at-path-at-the-boundary",
+    title: "Expand @path at the flag boundary",
+    ...BODY,
+    scope: "packages/cli/src flag parsing, plus one stored-value regression test per prose flag",
+    friction: ["artifact-retire-reason-ignores-the-at-path-form"],
+  });
+  assert.equal(res.ok, true, res.body);
+  assert.match(res.body, /parked "at-path-at-the-boundary" on arc map-arc/);
+  assert.match(res.body, /\(1 parked entr\(ies\) now\.\)/);
+
+  const doc = (await store.getDoc("map-arc"))?.doc as { proposals: Array<Record<string, unknown>> };
+  assert.equal(doc.proposals.length, 1);
+  const entry = doc.proposals[0]!;
+  assert.equal(entry["id"], "at-path-at-the-boundary");
+  assert.equal(entry["summary"], BODY.summary);
+  assert.equal(entry["scope"], "packages/cli/src flag parsing, plus one stored-value regression test per prose flag");
+  assert.deepEqual(entry["frictionRefs"], ["artifact-retire-reason-ignores-the-at-path-form"]);
+
+  // `parked` comes from the COMPOSITION-ROOT CLOCK and is never caller-supplied: it is the delivery
+  // ceiling's comparison point, so a caller able to backdate it could silence the very recurrences
+  // that select the entry.
+  assert.equal(entry["parked"], NOW);
+  assert.equal(entry["realized"], undefined, "a freshly parked entry is not realized");
+
+  // The parked entry does NOT enter the increment log — the two lifecycles stay apart (D4).
+  assert.equal((doc as unknown as { increments: unknown[] }).increments.length, 2);
+});
+
+test("arc proposal add NAMES the gap when no --friction is given (ADR-0095: no silent caps)", async () => {
+  const store = await seededStore();
+  const res = await arcProposalAdd(writeDeps(store), "map-arc", {
+    id: "no-source",
+    title: "Work nobody filed friction about",
+    ...BODY,
+  });
+  assert.equal(res.ok, true, res.body);
+  // Legitimate, and therefore said out loud rather than hidden: with no source friction the
+  // recurrence ceiling can never reach this entry.
+  assert.match(res.body, /the delivery ceiling can never red this entry/);
+  const entry = ((await store.getDoc("map-arc"))?.doc as { proposals: Array<Record<string, unknown>> }).proposals[0]!;
+  assert.equal(entry["frictionRefs"], undefined);
+});
+
+test("arc proposal add refuses a DUPLICATE entry id within one arc (realize must stay unambiguous)", async () => {
+  const store = await seededStore();
+  const first = await arcProposalAdd(writeDeps(store), "map-arc", { id: "dup", title: "t", ...BODY });
+  assert.equal(first.ok, true, first.body);
+
+  const second = await arcProposalAdd(writeDeps(store), "map-arc", { id: "dup", title: "other", ...BODY });
+  assert.equal(second.ok, false);
+  assert.match(second.body, /already carries a parked entry "dup"/);
+  const doc = (await store.getDoc("map-arc"))?.doc as { proposals: unknown[] };
+  assert.equal(doc.proposals.length, 1, "the refused add wrote nothing");
+});
+
+test("arc proposal add refuses offline, without its required fields, and on a wrong kind", async () => {
+  const store = await seededStore();
+
+  const offline = await arcProposalAdd(writeDeps(store, false, false), "map-arc", { id: "x", title: "t", ...BODY });
+  assert.equal(offline.ok, false);
+  assert.match(offline.body, /writes to the shared store/);
+
+  // `--motivation` is required for the same reason `friction new` demands evidence — a thin filing
+  // is the failure the tier exists to prevent, so it is refused at the verb, not reviewed later.
+  const thin = await arcProposalAdd(writeDeps(store), "map-arc", { id: "x", title: "t", summary: "s" });
+  assert.equal(thin.ok, false);
+  assert.match(thin.body, /--motivation <text\|@file>/);
+
+  const noId = await arcProposalAdd(writeDeps(store), "map-arc", { title: "t", ...BODY });
+  assert.equal(noId.ok, false);
+  assert.match(noId.body, /--id <slug>/);
+
+  const wrongKind = await arcProposalAdd(writeDeps(store), "map-arc-plan-1", { id: "x", title: "t", ...BODY });
+  assert.equal(wrongKind.ok, false);
+  assert.match(wrongKind.body, /is a plan, not an arc/);
+
+  const missing = await arcProposalAdd(writeDeps(store), "no-such-arc", { id: "x", title: "t", ...BODY });
+  assert.equal(missing.ok, false);
+  assert.match(missing.body, /no arc "no-such-arc"/);
+});
+
+test("arc proposal realize MARKS the entry landed — it is never deleted (ADR-0298 D3/D4)", async () => {
+  const store = await seededStore();
+  await arcProposalAdd(writeDeps(store), "map-arc", { id: "shipped", title: "The remedy", ...BODY });
+
+  const res = await arcProposalRealize(writeDeps(store), "map-arc", { id: "shipped", pr: "#1130", date: "2026-08-04" });
+  assert.equal(res.ok, true, res.body);
+  assert.match(res.body, /realized "shipped" on arc map-arc — 2026-08-04 {2}#1130/);
+  assert.match(res.body, /\(0 still parked\.\)/);
+
+  const doc = (await store.getDoc("map-arc"))?.doc as { proposals: Array<Record<string, unknown>> };
+  assert.equal(doc.proposals.length, 1, "realizing MARKS the entry rather than removing it");
+  assert.deepEqual(doc.proposals[0]!["realized"], { date: "2026-08-04", pr: "#1130" });
+  // The body it was parked with survives the realization — the record of what was intended stays
+  // next to the record of what landed.
+  assert.equal(doc.proposals[0]!["summary"], BODY.summary);
+
+  // It offers the increment as the next step: realizing and logging the landing are one ceremony.
+  assert.ok((res.next ?? []).some((n) => n.includes("arc increment add map-arc")));
+});
+
+test("arc proposal realize refuses a missing entry, a SECOND realization, and offline", async () => {
+  const store = await seededStore();
+  await arcProposalAdd(writeDeps(store), "map-arc", { id: "one", title: "t", ...BODY });
+
+  const ghost = await arcProposalRealize(writeDeps(store), "map-arc", { id: "never-parked" });
+  assert.equal(ghost.ok, false);
+  assert.match(ghost.body, /carries no parked entry "never-parked"/);
+  assert.match(ghost.body, /parked here: one/, "the refusal names what IS parked");
+
+  const first = await arcProposalRealize(writeDeps(store), "map-arc", { id: "one", pr: "#1" });
+  assert.equal(first.ok, true, first.body);
+  // Realization is recorded ONCE, like an increment — a second call must not overwrite the landing.
+  const again = await arcProposalRealize(writeDeps(store), "map-arc", { id: "one", pr: "#2" });
+  assert.equal(again.ok, false);
+  assert.match(again.body, /is already realized/);
+  const doc = (await store.getDoc("map-arc"))?.doc as { proposals: Array<Record<string, unknown>> };
+  assert.deepEqual(doc.proposals[0]!["realized"], { date: "2026-07-20", pr: "#1" });
+
+  const offline = await arcProposalRealize(writeDeps(store, false, false), "map-arc", { id: "one" });
+  assert.equal(offline.ok, false);
+  assert.match(offline.body, /writes to the shared store/);
+});
+
+test("arc show renders parked and realized work as its OWN section, never inside the increment log", async () => {
+  const store = await seededStore();
+  await arcProposalAdd(writeDeps(store), "map-arc", {
+    id: "still-parked",
+    title: "Not built yet",
+    ...BODY,
+    friction: ["some-friction-item"],
+  });
+  await arcProposalAdd(writeDeps(store), "map-arc", { id: "done", title: "Built", ...BODY });
+  await arcProposalRealize(writeDeps(store), "map-arc", { id: "done", pr: "#1130" });
+
+  const fx = diskFixture();
+  try {
+    const shown = await arcCommand("show", "map-arc", depsFor(store, fx));
+    assert.equal(shown.ok, true, shown.body);
+    assert.match(shown.body, /## Parked work {2}\(1 parked, 1 realized\)/);
+    assert.match(shown.body, /still-parked {2}\[parked 2026-07-20\] {2}— Not built yet/);
+    // The friction ids print, because they are what the ceiling joins on — a reader wondering why an
+    // entry went red can follow the edge without querying the store.
+    assert.match(shown.body, /from friction: some-friction-item/);
+    assert.match(shown.body, /done {2}\[realized 2026-07-20 #1130\] {2}— Built/);
+
+    // The separation D4 insists on: unbuilt work never appears in the landing log.
+    const incrementLog = shown.body.slice(
+      shown.body.indexOf("## Increment log"),
+      shown.body.indexOf("## Parked work"),
+    );
+    assert.doesNotMatch(incrementLog, /still-parked/, "parked work is not a landing");
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc show says so plainly when an arc carries no parked work", async () => {
+  const store = await seededStore();
+  const fx = diskFixture();
+  try {
+    const shown = await arcCommand("show", "map-arc", depsFor(store, fx));
+    assert.match(shown.body, /## Parked work {2}\(0 parked, 0 realized\)/);
+    assert.match(shown.body, /\(none — this arc has no deferred work parked on it\)/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }

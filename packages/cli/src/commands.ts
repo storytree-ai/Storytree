@@ -33,14 +33,18 @@ import type { SeedEntry } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
-import { arcCommand, arcHelp, arcNew, arcEdit, arcIncrementAdd, arcClose, arcScopeOf, type ArcWriteDeps } from "./arc.js";
 import {
-  proposalHelp,
-  proposalList,
-  proposalNew,
-  type ProposalBody,
-  type ProposalWriteDeps,
-} from "./proposal.js";
+  arcCommand,
+  arcHelp,
+  arcNew,
+  arcEdit,
+  arcIncrementAdd,
+  arcClose,
+  arcProposalAdd,
+  arcProposalRealize,
+  arcScopeOf,
+  type ArcWriteDeps,
+} from "./arc.js";
 import { planCommand, planHelp, type CountCommitsSince } from "./plan.js";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import { CLI_AREAS } from "./cli-areas.js";
@@ -192,7 +196,6 @@ const KIND_ORDER = [
   "agent",
   "arc",
   "plan",
-  "proposal",
   "open-question",
   "friction",
   "template",
@@ -235,9 +238,9 @@ function groupByKind(docs: readonly StoredDoc[]): Map<string, StoredDoc[]> {
  * SCHEMA-derived, because the population is not the authority on what exists. Deriving the set from
  * rows present erased an empty tier twice over: a kind added to the schema stayed unlistable for
  * exactly as long as it took someone to write its first row — the window in which an agent orienting
- * on the new kind most needs to see it — and a lifecycle tier draining to zero, which for `proposal`
- * is the SUCCESS state, read as `unknown category`. Both are false: an empty mandatory-drain tier is
- * a FINDING, and the instrument has to report it rather than deny it.
+ * on the new kind most needs to see it — and a lifecycle tier draining to zero, which for the retired
+ * `proposal` kind was the SUCCESS state, read as `unknown category`. Both are false: an empty
+ * mandatory-drain tier is a FINDING, and the instrument has to report it rather than deny it.
  *
  * The UNION keeps store-only kinds listable: `template` artifacts (ADR-0210) carry a kind the
  * knowledge union does not name and they list today, so the change is strictly widening — every
@@ -2073,7 +2076,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     route?: string;
     "discharged-by"?: string;
     "re-route"?: boolean;
-    proposal?: string;
+    friction?: string[];
     summary?: string;
     motivation?: string;
     scope?: string;
@@ -2171,12 +2174,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         // purpose. Without it a foreign route refuses, so a concurrent board drain cannot silently
         // destroy a peer's `routeReason` (measured: 4 items, ~22k chars, 2026-07-30).
         "re-route": { type: "boolean", default: false },
-        // `storytree friction route --route tool --proposal <id>` — the ADR-0287 D1 emission: the
-        // `proposal` artifact the tool route produces, cited in the item's `references`.
-        proposal: { type: "string" },
-        // `storytree proposal new` — the six required body fields + optional risks (long prose via
-        // @path). `--change` is NOT here: it is already declared (multiple) for `storytree drift`, and
-        // the proposal area reads that same array, joining repeats into paragraphs.
+        // `storytree arc proposal add --friction <id>` (repeatable) — the source friction an entry
+        // remedies, and the DELIVERY CEILING'S JOIN (ADR-0298 D2/D3). `storytree friction route
+        // --route tool --arc <id>` names the owning arc on the other side of the same edge; it reuses
+        // the `arc` flag declared above rather than the retired `--proposal`.
+        friction: { type: "string", multiple: true },
+        // `storytree arc proposal add` — the parked entry's body fields (long prose via @path).
+        // `--change` is NOT here: it is already declared (multiple) above for `storytree drift`, and
+        // the arc-proposal path reads that same array, joining repeats into paragraphs.
         summary: { type: "string" },
         motivation: { type: "string" },
         scope: { type: "string" },
@@ -2628,7 +2633,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // friction) and, for `new`, for hand-authoring the doc JSON (`no-arc-new-scaffolder-verb`). Long
     // prose (--intent/--end-state/--outcome/--description) accepts `@path` to read from a file so
     // shell quoting never mangles multi-line values into a literal `\n`.
-    if (sub === "new" || sub === "edit" || sub === "increment" || sub === "close") {
+    if (sub === "new" || sub === "edit" || sub === "increment" || sub === "close" || sub === "proposal") {
       const writeDeps: ArcWriteDeps = {
         store: deps.store,
         writable: deps.writable === true,
@@ -2636,16 +2641,75 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         now: new Date().toISOString(),
         pg: values.pg === true,
       };
-      let resolved: { intent?: string; endState?: string; outcome?: string; description?: string };
+      let resolved: {
+        intent?: string;
+        endState?: string;
+        outcome?: string;
+        description?: string;
+        summary?: string;
+        motivation?: string;
+        change?: string;
+        scope?: string;
+        migration?: string;
+        readiness?: string;
+        risks?: string;
+        note?: string;
+      };
       try {
         resolved = {
           ...(values.intent !== undefined ? { intent: await resolveAtPathValue(values.intent) } : {}),
           ...(values["end-state"] !== undefined ? { endState: await resolveAtPathValue(values["end-state"]) } : {}),
           ...(values.outcome !== undefined ? { outcome: await resolveAtPathValue(values.outcome) } : {}),
           ...(values.description !== undefined ? { description: await resolveAtPathValue(values.description) } : {}),
+          // The parked-entry body (ADR-0298 D1). Every one goes through the SAME `@path` resolver as
+          // the fields above — these are exactly the long-prose flags a scope paragraph arrives in.
+          ...(values.summary !== undefined ? { summary: await resolveAtPathValue(values.summary) } : {}),
+          ...(values.motivation !== undefined ? { motivation: await resolveAtPathValue(values.motivation) } : {}),
+          ...(Array.isArray(values.change) && values.change.length > 0
+            ? { change: (await Promise.all(values.change.map((c) => resolveAtPathValue(c)))).join("\n\n") }
+            : {}),
+          ...(values.scope !== undefined ? { scope: await resolveAtPathValue(values.scope) } : {}),
+          ...(values.migration !== undefined ? { migration: await resolveAtPathValue(values.migration) } : {}),
+          ...(values.readiness !== undefined ? { readiness: await resolveAtPathValue(values.readiness) } : {}),
+          ...(values.risks !== undefined ? { risks: await resolveAtPathValue(values.risks) } : {}),
+          ...(values.note !== undefined ? { note: await resolveAtPathValue(values.note) } : {}),
         };
       } catch (e) {
         return { ok: false, body: `could not read a @file value: ${(e as Error).message}`, next: ["storytree arc --help"] };
+      }
+
+      // `arc proposal add|realize <arc-id>` — park deferred work ON the arc that owns it, and mark it
+      // landed (ADR-0298 D1/D3). `--id` is declared `multiple` (it is `export-corpus`'s repeatable
+      // scope flag), so the entry slug is its first value.
+      if (sub === "proposal") {
+        const entryId = Array.isArray(values.id) ? values.id[0] : undefined;
+        if (third === "realize") {
+          return arcProposalRealize(writeDeps, fourth, {
+            ...(entryId !== undefined ? { id: entryId } : {}),
+            ...(values.pr !== undefined ? { pr: values.pr } : {}),
+            ...(values.date !== undefined ? { date: values.date } : {}),
+            ...(resolved.note !== undefined ? { note: resolved.note } : {}),
+          });
+        }
+        if (third === "add") {
+          return arcProposalAdd(writeDeps, fourth, {
+            ...(entryId !== undefined ? { id: entryId } : {}),
+            ...(values.title !== undefined ? { title: values.title } : {}),
+            ...(resolved.summary !== undefined ? { summary: resolved.summary } : {}),
+            ...(resolved.motivation !== undefined ? { motivation: resolved.motivation } : {}),
+            ...(resolved.change !== undefined ? { change: resolved.change } : {}),
+            ...(resolved.scope !== undefined ? { scope: resolved.scope } : {}),
+            ...(resolved.migration !== undefined ? { migration: resolved.migration } : {}),
+            ...(resolved.readiness !== undefined ? { readiness: resolved.readiness } : {}),
+            ...(resolved.risks !== undefined ? { risks: resolved.risks } : {}),
+            ...(Array.isArray(values.friction) ? { friction: values.friction } : {}),
+          });
+        }
+        return {
+          ok: false,
+          body: `unknown arc proposal command "${third ?? ""}". try: storytree arc proposal add <arc-id> --id <slug> ... --pg  |  storytree arc proposal realize <arc-id> --id <slug> --pg`,
+          next: ["storytree arc --help", "storytree arc list --pg"],
+        };
       }
       // The SCAFFOLDER (the missing first lifecycle step): the id is an optional positional, matching
       // every other arc verb — omitted, it is derived from --title.
@@ -2693,54 +2757,6 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // ADR-0239 D3 — the list is a worklist: active-only unless explicitly widened.
       arcScopeOf({ all: values.all === true, closed: values.closed === true }),
     );
-  }
-
-  if (area === "proposal") {
-    // The Library's parked-remedy tier (ADR-0287 D1) — the `tool` friction route's OUTPUT. A
-    // scaffolder for the same reason `arc new` is one: the alternative is reading KIND_SPECS for six
-    // required fields and hand-stamping timestamps into doc JSON. Long prose (--summary/--motivation/
-    // --change/--scope/--migration/--readiness/--risks/--description) accepts `@path`, resolved here
-    // exactly as arc's are, so multi-line values survive the shell.
-    if (help || sub === undefined) return proposalHelp();
-    if (sub === "list") return proposalList({ store: deps.store, pg: values.pg === true });
-    if (sub === "new") {
-      let body: ProposalBody & { description?: string };
-      try {
-        body = {
-          ...(values.summary !== undefined ? { summary: await resolveAtPathValue(values.summary) } : {}),
-          ...(values.motivation !== undefined ? { motivation: await resolveAtPathValue(values.motivation) } : {}),
-          // `--change` is declared `multiple` for `storytree drift`, so it arrives as an array here.
-          // Repeats join into paragraphs rather than being silently dropped — one flag, one meaning
-          // per area, and no second flag name for the field the schema calls `change`.
-          ...(values.change !== undefined
-            ? { change: (await Promise.all(values.change.map((c) => resolveAtPathValue(c)))).join("\n\n") }
-            : {}),
-          ...(values.scope !== undefined ? { scope: await resolveAtPathValue(values.scope) } : {}),
-          ...(values.migration !== undefined ? { migration: await resolveAtPathValue(values.migration) } : {}),
-          ...(values.readiness !== undefined ? { readiness: await resolveAtPathValue(values.readiness) } : {}),
-          ...(values.risks !== undefined ? { risks: await resolveAtPathValue(values.risks) } : {}),
-          ...(values.description !== undefined ? { description: await resolveAtPathValue(values.description) } : {}),
-        };
-      } catch (e) {
-        return { ok: false, body: `could not read a @file value: ${(e as Error).message}`, next: ["storytree proposal --help"] };
-      }
-      const writeDeps: ProposalWriteDeps = {
-        store: deps.store,
-        writable: deps.writable === true,
-        ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
-        now: new Date().toISOString(),
-        pg: values.pg === true,
-      };
-      return proposalNew(writeDeps, third, {
-        ...(values.title !== undefined ? { title: values.title } : {}),
-        ...body,
-      });
-    }
-    return {
-      ok: false,
-      body: `unknown proposal command "${sub}". try: storytree proposal list --pg  |  storytree proposal new --title "..." --pg`,
-      next: ["storytree proposal --help", "storytree proposal list --pg"],
-    };
   }
 
   if (area === "plan") {
@@ -2985,8 +3001,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(values["discharged-by"] !== undefined ? { dischargedBy: values["discharged-by"] } : {}),
         // The deliberate foreign overwrite — see `routeFriction`'s compare-and-refuse guard.
         ...(values["re-route"] === true ? { reRoute: true } : {}),
-        // The ADR-0287 D1 emission: the proposal the `tool` route produces, cited in `references`.
-        ...(values.proposal !== undefined ? { proposal: values.proposal } : {}),
+        // The ADR-0298 D2 emission: the ARC carrying the parked entry the `tool` route produces,
+        // cited in `references`. The entry itself is written first by `arc proposal add --friction`.
+        ...(values.arc !== undefined ? { arc: values.arc } : {}),
       }, ctx);
     }
     if (sub === "list") {

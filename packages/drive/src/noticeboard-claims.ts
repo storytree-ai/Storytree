@@ -11,6 +11,7 @@ import { claimGrade, exploringClaimRequest, waitingClaimRequest } from "@storytr
 
 import type { Envelope } from "./envelope.js";
 import type { SessionIdentity } from "./noticeboard.js";
+import { IDENTITY_REFUSAL_BODY } from "./noticeboard.js";
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
@@ -80,13 +81,7 @@ function needsPg(verb: ClaimLedgerVerb): Envelope {
 
 /** Refusal envelope for a missing identity — the exact declare/done stance (ADR-0033 Decision 1). */
 function needsIdentity(): Envelope {
-  return {
-    ok: false,
-    body:
-      "Identity is derived from the session worktree (ADR-0033 Decision 1). " +
-      "Run this command from inside a recognised .claude/worktrees/<name> checkout — " +
-      "there is deliberately no flag to supply an identity manually.",
-  };
+  return { ok: false, body: IDENTITY_REFUSAL_BODY };
 }
 
 function describeHolder(holder: ClaimDocT): string {

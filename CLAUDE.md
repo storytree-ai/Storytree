@@ -176,9 +176,10 @@ file conflicts).
   would have resurrected it into the committed seed. The check now PRINTS the live-only population on
   every path, split into yours and not-yours, so that trap is visible rather than remembered.
   **Scope matters here:** only
-  `definition` / `principle` / `pattern` / `guardrail` / `techstack` / `process` / `open-question` /
-  `proposal` are seed-scope (`SEED_SCOPE_KINDS`) — editing a `friction`, `arc`, `uat-criterion` or `plan`
-  live is FREE and creates no drift. **Direction is NOT auto-inferred**: because `sync-corpus` is
+  `definition` / `principle` / `pattern` / `guardrail` / `techstack` / `process` / `open-question`
+  are seed-scope (`SEED_SCOPE_KINDS`) — editing a `friction`, `arc`, `uat-criterion` or `plan` live is
+  FREE and creates no drift. (`proposal` was seed-scope until ADR-0298 RETIRED the kind; deferred work
+  is now a parked entry on an `arc`, which is not seed-scope — so parking work costs no seed export.) **Direction is NOT auto-inferred**: because `sync-corpus` is
   migrate-only, a seed edit can never reach live, so the SEED is sometimes the correct side — three cases
   found so far, two of them MIXED. On drift you did not author, leave it or route it back; spawn
   `librarian-curator` for the per-artifact direction call rather than blind-exporting. SKIPs offline /

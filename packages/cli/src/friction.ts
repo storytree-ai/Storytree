@@ -41,7 +41,7 @@ import { explainDocValidationError, upcastAndValidate, Friction, FrictionRoute, 
 import { branchOfActor, defaultCliActor } from "./cli-actor.js";
 import type { Envelope } from "./envelope.js";
 import { lifecycleOf, type FrictionLifecycle } from "./friction-lifecycle.js";
-import { ASSET_REF_PREFIX, citedAssetIds } from "./proposal-citation.js";
+import { ASSET_REF_PREFIX, citedAssetIds } from "./asset-citation.js";
 
 /** The narrowed write surface the friction verbs need (a structural subset of `RunDeps`). */
 export interface FrictionDeps {
@@ -615,31 +615,54 @@ export async function reinforceFriction(
 // ---------------------------------------------------------------------------
 
 /**
- * The one route whose output is a Library `proposal` (ADR-0287 D1). Every OTHER route already names
- * the artifact kind its executor writes; `tool` named only a destination (story-author) and stopped,
- * so a routed item archived the moment it was routed — satisfying `check:friction-drain`, the loop's
- * only fail-closed gate, while building nothing. Measured 2026-08-02: `tool` delivered 6 of 125
- * while carrying 56% of all routed signal.
+ * The one route whose output is PARKED WORK ON AN ARC (ADR-0298 D2; ADR-0287 D1 before it, when the
+ * output was a free-standing `proposal` artifact). Every OTHER route already names the artifact kind
+ * its executor writes; `tool` named only a destination (story-author) and stopped, so a routed item
+ * archived the moment it was routed — satisfying `check:friction-drain`, the loop's only fail-closed
+ * gate, while building nothing. Measured 2026-08-02: `tool` delivered 6 of 125 while carrying 56% of
+ * all routed signal.
  */
-const PROPOSAL_ROUTE = "tool";
+const PARKED_WORK_ROUTE = "tool";
 
 /**
- * The `asset:` refs on a doc that resolve to a live `proposal`. Reads the store, so a ref pointing
- * at a deleted or wrong-kind artifact does NOT count as an emission — the fence is that the item
- * cites a proposal that exists, never that a matching-looking string is present.
+ * The `asset:` refs on a doc that resolve to a live `arc`. Reads the store, so a ref pointing at a
+ * deleted or wrong-kind artifact does NOT count as an emission — the fence is that the item cites an
+ * arc that exists, never that a matching-looking string is present.
  *
- * WHICH ids are cited comes from the shared token rule in `proposal-citation.ts`; only the
- * RESOLUTION is local. `check:proposal-drain` resolves the same edge in bulk against an in-memory
- * id set (a `getDoc` per ref across the whole worklist would be N×M live queries), so the two must
- * agree on what a citation IS without agreeing on how to look it up.
+ * WHICH ids are cited comes from the shared token rule in `asset-citation.ts`; only the RESOLUTION is
+ * local. `check:arc-proposal-drain` walks the ARC side of the same relationship in bulk (ADR-0298 D2:
+ * the unambiguous per-entry edge is `ArcProposal.frictionRefs`), so this citation is the routed
+ * lifecycle's outbound pointer (ADR-0168 D2) rather than the ceiling's join.
  */
-async function citedProposals(doc: Record<string, unknown>, store: Store): Promise<string[]> {
+async function citedArcs(doc: Record<string, unknown>, store: Store): Promise<string[]> {
   const found: string[] = [];
   for (const id of citedAssetIds(doc["references"])) {
     const target = await store.getDoc(id);
-    if (target?.kind === "proposal") found.push(target.id);
+    if (target?.kind === "arc") found.push(target.id);
   }
   return found;
+}
+
+/**
+ * True when `arcId` carries a PARKED (unrealized) entry naming this friction item — the other half
+ * of the fence, and the part that makes it mean something.
+ *
+ * A citation alone would only prove an arc was NAMED. ADR-0298 D2 requires the remedy to actually
+ * exist as an entry, so a `tool` routing cannot be discharged by pointing at any arc that happens to
+ * be live. An ALREADY-REALIZED entry does not satisfy a forward routing: routing says the work is
+ * deferred, and a landed remedy is a `--discharged-by` stamp instead.
+ */
+function arcParksFriction(stored: StoredDoc | null, frictionId: string): boolean {
+  if (!stored || stored.kind !== "arc") return false;
+  const doc = typeof stored.doc === "object" && stored.doc !== null ? (stored.doc as Record<string, unknown>) : {};
+  const entries = Array.isArray(doc["proposals"]) ? doc["proposals"] : [];
+  return entries.some((e) => {
+    if (typeof e !== "object" || e === null) return false;
+    const entry = e as Record<string, unknown>;
+    if (entry["realized"] !== undefined) return false;
+    const refs = entry["frictionRefs"];
+    return Array.isArray(refs) && refs.includes(frictionId);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -690,20 +713,26 @@ function sameAdjudicator(a: string | null, b: string | null): boolean {
 }
 
 /**
- * `storytree friction route <id> --route <enum> --reason "<justification>" [--proposal <id>]
+ * `storytree friction route <id> --route <enum> --reason "<justification>" [--arc <id>]
  * [--discharged-by <ref>] --pg` — the adjudication write (ADR-0168 D5): set `route` (the closed
  * FrictionRoute enum, schema-fenced) + `routeReason` (the justification-gate answers, or the archive
  * reason for `nothing`). `--discharged-by` stamps the DELIVERY ref (a PR / ADR / asset pointer) when
  * the routed remedy has landed — at adjudication if it already has, or by re-running the route when
  * it lands later — so a shipped remedy stops looking like a never-built one. The surface the
- * adjudicator (the graduation-synthesist, ADR-0287 D2) drives. Live-store only.
+ * adjudicator (the graduation-synthesist, ADR-0298 D2) drives. Live-store only.
  *
- * ROUTING TO `tool` IS FAIL-CLOSED ON THE EMISSION (ADR-0287 D1): the item must CITE a live
- * `proposal` in `references` — `--proposal <id>` attaches one, written first via `storytree proposal
- * new`. The enum is untouched (no ninth route; the 125 existing `tool` rows keep their value); what
- * changes is that routing there stops discharging the obligation. The fence is on the CITATION, not
- * on the flag, so re-running an already-emitting route to add `--discharged-by` needs no repeat of
- * `--proposal` — which keeps the documented delivery-stamp path open for backfilled items.
+ * ROUTING TO `tool` IS FAIL-CLOSED ON THE EMISSION (ADR-0298 D2, replacing ADR-0287 D1's proposal
+ * artifact): the item must cite an `arc` that carries a PARKED ENTRY naming it — `--arc <id>`
+ * attaches the citation, and the entry is written first via `storytree arc proposal add … --friction
+ * <id>`. BOTH halves are checked, because a citation alone would only prove an arc was named. The
+ * enum is untouched (no ninth route; the ~125 existing `tool` rows keep their value); what changes is
+ * that routing there stops discharging the obligation.
+ *
+ * THE FENCE IS ON THE CITATION, NOT THE FLAG, so re-running an already-emitting route to add
+ * `--discharged-by` needs no repeat of `--arc`. And a routing that SUPPLIES `--discharged-by` is
+ * exempt outright (ADR-0298 D3): the remedy landed, so demanding a parked entry first would force a
+ * false record of deferred work — measured on the retired tier, five delivered `tool` items were left
+ * permanently unstamped rather than pollute it.
  *
  * IT COMPARES BEFORE IT WRITES, and refuses a FOREIGN overwrite. This was a bare last-write-wins
  * upsert, and the cost is measured rather than argued: on 2026-07-30 four items were routed twice
@@ -740,7 +769,8 @@ export async function routeFriction(
     route?: string | undefined;
     reason?: string | undefined;
     dischargedBy?: string | undefined;
-    proposal?: string | undefined;
+    /** `--arc <id>`: the arc carrying the parked entry this `tool` routing emits (ADR-0298 D2). */
+    arc?: string | undefined;
     /** `--re-route`: overwrite another adjudicator's standing route on purpose. */
     reRoute?: boolean | undefined;
   },
@@ -760,14 +790,14 @@ export async function routeFriction(
   if (opts.dischargedBy !== undefined && (dischargedBy === undefined || dischargedBy === "")) {
     return { ok: false, body: "route's --discharged-by needs a ref (a PR \"#1025\", an \"ADR-0271\", an asset: id) — omit the flag when the remedy has not landed.", next: [`storytree friction route ${id} --route ${route} --reason "…" --discharged-by "<ref>" --pg`] };
   }
-  // `--proposal` is the `tool` route's emission (ADR-0287 D1) and means nothing on the seven routes
-  // that already name their own output kind — accepting it there would quietly imply the other routes
-  // emit proposals too, which is the confusion the ADR exists to end.
-  const proposalRef = opts.proposal?.trim().replace(/^asset:/, "");
-  if (opts.proposal !== undefined && route !== PROPOSAL_ROUTE) {
+  // `--arc` is the `tool` route's emission (ADR-0298 D2) and means nothing on the seven routes that
+  // already name their own output kind — accepting it there would quietly imply the other routes park
+  // work on arcs too, which is the confusion the ADR exists to end.
+  const arcRef = opts.arc?.trim().replace(/^asset:/, "");
+  if (opts.arc !== undefined && route !== PARKED_WORK_ROUTE) {
     return {
       ok: false,
-      body: `--proposal is the \`${PROPOSAL_ROUTE}\` route's emission (ADR-0287 D1) — the \`${route}\` route's output is its own artifact kind, which its executor writes.\nDrop the flag, or route to ${PROPOSAL_ROUTE} if this really is deferred capability work.`,
+      body: `--arc is the \`${PARKED_WORK_ROUTE}\` route's emission (ADR-0298 D2) — the \`${route}\` route's output is its own artifact kind, which its executor writes.\nDrop the flag, or route to ${PARKED_WORK_ROUTE} if this really is deferred capability work.`,
       next: [`storytree friction route ${id} --route ${route} --reason "…" --pg`],
     };
   }
@@ -836,24 +866,45 @@ export async function routeFriction(
   if (dischargedBy !== undefined) base["dischargedBy"] = dischargedBy;
   base["updatedAt"] = ctx.now;
 
-  // ---- the ADR-0287 D1 emission fence: `tool` cites a live proposal, or the routing does not land --
-  let cited = await citedProposals(base, deps.store);
-  if (proposalRef !== undefined && proposalRef !== "") {
-    const target = await deps.store.getDoc(proposalRef);
-    if (!target || target.kind !== "proposal") {
+  // ---- the ADR-0298 D2 emission fence: `tool` cites an arc that PARKS this item, or it does not land
+  let cited = await citedArcs(base, deps.store);
+  if (arcRef !== undefined && arcRef !== "") {
+    const target = await deps.store.getDoc(arcRef);
+    if (!target || target.kind !== "arc") {
       return {
         ok: false,
         body: [
           target
-            ? `--proposal "${proposalRef}" is a ${target.kind}, not a proposal.`
-            : `--proposal "${proposalRef}" does not exist — write the proposal FIRST, then route (ADR-0287 D1: the adjudicator emits it, story-author consumes it).`,
+            ? `--arc "${arcRef}" is a ${target.kind}, not an arc.`
+            : `--arc "${arcRef}" does not exist — find the arc that owns this remedy, or charter one, and park the entry FIRST (ADR-0298 D2/D6).`,
           "",
-          "The `routeReason` SCOPE paragraph you were about to write IS the proposal body — it moves to a",
-          "surface that is listable, countable and seed-scope instead of sitting inside an archived row.",
+          "The `routeReason` SCOPE paragraph you were about to write IS the parked entry's body — it moves",
+          "onto the initiative that will carry it, instead of sitting inside an archived row.",
+          "Folding into an EXISTING arc is the default; chartering is the exception when none owns it (D6).",
         ].join("\n"),
         next: [
-          'storytree proposal new --title "..." --summary <text|@file> --motivation <text|@file> --change <text|@file> --scope <text|@file> --migration <text|@file> --readiness <text|@file> --pg',
-          "storytree proposal list --pg",
+          "storytree arc list --pg",
+          'storytree arc new --title "..." --intent <text|@file> --end-state <text|@file> --pg',
+          `storytree arc proposal add <arc-id> --id <slug> --title "..." --summary <text|@file> --motivation <text|@file> --friction ${id} --pg`,
+        ],
+      };
+    }
+    if (!arcParksFriction(target, id)) {
+      return {
+        ok: false,
+        body: [
+          `arc "${target.id}" carries no PARKED entry naming this friction item (ADR-0298 D2).`,
+          "",
+          "Citing an arc only proves one was NAMED. The fence is that the remedy EXISTS — an entry whose",
+          "`frictionRefs` includes this item, which is also what the delivery ceiling joins on, so an entry",
+          "the ceiling can never reach would not be a delivery at all. Park it first, then route:",
+          "",
+          `  storytree arc proposal add ${target.id} --id <slug> --title "<the change>" --summary <text|@file> --motivation <text|@file> --scope <text|@file> --friction ${id} --pg`,
+          `  storytree friction route ${id} --route ${PARKED_WORK_ROUTE} --reason @<file> --arc ${target.id} --pg`,
+        ].join("\n"),
+        next: [
+          `storytree arc show ${target.id} --pg`,
+          `storytree arc proposal add ${target.id} --id <slug> --friction ${id} --pg`,
         ],
       };
     }
@@ -863,25 +914,33 @@ export async function routeFriction(
       cited = [...cited, target.id];
     }
   }
-  if (route === PROPOSAL_ROUTE && cited.length === 0) {
+  // A DELIVERED remedy is exempt (ADR-0298 D3). `--discharged-by` asserts the work already LANDED, so
+  // demanding a parked entry first would force a session to record deferred work that is not deferred
+  // — a false row, minted only to clear a fence. Measured on the retired tier: five `tool` items were
+  // already delivered on 2026-08-03 and all five were left unstamped rather than pollute it, so the
+  // loop's own delivery number stayed structurally understated for exactly the items that succeeded.
+  if (route === PARKED_WORK_ROUTE && cited.length === 0 && dischargedBy === undefined) {
     return {
       ok: false,
       body: [
-        `routing to \`${PROPOSAL_ROUTE}\` requires a \`proposal\` artifact, cited in this item's references (ADR-0287 D1).`,
+        `routing to \`${PARKED_WORK_ROUTE}\` requires a PARKED ENTRY on the arc that owns the remedy, cited here (ADR-0298 D2).`,
         "",
-        "Every other route names the artifact kind its executor writes; `tool` named only a destination,",
-        "so a routed item archived while nothing was built — 6 of 125 delivered, measured 2026-08-02.",
-        "Write the remedy as a proposal (your SCOPE paragraph is its body), then route citing it:",
+        "Every other route names the artifact its executor writes; `tool` named only a destination, so a",
+        "routed item archived while nothing was built — 6 of 125 delivered, measured 2026-08-02.",
         "",
-        `  storytree proposal new --title "<the change>" --summary … --motivation … --change … --scope … --migration … --readiness … --pg`,
-        `  storytree friction route ${id} --route ${PROPOSAL_ROUTE} --reason @<file> --proposal <proposal-id> --pg`,
+        "FOLD FIRST, CHARTER SECOND (D6): find the arc this remedy belongs to before creating one.",
         "",
-        "The proposal is the ADJUDICATOR's to write (ADR-0287 D2) — `asset:story-author` is fail-closed",
-        "fenced to `stories/**`, so it cannot write one; it CONSUMES this proposal when authoring the story.",
+        `  storytree arc list --pg`,
+        `  storytree arc proposal add <arc-id> --id <slug> --title "<the change>" --summary <text|@file> --motivation <text|@file> --scope <text|@file> --friction ${id} --pg`,
+        `  storytree friction route ${id} --route ${PARKED_WORK_ROUTE} --reason @<file> --arc <arc-id> --pg`,
+        "",
+        "The entry is the ADJUDICATOR's to write (ADR-0298 D2) — `asset:story-author` is fail-closed fenced",
+        "to `stories/**`, so it cannot write one; it CONSUMES the entry when authoring the story.",
+        "If the remedy has ALREADY LANDED, stamp it instead: --discharged-by \"<PR / ADR / asset ref>\".",
       ].join("\n"),
       next: [
-        "storytree proposal list --pg",
-        `storytree friction route ${id} --route ${PROPOSAL_ROUTE} --reason "…" --proposal <proposal-id> --pg`,
+        "storytree arc list --pg",
+        `storytree friction route ${id} --route ${PARKED_WORK_ROUTE} --reason "…" --arc <arc-id> --pg`,
       ],
     };
   }
@@ -899,11 +958,11 @@ export async function routeFriction(
     body: [
       `routed ${saved.id} → ${route} (${lifecycleOf(route)}).`,
       `reason: ${reason}`,
-      // The emission, stated as the durable thing it is: the item archives, the proposal does not.
-      ...(route === PROPOSAL_ROUTE
+      // The emission, stated as the durable thing it is: the item archives, the parked entry does not.
+      ...(route === PARKED_WORK_ROUTE && cited.length > 0
         ? [
-            `remedy parked as proposal ${cited.join(", ")} — cited in references (ADR-0287 D1), so the routing`,
-            "is delivered to a listable, seed-scope row rather than discharged into an archived reason.",
+            `remedy parked on arc ${cited.join(", ")} — cited in references (ADR-0298 D2), so the routing is`,
+            "delivered onto the initiative that carries it rather than discharged into an archived reason.",
           ]
         : []),
       ...(dischargedBy !== undefined ? [`discharged by ${dischargedBy} — the routed remedy has landed.`] : []),
@@ -911,8 +970,8 @@ export async function routeFriction(
     next: [
       "storytree friction list",
       `storytree library artifact ${saved.id} --pg`,
-      ...(route === PROPOSAL_ROUTE
-        ? ["storytree library export-corpus --pg   (dry run — proposals are seed-scope, ADR-0120/0263)"]
+      ...(route === PARKED_WORK_ROUTE && cited.length > 0
+        ? [`storytree arc show ${cited[0]} --pg   (the arc now carrying the remedy)`]
         : []),
     ],
   };
@@ -1034,16 +1093,18 @@ export function frictionHelp(): Envelope {
       "        capture), migrate-only (never overwrites live); deletes each staging file it migrates.",
       "  storytree friction reinforce <id> --evidence \"<what happened>\" --pg",
       "        recurrence reinforces an EXISTING item (own evidence, required) — never a twin.",
-      "  storytree friction route <id> --route <enum> --reason \"<why>\" [--proposal <id>]",
+      "  storytree friction route <id> --route <enum> --reason \"<why>\" [--arc <id>]",
       "                                  [--discharged-by <ref>] --pg",
       "        adjudication: set the route (adr|tool|principle|guardrail|process|definition|",
       "        edit-existing|nothing) + the justification. `nothing` archives with a reason.",
       "        --discharged-by stamps the delivery ref (PR/ADR/asset) once the routed remedy LANDS —",
       "        re-run the route with it when the landing comes later.",
-      "        --proposal cites the `proposal` artifact the `tool` route EMITS (ADR-0287 D1): routing to",
-      "        `tool` is refused until the item cites a live proposal, so the remedy is parked as a",
-      "        listable row instead of prose inside an archived one. Write it first with",
-      "        `storytree proposal new … --pg`; your SCOPE paragraph is its body.",
+      "        --arc cites the arc carrying the PARKED ENTRY the `tool` route emits (ADR-0298 D2):",
+      "        routing to `tool` is refused until an arc carries an entry naming this item, so the remedy",
+      "        lands on the initiative that will carry it instead of prose inside an archived row. Park it",
+      "        first with `storytree arc proposal add <arc-id> --friction <id> … --pg`; your SCOPE",
+      "        paragraph is its body. FOLD into an existing arc first; charter one only when none fits.",
+      "        A routing that carries --discharged-by is exempt: the remedy already landed.",
       "  storytree friction list",
       "        the worklist: open → archived (route says where, ADR-0196), with age + reinforcement count (read-only).",
       "",
