@@ -23,6 +23,44 @@ export {
   type ForestRegrowTuning,
 } from './forest-regrow.js';
 export {
+  EXP16_TREE_GROWTH_TRACK,
+  POSE_PLANT_GROWTH_TRACK,
+  SHARED_GROWTH_TRACKS,
+  growthTrackFrameIndex,
+  growthTrackPlacement,
+  type GrowthTrackFrame,
+  type GrowthTrackPlacement,
+  type GrowthTrackPlacementInput,
+  type SharedGrowthTrack,
+} from './shared-growth-tracks.js';
+export {
+  PLATE_SETTLE_END,
+  PLATE_SETTLE_RISE,
+  PLATE_SETTLE_START,
+  VEGETATION_GROW_SPAN,
+  VEGETATION_STAGGER_SPAN,
+  deriveIslandVegetationPlan,
+  deriveIslandVegetationPlans,
+  islandTreeVariation,
+  islandVegetationAtProgress,
+  vegetationStaggerDelay,
+  type IslandTreeVariation,
+  type IslandVegetationInput,
+  type IslandVegetationPlan,
+  type VegetationAnchor,
+  type VegetationArtContext,
+  type VegetationObjectPlan,
+  type VegetationRender,
+  type VegetationRole,
+  type VegetationRootMode,
+} from './island-vegetation-growth.js';
+export {
+  vegetationLayerSignature,
+  vegetationProgressByStory,
+  vegetationRenderLayer,
+  type VegetationRenderLayer,
+} from './vegetation-render.js';
+export {
   deriveForestRegrowAccretionPlans,
   forestRegrowLayerSignature,
   forestRegrowRenderLayer,
@@ -40,6 +78,7 @@ export {
 export {
   parseStyleSheet,
   resolveSprite,
+  spriteKeyFor,
   spritePlacement,
   type SpriteDef,
   type SpriteStyleSheet,

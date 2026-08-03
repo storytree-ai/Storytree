@@ -5212,10 +5212,47 @@ button.legend-tile:hover {
   animation-duration: 0.38s;
   animation-delay: 0.1s;
 }
+/* ADR-0292 D1 — the flora pop is RETIRED under the regrow, not re-timed.
+   It was one rigid beat for the whole vegetation block, scaled from the group's shared centre, and it
+   was on WALL-CLOCK CSS: 0.42 s that the ADR-0286 speed dial cannot reach, so at the 0.25x default the
+   dial ships at, the vegetation finished at 0.74 s while its island kept accreting for ~3.0 s. Adding a
+   third re-timing here would be synchronising two clocks; instead every object now grows on the app's
+   OWN cursor (`island-vegetation-growth.ts`), which tracks the dial by construction because it is the
+   same number the ground and the roads ride. The live-arrival beat above is untouched — a story
+   appearing in a re-pulled payload has no accretion window to grow inside. */
 .world-scene.act2-regrowing .hex-flora.arrive-island {
-  animation-duration: 0.42s;
-  animation-delay: 0.32s;
+  animation: none;
 }
+/* ============================================================================
+   ADR-0292 D3 — the STATUS channel of the one shared tree track.
+   The app varies the single exp-16 track per island by SIZE (capability count, inherited from the
+   body it replaces) and by COLOUR, here. Colour is doing the whole status job: a third channel —
+   status as FORM, by stopping an island's tree at an early frame — was built and measured out,
+   because exp-16's early frames are a SAPLING rather than a withered tree, so it made `unhealthy`
+   read as a seedling (see `island-vegetation-growth.ts`).
+   This is ADR-0226/0227's own pattern: one silhouette, per-status recolour.
+   `healthy` deliberately declares NO filter — it is the common case and the track's own palette, so
+   the majority of trees on the map pay nothing for this channel at all.
+   ============================================================================ */
+.veg-track {
+  /* the tracks are pixel art — never smooth them on the way up to island scale */
+  image-rendering: pixelated;
+}
+/* withered: colour is the ONLY thing distinguishing this island's tree now, so it goes further than
+   a tint — the green is drained out entirely and the whole silhouette darkens toward dead bark. */
+.veg-track-tree.st-unhealthy {
+  filter: grayscale(0.82) sepia(0.55) brightness(0.72) saturate(1.15);
+}
+.veg-track-tree.st-proposed {
+  filter: hue-rotate(-32deg) saturate(1.15) brightness(1.08);
+}
+.veg-track-tree.st-mapped {
+  filter: hue-rotate(-48deg) saturate(0.7) brightness(0.92);
+}
+.veg-track-tree.st-unknown {
+  filter: saturate(0.4) brightness(1.02);
+}
+
 /* the demo's replay control (only rendered when ?arrive= is set) */
 /* The Act 2 intro control (ADR-0282), mounted only under the exact `?act2=intro` gate: one
    obvious primary button that regrows the whole forest from its base nodes, plus the transport

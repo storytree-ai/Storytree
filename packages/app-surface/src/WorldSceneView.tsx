@@ -12,6 +12,7 @@ import type { TrailRevealPlan } from './trailReveal.js';
 import type { NeighbourHighlightPlan } from './neighbourHighlight.js';
 import type { LaneLayout } from './laneLayout.js';
 import type { SvgIslandAccretionState } from './svg-island-accretion.js';
+import type { VegetationRenderLayer } from './vegetation-render.js';
 
 export interface WorldPresentationModel {
   readonly scene: SceneNode;
@@ -35,6 +36,10 @@ export interface WorldPresentationModel {
   /** The Act 2 whole-forest regrow (ADR-0282): which islands and roads exist yet, and the
    *  accretion state of every island still growing. Absent ⇒ the settled forest, unchanged. */
   readonly forestRegrowLayer?: ForestRegrowRenderLayer | null;
+  /** Per-object vegetation growth (ADR-0292): each island's tree and plants as frames of the two
+   *  SHARED authored tracks, and its conifers / UAT flowers / nameplate rooted at their own ground
+   *  anchors. Absent ⇒ the pre-arc render, unchanged. */
+  readonly vegetationLayer?: VegetationRenderLayer | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
 }
 
@@ -53,6 +58,7 @@ export interface WorldPresentationModelInput {
   readonly nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
   readonly svgIslandAccretionLayer?: SvgIslandAccretionState | null;
   readonly forestRegrowLayer?: ForestRegrowRenderLayer | null;
+  readonly vegetationLayer?: VegetationRenderLayer | null;
   readonly organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
 }
 
@@ -90,6 +96,7 @@ export function normalizeWorldPresentationModel(
     ...(input.forestRegrowLayer !== undefined
       ? { forestRegrowLayer: input.forestRegrowLayer }
       : {}),
+    ...(input.vegetationLayer !== undefined ? { vegetationLayer: input.vegetationLayer } : {}),
     ...(input.organicPoseLayers !== undefined
       ? { organicPoseLayers: input.organicPoseLayers }
       : {}),
@@ -140,6 +147,7 @@ export function WorldSceneView({
       ...(model.forestRegrowLayer !== undefined
         ? { forestRegrowLayer: model.forestRegrowLayer }
         : {}),
+      ...(model.vegetationLayer !== undefined ? { vegetationLayer: model.vegetationLayer } : {}),
       ...(model.organicPoseLayers !== undefined
         ? { organicPoseLayers: model.organicPoseLayers }
         : {}),

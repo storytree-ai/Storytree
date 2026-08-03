@@ -1,3 +1,5 @@
+import type { SceneNode, SceneStatus } from '@storytree/forest-world';
+
 // sprite-sheet — the SWAPPABLE SPRITE ART-SHEET manifest contract (sprite-art-sheets spike).
 //
 // Every studio-rendered object is a per-type factory in `scene.ts` emitting a `SceneG`/`SceneBakedUse`
@@ -143,4 +145,35 @@ export function parseStyleSheet(json: unknown): SpriteStyleSheet {
     sprites[key] = parseSpriteDef(key, raw);
   }
   return { name, label, sprites };
+}
+
+const GARDEN_HERO_DEF_PREFIX = 'garden-hero-';
+const VEG_TREE_DEF_PREFIX = 'veg-hero-autumn-tree-';
+
+/**
+ * The sprite lookup key for a node. Most drawables key by their own `kind` (+ `status`, when folded) —
+ * `tree`/`flora`/`conifer`/`tall-flower-proven` etc. A `baked-use` PLACEMENT (ADR-0218: the cottage /
+ * gazebo / autumn-tree garden heroes, and the tree-spread's per-status `autumn-tree` colourway,
+ * ADR-0227) is different: every such node shares the ONE scene `kind: 'baked-art'`, which cannot itself
+ * tell a cottage from a gazebo — so it keys off its `defId` instead, stripping the known
+ * `garden-hero-<id>` / `veg-hero-autumn-tree-<status>` def-id prefixes back to a stable manifest kind
+ * (+ the folded status, for the tree-spread colourway). Returns `null` for anything with no usable key
+ * (a plain structural `<g>`, an unrecognised baked-use def) — the caller's cue to render vector.
+ *
+ * Lives HERE rather than in the studio mapper because it is sprite POLICY, not React translation: the
+ * vegetation growth driver has to ask the same question (what does this node actually render as, and
+ * therefore what size should the growth track inherit?) and must not import a React module to do it.
+ */
+export function spriteKeyFor(node: SceneNode): { kind: string; status?: SceneStatus } | null {
+  if (node.el === 'baked-use') {
+    if (node.defId.startsWith(VEG_TREE_DEF_PREFIX)) {
+      return { kind: 'autumn-tree', status: node.defId.slice(VEG_TREE_DEF_PREFIX.length) as SceneStatus };
+    }
+    if (node.defId.startsWith(GARDEN_HERO_DEF_PREFIX)) {
+      return { kind: node.defId.slice(GARDEN_HERO_DEF_PREFIX.length) };
+    }
+    return null;
+  }
+  if (!node.kind) return null;
+  return node.status ? { kind: node.kind, status: node.status } : { kind: node.kind };
 }

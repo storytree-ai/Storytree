@@ -20,7 +20,7 @@ import {
   type SceneNode,
   type SceneStatus,
 } from '@storytree/forest-world';
-import { resolveSprite, type SpriteStyleSheet } from './sprite-sheet.js';
+import { resolveSprite, spriteKeyFor, type SpriteStyleSheet } from './sprite-sheet.js';
 import {
   collectDefBounds,
   fitSpritePlacement,
@@ -34,6 +34,8 @@ import type {
   SvgIslandAccretionCellReveal,
   SvgIslandAccretionState,
 } from './svg-island-accretion.js';
+import type { VegetationRender } from './island-vegetation-growth.js';
+import type { VegetationRenderLayer } from './vegetation-render.js';
 
 export interface OrganicPoseRenderLayer {
   readonly trackId: string;
@@ -156,6 +158,12 @@ export interface SceneCtx {
   /** The whole-forest regrow (ADR-0282): absence sets + per-island accretion for many islands
    *  at once. Absent/null ⇒ every node renders byte-identically to before it existed. */
   forestRegrowLayer?: ForestRegrowRenderLayer | null;
+  /** PER-OBJECT vegetation growth (ADR-0292): each island's central tree and capability plants as
+   *  frames of the two SHARED authored tracks, and each conifer / UAT flower / nameplate rooted at
+   *  its own ground anchor on its own beat. Keyed by scene-node IDENTITY — the scene is memoised
+   *  once and a conifer has never carried an id. Absent/null ⇒ every node renders byte-identically
+   *  to before this arc existed, which is what leaves the website's own mapper untouched. */
+  vegetationLayer?: VegetationRenderLayer | null;
   /** Registered organic pose images planted into the canonical world painter order. */
   organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
   /** INTERNAL (set by `SceneView` itself, never by TreeView): per-scene `baked-def` geometry bounds,
@@ -547,6 +555,142 @@ function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
   });
 }
 
+/**
+ * The semantic descendants a shared-track swap must NOT discard.
+ *
+ * `flora-hit` is a capability plant's generous click target — losing it would make plants selectable
+ * only where their pixels are. `bloom-anchor` is the SIGNED-PROOF bloom: renderer choice may change
+ * artwork, it must never erase proof semantics (the same rule {@link collectPreservedDescendants}
+ * enforces for the sprite path).
+ */
+const VEGETATION_PRESERVED_KINDS: ReadonlySet<string> = new Set(['flora-hit', 'bloom-anchor']);
+
+function collectVegetationPreserved(node: SceneNode, out: SceneNode[]): void {
+  if (node.el !== 'g') return;
+  for (const child of node.children) {
+    if (child.kind !== undefined && VEGETATION_PRESERVED_KINDS.has(child.kind)) out.push(child);
+    else collectVegetationPreserved(child, out);
+  }
+}
+
+/**
+ * One frame of a shared growth track, drawn in the LOCAL coordinates of its object's ground anchor
+ * (ADR-0292 D2/D4). The placement already pins the asset's registered ground contact to (0, 0), which
+ * is the spot the scene put the object at — so a growing tree rises out of the ground rather than
+ * expanding about its own middle, with no CSS `transform-origin` involved.
+ *
+ * `st-<status>` rides the IMAGE, not the wrapper: the per-status hue is a D3 variation channel the
+ * stylesheet applies to this element alone, and putting it here keeps it off the `<g>` whose class is
+ * already the island's own focus/filter composition.
+ */
+function vegetationTrackImage(
+  render: Extract<VegetationRender, { kind: 'track' }>,
+  key: React.Key,
+): React.JSX.Element {
+  const place = render.placement;
+  const props: Record<string, unknown> = {
+    key,
+    href: place.src,
+    x: fmt(place.x),
+    y: fmt(place.y),
+    width: fmt(place.width),
+    height: fmt(place.height),
+    preserveAspectRatio: 'none',
+    imageRendering: 'pixelated',
+    // HITTABLE, deliberately — and NOT `pointer-events: none` like the decorative organic-pose layer
+    // this borrowed its shape from. An SVG `<g>` receives a pointer event only through a child that
+    // was itself hit, so an inert image would leave the wrapper's handlers unreachable everywhere the
+    // artwork covers. Worse, TreeView's Electron-safe selection is a COORDINATE hit-test
+    // (`elementFromPoint(...).closest('[data-story-id]')`, the pointer-capture-retarget fix): an inert
+    // tree lets that probe fall straight through the canopy to bare `<svg>` and select nothing. Caught
+    // by `apps/desktop/e2e/node-click.e2e.mjs`, which is the wall built for exactly this bug class.
+    // The vector bodies this replaces were all hittable; this restores that, it does not add reach.
+    'aria-hidden': true,
+    className: `veg-track veg-track-${render.role}${render.status ? ` st-${render.status}` : ''}`,
+    'data-veg-track': place.trackId,
+    'data-veg-frame': String(place.frameIndex),
+    'data-veg-grown': render.grown.toFixed(4),
+  };
+  // Mirrored about the ground anchor (which the placement already made the local origin), so the
+  // seeded flip cannot move where the tree stands.
+  if (place.flipped) props.transform = 'scale(-1 1)';
+  return React.createElement('image', props);
+}
+
+/**
+ * A tree or capability plant rendered as its shared track's current frame.
+ *
+ * The wrapper survives verbatim — its class, its placement transform, its click handlers, its title,
+ * its `data-*` stamps — because the track replaces the object's PIXELS, never its identity on the
+ * map. That is also why this wins over {@link trySprite}: the sprite sheet is a default-off art-style
+ * spike, while the shared track is the decided art for these two roles (ADR-0292 D2/D4); a sheet may
+ * still cover every other kind.
+ */
+function vegetationTrackNode(
+  node: SceneNode,
+  key: React.Key,
+  storyId: string | undefined,
+  ctx: SceneCtx,
+  render: Extract<VegetationRender, { kind: 'track' }>,
+): React.JSX.Element {
+  const props: Record<string, unknown> = { key, ...handlersFor(node, ctx, storyId) };
+  const cls = composeClass(node, ctx);
+  if (cls) props.className = cls;
+  if (node.transform) props.transform = node.transform;
+  if (node.kind === 'flora') {
+    if (node.id) props['data-cap-id'] = node.id;
+    if (storyId) props['data-story-id'] = storyId;
+  } else if (storyId) {
+    props['data-story-id'] = storyId;
+  }
+  const kids: React.ReactNode[] = [];
+  if (node.title) kids.push(React.createElement('title', { key: '__title' }, node.title));
+  const preserved: SceneNode[] = [];
+  collectVegetationPreserved(node, preserved);
+  kids.push(
+    React.createElement(
+      'g',
+      { key: '__pop-motion-inner', className: 'pop-motion-inner' },
+      ...preserved.map((child, index) => renderNode(child, `__preserved-${index}`, storyId, ctx)),
+      vegetationTrackImage(render, '__veg-track'),
+    ),
+  );
+  return React.createElement('g', props, ...kids);
+}
+
+/**
+ * Write this frame's rooted growth onto a node, in whichever of the two forms its own placement
+ * allows (see `VegetationRootMode`).
+ *
+ * With a placement transform, SVG's left-to-right composition does the work for free: `translate(x y)
+ * [scale(s)] scale(g)` already scales about the ground anchor the scene put the object at. Without
+ * one — the ADR-0226 parcel marks, which draw in island coordinates — a bare `scale(g)` would scale
+ * about the WORLD ORIGIN and fling the mark in from the corner of the map, so the growth is written
+ * as the `translate(p) scale(g) translate(-p)` triple instead, exactly as the land-cell accretion
+ * above already does it.
+ *
+ * Either way there is no `transform-box`, no `transform-origin` and no stylesheet involved: the
+ * rooted origin ADR-0292 D1 asks for is geometry, not CSS, so it cannot acquire a second clock.
+ */
+function vegetationRootedTransform(
+  node: SceneNode,
+  scale: number,
+  origin: { readonly x: number; readonly y: number } | null,
+): string {
+  const s = scale.toFixed(4);
+  const local = origin
+    ? `translate(${fmt(origin.x)} ${fmt(origin.y)}) scale(${s}) translate(${fmt(-origin.x)} ${fmt(-origin.y)})`
+    : `scale(${s})`;
+  return node.transform ? `${node.transform} ${local}` : local;
+}
+
+/** The nameplate's settle: translate ONLY, never a scale (ADR-0292 D1 — a label that scales reads as
+ *  a thing growing out of the soil, which it is not). */
+function vegetationSettleTransform(node: SceneNode, dy: number): string {
+  const local = `translate(0 ${dy.toFixed(2)})`;
+  return node.transform ? `${node.transform} ${local}` : local;
+}
+
 function nativeIslandClipId(layer: NativeIslandGrowthRenderLayer): string {
   return `organic-pose-native-island-${layer.storyId.replace(/[^a-zA-Z0-9_-]/gu, '-')}`;
 }
@@ -702,33 +846,6 @@ function accretionCellFor(node: SceneNode, ctx: SceneCtx): SvgIslandAccretionCel
 // whole object, ADR sprite-art-sheets design rule 1); a miss falls through to today's vector render
 // unchanged, so a sheet covering only SOME kinds still works everywhere else.
 
-const GARDEN_HERO_DEF_PREFIX = 'garden-hero-';
-const VEG_TREE_DEF_PREFIX = 'veg-hero-autumn-tree-';
-
-/**
- * The sprite lookup key for a node. Most drawables key by their own `kind` (+ `status`, when folded) —
- * `tree`/`flora`/`conifer`/`tall-flower-proven` etc. A `baked-use` PLACEMENT (ADR-0218: the cottage /
- * gazebo / autumn-tree garden heroes, and the tree-spread's per-status `autumn-tree` colourway,
- * ADR-0227) is different: every such node shares the ONE scene `kind: 'baked-art'`, which cannot itself
- * tell a cottage from a gazebo — so it keys off its `defId` instead, stripping the known
- * `garden-hero-<id>` / `veg-hero-autumn-tree-<status>` def-id prefixes back to a stable manifest kind
- * (+ the folded status, for the tree-spread colourway). Returns `null` for anything with no usable key
- * (a plain structural `<g>`, an unrecognised baked-use def) — the caller's cue to render vector.
- */
-function spriteKeyFor(node: SceneNode): { kind: string; status?: SceneStatus } | null {
-  if (node.el === 'baked-use') {
-    if (node.defId.startsWith(VEG_TREE_DEF_PREFIX)) {
-      return { kind: 'autumn-tree', status: node.defId.slice(VEG_TREE_DEF_PREFIX.length) as SceneStatus };
-    }
-    if (node.defId.startsWith(GARDEN_HERO_DEF_PREFIX)) {
-      return { kind: node.defId.slice(GARDEN_HERO_DEF_PREFIX.length) };
-    }
-    return null;
-  }
-  if (!node.kind) return null;
-  return node.status ? { kind: node.kind, status: node.status } : { kind: node.kind };
-}
-
 /**
  * A sprite replaces its whole wrapper's ARTWORK, never the semantic descendants the scene composed
  * onto that wrapper for reasons the sprite sheet knows nothing about — today, the signed-proof bloom
@@ -766,6 +883,7 @@ function trySprite(
   key: React.Key,
   storyId: string | undefined,
   ctx: SceneCtx,
+  veg?: VegetationRender | undefined,
 ): React.JSX.Element | null {
   const sheet = ctx.spriteSheet;
   if (!sheet) return null;
@@ -788,6 +906,19 @@ function trySprite(
     ...handlersFor(node, ctx, storyId),
   };
   if (node.transform) props.transform = node.transform;
+  // ADR-0292: per-object growth has to survive the sprite swap. The Storybook sheet is the shipped
+  // default, so on the real map the UAT flowers (and anything else the sheet covers) arrive here
+  // rather than through the generic path below — and a sprite that ignored the rooted transform would
+  // simply not grow. Applied to the SAME element the placement rides, so the root stays pinned.
+  if (veg?.kind === 'rooted') {
+    props.transform = vegetationRootedTransform(node, veg.scale, veg.origin);
+    props.opacity = Number(veg.opacity.toFixed(3));
+    props['data-veg-grown'] = veg.grown.toFixed(4);
+  } else if (veg?.kind === 'settle') {
+    props.transform = vegetationSettleTransform(node, veg.dy);
+    props.opacity = Number(veg.opacity.toFixed(3));
+    props['data-veg-grown'] = veg.grown.toFixed(4);
+  }
   // The sprite replaces the wrapper's pixels, not its semantic DOM identity. Keep the same class hooks
   // the vector wrapper carried (`story-tree`, `baked-art`, etc.) so coordinate hit-testing and downstream
   // interaction tooling still recognise the object after a default sheet is enabled.
@@ -937,8 +1068,14 @@ function renderNode(
   // Checked FIRST, ahead of the sprite swap: a story the regrow has not reached yet must not draw
   // a sprite either.
   if (ctx.forestRegrowLayer && regrowHides(node, ctx.forestRegrowLayer)) return null;
+  // ADR-0292: a tree or a capability plant IS a frame of its shared track now, so this is resolved
+  // ahead of the sprite swap and ahead of the baked-art path — the shipped central tree arrives here
+  // as a `baked-use` (`vegHeroTreeUse`), and rendering it as a `<use>` first would draw the object
+  // twice.
+  const veg = ctx.vegetationLayer?.byNode.get(node);
+  if (veg?.kind === 'track') return vegetationTrackNode(node, key, storyId, ctx, veg);
   if (ctx.spriteSheet) {
-    const sprite = trySprite(node, key, storyId, ctx);
+    const sprite = trySprite(node, key, storyId, ctx, veg);
     if (sprite) return sprite;
   }
   // ADR-0218: the fenced baked-art family renders outside the generic path. A `baked-def` becomes the
@@ -960,6 +1097,19 @@ function renderNode(
   if (node.transform) props.transform = node.transform;
   if (node.opacity != null) props.opacity = node.opacity;
   if (node.strokeWidth != null) props.strokeWidth = node.strokeWidth;
+  // ADR-0292 D1: the vector half of per-object growth. A conifer / UAT flower / parcel-flora sprouts
+  // from its own ground anchor; the nameplate only slides. Both are absent from the layer once they
+  // are at rest, so a settled island's DOM carries nothing this arc added (D6) — no leftover
+  // `scale(1)`, and therefore nothing for a later frame to have to re-write.
+  if (veg?.kind === 'rooted') {
+    props.transform = vegetationRootedTransform(node, veg.scale, veg.origin);
+    props.opacity = Number(((node.opacity ?? 1) * veg.opacity).toFixed(3));
+    props['data-veg-grown'] = veg.grown.toFixed(4);
+  } else if (veg?.kind === 'settle') {
+    props.transform = vegetationSettleTransform(node, veg.dy);
+    props.opacity = Number(((node.opacity ?? 1) * veg.opacity).toFixed(3));
+    props['data-veg-grown'] = veg.grown.toFixed(4);
+  }
   const nativeIsland = ctx.nativeIslandGrowthLayer;
   if (
     nativeIsland &&

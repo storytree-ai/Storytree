@@ -24,6 +24,10 @@ vi.mock('@storytree/app-surface', () => ({
   neighbourHighlightPlan: () => null,
   laneLayout: () => null,
   normalizeWorldPresentationModel: () => ({}),
+  // ADR-0292: TreeView derives the per-object vegetation plans on EVERY render (the settled map wears
+  // the shared tree track too, not only a regrow), so this partial mock has to answer for it. An empty
+  // map is the honest stand-in here — these suites measure pan compositing, not vegetation.
+  deriveIslandVegetationPlans: () => new Map(),
   WorldSceneView: ({ events }: { events: { onSelectStory: (id: string) => void } }) => (
     <g data-testid="scene-story" data-story-id="map" onClick={() => events.onSelectStory('map')} />
   ),
