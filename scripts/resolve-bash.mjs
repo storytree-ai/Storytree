@@ -44,10 +44,19 @@ import path from "node:path";
  */
 const WSL_LAUNCHER_DIRS = ["system32", "windowsapps"];
 
-/** Whether `candidate` is one of the WSL launchers above. */
+/**
+ * Whether `candidate` is one of the WSL launchers above.
+ *
+ * Splits on BOTH separators rather than using `path.dirname`, because the paths this classifies are
+ * inherently Windows paths and the answer must not depend on the host running the check. `path` is
+ * the POSIX flavour on Linux, where `path.dirname("C:\\Windows\\system32\\bash.exe")` is `"."` —
+ * every backslash path then reads as "not a launcher". Caught by CI (ubuntu) after this passed
+ * locally on Windows, which is the same local-green/CI-red asymmetry this whole change is about.
+ */
 export function isWslBashLauncher(candidate) {
-  const dir = path.basename(path.dirname(candidate)).toLowerCase();
-  return WSL_LAUNCHER_DIRS.includes(dir);
+  const segments = candidate.split(/[\\/]+/).filter((s) => s !== "");
+  const parent = segments[segments.length - 2];
+  return parent !== undefined && WSL_LAUNCHER_DIRS.includes(parent.toLowerCase());
 }
 
 /**

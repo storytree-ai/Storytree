@@ -80,6 +80,24 @@ test("classifies the WSL launchers, and does not misclassify Git Bash", () => {
   assert.equal(isWslBashLauncher("/usr/bin/bash"), false, "the POSIX answer is never a launcher");
 });
 
+test("classification does not depend on the HOST's path flavour", () => {
+  // These are Windows paths whoever is asking. The first version of this module used
+  // `path.dirname`, which is the POSIX flavour on Linux and returns "." for a backslash path — so
+  // every launcher above read as "not a launcher" on CI while passing on the dev box. That is the
+  // same local-green/CI-red asymmetry the rest of this change is about, so it is pinned rather
+  // than left to the cases above (which would go quietly green on a POSIX runner for the wrong
+  // reason: `false` is also what a correct implementation returns for a NON-launcher).
+  assert.equal(isWslBashLauncher("C:/Windows/System32/bash.exe"), true, "forward slashes, same path");
+  assert.equal(isWslBashLauncher("C:\\Windows\\System32\\bash.exe"), true, "backslashes, same path");
+  // Mixed separators are what `path.join` actually produces on Windows in some code paths.
+  assert.equal(isWslBashLauncher("C:\\Windows/System32\\bash.exe"), true, "mixed separators");
+  // A trailing-separator or doubled-separator path must not shift which segment is the parent.
+  assert.equal(isWslBashLauncher("C:\\\\Windows\\\\System32\\\\bash.exe"), true, "doubled separators");
+  // And a bare filename has no parent at all — it must not throw or claim a match.
+  assert.equal(isWslBashLauncher("bash.exe"), false, "no parent directory to judge");
+  assert.equal(isWslBashLauncher(""), false, "empty input is total, not a throw");
+});
+
 // ---------- the escape hatch is honoured verbatim ----------
 
 test("STORYTREE_BASH overrides the resolution, taken verbatim", () => {
