@@ -141,6 +141,12 @@ closure or clean-route adoption.
   sequences D3 demotes is not settled by either record. Its D4 is the reason to think they survive —
   it states that decision does not close or de-prioritise this arc. The clarification is the owner's,
   not an agent's, and until it is taken, D2 stands as written for the plant tracks already authored.
+  **TAKEN 2026-08-03 by the owner, recorded in
+  [ADR-0292](0292-every-island-grows-the-owner-s-exp-16-tree-from-one-shared-t.md) D7:** the
+  already-generated, committed, owner-approved tracks — this D2 plant track and the exp-16 tree — are
+  **grandfathered as accepted art**. ADR-0280 D3 governs NEW art from here and does not retroactively
+  unaccept them. D2 therefore stands as written, now on an owner's answer rather than on the absence
+  of one.
 - [ADR-0273](0273-pixellab-island-growth-is-a-selective-standard-shared-app-sp.md) — rejected
   full-island PixelLab substrate.
 - [ADR-0219](0219-generative-image-models-enter-the-art-pipeline-author-time-o.md) — author-time

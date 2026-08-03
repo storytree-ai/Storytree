@@ -90,6 +90,11 @@ documented alternatives go.
 - The hero-tree candidate. ADR-0282 D2 fixes the count at one authored track and D8 forbids reading
   it as a selection; that question stays open on `chapter2-pixellab-organic-growth-arc`. Every tree
   in the regrow remains procedural until it resolves.
+  **RESOLVED by [ADR-0292](0292-every-island-grows-the-owner-s-exp-16-tree-from-one-shared-t.md)
+  (2026-08-03)** for the Act 2 regrow: the owner selected **exp-16**, mounted from one shared track
+  on every island and frame-indexed off the island's own accretion cursor. ADR-0282 D2's count and
+  D8's fence are amended there. The regrow's trees are no longer procedural; the sibling arc's
+  whole-composition question is untouched and still open.
 - The frame-cost floor. PR #1075 measured a forest-map regrow frame at ~383 ms p50 once the whole
   forest is on screen (against 17 ms at the start), and established by measurement — not by
   inheritance — that the cost is rasterisation proportional to node count, exactly as ADR-0272 found
