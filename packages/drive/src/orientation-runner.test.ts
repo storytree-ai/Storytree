@@ -23,6 +23,7 @@ import path from "node:path";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 import type { Store } from "@storytree/storage-protocol";
+import { KIND_SPECS } from "@storytree/library";
 
 import { createOrientationRunner } from "./orientation-runner.js";
 import type { ClaimLedgerReadLike } from "./noticeboard.js";
@@ -243,16 +244,23 @@ async function storeWithOneDefinition(): Promise<InMemoryStore> {
   return store;
 }
 
+// The kind under test is DERIVED from the schema, never a literal. Naming one costs a rot the
+// staged population does not: `proposal` was the obvious empty tier when these tests were written
+// and the schema RETIRED that kind the same day, so the literal named a category the error branch
+// was then right to reject — a red that says nothing about the behaviour under test.
+const SOME_EMPTY_SCHEMA_KIND = Object.keys(KIND_SPECS).find((k) => k !== "definition");
+
 test("orientation runner: [library artifact list <schema kind with ZERO rows>] reports the tier EMPTY at ok:true", async () => {
   // A new kind starts empty by definition, and a lifecycle tier draining to zero is the SUCCESS
   // state — both must read as a fact about the population, never as "the kind does not exist".
+  assert.ok(SOME_EMPTY_SCHEMA_KIND, "the schema defines a kind other than the one staged below");
   const runner = makeRunner({ store: await storeWithOneDefinition() });
-  const env = await runner(["library", "artifact", "list", "proposal"], {
+  const env = await runner(["library", "artifact", "list", SOME_EMPTY_SCHEMA_KIND], {
     store: null,
     writable: false,
   });
   assert.equal(env.ok, true, `an empty schema kind lists empty, not unknown: ${env.body}`);
-  assert.match(env.body, /^proposal \(0\):$/, "the same shape a populated tier uses");
+  assert.equal(env.body, `${SOME_EMPTY_SCHEMA_KIND} (0):`, "the same shape a populated tier uses");
 });
 
 test("orientation runner: [library artifact list] advertises every SCHEMA kind, including the ones at zero", async () => {
@@ -263,8 +271,9 @@ test("orientation runner: [library artifact list] advertises every SCHEMA kind, 
   });
   assert.equal(env.ok, false, "a kind the schema does not define is still a genuine user error");
   assert.match(env.body, /unknown category "not-a-real-kind"/);
-  // The available list can never again advertise a narrower world than the schema defines.
-  for (const kind of ["definition", "proposal", "friction", "arc", "plan", "uat-criterion"]) {
+  // The available list can never again advertise a narrower world than the schema defines — asserted
+  // over the WHOLE schema, so a kind added tomorrow is covered without editing this test.
+  for (const kind of Object.keys(KIND_SPECS)) {
     assert.ok(env.body.includes(kind), `available categories names ${kind}`);
   }
 });
