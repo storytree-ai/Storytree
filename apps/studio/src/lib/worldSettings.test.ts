@@ -28,6 +28,7 @@ import {
   buildShareUrl,
   readRenderScene,
   type ControlSpec,
+  type NumberControl,
 } from './worldSettings.js';
 
 /** Pull a control spec by URL key, failing loudly if the schema dropped it. */
@@ -280,24 +281,36 @@ describe('worldSettings — artScale dial (derived sprite sizing)', () => {
 
 // ── ADR-0286: the Act 2 regrow's speed dial ──
 //
-// `1` is the plan's OWN duration — the pace that falls out of the routed pathway geometry (about
-// 6 s on the current forest since ADR-0285 removed the ordering clamp). The owner watched that and
-// called it too fast, so the DEFAULT is deliberately not 1: 0.6x stretches the run to roughly ten
-// seconds. That makes the clean, param-free URL the slower one, which is the point.
+// `1` is the plan's OWN duration — the pace that falls out of the routed pathway geometry (measured
+// 6.8 s on the current forest since ADR-0285 removed the ordering clamp). The owner watched that and
+// called it too fast, so ADR-0286 shipped 0.6x; they then watched THAT and took it to the dial's
+// FLOOR (2026-08-03: "I think we down the speed to 0.25, the lowest setting"). So the DEFAULT is
+// deliberately not 1, and the clean, param-free URL is the slowest one — which is the point.
 describe('worldSettings — regrowSpeed dial (Act 2 regrow pace, ADR-0286)', () => {
-  it('defaults to the owner-chosen 0.6x, and writing that default keeps the URL clean', () => {
-    expect(readControlValue('', ctl('regrowSpeed'))).toBe(0.6);
-    expect(setControlValue('?regrowSpeed=1.5', ctl('regrowSpeed'), 0.6)).toBe('');
+  it('defaults to the owner-chosen 0.25x, and writing that default keeps the URL clean', () => {
+    expect(readControlValue('', ctl('regrowSpeed'))).toBe(0.25);
+    expect(setControlValue('?regrowSpeed=1.5', ctl('regrowSpeed'), 0.25)).toBe('');
+  });
+
+  it('sits ON the slider floor — the dial only opens upward', () => {
+    // Owner-directed and deliberate (ADR-0286 D4 as amended 2026-08-03): they asked for the slowest
+    // the control offers. Pinned so a later "tidy the default off the boundary" edit has to argue
+    // with the decision rather than quietly re-centre it.
+    const c = ctl('regrowSpeed') as NumberControl;
+    expect(c.default).toBe(c.min);
+    expect(c.default).toBeLessThan(c.max);
   });
 
   it('reads a written value back, and falls to the default on nonsense', () => {
     expect(readControlValue('?regrowSpeed=1.5', ctl('regrowSpeed'))).toBe(1.5);
-    expect(readControlValue('?regrowSpeed=wat', ctl('regrowSpeed'))).toBe(0.6);
+    expect(readControlValue('?regrowSpeed=wat', ctl('regrowSpeed'))).toBe(0.25);
   });
 
   it('never resolves to a speed that would stall the cursor', () => {
     // A zero or negative rate would freeze the regrow on frame one (or run it backwards), so the
-    // parser's clamp — not just the slider's UI bounds — has to hold the floor.
+    // parser's clamp — not just the slider's UI bounds — has to hold the floor. `clampMin` is
+    // deliberately BELOW `min`: the slider cannot reach 0.05, but a hand-written URL can, and the
+    // parser is what stops it being 0.
     expect(readControlValue('?regrowSpeed=0', ctl('regrowSpeed'))).toBe(0.05);
     expect(readControlValue('?regrowSpeed=-4', ctl('regrowSpeed'))).toBe(0.05);
     expect(readControlValue('?regrowSpeed=999', ctl('regrowSpeed'))).toBe(10);

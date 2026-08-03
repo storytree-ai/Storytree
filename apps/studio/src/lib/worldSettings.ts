@@ -232,18 +232,25 @@ export const CONTROLS: readonly ControlSpec[] = [
   // the only thing about it the URL carries; the replay button beside it is an action, not state.
   //
   // Why the default is not 1×. `1` means the plan's OWN duration — the pace that falls out of the
-  // routed pathway geometry, about 6 s on the current forest since ADR-0285 removed the ordering
-  // clamp that had been padding it. The owner watched that and said "its probably too fast". 0.6×
-  // stretches it to roughly ten seconds, which is long enough to follow a road out to the island it
-  // forms. The dial is the escape in both directions, and it scales the CLOCK only — every island
-  // still forms exactly where its pathway arrives (ADR-0285's causal invariant is untouched).
+  // routed pathway geometry, measured 6.8 s on the current forest since ADR-0285 removed the
+  // ordering clamp that had been padding it. The owner watched that and said "its probably too
+  // fast", so ADR-0286 shipped 0.6× (~12 s). They then watched THAT and took it to the floor:
+  // "I think we down the speed to 0.25, the lowest setting" (2026-08-03), which is ~27 s.
+  //
+  // The default now sits ON `min`, deliberately. That is not a mistake to tidy up later: the owner
+  // asked for the slowest the dial offers, so the dial only opens upward and the floor is a floor
+  // rather than a value nobody picked. If a future look wants slower still, `min` moves — the
+  // default follows it, and `clampMin` below is what actually protects the cursor.
+  //
+  // It scales the CLOCK only — every island still forms exactly where its pathway arrives, at the
+  // same fraction of the run (ADR-0285's causal invariant is untouched at every speed).
   {
     kind: 'number',
     key: 'regrowSpeed',
     label: 'Regrow speed',
     group: GROUP_INTRO,
-    hint: 'How fast the forest regrows when it plays. 1× is the pace the story graph itself implies (about 6 seconds); the 0.6× default stretches that to roughly ten so each island’s arrival is easy to follow.',
-    default: 0.6,
+    hint: 'How fast the forest regrows when it plays. 1× is the pace the story graph itself implies (about 7 seconds); the 0.25× default is the slowest the dial goes, stretching it to roughly half a minute so every island’s arrival is easy to follow. Slide right to speed it up.',
+    default: 0.25,
     min: 0.25,
     max: 2,
     step: 0.05,

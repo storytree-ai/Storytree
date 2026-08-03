@@ -1308,7 +1308,8 @@ export function readArtScale(search: string = defaultSearch()): number {
 }
 
 /** How fast the Act 2 regrow crosses its plan (worldSettings' `regrowSpeed` number control,
- *  ADR-0286). 1 = the plan's own duration; the 0.6 default stretches it. Scales the CLOCK only —
+ *  ADR-0286). 1 = the plan's own duration; the 0.25 default — the dial's floor — stretches it to
+ *  roughly half a minute on the current forest. Scales the CLOCK only —
  *  the schedule the story graph derives is identical at every speed. */
 export function readRegrowSpeed(search: string = defaultSearch()): number {
   return readControlValue(search, REGROW_SPEED_CTL) as number;
