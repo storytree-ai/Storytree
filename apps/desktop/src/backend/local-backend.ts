@@ -219,7 +219,7 @@ async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, 
  * thick-client journey needs. Desktop-irrelevant hosted concerns (IAP / members / invites /
  * db-control / db-wake) are NOT ported.
  *
- * - GET  /api/health   — store + db probe envelope (NEVER 503)
+ * - GET  /api/health   — store + db probe envelope + the answering process's `pid` (NEVER 503)
  * - GET  /api/tree     — the story tree from real orchestrator discovery over `storiesDir`, ENRICHED
  *                        with the signed-verdict overlay so islands/plants paint proof-health (ADR-0119
  *                        deferred overlay) — green from a signed pass, not authored brown
@@ -244,7 +244,13 @@ export function createLocalBackend(
       if (url.pathname === "/api/health") {
         if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
         const health = await deps.backend.health();
-        sendJson(res, 200, { store: deps.store, ...health });
+        // `pid` mirrors the studio's handleHealth (apiRouter.ts): the OS process id of the
+        // process answering, so a launcher can tell ITS sidecar from a foreign listener that
+        // already holds the port rather than measuring one as the other. Re-composed here
+        // rather than imported (the house rule for mirrored routes), which is exactly why it
+        // has to be added deliberately — a mirror silently lacks whatever the studio gained.
+        // Nothing in the desktop app compares it yet; it keeps the two envelopes one shape.
+        sendJson(res, 200, { store: deps.store, ...health, pid: process.pid });
       } else if (url.pathname === "/api/tree") {
         if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
         sendJson(res, 200, await buildTreePayload(deps));

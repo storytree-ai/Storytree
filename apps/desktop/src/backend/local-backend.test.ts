@@ -95,6 +95,12 @@ test("local-backend: GET /api/health returns a real { store, db } envelope — n
     // Concrete assertions about the envelope — not just a 200 passthrough.
     assert.equal(body["store"], "json", "envelope must echo the injected store kind");
     assert.equal(body["db"], "n/a", "envelope must carry the db probe result from the stub backend");
+    // The identity stamp the studio's handleHealth gained: WHICH process is answering, so a launcher
+    // can tell its own sidecar from a foreign listener already holding the port instead of measuring
+    // one as the other. This route is RE-COMPOSED from the studio's, never imported, so the mirror
+    // only carries what someone deliberately put here — which is exactly how a mirrored route
+    // silently drifts. Pinned so the drift is a red, not a discovery.
+    assert.equal(body["pid"], process.pid, "envelope must stamp the answering process's own pid");
   });
 });
 
