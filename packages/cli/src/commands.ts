@@ -2072,6 +2072,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     evidence?: string;
     route?: string;
     "discharged-by"?: string;
+    "re-route"?: boolean;
     proposal?: string;
     summary?: string;
     motivation?: string;
@@ -2166,6 +2167,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         route: { type: "string" },
         // `storytree friction route --discharged-by <ref>` — the delivery stamp (remedy landed).
         "discharged-by": { type: "string" },
+        // `storytree friction route --re-route` — overwrite ANOTHER adjudicator's standing route on
+        // purpose. Without it a foreign route refuses, so a concurrent board drain cannot silently
+        // destroy a peer's `routeReason` (measured: 4 items, ~22k chars, 2026-07-30).
+        "re-route": { type: "boolean", default: false },
         // `storytree friction route --route tool --proposal <id>` — the ADR-0287 D1 emission: the
         // `proposal` artifact the tool route produces, cited in the item's `references`.
         proposal: { type: "string" },
@@ -2978,6 +2983,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(values.route !== undefined ? { route: values.route } : {}),
         ...(reason !== undefined ? { reason } : {}),
         ...(values["discharged-by"] !== undefined ? { dischargedBy: values["discharged-by"] } : {}),
+        // The deliberate foreign overwrite — see `routeFriction`'s compare-and-refuse guard.
+        ...(values["re-route"] === true ? { reRoute: true } : {}),
         // The ADR-0287 D1 emission: the proposal the `tool` route produces, cited in `references`.
         ...(values.proposal !== undefined ? { proposal: values.proposal } : {}),
       }, ctx);
