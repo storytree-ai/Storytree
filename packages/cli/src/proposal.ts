@@ -23,11 +23,13 @@
  *   storytree proposal list [--pg]         the tier — every proposal, newest-authored last
  *   storytree proposal new [<id>] …  --pg  SCAFFOLD one (the six required fields; the CLI stamps the rest)
  *
- * `list` deliberately does NOT go through `library artifact list proposal`: that surface derives its
- * category list from kinds that HAVE instances, so an EMPTY tier answers `unknown category
- * "proposal"` — absence of rows rendered as absence of the kind (friction
- * `an-empty-artifact-kind-is-reported-as-a-kind-that-does-not-exist`). A tier whose whole purpose is
- * to carry a fail-closed delivery signal has to be listable at zero, because zero is a finding.
+ * `list` reads the tier directly rather than going through `library artifact list proposal`, and
+ * names an empty tier as a FINDING in words — a tier whose whole purpose is to carry a fail-closed
+ * delivery signal has to be readable at zero, because zero is the finding. It ONCE had a second,
+ * stronger reason: the generic surface derived its category list from kinds that HAVE instances, so
+ * an empty tier answered `unknown category "proposal"` — absence of rows rendered as absence of the
+ * kind. That is fixed (proposal `an-empty-tier-reports-empty-not-an-unknown-kind` made
+ * `listCategory`'s set schema-derived), so the two surfaces now differ in framing, not in truth.
  */
 
 import type { Store, StoredDoc } from "@storytree/storage-protocol";

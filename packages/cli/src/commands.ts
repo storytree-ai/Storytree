@@ -144,6 +144,37 @@ import { driveBuildTestsGate } from "./gate-build-driver.js";
 const EDIT_FIRST_ID = "edit-first-curation";
 
 /**
+ * The OWNER's timezone, named ONCE as a repo constant.
+ *
+ * Deliberately NOT read from the environment: `TZ` on a CI box or a remote container is not the
+ * owner's timezone, and a wrong-but-plausible date is worse than a wrong-and-known one. Hard-coding
+ * a single zone follows an existing repo convention rather than inventing one — the Cloud SQL sleep
+ * window in `infra/cost-backstop.tf` is fixed to this same zone (ADR-0114). If the owner ever moves,
+ * both places change together.
+ */
+const OWNER_TIMEZONE = "Australia/Sydney";
+
+/**
+ * Today's date in the OWNER's timezone, as `YYYY-MM-DD` — the clock behind the human-facing
+ * `decided:` stamp on `adr new --decided`.
+ *
+ * Derived from UTC, any session running before ~10:00 Australia/Sydney recorded the decision as the
+ * PREVIOUS day, in BOTH the `decided:` frontmatter and the `## Status` prose, and both had to be
+ * hand-corrected on every owner-directed ADR. That is not cosmetic: the decision log is the
+ * calibration surface every new session is sent to, and an off-by-one date silently mis-orders a
+ * decision against the ADR it amends or supersedes.
+ *
+ * `en-CA` formats as `YYYY-MM-DD` directly, so no dependency is needed. NOT for `createdAt` /
+ * `updatedAt` — those are machine ordering keys and correctly UTC.
+ */
+export function ownerLocalDate(now: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: OWNER_TIMEZONE }).format(now);
+}
+
+/** The shape `--decided-date` must take to override the derived owner-local date. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
  * The Library commands (ADR-0023). Read-only walking skeleton: `library` (dashboard), `artifact <id>`
  * (view), `artifact list <category>` (the interim search). Each returns an {@link Envelope} — the
  * result plus choose-your-own-adventure guidance. `run` parses argv and dispatches; it NEVER throws
@@ -195,6 +226,25 @@ function groupByKind(docs: readonly StoredDoc[]): Map<string, StoredDoc[]> {
     else m.set(d.kind, [d]);
   }
   return m;
+}
+
+/**
+ * The listable categories: every kind the SCHEMA defines, unioned with any kind actually present in
+ * the store.
+ *
+ * SCHEMA-derived, because the population is not the authority on what exists. Deriving the set from
+ * rows present erased an empty tier twice over: a kind added to the schema stayed unlistable for
+ * exactly as long as it took someone to write its first row — the window in which an agent orienting
+ * on the new kind most needs to see it — and a lifecycle tier draining to zero, which for `proposal`
+ * is the SUCCESS state, read as `unknown category`. Both are false: an empty mandatory-drain tier is
+ * a FINDING, and the instrument has to report it rather than deny it.
+ *
+ * The UNION keeps store-only kinds listable: `template` artifacts (ADR-0210) carry a kind the
+ * knowledge union does not name and they list today, so the change is strictly widening — every
+ * invocation that works keeps working and returns the same rows.
+ */
+function listableKinds(present: Iterable<string>): string[] {
+  return orderedKinds([...Object.keys(KIND_SPECS), ...present]);
 }
 
 function orderedKinds(present: Iterable<string>): string[] {
@@ -351,9 +401,80 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
   return { ok: true, body: lines.join("\n"), next };
 }
 
-/** `storytree library artifact list <category>` — the interim search (list by kind). */
+/**
+ * The BARE-BYTES envelope (`library artifact <id> --raw <field>`): `raw` carries one stored field's
+ * exact value, and `main` writes it to stdout VERBATIM instead of formatting the envelope — no
+ * heading, no `doctrine:`, no `next:`, no delta footer, and none of `formatEnvelope`'s trailing-
+ * whitespace strip.
+ *
+ * This is the ONE deliberate exception to the guidance-envelope convention every other read follows
+ * (ADR-0023 §4), and the exception IS the value: it makes the read composable with the existing
+ * `--set <field>=@path` write, so correcting one bullet of a long prose field is a read→edit→write
+ * round trip across two supported commands instead of a throwaway `PgLibraryStore` script. The cost
+ * is that `--raw` cannot be composed with anything that expects an envelope — said out loud in
+ * {@link artifactHelp} so the exception reads as a decision rather than an oversight.
+ */
+export interface RawEnvelope extends Envelope {
+  readonly raw: string;
+}
+
+/** True when this envelope carries bare bytes `main` must WRITE rather than format. */
+export function isRawEnvelope(e: Envelope): e is RawEnvelope {
+  return typeof (e as { raw?: unknown }).raw === "string";
+}
+
+/**
+ * `storytree library artifact <id> --raw <field>` — ONE stored field's exact value, and nothing else.
+ *
+ * A string field emits its bytes verbatim (the round trip the write side already supported in one
+ * direction). Any other stored value emits its JSON — there is no byte-exact original to preserve.
+ * An absent field is a MISS rather than empty output: it exits non-zero, names the field, and lists
+ * the ones the doc actually has, because silence would be indistinguishable from an empty value.
+ *
+ * The flag is `--raw <field>`, deliberately NOT `--json`: on this verb `--json` is already an INPUT
+ * option taking a whole doc, and overloading it would reproduce the exact confusion the missing read
+ * path caused.
+ */
+export async function rawField(store: Store, id: string, field: string): Promise<Envelope> {
+  const stored = await store.getDoc(id);
+  if (!stored) {
+    return {
+      ok: false,
+      body: `no artifact "${id}" in the Library.`,
+      next: ["storytree library artifact list <category>"],
+    };
+  }
+  const doc = stored.doc;
+  const fields = typeof doc === "object" && doc !== null ? (doc as Record<string, unknown>) : {};
+  const value = fields[field];
+  if (value === undefined) {
+    return {
+      ok: false,
+      body: [
+        `"${id}" has no stored field "${field}".`,
+        "",
+        `its fields: ${Object.keys(fields).sort().join(", ")}`,
+      ].join("\n"),
+      next: [`storytree library artifact ${id}   (the rendered view)`],
+    };
+  }
+  const raw = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  // `body` carries the same text so a caller that DOES format the envelope still sees the value —
+  // degraded (the render strips trailing whitespace), never wrong.
+  const env: RawEnvelope = { ok: true, body: raw, raw };
+  return env;
+}
+
+/**
+ * `storytree library artifact list <category>` — the interim search (list by kind).
+ *
+ * The two answers are split: a category the schema does not define is a genuine user error
+ * (`ok: false` + the available list), while a schema kind holding ZERO rows lists EMPTY at `ok: true`
+ * in the same `<kind>  (0)` shape a populated tier uses — a fact about the population, never a fault
+ * in the query. See {@link listableKinds} for why the set is schema-derived.
+ */
 export async function listCategory(store: Store, category: string | undefined): Promise<Envelope> {
-  const kinds = orderedKinds(groupByKind(await store.queryDocs()).keys());
+  const kinds = listableKinds(groupByKind(await store.queryDocs()).keys());
   if (category === undefined || !kinds.includes(category)) {
     const which = category === undefined ? "no category given" : `unknown category "${category}"`;
     return {
@@ -1244,11 +1365,16 @@ function artifactHelp(): Envelope {
       "storytree library artifact — view and (soon) author Library artifacts.",
       "",
       "  storytree library artifact <id>             print an artifact to stdout",
+      "  storytree library artifact <id> --raw <field>   ONE field's exact stored bytes, alone",
       "  storytree library artifact list <category>  list artifacts in a category",
       "  storytree library artifact new --json '<doc>' | --file <p>   create (needs --pg)",
       "  storytree library artifact edit <id> --set <field>=<value>   edit (needs --pg)",
       "  storytree library artifact retire <id> --reason \"...\" [--superseded-by <ref>]   retire (needs --pg)",
       "  (coming soon: comment <id>)",
+      "",
+      "`--raw <field>` is the ONE read that breaks the envelope convention on purpose: it writes the",
+      "value ALONE to stdout — no heading, no doctrine, no next: — so it pipes to a file and composes",
+      "with `edit --set <field>=@<that file>`. Nothing that expects an envelope can consume it.",
     ].join("\n"),
     next: ["storytree library", "storytree library artifact list <category>"],
   };
@@ -1319,6 +1445,13 @@ export interface RunDeps {
   readonly adr?: AdrAllocatorLike | null;
   /** The docs/decisions dir `storytree adr` scans + scaffolds into. Injectable for tests. */
   readonly adrDecisionsDir?: string;
+  /**
+   * The composition-root clock, injectable so a DATE-stamping command is provable across a timezone
+   * boundary — a fixed instant that falls on different days in UTC and in the owner's zone is the
+   * only honest red for the `adr new --decided` stamp. Read through {@link ownerLocalDate}; absent
+   * in production, where the real `new Date()` is used.
+   */
+  readonly now?: () => Date;
   /**
    * The `storytree plan check` git seam (ADR-0183 D2): commits touching a path since the plan's
    * anchor sha. Injectable so the freshness check is provable offline; defaults to the real
@@ -1885,6 +2018,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     json?: string;
     file?: string;
     set?: string[];
+    /** `library artifact <id> --raw <field>` — the bare-bytes read (see {@link rawField}). */
+    raw?: string;
+    /** `adr new --decided --decided-date <YYYY-MM-DD>` — override the derived owner-local date. */
+    "decided-date"?: string;
     /** `library export-corpus --id <id>` (repeatable) — scope the live→seed export (ADR-0290). */
     id?: string[];
     "dry-run"?: boolean;
@@ -1964,6 +2101,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         json: { type: "string" },
         file: { type: "string" },
         set: { type: "string", multiple: true },
+        raw: { type: "string" },
+        "decided-date": { type: "string" },
         "dry-run": { type: "boolean", default: false },
         // `storytree guide --fix` — opt in to enacting the D6 repairs (ADR-0207).
         fix: { type: "boolean", default: false },
@@ -2440,6 +2579,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "adr") {
     if (help) return adrHelp();
+    const explicitDecided = values["decided-date"];
+    if (explicitDecided !== undefined && !ISO_DATE.test(explicitDecided)) {
+      return {
+        ok: false,
+        body: `--decided-date must be YYYY-MM-DD (got ${JSON.stringify(explicitDecided)}).`,
+        next: ['storytree adr new --title "..." --decided --decided-date 2026-07-11 --pg'],
+      };
+    }
     return adrCommand(
       sub,
       {
@@ -2459,7 +2606,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         branch: deps.adr ? currentBranch() : "offline",
         actor: deps.actor ?? defaultCliActor(),
         // The `decided:` date for an owner-directed scaffold (ADR-0110); composition-root clock.
-        today: new Date().toISOString().slice(0, 10),
+        // OWNER-LOCAL, not UTC (see {@link ownerLocalDate}), and `--decided-date` overrides it for
+        // an ADR whose decision was made earlier in the conversation or on a previous day.
+        today: explicitDecided ?? ownerLocalDate(deps.now?.() ?? new Date()),
       },
     );
   }
@@ -3000,6 +3149,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         next: ["storytree library artifact <id>"],
       };
     }
+    // The bare-bytes read: ONE field's exact stored value on stdout, so a partial edit to a long
+    // field can round-trip the untouched parts through `--set <field>=@path`.
+    if (values.raw !== undefined) return rawField(deps.store, third, values.raw);
     return viewArtifact(deps.store, third, deps.offerId);
   }
 
