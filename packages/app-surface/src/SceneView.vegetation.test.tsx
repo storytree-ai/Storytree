@@ -163,6 +163,23 @@ describe('the central tree becomes a frame of the shared track', () => {
     }
   });
 
+  it('stays HITTABLE — the map selects by coordinate hit-test through this element', () => {
+    // Regression wall. The first cut copied `pointer-events: none` from the decorative organic-pose
+    // layer, which broke node selection on the desktop: TreeView resolves a click with
+    // `elementFromPoint(...).closest('[data-story-id]')` (the Electron pointer-capture-retarget fix),
+    // and an inert tree lets that probe fall through the canopy to bare `<svg>`. jsdom has no layout,
+    // so the attribute is what is asserted — but `apps/desktop/e2e/node-click.e2e.mjs` exercises the
+    // real thing, and it is what caught this.
+    const { root } = renderAt(1);
+    for (const image of root.querySelectorAll('image.veg-track')) {
+      expect(image.getAttribute('pointer-events')).toBeNull();
+    }
+    // …and the wrapper still carries the id the coordinate probe walks up to find.
+    expect(
+      root.querySelector('image.veg-track-tree')!.closest('[data-story-id]'),
+    ).toBeTruthy();
+  });
+
   it('carries the island status for the stylesheet’s hue channel (ADR-0292 D3)', () => {
     const { root } = renderAt(1);
     expect(root.querySelector('image.veg-track-tree')!.getAttribute('class')).toContain('st-healthy');
