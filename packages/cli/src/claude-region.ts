@@ -7,7 +7,8 @@
  * checkout carries CLAUDE.md as CRLF (core.autocrlf converts on checkout; `.gitattributes`
  * `eol=lf` only normalizes git's INDEX, not the working tree). A naive `next === md` then reported
  * the region STALE on every Windows gate run even when the content was byte-identical modulo the
- * line endings — `pnpm check:claude` (and `pnpm gate`) went spuriously RED on Windows while CI
+ * line endings — today's `pnpm check:guidance` (`check:claude` compatibility alias) went spuriously
+ * RED on Windows while CI
  * (Linux/LF) stayed green. The fix: do all marker math and the in-sync comparison in LF space, and
  * re-apply the file's existing EOL on write — so the comparison is EOL-agnostic and a write never
  * leaves mixed endings.
@@ -26,6 +27,40 @@ export type ClaudeRegionResult =
 
 /** LF-space view of a string (CRLF → LF), so all index math and comparison ignore line endings. */
 const toLf = (s: string): string => s.replace(/\r\n/g, "\n");
+
+/** The fully-generated Codex root guidance view (ADR-0291). */
+export function renderCodexGuidance(agent: string, digest: string): string {
+  return [
+    "<!-- GENERATED from the Library `agent` tier by `pnpm build:guidance` (ADR-0291) — do NOT hand-edit. -->",
+    "# Storytree — agent onboarding",
+    "",
+    `This is Codex's root projection of the canonical Library \`${agent}\` agent.`,
+    "Edit the Library artifact, then regenerate; this file is not an independent guidance source.",
+    "",
+    digest.trim(),
+    "",
+  ].join("\n");
+}
+
+export type GeneratedGuidanceResult = {
+  /** True when a file exists and already matches the expected generated content modulo EOL. */
+  inSync: boolean;
+  /** The full generated file to write, preserving an existing file's EOL style. */
+  next: string;
+};
+
+/** Compare a fully-generated guidance file modulo EOL and preserve its existing EOL on rewrite. */
+export function syncGeneratedGuidance(
+  rawMd: string | null,
+  expected: string,
+): GeneratedGuidanceResult {
+  const expectedLf = toLf(expected).replace(/\n*$/, "\n");
+  const inSync = rawMd !== null && toLf(rawMd) === expectedLf;
+  const next = rawMd !== null && /\r\n/.test(rawMd)
+    ? expectedLf.replace(/\n/g, "\r\n")
+    : expectedLf;
+  return { inSync, next };
+}
 
 /**
  * Splice the rendered `digest` into the `<!-- AGENT:<agent> START … -->` / `<!-- AGENT:<agent> END -->`

@@ -3,7 +3,7 @@ id: "green-gate"
 tier: capability
 story: ci-cd
 title: "The green gate — verify proves a PR against the merge of branch and main"
-outcome: "A PR's verify job proves it against the merge of branch+main — manifest, CLAUDE.md plus all four harness-native agent views in sync, typecheck, test, build — and a red anything blocks the merge."
+outcome: "A PR's verify job proves it against the merge of branch+main — manifest, generated root CLAUDE.md + AGENTS.md guidance plus all four harness-native specialist-agent directories in sync, typecheck, test, build — and a red anything blocks the merge."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -12,7 +12,7 @@ depends_on: []
 # The green gate — `verify` proves a PR against the merge of branch and main
 
 **Outcome —** A PR's `verify` job ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml))
-proves it against the **merge of branch + main** — `pnpm check:manifest`, `pnpm check:claude`,
+proves it against the **merge of branch + main** — `pnpm check:manifest`, `pnpm check:guidance`,
 `pnpm check:agents`, `pnpm -r typecheck`, `pnpm -r test`, `pnpm -r build` — and a red anything blocks
 the merge (ADR-0022).
 
@@ -42,16 +42,18 @@ the merge (ADR-0022).
      RED; the same branch re-based onto current `main` goes green. The redness appears on the PR's
      merge-ref check, never only on a branch-only build.
 2. **`all-six-steps-required`** — every gate step is load-bearing; none is optional
-   - **asserts —** breaking exactly one of `check:manifest`, `check:claude`, `check:agents`,
+   - **asserts —** breaking exactly one of `check:manifest`, `check:guidance`, `check:agents`,
      `-r typecheck`, `-r test`, or `-r build` independently fails `verify`; a green job means all six
      passed (the step list in `ci.yml`'s `verify` job is exactly those six, in that order).
 3. **`generated-views-in-sync`** — the three surface/sync gates catch drift
-   - **asserts —** `check:manifest` fails on an unlisted root/loose-doc surface; `check:claude` fails
-     when CLAUDE.md's operating-discipline region drifts from the `session-orchestrator` artifact
-     (ADR-0051); `check:agents` fails when any Claude, Cursor, Codex, or Gemini CLI native view is
-     stale, missing, orphaned, dangling, or differs from the same delegatable Library agent
-     population (`.claude/agents/*.md`, `.cursor/agents/*.md`, `.codex/agents/*.toml`,
-     `.gemini/agents/*.md`; ADRs 0052/0178/0234). Gemini files emit no model or tool grant, so the
+   - **asserts —** `check:manifest` fails on an unlisted root/loose-doc surface; `check:guidance` fails
+     when either root main-session view — CLAUDE.md or Codex AGENTS.md — drifts from the canonical
+     `session-orchestrator` artifact (ADRs 0051/0291; `check:claude` remains a compatibility alias);
+     `check:agents` separately fails when any specialist Claude, Cursor, Codex, or Gemini CLI native
+     view is stale, missing, orphaned, dangling, or differs from the same delegatable Library agent
+     population
+     (`.claude/agents/*.md`, `.cursor/agents/*.md`, `.codex/agents/*.toml`, `.gemini/agents/*.md`;
+     ADRs 0052/0178/0234). Gemini files emit no model or tool grant, so the
      native Gemini CLI subagent inherits its parent session's model/tools; this contract makes no
      claim that Antigravity consumes the Gemini CLI surface. Each sync check is a real `verify`
      step, not advisory.

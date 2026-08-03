@@ -492,8 +492,8 @@ export type RenderDigestResult =
  * A CONCISE digest of an agent — its own prose (role / outcome / workflow / escalation) plus a
  * manifest of the artifacts it stands on, pointing at `storytree agents <name>` for the ESSENTIALS
  * render (one-line assertions + per-artifact pull commands since ADR-0156 §6ii — never the full
- * bodies; those come from `storytree library artifact <id>`). This is what shapes CLAUDE.md's
- * operating-discipline region (ADR-0051 §3): the thin cheat-sheet the friction audit asked for.
+ * bodies; those come from `storytree library artifact <id>`). This shapes the root main-session
+ * projections: CLAUDE.md's region and Codex AGENTS.md (ADR-0051 §3 / ADR-0291).
  */
 export async function renderAgentDigest(store: Store, name: string): Promise<RenderDigestResult> {
   const available = await agentIds(store);
@@ -547,7 +547,8 @@ export async function renderAgentDigest(store: Store, name: string): Promise<Ren
 
 /**
  * Agents that already own a dedicated runtime surface, so they are NOT also emitted as `.claude/agents`
- * subagent files: `session-orchestrator` shapes CLAUDE.md (ADR-0051 §3); `red-builder` / `green-builder`
+ * subagent files: `session-orchestrator` shapes the root main-session projections (ADR-0051/0291);
+ * `red-builder` / `green-builder`
  * ARE the SDK leaf prompt (§4). The REST are delegatable subagent roles.
  */
 export const DEDICATED_SURFACE_AGENTS: ReadonlySet<string> = new Set([

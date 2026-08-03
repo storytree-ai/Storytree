@@ -67,8 +67,9 @@ repos) and [ADR-0046](../../docs/decisions/0046-studio-merge-deploy-cd.md) (merg
   branch can still fail on something that landed on `main` *after* it was cut. This is the load-bearing
   reason a green local `pnpm gate` does not guarantee a green CI.
 - **The gate is content; the build is CI-only.** `pnpm gate` and CI enforce the same content
-  invariants (manifest + CLAUDE.md/agents sync + typecheck + test); CI adds exactly `pnpm -r build`
-  and the merge-ref. That delta is DECLARED and checkable (`gate-ci-parity`), not tribal knowledge.
+  invariants (manifest + root CLAUDE.md/AGENTS.md and specialist-agent sync + typecheck + test); CI
+  adds exactly `pnpm -r build` and the merge-ref. That delta is DECLARED and checkable
+  (`gate-ci-parity`), not tribal knowledge.
 - **Auto-merge is a consequence of green, never a decision.** A non-draft, non-`hold` PR merges the
   instant `verify` passes. Draft / `hold` is the only opt-out, and it is temporary — flip to ready on
   green. Humans approve by making the PR ready, not by clicking merge.
@@ -89,7 +90,7 @@ reaches forward to a sibling story.
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
-| 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves it against the merge of branch+main — manifest, CLAUDE.md plus all four harness-native agent views in sync, typecheck, test, build — and a red anything blocks the merge. | proposed | — |
+| 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves it against the merge of branch+main — manifest, root CLAUDE.md + AGENTS.md plus all four harness-native specialist agent views in sync, typecheck, test, build — and a red anything blocks the merge. | proposed | — |
 | 2 | [`repo-surface-manifest`](repo-surface-manifest.md) | `pnpm check:manifest` refuses any tracked root entry or loose doc not declared in `repo-manifest.json`, so ad-hoc junk can't merge. | proposed | — |
 | 3 | [`adr-health-gate`](adr-health-gate.md) | Decision-binding hygiene on the dev-repo path: atomic ADR-number allocation + the full adr-health suite (frontmatter, edges, supersede, story-decisions, green-flip, number-uniqueness) reddens a PR, plus a cross-open-PR collision check. | proposed | — |
 | 4 | [`gate-ci-parity`](gate-ci-parity.md) | The local `pnpm gate` and the CI `verify` invariant sets stand in one declared, checkable relationship (gate = CI − build, HEAD vs merge-ref); a stale-behind-main branch is surfaced. | proposed | `green-gate` |
@@ -193,10 +194,10 @@ the branch's coordination claim, and dispatches the keyless Studio deployment.
    between `runGate` and `openLandingPr`; invoking them in gate-before-PR order is the required
    landing procedure.
 2. **The verify workflow keeps its hard merge-candidate floor** _(gate: observe)_
-   `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['pull_request:','branches: [main]','uses: actions/checkout@v6','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','run: pnpm check:manifest','run: pnpm check:boundaries','run: pnpm check:claude','run: pnpm check:agents','run: pnpm check:web-grounding','run: pnpm check:web-engine','run: pnpm check:web-experience','Affected scope (PRs only)','- name: Typecheck','- name: Test','run: pnpm -r build','needs: verify'])if(!c.includes(s))throw new Error('missing verify seam: '+s)"`.
+   `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['pull_request:','branches: [main]','uses: actions/checkout@v6','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','run: pnpm check:manifest','run: pnpm check:boundaries','run: pnpm check:guidance','run: pnpm check:agents','run: pnpm check:web-grounding','run: pnpm check:web-engine','run: pnpm check:web-experience','Affected scope (PRs only)','- name: Typecheck','- name: Test','run: pnpm -r build','needs: verify'])if(!c.includes(s))throw new Error('missing verify seam: '+s)"`.
    The command reads the landed workflow itself and fails on removal of any named standing seam.
 3. **The current local/CI relationship is declared** _(gate: observe)_
-   `node --input-type=module -e "import fs from 'node:fs';const g=JSON.parse(fs.readFileSync('package.json','utf8')).scripts.gate;const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['check:manifest','check:boundaries','check:claude','check:agents','check:web-grounding','check:web-engine','check:web-experience','typecheck','test'])if(!g.includes(s)||!c.includes(s))throw new Error('shared gate seam drifted: '+s);for(const s of ['check:process-graph','check:agents-sync','check:corpus-sync','check:deploy-health'])if(!g.includes(s))throw new Error('local tail drifted: '+s);for(const s of ['ADR number collision (open PRs)','Affected scope (PRs only)','pnpm -r build'])if(!c.includes(s))throw new Error('CI delta drifted: '+s)"`.
+   `node --input-type=module -e "import fs from 'node:fs';const g=JSON.parse(fs.readFileSync('package.json','utf8')).scripts.gate;const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['check:manifest','check:boundaries','check:guidance','check:agents','check:web-grounding','check:web-engine','check:web-experience','typecheck','test'])if(!g.includes(s)||!c.includes(s))throw new Error('shared gate seam drifted: '+s);for(const s of ['check:process-graph','check:agents-sync','check:corpus-sync','check:deploy-health'])if(!g.includes(s))throw new Error('local tail drifted: '+s);for(const s of ['ADR number collision (open PRs)','Affected scope (PRs only)','pnpm -r build'])if(!c.includes(s))throw new Error('CI delta drifted: '+s)"`.
    This checks the actual declarations and intentionally does not revive the stale equality claim.
 4. **The green-only non-squash automerge rail is present** _(gate: observe)_
    `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['automerge:','needs: verify','github.event.pull_request.draft == false','!contains(github.event.pull_request.labels.*.name','hold','gh pr merge','--merge','--delete-branch'])if(!c.includes(s))throw new Error('automerge seam drifted: '+s)"`.
@@ -235,13 +236,14 @@ Surfaced rather than guessed — plain files, cheap to revise.
    artifact of double-counting "stay fresh," which is ci-cd's outcome alone (§1). Verified acyclic
    globally.
 3. **`green-gate`'s invariant set is broader than the original spec named.** The live `verify` job
-   runs `check:manifest` + `check:claude` + **`check:agents`** (ADRs 0052/0178/0234: the same
-   delegatable Library population rendered to `.claude/agents`, `.cursor/agents`, `.codex/agents`,
-   and Gemini CLI's native `.gemini/agents`) + `typecheck` + `test` + `build` — i.e. there are now
-   THREE generated-view/surface gates, not the two (`manifest` + `claude`) the scope brief named. I
-   grounded `green-gate` and `gate-ci-parity` in what the file actually runs (including
-   `check:agents`). The Gemini view inherits its parent Gemini CLI session's model/tools; this
-   projection makes no Antigravity compatibility claim.
+   runs `check:manifest` + `check:guidance` (ADRs 0051/0291: the canonical `session-orchestrator`
+   rendered to root CLAUDE.md + AGENTS.md) + **`check:agents`** (ADRs 0052/0178/0234: the same
+   delegatable Library population rendered to specialist `.claude/agents`, `.cursor/agents`,
+   `.codex/agents`, and Gemini CLI's native `.gemini/agents`) + `typecheck` + `test` + `build` — i.e.
+   there are now THREE generated-view/surface gates, not the two (`manifest` + `guidance`) the scope
+   brief named. I grounded `green-gate` and `gate-ci-parity` in what the file actually runs
+   (including `check:agents`). The Gemini view inherits its parent Gemini CLI session's model/tools;
+   this projection makes no Antigravity compatibility claim.
 4. **Status stays `proposed` (greenfield, like notice-board).** This machinery is live and working,
    but it has never been driven through storytree's own prove-it-gate red→green, and per ADR-0031
    authored status is a projection of signed verdicts, not of "it works in prod." Confirm `proposed`
