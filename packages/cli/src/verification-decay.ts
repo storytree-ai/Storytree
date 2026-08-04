@@ -64,6 +64,11 @@
 
 import ts from "typescript";
 
+// TYPE-ONLY, and deliberately so: the attribution core imports `DecayFinding` from here, so a value
+// import either way would be a cycle. Attribution decides WHO a located signal belongs to; this file
+// decides WHAT is located and what a backlog costs. Neither owns the other.
+import type { DecayAttribution, DecayOwner } from "./decay-attribution.js";
+
 // ---------------------------------------------------------------------------
 // The finding + instrument vocabulary
 // ---------------------------------------------------------------------------
@@ -80,6 +85,18 @@ export interface DecayFinding {
   id: string;
   /** Where to look — a repo-relative path or a unit id. */
   where: string;
+  /**
+   * EVERY repo-relative file whose content produced this finding, when that is more than {@link where}
+   * alone. Attribution (ADR-0301) charges a finding to this branch when the branch touched ANY basis
+   * file, so a finding that rests on two files and declares only one is a signal that can be created
+   * by an edit and read as somebody else's — the wrongly-excused direction.
+   *
+   * ABSENT means "just {@link where}", which is the honest default for the instruments whose finding
+   * is a property of one file. It does NOT extend to inputs an instrument CROSS-references across the
+   * whole repo (a symbol table, a workspace manifest): those cannot be a per-finding file list, and are
+   * handled by the shell's cross-input guard instead.
+   */
+  basis?: readonly string[];
   /** What was observed, in one line. Never a verdict; an observation. */
   detail: string;
   /**
@@ -384,6 +401,10 @@ export function findMirrorPairDrift(
       instrument: MIRROR_PAIR_DRIFT,
       id: `${MIRROR_PAIR_DRIFT}:${route}`,
       where: mirrorFile,
+      // BOTH halves of the pair, because a pair is created by whichever surface dispatched the route
+      // SECOND — and `where` names only the mirror. A branch that adds the studio half of a route the
+      // desktop already served has authored this finding while touching no desktop file (ADR-0301).
+      basis: referenceFile === "(unknown)" ? [mirrorFile] : [mirrorFile, referenceFile],
       // AN OBSERVATION, NOT A VERDICT. It says two independent implementations exist and nothing
       // compares them — never that they are REQUIRED to agree, which is exactly the question the
       // adversarial pass answers. `/api/me` is the case that keeps this honest: the desktop serves a
@@ -791,6 +812,11 @@ export function findWarnListHygiene(checks: readonly GateCheckFacts[]): DecayFin
       instrument: WARN_LIST_HYGIENE,
       id: `${WARN_LIST_HYGIENE}:${check.script}`,
       where: check.entryFile,
+      // EVERY source the shape was read from, not just the entry. This repo splits an advisory check
+      // entrypoint/judge and the exit path lives in the JUDGE, so removing a ceiling from a sibling
+      // module creates this finding with the entry file untouched (ADR-0301). That is precisely the
+      // wrongly-excused shape, and it is not hypothetical: `graduation-drain.ts` is such a sibling.
+      basis: check.sources.map((s) => s.path),
       // AN OBSERVATION, NOT A VERDICT. Three mechanical facts stated side by side: the check prints a
       // WARN, its printed output's size tracks a collection, and nothing in its implementation sets a
       // non-zero exit. It does NOT say the list is too long, does not say it has rotted, and does not
@@ -1032,8 +1058,20 @@ export interface InstrumentTally {
   count: number;
   /** Its own ceiling. */
   ceiling: number;
-  /** `ok` while count ≤ ceiling; `red` the moment THIS instrument's backlog grows past its own. */
-  level: "ok" | "red";
+  /**
+   * How many of {@link count} this branch is answerable for (ADR-0301). Equals `count` whenever no
+   * attribution was supplied or attribution could not be measured, which is why the pre-attribution
+   * behaviour is the fail-closed default rather than a special case.
+   */
+  authored: number;
+  /** How many of {@link count} rest only on files identical to the merge base. */
+  inherited: number;
+  /**
+   * `ok` while count ≤ ceiling · `red` past it with something of the breach authored HERE · `inherited`
+   * past it with NOTHING authored here — over ceiling on main, nobody's gate-run to answer for, WARN
+   * with the standing drain obligation named rather than a red or a silence (ADR-0301).
+   */
+  level: "ok" | "red" | "inherited";
 }
 
 /** The name and ceiling {@link evaluateDecayCeiling} needs — the judgeable part of an instrument. */
@@ -1052,13 +1090,22 @@ export interface DecayVerdict {
   count: number;
   /** The sum of the per-instrument ceilings. REPORTED, never enforced. */
   ceiling: number;
-  /** `red` when ANY instrument is over its OWN ceiling. Says nothing about escalation. */
-  level: "ok" | "red";
+  /**
+   * `red` when ANY instrument is over its OWN ceiling WITH something of that breach authored by this
+   * branch. An instrument over its ceiling on inherited signals alone is `inherited`, never `red`
+   * (ADR-0301). Says nothing about escalation.
+   */
+  level: "ok" | "red" | "inherited";
   /**
    * Every finding past the escalation line (ADR-0252 D1). Non-empty reds the gate on its own, at any
    * ceiling — the ceiling and the escalation are separate mechanisms with separate remedies.
    */
   escalations: readonly DecayFinding[];
+  /**
+   * Who each located signal is charged to (ADR-0301), when the shell measured it. ABSENT ⇒ nothing was
+   * measured and every signal is charged, which is the pre-ADR-0301 behaviour and the fail-closed one.
+   */
+  attribution?: DecayAttribution;
 }
 
 /**
@@ -1107,6 +1154,7 @@ export interface DecayVerdict {
 export function evaluateDecayCeiling(
   findings: readonly DecayFinding[],
   instruments: readonly CeilingSpec[],
+  attribution?: DecayAttribution,
 ): DecayVerdict {
   const escalations = findings.filter((f) => f.escalation !== undefined);
   const located = findings.filter((f) => f.escalation === undefined);
@@ -1118,9 +1166,24 @@ export function evaluateDecayCeiling(
   for (const f of located) if (!ceilings.has(f.instrument)) names.push(f.instrument);
 
   const tallies: InstrumentTally[] = names.map((name) => {
-    const count = located.filter((f) => f.instrument === name).length;
+    const mine = located.filter((f) => f.instrument === name);
+    const count = mine.length;
     const ceiling = ceilings.get(name) ?? 0;
-    return { instrument: name, count, ceiling, level: count > ceiling ? "red" : "ok" };
+    // UNATTRIBUTED IS CHARGED, and this default is the whole fail-closed posture: with no attribution
+    // supplied — or a finding the classifier never saw — `authored` equals `count`, which is exactly
+    // the pre-ADR-0301 behaviour. Nothing becomes inherited by omission; a signal reaches the
+    // uncharged column only by an explicit, measured verdict.
+    const inherited =
+      attribution === undefined
+        ? 0
+        : mine.filter((f) => attribution.byId.get(f.id)?.owner === "inherited").length;
+    const authored = count - inherited;
+    // The COUNT is still what the ceiling compares — the aperture changed, not the number (ADR-0269
+    // 4(f) / ADR-0301). What authorship decides is WHO the resulting breach belongs to: a breach with
+    // nothing of it authored here is `inherited`, which reports and never blocks the landing.
+    const level: InstrumentTally["level"] =
+      count <= ceiling ? "ok" : authored > 0 ? "red" : "inherited";
+    return { instrument: name, count, ceiling, authored, inherited, level };
   });
 
   return {
@@ -1128,8 +1191,13 @@ export function evaluateDecayCeiling(
     tallies,
     count: located.length,
     ceiling: tallies.reduce((sum, t) => sum + t.ceiling, 0),
-    level: tallies.some((t) => t.level === "red") ? "red" : "ok",
+    level: tallies.some((t) => t.level === "red")
+      ? "red"
+      : tallies.some((t) => t.level === "inherited")
+        ? "inherited"
+        : "ok",
     escalations,
+    ...(attribution === undefined ? {} : { attribution }),
   };
 }
 
@@ -1197,15 +1265,27 @@ export function formatDecaySweep(
 
   if (verdict.count > 0) {
     const breached = verdict.tallies.filter((t) => t.level === "red");
+    const stale = verdict.tallies.filter((t) => t.level === "inherited");
     const headline =
       verdict.level === "red"
         ? `${TAG} RED — ${verdict.count} located signal(s); ${breached.length} instrument(s) past their own drain ceiling (${coverage}).`
-        : `${TAG} WARN — ${verdict.count} located signal(s), every instrument within its own drain ceiling (${coverage}).`;
+        : verdict.level === "inherited"
+          ? `${TAG} WARN — ${verdict.count} located signal(s); ${stale.length} instrument(s) past their own drain ceiling ON MAIN, none of it authored here (${coverage}).`
+          : `${TAG} WARN — ${verdict.count} located signal(s), every instrument within its own drain ceiling (${coverage}).`;
     lines.push(headline);
     lines.push(
       `${TAG}   These LOCATE regions; they do not establish defects. A metric is never itself a finding ` +
         "(ADR-0252): adversarially verify before repairing, and state the failure scenario as inputs → wrong outcome.",
     );
+    // The fallback reason, printed at the top rather than buried: a reader whose gate just went red on
+    // signals it never touched must be able to tell "charged because it is yours" from "charged
+    // because attribution could not be measured" (ADR-0301 / ADR-0290 D7).
+    if (verdict.attribution?.unattributable !== undefined) {
+      lines.push(
+        `${TAG}   ATTRIBUTION UNMEASURED — ${verdict.attribution.unattributable}. Every signal below is ` +
+          "charged rather than excused; that is the fail-closed direction, not a claim that it is yours.",
+      );
+    }
   }
 
   for (const inst of instruments) {
@@ -1217,21 +1297,50 @@ export function formatDecaySweep(
     // rather than only that some total moved.
     const tally = verdict.tallies.find((t) => t.instrument === inst.name);
     const score = tally === undefined ? `${mine.length}` : `${tally.count}/${tally.ceiling}`;
-    const flag = tally?.level === "red" ? " OVER CEILING" : "";
+    const flag =
+      tally?.level === "red" ? " OVER CEILING" : tally?.level === "inherited" ? " OVER CEILING ON MAIN" : "";
     lines.push(`${TAG}   ${inst.name} (${score}${flag}) — ${inst.locates}`);
-    for (const f of mine) lines.push(`${TAG}     · ${f.detail}  [${f.where}]`);
+    // SPLIT BY AUTHORSHIP, and NOT YOURS is printed in FULL rather than summarised to a count. The
+    // 15-minute differential this replaces was a session asking "which of these are mine"; a count
+    // answers "how many" and leaves the reader to re-derive the rest.
+    const owner = (f: DecayFinding): DecayOwner | undefined =>
+      verdict.attribution?.byId.get(f.id)?.owner;
+    const yours = verdict.attribution === undefined ? mine : mine.filter((f) => owner(f) !== "inherited");
+    const notYours = verdict.attribution === undefined ? [] : mine.filter((f) => owner(f) === "inherited");
+    if (notYours.length > 0 && yours.length > 0) lines.push(`${TAG}     YOURS (${yours.length}):`);
+    for (const f of yours) lines.push(`${TAG}     · ${f.detail}  [${f.where}]`);
+    if (notYours.length > 0) {
+      lines.push(
+        `${TAG}     NOT YOURS (${notYours.length}) — reported and NOT part of this breach; every file ` +
+          "each rests on is identical to the merge base:",
+      );
+      for (const f of notYours) lines.push(`${TAG}     · ${f.detail}  [${f.where}]`);
+    }
   }
 
   if (verdict.level === "red") {
     for (const t of verdict.tallies.filter((x) => x.level === "red")) {
       lines.push(
-        `${TAG}   ${t.instrument}: ${t.count} located, ceiling ${t.ceiling}. Landing is blocked until THIS ` +
-          `instrument returns to ${t.ceiling} or below — repairing another instrument's signal cannot ` +
-          "clear it. Repair a located signal (verify it first), or — if the growth is legitimate and " +
-          "verified — raise that instrument's `ceiling` in `packages/cli/src/check-verification-decay.ts` " +
-          "with the reason recorded in the commit.",
+        `${TAG}   ${t.instrument}: ${t.count} located (${t.authored} yours), ceiling ${t.ceiling}. Landing is ` +
+          `blocked until THIS instrument returns to ${t.ceiling} or below — repairing another ` +
+          "instrument's signal cannot clear it. Repair a located signal (verify it first), or — if the " +
+          "growth is legitimate and verified — raise that instrument's `ceiling` in " +
+          "`packages/cli/src/check-verification-decay.ts` with the reason recorded in the commit.",
       );
     }
+  }
+
+  // THE PRE-EXISTING BREACH, named as its own outcome (ADR-0301). This is the sentence whose absence
+  // cost a session ~15 minutes of stash-and-differential on 2026-08-03: the instrument is over its
+  // ceiling on main, none of it is this branch's, and the remedy is the standing drain — not a raised
+  // ceiling, and not a differential to prove innocence the check has already proved.
+  for (const t of verdict.tallies.filter((x) => x.level === "inherited")) {
+    lines.push(
+      `${TAG}   ${t.instrument}: ${t.count} located, ceiling ${t.ceiling} — OVER CEILING ON MAIN, and NONE ` +
+        "of it authored by this branch. Your landing is NOT blocked. This is not a red you can clear " +
+        "and not one to investigate: the standing obligation is a DRAIN of this instrument (repair a " +
+        "located signal, verified first), never a raised ceiling (ADR-0252 D3 / ADR-0269).",
+    );
   }
   lines.push(charter);
   return { failed: verdict.level === "red" || escalated, lines };
@@ -1242,7 +1351,15 @@ export function formatDecaySweep(
  * fenced to itself: it becomes a finding of its own rather than taking the sweep down, because a
  * sweep that silently stops sweeping is precisely a check that cannot go red.
  */
-export function runDecaySweep(instruments: readonly DecayInstrument[]): DecayVerdict {
+export function runDecaySweep(
+  instruments: readonly DecayInstrument[],
+  /**
+   * Charge the located signals (ADR-0301). Called with the sweep's findings AFTER every instrument has
+   * run, because the shell's cheap exact questions are per-finding. Omit — or let it throw — and every
+   * signal is charged, which is the pre-ADR-0301 behaviour and the fail-closed one.
+   */
+  attribute?: (findings: readonly DecayFinding[]) => DecayAttribution,
+): DecayVerdict {
   const findings: DecayFinding[] = [];
   for (const inst of instruments) {
     try {
@@ -1267,5 +1384,18 @@ export function runDecaySweep(instruments: readonly DecayInstrument[]): DecayVer
       });
     }
   }
-  return evaluateDecayCeiling(findings, instruments);
+  // An attributor that THROWS is fenced exactly like an instrument that throws — but it degrades to
+  // CHARGING EVERYTHING rather than to an escalation, because a failure to attribute is not a failure
+  // to sweep: the located regions are all still real, and the honest fallback is the behaviour that
+  // predates attribution entirely (ADR-0290 D7's asymmetry — a wrongly-charged red costs a merge, a
+  // wrongly-excused one lands unseen).
+  let attribution: DecayAttribution | undefined;
+  if (attribute !== undefined) {
+    try {
+      attribution = attribute(findings);
+    } catch {
+      attribution = undefined;
+    }
+  }
+  return evaluateDecayCeiling(findings, instruments, attribution);
 }

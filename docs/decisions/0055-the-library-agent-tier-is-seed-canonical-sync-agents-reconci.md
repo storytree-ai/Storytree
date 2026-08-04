@@ -67,7 +67,7 @@ live agent tier equal the seed on demand.
   is covered offline (`sync-agents.test.ts`, `cli.test.ts`) with no DB, so it can't rot.
 - **Scope is fenced to agents.** Other kinds remain live-canonical; `sync-agents` will never clobber a
   live `principle`/`pattern`/`open-question` edit, because it only reads and writes `kind: "agent"`.
-- **Best-effort gate nudge, not a hard block.** `pnpm gate` ends with `check:agents-sync`
+- **Best-effort gate nudge, not a hard block.** `pnpm gate` runs `check:agents-sync`
   (`packages/cli/src/check-agents-sync.ts`) — a read-only, WARN-only step that, *when the DB is
   reachable*, compares the live agent tier against the seed and prints a `sync-agents --pg` nudge on
   drift; it SKIPs (never fails, never hangs — bounded by a timeout) when the DB is down or creds are

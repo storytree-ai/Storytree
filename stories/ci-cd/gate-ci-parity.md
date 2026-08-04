@@ -28,8 +28,12 @@ fact about TWO declared deltas: the **build** step and the **merge-ref**.
 
 - **Proof-walkthrough first (integration test, against the REAL gate definition + the REAL
   `verify` job).** The capability is a *relationship between two existing things*, so the proof reads
-  both and asserts the relationship — it does not re-run CI. Parse the `gate` script (the `package.json`
-  `gate` entry / the documented `pnpm -r typecheck && pnpm -r test` + the manifest/sync checks) and
+  both and asserts the relationship — it does not re-run CI. Read the gate's step list from
+  **`GATE_PLAN` in `packages/cli/src/gate-order.ts`** — NOT by parsing the `package.json` `gate`
+  script's text, which since 2026-08-04 is just the runner invocation and names zero steps, so a text
+  parse silently yields the EMPTY set (the same blindness that made `check-verification-decay.ts`'s
+  `loadGateChecks` go dark when the `&&` chain was removed; a sweep of `pnpm gate`'s CALLERS does not
+  find a consumer that reads its DEFINITION). Then
   parse the `verify` job's step list out of `ci.yml`, normalise both to a SET of content checks, and
   assert: `verify_set − {pnpm -r build} == gate_set`. The delta set is EXACTLY `{build}` and the
   ref-delta is `{HEAD vs merge-ref}` — both declared as named constants the test compares against, so

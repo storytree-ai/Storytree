@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-07-26
 arc: verification-integrity-arc
+load_bearing: true
 ---
 # ADR-0252: Verification-decay detection: continuous mechanical warns, a judgment-gated adversarial pass in a fresh session
 
@@ -312,6 +313,33 @@ the owner on 2026-07-27** and is `accepted`, so the fork is settled outright: th
 residual is now **permanent and owner-accepted** rather than pending. Read it as a closed decision, not
 as a backlog item to pick up.
 
+**Correction (2026-08-04, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+decision 3's "growth is what reds the gate" is APERTURED by
+[ADR-0301](0301-drain-ceilings-charge-by-authorship-verification-decay-and-g.md), which **amends** this
+ADR — scoped, not weakened, and every ceiling VALUE is unchanged.** Decision 3 says flatly that the
+gate "FAILs when the backlog count grows past a fixed ceiling". Read literally that was overtaken on
+2026-08-04: `check:verification-decay` now attributes each located signal as AUTHORED (this branch
+touched a file it rests on) or INHERITED (every such file matches `git merge-base origin/main HEAD`),
+and an instrument over its ceiling on INHERITED signals alone is a loud WARN naming the standing drain
+rather than a RED. **What is counted did not change and no ceiling moved** — the located counts are
+identical, all five ceilings stand, N stays 4 on the sibling graduation queue — so this is not the
+ceiling-raise decision 3 forbids and ADR-0269 fences; the tell separating the two is ADR-0269 clause 3's
+own, that WHAT is charged changed rather than HOW MANY are tolerated.
+
+**Why this is decision 3 being made honest rather than softened.** The measured defect (PR #1119,
+2026-08-03) is that the sweep's population is everything every session has ever landed while the
+ceiling is charged to whoever runs the gate next, and those are not the same party: a session was
+blocked at `unproven-seam-default: 25 located, ceiling 24` with **none of the 25 in its diff**, and the
+check printed no authorship signal, so establishing that took a manual stash-and-differential. Decision
+3's own reasoning — no located finding blocks a landing on a ~75% false-positive rate — never intended
+to block a session over a backlog it could not have caused and cannot cheaply repair. The single place
+output is LESS severe is deliberately a WARN and not a green: a silent pass over a breached `main`
+would retire the standing drain obligation along with the tax, which is strictly worse than the noisy
+red it replaces. Recorded because a reader of decision 3 alone would meet a WARN over a breached
+ceiling and conclude the shipped behaviour VIOLATES this ADR and "fix" it by restoring the red — the
+exact stale-prose harm ADR-0139 exists to prevent, and the same shape as the escalation correction
+above.
+
 **Unblocks.** This was the last named blocker on the `verification-integrity-arc`'s close. What
 remained *at decision time* was implementation only — the process artifact, the cheap checks, the
 ceiling, and the three-or-four durable guardrails still held for the `guidance-curator`. The CURRENT
@@ -325,6 +353,10 @@ never this ADR: an ADR is a decision record, not a work tracker (ADR-0183 D1).
   *unattributable-evidence-is-not-fail-closed* reasoning reused above.
 - ADR-0211 — the assert-oracle protocol ADR-0249 amends; the vacuous-proof instrument targets this class.
 - ADR-0168 D4 — `check:friction-drain`, the drain-ceiling pattern decision 3 mirrors.
+- ADR-0269 — **amends** this ADR: when a ceiling may RISE at all (a genuinely enlarged population),
+  and the evidence bar that move must clear.
+- ADR-0301 — **amends** this ADR: whom a ceiling CHARGES. Aperture only, no ceiling value moved; see
+  the 2026-08-04 correction in Consequences.
 - ADR-0110 — owner direction in conversation IS ratification; why this ADR is born `accepted`.
 - ADR-0095 D7 / the `librarian-curator` process artifact — the mould decision 4 adopts.
 - `check:coverage` (121-contract WARN backlog, UNBOUNDED at decision time) — the live counter-example

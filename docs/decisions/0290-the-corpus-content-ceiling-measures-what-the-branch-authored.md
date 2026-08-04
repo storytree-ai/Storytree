@@ -180,6 +180,20 @@ retire (`a-zero-ceiling-local-only-check-reads-a-live-store-a-sibling-session-ca
 is a different fault with a different fix (classify the absence from `events.library_event`). The
 attribution module is reusable by it, and it is left open rather than half-done.
 
+**Correction (2026-08-04, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+that deferral has since been TAKEN UP, so "left open" no longer describes the world; nothing decided
+here is re-decided.** `check:corpus-sync` gained the absence classifier on 2026-08-03
+(PR [#1115](https://github.com/storytree-ai/Storytree/pull/1115), commit `c6f4e648`), by exactly the
+route this paragraph anticipated: `corpus-content-attribution.ts` was **WIDENED** to carry
+`classifyAbsence` rather than forked, on the stated reasoning that two checks disagreeing about what
+"behind main" means would make a gate's own printed output untrustworthy. Absences now classify
+NEVER MIGRATED / RETIRED LIVE / BEHIND MAIN, precedence AUTHORED > RETIRED LIVE > BEHIND MAIN, and only
+never-migrated is charged; the git seed reads were extracted to `seed-revisions.ts` and are shared by
+both checks. **No ceiling moved** — M=0 stands. The module's own header is now the authority on the
+two-classifier shape and is not restated here (`asset:reference-dont-restate`). Recorded because a
+reader of this paragraph alone would conclude the sibling defect is still live and re-open work that
+has landed — the exact stale-prose harm ADR-0139 exists to prevent.
+
 ## References
 
 - [ADR-0120](0120-live-to-seed-reconciliation-export-corpus-and-unit-status-to.md) — the live→seed

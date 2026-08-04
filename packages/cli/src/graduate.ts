@@ -51,9 +51,26 @@ const MemoryFrontmatter = z
   .object({
     name: z.string().min(1),
     description: z.string().default(""),
-    metadata: z.object({
-      type: z.enum(["user", "feedback", "project", "reference"]),
-    }),
+    metadata: z
+      .object({
+        type: z.enum(["user", "feedback", "project", "reference"]),
+        /**
+         * WHO wrote this memory, as the writing session's branch (ADR-0301) — the provenance the drain
+         * ceiling's own-homework exclusion keys on.
+         *
+         * OPTIONAL, and it must stay optional: agents write these files directly with a file tool, so
+         * there is no CLI write path to stamp it and no gate that could require it. A memory without
+         * it is UNATTRIBUTED, which the ceiling charges rather than excuses — so making this required
+         * would turn every pre-ADR-0301 memory unparseable, which drops it from the worklist entirely
+         * and would make the backlog look SMALLER. Optional-and-charged is the only shape that can
+         * only ever over-count.
+         *
+         * The metadata object stays `.passthrough()` for the same reason the outer one does: the
+         * harness owns this file format, and a key it adds must not make a memory unreadable here.
+         */
+        branch: z.string().min(1).optional(),
+      })
+      .passthrough(),
   })
   .passthrough();
 
@@ -77,7 +94,15 @@ export function parseMemoryFile(file: string, content: string): MemoryFile {
   const afterFence = content.slice(end + 1); // "---...\n<body>"
   const nl = afterFence.indexOf("\n");
   const body = (nl === -1 ? "" : afterFence.slice(nl + 1)).trim();
-  return { name: fm.name, description: fm.description, type: fm.metadata.type, body };
+  return {
+    name: fm.name,
+    description: fm.description,
+    type: fm.metadata.type,
+    body,
+    // Carried only when present: `exactOptionalPropertyTypes` means an explicit `undefined` and an
+    // absent key are different things, and the ceiling reads absence as UNATTRIBUTED (ADR-0301).
+    ...(fm.metadata.branch === undefined ? {} : { branch: fm.metadata.branch }),
+  };
 }
 
 // ---- pure: the snapshot builder -------------------------------------------------------------
