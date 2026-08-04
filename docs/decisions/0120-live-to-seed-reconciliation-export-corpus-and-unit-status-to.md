@@ -48,6 +48,20 @@ degraded body and delete seed-canonical content.
 
 ## Decision
 
+**Amended 2026-08-05 by [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md)
+D1/D4 — parts 1–3 no longer stand; part 4 does, and the split is the whole point of this note.**
+This ADR is kept `accepted` rather than superseded because owner-directed call (b) — unit health-status
+lives in its own generated `apps/studio/data/unit-status.json`, derived from signed verdicts and NOT
+folded into the knowledge tier — is untouched and still shipping (`packages/cli/src/build-unit-status.ts`).
+What is gone is everything that reconciled a committed corpus MIRROR against the live store: part 1
+was already retired by ADR-0210, and parts 2 and 3 — the seed↔live content diff (`check:corpus-content`)
+and the live→seed export (`export-corpus`) — were DELETED on 2026-08-05 with the seed itself, under
+ADR-0302 D4's "deleted, not left inert" rule. Owner-directed call (a) (the export overwrites
+live-edited bodies) therefore governs nothing: there is no export. Read the per-part correction notes
+below as history of a mechanism that no longer exists — they are accurate about what was true and must
+not be acted on. The per-artifact DIRECTION judgement this ADR established cannot arise any more
+either, because only one side survives.
+
 Build the durable reconciliation TOOLING (each proven red→green, offline) and record the two
 owner-directed calls. Four parts:
 

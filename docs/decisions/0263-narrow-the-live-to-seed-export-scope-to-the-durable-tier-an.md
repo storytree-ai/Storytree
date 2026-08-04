@@ -1,11 +1,24 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-07-29
 amends: [120]
 ---
 # ADR-0263: Narrow the live-to-seed export scope to the durable tier: an allowlist, not a denylist
 
 ## Status
+
+**superseded (2026-08-05) by [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md).**
+This ADR's entire subject is `SEED_SCOPE_KINDS` — the allowlist bounding which kinds the seed
+ceremonies carried. ADR-0302 D1 decommissioned the committed seed and D4 deleted `export-corpus`,
+`sync-corpus`, `sync-agents` and the three gate rungs that read the list; the list itself was deleted
+with them on 2026-08-05. There is no ceremony left for a scope to bound, so this is a genuine
+re-decision rather than an amendment (ADR-0139): the question "which kinds does the seed carry?" is
+answered by "there is no seed". Kept as browsable history — the allowlist-over-denylist reasoning
+(defaulting to IN means nobody has to decide) is a good argument that outlived its subject, and the
+measured cost it removed (236 export additions, 222 of them transient) is the evidence that made
+ADR-0302's case. Its sibling `EPHEMERAL_KINDS` answers a DIFFERENT question and is untouched.
+
+*(Superseded prose follows; the original acceptance is preserved verbatim below this line.)*
 
 accepted (2026-07-29) — the owner opened this fork in conversation ("are they all genuinely
 export-scope, or is the export scope itself too wide? … the outcome should be a decided, documented

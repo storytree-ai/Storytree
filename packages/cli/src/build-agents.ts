@@ -6,17 +6,20 @@
 //   pnpm build:agents      (re)generate every harness agent view
 //   pnpm check:agents      fail (exit 1) if any file is stale / missing / orphaned — the gate's guard
 //
-// Offline by construction (reads the seed corpus via loadCorpus), so it runs in the gate and CI with
-// no DB. All harness directories are FULLY GENERATED: write prunes orphaned agent files. Edit the agent
-// artifact (the live store / knowledge.json), not a generated file.
+// READS THE LIVE STORE (ADR-0302 D1 / ADR-0307 D1+D2) — the `agent` tier is live-canonical, so the
+// source is the store a session edits with `library artifact edit <id> --pg`, and it needs a
+// reachable store (locally `pnpm db:up`; in CI the ADR-0302 D3 credential). The OUTPUTS stay
+// committed files exactly as ADR-0302 D5 requires; only the source moved. All harness directories
+// are FULLY GENERATED: write prunes orphaned agent files. Edit the agent ARTIFACT, not a generated
+// file.
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { InMemoryStore } from "@storytree/storage-protocol";
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
-import { loadCorpus } from "@storytree/library/store";
+
+import { openCorpusStore } from "./corpus-store.js";
 
 import {
   delegatableAgentIds,
@@ -79,8 +82,12 @@ function fail(message: string): never {
 async function main(): Promise<void> {
   const check = process.argv.includes("--check");
 
-  const store = new InMemoryStore();
-  await loadCorpus(store);
+  // The store is held across the render loop AND the essentials gate below (which re-reads each
+  // agent's cited artifacts), then closed at each normal exit. No try/finally: every failure path
+  // here is `fail()`, which exits the process (taking the pool with it), and an unexpected throw
+  // lands in main()'s catch and exits the same way.
+  const corpus = await openCorpusStore("build:agents");
+  const store = corpus.store;
   const ids = await delegatableAgentIds(store);
 
   const renderedTargets: Array<{
@@ -158,12 +165,14 @@ async function main(): Promise<void> {
           "integrity invariant:\n  " + gateFailures.join("\n  "),
       );
     }
+    await corpus.close();
     console.log(
       `check:agents — ${renderedTargets.map((target) => target.label).join(" + ")} in sync + ` +
         `essentials gate clean (${ids.length} agents × ${renderedTargets.length} harnesses).`,
     );
     return;
   }
+  await corpus.close();
 
   for (const target of renderedTargets) {
     await fs.mkdir(target.dir, { recursive: true });

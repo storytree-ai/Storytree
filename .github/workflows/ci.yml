@@ -114,6 +114,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # -----------------------------------------------------------------------
+      # GCP AUTH — setup, not a check, which is why it sits here rather than beside the live-store
+      # steps it used to precede at the end of the job. ADR-0302 D1 decommissioned the committed
+      # corpus, so `check:guidance` / `check:agents` below now read the LIVE store (ADR-0307 D2 —
+      # the generators' outputs stay committed, only their source moved). Those two judge THIS
+      # branch's own diff, so the `gate-order.ts` axis-1 rule keeps them early; acquiring the
+      # credential early is what lets them stay there.
+      #
+      # `continue-on-error` is deliberate and is NOT a "fail-soft check" — the steps that follow
+      # decide their own posture. `check:guidance` / `check:agents` have no source without the store
+      # and therefore FAIL, which is exactly the hard database dependency ADR-0302 accepts ("when
+      # Postgres is down, nothing lands"); the two drain ceilings at the end still exit 0 on an
+      # unreachable store until STORYTREE_DB_REQUIRED arms them.
+      - name: Authenticate to GCP for the live-store steps (keyless WIF — ADR-0021)
+        continue-on-error: true
+        uses: google-github-actions/auth@v3
+        with:
+          # Identical to the automerge job's step below — the same pool, provider and service
+          # account, provisioned by infra/ci-presence.tf. The provider resource name embeds the
+          # project NUMBER (635716509357), not the project id.
+          workload_identity_provider: projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: storytree-ci-presence@storytree-498613.iam.gserviceaccount.com
+
       # Repo-surface allow-list (the `repo-surface-allowlist` guardrail): refuse
       # unlisted root entries / loose docs so temp/ad-hoc junk can't merge.
       - name: Repo manifest
@@ -136,13 +159,21 @@ jobs:
         run: pnpm check:mirror-conformance
 
       # CLAUDE.md's region and Codex AGENTS.md are GENERATED root views of the
-      # `session-orchestrator` Library agent (ADR-0051/0291) — fail if either drifts.
+      # `session-orchestrator` Library agent (ADR-0051/0291) — fail if either drifts. Reads the LIVE
+      # store since ADR-0302 D1 / ADR-0307 D1: the `agent` tier is live-canonical, so the source is
+      # the store, and there is no committed corpus left to read. STORYTREE_DB_USER is set PER-STEP,
+      # never at job level (see the drain-ceiling steps below for why).
       - name: Root agent guidance in sync
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
         run: pnpm check:guidance
 
       # .claude/agents/*.md are GENERATED subagent files — a view of the delegatable library
-      # agents (ADR-0052). Fail if they have drifted (edit the agent artifact + `pnpm build:agents`).
+      # agents (ADR-0052). Fail if they have drifted (edit the agent artifact with
+      # `library artifact edit <id> --pg`, then `pnpm build:agents`). Live-store source, as above.
       - name: .claude/agents in sync
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
         run: pnpm check:agents
 
       # Process↔entrypoint bijection (ADR-0154): every `process` names a real CLI/pnpm entrypoint in
@@ -242,31 +273,16 @@ jobs:
       # (packages/cli/src/gate-order.ts): a verdict the author is not permitted to remedy must not
       # arrive ahead of the ones that are theirs. Everything above is this branch's own answer.
       #
-      # ONLY TWO CHECKS ARE WIRED, and the omissions are deliberate:
-      #   • check:agents-sync / check:corpus-sync / check:corpus-content read the DB too, but they
-      #     exist ONLY to reconcile the committed seed against the live store and ADR-0302 D4 DELETES
-      #     them with the seed. Wiring a check that is about to be removed would be pure churn.
+      # ONLY TWO CEILINGS ARE WIRED HERE, and the omission is deliberate:
       #   • check:declared is DB-backed and stays unwired ON PURPOSE. Its gate is the existence of
       #     `.claude/worktrees/`, which is untracked and therefore never present in a CI checkout
       #     (packages/cli/src/check-declared.ts) — it judges the dev box's lobby, which CI does not
       #     have. Its skipping here is correct; do not "fix" it.
+      # `check:agents-sync` / `check:corpus-sync` / `check:corpus-content` were named here as
+      # deliberately-unwired; ADR-0302 D4 has since DELETED all three with the seed they policed.
+      # The GCP auth step they would have shared now sits up beside `Install dependencies`, because
+      # `check:guidance` / `check:agents` need it too and belong early (see there).
       # -----------------------------------------------------------------------
-      # FAIL-SOFT FOR NOW, and this must be flipped together with STORYTREE_DB_REQUIRED below. While
-      # the live-store checks cannot gate, an auth hiccup redding `verify` would block every PR for
-      # zero benefit — it would impose the hard DB dependency ADR-0302 accepts, before the thing that
-      # dependency buys is switched on. If auth fails the two steps below simply fail to connect and
-      # report SKIP, which is the same posture the automerge job has always had. When the ceilings
-      # are ARMED, drop this line: an unauthenticated runner must not then look like a pass.
-      - name: Authenticate to GCP for the live-store checks (keyless WIF — ADR-0021)
-        continue-on-error: true
-        uses: google-github-actions/auth@v3
-        with:
-          # Identical to the automerge job's step below — the same pool, provider and service
-          # account, provisioned by infra/ci-presence.tf. The provider resource name embeds the
-          # project NUMBER (635716509357), not the project id.
-          workload_identity_provider: projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github
-          service_account: storytree-ci-presence@storytree-498613.iam.gserviceaccount.com
-
       # STORYTREE_DB_USER is set PER-STEP, never at job level. Job-level would put a live credential
       # into `pnpm -r test`'s environment, and the suites that read that key would silently change
       # what they exercise. They are hermetic today (packages/cli/src/node-build.test.ts,

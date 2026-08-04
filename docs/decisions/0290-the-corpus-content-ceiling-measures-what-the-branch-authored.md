@@ -86,6 +86,22 @@ and charging it to a single branch, and no value of the constant fixes that.
 
 ## Decision
 
+**Amended 2026-08-05 by [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md)
+D1/D4 — the CHECK this ADR re-apertured is deleted; D2 survives and is now load-bearing on its own.**
+Kept `accepted` rather than superseded, because the split is uneven and a reader needs to know which
+half to trust. GONE with `check:corpus-content` (deleted 2026-08-05 when ADR-0302 D1 decommissioned
+the committed seed): D1's two-signal attribution, D3's three outcomes, D4's live-only axis, D5's
+degraded-live carve-out, D6's `export-corpus --id` narrowing, and D7's per-axis fail-closed rule — all
+of them describe a check that no longer exists, and none should be acted on. **STANDING: D2** — live
+library writes stamp the branch into `events.library_event.actor` as `cli@<branch>`
+(`packages/cli/src/cli-actor.ts`). D2 was built to feed the deleted check's live side, but it is a
+property of the WRITE PATH rather than of any reader, it is untouched, and
+[ADR-0301](0301-drain-ceilings-charge-by-authorship-verification-decay-and-g.md) generalised
+authorship-charging to the ceilings that survive — so the stamp is now justified by its consumers
+rather than by this ADR's own check. The durable generalisation of the reasoning lives on as
+`asset:an-authorship-exclusion-follows-its-remedy`. What this ADR proved and what outlived it are
+therefore different things, which is why the edge is `amends` rather than a supersession (ADR-0139).
+
 **The corpus-content ceilings measure what THIS BRANCH authored. The numbers stay at zero; the
 aperture changes.** This is the ADR-0269 4(f) decomposition, and it moves in both directions.
 

@@ -88,10 +88,13 @@ function main(): void {
     `${TAG}   fix the process's \`surfaces\` ref (or add the entrypoint it names). For an ORPHAN,`,
   );
   console.error(
-    `${TAG}   author the \`process\` deriving from its ADR into the seed and \`pnpm storytree library`,
+    `${TAG}   author the \`process\` deriving from its ADR straight into the live store with`,
   );
   console.error(
-    `${TAG}   sync-corpus --pg\` it live (ADR-0103), or RETIRE the entrypoint — clearing the gaps back`,
+    `${TAG}   \`pnpm storytree library artifact new --file <doc.json> --pg\` (ADR-0302 D1 — there is no`,
+  );
+  console.error(
+    `${TAG}   seed to author into and no sync step), or RETIRE the entrypoint — clearing the gaps back`,
   );
   console.error(`${TAG}   below U=${CEILING.unresolvedCeiling} / R=${CEILING.orphanCeiling}.`);
   console.error(

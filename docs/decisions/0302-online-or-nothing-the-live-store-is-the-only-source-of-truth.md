@@ -1,7 +1,8 @@
 ---
 status: accepted
 load_bearing: true
-supersedes: [114]
+supersedes: [114, 263]
+amends: [120, 290]
 decided: 2026-08-04
 arc: session-decoupling-arc
 ---
@@ -73,6 +74,28 @@ on the dev box while CI showed green.
 **D4 — the mirror-policing machinery is deleted, not left inert.** Every check that exists only to
 reconcile the committed seed against the live store goes when the mirror goes. A check kept but
 neutered is the failure mode this decision must not produce.
+
+*(As landed 2026-08-05, D4 in full and D1 in part — read the split precisely, because D1 is NOT
+finished. **DELETED:** `check:agents-sync` / `check:corpus-sync` / `check:corpus-content` and their
+three gate rungs (the plan is 25 steps → 22), the `library sync-agents` / `sync-corpus` /
+`export-corpus` commands, `sync-agents.ts` / `sync-corpus.ts` / `export-corpus.ts` /
+`sync-drain.ts` / `corpus-content-drain.ts` / `corpus-content-attribution.ts` / `seed-revisions.ts`
+with their suites, and `SEED_SCOPE_KINDS` — ~3,850 lines. The excision was clean exactly as
+increment 3 measured: no hidden dependents, and the only outward repairs were a stale remedy line in
+`check:surface-coverage` and a deny-list entry in `orientation-tools`. **MOVED:** `build:guidance`
+and `build:agents` now read the LIVE store through `packages/cli/src/corpus-store.ts`, which fails
+loudly rather than falling back — a generator that silently read a stale corpus would report "in
+sync" while reverting a live edit. Both were proved to render the committed projections
+byte-identically from live, which is the evidence that the two surfaces genuinely agreed. CI's
+`verify` acquires the ADR-0302 D3 credential right after `pnpm install` (setup, not a check) so
+those two rungs keep their early axis-1 position. **NOT YET DONE, and this is the honest remainder:**
+`apps/studio/data/knowledge.json` is still on disk. Nothing writes it and no production path treats
+it as canonical, so the CHURN this decision targeted is gone — but ~23 test files, the CLI's offline
+read path, `check:process-graph`, `check-surface-coverage`, the desktop's inline `loadCorpus` clone
+and the studio's JSON backend still read it, and it stays as a declared frozen fixture until they are
+re-homed. Separately, `apps/studio/data/seed-kinds/uat-criterion/` holds 70 detail artifacts of which
+**52 exist in no other place** — measured against the live store, which carries 22 — so that
+directory is a MIGRATION, not a deletion. Both remainders are parked on the arc.)*
 
 **D5 — what stays on disk, and why this is not a contradiction.** The harness-native guidance
 surfaces — CLAUDE.md, AGENTS.md and `.claude/agents/*` — remain committed files, because the harness

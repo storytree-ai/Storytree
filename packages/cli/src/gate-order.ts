@@ -237,27 +237,11 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     cost: "seconds",
     why: "its lobby arm reds on dirt another session left in the shared primary checkout (ADR-0245 D5.2), which this session is forbidden to clean",
   },
-  {
-    command: "pnpm check:agents-sync",
-    check: "check:agents-sync",
-    subject: "shared-environment",
-    cost: "seconds",
-    why: "compares the seed to the SHARED live store — a sibling's live agent write reds it",
-  },
-  {
-    command: "pnpm check:corpus-sync",
-    check: "check:corpus-sync",
-    subject: "shared-environment",
-    cost: "seconds",
-    why: "same seed↔live comparison for non-agent artifacts; a sibling's seed commit reds it",
-  },
-  {
-    command: "pnpm check:corpus-content",
-    check: "check:corpus-content",
-    subject: "shared-environment",
-    cost: "seconds",
-    why: "reads the shared live store; ADR-0290 exists precisely because siblings' drift reached it",
-  },
+  // `check:agents-sync` / `check:corpus-sync` / `check:corpus-content` stood here. All three
+  // compared the committed seed against the live store, and ADR-0302 D1 decommissioned the seed as
+  // a source of truth — so all three are DELETED (D4: "deleted, not left inert"), and the plan is
+  // three rungs shorter. They were the archetype of this section's own hazard: every one of them
+  // could red on a SIBLING's write, which is why ADR-0290 had to teach one of them authorship.
   {
     command: "pnpm check:friction-drain",
     check: "check:friction-drain",
@@ -371,9 +355,6 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
  */
 export const SHARED_ENVIRONMENT_CHECKS: ReadonlySet<string> = new Set([
   "check:declared",
-  "check:agents-sync",
-  "check:corpus-sync",
-  "check:corpus-content",
   "check:friction-drain",
   "check:arc-proposal-drain",
   "check:verification-decay",

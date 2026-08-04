@@ -91,7 +91,9 @@ function formatEnvelope(e: OrientationEnvelope): string {
 const WRITE_VERBS = new Set([
   "declare", "done", // noticeboard writes
   "new", "edit", "retire", // library artifact writes
-  "sync-agents", "sync-corpus", "export-corpus", "graduate", // seed/store reconciliation writes
+  // The three seed↔live reconciliation verbs (`sync-agents` / `sync-corpus` / `export-corpus`) were
+  // listed here until ADR-0302 D4 deleted them with the seed they policed.
+  "graduate", // agent-memory → Library worklist write
   "attest", "vouch", // witness writes
   "build", "adopt", "orchestrate", // build/spend verbs
 ]);
