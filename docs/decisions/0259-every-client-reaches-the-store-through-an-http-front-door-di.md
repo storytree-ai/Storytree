@@ -118,9 +118,18 @@ review. **This ADR does not lift that gate.**
   broker's write set extended past assets (`/api/claims` is GET-only; there is no ADR-allocation
   endpoint). *(**PR #983** landed the first part on 2026-07-27 — the wire contract, `HttpStore`, and a
   pure `handleStoreRequest` server half in `packages/storage-protocol`, held to the shared
-  `storeParitySuite`. It migrated nobody: every caller still dials `createPool`, no server is deployed
-  behind the door, and the broker's write set is still assets-only. What remains is the wiring and the
-  deployment, not the contract. Cited by PR rather than by increment number — corrected in place
+  `storeParitySuite`. It migrated nobody: every caller still dialled `createPool`, no server was
+  deployed behind the door, and the broker's write set is still assets-only. What remained was the
+  wiring and the deployment, not the contract. **The READ half of that wiring landed 2026-08-04**
+  (`session-decoupling-arc`, entry `httpstore-lands-before-offline-drops`): `handleStoreRequest` is
+  mounted at `/api/store` in the studio's shared route table (`apps/studio/server/storeDoorApi.ts`),
+  behind the existing IAP + membership gate, and the CLI selects `HttpStore` when
+  `STORYTREE_STORE_URL` is set — proved end-to-end against the live store, where a connector-less
+  client read all 616 live artifacts against the offline seed's 231. Read-only: the three POST routes
+  answer 403, because D5 below is not lifted. Still open: the CREDENTIAL a remote session presents —
+  direct IAP has no programmatic path (measured: `401 Invalid JWT audience`, refused at the edge), and
+  ADR-0254 D4 retired the only remote identity, so ADR-0302's ordering fence is not yet discharged.
+  Cited by PR rather than by increment number — corrected in place
   2026-07-28 under ADR-0086 / ADR-0139, because this ADR carries the `foreign-project-forest-arc` stamp
   and that arc's increment log numbers its own stream, in which increment 1 is the repo-root
   parameterisation of PR #977. The door work and the tree work are two streams under one `arc:` stamp,

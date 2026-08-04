@@ -197,6 +197,45 @@ The wake is **admin-only**: in normal operation by role; while the store is down
 unresolvable) by the bootstrap-admin seed (`STORYTREE_STUDIO_ADMINS`). IAP is `allAuthenticatedUsers`
 (ADR-0043), so this narrow gate is what keeps a random signed-in account from firing a billable start.
 
+## 7. The store door — `/api/store` (ADR-0259 D1)
+
+The narrow `Store` seam served over ordinary HTTPS, so a client that cannot open a Cloud SQL
+connector can still READ the library. Mounted at **`/api/store`** in the shared route table
+(`apps/studio/server/storeDoorApi.ts`), so it ships with every studio deploy — no separate service,
+no extra infra, and it inherits the IAP + membership wall the rest of `/api/*` already has.
+
+- **Read-only, by decision.** `get-doc` / `query-docs` / `read-events` only. The three POST routes
+  answer **403 by name**: ADR-0259 D5 keeps proof-bearing writes behind an ADR-0081 amendment and an
+  ADR-0252 verification-integrity review, and ADR-0254 D2 keeps verdict writes human-tethered.
+  Opening the write path means lifting that gate, not deleting a guard.
+- **Client**: `HttpStore` from `@storytree/storage-protocol`. The CLI selects it when
+  `STORYTREE_STORE_URL` is set (`STORYTREE_STORE_TOKEN` rides as `authorization: Bearer …`); a
+  set-but-broken value throws rather than falling back to the offline seed.
+- **Statuses that carry meaning**: a missing document is `200 {doc:null}`, never 404 — so a client can
+  read 404 as *the door is not mounted at this baseUrl*. `503` means the server has no live store.
+
+### The reachability gap this does NOT close — measured 2026-08-04, owner-gated
+
+The door exists and works; what is unsettled is **what credential a remote session presents**. Direct
+IAP has no programmatic path today, and this was measured against the live service rather than
+assumed:
+
+```
+curl https://storytree-studio-…run.app/api/health                    -> 302 (IAP → Google sign-in)
+curl -H "Authorization: Bearer $(gcloud auth print-identity-token)"  -> 401 "Invalid JWT audience"
+```
+
+Both carry `x-goog-iap-generated-response: true` — **IAP refuses at the edge; the app is never
+reached**, so this is not the app's own fail-closed 401 and no app-side change can affect it. IAP
+wants an OIDC token whose audience is the IAP OAuth client id (§4b), which a caller can only mint
+from a Google identity — and ADR-0254 D4 retired `storytree-remote-dev`, so a remote container holds
+no GCP identity at all. Until that fork is decided the door is reachable by a **browser** session and
+by any local process that can present an IAP-audience token; a remote agent session cannot use it.
+
+Parked as `remote-session-door-credential` on `session-decoupling-arc`. **The ordering fence in
+ADR-0302's Consequences is therefore NOT yet discharged** — `decommit-the-seed-and-delete-mirror-machinery`
+must not land on the strength of this section.
+
 ## What the circle sees (set expectations in the invite)
 
 - The story world, library, and docs — live verdict hues, presence wisps, the works.

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { InMemoryStore, type Store } from "@storytree/storage-protocol";
+import { HttpStore, InMemoryStore, type Store } from "@storytree/storage-protocol";
 import {
   loadCorpus,
   createPool,
@@ -30,6 +30,7 @@ import { formatEnvelope, withDeltaFooter, type Envelope } from "./envelope.js";
 import { deriveIdentity } from "@storytree/drive";
 import type { ClaimLedgerStoreLike, SessionClaimStoreLike } from "@storytree/drive";
 import { loadLocalSecrets } from "./secrets.js";
+import { resolveStoreDoor } from "./store-door.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
 import type { UatVerdictStoreLike } from "./uat.js";
 
@@ -38,6 +39,12 @@ import type { UatVerdictStoreLike } from "./uat.js";
  * seeded from the studio data files (`loadCorpus`), so the read commands work with NO Cloud SQL and
  * NO API key. `--pg` swaps in the live Postgres store (the instance is STOPPED by default — bring it
  * up first). The dispatch lives in `run`; this file only wires the store and prints the envelope.
+ *
+ * THREE stores now, in this precedence: `--pg` (explicit, wins) → the ADR-0259 store door over HTTPS
+ * when `STORYTREE_STORE_URL` is set → the offline seed. The door is the read path for a client that
+ * cannot open a Cloud SQL connector at all, which is every remote session (ADR-0258 D2) — and it must
+ * exist BEFORE ADR-0302 D1/D2 decommit the seed, or a remote session can read nothing
+ * (`session-decoupling-arc`, entry `httpstore-lands-before-offline-drops`).
  */
 async function buildStore(usePg: boolean): Promise<{
   store: Store;
@@ -84,6 +91,25 @@ async function buildStore(usePg: boolean): Promise<{
       // piggybacks the deltas that touch this session's own claims — see main() below.
       pullDeltas: (sessionId: string) => claimStore.pullOverlapDeltas(sessionId),
       close: () => closePool(pool, connector),
+    };
+  }
+  // The STORE DOOR (ADR-0259 D1): ordinary HTTPS to the studio's `/api/store`, which is the only
+  // shape a remote session can reach — it cannot dial Cloud SQL at all (ADR-0250 / ADR-0258 D2), and
+  // ADR-0302 D1/D2 decommit the offline seed below. Read-only by the door's own decision (writes are
+  // 403 there, ADR-0259 D5), so every write seam stays null exactly as it does offline, and a write
+  // command refuses with its existing "needs --pg" message rather than a confusing 403 from the wire.
+  const door = resolveStoreDoor(process.env);
+  if (door) {
+    return {
+      store: new HttpStore(door),
+      claims: null,
+      ledger: null,
+      verdicts: null,
+      uatStore: null,
+      attestations: null,
+      adr: null,
+      pullDeltas: null,
+      close: async () => {},
     };
   }
   const store = new InMemoryStore();
