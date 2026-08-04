@@ -30,26 +30,10 @@ export { createTestPool, assertTestDatabase, TEST_DB_ENV } from "./test-db.js";
 export { PgLibraryStore } from "./pg-store.js";
 export { loadCorpus, loadComments } from "./load-corpus.js";
 export type { LoadCorpusResult } from "./load-corpus.js";
-export { reconcileAgents, syncSeedAgents, diffAgents, diffSeedAgents, AGENT_KIND } from "./sync-agents.js";
-export type { SyncAgentsResult, AgentDiff } from "./sync-agents.js";
-export { reconcileCorpus, syncSeedCorpus, diffCorpus, diffSeedCorpus } from "./sync-corpus.js";
-export type { SyncCorpusResult, CorpusDiff } from "./sync-corpus.js";
-export {
-  isExportScopeKind,
-  isExportableLiveDoc,
-  canonicalJson,
-  diffCorpusContent,
-  diffSeedCorpusContent,
-  computeExportedSeed,
-} from "./export-corpus.js";
-export type {
-  SeedEntry,
-  DriftClass,
-  CorpusContentDrift,
-  CorpusContentDiff,
-  ExportSeedOptions,
-  ExportSeedResult,
-} from "./export-corpus.js";
+// The seed↔live reconcilers are GONE (ADR-0302 D4, ADR-0307 D3): `sync-agents`, `sync-corpus` and
+// `export-corpus` existed only to keep a committed mirror in step with the live store, and the
+// live store is now the only source of truth (ADR-0302 D1). Deleted, not left inert — a reconciler
+// with nothing to reconcile is exactly the "kept but neutered" outcome D4 forbids.
 export { batchMigrate } from "./batch-migrate.js";
 export type { BatchMigrateResult } from "./batch-migrate.js";
 export { renderStoredDoc, buildLibraryDoc, isStructuredKind } from "./render-doc.js";

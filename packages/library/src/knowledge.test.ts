@@ -5,7 +5,6 @@ import {
   EPHEMERAL_KINDS,
   KIND_SPECS,
   Knowledge,
-  SEED_SCOPE_KINDS,
   knownFieldsForKind,
   type KnowledgeKind,
 } from "./knowledge.js";
@@ -525,13 +524,12 @@ test("arc kind (ADR-0298 D1): the parked-work list validates and fails closed on
   );
 });
 
-test("the `proposal` KIND is retired (ADR-0298 D1) — it is gone from the union, KIND_SPECS and the seed scope", () => {
+test("the `proposal` KIND is retired (ADR-0298 D1) — it is gone from the union and KIND_SPECS", () => {
   // Deliberately asserted rather than left to the KIND_SPECS↔zod parity tests above: those iterate
   // over what EXISTS, so a re-added kind would satisfy every one of them. This is the guard against
   // the kind quietly coming back — the whole decision is that there is exactly ONE place an unstarted
   // intention lives, and a second one is the failure ADR-0298 exists to end.
   assert.equal(Object.hasOwn(KIND_SPECS, "proposal"), false, "KIND_SPECS must carry no proposal entry");
-  assert.equal(SEED_SCOPE_KINDS.has("proposal"), false, "proposal must not be seed-scope");
   assert.throws(
     () => Knowledge.parse({ ...minimalDoc("open-question"), kind: "proposal" }),
     "the discriminated union must not accept a proposal doc",
@@ -690,40 +688,14 @@ test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops 
 
 test("EPHEMERAL_KINDS (ADR-0183 D2): plan is ephemeral, every member is a real kind, arcs are not", () => {
   assert.ok(EPHEMERAL_KINDS.has("plan"), "plan is the first ephemeral kind");
-  // An arc is NOT ephemeral — it is durable live state that outlives the plans it contains. That is a
-  // separate question from whether the SEED carries it, which SEED_SCOPE_KINDS answers (ADR-0263):
-  // arc is durable AND out of seed scope, and the two constants must not be conflated.
+  // An arc is NOT ephemeral — it is durable live state that outlives the plans it contains. This was
+  // once one of two kind-partitions and had to be kept distinct from the seed scope; ADR-0302 D4
+  // deleted SEED_SCOPE_KINDS with the ceremonies it bounded, so ephemerality is now the only
+  // partition over kinds and there is nothing left to conflate it with.
   assert.ok(!EPHEMERAL_KINDS.has("arc"), "arc is durable live state, not disposable choreography");
   for (const kind of EPHEMERAL_KINDS) {
     assert.ok(Object.hasOwn(KIND_SPECS, kind), `ephemeral kind ${kind} must be a KIND_SPECS key`);
   }
-});
-
-test("SEED_SCOPE_KINDS (ADR-0263): a closed allowlist over real kinds, disjoint from the excluded tiers", () => {
-  // Every member is a real kind — a typo here would silently drop a whole tier out of the seed.
-  for (const kind of SEED_SCOPE_KINDS) {
-    assert.ok(Object.hasOwn(KIND_SPECS, kind), `seed-scope kind ${kind} must be a KIND_SPECS key`);
-  }
-  // No ephemeral kind may also be seed-scope — the two sets are contradictory by construction.
-  for (const kind of EPHEMERAL_KINDS) {
-    assert.ok(!SEED_SCOPE_KINDS.has(kind), `${kind} is ephemeral, so it can never be seed-scope`);
-  }
-  // The agent tier is seed-CANONICAL (ADR-0055) and owned by sync-agents, never by the corpus export.
-  assert.ok(!SEED_SCOPE_KINDS.has("agent"), "agent is owned by sync-agents, not the corpus ceremonies");
-
-  // THE CLOSED-LIST PROPERTY. Every kind is either in the allowlist or has a recorded reason to be
-  // out. A NEW kind added to KIND_SPECS lands in `unruled` and fails here — which is the point: the
-  // denylist this replaced enrolled friction/arc/uat-criterion into the seed export silently, because
-  // defaulting to IN means nobody has to decide. Ruling on a kind is one line in each place.
-  const excludedWithReason = new Set(["agent", "plan", "friction", "arc", "uat-criterion"]);
-  const unruled = (Object.keys(KIND_SPECS) as KnowledgeKind[]).filter(
-    (k) => !SEED_SCOPE_KINDS.has(k) && !excludedWithReason.has(k),
-  );
-  assert.deepEqual(
-    unruled,
-    [],
-    `every kind must be ruled IN (SEED_SCOPE_KINDS) or OUT (with a reason in ADR-0263's table); unruled: ${unruled.join(", ")}`,
-  );
 });
 
 test("renderBody: an unknown kind throws a DIAGNOSTIC error, not `specs is not iterable`", () => {

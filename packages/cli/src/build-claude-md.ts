@@ -12,20 +12,21 @@
 //   pnpm check:guidance        fail if any projection is stale (the gate's drift guard)
 //   pnpm build/check:claude    compatibility aliases for the commands above
 //
-// Offline TODAY (reads the seed corpus via loadCorpus), so it runs in the gate and CI with no DB.
-// ADR-0307 D1/D2 move that source to the live store when ADR-0302 D1 decommits the seed: the
-// outputs stay committed files, only the source moves — which is why ADR-0302 D3 (a CI database
-// credential) is a hard prerequisite of the decommit, since `check:guidance` runs in CI.
+// READS THE LIVE STORE (ADR-0302 D1 / ADR-0307 D1+D2), not a committed corpus. The `agent` tier is
+// live-canonical like every other tier, so the source of this projection is the store a session
+// edits with `library artifact edit <id> --pg`. The OUTPUTS stay committed files exactly as
+// ADR-0302 D5 requires — only the source moved. It therefore needs a reachable store: locally
+// `pnpm db:up`, and in CI the keyless WIF credential ADR-0302 D3 landed (which is why D3 was a hard
+// prerequisite of the decommit — `check:guidance` runs in CI's `verify` job).
 // Edit the agent artifact, not any generated projection.
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { InMemoryStore } from "@storytree/storage-protocol";
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
-import { loadCorpus } from "@storytree/library/store";
 
+import { openCorpusStore } from "./corpus-store.js";
 import { renderAgentDigest } from "@storytree/library/store";
 import {
   renderCodexGuidance,
@@ -81,9 +82,16 @@ async function readIfExists(file: string): Promise<string | null> {
 async function main(): Promise<void> {
   const check = process.argv.includes("--check");
 
-  const store = new InMemoryStore();
-  await loadCorpus(store);
-  const res = await renderAgentDigest(store, AGENT);
+  // Everything this command needs from the store is read here, in one open/close: the agent digest
+  // and the definition table. The rest of main() is pure file work over that data, so the
+  // connection is held for the read and no longer. No try/finally: every failure path below is
+  // `fail()`, which exits the process (taking the pool with it), and an unexpected throw lands in
+  // main()'s catch and exits the same way.
+  const corpus = await openCorpusStore("build:guidance");
+  const res = await renderAgentDigest(corpus.store, AGENT);
+  const definitionDocs = await corpus.store.queryDocs({ kind: "definition" });
+  await corpus.close();
+
   if (!res.ok) fail(`${res.reason} (agents: ${res.available.join(", ") || "none"})`);
   if (res.agent.missingRefs.length > 0) {
     fail(`${AGENT} has dangling refs: ${res.agent.missingRefs.join(", ")} — fix the agent artifact.`);
@@ -102,7 +110,7 @@ async function main(): Promise<void> {
   // prose projections — it is a generated view of the corpus like they are, just data.
   const definitions = syncGeneratedGuidance(
     await readIfExists(definitionsPath),
-    renderDefinitionsProjection(buildDefinitionsProjection(await store.queryDocs({ kind: "definition" }))),
+    renderDefinitionsProjection(buildDefinitionsProjection(definitionDocs)),
   );
 
   if (region.inSync && codex.inSync && definitions.inSync) {

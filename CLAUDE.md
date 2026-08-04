@@ -111,88 +111,55 @@ model-events), never by importing another organism's source.
 
 ## Library / knowledge tier — where the source of truth is
 
-**As of ADR-0023, the shared Cloud SQL Postgres store is the LIVE source of truth for artifact
-state; `knowledge.json` is the migration seed/export, not the edit-here surface.** This is what lets
+**The shared Cloud SQL Postgres store is the ONLY source of truth for artifact state, for EVERY
+kind, with no seed-authored exception left (ADR-0023, ADR-0302 D1, ADR-0307).** This is what lets
 multiple sessions iterate on different artifacts in parallel (per-id rows, transactional upserts — no
 file conflicts).
+
+**THE THREE SEED CEREMONIES ARE GONE — don't look for them, and don't re-derive them.**
+`sync-agents`, `sync-corpus` and `export-corpus`, and with them `check:agents-sync` /
+`check:corpus-sync` / `check:corpus-content`, were DELETED by ADR-0302 D4 (deleted, not neutered).
+They existed only to police a committed mirror of a database that was already canonical. There is
+now one writer path and one direction: **edit the artifact live, regenerate the projections.** If a
+memory, an older ADR body or a stale prose paragraph tells you to run one of them, that text is
+overtaken — the command does not exist. The gate is three rungs shorter, and no artifact edit of any
+kind owes a seed export any more.
 
 - **ITERATE ON ARTIFACTS (multiple parallel sessions OK):** use the CLI against the live DB —
   `pnpm storytree library artifact edit <id> --set <field>=<value> --pg` and
   `pnpm storytree library artifact new --file <doc.json> --pg` (writes are refused without `--pg`;
   bring the DB up first with `pnpm db:up`). Different artifacts never contend; **same** artifact
-  across sessions is not yet coordinated (ADR-0009 claims are DBOS-deferred). **Do NOT hand-edit
-  `knowledge.json` for live changes, and do NOT run `load-corpus.ts --force` against a live DB with
-  CLI edits — it reverts them.**
+  across sessions is not yet coordinated (ADR-0009 claims are DBOS-deferred).
   *(Invocation note: `pnpm storytree …` forwards every flag EXCEPT `--json` — pnpm reserves that —
   so pass a doc via `--file`, or use inline `--json` only via `npx tsx packages/cli/src/main.ts …`.)*
-- **AGENT TIER = seed-canonical (the exception, ADR-0055):** agents are authored in `knowledge.json`
-  and rendered offline (`storytree agents`, the generated root guidance in CLAUDE.md / AGENTS.md
-  per ADR-0051/0291, and the
-  harness-native `.claude/agents/*.md`, `.cursor/agents/*.md`, `.codex/agents/*.toml`, and
-  `.gemini/agents/*.md` views), so for the `agent` kind the **seed is the edit surface** —
-  the inverse of the live-canonical default above. After editing an agent in the seed, reconcile the
-  live store: `pnpm db:up && pnpm storytree library sync-agents --pg` (upserts every seed agent,
-  deletes any live agent absent from the seed; agent-kind only, idempotent) — else `storytree agents
-  --pg` and the studio go stale. Don't hand-reconcile with a throwaway script. `pnpm gate` runs
-  `check:agents-sync`, which WARNs if the live tier drifted while the DB is up and — since 2026-07-28 —
-  **BLOCKS the local gate** on any drift at all (a zero drain ceiling, ADR-0252 D3; the measured reason
-  is in `packages/cli/src/sync-drain.ts`). The remedy is the sync command above, never a raised ceiling.
-  It still SKIPs silently offline, with no creds, or on an unreadable seed (this check is not wired
-  into CI, so it's local-only — CI itself stopped being DB-free under ADR-0302 D3), and it never
-  blocks when the seed itself holds no agents — there the sync would delete the live tier.
-- **GRADUATED A NON-AGENT ARTIFACT INTO THE SEED? migrate it live (ADR-0103):** the ADR-0095
-  graduation flow writes a new principle/definition into `knowledge.json` (so the offline agent
-  renderer picks it up), which leaves it **seed-only** — invisible to `--pg`, and a `> MISSING REF`
-  for any agent that cites it against the live store / studio. Carry it across: `pnpm db:up && pnpm
-  storytree library sync-corpus --pg`. This is the INVERSE of `sync-agents`: **migrate-only** — it
-  upserts only seed non-agent artifacts ABSENT from live, and (unlike `load-corpus --force`) never
-  overwrites a live edit or deletes a live-only artifact; idempotent. `pnpm gate` runs
-  `check:corpus-sync`, which WARNs if a seed artifact is missing from live and — since 2026-07-28 —
-  **BLOCKS the local gate** on any such gap (a zero drain ceiling, ADR-0252 D3; the measured reason is
-  in `packages/cli/src/sync-drain.ts` — this list had reached 6 while exiting 0, and five of those
-  artifacts never migrated). Graduating into the seed and not syncing now fails your gate; the remedy is
-  the one idempotent command above. Still local-only: it SKIPs offline, with no creds, or on an
-  unreadable seed.
-- **EDITED A DURABLE-TIER ARTIFACT LIVE? export it in the SAME PR (ADR-0120/0263/0290):** the third
-  seed ceremony is the live→seed direction, and it carries a **ZERO** ceiling like its two siblings
-  above. `pnpm gate` runs `check:corpus-content`, a BODY-level seed↔live diff, and it **BLOCKS on the
-  first drifted artifact THIS BRANCH AUTHORED** (A=0 / D=0 / L=0,
-  `packages/cli/src/corpus-content-drain.ts`). **Since ADR-0290 it no longer reds you for a sibling's
-  drift** — the check charges each difference by authorship, from two exact signals (your seed diff vs
-  the merge base, and the latest live writer per artifact, now stamped `cli@<branch>`), and prints the
-  rest as `BEHIND MAIN` (remedy: `git merge origin/main` — NOT an export, which would re-author a hunk
-  already on main) or `ANOTHER WRITER` (named, with its writer, not yours to reconcile). **Don't
-  hand-prove your innocence any more** — the pristine-HEAD differential sessions used to run by hand is
-  what the check now does. If attribution can't be measured it says so and charges everything, so a
-  red without an explanation is still a red.
-  **Your own drift's remedy is one artifact wide**, never a raised ceiling:
-  `pnpm storytree library export-corpus --id <id> --pg --write`, then commit the `knowledge.json`
-  diff — the check prints the exact `--id` invocation. The BARE `export-corpus --pg --write` still
-  exists and is still all-or-nothing (it sweeps every sibling's drift AND appends every live-only
-  artifact), so **if you use that form, DRY-RUN FIRST** (`export-corpus --pg`, no `--write`): a green
-  check is not evidence it is a no-op. Measured 2026-07-30: the check printed `OK … across 177` and
-  exited 0 while the dry run reported one pending addition (`oq-diff-view-altitude` — an open-question
-  the owner had RETIRED under ADR-0267 D5, whose seed row main had already dropped); blind-writing
-  would have resurrected it into the committed seed. The check now PRINTS the live-only population on
-  every path, split into yours and not-yours, so that trap is visible rather than remembered.
-  **Scope matters here:** only
-  `definition` / `principle` / `pattern` / `guardrail` / `techstack` / `process` / `open-question`
-  are seed-scope (`SEED_SCOPE_KINDS`) — editing a `friction`, `arc`, `uat-criterion` or `plan` live is
-  FREE and creates no drift. (`proposal` was seed-scope until ADR-0298 RETIRED the kind; deferred work
-  is now a parked entry on an `arc`, which is not seed-scope — so parking work costs no seed export.) **Direction is NOT auto-inferred**: because `sync-corpus` is
-  migrate-only, a seed edit can never reach live, so the SEED is sometimes the correct side — three cases
-  found so far, two of them MIXED. On drift you did not author, leave it or route it back; spawn
-  `librarian-curator` for the per-artifact direction call rather than blind-exporting. SKIPs offline /
-  with no creds, and is not wired into CI (ADR-0302 D3 wired only `check:friction-drain` and
-  `check:arc-proposal-drain`, both now ARMED to red on an unreachable store; this one is a D4 delete).
-- **EXPLORE (read, offline OK):** `storytree library` (dashboard) · `… artifact <id>` ·
+- **AGENT TIER = live-canonical, like every other tier (ADR-0307 D1, superseding ADR-0055).** The
+  agent kind was the one seed-authored exception; it is withdrawn. Edit an agent the same way you
+  edit anything else — `library artifact edit <id> --pg` — then **regenerate the committed
+  projections**: `pnpm build:guidance && pnpm build:agents`. That is TWO steps, not the old
+  three-step seed→sync→render dance, and there is no longer a way to make the live tier stale by
+  forgetting one. `pnpm gate` still runs `check:guidance` / `check:agents`, which compare the
+  generated views against the LIVE store and fail if you edited an agent without regenerating.
+- **THE GENERATED VIEWS STAY COMMITTED, AND THAT IS NOT A CONTRADICTION (ADR-0302 D5 / ADR-0307
+  D2/D4).** `CLAUDE.md`, `AGENTS.md`, the four harness agent directories, and
+  `packages/cli/definitions.generated.json` remain files on disk, because the harness reads them at
+  session start *before any tool can run* and therefore before any database is reachable. The line
+  is drawn by ROLE, not by taste: **a generator may hold a store connection; anything on the
+  harness's startup or per-prompt path may not.** So `build:guidance` / `build:agents` read the live
+  store and need it up (locally `pnpm db:up`; in CI, the ADR-0302 D3 keyless WIF credential). They
+  fail LOUDLY when it is unreachable rather than falling back to any committed corpus — a generator
+  that silently read a stale source would report "in sync" while reverting your live edit.
+- **EXPLORE (read):** `storytree library` (dashboard) · `… artifact <id>` ·
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
-  (ADR-0023). Read commands run offline (in-memory seed); no DB needed.
-- **SEED / EXPORT VIEW:** `apps/studio/data/knowledge.json` (the structured corpus the DB was migrated
-  from) is the one committed seed; it reflects the seed, not live CLI edits. (The generated
-  `apps/studio/data/assets.json` was retired by ADR-0210 — the offline studio now derives its view from
-  `knowledge.json` on the fly, and `libraryTemplates()` in `@storytree/library` owns the template
-  scaffolds; `docs/glossary.md`, a second generated view, was retired by ADR-0135.)
+  (ADR-0023).
+- **`apps/studio/data/knowledge.json` IS NO LONGER AUTHORITATIVE — it is a frozen bootstrap
+  fixture.** Nothing writes it any more, so it will drift from the live store and that drift is
+  expected rather than a defect to reconcile. It survives this increment only as the offline corpus
+  a handful of unit tests and offline read paths still load; those consumers move, and the file
+  goes, in the next increment of `session-decoupling-arc`. **Never hand-edit it, never treat a read
+  of it as current, and do not re-add a check that compares it to live.** (The generated
+  `apps/studio/data/assets.json` was retired by ADR-0210 — the offline studio derives its view from
+  this file on the fly, and `libraryTemplates()` in `@storytree/library` owns the template scaffolds;
+  `docs/glossary.md`, a second generated view, was retired by ADR-0135.)
 - **STUDIO UI (one parallel session at a time):** the live store is now the **default**
   (`oq-studio-store-default` → B) — `pnpm --filter studio dev` reads/writes the live DB and sees CLI
   edits (bring the DB up first with `pnpm db:up`). For offline work set `STORYTREE_STUDIO_STORE=json`
@@ -201,14 +168,17 @@ file conflicts).
 
 ## How to run
 
-- **Offline is the DEFAULT — most sessions need no environment probe.** Analysis, docs, pure-TS units,
-  and the whole gate (`pnpm -r typecheck` / `pnpm -r test`) run OFFLINE on the in-memory seed: **no DB,
-  no SDK token, no `git fetch` needed.** Don't reflexively `db:up` / `claude -p` / `git fetch` at session
+- **OFFLINE IS NO LONGER A SUPPORTED MODE (ADR-0302 D2) — but most sessions still need no probe at
+  session start.** The two heavy legs (`pnpm -r typecheck` / `pnpm -r test`) are still hermetic: no
+  DB, no SDK token. What changed is that the CORPUS is online-only — a full `pnpm gate` now needs the
+  live store for `check:guidance` / `check:agents`, and every library read is honest only against
+  `--pg`. Still don't reflexively `db:up` / `claude -p` / `git fetch` at session
   start — every probe below is **need-gated to a specific action, not a do-first ritual** (over-reading
   them as onboarding steps is the biggest measured time-sink, ADR-0162). Probe only when you actually
   cross the gate: **(a)** a build that needs the DB (`--real --store pg`, or a db-backed proof)
-  **self-starts it** (`ensureLiveDb`, `packages/drive`) — a pre-`db:up` is a redundant no-op; only a
-  **bare `--pg` CLI write** (`artifact edit`, `adr new`) needs `db:up` first. **(b)** before an
+  **self-starts it** (`ensureLiveDb`, `packages/drive`) — a pre-`db:up` is a redundant no-op; a
+  **bare `--pg` CLI write** (`artifact edit`, `adr new`) and a **full `pnpm gate`** need `db:up`
+  first. **(b)** before an
   **UNATTENDED** `--live`/`--real` build, do **one *hydrated* auth probe or none** — a bare `claude -p`
   reads stale `~/.claude/.credentials.json` → a false 401; the CLI auto-hydrates the real token (see the
   `Credentials auto-hydrate` bullet). Two probes STAY load-bearing: **probe `SELECT 1`, don't assume**
@@ -285,20 +255,24 @@ file conflicts).
   normally, do NOT restart. Announce-only (→ **RESTART the session**, no mid-build git surgery)
   remains for the un-repairable shapes: a POPULATED husk (half-`git worktree remove` residue) or main
   not on a `claude/*` branch. Doctor: `node packages/cli/worktree-health.mjs --cwd <slot> [--repair]`.
-- Gate: `pnpm -r typecheck` · `pnpm -r test` (tests are offline — no DB or API key needed)
+- Gate: `pnpm -r typecheck` · `pnpm -r test` (the two `-r` legs need no DB or API key; two gate rungs
+  DO need the live store — `check:guidance` / `check:agents` read it since ADR-0302 D1, so bring the
+  DB up before a full gate)
 - **`pnpm gate` RUNS EVERY STEP — an early red no longer hides the rest (since 2026-08-04).** It was a
-  25-link `&&` chain, so the first red aborted it and every later step was left UNRUN and reported as
-  *nothing at all* — which cost ~25 min of hand re-runs per hit and once hid a genuine
-  `check:corpus-content` RED behind an unrelated flake. It is now a runner over a declared plan
-  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes all 25 steps and prints a per-step
-  **PASS / FAIL / NOT RUN** table. **Read the table, not the tail** — and read `NOT RUN` as
+  long `&&` chain, so the first red aborted it and every later step was left UNRUN and reported as
+  *nothing at all* — which cost ~25 min of hand re-runs per hit and once hid a genuine RED behind an
+  unrelated flake. It is now a runner over a declared plan
+  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes all **22** steps and prints a per-step
+  **PASS / FAIL / NOT RUN** table. (It was 25 until ADR-0302 D4 deleted the three seed-mirror rungs;
+  the plan is the count's source of truth, so read the table rather than any number quoted in prose.)
+  **Read the table, not the tail** — and read `NOT RUN` as
   *unverified*, never as passed (it appears only under `--fail-fast`, or when a run was interrupted /
   a step was killed). Any step not passing still exits non-zero, so `pnpm gate:bg` and every
   exit-code caller are unchanged. Two consequences worth knowing: a FAILING run now takes the full
   wall clock instead of stopping early, so **background it** (`pnpm gate:bg`, merge-ceremony step 2);
   and the steps are ordered *own-work first* — the checks and both `-r` legs that judge YOUR diff run
-  ahead of the ones that judge the shared environment (`check:declared`, the live-store sync checks,
-  the drain ceilings), whose red is often a sibling session's. `STORYTREE_GATE_FAIL_FAST=1 pnpm gate`
+  ahead of the ones that judge the shared environment (`check:declared`, the drain ceilings), whose
+  red is often a sibling session's. `STORYTREE_GATE_FAIL_FAST=1 pnpm gate`
   (or `pnpm gate --fail-fast`) restores the old stop-at-first-red for a fast inner loop.
   **`pnpm -r`'s own halt is NOT fixed**: a flake in one workspace still hides later workspaces' tests
   *inside* the `pnpm -r test` step — it just no longer skips the thirteen steps behind it.
@@ -365,9 +339,11 @@ file conflicts).
   optional `--budget` total, while Codex records subscription usage and refuses a fake USD cap).
   `--store pg` on live/real builds persists verdicts to `events.work_event`/`events.verdict`
   (refused for dry-runs — a scripted PASS persisted would be a forged healthy).
-- Library CLI (ADR-0023): `pnpm storytree library` (explore; offline). Writes need the live DB:
-  `pnpm db:up` then `pnpm storytree library artifact edit <id> --set <field>=<value> --pg`. See the
-  Library section above (note: inline `--json` needs `npx tsx packages/cli/src/main.ts`, not `pnpm`).
+- Library CLI (ADR-0023): `pnpm storytree library` (explore). Reads and writes alike want the live
+  store: `pnpm db:up` then `pnpm storytree library artifact edit <id> --set <field>=<value> --pg`
+  (a bare read without `--pg` still answers from the frozen bootstrap fixture and is no longer
+  current — see the Library section above). Note: inline `--json` needs
+  `npx tsx packages/cli/src/main.ts`, not `pnpm`.
   Two write-ergonomics: `--set field=@path` reads the value from a FILE (long/multi-line prose
   without shell mangling), and a typo'd `--set` field on a structured kind is REFUSED with a clear
   message (naming the bad field + the editable ones), not the opaque `.strict()` union dump.

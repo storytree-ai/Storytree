@@ -79,6 +79,17 @@ They exist solely to reconcile seed→live for this tier. With no seed there is 
 and no drift to detect. They go under ADR-0302 D4's "deleted, not left inert" rule. `check:agents`
 (view-vs-source) is a **different** check and survives.
 
+*(As landed 2026-08-05: D1, D2 and D3 are all shipped. `sync-agents.ts`, `check-agents-sync.ts` and
+the `library sync-agents` command are gone; `build:guidance` / `build:agents` read the live store via
+`packages/cli/src/corpus-store.ts` and fail loudly when it is unreachable. The migration was proved
+rather than asserted — both generators re-rendered CLAUDE.md, AGENTS.md, all four harness agent
+directories and `definitions.generated.json` **byte-identically** from the live store, so the two
+surfaces demonstrably agreed at the moment of the switch. D5's wider scope is NOT done: the 70
+`uat-criterion` detail seeds under `apps/studio/data/seed-kinds/` are still on disk, and 52 of them
+exist in no other place — the live store carries 22 — so withdrawing the posture there is a migration
+and is parked on `session-decoupling-arc`. `detail-seed-sync.ts` is untouched, as D5 said it should
+be: it reconciles store→store and did not fall with the ADR-0302 D4 family.)*
+
 ### D4 — A generator may hold a store connection; a session-start hook may not
 
 The line this ADR draws for the re-homing work, so it is decided once rather than per consumer.

@@ -27,8 +27,7 @@ import {
   platformShellCommand,
   runShellCommand,
 } from "@storytree/orchestrator";
-import { renderStoredDoc, renderProcessNode, syncSeedAgents, syncSeedCorpus, computeExportedSeed } from "@storytree/library/store";
-import type { SeedEntry } from "@storytree/library/store";
+import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
 
@@ -936,164 +935,13 @@ export async function retireArtifact(
   };
 }
 
-/**
- * `storytree library sync-agents --pg` — reconcile the live `agent` tier to the SEED (ADR-0055).
- *
- * The agent tier is **seed-canonical**: agents are authored in `apps/studio/data/knowledge.json` and
- * the renderer (`storytree agents`, the generated CLAUDE.md region per ADR-0051, and every
- * harness-native agent directory) reads the seed offline. That makes it the exception to ADR-0023's
- * live-store-is-the-edit-surface default — so an agent-tier seed edit must be re-synced or the live
- * store (which powers `storytree agents --pg` and the studio) drifts stale. This upserts every seed
- * agent and deletes any live agent absent from the seed; agent-kind only, idempotent. Needs --pg —
- * a sync against the ephemeral offline store would be a no-op.
+/*
+ * The three seed<->live ceremonies are GONE (ADR-0302 D4, ADR-0307 D3): `library sync-agents`,
+ * `library sync-corpus` and `library export-corpus` existed only to keep a committed mirror in
+ * step with the live store. The live store is the only source of truth (ADR-0302 D1), so there is
+ * nothing left to reconcile in either direction, and the two-surface edit dance they forced is over:
+ * edit the artifact with `library artifact edit <id> --pg` and regenerate the projections.
  */
-export async function syncAgentsCommand(deps: RunDeps): Promise<Envelope> {
-  if (deps.writable !== true) return notWritable(deps.store);
-  const r = await syncSeedAgents(deps.store, { actor: deps.actor ?? defaultCliActor() });
-  const lines = [
-    r.inSync
-      ? `IN SYNC — the live agent tier equals the seed's ${r.seed.length} agents.`
-      : "NOT IN SYNC after reconcile — investigate (a write may have failed).",
-    "",
-    `before  (${r.before.length}): ${r.before.join(", ") || "(none)"}`,
-    `upserted (${r.upserted.length}): ${r.upserted.join(", ")}`,
-    `deleted (${r.deleted.length}): ${r.deleted.join(", ") || "(none)"}`,
-    `after   (${r.after.length}): ${r.after.join(", ")}`,
-  ];
-  return {
-    ok: r.inSync,
-    body: lines.join("\n"),
-    next: [
-      "storytree library artifact list agent",
-      "storytree agents <name> --pg   (verify it renders clean)",
-    ],
-  };
-}
-
-/**
- * `storytree library sync-corpus --pg` — carry seed-only NON-AGENT artifacts into the live store
- * (ADR-0103). The non-agent tier is LIVE-canonical (ADR-0023), so unlike the seed-canonical
- * `sync-agents` this is **migrate-only**: it upserts every seed artifact ABSENT from the live store
- * and leaves the rest alone — it never overwrites a live row (which may carry `artifact edit --pg`
- * edits) and never deletes a live-only artifact (a live-canonical creation). It exists to close the
- * ADR-0095 graduation gap: a freshly-graduated principle lands in `knowledge.json` and is otherwise
- * seed-only (invisible to `--pg` and rendering as a `> MISSING REF` for any agent that cites it
- * against the live store / studio). Needs --pg; idempotent.
- */
-export async function syncCorpusCommand(deps: RunDeps): Promise<Envelope> {
-  if (deps.writable !== true) return notWritable(deps.store);
-  const r = await syncSeedCorpus(deps.store, { actor: deps.actor ?? defaultCliActor() });
-  const lines = [
-    r.created.length === 0
-      ? `NOTHING TO MIGRATE — the live store already holds all ${r.seed.length} seed non-agent artifacts.`
-      : `MIGRATED ${r.created.length} seed-only artifact(s) into the live store.`,
-    "",
-    `seed non-agents (${r.seed.length})`,
-    `created (${r.created.length}): ${r.created.join(", ") || "(none)"}`,
-    `skipped — already live, left untouched (${r.skipped.length})`,
-  ];
-  if (!r.complete) {
-    lines.push("", "INCOMPLETE — a seed artifact is still missing from live (a write may have failed).");
-  }
-  return {
-    // A successful run leaves every seed non-agent present in live (complete); an incomplete run is a
-    // failure worth surfacing. "Nothing to migrate" is a healthy, idempotent success.
-    ok: r.complete,
-    body: lines.join("\n"),
-    next: [
-      ...(r.created.length > 0 ? [`storytree library artifact ${r.created[0]} --pg   (verify it landed)`] : []),
-      "storytree library --pg",
-    ],
-  };
-}
-
-/**
- * `storytree library export-corpus [--id <id>…] --pg [--write]` — the INVERSE of `sync-corpus`
- * (ADR-0120): carry the canonical LIVE durable tier back into the seed
- * (`apps/studio/data/knowledge.json`), the gap ADR-0103 left as "later work". DRY-RUN by default
- * (reports what it WOULD change, writes nothing); `--write` rewrites knowledge.json. Owner-directed
- * policy (ADR-0120 a): OVERWRITE a seed body that drifted from a valid live one + ADD live-only
- * artifacts, but NEVER delete a seed entry, NEVER touch agents/templates, and NEVER write a
- * degraded/below-floor live body (it is refused and reported for a seed→live restore).
- * Needs --pg (it reads the LIVE store); writing the file is a local edit to the seed.
- *
- * `--id <id>` (repeatable) SCOPES the write to named artifacts — ADR-0290's drain. Without it this is
- * one act over the whole corpus, which is why a session that had to reconcile ONE artifact could only
- * do so by also writing every other drifted body (a sibling's in-flight edit, landing in its commit
- * under its name) plus every live-only artifact on top. Measured cost of that shape: ~20 minutes of
- * hand-written restore scripting per landing, and in one case a foreign artifact's citation to an ADR
- * that existed on no pushed branch. `check:corpus-content` now prints the exact `--id` invocation for
- * what it charges to you.
- *
- * The scope is applied inside `computeExportedSeed` at ONE narrowing point, so a scoped run cannot
- * diverge in policy from an unscoped one — an unknown id is a no-op, and every invariant above holds
- * unchanged. A bare (unscoped) run is deliberately still available and deliberately still all-or-
- * nothing: dry-run it first.
- */
-export async function exportCorpusCommand(
-  deps: RunDeps,
-  opts: { write: boolean; ids?: readonly string[] | undefined },
-): Promise<Envelope> {
-  if (deps.writable !== true) return notWritable(deps.store);
-  const write = opts.write === true;
-  const ids = opts.ids !== undefined && opts.ids.length > 0 ? new Set(opts.ids) : undefined;
-
-  const knowledgePath = path.join(repoRoot(), "apps", "studio", "data", "knowledge.json");
-  const seedEntries = JSON.parse(readFileSync(knowledgePath, "utf8")) as SeedEntry[];
-  const live = await deps.store.queryDocs();
-  const r = computeExportedSeed(seedEntries, live, ids === undefined ? {} : { ids });
-
-  // A scoped run that matched nothing is reported as such rather than as "nothing to export": the two
-  // states look identical in the counts and have opposite causes (already reconciled vs a typo'd id).
-  const unmatched = ids === undefined ? [] : [...ids].filter((id) => !live.some((d) => d.id === id)).sort();
-
-  const scopeLine =
-    ids === undefined
-      ? "SCOPE: the WHOLE export-scope tier (all-or-nothing — it also sweeps any sibling's drift and APPENDS every live-only artifact). Use --id to scope."
-      : `SCOPE: ${ids.size} named artifact(s) — ${[...ids].sort().join(", ")}. Nothing outside this set is read or written.`;
-
-  const lines = [
-    r.noop
-      ? "NOTHING TO EXPORT — every export-scope seed body in scope already matches the live store."
-      : `${write ? "EXPORTED" : "WOULD EXPORT"} ${r.updated.length} update(s) + ${r.created.length} addition(s) from live → seed.`,
-    "",
-    scopeLine,
-    "",
-    `overwritten from live (${r.updated.length}): ${r.updated.join(", ") || "(none)"}`,
-    `added (live-only) (${r.created.length}): ${r.created.join(", ") || "(none)"}`,
-    `REFUSED — degraded/below-floor live body, restore seed→live instead (${r.skippedDegraded.length}): ${r.skippedDegraded.join(", ") || "(none)"}`,
-  ];
-
-  if (unmatched.length > 0) {
-    lines.push(
-      "",
-      `NOT FOUND LIVE (${unmatched.length}): ${unmatched.join(", ")} — no live row, so nothing to export from. Check the id, or the artifact may have been retired live.`,
-    );
-  }
-
-  if (write && !r.noop) {
-    writeFileSync(knowledgePath, JSON.stringify(r.entries, null, 2) + "\n", "utf8");
-    lines.push(
-      "",
-      `WROTE ${knowledgePath}. The live store stays canonical; the offline studio derives its view from this seed on the fly (ADR-0210 — no assets.json to regenerate).`,
-    );
-  } else if (!write && !r.noop) {
-    lines.push("", "DRY-RUN — nothing written. Re-run with --write to apply.");
-  }
-
-  const applyHint =
-    ids === undefined
-      ? "storytree library export-corpus --pg --write   (apply — ALL of the above)"
-      : `storytree library export-corpus ${[...ids].sort().map((id) => `--id ${id}`).join(" ")} --pg --write   (apply)`;
-
-  return {
-    ok: true,
-    body: lines.join("\n"),
-    next: write
-      ? ["pnpm check:corpus-content   (the body-level drift report)"]
-      : [applyHint, "pnpm check:corpus-content   (the body-level drift report)"],
-  };
-}
 
 /**
  * `storytree library tree focus <id>` — the DAG **for one node only** (ADR-0023): its outbound
@@ -1349,10 +1197,6 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library artifact list <category> list a category",
       "  storytree library artifact new|edit <id>   create / edit (writes need --pg)",
       "  storytree library tree focus <id>          the local DAG of one artifact",
-      "  storytree library sync-agents [--pg]       reconcile the agent tier to the seed (ADR-0055)",
-      "  storytree library sync-corpus [--pg]       migrate seed-only non-agent artifacts into live (ADR-0103)",
-      "  storytree library export-corpus [--id <id>…] [--pg]  export live durable bodies back to the seed (ADR-0120;",
-      "                                             --id scopes the write to named artifacts, ADR-0290)",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
       "  (coming soon: artifact comment)",
     ].join("\n"),
@@ -3079,15 +2923,6 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (help) return libraryHelp(deps.store);
     if (values.check === true) return libraryCheck(deps.store);
     return dashboard(deps.store);
-  }
-
-  if (sub === "sync-agents") return syncAgentsCommand(deps);
-  if (sub === "sync-corpus") return syncCorpusCommand(deps);
-  if (sub === "export-corpus") {
-    return exportCorpusCommand(deps, {
-      write: values.write === true,
-      ...(Array.isArray(values.id) ? { ids: values.id } : {}),
-    });
   }
 
   if (sub === "graduate") {

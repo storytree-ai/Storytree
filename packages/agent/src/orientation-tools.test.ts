@@ -242,7 +242,7 @@ test("ots-write-verb-refused-at-surface: a write/act verb in the args is refused
     ["noticeboard", ["declare", "--working-on", "sneaky"]],
     ["library", ["artifact", "edit", "some-id"]],
     ["library", ["artifact", "new"]],
-    ["library", ["sync-agents"]],
+    ["library", ["artifact", "retire", "some-id"]],
     ["library", ["graduate"]],
     ["tree", ["build", "some-story"]],
   ];

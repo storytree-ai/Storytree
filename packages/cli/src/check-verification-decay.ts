@@ -1038,9 +1038,10 @@ function main(): void {
         "WARN backlog as this instrument's live counter-example; it was BOUNDED on 2026-07-28 " +
         "(`coverage-drain.ts`) and is no longer located here. FALSE POSITIVE: a worklist that is a DRIFT " +
         "between two surfaces drains with one idempotent command and MAY need no ceiling — but that has " +
-        "now been tested and did not hold. The two candidates (`check:agents-sync` / `check:corpus-sync`) " +
-        "were measured printing worklists of 3 and 6 while exiting 0, because nothing schedules the " +
-        "drain, so both were bounded instead (`sync-drain.ts`, 2026-07-28). A cheap drain is not a drain " +
+        "now been tested and did not hold. The two candidates (the former `check:agents-sync` / " +
+        "`check:corpus-sync`, both DELETED with the seed by ADR-0302 D4) were measured printing " +
+        "worklists of 3 and 6 while exiting 0, because nothing schedules the drain, so both were " +
+        "bounded rather than trusted to drain themselves. A cheap drain is not a drain " +
         "that runs; the question is the check's REMEDY, not its size today. And SIZE is what makes a list " +
         "unreadable, which this cannot see — it reads source, not a run, so a 1-item worklist and a " +
         "121-item one are indistinguishable here. BLIND TO: output rendered more than one local import " +
