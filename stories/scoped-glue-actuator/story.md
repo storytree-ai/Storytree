@@ -128,7 +128,7 @@ artifact_edges: [chat-subagent-spawn]
 # seed-canonical — the glue-worker prompt is authored in the seed + rendered); 30 (the live SDK runtime;
 # human owns the outer loop); 22 (CI re-proves the merge and auto-merges — the transitive re-proof, 0160
 # D3); 70 (the live scoped-edit walk is operator-attested).
-decisions: [160, 158, 137, 152, 138, 108, 91, 51, 55, 30, 22, 70]
+decisions: [160, 158, 137, 152, 138, 108, 91, 51, 307, 30, 22, 70]
 ---
 
 # The desktop chat's scoped glue actuator — a fenced, write-scoped, claim-gated spawn_glue_worker

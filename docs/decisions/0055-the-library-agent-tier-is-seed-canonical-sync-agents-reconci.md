@@ -1,12 +1,20 @@
 ---
-status: accepted
-load_bearing: true
+status: superseded
 decided: 2026-06-14
 amends: [23]
 ---
 # ADR-0055: The Library agent tier is seed-canonical; sync-agents reconciles it to the live store
 
 ## Status
+
+**superseded (2026-08-04) by [ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md)**
+— the `agent` tier is now live-canonical like every other tier, and `sync-agents` /
+`check:agents-sync` are deleted. This decision's entire mechanism is a committed seed file plus a
+seed→live reconciler, and [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md)
+D1/D4 remove both, so the authorship direction reverses rather than being amended. What 0307 KEEPS
+from this decision: the harness-native views below are still generated, still committed, and still
+gate-checked — only their source moves from the seed to the live store (ADR-0302 D5 / ADR-0307 D2).
+Everything below is retained as history and is **not** current guidance.
 
 accepted (2026-06-14; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — owner steer in conversation: after a one-off reconciliation of the live
 `agent` tier to the seed, *"add a reusable safeguard so this can't silently drift again."* Closes the

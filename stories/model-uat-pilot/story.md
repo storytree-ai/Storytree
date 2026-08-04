@@ -37,7 +37,7 @@ artifact_edges: [drive-machinery, library-review, library-tech-tree-overlay]
 # Deciding ADRs: 0209 (D8 — charter); 0192 (packages-forward / hosted honesty); 0082 (per-test
 # UAT); 0106 (Adopt resolves witness); 0055 (seed-canonical class); 0184 (drive-machinery machine
 # conversion precedent); 0070 (LOOK stays human); 0010 (organism + splitting-rule).
-decisions: [209, 192, 82, 106, 55, 184, 70, 10]
+decisions: [209, 192, 82, 106, 307, 184, 70, 10]
 capabilities:
   [
     uat-criterion-library-surface,
