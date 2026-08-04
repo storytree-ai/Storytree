@@ -12,7 +12,7 @@ import {
 } from "./db-required.js";
 
 const NO_CRED: DbAbsence = { kind: "no-credential" };
-const UNREACHABLE: DbAbsence = { kind: "unreachable", detail: "live read timed out after 10000ms" };
+const UNREACHABLE: DbAbsence = { kind: "unreachable", detail: "live read timed out after 30000ms" };
 
 test("dbIsRequired: the recognised affirmatives arm it, case- and whitespace-insensitively", () => {
   for (const raw of ["1", "true", "yes", "on", "TRUE", "  Yes  ", "ON"]) {
@@ -46,7 +46,7 @@ test("not required: both absences are a SKIP, and the message names what went un
   assert.equal(down.level, "skip");
   assert.match(down.message, /^SKIP —/);
   // The underlying cause survives into the message — an operator must not have to guess.
-  assert.match(down.message, /live read timed out after 10000ms/);
+  assert.match(down.message, /live read timed out after 30000ms/);
   assert.match(down.message, /parked work unverified/);
 });
 
@@ -61,7 +61,7 @@ test("required: both absences turn RED, and each names the variable that armed i
   assert.equal(down.level, "red");
   assert.match(down.message, /^FAIL —/);
   assert.match(down.message, new RegExp(DB_REQUIRED_ENV));
-  assert.match(down.message, /live read timed out after 10000ms/);
+  assert.match(down.message, /live read timed out after 30000ms/);
 });
 
 test("a RED distinguishes a MISSING credential from an UNREACHABLE store", () => {
