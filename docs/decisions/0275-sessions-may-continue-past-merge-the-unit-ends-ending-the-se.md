@@ -113,6 +113,15 @@ always re-enters through a chip" now reads "**when** it re-enters, it re-enters 
 by a session waiting on the owner" — the anti-waiting rule is untouched. Queuing a follow-up is now
 gated on ADR-0288 D2's worth-a-session bar, and declining is a stated, free outcome.]*
 
+*[Scope stated exactly by ADR-0303 (2026-08-04). All four hard ends STAND, unchanged. What ADR-0303
+pins down is the fourth one's REACH: it governs the NEXT unit — a session that has merged and finds
+the following unit owner-gated — and never governed a session blocked MID-unit, before its own work
+is green. That case fell outside this ADR and ADR-0271 alike, so it had no ceremony and defaulted to
+waiting on an unmerged branch while holding a live claim, which is the one claim contention the
+ledger cannot resolve. ADR-0303 covers it: land what can land green, the arc entry carries the rest,
+release the claims, end. The two cases share this clause's anti-waiting rule — neither ever waits on
+the owner — and differ only in whether there is a merge to hang the closing leg off.]*
+
 **D3 — ADR-0271 D2/D3/D4 survive unchanged.** The debrief becomes per-*landing* (naming what
 landed, what continues with its reason, and every chip by title); inert-is-not-mute applies at the
 final end; the owner-confirmed janitor sweep is untouched. The per-PR ceremony — gate, pre-PR
