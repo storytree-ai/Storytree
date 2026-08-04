@@ -24,9 +24,15 @@ combined. Sessions are not re-reading each other's stories; they are discovering
 moved.
 
 What converts "`main` moved" into "you must re-sync **now**" is the gate. `pnpm gate` runs
-`pnpm -r typecheck && pnpm -r test` across every package, plus 25 sequential checks, and CI runs the
-branch merged with current `main`. So a change a session never touched can red it, and re-syncing is
-not a choice — it is the only route to green.
+`pnpm -r typecheck` and `pnpm -r test` across every package, alongside its policy checks, and CI runs
+the branch merged with current `main`. So a change a session never touched can red it, and re-syncing
+is not a choice — it is the only route to green.
+
+(The gate stopped being a single `&&` chain on 2026-08-04, mid-way through this session: `pnpm gate`
+is now `gate-run.ts`, which runs every step and reports per-step rather than aborting at the first
+red. That closed a different defect — an aborted chain reporting one red and saying nothing about the
+rungs behind it — and does not touch this ADR's problem. The compile-and-test steps are still
+repo-wide, which is what D1 scopes.)
 
 Two facts about our own setup shaped this decision.
 
