@@ -610,6 +610,7 @@ test("removeOne: a registered reap falls back to rm when git worktree remove thr
     kind: "registered",
     decision: "reap",
     reason: "test",
+    hold: null,
   };
   const res = removeOne(io, verdict);
   assert.equal(res.ok, true);

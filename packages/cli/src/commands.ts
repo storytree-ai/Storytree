@@ -55,11 +55,13 @@ import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
 import {
   pruneWorktrees,
+  worktreeDrainStatus,
   worktreeHelp,
   DEFAULT_THRESHOLD_MS,
   type WorktreeIo,
   type PruneOptions,
 } from "./worktree.js";
+import type { DrainLedgerIo } from "./worktree-drain.js";
 // `worktree create` — the claim-gated workspace ceremony (ADR-0200 D3).
 import { createWorktree, type WorktreeCreateIo } from "./worktree-create.js";
 import { writeAuthorityCommand } from "./write-authority-install.js";
@@ -1485,6 +1487,11 @@ export interface RunDeps {
     readonly io?: WorktreeIo;
     readonly now?: () => number;
     /**
+     * The drain-ledger seam (worktree-reaper-integrity-arc strand 3) — an in-memory ledger keeps the
+     * drain-health series offline-testable without writing a real `.prune-history.jsonl`.
+     */
+    readonly drain?: DrainLedgerIo;
+    /**
      * The `storytree worktree create` seams (ADR-0200 D3) — injected IO (git/fs/pnpm), arc stamps,
      * and suffix draws keep the claim-gated ceremony offline-testable (no real worktree cut, no real
      * install). Absent in production — real git/fs/pnpm, `storyArcStamps`, and random hex are used.
@@ -2421,13 +2428,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         },
       );
     }
-    if (sub !== "prune") {
+    if (sub !== "prune" && sub !== "drain") {
       return {
         ok: false,
-        body: `unknown worktree command "${sub}". try: storytree worktree create | storytree worktree prune`,
+        body: `unknown worktree command "${sub}". try: storytree worktree create | storytree worktree prune | storytree worktree drain`,
         next: [
           'storytree worktree create --node <story> --intent "<what>" --pg',
           "storytree worktree prune",
+          "storytree worktree drain",
           "storytree worktree --help",
         ],
       };
@@ -2449,22 +2457,38 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     const thresholdHours =
       values["threshold-hours"] !== undefined ? Number(values["threshold-hours"]) : NaN;
     const capRaw = values.cap !== undefined ? Number(values.cap) : NaN;
+    const thresholdMs = Number.isFinite(thresholdHours)
+      ? Math.max(0, thresholdHours) * 3_600_000
+      : DEFAULT_THRESHOLD_MS;
+    const wtIoShared: WorktreeIo | undefined = deps.worktree?.io;
+    const wtDeps = {
+      ...(wtIoShared !== undefined ? { io: wtIoShared } : {}),
+      ...(deps.worktree?.now !== undefined ? { now: deps.worktree.now } : {}),
+      ...(deps.worktree?.drain !== undefined ? { drain: deps.worktree.drain } : {}),
+    };
+    if (sub === "drain") {
+      // worktree-reaper-integrity-arc strand 3 — read-only drain observability. Reads the ledger the
+      // executing runs append to and goes RED on a measured stall, so "reaped nothing every run for a
+      // week" can no longer hide behind the hook's silent-on-nothing-to-do contract.
+      return worktreeDrainStatus(
+        {
+          thresholdMs,
+          includeDetached: values["include-detached"] === true,
+          liveSessions,
+        },
+        wtDeps,
+      );
+    }
     const options: PruneOptions = {
       force: values.force === true,
       yes: values.yes === true,
       hook: false,
       cap: Number.isFinite(capRaw) ? Math.max(0, Math.trunc(capRaw)) : null,
       includeDetached: values["include-detached"] === true,
-      thresholdMs: Number.isFinite(thresholdHours)
-        ? Math.max(0, thresholdHours) * 3_600_000
-        : DEFAULT_THRESHOLD_MS,
+      thresholdMs,
       liveSessions,
     };
-    const wtIo: WorktreeIo | undefined = deps.worktree?.io;
-    return pruneWorktrees(options, {
-      ...(wtIo !== undefined ? { io: wtIo } : {}),
-      ...(deps.worktree?.now !== undefined ? { now: deps.worktree.now } : {}),
-    });
+    return pruneWorktrees(options, wtDeps);
   }
 
   if (area === "write-authority") {
