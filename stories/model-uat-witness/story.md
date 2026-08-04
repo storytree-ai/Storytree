@@ -28,7 +28,7 @@ depends_on: [proof-protocol]
 # binary); 0055 (the seed-canonical exception ADR-0209 §5 widens — cited for the LATER detail-artifact
 # increment, not built here); 0192 (packages-forward ownership); 0010 (the organism model +
 # splitting-rule that tiers these units).
-decisions: [209, 192, 82, 106, 55, 10]
+decisions: [209, 192, 82, 106, 307, 10]
 # Capabilities, roots-first (a capability appears after everything it depends on).
 capabilities: [three-kind-witness, model-tier-classification, model-eligibility-registry]
 # Node-borne STORY-UAT proof config (ADR-0057 / ADR-0092), now EDIT-EXISTING after the first REAL

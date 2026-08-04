@@ -29,7 +29,7 @@ depends_on: [model-uat-witness, storage-protocol]
 # widened to a class that now includes this kind); 0192 (packages-forward ownership); 0082 (per-test
 # UAT criteria — the story still owns the stable criterion id / one-liner); 0010 (organism model +
 # splitting-rule).
-decisions: [209, 55, 192, 82, 10]
+decisions: [209, 307, 192, 82, 10]
 # Capabilities, roots-first (a capability appears after everything it depends on).
 capabilities: [uat-detail-kind, uat-detail-seed-sync, criterion-detail-pointer, criterion-detail-hash-anchor, story-author-detail-authority]
 # Node-borne STORY-UAT proof config (ADR-0057 / ADR-0092). NET-NEW package: AUTHOR_TEST writes the

@@ -232,9 +232,13 @@ from a Google identity — and ADR-0254 D4 retired `storytree-remote-dev`, so a 
 no GCP identity at all. Until that fork is decided the door is reachable by a **browser** session and
 by any local process that can present an IAP-audience token; a remote agent session cannot use it.
 
-Parked as `remote-session-door-credential` on `session-decoupling-arc`. **The ordering fence in
-ADR-0302's Consequences is therefore NOT yet discharged** — `decommit-the-seed-and-delete-mirror-machinery`
-must not land on the strength of this section.
+Parked as `remote-session-door-credential` on **`remote-session-access-arc`** — its own initiative
+since 2026-08-04, when the owner descoped remote sessions from `session-decoupling-arc` ("not a
+priority, its only a nice to have"). That arc carries the four costed options and names the
+OIDC-issuer probe as step one; run `storytree arc show remote-session-access-arc --pg` before
+touching this. **This gap blocks nothing.** The older wording here made it an ordering fence on the
+seed decommit; that fence is dissolved by the descoping, and
+`decommit-the-seed-and-delete-mirror-machinery` proceeds without it.
 
 ## What the circle sees (set expectations in the invite)
 

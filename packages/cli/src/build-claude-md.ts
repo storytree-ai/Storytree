@@ -2,13 +2,21 @@
 // CLAUDE.md keeps its marked partial view; AGENTS.md is a whole-file generated view. The discipline
 // has one source of truth and cannot drift between harnesses through a hand copy.
 //
-//   pnpm build:guidance        regenerate both root projections in place
-//   pnpm check:guidance        fail if either projection is stale (the gate's drift guard)
+// It also emits a THIRD projection: `packages/cli/definitions.generated.json`, the ~12 KB
+// definition table the `UserPromptSubmit` hook reads (ADR-0307 D4 — a generator may hold a store
+// connection; a per-prompt hook may not, so it gets a committed projection instead). It rides this
+// command rather than a gate rung of its own, so `check:guidance` covers all three and the gate
+// gains no step — see definitions-projection.ts for why the hook cannot read the store directly.
+//
+//   pnpm build:guidance        regenerate all three projections in place
+//   pnpm check:guidance        fail if any projection is stale (the gate's drift guard)
 //   pnpm build/check:claude    compatibility aliases for the commands above
 //
-// Offline by construction (reads the seed corpus via loadCorpus), so it runs in the gate and CI
-// with no DB. Edit the agent artifact (knowledge.json for the seed-canonical agent tier), not either
-// generated projection.
+// Offline TODAY (reads the seed corpus via loadCorpus), so it runs in the gate and CI with no DB.
+// ADR-0307 D1/D2 move that source to the live store when ADR-0302 D1 decommits the seed: the
+// outputs stay committed files, only the source moves — which is why ADR-0302 D3 (a CI database
+// credential) is a hard prerequisite of the decommit, since `check:guidance` runs in CI.
+// Edit the agent artifact, not any generated projection.
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -24,6 +32,11 @@ import {
   syncClaudeRegion,
   syncGeneratedGuidance,
 } from "./claude-region.js";
+import {
+  DEFINITIONS_PROJECTION_BASENAME,
+  buildDefinitionsProjection,
+  renderDefinitionsProjection,
+} from "./definitions-projection.js";
 
 const AGENT = "session-orchestrator";
 
@@ -38,6 +51,18 @@ const repoRoot = resolveRepoRoot({
 }).root;
 const claudePath = path.join(repoRoot, "CLAUDE.md");
 const codexPath = path.join(repoRoot, "AGENTS.md");
+/**
+ * Deliberately NOT under `repoRoot`: the definition table ships with the CLI (beside the hook that
+ * reads it), because definitions are storytree's METHOD corpus rather than a description of the
+ * project under inspection — the same call the studio makes anchoring `knowledge.json` to
+ * `studioRoot` (ADR-0244 D3). A forest for another project still wants these injected.
+ */
+const definitionsPath = path.resolve(
+  fileURLToPath(import.meta.url),
+  "..",
+  "..",
+  DEFINITIONS_PROJECTION_BASENAME,
+);
 
 function fail(message: string): never {
   console.error(`build:guidance — ${message}`);
@@ -73,24 +98,35 @@ async function main(): Promise<void> {
     await readIfExists(codexPath),
     renderCodexGuidance(AGENT, res.agent.digest),
   );
+  // The hook's definition table (ADR-0307 D4). Same store, same sync/check/write shape as the two
+  // prose projections — it is a generated view of the corpus like they are, just data.
+  const definitions = syncGeneratedGuidance(
+    await readIfExists(definitionsPath),
+    renderDefinitionsProjection(buildDefinitionsProjection(await store.queryDocs({ kind: "definition" }))),
+  );
 
-  if (region.inSync && codex.inSync) {
-    console.log("build:guidance — CLAUDE.md region + AGENTS.md in sync.");
+  if (region.inSync && codex.inSync && definitions.inSync) {
+    console.log(
+      `build:guidance — CLAUDE.md region + AGENTS.md + ${DEFINITIONS_PROJECTION_BASENAME} in sync.`,
+    );
     return;
   }
   if (check) {
     const drift = [
       ...(!region.inSync ? ["CLAUDE.md region is stale"] : []),
       ...(!codex.inSync ? ["AGENTS.md is missing or stale"] : []),
+      ...(!definitions.inSync ? [`${DEFINITIONS_PROJECTION_BASENAME} is missing or stale`] : []),
     ];
-    fail(`${drift.join("; ")} — regenerate with \`pnpm build:guidance\` and commit both projections.`);
+    fail(`${drift.join("; ")} — regenerate with \`pnpm build:guidance\` and commit the projections.`);
   }
   if (!region.inSync) await fs.writeFile(claudePath, region.next, "utf8");
   if (!codex.inSync) await fs.writeFile(codexPath, codex.next, "utf8");
+  if (!definitions.inSync) await fs.writeFile(definitionsPath, definitions.next, "utf8");
   console.log(
     `build:guidance — wrote ${[
       ...(!region.inSync ? ["CLAUDE.md region"] : []),
       ...(!codex.inSync ? ["AGENTS.md"] : []),
+      ...(!definitions.inSync ? [DEFINITIONS_PROJECTION_BASENAME] : []),
     ].join(" + ")}.`,
   );
 }

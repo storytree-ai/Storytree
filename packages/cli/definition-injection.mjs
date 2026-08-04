@@ -14,16 +14,27 @@
 //
 // Constraints that shape it (mirrors provision-worktree.mjs):
 //   - BARE NODE, ZERO non-builtin deps — the hook runs on EVERY prompt submit and blocks the
-//     model's response, so startup latency matters: plain `node` + the seed-corpus JSON parse is
-//     ~150 ms on this box where a tsx boot is ~1 s. It also keeps working in a fresh worktree
-//     that has no node_modules yet.
-//   - OFFLINE — reads the seed corpus `apps/studio/data/knowledge.json`, never the live DB. The
-//     seed can lag a live CLI edit; a slightly stale oneLine still beats a 200k-token lookup,
+//     model's response, so startup latency matters: plain `node` + a JSON parse is ~150 ms on this
+//     box where a tsx boot is ~1 s. It also keeps working in a fresh worktree with no node_modules.
+//   - OFFLINE, and it reads the GENERATED PROJECTION `definitions.generated.json` beside this file
+//     — never the live DB, and (since 2026-08-04) no longer the 1.25 MB seed corpus either. It used
+//     `apps/studio/data/knowledge.json` and consumed 0.99% of it: 52 definitions × id/title/oneLine
+//     is 11.8 KB. ADR-0302 D1 decommits that seed, which would have dropped this hook into its own
+//     fail-safe `catch` and stopped injection SILENTLY. ADR-0307 D4 gives it a committed projection
+//     instead — regenerate with `pnpm build:guidance` (`check:guidance` fails on drift). The
+//     projection can lag a live CLI edit; a slightly stale oneLine still beats a 200k-token lookup,
 //     and the pointer always pulls the live/full body.
 //   - FAIL-SAFE as a hook — ALWAYS exit 0, silent on every failure path (the presence-hook.sh
 //     contract): a definition-injection failure must never surface into the session.
-import { readFileSync } from "node:fs";
+//   - PROMPTS ONLY, and STATEFUL per session. Two 2026-08-04 measurements over one real session:
+//     30 injections carried only 14 distinct terms (53% were repeats of definitions the model had
+//     already been given), and 20 of the 30 were triggered not by anything the operator typed but by
+//     BACKGROUND TASK NOTIFICATIONS — machine-generated text scanned as if it were a prompt, so
+//     probe output was injecting `orchestrator`/`dependency`/`boundary` at a reader who never asked.
+//     `isOperatorPrompt` drops the latter and `readInjected`/`writeInjected` dedupe the former.
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 
@@ -102,29 +113,100 @@ export function renderInjection(matches) {
   ].join("\n");
 }
 
-/** prompt + corpus docs in → injection text out ("" when nothing matches). */
-export function buildInjection(prompt, docs, opts = {}) {
+/**
+ * prompt + corpus docs in → the definitions to inject.
+ *
+ * `opts.exclude` is a Set of ids this session has already been given; they are dropped AFTER
+ * matching, so the `max` cap still applies to fresh terms. Filtering before the match would let a
+ * prompt full of already-known terms pull in `max` unrelated ones it only weakly matched — the cap
+ * exists to keep injection selective, not to guarantee a full quota.
+ */
+export function selectDefinitions(prompt, docs, opts = {}) {
   const defs = docs.filter(
     (d) => d?.kind === "definition" && typeof d.id === "string" && typeof d.oneLine === "string" && d.oneLine.length > 0,
   );
-  return renderInjection(matchDefinitions(prompt, defs, opts));
+  const exclude = opts.exclude ?? new Set();
+  return matchDefinitions(prompt, defs, opts).filter((d) => !exclude.has(d.id));
 }
 
-/** The checkout that physically contains this file (`../` from packages/cli/). */
-function thisRoot() {
-  return resolve(fileURLToPath(new URL("../../", import.meta.url)));
+/** prompt + corpus docs in → injection text out ("" when nothing matches). */
+export function buildInjection(prompt, docs, opts = {}) {
+  return renderInjection(selectDefinitions(prompt, docs, opts));
+}
+
+/**
+ * Markers that identify machine-generated turns the harness feeds through this hook. A background
+ * task completing is not an operator asking a question, and scanning a probe's own output for terms
+ * spends the operator's context disambiguating text they never wrote (measured: 20 of 30 injections
+ * in one session). CONSERVATIVE by construction — matched near the START of the text only, so an
+ * operator who quotes one of these strings mid-prompt is unaffected, and an unrecognised shape keeps
+ * the old always-inject behaviour rather than silently dropping a real prompt.
+ */
+const MACHINE_TURN_MARKERS = [
+  "[SYSTEM NOTIFICATION - NOT USER INPUT]",
+  "<task-notification>",
+  "<system-reminder>",
+];
+
+/** Whether `prompt` reads as something the operator actually typed. Exported for the unit test. */
+export function isOperatorPrompt(prompt) {
+  const head = prompt.slice(0, 400);
+  return !MACHINE_TURN_MARKERS.some((marker) => head.includes(marker));
+}
+
+/**
+ * Where this session's already-injected ids are remembered. Keyed by the harness's session id, in
+ * the OS temp dir — deliberately not in the repo (it is per-run scratch, and a worktree must never
+ * gain an untracked file from a hook). An unknown session id disables dedup rather than sharing one
+ * bucket across sessions, which would suppress a definition the new session has never seen.
+ */
+export function injectedStatePath(sessionId) {
+  if (typeof sessionId !== "string" || sessionId === "") return null;
+  if (!/^[A-Za-z0-9._-]+$/.test(sessionId)) return null; // never let an id shape a path
+  return join(tmpdir(), "storytree-definition-injection", `${sessionId}.json`);
+}
+
+function readInjected(statePath) {
+  if (statePath === null) return new Set();
+  try {
+    const ids = JSON.parse(readFileSync(statePath, "utf8"));
+    return new Set(Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : []);
+  } catch {
+    return new Set(); // no state yet, or unreadable — inject as if first time
+  }
+}
+
+function writeInjected(statePath, ids) {
+  if (statePath === null) return;
+  try {
+    mkdirSync(join(statePath, ".."), { recursive: true });
+    writeFileSync(statePath, JSON.stringify([...ids]), "utf8");
+  } catch {
+    // fail-safe: losing the memo costs a repeat injection, never the session
+  }
+}
+
+/** The generated definition table beside this file (ADR-0307 D4). */
+function projectionPath() {
+  return resolve(fileURLToPath(new URL("definitions.generated.json", import.meta.url)));
 }
 
 function main() {
   try {
     const input = JSON.parse(readFileSync(0, "utf8"));
     const prompt = typeof input?.prompt === "string" ? input.prompt : "";
-    if (prompt === "") return;
-    const seed = join(thisRoot(), "apps", "studio", "data", "knowledge.json");
-    const docs = JSON.parse(readFileSync(seed, "utf8"));
+    if (prompt === "" || !isOperatorPrompt(prompt)) return;
+    const docs = JSON.parse(readFileSync(projectionPath(), "utf8"));
     if (!Array.isArray(docs)) return;
-    const out = buildInjection(prompt, docs);
-    if (out !== "") process.stdout.write(out);
+
+    const statePath = injectedStatePath(input?.session_id);
+    const already = readInjected(statePath);
+    const matches = selectDefinitions(prompt, docs, { exclude: already });
+    if (matches.length === 0) return;
+
+    process.stdout.write(renderInjection(matches));
+    for (const d of matches) already.add(d.id);
+    writeInjected(statePath, already);
   } catch {
     // fail-safe hook contract: silent, exit 0
   }

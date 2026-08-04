@@ -235,9 +235,11 @@ file conflicts).
   `gcloud auth print-identity-token` bearer → `401 Invalid JWT audience`, both stamped
   `x-goog-iap-generated-response: true`, i.e. **IAP refuses at the edge and the app is never reached**.
   IAP wants an OIDC token audienced to its OAuth client, mintable only from a Google identity, and
-  ADR-0254 D4 retired `storytree-remote-dev`. So the ordering fence in ADR-0302's Consequences is
-  **NOT yet discharged** — do not land the seed decommit on the strength of the door alone
-  (`remote-session-door-credential` on `session-decoupling-arc` is the owner-gated remainder). The
+  ADR-0254 D4 retired `storytree-remote-dev`. **That is now its OWN initiative and blocks nothing** —
+  the owner descoped remote sessions from `session-decoupling-arc` on 2026-08-04 ("not a priority,
+  its only a nice to have"), so the old "the seed decommit must wait for the door" fence is
+  **dissolved**; the credential fork lives on `remote-session-access-arc` (`arc show` it — it carries
+  the four costed options and names the OIDC-issuer probe as step one). The
   door is usable TODAY by a browser member and by any local process holding an IAP-audience token.
   The inner loop
   itself (leaf + spine) needs **no** DB — `--real` refuses on a DB-less machine because ADR-0060/0081

@@ -84,19 +84,42 @@ my machine" stops being a standing condition. The corpus gains a single writer p
 direction-inference problem that made seed↔live drift so expensive to adjudicate.
 
 **Bad, and accepted.** CI now has a hard dependency on the database: when Postgres is down, nothing
-lands. A standing GCP credential in GitHub Actions (Workload Identity Federation) is new
-outward-facing infrastructure and new attack surface. Running Cloud SQL 24/7 costs roughly a third
-more instance-hours than the 18/24 window the cost backstop was built to enforce; the owner accepted
-this explicitly.
+lands. Running Cloud SQL 24/7 costs roughly a third more instance-hours than the 18/24 window the
+cost backstop was built to enforce; the owner accepted this explicitly. *(Corrected in place
+2026-08-04 under ADR-0139: this paragraph also called a standing GCP credential in GitHub Actions
+"new outward-facing infrastructure and new attack surface". That is **false for this repo** and was
+overstating D3's cost. `infra/ci-presence.tf` already runs a `github-actions` Workload Identity
+Federation pool, an OIDC provider, the `storytree-ci-presence` service account with
+`roles/cloudsql.client` + `roles/cloudsql.instanceUser`, and the repo-scoped impersonation binding —
+and `ci.yml`'s `automerge` job authenticates through it and writes to Cloud SQL on **every merged
+PR** today. D3 adds no IAM, no pool and no secret. The genuine remaining costs are narrower and are
+recorded here instead: the SQL grants must widen — `ci-presence-grants.sql` is scoped to
+`events.node_claim` / `events.claim_event` only, so the SA cannot read `events.library_artifact` —
+and that widening needs an owner run as schema owner. And because the WIF binding is scoped by
+**repository, not ref**, any PR branch can already impersonate that SA; today that buys delete-rights
+on claim rows, but once grants widen it would buy corpus reads. Narrowing to a ref condition or a
+second read-only SA is the mitigation, and it is not taken here.)*
 
-**The prerequisite this decision creates, and it is load-bearing.** Remote sessions (Claude Code on
-the web) **structurally cannot** open a Cloud SQL connector — client-mTLS cannot survive the agent
-proxy's TLS re-termination (ADR-0250/0258), and this is not routable around. They work today *only
-because reads are offline*. Under D1/D2 a remote session would be able to read nothing at all. So
-**ADR-0259's `HttpStore` + wire contract must be deployed and wired before D1 lands**, not after: it
-exists in `packages/storage-protocol`, held to the same parity suite as the Postgres store, but is
-currently wired to no caller and no server. Sequencing D1 ahead of it would silently kill remote
-sessions. This is the one ordering constraint in the arc.
+**The ordering this decision creates, and it is load-bearing.** *(Corrected in place 2026-08-04 under
+ADR-0139. This paragraph previously named remote-session reachability as "the one ordering constraint
+in the arc" and required ADR-0259's `HttpStore` to be deployed before D1. The owner then descoped
+remote sessions from this arc — "claudecode remote shouldnt be in scope for this, the focus really
+should be on moving the hot surfaces to the db", ranking it "not a priority, its only a nice to have"
+— so that constraint is **dissolved by decision**, not by the work. The door was built, deployed and
+proved anyway in PR #1140, and the remaining credential question moved to `remote-session-access-arc`.
+The real ordering, established by measurement the same day, is below, and it is not the one this
+paragraph used to state.)*
+
+**D2 → D3 → D1 → D4, and the intuitive order is wrong.** D1 removes the seed, which is what the
+guidance generators read; `check:guidance` and `check:agents` run in CI, so those generators must
+reach the live store from a CI runner — which is D3. And D3 depends on D2, because the
+`storytree-ci-presence` service account holds no wake role: with ADR-0114's 01:00–07:00 window still
+in place, every overnight PR would red on an instance CI cannot start. So the piece that looks
+safest to start with (D3) has to wait for D2, and D1 goes last but one. Two consumers additionally
+cannot follow the generators onto the live store at all — the `UserPromptSubmit` definition hook and
+`storytree doctor`'s `seedReadable` probe, both of which run before tooling or credentials exist;
+[ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md) D4 draws that line
+and settles the one *decision* D1 was blocked on, leaving migration only.
 
 ## References
 
@@ -105,7 +128,12 @@ sessions. This is the one ordering constraint in the arc.
 - ADR-0114 — the fixed nightly sleep window this retires.
 - ADR-0120 / ADR-0263 / ADR-0290 — the seed↔live export ceremony and its authorship attribution.
 - ADR-0250 / ADR-0258 — why a remote session cannot reach Cloud SQL, and why no tunnel exists.
-- ADR-0259 — `HttpStore` and the wire contract; a prerequisite, per Consequences.
+- ADR-0259 — `HttpStore` and the wire contract. Was a prerequisite; no longer, per Consequences —
+  built and deployed in PR #1140, with the credential half on `remote-session-access-arc`.
+- [ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md) — supersedes
+  ADR-0055 so the `agent` tier stops being seed-canonical; the last decision D1 was blocked on.
+- `infra/ci-presence.tf` / `infra/ci-presence-grants.sql` — the WIF plumbing D3 reuses, and the
+  narrow grants it must widen.
 - ADR-0300 — staleness instrumentation; this ADR attacks the coupling that instrumentation cannot remove.
 - ADR-0304 — the code half of the same problem.
 - `infra/cost-backstop.tf` — the two Cloud Scheduler jobs D2 removes.

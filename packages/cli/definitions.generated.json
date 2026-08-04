@@ -1,0 +1,314 @@
+[
+  {
+    "kind": "definition",
+    "id": "adr",
+    "title": "ADR",
+    "oneLine": "An Architecture Decision Record under `docs/decisions/`, capturing a cross-cutting decision."
+  },
+  {
+    "kind": "definition",
+    "id": "approval",
+    "title": "approval",
+    "oneLine": "A first-class, typed operator act (actor = operator) in which the human accepts an agent action, or a capability's green result, onto the trunk via the studio."
+  },
+  {
+    "kind": "definition",
+    "id": "approval-event-promotion-event",
+    "title": "approval event / promotion event",
+    "oneLine": "Typed operator-actor events in the event store: an approval / steering event (a human in-loop intervention) and a signed promotion event (the human accepting a unit's green result onto the trunk)."
+  },
+  {
+    "kind": "definition",
+    "id": "arc",
+    "title": "Arc",
+    "oneLine": "The initiative overlay: a named multi-story owner intent tracked through an increment log to a closed end-state — upstream of stories and ADRs by provenance, containing plans, rendered as \"Epic\" in the studio."
+  },
+  {
+    "kind": "definition",
+    "id": "asset",
+    "title": "asset",
+    "oneLine": "In storytree, a tree/game art asset for the isometric renderer (ADR-0001, deferred)."
+  },
+  {
+    "kind": "definition",
+    "id": "boundary",
+    "title": "boundary",
+    "oneLine": "The declared, documented seam between two stories — the only legal cross-story coupling, the way a frontend depends on a database."
+  },
+  {
+    "kind": "definition",
+    "id": "capability",
+    "title": "capability",
+    "oneLine": "An organ within a story (bounded context): independently viable, proven by integration tests against real in-story collaborators, and composed of contracts."
+  },
+  {
+    "kind": "definition",
+    "id": "claim",
+    "title": "claim",
+    "oneLine": "A typed write-ownership record in the one shared event store, naming what a node intends to write and checked under a serializable/unique constraint at node-schedule time — a conflict is a hard refusal, never a warning."
+  },
+  {
+    "kind": "definition",
+    "id": "consuming-surface",
+    "title": "consuming surface",
+    "oneLine": "A consuming sink at the top of the dependency order — an app or the public subrepo — that wires organisms together and is itself depended on by nothing, yet is a first-class, enforced node in the boundary graph, not an exempt wiring layer."
+  },
+  {
+    "kind": "definition",
+    "id": "contract",
+    "title": "contract",
+    "oneLine": "A single test-proven behaviour within a capability — the leaf of the proof ladder, proven by one automated, isolated unit test (collaborators stubbed)."
+  },
+  {
+    "kind": "definition",
+    "id": "contract-test",
+    "title": "contract test",
+    "oneLine": "The automated test that proves a contract — the isolated unit test at the bottom rung of the proof ladder (unit → integration → UAT)."
+  },
+  {
+    "kind": "definition",
+    "id": "convergence",
+    "title": "convergence",
+    "oneLine": "A term carrying two distinct senses that v1 conflated and v2 keeps separate — DAG-stabilisation and cold-rebuild — so it must always be qualified."
+  },
+  {
+    "kind": "definition",
+    "id": "dag",
+    "title": "DAG",
+    "oneLine": "The directed acyclic graph the studio renders and watches grow — stories as visible nodes, capability dependencies as the fine-grained edges beneath."
+  },
+  {
+    "kind": "definition",
+    "id": "dependency",
+    "title": "dependency",
+    "oneLine": "A directed edge between units, defined at two altitudes: code-derived capability→capability edges within a story, and declared boundaries across stories (ADR-0010)."
+  },
+  {
+    "kind": "definition",
+    "id": "event",
+    "title": "event",
+    "oneLine": "A typed record of a state change (owned-loop events plus orchestrator events) — the unit of observability."
+  },
+  {
+    "kind": "definition",
+    "id": "event-log",
+    "title": "event log",
+    "oneLine": "The typed, append-only record in the event store — one row per state change — that is the single source of truth the studio renders and the only thing written."
+  },
+  {
+    "kind": "definition",
+    "id": "evidence",
+    "title": "evidence",
+    "oneLine": "The forensic record that a unit's tests went red→green and its story's UAT was signed — an audit trail, not itself the gate."
+  },
+  {
+    "kind": "definition",
+    "id": "fixture",
+    "title": "fixture",
+    "oneLine": "A test-supporting artifact (data file, scaffold, temp crate) created during a walkthrough and cleaned up before signing."
+  },
+  {
+    "kind": "definition",
+    "id": "gate",
+    "title": "gate",
+    "oneLine": "A structural enforcement point that refuses invalid work rather than warning about it."
+  },
+  {
+    "kind": "definition",
+    "id": "glue",
+    "title": "glue",
+    "oneLine": "Un-asserted code within a story: connective tissue binding proven capabilities into a running whole. It declares no capability of its own (no isolatable red→green contract) and is proven transitively at the story / UAT altitude or by operator attestation — never by its own contract."
+  },
+  {
+    "kind": "definition",
+    "id": "in-session-subagent",
+    "title": "in-session subagent",
+    "oneLine": "A subagent spawned in-process by a running session's own Agent tool — starts immediately with no owner approval, is a CHILD of the spawning session, and dies if the parent's process exits."
+  },
+  {
+    "kind": "definition",
+    "id": "leaf-step-leaf-judgment",
+    "title": "leaf step / leaf judgment",
+    "oneLine": "A single step in a code-sequenced cascade whose work is owned by the leaf runtime (what to write, how to satisfy a contract) rather than by the spine — the control-flow sense of \"leaf\"."
+  },
+  {
+    "kind": "definition",
+    "id": "library",
+    "title": "library",
+    "oneLine": "The shared **knowledge tier**: schema-validated artifact docs — reference (definitions, techstack), behavioural rules (principles, guardrails, patterns), ways-of-working (processes), roles (agents), initiative overlays (arcs, and their ephemeral plans), and transient signal units (open questions, proposals, friction) — living in the shared Cloud SQL Postgres store, read just-in-time by sessions through the CLI and by humans through the studio."
+  },
+  {
+    "kind": "definition",
+    "id": "lifecycle-status",
+    "title": "lifecycle status",
+    "oneLine": "A unit's status, drawn from six states — proposed, building, healthy, unhealthy, mapped, retired — that track it from authoring through proven to pruned."
+  },
+  {
+    "kind": "definition",
+    "id": "mock-uat-seam",
+    "title": "mock-UAT seam",
+    "oneLine": "The rule that there are no mocks within an organism — capability integration tests and the story UAT both run against real in-story collaborators — with the sole stubbable boundary being the declared cross-story boundary."
+  },
+  {
+    "kind": "definition",
+    "id": "ndjson",
+    "title": "ndjson",
+    "oneLine": "Newline-delimited JSON — the line-delimited record format (a candidate backing for the event stream)."
+  },
+  {
+    "kind": "definition",
+    "id": "node",
+    "title": "node",
+    "oneLine": "A unit being worked on the DAG — a story or capability under construction — driven by one owned-loop session (the intended DBOS workflow wrapper is deferred, ADR-0019)."
+  },
+  {
+    "kind": "definition",
+    "id": "node-rollup",
+    "title": "node rollup",
+    "oneLine": "The current status and latest verdict per story / capability / contract, derived as a projection over the event log and never hand-maintained."
+  },
+  {
+    "kind": "definition",
+    "id": "noticeboard",
+    "title": "noticeboard",
+    "oneLine": "The claim ledger — one of the three working surfaces (tree = the work, **noticeboard** = the sessions, library = the knowledge): sessions are forced to claim their unit at start (the capability being written, ADR-0270 D1; the story for cross-capability work), and coordination + observability are two views over ONE deterministic ledger (grades: exploring / waiting / work). The old advisory, staleness-aged session-presence rows are retired (ADR-0200)."
+  },
+  {
+    "kind": "definition",
+    "id": "operator-attested",
+    "title": "operator-attested",
+    "oneLine": "A proof mode for behavioural/guardrail surfaces with neither an honest scripted UAT nor an isolatable automated test, where promotion to `healthy` is an explicit, per-unit, operator-granted signed event."
+  },
+  {
+    "kind": "definition",
+    "id": "orchestrator",
+    "title": "orchestrator",
+    "oneLine": "The thin custom TypeScript layer (`packages/orchestrator`) over plain Postgres (DBOS deferred, ADR-0019) that owns the story-DAG, the scheduler, and the event store, and is the only module that drives `packages/agent` (the owned loop)."
+  },
+  {
+    "kind": "definition",
+    "id": "per-node-budget",
+    "title": "per-node budget",
+    "oneLine": "A code-enforced ceiling on a node's spine loop that bounds a runaway. The default brake is the turn cap (`maxTurns`); the USD ceiling was dropped as a default — a phantom under subscription billing — and is now an opt-in `--budget` escape hatch (ADR-0130/0131)."
+  },
+  {
+    "kind": "definition",
+    "id": "pi-adapter",
+    "title": "agent package",
+    "oneLine": "The project-owned packages/agent boundary around every model harness, exposing only runtime-neutral authoring and typed accounting upward."
+  },
+  {
+    "kind": "definition",
+    "id": "pi-event-stream",
+    "title": "owned-loop event stream",
+    "oneLine": "The owned loop's structured lifecycle event stream (plus edit-tool diffs) emitted as it works inside a node — the agent-activity ingest channel into the event store, normalized by packages/agent."
+  },
+  {
+    "kind": "definition",
+    "id": "plan",
+    "title": "Plan",
+    "oneLine": "The disposable, git-anchored choreography for one increment of an arc: unit decomposition with proof routes, dependency order, parallel lanes, budgets, and traps — freshness-checked at consumption, consumed once, then retired."
+  },
+  {
+    "kind": "definition",
+    "id": "probe",
+    "title": "probe",
+    "oneLine": "A **probe** is the owner's working term (alias) for an **explorer subagent**: a read-only, disposable subagent sent out to answer one scoped question — find, verify, survey — and return a DIGEST (conclusions plus file:line pointers), never raw file dumps."
+  },
+  {
+    "kind": "definition",
+    "id": "proof-hash",
+    "title": "proof hash",
+    "oneLine": "A hash of a unit's proof-bearing content (outcome, contracts, …) that invalidates a prior verdict when the content changes."
+  },
+  {
+    "kind": "definition",
+    "id": "proof-mode",
+    "title": "Proof mode",
+    "oneLine": "The four ways a unit earns `healthy` — one rung per tier — comprising UAT, integration-test, contract-test, and operator-attested."
+  },
+  {
+    "kind": "definition",
+    "id": "run",
+    "title": "run",
+    "oneLine": "A single per-node execution attempt, recorded as an event in the event store — many-per-node, never a new node."
+  },
+  {
+    "kind": "definition",
+    "id": "session-cutting",
+    "title": "session cutting",
+    "oneLine": "The owner-approved delegation mechanism — a fresh top-level Claude Code session (own context, lifecycle, SessionStart hooks) launched via the desktop's `spawn_task` chip, surviving the proposing session entirely."
+  },
+  {
+    "kind": "definition",
+    "id": "software-factory",
+    "title": "software factory",
+    "oneLine": "A delivery loop whose output includes a revision of its own operating instructions — storytree's whole cycle from owner intent to landed code, named for the return edge that makes it self-retooling rather than merely repeatable."
+  },
+  {
+    "kind": "definition",
+    "id": "spine",
+    "title": "spine",
+    "oneLine": "The code-sequenced control-flow layer (the orchestrator over plain Postgres, DBOS deferred — ADR-0019) that owns closed, deterministic routing — the order steps run in, when a loop iterates, which branch is taken."
+  },
+  {
+    "kind": "definition",
+    "id": "steering",
+    "title": "steering",
+    "oneLine": "A first-class, typed operator act of redirecting an in-flight owned-loop run mid-execution (the owned loop's `steer` operation), recorded as an event in the event store."
+  },
+  {
+    "kind": "definition",
+    "id": "story",
+    "title": "story",
+    "oneLine": "The top-level unit of work you watch grow — a bounded context / organism, self-contained and independently deployable, composed of capabilities and proven as a whole by integrated UAT."
+  },
+  {
+    "kind": "definition",
+    "id": "story-tree",
+    "title": "story tree",
+    "oneLine": "The work surface: the living, populated DAG of stories > capabilities > contracts along which the software is grown — authored as files under `stories/`, rendered by the storytree CLI and the studio, and watched by a human as the map of the AI-driven SDLC."
+  },
+  {
+    "kind": "definition",
+    "id": "studio",
+    "title": "studio",
+    "oneLine": "The live PixiJS web IDE that renders the tree and drives the agents — diffs, approvals, steering, per-node chat."
+  },
+  {
+    "kind": "definition",
+    "id": "trunk",
+    "title": "trunk",
+    "oneLine": "The canonical integrated mainline a capability lands on once approved."
+  },
+  {
+    "kind": "definition",
+    "id": "uat",
+    "title": "UAT",
+    "oneLine": "A prose journey, run end-to-end against real collaborators, that proves a story (the whole organism) meets its goal."
+  },
+  {
+    "kind": "definition",
+    "id": "unit-fields",
+    "title": "unit fields",
+    "oneLine": "The four core fields a unit carries — outcome, guidance, title, id — covering its value statement, rebuild context, human label, and unique identifier."
+  },
+  {
+    "kind": "definition",
+    "id": "verdict",
+    "title": "verdict",
+    "oneLine": "The Pass/Fail outcome of a story's UAT."
+  },
+  {
+    "kind": "definition",
+    "id": "work-hierarchy-is-disk-canonical",
+    "title": "work hierarchy is disk-canonical",
+    "oneLine": "The work hierarchy (story / capability / contract) lives as frontmatter-markdown files under stories/ — disk-canonical, landed via the PR — while the knowledge tier lives in the live --pg store; author each tier on its own canonical surface."
+  },
+  {
+    "kind": "definition",
+    "id": "write-ownership",
+    "title": "write-ownership",
+    "oneLine": "The single vocabulary for what surface/unit a node claims the right to write, used by the claim / conflict-detection layer."
+  }
+]
