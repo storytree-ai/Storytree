@@ -105,6 +105,16 @@ story-grain claim then means what ADR-0138 said it means: same-story siblings qu
 The migration is pull-based (ADR-0192 style): sessions adopt capability grain at their next declare;
 no register rewrite, no big-bang.
 
+(**Amended 2026-08-04 — [ADR-0308](0308-increments-form-a-dag-and-carry-their-own-claim-set-depends.md)
+D5:** a THIRD case joins the two above, for work that has no capability to name at all — greenfield
+(the capability does not exist yet), planning, ADR authoring, and arc landings. Such a session claims
+**the increment id it is driving**. Capability grain remains the default and story grain remains
+legitimate exactly where this clause says; what changes is that "the capability it is actually
+writing" no longer has to be stretched when there is none. The unit-id blindness this clause records
+as sufficient for capabilities is what makes the third case free of substrate change too. Measured
+cause: PR #1142 touched four ADR files and no code, and — because ADR-0200 D3 fails an unclaimed
+session — declared on a capability it never wrote, blocking anyone who needed it.)
+
 **D2 — Queue, don't ask.** A session refused a claim held by a live sibling takes the ADR-0200 D2
 `waiting` claim (or narrows to a disjoint capability and claims that) and **proceeds or re-plans on
 its own judgment — it never escalates a claim conflict to the owner when the corpus already answers
