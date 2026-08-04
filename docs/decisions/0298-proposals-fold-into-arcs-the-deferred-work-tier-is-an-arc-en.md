@@ -223,7 +223,7 @@ opening measurement.
 
 **`verification-integrity-arc` takes four** because all four are the class its own charter names — *"a
 stale oracle report, a vacuous test, and two drifted copies all look identical to a healthy system
-from the outside"*. A gate that hides thirteen later steps behind one abort, a render fixture omitting
+from the outside"*. A gate that hid thirteen later steps behind one abort (fixed 2026-08-04), a render fixture omitting
 the inputs the shipped map actually sends, a decay ceiling charging a sibling's red to every session,
 and committed derived evidence with no link to what produced it are four instances of that one
 sentence, not four strays sharing a keyword.

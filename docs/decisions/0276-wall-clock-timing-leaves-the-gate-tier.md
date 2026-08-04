@@ -106,8 +106,13 @@ class with zero confirmed flakes; the fence blocks its growth and it can drain o
 - The routing perf contract survives, honestly: `STORYTREE_PERF=1 pnpm --filter
   @storytree/forest-world test` asserts the 2 s bound on demand; the measurement code still runs
   (and prints) every gate pass, so it cannot rot unnoticed.
-- Until increment 4 lands, a mid-gate flake still silently skips the tail checks — re-run them
-  manually after any `-r test` failure (the standing trap).
+- ~~Until increment 4 lands, a mid-gate flake still silently skips the tail checks — re-run them
+  manually after any `-r test` failure (the standing trap).~~ **DISCHARGED 2026-08-04 (increment 4,
+  corrected in place per ADR-0139).** `pnpm gate` no longer aborts: it runs every step through a
+  runner over a declared plan and reports per-step PASS / FAIL / NOT RUN, so a `-r test` flake skips
+  no tail check at all and the manual re-run is retired. The narrower half survives and is stated at
+  the Context correction above: `pnpm -r` still halts at its first failing package, so a flake in one
+  workspace still hides later workspaces' tests **inside** the single `pnpm -r test` step.
 - The window in which nothing but review stopped a NEW wall-clock assertion entering opened
   2026-07-31 and CLOSED 2026-08-03 with increment 3. `check:test-timing` now reds the gate and CI at
   a zero ceiling on the first unsanctioned occurrence in any gate-tier test file, naming it
@@ -133,6 +138,6 @@ class with zero confirmed flakes; the fence blocks its growth and it can drain o
 - Code (increment 3): `packages/cli/src/test-timing-gate.ts` (the sweep, the aperture, and the
   comment/string masker), `packages/cli/src/test-timing-drain.ts` (the two zero ceilings and their
   measured baselines), `packages/cli/src/check-test-timing.ts` (the shell), the `check:test-timing`
-  root script wired cheap-first into the `gate` chain and into `PRE_EXPENSIVE_CHECKS`
+  root script wired cheap-first into the gate plan and into `PRE_EXPENSIVE_CHECKS`
   (`packages/cli/src/gate-order.ts`), the CI step in `.github/workflows/ci.yml`, and the
   authoring-time rule in the `test-creation-principles` principle.
