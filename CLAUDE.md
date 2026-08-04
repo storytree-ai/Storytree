@@ -223,10 +223,23 @@ file conflicts).
   builds are **structurally** impossible there — **don't try to tunnel or forward around it.**
   **But read that precisely (ADR-0258): what cannot work is the CONNECTOR, not "database access".**
   Client-mTLS cannot survive a TLS-terminating proxy *by construction* — while ordinary **HTTPS on 443
-  is unaffected**, which is why the hosted studio and `/api/write-broker` are reachable from a remote
-  session. Today's block is that every caller still dials `pg` — an `HttpStore` + wire contract now
-  exist (ADR-0259 inc 1, `packages/storage-protocol`) but are wired to no caller and no deployed
-  server, so **nothing has changed operationally yet**; the inner loop
+  is unaffected**, which is why the hosted studio is reachable *at the transport layer* from a remote
+  session. **The STORE DOOR is now built and wired** (ADR-0259 D1): `/api/store` serves the read half
+  of the `Store` seam from the studio's route table (`apps/studio/server/storeDoorApi.ts`), and the
+  CLI dials it through `HttpStore` when **`STORYTREE_STORE_URL`** is set — no `--pg`, no connector.
+  Proved 2026-08-04 against the live store: offline seed **231** artifacts, `--pg` **616**, door
+  **616** — a connector-less client sees exactly what `--pg` sees. Reads only; the three write routes
+  answer 403 (ADR-0259 D5 is not lifted).
+  **What is still NOT true is that a REMOTE session can use it, and the reason is the credential, not
+  the transport** — measured, not assumed: unauthenticated → `302` to Google sign-in, and a
+  `gcloud auth print-identity-token` bearer → `401 Invalid JWT audience`, both stamped
+  `x-goog-iap-generated-response: true`, i.e. **IAP refuses at the edge and the app is never reached**.
+  IAP wants an OIDC token audienced to its OAuth client, mintable only from a Google identity, and
+  ADR-0254 D4 retired `storytree-remote-dev`. So the ordering fence in ADR-0302's Consequences is
+  **NOT yet discharged** — do not land the seed decommit on the strength of the door alone
+  (`remote-session-door-credential` on `session-decoupling-arc` is the owner-gated remainder). The
+  door is usable TODAY by a browser member and by any local process holding an IAP-audience token.
+  The inner loop
   itself (leaf + spine) needs **no** DB — `--real` refuses on a DB-less machine because ADR-0060/0081
   make it always persist, not because the sandbox stops it. They
   now **refuse instantly** with that explanation rather than hanging ~8 min (ADR-0250 D2). Still fine

@@ -75,6 +75,11 @@ export type { BuildContext };
 // values lazily), so it can be statically imported here without pulling proof-protocol's enums.js into
 // vite's config-load graph — the same way libraryBackend.ts is statically imported.
 import { handleWriteBroker, type WriteBrokerBackend } from './writeBroker';
+// The ADR-0259 store door: the narrow `Store` seam served over ordinary HTTPS, so a client with no
+// Cloud SQL connector (a remote session) can still READ the library. Read-only by decision — see
+// storeDoorApi.ts. Config-load-safe: it type-imports the store seam and pulls the wire contract's
+// route table, which is a plain object literal with no zod/`node:` runtime graph behind it.
+import { handleStoreDoor, STORE_DOOR_BASE_PATH } from './storeDoorApi';
 import { handleSuggestionDecision, type SuggestionDecisionBackend } from './suggestionApi';
 import { handleSuggestionCreate, type SuggestionCreateBackend } from './suggestionCreateApi';
 // The shared block model (ADR-0140): the SAME deterministic split/splice the Review-mode client
@@ -2261,6 +2266,13 @@ export async function handleApiRequest(
       // absent (hosted) → 404. The run rides the shared build registry, so progress polls GET /api/build.
       if (ctx.adopt === undefined) throw new HttpError(404, 'adopt is not enabled');
       await handleAdopt(req, res, ctx.adopt);
+    } else if (url.pathname.startsWith(`${STORE_DOOR_BASE_PATH}/`)) {
+      // ADR-0259 D1 — the store door: the raw `Store` seam over HTTPS, for a client that cannot open
+      // a Cloud SQL connector. READ-ONLY (writes 403 by name — ADR-0259 D5's gate is not lifted), and
+      // authorized by the policy gate above exactly like every other route: a GET is member-permitted,
+      // an identity-less caller already 401'd. The `Store` implementation is the SAME PgLibraryStore
+      // the CLI drives under `--pg`, so the door cannot drift from what a local session reads.
+      await handleStoreDoor(req, res, url, ctx.backend);
     } else if (url.pathname === '/api/comments') {
       await handleComments(req, res, url, ctx.backend, ctx.policy?.commentScope ?? null);
     } else if (url.pathname === '/api/assets') {

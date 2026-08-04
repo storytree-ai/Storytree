@@ -86,8 +86,16 @@ the environment's reach: every caller dials Postgres directly through `createPoo
 *(Narrowed 2026-07-27: a `Store`-conformant HTTP client now exists — the wire contract plus `HttpStore`
 in `packages/storage-protocol`, built as increment 1 of
 [ADR-0259](0259-every-client-reaches-the-store-through-an-http-front-door-di.md) and held to the shared
-`storeParitySuite`. No caller uses it and no server is deployed behind it, so the client-side claim above
-still holds operationally; what is no longer true is that nothing in the repo speaks HTTP to a store.)*
+`storeParitySuite`. No caller used it and no server was deployed behind it, so the client-side claim above
+still held operationally; what was no longer true is that nothing in the repo speaks HTTP to a store.)*
+
+*(Narrowed again 2026-08-04: the read half is now WIRED — the studio serves `/api/store` and the CLI
+dials it through `HttpStore` under `STORYTREE_STORE_URL`, proved against the live store. So "every
+caller dials Postgres directly" is no longer true of reads. It does not follow that a remote session
+can read: the studio sits behind direct IAP, which has no programmatic path, and ADR-0254 D4 retired
+the only identity a remote container ever held — so the block moved from the CLIENT to the
+CREDENTIAL. That fork is owner-gated and parked as `remote-session-door-credential` on
+`session-decoupling-arc`.)*
 
 ### D3 — Name exactly what a remote session cannot have
 
