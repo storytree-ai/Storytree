@@ -88,7 +88,13 @@ declared dependency edge, which pnpm's graph cannot see —
    owner's hand-merged PRs #684–#686 and for NO bot-merged PR since). The dispatched-run mechanism
    above restores the directed backstop.*
 6. **Local `pnpm gate` is unchanged** — the local mirror stays full; only the PR-side CI scope
-   narrows.
+   narrows. *(OVERTAKEN 2026-08-04 by ADR-0304 D1/D2, which extends the narrowing to the local gate
+   and is why that ADR carries an `amends` edge here. Leaving the idea CI-only turned out to have
+   implemented it where it saves least: the local gate is what every session must pass before it may
+   open a PR, so a repo-wide local gate is what converts "`main` moved" into "you must re-sync NOW".
+   The classifier below is unchanged and is now shared verbatim by both callers — ADR-0304 D2 makes
+   ONE implementation a requirement, because two that could disagree would mean a local pass no
+   longer predicts a CI pass.)*
 
 ## Consequences
 

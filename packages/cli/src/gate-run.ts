@@ -21,13 +21,36 @@
 // NOT PARALLELISED, deliberately — steps share a working tree, a live DB, and `pnpm -r` already fans
 // out internally. Interleaved output and shared connections are a different unit with different
 // risks, and mixing them in would make this one's proof about scheduling instead of about reporting.
+//
+// AFFECTED SCOPE (ADR-0304 D1/D2). Before walking the plan this resolves what the branch changes and
+// narrows the two expensive legs to those packages plus their dependents, through the SAME classifier
+// CI runs (`ci-affected.ts`) — one implementation, because two that could disagree would mean a local
+// pass stopped predicting a CI pass. The git reading is here; the judgement is `gate-scope.ts`.
+// Every failure mode widens to the full `-r` run, and `--full` / `STORYTREE_GATE_FULL=1` forces it.
+// `--scope` prints the decision and exits, so "what will my gate actually test?" is a question you
+// ask rather than infer from a five-minute run.
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { GATE_PLAN, type GateStep } from "./gate-order.js";
+import { discoverWorkspaceProjects, pnpmArgsFor, type AffectedScope } from "./ci-affected.js";
+import {
+  GATE_PLAN,
+  type GateStep,
+  PRE_EXPENSIVE_CHECKS,
+  SHARED_ENVIRONMENT_CHECKS,
+  evaluateGateOrder,
+  isExpensiveStep,
+} from "./gate-order.js";
+import {
+  gitLines,
+  localAffectedScope,
+  renderScopeNotice,
+  scopeGatePlan,
+  type LocalDiff,
+} from "./gate-scope.js";
 import {
   type GateExecution,
   gateExitCode,
@@ -46,6 +69,60 @@ function rootScriptNames(): Set<string> {
   const raw: unknown = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   const scripts = (raw as { scripts?: Record<string, unknown> }).scripts ?? {};
   return new Set(Object.keys(scripts));
+}
+
+/** Run one read-only git command in the repo root. */
+function git(args: string[]): { ok: boolean; stdout: string; detail: string } {
+  const res = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8" });
+  if (res.error !== undefined || res.status !== 0) {
+    const detail = res.error?.message ?? res.stderr?.trim() ?? `exit ${res.status}`;
+    return { ok: false, stdout: "", detail: `git ${args.join(" ")} failed: ${detail}` };
+  }
+  return { ok: true, stdout: res.stdout, detail: "" };
+}
+
+/**
+ * What this branch changes on top of `main` — the local analogue of CI's `HEAD^1..HEAD` on the PR
+ * merge commit (ADR-0304 D2).
+ *
+ * THE WORKING TREE IS PART OF THE ANSWER, and that is the whole reason this cannot just reuse the CI
+ * shell. A session runs the gate mid-flight: its changes may be committed, staged, unstaged or
+ * untracked. `git diff <merge-base>` with no second revision compares that base to the WORKING TREE,
+ * which covers the first three; `ls-files --others` adds the fourth. A file the session has not
+ * committed yet is still a file this run must test.
+ *
+ * `origin/main` STALENESS IS SAFE IN THE ONLY DIRECTION THAT MATTERS. An unfetched `origin/main` puts
+ * the merge base further back, so the diff gets WIDER and more packages are selected — never fewer.
+ * A missing `origin/main` is not an error either; it is simply the full run.
+ */
+function localDiff(): LocalDiff {
+  const base = git(["merge-base", "origin/main", "HEAD"]);
+  if (!base.ok) {
+    return {
+      ok: false,
+      reason: "no merge-base with origin/main (unfetched, shallow, or detached) — the full suite is the backstop",
+    };
+  }
+  const mergeBase = base.stdout.trim();
+  if (mergeBase === "") {
+    return { ok: false, reason: "merge-base with origin/main resolved to nothing — running the full suite" };
+  }
+  // --no-renames: a rename must list BOTH paths, so the old file's project is selected too.
+  const tracked = git(["diff", "--name-only", "--no-renames", mergeBase]);
+  if (!tracked.ok) return { ok: false, reason: tracked.detail };
+  const untracked = git(["ls-files", "--others", "--exclude-standard"]);
+  if (!untracked.ok) return { ok: false, reason: untracked.detail };
+  return { ok: true, files: [...gitLines(tracked.stdout), ...gitLines(untracked.stdout)] };
+}
+
+/** Resolve the scope, absorbing any surprise into the conservative answer. */
+function resolveScope(full: boolean): AffectedScope {
+  if (full) return { mode: "full", reason: "forced by --full / STORYTREE_GATE_FULL" };
+  try {
+    return localAffectedScope(localDiff(), discoverWorkspaceProjects(repoRoot));
+  } catch (err) {
+    return { mode: "full", reason: `unexpected error resolving scope: ${(err as Error).message}` };
+  }
 }
 
 /** Run one step in the repo root, inheriting stdio so it prints exactly what it always did. */
@@ -69,6 +146,7 @@ function main(): void {
   const argv = process.argv.slice(2);
   const failFast =
     argv.includes("--fail-fast") || (process.env["STORYTREE_GATE_FAIL_FAST"] ?? "") !== "";
+  const forceFull = argv.includes("--full") || (process.env["STORYTREE_GATE_FULL"] ?? "") !== "";
 
   // --- the plan must match the scripts it names ------------------------------------------------
   const declared = rootScriptNames();
@@ -83,6 +161,45 @@ function main(): void {
     console.error(
       `${TAG}   The plan has drifted from the scripts it runs; fix packages/cli/src/gate-order.ts ` +
         `(or re-add the script) before trusting any verdict from it.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // --- affected scope (ADR-0304 D1/D2) ----------------------------------------------------------
+  const scope = resolveScope(forceFull);
+  const steps = scopeGatePlan(GATE_PLAN, pnpmArgsFor(scope));
+
+  // `--scope` answers "what will my gate actually test?" without spending the run to find out. The
+  // narrowing is only trustworthy if it is inspectable: a session that reads FULL where it expected
+  // a narrow scope has learned something (a root file crept into the diff), and one that reads a
+  // narrow scope can see exactly which projects carry the proof.
+  if (argv.includes("--scope")) {
+    console.log(`${TAG} ${renderScopeNotice(scope)}`);
+    console.log(`${TAG} the two expensive legs would run as:`);
+    for (const step of steps.filter((s) => isExpensiveStep(s.command))) {
+      console.log(`${TAG}   ${step.command}`);
+    }
+    return;
+  }
+
+  // FAIL-CLOSED ON THE REWRITE ITSELF. `evaluateGateOrder` is the invariant that keeps cheap checks
+  // ahead of the expensive legs and shared-environment checks behind them; it refuses a plan whose
+  // expensive legs it cannot find. Re-running it over the SCOPED plan is what stops a rewrite from
+  // quietly producing a plan nobody is judging any more — the failure mode ADR-0304 names as the
+  // accepted risk of this whole change ("an under-computed graph lets a genuine break through, and
+  // the failure is silent"). A refusal here is a bug in the scoping, so it says so and runs nothing.
+  const order = evaluateGateOrder({
+    steps,
+    earlyChecks: PRE_EXPENSIVE_CHECKS,
+    lateChecks: SHARED_ENVIRONMENT_CHECKS,
+  });
+  if (order.verdict !== "ok") {
+    console.error(`${TAG} REFUSED — the affected-scoped plan no longer satisfies the gate's ordering invariant:`);
+    for (const line of order.message.split("\n")) console.error(`${TAG}   ${line}`);
+    console.error(
+      `${TAG}   This is a defect in the scope rewrite (packages/cli/src/gate-scope.ts), not in your ` +
+        `branch. Re-run with \`pnpm gate --full\` to gate meanwhile.`,
     );
     process.exitCode = 1;
     return;
@@ -107,14 +224,21 @@ function main(): void {
     return [sig, handler] as const;
   });
 
-  const total = GATE_PLAN.length;
+  const total = steps.length;
   console.log(
     `${TAG} running ${total} steps${failFast ? " (--fail-fast: stops at the first red)" : ""}. ` +
       `Every step runs and is reported PASS / FAIL / NOT RUN; the gate is green only if all pass.`,
   );
+  console.log(`${TAG} ${renderScopeNotice(scope)}`);
+  if (scope.mode === "affected") {
+    console.log(
+      `${TAG} CI classifies the same diff with the same rules (ADR-0304 D2) and re-proves the merged ` +
+        `tree; \`pnpm gate --full\` runs every package here.`,
+    );
+  }
 
   const results = runGate({
-    steps: GATE_PLAN,
+    steps,
     execute: executeStep,
     failFast,
     shouldStop: () => interrupted,

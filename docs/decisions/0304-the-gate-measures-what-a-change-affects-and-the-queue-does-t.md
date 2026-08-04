@@ -1,7 +1,7 @@
 ---
 status: accepted
 load_bearing: true
-amends: [22]
+amends: [22, 195]
 decided: 2026-08-04
 arc: session-decoupling-arc
 ---
