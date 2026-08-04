@@ -26,6 +26,16 @@
 // Reachability policy is unchanged and now matters more: every SKIP path below still exits 0, and a
 // breach computed against an absent/unreadable park ledger is reported but NOT enforced (fail-closed
 // on the queue, fail-open on the substrate).
+//
+// CHARGED BY AUTHORSHIP (ADR-0301), in TWO halves that do different work and must not be conflated.
+// The EXCLUSION drops this session's own just-written memories from the charge — the
+// `friction-drain.ts` `isOwnItem` move, so a retro that writes memories cannot trip its own ceiling.
+// The REPORT prints the full authorship split on every path with a live queue, charged or not. Only
+// the second one addresses the failure that was actually measured: in PR #1124 a verified drain went
+// RED again at 7 live within ~15 minutes and ALL SEVEN were siblings', which an own-homework exclusion
+// does not suppress by construction. The exclusion closes a real asymmetry with the friction ceiling;
+// the printed split turns "are these mine?" from a hand investigation into a line of output. Neither
+// makes the queue safe from a concurrent re-fill — that residual is parked, and named in the report.
 
 import { existsSync } from "node:fs";
 import os from "node:os";
@@ -38,6 +48,7 @@ import {
   type LibrarySnapshot,
 } from "@storytree/library";
 
+import { currentGitBranch } from "./cli-actor.js";
 import {
   GRADUATION_NUDGE_TAG as TAG,
   defaultLedgerPath,
@@ -98,12 +109,46 @@ function main(): void {
       ...(e.status === "expired" && record !== undefined
         ? { leaseExpiredOn: leaseExpiresOn(record) }
         : {}),
+      // Provenance (ADR-0301) — absent on every memory written before the stamp existed, and on every
+      // one written by a session that does not stamp. Absent is charged, never excused.
+      ...(e.memory.branch === undefined ? {} : { branch: e.memory.branch }),
     };
   });
   const drain = evaluateGraduationDrain(candidates, {
+    currentBranch: currentGitBranch(),
     currentDate: now,
     ledgerUsable: problem === undefined && existsSync(ledgerPath),
   });
+
+  // THE AUTHORSHIP SPLIT, PRINTED ON EVERY PATH THAT HAS A LIVE QUEUE — including the ones that do not
+  // red (ADR-0301). This is the half of the change that actually removes measured cost. The #1124
+  // drain session's question was "are these mine?", and answering it took a hand investigation; the
+  // exclusion cannot answer it, because by construction it only ever suppresses the candidates that
+  // were never the problem. Printing it does. A count of siblings is deliberately NOT an excuse — they
+  // are charged, and the line says so — but a session reading a red now knows what it is looking at.
+  if (drain.liveCount > 0) {
+    const stamped = drain.ownCount + drain.siblingCount;
+    console.warn(
+      `${TAG}   authorship: ${drain.ownCount} yours (not charged), ${drain.siblingCount} other sessions', ` +
+        `${drain.unattributedCount} unstamped — ${drain.chargedCount} of ${drain.liveCount} charged against N=${drain.config.liveCeiling}.` +
+        (stamped === 0
+          ? " No memory on this machine carries a `metadata.branch` stamp yet, so nothing is excluded" +
+            " — the stamp only exists going forward (ADR-0301)."
+          : ""),
+    );
+    // NAMED RATHER THAN GLOSSED: the queue is machine-shared (ADR-0202) and a sibling's write lands in
+    // it mid-session, so a drain this session verifies can be undone by another before it merges. The
+    // exclusion above does NOT fix that — measured in PR #1124, where all 7 candidates that re-reddened
+    // a verified drain within 15 minutes were siblings', which an own-homework exclusion never
+    // suppresses. That residual is parked on `verification-integrity-arc`, not silently carried.
+    if (drain.siblingCount > 0) {
+      console.warn(
+        `${TAG}   (Other sessions' memories ARE charged: the drain is a librarian pass over the whole ` +
+          "queue, which any session may run — unlike an export, it commits nothing under your name. The " +
+          "machine-shared queue's unprotected drain is a known open residual, parked on verification-integrity-arc.)",
+      );
+    }
+  }
 
   // An existing-but-invalid ledger is treated as EMPTY (everything shows live) — surfaced, never
   // silent (ADR-0095), but still advisory: the librarian fixes the ledger, the gate never reds.
@@ -127,7 +172,7 @@ function main(): void {
   if (drain.level !== "red") return;
 
   console.error(
-    `${TAG} RED — graduation drain ceiling breached: ${drain.liveCount} live ` +
+    `${TAG} RED — graduation drain ceiling breached: ${drain.chargedCount} charged of ${drain.liveCount} live ` +
       `(${drain.newCount} new, ${drain.changedCount} changed, ${drain.expiredCount} lease-expired) · ` +
       `${drain.parkedCount} parked.`,
   );

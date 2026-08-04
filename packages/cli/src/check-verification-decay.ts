@@ -55,14 +55,35 @@
  * already proves the pairs in its `MIRRORS` registry EXACTLY, and blocks. The advisory instrument
  * here is the discovery heuristic — finding mirrored pairs MISSING from that registry — never a
  * re-derivation of what the registry already proves.
+ *
+ * CHARGED BY AUTHORSHIP SINCE ADR-0301. Every ceiling value below is UNCHANGED; what changed is who a
+ * breach belongs to. A signal resting only on files identical to `git merge-base origin/main HEAD` is
+ * INHERITED — printed in full under NOT YOURS, and never this session's block. An instrument over its
+ * ceiling on inherited signals ALONE is a loud WARN naming the standing drain, not a RED. Attribution
+ * fails CLOSED: an unreadable git signal charges everything, exactly as this check did before.
+ *
+ * PROVED END-TO-END ON A REAL BREACH, not only on fixtures — deliberately, because the parked entry
+ * asked for this to land BEFORE the 25th `unproven-seam-default` signal was drained and that drain
+ * landed first (#1131), leaving no live breach to demonstrate against. So one was manufactured against
+ * the real tree by lowering ONE real ceiling by one and running the real binary twice:
+ *
+ *   [VACUOUS_PROOF] 7 -> 6, tree untouched  =>  `vacuous-proof (7/6 OVER CEILING ON MAIN)`,
+ *                                               `Your landing is NOT blocked`, `NOT YOURS (7)`, EXIT 0
+ *   the same, with ONE located file touched =>  `YOURS (1):` naming it, `NOT YOURS (6)`,
+ *                                               `vacuous-proof: 7 located (1 yours), ceiling 6`, EXIT 1
+ *
+ * The second leg is what makes the first mean anything: an exit 0 alone is equally consistent with a
+ * check that simply stopped enforcing, which is the failure this whole file exists to fence.
  */
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { extractVouchingTestNames, loadNodeSpec } from "@storytree/orchestrator";
 
+import { attributeDecayFindings, type DecayAttributionEvidence } from "./decay-attribution.js";
 import { registeredMirrorRoutes } from "./mirror-conformance.js";
 import {
   CONTRACT_BINDING_DRIFT,
@@ -82,6 +103,7 @@ import {
   requireObserved,
   runDecaySweep,
   type BoundTarget,
+  type DecayFinding,
   type DecayInstrument,
   type GateCheckFacts,
   type GateCheckSource,
@@ -710,11 +732,238 @@ function loadGateChecks(root: string): GateCheckFacts[] {
 }
 
 // ---------------------------------------------------------------------------
+// Attribution evidence (ADR-0301) — the git half
+// ---------------------------------------------------------------------------
+
+/**
+ * Run git at the repo root, or `null` on any failure. Never throws — every caller degrades, and a
+ * degraded read becomes `unattributable`, which CHARGES rather than excuses.
+ *
+ * DELIBERATELY NOT `seed-revisions.ts`'s identical helper, and the reason is a hard property of this
+ * check rather than an oversight. That module imports `@storytree/library/store` for `canonicalJson`,
+ * and the store subpath carries `pg`. This check's whole reachability contract is that it is OFFLINE
+ * and READ-ONLY — it never SKIPs for want of a DB and could run in CI — so importing it to save eight
+ * lines would trade that property away. The duplication is the cheaper side of that trade.
+ */
+function git(root: string, args: readonly string[]): string | null {
+  try {
+    return execFileSync("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      maxBuffer: 64 * 1024 * 1024,
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/** Repo-relative, forward-slashed paths from a `git ... --name-only` listing. */
+function pathLines(out: string | null): Set<string> {
+  if (out === null || out === "") return new Set();
+  return new Set(
+    out
+      .split(/\r?\n/)
+      .map((l) => l.trim().replace(/\\/g, "/"))
+      .filter((l) => l.length > 0),
+  );
+}
+
+/** Is this a test file the `unproven-seam-default` symbol table reads? */
+function isTestFile(rel: string): boolean {
+  return /\.test\.tsx?$/.test(rel) && TEST_ROOT_DIRS.some((d) => rel.startsWith(`${d}/`));
+}
+
+/** The measured facts the classifier needs, or the reason they could not be measured. */
+interface GitEvidence {
+  branch: string | null;
+  mergeBase: string | null;
+  touched: Set<string>;
+  deletedAny: boolean;
+  unattributable?: string;
+}
+
+/**
+ * What THIS BRANCH did to the tree, measured against `git merge-base origin/main HEAD`.
+ *
+ * `git diff --name-only <base>` (no second revision) compares the base to the WORKING TREE, so
+ * uncommitted edits count as this branch's — they are, and a session that has not committed yet is the
+ * single likeliest reader of this report. Untracked files are added separately: an untracked new source
+ * file is unambiguously this branch's, and git's diff does not list it.
+ *
+ * THE MERGE BASE IS THE ONLY ANCHOR, and its absence is fatal to attribution rather than degradable.
+ * `origin/main` is read LOCALLY and never fetched (CLAUDE.md: no reflexive fetch), so a stale ref makes
+ * the base older than it should be — which can only widen the touched set and therefore only
+ * over-charge. That is the safe direction. A MISSING ref is different: with no base there is no
+ * "before", every question below is unanswerable, and the honest answer is to charge everything.
+ */
+function readGitEvidence(root: string): GitEvidence {
+  const branchRaw = git(root, ["rev-parse", "--abbrev-ref", "HEAD"]);
+  const branch = branchRaw !== null && branchRaw.length > 0 && branchRaw !== "HEAD" ? branchRaw : null;
+
+  const mergeBase = git(root, ["merge-base", "origin/main", "HEAD"]);
+  if (mergeBase === null || mergeBase.length === 0) {
+    return {
+      branch,
+      mergeBase: null,
+      touched: new Set(),
+      deletedAny: false,
+      unattributable:
+        "git could not resolve `merge-base origin/main HEAD` (no origin/main ref, a detached or " +
+        "non-repo checkout), so there is no `before` to compare this tree against",
+    };
+  }
+
+  const diff = git(root, ["diff", "--name-only", mergeBase]);
+  if (diff === null) {
+    return {
+      branch,
+      mergeBase,
+      touched: new Set(),
+      deletedAny: false,
+      unattributable: `git could not diff the working tree against the merge base ${mergeBase.slice(0, 9)}`,
+    };
+  }
+  const touched = pathLines(diff);
+  for (const p of pathLines(git(root, ["ls-files", "--others", "--exclude-standard"]))) touched.add(p);
+
+  // Deletions are tracked separately because they are the one edit that can create a finding in a file
+  // the branch never opened — `contract-binding-drift` locates a spec whose bound TARGET is gone.
+  const deleted = pathLines(git(root, ["diff", "--name-only", "--diff-filter=D", mergeBase]));
+
+  return { branch, mergeBase, touched, deletedAny: deleted.size > 0 };
+}
+
+/** The root `package.json` and the workspace manifest — the two files that redefine what a package IS. */
+const WORKSPACE_SHAPE = ["package.json", "pnpm-workspace.yaml"] as const;
+/** Where `mirror-pair-drift` reads its registered-pairs exemption from. */
+const MIRROR_REGISTRY = "packages/cli/src/mirror-conformance.ts";
+
+/**
+ * Which instruments cannot be split per-file THIS RUN, and why.
+ *
+ * Every entry here charges an instrument's whole population, so each one is a deliberate loss of
+ * precision taken in the fail-closed direction. They exist because four of the five instruments
+ * CROSS-REFERENCE inputs that are not any single finding's file, and the parked entry's premise —
+ * "file granularity cannot under-charge" — is false for exactly those. Two of the four are handled
+ * precisely instead and are absent from this map: `mirror-pair-drift` declares both halves of the pair
+ * as its basis, and `unproven-seam-default` is answered exactly by {@link seamDefaultsUncoveredHere}.
+ * What remains is the residue where the exact question would cost more than the check.
+ */
+function crossInputGuards(ev: GitEvidence): Map<string, string> {
+  const guards = new Map<string, string>();
+  const touchedShape = WORKSPACE_SHAPE.filter((f) => ev.touched.has(f));
+
+  if (ev.deletedAny || touchedShape.length > 0) {
+    guards.set(
+      CONTRACT_BINDING_DRIFT,
+      "this branch " +
+        (ev.deletedAny ? "deleted file(s)" : `changed ${touchedShape.join(", ")}`) +
+        " — a binding goes dead when its TARGET disappears, so a signal can appear against a spec this " +
+        "branch never opened; charged rather than excused",
+    );
+  }
+  if (ev.touched.has(MIRROR_REGISTRY)) {
+    guards.set(
+      MIRROR_PAIR_DRIFT,
+      `this branch changed ${MIRROR_REGISTRY} — dropping a MIRRORS row un-exempts a pair whose two ` +
+        "source files are untouched; charged rather than excused",
+    );
+  }
+  if (ev.touched.has("package.json")) {
+    guards.set(
+      WARN_LIST_HYGIENE,
+      "this branch changed the root package.json — the `gate` script decides which checks are swept at " +
+        "all, so a signal can appear for a check whose own sources are untouched; charged rather than excused",
+    );
+  }
+  return guards;
+}
+
+/**
+ * The `unproven-seam-default` findings THIS BRANCH created by changing the TEST corpus — asked exactly,
+ * because the blunt alternative would make this whole change a no-op.
+ *
+ * The instrument locates a seam default whose symbol appears in NO test file, so deleting or editing a
+ * test un-covers a default in a source file the branch never touched. Guarding it the way the three
+ * above are guarded would charge every session that touches any test file, which is nearly all of them
+ * — the fix would be technically fail-closed and practically absent.
+ *
+ * So the question is asked directly: re-run the SAME finder over the SAME current source facts with the
+ * test-symbol table as it stood at the merge base. A finding located now but NOT located then is one
+ * this branch's test edits created. Reusing the finder rather than re-deriving the rule is the point —
+ * a second implementation of "is this symbol covered" is a drift seam, and this is the instrument whose
+ * measured breach motivated the whole change.
+ */
+function seamDefaultsUncoveredHere(
+  current: readonly DecayFinding[],
+  seamFacts: readonly SeamDefaultFacts[],
+  baselineSymbols: ReadonlySet<string>,
+): Map<string, string> {
+  const wouldStillBeLocated = new Set(
+    findUnprovenSeamDefault(seamFacts, baselineSymbols).map((f) => f.id),
+  );
+  const out = new Map<string, string>();
+  for (const f of current) {
+    if (f.instrument !== UNPROVEN_SEAM_DEFAULT) continue;
+    if (wouldStillBeLocated.has(f.id)) continue;
+    out.set(
+      f.id,
+      "this branch's test edits removed the last mention of this symbol — it was covered at the merge base",
+    );
+  }
+  return out;
+}
+
+/**
+ * The test-symbol table AS IT STOOD AT THE MERGE BASE, built from the cheap half of the difference:
+ * untouched test files are byte-identical to the base, so only the touched and DELETED ones need
+ * reading out of git. A base-side file that no longer exists is exactly the deletion case this is for.
+ *
+ * Returns `null` when any required base-side read fails — the caller then charges everything for this
+ * instrument rather than trusting a partial table, because a table missing symbols marks defaults
+ * uncovered that were never uncovered.
+ */
+function baselineTestedSymbols(root: string, ev: GitEvidence): Set<string> | null {
+  if (ev.mergeBase === null) return null;
+  const symbols = new Set<string>();
+
+  // The untouched half: current content, which IS the base's content.
+  for (const dir of TEST_ROOT_DIRS) {
+    for (const file of walkTestFiles(path.join(root, dir))) {
+      const rel = path.relative(root, file).replace(/\\/g, "/");
+      if (ev.touched.has(rel)) continue;
+      for (const name of codeIdentifiers(readFileSync(file, "utf8"))) symbols.add(name);
+    }
+  }
+
+  // The touched/deleted half: read each out of the merge-base tree. A file git cannot show is one this
+  // branch ADDED — absent at the base, so it contributes nothing there. That is a real answer, not a
+  // failure, which is why `git show` returning null is not treated as one.
+  const baseFiles = git(root, ["ls-tree", "-r", "--name-only", ev.mergeBase]);
+  if (baseFiles === null) return null;
+  const existedAtBase = pathLines(baseFiles);
+  for (const rel of ev.touched) {
+    if (!isTestFile(rel) || !existedAtBase.has(rel)) continue;
+    const content = git(root, ["show", `${ev.mergeBase}:${rel}`]);
+    if (content === null) return null; // the file WAS there and could not be read — do not guess
+    for (const name of codeIdentifiers(content)) symbols.add(name);
+  }
+  return symbols;
+}
+
+// ---------------------------------------------------------------------------
 // The sweep
 // ---------------------------------------------------------------------------
 
 function main(): void {
   const storiesDir = path.join(repoRoot, "stories");
+
+  // Memoised because BOTH the instrument and the attributor need the same facts, and re-walking the
+  // whole source tree to ask the second question would double the check's most expensive read. The
+  // throw is deliberately NOT swallowed here: `loadSeamDefaultFacts` throwing is the blind-instrument
+  // condition, and it must still reach `runDecaySweep`'s escalation path from the instrument's `run`.
+  let seamFactsCache: SeamDefaultFacts[] | undefined;
+  const seamFacts = (): SeamDefaultFacts[] => (seamFactsCache ??= loadSeamDefaultFacts(repoRoot));
 
   const instruments: DecayInstrument[] = [
     {
@@ -804,15 +1053,70 @@ function main(): void {
         "matched form (a factory closing over the impl, a default assembled at call time); and any arm " +
         "NESTED inside a located default (`defaultRemoveDir`'s `win32` branch), which one test on the " +
         "object does not exercise.",
-      run: () => findUnprovenSeamDefault(loadSeamDefaultFacts(repoRoot), loadTestedSymbols(repoRoot)),
+      run: () => findUnprovenSeamDefault(seamFacts(), loadTestedSymbols(repoRoot)),
     },
   ];
 
-  const verdict = runDecaySweep(instruments);
+  // ---- attribution (ADR-0301) ----------------------------------------------------------------
+  //
+  // Computed AFTER the sweep, from the same facts, and never allowed to take the sweep down: an
+  // attributor that throws is caught by `runDecaySweep`, which then charges everything. Losing
+  // attribution costs a session the tax this change removes; losing the SWEEP would cost the repo its
+  // only continuous verification-decay signal, so the two failures are not traded against each other.
+  const attribute = (findings: readonly DecayFinding[]): ReturnType<typeof attributeDecayFindings> => {
+    const ev = readGitEvidence(repoRoot);
+    if (ev.unattributable !== undefined) {
+      return attributeDecayFindings(findings, {
+        branch: ev.branch,
+        touchedFiles: new Set(),
+        crossInput: new Map(),
+        alsoAuthored: new Map(),
+        unattributable: ev.unattributable,
+      });
+    }
+
+    const crossInput = crossInputGuards(ev);
+    const alsoAuthored = new Map<string, string>();
+    // The exact seam-default question, with its own degradation: an unreadable base-side test corpus
+    // falls back to the BLUNT guard for this one instrument rather than to a pass. Per-axis
+    // fail-closed (ADR-0290 D7) — one unmeasurable input costs precision on its own instrument, never
+    // an excused signal, and never the other four instruments' precision.
+    try {
+      const baseline = baselineTestedSymbols(repoRoot, ev);
+      if (baseline === null) {
+        crossInput.set(
+          UNPROVEN_SEAM_DEFAULT,
+          "the merge-base test corpus could not be read, so `was this symbol covered before?` is " +
+            "unanswerable; charged rather than excused",
+        );
+      } else {
+        for (const [id, why] of seamDefaultsUncoveredHere(findings, seamFacts(), baseline)) {
+          alsoAuthored.set(id, why);
+        }
+      }
+    } catch (e) {
+      crossInput.set(
+        UNPROVEN_SEAM_DEFAULT,
+        `the merge-base test corpus could not be read (${(e as Error).message}); charged rather than excused`,
+      );
+    }
+
+    const evidence: DecayAttributionEvidence = {
+      branch: ev.branch,
+      touchedFiles: ev.touched,
+      crossInput,
+      alsoAuthored,
+    };
+    return attributeDecayFindings(findings, evidence);
+  };
+
+  const verdict = runDecaySweep(instruments, attribute);
   const { failed, lines } = formatDecaySweep(verdict, instruments);
   for (const line of lines) (failed ? console.error : verdict.count > 0 ? console.warn : console.log)(line);
-  // Advisory PER FINDING. Two independent fail-closed conditions: the COUNT past the ceiling
-  // (ADR-0252 D3), and any ESCALATION (D1) — which no ceiling change can clear.
+  // Advisory PER FINDING. Two independent fail-closed conditions: the COUNT past the ceiling with
+  // something of it AUTHORED HERE (ADR-0252 D3, apertured by ADR-0301), and any ESCALATION (D1) —
+  // which no ceiling change can clear. A ceiling breached entirely on inherited signals is a loud
+  // WARN naming the standing drain, never a silence and never this session's block.
   if (failed) process.exitCode = 1;
 }
 
