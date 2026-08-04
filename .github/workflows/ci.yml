@@ -259,14 +259,32 @@ jobs:
             --repo ${{ github.repository }} \
             --merge \
             --delete-branch
-          merged=$(gh pr view ${{ github.event.pull_request.number }} \
-            --repo ${{ github.repository }} --json merged --jq '.merged')
-          echo "merged=$merged" >> "$GITHUB_OUTPUT"
-          if [ "$merged" = "true" ]; then
-            echo "Merged directly — no merge queue on this base branch."
-          else
-            echo "::notice::Handed to the merge queue (ADR-0304 D3). The queue will test this PR against projected trunk and merge it in order; the post-merge steps below are skipped for this run."
-          fi
+          # `state`, NOT `merged` — gh exposes no `merged` field, and asking for one is a HARD ERROR
+          # listing the valid names rather than an empty result. That typo shipped in #1139 and cost
+          # exactly what this step is guarding: the PR merged, this step then died under `set -e`, and
+          # all eight post-merge steps were skipped — no claim release, no deploy dispatch. Verified
+          # against a real PR before landing this time; MERGED / OPEN are the only two states reachable
+          # here, since the `gh pr merge` above either merged it or queued it.
+          state=$(gh pr view ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} --json state --jq '.state' || echo "")
+          case "$state" in
+            MERGED)
+              echo "merged=true" >> "$GITHUB_OUTPUT"
+              echo "Merged directly — no merge queue on this base branch."
+              ;;
+            OPEN)
+              echo "merged=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Handed to the merge queue (ADR-0304 D3). The queue will test this PR against projected trunk and merge it in order; the post-merge steps below are skipped for this run."
+              ;;
+            *)
+              # Neither state: the read itself failed. Post-merge work is not safe to run OR to skip on
+              # a guess, so this is loud rather than defaulted — the claim release is fail-soft and
+              # recoverable by hand, but a deploy dispatched for a tree the change is not in is not.
+              echo "merged=false" >> "$GITHUB_OUTPUT"
+              echo "::error::Could not read PR state after merging (got '${state}'). The merge itself may have succeeded — check the PR. Post-merge steps are skipped; re-run claim release / deploy dispatch by hand if it did merge."
+              exit 1
+              ;;
+          esac
 
       # -----------------------------------------------------------------------
       # Claim-release backstop (ADR-0138 §4 / ADR-0200): the merge that just
