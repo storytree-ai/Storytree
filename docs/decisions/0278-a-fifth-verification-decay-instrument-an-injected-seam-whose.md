@@ -111,11 +111,17 @@ refusal. The defect class is therefore not hypothetical for this file; it is rep
 >    finishing.
 > 2. **The instrument is unaffected and still sweeping.** It reads the tree as it is; measured
 >    2026-08-02 after the deletion, `check:verification-decay` reports `chartered coverage: 5/5`.
-> 3. **The ceiling may now be baselined against a population that no longer exists.** The drained
->    seam left the tree, which SHRINKS the measured population — ADR-0269 governs enlargement, not
->    shrinkage, so nothing forced a re-baseline and nothing went red. Whoever next touches this
->    instrument should confirm the ceiling still means what it meant; a shrinking population quietly
->    loosening a ceiling is the same drift ADR-0269 exists to prevent in the other direction.
+> 3. **~~The ceiling may now be baselined against a population that no longer exists.~~ CLOSED — it
+>    was RE-MEASURED, not assumed.** The drained seam left the tree, which SHRINKS the measured
+>    population — ADR-0269 governs enlargement, not shrinkage, so nothing forced a re-baseline and
+>    nothing would have gone red. That is exactly why it was checked by hand rather than left: a
+>    shrinking population quietly loosening a ceiling is the same drift ADR-0269 exists to prevent in
+>    the other direction. Measured 2026-08-02 after the deletion (commit `3e8d9b39`): **still 24
+>    located against a ceiling of 24** — exactly AT its population and still biting. It gained no
+>    slack, because the drained symbol was COVERED and therefore was never in the located set, so
+>    removing it took nothing out of the count. The arithmetic is recorded at the number
+>    (`packages/cli/src/check-verification-decay.ts`, ADR-0269 4(f)), which is the authority; this
+>    ADR carries no live count.
 >
 > When a fresh exemplar of this shape is wanted, take a live one from the instrument's current warn
 > list rather than reviving this one.
@@ -200,8 +206,13 @@ defect admitted.
   wall whose `builtinRealpath` **was** this ADR's sharpest instance and the first drain.
 - [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) — retired that
   layer on 2026-08-02 and deleted the exemplar module and its suite. See the annotation in Context:
-  the finding stands (recoverable at `f34b35a7^`), the instrument is unaffected, and the only open
-  item is confirming this instrument's ceiling against the now-smaller population.
+  the finding stands (recoverable at `f34b35a7^`), the instrument is unaffected, and the ceiling was
+  re-measured against the now-smaller population the same day (24/24, `3e8d9b39`) — **no open item
+  remains from that deletion.**
+- [ADR-0301](0301-drain-ceilings-charge-by-authorship-verification-decay-and-g.md) — this instrument's
+  measured 25/24 breach is what motivated charging decay signals by AUTHORSHIP. It amends ADR-0252's
+  frame, which clause 2 above inherits by reference rather than restatement, so nothing here is
+  overtaken: the ceiling value is untouched and only whom a breach belongs to moved.
 - `asset:a-mocked-seam-leaves-its-default-implementation-unproven` — the principle stating the shape
   and its remedy (ADD a real-substrate test, never replace the fakes); PR #1052.
 - `asset:an-advisory-list-stays-readable-or-stops-being-advisory` — the arc guardrail the population
