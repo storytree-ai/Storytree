@@ -43,7 +43,13 @@ projection in Cloud SQL `storytree-pg` (`resolveMembersAccess`, ADR-0043). That 
 when idle** for cost (idle-aware 8 h window + a daily 04:30 floor — `infra/idle-stop.tf` /
 `infra/cost-backstop.tf`, ADR-0015). **Correction (2026-07-06 — ADR-0139 pass):** this idle-aware
 window was replaced by a fixed 01:00–07:00 Australia/Sydney sleep window
-([ADR-0114](0114-hosted-db-sleeps-on-a-fixed-1am-7am-sydney-window-replacing.md)). When it is STOPPED:
+([ADR-0114](0114-hosted-db-sleeps-on-a-fixed-1am-7am-sydney-window-replacing.md)). **Further
+correction (2026-08-05 — ADR-0139 pass):** that window is gone too, and with it every automatic stop
+— [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md) D2 runs the
+instance **24/7** and deletes `infra/cost-backstop.tf`. So the premise this ADR opens with ("auto-stops
+when idle") no longer holds, and **the decision below is unaffected**: a stop is now UNEXPECTED
+(a manual `db:down`, a maintenance stop, a failed start) rather than routine, which leaves this wake
+as the members' only in-site way back. When the instance is STOPPED, by whatever cause:
 
 - `resolveMembersAccess` throws, the server falls back to `createDegradedPolicy`, and every `/api/*`
   except `/api/health` + `/api/me` answers 503;
@@ -69,8 +75,8 @@ Two constraints frame the fix:
 
 1. **A hosted-native, keyless wake endpoint — `POST /api/db/wake`.** It does NOT use gcloud. It reads
    an OAuth access token for the **runtime SA** from the metadata server, then PATCHes the **Cloud SQL
-   Admin REST API** (`settings.activationPolicy = ALWAYS`) — the exact inverse of the cost-backstop's
-   nightly stop (`infra/cost-backstop.tf`), against the same instance. Idempotent. It awaits only far
+   Admin REST API** (`settings.activationPolicy = ALWAYS`) — the same start `pnpm db:up` performs,
+   against the same instance. Idempotent. It awaits only far
    enough to confirm the Admin API **accepted** the patch (so an IAM/auth failure surfaces as a 502 the
    admin can act on), then answers **202 `{ok:true}`**, mirroring `/api/db/start` so the StoreBanner's
    recovery loop is identical (it polls `/api/health`; the ~1-minute instance start is the async part).
@@ -81,8 +87,8 @@ Two constraints frame the fix:
 2. **A scoped custom IAM role for the runtime SA — not `cloudsql.admin`.** A new
    `storytreeStudioDbWake` custom role with exactly `cloudsql.instances.get` +
    `cloudsql.instances.update`, bound to `storytree-studio-host` (`infra/studio-db-wake.tf`). Narrower
-   than `roles/cloudsql.admin` (which can DELETE) and than `roles/cloudsql.editor` (the cost-backstop
-   SA's role — also import/export, clone, user/db management). This grant is **privileged** and is a
+   than `roles/cloudsql.admin` (which can DELETE) and than `roles/cloudsql.editor` (which also covers
+   import/export, clone, user/db management). This grant is **privileged** and is a
    one-time owner `terraform apply` (held for review). Until applied, wake answers a clear 502
    ("Cloud SQL Admin API 403: cloudsql.instances.update denied") — it fails **loud and safe**, never a
    silent no-op.
@@ -153,8 +159,10 @@ Two constraints frame the fix:
   control stays off; this adds the keyless wake).
 - [ADR-0021](0021-keyless-agent-session-auth-and-db-bootstrap.md) (keyless ambient auth — the metadata
   token, no key file).
-- [ADR-0015](0015-gcp-hosting-cloud-sql-event-store.md) (idle-stop economics this recovers from);
-  `infra/cost-backstop.tf` (the inverse PATCH this mirrors).
+- [ADR-0015](0015-gcp-hosting-cloud-sql-event-store.md) (the stop/start economics this recovers from —
+  §5 now annotated as history);
+  [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md) D2 (24/7; the
+  automatic stops this was written against are gone, the wake is not).
 - [ADR-0043](0043-app-owned-users-roles-and-ui-invitations.md) (IAP widened to allAuthenticatedUsers —
   why the wake is narrowly gated).
 - `infra/studio-cloud.md` (the deploy runbook + the new §6 grant step).

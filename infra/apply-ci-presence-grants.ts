@@ -1,5 +1,8 @@
 // Apply infra/ci-presence-grants.sql as the schema owner (keyless, ADR-0021).
-// Idempotent — safe to re-run after a user recreate or schema change.
+// Idempotent — safe to re-run after a user recreate, a schema change, or a widening of the grants.
+//
+// RUN IT FROM THE REPO ROOT. The path below is repo-root-relative, and running it from inside
+// infra/ doubles the path and fails:
 //
 //   STORYTREE_DB_USER=hua.mick@gmail.com npx tsx infra/apply-ci-presence-grants.ts
 //
@@ -20,7 +23,9 @@ const { pool, connector } = await createPool();
 try {
   await pool.query(sql);
   console.log(
-    "ci-presence grants applied (events.node_claim/claim_event → storytree-ci-presence@…iam; session-presence grants retired, ADR-0200 D7).",
+    "ci-presence grants applied for storytree-ci-presence@…iam: WRITE on events.node_claim/claim_event " +
+      "(merge-time claim release) + SELECT on events.library_artifact/library_event (the live-store gate " +
+      "rungs, ADR-0302 D3). Session-presence grants retired, ADR-0200 D7.",
   );
 } finally {
   await closePool(pool, connector);

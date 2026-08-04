@@ -318,16 +318,18 @@ function LoadScreen({
       );
 
     case 'asleep':
-      // The DB is genuinely unreachable (health agrees): asleep, likely idle-stopped 1am–7am Sydney.
+      // The DB is genuinely unreachable (health agrees): the instance is stopped. Since ADR-0302 D2
+      // it runs 24/7 and NOTHING stops it on a schedule, so this is unexpected — say so rather than
+      // blaming a sleep window that no longer exists (honesty over reassurance).
       return (
         <>
           {banner}
           <div className="pad error-box">
-            <h2>The live store is asleep</h2>
+            <h2>The live store is stopped</h2>
             <p className="muted">
-              The studio’s database (Cloud SQL) isn’t responding — it’s most likely idle-stopped to
-              save cost (it sleeps 1am–7am Sydney by design). Your membership can’t be resolved until
-              it’s back.
+              The studio’s database (Cloud SQL) isn’t responding. It’s meant to run continuously, so
+              this is unexpected rather than a scheduled sleep. Your membership can’t be resolved
+              until it’s back.
             </p>
             <p className="muted">
               {state.canWake

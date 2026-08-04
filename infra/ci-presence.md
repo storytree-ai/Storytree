@@ -1,47 +1,53 @@
-# CI presence merge-retire — keyless WIF setup (ADR-0033 / ADR-0041)
+# The CI database identity — keyless WIF setup
 
-When a session's PR merges, CI should AUTHORITATIVELY retire that session's `events.session`
-presence row — the "session over" fact the racy `SessionEnd` hook misses when a fresh worktree
-is deleted before the hook fires `done`. Without this, dead sessions accumulate in the studio
-dock forever (parked, never retired). **The merge to main is the authoritative signal.**
+CI holds one Cloud SQL identity, `storytree-ci-presence`, reached from GitHub Actions with **no
+long-lived key** (ADR-0021 forbids a JSON key in a repo secret). GitHub mints a short-lived OIDC
+token; GCP's STS exchanges it for an impersonated-SA access token; the Cloud SQL connector mints the
+IAM database token from that.
 
-This is wired in three pieces:
+> **The NAME is stale, the identity is not.** It was created for the session-presence merge-retire
+> (ADR-0033 / ADR-0041). ADR-0200 D7 retired presence altogether — `events.session` and
+> `events.session_event` are dropped — and the same identity now does the two jobs below. Renaming
+> the service account is a flagged follow-up, deliberately not bundled: the name appears in the
+> Terraform resource, the Cloud SQL IAM user, and two `ci.yml` constants, and a rename is a
+> destroy-and-recreate of a live credential.
 
-- **`packages/store/src/ingest-merge.ts`** — the fail-soft writer. Derives the `sessionId` from
-  the merged PR's head ref (tail after the last `/`) and calls `PgPresenceStore.done()`. NEVER
-  exits non-zero: the merge already landed, presence is advisory (ADR-0033).
-- **`.github/workflows/ci.yml`** (`automerge` job) — after `gh pr merge`, authenticates to GCP
-  via Workload Identity Federation (keyless — no JSON key, ADR-0021) and runs the writer. Every
-  step is `continue-on-error: true` and gated on a `claude/*` head ref.
-- **`infra/ci-presence.tf` + `infra/ci-presence-grants.sql`** — the WIF pool/provider, the
-  dedicated CI service account, its Cloud SQL IAM user, and the tight DB grants (the two presence
-  tables only).
+## What uses it
 
-## ⚠️ ONE-TIME OWNER STEP (BLOCKING — the PR is held draft until this is done)
+**1. `automerge` — releasing the merged branch's claims (WRITE).** A branch dies on merge (ADR-0142),
+and the merge is the authoritative "this branch's work is done" fact, so the job runs
+[`packages/notice-board/src/store/ingest-merge.ts`](../packages/notice-board/src/store/ingest-merge.ts)
+→ `PgClaimStore.releaseClaimsByBranch` to clear the branch's `events.node_claim` rows and append the
+`events.claim_event` history (ADR-0138 §4 / ADR-0200). Every step is `continue-on-error: true` and the
+writer never exits non-zero: the merge already landed and claim state is advisory coordination, so
+this must never fail the merge job. Deliberately **ungated on the head-ref shape** — any branch shape
+can hold claims, and a `claude/*` gate once let a `worktree-…` claim outlive its merge by 46 minutes.
 
-Creating a Workload Identity Pool + project IAM bindings needs Owner-level ADC that an agent
-session does not have, so this is owner-run, once. Run as the owner
-(`gcloud auth login`, `gcloud auth application-default login`, project `storytree-498613`):
+**2. `verify` — the live-store gate rungs (READ).** Since **ADR-0302 D3** CI is no longer DB-free:
+`check:friction-drain` and `check:arc-proposal-drain` run at the end of `verify` against the live
+corpus, so the drain ceilings stop being local-only reds that block the dev box while CI shows green.
+`STORYTREE_DB_USER` is set **per-step**, never at job level, so no live credential reaches
+`pnpm -r test`.
+
+This depends on the instance running **24/7** (ADR-0302 D2), and not incidentally: this service
+account holds `roles/cloudsql.client` + `roles/cloudsql.instanceUser` and **no wake role** — waking is
+bound to the studio runtime SA alone ([`studio-db-wake.tf`](studio-db-wake.tf)). Under the old
+01:00–07:00 Sydney sleep window, every overnight PR would have redded on an instance CI cannot start.
+
+## Terraform (already applied)
+
+[`ci-presence.tf`](ci-presence.tf) owns the Workload Identity Pool, the OIDC provider, the service
+account, its two Cloud SQL roles, the repo-scoped impersonation binding, and the Cloud SQL IAM user.
+Creating a pool + project IAM bindings needs Owner-level ADC that an agent session lacks, so it is
+owner-run:
 
 ```bash
 cd infra
-terraform init      # picks up ci-presence.tf
-terraform apply     # creates the pool, provider, SA, IAM bindings, and the Cloud SQL IAM user
+terraform init
+terraform apply
 ```
 
-Then apply the DB grants once (keyless, as the schema owner):
-
-```bash
-# bash
-STORYTREE_DB_USER=hua.mick@gmail.com npx tsx infra/apply-ci-presence-grants.ts
-# PowerShell
-$env:STORYTREE_DB_USER='hua.mick@gmail.com'; npx tsx infra/apply-ci-presence-grants.ts
-```
-
-### Verify the apply matches ci.yml
-
-The three constants hardcoded in `ci.yml` MUST equal the Terraform outputs (they were authored to
-match; this is the paste-check):
+The three constants hardcoded in `ci.yml` MUST equal the Terraform outputs:
 
 ```bash
 terraform output ci_presence_provider_name    # == workload_identity_provider in ci.yml
@@ -49,39 +55,62 @@ terraform output ci_presence_service_account  # == service_account in ci.yml
 terraform output ci_presence_db_user          # == STORYTREE_DB_USER in ci.yml
 ```
 
-Expected values:
+| `ci.yml` field               | value                                                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `workload_identity_provider` | `projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github` |
+| `service_account`            | `storytree-ci-presence@storytree-498613.iam.gserviceaccount.com`                                |
+| `STORYTREE_DB_USER`          | `storytree-ci-presence@storytree-498613.iam`                                                    |
 
-| ci.yml field                  | value                                                                                              |
-| ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `workload_identity_provider`  | `projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github`     |
-| `service_account`             | `storytree-ci-presence@storytree-498613.iam.gserviceaccount.com`                                    |
-| `STORYTREE_DB_USER`           | `storytree-ci-presence@storytree-498613.iam`                                                        |
+## ⚠️ The DB grants — owner-run, and RE-RUN whenever they widen
 
-After the apply succeeds and the outputs match, **undraft this PR** (or remove the `hold` label).
+Terraform creates the Cloud SQL IAM user as a **bare role**. Table privileges come from
+[`ci-presence-grants.sql`](ci-presence-grants.sql), applied as the schema owner. It is idempotent, so
+re-running is always safe — and it must be re-run every time that file changes.
 
-## Why it is safe to merge even before the apply
-
-The CI auth + writer steps are `continue-on-error: true`. Until the WIF resources exist, the GCP
-auth step simply fails soft and the writer is skipped — **the merge still lands**; presence just
-isn't retried that run. So a half-wired state degrades gracefully and never blocks merges. The PR
-is held draft only so the owner reviews the IAM surface and runs the apply deliberately.
-
-## Manual verification (proven 2026-06-13, against the live DB)
-
-The writer was verified end-to-end as the owner (keyless), retiring a real zombie:
+**Run it from the REPO ROOT, not from `infra/`.** The path in the command is repo-root-relative; a
+session once handed the owner this command while they were sitting in `infra/`, which doubled the
+path and failed.
 
 ```bash
-STORYTREE_DB_USER=hua.mick@gmail.com \
-  npx tsx packages/store/src/ingest-merge.ts <sessionId-or-claude/head-ref> <iso-timestamp>
-# → "[ingest-merge] retired presence for "<id>" (merged at …)."  then the session drops from:
-STORYTREE_DB_USER=hua.mick@gmail.com pnpm storytree noticeboard --pg
+# bash — from the repo root
+STORYTREE_DB_USER=hua.mick@gmail.com npx tsx infra/apply-ci-presence-grants.ts
 ```
 
-A non-existent session logs `no presence row … nothing to retire (no-op)` and still exits 0.
+```powershell
+# PowerShell — from the repo root
+$env:STORYTREE_DB_USER='hua.mick@gmail.com'; npx tsx infra/apply-ci-presence-grants.ts
+```
+
+**Outstanding as of ADR-0302 D3:** the grants gained `SELECT` on `events.library_artifact` and
+`events.library_event`. Until that run happens, `verify`'s two live-store steps hit "permission denied
+for table library_artifact" and — being fail-open on the substrate — print SKIP and pass. Nothing
+breaks; the ceilings simply stay unenforced in CI.
+
+## Why a half-wired state is safe
+
+Both consumers degrade rather than break. The `automerge` steps are `continue-on-error: true`, so a
+missing credential leaves the merge landing and the claims to be cleared by the session's own closing
+leg. The `verify` steps exit 0 on an absent credential or an unreachable store (fail-closed on the
+queue, fail-open on the substrate) and say so on stdout.
+
+**That fail-open arm is also why a credential alone does not make the ceilings GATE.** The policy, and
+why it is an explicit declaration rather than an `if (CI)`, is in
+[`packages/cli/src/db-required.ts`](../packages/cli/src/db-required.ts).
+
+### Arming the ceilings in CI — the last step of ADR-0302 D3
+
+Two edits in `.github/workflows/ci.yml`, and they belong together:
+
+1. add `STORYTREE_DB_REQUIRED: '1'` beside `STORYTREE_DB_USER` on **both** live-store steps, which
+   flips an absent credential and an unreachable store from SKIP to red;
+2. drop `continue-on-error: true` from the `verify` job's GCP auth step — once a skip is no longer
+   acceptable, an unauthenticated runner must not look like a pass either.
+
+Do this only after **both** owner steps above have succeeded. Arming first reds every PR on a
+permission error, and the `verify` job has no bypass short of a `hold` label or a draft PR.
 
 ## Scope
 
-This retires presence ONLY. It deliberately does NOT append a per-unit `events.work_event`
-'merged' row: merge-changed files don't map to story ids, and a synthetic row would break the
-`.strict()` `WorkEventDoc` enum + pinned tests. The world's landed-work signal is verdict blooms
-(a separate path), not merges.
+CI **reads** the corpus and **writes** only claim state. It appends no `events.work_event` and no
+verdicts: merge-changed files don't map to story ids, and the world's landed-work signal is verdict
+blooms, not merges. Widening CI to write the corpus would be a new decision, not a wider grant.

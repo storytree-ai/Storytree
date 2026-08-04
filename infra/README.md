@@ -29,7 +29,12 @@ terraform apply
 terraform output instance_connection_name      # the non-secret string sessions need
 ```
 
-## Cost posture — stop when idle (ADR-0015 §5)
+## Cost posture — the instance runs 24/7 (ADR-0302 D2)
+
+**There is no scheduled stop or start.** Under online-or-nothing (ADR-0302) the live store is the only
+source of truth, so any window in which the instance is down is a window in which CI, the gate, every
+read command and the hosted studio are all down together. The instance therefore runs continuously,
+and the owner accepted the roughly one-third increase in instance-hours explicitly.
 
 Stop/start is out-of-band (not in Terraform, so it isn't treated as drift). Use the
 package.json scripts (root) for manual control:
@@ -38,33 +43,29 @@ package.json scripts (root) for manual control:
 pnpm db:up        # start → ~1-2 min cold start (activation-policy ALWAYS)
 pnpm db:down      # stop  → ~$3-5/mo, storage only (activation-policy NEVER)
 pnpm db:status    # show state + activation policy
+pnpm db:probe     # definitive reachability check (createPool + SELECT 1)
 ```
 
-### Auto-stop is a fixed nightly window — 01:00–07:00 Australia/Sydney (`cost-backstop.tf`, ADR-0114)
+`pnpm db:down` is a deliberate manual off-switch and nothing calls it automatically. Under
+online-or-nothing, **using it stops CI landing anything** — no session should run it at the end of a
+working burst (owner call 2026-06-13, and now structural rather than merely a convention).
 
-The shared instance sleeps overnight and is up across the day, so the member-facing hosted studio
-(ADR-0042) is reliably reachable during waking hours without anyone running `db:up`. Two
-Terraform-managed Cloud Scheduler jobs PATCH the Cloud SQL Admin API directly (no app code), both
-running as one least-privilege SA (`sql-stopper`: `roles/cloudsql.editor` = `instances.update`, no
-keys):
-
-1. **STOP at 01:00** (`storytree-pg-stop-backstop`) — sets `activationPolicy=NEVER`.
-2. **START at 07:00** (`storytree-pg-start-window`) — sets `activationPolicy=ALWAYS`, bringing the
-   instance up before members arrive (the half that used to be missing — nothing auto-started it).
-
-Both are unconditional/idempotent — a no-op against an instance already in the target state. A manual
-`pnpm db:up` still works any time inside the sleep window (the 07:00 start is a floor, not a ceiling).
-The instance resource keeps `lifecycle.ignore_changes = [settings[0].activation_policy]`, so the
+The instance resource keeps `lifecycle.ignore_changes = [settings[0].activation_policy]`, so an
 out-of-band start/stop is never seen as Terraform drift.
 
-> **History (ADR-0114, amending ADR-0015 §5):** this replaced an **idle-aware Cloud Function**
-> (`functions/idle-stop/`) that stopped the instance after 5 h of zero connections, plus a blunt
-> 04:30 daily floor. That posture had no morning auto-start (a stopped instance stayed down until a
-> human woke it) and could stop mid-day when quiet — both bad for hosted-studio members. The idle
-> function was paused, then fully torn down (its SAs, scheduler, bucket, and source removed).
+> **History.** Two postures preceded this one and BOTH are gone. ADR-0015 §5 ran an **idle-aware Cloud
+> Function** (`functions/idle-stop/`) that stopped the instance after 5 h of zero connections, plus a
+> blunt 04:30 daily floor; it had no morning auto-start and could stop mid-day when quiet, so ADR-0114
+> tore it down and replaced it with a **fixed 01:00–07:00 Australia/Sydney sleep window** — two
+> Terraform-managed Cloud Scheduler jobs in `cost-backstop.tf`, running as an `sql-stopper` service
+> account. ADR-0302 D2 supersedes ADR-0114 and removes that file entirely, along with the two jobs,
+> the `sql-stopper` SA and its `roles/cloudsql.editor` binding. The reason the window could not
+> survive is specific and worth keeping: the `storytree-ci-presence` service account holds **no wake
+> role** (the wake permission is bound only to the studio runtime SA — see `studio-db-wake.tf`), so an
+> overnight PR would red on an instance CI has no way to start.
 
-> Don't `pnpm db:down` at the end of a working session (owner call 2026-06-13 — the schedule is the
-> stopper, not sessions).
+> **Do not re-introduce a scheduled stop as a cost measure** without re-deciding ADR-0302. The cost
+> lever that remains available is instance SIZE, not uptime.
 
 Tear the whole thing down with `terraform destroy`.
 

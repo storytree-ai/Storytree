@@ -36,7 +36,12 @@ survive one `pnpm storytree …` call, let alone join two. Three forces shape th
   path of every read command, including the gate's own internal CLI calls.
 - **The shared instance sleeps.** ADR-0114 stops the Postgres instance nightly (01:00–07:00
   Australia/Sydney). A DB-backed sink would silently stop capturing for six hours a day — exactly the
-  long-running overnight sessions this arc most wants to measure.
+  long-running overnight sessions this arc most wants to measure. *(Corrected in place 2026-08-05
+  under ADR-0139: this reason has EXPIRED — [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md)
+  D2 supersedes ADR-0114 and runs the instance 24/7, so there is no nightly gap left to lose traces
+  in. The decision below is unchanged, because the other two reasons are untouched and are the
+  load-bearing ones; but if a DB-backed sink is ever reconsidered, do NOT cite this bullet against
+  it.)*
 - **Traces are per-session evidence, not shared library state.** Unlike artifacts or verdicts, a
   traversal trace is one session's local observational residue. Nothing yet reads another session's
   trace, so shared storage would be speculative coupling.
@@ -98,8 +103,9 @@ needs no separate owner fork.
 
 - Real traces exist for the first time, survive process exit, and can be replayed by a later
   command — the precondition every remaining increment of this arc is blocked on.
-- Capture keeps working fully offline and through the nightly DB sleep window, which is when the
-  longest sessions actually run.
+- Capture keeps working fully offline. *(This consequence originally read "and through the nightly DB
+  sleep window, which is when the longest sessions actually run" — corrected in place 2026-08-05:
+  ADR-0302 D2 removed the window. The offline half stands.)*
 - Traces are per-machine. Cross-session and hosted-studio views cannot read them until a shared sink
   lands, and a trace does not travel with a PR.
 - A local file is not access-controlled beyond the user's filesystem. Metadata minimization

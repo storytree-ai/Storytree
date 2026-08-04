@@ -434,7 +434,7 @@ describe('map-boot-independence', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByText(/The live store is asleep/i)).toBeTruthy();
+        expect(screen.getByText(/The live store is stopped/i)).toBeTruthy();
       },
       { timeout: 5000 },
     );
@@ -458,7 +458,7 @@ describe('map-boot-independence', () => {
       { timeout: 5000 },
     );
     // The distinction is the whole point: a fault must never offer to wake a running DB.
-    expect(screen.queryByText(/The live store is asleep/i)).toBeNull();
+    expect(screen.queryByText(/The live store is stopped/i)).toBeNull();
     expect(screen.queryByTestId('tree-route')).toBeNull();
   });
 

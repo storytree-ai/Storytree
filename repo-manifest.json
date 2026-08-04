@@ -24,7 +24,7 @@
       "apps": "Workspace apps (studio).",
       "docs": "ADRs + open-questions backlog + research notes (see docs.* below).",
       "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/library.",
-      "infra": "Terraform / GCP infra (Cloud SQL, idle-stop).",
+      "infra": "Terraform / GCP infra (Cloud SQL, WIF/CI + studio identities, deploy pipelines). The instance runs 24/7 per ADR-0302 D2 — no scheduled stop/start.",
       "scripts": "Repo-level maintenance scripts (e.g. this manifest check).",
       "legacy": "Read-only V1 Rust submodule (legacy/Agentic); reference only.",
       ".github": "CI workflows (the green gate + auto-merge, ADR-0022).",

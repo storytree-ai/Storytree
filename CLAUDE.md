@@ -328,13 +328,14 @@ file conflicts).
 - **Cloud SQL** (not local Docker): `pnpm db:up` / `pnpm db:status` / `pnpm db:down`
   (gcloud against instance `storytree-498613:australia-southeast1:storytree-pg`). `db:up` it when you
   need it and then **LEAVE IT RUNNING — do not `db:down` when you finish** (owner call 2026-06-13:
-  sessions kept stopping it between bursts). Auto-stop is now a **fixed nightly window — asleep
-  01:00–07:00 Australia/Sydney** (ADR-0114, `infra/cost-backstop.tf`): one Cloud Scheduler job STOPS it
-  at 01:00 and a second STARTS it at 07:00, so it stays predictably up across the day for the
-  member-facing hosted studio (ADR-0042). The old idle-aware 5 h auto-stop (ADR-0015 §5) was
-  **removed** — superseded by this window (ADR-0114). A manual `db:up` still works any
-  time inside the sleep window (a no-op if already up); re-`db:up` if a query can't connect after the
-  overnight stop.
+  sessions kept stopping it between bursts). **NOTHING STOPS IT AUTOMATICALLY — the instance runs
+  24/7** (ADR-0302 D2, superseding ADR-0114): both Cloud Scheduler jobs and the whole
+  `infra/cost-backstop.tf` are GONE, along with ADR-0015 §5's earlier idle-aware 5 h auto-stop. So
+  **there is no longer an overnight window to reason about** — if the DB is down, something stopped it
+  by hand or it failed, and neither is expected. Under online-or-nothing a stopped instance takes CI,
+  the gate, every read command and the hosted studio down together, which is exactly why the window
+  had to go before CI could depend on the DB at all. (Terraform here is applied BY HAND — a landed
+  `cost-backstop.tf` deletion is not live until the owner runs `terraform apply` from `infra/`.)
   **Probe, don't assume — never conclude the DB is unreachable from the environment.** The definitive
   check is a verb now, not a script to re-derive: **`pnpm db:probe`** runs the canonical direct-connector
   `createPool` + `SELECT 1` through the CLI's own composition root (secrets hydration, the
@@ -344,8 +345,8 @@ file conflicts).
   `createPool` refusing without `STORYTREE_DB_USER`, `createPool` returning a `PoolHandle {pool,
   connector}` rather than a `Pool`) are all inside the verb.
   A `db:up`/preflight "unreachable within Ns" at status **RUNNABLE** is almost always a slow cold-start
-  (it can exceed the whole readiness poll — ~21 min has been seen after the overnight stop), not a
-  wedge: wait + re-probe. **`db:up` names which case it hit on the way out (ADR-0060):** exit **75**
+  (it can exceed the whole readiness poll — ~21 min was measured after a stop, back when the nightly
+  window still stopped it), not a wedge: wait + re-probe. **`db:up` names which case it hit on the way out (ADR-0060):** exit **75**
   (`EX_TEMPFAIL`) = the start took and the instance is STILL WARMING, so re-probe and do NOT issue
   another start/stop; exit **1** = the activation PATCH did not take, so waiting won't help. `db:up`'s
   readiness poll and `db:probe` now run the SAME function (`probeDb` in `packages/drive/src/db-control.ts`),

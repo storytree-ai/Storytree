@@ -8,8 +8,11 @@
 // Mechanism (keyless, the ADR-0021 posture — no key file in the image):
 //   1. Read an OAuth access token for the Cloud Run RUNTIME service account from the metadata
 //      server (cloud-platform scope on Cloud Run).
-//   2. PATCH the Cloud SQL Admin REST API: settings.activationPolicy = ALWAYS — the exact inverse
-//      of the cost-backstop's nightly stop (infra/cost-backstop.tf), against the same instance.
+//   2. PATCH the Cloud SQL Admin REST API: settings.activationPolicy = ALWAYS — the same start
+//      `pnpm db:up` performs, against the same instance. (This used to be described as the inverse
+//      of a nightly stop; there is no scheduled stop any more — ADR-0302 D2 runs the instance 24/7
+//      and deleted infra/cost-backstop.tf. The wake still matters: a manual `db:down`, a maintenance
+//      stop or a failed start all leave members locked out with no other way back.)
 // Idempotent: patching an already-ALWAYS instance is a harmless no-op. The PATCH returns quickly
 // with a long-running operation; the instance then takes ~a minute to accept connections, which the
 // StoreBanner observes by polling /api/health (the same recovery path Start DB already uses).
@@ -25,7 +28,7 @@ import { DB_INSTANCE, DB_PROJECT } from './dbControl';
 const METADATA_TOKEN_URL =
   'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token';
 
-/** The Cloud SQL Admin API base — same host the cost-backstop PATCHes (infra/cost-backstop.tf). */
+/** The Cloud SQL Admin API base — the same host `pnpm db:up` PATCHes. */
 const SQLADMIN_BASE = 'https://sqladmin.googleapis.com/v1';
 
 /** A response from the Cloud SQL Admin PATCH — only the bits the handler reacts to. */

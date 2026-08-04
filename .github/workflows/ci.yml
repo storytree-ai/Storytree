@@ -41,7 +41,18 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # The gate. Tests are offline (no DB / no API key), so CI needs no secrets.
+  # The gate. Typecheck / test / build are offline and need no secrets.
+  #
+  # CI IS NO LONGER DB-FREE (ADR-0302 D3). The live-store checks at the END of this job authenticate
+  # through the SAME keyless WIF identity the automerge job has used on every merged PR since
+  # ADR-0033 — no new pool, no new IAM, no new secret (infra/ci-presence.tf). This closes the class
+  # of reds that could only ever fire on the dev box while CI showed green.
+  #
+  # THAT DEPENDED ON THE DATABASE RUNNING 24/7 (ADR-0302 D2), and the dependency is not incidental:
+  # `storytree-ci-presence` holds cloudsql.client + cloudsql.instanceUser and NO wake role — the wake
+  # permission is bound to the studio runtime SA alone (infra/studio-db-wake.tf). Under ADR-0114's
+  # old 01:00-07:00 Sydney sleep window, every overnight PR would have redded on an instance CI has
+  # no way to start. That window is gone; do not re-introduce one without re-deciding this.
   # ---------------------------------------------------------------------------
   verify:
     name: verify
@@ -50,10 +61,12 @@ jobs:
     # step is skipped) — read by the automerge job's post-merge backstop dispatch (ADR-0195 §5).
     outputs:
       mode: ${{ steps.affected.outputs.mode }}
-    # contents: read for checkout; pull-requests: read for the ADR cross-PR collision check (ADR-0050).
+    # contents: read for checkout; pull-requests: read for the ADR cross-PR collision check (ADR-0050);
+    # id-token: write to mint the WIF OIDC token for the live-store checks below (ADR-0302 D3).
     permissions:
       contents: read
       pull-requests: read
+      id-token: write
     steps:
       # legacy/Agentic is a private submodule and not part of the pnpm workspace,
       # so the default no-submodule checkout is correct (and avoids needing creds).
@@ -220,6 +233,62 @@ jobs:
       # that store import is now lazy, so the gate verifies the client build too.
       - name: Build
         run: pnpm -r build
+
+      # -----------------------------------------------------------------------
+      # LIVE-STORE CHECKS (ADR-0302 D3) — deliberately LAST.
+      #
+      # These read the SHARED corpus, so a red here can be a sibling session's backlog rather than
+      # this branch's diff. That is the same axis-2 rule the local gate's plan encodes
+      # (packages/cli/src/gate-order.ts): a verdict the author is not permitted to remedy must not
+      # arrive ahead of the ones that are theirs. Everything above is this branch's own answer.
+      #
+      # ONLY TWO CHECKS ARE WIRED, and the omissions are deliberate:
+      #   • check:agents-sync / check:corpus-sync / check:corpus-content read the DB too, but they
+      #     exist ONLY to reconcile the committed seed against the live store and ADR-0302 D4 DELETES
+      #     them with the seed. Wiring a check that is about to be removed would be pure churn.
+      #   • check:declared is DB-backed and stays unwired ON PURPOSE. Its gate is the existence of
+      #     `.claude/worktrees/`, which is untracked and therefore never present in a CI checkout
+      #     (packages/cli/src/check-declared.ts) — it judges the dev box's lobby, which CI does not
+      #     have. Its skipping here is correct; do not "fix" it.
+      # -----------------------------------------------------------------------
+      # FAIL-SOFT FOR NOW, and this must be flipped together with STORYTREE_DB_REQUIRED below. While
+      # the live-store checks cannot gate, an auth hiccup redding `verify` would block every PR for
+      # zero benefit — it would impose the hard DB dependency ADR-0302 accepts, before the thing that
+      # dependency buys is switched on. If auth fails the two steps below simply fail to connect and
+      # report SKIP, which is the same posture the automerge job has always had. When the ceilings
+      # are ARMED, drop this line: an unauthenticated runner must not then look like a pass.
+      - name: Authenticate to GCP for the live-store checks (keyless WIF — ADR-0021)
+        continue-on-error: true
+        uses: google-github-actions/auth@v3
+        with:
+          # Identical to the automerge job's step below — the same pool, provider and service
+          # account, provisioned by infra/ci-presence.tf. The provider resource name embeds the
+          # project NUMBER (635716509357), not the project id.
+          workload_identity_provider: projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: storytree-ci-presence@storytree-498613.iam.gserviceaccount.com
+
+      # STORYTREE_DB_USER is set PER-STEP, never at job level. Job-level would put a live credential
+      # into `pnpm -r test`'s environment, and the suites that read that key would silently change
+      # what they exercise. They are hermetic today (packages/cli/src/node-build.test.ts,
+      # packages/drive/src/secrets.test.ts); scoping it here removes the question rather than
+      # relying on them staying that way.
+      #
+      # TO MAKE THESE ACTUALLY GATE, add `STORYTREE_DB_REQUIRED: '1'` beside STORYTREE_DB_USER on
+      # both steps. It is deliberately NOT set yet: both checks exit 0 when the store is unreachable
+      # (fail-closed on the queue, fail-open on the substrate), and until the owner has run BOTH
+      # `terraform apply` (24/7 instance, ADR-0302 D2) AND infra/apply-ci-presence-grants.ts (the
+      # widened SELECT grants), this service account cannot read events.library_artifact at all — so
+      # arming it now would red every PR on a permission error. Until then these steps RUN and
+      # REPORT; the flip is the last step of ADR-0302 D3. See packages/cli/src/db-required.ts.
+      - name: Friction drain ceiling (live store)
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+        run: pnpm check:friction-drain
+
+      - name: Arc parked-work drain ceiling (live store)
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+        run: pnpm check:arc-proposal-drain
 
   # ---------------------------------------------------------------------------
   # Auto-merge-on-green, done inside free Actions (GitHub-native auto-merge is

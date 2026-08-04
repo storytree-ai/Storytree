@@ -1,4 +1,5 @@
-// The friction-drain ceiling gate (ADR-0168 D4), wired into `pnpm gate` — NOT into CI.
+// The friction-drain ceiling gate (ADR-0168 D4), wired into `pnpm gate` AND — since ADR-0302 D3 —
+// into CI's `verify` job.
 //
 // ADR-0168's load-bearing lesson: a WARN-backed worklist with no drain OBLIGATION rots. So unlike its
 // sibling advisory checks (`check:corpus-sync` / `check:corpus-content` / `check:agents-sync`, all
@@ -8,12 +9,20 @@
 // goes green again. It gates QUEUE HYGIENE ONLY — no count or age here ever decides what GRADUATES
 // (worth is undiluted adjudicator judgment; ADR-0032 §3/§5, reaffirmed by ADR-0168 D8).
 //
-// HONEST COST (ADR-0168 D4): this reads the LIVE friction worklist, so it runs only where the DB is
-// reachable — local gates — and SKIPs in DB-free CI (like `check:agents-sync`). CI never enforces the
-// ceiling; the standing **adjudicator duty**, not CI, is the primary drain. Reachability policy
-// mirrors the sibling checks: no creds / DB unreachable → SKIP (exit 0, offline gate unaffected). The
-// ONLY non-zero exit is a real ceiling breach against a successfully-read worklist — never an infra
-// blip (fail-closed on the queue, fail-open on the substrate).
+// REACHABILITY, AND HOW IT CHANGED. This reads the LIVE friction worklist. ADR-0168 D4 wrote it to
+// run only where the DB is reachable — local gates — and to SKIP in DB-free CI, because CI held no
+// credential. ADR-0302 D3 gives CI one, so this now runs there too: the `verify` job authenticates
+// through the existing keyless WIF identity (`infra/ci-presence.tf`) and sets `STORYTREE_DB_USER` on
+// this step alone.
+//
+// The ceiling itself is UNCHANGED — fail-closed on the QUEUE, fail-open on the SUBSTRATE. A real
+// breach against a successfully-read worklist is the only non-zero exit; an absent credential or an
+// unreachable database is a SKIP, never a red on an infra blip. What ADR-0302 D3 adds is that an
+// environment may DECLARE the live store mandatory, via `STORYTREE_DB_REQUIRED` — and there both
+// arms turn red, because a credentialed environment that skips is a check that cannot bite. The
+// policy is one shared, tested decision in `db-required.ts`; see its header for why it is an explicit
+// declaration rather than an `if (CI)`. The standing **adjudicator duty**, not CI, remains the
+// primary drain either way.
 
 import { execFileSync } from "node:child_process";
 
@@ -24,6 +33,12 @@ import {
   type FrictionWorklistItem,
   type FrictionDrainVerdict,
 } from "./friction-drain.js";
+import {
+  DB_REQUIRED_ENV,
+  dbIsRequired,
+  evaluateDbAbsence,
+  type DbAbsence,
+} from "./db-required.js";
 import { loadLocalSecrets, presentEnv } from "./secrets.js";
 
 const TAG = "[check:friction-drain]";
@@ -103,8 +118,23 @@ function report(v: FrictionDrainVerdict): void {
     `${TAG}   route/reinforce/archive them (\`storytree friction route …\`), clearing the backlog below N=${v.config.openCeiling} / M=${v.config.ageCeilingDays}d.`,
   );
   console.error(
-    `${TAG}   (Queue hygiene only — this never decides what graduates. DB-local; CI does not enforce it.)`,
+    `${TAG}   (Queue hygiene only — this never decides what graduates. Runs local AND in CI since ADR-0302 D3.)`,
   );
+}
+
+/** Print an absence verdict and set the exit code it calls for. Shared by both arms below. */
+function reportAbsence(absence: DbAbsence): void {
+  const verdict = evaluateDbAbsence({
+    absence,
+    required: dbIsRequired(process.env[DB_REQUIRED_ENV]),
+    subject: "friction backlog",
+  });
+  if (verdict.level === "red") {
+    console.error(`${TAG} ${verdict.message}`);
+    process.exitCode = 1;
+  } else {
+    console.log(`${TAG} ${verdict.message}`);
+  }
 }
 
 async function main(): Promise<void> {
@@ -112,7 +142,7 @@ async function main(): Promise<void> {
   loadLocalSecrets();
 
   if (presentEnv("STORYTREE_DB_USER") === undefined) {
-    console.log(`${TAG} SKIP — no STORYTREE_DB_USER (DB creds absent); friction backlog unverified.`);
+    reportAbsence({ kind: "no-credential" });
     return;
   }
 
@@ -128,11 +158,10 @@ async function main(): Promise<void> {
     );
     items = docs.map(projectItem);
   } catch (err) {
-    // Infra failure (stopped DB, cold-start timeout, network) — SKIP, never red. The ceiling is
-    // fail-closed on the QUEUE, fail-open on the SUBSTRATE.
-    console.log(
-      `${TAG} SKIP — live DB not reachable (${(err as Error).message}); drain unverified, offline gate unaffected.`,
-    );
+    // Infra failure (stopped DB, cold-start timeout, network). SKIP by default — the ceiling is
+    // fail-closed on the QUEUE, fail-open on the SUBSTRATE — unless this environment declared the
+    // live store mandatory, in which case an unread ceiling is a red rather than a silent pass.
+    reportAbsence({ kind: "unreachable", detail: (err as Error).message });
     return;
   } finally {
     if (handle) await closePool(handle.pool, handle.connector).catch(() => {});
@@ -150,6 +179,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  // An unexpected error is advisory only — never fail the gate on an infra problem in this check.
-  console.log(`${TAG} SKIP — unexpected error (${(err as Error).message}); drain unverified.`);
+  // An unexpected error is advisory only — never fail the gate on an infra problem in this check —
+  // EXCEPT where the environment declared the live store mandatory, in which case "unverified" and
+  // "passed" must not print the same way. Same policy as the two arms above, deliberately.
+  reportAbsence({ kind: "unreachable", detail: `unexpected error: ${(err as Error).message}` });
 });
