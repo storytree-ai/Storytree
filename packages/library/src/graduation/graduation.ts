@@ -33,6 +33,22 @@ export interface MemoryFile {
   readonly type: MemoryType;
   /** the freeform markdown body, which may carry `[[wiki-links]]` */
   readonly body: string;
+  /**
+   * The branch of the session that WROTE this memory (frontmatter `metadata.branch`) — the provenance
+   * `check:graduation-worklist`'s drain ceiling keys its own-homework exclusion on (ADR-0301), on the
+   * same "a branch is a session" identity ADR-0290 D2 and ADR-0050's allocator already use.
+   *
+   * OPTIONAL, and absent means UNATTRIBUTED rather than "not yours". The agent-memory dir is written by
+   * agents directly, not through any CLI verb, so nothing in this repo can stamp it — every memory
+   * predating ADR-0301, and every one written by a session that does not stamp, reads as `undefined`.
+   * The ceiling therefore CHARGES an unattributed memory, mirroring `friction-drain.ts`'s `isOwnItem`:
+   * only a positive match on the current branch is an exclusion, so unattributed still registers as
+   * pressure and the backlog cannot drain by going anonymous.
+   *
+   * This engine never reads it — classification (new/changed/expired/parked) is content-keyed and must
+   * stay so. It is carried here because the CLI parses frontmatter once and the ceiling needs it.
+   */
+  readonly branch?: string | undefined;
 }
 
 /**

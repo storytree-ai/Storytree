@@ -34,24 +34,42 @@
 // deferral-keyed ESCALATION lines are not built. A reader following the old pointer landed on the
 // wrong decision).
 //
-// TWO LIMITATIONS, STATED RATHER THAN DISCOVERED LATER — both are real, both were observed, and the
-// repair for each is to close the gap, NEVER to raise N (raising a ceiling to accommodate the work in
-// front of you is the named failure mode on `process:verification-decay-detection`).
+// LIMITATION 1 IS CLOSED; LIMITATION 2 IS NOT, AND THAT IS THE HONEST HEADLINE (ADR-0301). Both were
+// stated here when this ceiling landed; one has since been repaired and the other has NOT, so read the
+// pair rather than either half. The repair for the survivor is to close the gap, NEVER to raise N
+// (raising a ceiling to accommodate the work in front of you is the named failure mode on
+// `process:verification-decay-detection`).
 //
-//   1. NO OWN-HOMEWORK EXCLUSION. ADR-0168 D4's friction ceiling excludes the current session's own
-//      just-filed items, so "a retro that files its cap-3 can never trip its own ceiling". This cannot
-//      do that: a `MemoryFile` carries no session or branch provenance to key the exclusion on. A
-//      session that writes a memory file can therefore trip the ceiling on its own work. The repair is
-//      to give memory files provenance.
-//   2. THE INPUT IS MACHINE-SHARED, NOT SESSION-LOCAL. The agent-memory dir is per-MACHINE
-//      (`~/.claude/projects/<slug>/memory`, ADR-0202) and resolves through the MAIN checkout, so every
-//      concurrent worktree and session on the box reads and writes ONE queue. Observed while this
-//      ceiling was being landed: the queue moved 4 → 5 live (parked 100 → 99) mid-session, without
-//      this session touching a memory file — a sibling's edit broke a parked candidate's content hash
-//      and re-entered it as `changed`. So this ceiling can red on work that is not yours, and the
-//      drain that clears it has no claim protecting it. That is the arc's already-open
-//      concurrent-drain decision (ADR-0121's ledger keys on unit ids, so nothing refuses a concurrent
-//      drain) reaching a check that now BLOCKS rather than warns — surfaced here, not resolved here.
+//   1. OWN-HOMEWORK EXCLUSION — **CLOSED** (ADR-0301). ADR-0168 D4's friction ceiling excludes the
+//      current session's own just-filed items, so "a retro that files its cap-3 can never trip its own
+//      ceiling"; this could not, because a `MemoryFile` carried no provenance to key the exclusion on.
+//      It does now: memory frontmatter carries `metadata.branch`, and {@link evaluateGraduationDrain}
+//      charges only the candidates this session did not write. UNATTRIBUTED STAYS CHARGED — the
+//      `friction-drain.ts` `isOwnItem` direction exactly: only a positive match on the current branch
+//      excludes, so a memory with no stamp still registers as pressure and the queue cannot drain by
+//      going anonymous. The stamp exists only going FORWARD (ADR-0290 D2's posture): agents write these
+//      files with a file tool, no CLI verb stamps them, so on the day this landed every memory on the
+//      machine was unattributed and the charged count was unchanged.
+//   2. THE INPUT IS MACHINE-SHARED, NOT SESSION-LOCAL — **STILL OPEN, AND IT IS THE LOAD-BEARING ONE.**
+//      The agent-memory dir is per-MACHINE (`~/.claude/projects/<slug>/memory`, ADR-0202) and resolves
+//      through the MAIN checkout, so every concurrent worktree and session on the box reads and writes
+//      ONE queue. Observed while this ceiling was being landed: the queue moved 4 → 5 live (parked
+//      100 → 99) mid-session, without this session touching a memory file — a sibling's edit broke a
+//      parked candidate's content hash and re-entered it as `changed`. Measured far more sharply in
+//      PR #1124: a commissioned board-drain session drained the queue properly, VERIFIED `OK — no live
+//      agent-memory candidates`, and was RED again at 7 live within ~15 minutes, entirely from sibling
+//      sessions writing between 20:56 and 21:11. The drain worked, was verified, and evaporated —
+//      through no fault of the drainer and with nothing it could have done differently.
+//
+// **CLOSING (1) DOES NOT FIX (2), AND MUST NOT BE READ AS FIXING IT.** On the #1124 numbers the
+// exclusion would have changed NOTHING: all 7 candidates belonged to SIBLING sessions, which an
+// own-homework exclusion does not suppress BY CONSTRUCTION. ADR-0301 shipped (1) deliberately as an
+// acknowledged partial — it closes a real asymmetry with the sibling friction ceiling, and it is a
+// prerequisite for every candidate fix to (2), because you cannot ask "is that session still in
+// flight" without first knowing whose it is. What it buys on its own is the OTHER half of the same
+// tax: the check now PRINTS the authorship split on every path, so the #1124 drainer's question — are
+// these mine? — is answered in the report instead of by hand. The residual is parked on
+// `verification-integrity-arc` as its own unit, not left as a comment.
 //
 // PURE by construction: no `node:` import, no filesystem, no clock. The caller injects `now` and the
 // ledger's usability, so this is deterministic and unit-testable against a synthetic worklist; the
@@ -74,6 +92,12 @@ export interface GraduationCandidate {
    * one: `new` has no park record at all, and `changed`/`parked` are not overdue for re-review.
    */
   leaseExpiredOn?: string | undefined;
+  /**
+   * The branch of the session that WROTE this memory (frontmatter `metadata.branch`, ADR-0301), or
+   * `undefined` when the memory carries no stamp. `undefined` means UNATTRIBUTED, never "not yours" —
+   * see {@link evaluateGraduationDrain} for why that is CHARGED.
+   */
+  branch?: string | undefined;
 }
 
 /** The tunable ceiling constants. */
@@ -107,14 +131,30 @@ export interface GraduationDrainConfig {
  * the existing OK/WARN levels and changes neither, so the check is strictly stronger than before and
  * never weaker (the named failure mode on `process:verification-decay-detection` is gaming a ceiling
  * by softening the check under it).
+ *
+ * **N STAYS 4 UNDER ADR-0301, AND THE DISTINCTION IS THE WHOLE POINT.** Adding the own-homework
+ * exclusion changes WHAT COUNTS AS THIS SESSION'S LIVE BACKLOG; it does not change how large a backlog
+ * is allowed. ADR-0252 D3 says a ceiling's remedy is a drain and never a raise, and ADR-0269 fences
+ * when a ceiling may rise at all — neither is touched here, and this note exists because the change is
+ * easy to MISREAD as gaming the ceiling. The tell that separates the two: WHAT is counted changed, not
+ * merely HOW MANY are tolerated. The number on this line is the same number it was, and the OK/WARN
+ * levels still read the FULL live count, so a session's own memories are visible in the report the
+ * moment they exist — they simply do not block that session's own landing.
  */
 export const DEFAULT_GRADUATION_DRAIN_CONFIG: GraduationDrainConfig = {
   liveCeiling: 4,
   overdueCeilingDays: 21,
 };
 
-/** The context the ceiling is evaluated from: WHEN, and whether the ledger can be trusted. */
+/** The context the ceiling is evaluated from: WHO, WHEN, and whether the ledger can be trusted. */
 export interface GraduationDrainContext {
+  /**
+   * The current session's branch (ADR-0301) — its own just-written memories are excluded from the
+   * charge, the `friction-drain.ts` `isOwnItem` move. `null` when git cannot say (detached HEAD, no
+   * repo): then NOTHING is excluded and the ceiling charges the whole live queue, which is the
+   * pre-ADR-0301 behaviour and the fail-closed one.
+   */
+  currentBranch: string | null;
   /** Today, ISO `yyyy-mm-dd` — the reference point for lease-overdue age. */
   currentDate: string;
   /**
@@ -136,6 +176,26 @@ export interface GraduationDrainVerdict {
   newCount: number;
   changedCount: number;
   expiredCount: number;
+  /**
+   * Live candidates THIS session wrote (ADR-0301) — excluded from {@link chargedCount} so a session
+   * whose retro writes memories cannot trip its own ceiling. Reported, never hidden: the WARN/OK line
+   * still counts them, so nothing goes quiet.
+   */
+  ownCount: number;
+  /**
+   * Live candidates carrying ANOTHER session's stamp. Reported so the #1124 question — are these mine?
+   * — is answered by the check rather than by a hand differential. CHARGED: the drain is a librarian
+   * pass over the whole queue, which any session may legitimately perform, unlike an export that would
+   * commit a stranger's body under your name.
+   */
+  siblingCount: number;
+  /** Live candidates with no stamp at all. CHARGED — unattributed is not "not yours". */
+  unattributedCount: number;
+  /**
+   * `liveCount` minus {@link ownCount} — what the ceiling actually compares against N (ADR-0301).
+   * Equals `liveCount` whenever no memory carries a stamp, which is every queue predating ADR-0301.
+   */
+  chargedCount: number;
   /** Silenced under a holding lease. Reported so the suppression is visible, never silent. */
   parkedCount: number;
   /** Days past expiry of the most overdue lease-expired candidate (`null` when there are none). */
@@ -180,9 +240,26 @@ export function evaluateGraduationDrain(
   let changedCount = 0;
   let expiredCount = 0;
   let parkedCount = 0;
+  let ownCount = 0;
+  let siblingCount = 0;
+  let unattributedCount = 0;
   let oldest: { name: string; days: number } | null = null;
 
   for (const candidate of candidates) {
+    if (candidate.status === "parked") {
+      parkedCount += 1;
+      continue;
+    }
+    // THE OWN-HOMEWORK EXCLUSION (ADR-0301), keyed exactly as `friction-drain.ts`'s `isOwnItem`: a
+    // POSITIVE match on the current branch and nothing else. An unstamped memory, and every memory
+    // when git cannot name a branch, falls to `unattributed` and is charged — so the exclusion can
+    // only ever shrink by losing information, never grow.
+    const isOwn =
+      ctx.currentBranch !== null && candidate.branch !== undefined && candidate.branch === ctx.currentBranch;
+    if (isOwn) ownCount += 1;
+    else if (candidate.branch !== undefined) siblingCount += 1;
+    else unattributedCount += 1;
+
     switch (candidate.status) {
       case "new":
         newCount += 1;
@@ -193,29 +270,34 @@ export function evaluateGraduationDrain(
       case "expired": {
         expiredCount += 1;
         // An expired candidate with no recorded expiry date contributes to the COUNT axis only —
-        // under-reporting staleness rather than inventing an age for it.
+        // under-reporting staleness rather than inventing an age for it. Own candidates are skipped
+        // for the same reason they are skipped on the count axis: you cannot be overdue to re-review
+        // what you wrote this session.
         const days = daysSince(candidate.leaseExpiredOn, ctx.currentDate);
-        if (days !== null && (oldest === null || days > oldest.days)) {
+        if (!isOwn && days !== null && (oldest === null || days > oldest.days)) {
           oldest = { name: candidate.name, days };
         }
         break;
       }
-      case "parked":
-        parkedCount += 1;
-        break;
     }
   }
 
   const liveCount = newCount + changedCount + expiredCount;
+  const chargedCount = liveCount - ownCount;
   const oldestOverdueDays = oldest === null ? null : oldest.days;
   const oldestOverdueName = oldest === null ? null : oldest.name;
 
   const breaches: string[] = [];
 
-  // Count axis — fail-closed strictly above N.
-  if (liveCount > config.liveCeiling) {
+  // Count axis — fail-closed strictly above N, on the CHARGED backlog (ADR-0301). N IS UNCHANGED AT 4:
+  // what moved is WHICH candidates count as this session's obligation, never how many are allowed.
+  // That distinction is the tell ADR-0269 4(f) turns on, and it points the other way from gaming a
+  // ceiling — a session that writes memories no longer trips its own gate, and every other candidate
+  // is charged exactly as before.
+  if (chargedCount > config.liveCeiling) {
     breaches.push(
-      `live candidate backlog ${liveCount} exceeds the ceiling (N=${config.liveCeiling})`,
+      `live candidate backlog ${chargedCount} exceeds the ceiling (N=${config.liveCeiling})` +
+        (ownCount > 0 ? ` (${ownCount} of ${liveCount} live excluded as this session's own)` : ""),
     );
   }
 
@@ -245,6 +327,10 @@ export function evaluateGraduationDrain(
     newCount,
     changedCount,
     expiredCount,
+    ownCount,
+    siblingCount,
+    unattributedCount,
+    chargedCount,
     parkedCount,
     oldestOverdueDays,
     oldestOverdueName,

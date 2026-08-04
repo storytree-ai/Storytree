@@ -96,6 +96,25 @@ exact stale-prose harm ADR-0139 exists to prevent. Fail-open on the substrate is
 or unreadable park ledger reports the would-be breach and exits 0, so a missing machine-local file can
 never block a landing.
 
+**Correction (2026-08-04, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+the ceiling predicate restated just above is APERTURED by
+[ADR-0301](0301-drain-ceilings-charge-by-authorship-verification-decay-and-g.md) D4/D5; the counting
+rule THIS ADR decided is untouched, and neither N nor M moved.** Both axes now charge the live backlog
+MINUS the candidates this session itself wrote — memory frontmatter carries an optional
+`metadata.branch`, and the exclusion is keyed exactly as `friction-drain.ts`'s `isOwnItem`, so a
+**positive** branch match is the only exclusion and **UNATTRIBUTED IS CHARGED**: the queue cannot drain
+by going anonymous. The direction is the friction ceiling's rather than `check:corpus-content`'s
+because the REMEDY is a librarian pass over a shared queue that any session may legitimately run and
+that commits nothing under anyone's name. The authorship split is PRINTED on every path with a live
+queue, charged or not. **What D4 decided — count only new / changed / lease-expired — is exactly what
+still feeds the number**; ADR-0301 changes only whose entries that number holds against the ceiling
+ADR-0252 supplied. Two things it deliberately does NOT change: the substrate guard above still
+SUPPRESSES a computed breach on an absent or unreadable ledger (an unusable ledger reclassifies every
+memory as `new`, measured 4 live → 104, which measures the substrate and not the queue); and the
+machine-shared queue with an unprotected drain — the load-bearing limitation — is **NOT fixed**, and
+ADR-0301 D6 ships provenance as an acknowledged partial rather than claiming otherwise. On the numbers
+that motivated it, the exclusion would have changed nothing.
+
 ## References
 
 - ADR-0095 — the memory→Library graduation loop this amends (D7 librarian pass, D8 rejection norm).

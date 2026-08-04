@@ -45,6 +45,36 @@ test("parseMemoryFile reads name/description/type and the trimmed body", () => {
   assert.equal(m.body, "Body line one.\nBody line two.");
 });
 
+test("parseMemoryFile carries `metadata.branch` through as provenance (ADR-0301)", () => {
+  const m = parseMemoryFile(
+    "stamped.md",
+    ["---", "name: x", "description: d", "metadata:", "  type: user", "  branch: claude/foo-1a2b", "---", "b"].join("\n"),
+  );
+  assert.equal(m.branch, "claude/foo-1a2b");
+});
+
+test("parseMemoryFile leaves `branch` ABSENT — not undefined-valued — on an unstamped memory", () => {
+  // Absence is what the drain ceiling reads as UNATTRIBUTED, and it must charge rather than excuse. It
+  // is also the only shape every pre-ADR-0301 memory has, so this is the common case, not the edge.
+  const m = parseMemoryFile(
+    "unstamped.md",
+    ["---", "name: x", "description: d", "metadata:", "  type: user", "---", "b"].join("\n"),
+  );
+  assert.equal(m.branch, undefined);
+  assert.equal(Object.hasOwn(m, "branch"), false);
+});
+
+test("parseMemoryFile does NOT reject an unknown metadata key — the harness owns this file format", () => {
+  // Making the metadata object strict would turn a harness-added key into an unparseable memory, which
+  // DROPS it from the worklist and makes the backlog look smaller. Under-counting is the wrong way to
+  // fail for a check whose whole job is to bound a backlog.
+  const m = parseMemoryFile(
+    "extra.md",
+    ["---", "name: x", "description: d", "metadata:", "  type: user", "  future: yes", "---", "b"].join("\n"),
+  );
+  assert.equal(m.name, "x");
+});
+
 test("parseMemoryFile yields an empty body when there is none after the fence", () => {
   const m = parseMemoryFile(
     "x.md",

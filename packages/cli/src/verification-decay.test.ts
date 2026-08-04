@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { attributeDecayFindings } from "./decay-attribution.js";
 import {
   CHARTERED_INSTRUMENTS,
   CONTRACT_BINDING_DRIFT,
@@ -604,7 +605,9 @@ describe("the drain ceiling: advisory per finding, fail-closed on the COUNT", ()
 
   it("reports a tally for a CLEAN instrument too, so 0/n is visible rather than absent", () => {
     const v = evaluateDecayCeiling([], at(5));
-    assert.deepEqual(v.tallies, [{ instrument: CONTRACT_BINDING_DRIFT, count: 0, ceiling: 5, level: "ok" }]);
+    assert.deepEqual(v.tallies, [
+      { instrument: CONTRACT_BINDING_DRIFT, count: 0, ceiling: 5, authored: 0, inherited: 0, level: "ok" },
+    ]);
   });
 });
 
@@ -670,7 +673,9 @@ describe("the ceiling is PER INSTRUMENT: unrelated backlogs are not fungible", (
       { name: MIRROR_PAIR_DRIFT, ceiling: 0, locates: "…", run: () => f(1, MIRROR_PAIR_DRIFT) },
     ];
     const text = formatDecaySweep(runDecaySweep(instruments), instruments).lines.join("\n");
-    assert.match(text, /mirror-pair-drift: 1 located, ceiling 0/);
+    // The RED line carries the authorship split since ADR-0301 — with no attribution supplied every
+    // signal is charged, so `1 yours` here IS the fail-closed default rather than a measured verdict.
+    assert.match(text, /mirror-pair-drift: 1 located \(1 yours\), ceiling 0/);
     assert.match(text, /repairing another instrument's signal cannot\s+clear it/);
     assert.match(text, /contract-binding-drift \(1\/5\)/, "the healthy instrument still scores against its own");
   });
@@ -1135,5 +1140,245 @@ describe("unproven-seam-default: the aperture", () => {
     const defaults = extractSeamDefaults(src);
     assert.deepEqual([...defaults.keys()], ["defaultWorktreeIo"]);
     assert.deepEqual(defaults.get("defaultWorktreeIo"), ["defaultStatMtimeMs"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0301: the ceiling charges BY AUTHORSHIP
+// ---------------------------------------------------------------------------
+
+describe("ADR-0301: a ceiling breached on INHERITED signals alone does not block the landing", () => {
+  // `where` is keyed by INSTRUMENT as well as index: two instruments sharing a path would make one's
+  // touched-file set silently attribute the other's signals, which is a fixture artefact and not a
+  // property of the code under test.
+  const f = (n: number, instrument = UNPROVEN_SEAM_DEFAULT): DecayFinding[] =>
+    Array.from({ length: n }, (_, i) => ({
+      instrument,
+      id: `${instrument}${i}`,
+      where: `${instrument}-w${i}.ts`,
+      detail: `d${i}`,
+    }));
+  const at = (ceiling: number, name = UNPROVEN_SEAM_DEFAULT): { name: string; ceiling: number }[] => [
+    { name, ceiling },
+  ];
+  /** Attribute the named ids as inherited; everything else is charged. */
+  const owned = (findings: readonly DecayFinding[], inheritedIds: readonly string[]) =>
+    attributeDecayFindings(findings, {
+      branch: "claude/mine",
+      touchedFiles: new Set(findings.filter((x) => !inheritedIds.includes(x.id)).map((x) => x.where)),
+      crossInput: new Map(),
+      alsoAuthored: new Map(),
+    });
+
+  it("is INHERITED, not red, when the whole breach rests on files identical to the merge base", () => {
+    // THE MEASURED CASE (PR #1119): `unproven-seam-default: 25 located, ceiling 24`, none of it in the
+    // session's diff. Before ADR-0301 that was a RED costing ~15 minutes of stash-and-differential.
+    const findings = f(25);
+    const v = evaluateDecayCeiling(
+      findings,
+      at(24),
+      owned(
+        findings,
+        findings.map((x) => x.id),
+      ),
+    );
+    assert.equal(v.level, "inherited");
+    assert.equal(v.tallies[0]?.authored, 0);
+    assert.equal(v.tallies[0]?.inherited, 25);
+    assert.equal(v.count, 25, "the located COUNT is unchanged — the aperture moved, not the number");
+  });
+
+  it("REDS when even ONE of an over-ceiling backlog is this branch's", () => {
+    const findings = f(25);
+    const v = evaluateDecayCeiling(
+      findings,
+      at(24),
+      owned(
+        findings,
+        findings.slice(1).map((x) => x.id),
+      ),
+    );
+    assert.equal(v.level, "red");
+    assert.equal(v.tallies[0]?.authored, 1);
+  });
+
+  it("stays OK below the ceiling however the signals are attributed", () => {
+    const findings = f(20);
+    assert.equal(evaluateDecayCeiling(findings, at(24), owned(findings, [])).level, "ok");
+    assert.equal(
+      evaluateDecayCeiling(
+        findings,
+        at(24),
+        owned(
+          findings,
+          findings.map((x) => x.id),
+        ),
+      ).level,
+      "ok",
+    );
+  });
+
+  it("with NO attribution supplied, reproduces the pre-ADR-0301 behaviour exactly — charged, red", () => {
+    // The fail-closed default. Attribution is an addition; its absence must never become an excuse.
+    const v = evaluateDecayCeiling(f(25), at(24));
+    assert.equal(v.level, "red");
+    assert.equal(v.tallies[0]?.authored, 25);
+    assert.equal(v.tallies[0]?.inherited, 0);
+  });
+
+  it("charges a finding the attributor never classified, rather than defaulting it to inherited", () => {
+    // A finding missing from `byId` is an attribution GAP. Reading a gap as inherited would let any
+    // classifier bug silently empty the charge.
+    const findings = f(25);
+    const partial = attributeDecayFindings(findings.slice(0, 3), {
+      branch: "b",
+      touchedFiles: new Set(),
+      crossInput: new Map(),
+      alsoAuthored: new Map(),
+    });
+    const v = evaluateDecayCeiling(findings, at(24), partial);
+    assert.equal(v.tallies[0]?.inherited, 3);
+    assert.equal(v.tallies[0]?.authored, 22);
+    assert.equal(v.level, "red");
+  });
+
+  it("scores each instrument's authorship SEPARATELY — an inherited breach cannot absorb an authored one", () => {
+    const inheritedOnly = f(25, UNPROVEN_SEAM_DEFAULT);
+    const mine = f(6, CONTRACT_BINDING_DRIFT);
+    const all = [...inheritedOnly, ...mine];
+    const v = evaluateDecayCeiling(
+      all,
+      [
+        { name: UNPROVEN_SEAM_DEFAULT, ceiling: 24 },
+        { name: CONTRACT_BINDING_DRIFT, ceiling: 5 },
+      ],
+      owned(
+        all,
+        inheritedOnly.map((x) => x.id),
+      ),
+    );
+    assert.equal(v.level, "red", "the authored breach still blocks");
+    assert.equal(v.tallies.find((t) => t.instrument === UNPROVEN_SEAM_DEFAULT)?.level, "inherited");
+    assert.equal(v.tallies.find((t) => t.instrument === CONTRACT_BINDING_DRIFT)?.level, "red");
+  });
+});
+
+describe("ADR-0301: the report answers `are these mine?` instead of leaving it to a differential", () => {
+  const inst = (name: string, ceiling: number, findings: DecayFinding[]): DecayInstrument => ({
+    name,
+    ceiling,
+    locates: "a located region",
+    run: () => findings,
+  });
+  const f = (n: number, instrument = UNPROVEN_SEAM_DEFAULT): DecayFinding[] =>
+    Array.from({ length: n }, (_, i) => ({
+      instrument,
+      id: `${instrument}${i}`,
+      where: `w${i}.ts`,
+      detail: `detail-${i}`,
+    }));
+  const allInherited = (findings: readonly DecayFinding[]) =>
+    attributeDecayFindings(findings, {
+      branch: "claude/mine",
+      touchedFiles: new Set(),
+      crossInput: new Map(),
+      alsoAuthored: new Map(),
+    });
+
+  it("names the PRE-EXISTING BREACH as its own outcome and says the landing is NOT blocked", () => {
+    // The single sentence whose absence cost ~15 minutes. A silent green here would be strictly worse
+    // than the noisy red it replaces, so the WARN and the standing drain obligation are BOTH asserted.
+    const findings = f(25);
+    const instruments = [inst(UNPROVEN_SEAM_DEFAULT, 24, findings)];
+    const verdict = runDecaySweep(instruments, () => allInherited(findings));
+    const { failed, lines } = formatDecaySweep(verdict, instruments);
+    const text = lines.join("\n");
+    assert.equal(failed, false, "an inherited breach must not fail the gate");
+    assert.match(text, /WARN/);
+    assert.match(text, /OVER CEILING ON MAIN/);
+    assert.match(text, /NONE of it authored by this branch/);
+    assert.match(text, /Your landing is NOT blocked/);
+    assert.match(text, /never a raised ceiling/, "the forbidden remedy is still named as forbidden");
+  });
+
+  it("prints every NOT YOURS signal IN FULL — a count would leave the reader to re-derive the rest", () => {
+    const findings = f(3);
+    const instruments = [inst(UNPROVEN_SEAM_DEFAULT, 24, findings)];
+    const text = formatDecaySweep(
+      runDecaySweep(instruments, () => allInherited(findings)),
+      instruments,
+    ).lines.join("\n");
+    assert.match(text, /NOT YOURS \(3\)/);
+    for (const one of findings) assert.match(text, new RegExp(one.detail));
+  });
+
+  it("splits YOURS from NOT YOURS when a breach is mixed", () => {
+    const findings = f(25);
+    const attribution = attributeDecayFindings(findings, {
+      branch: "claude/mine",
+      touchedFiles: new Set(["w0.ts"]),
+      crossInput: new Map(),
+      alsoAuthored: new Map(),
+    });
+    const instruments = [inst(UNPROVEN_SEAM_DEFAULT, 24, findings)];
+    const { failed, lines } = formatDecaySweep(
+      runDecaySweep(instruments, () => attribution),
+      instruments,
+    );
+    const text = lines.join("\n");
+    assert.equal(failed, true);
+    assert.match(text, /YOURS \(1\):/);
+    assert.match(text, /NOT YOURS \(24\)/);
+    assert.match(text, /25 located \(1 yours\), ceiling 24/);
+  });
+
+  it("says so LOUDLY when attribution could not be measured, so a charge is never mistaken for a verdict", () => {
+    const findings = f(25);
+    const instruments = [inst(UNPROVEN_SEAM_DEFAULT, 24, findings)];
+    const attribution = attributeDecayFindings(findings, {
+      branch: null,
+      touchedFiles: new Set(),
+      crossInput: new Map(),
+      alsoAuthored: new Map(),
+      unattributable: "no origin/main ref",
+    });
+    const { failed, lines } = formatDecaySweep(
+      runDecaySweep(instruments, () => attribution),
+      instruments,
+    );
+    const text = lines.join("\n");
+    assert.equal(failed, true, "unmeasured attribution charges — it never excuses");
+    assert.match(text, /ATTRIBUTION UNMEASURED — no origin\/main ref/);
+    assert.match(text, /not a claim that it is yours/);
+  });
+
+  it("an ATTRIBUTOR THAT THROWS degrades to charging everything, and never takes the sweep down", () => {
+    const findings = f(25);
+    const instruments = [inst(UNPROVEN_SEAM_DEFAULT, 24, findings)];
+    const verdict = runDecaySweep(instruments, () => {
+      throw new Error("git exploded");
+    });
+    assert.equal(verdict.level, "red", "a failed attributor is the pre-ADR-0301 behaviour, not a pass");
+    assert.equal(verdict.count, 25, "and the sweep's own findings survive it");
+    assert.deepEqual(verdict.escalations, [], "an attribution failure is NOT a blind instrument");
+  });
+
+  it("an ESCALATION still fails the gate even when every signal is inherited", () => {
+    // The escalation and the ceiling stay independent mechanisms (ADR-0252 D1). Attribution apertures
+    // the CEILING; it must never become a second way to clear an escalation.
+    const instruments: DecayInstrument[] = [
+      {
+        name: UNPROVEN_SEAM_DEFAULT,
+        ceiling: 24,
+        locates: "x",
+        run: () => {
+          throw new Error("loader blew up");
+        },
+      },
+    ];
+    const verdict = runDecaySweep(instruments, (found) => allInherited(found));
+    const { failed, lines } = formatDecaySweep(verdict, instruments);
+    assert.equal(failed, true);
+    assert.match(lines.join("\n"), /ESCALATED/);
   });
 });

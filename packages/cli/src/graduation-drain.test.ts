@@ -8,8 +8,16 @@ import {
   type GraduationDrainContext,
 } from "./graduation-drain.js";
 
-// The gate runs today, against a park ledger that is present and parseable.
-const CTX: GraduationDrainContext = { currentDate: "2026-07-27", ledgerUsable: true };
+// The gate runs today, on a named branch, against a park ledger that is present and parseable. The
+// existing cases all use UNSTAMPED candidates, so every one of them exercises the ADR-0301 charged
+// default: with no `metadata.branch` anywhere, `chargedCount === liveCount` and the pre-ADR-0301
+// behaviour must be reproduced exactly. That is deliberate rather than incidental — the stamp only
+// exists going forward, so an unstamped queue is what every real machine had on the day it landed.
+const CTX: GraduationDrainContext = {
+  currentBranch: "claude/some-session",
+  currentDate: "2026-07-27",
+  ledgerUsable: true,
+};
 const N = DEFAULT_GRADUATION_DRAIN_CONFIG.liveCeiling; // 4
 const M = DEFAULT_GRADUATION_DRAIN_CONFIG.overdueCeilingDays; // 21
 
@@ -201,4 +209,114 @@ test("gd-config-is-injectable: a tightened ceiling reds a queue the default admi
     overdueCeilingDays: M,
   });
   assert.equal(tightened.level, "red");
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0301 — the own-homework exclusion, in `friction-drain.ts`'s direction
+// ---------------------------------------------------------------------------
+
+/** `count` brand-new candidates stamped with a writing branch. */
+function freshFrom(branch: string, count: number, prefix = "m"): GraduationCandidate[] {
+  return Array.from({ length: count }, (_v, i) => ({
+    name: `${prefix}-${branch}-${i}`,
+    status: "new" as const,
+    branch,
+  }));
+}
+
+test("gd-own-not-charged: a session's OWN just-written memories cannot trip its own ceiling", () => {
+  // ADR-0168 D4's property, finally reachable here: "a retro that files its cap-3 can never trip its
+  // own ceiling". N+3 live, ALL this session's, so the charged backlog is 0.
+  const v = evaluateGraduationDrain(freshFrom(CTX.currentBranch ?? "", N + 3), CTX);
+  assert.equal(v.liveCount, N + 3, "the WARN line still counts them — nothing goes quiet");
+  assert.equal(v.ownCount, N + 3);
+  assert.equal(v.chargedCount, 0);
+  assert.equal(v.level, "warn");
+  assert.deepEqual(v.breaches, []);
+});
+
+test("gd-sibling-charged: another session's memories ARE charged — the drain is a librarian pass", () => {
+  // The direction that separates this from `check:corpus-content` (ADR-0290), where a sibling's drift
+  // is never charged. Draining this queue commits nothing under your name, so a sibling's memory is a
+  // legitimate obligation; excusing it would make the ceiling unreachable on a machine-shared queue.
+  const v = evaluateGraduationDrain(freshFrom("claude/someone-else", N + 1), CTX);
+  assert.equal(v.siblingCount, N + 1);
+  assert.equal(v.ownCount, 0);
+  assert.equal(v.chargedCount, N + 1);
+  assert.equal(v.level, "red");
+});
+
+test("gd-unstamped-charged: an UNATTRIBUTED memory is charged, never excused as `not yours`", () => {
+  // The `friction-drain.ts` `isOwnItem` direction exactly. If absence excused, the whole backlog would
+  // drain by going anonymous — and on the day this landed EVERY memory on the machine was unstamped.
+  const v = evaluateGraduationDrain(fresh(N + 1), CTX);
+  assert.equal(v.unattributedCount, N + 1);
+  assert.equal(v.chargedCount, N + 1);
+  assert.equal(v.level, "red");
+});
+
+test("gd-pre-adr0301-parity: an unstamped queue behaves EXACTLY as it did before the exclusion", () => {
+  // The migration guarantee. `chargedCount === liveCount` for every unstamped queue, so nothing about
+  // the ceiling's reach changed on landing day.
+  for (const n of [0, 1, N, N + 1, N + 20]) {
+    const v = evaluateGraduationDrain(fresh(n), CTX);
+    assert.equal(v.chargedCount, v.liveCount, `n=${n}`);
+    assert.equal(v.level, n > N ? "red" : n > 0 ? "warn" : "ok", `n=${n}`);
+  }
+});
+
+test("gd-mixed: own memories are subtracted, and the REMAINDER still reds on its own", () => {
+  const v = evaluateGraduationDrain(
+    [...freshFrom(CTX.currentBranch ?? "", 10, "mine"), ...freshFrom("claude/other", N + 1, "theirs")],
+    CTX,
+  );
+  assert.equal(v.ownCount, 10);
+  assert.equal(v.siblingCount, N + 1);
+  assert.equal(v.liveCount, 10 + N + 1);
+  assert.equal(v.chargedCount, N + 1);
+  assert.equal(v.level, "red");
+  assert.match(v.breaches[0] ?? "", /10 of 15 live excluded as this session's own/);
+});
+
+test("gd-detached-head-charges-everything: with no branch, NOTHING is excluded", () => {
+  // Fail-closed on an unmeasurable session identity: a stamped queue that would otherwise be excluded
+  // is charged in full rather than excused.
+  const queue = freshFrom("claude/mine", N + 1);
+  assert.equal(evaluateGraduationDrain(queue, { ...CTX, currentBranch: null }).chargedCount, N + 1);
+  assert.equal(evaluateGraduationDrain(queue, { ...CTX, currentBranch: null }).level, "red");
+});
+
+test("gd-own-expired-not-stale: the staleness axis skips your own, and still fires on a sibling's", () => {
+  // The two axes must agree about whose backlog they measure, or the exclusion would leak: an own
+  // candidate excluded from the COUNT could still red the gate through the AGE axis.
+  const mine = { ...expiredFor(M + 30, "mine-stale"), branch: CTX.currentBranch ?? "" };
+  assert.equal(evaluateGraduationDrain([mine], CTX).level, "warn");
+  assert.equal(evaluateGraduationDrain([mine], CTX).oldestOverdueDays, null);
+
+  const theirs = { ...expiredFor(M + 30, "their-stale"), branch: "claude/other" };
+  const v = evaluateGraduationDrain([theirs], CTX);
+  assert.equal(v.level, "red");
+  assert.equal(v.oldestOverdueName, "their-stale");
+});
+
+test("gd-substrate-guard-survives: an unusable ledger still SUPPRESSES a charged breach", () => {
+  // Constraint (c), carried verbatim from the parked entry: an absent/unreadable ledger reclassifies
+  // every memory `new` (measured: 4 live becomes 104), so it must suppress rather than red — and the
+  // authorship exclusion must not have quietly become a second path to enforcement.
+  const v = evaluateGraduationDrain(freshFrom("claude/other", N + 1), { ...CTX, ledgerUsable: false });
+  assert.notEqual(v.level, "red");
+  assert.ok(v.breaches.length > 0, "the breach is still COMPUTED");
+  assert.match(v.suppressed ?? "", /park ledger is absent or unreadable/);
+});
+
+test("gd-parked-never-attributed: a parked candidate counts in no authorship column", () => {
+  // Parked candidates are silenced by their lease, not by whose they are — mixing them into the
+  // authorship split would make `own + sibling + unattributed` stop reconciling with `liveCount`.
+  const v = evaluateGraduationDrain(
+    [...parked(5).map((p) => ({ ...p, branch: "claude/other" })), ...freshFrom("claude/other", 2)],
+    CTX,
+  );
+  assert.equal(v.parkedCount, 5);
+  assert.equal(v.siblingCount, 2);
+  assert.equal(v.ownCount + v.siblingCount + v.unattributedCount, v.liveCount);
 });
