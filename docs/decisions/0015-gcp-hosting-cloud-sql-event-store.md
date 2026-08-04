@@ -130,6 +130,18 @@ proven (ADR-0006 ladder; ADR-0012 borrow-when-needed).
 
 ### 5. Cost envelope — **stop/start is the default posture**
 
+> **RE-DECIDED TWICE; THIS SECTION IS HISTORY, NOT CURRENT POSTURE.** *(Corrected in place 2026-08-05
+> under ADR-0139.)* The rest of §5 describes automatic stopping — an idle-aware Cloud Function plus a
+> daily cron floor. [ADR-0114](0114-hosted-db-sleeps-on-a-fixed-1am-7am-sydney-window-replacing.md)
+> replaced the idle function with a fixed 01:00–07:00 Australia/Sydney window, and
+> [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md) D2 then removed
+> that window too. **Nothing stops the instance automatically now — it runs 24/7**, because under
+> online-or-nothing a stopped instance takes CI, the gate, every read command and the hosted studio
+> down together. `infra/idle-stop.tf` and `infra/cost-backstop.tf` are both deleted; `pnpm db:down`
+> survives only as a manual switch. What still STANDS from this section is the cost *analysis* — the
+> instance is the one irreducible compute cost, and the always-on upper bound below is now simply the
+> bill. The remaining cost lever is instance SIZE, not uptime.
+
 - **Cloud SQL is the one irreducible compute cost** — GCP has no scale-to-zero / free-tier
   Postgres (unlike BigQuery's free tier or Cloud Run's), and there is no GCP-native serverless
   Postgres (AlloyDB has no free tier; Spanner is not real-Postgres for DBOS).

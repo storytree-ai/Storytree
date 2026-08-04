@@ -61,6 +61,10 @@ session rewrites. The seed↔live export ceremony ends with it.
 fixed 01:00–07:00 Australia/Sydney sleep window is retired and both Cloud Scheduler jobs are removed
 from `infra/cost-backstop.tf`. Under online-or-nothing that window would otherwise become a nightly
 total outage of CI, the gate, every read command, and the owner's own night approval bursts.
+*(As landed 2026-08-05: `infra/cost-backstop.tf` is deleted OUTRIGHT rather than emptied — with both
+jobs gone, its `sql-stopper` service account and that account's `roles/cloudsql.editor` binding had
+no remaining purpose, and leaving an identity behind that can stop the instance would have been
+orphaned privilege. Nothing else in the repo used Cloud Scheduler.)*
 
 **D3 — CI holds a database credential.** CI stops being DB-free; the DB-dependent checks *run* there
 instead of skipping. This retires the class of local-only reds that repeatedly blocked every session
@@ -83,9 +87,23 @@ gate rungs retires with it. CI and local runs finally measure the same thing, so
 my machine" stops being a standing condition. The corpus gains a single writer path, which removes the
 direction-inference problem that made seed↔live drift so expensive to adjudicate.
 
-**Bad, and accepted.** CI now has a hard dependency on the database: when Postgres is down, nothing
+**Bad, and accepted.** CI gains a hard dependency on the database: when Postgres is down, nothing
 lands. Running Cloud SQL 24/7 costs roughly a third more instance-hours than the 18/24 window the
-cost backstop was built to enforce; the owner accepted this explicitly. *(Corrected in place
+cost backstop was built to enforce; the owner accepted this explicitly.
+
+*(Implementation note, 2026-08-05 — added in place under ADR-0139 so this paragraph is not read as
+already-true. D2 and D3 landed together; the hard dependency is ARMED SEPARATELY and is not yet on.
+Both DB-dependent checks that survive D4 — `check:friction-drain` and `check:arc-proposal-drain` —
+are fail-closed on the QUEUE but fail-OPEN on the SUBSTRATE: they exit 0 when the store is
+unreachable, so a credential alone does not make them gate. This decision did not settle that, and
+the sub-decision taken was an explicit `STORYTREE_DB_REQUIRED` declaration that flips both absence
+arms red, rather than an implicit `if (CI)` — so gate↔CI parity stays a knob a session can also set
+locally (`packages/cli/src/db-required.ts`). It is deliberately NOT set in `ci.yml` yet, because
+arming it is only safe once the owner has run BOTH `terraform apply` (D2's scheduler-job removal) and
+the widened `infra/apply-ci-presence-grants.ts` — until the grants land the CI service account cannot
+read `events.library_artifact` at all, so an armed CI would red every PR on a permission error. Until
+that flip the checks RUN and REPORT in CI without blocking, and the fail-soft posture described above
+is what is live.)* *(Corrected in place
 2026-08-04 under ADR-0139: this paragraph also called a standing GCP credential in GitHub Actions
 "new outward-facing infrastructure and new attack surface". That is **false for this repo** and was
 overstating D3's cost. `infra/ci-presence.tf` already runs a `github-actions` Workload Identity
@@ -136,4 +154,7 @@ and settles the one *decision* D1 was blocked on, leaving migration only.
   narrow grants it must widen.
 - ADR-0300 — staleness instrumentation; this ADR attacks the coupling that instrumentation cannot remove.
 - ADR-0304 — the code half of the same problem.
-- `infra/cost-backstop.tf` — the two Cloud Scheduler jobs D2 removes.
+- `infra/cost-backstop.tf` — the two Cloud Scheduler jobs D2 removes. Deleted 2026-08-05; recover the
+  prior content from git history if a scheduled stop is ever re-decided.
+- `packages/cli/src/db-required.ts` — the `STORYTREE_DB_REQUIRED` policy D3's implementation needed
+  and this ADR did not settle; see the Consequences implementation note.

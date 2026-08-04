@@ -11,21 +11,27 @@ depends_on: [serve-mode, guest-scope]
 
 # The hosted studio wakes its own idle-stopped DB
 
-**Outcome —** When the shared Cloud SQL instance is idle-stopped, an admin presses one button in the
+**Outcome —** When the shared Cloud SQL instance is stopped, an admin presses one button in the
 hosted studio and the DB comes back — keyless, from the container, with no gcloud and no laptop — and
 the page self-recovers; non-admins are refused, and any authenticated user is kept off the billable
 start.
 
 The deciding ADR is [ADR-0049](../../docs/decisions/0049-hosted-studio-self-wakes-its-db.md) (amends
 ADR-0042). Closes the dead end ADR-0042 left: hosted members hit the store-unreachable wall when the
-DB idle-stops (ADR-0015) and had no way back — the existing `/api/db/start` shells out to gcloud on
-the operator's machine, which doesn't exist on Cloud Run.
+DB is stopped and had no way back — the existing `/api/db/start` shells out to gcloud on the
+operator's machine, which doesn't exist on Cloud Run.
+
+> **The trigger changed; the capability did not (ADR-0302 D2).** This was written when the instance
+> stopped on a schedule — ADR-0015's idle-stop, then ADR-0114's 01:00–07:00 Sydney window. Neither
+> exists now: the instance runs 24/7. A stop is therefore UNEXPECTED rather than routine (a manual
+> `db:down`, a maintenance stop, a failed start), which makes this the members' only in-site way back
+> and no less load-bearing than before.
 
 ## Design floor (from ADR-0049)
 
 - **Keyless, container-native wake.** `POST /api/db/wake` reads the runtime SA's metadata token and
-  PATCHes the Cloud SQL Admin REST API (`activationPolicy = ALWAYS`) — the inverse of the
-  cost-backstop's nightly stop, same instance. No gcloud, no key file (ADR-0021). Idempotent;
+  PATCHes the Cloud SQL Admin REST API (`activationPolicy = ALWAYS`) — the same start `pnpm db:up`
+  performs, same instance. No gcloud, no key file (ADR-0021). Idempotent;
   202 `{ok:true}` mirroring `/api/db/start`; the ~1-minute start is observed by the existing
   `/api/health` poll. The gcloud `/api/db/*` path stays off hosted.
 - **Admin-gated, seed-admin while degraded.** Normal mode: admin-only by the policy's method rule.

@@ -2,10 +2,16 @@
 // do we show while access resolves and while the live store is asleep/booting?"
 //
 // The owner principle is HONESTY OVER REASSURANCE (incident 2026-06-27): never imply success,
-// never hang silently. The hosted studio sits on the shared Cloud SQL store, which now sleeps
-// 1am–7am Sydney for cost (ADR-0015) — so a dead "Resolving access…" with no recovery affordance
-// is the common, worst failure. This function turns the raw inputs into a small discriminated
-// union the render switches on, so every transition is honest AND unit-testable without a DOM:
+// never hang silently. The hosted studio sits on the shared Cloud SQL store, and a dead
+// "Resolving access…" with no recovery affordance is the common, worst failure. This function turns
+// the raw inputs into a small discriminated union the render switches on, so every transition is
+// honest AND unit-testable without a DOM:
+//
+// NOTE ON THE `asleep` STATE NAME: it is historical. The store used to be stopped on a schedule
+// (ADR-0015's idle-stop, then ADR-0114's 01:00–07:00 Sydney window); since ADR-0302 D2 the instance
+// runs 24/7 and nothing stops it automatically. The state is still REACHABLE — a manual `db:down`, a
+// maintenance stop or a failed start all land here — but it now means "stopped, unexpectedly", which
+// is what the copy says. Don't re-introduce "it sleeps by design" wording.
 //
 //   • CHECKING       — access is still resolving (BOUNDED by api.me's abort window; it always
 //                      resolves to one of the states below — never an indefinite spinner).

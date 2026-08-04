@@ -1,23 +1,35 @@
-# CI presence-retire backstop (ADR-0033 / ADR-0041, keyless per ADR-0021).
+# The CI database identity (keyless per ADR-0021). Named for session presence, which no longer
+# exists — see infra/ci-presence.md for why the rename is a deliberate non-goal.
 #
-# When a session's PR merges, the CI `automerge` job (.github/workflows/ci.yml) runs the
-# `packages/store/src/ingest-merge.ts` writer to AUTHORITATIVELY retire that session's
-# `events.session` presence row — the "session over" fact the racy SessionEnd hook misses.
+# TWO CONSUMERS in .github/workflows/ci.yml, and they want opposite privileges:
+#   • `automerge` WRITES claim state — packages/notice-board/src/store/ingest-merge.ts releases the
+#     merged branch's `events.node_claim` rows and appends their `events.claim_event` history
+#     (ADR-0138 §4 / ADR-0200; a branch dies on merge, ADR-0142). This replaced the original
+#     presence-retire job when ADR-0200 D7 dropped the `events.session` tables.
+#   • `verify` READS the corpus — `check:friction-drain` and `check:arc-proposal-drain` run against
+#     the live store since ADR-0302 D3, so the drain ceilings stop being local-only reds.
 #
-# That writer talks to Cloud SQL over IAM (no password). For CI to authenticate WITHOUT a
-# long-lived JSON key (the keyless principle — ADR-0021 forbids a key in a GH secret), this
-# wires GitHub Actions OIDC → Workload Identity Federation → a dedicated, least-privilege CI
-# service account that is a Cloud SQL IAM user. GitHub mints a short-lived OIDC token; GCP's
-# STS exchanges it for an impersonated-SA access token; the connector mints the IAM DB token.
+# Both talk to Cloud SQL over IAM (no password). For CI to authenticate WITHOUT a long-lived JSON key
+# (ADR-0021 forbids a key in a GH secret), this wires GitHub Actions OIDC → Workload Identity
+# Federation → a dedicated, least-privilege CI service account that is a Cloud SQL IAM user. GitHub
+# mints a short-lived OIDC token; GCP's STS exchanges it for an impersonated-SA access token; the
+# connector mints the IAM DB token.
 #
-# ── ONE-TIME OWNER STEP (BLOCKING until done) ───────────────────────────────────────────────
-# These resources are created by `terraform apply` run as the owner (Owner-level ADC), because
-# creating a Workload Identity Pool + project IAM bindings needs admin the session ADC lacks.
-# Until applied, the CI auth step is a no-op fail-soft (continue-on-error) — the merge still
-# lands, presence just isn't retried that run. After apply, also run the DB grants once:
-#   terraform apply
+# THIS IDENTITY CANNOT WAKE THE DATABASE, and that is load-bearing rather than an oversight. It holds
+# cloudsql.client + cloudsql.instanceUser only; the wake permission is bound to the STUDIO runtime SA
+# alone (infra/studio-db-wake.tf). That is precisely why ADR-0302 D2 (the instance runs 24/7) had to
+# land before D3 (this credential gates anything): with a nightly sleep window in place, every
+# overnight PR would red on an instance CI has no way to start.
+#
+# ── OWNER-RUN STEPS ─────────────────────────────────────────────────────────────────────────
+# The resources here need Owner-level ADC that an agent session lacks, so `terraform apply` is
+# owner-run. The DB GRANTS are a separate owner run, and must be RE-RUN whenever
+# ci-presence-grants.sql changes — most recently for ADR-0302 D3's corpus SELECT:
+#   cd infra && terraform init && terraform apply
+#   # then, FROM THE REPO ROOT (the path is repo-root-relative):
 #   STORYTREE_DB_USER=hua.mick@gmail.com npx tsx infra/apply-ci-presence-grants.ts
-# Full runbook: infra/ci-presence.md.
+# Until each is done the corresponding consumer degrades rather than breaks — the merge still lands,
+# and the live-store checks report SKIP. Full runbook: infra/ci-presence.md.
 
 variable "github_repository" {
   type        = string
@@ -72,13 +84,14 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 
 resource "google_service_account" "ci_presence" {
   account_id   = "storytree-ci-presence"
-  display_name = "CI presence merge-retire (ADR-0033/0041) — keyless WIF"
+  display_name = "CI database identity — claim release + live-store gate rungs, keyless WIF"
 }
 
 # Connect to + log in as an IAM user on the Cloud SQL instance. Mirrors the studio host SA
 # (infra/studio-cloud.md §1): cloudsql.client (open the connection) + cloudsql.instanceUser
-# (IAM DB login). No broader role — the SQL grants (apply-ci-presence-grants) cap it to the
-# two presence tables.
+# (IAM DB login). No broader role — and NO wake role, deliberately (see the header). What this
+# identity may actually touch is capped by the SQL grants (apply-ci-presence-grants): WRITE on the
+# two claim tables, SELECT on the two library tables, nothing else in the schema.
 resource "google_project_iam_member" "ci_presence_sql_client" {
   project = var.project_id
   role    = "roles/cloudsql.client"
@@ -93,6 +106,17 @@ resource "google_project_iam_member" "ci_presence_sql_instance_user" {
 
 # Let ONLY storytree-ai/Storytree's workflows impersonate the SA (the keyless bridge). The
 # principalSet is scoped by attribute.repository, so a fork / another repo cannot assume it.
+#
+# SCOPED BY REPOSITORY, NOT BY REF — so ANY branch's workflow in this repo can impersonate it, and
+# since ADR-0302 D3 widened the grants that buys corpus READS rather than only claim-row deletes.
+# The owner considered this on 2026-08-04 and ACCEPTED it: ref-scoping cannot work here because
+# `verify` runs on PR branches by definition, the repo is private so only someone who can already
+# push could reach it, and a fork PR gets no token at all. Recorded in ADR-0302's corrected cost
+# note. Do NOT narrow this to a ref condition without re-deciding that.
+#
+# If a ref restriction is ever wanted, it belongs in the PROVIDER's attribute_condition above, not
+# only here — see infra/web-editor-cd.tf for why: a principalSet keyed on attribute.ref matches that
+# ref in ANY repo sharing the pool.
 resource "google_service_account_iam_member" "ci_presence_wif_user" {
   service_account_id = google_service_account.ci_presence.name
   role               = "roles/iam.workloadIdentityUser"
