@@ -747,3 +747,125 @@ test("a-followed-command-declares-its-edge-and-a-bare-one-declares-none: a real 
     assert.ok(shown.stdout.includes(caveatId), `the declaration must surface caveat ${caveatId}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// 9. a real replay draws the branches the session did NOT take
+// ---------------------------------------------------------------------------
+
+/** The lines of the rendered `decision points:` block, or `[]` when the block is absent entirely. */
+function decisionBlockLines(stdout: string): string[] {
+  const lines = stdout.split("\n");
+  const start = lines.findIndex((line) => line === "decision points:");
+  if (start === -1) return [];
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => line.trimEnd() === "" || line.startsWith("coverage-caveats:"));
+  return end === -1 ? rest : rest.slice(0, end);
+}
+
+test("a-real-replay-draws-the-branches-not-taken: a real spawned replay renders every recorded offer's candidates with what the trace says happened to each, and a session that recorded no offer renders no block at all", () => {
+  const dir = freshDir("contract9");
+  const sessionId = "session-contract9";
+  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, STORYTREE_SESSION_ID: sessionId };
+
+  // The offering read, then the follow-up it printed, run verbatim as an agent would paste it.
+  const offering = runCli(["library", "artifact", "plan"], env);
+  assert.equal(offering.status, 0, `expected the offering read to exit 0: ${offering.stderr}`);
+
+  const followUp = offering.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.startsWith("- storytree library artifact arc " + OFFER_FLAG + " "));
+  assert.ok(followUp !== undefined, `the offering read must print a pasteable follow-up; got:\n${offering.stdout}`);
+  const followArgs = followUp.replace(/^- storytree /, "").split(" ");
+
+  const followed = runCli(followArgs, env);
+  assert.equal(followed.status, 0, `expected the followed read to exit 0: ${followed.stderr}`);
+
+  const { replay } = readTraversalSession({ dir, sessionId });
+  const recordedOffer = candidateSetsOf(replay.events)[0];
+  assert.ok(recordedOffer !== undefined, "the offering read must have recorded its offer");
+  const answeringVisit = expectVisit(visitsOf(replay.events)[1], "the answering visit");
+  assert.equal(answeringVisit.nodeId, "arc");
+
+  const shown = runCli(["traversal", "show", sessionId], env);
+  assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
+
+  const block = decisionBlockLines(shown.stdout);
+  assert.ok(block.length > 0, `the replay must render a decision-points block; got:\n${shown.stdout}`);
+
+  // The block names the offer this read actually recorded — not some other set, and not a set id the
+  // test composed.
+  const summary = block.find((line) => line.includes(recordedOffer.candidateSetId));
+  assert.ok(
+    summary !== undefined,
+    `the block must name the recorded offer ${recordedOffer.candidateSetId}; got:\n${block.join("\n")}`,
+  );
+
+  // The candidate lines belonging to THIS offer: from its summary line up to the next summary line.
+  const summaryIdx = block.indexOf(summary);
+  const rest = block.slice(summaryIdx + 1);
+  const nextSummary = rest.findIndex((line) => line.startsWith("  candidate-set:"));
+  const candidateLines = nextSummary === -1 ? rest : rest.slice(0, nextSummary);
+
+  // EVERY offered id reaches the screen — the count rendered equals the count recorded. A picture
+  // that silently drops offers under-reports what was on the table, which is the exact quantity this
+  // arc measures.
+  assert.equal(
+    candidateLines.length,
+    recordedOffer.candidateNodeIds.length,
+    `every recorded candidate must render exactly once; got:\n${candidateLines.join("\n")}`,
+  );
+  for (const nodeId of recordedOffer.candidateNodeIds) {
+    assert.ok(
+      candidateLines.some((line) => line.includes(nodeId)),
+      `offered id ${nodeId} must appear in the block`,
+    );
+  }
+
+  // The branch TAKEN names the visit that answered it.
+  const followedLine = candidateLines.find((line) => line.includes("[followed]"));
+  assert.ok(followedLine !== undefined, "the answered offer must render as followed");
+  assert.ok(followedLine.includes("arc"), "…naming the node that was actually read");
+  assert.ok(
+    followedLine.includes(answeringVisit.visitId),
+    "…and naming the answering visit, so the edge is readable off the picture",
+  );
+
+  // The branches NOT taken are VISIBLE — the whole point of this leg. Before this capability the
+  // replay printed only `candidates=N` and an unfollowed branch appeared nowhere at all.
+  const notFollowed = candidateLines.filter((line) => line.includes("[not-followed]"));
+  assert.ok(
+    notFollowed.length > 0,
+    `at least one offered branch went untaken and must be drawn; got:\n${candidateLines.join("\n")}`,
+  );
+
+  // A `doc:` offer is UNOBSERVABLE, never a declined branch: no CLI read could follow one, so
+  // rendering it as not-followed would over-report how often the session turned an offer down.
+  const docIds = recordedOffer.candidateNodeIds.filter((id) => id.startsWith("doc:"));
+  for (const docId of docIds) {
+    const docLine = candidateLines.find((line) => line.includes(docId));
+    assert.ok(docLine !== undefined, `the doc: offer ${docId} must still be drawn — it really was offered`);
+    assert.ok(docLine.includes("[unobservable]"), "a doc: offer is unobservable, not a branch the session declined");
+    assert.ok(!docLine.includes("[not-followed]"), "…and must never be reported as declined");
+  }
+
+  // THE NEGATIVE HALF, in the same leg: a session that recorded no offer renders no block at all —
+  // the section appears only where a real offer was observed, never as a heading announcing an
+  // absence. Every trace captured before ADR-0260's producers landed has this shape.
+  const bareDir = freshDir("contract9-nooffer");
+  const bareSession = "session-contract9-nooffer";
+  const bareEnvironment = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: bareDir, STORYTREE_SESSION_ID: bareSession };
+  const spec = runCli(["tree", "spec", "context-traversal-telemetry"], bareEnvironment);
+  assert.equal(spec.status, 0, `expected the spec read to exit 0: ${spec.stderr}`);
+
+  const bareReplay = readTraversalSession({ dir: bareDir, sessionId: bareSession });
+  assert.equal(candidateSetsOf(bareReplay.replay.events).length, 0, "this read records no offer");
+  assert.ok(visitsOf(bareReplay.replay.events).length > 0, "…but it did record a visit, so the trace is real");
+
+  const bareShown = runCli(["traversal", "show", bareSession], bareEnvironment);
+  assert.equal(bareShown.status, 0, `expected traversal show to exit 0: ${bareShown.stderr}`);
+  assert.ok(
+    !bareShown.stdout.includes("decision points:"),
+    `a replay with no recorded offer must render no decision block; got:\n${bareShown.stdout}`,
+  );
+});

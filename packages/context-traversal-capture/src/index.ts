@@ -59,6 +59,20 @@ export {
 export type { FollowDeps, FollowedOffer, OfferIdentity } from "./follow-offer-edges.js";
 
 export {
+  computeDecisionPoints,
+  isFollowableOfferId,
+  renderDecisionPoints,
+} from "./decision-point-playback.js";
+export type {
+  CandidateOutcome,
+  DecisionCandidate,
+  DecisionPoint,
+  DecisionPointReport,
+  UnresolvedFollow,
+  UnresolvedReason,
+} from "./decision-point-playback.js";
+
+export {
   renderTraversalSessions,
   renderTraversalSession,
   type TraversalRenderEnvelope,
