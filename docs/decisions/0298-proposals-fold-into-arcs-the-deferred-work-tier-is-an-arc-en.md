@@ -47,9 +47,37 @@ per-artifact bodies read in full):
 | live proposals at the opening measurement | **8** (11 by the time the migration ran — three more arrived from sibling sessions the same day) |
 | proposals reachable from any arc | **0** |
 | proposals whose work plainly belongs to an existing or obviously-chartered arc | **all of them** |
-| proposals in the seed | 0 (they are seed-scope, and every realized one was deleted from the seed by the PR that built it) |
+| proposals in the seed | **not 0 — see the correction below** |
 | arcs live | 35 |
 | arcs chartered to drain the proposal tier | 1 (`proposal-tier-drain-arc`) |
+
+**CORRECTED IN PLACE 2026-08-04 (ADR-0139), and the correction has a live consequence.** The seed row
+above originally read `0 (they are seed-scope, and every realized one was deleted from the seed by the
+PR that built it)`. That was wrong when written, and it is worth being exact about how, because the
+error is what the residue below rests on. The parenthetical is sound only for REALIZED proposals; it
+never accounted for the live, UNREALIZED ones, which were seed-scope too and therefore exported like
+any other seed-scope kind. Measured on this branch from git rather than re-reasoned: the seed carried
+**18** proposals at `3d9d5dbc` (2026-08-03 18:41), **8** at `0d833027` (21:36) and **11** at
+`21e080e5` (22:28 — a commit whose subject is literally *"export the 3 proposals the adjudication
+emitted"*). It was never observed at 0 on the day it was recorded as 0, and the table's own
+neighbouring row — 8 live, rising to 11 — is what it should have agreed with.
+
+THE DECISION IS UNCHANGED and nothing in D1–D7 is reopened: the `proposal` kind is retired, deferred
+work is an arc entry, and the owner ratified that. What the wrong number did was remove the reason to
+clean the seed, so the retirement landed on ONE side only. As of 2026-08-04 the live tier is gone —
+`storytree library artifact list proposal --pg` answers *unknown category "proposal"* — while
+`apps/studio/data/knowledge.json` still holds **10** rows of the retired kind, and the OFFLINE read
+surface still serves them: `storytree library` (no `--pg`, the in-memory seed every DB-free read and
+all of CI use) lists `proposal (10)` as a live category. So the tier reads retired live and alive
+offline. The residue is inert rather than dangerous — all 10 are orphaned, with no `asset:` citation
+to any of them from any non-proposal seed doc (checked across all 218 seed docs this pass), and
+`check:corpus-sync` already excludes them (it reports 196 seed non-agent artifacts against 206 in the
+file, the difference being exactly these 10) — which is also why no gate has ever complained. Removing
+them from the seed is the unlanded half of D7 and is deliberately NOT done here: it is a 10-row
+migration of the highest-contention file in the repo, unrelated to the increment this pass was
+serving, and it is exactly the read-then-delete window `a-tier-retiring-migration-cannot-see-rows-that-arrive-mid-flight`
+was filed about. It wants its own unit on `cli-write-fidelity-arc`, whose
+`sync-corpus-skips-a-live-deletion` entry already sits on the same seam.
 
 Every one is real, adjudicated, ready-to-build engineering work with a declared blast radius — and
 every one is a lane of an initiative that already exists or should. Four are proof-and-gate integrity
