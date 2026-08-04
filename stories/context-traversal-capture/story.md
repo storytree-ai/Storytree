@@ -20,6 +20,7 @@ capabilities:
     agent-ref-descent,
     artifact-offer-candidate-sets,
     offer-follow-edges,
+    decision-point-playback,
   ]
 proof:
   command:
@@ -95,17 +96,21 @@ zod-only because the studio bundles it.
 | 6 | [`agent-ref-descent`](agent-ref-descent.md) | Each floor ref the agents render resolves becomes a child visit naming the agent's visit as its parent, and no other CLI shape descends anything. | `traversal-trace-sink`, `terminal-boundary-observations` |
 | 7 | [`artifact-offer-candidate-sets`](artifact-offer-candidate-sets.md) | A library artifact read records every onward artifact its Sources block offered as a candidate set at render time, whether or not anything follows it. | `traversal-trace-sink`, `terminal-boundary-observations` |
 | 8 | [`offer-follow-edges`](offer-follow-edges.md) | A read invoked with an offer id on the command line stamps that edge on its own visit and records it; a read invoked without one records no edge at all. | `traversal-trace-sink`, `terminal-boundary-observations`, `artifact-offer-candidate-sets` |
+| 9 | [`decision-point-playback`](decision-point-playback.md) | A replay renders each recorded offer's every candidate with what the trace deterministically says happened to it, and surfaces every follow it could not resolve rather than dropping it. | `traversal-trace-sink`, `artifact-offer-candidate-sets`, `offer-follow-edges` |
 
 The graph is acyclic: the sink and the observation table consume only increment 1's vocabulary; the
 query consumes the sink's reader; the activation composes all three.
 
-Capabilities 7 and 8 are this story's contributions to a DIFFERENT arc (`context-decision-tree-arc`,
+Capabilities 7, 8 and 9 are this story's contributions to a DIFFERENT arc (`context-decision-tree-arc`,
 ADR-0260) rather than to `linked-session-context-arc`, whose worklist is complete. They land here
 because the boundary they observe is this story's boundary — the terminal CLI's `library artifact`
 read — and an arc is an initiative overlay, not a hierarchy edge (ADR-0183). Capability 7 records
 what a read OFFERED; capability 8 records which offer a later read ANSWERED, and could not have
 landed first: `FollowedEdgeEvent.candidateSetId` is required and non-optional, so a followed edge is
-uninstantiable until a candidate set exists.
+uninstantiable until a candidate set exists. Capability 9 is the READ side of the same boundary and
+emits nothing at all: both halves are now recorded, but the replay printed only a candidate COUNT, so
+the offered ids never reached the screen and an unfollowed branch stayed invisible — which is the
+whole distance between a containment chain and a decision tree.
 
 ## Declared boundaries
 
@@ -200,6 +205,19 @@ uncertainty and every ADR-0241 honesty rule intact.
    offering the very node it read. That is exactly the join a recency-resolving implementation would
    make, and ADR-0260 D3 refuses it: if the id is not on the command line, there is no edge. The
    missing edge is D4's accepted under-report, and no pass may ever correlate it away.
+9. **A real replay draws the branches the session did NOT take.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In one _(criterion-id: uatc_c52578cfeae287b056726977)_ _(revision-id: uatr1:81cf81492ff1399e)_
+   temporary directory and one session, spawn the real CLI offline and without `--pg`: the offering
+   read (`library artifact plan`), then the follow-up command that read PRINTED, run verbatim as an
+   agent would paste it. Then spawn `traversal show <sessionId>` against the same directory.
+   **Success —** the rendered body carries a `decision points:` block naming the offering read's
+   recorded `candidateSetId`; EVERY id in that read's recorded `candidateNodeIds` appears inside the
+   block, so the count rendered equals the count recorded and no offer is dropped from the picture;
+   the answered one is marked followed and names the answering visit; each of the others is visibly
+   NOT followed, which is the branch-not-taken this arc exists to draw; any `doc:` offer renders as
+   unobservable rather than as a declined branch, so the block never over-reports how often the
+   session turned an offer down. And the negative half, asserted in the same leg: a replay of a
+   session that recorded NO offer carries no `decision points:` block at all — the section appears
+   only where a real offer was observed, never as a heading announcing an absence.
 
 ## Evidence
 
@@ -218,8 +236,8 @@ consumed-by edge and reviewed in the diff, never claimed as this story's evidenc
 
 ## Reliability Gates
 
-Every UAT leg above is `witness: machine`, and each — including legs 7 and 8, added by
-`context-decision-tree-arc`'s first and second build increments — is bound to `context-traversal-capture#gate-1`
+Every UAT leg above is `witness: machine`, and each — including legs 7, 8 and 9, added by
+`context-decision-tree-arc`'s first, second and third build increments — is bound to `context-traversal-capture#gate-1`
 by an explicit `_(proof-gate: …)_` annotation — the binding the resolver looks up VERBATIM, with no
 first-observe fallback and no inference from ordering or `(covers:)`. The gate is what makes those
 legs machine-provable at all: without it a machine leg has no command to resolve to, refuses
@@ -244,9 +262,13 @@ an adoption standing in for a red that never happened.
    were always making a claim about reads), and the offer-answering edge (`offer-follow-edges`),
    whose arrival re-proved this gate a second time rather than around it (ADR-0260 D3 makes the
    offer's id part of the RENDERED surface, so leg 5's "byte-identical envelope" narrowed to the
-   envelope's payload — the claim it was always making) — then signs an `adopted` verdict
-   (`storytree adopt context-traversal-capture --pg`, which observe-and-signs this gate and the eight
-   legs bound to it).
+   envelope's payload — the claim it was always making) — and the decision-point read side
+   (`decision-point-playback`), whose arrival re-proved this gate a THIRD time rather than around it,
+   and which was deliberately built to ADD a derived block rather than change any existing line: legs
+   7 and 8 pin the `[candidate-set]` and `[followed-edge]` lines VERBATIM, so making the offered ids
+   legible by rewriting those lines would have reddened two signed legs to no purpose — then signs an
+   `adopted` verdict (`storytree adopt context-traversal-capture --pg`, which observe-and-signs this
+   gate and the nine legs bound to it).
 
 ## Explicitly outside this increment
 
