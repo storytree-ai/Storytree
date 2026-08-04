@@ -137,9 +137,9 @@ file conflicts).
   `check:agents-sync`, which WARNs if the live tier drifted while the DB is up and — since 2026-07-28 —
   **BLOCKS the local gate** on any drift at all (a zero drain ceiling, ADR-0252 D3; the measured reason
   is in `packages/cli/src/sync-drain.ts`). The remedy is the sync command above, never a raised ceiling.
-  It still SKIPs silently offline, with no creds, or on an unreadable seed (CI is DB-free, so it's
-  local-only), and it never blocks when the seed itself holds no agents — there the sync would delete
-  the live tier.
+  It still SKIPs silently offline, with no creds, or on an unreadable seed (this check is not wired
+  into CI, so it's local-only — CI itself stopped being DB-free under ADR-0302 D3), and it never
+  blocks when the seed itself holds no agents — there the sync would delete the live tier.
 - **GRADUATED A NON-AGENT ARTIFACT INTO THE SEED? migrate it live (ADR-0103):** the ADR-0095
   graduation flow writes a new principle/definition into `knowledge.json` (so the offline agent
   renderer picks it up), which leaves it **seed-only** — invisible to `--pg`, and a `> MISSING REF`
@@ -183,7 +183,8 @@ file conflicts).
   migrate-only, a seed edit can never reach live, so the SEED is sometimes the correct side — three cases
   found so far, two of them MIXED. On drift you did not author, leave it or route it back; spawn
   `librarian-curator` for the per-artifact direction call rather than blind-exporting. SKIPs offline /
-  with no creds, so CI stays DB-free.
+  with no creds, and is not wired into CI (ADR-0302 D3 wired only `check:friction-drain` and
+  `check:arc-proposal-drain`, both now ARMED to red on an unreachable store; this one is a D4 delete).
 - **EXPLORE (read, offline OK):** `storytree library` (dashboard) · `… artifact <id>` ·
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023). Read commands run offline (in-memory seed); no DB needed.

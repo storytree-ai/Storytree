@@ -23,6 +23,13 @@
 // policy is one shared, tested decision in `db-required.ts`; see its header for why it is an explicit
 // declaration rather than an `if (CI)`. The standing **adjudicator duty**, not CI, remains the
 // primary drain either way.
+//
+// CI DECLARES IT, as of 2026-08-05 — `verify` sets `STORYTREE_DB_REQUIRED: '1'` on this step, so
+// there the two absence arms are RED and this rung genuinely gates. That flip is the last step of
+// ADR-0302 D3 and it waited on two owner-run preconditions (the 24/7 instance, and the widened SELECT
+// grants on events.library_artifact); arming ahead of them would have redded every PR on a permission
+// error. A LOCAL gate still skips on an unreachable store unless you set the same variable yourself,
+// which is the point of the knob — it reproduces exactly what CI does.
 
 import { execFileSync } from "node:child_process";
 
@@ -42,8 +49,23 @@ import {
 import { loadLocalSecrets, presentEnv } from "./secrets.js";
 
 const TAG = "[check:friction-drain]";
-/** Bound the live read so a stopped DB can't hang the gate (matches check:corpus-sync). */
-const LIVE_READ_TIMEOUT_MS = 10_000;
+/**
+ * Bound the live read so a stopped DB can't hang the gate.
+ *
+ * RAISED 10s → 30s when this rung was ARMED (2026-08-05). It deliberately no longer matches the
+ * still-10s `check:corpus-sync` family, and the split is the point: those rungs can only ever SKIP,
+ * so a tight bound costs them nothing. This one now REDS on a timeout, and a red here blocks every
+ * merge in the repo — so the two directions are no longer symmetric. Overshooting costs ~20 extra
+ * seconds on a run that is already failing; undershooting blocks the repo on a slow network.
+ *
+ * Measured before choosing, not guessed: on the 2026-08-05 dispatched run this whole STEP took 6s
+ * from a GitHub runner to australia-southeast1 — node startup, tsx, pool, query and close together —
+ * so the query alone had ample room under 10s. Raised anyway, because the headroom erodes silently:
+ * `queryDocs({kind:"friction"})` fetches the ENTIRE worklist including archived rows (278 and
+ * climbing), the runner's region is not pinned, and nothing re-measures this. Note `createPool()`
+ * above is NOT under this bound, so it was never the whole hang-guard.
+ */
+const LIVE_READ_TIMEOUT_MS = 30_000;
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {

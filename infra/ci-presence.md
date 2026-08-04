@@ -81,33 +81,49 @@ STORYTREE_DB_USER=hua.mick@gmail.com npx tsx infra/apply-ci-presence-grants.ts
 $env:STORYTREE_DB_USER='hua.mick@gmail.com'; npx tsx infra/apply-ci-presence-grants.ts
 ```
 
-**Outstanding as of ADR-0302 D3:** the grants gained `SELECT` on `events.library_artifact` and
-`events.library_event`. Until that run happens, `verify`'s two live-store steps hit "permission denied
-for table library_artifact" and — being fail-open on the substrate — print SKIP and pass. Nothing
-breaks; the ceilings simply stay unenforced in CI.
+**APPLIED 2026-08-04** (was outstanding through ADR-0302 D3): the grants gained `SELECT` on
+`events.library_artifact` and `events.library_event`. Verified by a direct
+`information_schema.role_table_grants` probe, not by the script's exit status — the first run went
+against a stale primary checkout and reported success while executing the OLD SQL. **Verify an
+owner-run infra step by its EFFECT.** Before this landed, `verify`'s two live-store steps hit
+"permission denied for table library_artifact" and — being fail-open on the substrate — printed SKIP
+and passed.
 
-## Why a half-wired state is safe
+## How each consumer behaves on a credential failure
 
-Both consumers degrade rather than break. The `automerge` steps are `continue-on-error: true`, so a
-missing credential leaves the merge landing and the claims to be cleared by the session's own closing
-leg. The `verify` steps exit 0 on an absent credential or an unreachable store (fail-closed on the
-queue, fail-open on the substrate) and say so on stdout.
+The two jobs are deliberately opposite, and the asymmetry is the point.
 
-**That fail-open arm is also why a credential alone does not make the ceilings GATE.** The policy, and
+**`automerge` degrades.** Every step is `continue-on-error: true` and the writer never exits non-zero:
+the merge already landed, and claim state is advisory coordination, so a missing credential leaves the
+claims to be cleared by the session's own closing leg. This must never fail the merge job.
+
+**`verify` reds.** Its steps are fail-closed on the QUEUE and were fail-OPEN on the SUBSTRATE — an
+absent credential or an unreachable store exited 0 and said so on stdout. **That arm is why a
+credential alone did not make the ceilings gate**, and it is now closed in CI (below). The policy, and
 why it is an explicit declaration rather than an `if (CI)`, is in
 [`packages/cli/src/db-required.ts`](../packages/cli/src/db-required.ts).
 
-### Arming the ceilings in CI — the last step of ADR-0302 D3
+### The ceilings are ARMED in CI — ADR-0302 D3 is complete
 
-Two edits in `.github/workflows/ci.yml`, and they belong together:
+**Done 2026-08-05**, after both owner-run steps above succeeded and were verified in the cloud. The
+two edits in `.github/workflows/ci.yml` belong together and landed together:
 
-1. add `STORYTREE_DB_REQUIRED: '1'` beside `STORYTREE_DB_USER` on **both** live-store steps, which
-   flips an absent credential and an unreachable store from SKIP to red;
-2. drop `continue-on-error: true` from the `verify` job's GCP auth step — once a skip is no longer
+1. `STORYTREE_DB_REQUIRED: '1'` sits beside `STORYTREE_DB_USER` on **both** live-store steps, flipping
+   an absent credential and an unreachable store from SKIP to red;
+2. `continue-on-error: true` is gone from the `verify` job's GCP auth step — once a skip is no longer
    acceptable, an unauthenticated runner must not look like a pass either.
 
-Do this only after **both** owner steps above have succeeded. Arming first reds every PR on a
-permission error, and the `verify` job has no bypass short of a `hold` label or a draft PR.
+Arming was correctly refused until the preconditions held: on #1146's own `verify` both rungs printed
+`SKIP — live DB not reachable (permission denied for table library_artifact)`, which armed would have
+redded that PR and every one after it, on an instance no session could fix.
+
+**The standing cost, accepted (ADR-0302 Consequences): a Cloud SQL outage now blocks every merge**,
+with no bypass short of a `hold` label or a draft PR. That is the trade — an unverified ceiling is not
+a passed one — and it is why the nightly sleep window had to be retired first (D2 before D3).
+
+**To re-soften, unset BOTH.** Restoring `continue-on-error` while leaving the flag set does not
+restore the old posture: the steps would still red, just two steps later and reading like a database
+outage rather than an auth failure.
 
 ## Scope
 

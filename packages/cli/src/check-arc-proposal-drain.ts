@@ -26,6 +26,14 @@
 // header for why it is an explicit declaration and not an `if (CI)`), so this rung and
 // `check:friction-drain` can never drift apart on it. The standing delivery obligation, not CI,
 // remains what actually drains the board.
+//
+// CI DECLARES IT, as of 2026-08-05 — `verify` sets `STORYTREE_DB_REQUIRED: '1'` on this step, so
+// there both absence arms are RED and this rung genuinely gates. That flip is the last step of
+// ADR-0302 D3; it waited on two owner-run preconditions (the 24/7 instance, and the widened SELECT
+// grants on events.library_artifact), because arming ahead of them would have redded every PR on a
+// permission error. It was armed as a PAIR with the two rungs, since a policy one of them applied
+// and the other did not would be the drift `db-required.ts` exists to prevent. A LOCAL gate still
+// skips unless you set the same variable yourself — that knob reproduces CI exactly.
 
 import { createPool, closePool, PgLibraryStore } from "@storytree/library/store";
 
@@ -46,8 +54,17 @@ import {
 import { loadLocalSecrets, presentEnv } from "./secrets.js";
 
 const TAG = "[check:arc-proposal-drain]";
-/** Bound the live reads so a stopped DB can't hang the gate (matches check:friction-drain). */
-const LIVE_READ_TIMEOUT_MS = 10_000;
+/**
+ * Bound the live reads so a stopped DB can't hang the gate. Matches `check:friction-drain` — both
+ * were RAISED 10s → 30s when they were ARMED (2026-08-05); see that file's constant for the full
+ * reasoning and the measurement it rests on.
+ *
+ * THIS rung is the more exposed of the pair and the reason the raise is not merely precautionary: it
+ * spends ONE budget on TWO `queryDocs` calls (arcs AND the whole friction worklist, below), so it
+ * carries strictly more work than its sibling under what used to be the same 10s. Armed, a timeout
+ * here reds every merge in the repo.
+ */
+const LIVE_READ_TIMEOUT_MS = 30_000;
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {

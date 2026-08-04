@@ -91,19 +91,28 @@ direction-inference problem that made seed↔live drift so expensive to adjudica
 lands. Running Cloud SQL 24/7 costs roughly a third more instance-hours than the 18/24 window the
 cost backstop was built to enforce; the owner accepted this explicitly.
 
-*(Implementation note, 2026-08-05 — added in place under ADR-0139 so this paragraph is not read as
-already-true. D2 and D3 landed together; the hard dependency is ARMED SEPARATELY and is not yet on.
-Both DB-dependent checks that survive D4 — `check:friction-drain` and `check:arc-proposal-drain` —
-are fail-closed on the QUEUE but fail-OPEN on the SUBSTRATE: they exit 0 when the store is
-unreachable, so a credential alone does not make them gate. This decision did not settle that, and
-the sub-decision taken was an explicit `STORYTREE_DB_REQUIRED` declaration that flips both absence
-arms red, rather than an implicit `if (CI)` — so gate↔CI parity stays a knob a session can also set
-locally (`packages/cli/src/db-required.ts`). It is deliberately NOT set in `ci.yml` yet, because
-arming it is only safe once the owner has run BOTH `terraform apply` (D2's scheduler-job removal) and
-the widened `infra/apply-ci-presence-grants.ts` — until the grants land the CI service account cannot
-read `events.library_artifact` at all, so an armed CI would red every PR on a permission error. Until
-that flip the checks RUN and REPORT in CI without blocking, and the fail-soft posture described above
-is what is live.)* *(Corrected in place
+*(Implementation note, 2026-08-05 — added in place under ADR-0139, and updated the same day when the
+last step landed. **The hard dependency above is now LIVE, and that paragraph should be read as
+already-true.** D2 and D3 landed together in #1146; arming was a separate, later step, because the
+sub-decision this ADR did not settle was how the checks bite at all. Both DB-dependent checks that
+survive D4 — `check:friction-drain` and `check:arc-proposal-drain` — are fail-closed on the QUEUE but
+fail-OPEN on the SUBSTRATE: they exit 0 when the store is unreachable, so a credential alone does not
+make them gate. The sub-decision taken was an explicit `STORYTREE_DB_REQUIRED` declaration that flips
+both absence arms red, rather than an implicit `if (CI)` — so gate↔CI parity stays a knob a session
+can also set locally (`packages/cli/src/db-required.ts`).*
+
+*Arming was correctly withheld until it was safe. It required the owner to have run BOTH `terraform
+apply` (D2's scheduler-job removal) and the widened `infra/apply-ci-presence-grants.ts`: without the
+grants the CI service account could not read `events.library_artifact` at all, and #1146's own
+`verify` proved exactly that, printing `SKIP — live DB not reachable (permission denied for table
+library_artifact)` — armed, that would have redded the PR and every one after it, on an instance no
+session could fix. Both owner steps were applied and verified in the cloud on 2026-08-04 (scheduler
+jobs destroyed; `SELECT` granted on `events.library_artifact` / `events.library_event`). `ci.yml` was
+then armed as a coherent PAIR: `STORYTREE_DB_REQUIRED: '1'` on both live-store steps, AND
+`continue-on-error: true` dropped from the `verify` job's GCP auth step — once a skip is no longer
+acceptable, an unauthenticated runner must not look like a pass either. So "when Postgres is down,
+nothing lands" is now literally true of every PR, with no bypass short of a `hold` label or a draft
+PR. `infra/ci-presence.md` carries the mechanics.)* *(Corrected in place
 2026-08-04 under ADR-0139: this paragraph also called a standing GCP credential in GitHub Actions
 "new outward-facing infrastructure and new attack surface". That is **false for this repo** and was
 overstating D3's cost. `infra/ci-presence.tf` already runs a `github-actions` Workload Identity

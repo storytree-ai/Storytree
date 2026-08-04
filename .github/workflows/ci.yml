@@ -251,14 +251,18 @@ jobs:
       #     (packages/cli/src/check-declared.ts) — it judges the dev box's lobby, which CI does not
       #     have. Its skipping here is correct; do not "fix" it.
       # -----------------------------------------------------------------------
-      # FAIL-SOFT FOR NOW, and this must be flipped together with STORYTREE_DB_REQUIRED below. While
-      # the live-store checks cannot gate, an auth hiccup redding `verify` would block every PR for
-      # zero benefit — it would impose the hard DB dependency ADR-0302 accepts, before the thing that
-      # dependency buys is switched on. If auth fails the two steps below simply fail to connect and
-      # report SKIP, which is the same posture the automerge job has always had. When the ceilings
-      # are ARMED, drop this line: an unauthenticated runner must not then look like a pass.
+      # FAIL-LOUD — the other half of ARMING the ceilings, done together with STORYTREE_DB_REQUIRED
+      # below (2026-08-05). This was `continue-on-error: true` while the two steps below could only
+      # SKIP: an auth hiccup redding `verify` would have blocked every PR for zero benefit, before
+      # the thing that hard DB dependency buys was switched on.
+      #
+      # Now that an unread ceiling is a red, an unauthenticated runner must not look like a pass
+      # either. Note the failure is red EITHER WAY once the flag is set — without ADC the steps below
+      # cannot open a pool, so they report "unreachable" and exit non-zero. What dropping this line
+      # buys is an HONEST failure site: `verify` stops at "could not authenticate" instead of two
+      # steps later at something that reads like a database outage. The two halves are ONE posture —
+      # never re-soften this line without also unsetting STORYTREE_DB_REQUIRED below.
       - name: Authenticate to GCP for the live-store checks (keyless WIF — ADR-0021)
-        continue-on-error: true
         uses: google-github-actions/auth@v3
         with:
           # Identical to the automerge job's step below — the same pool, provider and service
@@ -273,21 +277,32 @@ jobs:
       # packages/drive/src/secrets.test.ts); scoping it here removes the question rather than
       # relying on them staying that way.
       #
-      # TO MAKE THESE ACTUALLY GATE, add `STORYTREE_DB_REQUIRED: '1'` beside STORYTREE_DB_USER on
-      # both steps. It is deliberately NOT set yet: both checks exit 0 when the store is unreachable
-      # (fail-closed on the queue, fail-open on the substrate), and until the owner has run BOTH
-      # `terraform apply` (24/7 instance, ADR-0302 D2) AND infra/apply-ci-presence-grants.ts (the
-      # widened SELECT grants), this service account cannot read events.library_artifact at all — so
-      # arming it now would red every PR on a permission error. Until then these steps RUN and
-      # REPORT; the flip is the last step of ADR-0302 D3. See packages/cli/src/db-required.ts.
+      # ARMED 2026-08-05 — the last step of ADR-0302 D3. `STORYTREE_DB_REQUIRED: '1'` turns an absent
+      # credential or an unreachable store from SKIP into RED. Both checks are fail-closed on the
+      # QUEUE but fail-OPEN on the SUBSTRATE, so without this a runner could authenticate, fail to
+      # reach Postgres, print SKIP and merge — a check holding a credential it cannot bite with, which
+      # is exactly the "kept but neutered" outcome ADR-0302 D4 says this work must not produce. See
+      # packages/cli/src/db-required.ts for why it is an explicit declaration and not an `if (CI)`.
+      #
+      # BOTH PRECONDITIONS ARE MET, and arming waited on them deliberately: the instance now runs 24/7
+      # (ADR-0302 D2 — both Cloud Scheduler jobs and the `sql-stopper` SA are destroyed) and the
+      # widened SELECT grants on events.library_artifact / events.library_event are applied. #1146
+      # correctly declined to arm without them: its own verify printed "permission denied for table
+      # library_artifact", which armed would have redded that PR and every one after it.
+      #
+      # THE COST, ACCEPTED: a Cloud SQL outage now blocks every merge, with no bypass short of a
+      # `hold` label or a draft PR. That is ADR-0302's stated trade — an unverified ceiling is not a
+      # passed one — and it is the reason the nightly sleep window had to go first.
       - name: Friction drain ceiling (live store)
         env:
           STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+          STORYTREE_DB_REQUIRED: '1'
         run: pnpm check:friction-drain
 
       - name: Arc parked-work drain ceiling (live store)
         env:
           STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+          STORYTREE_DB_REQUIRED: '1'
         run: pnpm check:arc-proposal-drain
 
   # ---------------------------------------------------------------------------

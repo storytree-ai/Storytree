@@ -18,10 +18,17 @@
 //     on its own machine;
 //   • the flip is auditable in one place — the workflow file — instead of being implicit in a vendor
 //     env var that also happens to be set by other tools;
-//   • it can be turned on independently of the credential landing, which matters because the two
-//     owner-run steps that make CI's credential WORK (`terraform apply` for the 24/7 instance, and
-//     the widened SQL grants) happen after this code merges. Until both have run the SA cannot read
-//     `events.library_artifact`, so a fail-closed CI would red every PR on a permission error.
+//   • it can be turned on independently of the credential landing — and that separation is what let
+//     this ship safely. The two owner-run steps that make CI's credential WORK (`terraform apply`
+//     for the 24/7 instance, and the widened SQL grants) landed AFTER this code merged, and until
+//     they had, the SA could not read `events.library_artifact` at all: #1146's own `verify` printed
+//     `permission denied for table library_artifact`, which armed would have redded every PR. So the
+//     policy merged disarmed and was armed later, on an observed green read rather than on inference.
+//
+// AS OF 2026-08-05 IT IS ARMED IN CI: `verify` sets it on both live-store steps, and the same
+// commit dropped `continue-on-error` from that job's GCP auth step, since an unauthenticated runner
+// must not look like a pass once a skip is no longer acceptable. A Cloud SQL outage now blocks every
+// merge — ADR-0302's accepted trade, and the reason the nightly sleep window was retired first.
 //
 // WHAT "SET" MEANS. Any of `1` / `true` / `yes` / `on` (case- and whitespace-insensitive). `0` /
 // `false` / `no` / `off` / blank / absent all mean NOT required. An unrecognised value is NOT
