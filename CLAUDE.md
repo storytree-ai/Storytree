@@ -133,7 +133,7 @@ file conflicts).
   the inverse of the live-canonical default above. After editing an agent in the seed, reconcile the
   live store: `pnpm db:up && pnpm storytree library sync-agents --pg` (upserts every seed agent,
   deletes any live agent absent from the seed; agent-kind only, idempotent) — else `storytree agents
-  --pg` and the studio go stale. Don't hand-reconcile with a throwaway script. `pnpm gate` ends with
+  --pg` and the studio go stale. Don't hand-reconcile with a throwaway script. `pnpm gate` runs
   `check:agents-sync`, which WARNs if the live tier drifted while the DB is up and — since 2026-07-28 —
   **BLOCKS the local gate** on any drift at all (a zero drain ceiling, ADR-0252 D3; the measured reason
   is in `packages/cli/src/sync-drain.ts`). The remedy is the sync command above, never a raised ceiling.
@@ -146,7 +146,7 @@ file conflicts).
   for any agent that cites it against the live store / studio. Carry it across: `pnpm db:up && pnpm
   storytree library sync-corpus --pg`. This is the INVERSE of `sync-agents`: **migrate-only** — it
   upserts only seed non-agent artifacts ABSENT from live, and (unlike `load-corpus --force`) never
-  overwrites a live edit or deletes a live-only artifact; idempotent. `pnpm gate` ends with
+  overwrites a live edit or deletes a live-only artifact; idempotent. `pnpm gate` runs
   `check:corpus-sync`, which WARNs if a seed artifact is missing from live and — since 2026-07-28 —
   **BLOCKS the local gate** on any such gap (a zero drain ceiling, ADR-0252 D3; the measured reason is
   in `packages/cli/src/sync-drain.ts` — this list had reached 6 while exiting 0, and five of those
@@ -270,6 +270,22 @@ file conflicts).
   remains for the un-repairable shapes: a POPULATED husk (half-`git worktree remove` residue) or main
   not on a `claude/*` branch. Doctor: `node packages/cli/worktree-health.mjs --cwd <slot> [--repair]`.
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (tests are offline — no DB or API key needed)
+- **`pnpm gate` RUNS EVERY STEP — an early red no longer hides the rest (since 2026-08-04).** It was a
+  25-link `&&` chain, so the first red aborted it and every later step was left UNRUN and reported as
+  *nothing at all* — which cost ~25 min of hand re-runs per hit and once hid a genuine
+  `check:corpus-content` RED behind an unrelated flake. It is now a runner over a declared plan
+  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes all 25 steps and prints a per-step
+  **PASS / FAIL / NOT RUN** table. **Read the table, not the tail** — and read `NOT RUN` as
+  *unverified*, never as passed (it appears only under `--fail-fast`, or when a run was interrupted /
+  a step was killed). Any step not passing still exits non-zero, so `pnpm gate:bg` and every
+  exit-code caller are unchanged. Two consequences worth knowing: a FAILING run now takes the full
+  wall clock instead of stopping early, so **background it** (`pnpm gate:bg`, merge-ceremony step 2);
+  and the steps are ordered *own-work first* — the checks and both `-r` legs that judge YOUR diff run
+  ahead of the ones that judge the shared environment (`check:declared`, the live-store sync checks,
+  the drain ceilings), whose red is often a sibling session's. `STORYTREE_GATE_FAIL_FAST=1 pnpm gate`
+  (or `pnpm gate --fail-fast`) restores the old stop-at-first-red for a fast inner loop.
+  **`pnpm -r`'s own halt is NOT fixed**: a flake in one workspace still hides later workspaces' tests
+  *inside* the `pnpm -r test` step — it just no longer skips the thirteen steps behind it.
 - **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (Claude SDK leaf),
   `STORYTREE_DB_USER` (live `--pg` store) from `~/.storytree/secrets.json` when unset — env always
   wins (`packages/drive/src/secrets.ts`; the old `packages/cli/src/secrets.ts` is a re-export shim,

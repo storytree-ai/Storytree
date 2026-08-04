@@ -16,6 +16,13 @@
  * ({@link pruneWorktrees}) gathers, classifies, prints a dry-run plan by default, and only removes
  * under `--force --yes`.
  *
+ * OBSERVABILITY. Every keep carries a machine-readable {@link HoldReason} beside its prose, so a run
+ * can report WHY it drained nothing rather than just that it did. Every executing run appends its
+ * counts to the drain ledger and {@link worktreeDrainStatus} reads that series back as a check that
+ * exits non-zero on a measured stall (`worktree-drain.ts` — worktree-reaper-integrity-arc strand 3).
+ * This is the half that was missing: the reaper was silent on success AND on nothing-to-do, so weeks
+ * of reaping zero looked exactly like health.
+ *
  * SAFETY (this is destructive — every rule errs toward KEEP):
  *   - the primary checkout and the CURRENT worktree are NEVER reaped (force cannot override);
  *   - a worktree whose session holds a live claim on the ledger (--pg, ADR-0200 D6) is kept — its
@@ -34,6 +41,17 @@ import path from "node:path";
 import process from "node:process";
 
 import type { Envelope } from "./envelope.js";
+import {
+  buildDrainRecord,
+  classifyDrainHealth,
+  defaultDrainLedgerIo,
+  drainLedgerPath,
+  formatDrainCensus,
+  formatDrainHealth,
+  readDrainHistory,
+  recordDrainRun,
+  type DrainLedgerIo,
+} from "./worktree-drain.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,6 +59,35 @@ import type { Envelope } from "./envelope.js";
 
 export type WorktreeKind = "registered" | "orphan";
 export type Decision = "reap" | "keep";
+
+/**
+ * WHY a keep was taken — the machine-readable half of {@link WorktreeVerdict.reason}.
+ *
+ * The prose reason is for a human reading one line; this is for COUNTING across the whole registry
+ * (`worktree-drain.ts`). Grouping the keeps is what makes "held back 59 candidates every run for a
+ * week" legible without an owner running a manual stock take — the exact blindness that let the
+ * poisoned idle clock rot for weeks (worktree-reaper-integrity-arc, strand 3). Do not derive these
+ * by matching the reason string: the census must not break when someone rewords a message.
+ *
+ * `cooling` is the one to watch. It means "reapable in EVERY way except idle" — the near-miss cohort
+ * a healthy drain converts into reaps as the clock advances. A cooling cohort that stays large across
+ * a full threshold period while nothing is ever reaped is the poisoned-clock signature.
+ */
+export type HoldReason =
+  /** The primary checkout or this session's own worktree — structural, never reapable. */
+  | "anchor"
+  /** A live claim on the notice board (--pg, ADR-0200 D6). */
+  | "live"
+  /** `git worktree lock` is held (ADR-owner fork: no expiry, no releaser). */
+  | "locked"
+  /** Uncommitted changes present. */
+  | "dirty"
+  /** Branch not merged into origin/main — live work, the healthy reason to hold. */
+  | "unmerged"
+  /** Detached HEAD, kept without `--include-detached`. */
+  | "detached"
+  /** Merged/orphaned and otherwise reapable, but still inside the idle threshold. */
+  | "cooling";
 
 /** The default idle threshold (48 h): older-than ≈ "no live session" (ADR heuristic, tunable). */
 export const DEFAULT_THRESHOLD_MS = 48 * 60 * 60 * 1000;
@@ -93,6 +140,8 @@ export interface WorktreeVerdict {
   readonly kind: WorktreeKind;
   readonly decision: Decision;
   readonly reason: string;
+  /** The keep's machine-readable bucket; null on a reap. Drives the drain census. */
+  readonly hold: HoldReason | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -118,16 +167,30 @@ function samePath(a: string, b: string | null): boolean {
  * the live-session / dirty keeps come FIRST so nothing below can talk them into a reap.
  */
 export function classifyWorktree(s: WorktreeSnapshot, policy: PrunePolicy): WorktreeVerdict {
-  const keep = (reason: string): WorktreeVerdict => ({ ...base(s), decision: "keep", reason });
-  const reap = (reason: string): WorktreeVerdict => ({ ...base(s), decision: "reap", reason });
+  const keep = (hold: HoldReason, reason: string): WorktreeVerdict => ({
+    ...base(s),
+    decision: "keep",
+    reason,
+    hold,
+  });
+  const reap = (reason: string): WorktreeVerdict => ({
+    ...base(s),
+    decision: "reap",
+    reason,
+    hold: null,
+  });
 
   // Absolute keeps — --force NEVER overrides these two (deleting your own cwd or the primary is
   // catastrophic; the task's hard invariant).
-  if (samePath(s.path, policy.primaryRoot)) return keep("primary checkout — never reaped");
-  if (samePath(s.path, policy.currentWorktree)) return keep("current worktree (this session)");
+  if (samePath(s.path, policy.primaryRoot)) return keep("anchor", "primary checkout — never reaped");
+  if (samePath(s.path, policy.currentWorktree)) {
+    return keep("anchor", "current worktree (this session)");
+  }
 
   // A live session is authoritative (--pg): its session id IS this worktree's basename (ADR-0033).
-  if (policy.liveSessions.has(s.name)) return keep("live session on the notice board (--pg)");
+  if (policy.liveSessions.has(s.name)) {
+    return keep("live", "live session on the notice board (--pg)");
+  }
 
   // `git worktree lock` is an explicit "do not touch": the harness holds one for a live claude
   // session and a human holds one to park a worktree deliberately. Reaping through a lock would
@@ -143,11 +206,14 @@ export function classifyWorktree(s: WorktreeSnapshot, policy: PrunePolicy): Work
   // it is a permanent-keep class that only grows. Resolving it (probe the pid, age the lock out, or
   // accept the drift) is an owner decision, deliberately NOT made here.
   if (s.locked) {
-    return keep(`locked (git worktree lock)${s.lockReason !== null ? ` — ${s.lockReason}` : ""}`);
+    return keep(
+      "locked",
+      `locked (git worktree lock)${s.lockReason !== null ? ` — ${s.lockReason}` : ""}`,
+    );
   }
 
   // Uncommitted work is never thrown away.
-  if (s.dirty) return keep("uncommitted changes present");
+  if (s.dirty) return keep("dirty", "uncommitted changes present");
 
   const ageMs = s.mtimeMs > 0 ? policy.now - s.mtimeMs : Number.POSITIVE_INFINITY;
   const idle = ageMs >= policy.thresholdMs;
@@ -155,21 +221,29 @@ export function classifyWorktree(s: WorktreeSnapshot, policy: PrunePolicy): Work
   const thresholdH = Math.round(policy.thresholdMs / 3_600_000);
 
   if (s.kind === "orphan") {
-    if (!idle) return keep(`orphaned but active < ${thresholdH}h ago`);
+    if (!idle) return keep("cooling", `orphaned but active < ${thresholdH}h ago`);
     return reap(`orphaned (absent from git worktree list), idle ${idleFor}`);
   }
 
   // Registered from here.
   if (s.detached) {
     if (!policy.includeDetached) {
-      return keep("detached HEAD (may be an intentional gate) — pass --include-detached to reap");
+      return keep(
+        "detached",
+        "detached HEAD (may be an intentional gate) — pass --include-detached to reap",
+      );
     }
-    if (!idle) return keep(`detached HEAD, active < ${thresholdH}h ago`);
+    if (!idle) return keep("cooling", `detached HEAD, active < ${thresholdH}h ago`);
     return reap(`detached HEAD, idle ${idleFor} (--include-detached)`);
   }
-  if (!s.merged) return keep("branch not merged into origin/main (live work)");
+  if (!s.merged) return keep("unmerged", "branch not merged into origin/main (live work)");
   // merged + clean + not-current + no live row:
-  if (!idle) return keep(`merged but active < ${thresholdH}h ago (a session may be mid closing leg)`);
+  if (!idle) {
+    return keep(
+      "cooling",
+      `merged but active < ${thresholdH}h ago (a session may be mid closing leg)`,
+    );
+  }
   return reap(`merged into origin/main, clean, idle ${idleFor}`);
 }
 
@@ -538,6 +612,34 @@ export interface PruneOptions {
 export interface PruneDeps {
   readonly io?: WorktreeIo;
   readonly now?: () => number;
+  /** The drain ledger seam (worktree-reaper-integrity-arc strand 3); defaults to the real fs. */
+  readonly drain?: DrainLedgerIo;
+}
+
+/**
+ * Gather + classify + CONFIRM-CLEAN — the full survey, shared by `prune` and `drain`.
+ *
+ * The confirm-clean pass runs the (expensive) `git status` dirty probe ONLY on would-be reap targets,
+ * so a live edit is never thrown away and the scan never pays status-per-worktree across the whole
+ * registry. A husk short-circuits to clean with no spawn at all.
+ */
+export function surveyWorktrees(
+  io: WorktreeIo,
+  ctx: GatherContext,
+  policy: PrunePolicy,
+): WorktreeVerdict[] {
+  return gatherSnapshots(io, ctx)
+    .map((s) => classifyWorktree(s, policy))
+    .map((v) =>
+      v.decision === "reap" && worktreeDirty(io, v.path)
+        ? {
+            ...v,
+            decision: "keep" as const,
+            reason: "uncommitted changes present",
+            hold: "dirty" as const,
+          }
+        : v,
+    );
 }
 
 export const DEFAULT_PRUNE_OPTIONS: PruneOptions = {
@@ -584,17 +686,7 @@ export function pruneWorktrees(options: PruneOptions, deps: PruneDeps = {}): Env
     liveSessions: options.liveSessions,
   };
 
-  const snapshots = gatherSnapshots(io, ctx);
-  // Cheap classification first (dirty deferred), then a CONFIRM-CLEAN pass: the git-status dirty probe
-  // runs ONLY on would-be reap targets (a husk short-circuits to clean with no spawn), so a live edit
-  // is never thrown away and the scan never pays status-per-worktree across the whole registry.
-  const verdicts = snapshots
-    .map((s) => classifyWorktree(s, policy))
-    .map((v) =>
-      v.decision === "reap" && worktreeDirty(io, v.path)
-        ? { ...v, decision: "keep" as const, reason: "uncommitted changes present" }
-        : v,
-    );
+  const verdicts = surveyWorktrees(io, ctx, policy);
   const reapAll = verdicts.filter((v) => v.decision === "reap");
   const kept = verdicts.filter((v) => v.decision === "keep");
 
@@ -605,6 +697,8 @@ export function pruneWorktrees(options: PruneOptions, deps: PruneDeps = {}): Env
 
   const execute = options.force && (options.yes || options.hook);
   const counts = summarise(reapAll);
+  const ledgerFile = drainLedgerPath(ctx.worktreesDir);
+  const ledgerIo = deps.drain ?? defaultDrainLedgerIo;
 
   if (!execute) {
     const lines: string[] = [];
@@ -622,10 +716,22 @@ export function pruneWorktrees(options: PruneOptions, deps: PruneDeps = {}): Env
       for (const v of keptShown) lines.push(`  keep  ${v.name}  [${v.kind}]  — ${v.reason}`);
       if (kept.length > keptShown.length) lines.push(`  … and ${kept.length - keptShown.length} more kept.`);
     }
+    // The census closes the truncation above: the per-name keep list is capped at 12, so on a large
+    // registry it hides exactly the cohort worth seeing. Counts are never truncated. A dry run is NOT
+    // recorded on the ledger — it drains nothing by design, and logging it would fake a stall.
+    lines.push(
+      "",
+      ...formatDrainCensus(
+        buildDrainRecord(verdicts, { at: now, executed: false, reaped: 0, failed: 0, capped }),
+      ),
+    );
     return {
       ok: true,
       body: lines.join("\n"),
-      next: ["storytree worktree prune --force --yes   (execute)", "git worktree list"],
+      next: [
+        "storytree worktree prune --force --yes   (execute)",
+        "storytree worktree drain   (is the reaper actually draining?)",
+      ],
     };
   }
 
@@ -654,16 +760,131 @@ export function pruneWorktrees(options: PruneOptions, deps: PruneDeps = {}): Env
     for (const r of reaped) lines.push(`  reaped  ${r.verdict.name}  [${r.verdict.kind}]  (${r.method})`);
   }
 
+  // RECORD THE RUN. This is the whole point of strand 3: an executing run that reaped ZERO now leaves
+  // a durable number behind, so "held back N candidates every run for a week" is a readable series
+  // rather than an absence. A ledger write that fails is reported, never swallowed — an unobserved
+  // drain is the defect, so losing the observation silently would reintroduce it.
+  const record = buildDrainRecord(verdicts, {
+    at: now,
+    executed: true,
+    reaped: reaped.length,
+    failed: failed.length,
+    capped,
+  });
+  const written = recordDrainRun(ledgerIo, ledgerFile, record);
+  if (!options.hook) {
+    const health = classifyDrainHealth(readDrainHistory(ledgerIo, ledgerFile), {
+      now,
+      thresholdMs: options.thresholdMs,
+    });
+    lines.push("", ...formatDrainCensus(record), "", ...formatDrainHealth(health));
+  }
+  if (!written.ok) {
+    lines.push(
+      `${options.hook ? "[worktree prune] " : ""}WARN could not record this run on the drain ledger (${ledgerFile}): ${written.error ?? "unknown error"}`,
+    );
+  }
+
   return {
     ok: true,
     body: lines.join("\n"),
-    next: options.hook ? [] : ["git worktree list", "storytree worktree prune   (dry-run the remainder)"],
+    next: options.hook ? [] : ["storytree worktree drain", "storytree worktree prune   (dry-run the remainder)"],
   };
 }
 
 /** The two anchors classifyWorktree keeps unconditionally — hidden from the dry-run keep list. */
 function isNeverTouch(reason: string): boolean {
   return reason.startsWith("primary checkout") || reason.startsWith("current worktree");
+}
+
+// ---------------------------------------------------------------------------
+// `storytree worktree drain` — the check that can go red
+// ---------------------------------------------------------------------------
+
+export interface DrainStatusOptions {
+  readonly thresholdMs: number;
+  readonly includeDetached: boolean;
+  readonly liveSessions: ReadonlySet<string>;
+}
+
+/**
+ * `storytree worktree drain` — read-only: is the reaper actually draining?
+ *
+ * This is strand 3's answer to "a run that reaps nothing is observable". It reads the ledger every
+ * executing run appends to, classifies the series, and prints today's population census beside it.
+ * It REMOVES NOTHING and needs no DB, so it is safe to run anywhere and cheap enough to wire into a
+ * gate later (the natural follow-up; not wired here to stay off a concurrently-restructured chain).
+ *
+ * It returns `ok: false` — exit 1 — when the drain is STALLED, which is what makes it a check rather
+ * than a report. `warn` states (unproven, stopped, outpaced) exit 0 and say so, mirroring the house
+ * `check:*` idiom where a WARN informs and a FAIL blocks.
+ */
+export function worktreeDrainStatus(
+  options: DrainStatusOptions,
+  deps: PruneDeps = {},
+): Envelope {
+  const io = deps.io ?? defaultWorktreeIo;
+  const ledgerIo = deps.drain ?? defaultDrainLedgerIo;
+  const now = deps.now ? deps.now() : Date.now();
+
+  let ctx: ReturnType<typeof resolveContext>;
+  try {
+    ctx = resolveContext(io);
+  } catch (err) {
+    return {
+      ok: false,
+      body: `could not resolve the git worktree context: ${err instanceof Error ? err.message : String(err)}`,
+      next: ["git status"],
+    };
+  }
+
+  const ledgerFile = drainLedgerPath(ctx.worktreesDir);
+  const history = readDrainHistory(ledgerIo, ledgerFile);
+  const health = classifyDrainHealth(history, { now, thresholdMs: options.thresholdMs });
+
+  // Today's live census — the same survey `prune` runs, so the numbers cannot disagree with it.
+  const verdicts = surveyWorktrees(io, ctx, {
+    now,
+    thresholdMs: options.thresholdMs,
+    primaryRoot: ctx.primaryRoot,
+    currentWorktree: ctx.currentWorktree,
+    includeDetached: options.includeDetached,
+    liveSessions: options.liveSessions,
+  });
+  const record = buildDrainRecord(verdicts, {
+    at: now,
+    executed: false,
+    reaped: 0,
+    failed: 0,
+    capped: 0,
+  });
+
+  const executing = history.filter((r) => r.executed);
+  const lines = [
+    ...formatDrainHealth(health),
+    "",
+    ...formatDrainCensus(record),
+    "",
+    `ledger: ${ledgerFile} — ${history.length} record(s), ${executing.length} executing.`,
+  ];
+  if (executing.length > 0) {
+    lines.push("recent executing runs (newest last):");
+    for (const r of executing.slice(-8)) {
+      lines.push(
+        `  ${new Date(r.at).toISOString()}  pop ${String(r.population).padStart(3)}  reapable ${String(r.reapable).padStart(3)}  reaped ${String(r.reaped).padStart(3)}  cooling ${String(r.held.cooling).padStart(3)}`,
+      );
+    }
+  }
+
+  return {
+    // FAIL is the only red: a stall is a measured defect, a warn is information.
+    ok: health.level !== "fail",
+    body: lines.join("\n"),
+    next: [
+      "storytree worktree prune                  (what would be reaped right now)",
+      "storytree worktree prune --force --yes    (drain it)",
+    ],
+  };
 }
 
 /** The `storytree worktree` help envelope. */
@@ -684,6 +905,11 @@ export function worktreeHelp(): Envelope {
       "                                             registered worktrees merged into origin/main, clean,",
       "                                             and idle; plus orphaned dirs git no longer tracks.",
       "",
+      "  storytree worktree drain                   IS THE REAPER DRAINING? read-only, offline. Reads the",
+      "                                             ledger every executing run appends to and calls it:",
+      "                                             OK / WARN / FAIL, exit 1 on a measured STALL. Prints",
+      "                                             today's population census (holds bucketed) beside it.",
+      "",
       "prune flags:",
       "  --dry-run            (default) print what WOULD be reaped, remove nothing",
       "  --force --yes        actually remove (both required — there is no interactive prompt)",
@@ -699,11 +925,16 @@ export function worktreeHelp(): Envelope {
       "IDLE SIGNAL: newest mtime across the worktree dir, its .git file, and the admin",
       "HEAD/index/ORIG_HEAD. Reflogs are deliberately EXCLUDED — `git gc` rewrites every",
       "worktree's logs/HEAD in one pass, which used to reset the idle clock repo-wide.",
+      "",
+      "DRAIN LEDGER: every EXECUTING run appends one line to .claude/worktrees/.prune-history.jsonl",
+      "(dry runs do not — they drain nothing by design, and recording them would fake a stall).",
+      "`worktree drain` reads that series, so a reaper that has been reaping ZERO is visible without",
+      "an owner running a manual stock take — silence is no longer the signal for 'nothing drained'.",
     ].join("\n"),
     next: [
       'storytree worktree create --node <story> --intent "<what>" --pg',
       "storytree worktree prune",
-      "storytree worktree prune --force --yes",
+      "storytree worktree drain",
     ],
   };
 }

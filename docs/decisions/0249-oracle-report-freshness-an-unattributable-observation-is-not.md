@@ -26,13 +26,14 @@ out-of-band report shows fewer than one assertion. The layer is documented, thro
 **It was fail-OPEN.** The cross-check read a file it had never established belonged to the observation
 it had just made.
 
-- `oracleReportPath(runId, unitId)` returns ONE fixed temp path per (runId, unitId).
-  `resolve-prove-spec.ts` computes it once and closes over it for the proof command's env AND for
-  `verifyGreen` — so CONFIRM_RED, every leaf `run_proof` feedback run, and CONFIRM_GREEN all write and
-  read the same path.
+- `oracleReportPath(runId, unitId)` *(the then-name; since renamed `allocateOracleReportPath` and no
+  longer keyed on those two alone — see the correction under Consequences)* returns ONE fixed temp path
+  per (runId, unitId). `resolve-prove-spec.ts` computes it once and closes over it for the proof
+  command's env AND for `verifyGreen` — so CONFIRM_RED, every leaf `run_proof` feedback run, and
+  CONFIRM_GREEN all write and read the same path.
 - The report body was `{"assertions": N}`: no run nonce, no timestamp, no phase. Nothing in it
   identifies which observation produced it.
-- The protocol bridged that gap with an assumption stated in `oracleReportPath`'s own doc comment —
+- The protocol bridged that gap with an assumption stated in that function's own doc comment —
   "the guard truncates on every run". The guard truncates only if its `process.on("exit")` hook RUNS.
 
 So when a run's exit hook does not fire, nothing truncates, and the spine reads the **previous**
@@ -114,6 +115,24 @@ before the fix and GREEN after.
 - **The reset can only turn a green into a red**, never the reverse — so like ADR-0211's cross-check it
   can never manufacture a pass. The added false-RED surface is a report path the spine cannot clear
   (a permissions or file-lock anomaly on the OS temp dir), which fails loudly and recoverably.
+
+  *(Corrected 2026-08-04 — that enumeration was incomplete, and the missing entry was not an OS anomaly
+  but a consequence of this decision's own shape. Pairing a MANDATORY delete with a DETERMINISTIC path
+  makes every such path a mutual-destruction site: two observers that derive the same name each clear
+  the other's report, and the robbed one reads none and refuses its own honest green. The direction
+  stayed fail-closed — the sentence above is still right that no pass can be manufactured — but the
+  refusal was then a verdict on a stranger rather than on the proof it judged. FIRST SEEN 2026-08-03,
+  three concurrent runs of the orchestrator suite: two honest proofs refused, in one of the three runs.
+  RE-MEASURED 2026-08-04 once tests drove the collision rather than waiting to lose the race: without
+  the fix 3/3 runs exited 1 with 6, 10 and 14 spurious refusals; with it, 4/4 exited 0 with none.
+  `oracleReportPath` is therefore now **`allocateOracleReportPath`**, returning a path unique per CALL
+  (pid + random token; runId/unitId survive in the name for forensic attribution only). This does NOT
+  reopen the run-nonce option rejected under Decision: the token is per-BUILD, allocated once at the
+  one site step 3 already names and closed over, so the spine's CONFIRM command and the leaf's
+  `run_proof` stay byte-identical and the one-oracle property holds. Production was never demonstrated
+  to collide — its single caller passes a real per-run `runId` — so there the hazard was LATENT, and it
+  bit the suites, which keyed the path off fixture constants. The decision above is unchanged and
+  strengthened: freshness by construction now rests on a path no stranger can derive.)*
 - **Negligible cost.** One `rmSync` + one `existsSync` per observation. No env change, no new services.
 - **The leaf's `run_proof` feedback runs still write to the shared path and are still not reset** —
   correctly. Their reports are never trusted; the next CONFIRM observation clears whatever they left.

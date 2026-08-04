@@ -84,6 +84,7 @@ import { fileURLToPath } from "node:url";
 import { extractVouchingTestNames, loadNodeSpec } from "@storytree/orchestrator";
 
 import { attributeDecayFindings, type DecayAttributionEvidence } from "./decay-attribution.js";
+import { GATE_PLAN } from "./gate-order.js";
 import { registeredMirrorRoutes } from "./mirror-conformance.js";
 import {
   CONTRACT_BINDING_DRIFT,
@@ -703,8 +704,16 @@ function loadGateChecks(root: string): GateCheckFacts[] {
   const gate = scripts["gate"];
   if (gate === undefined) throw new Error("the root package.json declares no `gate` script");
 
-  const names = [...new Set([...gate.matchAll(GATE_CHECK)].map((m) => m[1]).filter((n) => n !== undefined))];
-  requireObserved(names.length, "the `gate` script runs no `check:*` steps");
+  // The gate's step list moved OUT of the `gate` script's text on 2026-08-04: the script was a 25-link
+  // `&&` chain and is now a runner over the declared `GATE_PLAN` (parked entry
+  // `gate-runs-every-step-and-reports-per-step`). Scraping `pnpm check:x` tokens out of the script
+  // therefore observes NOTHING and this instrument correctly went blind — read the plan instead, which
+  // is the same roster and can no longer be lost to a change in how the script is spelled. The
+  // {@link GATE_CHECK} fallback stays for a chain-shaped `gate` (a revert, or another checkout).
+  const fromPlan = GATE_PLAN.map((s) => s.check).filter((c) => c !== undefined);
+  const fromScript = [...gate.matchAll(GATE_CHECK)].map((m) => m[1]).filter((n) => n !== undefined);
+  const names = [...new Set(fromPlan.length > 0 ? fromPlan : fromScript)];
+  requireObserved(names.length, "neither GATE_PLAN nor the `gate` script names any `check:*` step");
 
   const checks: GateCheckFacts[] = [];
   for (const script of names) {
@@ -837,6 +846,12 @@ function readGitEvidence(root: string): GitEvidence {
 const WORKSPACE_SHAPE = ["package.json", "pnpm-workspace.yaml"] as const;
 /** Where `mirror-pair-drift` reads its registered-pairs exemption from. */
 const MIRROR_REGISTRY = "packages/cli/src/mirror-conformance.ts";
+/**
+ * Where `warn-list-hygiene` reads its ROSTER from — which checks are swept at all. It moved out of the
+ * `gate` script's text on 2026-08-04 (see {@link loadGateChecks}); the root `package.json` still supplies
+ * each check's COMMAND, so BOTH are cross-inputs and the guard below names both.
+ */
+const GATE_ROSTER = "packages/cli/src/gate-order.ts";
 
 /**
  * Which instruments cannot be split per-file THIS RUN, and why.
@@ -869,11 +884,13 @@ function crossInputGuards(ev: GitEvidence): Map<string, string> {
         "source files are untouched; charged rather than excused",
     );
   }
-  if (ev.touched.has("package.json")) {
+  const touchedRoster = [GATE_ROSTER, "package.json"].filter((f) => ev.touched.has(f));
+  if (touchedRoster.length > 0) {
     guards.set(
       WARN_LIST_HYGIENE,
-      "this branch changed the root package.json — the `gate` script decides which checks are swept at " +
-        "all, so a signal can appear for a check whose own sources are untouched; charged rather than excused",
+      `this branch changed ${touchedRoster.join(", ")} — the gate's ROSTER decides which checks are ` +
+        "swept at all and the root manifest supplies each one's command, so a signal can appear for a " +
+        "check whose own sources are untouched; charged rather than excused",
     );
   }
   return guards;

@@ -6,8 +6,9 @@
 // consequences, one loud and one silent:
 //
 //   LOUD  — `gate-bg.test.ts` spawned `bash <ABSOLUTE WINDOWS PATH>`; Linux bash cannot open
-//           `C:\code\storytree\scripts\gate-bg.sh`, so it exited 127. That red `pnpm -r test`,
-//           which is rung 13 of the 24-rung `&&` gate chain, for EVERY session whose shell resolved
+//           `C:\code\storytree\scripts\gate-bg.sh`, so it exited 127. That red `pnpm -r test` —
+//           then rung 13 of the 24-rung `&&` gate chain, now step 12 of the declared `GATE_PLAN`
+//           — for EVERY session whose shell resolved
 //           bash that way — i.e. every session driving the gate from PowerShell, the primary shell
 //           on this box. Caused by no branch; CI stayed green because CI is Linux. It surfaced only
 //           as `127 !== 1` on an assertion about pipefail, which names neither WSL nor PATH.
