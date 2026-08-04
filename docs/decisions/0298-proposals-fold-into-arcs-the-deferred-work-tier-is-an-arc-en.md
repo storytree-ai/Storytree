@@ -130,6 +130,17 @@ Each entry additionally carries what makes it an *arc* entry rather than a free 
 - `frictionRefs` — the source friction ids. See D3.
 - `realized` — `{ date, pr?, note? }`, absent while parked. Set when the work lands.
 
+(**Amended 2026-08-04 — [ADR-0305](0305-arcs-hold-increments-one-durable-typed-tier-replaces-increme.md)
+D1/D2/D6:** the `proposals` ARRAY is removed. Parked work is an **increment in `proposal` status** —
+the same artifact that later goes `ready`, `active` and `closed` — rather than a second array beside
+`increments`. The decision this clause records is unchanged in substance: parked work still lives on
+an arc, never as a free artifact, and an adjudicator must still find or charter an arc before it can
+park anything. What moves is the container. `parked` and `frictionRefs` move onto the increment
+verbatim, so D3's delivery measurement is unaffected; `realized` is replaced by the increment's own
+`outcome`, which is the same `{date, pr?, note?}` shape. The structural guarantee in D4 — that
+unbuilt work can never sit in the landing log — becomes a status filter rather than two arrays, a
+weakening ADR-0305 D7 accepts and states as an obligation on every arc surface.)
+
 ### D2 — what the `tool` route emits now
 
 Routing a friction item to `tool` requires an ARC ENTRY capturing the remedy, and the friction item

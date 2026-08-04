@@ -76,6 +76,10 @@ curated in the ceremonies, a node in the ADR-0161 context DAG.
   changes and increment-log entries" until ADR-0239; that closed set was the reason closure could be
   *described* in prose and never *reported* as state, and it is corrected here in place per ADR-0139.
   The increment log remains the **durable residue** — history survives plan pruning.
+  (**Amended 2026-08-04 — [ADR-0305](0305-arcs-hold-increments-one-durable-typed-tier-replaces-increme.md)
+  D1/D3:** the `increments[]` ARRAY is removed. The log survives as the arc's *closed increments*,
+  found by the same child query as every other child — the durable residue is preserved by not
+  pruning the artifact, rather than by copying its outcome into an array on the arc.)
 - An arc is not durable guidance: lessons still graduate out through ADR-0095/0168; the arc holds
   state and pointers only.
 - **UI naming:** the studio displays the kind as **"Epic"** by default, with a display toggle to
@@ -107,6 +111,18 @@ traps, escalation points.
 the plan `status` enum — draft / ready / consumed / superseded / retired — stays STORED as the
 consumption machinery reads it, but every surface presents the three-state projection: draft→`open`,
 ready→`active`, consumed/superseded/retired→`archived`.)
+
+(**Amended 2026-08-04 — [ADR-0305](0305-arcs-hold-increments-one-durable-typed-tier-replaces-increme.md):**
+four changes to this clause, none of them to the substrate. The kind is **renamed `increment`**
+(D1). The five-heading body collapses to `objective` + `body` — the decomposition / lanes / budgets
+/ traps headings named above were never distinguished by any reader, and the planner's checklist
+moves into that agent's guidance (D4). The status enum becomes `proposal / ready / active / closed`
+(D2), which also supersedes the ADR-0196 projection recorded directly above. And "consumed plans are
+prunable" is **reversed**: increments are durable and never pruned, because a closed increment IS the
+landing-log entry the arc used to copy into `increments[]` (D3). What is NOT amended: Postgres-only,
+absent from `knowledge.json`, skipped by every seed ceremony, git-anchored, and freshness-checked at
+consumption — the owner's "managing them in git will be a pain" is untouched, and `EPHEMERAL_KINDS`
+keeps this kind as its member.)
 
 ### D3 — Topology: upstream by provenance, edges authored on the child
 
