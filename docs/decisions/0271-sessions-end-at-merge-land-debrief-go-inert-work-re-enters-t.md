@@ -81,6 +81,14 @@ to continue in-thread or hand off to a freshly cut session is the session's own 
 context headroom. ADR-0275 D2's hard ends (a workstream fork, ~3 continuations, degraded context,
 an owner-gated leg) force this clause's inert branch. D2/D3/D4 survive — see D3's own note.]*
 
+*[Extended by ADR-0303 (2026-08-04): this leg fires **after a merge**, which presumes a unit that
+FINISHED. A session blocked MID-unit — needing an owner LOOK, decision, or attestation before its
+work is green — was never in this ADR's scope and so had no ceremony at all: it waited, on an
+unmerged branch, holding a live claim. ADR-0303 gives that case this same machinery, with the arc
+entry standing in for the merge: land what can land green, write the rest onto the owning arc as the
+residue, release the claims, end. The order and every clause above are UNCHANGED — what is added is
+a second ENTRY into them (`merge-ceremony` step 10), not a change to the leg itself.]*
+
 **D2 — The debrief is owner-facing and mandatory.** Its three parts: **(a) what landed** — PR
 number(s) and a plain-language outcome paragraph; **(b) every follow-up chip created, named by its
 chip title** — follow-up work is *chipped as part of the debrief*, not merely mentioned, so the
