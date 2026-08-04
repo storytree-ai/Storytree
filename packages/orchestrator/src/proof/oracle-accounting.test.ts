@@ -175,7 +175,7 @@ test("ATTACK B (process.exit(0) truncation): forges a green UNGUARDED; the accou
 
 test("ATTACK C (remove the accounting hook): a STALE report from the previous observation must never green", async () => {
   // The REAL build sequence over ONE report path — the thing a single-observation test cannot see.
-  // resolve-prove-spec computes oracleReportPath(runId, unitId) ONCE and closes over it for CONFIRM_RED,
+  // resolve-prove-spec calls allocateOracleReportPath ONCE and closes over the result for CONFIRM_RED,
   // every leaf feedback run, and CONFIRM_GREEN. The protocol assumes the guard truncates on every run;
   // source that REMOVES the exit listener never truncates, so the spine reads the PREVIOUS observation.
   const { dir, testRel } = await workspace(IMPL_WRONG);
