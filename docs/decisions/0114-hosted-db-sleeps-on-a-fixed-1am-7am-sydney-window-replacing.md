@@ -1,16 +1,23 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-06-27
 amends: [15]
-load_bearing: true
 ---
 # ADR-0114: Hosted DB sleeps on a fixed 1am-7am Sydney window, replacing idle-aware auto-stop
 
 ## Status
 
-accepted (2026-06-27) — decided/directed by the owner in conversation on 2026-06-27. Design-time
-alignment IS the ratification (ADR-0110); no second end-of-flow ask. Amends ADR-0015 §5 (the
-idle-aware auto-stop mechanism).
+**superseded (2026-08-04) by [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md)**,
+which takes the instance to 24/7 and removes the nightly window entirely — a genuine re-decision of
+this ADR's core, not an amendment to it. Under ADR-0302's online-or-nothing posture the 01:00–07:00
+stop would become a nightly total outage of CI, the gate, every read command, and the owner's own
+night approval bursts. Both Cloud Scheduler jobs this ADR created are removed from
+`infra/cost-backstop.tf` by ADR-0302 D2. The idle-aware auto-stop teardown recorded below STANDS —
+ADR-0302 does not restore it.
+
+Originally accepted (2026-06-27) — decided/directed by the owner in conversation on 2026-06-27.
+Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask. Amends ADR-0015 §5
+(the idle-aware auto-stop mechanism).
 
 ## Context
 
