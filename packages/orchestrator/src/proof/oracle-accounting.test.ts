@@ -5,12 +5,12 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import type { TestObservation } from "../phase-machine.js";
-import { ShellTestExecutor } from "../shell-test-executor.js";
+import { ShellTestExecutor, runShellCommand } from "../shell-test-executor.js";
 import type { ShellCommand, ShellRunResult } from "../shell-test-executor.js";
 import {
   PROOF_REPORT_ENV,
+  allocateOracleReportPath,
   assertOracleGuardUrl,
-  oracleReportPath,
   readAssertionCount,
   resetOracleReport,
   verifyOracleExercised,
@@ -72,11 +72,27 @@ test("add(2,3) === 5", () => {
 });
 `;
 
+/**
+ * Like {@link UNIT_TEST}, but the assertion is preceded by a real async delay — used to
+ * DESYNCHRONISE concurrent observers so their observations overlap rather than marching in step.
+ */
+const SLOW_UNIT_TEST = (implRel: string, delayMs: number): string => `import { test } from "node:test";
+import assert from "node:assert/strict";
+import { add } from "./${implRel}";
+test("add(2,3) === 5", async () => {
+  await new Promise((resolve) => setTimeout(resolve, ${delayMs}));
+  assert.equal(add(2, 3), 5, "add must satisfy the contract");
+});
+`;
+
 /** Write a {test, impl} .mjs pair into a fresh temp workspace and return their paths. */
-async function workspace(impl: string): Promise<{ dir: string; testRel: string }> {
+async function workspace(
+  impl: string,
+  testSource: string = UNIT_TEST("impl.mjs"),
+): Promise<{ dir: string; testRel: string }> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-oracle-"));
   await fs.writeFile(path.join(dir, "impl.mjs"), impl);
-  await fs.writeFile(path.join(dir, "unit.test.mjs"), UNIT_TEST("impl.mjs"));
+  await fs.writeFile(path.join(dir, "unit.test.mjs"), testSource);
   return { dir, testRel: "unit.test.mjs" };
 }
 
@@ -99,15 +115,23 @@ function unguarded(dir: string, testRel: string): ShellTestExecutor {
  */
 function guarded(dir: string, testRel: string, reportPath: string): ShellTestExecutor {
   return new ShellTestExecutor({
-    command: (): ShellCommand => ({
-      file: process.execPath,
-      args: ["--import", assertOracleGuardUrl(), "--test", path.join(dir, testRel)],
-      cwd: dir,
-      env: { [PROOF_REPORT_ENV]: reportPath },
-    }),
+    command: (): ShellCommand => guardedCommand(dir, testRel, reportPath),
     beforeRun: () => resetOracleReport(reportPath),
     verifyGreen: (out: ShellRunResult) => verifyOracleExercised(reportPath, out),
   });
+}
+
+/**
+ * The guarded proof COMMAND itself — one definition, shared by {@link guarded}'s executor wiring and
+ * by the legs below that spawn it directly in order to place a step BETWEEN the spawn and the read.
+ */
+function guardedCommand(dir: string, testRel: string, reportPath: string): ShellCommand {
+  return {
+    file: process.execPath,
+    args: ["--import", assertOracleGuardUrl(), "--test", path.join(dir, testRel)],
+    cwd: dir,
+    env: { [PROOF_REPORT_ENV]: reportPath },
+  };
 }
 
 // ── The load-bearing regressions: each attack forges a green UNGUARDED, and is caught GUARDED ──────
@@ -120,7 +144,7 @@ test("ATTACK A (monkeypatch the oracle): forges a green UNGUARDED; the guard mak
     assert.equal(forged.result, "green", "precondition: unguarded, the monkeypatch DOES forge a green");
 
     // AFTER: the guard freezes node:assert, so `assert.equal = ...` throws at import → the proof reds.
-    const report = oracleReportPath("attack-a", "unit");
+    const report = path.join(dir, "report.json");
     const obs = await guarded(dir, testRel, report).run("t");
     assert.equal(obs.result, "red", "the guard must turn the monkeypatch into a red");
   } finally {
@@ -137,7 +161,7 @@ test("ATTACK B (process.exit(0) truncation): forges a green UNGUARDED; the accou
 
     // AFTER: the exit code is still 0, but the guard's exit hook reports 0 assertions → the green is
     // downgraded to a fail-closed red, WITH a forensic note. This is the vector freeze alone can't stop.
-    const report = oracleReportPath("attack-b", "unit");
+    const report = path.join(dir, "report.json");
     const obs = await guarded(dir, testRel, report).run("t");
     assert.equal(obs.result, "red", "the out-of-band accounting must refuse a 0-assertion green");
     assert.match(obs.note ?? "", /oracle accounting/);
@@ -224,7 +248,7 @@ test("resetOracleReport: clears a stale report, is a no-op when absent, and REFU
 test("HONEST GREEN: a real node:assert test still greens under the guard, and the oracle counted it", async () => {
   const { dir, testRel } = await workspace(IMPL_GOOD);
   try {
-    const report = oracleReportPath("honest", "unit");
+    const report = path.join(dir, "report.json");
     const obs = await guarded(dir, testRel, report).run("t");
     assert.equal(obs.result, "green", "the guard must never false-red an honest proof");
     assert.equal(obs.note, undefined);
@@ -246,7 +270,7 @@ test("tsx fidelity: the guard defeats the monkeypatch under `node --import tsx -
       path.join(dir, "unit.test.ts"),
       `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { add } from "./impl.ts";\ntest("t", () => { assert.equal(add(2, 3), 5); });\n`,
     );
-    const report = oracleReportPath("tsx", "unit");
+    const report = path.join(dir, "report.json");
     const exec = new ShellTestExecutor({
       command: (): ShellCommand => ({
         file: process.execPath,
@@ -306,8 +330,121 @@ test("verifyOracleExercised: a positive count is OK; zero and a missing report a
   }
 });
 
-test("oracleReportPath: sanitises runId/unitId and stays OUTSIDE any worktree (the OS temp dir)", () => {
-  const p = oracleReportPath("run/../weird 1", "unit:id");
+test("allocateOracleReportPath: sanitises runId/unitId and stays OUTSIDE any worktree (the OS temp dir)", () => {
+  const p = allocateOracleReportPath("run/../weird 1", "unit:id");
   assert.equal(path.dirname(p), os.tmpdir(), "the report must live in the OS temp dir, never the worktree");
   assert.doesNotMatch(path.basename(p), /[/\\:]/, "unsafe path chars are sanitised out of the filename");
+  // runId/unitId survive (sanitised) so a leaked report is attributable to the build that made it.
+  assert.match(path.basename(p), /^storytree-proof-oracle-run_\.\._weird_1-unit_id-/);
+});
+
+test("allocateOracleReportPath: every call returns a DISTINCT path, even for the same (runId, unitId)", () => {
+  // The deterministic guard behind the two concurrency legs below. Two observers proving the same unit
+  // at the same moment must not be able to derive one shared path — on a shared path each observer's
+  // ADR-0249 reset destroys the other's evidence. Asserted here without racing anything, so the
+  // property cannot regress silently and be caught only by a flake.
+  const paths = Array.from({ length: 64 }, () => allocateOracleReportPath("same-run", "same-unit"));
+  assert.equal(new Set(paths).size, paths.length, "allocated report paths must never repeat");
+});
+
+// ── CONCURRENCY: the report path must belong to exactly ONE observer ────────────────────────────
+//
+// The report lives in the SHARED OS temp dir, and ADR-0249 makes every observation DELETE it first.
+// Those two facts compose into a hazard the freshness protocol alone does not address: if two
+// observers can ever derive the SAME path, each one's reset destroys the other's evidence, and the
+// robbed observer reads `null` and refuses its green. That refusal is the SAFE direction — these legs
+// never soften it — but the input was contaminated, so the red says nothing about the proof it judged.
+//
+// MEASURED 2026-08-03 (Windows), three concurrent runs of the orchestrator suite: two tests refused a
+// green with "no assertion report was written". Both were honest proofs robbed by their own twin in a
+// sibling run, because the suites keyed the path off HARDCODED fixture constants — identical in every
+// run. The production hazard is LATENT rather than demonstrated: the one production caller passes a
+// real per-run `runId`, so real builds collide only if a runId ever repeats.
+//
+// These two legs are the only ones that allocate a REAL report path — they are what the allocator's
+// uniqueness is FOR, so substituting a workspace-local path would test nothing. Every other leg keeps
+// its report inside its own temp workspace. Both legs therefore delete what they allocate: a per-call
+// unique path is never overwritten by a rerun, so leaving them behind would grow the OS temp dir.
+
+test("CONCURRENT SIBLINGS (forced interleaving): a sibling proving the same unit must not delete this observation's report", async () => {
+  const mine = await workspace(IMPL_GOOD);
+  const sibling = await workspace(IMPL_GOOD);
+  const allocated: string[] = [];
+  try {
+    // Two observers, each allocating its own report path for the SAME (runId, unitId) — the shape two
+    // concurrent proofs of one unit produce. Nothing here is stubbed: both paths come from the
+    // production allocator, the reset and the read are the production functions, and the proof child
+    // and its guard are real. Only the ORDERING is chosen rather than raced for, so the leg pins the
+    // exact mechanism instead of re-rolling the dice the 2026-08-03 measurement happened to lose.
+    const minePath = allocateOracleReportPath("same-run", "same-unit");
+    const siblingPath = allocateOracleReportPath("same-run", "same-unit");
+    allocated.push(minePath, siblingPath);
+
+    // MY observation, decomposed exactly as ShellTestExecutor.run sequences it (reset → spawn → read),
+    // so the sibling's reset can be placed in the window between my guard's write and my read.
+    assert.deepEqual(resetOracleReport(minePath), { ok: true });
+    const out = await runShellCommand(guardedCommand(mine.dir, mine.testRel, minePath));
+    assert.equal(out.code, 0, "precondition: my honest proof exits 0");
+    assert.ok((readAssertionCount(minePath) ?? 0) >= 1, "precondition: my guard wrote MY report");
+
+    // ── the sibling begins ITS observation here: reset the path IT allocated, then spawn. Its proof
+    // is deliberately left IN FLIGHT — the damaging interleaving is the sibling's reset landing after
+    // my guard's write and before my read, while the sibling's own guard has not yet written. Awaiting
+    // it first would let the sibling's report stand in for mine and hide the collision.
+    assert.deepEqual(resetOracleReport(siblingPath), { ok: true });
+    const siblingRun = runShellCommand(guardedCommand(sibling.dir, sibling.testRel, siblingPath));
+
+    // ── I now read back what must still be MY evidence ──
+    const verdict = verifyOracleExercised(minePath, out);
+    const siblingOut = await siblingRun;
+    assert.equal(siblingOut.code, 0, "precondition: the sibling's honest proof also exits 0");
+    assert.deepEqual(
+      verdict,
+      { ok: true },
+      "a sibling observation must not be able to destroy this observation's assertion report",
+    );
+  } finally {
+    await fs.rm(mine.dir, { recursive: true, force: true });
+    await fs.rm(sibling.dir, { recursive: true, force: true });
+    await Promise.all(allocated.map((p) => fs.rm(p, { force: true })));
+  }
+});
+
+test("CONCURRENT SIBLINGS (real parallelism): overlapping honest proofs of the same unit all keep their green", async () => {
+  // The faithful reproduction: real OVERLAPPING observers, each a full ShellTestExecutor observation
+  // (reset → real guarded child → read), all proving the same (runId, unitId) at once — what three
+  // concurrent runs of this suite did on 2026-08-03. Staggered proof durations and repeated rounds
+  // desynchronise them, so one observer's reset lands inside another's write→read window instead of
+  // every observer marching in step. Every one of these proofs is honest, so every one must green.
+  const OBSERVERS = 6;
+  const ROUNDS = 3;
+  const spaces = await Promise.all(
+    Array.from({ length: OBSERVERS }, (_unused, i) =>
+      workspace(IMPL_GOOD, SLOW_UNIT_TEST("impl.mjs", i * 40)),
+    ),
+  );
+  const allocated: string[] = [];
+  try {
+    const observed = await Promise.all(
+      spaces.map(async ({ dir, testRel }) => {
+        const report = allocateOracleReportPath("parallel-run", "parallel-unit");
+        allocated.push(report);
+        const exec = guarded(dir, testRel, report);
+        const rounds: TestObservation[] = [];
+        for (let round = 0; round < ROUNDS; round += 1) {
+          rounds.push(await exec.run("t"));
+        }
+        return rounds;
+      }),
+    );
+    const refused = observed.flat().filter((obs) => obs.result !== "green");
+    assert.deepEqual(
+      refused.map((obs) => obs.note ?? "(refused with no note)"),
+      [],
+      "an honest proof must never be refused because a concurrent sibling cleared its report",
+    );
+  } finally {
+    await Promise.all(spaces.map(({ dir }) => fs.rm(dir, { recursive: true, force: true })));
+    await Promise.all(allocated.map((p) => fs.rm(p, { force: true })));
+  }
 });

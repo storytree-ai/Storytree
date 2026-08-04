@@ -27,6 +27,7 @@
  * does not count, so they keep exit-code-only observation for now — a documented narrower follow-on.
  */
 
+import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -47,26 +48,48 @@ export function assertOracleGuardUrl(): string {
 }
 
 /**
- * A per-build report path OUTSIDE any git worktree (the OS temp dir), so the guard writing it can
- * never dirty the tree the GATE proves clean. Keyed by runId+unitId so concurrent builds never clash.
+ * ALLOCATE a report path for ONE observation sequence, OUTSIDE any git worktree (the OS temp dir) so
+ * the guard writing it can never dirty the tree the GATE proves clean.
  *
- * ONE path is REUSED by every observation of the build (CONFIRM_RED, each leaf feedback run,
- * CONFIRM_GREEN), and the report body carries no run identity — so a count read off this path is NOT
- * self-evidently this observation's. It becomes attributable only because {@link resetOracleReport}
- * clears it first; the original protocol instead assumed "the guard truncates on every run", which is
- * false whenever the guard's exit hook does not fire (ADR-0249).
+ * CALL IT ONCE PER BUILD AND CLOSE OVER THE RESULT. The single path is REUSED by every observation of
+ * that build (CONFIRM_RED, each leaf feedback run, CONFIRM_GREEN), and the report body carries no run
+ * identity — so a count read off it is NOT self-evidently this observation's. It becomes attributable
+ * only because {@link resetOracleReport} clears it first; the original protocol instead assumed "the
+ * guard truncates on every run", which is false whenever the guard's exit hook does not fire (ADR-0249).
+ *
+ * WHY THE RETURN IS UNIQUE PER CALL, not a pure function of (runId, unitId). The report lives in the
+ * SHARED OS temp dir and ADR-0249 makes every trusted observation DELETE it first, so a path two
+ * observers can both derive is a path on which each destroys the other's evidence: the robbed observer
+ * reads no report and refuses its green. That refusal is the correct, fail-closed direction — but its
+ * input was contaminated by a stranger, so the red says nothing about the proof it judged. Keying on
+ * (runId, unitId) alone carried exactly that hazard: it separates DIFFERENT units but not two
+ * concurrent observations of the SAME one. MEASURED 2026-08-03, three concurrent runs of the
+ * orchestrator suite: two honest proofs were refused with "no assertion report was written", each
+ * robbed by its own twin in a sibling run, because the suites keyed the path off hardcoded fixture
+ * constants. Production was never demonstrated to collide — its one caller passes a real per-run
+ * `runId` — so that hazard was LATENT, and this makes it unreachable rather than unlikely.
+ *
+ * runId/unitId are kept in the NAME (sanitised) purely so a leaked report is attributable to the build
+ * and unit that made it; `pid` names the owning process. Uniqueness itself rests on the random token.
+ *
+ * The compute-once discipline is not merely convention — it FAILS CLOSED when broken. A caller that
+ * re-allocates instead of closing over the value resets one fresh path and reads another, so it finds
+ * no report and refuses the green LOUDLY. The mistake cannot manufacture a pass.
  */
-export function oracleReportPath(runId: string, unitId: string): string {
+export function allocateOracleReportPath(runId: string, unitId: string): string {
   const safe = `${runId}-${unitId}`.replace(/[^A-Za-z0-9._-]/g, "_");
-  return path.join(os.tmpdir(), `storytree-proof-oracle-${safe}.json`);
+  return path.join(
+    os.tmpdir(),
+    `storytree-proof-oracle-${safe}-${process.pid}-${randomUUID()}.json`,
+  );
 }
 
 /**
  * CLEAR the report before an observation the spine intends to TRUST — the freshness half of the
  * protocol (ADR-0249).
  *
- * Why it is load-bearing: {@link oracleReportPath} hands back ONE fixed path per (runId, unitId), and
- * the resolver closes over it for CONFIRM_RED, every leaf feedback run, and CONFIRM_GREEN. The report
+ * Why it is load-bearing: {@link allocateOracleReportPath} hands back ONE path per build, and the
+ * resolver closes over it for CONFIRM_RED, every leaf feedback run, and CONFIRM_GREEN. The report
  * body carries no identity, so the spine cannot tell WHICH observation wrote the count it is reading.
  * The protocol leaned on "the guard truncates on every run" — but the guard's `process.on("exit")` hook
  * only truncates if it RUNS, and IMPLEMENT-phase source can simply
