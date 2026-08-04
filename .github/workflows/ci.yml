@@ -6,17 +6,38 @@ name: CI
 # trigger the push run (GitHub anti-recursion — same reason the deploy dispatch exists), so after
 # an affected-only merge it dispatches a full run on main here instead. A dispatched run takes the
 # full `-r` path (the affected step is PR-only).
+#
+# `merge_group` is the MERGE QUEUE half of ADR-0304 (D3/D4). GitHub's native queue builds a temporary
+# branch holding this PR on top of the PRs already queued ahead of it — the PROJECTED post-merge trunk
+# — and asks for checks on it. Without this trigger the required checks would never run on a queue
+# entry and every queued PR would sit forever, so THIS TRIGGER IS THE PREREQUISITE, and it is inert
+# until the queue is switched on.
+#
+# SWITCHING IT ON IS A REPO SETTING, NOT A FILE, and therefore not this workflow's to do (verified
+# 2026-08-04: `main` carries no ruleset and no branch protection). The owner-side flip is:
+#   1. a ruleset / branch-protection rule on `main` with "Require merge queue" enabled,
+#   2. `verify` marked as a required status check on it,
+#   3. repo setting `delete_branch_on_merge` turned on — the queue merges the PR itself, so the
+#      `--delete-branch` flag the automerge job passes no longer does the deleting.
+# Until then nothing below changes: `gh pr merge` merges directly exactly as it does today. The
+# automerge job is written to be correct on BOTH sides of that flip — see its merge step.
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 # A new push to the same PR/branch supersedes an in-flight run.
+#
+# NEVER for a merge-queue run: each queue entry gets its own `refs/heads/gh-readonly-queue/...` ref so
+# nothing would collide anyway, but a cancelled check reads to the queue as a FAILED one and evicts the
+# PR. Turning cancellation off for `merge_group` makes that impossible rather than merely unlikely.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -168,14 +189,17 @@ jobs:
       - name: web experience guarded
         run: pnpm check:web-experience
 
-      # Affected-only PR scope (ADR-0195, amends ADR-0022): classify the PR's changed files and,
+      # Affected-only PR scope (ADR-0195, amends ADR-0022; ADR-0304 D2 puts the SAME classifier
+      # behind the local `pnpm gate`): classify the PR's changed files and,
       # when every one maps cleanly into the workspace graph, narrow typecheck+test to the changed
       # projects PLUS their dependents (pnpm's `--filter "...<name>"`). Conservative by
       # construction — any root-path file (stories/**, docs/decisions/**, scripts/**, lockfile, …),
       # any package.json, or the cross-boundary corpus seed (apps/studio/data/**) forces the full
       # `-r` run, because those inputs are read by tests the dependency graph can't see. The
       # push-to-main run below never narrows (`|| '-r'` when this step is skipped) — the backstop
-      # that keeps main green if a PR gate ever under-selects; fix forward from there.
+      # that keeps main green if a PR gate ever under-selects; fix forward from there. A MERGE-QUEUE
+      # run never narrows either (this step is PR-only): the queue's whole job is proving the
+      # PROJECTED post-merge trunk, so the full `-r` suite is the correct scope there.
       - name: Affected scope (PRs only)
         id: affected
         if: github.event_name == 'pull_request'
@@ -216,14 +240,33 @@ jobs:
       id-token: write # mint the WIF OIDC token for keyless GCP auth (presence-retire below)
       actions: write # dispatch deploy-studio.yml after a studio-affecting merge (ADR-0061)
     steps:
-      - name: Merge now that the gate is green
+      # ADR-0304 D4: the merge ceremony is unchanged in shape — a session opens a non-draft PR and
+      # never merges by hand. What changes once the queue is switched on is WHERE the merge happens.
+      # `gh pr merge` handles both without a flag change: against a base branch that requires a merge
+      # queue it ADDS THE PR TO THE QUEUE instead of merging it (gh's own documented behaviour), and
+      # the queue merges it later, against projected trunk.
+      #
+      # So the outcome has to be READ BACK, not assumed. Every step after this one is post-MERGE work
+      # — releasing the branch's claims, deploying the merged tree — and running it against a PR that
+      # is merely QUEUED would release claims early and deploy a `main` the PR is not in yet.
+      - name: Merge now that the gate is green (or enter the merge queue)
+        id: merge
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh pr merge ${{ github.event.pull_request.number }}
-          --repo ${{ github.repository }}
-          --merge
-          --delete-branch
+        run: |
+          set -euo pipefail
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --merge \
+            --delete-branch
+          merged=$(gh pr view ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} --json merged --jq '.merged')
+          echo "merged=$merged" >> "$GITHUB_OUTPUT"
+          if [ "$merged" = "true" ]; then
+            echo "Merged directly — no merge queue on this base branch."
+          else
+            echo "::notice::Handed to the merge queue (ADR-0304 D3). The queue will test this PR against projected trunk and merge it in order; the post-merge steps below are skipped for this run."
+          fi
 
       # -----------------------------------------------------------------------
       # Claim-release backstop (ADR-0138 §4 / ADR-0200): the merge that just
@@ -242,13 +285,22 @@ jobs:
       # under the old `claude/*` gate (a presence-era assumption; presence retired
       # with ADR-0200 D7). A branch with no claims is a clean no-op in the writer.
       # Auth is keyless WIF (ADR-0021) — no JSON key in a secret.
+      #
+      # `steps.merge.outputs.merged == 'true'` on every step from here down is the
+      # merge-queue guard (ADR-0304 D3): this is post-MERGE work, and a QUEUED PR
+      # has not merged yet. Today that expression is always true, so nothing about
+      # this job's behaviour changes until the queue is switched on. The explicit
+      # `success() &&` preserves the implicit condition an `if:` would otherwise
+      # replace — a failed earlier step must still skip these, as it does now.
       # -----------------------------------------------------------------------
       - name: Checkout (for the claim-release writer)
+        if: success() && steps.merge.outputs.merged == 'true'
         continue-on-error: true
         uses: actions/checkout@v6
 
       - name: Authenticate to GCP (keyless WIF — ADR-0021)
         id: gcp_auth
+        if: success() && steps.merge.outputs.merged == 'true'
         continue-on-error: true
         uses: google-github-actions/auth@v3
         with:
@@ -259,12 +311,14 @@ jobs:
           service_account: storytree-ci-presence@storytree-498613.iam.gserviceaccount.com
 
       - name: Set up pnpm
+        if: success() && steps.merge.outputs.merged == 'true'
         continue-on-error: true
         uses: pnpm/action-setup@v6
         with:
           version: 9.15.0
 
       - name: Set up Node
+        if: success() && steps.merge.outputs.merged == 'true'
         continue-on-error: true
         uses: actions/setup-node@v6
         with:
@@ -272,12 +326,14 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        if: success() && steps.merge.outputs.merged == 'true'
         continue-on-error: true
         run: pnpm install --frozen-lockfile
 
       # Releases the merged branch's node_claim rows (ADR-0138 §4 — the guaranteed machine
       # clear of the wisp-claim, keyed on the head-ref branch). Fail-soft.
       - name: Release the merged branch's claims (fail-soft)
+        if: success() && steps.merge.outputs.merged == 'true'
         continue-on-error: true
         env:
           # The CI service account's Cloud SQL IAM username (the `.iam` short form —
@@ -299,9 +355,16 @@ jobs:
       # spend the minutes the affected scope just saved. Fail-soft: a missed
       # dispatch degrades the backstop to the next full-scoped run on main, and
       # must never block the LOUD deploy dispatch below (which stays LAST).
+      #
+      # Under a MERGE QUEUE this backstop is not needed and is correctly skipped
+      # by the `merged` guard: the queue runs `verify` on the projected trunk with
+      # the affected step disabled, so the full suite has ALREADY run against the
+      # tree that is about to become main. ADR-0195 §5 exists because a direct
+      # GITHUB_TOKEN merge leaves the merged tree unproven at full scope; the
+      # queue closes that hole at its source.
       # -----------------------------------------------------------------------
       - name: Dispatch full CI on main after an affected-only merge (ADR-0195)
-        if: needs.verify.outputs.mode == 'affected'
+        if: success() && steps.merge.outputs.merged == 'true' && needs.verify.outputs.mode == 'affected'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -326,8 +389,20 @@ jobs:
       # if: success(), so a dispatch failure here must not be able to skip them —
       # keeping it last guarantees that. Runs for every auto-merged PR; the path
       # gate, not a branch gate, decides whether to deploy.
+      #
+      # ALSO GUARDED ON `merged` (ADR-0304 D3), and this is the guard that matters
+      # most: dispatching a deploy on `--ref main` for a PR that is only QUEUED
+      # would build and ship a `main` the change is not in yet — a silent deploy of
+      # the wrong tree. Skipping is the safe direction and it is observable:
+      # `check:deploy-health` is a gate rung, so a studio change that failed to
+      # deploy surfaces rather than hiding. The EXPECTATION at flip time is that
+      # this dispatch stops being needed, because a merge-queue merge is not a
+      # GITHUB_TOKEN merge and so should trigger deploy-studio.yml's own `push`
+      # run directly — VERIFY that on the first studio-affecting merge after the
+      # queue is enabled rather than assuming it.
       # -----------------------------------------------------------------------
       - name: Dispatch studio deploy on a studio-affecting merge (ADR-0061)
+        if: success() && steps.merge.outputs.merged == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

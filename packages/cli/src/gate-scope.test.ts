@@ -1,0 +1,189 @@
+// The LOCAL gate's affected scope (ADR-0304 D1/D2). The safety surface is narrow but sharp: this
+// module decides how MUCH `pnpm gate` compiles and tests, so an under-selection is a session landing
+// on a green it did not earn. Three things are pinned red→green here.
+//
+//   1. It reuses CI's classifier rather than re-deciding (D2). Asserted by behaviour — the same FULL
+//      triggers CI honours must fire here — not by inspecting the import.
+//   2. Scoping narrows a leg's COVERAGE and nothing else: same steps, same order, same exit rule.
+//   3. Every unreadable input widens to full. `ok: false` is a scope decision, never an error.
+//
+// The git reading itself lives in `gate-run.ts` (spawn + repo root) and is deliberately not spawned
+// here, matching `ci-affected.test.ts`'s split: the judgement is proven, the shell stays thin.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+import { pnpmArgsFor, type WorkspaceProject } from "./ci-affected.js";
+import {
+  GATE_PLAN,
+  type GatePlanStep,
+  PRE_EXPENSIVE_CHECKS,
+  SHARED_ENVIRONMENT_CHECKS,
+  evaluateGateOrder,
+  firstExpensiveIndex,
+  isExpensiveStep,
+  lastExpensiveIndex,
+} from "./gate-order.js";
+import { gitLines, localAffectedScope, renderScopeNotice, scopeGatePlan } from "./gate-scope.js";
+
+/** A representative workspace slice — names/dirs mirror the real repo shape. */
+const PROJECTS: WorkspaceProject[] = [
+  { name: "@storytree/cli", dir: "packages/cli" },
+  { name: "@storytree/library", dir: "packages/library" },
+  { name: "studio", dir: "apps/studio" },
+];
+
+// ── it delegates to CI's classifier, and that is the whole point (D2) ─────────
+
+test("an in-package local diff narrows to the changed projects", () => {
+  const scope = localAffectedScope(
+    { ok: true, files: ["packages/library/src/schema.ts", "packages/cli/src/gate-run.ts"] },
+    PROJECTS,
+  );
+  assert.equal(scope.mode, "affected");
+  assert.deepEqual(
+    scope.mode === "affected" ? scope.projects : [],
+    ["@storytree/cli", "@storytree/library"],
+  );
+});
+
+test("the LOCAL gate honours CI's FULL triggers — one classifier, or a local pass stops predicting CI", () => {
+  // Each of these is a rule `ci-affected.ts` owns. They are asserted here because the D2 failure mode
+  // is precisely a second local implementation that agrees today and drifts tomorrow: if this module
+  // ever stopped delegating, these are the cases a hand-rolled local rule would get wrong.
+  for (const [file, why] of [
+    ["stories/approval-gated-trunk/story.md", "stories/** is read by tests no dependency edge declares"],
+    ["docs/decisions/0304-affected.md", "docs/decisions/** feeds the adr-health gates"],
+    ["pnpm-lock.yaml", "the lockfile is a repo-wide input"],
+    ["package.json", "a manifest is an input of the selection graph itself"],
+    ["packages/cli/package.json", "a workspace manifest, likewise"],
+    ["apps/studio/data/knowledge.json", "the corpus seed is read across package boundaries"],
+    ["packages/README.md", "under packages/ but owned by no project"],
+    [".github/workflows/ci.yml", "the workflow defines the gate itself"],
+  ] as const) {
+    const scope = localAffectedScope({ ok: true, files: [file] }, PROJECTS);
+    assert.equal(scope.mode, "full", `${file} must force the full suite — ${why}`);
+  }
+});
+
+test("an untracked file counts as changed — a session gates mid-flight, before it commits", () => {
+  // The one place the local shape genuinely differs from CI's merge-commit diff. `gate-run.ts` appends
+  // `git ls-files --others` to the tracked diff; both arrive here as one list.
+  const scope = localAffectedScope(
+    { ok: true, files: ["packages/cli/src/gate-scope.ts", "packages/cli/src/gate-scope.test.ts"] },
+    PROJECTS,
+  );
+  assert.equal(scope.mode, "affected");
+});
+
+// ── fail-open to FULL, on every unreadable input ─────────────────────────────
+
+test("an unreadable diff is a scope decision (full), never an error", () => {
+  const scope = localAffectedScope({ ok: false, reason: "no merge-base with origin/main" }, PROJECTS);
+  assert.equal(scope.mode, "full");
+  assert.match(scope.reason, /merge-base/);
+});
+
+test("an empty change set runs the full suite rather than nothing", () => {
+  // The dangerous reading of "nothing changed" is "nothing needs testing". Widening is the only safe
+  // direction, and it is what `classifyChangedFiles` already does.
+  const scope = localAffectedScope({ ok: true, files: [] }, PROJECTS);
+  assert.equal(scope.mode, "full");
+});
+
+test("gitLines drops blanks and trims, so a trailing newline is not a phantom path", () => {
+  assert.deepEqual(gitLines("packages/cli/src/a.ts\n\n  packages/cli/src/b.ts  \n"), [
+    "packages/cli/src/a.ts",
+    "packages/cli/src/b.ts",
+  ]);
+  assert.deepEqual(gitLines(""), []);
+});
+
+// ── the rewrite narrows coverage and nothing else ────────────────────────────
+
+test("scopeGatePlan rewrites ONLY the expensive legs, and keeps every other command byte-identical", () => {
+  const scoped = scopeGatePlan(GATE_PLAN, "--filter ...@storytree/cli");
+  assert.equal(scoped.length, GATE_PLAN.length, "scoping must never drop a step");
+
+  for (const [i, step] of scoped.entries()) {
+    const original = GATE_PLAN[i] as GatePlanStep;
+    assert.equal(step.check, original.check, "a step's check name is not the scope's business");
+    if (isExpensiveStep(original.command)) {
+      assert.equal(step.command, original.command.replace("pnpm -r ", "pnpm --filter ...@storytree/cli "));
+    } else {
+      assert.equal(step.command, original.command, `${original.command} must not be rewritten`);
+    }
+  }
+});
+
+test("a scoped leg is still RECOGNISED as an expensive leg — else the invariant judges nothing", () => {
+  // The silent-failure route this test exists to close: rewrite the legs into a form the matcher no
+  // longer sees, and `evaluateGateOrder` reports "no expensive leg" — which `gate-run.ts` turns into a
+  // refusal rather than a pass, but only because the matcher and the rewrite agree.
+  assert.ok(isExpensiveStep("pnpm --filter ...@storytree/cli typecheck"));
+  assert.ok(isExpensiveStep("pnpm --filter ...@storytree/cli --filter ...studio test"));
+  assert.ok(isExpensiveStep("pnpm -r typecheck"));
+  assert.ok(isExpensiveStep("pnpm -r test"));
+
+  // ...and does not swallow a neighbour that merely ends in a similar word.
+  assert.ok(!isExpensiveStep("pnpm check:test-timing"));
+  assert.ok(!isExpensiveStep("pnpm check:manifest"));
+  assert.ok(!isExpensiveStep("pnpm -r build"));
+});
+
+test("the SCOPED plan still satisfies BOTH ordering axes — the plan that runs is the plan judged", () => {
+  const scoped = scopeGatePlan(GATE_PLAN, "--filter ...@storytree/library");
+  const verdict = evaluateGateOrder({
+    steps: scoped,
+    earlyChecks: PRE_EXPENSIVE_CHECKS,
+    lateChecks: SHARED_ENVIRONMENT_CHECKS,
+  });
+  assert.equal(verdict.verdict, "ok", verdict.message);
+  assert.equal(firstExpensiveIndex(scoped), firstExpensiveIndex(GATE_PLAN), "the wall must not move");
+  assert.equal(lastExpensiveIndex(scoped), lastExpensiveIndex(GATE_PLAN));
+});
+
+test("a FULL scope is the identity — the default path is byte-for-byte what it always was", () => {
+  for (const args of ["-r", " -r ", ""]) {
+    const scoped = scopeGatePlan(GATE_PLAN, args);
+    assert.deepEqual(
+      scoped.map((s) => s.command),
+      GATE_PLAN.map((s) => s.command),
+      `\`${args}\` must leave the plan untouched`,
+    );
+  }
+});
+
+test("the rewrite consumes pnpmArgsFor's output verbatim — no second arg format to drift", () => {
+  const scope = localAffectedScope({ ok: true, files: ["apps/studio/src/App.tsx"] }, PROJECTS);
+  const scoped = scopeGatePlan(GATE_PLAN, pnpmArgsFor(scope));
+  const legs = scoped.filter((s) => isExpensiveStep(s.command)).map((s) => s.command);
+  assert.deepEqual(legs, ["pnpm --filter ...studio typecheck", "pnpm --filter ...studio test"]);
+});
+
+test("a name pnpmArgsFor refuses to splice falls back to the full run, and the plan follows", () => {
+  // `pnpmArgsFor` returns `-r` for a package name it will not put on a command line. The rewrite must
+  // then be the identity rather than producing `pnpm  typecheck`.
+  const unsafe = pnpmArgsFor({ mode: "affected", projects: ["evil name; rm -rf /"], reason: "x" });
+  assert.equal(unsafe, "-r");
+  assert.deepEqual(
+    scopeGatePlan(GATE_PLAN, unsafe).map((s) => s.command),
+    GATE_PLAN.map((s) => s.command),
+  );
+});
+
+// ── what the operator is told ────────────────────────────────────────────────
+
+test("the run log states the scope and its reason, both modes", () => {
+  assert.match(renderScopeNotice({ mode: "full", reason: "the lockfile changed" }), /FULL/);
+  assert.match(renderScopeNotice({ mode: "full", reason: "the lockfile changed" }), /lockfile/);
+
+  const affected = renderScopeNotice({
+    mode: "affected",
+    projects: ["@storytree/cli", "studio"],
+    reason: "all 3 changed file(s) map to workspace projects",
+  });
+  assert.match(affected, /AFFECTED/);
+  assert.match(affected, /@storytree\/cli, studio/);
+  assert.match(affected, /dependents/, "the operator must know dependents are included, not just the named projects");
+});

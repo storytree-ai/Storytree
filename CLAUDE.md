@@ -286,6 +286,22 @@ file conflicts).
   (or `pnpm gate --fail-fast`) restores the old stop-at-first-red for a fast inner loop.
   **`pnpm -r`'s own halt is NOT fixed**: a flake in one workspace still hides later workspaces' tests
   *inside* the `pnpm -r test` step — it just no longer skips the thirteen steps behind it.
+- **The gate's two `-r` legs now test only what your branch AFFECTS (ADR-0304 D1, since 2026-08-04).**
+  `pnpm gate` resolves what this branch changes on top of `main` — `merge-base(origin/main, HEAD)`
+  vs the working tree, **untracked files included** — and narrows `typecheck`/`test` to the owning
+  packages **plus their dependents** (`pnpm --filter ...<name>`). It prints the decision as a
+  `scope:` line; read that line, since it tells you which suites actually ran. A story-only session
+  no longer goes red because `packages/cli` moved, which was the forcing function turning "`main`
+  moved" into "you must re-sync NOW" (`packages/**` is 47.6% of re-sync churn, `stories/` 5.2%).
+  **It is the SAME classifier CI runs** (`packages/cli/src/ci-affected.ts`, ADR-0195/ADR-0304 D2) —
+  never write a second one, or a local pass stops predicting a CI pass. **It only ever fails WIDE:**
+  any root-path file (`stories/**`, `docs/**`, `scripts/**`, `.github/**`, the lockfile), any
+  `package.json`, the corpus seed, an unmapped path, or an unreadable `origin/main` forces the full
+  `-r` run — so *most* branches still run everything, and a narrow scope is the exception you should
+  see stated. **`pnpm gate --scope` prints the decision and exits** — ask it rather than inferring
+  from a 5-minute run why your gate did or didn't narrow. `pnpm gate --full` (or
+  `STORYTREE_GATE_FULL=1`) forces the full run. Nothing about *whether* a red blocks changed: every
+  step still runs and the gate is green only if all pass.
 - **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (Claude SDK leaf),
   `STORYTREE_DB_USER` (live `--pg` store) from `~/.storytree/secrets.json` when unset — env always
   wins (`packages/drive/src/secrets.ts`; the old `packages/cli/src/secrets.ts` is a re-export shim,

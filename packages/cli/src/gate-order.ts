@@ -7,6 +7,14 @@
 // runner's header — in one line: `&&` is fail-fast, so the first red left every later step UNRUN and
 // reported it as nothing at all rather than as unverified.
 //
+// THE PLAN IS DECLARED LITERAL, AND THE RUNNER MAY NARROW IT (ADR-0304 D1). {@link GATE_PLAN} always
+// names the full `pnpm -r typecheck` / `pnpm -r test`; `gate-run.ts` rewrites those two commands to
+// the affected scope (`pnpm --filter ...<name> …`) just before running them, using CI's own
+// classifier. This module therefore recognises BOTH forms ({@link isExpensiveStep}) — the ordering
+// invariant below has to be judgeable over the plan that actually runs, not only over the one on the
+// page. What scoping changes is how much each leg covers; it changes nothing about the order, the
+// step count, or whether a red blocks.
+//
 // TWO AXES, both fail-closed, both about WHEN a verdict arrives rather than about what it says.
 //
 // AXIS 1 — CHEAP FIRST. Two steps are the MINUTES — `pnpm -r typecheck` and `pnpm -r test`, together
@@ -58,11 +66,36 @@
 // Pure: no I/O. The caller supplies the plan and the root package.json's script names.
 
 /**
- * The chain's minutes-cost legs — the wall a cheap check is ordered against. Matched as SUBSTRINGS
- * of a step, so the affected-scope form CI uses (`pnpm ${args} typecheck`) is not relevant here: the
- * local plan is literal.
+ * The chain's minutes-cost legs, in the form {@link GATE_PLAN} DECLARES them. The plan is literal —
+ * it always names the full `-r` run — so this is what a reader of the plan sees and what
+ * `gate-order.test.ts` holds the plan to.
  */
 export const EXPENSIVE_STEPS: readonly string[] = ["pnpm -r typecheck", "pnpm -r test"];
+
+/**
+ * The same two legs in the AFFECTED-SCOPE form (ADR-0304 D1): `pnpm --filter ...<name> typecheck`.
+ *
+ * Recognising this form is load-bearing, not cosmetic. `gate-run.ts` rewrites the plan's `-r` to the
+ * scope actually being tested before running it, and {@link evaluateGateOrder} FAILS CLOSED when it
+ * cannot find an expensive leg — so a matcher that only knew the literal form would declare the plan
+ * that actually runs unjudgeable. The runner re-evaluates the invariant over the SCOPED plan for
+ * exactly that reason; this is what lets it.
+ *
+ * Anchored (`^`/`$`) so it cannot swallow a neighbour: `pnpm check:test-timing` ends in
+ * `check:test-timing`, not `test`, and no `check:*` step begins with `-r` or `--filter`.
+ */
+const SCOPED_EXPENSIVE_LEG = /^pnpm\s+(?:-r|--filter\s+.+?)\s+(?:typecheck|test)$/;
+
+/**
+ * Is this step one of the two minutes-cost legs — in either the declared `-r` form or the
+ * affected-scoped `--filter` one? The single place the classification lives, so the ordering axes,
+ * the plan rewrite and the cost assertion can never disagree about where the wall is.
+ */
+export function isExpensiveStep(command: string): boolean {
+  const trimmed = command.trim();
+  if (EXPENSIVE_STEPS.some((leg) => trimmed.includes(leg))) return true;
+  return SCOPED_EXPENSIVE_LEG.test(trimmed);
+}
 
 /**
  * WHO a red is about — the axis-2 classification, and the only judgement in this module that is not
@@ -354,14 +387,14 @@ export const SHARED_ENVIRONMENT_CHECKS: ReadonlySet<string> = new Set([
 
 /** The index of the plan's FIRST minutes-cost leg, or -1 when it runs none. */
 export function firstExpensiveIndex(steps: readonly GateStep[]): number {
-  return steps.findIndex((s) => EXPENSIVE_STEPS.some((leg) => s.command.includes(leg)));
+  return steps.findIndex((s) => isExpensiveStep(s.command));
 }
 
 /** The index of the plan's LAST minutes-cost leg, or -1 when it runs none. */
 export function lastExpensiveIndex(steps: readonly GateStep[]): number {
   let at = -1;
   steps.forEach((s, i) => {
-    if (EXPENSIVE_STEPS.some((leg) => s.command.includes(leg))) at = i;
+    if (isExpensiveStep(s.command)) at = i;
   });
   return at;
 }
