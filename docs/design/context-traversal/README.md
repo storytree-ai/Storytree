@@ -89,7 +89,7 @@ The mock is shaped from metadata extracted from recorded session `02b6a304-6b29-
 - Children: five spawned agents, 208 combined tool calls.
 - Child types represented: Explore, general-purpose, and librarian-curator.
 - Spawn and result-return lanes are observable in the source trace.
-- Causal knowledge forks are intentionally absent because the source trace predates deterministic `parentVisitId`, candidate, and followed-edge metadata. `parentVisitId` has since gained a producer, and as of 2026-07-28 so has `candidate_set` (both below); followed-edge has none yet, and ADR-0260 D3 settles how it will get one. **The absence here is a property of the source trace, not of the repo** — these artifacts must not be redrawn to show either (see below).
+- Causal knowledge forks are intentionally absent because the source trace predates deterministic `parentVisitId`, candidate, and followed-edge metadata. All three have since gained producers — `parentVisitId`, then `candidate_set` on 2026-07-28, then `followed_edge` on 2026-07-29 (both below). **The absence here is a property of the source trace, not of the repo** — these artifacts must not be redrawn to show any of them (see below).
 
 The trace's occupancy series is load-bearing beyond composition: it **recedes** (240.9k → 228.1k, and
 239.8k → 229.6k, with per-visit `added` falling to 0 on those visits). That is the evidence in ADR-0248
@@ -161,11 +161,22 @@ without the temporal proximity ADR-0235 clause 3 refuses. Concretely:
   story). A `storytree library artifact <id>` read records the onward artifacts its Sources block
   printed, at RENDER time and whether or not anything follows — ADR-0260 D2, which is load-bearing: an
   offer emitted only once something followed it would rebuild the containment tree while looking correct.
-- `followed_edge` **still has no producer, but is now expected to gain one** — ADR-0260 D3, the offer id
-  travelling in argv. Its absence today is unbuilt work, no longer a standing refusal.
+- `followed_edge` **has a producer** as of 2026-07-29 (capability `offer-follow-edges`, same story),
+  built exactly as ADR-0260 D3 settled: an artifact render prints a pasteable follow-up carrying
+  `--from-offer <candidateSetId>`, and a read invoked with that id stamps `followedEdgeId` on its own
+  visit and records the edge naming both ends. The id travels in argv and is never resolved from the
+  trace, so no temporal proximity is engaged.
+- The decision point itself is legible as of 2026-08-04 (capability `decision-point-playback`, same
+  story): `traversal show` renders each recorded offer's every candidate with what the trace
+  deterministically says happened to it — followed, not followed, unfollowable, or ambiguous — which
+  is the first surface anywhere in the repo on which an UNFOLLOWED branch is visible. It is a text
+  replay, not this pictorial panel; what it settles for a future artifact is that the metadata and the
+  honest-gap vocabulary now exist to draw one from.
 
-These artifacts are still NOT redrawn to show either, for exactly the reason given above: recorded
-session `02b6a304` predates both emissions, so drawing offers or forks over it would be inferred, not
-observed — and would forge the arc's own reference evidence. They stay a single column because *their*
-trace is one. What ADR-0260 changes is what a FUTURE artifact, drawn from a trace that carries the
-metadata, is allowed to show — never what this one may be back-filled with.
+These artifacts are still NOT redrawn to show any of it, for exactly the reason given above: recorded
+session `02b6a304` predates every one of those emissions, so drawing offers or forks over it would be
+inferred, not observed — and would forge the arc's own reference evidence. They stay a single column
+because *their* trace is one. What ADR-0260 changes is what a FUTURE artifact, drawn from a trace that
+carries the metadata, is allowed to show — never what this one may be back-filled with. **A trace that
+does carry it can now be recorded on demand**, which is what makes a future artifact a matter of
+choosing a session rather than of waiting for a producer.

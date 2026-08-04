@@ -15,6 +15,7 @@ import type {
   ContextVisitEvent,
 } from "@storytree/context-traversal-telemetry";
 
+import { computeDecisionPoints, renderDecisionPoints } from "./decision-point-playback.js";
 import type { TraversalSessionSummary } from "./sink.js";
 
 /** The local envelope shape (ADR-0023): a body plus optional `next:` pointers. */
@@ -187,6 +188,19 @@ export function renderTraversalSession(
     for (const event of replay.events) {
       lines.push(renderEventLine(event));
     }
+  }
+
+  // The DECISION-POINT view, APPENDED — the chronological lines above are left exactly as they were
+  // (capability `decision-point-playback`, ADR-0260). Those lines are the raw record and two signed
+  // UAT legs pin `[candidate-set] … candidates=N` and `[followed-edge] …` VERBATIM, so making the
+  // offered ids legible by rewriting them would redden a signed proof to no purpose. This block is a
+  // derived read over the same events: it emits nothing and infers nothing, and it renders the empty
+  // string for a replay that recorded no offer, so a pre-offer trace grows no section announcing an
+  // absence.
+  const decisions = renderDecisionPoints(computeDecisionPoints(replay.events));
+  if (decisions !== "") {
+    lines.push("");
+    lines.push(decisions);
   }
 
   return { ok: true, body: lines.join("\n") };
