@@ -270,6 +270,22 @@ file conflicts).
   remains for the un-repairable shapes: a POPULATED husk (half-`git worktree remove` residue) or main
   not on a `claude/*` branch. Doctor: `node packages/cli/worktree-health.mjs --cwd <slot> [--repair]`.
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (tests are offline — no DB or API key needed)
+- **`pnpm gate` RUNS EVERY STEP — an early red no longer hides the rest (since 2026-08-04).** It was a
+  25-link `&&` chain, so the first red aborted it and every later step was left UNRUN and reported as
+  *nothing at all* — which cost ~25 min of hand re-runs per hit and once hid a genuine
+  `check:corpus-content` RED behind an unrelated flake. It is now a runner over a declared plan
+  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes all 25 steps and prints a per-step
+  **PASS / FAIL / NOT RUN** table. **Read the table, not the tail** — and read `NOT RUN` as
+  *unverified*, never as passed (it appears only under `--fail-fast`, or when a run was interrupted /
+  a step was killed). Any step not passing still exits non-zero, so `pnpm gate:bg` and every
+  exit-code caller are unchanged. Two consequences worth knowing: a FAILING run now takes the full
+  wall clock instead of stopping early, so **background it** (`pnpm gate:bg`, merge-ceremony step 2);
+  and the steps are ordered *own-work first* — the checks and both `-r` legs that judge YOUR diff run
+  ahead of the ones that judge the shared environment (`check:declared`, the live-store sync checks,
+  the drain ceilings), whose red is often a sibling session's. `STORYTREE_GATE_FAIL_FAST=1 pnpm gate`
+  (or `pnpm gate --fail-fast`) restores the old stop-at-first-red for a fast inner loop.
+  **`pnpm -r`'s own halt is NOT fixed**: a flake in one workspace still hides later workspaces' tests
+  *inside* the `pnpm -r test` step — it just no longer skips the thirteen steps behind it.
 - **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (Claude SDK leaf),
   `STORYTREE_DB_USER` (live `--pg` store) from `~/.storytree/secrets.json` when unset — env always
   wins (`packages/drive/src/secrets.ts`; the old `packages/cli/src/secrets.ts` is a re-export shim,

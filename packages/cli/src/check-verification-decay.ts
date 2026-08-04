@@ -63,6 +63,7 @@ import { fileURLToPath } from "node:url";
 
 import { extractVouchingTestNames, loadNodeSpec } from "@storytree/orchestrator";
 
+import { GATE_PLAN } from "./gate-order.js";
 import { registeredMirrorRoutes } from "./mirror-conformance.js";
 import {
   CONTRACT_BINDING_DRIFT,
@@ -681,8 +682,16 @@ function loadGateChecks(root: string): GateCheckFacts[] {
   const gate = scripts["gate"];
   if (gate === undefined) throw new Error("the root package.json declares no `gate` script");
 
-  const names = [...new Set([...gate.matchAll(GATE_CHECK)].map((m) => m[1]).filter((n) => n !== undefined))];
-  requireObserved(names.length, "the `gate` script runs no `check:*` steps");
+  // The gate's step list moved OUT of the `gate` script's text on 2026-08-04: the script was a 25-link
+  // `&&` chain and is now a runner over the declared `GATE_PLAN` (parked entry
+  // `gate-runs-every-step-and-reports-per-step`). Scraping `pnpm check:x` tokens out of the script
+  // therefore observes NOTHING and this instrument correctly went blind — read the plan instead, which
+  // is the same roster and can no longer be lost to a change in how the script is spelled. The
+  // {@link GATE_CHECK} fallback stays for a chain-shaped `gate` (a revert, or another checkout).
+  const fromPlan = GATE_PLAN.map((s) => s.check).filter((c) => c !== undefined);
+  const fromScript = [...gate.matchAll(GATE_CHECK)].map((m) => m[1]).filter((n) => n !== undefined);
+  const names = [...new Set(fromPlan.length > 0 ? fromPlan : fromScript)];
+  requireObserved(names.length, "neither GATE_PLAN nor the `gate` script names any `check:*` step");
 
   const checks: GateCheckFacts[] = [];
   for (const script of names) {
