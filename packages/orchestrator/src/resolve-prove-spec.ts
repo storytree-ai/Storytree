@@ -28,7 +28,7 @@ import type { ShellCommand, ShellRunResult } from "./shell-test-executor.js";
 import {
   PROOF_REPORT_ENV,
   assertOracleGuardUrl,
-  oracleReportPath,
+  allocateOracleReportPath,
   resetOracleReport,
   verifyOracleExercised,
 } from "./proof/oracle-accounting.js";
@@ -503,7 +503,9 @@ function resolveReal(
   // run_proof spawn, and the spine cross-checks it on every green: a proof that exits 0 without
   // exercising the assert oracle is downgraded to a fail-closed red. Custom-command nodes are not
   // accounted (base.accounted === false → reportPath undefined → no report env, no green-veto).
-  const reportPath = base.accounted ? oracleReportPath(opts.runId, spec.id) : undefined;
+  // ALLOCATED ONCE HERE and closed over below — the allocator returns a path unique to this call, so no
+  // concurrent proof of the same unit can clear the report this build is about to read (see its doc).
+  const reportPath = base.accounted ? allocateOracleReportPath(opts.runId, spec.id) : undefined;
   const proofEnv: Record<string, string> = {
     ...(base.command.env ?? {}),
     ...(reportPath !== undefined ? { [PROOF_REPORT_ENV]: reportPath } : {}),
