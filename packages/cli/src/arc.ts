@@ -382,6 +382,27 @@ export function arcIdFromTitle(title: string): string {
   return slug === "arc" || slug.endsWith(ARC_ID_SUFFIX) ? slug : `${slug}${ARC_ID_SUFFIX}`;
 }
 
+/**
+ * PURE: the SAME normalisation `kebabSlug` applies, minus its `slice(0, 60)` truncation — so the
+ * caller can measure the normalised length BEFORE any cap is silently applied, rather than after.
+ *
+ * `arc new`'s explicit-id path needs to detect a too-long id and refuse it, not derive a shorter one
+ * by dropping characters off the end: `kebabSlug` is right for a DERIVED id (there is no "the author
+ * meant" to preserve), but wrong for an AUTHORED one (ADR-0183 D3's `arc-explicit-id-fidelity`) —
+ * silently creating the arc under a truncated id would mean a copy-pasted reference to the id the
+ * author actually typed resolves to nothing.
+ */
+function normalizeExplicitId(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** The id cap `kebabSlug` enforces by truncation for a derived id; enforced by REFUSAL for an authored one. */
+const ARC_ID_CAP = 60;
+
 /** The cap on a DERIVED one-line description before it is cut at a word boundary. */
 const DERIVED_DESCRIPTION_CAP = 160;
 
@@ -478,6 +499,21 @@ export async function arcNew(
   // An explicit positional id is taken as AUTHORED (normalised only, so a copy-pasted `asset:` ref or
   // stray capitals can't mint an id the ref regexes then reject); otherwise derive it from the title.
   const wanted = id?.trim().replace(/^asset:/, "") ?? "";
+
+  // Refuse a lossy explicit id BEFORE any store read or write (`arc-explicit-id-refuses-lossy-cap`):
+  // normalise first, and if the result alone exceeds the cap, stop — never let `kebabSlug` truncate
+  // an authored id into a different one the author never typed.
+  if (wanted !== "") {
+    const normalized = normalizeExplicitId(wanted);
+    if (normalized.length > ARC_ID_CAP) {
+      return {
+        ok: false,
+        body: `the explicit id "${wanted}" normalises to ${normalized.length} characters, past the ${ARC_ID_CAP}-character id cap — creating it would silently truncate to a DIFFERENT id than the one you typed. Shorten it and try again.`,
+        next: [usage],
+      };
+    }
+  }
+
   const arcId = wanted !== "" ? kebabSlug(wanted) : arcIdFromTitle(title);
   if (arcId === "") {
     return {
