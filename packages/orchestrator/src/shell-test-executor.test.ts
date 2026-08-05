@@ -77,6 +77,69 @@ test("ShellTestExecutor: a custom classifyKind overrides the default heuristic",
   assert.equal(obs.kind, "compile");
 });
 
+// ── The classifier told the truth about Node's own errors (`gate-the-right-kind-red`) ────────────
+
+test("defaultClassifyKind reads Node's REAL module-resolution errors as compile, not runtime", () => {
+  // THE bug. The alternatives were TypeScript's wording (`cannot find name`, `no such module`), and
+  // matched none of what Node prints — so a net-new node's unresolved import, the single most common
+  // structural red in the corpus, classified as `runtime` and was stamped that way on every verdict's
+  // evidence. Nothing consumed the answer, so nothing ever went red over it.
+  const asCompile = [
+    "Error: Cannot find module './thing.js'\nERR_MODULE_NOT_FOUND",
+    "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'nope' imported from /x/y.ts",
+    "TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension \".ts\"",
+    "SyntaxError: Unexpected token",
+    "src/x.ts(3,5): error TS2304: cannot find name 'Foo'",
+  ];
+  for (const text of asCompile) {
+    assert.equal(
+      defaultClassifyKind({ stdout: "", stderr: text, code: 1 }),
+      "compile",
+      `should be compile: ${text.split("\n")[0]}`,
+    );
+  }
+  // ...and a real assertion failure is still runtime — the widening must not swallow everything.
+  assert.equal(
+    defaultClassifyKind({
+      stdout: "",
+      stderr: "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n1 !== 2",
+      code: 1,
+    }),
+    "runtime",
+  );
+});
+
+test("ShellTestExecutor: a MEASURED red-kind wins over the text heuristic and is stamped oracle-count", async () => {
+  const exec = new ShellTestExecutor({
+    // Output that the TEXT heuristic would read as `compile`...
+    command: () => ({
+      file: process.execPath,
+      args: ["-e", 'console.error("Cannot find module \'./x.js\'"); process.exit(1)'],
+    }),
+    // ...while the MEASUREMENT says an assertion really ran and failed. The measurement wins.
+    measureRedKind: () => "runtime",
+  });
+  const obs = await exec.run("any");
+  assert.equal(obs.result, "red");
+  assert.equal(obs.kind, "runtime");
+  assert.equal(obs.kindBasis, "oracle-count");
+});
+
+test("ShellTestExecutor: an UNMEASURABLE red falls back to the heuristic and is stamped output-text", async () => {
+  // `measureRedKind` returning undefined means "cannot measure" — NOT a kind. It must degrade to the
+  // heuristic with the honest basis, so the phase gate stays disarmed rather than refusing on a guess.
+  const exec = new ShellTestExecutor({
+    command: () => ({
+      file: process.execPath,
+      args: ["-e", 'console.error("Cannot find module \'./x.js\'"); process.exit(1)'],
+    }),
+    measureRedKind: () => undefined,
+  });
+  const obs = await exec.run("any");
+  assert.equal(obs.kind, "compile");
+  assert.equal(obs.kindBasis, "output-text");
+});
+
 test("ShellTestExecutor: a genuine spawn failure (ENOENT) rejects, not a silent green", async () => {
   const exec = new ShellTestExecutor({
     command: () => ({ file: "definitely-not-a-real-binary-xyz", args: [] }),

@@ -40,12 +40,52 @@ export type TestObservation = {
    * says WHY the green was refused, not just "not green".
    */
   note?: string;
+  /**
+   * HOW `kind` was determined (`gate-the-right-kind-red`), so a refusal can say what it stands on and
+   * — load-bearing — so {@link nextPhase} can decline to refuse on a guess:
+   *  - `"oracle-count"` — MEASURED. The assert-oracle report says how many assertions really ran, so
+   *    0 means the run never reached an assertion (structural) and >=1 means one ran and failed
+   *    (assertion). Available only for oracle-accounted proof commands (the default node:test one).
+   *  - `"output-text"` — INFERRED from stdout/stderr by {@link defaultClassifyKind}'s heuristic.
+   *
+   * A gate that refused a wrong-kind red on a text guess would false-refuse real work whenever the
+   * heuristic misfired, so the kind gate is armed only for `"oracle-count"`. Absent = the classifier
+   * offered no kind at all.
+   */
+  kindBasis?: RedKindBasis;
 };
 
 /** The result of {@link nextPhase}: an allowed transition, or a fail-closed refusal with a reason. */
 export type PhaseTransition =
   | { ok: true; next: Phase }
   | { ok: false; reason: string };
+
+/**
+ * What a node DECLARES its CONFIRM_RED red should BE
+ * (`parallel-red-green-arc` / `gate-the-right-kind-red`).
+ *
+ * ADR-0020 §3 called for a "right-kind red" check and the machinery for one existed —
+ * {@link TestObservation.kind} was computed on every red — but {@link nextPhase} gated on
+ * `obs.result === "red"` and nothing else, and the kind was read in exactly ONE place in the whole
+ * spine: the evidence note the verdict carries. Derived, published, and never allowed to refuse
+ * anything. So ANY red advanced the phase: a syntax error in the freshly authored test, an unrelated
+ * pre-existing failure inside the same command's scope, a timeout SIGKILL. The gate never
+ * established that the red it saw was the red the new assertion was supposed to produce — the
+ * difference between "a command exited non-zero" and "the test I just wrote fails for the reason I
+ * wrote it", and only the second is evidence of TDD.
+ *
+ * The expectation is DECLARED per node rather than guessed, because the two shapes want opposite
+ * reds and a single rule would false-refuse one of them:
+ *  - `"structural"` — the red is a missing symbol / unresolved module. The NET-NEW default (the test
+ *    imports something that does not exist yet), and also ADR-0098's R2 `refactorForTests`, which
+ *    REQUIRES a structural red because the seam under test has not been introduced yet.
+ *  - `"assertion"` — the red is a real assertion failing against current behaviour. ADR-0057 C's
+ *    `editsExisting`, whose brief explicitly demands "a runtime assertion, not a missing symbol".
+ */
+export type ExpectedRed = "structural" | "assertion";
+
+/** How a {@link TestObservation}'s `kind` was arrived at — see {@link RedKindBasis}. */
+export type RedKindBasis = "oracle-count" | "output-text";
 
 /**
  * The spine-owned OBSERVATION gates (ADR-0020 §1, §3), FAIL-CLOSED.
@@ -58,26 +98,38 @@ export type PhaseTransition =
  *
  * Governed gates:
  *  - `CONFIRM_RED → IMPLEMENT` requires `obs.result === 'red'` (the RIGHT red — a real failing
- *    test, never a forged green).
+ *    test, never a forged green) AND, when the node declares an {@link ExpectedRed} and the observed
+ *    kind was MEASURED, that the red is of the declared kind.
  *  - `CONFIRM_GREEN → GATE` requires `obs.result === 'green'`.
  *
  * Any other transition — illegal, out-of-order, or forged (claiming a result the gate forbids) —
  * returns `{ ok:false }`. The verdict is never authorable; an agent cannot drive an illegal gate.
+ *
+ * @param expectedRed OPTIONAL declared kind for the CONFIRM_RED gate. Absent ⇒ the pre-existing
+ *   behaviour (any red advances) — which is what every walk with nothing to declare still rides:
+ *   the dry-run and live-smoke arms prove a SYNTHETIC pair, so they have no node-declared shape to
+ *   check against and must not be judged against a guess.
  */
 export function nextPhase(
   current: Phase,
   obs: TestObservation,
+  expectedRed?: ExpectedRed,
 ): PhaseTransition {
   switch (current) {
-    case "CONFIRM_RED":
+    case "CONFIRM_RED": {
       // The red must be a REAL red for the new test. A green here is a forged/early pass.
-      if (obs.result === "red") {
-        return { ok: true, next: "IMPLEMENT" };
+      if (obs.result !== "red") {
+        return {
+          ok: false,
+          reason: `CONFIRM_RED requires an observed red (got '${obs.result}' for test ${obs.testId}); the red must be observed before any implementation`,
+        };
       }
-      return {
-        ok: false,
-        reason: `CONFIRM_RED requires an observed red (got '${obs.result}' for test ${obs.testId}); the red must be observed before any implementation`,
-      };
+      // ...and it must be the red the node DECLARED. Armed only on a MEASURED kind: refusing real
+      // work on a text-heuristic guess would trade a silent wrong advance for a loud wrong refusal,
+      // which is not an improvement. An unmeasured kind advances exactly as before.
+      const wrongKind = wrongKindRefusal(obs, expectedRed);
+      return wrongKind ?? { ok: true, next: "IMPLEMENT" };
+    }
 
     case "CONFIRM_GREEN":
       if (obs.result === "green") {
@@ -112,6 +164,51 @@ export function nextPhase(
       return { ok: false, reason: `unknown phase: ${String(_exhaustive)}` };
     }
   }
+}
+
+/** The observed kind a declared {@link ExpectedRed} demands. */
+const KIND_FOR_EXPECTED: Record<ExpectedRed, "compile" | "runtime"> = {
+  structural: "compile",
+  assertion: "runtime",
+};
+
+/**
+ * The CONFIRM_RED kind check: a fail-closed refusal when the MEASURED red contradicts what the node
+ * declared, or `null` when there is nothing to refuse on.
+ *
+ * Returns `null` — i.e. advances — in three cases, each deliberate:
+ *  - the node declared no expectation (dry-run / live-smoke, and every pre-existing caller);
+ *  - the classifier offered no kind at all;
+ *  - the kind was inferred from OUTPUT TEXT rather than measured. The heuristic is not good enough to
+ *    refuse real work on: `defaultClassifyKind` silently mis-read Node's own `Cannot find module`
+ *    for as long as nothing consumed its answer, so arming the gate on it would convert a quiet
+ *    wrong advance into a loud wrong refusal.
+ */
+function wrongKindRefusal(
+  obs: TestObservation,
+  expectedRed: ExpectedRed | undefined,
+): { ok: false; reason: string } | null {
+  if (expectedRed === undefined) return null;
+  if (obs.kind === undefined) return null;
+  if (obs.kindBasis !== "oracle-count") return null;
+  const wanted = KIND_FOR_EXPECTED[expectedRed];
+  if (obs.kind === wanted) return null;
+  return {
+    ok: false,
+    reason:
+      `CONFIRM_RED observed a ${obs.kind} red for test ${obs.testId}, but this node declares a ` +
+      `${expectedRed} red (${wanted}) — the red is real, and it is the WRONG red, so it is not ` +
+      `evidence that the test just authored fails for the reason it was written. ` +
+      (expectedRed === "assertion"
+        ? "This node edits source that already exists (ADR-0057 C), so its new test must FAIL AN " +
+          "ASSERTION against current behaviour; a structural red means the test could not even " +
+          "resolve what it imports, which a passing implementation would silence without ever " +
+          "proving the behaviour changed."
+        : "This node authors a net-new seam (or refactors for testability, ADR-0098 R2), so its red " +
+          "must be the MISSING symbol; an assertion red means something else in scope is already " +
+          "failing, and implementing against it would prove nothing about the new seam.") +
+      ` (kind measured from the assert-oracle count, not inferred from output text.)`,
+  };
 }
 
 /**

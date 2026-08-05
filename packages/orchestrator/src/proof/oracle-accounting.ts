@@ -156,6 +156,35 @@ export function readAssertionCount(reportPath: string): number | null {
 }
 
 /**
+ * MEASURE a red's kind from the assertion count (`gate-the-right-kind-red`).
+ *
+ * The report answers the question the "right-kind red" check is actually asking. A red that executed
+ * ZERO assertions never reached an assertion at all — the module did not resolve, the file did not
+ * load, the run died in setup — which is a STRUCTURAL red (`compile`). A red that executed at least
+ * one assertion reached the oracle and the oracle said no, which is an ASSERTION red (`runtime`).
+ *
+ * That is a measurement of the thing itself, where {@link defaultClassifyKind} is a guess about how
+ * some toolchain worded its output — and a guess that was demonstrably wrong for Node's own
+ * `Cannot find module` until nothing-consumed-it stopped hiding the bug. Hence `nextPhase` refuses a
+ * wrong-kind red only on THIS basis.
+ *
+ * Returns `undefined` when the count cannot be read at all (no report / unreadable / malformed).
+ * That is "unmeasurable", NOT "structural": collapsing it to a kind would let a missing report — the
+ * very thing {@link verifyOracleExercised} treats as suspicious — silently satisfy a kind gate. The
+ * caller falls back to the text heuristic and the gate stays disarmed.
+ *
+ * Only meaningful paired with {@link resetOracleReport}, exactly as the green cross-check is: without
+ * the pre-run clear, a count could belong to a previous observation.
+ */
+export function classifyRedByOracle(
+  reportPath: string,
+): "compile" | "runtime" | undefined {
+  const count = readAssertionCount(reportPath);
+  if (count === null) return undefined;
+  return count >= 1 ? "runtime" : "compile";
+}
+
+/**
  * The GREEN cross-check (ADR-0211): a proof that exited 0 is only trusted as a green if the guard's
  * out-of-band report shows the assertion oracle actually ran (>= 1 real assertion). Fail-closed — a
  * missing/unreadable report, or a zero count, REFUSES the green (returns `ok: false` with a forensic
