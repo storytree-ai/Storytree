@@ -171,9 +171,7 @@ function candidateSetEvent(
 // ---------------------------------------------------------------------------
 
 test(
-  "the-recorded-offer-set-is-verified-against-the-cli-s-own-rendered-sources-block: a real " +
-    "spawned `library artifact merge-ceremony` read's recorded offer set agrees in membership " +
-    "with the ids the CLI's own Sources block actually printed",
+  "the-recorded-offer-set-is-verified-against-the-cli-s-own-rendered-sources-block: a real spawned `library artifact merge-ceremony` read's recorded offer set agrees in membership with the ids the CLI's own Sources block actually printed",
   () => {
     const dir = freshDir("contract1");
     const sessionId = "session-contract1";
@@ -222,9 +220,7 @@ test(
 // ---------------------------------------------------------------------------
 
 test(
-  "the-oracle-derives-offer-ids-from-the-render-without-importing-the-function-it-checks: " +
-    "parseRenderedSourcesOffers applies the asset:-stripping offer-id rule to a printed Sources " +
-    "block on its own, and the module doing so imports nothing from offer-candidate-sets.js",
+  "the-oracle-derives-offer-ids-from-the-render-without-importing-the-function-it-checks: parseRenderedSourcesOffers applies the asset:-stripping offer-id rule to a printed Sources block on its own, and the module doing so imports nothing from offer-candidate-sets.js",
   () => {
     const source = fs.readFileSync(IMPL_SOURCE_PATH, "utf8");
     assert.ok(
@@ -249,6 +245,11 @@ test(
       "  Decisions (ADRs):",
       "    - decisions/0022-ci-green-gate-and-auto-merge.md  " +
         "(doc:decisions/0022-ci-green-gate-and-auto-merge.md)",
+      "  Story nodes:",
+      "    - some-story  (node:some-story)",
+      "  Other:",
+      "    - bare-id  (bare-id)",
+      "    - asset:x  (asset:asset:x)",
       "",
       "provenance: test",
     ].join("\n");
@@ -256,9 +257,25 @@ test(
     const ids = parseRenderedSourcesOffers(stdout);
     assert.deepEqual(
       [...ids],
-      ["trunk", "doc:decisions/0022-ci-green-gate-and-auto-merge.md"],
-      "a leading asset: is stripped, every other prefix (e.g. doc:) is kept verbatim",
+      [
+        "trunk",
+        "doc:decisions/0022-ci-green-gate-and-auto-merge.md",
+        "node:some-story",
+        "bare-id",
+        "asset:x",
+      ],
+      "a leading asset: is stripped, every other prefix (doc:, node:) and a bare id are kept verbatim",
     );
+    // The trailing entry is the STRIP-ONCE case, and it is the one a regex would get wrong: a rule
+    // written /^(asset:)+/ (or applied in a loop) would reduce `asset:asset:x` to `x`, silently
+    // renaming an offer whose id legitimately begins with the prefix string. `offerIdOf` strips one
+    // occurrence, so the oracle's independent copy must too — otherwise the two paths would diverge
+    // here and this capability's whole comparison would be reading a corrupted oracle.
+    assert.ok(
+      ids.includes("asset:x"),
+      "the asset: prefix must be stripped exactly ONCE, never repeatedly",
+    );
+    assert.ok(!ids.includes("x"), "a repeated strip would wrongly reduce asset:asset:x to x");
   },
 );
 
@@ -267,10 +284,7 @@ test(
 // ---------------------------------------------------------------------------
 
 test(
-  "the-recorded-order-is-authored-and-the-rendered-order-is-grouped-so-the-sequences-differ: " +
-    "a real spawned `library artifact merge-ceremony` read's recorded order is authored order " +
-    "while the CLI's own render regroups by target type, so the two sequences genuinely differ " +
-    "though membership still agrees",
+  "the-recorded-order-is-authored-and-the-rendered-order-is-grouped-so-the-sequences-differ: a real spawned `library artifact merge-ceremony` read's recorded order is authored order while the CLI's own render regroups by target type, so the two sequences genuinely differ though membership still agrees",
   () => {
     const dir = freshDir("contract3");
     const sessionId = "session-contract3";
@@ -322,9 +336,7 @@ test(
 // ---------------------------------------------------------------------------
 
 test(
-  "a-read-that-recorded-no-offer-is-reported-as-unverified-and-never-as-agreement: a real spawned " +
-    "read that recorded no library-artifact visit, and a real spawned library-artifact read whose " +
-    "render and trace both genuinely offer nothing, are both reported unverified — never as agreement",
+  "a-read-that-recorded-no-offer-is-reported-as-unverified-and-never-as-agreement: a real spawned read that recorded no library-artifact visit, and a real spawned library-artifact read whose render and trace both genuinely offer nothing, are both reported unverified — never as agreement",
   () => {
     // Case (a): a real spawned read that is not a library-artifact read at all — so `events` carries
     // no library-artifact-surface visit for the comparison to join against.
@@ -379,9 +391,7 @@ test(
 // ---------------------------------------------------------------------------
 
 test(
-  "a-label-carrying-its-own-parentheses-still-yields-the-trailing-ref: an item whose label itself " +
-    "carries parentheses (an unresolvable asset pointer) still yields the ref from the LAST " +
-    "parenthesised group on the line, never the first",
+  "a-label-carrying-its-own-parentheses-still-yields-the-trailing-ref: an item whose label itself carries parentheses (an unresolvable asset pointer) still yields the ref from the LAST parenthesised group on the line, never the first",
   () => {
     const stdout = [
       "# some title    [definition]",
@@ -414,9 +424,7 @@ test(
 // ---------------------------------------------------------------------------
 
 test(
-  "a-membership-disagreement-names-the-ids-on-each-side-rather-than-a-bare-boolean: when the " +
-    "rendered ids and the recorded ids genuinely disagree, the disagreement names which ids are " +
-    "missing from the recorded set and which are extra in it, not merely that they differ",
+  "a-membership-disagreement-names-the-ids-on-each-side-rather-than-a-bare-boolean: when the rendered ids and the recorded ids genuinely disagree, the disagreement names which ids are missing from the recorded set and which are extra in it, not merely that they differ",
   () => {
     const visitId = "visit-mismatch";
     const candidateSetId = `candidate-set:${visitId}`;
@@ -461,5 +469,32 @@ test(
 
     const summary = renderOfferSetAgreement(agreement);
     assert.equal(summary, "offer-set agreement: membership DISAGREES, order differs (rendered 3, recorded 3)");
+
+    // DUPLICATES ARE SIGNIFICANT — the comparison is a MULTISET one, not a Set one. This is where a
+    // Set-based implementation would silently lie, and it is not a hypothetical shape: the same node
+    // offered more than once in one set is the `ambiguous` case this arc's end state names by name.
+    const dupVisitId = "visit-duplicate";
+    const dupEvents: ContextTraversalEvent[] = [
+      visitEvent(dupVisitId, "some-id", "library-artifact"),
+      candidateSetEvent(`candidate-set:${dupVisitId}`, ["repeated"], "library-artifact"),
+    ];
+    const dupStdout = [
+      "Sources:",
+      "  Other:",
+      "    - repeated  (repeated)",
+      "    - repeated  (repeated)",
+      "",
+    ].join("\n");
+    const dupVerified = expectVerified(
+      compareOfferSetToRender(dupStdout, dupEvents),
+      "duplicate significance",
+    );
+    assert.equal(
+      dupVerified.membershipAgrees,
+      false,
+      "a render offering the same id twice against a set recording it once must DISAGREE — a Set comparison would call this equal",
+    );
+    assert.deepEqual([...dupVerified.disagreement.missingFromRecorded], ["repeated"]);
+    assert.deepEqual([...dupVerified.disagreement.extraInRecorded], []);
   },
 );
