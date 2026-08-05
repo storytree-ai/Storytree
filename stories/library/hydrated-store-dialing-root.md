@@ -1,7 +1,7 @@
 ---
 id: "hydrated-store-dialing-root"
 tier: capability
-story: store-credential-hydration
+story: library
 arc: diagnosis-honesty-arc
 title: "createPool hydrates the database credential before raw store construction"
 outcome: "createPool resolves STORYTREE_DB_USER before raw Cloud SQL or pg construction, while a source fence prevents any production bypass."
@@ -35,9 +35,11 @@ proof:
 
 ## Guidance
 
-Make `packages/library/src/store/connection.ts` the composition root it already claims to be. At
-the beginning of `createPool`, before resolving the connection options and before constructing a
-Cloud SQL `Connector` or pg `Pool`:
+Make `packages/library/src/store/connection.ts` the composition root it already claims to be. Keep
+ADR-0250's structural data-plane refusal as the first operation in `createPool`: a session that
+cannot carry a direct Cloud SQL connection refuses without reading local credential state. Only
+after that refusal clears, and before resolving the connection options or constructing a Cloud SQL
+`Connector` or pg `Pool`:
 
 1. treat a non-blank `STORYTREE_DB_USER` in the supplied environment as authoritative;
 2. treat an absent, empty, or whitespace-only value as a gap and hydrate that gap from
@@ -52,9 +54,9 @@ arbitrary environment keys. Existing caller-side `loadLocalSecrets()` remains va
 it still serves `CLAUDE_CODE_OAUTH_TOKEN`, but it is no longer what makes a database dial safe.
 
 Keep `createPool`'s current lazy placement at its callers and preserve `CreatePoolOptions.user` as
-an explicit programmatic override. This capability moves no dial earlier: hydration happens when a
-caller actually invokes `createPool`, immediately before the existing data-plane refusal,
-connection-option resolution, and raw construction sequence.
+an explicit programmatic override. This capability moves no dial earlier: when a caller actually
+invokes `createPool`, the existing data-plane refusal runs first; local DB-user hydration follows,
+then connection-option resolution and raw construction.
 
 The class fence is mechanical and sits with the connection tests. Scan production TypeScript for
 imports/construction of `@google-cloud/cloud-sql-connector`'s `Connector` and `pg`'s `Pool`; permit
@@ -66,7 +68,7 @@ that is the shared path the fence protects.
 This root does not select an HTTP store-door credential, alter store authorization, start or wake
 Cloud SQL, set a connection timeout, or emit build liveness.
 
-## Contract (1)
+## Contracts (1)
 
 1. **`store-dialers-cross-the-hydration-root`** — credential resolution precedes every raw store dial
    - **asserts —** `createPool` preserves an explicit non-blank environment user, hydrates an absent
@@ -85,4 +87,3 @@ Cloud SQL, set a connection timeout, or emit build liveness.
 `createPool` composition with a temporary `STORYTREE_SECRETS_FILE` and recording connector/pool
 effects, then runs the raw-constructor source audit over the repository and a deliberately violating
 fixture. The proof is offline: no Cloud SQL connector or network socket is opened.
-
