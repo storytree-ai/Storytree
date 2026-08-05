@@ -1527,27 +1527,27 @@
     },
     {
       "legacyTestId": "uat-detail-studio#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-06",
+      "rationale": "Superseded under ADR-0294: this former story-UAT leg is proven by the capabilities `uat-row-one-liner` and `criterion-detail-pointer`. The Studio component test asserts the exact one-line title renders; the pointer tests attach a resolved long action/success body and assert that neither field can replace the story title.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "uat-detail-studio#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-06",
+      "rationale": "Superseded under ADR-0294: this former story-UAT leg is proven by the capability `uat-row-opens-detail`, contract `uat-row-open-navigates-to-detail`. The Studio component assertion checks the exact Library asset href and that the one-liner remains the link label.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "uat-detail-studio#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-06",
+      "rationale": "Superseded under ADR-0294: this former story-UAT leg is proven by the capability `uat-row-opens-detail`, contracts `uat-row-without-pointer-does-not-fake-open` and `uat-row-open-preserves-sign-glyph`. The Studio component assertions check that no detail link exists and the one-line title plus human sign affordance are retained.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "uat-detail-studio#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-06",
+      "rationale": "Superseded under ADR-0294: this former story-UAT leg is proven by the capability `uat-row-opens-detail`, contract `uat-row-open-preserves-sign-glyph`. The focused coexistence test asserts pointed human and machine rows retain distinct sign states, while the ADR-0082 witness tests assert a human leg is signable, a machine leg is inert, and signing issues the real sign call.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "website-experience#uat-1",
