@@ -8,10 +8,11 @@ outcome: "story-author's write-scope predicate admits stories/** and fail-closed
 status: proposed
 proof_mode: integration-test
 depends_on: [uat-detail-kind]
-decisions: [209, 307, 192]
+decisions: [209, 307, 192, 309]
 # Node-borne proof config (ADR-0057 / ADR-0192). NET-NEW pure write-scope predicate in
-# packages/uat-criterion. Injecting it into packages/agent's runSpawnStoryAuthor is consumer glue
-# after this port is green — no proof source under packages/agent (packages-forward).
+# packages/uat-criterion. The old note here named packages/agent's runSpawnStoryAuthor as the
+# consumer glue to follow; ADR-0175 deleted that file, so the predicate has no consumer (ADR-0309
+# D3). Still no proof source under packages/agent (packages-forward).
 proof:
   command:
     file: pnpm
@@ -41,11 +42,18 @@ non-hierarchy path alike.
 premise that a detail body was a committed file and so had to be reachable by the same file tools
 that write `stories/**`. ADR-0307 D5 withdrew the seed-canonical posture, so a detail body is now a
 live-store write. **story-author did NOT lose authority over details** — it still owns the
-hierarchy↔detail pair and still authors it atomically (ADR-0209 D5, untouched). What changed is the
-MEDIUM of the second half, and therefore which fence governs it: the hierarchy half is a file write
-inside this predicate, the detail half is a `--pg` Library write governed by the library-edit
-ceremony. The capability survives because the predicate still has to exist and still has to be
-fail-closed; its outcome simply resolves to one admitted root instead of two.
+hierarchy↔detail pair and still authors both halves in one pass (ADR-0209 D5, untouched). What
+changed is the MEDIUM of the second half, and therefore which fence governs it: the hierarchy half is
+a file write inside this predicate, the detail half is a `--pg` Library write governed by the
+library-edit ceremony. The capability survives because the predicate still has to exist and still has
+to be fail-closed; its outcome simply resolves to one admitted root instead of two.
+
+**The authority behind that sentence was granted later (ADR-0309 D1, 2026-08-05).** When this
+capability was authored, "story-author still owns the pair" was true of ADR-0209 D5 but contradicted
+by the `story-author` agent artifact, which forbade any Library write and any `--pg` in four separate
+places — so the detail half had an owner on paper and no granted verb. ADR-0309 grants the write,
+fenced to the `uat-criterion` kind, and corrects the artifact. Read "atomically" as **together in one
+pass**: the halves live in different media and nothing spans them transactionally (ADR-0309 D1).
 
 ## Guidance
 
@@ -60,19 +68,32 @@ fail-closed; its outcome simply resolves to one admitted root instead of two.
   - Any other Library kind's seed path (agents, principles, frictions, …).
   - `packages/**`, `apps/**`, ADRs, gate/config, and every path that is not the hierarchy.
   - Live DB / `--pg` is out of band for this predicate (file-tool fence only); do not invent a
-    shell path that bypasses it — Bash stays absent from the spawn tool surface (existing agent
-    invariant). Note this is what makes the pair coherent rather than broken: the detail half is
-    authored through the Library write ceremony, which has its own validation and audit trail, not
-    by smuggling a file write past this predicate.
-- **Consumer glue (NOT this leaf's sourceFiles):** `@storytree/agent`'s `runSpawnStoryAuthor`
-  hard-defaults to `stories/**` (`packages/agent/src/spawn-story-author.ts`). After this predicate
-  is green, agent-side glue injects it as the default `isWriteAllowed`. Post-0307 the two agree on
-  the same single root, so the injection is about single-ownership of the definition, not about
-  widening. The `story-author` agent artifact's prose is a **live** Library edit
-  (`library artifact edit story-author --pg`) plus `pnpm build:guidance && pnpm build:agents` —
-  there is no seed edit and no `sync-agents`, both deleted by ADR-0307 D3.
-- Pure predicate + path helpers. No SDK, no PreToolUse hook copy — the hook already consumes an
-  injected predicate; this leaf supplies the predicate. Test-author ≠ code-author.
+    shell path that bypasses it. Note this is what makes the pair coherent rather than broken: the
+    detail half is authored through the Library write ceremony, which has its own validation and
+    audit trail, not by smuggling a file write past this predicate.
+  - ~~Bash stays absent from the spawn tool surface (existing agent invariant).~~ **Struck
+    2026-08-05 (ADR-0309 D3) — this asserted a live invariant that is not live.** ADR-0175 retired
+    the spawn tool surface; `packages/agent/src/spawn-story-author.ts` was built (`82e24ff0`) and
+    then deleted (`ed295f48`), `runSpawnWriteScoped` survives deliberately caller-less, and no
+    `tools:` frontmatter fence or `PreToolUse` hook constrains the agent that exists today. This
+    predicate is therefore an instruction fence, not a mechanical one — which does not weaken it
+    (ADR-0284's wall binds Bash the same way), but must not be cited as though a runtime enforced
+    it. If a Bash-free spawned runtime is ever rebuilt for story-author, it must ship a `--pg`
+    affordance in the same change or ADR-0309 D1's grant silently becomes unexercisable.
+- **Consumer glue — THERE IS NO CONSUMER TODAY (corrected 2026-08-05, ADR-0309 D3).** This bullet
+  named `@storytree/agent`'s `runSpawnStoryAuthor` in `packages/agent/src/spawn-story-author.ts` as
+  the glue that would inject this predicate as its default `isWriteAllowed`. That file was deleted
+  with the spawn tool surface (ADR-0175), so the injection target does not exist and the predicate
+  is exported and tested but consumed by nothing. Do not go looking for it. The generalised
+  `runSpawnWriteScoped` survives in `packages/agent/src/spawn-write-scoped.ts` — Bash-free and
+  fence-injecting — and ADR-0175 keeps it deliberately caller-less; it is the shape to aim at if a
+  mechanical fence is ever wanted, not evidence that one exists. The `story-author` agent artifact's
+  prose is a **live** Library edit (`library artifact edit story-author --pg`) plus
+  `pnpm build:guidance && pnpm build:agents` — there is no seed edit and no `sync-agents`, both
+  deleted by ADR-0307 D3.
+- Pure predicate + path helpers. No SDK, no `PreToolUse` hook copy — and note that no such hook is
+  configured either (`.claude/settings.json` wires only `SessionStart` and `UserPromptSubmit`). This
+  leaf supplies a predicate for a consumer that has yet to be built. Test-author ≠ code-author.
 
 ## Contracts (3)
 
