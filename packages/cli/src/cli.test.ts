@@ -553,10 +553,13 @@ test("artifact edit --set still REFUSES an arc's increments wholesale — the lo
     { store, writable: true },
   );
   assert.equal(env.ok, false);
-  assert.match(env.body, /append-only/i, "the refusal names the append-only policy");
+  // Since ADR-0305 D1 the arc has no `increments` field at all, so the refusal is the UNKNOWN-field
+  // one rather than the unsettable-field one — a stronger fence, and it still names the verb. It
+  // also lists what IS editable, which is what a session on main-derived code needs to see when its
+  // muscle memory reaches for the folded array.
+  assert.match(env.body, /unknown field "increments" for a arc artifact/);
   assert.match(env.body, /arc increment add/, "…and points at the first-class verb");
-  const got = (await store.getDoc("dispatch-arc"))?.doc as { increments?: unknown[] };
-  assert.equal(got.increments?.length, 1, "the landed log is untouched");
+  assert.match(env.body, /editable fields: description, endState, id, intent, lifecycle/);
 });
 
 /** Seed a minimal live-shaped arc into a store (arcs are live-only, absent from the offline seed). */
@@ -571,7 +574,6 @@ async function seedArc(store: InMemoryStore): Promise<void> {
       description: "d",
       intent: "old intent",
       endState: "old end state",
-      increments: [{ date: "2026-07-01", pr: "#1", outcome: "first" }],
       references: [],
       createdAt: "2026-07-01",
       updatedAt: "2026-07-01",
@@ -587,10 +589,14 @@ test("arc increment add <id> via dispatch appends one increment (positional rout
     { store, writable: true },
   );
   assert.equal(env.ok, true);
-  assert.match(env.body, /appended increment to arc dispatch-arc/);
-  const log = (await store.getDoc("dispatch-arc"))?.doc as { increments: Array<Record<string, unknown>> };
-  assert.equal(log.increments.length, 2);
-  assert.deepEqual(log.increments[1], { date: "2026-07-20", pr: "#42", outcome: "landed inc 2" });
+  assert.match(env.body, /recorded increment dispatch-arc-inc-01 on arc dispatch-arc/);
+  const written = (await store.queryDocs({ kind: "increment" })).find((d) => d.id === "dispatch-arc-inc-01");
+  assert.ok(written, "the landing is its own row, not an array entry on the arc");
+  const bag = written.doc as Record<string, unknown>;
+  assert.equal(bag["status"], "closed");
+  assert.equal(bag["arcRef"], "asset:dispatch-arc");
+  assert.deepEqual(bag["outcome"], { date: "2026-07-20", pr: "#42" });
+  assert.equal(bag["body"], "landed inc 2");
 });
 
 test("arc edit --end-state @path via dispatch reads long prose from a file", async () => {
@@ -697,13 +703,14 @@ test("arc close through the dispatcher writes the terminal increment and the fli
     { store, writable: true },
   );
   assert.equal(env.ok, true, env.body);
-  const doc = (await store.getDoc("closing-arc"))?.doc as {
-    lifecycle?: string;
-    increments?: Array<Record<string, unknown>>;
-  };
+  const doc = (await store.getDoc("closing-arc"))?.doc as { lifecycle?: string };
   assert.equal(doc.lifecycle, "closed");
-  assert.equal(doc.increments?.length, 1);
-  assert.equal(doc.increments?.[0]?.["pr"], "#1012");
+  // TWO rows since the fold, written increment-FIRST — the prose that justifies the flip is a
+  // document of its own now, and its ordering is what replaces the lost single-upsert atomicity.
+  const terminal = (await store.queryDocs({ kind: "increment" })).find((d) => d.id.startsWith("closing-arc-inc-"));
+  assert.ok(terminal, "the terminal increment exists");
+  assert.equal((terminal.doc as Record<string, unknown>)["status"], "closed");
+  assert.equal(((terminal.doc as Record<string, unknown>)["outcome"] as Record<string, unknown>)["pr"], "#1012");
 });
 
 test("arc list --all / --closed parse as flags and widen the default worklist (ADR-0239 D3)", async () => {
@@ -880,7 +887,7 @@ test("artifact list advertises every SCHEMA kind, including the ones at zero", a
   assert.equal(env.ok, false, "a kind the schema does not define is still a genuine user error");
   assert.match(env.body, /unknown category "not-a-real-kind"/);
   // The available list can never again advertise a narrower world than the schema defines.
-  for (const kind of ["definition", "open-question", "friction", "arc", "plan", "uat-criterion"]) {
+  for (const kind of ["definition", "open-question", "friction", "arc", "increment", "uat-criterion"]) {
     assert.ok(env.body.includes(kind), `available categories names ${kind}`);
   }
 });

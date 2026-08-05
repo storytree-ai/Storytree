@@ -207,7 +207,7 @@
     "kind": "definition",
     "id": "plan",
     "title": "Plan",
-    "oneLine": "The disposable, git-anchored choreography for one increment of an arc: the units in dependency order with their proof routes, contention, budgets and traps, written as one free `body` — freshness-checked at consumption, executed once, then closed."
+    "oneLine": "One unit of arc work, from decided to landed: the units in dependency order with their proof routes, contention, budgets and traps, written as one free `body` — freshness-checked at consumption, executed once, then closed. The KIND is `increment` (ADR-0305 D1)."
   },
   {
     "kind": "definition",

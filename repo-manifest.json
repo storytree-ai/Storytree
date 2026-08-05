@@ -1,5 +1,5 @@
 {
-  "$comment": "Allow-list gate for the repo ROOT and docs/. Enforced by scripts/check-manifest.mjs (`pnpm check:manifest`), wired into `pnpm gate` and the CI `verify` job (ADR-0022). Adding a NEW top-level root entry, or a NEW standalone doc under docs/, REQUIRES adding it here with a justification first — that friction is the point: it blocks temp/ad-hoc junk at root and keeps durable project knowledge in the Library (definition/principle/pattern/guardrail/techstack/adr/open-question), not loose prose docs. A new doc's justification must say why it does NOT belong in the Library. See the `repo-surface-allowlist` Library guardrail.",
+  "$comment": "Allow-list record for the repo ROOT and docs/. scripts/check-manifest.mjs can validate it explicitly, but it is not a `pnpm gate` or CI rung. Adding a NEW top-level root entry, or a NEW standalone doc under docs/, REQUIRES adding it here with a justification first — that friction is the point: it blocks temp/ad-hoc junk at root and keeps durable project knowledge in the Library (definition/principle/pattern/guardrail/techstack/adr/open-question), not loose prose docs. A new doc's justification must say why it does NOT belong in the Library. See the `repo-surface-allowlist` Library guardrail.",
   "root": {
     "files": {
       "README.md": "Project front-door (the one standalone narrative doc we keep).",

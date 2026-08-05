@@ -48,7 +48,7 @@ test("upcast: v0 structured unit drops seeAlso, stamps schemaVersion, and valida
   const out = upcast(v0DefinitionWithSeeAlso());
   assert.equal("seeAlso" in out, false, "retired seeAlso dropped");
   assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, "stamped to current version");
-  assert.equal(CURRENT_SCHEMA_VERSION, 4, "current version is 4 (increment-body-and-status-collapse)");
+  assert.equal(CURRENT_SCHEMA_VERSION, 5, "current version is 5 (arc-increments-fold)");
   // The forwarded doc passes the strict validator (it would have been rejected un-upcast).
   const validated = validateLibraryDoc(out);
   assert.equal((validated as { schemaVersion?: number }).schemaVersion, CURRENT_SCHEMA_VERSION);
@@ -211,6 +211,8 @@ test("upcast: migration #3 is a no-op on a doc with no glossary projection (idem
 /** A v3 plan doc in the PRE-COLLAPSE shape: five body headings + a five-value status. */
 function v3PlanPreCollapse(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
+    // The PRE-rename key on purpose: migration #4 is kind-scoped on `plan`, and it runs BEFORE
+    // migration #5 (the re-key) on any doc pinned below 4 — so it can only ever see `plan`.
     kind: "plan",
     id: "parity-plan",
     title: "Parity plan",
@@ -278,6 +280,67 @@ test("upcast: migration #4 remaps every retired status, and is idempotent on the
   delete noStatus["status"];
   assert.equal(upcast(noStatus)["status"], "proposal", "an absent status becomes proposal");
   assert.equal(upcast(v3PlanPreCollapse({ status: "half-done" }))["status"], "proposal");
+});
+
+test("upcast: migration #5 re-keys the plan tier and backfills the fields its invariants require", () => {
+  // THE TRAP THIS PINS: `upcast` skips anything `isStructuredKnowledge` rejects, and that predicate
+  // asks whether `kind` is a CURRENT KIND_SPECS key — so a rename would make every stored row under
+  // the old key un-upcastable, and the migration written to fix them would never run on them.
+  const out = upcast(v3PlanPreCollapse({ status: "consumed" }));
+  assert.equal(out["kind"], "increment", "the retired key is re-keyed, not skipped");
+  assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION);
+  assert.doesNotThrow(() => validateLibraryDoc(out));
+
+  // A `closed` row MUST gain an `outcome` — the 10 live rows migration 4 mapped from
+  // `superseded`/`retired` predate the field entirely, and declaring the invariant without this
+  // backfill would brick exactly the documents the fold exists to preserve.
+  const closed = upcast(v3PlanPreCollapse({ status: "retired" }));
+  assert.equal(closed["status"], "closed");
+  const outcome = closed["outcome"] as Record<string, unknown>;
+  assert.equal(outcome["date"], "2026-07-11", "the date comes from the doc's OWN timestamp, not a clock");
+  assert.match(String(outcome["note"]), /recoverable only from `events.library_event`/);
+  assert.doesNotThrow(() => validateLibraryDoc(closed));
+
+  // A `proposal` row MUST gain `parked` — and from its own createdAt, never "now": `parked` is the
+  // delivery ceiling's comparison point, so a clock-stamped migration would reset every waiting
+  // entry's age to zero and silence the recurrences that select it.
+  const parked = upcast(v3PlanPreCollapse({ status: "draft" }));
+  assert.equal(parked["status"], "proposal");
+  assert.equal(parked["parked"], "2026-07-11T00:00:00.000Z");
+  assert.doesNotThrow(() => validateLibraryDoc(parked));
+
+  // Idempotent, and it never overwrites a stamp the doc already carries.
+  assert.deepEqual(upcast(parked), parked);
+  const own = upcast(v3PlanPreCollapse({ status: "draft", parked: "2026-01-01T00:00:00.000Z" }));
+  assert.equal(own["parked"], "2026-01-01T00:00:00.000Z", "an existing parked stamp is preserved");
+});
+
+test("upcast: migration #5 drops the arc's two folded arrays, so a stored arc stays writable", () => {
+  const arc = {
+    kind: "arc",
+    id: "map-arc",
+    title: "Map",
+    description: "d",
+    schemaVersion: 4,
+    references: [],
+    intent: "i",
+    endState: "e",
+    increments: [{ date: "2026-07-01", pr: "#640", outcome: "landed" }],
+    proposals: [{ id: "p", title: "t", parked: "2026-07-01", summary: "s", motivation: "m" }],
+    createdAt: "2026-07-01",
+    updatedAt: "2026-07-01",
+  };
+  // Un-upcast it is REFUSED — the schema no longer declares either array (ADR-0305 D1).
+  assert.throws(() => validateLibraryDoc(arc));
+  const out = upcast({ ...arc });
+  assert.equal("increments" in out, false);
+  assert.equal("proposals" in out, false);
+  assert.equal(out["intent"], "i", "the narrative is untouched");
+  assert.doesNotThrow(() => validateLibraryDoc(out));
+  assert.deepEqual(upcast(out), out, "idempotent");
+
+  // The entries themselves are NOT created here: a per-doc transform cannot mint documents, so
+  // MOVING them into increment rows is the one-shot backfill's job. This is the ramp, not the fold.
 });
 
 test("upcast: migration #4 no-ops on every other kind, and synthesises a body from `objective`", () => {

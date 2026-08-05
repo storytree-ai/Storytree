@@ -43,8 +43,8 @@ jobs:
   # ---------------------------------------------------------------------------
   # The gate. Typecheck / test / build are offline and need no secrets.
   #
-  # CI IS NO LONGER DB-FREE (ADR-0302 D3). The live-store checks at the END of this job authenticate
-  # through the SAME keyless WIF identity the automerge job has used on every merged PR since
+  # CI IS NO LONGER DB-FREE (ADR-0302 D3). The retained guidance and agent projection checks
+  # authenticate through the SAME keyless WIF identity the automerge job has used on every merged PR since
   # ADR-0033 — no new pool, no new IAM, no new secret (infra/ci-presence.tf). This closes the class
   # of reds that could only ever fire on the dev box while CI showed green.
   #
@@ -114,37 +114,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # -----------------------------------------------------------------------
-      # GCP AUTH — setup, not a check, which is why it sits here rather than beside the live-store
-      # steps it used to precede at the end of the job. ADR-0302 D1 decommissioned the committed
-      # corpus, so `check:guidance` / `check:agents` below now read the LIVE store (ADR-0307 D2 —
-      # the generators' outputs stay committed, only their source moved). Those two judge THIS
-      # branch's own diff, so the `gate-order.ts` axis-1 rule keeps them early; acquiring the
-      # credential early is what lets them stay there.
-      #
-      # FAIL-LOUD, and now doubly so. This step carried `continue-on-error: true` while the only
-      # things behind it were two ceilings that could merely SKIP; it was dropped on 2026-08-05 as
-      # one half of ARMING them (`STORYTREE_DB_REQUIRED` below — never re-soften one without the
-      # other). The seed decommit makes the same call for a second, independent reason: with the
-      # committed corpus gone, `check:guidance` / `check:agents` have NO source without the store, so
-      # they fail rather than skip regardless. That is exactly the hard database dependency ADR-0302
-      # accepts ("when Postgres is down, nothing lands"). What failing here buys is an HONEST failure
-      # site — `verify` stops at "could not authenticate" instead of several steps later at something
-      # that reads like a database outage or a stale projection.
-      - name: Authenticate to GCP for the live-store steps (keyless WIF — ADR-0021)
-        uses: google-github-actions/auth@v3
-        with:
-          # Identical to the automerge job's step below — the same pool, provider and service
-          # account, provisioned by infra/ci-presence.tf. The provider resource name embeds the
-          # project NUMBER (635716509357), not the project id.
-          workload_identity_provider: projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github
-          service_account: storytree-ci-presence@storytree-498613.iam.gserviceaccount.com
-
-      # Repo-surface allow-list (the `repo-surface-allowlist` guardrail): refuse
-      # unlisted root entries / loose docs so temp/ad-hoc junk can't merge.
-      - name: Repo manifest
-        run: pnpm check:manifest
-
       # Organism boundary (ADR-0074): the real cross-organism code-dependency graph must be a
       # subgraph of the declared cross-story `depends_on` graph (substrate/ports excepted). Refuses
       # an undeclared cross-story coupling or a dependency cycle — so coupling can't be added without
@@ -160,57 +129,6 @@ jobs:
       # editing EITHER surface, and the affected filter would run only the edited one's suite.
       - name: Cross-surface mirror conformance
         run: pnpm check:mirror-conformance
-
-      # CLAUDE.md's region and Codex AGENTS.md are GENERATED root views of the
-      # `session-orchestrator` Library agent (ADR-0051/0291) — fail if either drifts. Reads the LIVE
-      # store since ADR-0302 D1 / ADR-0307 D1: the `agent` tier is live-canonical, so the source is
-      # the store, and there is no committed corpus left to read. STORYTREE_DB_USER is set PER-STEP,
-      # never at job level (see the drain-ceiling steps below for why).
-      - name: Root agent guidance in sync
-        env:
-          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
-        run: pnpm check:guidance
-
-      # .claude/agents/*.md are GENERATED subagent files — a view of the delegatable library
-      # agents (ADR-0052). Fail if they have drifted (edit the agent artifact with
-      # `library artifact edit <id> --pg`, then `pnpm build:agents`). Live-store source, as above.
-      - name: .claude/agents in sync
-        env:
-          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
-        run: pnpm check:agents
-
-      # Process↔entrypoint bijection (ADR-0154): every `process` names a real CLI/pnpm entrypoint in
-      # its `surfaces`, and every operator-facing entrypoint has a process behind it. It WARNs within
-      # its drain ceiling (the backfill worklist) and REDS above it on either axis — bounded
-      # 2026-07-27 by `verification-integrity-arc` (ADR-0252 D3), because thirteen days of green CI
-      # passed over a bijection that had been broken since ADR-0195. Ceiling + baselines:
-      # packages/cli/src/surface-coverage-drain.ts.
-      #
-      # LIVE-STORE since ADR-0302 D1: it read the committed seed's `process` tier until that seed was
-      # deleted, so it judged a mirror an authored process only reached after an export ceremony.
-      # It keeps its early axis-1 position (it judges THIS branch's diff) because the auth step above
-      # runs right after `pnpm install`. ARMED, and that is load-bearing rather than tidiness: the
-      # real-repo 0/0 baseline used to be pinned hermetically inside `pnpm -r test`, and it moved
-      # here when the seed went — so a store this check could not reach would silently stop enforcing
-      # the bijection, which is the "kept but neutered" outcome ADR-0302 D4 forbids.
-      - name: Surface coverage (bijection drain ceiling)
-        env:
-          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
-          STORYTREE_DB_REQUIRED: '1'
-        run: pnpm check:surface-coverage
-
-      # Wall-clock fence over gate-tier test files (ADR-0276 D3). A duration bound on a box shared
-      # with concurrent sessions measures CPU starvation, not the routine — the one such assertion in
-      # the suite measured 386ms quiet and 6185ms loaded, and redded 3 of 4 overnight gate runs on
-      # DOCS-ONLY diffs while catching zero real regressions. It reds at a ZERO ceiling on two axes:
-      # an unsanctioned `performance.now`/`process.hrtime` in any gate-tier test file, or the one
-      # sanctioned survivor losing the `STORYTREE_PERF` gate that earns its exemption. Ceiling +
-      # baselines: packages/cli/src/test-timing-drain.ts. DB-free (pure file reads), so like
-      # check:surface-coverage it runs local AND here. Deliberately OUTSIDE the ADR-0195 affected-only
-      # narrowing below — a new timing assertion can land in any workspace's tests, and the affected
-      # filter would scan only the edited one.
-      - name: Test timing (wall-clock fence)
-        run: pnpm check:test-timing
 
       # Clone the PINNED web submodule so the grounding check validates the exact vendored site.
       # storytree-web is PUBLIC, so this needs no creds (unlike the private legacy/Agentic, which is
@@ -236,14 +154,6 @@ jobs:
       # the render-core twin of `check:web-grounding`, needs the cloned web/ above.
       - name: web engine in sync
         run: pnpm check:web-engine
-
-      # The two-act experience's rollout guard (ADR-0134, stories/website-experience): an
-      # experience entry page (one carrying data-experience-entry) must keep the skip +
-      # reduced-motion/no-WebGL affordance markers and a WebGL-free Act 1 static closure.
-      # SKIPs while the pinned site hasn't adopted the experience — the guard lands before
-      # the storm. Needs the cloned web/ above.
-      - name: web experience guarded
-        run: pnpm check:web-experience
 
       # Affected-only PR scope (ADR-0195, amends ADR-0022; ADR-0304 D2 puts the SAME classifier
       # behind the local `pnpm gate`): classify the PR's changed files and,
@@ -278,56 +188,28 @@ jobs:
         run: pnpm -r build
 
       # -----------------------------------------------------------------------
-      # LIVE-STORE CHECKS (ADR-0302 D3) — deliberately LAST.
-      #
-      # These read the SHARED corpus, so a red here can be a sibling session's backlog rather than
-      # this branch's diff. That is the same axis-2 rule the local gate's plan encodes
-      # (packages/cli/src/gate-order.ts): a verdict the author is not permitted to remedy must not
-      # arrive ahead of the ones that are theirs. Everything above is this branch's own answer.
-      #
-      # ONLY TWO CEILINGS ARE WIRED HERE, and the omission is deliberate:
-      #   • check:declared is DB-backed and stays unwired ON PURPOSE. Its gate is the existence of
-      #     `.claude/worktrees/`, which is untracked and therefore never present in a CI checkout
-      #     (packages/cli/src/check-declared.ts) — it judges the dev box's lobby, which CI does not
-      #     have. Its skipping here is correct; do not "fix" it.
-      # `check:agents-sync` / `check:corpus-sync` / `check:corpus-content` were named here as
-      # deliberately-unwired; ADR-0302 D4 has since DELETED all three with the seed they policed.
-      # The GCP auth step they would have shared now sits up beside `Install dependencies`, because
-      # `check:guidance` / `check:agents` need it too and belong early (see there).
-      # -----------------------------------------------------------------------
-      # STORYTREE_DB_USER is set PER-STEP, never at job level. Job-level would put a live credential
-      # into `pnpm -r test`'s environment, and the suites that read that key would silently change
-      # what they exercise. They are hermetic today (packages/cli/src/node-build.test.ts,
-      # packages/drive/src/secrets.test.ts); scoping it here removes the question rather than
-      # relying on them staying that way.
-      #
-      # ARMED 2026-08-05 — the last step of ADR-0302 D3. `STORYTREE_DB_REQUIRED: '1'` turns an absent
-      # credential or an unreachable store from SKIP into RED. Both checks are fail-closed on the
-      # QUEUE but fail-OPEN on the SUBSTRATE, so without this a runner could authenticate, fail to
-      # reach Postgres, print SKIP and merge — a check holding a credential it cannot bite with, which
-      # is exactly the "kept but neutered" outcome ADR-0302 D4 says this work must not produce. See
-      # packages/cli/src/db-required.ts for why it is an explicit declaration and not an `if (CI)`.
-      #
-      # BOTH PRECONDITIONS ARE MET, and arming waited on them deliberately: the instance now runs 24/7
-      # (ADR-0302 D2 — both Cloud Scheduler jobs and the `sql-stopper` SA are destroyed) and the
-      # widened SELECT grants on events.library_artifact / events.library_event are applied. #1146
-      # correctly declined to arm without them: its own verify printed "permission denied for table
-      # library_artifact", which armed would have redded that PR and every one after it.
-      #
-      # THE COST, ACCEPTED: a Cloud SQL outage now blocks every merge, with no bypass short of a
-      # `hold` label or a draft PR. That is ADR-0302's stated trade — an unverified ceiling is not a
-      # passed one — and it is the reason the nightly sleep window had to go first.
-      - name: Friction drain ceiling (live store)
-        env:
-          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
-          STORYTREE_DB_REQUIRED: '1'
-        run: pnpm check:friction-drain
+      # SHARED LIVE SOURCE — deliberately after this branch's typecheck, tests, and build.
+      # ADR-0302/0307 moved the Library agent tier to the live store while keeping its generated
+      # harness projections committed. A sibling can therefore move the source beneath this branch;
+      # these are real catches, but they must not precede the branch-local proof they do not own.
+      - name: Authenticate to GCP for live guidance (keyless WIF — ADR-0021)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: storytree-ci-presence@storytree-498613.iam.gserviceaccount.com
 
-      - name: Arc parked-work drain ceiling (live store)
+      # CLAUDE.md, AGENTS.md and definitions.generated.json are generated root views of the live
+      # session-orchestrator/definition tier. Fail rather than silently ship stale operating rules.
+      - name: Root agent guidance in sync
         env:
           STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
-          STORYTREE_DB_REQUIRED: '1'
-        run: pnpm check:arc-proposal-drain
+        run: pnpm check:guidance
+
+      # The four native harness directories are generated views of the live delegatable agents.
+      - name: Harness agents in sync
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+        run: pnpm check:agents
 
   # ---------------------------------------------------------------------------
   # Auto-merge-on-green, done inside free Actions (GitHub-native auto-merge is
@@ -519,9 +401,7 @@ jobs:
       # ALSO GUARDED ON `merged` (ADR-0304 D3), and this is the guard that matters
       # most: dispatching a deploy on `--ref main` for a PR that is only QUEUED
       # would build and ship a `main` the change is not in yet — a silent deploy of
-      # the wrong tree. Skipping is the safe direction and it is observable:
-      # `check:deploy-health` is a gate rung, so a studio change that failed to
-      # deploy surfaces rather than hiding. The EXPECTATION at flip time is that
+      # the wrong tree. Skipping is the safe direction. The EXPECTATION at flip time is that
       # this dispatch stops being needed, because a merge-queue merge is not a
       # GITHUB_TOKEN merge and so should trigger deploy-studio.yml's own `push`
       # run directly — VERIFY that on the first studio-affecting merge after the

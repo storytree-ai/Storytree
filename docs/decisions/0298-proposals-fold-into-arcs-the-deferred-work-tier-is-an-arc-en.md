@@ -25,6 +25,10 @@ routing-table row; this ADR still amends that row (to a different destination), 
 survive its amender's supersession or ADR-0168 silently reverts to naming `story-author`. The second
 edge is new: D5 below narrows ADR-0183 D4's implementation-surface ban.
 
+**Amended by ADR-0311 (2026-08-05):** the arc entry shape, `frictionRefs` edge and realization
+discharge remain current. The recurrence diagnostic remains available, but
+`check:arc-proposal-drain` no longer runs as a root/CI merge obligation.
+
 ## Context
 
 **Two tiers were answering the same question.** ADR-0168 D2 named `proposal` part of the Library's
@@ -162,12 +166,12 @@ The entry → friction `frictionRefs` is what D3's join needs: an arc may carry 
 a citation that names only the arc cannot say WHICH entry a recurrence presses on. ADR-0287 D1 put no
 reverse pointer on the proposal because a proposal was 1:1 with its friction; an arc entry is not.
 
-### D3 — the delivery signal survives verbatim; only the object it counts moves
+### D3 — the delivery signal survives; only the object it counts moves
 
-ADR-0287 D3's rule is preserved word for word, with `proposal` reading `arc entry`:
+ADR-0287 D3's recurrence predicate is preserved, with `proposal` reading `arc entry`:
 
-> An open arc entry goes RED when a friction item it names gains a reinforcement dated after the entry
-> was parked.
+> An open arc entry is reported when a friction item it names gains a reinforcement dated after the
+> entry was parked.
 
 Every property that made it worth having is retained, and each is retained for its original reason:
 
@@ -178,12 +182,13 @@ Every property that made it worth having is retained, and each is retained for i
 - **Day-granular and strictly `>`.** Same-day is a WARN, so a session can never red itself on its own
   emission.
 - **Pure — no clock, no session identity.** The verdict is a function of two stored dates.
-- **Fail-closed on the queue, fail-open on the substrate.** SKIP offline / no creds / DB unreachable;
-  local gate only, never CI.
+- **Diagnostic on the queue, fail-open on the substrate.** SKIP offline / no creds / DB unreachable;
+  ADR-0311 retires the local gate wiring.
 - **The same accepted risk.** An entry whose trap nobody happens to re-hit stays quiet. Failing in the
   quiet direction remains the deliberate trade.
 
-`check:proposal-drain` is replaced by `check:arc-proposal-drain` in the same gate position. The join
+`check:proposal-drain` was replaced by `check:arc-proposal-drain`; ADR-0311 later removes that
+replacement from gate policy. The join
 runs entry → friction (via `frictionRefs`) rather than friction → proposal (via `references`), because
 D2 moved where the unambiguous edge lives; the comparison itself is unchanged.
 

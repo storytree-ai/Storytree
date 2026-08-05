@@ -19,7 +19,7 @@ const EXPECTED_ORDER = [
   "template-agent",
   "template-friction",
   "template-arc",
-  "template-plan",
+  "template-increment",
 ];
 
 test("libraryTemplates returns the 13 canonical templates in order", () => {

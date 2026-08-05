@@ -23,7 +23,7 @@ const KIND_ORDER = [
   "process",
   "agent",
   "arc",
-  "plan",
+  "increment",
   "proposal",
   "open-question",
   "friction",

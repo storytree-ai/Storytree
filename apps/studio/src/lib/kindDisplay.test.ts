@@ -25,7 +25,7 @@ describe('kindLabel (the chip / inline kind text)', () => {
 
   it('never aliases any other kind, under either preference', () => {
     for (const display of ['epic', 'arc'] as ArcDisplay[]) {
-      expect(kindLabel('plan', display)).toBe('plan');
+      expect(kindLabel('increment', display)).toBe('increment');
       expect(kindLabel('definition', display)).toBe('definition');
       expect(kindLabel('adr', display)).toBe('adr');
     }
@@ -39,7 +39,7 @@ describe('typeLabel (the plural heading text)', () => {
   });
 
   it('passes every other heading through untouched', () => {
-    expect(typeLabel('plan', 'epic', 'Plans')).toBe('Plans');
+    expect(typeLabel('increment', 'epic', 'Increments')).toBe('Increments');
     expect(typeLabel('definition', 'arc', 'Definitions')).toBe('Definitions');
   });
 });

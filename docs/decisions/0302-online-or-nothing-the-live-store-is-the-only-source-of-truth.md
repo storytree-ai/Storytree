@@ -12,6 +12,10 @@ arc: session-decoupling-arc
 
 accepted (2026-08-04) — decided/directed by the owner in conversation on 2026-08-04. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**Amended by ADR-0311 (2026-08-05):** the three mirror-policing tombstones in D4 remain part of the
+complete gate audit. The two live-store drain ceilings later armed under D3 are now retired from
+root/CI policy; `check:guidance` and `check:agents` remain the live-store gate consumers and run late.
+
 ## Context
 
 ADR-0300 recorded ~1:1 re-syncs to landings and named its own falsification condition. Split by day
@@ -88,7 +92,7 @@ loudly rather than falling back — a generator that silently read a stale corpu
 sync" while reverting a live edit. Both were proved to render the committed projections
 byte-identically from live, which is the evidence that the two surfaces genuinely agreed. CI's
 `verify` acquires the ADR-0302 D3 credential right after `pnpm install` (setup, not a check) so
-those two rungs keep their early axis-1 position. **NOT YET DONE, and this is the honest remainder:**
+those two rungs remain in CI. ADR-0311 later moves them to the late shared-state block. **NOT YET DONE, and this is the honest remainder:**
 `apps/studio/data/knowledge.json` is still on disk. Nothing writes it and no production path treats
 it as canonical, so the CHURN this decision targeted is gone — but ~23 test files, the CLI's offline
 read path, `check:process-graph`, `check-surface-coverage`, the desktop's inline `loadCorpus` clone
@@ -119,15 +123,11 @@ direction-inference problem that made seed↔live drift so expensive to adjudica
 lands. Running Cloud SQL 24/7 costs roughly a third more instance-hours than the 18/24 window the
 cost backstop was built to enforce; the owner accepted this explicitly.
 
-*(Implementation note, 2026-08-05 — added in place under ADR-0139, and updated the same day when the
-last step landed. **The hard dependency above is now LIVE, and that paragraph should be read as
-already-true.** D2 and D3 landed together in #1146; arming was a separate, later step, because the
-sub-decision this ADR did not settle was how the checks bite at all. Both DB-dependent checks that
-survive D4 — `check:friction-drain` and `check:arc-proposal-drain` — are fail-closed on the QUEUE but
-fail-OPEN on the SUBSTRATE: they exit 0 when the store is unreachable, so a credential alone does not
-make them gate. The sub-decision taken was an explicit `STORYTREE_DB_REQUIRED` declaration that flips
-both absence arms red, rather than an implicit `if (CI)` — so gate↔CI parity stays a knob a session
-can also set locally (`packages/cli/src/db-required.ts`).*
+*(Historical implementation note, 2026-08-05 — D2 and D3 landed together in #1146; arming
+`check:friction-drain` and `check:arc-proposal-drain` was a separate later step using explicit
+`STORYTREE_DB_REQUIRED`. ADR-0311 retires both rungs and their CI arming. The broader D3 decision that
+CI may hold the live-store credential remains current because `check:guidance` and `check:agents`
+still consume the live Library and fail rather than silently reading a stale source.)*
 
 *Arming was correctly withheld until it was safe. It required the owner to have run BOTH `terraform
 apply` (D2's scheduler-job removal) and the widened `infra/apply-ci-presence-grants.ts`: without the

@@ -1,12 +1,16 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-07-14
 ---
 # ADR-0194: A red hosted-studio deploy must be loud: the check:deploy-health gate signal
 
 ## Status
 
-accepted (2026-07-14) — decided/directed by the owner on 2026-07-14: the owner routed
+superseded by [ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md)
+(2026-08-05). Deploy diagnostics remain available, but `check:deploy-health` is no longer a
+standalone merge obligation.
+
+Originally accepted (2026-07-14) — decided/directed by the owner on 2026-07-14: the owner routed
 `friction-deploy-studio-red-is-silent` → tool (with owner visibility) and directed a session to
 "design + land the smallest honest post-merge deploy-health signal", naming the
 gate-check / health-banner family. Design-time alignment IS the ratification (ADR-0110); no second

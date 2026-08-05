@@ -38,10 +38,6 @@ async function seededStore(): Promise<InMemoryStore> {
       description: "the map arc",
       intent: "Pathways on the map.",
       endState: "Owner sees pathways.",
-      increments: [
-        { date: "2026-07-01", pr: "#640", outcome: "items 1-3 landed" },
-        { date: "2026-07-05", outcome: "halted at the look wall" },
-      ],
       references: [],
       createdAt: "2026-07-01",
       updatedAt: "2026-07-01",
@@ -63,11 +59,70 @@ async function seededStore(): Promise<InMemoryStore> {
       updatedAt: "2026-07-01",
     },
   });
+  // The two landings that used to be `arc.increments[]` entries — now closed increment ROWS
+  // (ADR-0305 D1/D3/D5). Seeded out of chronological order so the rollup's own sort is what puts
+  // them right, rather than the fixture flattering it.
+  await store.upsertDoc({
+    id: "map-arc-inc-02",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "map-arc-inc-02",
+      title: "The look wall",
+      description: "d",
+      objective: "halted at the look wall",
+      body: "halted at the look wall",
+      arcRef: "asset:map-arc",
+      status: "closed",
+      outcome: { date: "2026-07-05", note: "halted at the look wall" },
+      references: [],
+      createdAt: "2026-07-05",
+      updatedAt: "2026-07-05",
+    },
+  });
+  await store.upsertDoc({
+    id: "map-arc-inc-01",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "map-arc-inc-01",
+      title: "Items 1-3",
+      description: "d",
+      objective: "items 1-3 landed",
+      body: "items 1-3 landed",
+      arcRef: "asset:map-arc",
+      status: "closed",
+      outcome: { date: "2026-07-01", pr: "#640" },
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+  // A PARKED increment — forward-looking, and therefore expected to sort ahead of both landings.
+  await store.upsertDoc({
+    id: "map-arc-parked",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "map-arc-parked",
+      title: "Density LOD",
+      description: "d",
+      objective: "cull nodes past a density threshold",
+      body: "touches `packages/forest-world/src`",
+      arcRef: "asset:map-arc",
+      status: "proposal",
+      parked: "2026-07-20T00:00:00.000Z",
+      frictionRefs: ["map-is-unreadable-zoomed-out"],
+      references: [],
+      createdAt: "2026-07-20",
+      updatedAt: "2026-07-20",
+    },
+  });
   await store.upsertDoc({
     id: "map-arc-plan-1",
-    kind: "plan",
+    kind: "increment",
     doc: {
-      kind: "plan",
+      kind: "increment",
       id: "map-arc-plan-1",
       title: "Increment 4 choreography",
       description: "d",
@@ -84,9 +139,9 @@ async function seededStore(): Promise<InMemoryStore> {
   // A plan on a DIFFERENT arc — must not leak into map-arc's view.
   await store.upsertDoc({
     id: "other-plan",
-    kind: "plan",
+    kind: "increment",
     doc: {
-      kind: "plan",
+      kind: "increment",
       id: "other-plan",
       title: "other",
       description: "d",
@@ -182,7 +237,7 @@ function depsFor(store: InMemoryStore, fx: { decisionsDir: string; storiesDir: s
 }
 
 test("arcRefOf resolves the containment edge, and refuses anything that is not an asset: pointer", () => {
-  const doc = (arcRef: unknown) => ({ id: "x", kind: "plan", doc: { arcRef }, createdAt: "", updatedAt: "" });
+  const doc = (arcRef: unknown) => ({ id: "x", kind: "increment", doc: { arcRef }, createdAt: "", updatedAt: "" });
   assert.equal(arcRefOf(doc("asset:map-arc") as never), "map-arc");
   // The bare id and a doc: ref are NOT edges — the schema rejects them, and so must the reader, so a
   // malformed row is invisible to the arc view rather than silently attaching to the wrong parent.
@@ -224,19 +279,29 @@ test("loadArcRollup joins all four child legs and leaks no other arc's children"
     assert.equal(rollup.intent, "Pathways on the map.");
     assert.equal(rollup.endState, "Owner sees pathways.");
 
-    // The increment log rides the rollup in authored order — it is the durable residue the studio
-    // needs to answer "where is this up to" (ADR-0183 D1), not something the CLI formats privately.
-    assert.equal(rollup.increments.length, 2);
-    assert.equal(rollup.increments[0]?.pr, "#640");
-    assert.equal(rollup.increments[1]?.outcome, "halted at the look wall");
-
-    // Plans by arcRef — `other-plan` cites another arc and must be absent.
+    // ONE increment list, joined by `arcRef` (ADR-0305 D1) — `other-plan` cites another arc and
+    // must be absent. FORWARD-LOOKING FIRST, then the landing log oldest-first: this is the ordering
+    // the parked entry `increment-tier-is-addressable-at-entry-grain` demanded, and it is asserted
+    // here rather than in the renderer because the ORDER is data, not presentation.
     assert.deepEqual(
-      rollup.plans.map((p) => p.id),
-      ["map-arc-plan-1"],
+      rollup.increments.map((i) => i.id),
+      ["map-arc-parked", "map-arc-plan-1", "map-arc-inc-01", "map-arc-inc-02"],
     );
-    assert.equal(rollup.plans[0]?.status, "ready");
-    assert.equal(rollup.plans[0]?.anchorSha, "abcdef123", "the anchor is short-sha'd for display");
+    assert.deepEqual(
+      rollup.increments.map((i) => i.status),
+      ["proposal", "ready", "closed", "closed"],
+    );
+    // The two landings were SEEDED newest-first; the sort is what puts them chronological.
+    assert.deepEqual(
+      rollup.increments.filter((i) => i.status === "closed").map((i) => i.outcome?.date),
+      ["2026-07-01", "2026-07-05"],
+    );
+    assert.equal(rollup.increments[0]?.parked, "2026-07-20T00:00:00.000Z");
+    assert.deepEqual(rollup.increments[0]?.frictionRefs, ["map-is-unreadable-zoomed-out"]);
+    assert.equal(rollup.increments[2]?.outcome?.pr, "#640");
+    assert.equal(rollup.increments[3]?.outcome?.note, "halted at the look wall");
+    assert.equal(rollup.increments[1]?.anchorSha, "abcdef123", "the anchor is short-sha'd for display");
+    assert.equal(rollup.increments[0]?.anchorSha, undefined, "a parked increment has no anchor yet");
 
     // Questions by arcRef (ADR-0267 D4) — id-sorted, and the unstamped orphan is absent.
     assert.deepEqual(
@@ -310,8 +375,11 @@ test("loadArcRollups returns every arc id-sorted, closed ones included (filterin
       ["done-arc", "map-arc"],
     );
     // Each carries its own derived children — the list read is not a degraded summary.
-    assert.deepEqual(all[1]?.plans.map((p) => p.id), ["map-arc-plan-1"]);
-    assert.equal(all[0]?.plans.length, 0);
+    assert.deepEqual(
+      all[1]?.increments.map((i) => i.id),
+      ["map-arc-parked", "map-arc-plan-1", "map-arc-inc-01", "map-arc-inc-02"],
+    );
+    assert.equal(all[0]?.increments.length, 0);
     assert.equal(all[0]?.lifecycle, "closed");
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
@@ -322,7 +390,7 @@ test("deriveArcRollup is PURE — the same inputs join identically with no store
   const arc = {
     id: "a1",
     kind: "arc",
-    doc: { kind: "arc", id: "a1", title: "A", description: "d", increments: [] },
+    doc: { kind: "arc", id: "a1", title: "A", description: "d" },
     createdAt: "",
     updatedAt: "",
   };
@@ -335,7 +403,7 @@ test("deriveArcRollup is PURE — the same inputs join identically with no store
   };
   const rollup = deriveArcRollup({
     arc: arc as never,
-    planDocs: [],
+    incrementDocs: [],
     questionDocs: [question as never],
     adrs: [
       { number: 1, file: "0001-x.md", status: "accepted", supersedes: [], amends: [], loadBearing: false, arc: "a1", title: "T" },
