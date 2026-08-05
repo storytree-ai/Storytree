@@ -30,7 +30,7 @@
   "frame-18.png"
  ],
  "groundSocketAnchor": {
-  "x": 62.03,
+  "x": 62.01,
   "y": 121
  },
  "anchorRule": "alpha-weighted x across the bottom three occupied TREE rows; groundY = bottom-most occupied tree row (the contact shadow is excluded from the anchor so it cannot drag the socket down)",
@@ -311,8 +311,8 @@
    "canopy_weight": 26.3377,
    "ortho_scale": 3.068451,
    "target_z": 1.377581,
-   "true_height_frac": 0.7453,
-   "apparent_height_frac": 0.7453
+   "true_height_frac": 0.7428,
+   "apparent_height_frac": 0.7428
   },
   {
    "i": 14,
@@ -326,8 +326,8 @@
    "canopy_weight": 30.9625,
    "ortho_scale": 3.068451,
    "target_z": 1.377581,
-   "true_height_frac": 0.7949,
-   "apparent_height_frac": 0.7949
+   "true_height_frac": 0.7916,
+   "apparent_height_frac": 0.7916
   },
   {
    "i": 15,
@@ -341,8 +341,8 @@
    "canopy_weight": 40.0779,
    "ortho_scale": 3.068451,
    "target_z": 1.377581,
-   "true_height_frac": 0.8284,
-   "apparent_height_frac": 0.8284
+   "true_height_frac": 0.8265,
+   "apparent_height_frac": 0.8265
   },
   {
    "i": 16,
@@ -361,18 +361,18 @@
   },
   {
    "i": 17,
-   "u": 0.770642,
-   "N": 27.2514,
-   "live_nodes": 352,
+   "u": 0.761468,
+   "N": 26.9123,
+   "live_nodes": 349,
    "lobes": 19,
-   "trunk_r": 0.10156,
-   "t_root": 0.8588,
-   "t_plant": 0.978,
-   "canopy_weight": 78.5446,
+   "trunk_r": 0.10065,
+   "t_root": 0.8522,
+   "t_plant": 0.9695,
+   "canopy_weight": 72.4698,
    "ortho_scale": 3.068451,
    "target_z": 1.377581,
-   "true_height_frac": 0.9225,
-   "apparent_height_frac": 0.9225
+   "true_height_frac": 0.9016,
+   "apparent_height_frac": 0.9016
   },
   {
    "i": 18,
@@ -531,8 +531,8 @@
     82,
     119
    ],
-   "alphaPx": 889,
-   "treePx": 886,
+   "alphaPx": 887,
+   "treePx": 884,
    "shadowPx": 3
   },
   {
@@ -547,8 +547,8 @@
     85,
     119
    ],
-   "alphaPx": 1155,
-   "treePx": 1153,
+   "alphaPx": 1156,
+   "treePx": 1154,
    "shadowPx": 2
   },
   {
@@ -563,8 +563,8 @@
     87,
     119
    ],
-   "alphaPx": 1362,
-   "treePx": 1359,
+   "alphaPx": 1365,
+   "treePx": 1362,
    "shadowPx": 3
   },
   {
@@ -595,8 +595,8 @@
     96,
     120
    ],
-   "alphaPx": 2083,
-   "treePx": 2077,
+   "alphaPx": 2082,
+   "treePx": 2076,
    "shadowPx": 6
   },
   {
@@ -607,12 +607,12 @@
    ],
    "bbox": [
     35,
-    25,
+    26,
     100,
     120
    ],
-   "alphaPx": 2479,
-   "treePx": 2468,
+   "alphaPx": 2490,
+   "treePx": 2479,
    "shadowPx": 11
   },
   {
@@ -627,8 +627,8 @@
     105,
     120
    ],
-   "alphaPx": 3051,
-   "treePx": 3032,
+   "alphaPx": 3061,
+   "treePx": 3042,
    "shadowPx": 19
   },
   {
@@ -643,14 +643,14 @@
     107,
     120
    ],
-   "alphaPx": 3511,
-   "treePx": 3491,
+   "alphaPx": 3533,
+   "treePx": 3513,
    "shadowPx": 20
   },
   {
    "file": "frame-16.png",
    "sourceAnchor": [
-    61.36,
+    61.25,
     120
    ],
    "bbox": [
@@ -659,30 +659,30 @@
     109,
     120
    ],
-   "alphaPx": 3888,
-   "treePx": 3863,
-   "shadowPx": 25
+   "alphaPx": 3947,
+   "treePx": 3920,
+   "shadowPx": 27
   },
   {
    "file": "frame-17.png",
    "sourceAnchor": [
-    61.22,
+    61.08,
     120
    ],
    "bbox": [
-    22,
-    8,
+    24,
+    10,
     110,
     120
    ],
-   "alphaPx": 4468,
-   "treePx": 4432,
+   "alphaPx": 4401,
+   "treePx": 4365,
    "shadowPx": 36
   },
   {
    "file": "frame-18.png",
    "sourceAnchor": [
-    62.6,
+    62.48,
     121
    ],
    "bbox": [
@@ -691,9 +691,9 @@
     109,
     121
    ],
-   "alphaPx": 4942,
-   "treePx": 4847,
-   "shadowPx": 95
+   "alphaPx": 5025,
+   "treePx": 4924,
+   "shadowPx": 101
   }
  ]
 }

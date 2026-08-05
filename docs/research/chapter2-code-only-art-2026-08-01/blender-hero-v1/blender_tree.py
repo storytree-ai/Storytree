@@ -8,26 +8,18 @@ growth). Blender occupies the FINISH slot only. No .blend is a source of truth; 
 file is. Output is NOT deliverable until it passes pixelise.py — a raw Blender frame
 shipped as-is is the ADR-0145 failure reproduced (ADR-0280 D2a).
 
-This is v7, and its target is CROWN STRUCTURE — the one gap that has survived every
-increment since v3. See the `crown proxy normals` block below for the mechanism; the
-short version is that our canopy is a pile of ~20 blobs each carrying its OWN
-light-to-dark ramp, where exp-16's crown carries ONE gradient with the lobe boundaries
-drawn on it. The fix is the first of the three techniques the owner triaged into the arc
-from a Ghibli-style Blender tutorial: normals transferred from a smooth crown proxy, so
-the whole canopy shades as one volume. The proxy is ANALYTIC and generated from the live
-lobe set, because ADR-0280 D1 forbids a hand-sculpted asset.
+This is v9. v8 opened the lower crown by shrinking low lobes and paying the lost radius
+OUTWARD, moving in-crown bark from 206 to 631 px against exp-16's 670 while holding the
+reference's widest band. Its honest cost was the mature foliage floor: 44% -> 48%.
 
-It also corrects the instrument that named the gap. `measure.py` stated crown structure
-as GREEN FRACTION (ours 71%, exp-16 51%), and that number conflates two independent
-things: exp-16's crown really does carry ~4x our visible bark, but a third of its
-"non-green" is its own warm highlight band (173,167,114), which fails a naive G>R test.
-Measured by nearest FAMILY instead, the honest gap is bark: 670 px of exp-16's crown
-against 185 of ours. `measure.py` now reports both, so the next increment aims at the
-right organ.
+v9 is the minimum repair. Only outer-rim lobes that the low-crown rule already shrank
+move DOWN; radius and horizontal position stay fixed, so foliage returns at the floor
+without closing the middle back over the limbs. At the delivered `--low-rim-drop 0.50`,
+the floor returns to 45%, crown area grows 4123 -> 4200 against 4280, and bark holds at
+630 px (15.0%) against 670 (15.7%). Zero reproduces v8 exactly.
 
-v3's four colour levers (clouds carry the crown, authored cel bands, the top highlight,
-the break-up mask), v4's canopy floor and inverted pear, v5's root flare and mid-stage
-whip, and ADR-0293's two-phase staging are all unchanged.
+v3's colour levers, v4's inverted pear, v5's root flare and mid-stage whip, ADR-0293's
+two-phase staging, v7's crown-proxy normals, and v8's low shrink/splay are unchanged.
 
 Invariants held (ADR-0280 D1, reaffirmed by ADR-0289):
   · Topology is a strict PREFIX. The skeleton is grown once; every node records its
@@ -524,6 +516,9 @@ CANOPY_LOW_SPLAY = float(arg("--low-splay", "1.0"))
                                # ... and how much of the lost radius is paid back as an
                                # outward push. 1.0 holds the outer surface exactly; 0 is
                                # the in-place shrink that costs the widest band.
+CANOPY_LOW_RIM_DROP = float(arg("--low-rim-drop", "0.50"))
+                               # ... and how much of the lost radius is dropped back at
+                               # the outer rim. 0 exactly reproduces v8; 0.50 is v9.
 #
 # THE ONE COST IS THE FOLIAGE FLOOR, and the obvious repair was tried and is a BAD TRADE,
 # recorded so it is not re-tried. Shrinking the lowest lobes lifts the lowest foliage pixel
@@ -1275,6 +1270,15 @@ def frame_state(N):
             nh = math.hypot(float(rv[0]), float(rv[1]))
             if nh > 1e-6:
                 c = c + np.array([rv[0] / nh, rv[1] / nh, 0.0]) * (lost * CANOPY_LOW_SPLAY)
+        # RIM DROP: restore some of the low foliage without closing the
+        # middle back over the limbs. Only lobes the low-crown rule actually shrank can
+        # move, and the smooth radial gate reaches full strength at the live crown rim.
+        # Radius and horizontal position are deliberately untouched.
+        if lost > 1e-9 and CANOPY_LOW_RIM_DROP > 0.0 and rtop > 1e-6:
+            ur = np.clip((math.hypot(float(c[0]), float(c[1])) / rtop - CANOPY_CORE_R) /
+                         (1.0 - CANOPY_CORE_R), 0.0, 1.0)
+            rim = ur * ur * (3 - 2 * ur)
+            c = c + np.array([0.0, 0.0, -lost * CANOPY_LOW_RIM_DROP * rim])
         if rad > 0.012:
             lobes.append((ci, c, rad))
 
