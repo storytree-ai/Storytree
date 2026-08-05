@@ -283,7 +283,7 @@ test(
   "csm-streams-events-as-sse: POST /api/chat with a valid intent streams a done SSE frame (200, text/event-stream)",
   async () => {
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: queryYielding([OK_SDK_RESULT]) });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: queryYielding([OK_SDK_RESULT]) });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -334,7 +334,7 @@ test(
   "csm-streams-delta-frames: assistant text deltas stream as `delta` SSE frames, in order, before the terminal done",
   async () => {
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"],
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>,
       queryFn: queryYielding([
         textDeltaMessage("Pro"),
         textDeltaMessage("posing"),
@@ -391,7 +391,7 @@ test(
   "csm-rejects-a-blank-intent: POST /api/chat with a missing intent field returns 400 (fail-closed)",
   async () => {
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: queryYielding([OK_SDK_RESULT]) });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: queryYielding([OK_SDK_RESULT]) });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -415,7 +415,7 @@ test(
   "csm-rejects-a-blank-intent: POST /api/chat with a blank intent string returns 400",
   async () => {
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: queryYielding([OK_SDK_RESULT]) });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: queryYielding([OK_SDK_RESULT]) });
 
     await withServer(handler, async (base) => {
       // empty string
@@ -457,7 +457,7 @@ test(
     };
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: capturingQuery });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: capturingQuery });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -500,7 +500,7 @@ test(
     };
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: capturingQuery });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: capturingQuery });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -535,7 +535,7 @@ test(
     };
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: sentinelQuery });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: sentinelQuery });
 
     await withServer(handler, async (base) => {
       // non-string resume
@@ -569,7 +569,7 @@ test(
   "csm-fails-closed-on-dead-session: a session where the SDK throws streams a terminal error SSE frame (200, not 500)",
   async () => {
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: queryThrowing("scripted SDK failure") });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: queryThrowing("scripted SDK failure") });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -635,7 +635,7 @@ test(
       })();
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: blockingQueryFn });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: blockingQueryFn });
 
     await withServer(handler, async (base) => {
       // Start session 1 without awaiting — collect the full response later (after unblocking).
@@ -712,7 +712,7 @@ test(
   "csm-dispatcher-falls-through-not-404s: GET /api/health falls through — the dispatcher returns false, not a catch-all",
   async () => {
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: queryYielding([OK_SDK_RESULT]) });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: queryYielding([OK_SDK_RESULT]) });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/health`);
@@ -732,7 +732,7 @@ test(
   "csm-dispatcher-falls-through-not-404s: POST /api/build falls through — only POST /api/chat is owned by this dispatcher",
   async () => {
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: queryYielding([OK_SDK_RESULT]) });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: queryYielding([OK_SDK_RESULT]) });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/build`, {
@@ -777,7 +777,7 @@ test(
     });
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: capturingQuery, runner });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: capturingQuery, runner });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -823,7 +823,7 @@ test(
     };
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: capturingQuery });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: capturingQuery });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -868,7 +868,7 @@ test(
     };
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: capturingQuery });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: capturingQuery });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -924,7 +924,7 @@ test(
     };
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: capturingQuery });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: capturingQuery });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -966,7 +966,7 @@ test(
     };
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: capturingQuery, inspect: inspectDepsDouble() });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: capturingQuery, inspect: inspectDepsDouble() });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -1011,7 +1011,7 @@ test(
     };
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: capturingQuery });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: capturingQuery });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -1051,7 +1051,7 @@ test(
     };
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: capturingQuery, maxTurns: 25 });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: capturingQuery, maxTurns: 25 });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
@@ -1085,7 +1085,7 @@ test(
     };
 
     const handler = createChatSseMount({
-      store: FIXTURE_STORE as unknown as ChatSseMountDeps["store"], queryFn: capturingQuery });
+      store: FIXTURE_STORE as unknown as NonNullable<ChatSseMountDeps["store"]>, queryFn: capturingQuery });
 
     await withServer(handler, async (base) => {
       const res = await fetch(`${base}/api/chat`, {
