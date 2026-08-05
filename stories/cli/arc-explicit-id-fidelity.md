@@ -1,12 +1,12 @@
 ---
 id: "arc-explicit-id-fidelity"
 tier: capability
-story: library
+story: cli
 title: "Explicit arc ids are never silently shortened"
 outcome: "An agent scaffolding an arc with an explicit id receives a refusal instead of creating an arc under a silently truncated id."
 status: proposed
 proof_mode: integration-test
-depends_on: [library-cli]
+depends_on: [unified-command-dispatch]
 proof:
   command:
     file: pnpm
@@ -35,7 +35,7 @@ proof:
 **Outcome —** An agent scaffolding an arc with an explicit id receives a refusal instead of creating
 an arc under a silently truncated id.
 
-**Depends on —** [`library-cli`](library-cli.md)
+**Depends on —** [`unified-command-dispatch`](unified-command-dispatch.md)
 
 ## Guidance
 

@@ -14,7 +14,7 @@ proof_mode: UAT
 # statement, never a judgment gap (`human-witness-is-a-judgment-gap-not-cost`).
 # `uat_witness` stays ABSENT on purpose: the roll-up is per-leg, and a story-level `machine` would
 # re-open the blanket-adopt path that produced the stranded verdict. The crown derives per-leg.
-capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling]
+capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, arc-explicit-id-fidelity]
 # The CLI is the wiring HUB: it imports every organism to surface it. Those outbound edges
 # (cli → drive-machinery / library / notice-board / store) are declared PROVIDER-SIDE on each spoke
 # (their `consumed_by: [cli]`, ADR-0074 §4) so the hub stays de-noised and each organism owns its
@@ -83,7 +83,7 @@ authoring primitives (the corpus guard, the ADR frontmatter parser).
   in-memory seed; live writes refuse without `--pg` and a reachable DB (degrade with guidance, never
   a silent no-op).
 
-## Capabilities (3)
+## Capabilities (4)
 
 Lightweight and **expandable** (ADR-0074 §3): the hub's own connective competence, NOT a re-derivation
 of every per-domain command (those belong to the organism that owns the journey). The list grows one
@@ -94,6 +94,7 @@ case per real defect (`uat-proves-the-goal-not-the-surface`).
 | 1 | [`unified-command-dispatch`](unified-command-dispatch.md) | `storytree <verb>` parses args, hydrates credentials, dispatches to the owning organism, and returns a typed `Envelope`/exit code; offline commands run with no DB. | mapped | — |
 | 2 | [`cli-resident-corpus-tools`](cli-resident-corpus-tools.md) | The CLI-resident authoring primitives the gates build on: the `stories/` YAML corpus guard and the ADR frontmatter parser. | mapped | — |
 | 3 | [`organism-boundary-tooling`](organism-boundary-tooling.md) | The pure organism-boundary analyser behind `check:boundaries`: the blocking subgraph judge (ADR-0074) + the non-blocking declared-edge drift report (ADR-0115) that derives a virtual story's real edges from its units' `sourceFile` imports. | mapped | — |
+| 4 | [`arc-explicit-id-fidelity`](arc-explicit-id-fidelity.md) | An agent scaffolding an arc with an explicit id receives a refusal instead of creating an arc under a silently truncated id. | proposed | `unified-command-dispatch` |
 
 ## Dependency graph (code-derived)
 
