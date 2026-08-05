@@ -97,14 +97,14 @@ the real seed corpus, exposes each surface as a callable tool returning a real e
 exposes NO write tool, with writes structurally refused.
 
 The integration test exercises this capability against its **real in-story collaborators** — the real
-`run(argv, deps)` dispatch over an `InMemoryStore` seed (`loadCorpus`) + the real `stories/` corpus
+`run(argv, deps)` dispatch over an `InMemoryStore` seeded by `loadFixtureCorpus` + the real `stories/` corpus
 (`storiesDir`), constructed `writable: false` — with **no stubs within the organism**. It is an
 integration test, not a contract, because it spans the tool surface AND the real read dispatch
 producing the bodies.
 
 The integration test would:
 
-1. Build the orientation tool surface over a `writable: false` deps (`InMemoryStore` + `loadCorpus`,
+1. Build the orientation tool surface over a `writable: false` deps (`InMemoryStore` + `loadFixtureCorpus`,
    the real `stories/` corpus as `storiesDir`).
 2. Enumerate the tools → exactly the read surfaces are present (`tree`, `library`, and the board), and
    NO `Write`/`Edit`/`Bash`/write tool appears in the surface.

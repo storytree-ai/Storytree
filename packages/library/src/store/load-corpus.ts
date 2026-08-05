@@ -2,37 +2,31 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Pool } from "pg";
-import type { Store } from "@storytree/storage-protocol";
 import { createPool, closePool } from "./connection.js";
 import { applySchema } from "./migrate.js";
-import { PgLibraryStore } from "./pg-store.js";
-import { libraryTemplates } from "../templates.js";
 import { REPO_ROOT_ENV, resolveRepoRoot } from "../repo-root.js";
 
 /**
- * The corpus migration (ADR-0017 / ADR-0019 Phase 2, ADR-0021): seed the runtime store from the
- * studio data files so the DB holds the COMPLETE Library — every artifact the studio shows.
+ * The store MIGRATION (ADR-0017 / ADR-0019 Phase 2, ADR-0021): bring a database up to the current
+ * schema and load the comment projection.
  *
- *  - The structured knowledge units in `apps/studio/data/knowledge.json` (every `KIND_SPECS` kind)
- *    are upserted as artifacts in their STRUCTURED form (kind = the unit's `kind`).
- *  - The `template` units (the per-kind `template-<kind>` scaffolds + `template-adr`, which scaffolds
- *    the ADR source layer, not a knowledge kind) come from `libraryTemplates()` (ADR-0210 — re-homed
- *    from the retired generated `apps/studio/data/assets.json`; they have no structured knowledge
- *    source) and are upserted in their rendered form (kind = `template`). Validation accepts both via
- *    `validateLibraryDoc`.
+ * IT USED TO CARRY THE CORPUS TOO, and that half is deleted rather than repointed. `loadCorpus` read
+ * the structured knowledge units out of `apps/studio/data/knowledge.json` and upserted them here —
+ * the seed→live direction ADR-0302 D1 abolishes. With the live store as the only source of truth
+ * there is nothing for a file to migrate INTO it: the corpus is already there, and a loader pointing
+ * at a committed file could only ever overwrite live state with an older copy of itself. So the
+ * function goes with the file (ADR-0302 D4: deleted, not left inert), and what remains is the part
+ * that was never about the corpus.
+ *
+ *  - {@link applySchema} (from `migrate.ts`) applies the idempotent DDL.
  *  - Comments (`apps/studio/data/comments.json`) are loaded into the dedicated `events.comment`
  *    projection + `events.comment_event` history (NOT the library tables) via {@link loadComments}.
+ *    Postgres-specific, because comments use their own tables outside the narrow library `Store`.
  *
- * `loadCorpus` is store-agnostic (works against InMemoryStore in tests). `loadComments` is
- * Postgres-specific because comments use their own tables, outside the narrow library {@link Store}.
+ * The hermetic suites that used `loadCorpus` to get a populated store now use
+ * `@storytree/library/fixture`'s `loadFixtureCorpus`, which upserts a small frozen literal through
+ * the same validated write boundary and needs no file and no credential.
  */
-
-/** A loaded knowledge unit, kept loose so validation happens at the store boundary. */
-interface KnowledgeUnitLike {
-  id: string;
-  kind: string;
-  [k: string]: unknown;
-}
 
 interface CommentLike {
   id: string;
@@ -50,30 +44,6 @@ function dataPath(file: string): string {
     derived: fileURLToPath(new URL("../../../../", import.meta.url)),
   });
   return join(root, "apps", "studio", "data", file);
-}
-
-export interface LoadCorpusResult {
-  knowledge: number;
-  templates: number;
-}
-
-/**
- * Read the studio data files and upsert every library artifact into `store`: the structured
- * knowledge units (from knowledge.json) and the generated `template` artifacts (from assets.json).
- * Returns the counts loaded. Validation happens inside {@link Store.upsertDoc} (the loud boundary).
- */
-export async function loadCorpus(store: Store): Promise<LoadCorpusResult> {
-  const units = JSON.parse(await readFile(dataPath("knowledge.json"), "utf8")) as KnowledgeUnitLike[];
-  const templates = libraryTemplates();
-
-  for (const unit of units) {
-    await store.upsertDoc({ id: unit.id, kind: unit.kind, doc: unit, actor: "corpus-migration" });
-  }
-  for (const tpl of templates) {
-    await store.upsertDoc({ id: tpl.id, kind: "template", doc: tpl, actor: "corpus-migration" });
-  }
-
-  return { knowledge: units.length, templates: templates.length };
 }
 
 /**
@@ -121,40 +91,34 @@ export async function loadComments(pool: Pool): Promise<number> {
 export interface SeedDeps {
   /** Apply the DB schema before loading data. */
   applySchema: () => Promise<void>;
-  /** The store to seed corpus artifacts into. */
-  store: Store;
-  /** Load the knowledge corpus into `store`. */
-  loadCorpus: (store: Store) => Promise<LoadCorpusResult>;
   /** Load comments (Postgres-specific in production; fakeable offline). */
   loadComments: () => Promise<number>;
 }
 
 /**
- * Orchestration core: apply schema, load corpus, load comments — in that order.
+ * Orchestration core: apply schema, then load comments — in that order.
  * Extracted from `main()` as the R2 refactor-for-testability target (library#gate-4 / ADR-0098 d.6).
  * `main()` wires the real (pool-bound) deps; tests inject fakes.
+ *
+ * The middle step was `loadCorpus`, and it is gone with the seed it read (ADR-0302 D1). The
+ * ORDERING this function exists to prove is unchanged in kind — schema before data — so the R2 seam
+ * and its suite survive the narrowing.
  */
 export async function runSeed(deps: SeedDeps): Promise<void> {
   await deps.applySchema();
-  const counts = await deps.loadCorpus(deps.store);
   const comments = await deps.loadComments();
-  console.log(
-    `loaded ${counts.knowledge} knowledge units + ${counts.templates} templates, ${comments} comments`,
-  );
+  console.log(`schema applied; loaded ${comments} comments`);
 }
 
 /**
- * Script entry: when this file is the process entry point, build a live pool, apply the schema,
- * load the full corpus + comments, then tear down. NEVER invoked during tests (entry-guarded).
+ * Script entry: when this file is the process entry point, build a live pool, apply the schema and
+ * load comments, then tear down. NEVER invoked during tests (entry-guarded).
  */
 async function main(): Promise<void> {
   const { pool, connector } = await createPool();
   try {
-    const store = new PgLibraryStore(pool);
     await runSeed({
       applySchema: () => applySchema(pool),
-      store,
-      loadCorpus,
       loadComments: () => loadComments(pool),
     });
   } finally {

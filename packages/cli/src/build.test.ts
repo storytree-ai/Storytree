@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import { run, classifyBuildTarget } from "./commands.js";
 
@@ -19,7 +19,7 @@ import { run, classifyBuildTarget } from "./commands.js";
  */
 async function seeded(): Promise<InMemoryStore> {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
   return store;
 }
 

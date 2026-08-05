@@ -293,40 +293,44 @@ export class JsonBackend implements LibraryBackend {
   readonly #usersFile: string;
   readonly #attestationsFile: string;
   /**
-   * The structured seed (knowledge.json). When set, the assets store is a GITIGNORED runtime file
-   * SEEDED on first read by deriving the corpus from this file + libraryTemplates() (ADR-0210 — the
-   * in-memory replacement for the retired build-corpus.mjs). When UNSET (integration tests that point
-   * at their own temp store), no seed runs and an absent store reads as empty — the pre-ADR-0210
-   * behaviour, preserved.
+   * The structured seed, as a LOADER rather than a file path. When set, the assets store is a
+   * GITIGNORED runtime file SEEDED on first read by deriving the corpus from these units +
+   * libraryTemplates() (ADR-0210 — the in-memory replacement for the retired build-corpus.mjs).
+   * When UNSET (integration tests that point at their own temp store), no seed runs and an absent
+   * store reads as empty — the pre-ADR-0210 behaviour, preserved.
+   *
+   * It was a path to `apps/studio/data/knowledge.json` until ADR-0302 D1 deleted that file. A
+   * THUNK, not an array, for two reasons: the units are only read on a cold store (so a warm studio
+   * never pays for them), and the real one dynamically imports `@storytree/library/fixture` — which
+   * must stay dynamic for the same vite CONFIG-LOAD reason `deriveOfflineAssets` documents.
    */
-  readonly #knowledgeFile: string | undefined;
+  readonly #loadSeedUnits: (() => Promise<KnowledgeUnitLike[]>) | undefined;
 
   constructor(opts: {
     assetsFile: string;
     commentsFile: string;
     usersFile: string;
     attestationsFile: string;
-    /** knowledge.json — enables the derive-on-first-read seed (real studio); omit to start empty. */
-    knowledgeFile?: string;
+    /** Enables the derive-on-first-read seed (real studio); omit to start empty. */
+    loadSeedUnits?: () => Promise<KnowledgeUnitLike[]>;
   }) {
     this.#assetsFile = opts.assetsFile;
     this.#commentsFile = opts.commentsFile;
     this.#usersFile = opts.usersFile;
     this.#attestationsFile = opts.attestationsFile;
-    this.#knowledgeFile = opts.knowledgeFile;
+    this.#loadSeedUnits = opts.loadSeedUnits;
   }
 
   /**
-   * Seed the runtime assets store on first use: when a knowledge seed is configured and the store
-   * file does not yet exist, derive the corpus (knowledge.json rendered + the templates) and write
-   * it. Idempotent — a present store file is left untouched, so user edits persist across restarts
-   * (the cold-restart durability the offline UAT asserts).
+   * Seed the runtime assets store on first use: when a seed loader is configured and the store file
+   * does not yet exist, derive the corpus (the units rendered + the templates) and write it.
+   * Idempotent — a present store file is left untouched, so user edits persist across restarts (the
+   * cold-restart durability the offline UAT asserts).
    */
   async #ensureSeeded(): Promise<void> {
-    if (this.#knowledgeFile === undefined) return;
+    if (this.#loadSeedUnits === undefined) return;
     if (existsSync(this.#assetsFile)) return;
-    const units = await readStore<KnowledgeUnitLike[]>(this.#knowledgeFile, []);
-    await writeStore(this.#assetsFile, await deriveOfflineAssets(units));
+    await writeStore(this.#assetsFile, await deriveOfflineAssets(await this.#loadSeedUnits()));
   }
 
   async listAssets(): Promise<GuidanceAsset[]> {
@@ -1245,8 +1249,8 @@ export function createBackend(opts: {
   commentsFile: string;
   usersFile: string;
   attestationsFile: string;
-  /** knowledge.json — enables the offline JsonBackend's derive-on-first-read seed (ADR-0210). */
-  knowledgeFile?: string;
+  /** Enables the offline JsonBackend's derive-on-first-read seed (ADR-0210); omit to start empty. */
+  loadSeedUnits?: () => Promise<KnowledgeUnitLike[]>;
 }): LibraryBackend {
   // Refused AT STARTUP, before any connector call — deliberately not inside `PgBackend.#ready()`,
   // where `health()`'s catch-all would fold it straight back into the `db: 'unreachable'` verdict this
@@ -1262,6 +1266,6 @@ export function createBackend(opts: {
         commentsFile: opts.commentsFile,
         usersFile: opts.usersFile,
         attestationsFile: opts.attestationsFile,
-        ...(opts.knowledgeFile !== undefined ? { knowledgeFile: opts.knowledgeFile } : {}),
+        ...(opts.loadSeedUnits !== undefined ? { loadSeedUnits: opts.loadSeedUnits } : {}),
       });
 }

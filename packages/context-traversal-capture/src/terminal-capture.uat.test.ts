@@ -26,12 +26,13 @@
  * renders it" — the gap is closed here because this file already spawns the CLI for free.
  */
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test } from "node:test";
+import { test, before, after } from "node:test";
 
 import { isContextVisitEvent } from "@storytree/context-traversal-telemetry";
 import type { ContextTraversalEvent, ContextVisitEvent } from "@storytree/context-traversal-telemetry";
@@ -64,6 +65,47 @@ function runCli(args: readonly string[], env: NodeJS.ProcessEnv, cwd?: string): 
   return { status: res.status, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
 }
 
+/**
+ * A STORE DOOR over the library's fixture corpus, in its OWN process, for the whole suite.
+ *
+ * Every case below spawns the real CLI, and since ADR-0302 D1 a `library artifact <id>` read goes to
+ * the LIVE store — which `pnpm -r test` has no credential for by design (ADR-0302 D3). So the child
+ * is handed `STORYTREE_STORE_URL` pointing here.
+ *
+ * OUT OF PROCESS, and that is forced rather than chosen: {@link runCli} uses `spawnSync`, which
+ * blocks this process's event loop for the child's whole lifetime, so a door served from here could
+ * never answer the request the child is waiting on — both sides would hang until the runner was
+ * killed. `before`/`after` may be async even though every case is sync, so readiness is awaited on
+ * the door's own `PORT=` line rather than polled.
+ */
+let doorProc: ChildProcess | undefined;
+let doorUrl: string | undefined;
+
+const DOOR = fileURLToPath(new URL("../../cli/fixture-door.mjs", import.meta.url));
+
+before(async () => {
+  doorProc = spawn(process.execPath, [DOOR], { stdio: ["ignore", "pipe", "pipe"] });
+  const port = await new Promise<string>((resolve, reject) => {
+    let buf = "";
+    const timer = setTimeout(() => reject(new Error(`fixture door did not start: ${buf}`)), 30_000);
+    doorProc?.stdout?.setEncoding("utf8");
+    doorProc?.stdout?.on("data", (c: string) => {
+      buf += c;
+      const m = /PORT=(\d+)/.exec(buf);
+      if (m?.[1]) {
+        clearTimeout(timer);
+        resolve(m[1]);
+      }
+    });
+    doorProc?.on("error", reject);
+  });
+  doorUrl = `http://127.0.0.1:${port}`;
+});
+
+after(() => {
+  doorProc?.kill();
+});
+
 function freshDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `traversal-uat-${prefix}-`));
 }
@@ -77,7 +119,9 @@ function baseEnv(): NodeJS.ProcessEnv {
     STORYTREE_TRAVERSAL: _toggle,
     ...rest
   } = process.env;
-  return rest;
+  // The door the spawned CLI reads its corpus through (see the `before` hook above). Set here so
+  // EVERY case gets it — a case that omitted it would hit the live store and fail on a credential.
+  return doorUrl === undefined ? rest : { ...rest, STORYTREE_STORE_URL: doorUrl };
 }
 
 function listDir(dir: string): string[] {

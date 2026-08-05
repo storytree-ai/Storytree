@@ -103,7 +103,7 @@ the real `orchestrate` chain unchanged — offline, over the real seed corpus, s
 claim-store double.
 
 Exercised against its **real in-story collaborators** — the real `renderAgentPrompt` over the real seed
-(`loadCorpus` + `InMemoryStore`), the real generalised runner, the real `orchestrate` composition; the SDK
+(`loadFixtureCorpus` + `InMemoryStore`), the real generalised runner, the real `orchestrate` composition; the SDK
 `query()` scripted and the claim store injected (ADR-0010 §5).
 
 The integration test would:

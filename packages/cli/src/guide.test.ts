@@ -25,7 +25,6 @@ const HEALTHY: DoctorObservations = {
   provisioned: true,
   dependencyCurrency: "current",
   remoteReachable: true,
-  seedReadable: true,
   claudeCliPresent: true,
   claudeLoggedIn: true,
   checkoutBehind: 0,

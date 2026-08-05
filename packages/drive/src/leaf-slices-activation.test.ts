@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { rm } from "node:fs/promises";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 import type { SdkRunInfo } from "@storytree/agent";
 import { USAGE_EVENT_KIND } from "@storytree/proof-protocol";
 import type { UsageEventDoc } from "@storytree/proof-protocol";
@@ -50,6 +51,21 @@ function asUsageDoc(doc: unknown): UsageEventDoc {
   return doc as UsageEventDoc;
 }
 
+/**
+ * The corpus the leaf's per-phase system prompts render from, INJECTED rather than opened.
+ *
+ * A `--real` chain renders `red-builder` / `green-builder` out of the Library (ADR-0051 §4), and
+ * since ADR-0302 D1 the default source for that is the live store. ADR-0302 D3 keeps
+ * `STORYTREE_DB_USER` out of `pnpm -r test`, so without this these cases would be green on a
+ * developer box that happens to hold credentials and red in CI — for a reason that has nothing to
+ * do with the leaf-slice accounting they exist to assert.
+ */
+async function fixtureCorpus(): Promise<InMemoryStore> {
+  const corpus = new InMemoryStore();
+  await loadFixtureCorpus(corpus);
+  return corpus;
+}
+
 test("the-leaf-slices-observer-fires-with-the-canned-run-accounting: a --real chain with a liveAuthorOverride invokes onLeafSlices with that node's EXACT canned runs", async () => {
   const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
   const repo = await fixtureRepo(false);
@@ -57,6 +73,7 @@ test("the-leaf-slices-observer-fires-with-the-canned-run-accounting: a --real ch
   const calls: ObservedSlices[] = [];
   try {
     const env = await storyBuild("fix-story", {
+      corpusStore: await fixtureCorpus(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -89,6 +106,7 @@ test("no-live-author-override-leaves-the-observer-silent: authorOverride alone (
   const calls: ObservedSlices[] = [];
   try {
     const env = await storyBuild("fix-story", {
+      corpusStore: await fixtureCorpus(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -118,6 +136,7 @@ test("a-canned-live-author-cannot-move-a-verdict: a canned success-shaped run ac
   const calls: ObservedSlices[] = [];
   try {
     const env = await storyBuild("fix-story", {
+      corpusStore: await fixtureCorpus(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -165,7 +184,7 @@ test("the-canned-accounting-dies-in-the-injected-store: buildNodeReal appends th
     const buildConfig = resolved!.config;
     const signer = resolveSignerFromEnv({ flag: "tester@example.com" });
     assert.equal(signer.ok, true, "the fixture signer must resolve");
-    const prompts = await renderLeafPhasePrompts();
+    const prompts = await renderLeafPhasePrompts(await fixtureCorpus());
     assert.equal(prompts.ok, true, "the Library leaf prompts must render");
     const author = scriptedAuthors({ "cap-a": scopeFor("cap-a") })(spec, worktree.root);
     assert.ok(author !== undefined, "the scripted author must resolve for cap-a");
@@ -232,6 +251,7 @@ test("each-chained-node-reports-its-own-slices: a two-node --real chain reports 
   const calls: ObservedSlices[] = [];
   try {
     const env = await storyBuild("fix-story", {
+      corpusStore: await fixtureCorpus(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",

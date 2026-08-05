@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus, processGraphViolations } from "@storytree/library/store";
+import { processGraphViolations } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 /**
  * `check:process-graph` — the process branch-edge GRAPH integrity gate (ADR-0161 decision 5).
@@ -16,7 +17,7 @@ import { loadCorpus, processGraphViolations } from "@storytree/library/store";
  */
 test("check:process-graph — the real seed's process graph is sound (resolve + acyclic; the honest no-op today)", async () => {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
   const violations = await processGraphViolations(store);
   assert.deepEqual(violations, [], `the seed process graph must stay sound:\n${violations.join("\n")}`);
 });

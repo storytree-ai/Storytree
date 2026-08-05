@@ -57,7 +57,7 @@ test("the LOCAL gate honours CI's FULL triggers — one classifier, or a local p
     ["pnpm-lock.yaml", "the lockfile is a repo-wide input"],
     ["package.json", "a manifest is an input of the selection graph itself"],
     ["packages/cli/package.json", "a workspace manifest, likewise"],
-    ["apps/studio/data/knowledge.json", "the corpus seed is read across package boundaries"],
+    ["apps/studio/data/comments.json", "the studio data dir is read across package boundaries"],
     ["packages/README.md", "under packages/ but owned by no project"],
     [".github/workflows/ci.yml", "the workflow defines the gate itself"],
   ] as const) {

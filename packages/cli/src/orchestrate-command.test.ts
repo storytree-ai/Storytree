@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 import type { SdkQueryFn } from "@storytree/agent";
 
 import { run } from "./commands.js";
@@ -35,7 +35,7 @@ function scriptedQuery(messages: unknown[]): SdkQueryFn {
 
 test("orchestrate command: routes the intent to the headless runtime and surfaces the proposal (offline, scripted queryFn)", async () => {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
 
   const env = await run(["orchestrate", "orient", "and", "propose", "the", "next", "unit"], {
     store,
@@ -49,7 +49,7 @@ test("orchestrate command: routes the intent to the headless runtime and surface
 
 test("orchestrate command: a missing intent returns usage guidance and never calls the SDK", async () => {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
 
   let called = false;
   const env = await run(["orchestrate"], {

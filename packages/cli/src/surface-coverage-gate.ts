@@ -35,10 +35,11 @@
  * ignored. So the six existing agent-ceremony processes — whose `surfaces` name no launcher — simply
  * contribute no refs, and the operational launchers Unit-3 backfills will name theirs canonically.
  *
- * The gate reads the OFFLINE seed (`apps/studio/data/knowledge.json`) so it is DB-free and runs
- * identically local + CI (ADR-0154: local + CI, like `check:coverage`). That means a process authored
- * live but not yet exported to the seed lags here — the same lagging-export caveat every seed-reading
- * check carries; the authoring flow reconciles it into the seed.
+ * The gate reads the LIVE store for its `process` tier (ADR-0302 D1). It read the committed seed
+ * until that decision, which made it DB-free but also made it judge a MIRROR: a process authored
+ * live lagged here until an export ceremony ran, and those ceremonies are deleted (ADR-0302 D4). It
+ * still runs identically local + CI — CI now holds the credential (ADR-0302 D3) — and the
+ * entrypoints half is still pure disk (`package.json`), so only the process half moved.
  *
  * Pure-by-injection: {@link parseSurfaceRefs} / {@link classifySurfaceCoverage} /
  * {@link formatSurfaceCoverage} are deterministic over their inputs (offline-testable with fixtures);
@@ -47,6 +48,8 @@
  */
 
 import { readFileSync } from "node:fs";
+
+import type { Store } from "@storytree/storage-protocol";
 
 import { CLI_AREAS } from "./cli-areas.js";
 
@@ -238,7 +241,7 @@ export function formatSurfaceCoverage(report: SurfaceCoverageReport): { warn: bo
 
 /** Everything the runner reads, injected for offline testability (the disk loader is the seam). */
 export interface SurfaceCoverageDeps {
-  loadInputs: () => { processes: ProcessSurfaces[]; entrypoints: Entrypoint[] };
+  loadInputs: () => Promise<{ processes: ProcessSurfaces[]; entrypoints: Entrypoint[] }>;
 }
 
 /**
@@ -246,12 +249,12 @@ export interface SurfaceCoverageDeps {
  * returned alongside the rendered lines so the shell can apply the drain ceiling to the same sweep
  * without re-running it (`surface-coverage-drain.ts`).
  */
-export function runSurfaceCoverageGate(deps: SurfaceCoverageDeps): {
+export async function runSurfaceCoverageGate(deps: SurfaceCoverageDeps): Promise<{
   warn: boolean;
   lines: string[];
   report: SurfaceCoverageReport;
-} {
-  const report = classifySurfaceCoverage(deps.loadInputs());
+}> {
+  const report = classifySurfaceCoverage(await deps.loadInputs());
   return { ...formatSurfaceCoverage(report), report };
 }
 
@@ -311,37 +314,31 @@ export function enumerateEntrypoints(scriptNames: readonly string[]): Entrypoint
 // Disk enumeration (parameterized I/O — the production `loadInputs`)
 // ---------------------------------------------------------------------------
 
-/** A raw seed entry (the shape of one object in the knowledge.json array we care about). */
-interface SeedEntry {
-  kind?: unknown;
-  category?: unknown;
-  id?: unknown;
+/** The `process` fields this gate reads off a stored library doc. */
+interface ProcessDocLike {
   surfaces?: unknown;
 }
 
 /**
- * Load the gate inputs off disk: the operator entrypoints from `package.json` (+ CLI areas + per-app
- * allow-list) and the process refs from the seed `knowledge.json`. The seed is the OFFLINE, DB-free
- * source (CI-identical); a live-but-unexported process lags here (the seed-reading caveat). Paths are
- * injected so the thin entrypoint resolves them against the repo root.
+ * Load the gate inputs: the operator entrypoints from `package.json` (+ CLI areas + per-app
+ * allow-list) — pure disk — and the process refs from the LIVE store (ADR-0302 D1; it read the
+ * committed seed until that decision). The `package.json` path is injected so the thin entrypoint
+ * resolves it against the repo root; the store is injected so this stays testable without a DB.
  */
-export function loadSurfaceCoverageInputs(opts: { seedPath: string; packageJsonPath: string }): {
-  processes: ProcessSurfaces[];
-  entrypoints: Entrypoint[];
-} {
+export async function loadSurfaceCoverageInputs(opts: {
+  store: Store;
+  packageJsonPath: string;
+}): Promise<{ processes: ProcessSurfaces[]; entrypoints: Entrypoint[] }> {
   const pkg = JSON.parse(readFileSync(opts.packageJsonPath, "utf8")) as { scripts?: Record<string, string> };
   const scriptNames = Object.keys(pkg.scripts ?? {});
   const knownScripts = new Set(scriptNames);
   const entrypoints = enumerateEntrypoints(scriptNames);
 
-  const seed = JSON.parse(readFileSync(opts.seedPath, "utf8")) as SeedEntry[];
   const processes: ProcessSurfaces[] = [];
-  for (const d of seed) {
-    const kind = typeof d.kind === "string" ? d.kind : typeof d.category === "string" ? d.category : "";
-    if (kind !== "process") continue;
-    const id = typeof d.id === "string" ? d.id : "(unknown)";
-    const surfaces = typeof d.surfaces === "string" ? d.surfaces : "";
-    processes.push({ id, refs: parseSurfaceRefs(surfaces, knownScripts) });
+  for (const d of await opts.store.queryDocs({ kind: "process" })) {
+    const doc = d.doc as ProcessDocLike;
+    const surfaces = typeof doc.surfaces === "string" ? doc.surfaces : "";
+    processes.push({ id: d.id, refs: parseSurfaceRefs(surfaces, knownScripts) });
   }
   return { processes, entrypoints };
 }

@@ -240,6 +240,13 @@ async function runLiveCuration(
 export interface StoryBuildOpts {
   dryRun: boolean;
   /**
+   * OPTIONAL corpus store the leaf's per-phase system prompts are rendered from — forwarded to
+   * {@link renderLeafPhasePrompts}. Omit in production (the live store opens); present only so a
+   * hermetic suite can drive a `--real` chain with no credential. See `NodeBuildOpts.corpusStore`.
+   */
+  corpusStore?: Store;
+
+  /**
    * Observe each chained node's per-slice leaf run accounting (ADR-0235) — the same seam
    * `node build` takes, so a chained story emits every node's traversal lanes. Injected by the CLI
    * so drive never imports the traversal adapter (see {@link LeafSlicesObserver}).
@@ -599,7 +606,7 @@ export async function storyBuild(
   // a live/real build runs the Library agent, never a generic. The dry-run owned loop needs no prompt.
   let phasePrompts: LeafPhasePrompts | undefined;
   if (live || real) {
-    const rendered = await renderLeafPhasePrompts();
+    const rendered = await renderLeafPhasePrompts(opts.corpusStore);
     if (!rendered.ok) return rendered.refusal;
     phasePrompts = rendered.prompts;
   }

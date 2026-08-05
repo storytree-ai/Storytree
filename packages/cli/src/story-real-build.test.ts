@@ -7,6 +7,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 import { FileToolExecutor, FILE_WRITE_TOOLS } from "@storytree/agent";
 import type { PhaseAuthor } from "@storytree/agent";
 import {
@@ -17,6 +18,21 @@ import {
 import type { NodeSpec } from "@storytree/orchestrator";
 
 import { storyBuild } from "@storytree/drive";
+
+/**
+ * The corpus the leaf's per-phase system prompts render from, INJECTED rather than opened.
+ *
+ * A `--real` / `--live` build renders `red-builder` / `green-builder` out of the Library
+ * (ADR-0051 §4), and since ADR-0302 D1 the default source for that is the LIVE store. ADR-0302 D3
+ * keeps `STORYTREE_DB_USER` out of `pnpm -r test`, so without this seam these cases are green on a
+ * box that happens to hold credentials and red in CI — for a reason unrelated to what they assert.
+ */
+async function fixtureCorpus(): Promise<InMemoryStore> {
+  const corpus = new InMemoryStore();
+  await loadFixtureCorpus(corpus);
+  return corpus;
+}
+
 
 /**
  * ADR-0057 §3 expansion D — `story build --real` (the whole-story REAL chain). All OFFLINE: a
@@ -187,6 +203,7 @@ test("--real chains capabilities topo-ordered over ONE worktree; cap-b builds on
   const store = new InMemoryStore();
   try {
     const env = await storyBuild("fix-story", {
+      corpusStore: await fixtureCorpus(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -223,6 +240,7 @@ test("--real HALTS the chain when a node fails closed; the later node never runs
   const repo = await fixtureRepo(false);
   try {
     const env = await storyBuild("fix-story", {
+      corpusStore: await fixtureCorpus(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -257,6 +275,7 @@ test("--real promotes ONCE at the stacked HEAD; cap-a's verdict commit is an anc
   const repo = await fixtureRepo(true);
   try {
     const env = await storyBuild("fix-story", {
+      corpusStore: await fixtureCorpus(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -304,6 +323,7 @@ test("--real HALT parks the proven prefix LOCAL-ONLY — never pushed, never a l
   const repo = await fixtureRepo(true);
   try {
     const env = await storyBuild("fix-story", {
+      corpusStore: await fixtureCorpus(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -392,6 +412,7 @@ test("--real refuses a story with a non-real-buildable driven node BEFORE any wo
   );
   try {
     const env = await storyBuild("fix-story", {
+      corpusStore: await fixtureCorpus(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -421,6 +442,7 @@ test("--real refuses a machine-witnessed story whose UAT node is not real-builda
   const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }], { uatWitness: "machine" });
   try {
     const env = await storyBuild("fix-story", {
+      corpusStore: await fixtureCorpus(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",

@@ -27,7 +27,7 @@ proof:
 
 **Depends on —** [`event-sourced-store-seam`](event-sourced-store-seam.md), [`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** The EAGER BATCH migrator (`batchMigrate`) and the read adapter (`renderStoredDoc`) are genuinely proven offline: `packages/library/src/store/batch-migrate.test.ts` (3/3) and the `renderStoredDoc` cases in `packages/library/src/store/render-doc.test.ts` are REAL passing tests I ran (part of the `@storytree/library` suite, 99 pass + 1 live-gated skip). storytree's prove-it-gate did NOT drive them red→green, so this is brownfield `mapped`, not `healthy`. Every contract below has a real passing test. *(The seed-script half — `loadCorpus` / `loadComments` / `applySchema` / `recordLedger` — split out to [`seed-corpus-scripts`](seed-corpus-scripts.md), which is honestly `proposed`.)*
+> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** The EAGER BATCH migrator (`batchMigrate`) and the read adapter (`renderStoredDoc`) are genuinely proven offline: `packages/library/src/store/batch-migrate.test.ts` (3/3) and the `renderStoredDoc` cases in `packages/library/src/store/render-doc.test.ts` are REAL passing tests I ran (part of the `@storytree/library` suite, 99 pass + 1 live-gated skip). storytree's prove-it-gate did NOT drive them red→green, so this is brownfield `mapped`, not `healthy`. Every contract below has a real passing test. *(The seed-script half — `loadFixtureCorpus` / `loadComments` / `applySchema` / `recordLedger` — split out to [`seed-corpus-scripts`](seed-corpus-scripts.md), which is honestly `proposed`.)*
 
 ## Guidance
 

@@ -10,6 +10,8 @@
 
 export * from "./envelope.js";
 export * from "./secrets.js";
+export * from "./store-door.js";
+export * from "./corpus-store.js";
 export * from "./adr-frontmatter.js";
 export * from "./adr-metas.js";
 // The derived arc → children join (ADR-0183 D3 / ADR-0267 D4): ONE rollup the cli renders and the

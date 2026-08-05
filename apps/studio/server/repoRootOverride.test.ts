@@ -26,12 +26,18 @@ describe('resolveStudioPaths honours an explicit override', () => {
   });
 
   test('dataDir stays anchored to the STUDIO root, not the repo root (ADR-0244 D3)', () => {
-    // knowledge.json is storytree's METHOD corpus and ships with the app, so it must NOT follow a
-    // foreign repo root. Increment 1 made this call deliberately; pinning it here so a later "make
-    // everything follow the root" sweep cannot quietly take the seed with it.
+    // The studio's own data — the offline runtime store, comments, users, attestations — ships with
+    // the APP and must NOT follow a foreign repo root, while docs/ and stories/ must. Increment 1
+    // made that split deliberately; pinning it here so a later "make everything follow the root"
+    // sweep cannot quietly take the app's own files with it.
+    //
+    // It used to be pinned via `knowledgeFile`, the seed ADR-0302 D1 deleted; `assetsFile` is the
+    // same assertion against a path that still exists, and it is the sharper one anyway — the
+    // runtime store is WRITTEN, so following a foreign root would have the studio writing into
+    // someone else's checkout.
     const paths = resolveStudioPaths(STUDIO_ROOT, FOREIGN);
     expect(paths.dataDir).toBe(path.join(STUDIO_ROOT, 'data'));
-    expect(paths.knowledgeFile).toBe(path.join(STUDIO_ROOT, 'data', 'knowledge.json'));
+    expect(paths.assetsFile).toBe(path.join(STUDIO_ROOT, 'data', 'assets.runtime.json'));
   });
 
   test('no override falls back to the studio-root derivation (storytree unchanged)', () => {

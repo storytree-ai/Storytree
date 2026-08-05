@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import { storeParitySuite } from "@storytree/storage-protocol/parity";
 import type { Store } from "@storytree/storage-protocol";
 import { validateLibraryDoc } from "../library-doc.js";
+import { FIXTURE_CORPUS_UNITS } from "../fixture/index.js";
 import { SCHEMA_SQL_PATH } from "./migrate.js";
 
 /**
@@ -43,19 +43,21 @@ test("schema.sql declares the events schema and all six tables", async () => {
 
 // ---- Offline: write-boundary validator -----------------------------------------------------
 
-async function firstKnowledgeUnit(): Promise<unknown> {
-  const path = fileURLToPath(
-    new URL("../../../../apps/studio/data/knowledge.json", import.meta.url),
-  );
-  const units = JSON.parse(await readFile(path, "utf8")) as unknown[];
-  return units[0];
-}
-
-test("validateLibraryDoc accepts a real knowledge.json unit", async () => {
-  const unit = await firstKnowledgeUnit();
-  const parsed = validateLibraryDoc(unit);
-  assert.equal(typeof parsed.id, "string");
-  assert.ok("kind" in parsed && typeof parsed.kind === "string");
+test("validateLibraryDoc accepts every unit of the real fixture corpus", () => {
+  // It read the FIRST unit of `apps/studio/data/knowledge.json` until ADR-0302 D1 deleted that file.
+  // The fixture is small enough to check in FULL rather than sampling, which is strictly stronger:
+  // the old assertion could only ever catch a schema break that happened to hit index 0, and it is
+  // also what keeps the fixture itself honest — a unit that falls behind the schema fails here
+  // rather than in whichever suite happens to load it next.
+  assert.ok(FIXTURE_CORPUS_UNITS.length > 0, "the fixture corpus must not be empty");
+  const kinds = new Set<string>();
+  for (const unit of FIXTURE_CORPUS_UNITS) {
+    const parsed = validateLibraryDoc(unit);
+    assert.equal(typeof parsed.id, "string");
+    assert.ok("kind" in parsed && typeof parsed.kind === "string");
+    kinds.add(parsed.kind as string);
+  }
+  assert.ok(kinds.size >= 4, `the fixture must span several kinds, spans ${[...kinds].join(", ")}`);
 });
 
 test("validateLibraryDoc rejects garbage", () => {
@@ -78,7 +80,7 @@ test("connection + store modules import without throwing", async () => {
   );
   assert.equal(conn.DEFAULT_DATABASE, "storytree");
   assert.equal(typeof store.PgLibraryStore, "function");
-  assert.equal(typeof corpus.loadCorpus, "function");
+  assert.equal(typeof corpus.loadComments, "function");
 });
 
 // ---- Live-gated: full behavioural parity over Postgres -------------------------------------

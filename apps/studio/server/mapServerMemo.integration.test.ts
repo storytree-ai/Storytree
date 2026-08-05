@@ -120,7 +120,6 @@ async function withHarness(
       dataDir: root,
       commentsFile: path.join(root, 'comments.json'),
       assetsFile: path.join(root, 'assets.json'),
-      knowledgeFile: path.join(root, 'knowledge.json'),
       usersFile: path.join(root, 'users.json'),
       attestationsFile: path.join(root, 'attestations.json'),
     },

@@ -10,9 +10,11 @@
 //    pnpm-lock.yaml, root tsconfig/package.json, CLAUDE.md, the `web` gitlink, …) → FULL. Several
 //    package test suites read these root paths directly (cli's validate-corpus over stories/**, the
 //    adr-health gates over docs/decisions/**, drive's node-build tests over stories/**).
-//  - `apps/studio/data/**` (the corpus seed) → FULL, even though it sits inside an app: library's
-//    store.test.ts and cli's corpus-build-check / surface-coverage tests read it across package
-//    boundaries, which no dependency edge declares.
+//  - `apps/studio/data/**` (the studio's shared data dir) → FULL, even though it sits inside an app:
+//    its files are read across package boundaries by no declared dependency edge — `comments.json` by
+//    library's `loadComments`, `unit-status.json` by the studio off a cli generator. It held the
+//    corpus seed until ADR-0302 D1 deleted it, which is why the rule exists; the remaining files
+//    still justify it, and the rule only ever fails WIDE.
 //  - Any `package.json` → FULL: workspace manifests are the selection graph's own inputs (and
 //    node-build resolves `packages/<dir>/package.json` across packages at runtime); filtering by a
 //    graph the diff is mutating is the classic under-selection footgun.
@@ -35,7 +37,7 @@ export type AffectedScope =
   | { mode: "full"; reason: string }
   | { mode: "affected"; projects: string[]; reason: string };
 
-/** The corpus seed dir read across package boundaries by library + cli tests (trailing slash = prefix match). */
+/** The studio data dir, read across package boundaries by no declared edge (trailing slash = prefix match). */
 const CORPUS_SEED_DIR = "apps/studio/data/";
 
 /** The workspace roots — mirrors pnpm-workspace.yaml's globs (that file is root-scoped, so a change to it forces FULL before this list could go stale). */
@@ -89,7 +91,7 @@ export function classifyChangedFiles(
       return { mode: "full", reason: `${file}: a package manifest is an input of the selection graph itself` };
     }
     if (file.startsWith(CORPUS_SEED_DIR)) {
-      return { mode: "full", reason: `${file}: the corpus seed is read across package boundaries by library + cli tests` };
+      return { mode: "full", reason: `${file}: the studio data dir is read across package boundaries by no declared edge` };
     }
     const owner = projects.find((p) => file.startsWith(`${p.dir}/`));
     if (owner === undefined) {

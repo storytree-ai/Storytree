@@ -12,6 +12,7 @@
 import path from 'node:path';
 import type { Plugin } from 'vite';
 import { createBackend, selectedStore, type LibraryBackend } from './libraryBackend';
+import { loadFixtureSeedUnits } from './deriveOfflineCorpus';
 import { createCodeStampProbe, type CodeStamp } from './codeStamp';
 import { handleApiRequest, resolveStudioPaths, type Paths, type BuildContext, type AdoptContext } from './apiRouter';
 import { createInviteMailer, type InviteMailer } from './inviteMailer';
@@ -51,7 +52,7 @@ export function storytreeDataApi(options: StorytreeDataApiOptions = {}): Plugin 
       // The pg pool (if store='pg') is built lazily on first use; this just picks the impl.
       backend = createBackend({
         assetsFile: paths.assetsFile,
-        knowledgeFile: paths.knowledgeFile,
+        loadSeedUnits: loadFixtureSeedUnits,
         commentsFile: paths.commentsFile,
         usersFile: paths.usersFile,
         attestationsFile: paths.attestationsFile,

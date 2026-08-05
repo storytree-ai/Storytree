@@ -22,6 +22,7 @@ import { promises as fs, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBackend, selectedStore, type LibraryBackend } from './libraryBackend';
+import { loadFixtureSeedUnits } from './deriveOfflineCorpus';
 import { handleApiRequest, resolveStudioPaths, type Paths } from './apiRouter';
 import { createInviteMailer, disabledInviteMailer, type InviteMailer } from './inviteMailer';
 import { createMetadataDbWaker, type DbWaker } from './dbWake';
@@ -241,7 +242,7 @@ if (isMain()) {
   const paths = resolveStudioPaths(STUDIO_ROOT, parseRepoRootFlag(process.argv.slice(2)));
   const backend = createBackend({
     assetsFile: paths.assetsFile,
-    knowledgeFile: paths.knowledgeFile,
+    loadSeedUnits: loadFixtureSeedUnits,
     commentsFile: paths.commentsFile,
     usersFile: paths.usersFile,
     attestationsFile: paths.attestationsFile,

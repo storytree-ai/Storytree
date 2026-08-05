@@ -230,7 +230,7 @@ The brownfield bootstrap rung toward `healthy` (ADR-0057 §3, NET-NEW): the chat
 authored as a new module in `@storytree/drive`, test-first. This records how it landed (now green).
 
 - **The test —** `packages/drive/src/chat-stream.test.ts` (`node:test` + `node:assert/strict`). It
-  imports `{ startChatStream }` from `"./chat-stream.js"`, builds an `InMemoryStore` + `loadCorpus` for
+  imports `{ startChatStream }` from `"./chat-stream.js"`, builds an `InMemoryStore` + `loadFixtureCorpus` for
   the real seed, and injects a `queryFn` scripted double passed through to `orchestrate`.
 - **The RED the spine observed (before IMPLEMENT) —** the import resolved NOTHING — `chat-stream.ts` did
   not exist at HEAD, so the test failed module-not-found (the net-new missing-symbol red). It asserts the

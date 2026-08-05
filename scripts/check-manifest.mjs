@@ -64,7 +64,7 @@ const remediation = {
   rootFile: 'add it to repo-manifest.json `root.files` with a one-line justification, or remove it.',
   rootDir: 'add it to repo-manifest.json `root.dirs` with a one-line justification, or remove it.',
   docsFile:
-    'fold it into the Library (apps/studio/data/knowledge.json) if it is durable knowledge, OR add it to repo-manifest.json `docs.files` with a justification for why it does NOT fit the Library.',
+    'fold it into the Library (`storytree library artifact new --file <doc.json> --pg`) if it is durable knowledge, OR add it to repo-manifest.json `docs.files` with a justification for why it does NOT fit the Library.',
   docsDir:
     'fold its contents into the Library if durable, OR add the directory to repo-manifest.json `docs.allowedDirs` with a justification.',
 };

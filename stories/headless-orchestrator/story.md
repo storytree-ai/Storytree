@@ -61,7 +61,7 @@ capabilities: [orientation-tool-surface, headless-session-runner, orchestrator-c
 #   - library      — the knowledge surface the agent orients on: `library` (dashboard) +
 #                    `library artifact <id>` read off the store (the in-memory seed offline,
 #                    packages/cli/src/commands.ts), and the seed corpus the agent reads is library's
-#                    work-hierarchy + knowledge schema (loadCorpus over @storytree/library). Also the
+#                    work-hierarchy + knowledge schema (loadFixtureCorpus over @storytree/library/fixture). Also the
 #                    home of renderAgentPrompt(store, "session-orchestrator")
 #                    (packages/library/src/store/render-agent.ts, a @storytree/library/store seam since
 #                    ADR-0112 §4), which assembles the SAME session-orchestrator system prompt the
@@ -275,7 +275,7 @@ composition ROOT that drives this runtime and injects the read dispatch through 
   `noticeboard declare`, `uat attest`, `adr new`) refuses every write verb by construction.
 - **`library`** — the **knowledge surface AND the prompt-render seam**. The agent orients on `library`
   (dashboard) + `library artifact <id>`, which read off the `store` (the in-memory seed offline,
-  `loadCorpus` over `@storytree/library`, `packages/cli/src/commands.ts`). The corpus the agent reads —
+  `loadFixtureCorpus` over `@storytree/library/fixture`, `packages/cli/src/commands.ts`). The corpus the agent reads —
   the work-hierarchy spec (`Tier`/`Status`/`Unit`) and the knowledge documents — is library's schema.
   The runtime also consumes `renderAgentPrompt(store, "session-orchestrator")`
   (`packages/library/src/store/render-agent.ts`, a `@storytree/library/store` seam since ADR-0112 §4 —

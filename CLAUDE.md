@@ -151,15 +151,23 @@ kind owes a seed export any more.
 - **EXPLORE (read):** `storytree library` (dashboard) · `… artifact <id>` ·
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023).
-- **`apps/studio/data/knowledge.json` IS NO LONGER AUTHORITATIVE — it is a frozen bootstrap
-  fixture.** Nothing writes it any more, so it will drift from the live store and that drift is
-  expected rather than a defect to reconcile. It survives this increment only as the offline corpus
-  a handful of unit tests and offline read paths still load; those consumers move, and the file
-  goes, in the next increment of `session-decoupling-arc`. **Never hand-edit it, never treat a read
-  of it as current, and do not re-add a check that compares it to live.** (The generated
-  `apps/studio/data/assets.json` was retired by ADR-0210 — the offline studio derives its view from
-  this file on the fly, and `libraryTemplates()` in `@storytree/library` owns the template scaffolds;
-  `docs/glossary.md`, a second generated view, was retired by ADR-0135.)
+- **`apps/studio/data/knowledge.json` IS DELETED (ADR-0302 D1 complete). NO committed file mirrors
+  the corpus.** Don't look for it, don't re-create it, and don't add a check that compares anything
+  to it. A **bare `storytree library …` read now dials the LIVE store** — `--pg` is no longer needed
+  to be current (it still is for WRITES, which is the only branch carrying the write seams), and the
+  connector opens LAZILY, so `adr list` / `doctor` / the help surfaces still touch no database.
+  Everything else that used to read the seed reads live too: `check:process-graph`,
+  `check:surface-coverage`, `graduate`, the leaf/curator prompt renderers, the desktop chat mount.
+  - **Hermetic tests read `@storytree/library/fixture` instead** — `loadFixtureCorpus(store)` over a
+    small FROZEN literal (13 artifacts). It is deliberately NOT a mirror and never reconciled, so it
+    drifts by design; that is what keeps `pnpm -r test` credential-free under ADR-0302 D3. Assertions
+    about the REAL corpus belong on a `check:*` rung, which may hold a connection (ADR-0307 D4).
+  - `storytree doctor`'s `seedReadable` probe went with the file (it existed to answer "is this
+    checkout intact?" with zero credentials, so repointing it at a DB would defeat it);
+    `checkout-provisioned` answers the weaker question and stays. (The generated
+    `apps/studio/data/assets.json` was retired by ADR-0210 — the offline studio sandbox now derives
+    its much smaller view from the fixture, and `libraryTemplates()` in `@storytree/library` owns the
+    template scaffolds; `docs/glossary.md`, a second generated view, was retired by ADR-0135.)
 - **STUDIO UI (one parallel session at a time):** the live store is now the **default**
   (`oq-studio-store-default` → B) — `pnpm --filter studio dev` reads/writes the live DB and sees CLI
   edits (bring the DB up first with `pnpm db:up`). For offline work set `STORYTREE_STUDIO_STORE=json`

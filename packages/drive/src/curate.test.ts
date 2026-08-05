@@ -5,6 +5,7 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 import type { Store } from "@storytree/storage-protocol";
 import type { SdkCuratorArgs, SdkCuratorResult } from "@storytree/agent";
 import type { Comment } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import {
   CURATOR_ACTOR,
@@ -346,8 +347,13 @@ test("SdkCuratorRunner yields no actions when the SDK session fails (best-effort
   assert.equal(actions.length, 0);
 });
 
-test("renderCuratorPrompt assembles the librarian-curator from the seed with the output contract", async () => {
-  const res = await renderCuratorPrompt();
+test("renderCuratorPrompt assembles the librarian-curator with the output contract appended", async () => {
+  // The corpus is INJECTED. In production this reads the live store (ADR-0302 D1 deleted the seed it
+  // used to read); a hermetic suite has no credential (ADR-0302 D3), so it hands over the fixture,
+  // whose `librarian-curator` carries the agent's own prose verbatim.
+  const corpus = new InMemoryStore();
+  await loadFixtureCorpus(corpus);
+  const res = await renderCuratorPrompt(corpus);
   assert.equal(res.ok, true, res.ok ? "" : res.reason);
   if (res.ok) {
     assert.match(res.systemPrompt, /retire-open-question/, "the JSON output contract is appended");

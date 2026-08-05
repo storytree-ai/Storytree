@@ -3,8 +3,9 @@
  *
  * The node SEAM around the pure engine (`@storytree/library` `graduation/`): the engine classifies,
  * resolves references, and flags duplicates but never touches the filesystem (browser-safe, no clock);
- * this module reads the harness agent-memory files off disk, builds an offline {@link LibrarySnapshot}
- * from the seed corpus, runs the engine, and renders the worklist.
+ * this module reads the harness agent-memory files off disk, takes a {@link LibrarySnapshot} of the
+ * LIVE corpus from its caller (ADR-0302 D1 — the seed it used to read is gone), runs the engine, and
+ * renders the worklist.
  *
  * READ-ONLY by design (ADR-0095 Decision 3 — prove-the-mechanism / curate-the-judgment): it prints a
  * worklist of CANDIDATES for the librarian-curator to finalise; it does NOT author Library docs. And
@@ -36,6 +37,8 @@ import {
   type ParkWorklistCounts,
   type SnapshotDoc,
 } from "@storytree/library";
+
+import { openCorpusStore } from "@storytree/drive";
 
 import type { Envelope } from "./envelope.js";
 
@@ -107,7 +110,7 @@ export function parseMemoryFile(file: string, content: string): MemoryFile {
 
 // ---- pure: the snapshot builder -------------------------------------------------------------
 
-/** The fields {@link buildSnapshot} reads off a raw knowledge.json seed doc. */
+/** The fields {@link buildSnapshot} reads off a raw library doc. */
 interface RawDoc {
   readonly id?: unknown;
   readonly kind?: unknown;
@@ -185,11 +188,6 @@ export function mainCheckoutDir(dir: string): string {
  */
 export function defaultMemoryDir(homeDir: string): string {
   return harnessMemoryDir(homeDir, mainCheckoutDir(cliRepoRoot()));
-}
-
-/** The seed corpus the offline worklist snapshot is built from (apps/studio/data/knowledge.json). */
-export function defaultSnapshotPath(): string {
-  return path.join(cliRepoRoot(), "apps", "studio", "data", "knowledge.json");
 }
 
 // ---- ADR-0202: the park-ledger node seam ------------------------------------------------------
@@ -278,13 +276,25 @@ export function readMemoryDir(dir: string): MemoryReadResult {
   return { memories, fileCount: files.length, unparseable };
 }
 
-/** Read + JSON-parse the seed corpus and build the offline {@link LibrarySnapshot}. Throws on a bad file. */
-export function readSnapshot(snapshotPath: string): LibrarySnapshot {
-  const parsed = JSON.parse(readFileSync(snapshotPath, "utf8")) as unknown;
-  if (!Array.isArray(parsed)) {
-    throw new Error(`${snapshotPath}: expected a JSON array of docs`);
+/**
+ * Read the LIVE corpus and build the dedupe {@link LibrarySnapshot}. Throws (with
+ * `openCorpusStore`'s remedy text) when the store cannot be reached.
+ *
+ * It read `apps/studio/data/knowledge.json` until ADR-0302 D1 decommitted it, and the swap matters
+ * more here than almost anywhere else: this snapshot is what ADR-0095's graduation dedupes a memory
+ * candidate AGAINST. A stale corpus under-dedupes — it re-offers memories whose durable essence was
+ * graduated into the Library days ago — so reading anything but live actively manufactures work.
+ * Both callers (`storytree library graduate`, `check:graduation-worklist`) are INVOKED paths, which
+ * is the permitted side of ADR-0307 D4's line.
+ */
+export async function readLiveSnapshot(): Promise<LibrarySnapshot> {
+  const corpus = await openCorpusStore("graduate");
+  try {
+    const docs = await corpus.store.queryDocs();
+    return buildSnapshot(docs.map((d) => ({ id: d.id, kind: d.kind, ...(d.doc as object) })));
+  } finally {
+    await corpus.close();
   }
-  return buildSnapshot(parsed);
 }
 
 // ---- the command ----------------------------------------------------------------------------
@@ -292,8 +302,12 @@ export function readSnapshot(snapshotPath: string): LibrarySnapshot {
 export interface GraduateDeps {
   /** The resolved memory dir to read (the dispatcher computes the default; tests inject a temp dir). */
   readonly memoryDir: string;
-  /** The seed corpus the offline snapshot is built from (apps/studio/data/knowledge.json). */
-  readonly snapshotPath: string;
+  /**
+   * The corpus snapshot each memory candidate is deduped against — read LIVE by the caller
+   * ({@link readLiveSnapshot}) rather than resolved from a path here, so this command stays
+   * synchronous and its tests stay hermetic (they pass a {@link buildSnapshot} result directly).
+   */
+  readonly snapshot: LibrarySnapshot;
   /** The park ledger beside the memory dir (ADR-0202) — see {@link defaultLedgerPath}. */
   readonly ledgerPath: string;
   /** The ISO date stamped into each candidate's provenance — injected so the command is deterministic. */
@@ -380,7 +394,7 @@ function header(deps: GraduateDeps, read: MemoryReadResult, snapshot: LibrarySna
     "Agent-memory → Library graduation worklist (ADR-0095)",
     "",
     `memory:   ${deps.memoryDir}  (${read.fileCount} file${read.fileCount === 1 ? "" : "s"}, ${read.memories.length} parsed)`,
-    `snapshot: ${deps.snapshotPath}  (${snapshot.docs.length} Library docs)`,
+    `snapshot: the live Library store  (${snapshot.docs.length} docs)`,
     `stamp:    ${deps.now}`,
   ];
 }
@@ -495,17 +509,7 @@ export function graduateCommand(opts: { review: boolean }, deps: GraduateDeps): 
     };
   }
 
-  let snapshot: LibrarySnapshot;
-  try {
-    snapshot = readSnapshot(deps.snapshotPath);
-  } catch (e) {
-    return {
-      ok: false,
-      body: `Could not load the Library seed snapshot (${deps.snapshotPath}): ${(e as Error).message}`,
-      next: ["ensure the Library seed exists and is valid JSON: apps/studio/data/knowledge.json"],
-    };
-  }
-
+  const snapshot = deps.snapshot;
   const candidates = graduationCandidates(read.memories, snapshot, { now: deps.now });
   const titleById = new Map(snapshot.docs.map((d) => [d.id, d.title] as const));
   const { ledger, problem } = readParkLedger(deps.ledgerPath);

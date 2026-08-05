@@ -13,7 +13,7 @@
 //      coordination + observability machinery).
 //
 // SIGNPOST — the data/*.json files are a PRE-DB stopgap, not the system of record:
-//   • apps/studio/data/knowledge.json is the STRUCTURED SOURCE of the Library.
+//   • the Library's STRUCTURED SOURCE is the live store (ADR-0302 D1).
 //   • The offline JsonBackend serves a GITIGNORED apps/studio/data/assets.runtime.json, SEEDED on
 //     first read by deriving the corpus from knowledge.json + the library templates (ADR-0210 — the
 //     committed, generated assets.json was retired; nothing hand-edits or commits this runtime store).
@@ -117,8 +117,6 @@ export interface Paths {
   commentsFile: string;
   /** The offline JsonBackend's GITIGNORED runtime assets store, seeded from knowledgeFile (ADR-0210). */
   assetsFile: string;
-  /** The structured Library seed the offline store derives from on first read (ADR-0210). */
-  knowledgeFile: string;
   usersFile: string;
   attestationsFile: string;
 }
@@ -130,8 +128,8 @@ export interface Paths {
  * `repoRootOverride` wins, then `STORYTREE_REPO_ROOT`, then the studio-root derivation this used to
  * do unconditionally. That is the seam a forest for a project that is NOT storytree needs — `docs/`
  * and `stories/` belong to the project being described, while `dataDir` deliberately stays anchored
- * to `studioRoot`, because the Library seed (`knowledge.json`) is storytree's METHOD corpus and
- * ships with the app rather than with the user's repo (ADR-0244 D3).
+ * to `studioRoot` — it holds the offline runtime store and comments, which belong to the app rather
+ * than to the user's repo (ADR-0244 D3; the Library corpus itself now lives in the store).
  */
 export function resolveStudioPaths(studioRoot: string, repoRootOverride?: string): Paths {
   const { root: repoRoot } = resolveRepoRoot({
@@ -146,10 +144,10 @@ export function resolveStudioPaths(studioRoot: string, repoRootOverride?: string
     storiesDir: path.join(repoRoot, 'stories'),
     dataDir,
     commentsFile: path.join(dataDir, 'comments.json'),
-    // ADR-0210: the offline store is a gitignored RUNTIME file, seeded from knowledge.json on first
-    // read (deriveOfflineAssets) — not the retired committed generated assets.json.
+    // ADR-0210: the offline store is a gitignored RUNTIME file, seeded on first read from the
+    // library's committed fixture corpus (deriveOfflineAssets) — not the retired generated
+    // assets.json, and since ADR-0302 D1 not the deleted knowledge.json either.
     assetsFile: path.join(dataDir, 'assets.runtime.json'),
-    knowledgeFile: path.join(dataDir, 'knowledge.json'),
     usersFile: path.join(dataDir, 'users.json'),
     attestationsFile: path.join(dataDir, 'attestations.json'),
   };

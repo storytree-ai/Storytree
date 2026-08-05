@@ -51,13 +51,13 @@ proof:
 
 **Depends on —** [`event-sourced-store-seam`](event-sourced-store-seam.md), [`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)
 
-> **Proof status (honest) — `proposed` (no standalone behavioural test).** The data-provenance root: `loadCorpus` IS exercised TRANSITIVELY as a real collaborator inside the CLI seed (`cli.test.ts:16-20`) and the health SEED gate (`health.test.ts:191-203`), but NO test asserts its own returned counts, and `loadComments` / `applySchema` / `recordLedger` / both entry-guarded `main()`s have NO behavioural test (Postgres-specific / smoke-only). Per the glossary a capability is `mapped` only when its dominant behaviour is observationally verified by an existing test suite — that bar is NOT met here in isolation, so this half is honestly `proposed`. Every contract below is a **would-be** test. *(The genuinely-proven eager-migrate + render half split out to [`eager-batch-migrate`](eager-batch-migrate.md), which is `mapped`.)*
+> **Proof status (honest) — `proposed` (no standalone behavioural test).** The data-provenance root: `loadFixtureCorpus` IS exercised TRANSITIVELY as a real collaborator inside the CLI seed (`cli.test.ts:16-20`) and the health SEED gate (`health.test.ts:191-203`), but NO test asserts its own returned counts, and `loadComments` / `applySchema` / `recordLedger` / both entry-guarded `main()`s have NO behavioural test (Postgres-specific / smoke-only). Per the glossary a capability is `mapped` only when its dominant behaviour is observationally verified by an existing test suite — that bar is NOT met here in isolation, so this half is honestly `proposed`. Every contract below is a **would-be** test. *(The genuinely-proven eager-migrate + render half split out to [`eager-batch-migrate`](eager-batch-migrate.md), which is `mapped`.)*
 
 ## Guidance
 
 The data-provenance root the seeded read store stands on — the seed/DDL plumbing that lands the studio corpus into the store, deliberately separated from the proven eager-migrate path because it carries a weaker proof posture.
 
-`loadCorpus` reads `knowledge.json` + the `template` artifacts from `libraryTemplates()` (ADR-0210 — re-homed from the retired generated `assets.json`) and upserts each THROUGH the store write boundary (so validation/upcast run); it is store-agnostic and IS exercised — but only as a real collaborator inside OTHER capabilities' tests (the CLI seed and the health SEED gate), never by a count assertion of its own. `loadComments` (`load-corpus.ts:82-112`), `applySchema` (`migrate.ts:10-14`), `recordLedger` (`batch-migrate.ts:72-84`) and both entry-guarded `main()`s have NO behavioural test (Postgres-specific / smoke-only). The code edge for the `depends_on`: `loadCorpus` upserts through the `Store` seam ([`event-sourced-store-seam`](event-sourced-store-seam.md)) and each upsert runs `upcastAndValidate` at the boundary ([`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)).
+`loadFixtureCorpus` reads the frozen fixture units + the `template` artifacts from `libraryTemplates()` (ADR-0210 — re-homed from the retired generated `assets.json`) and upserts each THROUGH the store write boundary (so validation/upcast run); it is store-agnostic and IS exercised — but only as a real collaborator inside OTHER capabilities' tests (the CLI seed and the health SEED gate), never by a count assertion of its own. `loadComments` (`load-corpus.ts`), `applySchema` (`migrate.ts:10-14`), `recordLedger` (`batch-migrate.ts:72-84`) and both entry-guarded `main()`s have NO behavioural test (Postgres-specific / smoke-only). The code edge for the `depends_on`: `loadFixtureCorpus` upserts through the `Store` seam ([`event-sourced-store-seam`](event-sourced-store-seam.md)) and each upsert runs `upcastAndValidate` at the boundary ([`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)).
 
 ### Build-tests R2 target (ADR-0098 d.6 — the live pilot, story gate 4)
 
@@ -67,18 +67,19 @@ The refactor (behaviour-preserving — `main()`'s observable effect is unchanged
 
 ## Integration test
 
-**Goal (would-be) —** Run `loadCorpus` against a real `InMemoryStore` and assert it upserts every knowledge unit + template through the real validated write boundary and returns the expected `{knowledge, templates}` counts; run `applySchema` idempotently against a real pool (live-gated). NO such standalone assertion exists today — `loadCorpus` is only proven transitively as a collaborator in the CLI and health-gate suites, and `applySchema`'s pool execution is Postgres-specific and unrun.
+**Goal (would-be) —** Run `loadFixtureCorpus` against a real `InMemoryStore` and assert it upserts every fixture unit + template through the real validated write boundary and returns the expected `{knowledge, templates}` counts; run `applySchema` idempotently against a real pool (live-gated). NO such standalone assertion exists today — the loader is only proven transitively as a collaborator in the CLI and health-gate suites, and `applySchema`'s pool execution is Postgres-specific and unrun.
 
-So the integration test for this capability is **would-be**: the seeding behaviour is observed only indirectly (a green CLI dashboard and an empty SEED gate both depend on `loadCorpus` having run), never by a test that targets the seeder's own contract.
+So the integration test for this capability is **would-be**: the seeding behaviour is observed only indirectly (a green CLI dashboard and an empty SEED gate both depend on the loader having run), never by a test that targets the seeder's own contract.
 
 ## Contracts (2)
 
 The would-be leaf behaviours — each would be **one isolated automated test** against real in-story collaborators (no stubs; integration-test proof mode, ADR-0010 §2). Both are currently would-be tests.
 
-1. **`loadcorpus-upserts-counts`** — loadCorpus upserts every knowledge unit and template through the store and returns counts
-   - **asserts —** `loadCorpus(store)` reads `knowledge.json` + the templates from `libraryTemplates()` (ADR-0210), upserts each via `store.upsertDoc`, and returns `{knowledge, templates}` counts.
-   - **covers —** `packages/library/src/store/load-corpus.ts:61-74`
-   - **would-be test —** `loadCorpus` runs as a real collaborator inside `cli.test.ts` and `health.test.ts:191-203`, but no test asserts its own returned counts; the seed plumbing is `proposed`.
+1. **`loadcorpus-upserts-counts`** — the corpus loader upserts every unit and template through the store and returns counts
+   - **asserts —** `loadFixtureCorpus(store)` reads the frozen fixture units + the templates from `libraryTemplates()` (ADR-0210), upserts each via `store.upsertDoc`, and returns `{knowledge, templates}` counts.
+   - **covers —** `packages/library/src/fixture/index.ts`
+   - **would-be test —** `loadFixtureCorpus` runs as a real collaborator inside `cli.test.ts` and `health.test.ts`, but no test asserts its own returned counts; the plumbing is `proposed`.
+   - **note —** the contract ID is historical. Its subject was `loadCorpus`, which read the committed corpus seed; ADR-0302 D1 deleted both the seed and the loader, and `loadFixtureCorpus` is the successor doing the same job over a frozen literal. The id is left UNCHANGED deliberately — ids are the stable handle proof binds to, so renaming one to match a refactor is how a signed verdict gets re-pointed.
 2. **`applyschema-idempotent`** — applySchema applies the idempotent DDL to a pool
    - **asserts —** `applySchema` runs `schema.sql` against a pool and is safe to apply twice (all `CREATE ... IF NOT EXISTS`).
    - **covers —** `packages/library/src/store/migrate.ts:10-14`

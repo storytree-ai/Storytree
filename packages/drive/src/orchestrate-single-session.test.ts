@@ -21,7 +21,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 import type { SdkQueryFn } from "@storytree/agent";
 
 import { orchestrate } from "./orchestrate.js";
@@ -48,7 +48,7 @@ test(
   "orchestrate: returns typed { refused: true, reason: 'single-session' } when a composition session is already in flight, leaving the running session untouched",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
 
     // Promise pair: signal when the first session's queryFn has been invoked (at which point
     // the in-flight guard is set in runHeadlessOrchestrator), and a latch to release it later.

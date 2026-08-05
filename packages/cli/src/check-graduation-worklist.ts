@@ -53,16 +53,15 @@ import {
   GRADUATION_NUDGE_TAG as TAG,
   defaultLedgerPath,
   defaultMemoryDir,
-  defaultSnapshotPath,
   graduationNudge,
   readMemoryDir,
   readParkLedger,
-  readSnapshot,
+  readLiveSnapshot,
   type MemoryReadResult,
 } from "./graduate.js";
 import { evaluateGraduationDrain, type GraduationCandidate } from "./graduation-drain.js";
 
-function main(): void {
+async function main(): Promise<void> {
   const memoryDir = defaultMemoryDir(os.homedir());
 
   let read: MemoryReadResult;
@@ -76,9 +75,12 @@ function main(): void {
 
   let snapshot: LibrarySnapshot;
   try {
-    snapshot = readSnapshot(defaultSnapshotPath());
+    snapshot = await readLiveSnapshot();
   } catch (e) {
-    console.log(`${TAG} SKIP — could not read the seed snapshot (${(e as Error).message}); worklist unverified.`);
+    // FAIL-OPEN on the SUBSTRATE, exactly as this rung already does for a missing memory store: an
+    // unreachable corpus means the worklist is UNVERIFIED, not that the backlog is clear. The
+    // ceiling below is fail-closed on the QUEUE; both arms keep their existing shapes.
+    console.log(`${TAG} SKIP — could not read the live corpus (${(e as Error).message}); worklist unverified.`);
     return;
   }
 
@@ -199,9 +201,10 @@ function main(): void {
   process.exitCode = 1;
 }
 
-try {
-  main();
-} catch (err) {
+// `await`ed via .catch rather than a bare try/catch: `main` is async since it reads the live corpus
+// (ADR-0302 D1), so a synchronous try would no longer see a rejection and the advisory-only posture
+// below would silently become an unhandled rejection.
+main().catch((err: unknown) => {
   // Even an unexpected error is advisory only — never fail the gate on the graduation nudge.
   console.log(`${TAG} SKIP — unexpected error (${(err as Error).message}); worklist unverified.`);
-}
+});

@@ -42,7 +42,6 @@ import {
   assertTestDatabase,
   closePool,
   createPool,
-  loadCorpus,
   TEST_DB_ENV,
 } from "@storytree/library/store";
 import { PgClaimStore } from "@storytree/notice-board/store";
@@ -51,6 +50,7 @@ import { PgWorkStore } from "@storytree/orchestrator/store";
 
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 import { renderAgentPrompt } from "@storytree/library/store";
+import { openCorpusStore } from "./corpus-store.js";
 import { phaseActivityWriter } from "./phase-activity.js";
 import {
   decideClaimExit,
@@ -244,16 +244,64 @@ export type LeafPhasePromptResult =
   | { ok: false; refusal: Envelope };
 
 /**
+ * The one refusal shape for every way the leaf's system prompt can fail to assemble: a missing
+ * agent, a dangling manifest ref, or an unreachable store. One builder, so the three cases cannot
+ * drift apart in wording or in the `next:` guidance they hand back.
+ */
+function leafPromptRefusal(problems: readonly string[]): Envelope {
+  return {
+    ok: false,
+    body:
+      "the live SDK leaf's system prompt could not be assembled from the Library (ADR-0051 §4):\n" +
+      problems.join("\n") +
+      "\nA live build runs the Library agent as the leaf's system prompt — fix the red-builder /\n" +
+      "green-builder agent artifact in the LIVE store (`storytree library artifact edit <id> --pg`);\n" +
+      "it must not fall back to a generic.",
+    next: [
+      `storytree agents ${RED_BUILDER_AGENT}`,
+      `storytree agents ${GREEN_BUILDER_AGENT}`,
+    ],
+  };
+}
+
+/**
  * Assemble the live SDK leaf's per-phase system prompts from the Library (ADR-0051 §4): the
  * `red-builder` agent IS the AUTHOR_TEST system prompt, the `green-builder` agent IS the IMPLEMENT
- * system prompt. Offline by construction — `loadCorpus` seeds an in-memory store, the same seed
- * every other read command uses — so live/real builds run the LIBRARY agent, never a hard-coded
- * generic (the SDK leaf's old `SYSTEM_PROMPT_BASE`). Fail-loud is the anti-blindside guarantee: a
- * missing agent or a dangling manifest ref REFUSES the build, never degrades it silently.
+ * system prompt — so live/real builds run the LIBRARY agent, never a hard-coded generic (the SDK
+ * leaf's old `SYSTEM_PROMPT_BASE`).
+ *
+ * Sourced from the LIVE store since ADR-0307 D1 made the `agent` tier live-canonical; it read the
+ * committed seed while ADR-0055's exception stood. An INVOKED path, so ADR-0307 D4 permits the
+ * connection — and this is the caller with the least to lose from it, since a `--real` build already
+ * persists to the same database (ADR-0060 / ADR-0081) and cannot run without it anyway.
+ *
+ * Fail-loud is the anti-blindside guarantee, and it now covers one more case: a missing agent, a
+ * dangling manifest ref, OR an unreachable store REFUSES the build rather than degrading it. A leaf
+ * silently running a thinner prompt is the failure this function exists to prevent.
  */
-export async function renderLeafPhasePrompts(): Promise<LeafPhasePromptResult> {
-  const store = new InMemoryStore();
-  await loadCorpus(store);
+export async function renderLeafPhasePrompts(store?: Store): Promise<LeafPhasePromptResult> {
+  // An INJECTED store short-circuits the live open. It exists for the suites: ADR-0302 D3 keeps
+  // `STORYTREE_DB_USER` out of `pnpm -r test`, so a test exercising a `--real` chain would otherwise
+  // fail on an unreachable store for a reason that has nothing to do with what it is testing —
+  // green on a developer box that happens to hold credentials, red in CI. Production passes nothing.
+  if (store !== undefined) return renderPhasePromptsFrom(store);
+  let corpus: Awaited<ReturnType<typeof openCorpusStore>>;
+  try {
+    corpus = await openCorpusStore("build --live/--real");
+  } catch (err) {
+    return {
+      ok: false,
+      refusal: leafPromptRefusal([(err as Error).message]),
+    };
+  }
+  try {
+    return await renderPhasePromptsFrom(corpus.store);
+  } finally {
+    await corpus.close();
+  }
+}
+
+async function renderPhasePromptsFrom(store: Store): Promise<LeafPhasePromptResult> {
   const problems: string[] = [];
   const rendered: Partial<Record<keyof LeafPhasePrompts, string>> = {};
   for (const [phase, agentId] of [
@@ -270,21 +318,7 @@ export async function renderLeafPhasePrompts(): Promise<LeafPhasePromptResult> {
     }
   }
   if (problems.length > 0 || rendered.AUTHOR_TEST === undefined || rendered.IMPLEMENT === undefined) {
-    return {
-      ok: false,
-      refusal: {
-        ok: false,
-        body:
-          "the live SDK leaf's system prompt could not be assembled from the Library (ADR-0051 §4):\n" +
-          problems.join("\n") +
-          "\nA live build runs the Library agent as the leaf's system prompt — fix the red-builder /\n" +
-          "green-builder agent artifact (live store / knowledge.json), it must not fall back to a generic.",
-        next: [
-          `storytree agents ${RED_BUILDER_AGENT}`,
-          `storytree agents ${GREEN_BUILDER_AGENT}`,
-        ],
-      },
-    };
+    return { ok: false, refusal: leafPromptRefusal(problems) };
   }
   return { ok: true, prompts: { AUTHOR_TEST: rendered.AUTHOR_TEST, IMPLEMENT: rendered.IMPLEMENT } };
 }
@@ -870,6 +904,15 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
 export interface NodeBuildOpts {
   dryRun: boolean;
   /**
+   * OPTIONAL corpus store the leaf's per-phase system prompts are rendered from. Omit in production
+   * and the live store is opened (ADR-0302 D1). Present ONLY so a hermetic suite can exercise a
+   * `--real` chain without a credential — ADR-0302 D3 keeps `STORYTREE_DB_USER` out of
+   * `pnpm -r test`, so without this seam such a test is green on a box that holds credentials and
+   * red in CI, for a reason unrelated to what it asserts.
+   */
+  corpusStore?: Store;
+
+  /**
    * Observe the finished build's per-slice leaf run accounting (ADR-0235). Injected by the CLI so
    * drive never imports the traversal adapter — see {@link LeafSlicesObserver} for why.
    */
@@ -1106,7 +1149,7 @@ export async function nodeBuild(
   // needs no leaf prompt, so only live/real renders it.
   let phasePrompts: LeafPhasePrompts | undefined;
   if (live || real) {
-    const rendered = await renderLeafPhasePrompts();
+    const rendered = await renderLeafPhasePrompts(opts.corpusStore);
     if (!rendered.ok) return rendered.refusal;
     phasePrompts = rendered.prompts;
   }

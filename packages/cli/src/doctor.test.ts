@@ -39,7 +39,6 @@ const HEALTHY: DoctorObservations = {
   provisioned: true,
   dependencyCurrency: "current",
   remoteReachable: true,
-  seedReadable: true,
   claudeCliPresent: true,
   claudeLoggedIn: true,
   checkoutBehind: 0,
@@ -53,7 +52,6 @@ const BROKEN: DoctorObservations = {
   provisioned: false,
   dependencyCurrency: "unknown",
   remoteReachable: false,
-  seedReadable: false,
   claudeCliPresent: false,
   claudeLoggedIn: false,
   checkoutBehind: null,
@@ -275,7 +273,6 @@ test("formatDoctorReport renders one greppable line per probe plus a fix line un
     "node",
     "checkout-provisioned",
     "dependencies-current",
-    "seed-readable",
     "claude-cli",
     "claude-login",
   ]) {

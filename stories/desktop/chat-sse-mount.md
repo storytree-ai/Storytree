@@ -175,7 +175,7 @@ in-process: no Electron, no live SDK, no DB, no network beyond loopback HTTP.
 
 The integration test exercises this capability against its **real in-story / cross-story collaborator** —
 the real `startChatStream` (from `@storytree/drive`) over the real `orchestrate` composition (the real
-`session-orchestrator` render over the real seed corpus, built with an `InMemoryStore` + `loadCorpus`) —
+`session-orchestrator` render over the real seed corpus, built with an `InMemoryStore` + `loadFixtureCorpus`) —
 with the live-spend collaborator (the SDK `query()`) injected as a scripted `queryFn` double, exactly as
 `packages/drive/src/chat-stream.test.ts` does. No stubs within the desktop's own composition.
 
