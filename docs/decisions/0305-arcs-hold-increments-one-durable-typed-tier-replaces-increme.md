@@ -167,10 +167,20 @@ plans; what it authors is an increment.
 
 **Live rows must migrate**, and the migration is not a pure add: existing `plan` docs re-key to
 `increment` and re-map `draft`→`proposal`, `consumed`→`active`, `superseded`/`retired`→`closed`;
-existing `increments[]` and `proposals[]` entries become increment docs on their arcs. Because both
-kinds sit outside every seed ceremony, no `knowledge.json` diff and no `CURRENT_SCHEMA_VERSION` bump
-follows — but the arc schema itself loses two fields, which every reader of a stored arc must
-tolerate.
+existing `increments[]` and `proposals[]` entries become increment docs on their arcs. There is no
+`knowledge.json` diff, and no kind needs an exemption to explain that: ADR-0302 D1 decommissioned the
+seed and D4 deleted every ceremony that carried it, so no committed mirror exists to diff against.
+
+A `CURRENT_SCHEMA_VERSION` bump DOES follow, per registered migration — corrected in place (ADR-0139)
+against a sentence here that predicted none. The decision is unchanged; only that implementation
+prediction was wrong, and wrong on its own terms rather than merely overtaken: this reshape REMOVES
+fields and NARROWS an enum, so a stored doc still carrying `decomposition`, or a stored `consumed`,
+fails the schema's `.strict()` and its enum on its NEXT write. A registered forward transform is the
+ramp that makes such a row upcast instead of being refused, and the version pin is precisely what
+numbers those registrations — so "no bump" would have meant "no ramp", i.e. every one of the 55 live
+plan docs hard-refused at its next write. Increment 1 (D2/D4) took the pin to 4 with
+`increment-body-and-status-collapse`; the fold takes it further. Beyond that, the arc schema itself
+loses two fields, which every reader of a stored arc must tolerate.
 
 **Sequencing.** The body/status collapse (D2, D4) is self-contained and lands first. The three-list
 fold (D1, D3, D5, D6, D7) migrates live rows and rewrites the arc verbs. The typed citations that

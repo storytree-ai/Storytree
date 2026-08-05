@@ -564,9 +564,10 @@ test("arc kind (ADR-0239 D1): the stored lifecycle flag defaults to active and i
 });
 
 test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum-fenced", () => {
-  // The minimal plan (objective + decomposition + arcRef + anchor) validates; status defaults to draft.
+  // The minimal increment (objective + body + arcRef + anchor) validates; status defaults to
+  // `proposal` — decided, not started (ADR-0305 D2, which dropped `draft` outright).
   const parsed = validateLibraryDoc(minimalDoc("plan")) as { status?: string; arcRef?: string };
-  assert.equal(parsed.status, "draft", "an unstated status parses as draft — a plan is born a draft");
+  assert.equal(parsed.status, "proposal", "an unstated status parses as proposal — decided, not started");
   assert.equal(parsed.arcRef, "asset:parity-arc");
 
   // A plan WITHOUT its arc is refused — a plan is born citing its arc (D3: the edge lives on the child).
@@ -596,8 +597,9 @@ test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum
     }),
   );
 
-  // Every lifecycle state D2 names validates; free prose fails closed (the FrictionRoute precedent).
-  for (const status of ["draft", "ready", "consumed", "superseded", "retired"]) {
+  // Every lifecycle state ADR-0305 D2 names validates; free prose fails closed (the FrictionRoute
+  // precedent).
+  for (const status of ["proposal", "ready", "active", "closed"]) {
     assert.doesNotThrow(
       () => validateLibraryDoc({ ...minimalDoc("plan"), status }),
       `status ${status} must validate`,
@@ -605,6 +607,16 @@ test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum
   }
   const proseStatus = { ...minimalDoc("plan"), status: "half-done, mostly" };
   assert.throws(() => validateLibraryDoc(proseStatus), "a non-enum status must be rejected");
+
+  // The four RETIRED states fail closed at the schema (ADR-0305 D2). This is the fence that makes
+  // migration 4 obligatory rather than cosmetic: a stored `consumed` row is now INVALID, so the
+  // upcaster has to remap it before validation or the next write of that doc is refused.
+  for (const gone of ["draft", "consumed", "superseded", "retired"]) {
+    assert.throws(
+      () => validateLibraryDoc({ ...minimalDoc("plan"), status: gone }),
+      `the retired status "${gone}" must be rejected — the enum is the fence, migration 4 the ramp`,
+    );
+  }
 
   // A stray field inside the anchor fails closed (PlanAnchor is .strict()).
   const strayInAnchor = {
@@ -669,7 +681,10 @@ test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops 
   // ADR-0267's Consequences ask for exactly this re-verification rather than taking the
   // stepRefs/increments precedent on faith. The pin must NOT have moved, and an already-current
   // stamped question must survive the upcaster with its edge intact.
-  assert.equal(CURRENT_SCHEMA_VERSION, 3, "adding an optional field must not bump the schema version");
+  // ADR-0267's own change added an OPTIONAL field and bumped nothing. The pin has since moved to 4
+  // for an unrelated reason (ADR-0305 D2/D4's increment reshape, which REMOVES fields and so cannot
+  // be a zero-migration change) — what this guards is that no migration strips the edge.
+  assert.equal(CURRENT_SCHEMA_VERSION, 4, "the pin tracks migrations.ts, not this ADR's change");
   const stamped = {
     ...minimalDoc("open-question"),
     schemaVersion: CURRENT_SCHEMA_VERSION,

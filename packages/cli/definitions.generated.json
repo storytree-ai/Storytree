@@ -207,7 +207,7 @@
     "kind": "definition",
     "id": "plan",
     "title": "Plan",
-    "oneLine": "The disposable, git-anchored choreography for one increment of an arc: unit decomposition with proof routes, dependency order, parallel lanes, budgets, and traps — freshness-checked at consumption, consumed once, then retired."
+    "oneLine": "The disposable, git-anchored choreography for one increment of an arc: the units in dependency order with their proof routes, contention, budgets and traps, written as one free `body` — freshness-checked at consumption, executed once, then closed."
   },
   {
     "kind": "definition",

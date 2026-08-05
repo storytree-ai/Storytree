@@ -16,10 +16,10 @@ function planDoc(overrides: Record<string, unknown> = {}): Record<string, unknow
     title: "t",
     description: "d",
     objective: "Deliver the thing.",
-    decomposition:
+    body:
       "1. `packages/library/src/knowledge.ts` schema unit (`--real` red→green).\n" +
-      "2. glue in `packages/cli/src` (ADR-0158).",
-    lanes: "lane A fences `apps/studio/src`; run `storytree arc show map-arc --pg` to orient.",
+      "2. glue in `packages/cli/src` (ADR-0158).\n\n" +
+      "lane A fences `apps/studio/src`; run `storytree arc show map-arc --pg` to orient.",
     arcRef: "asset:map-arc",
     anchor: { sha: "abcdef1234567", date: "2026-07-10" },
     status: "ready",
@@ -53,13 +53,26 @@ test("extractPlanPaths pulls backtick path tokens and rejects flags/commands/URL
   // Not paths: flags, backtick commands with spaces, URLs, single words.
   const junk = extractPlanPaths(
     planDoc({
-      decomposition:
+      body:
         "run `--real` then `pnpm gate`; see `https://x.test/a`, `knowledge.ts` alone, the `/api/library/graph` route, " +
         "the `#/library` hash route, the `@dagrejs/dagre` dep, and `stories/<id>/story.md` placeholders",
-      lanes: undefined,
     }),
   );
   assert.deepEqual(junk, []);
+
+  // The RETIRED headings are no longer mined (ADR-0305 D4 removed them from the schema, and
+  // migration 4 folds a stored doc's prose into `body`). A doc still carrying them names no paths —
+  // which is the honest answer, since such a doc cannot validate any more.
+  assert.deepEqual(
+    extractPlanPaths({
+      objective: "o",
+      decomposition: "`packages/library/src/knowledge.ts`",
+      lanes: "`apps/studio/src`",
+      budgets: "`packages/cli/src`",
+      traps: "`packages/drive/src`",
+    }),
+    [],
+  );
 });
 
 test("plan check is FRESH when no named path moved since the anchor", async () => {
@@ -82,17 +95,24 @@ test("plan check is DRIFTED past the threshold → re-plan, not repair", async (
   assert.match(tolerated.body, /FRESH/);
 });
 
-test("plan check refuses to bless a spent plan even when fresh (consumed once, ADR-0183 D2)", async () => {
-  const res = await planCommand("check", "p1", {}, depsFor(await seeded({ status: "consumed" }), {}));
-  assert.equal(res.ok, true);
-  assert.match(res.body, /status is consumed — a consumed plan is never \(re-\)consumed; re-plan/);
+test("plan check refuses to bless a spent increment even when fresh (executed once, ADR-0183 D2)", async () => {
+  // `active` and `closed` are ADR-0305 D2's renames of `consumed` and of `superseded`/`retired`;
+  // the write-lock they enforce is unchanged.
+  for (const status of ["active", "closed"]) {
+    const res = await planCommand("check", "p1", {}, depsFor(await seeded({ status }), {}));
+    assert.equal(res.ok, true);
+    assert.match(res.body, new RegExp(`status is ${status} — a ${status} plan is never \\(re-\\)consumed; re-plan`));
+  }
+  // `ready` is consumable: the spent warning must NOT fire, or every fresh plan reads as re-planned.
+  const ready = await planCommand("check", "p1", {}, depsFor(await seeded({ status: "ready" }), {}));
+  assert.doesNotMatch(ready.body, /never \(re-\)consumed/);
+  assert.match(ready.body, /consume it: take lanes/);
 });
 
 test("plan check is honest about a plan that names no paths (vacuous, not green)", async () => {
   const store = await seeded({
     objective: "o",
-    decomposition: "one unit, no fence hints",
-    lanes: undefined,
+    body: "one unit, no fence hints",
   });
   const res = await planCommand("check", "p1", {}, depsFor(store, {}));
   assert.equal(res.ok, true);

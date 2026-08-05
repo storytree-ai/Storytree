@@ -54,12 +54,25 @@ test("llw-friction-and-plan-project-lifecycle — friction route and plan status
     );
   }
 
-  // plan status: draft -> open, ready -> active, consumed|superseded|retired -> archived.
-  assert.equal(lifecycleOf("plan", { status: "draft" }), "open");
+  // The increment tier's four states (ADR-0305 D2): proposal -> open, ready|active -> active,
+  // closed -> archived.
+  assert.equal(lifecycleOf("plan", { status: "proposal" }), "open");
   assert.equal(lifecycleOf("plan", { status: "ready" }), "active");
-  assert.equal(lifecycleOf("plan", { status: "consumed" }), "archived");
-  assert.equal(lifecycleOf("plan", { status: "superseded" }), "archived");
-  assert.equal(lifecycleOf("plan", { status: "retired" }), "archived");
+  assert.equal(lifecycleOf("plan", { status: "active" }), "active");
+  assert.equal(lifecycleOf("plan", { status: "closed" }), "archived");
+
+  // `active` projects to ACTIVE where its predecessor `consumed` projected to archived — the rename
+  // earning its keep, not drift. `consumed` read as spent because a consumed plan was prunable;
+  // ADR-0305 D3 makes increments durable, so the state under execution is exactly the in-flight one.
+  // Shelving an executing increment as archived would hide live work from every worklist.
+  assert.notEqual(lifecycleOf("plan", { status: "active" }), "archived");
+
+  // The retired vocabulary is fenced at the SCHEMA, so it can only reach this projection from a
+  // hand-edited or unmigrated row. It degrades to `open` via the default branch — visible in the
+  // worklist rather than silently archived (ADR-0196 D2: never invent an absent closed state).
+  for (const gone of ["draft", "consumed", "superseded", "retired"]) {
+    assert.equal(lifecycleOf("plan", { status: gone }), "open", `retired status "${gone}" fails OPEN`);
+  }
 });
 
 test("llw-adr-and-defaults-project-lifecycle — adr status + the stateless-kind defaults project onto the triad; unknown kinds degrade to active", () => {

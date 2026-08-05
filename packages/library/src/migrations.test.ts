@@ -48,10 +48,10 @@ test("upcast: v0 structured unit drops seeAlso, stamps schemaVersion, and valida
   const out = upcast(v0DefinitionWithSeeAlso());
   assert.equal("seeAlso" in out, false, "retired seeAlso dropped");
   assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, "stamped to current version");
-  assert.equal(CURRENT_SCHEMA_VERSION, 3, "current version is 3 (drop-glossary-projection-fields)");
+  assert.equal(CURRENT_SCHEMA_VERSION, 4, "current version is 4 (increment-body-and-status-collapse)");
   // The forwarded doc passes the strict validator (it would have been rejected un-upcast).
   const validated = validateLibraryDoc(out);
-  assert.equal((validated as { schemaVersion?: number }).schemaVersion, 3);
+  assert.equal((validated as { schemaVersion?: number }).schemaVersion, CURRENT_SCHEMA_VERSION);
 });
 
 test("upcast: idempotent — upcast(upcast(x)) deep-equals upcast(x)", () => {
@@ -179,7 +179,7 @@ test("upcast: migration #3 strips glossary* fields + the doc:glossary.md citatio
     ["doc:decisions/0005-deterministic-spine.md", "asset:leaf"],
     "the dangling doc:glossary.md citation is dropped; the other refs are kept in order",
   );
-  assert.equal(out["schemaVersion"], 3, "stamped to v3");
+  assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, "stamped to the current version");
   // The stripped doc passes the strict validator (the glossary fields are gone from the schema).
   assert.doesNotThrow(() => validateLibraryDoc(out));
 });
@@ -200,8 +200,110 @@ test("upcast: migration #3 is a no-op on a doc with no glossary projection (idem
   };
   const out = upcast(clean);
   assert.deepEqual(out["references"], ["doc:decisions/0010-proof-modes.md"], "refs untouched");
-  assert.equal(out["schemaVersion"], 3, "still stamped to v3");
+  assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, "still stamped to the current version");
   assert.deepEqual(upcast(out), out, "idempotent");
+});
+
+// ---------------------------------------------------------------------------
+// Migration #4 — ADR-0305 D2/D4: the increment body and status collapse.
+// ---------------------------------------------------------------------------
+
+/** A v3 plan doc in the PRE-COLLAPSE shape: five body headings + a five-value status. */
+function v3PlanPreCollapse(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    kind: "plan",
+    id: "parity-plan",
+    title: "Parity plan",
+    description: "A plan used only by the migration test suite.",
+    schemaVersion: 3,
+    references: [],
+    arcRef: "asset:parity-arc",
+    anchor: { sha: "0123abc", date: "2026-07-11" },
+    status: "consumed",
+    objective: "Prove the collapse folds the body without losing a path.",
+    decomposition: "Unit one touches `packages/library/src/knowledge.ts` — `--real` red→green.",
+    lanes: "Lane A is `packages/cli/src/plan.ts`; lane B is independent.",
+    budgets: "16 turns for the one-file unit.",
+    traps: "Watch `packages/drive/src/arc-rollup.ts` — it reads status defensively.",
+    createdAt: "2026-07-11T00:00:00.000Z",
+    updatedAt: "2026-07-11T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+test("upcast: migration #4 folds the four dropped headings into `body`, keeping every backtick path", () => {
+  const out = upcast(v3PlanPreCollapse());
+  for (const gone of ["decomposition", "lanes", "budgets", "traps"]) {
+    assert.equal(gone in out, false, `${gone} is removed from the doc`);
+  }
+  const body = out["body"];
+  assert.equal(typeof body, "string", "the required `body` field is synthesised");
+  const text = body as string;
+  for (const heading of ["## Decomposition", "## Lanes", "## Budgets", "## Traps"]) {
+    assert.ok(text.includes(heading), `${heading} survives the fold as a markdown heading`);
+  }
+  // THE load-bearing property (ADR-0305 D4): the freshness check mines BACKTICK-quoted paths out of
+  // the body, so a fold that dropped or reflowed them would silently turn a checkable increment into
+  // a VACUOUS one. Every path named in the old five headings must still be findable in the new one.
+  for (const p of [
+    "`packages/library/src/knowledge.ts`",
+    "`packages/cli/src/plan.ts`",
+    "`packages/drive/src/arc-rollup.ts`",
+  ]) {
+    assert.ok(text.includes(p), `the backtick path ${p} survives the fold`);
+  }
+  // The folded doc passes the strict validator — un-upcast it would have been rejected twice over
+  // (a stray `decomposition`, and a `consumed` no longer in the enum).
+  assert.throws(() => validateLibraryDoc(v3PlanPreCollapse()));
+  assert.doesNotThrow(() => validateLibraryDoc(out));
+});
+
+test("upcast: migration #4 remaps every retired status, and is idempotent on the new vocabulary", () => {
+  const remap: Record<string, string> = {
+    draft: "proposal",
+    ready: "ready",
+    consumed: "active",
+    superseded: "closed",
+    retired: "closed",
+  };
+  for (const [before, after] of Object.entries(remap)) {
+    const out = upcast(v3PlanPreCollapse({ status: before }));
+    assert.equal(out["status"], after, `${before} → ${after}`);
+    assert.doesNotThrow(() => validateLibraryDoc(out), `the remapped ${after} validates`);
+    // Re-running must not move it again — the map carries the new values through unchanged.
+    assert.deepEqual(upcast(out), out, `idempotent for ${before}`);
+  }
+  // An absent or unrecognised status lands on the birth default rather than an invalid literal.
+  const noStatus = v3PlanPreCollapse();
+  delete noStatus["status"];
+  assert.equal(upcast(noStatus)["status"], "proposal", "an absent status becomes proposal");
+  assert.equal(upcast(v3PlanPreCollapse({ status: "half-done" }))["status"], "proposal");
+});
+
+test("upcast: migration #4 no-ops on every other kind, and synthesises a body from `objective`", () => {
+  // A non-plan doc carrying a same-named field must be untouched — the transform is kind-scoped.
+  const principle = {
+    kind: "principle",
+    id: "red-green",
+    title: "Red-green",
+    description: "prove it",
+    schemaVersion: 3,
+    references: [],
+    statement: "Red, then green.",
+    why: "Evidence over assertion.",
+    howToApply: "Write the failing test first.",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-09T00:00:00.000Z",
+  };
+  assert.deepEqual(upcast(principle), { ...principle, schemaVersion: CURRENT_SCHEMA_VERSION });
+
+  // `body` is REQUIRED, so a plan whose four optional headings were ALL absent still needs one; the
+  // required `objective` is the honest fallback (an empty string would fail Markdown's min length).
+  const bare = v3PlanPreCollapse();
+  for (const f of ["decomposition", "lanes", "budgets", "traps"]) delete bare[f];
+  const out = upcast(bare);
+  assert.equal(out["body"], "Prove the collapse folds the body without losing a path.");
+  assert.doesNotThrow(() => validateLibraryDoc(out));
 });
 
 test("MIGRATIONS: registry is ordered and reaches CURRENT_SCHEMA_VERSION", () => {

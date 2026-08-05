@@ -480,13 +480,23 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
         "_What closed looks like — the observable condition under which the arc is delivered and its increment log stops. Intent and outcomes only: a file list here is a staleness bug (ADR-0183 D4 — implementation surface lives in plans)._",
     },
   ],
-  // A `plan` (ADR-0183 D2) is the disposable, git-anchored choreography for ONE increment of an
-  // arc — the first EPHEMERAL kind (see EPHEMERAL_KINDS below): Postgres-only, never in
-  // `knowledge.json` or any seed ceremony. Its structured lifecycle fields (`arcRef` / `anchor` /
-  // `status`) live OUTSIDE this body table, on the schema — see the Plan schema below. Consumption
-  // begins with a mechanical freshness check (git-log the paths the plan names since `anchor.sha`);
-  // drift past threshold means re-plan, never repair. Once consumption starts a plan is never
-  // edited — supersede it; the owning arc's increment log is what endures.
+  // A `plan` (ADR-0183 D2) is the git-anchored choreography for ONE increment of an arc — an
+  // EPHEMERAL kind (see EPHEMERAL_KINDS below): Postgres-only, never in any seed ceremony.
+  // Its structured lifecycle fields (`arcRef` / `anchor` / `status`) live OUTSIDE this body table,
+  // on the schema — see the Plan schema below. Consumption begins with a mechanical freshness check
+  // (git-log the paths the body names since `anchor.sha`); drift past threshold means re-plan, never
+  // repair. Once execution starts it is never edited — supersede it.
+  //
+  // TWO body fields, not five (ADR-0305 D4). `decomposition` / `lanes` / `budgets` / `traps` were
+  // EDITORIAL, never structural: `PLAN_BODY_FIELDS` in `packages/cli/src/plan.ts` concatenated all
+  // five and regex-mined them identically, so no reader ever distinguished a lane from a budget.
+  // Their real function was to prompt the expensive planner model to think about contention and
+  // spend — prompt engineering, which belongs in the `planner` agent's authoring guidance where a
+  // checklist can actually be enforced, not in a schema the machine cannot use.
+  //
+  // ONE convention survives the collapse and is now load-bearing on `body` ALONE (D4): the freshness
+  // check mines BACKTICK-QUOTED paths, and reports a plan naming none as VACUOUS — explicitly not a
+  // green. File surfaces must still be named in backticks, which is why the placeholder says so.
   plan: [
     {
       field: "objective",
@@ -496,36 +506,12 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder: "_What this increment of the arc delivers, in one sentence._",
     },
     {
-      field: "decomposition",
+      field: "body",
       lead: false,
-      heading: "Decomposition",
+      heading: "The increment",
       required: true,
       placeholder:
-        "_The provable units in dependency order — each names its story/capability id and its proof route: `--real` red→green, glue (ADR-0158), or operator-attested._",
-    },
-    {
-      field: "lanes",
-      lead: false,
-      heading: "Lanes",
-      required: false,
-      placeholder:
-        "_The parallel lanes: which units are independent, the expected file surface per lane (fence hints for the takers), and where lanes contend. Omit for a single-lane plan._",
-    },
-    {
-      field: "budgets",
-      lead: false,
-      heading: "Budgets",
-      required: false,
-      placeholder:
-        "_Expected spend per unit in turn-cap vocabulary (ADR-0130), sized by the ASSERT SURFACE (files authored × contracts to cover) not file size — e.g. the default 16 turns for a one-file, few-assert unit, `--max-turns 45` when it authors multiple files or covers many contracts. Omit when the defaults stand._",
-    },
-    {
-      field: "traps",
-      lead: false,
-      heading: "Traps",
-      required: false,
-      placeholder:
-        "_Known traps on this surface, and the escalation points where the executor halts for the owner rather than pushing through. Omit if none are known._",
+        "_The choreography, in prose: the provable units in dependency order with each one's proof route (`--real` red→green, glue per ADR-0158, or operator-attested), which units are independent and where they contend, expected spend in turn-cap vocabulary (ADR-0130), and the known traps + escalation points. **Name every file surface in `backticks`** — the freshness check mines backtick-quoted paths, and an increment naming none gets a VACUOUS verdict, not a green._",
     },
   ],
   // A `uat-criterion` (ADR-0209 D5/D6) is the seed-canonical detailed UAT acceptance contract:
@@ -870,23 +856,39 @@ export const PlanAnchor = z
 export type PlanAnchor = z.infer<typeof PlanAnchor>;
 
 /**
- * The closed lifecycle of a `plan` (ADR-0183 D2): born `draft`, flipped `ready` for consumption,
- * then `consumed` (execution started — never edited again; re-planning supersedes), `superseded`
- * (replaced by a fresher plan), or `retired` (pruned/abandoned; consumed plans are prunable — the
- * arc's increment log is what endures). Enum-fenced at the schema so a free-prose state can never
- * be written (the FrictionRoute precedent).
+ * The closed lifecycle of ONE increment of arc work (ADR-0305 D2): born `proposal` (decided, not
+ * started), flipped `ready` when it is authored and consumable, `active` once execution starts
+ * (never edited again — re-planning supersedes, ADR-0183 D2's write-lock), and `closed` when it is
+ * terminal for ANY reason. Enum-fenced at the schema so a free-prose state can never be written
+ * (the FrictionRoute precedent).
+ *
+ * FOUR values where ADR-0183 D2's `PlanStatus` had five, and the cuts are the decision (ADR-0305 D2,
+ * applying ADR-0196 D2's ruling that wide lifecycle enums are surface-level over-engineering):
+ *
+ * - `draft` is dropped outright — it meant "not safe to consume", which `proposal` also means and
+ *   says better, and no consumer ever distinguished a half-authored plan from a deliberately parked
+ *   one. `proposal` also absorbs ADR-0298 D1's parked-work entry, returning the word to the STATE it
+ *   always was: ADR-0298 retired `proposal` as a competing KIND, and as a status it competes with
+ *   nothing — it is always inside an arc by construction.
+ * - `consumed` is renamed `active`. The write-lock is unchanged; the name now says what the state is
+ *   rather than what was done to it.
+ * - `superseded` and `retired` collapse into `closed`. Both were terminal and differed only in WHY
+ *   the work stopped — a reason string wearing a state's clothes. The reason lives in the closing
+ *   `outcome.note` (ADR-0305 D5), which is what lets a wrong or duplicate entry be closed HONESTLY
+ *   instead of being marked landed.
  */
-export const PlanStatus = z.enum(["draft", "ready", "consumed", "superseded", "retired"]);
-export type PlanStatus = z.infer<typeof PlanStatus>;
+export const IncrementStatus = z.enum(["proposal", "ready", "active", "closed"]);
+export type IncrementStatus = z.infer<typeof IncrementStatus>;
 
 /**
  * The stored closure state of an `arc` (ADR-0239 D1): `active` while the initiative is in flight,
  * `closed` once a terminal increment records that the observable `endState` condition was met.
- * TWO values, not `plan`'s five — an arc has no `open` state (ADR-0196 D1's table gives `arc` an
- * `active`/`archived` row only), and D2 of that same ADR already judged the wider enum surface-level
- * over-engineering. Vocabulary follows ADR-0196 D2 verbatim ("a stored `lifecycle` field"), and the
- * mapping onto the universal triad stays in the ONE projection (`lifecycleOf`, ADR-0196 D4).
- * Enum-fenced at the schema so a free-prose state can never be written (the `PlanStatus` precedent).
+ * TWO values, not the increment tier's four — an arc has no `open` state (ADR-0196 D1's table gives
+ * `arc` an `active`/`archived` row only), and D2 of that same ADR already judged the wider enum
+ * surface-level over-engineering. Vocabulary follows ADR-0196 D2 verbatim ("a stored `lifecycle`
+ * field"), and the mapping onto the universal triad stays in the ONE projection (`lifecycleOf`,
+ * ADR-0196 D4). Enum-fenced at the schema so a free-prose state can never be written (the
+ * {@link IncrementStatus} precedent).
  */
 export const ArcLifecycle = z.enum(["active", "closed"]);
 export type ArcLifecycle = z.infer<typeof ArcLifecycle>;
@@ -1011,12 +1013,12 @@ export const Arc = buildKindSchema("arc").extend({
 // `arcRef` is REQUIRED — a plan is born citing its arc (D3: the containment edge lives on the
 // child; the arc's plan view is derived by query, never authored on the arc); `anchor` is the
 // REQUIRED git anchor the consumption-time freshness check runs against; `status` is the
-// enum-fenced lifecycle, defaulting to `draft` at birth. Ephemeral (see EPHEMERAL_KINDS):
-// live-store-only, excluded from every seed ceremony, so there is no seed round-trip to preserve.
+// enum-fenced lifecycle, defaulting to `proposal` at birth (ADR-0305 D2 — was `draft`). Ephemeral
+// (see EPHEMERAL_KINDS): live-store-only, so there is no seed round-trip to preserve.
 export const Plan = buildKindSchema("plan").extend({
   arcRef: AssetRef,
   anchor: PlanAnchor,
-  status: PlanStatus.default("draft"),
+  status: IncrementStatus.default("proposal"),
 });
 // The `uat-criterion` kind (ADR-0209 D5/D6): seed-canonical detailed UAT acceptance. Built from
 // KIND_SPECS only — no structured extras. commonShape still supplies Library card `title` /

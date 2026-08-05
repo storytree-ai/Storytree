@@ -15,8 +15,16 @@ import type { Envelope } from "./envelope.js";
  * against).
  */
 
-/** The body fields whose prose can NAME paths (the KIND_SPECS plan table's markdown fields). */
-const PLAN_BODY_FIELDS = ["objective", "decomposition", "lanes", "budgets", "traps"] as const;
+/**
+ * The body fields whose prose can NAME paths (the KIND_SPECS plan table's markdown fields).
+ *
+ * TWO since ADR-0305 D4, where there were five. That is not a narrowing of what gets checked: the
+ * four dropped headings (`decomposition`/`lanes`/`budgets`/`traps`) were concatenated with these and
+ * mined identically — they were never read AS lanes or budgets — and migration 4 folds their prose,
+ * backticks intact, into `body`. The convention the check rests on is unchanged and now rests on
+ * `body` alone: a path is a BACKTICK-quoted token, and an increment naming none is VACUOUS.
+ */
+const PLAN_BODY_FIELDS = ["objective", "body"] as const;
 
 /**
  * PURE: the repo paths a plan names — every backtick-quoted token in its body that looks like a
@@ -68,7 +76,7 @@ function planMeta(stored: StoredDoc): { sha: string | null; date: string; status
   const anchor = doc["anchor"] as Record<string, unknown> | undefined;
   const sha = anchor && typeof anchor["sha"] === "string" ? (anchor["sha"] as string) : null;
   const date = anchor && typeof anchor["date"] === "string" ? (anchor["date"] as string) : "?";
-  const status = typeof doc["status"] === "string" ? (doc["status"] as string) : "draft";
+  const status = typeof doc["status"] === "string" ? (doc["status"] as string) : "proposal";
   return { sha, date, status };
 }
 
@@ -104,8 +112,9 @@ export async function planCheck(
     };
   }
 
-  // A plan is consumed ONCE (ADR-0183 D2): a past-lifecycle plan is never re-consumed, fresh or not.
-  const spent = status === "consumed" || status === "superseded" || status === "retired";
+  // An increment is executed ONCE (ADR-0183 D2's write-lock, renamed by ADR-0305 D2): once it is
+  // `active` (execution started) or `closed` (terminal), it is never re-consumed, fresh or not.
+  const spent = status === "active" || status === "closed";
 
   const threshold = Number(opts.threshold ?? "0");
   const paths = extractPlanPaths(stored.doc as Record<string, unknown>);
