@@ -51,6 +51,7 @@ test("createBuildWorktree cuts a detached worktree at HEAD; commitAuthored earns
       worktreeRoot: wt.root,
       message: "test: spine-side commit of authored files",
       author: "tester@example.com",
+      scope: { globs: ["packages/storage-protocol/src/**"] },
     });
     assert.equal(committed.committed, true);
     assert.notEqual(committed.commitSha, wt.headSha);
@@ -63,6 +64,7 @@ test("createBuildWorktree cuts a detached worktree at HEAD; commitAuthored earns
       worktreeRoot: wt.root,
       message: "test: no-op",
       author: "tester@example.com",
+      scope: { globs: ["packages/storage-protocol/src/**"] },
     });
     assert.equal(again.committed, false);
     assert.equal(again.commitSha, committed.commitSha);
@@ -99,6 +101,102 @@ async function fixtureRepo(): Promise<{ root: string; sha: string }> {
   const sha = (await git(["rev-parse", "HEAD"], root)).trim();
   return { root, sha };
 }
+
+// ── The commit stages the PROVED SCOPE only (`commit-scoped-not-all`) ────────
+//
+// `commitAuthored` used to `git add -A`. Serial, that is coarse; concurrent, it is forgery by
+// accident — one walk's commit sweeps another's half-written IMPLEMENT files into the tree its
+// signed verdict attests. These prove the tightening WITHOUT needing concurrency to exist: seed
+// out-of-scope dirt, commit, and assert it is not in the attested tree.
+
+test("commitAuthored stages ONLY the declared scope — out-of-scope dirt never reaches the attested tree", async () => {
+  const fixture = await fixtureRepo();
+  try {
+    // In scope, and inside a BRAND-NEW untracked directory on purpose: git's default porcelain
+    // collapses that to `pkg/`, which matches no file glob, so the file would be silently dropped
+    // (hence the `-uall` listing).
+    await fs.mkdir(path.join(fixture.root, "pkg", "src"), { recursive: true });
+    await fs.writeFile(path.join(fixture.root, "pkg", "src", "impl.ts"), "export const x = 1;\n");
+    // Out of scope, in both shapes that matter: a sibling walk's half-written NEW file, and an EDIT
+    // to a file that is already tracked at HEAD.
+    await fs.mkdir(path.join(fixture.root, "other"), { recursive: true });
+    await fs.writeFile(path.join(fixture.root, "other", "sibling.ts"), "// half-written\n");
+    await fs.writeFile(path.join(fixture.root, "a.txt"), "edited by nobody who proved it\n");
+
+    const result = await commitAuthored({
+      worktreeRoot: fixture.root,
+      message: "test: scoped spine commit",
+      author: "tester@example.com",
+      scope: { globs: ["pkg/src/**/*.ts"] },
+    });
+
+    assert.equal(result.committed, true);
+    assert.deepEqual(result.staged, ["pkg/src/impl.ts"]);
+    assert.deepEqual([...result.outOfScope].sort(), ["a.txt", "other/sibling.ts"]);
+
+    // THE honesty assertion: the tree the verdict would attest holds the proved file and nothing
+    // else — the sibling's file is absent, and the tracked edit did not ride along either.
+    const tree = (await git(["ls-tree", "-r", "--name-only", "HEAD"], fixture.root)).trim().split("\n");
+    assert.ok(tree.includes("pkg/src/impl.ts"));
+    assert.ok(!tree.includes("other/sibling.ts"));
+    assert.equal(await git(["show", "HEAD:a.txt"], fixture.root), "fixture\n");
+
+    // The leftovers stay dirty, so the GATE's own clean-tree read fails CLOSED over them rather
+    // than the commit quietly absorbing them.
+    assert.equal((await gitTreeState(fixture.root)()).clean, false);
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("commitAuthored stages the spine's OWN enumerated output (ADR-0064 pnpm add) and still nothing else", async () => {
+  const fixture = await fixtureRepo();
+  try {
+    await fs.mkdir(path.join(fixture.root, "pkg", "src"), { recursive: true });
+    await fs.writeFile(path.join(fixture.root, "pkg", "src", "impl.ts"), "export const x = 1;\n");
+    // What the SPINE produced: the leaf structurally cannot touch either (both sit outside every
+    // write scope), so they are enumerated deliberately rather than swept.
+    await fs.writeFile(path.join(fixture.root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+    await fs.writeFile(path.join(fixture.root, "pkg", "package.json"), '{"name":"pkg"}\n');
+    await fs.writeFile(path.join(fixture.root, "rogue.ts"), "// nobody proved this\n");
+
+    const result = await commitAuthored({
+      worktreeRoot: fixture.root,
+      message: "test: scoped spine commit with declared spine output",
+      author: "tester@example.com",
+      scope: { globs: ["pkg/src/**/*.ts"], spineOutputGlobs: ["pnpm-lock.yaml", "**/package.json"] },
+    });
+
+    assert.equal(result.committed, true);
+    assert.deepEqual([...result.staged].sort(), ["pkg/package.json", "pkg/src/impl.ts", "pnpm-lock.yaml"]);
+    assert.deepEqual(result.outOfScope, ["rogue.ts"]);
+    const tree = (await git(["ls-tree", "-r", "--name-only", "HEAD"], fixture.root)).trim().split("\n");
+    assert.ok(!tree.includes("rogue.ts"));
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("commitAuthored commits NOTHING when every dirty path is out of scope (HEAD unmoved, gate left to refuse)", async () => {
+  const fixture = await fixtureRepo();
+  try {
+    await fs.writeFile(path.join(fixture.root, "rogue.ts"), "// a sibling's work\n");
+    const result = await commitAuthored({
+      worktreeRoot: fixture.root,
+      message: "test: nothing in scope",
+      author: "tester@example.com",
+      scope: { globs: ["pkg/src/**/*.ts"] },
+    });
+    assert.equal(result.committed, false);
+    assert.equal(result.commitSha, fixture.sha);
+    assert.deepEqual(result.staged, []);
+    assert.deepEqual(result.outOfScope, ["rogue.ts"]);
+    // A commit was NOT invented to launder the dirt: the tree is still dirty and the gate refuses.
+    assert.equal((await gitTreeState(fixture.root)()).clean, false);
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+  }
+});
 
 test("promoteRealPass parks the proven commit on a run-unique branch (no origin → local only, kept)", async () => {
   const fixture = await fixtureRepo();
