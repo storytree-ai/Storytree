@@ -1,83 +1,69 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { UAT_CRITERION_DETAIL_KIND } from "./detail-kind.js";
-import {
-  isStoryAuthorWriteAllowed,
-  LIBRARY_SEED_KIND_ROOT,
-  UAT_CRITERION_DETAIL_SEED_DIR,
-} from "./story-author-scope.js";
+import { isStoryAuthorWriteAllowed } from "./story-author-scope.js";
 
 /**
- * story-author's widened write fence (ADR-0209 D5): a pure `(relPath: string) => boolean`
- * predicate that admits the atomic pair — the existing work-hierarchy surface (`stories/**`) and
- * the NEW detail-kind seed surface — and fail-closed denies every other Library kind's seed path
- * plus every foreign (package / app / ADR / unrelated) path. Offline, no SDK, no store — a pure
- * function over a path string, mirroring the shape `runSpawnWriteScoped`'s `isWriteAllowed` needs.
+ * story-author's write fence: a pure `(relPath: string) => boolean` predicate that admits the
+ * work-hierarchy surface (`stories/**`) and fail-closed denies every foreign path. Offline, no SDK,
+ * no store — a pure function over a path string, mirroring the shape `runSpawnWriteScoped`'s
+ * `isWriteAllowed` needs.
  *
- * The seed-corpus layout this predicate is fenced against: per-kind subdirectories under a shared
- * root (`LIBRARY_SEED_KIND_ROOT`), one subdirectory per Library kind — `uat-criterion`'s subdir is
- * named FROM the `UAT_CRITERION_DETAIL_KIND` constant (not a disconnected literal), so the fence
- * and the kind schema can never silently drift apart.
+ * ADR-0209 D5 once widened this fence to a second root — a per-kind seed directory under
+ * `apps/studio/data/seed-kinds/`, so story-author could author a criterion and its detail BODY as
+ * one atomic pair of file writes. ADR-0307 D5 withdrew the seed-canonical posture: detail bodies are
+ * authored into the live store, so the second half of the pair is no longer a file write and the
+ * fence has one root again.
+ *
+ * These tests therefore assert the fence's PROPERTIES — one admitted root, boundary-aware matching,
+ * fail-closed on everything else — rather than pinning any particular directory constant. That is
+ * deliberate: the previous versions asserted a literal seed path, which is exactly the kind of
+ * assertion that has to be rewritten when a decision moves rather than failing on a real regression.
  */
 
-test("scope-admits-stories-and-detail-seed: the atomic pair is writable", () => {
-  // The existing work-hierarchy surface — preserved.
+test("scope-admits-stories: the work-hierarchy surface is writable", () => {
   assert.equal(isStoryAuthorWriteAllowed("stories/demo-story/story.md"), true);
   assert.equal(isStoryAuthorWriteAllowed("stories/demo-story/some-capability.md"), true);
-
-  // The detail-kind seed surface — identified by the UAT_CRITERION_DETAIL_KIND constant, not a
-  // literal disconnected from the kind schema.
-  assert.ok(
-    UAT_CRITERION_DETAIL_SEED_DIR.includes(UAT_CRITERION_DETAIL_KIND),
-    "the detail-kind seed dir must be built from the detail-kind constant",
-  );
-  const detailPath = `${UAT_CRITERION_DETAIL_SEED_DIR}demo-story#uat-1.json`;
-  assert.equal(isStoryAuthorWriteAllowed(detailPath), true);
-
-  // A nested detail-seed path is admitted too (a subdirectory under the kind's seed dir).
-  assert.equal(
-    isStoryAuthorWriteAllowed(`${UAT_CRITERION_DETAIL_SEED_DIR}nested/demo-story#uat-2.json`),
-    true,
-  );
+  // Arbitrarily nested paths under the admitted root are in scope.
+  assert.equal(isStoryAuthorWriteAllowed("stories/demo-story/nested/deeper/notes.md"), true);
 });
 
-test("scope-denies-other-library-kinds: the seed-canonical exception stays narrow", () => {
-  // Neighbouring kinds on the SAME corpus file layout (the shared per-kind seed root) must be
-  // refused — extending ADR-0055's seed-canonical class to uat-criterion is not a blanket grant.
-  assert.equal(isStoryAuthorWriteAllowed(`${LIBRARY_SEED_KIND_ROOT}agent/story-author.json`), false);
+test("scope-admits-exactly-one-root: no seed/corpus surface is writable any more (ADR-0307 D5)", () => {
+  // The retired second root, and its neighbouring kinds on the same layout. A detail body is now a
+  // live-store write (`library artifact new|edit … --pg`), never a committed file — so NOTHING under
+  // the old per-kind seed root is admitted, including the kind this package owns.
   assert.equal(
-    isStoryAuthorWriteAllowed(`${LIBRARY_SEED_KIND_ROOT}principle/some-principle.json`),
+    isStoryAuthorWriteAllowed("apps/studio/data/seed-kinds/uat-criterion/demo-story#uat-1.json"),
     false,
   );
   assert.equal(
-    isStoryAuthorWriteAllowed(`${LIBRARY_SEED_KIND_ROOT}friction/some-friction.json`),
+    isStoryAuthorWriteAllowed("apps/studio/data/seed-kinds/agent/story-author.json"),
     false,
   );
-
-  // A prefix-collision on the kind segment must not smuggle a write through (path-boundary, not
-  // a naive startsWith): "uat-criterion-extra" is a DIFFERENT kind directory than "uat-criterion".
   assert.equal(
-    isStoryAuthorWriteAllowed(`${LIBRARY_SEED_KIND_ROOT}uat-criterion-extra/some-doc.json`),
+    isStoryAuthorWriteAllowed("apps/studio/data/seed-kinds/principle/some-principle.json"),
     false,
   );
 });
 
 test("scope-denies-packages-and-foreign-paths: implementation and unrelated surfaces stay closed", () => {
-  assert.equal(
-    isStoryAuthorWriteAllowed("packages/uat-criterion/src/story-author-scope.ts"),
-    false,
-  );
+  assert.equal(isStoryAuthorWriteAllowed("packages/uat-criterion/src/story-author-scope.ts"), false);
   assert.equal(isStoryAuthorWriteAllowed("apps/studio/src/components/Foo.tsx"), false);
-  // The shared knowledge seed file itself carries every OTHER kind too — not narrowly the detail
-  // surface, so it stays out of scope.
+  // The shared knowledge seed file carries every Library kind — never story-author's surface.
   assert.equal(isStoryAuthorWriteAllowed("apps/studio/data/knowledge.json"), false);
-  assert.equal(
-    isStoryAuthorWriteAllowed("docs/decisions/0209-model-uat-promotion.md"),
-    false,
-  );
+  assert.equal(isStoryAuthorWriteAllowed("docs/decisions/0209-model-uat-promotion.md"), false);
   assert.equal(isStoryAuthorWriteAllowed("README.md"), false);
   assert.equal(isStoryAuthorWriteAllowed("package.json"), false);
+});
 
-  // A path-boundary trap on the hierarchy prefix itself: "stories-other/" is NOT "stories/".
+test("scope-matches-on-path-boundaries: a prefix collision cannot smuggle a write through", () => {
+  // "stories-other/" shares a prefix with "stories/" but is a DIFFERENT directory.
   assert.equal(isStoryAuthorWriteAllowed("stories-other/foo.md"), false);
+  assert.equal(isStoryAuthorWriteAllowed("my-stories/foo.md"), false);
+});
+
+test("scope-is-fail-closed-on-traversal: `..` never escapes the admitted root", () => {
+  assert.equal(isStoryAuthorWriteAllowed("stories/../packages/uat-criterion/src/index.ts"), false);
+  assert.equal(isStoryAuthorWriteAllowed("stories/demo-story/../../README.md"), false);
+  // Windows-style separators normalise before the check, so traversal is caught either way.
+  assert.equal(isStoryAuthorWriteAllowed("stories\\..\\README.md"), false);
 });

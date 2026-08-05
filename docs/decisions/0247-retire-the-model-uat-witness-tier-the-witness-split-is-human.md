@@ -26,7 +26,10 @@ can assert (ADR-0294).
 Amends [ADR-0209](0209-tier-model-judged-uat-below-irreducible-human-witness.md): its decisions 1–4 (the
 `model` witness kind, the capability tiers, the independent judge, the escalation ladder) are
 REVERSED. Its decisions 5–7 (per-criterion detail artifacts, verdict anchoring to a detail revision,
-the concise Studio row) STAND UNCHANGED and are load-bearing today. Its decision 8 (explicit
+the concise Studio row) STAND and are load-bearing today — *but read "UNCHANGED" as scoped since
+2026-08-05: [ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md) D5 later
+reversed ADR-0209 D5's `seed-canonical` direction, so the detail tier is live-canonical. That is a
+change to the MEDIUM, not to anything this ADR decided; see decision 3 below.* Its decision 8 (explicit
 migration) is COMPLETE — this ADR records its result and collects the retirement it made possible.
 A partial reversal is an `amends` edge, never `supersedes` (ADR-0139); ADR-0209 keeps its `accepted`
 status for the parts that still hold.
@@ -91,9 +94,21 @@ the packages, and the stories of a tier that no leg uses and no code path can ex
 
 3. **Keep ADR-0209 D5–D7 exactly as they are.** Per-criterion detail artifacts, verdict anchoring to
    an artifact revision, and the concise Studio row were justified independently of the model tier and
-   are load-bearing now: 73 seed detail artifacts exist, the `uat-criterion` kind is seed-canonical and
-   reconciled, and the migration used the insufficiency clause as its most valuable output. Nothing
-   here weakens the ADR-0055 seed-canonical exception those decisions extended.
+   are load-bearing now: the detail tier exists and is populated, and the migration used the
+   insufficiency clause as its most valuable output. Nothing *here* touches the canonicality of that
+   tier.
+   **[Corrected in place 2026-08-05, ADR-0139 — this decision STANDS; two supporting claims in its
+   original wording do not.]** It read: *"73 seed detail artifacts exist, the `uat-criterion` kind is
+   seed-canonical and reconciled … Nothing here weakens the ADR-0055 seed-canonical exception those
+   decisions extended."* Both halves are now dead. (a) The count was already wrong when written — the
+   committed directory held **70** files on 2026-07-26, not 73; the figure was inherited from
+   ADR-0209's own approximation rather than re-measured. (b) The posture was withdrawn by
+   [ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md), which supersedes
+   ADR-0055 outright and whose D5 withdraws the seed-canonical exception *wherever it was extended*.
+   Since 2026-08-05 the detail tier is **live-canonical** — 70 committed bodies migrated into the
+   shared store (74 live artifacts) and `apps/studio/data/seed-kinds/` deleted. "Reconciled" was never
+   true at all: the reconciler was written but wired to no caller. None of this weakens THIS
+   decision — keeping ADR-0209 D5–D7 never depended on where their artifacts were stored.
 
 4. **Retire the `either` compatibility parse state.** ADR-0209 D8 made this conditional on exactly one
    event: "only that completed migration retires the compatibility parse state." The migration is

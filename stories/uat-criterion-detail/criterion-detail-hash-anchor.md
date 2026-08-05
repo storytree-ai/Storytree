@@ -42,8 +42,9 @@ a different hash that classifies the prior green as stale.
   **proof-bearing** fields (action / success / evidence / refs — the body `uat-detail-kind` defines)
   plus a classifier `fresh | stale` given a previously recorded hash.
 - **Substantive change (ADR-0209 D6):** any change to those proof-bearing fields MUST change the
-  hash. Volatile metadata (timestamps, actor stamps) MUST NOT participate — otherwise every sync
-  would false-stale green.
+  hash. Volatile metadata (timestamps, actor stamps) MUST NOT participate — otherwise every store
+  round-trip would false-stale green. This matters MORE under ADR-0307 D5, not less: a detail body
+  is now edited live with `--pg`, and every such write re-stamps `updatedAt`.
 - **Display title is not in the hash:** the story-owned one-liner is display-canonical and lives on
   the criterion, not in the hashed detail body (ADR-0209 D6). Hashing the title would either couple
   display renames to re-attestation incorrectly or tempt putting the title on the detail.

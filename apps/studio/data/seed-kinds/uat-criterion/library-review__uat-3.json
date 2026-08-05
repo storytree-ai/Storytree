@@ -1,8 +1,0 @@
-{
-  "kind": "uat-criterion",
-  "id": "library-review#uat-3",
-  "action": "Execute the story UAT walk for \"The comment persisted with a block anchor.\" against the real surface named by the criterion.",
-  "successConditions": "The success conditions stated on library-review#uat-3 in stories/library-review/story.md hold observably (machine witness).",
-  "evidenceExpectations": "Capture the bound proof-gate command transcript / suite output that witnesses this leg.",
-  "refs": []
-}

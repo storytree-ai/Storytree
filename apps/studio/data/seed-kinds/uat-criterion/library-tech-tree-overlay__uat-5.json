@@ -1,8 +1,0 @@
-{
-  "kind": "uat-criterion",
-  "id": "library-tech-tree-overlay#uat-5",
-  "action": "Execute the story UAT walk for \"See the whole-corpus overview.\" against the real surface named by the criterion.",
-  "successConditions": "The success conditions stated on library-tech-tree-overlay#uat-5 in stories/library-tech-tree-overlay/story.md hold observably (machine witness).",
-  "evidenceExpectations": "Capture the bound proof-gate command transcript / suite output that witnesses this leg.",
-  "refs": []
-}
