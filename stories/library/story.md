@@ -19,7 +19,7 @@ proof_mode: UAT
 # the wrong rung (`human-witness-is-a-judgment-gap-not-cost`). Independently, `uat_witness: machine`
 # drives the story-level structural gate-as-proof node; it does not claim every leg is gate-bound.
 uat_witness: machine
-capabilities: [library-schema-and-write-validation, migrate-on-write-upcaster, event-sourced-store-seam, eager-batch-migrate, seed-corpus-scripts, library-health-gate, library-cli, graduation-park-lease]
+capabilities: [library-schema-and-write-validation, migrate-on-write-upcaster, event-sourced-store-seam, eager-batch-migrate, seed-corpus-scripts, library-health-gate, library-cli, graduation-park-lease, library-dag-acyclic-core]
 # Consumer-side outbound edge (ADR-0075): the library validates/upcasts every doc against the verdict
 # vocabulary's Tier/Status, so it imports the proof-protocol ROOT port — now a declared edge (was an
 # exempt substrate dependency before ADR-0075 collapsed that class). library is no longer the graph
@@ -90,7 +90,7 @@ Lineage of the v2 capabilities to their V1 ancestors (reference only — the V1 
 
 What deliberately does **not** carry: V1's Rust crates and `Cargo.toml` dependency-floor mechanics (v2 is TS + pnpm workspaces), the SurrealDB/surrealkv embedded engine (replaced by Cloud SQL Postgres, ADR-0017), and V1's per-build `runs`/`test_runs` evidence grain (this tier persists history-as-events + a current projection, not run rows).
 
-## Capabilities (8)
+## Capabilities (9)
 
 Listed roots-first (a capability appears after everything it depends on). The `status` column is the honest per-capability call: `mapped` = a real passing offline test observationally verifies the dominant behaviour; `proposed` = no standalone test verifies it yet; the Proof note in each file marks the `proposed` pockets inside a `mapped` capability.
 
@@ -104,10 +104,11 @@ Listed roots-first (a capability appears after everything it depends on). The `s
 | 6 | [`library-health-gate`](library-health-gate.md) | Five health checks classify every stored doc into PASS, WARN, or FAIL. | mapped | `library-schema-and-write-validation`, `migrate-on-write-upcaster` |
 | 7 | [`library-cli`](library-cli.md) | An agent curates library artifacts through guidance-enveloped, `--pg`-gated commands. | mapped | `event-sourced-store-seam`, `eager-batch-migrate`, `seed-corpus-scripts`, `library-health-gate`, `library-schema-and-write-validation`, `migrate-on-write-upcaster` |
 | 8 | [`graduation-park-lease`](graduation-park-lease.md) | A librarian's parked-memory verdict becomes a lease — a content-hash + review-date + lease-length record whose worklist projection counts only new, changed, or lease-expired candidates. | proposed | — |
+| 9 | [`library-dag-acyclic-core`](library-dag-acyclic-core.md) | A pure detector returns no cycles for an acyclic authored `standsOn` graph and concrete closed paths for cycles, without treating `references` as dependency edges. | proposed | — |
 
 ## Dependency graph (code-derived)
 
-These are **within-story** edges, **read off the real source** (static analysis of the imports / calls between capabilities), never hand-drawn from UAT need (ADR-0010 §3): A → B means A's code actually couples to B's code inside the one organism. The graph is acyclic; `library-schema-and-write-validation` is the lone root. One **cross-story** edge applies: `library → proof-protocol` (the schema validates docs against the verdict vocabulary's `Tier`/`Status`), declared `depends_on: [proof-protocol]` since [ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md) made the ports root organisms rather than an exempt substrate class.
+These are **within-story** edges, **read off the real source** (static analysis of the imports / calls between capabilities), never hand-drawn from UAT need (ADR-0010 §3): A → B means A's code actually couples to B's code inside the one organism. The graph is acyclic; `library-schema-and-write-validation` and the independent `library-dag-acyclic-core` are its two roots. One **cross-story** edge applies: `library → proof-protocol` (the schema validates docs against the verdict vocabulary's Tier/Status), declared `depends_on: [proof-protocol]` since [ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md) made the ports root organisms rather than an exempt substrate class.
 
 - `migrate-on-write-upcaster` → `library-schema-and-write-validation`
   - `migrations.ts:1` imports `KIND_SPECS` from `knowledge.ts` (`isStructuredKnowledge`, `migrations.ts:104-107`, gates on whether the kind is a structured key), and `library-doc.ts:67-69` composes `upcast` INTO the validator: `upcastAndValidate = validateLibraryDoc(upcast(...))` — a genuine code call, not a UAT inference.
@@ -139,6 +140,8 @@ These are **within-story** edges, **read off the real source** (static analysis 
   - `commands.ts:8-13` imports `groupSources` + `KIND_SPECS` + `CURRENT_SCHEMA_VERSION` from `@storytree/library`; the write commands validate every doc at the boundary.
 - `library-cli` → `migrate-on-write-upcaster`
   - `newArtifact` (`commands.ts:332`) and `editArtifact` (`commands.ts:398`) both call `upcastAndValidate` on every write — a doc carrying a retired field is upcast, not rejected.
+- `library-dag-acyclic-core` is an independent root
+  - `packages/library/src/knowledge-dag.ts` is a pure in-memory cycle detector over authored `standsOn` edges. It imports no schema, store, CLI, renderer, or Node-only module; ADR-0223's schema admission, write-boundary enforcement, corpus gate, bootstrap, and Studio projection remain later increments on `directional-dag-arc`.
 
 ## UAT Test Criteria (would-be)
 
