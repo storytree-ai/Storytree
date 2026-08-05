@@ -70,8 +70,8 @@ for (const [file, why] of [
   });
 }
 
-test("corpus seed (apps/studio/data/**) → FULL even though it sits inside an app", () => {
-  const scope = classifyChangedFiles(["apps/studio/data/knowledge.json"], PROJECTS);
+test("studio data (apps/studio/data/**) → FULL even though it sits inside an app", () => {
+  const scope = classifyChangedFiles(["apps/studio/data/comments.json"], PROJECTS);
   assert.equal(scope.mode, "full");
   assert.match(scope.reason, /read across package boundaries/);
 });

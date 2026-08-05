@@ -11,8 +11,10 @@ import { run } from "./commands.js";
 import { formatEnvelope } from "./envelope.js";
 
 /**
- * Offline tests (ADR-0023): seed an InMemoryStore from the studio data files via loadCorpus — no
- * Cloud SQL, no API key — and drive `run` exactly as `main` does. Asserts the choose-your-own-
+ * Hermetic tests (ADR-0023): seed an InMemoryStore from the committed fixture corpus via
+ * `loadFixtureCorpus` — no Cloud SQL, no API key — and drive `run` exactly as `main` does. (It read
+ * the committed corpus seed until ADR-0302 D1 deleted it; production now reads live.) Asserts the
+ * choose-your-own-
  * adventure contract: a map with a total, drill-in to one artifact, list a category, and that misses
  * are guidance (ok:false + next), never throws.
  */
