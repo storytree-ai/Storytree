@@ -18,7 +18,7 @@
 //     box where a tsx boot is ~1 s. It also keeps working in a fresh worktree with no node_modules.
 //   - OFFLINE, and it reads the GENERATED PROJECTION `definitions.generated.json` beside this file
 //     — never the live DB, and (since 2026-08-04) no longer the 1.25 MB seed corpus either. It used
-//     `apps/studio/data/knowledge.json` and consumed 0.99% of it: 52 definitions × id/title/oneLine
+//     the corpus and consumed 0.99% of it: 52 definitions × id/title/oneLine
 //     is 11.8 KB. ADR-0302 D1 decommits that seed, which would have dropped this hook into its own
 //     fail-safe `catch` and stopped injection SILENTLY. ADR-0307 D4 gives it a committed projection
 //     instead — regenerate with `pnpm build:guidance` (`check:guidance` fails on drift). The

@@ -363,7 +363,7 @@ another story's package while declaring the `depends_on` edge" is the **studio-b
   agent/drive/model.
 - **`library`** — the **work-hierarchy schema the dispatch validates against**. Buildability is
   resolved via `isStoryBuildable` / `resolveBuildConfig` (`@storytree/orchestrator` discovery, the
-  same precheck `node build`/`story build` use) over the seed corpus (`loadCorpus` over
+  same precheck `node build`/`story build` use) over the fixture corpus (`loadFixtureCorpus` over
   `@storytree/library`). The offline proofs render the SAME in-memory seed. CONSUMED — this story owns
   no schema and no discovery.
 

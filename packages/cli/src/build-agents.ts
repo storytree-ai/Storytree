@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 
-import { openCorpusStore } from "./corpus-store.js";
+import { openCorpusStore } from "@storytree/drive";
 
 import {
   delegatableAgentIds,

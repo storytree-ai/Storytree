@@ -41,15 +41,21 @@ pnpm --filter studio typecheck    # strict tsc (repo tsconfig.base)
 pnpm --filter studio build        # static SPA build (no API — see "Persistence")
 ```
 
-The structured source of truth is [`data/knowledge.json`](data/knowledge.json), migrated into the
-shared Cloud SQL Postgres store ([`@storytree/library/store`](../../packages/library/src/store)), which
-the studio reads **by default** (`STORYTREE_STUDIO_STORE=pg`; bring the DB up with `pnpm db:up`). Set
-`STORYTREE_STUDIO_STORE=json` for the **offline** backend: it derives its corpus from `knowledge.json`
-on first read (rendered via `@storytree/library`, with the `template` scaffolds from
-`libraryTemplates()`) and persists edits to a gitignored `data/assets.runtime.json` — no committed
-generated file. The old `data/build-corpus.mjs` + `data/assets.json` generated view was **retired by
-ADR-0210**; the older `data/seed.assets.mjs` seeder and `docs/glossary.md` (a second generated view,
-ADR-0135) were retired before it. Edit `knowledge.json` (or the live DB via the CLI) to change the Library.
+The structured source of truth is the shared Cloud SQL Postgres store
+([`@storytree/library/store`](../../packages/library/src/store)), which the studio reads **by
+default** (`STORYTREE_STUDIO_STORE=pg`; bring the DB up with `pnpm db:up`). It is the ONLY source
+(ADR-0302 D1) — the committed `data/knowledge.json` seed that used to mirror it is deleted, and no
+file mirrors it now. Edit the Library through the CLI (`storytree library artifact edit <id> --pg`)
+or the studio itself.
+
+`STORYTREE_STUDIO_STORE=json` selects the **offline sandbox** backend. Read what it is precisely: it
+seeds itself on first read from the library's small committed FIXTURE corpus
+(`@storytree/library/fixture` — a frozen handful of artifacts, not a copy of the Library) and
+persists edits to a gitignored `data/assets.runtime.json`. It is a local scratch surface for working
+on the UI without a database; it is **not** a way to browse the corpus. The old
+`data/build-corpus.mjs` + `data/assets.json` generated view was **retired by ADR-0210**; the older
+`data/seed.assets.mjs` seeder and `docs/glossary.md` (a second generated view, ADR-0135) were
+retired before it.
 
 ## Commenting — block placement + the Review-mode editor
 
@@ -141,12 +147,12 @@ spans both authored artifacts and the doc-backed decision records. The glossary 
 open-questions / adjudication / v1 registers stay in the sidebar's **Reference**
 section, not the Library.
 
-The Library is the structured corpus in [`data/knowledge.json`](data/knowledge.json) — curated
-guidance synthesised from the ADRs (each `references` its source ADR), one `definition` per term, and a
-few v1 imports — plus the per-kind `template` scaffolds from `libraryTemplates()` (`@storytree/library`).
-The default studio reads it from the live Postgres store; the offline backend derives it from
-`knowledge.json` on the fly (ADR-0210). The canonical ADRs under `docs/decisions/` additionally fold in
-read-only as `adr` cards at runtime (served live by the dev API).
+The Library is the structured corpus in the live Postgres store — curated guidance synthesised from
+the ADRs (each `references` its source ADR), one `definition` per term, and a few v1 imports — plus
+the per-kind `template` scaffolds from `libraryTemplates()` (`@storytree/library`). The default
+studio reads it live; the offline sandbox backend derives its much smaller view from the committed
+fixture corpus (ADR-0210, ADR-0302 D1). The canonical ADRs under `docs/decisions/` additionally fold
+in read-only as `adr` cards at runtime (served live by the dev API).
 
 ### API (dev only)
 
@@ -198,7 +204,7 @@ as inline SVG, ADR-0036.)
 apps/studio
 ├── vite.config.ts          # wires React + the data-api plugin
 ├── server/devApi.ts        # the "backend": docs + comments + artifacts over Vite
-├── data/                   # knowledge.json (structured seed); the offline backend derives its view (ADR-0210)
+├── data/                   # comments + the gitignored offline runtime store (ADR-0210)
 └── src
     ├── App.tsx             # shell: loads docs/artifacts/comments, routes
     ├── api.ts · types.ts   # typed client · shared on-disk shapes

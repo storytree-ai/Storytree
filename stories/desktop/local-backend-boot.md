@@ -76,7 +76,7 @@ export). Instead it composes the SAME organism drivers the studio server is buil
   lazily imported inside the route closures (the raw-TS `.js` re-export trap `devApi.ts` already navigates);
 - **discovery** — `@storytree/orchestrator` (`findNodeSpecFile`/`loadNodeSpec`/`isStoryBuildable`/
   `resolveBuildConfig`) to classify a unit id by tier the SAME way the CLI prechecks;
-- **reads** — `@storytree/library/store` (`loadCorpus` + the in-memory seed) for the library/tree routes.
+- **reads** — `@storytree/library/store` (`loadFixtureCorpus` + an in-memory store) for the library/tree routes.
 
 THE ROUTE TABLE IS MINIMAL-TO-JOURNEY (slow growth, ADR-0113's "minimal first"): mount only what the
 thick-client journey needs — the library/tree/activity reads, the build trigger (`routedBuildRunner`),
@@ -112,7 +112,7 @@ from the real organism drivers, serves real read/build routes (real envelope bod
 
 The integration test exercises this capability against its **real in-story collaborators** — the real
 `@storytree/orchestrator` discovery + the real `@storytree/library/store` reads over an `InMemoryStore`
-seed (`loadCorpus`) — with the live-spend drivers (the SDK build/orchestrate) injected as scripted
+fixture corpus (`loadFixtureCorpus`) — with the live-spend drivers (the SDK build/orchestrate) injected as scripted
 doubles. No stubs within the desktop's own composition.
 
 The integration test would:
@@ -159,7 +159,7 @@ as a new module, test-first.
 
 - **The new test —** `apps/desktop/src/backend/local-backend.test.ts` (`node:test` + `node:assert/strict`,
   the package convention). Import `{ createLocalBackend }` (or the chosen factory name) from
-  `"./local-backend.js"`. Build an `InMemoryStore` + `loadCorpus` for the real seed, the real discovery,
+  `"./local-backend.js"`. Build an `InMemoryStore` + `loadFixtureCorpus` for the fixture corpus, the real discovery,
   and a stub build runner.
 - **The RED the spine observes (before IMPLEMENT) —** the import resolves NOTHING — `local-backend.ts`
   does not exist at HEAD, so the test fails module-not-found (the net-new missing-symbol red, ADR-0057).

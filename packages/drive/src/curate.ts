@@ -4,12 +4,11 @@ import { runSdkCurator } from "@storytree/agent";
 import type { SdkCuratorArgs, SdkCuratorResult } from "@storytree/agent";
 import type { AdrMeta } from "./adr-frontmatter.js";
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
-import { InMemoryStore } from "@storytree/storage-protocol";
 import { upcastAndValidate } from "@storytree/library";
 import type { Comment, CommentAnchor } from "@storytree/library/store";
-import { loadCorpus } from "@storytree/library/store";
 
 import { renderAgentPrompt } from "@storytree/library/store";
+import { openCorpusStore } from "./corpus-store.js";
 
 /**
  * The curation pass that runs at the END of a green story build (ADR-0065): a librarian-curator,
@@ -388,22 +387,35 @@ export function composeCuratorSystemPrompt(agentBody: string): string {
 }
 
 /**
- * Render the `librarian-curator` system prompt from the Library seed (offline, agent-kind is
- * seed-canonical — ADR-0055), mirroring the leaf's renderLeafPhasePrompts. Fail-soft: a render
- * problem returns `{ ok: false, reason }` so the caller can skip curation with a line, never throw.
+ * Render the `librarian-curator` system prompt from the LIVE Library store, mirroring the leaf's
+ * renderLeafPhasePrompts.
+ *
+ * It read the committed seed until ADR-0307 D1 withdrew ADR-0055's seed-canonical agent tier: the
+ * `agent` kind is live-canonical like every other kind now, so reading a file here would render a
+ * curator prompt that no longer matches the artifact a session can edit. This is an INVOKED path
+ * (curation runs inside a build), which is the side of ADR-0307 D4's line that may hold a store
+ * connection.
+ *
+ * Fail-soft is UNCHANGED and deliberate: a render problem — now including an unreachable store —
+ * returns `{ ok: false, reason }` so the caller skips curation with a printed line, never throws.
+ * The reason carries `openCorpusStore`'s full remedy text, so an unreachable store is named rather
+ * than mistaken for a missing agent.
  */
 export async function renderCuratorPrompt(): Promise<
   { ok: true; systemPrompt: string } | { ok: false; reason: string }
 > {
   try {
-    const store = new InMemoryStore();
-    await loadCorpus(store);
-    const res = await renderAgentPrompt(store, CURATOR_AGENT_ID);
-    if (!res.ok) return { ok: false, reason: res.reason };
-    if (res.agent.missingRefs.length > 0) {
-      return { ok: false, reason: `dangling refs: ${res.agent.missingRefs.join(", ")}` };
+    const corpus = await openCorpusStore("curate");
+    try {
+      const res = await renderAgentPrompt(corpus.store, CURATOR_AGENT_ID);
+      if (!res.ok) return { ok: false, reason: res.reason };
+      if (res.agent.missingRefs.length > 0) {
+        return { ok: false, reason: `dangling refs: ${res.agent.missingRefs.join(", ")}` };
+      }
+      return { ok: true, systemPrompt: composeCuratorSystemPrompt(res.agent.prompt) };
+    } finally {
+      await corpus.close();
     }
-    return { ok: true, systemPrompt: composeCuratorSystemPrompt(res.agent.prompt) };
   } catch (e) {
     return { ok: false, reason: (e as Error).message };
   }

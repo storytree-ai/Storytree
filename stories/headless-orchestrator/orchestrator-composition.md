@@ -136,7 +136,7 @@ runner against the real seed corpus with a scripted session, and surfaces the pr
 only.
 
 The integration test exercises this capability against its **real in-story collaborators** — the real
-`renderAgentPrompt(store, "session-orchestrator")` over an `InMemoryStore` seed (`loadCorpus`), the real
+`renderAgentPrompt(store, "session-orchestrator")` over an `InMemoryStore` seeded by `loadFixtureCorpus`, the real
 orientation surface over the real `stories/` corpus, and the real runner — with an injected `queryFn`
 scripted double (no live SDK spend, ADR-0010 §5). It is an integration test, not a contract, because it
 spans the composition AND the real render + runner producing the prompt and the proposal.
@@ -205,7 +205,7 @@ the composition-level TYPED single-session guard, test-first.
 
 - **The new test —** `packages/drive/src/orchestrate-single-session.test.ts` (`node:test` +
   `node:assert/strict`). Import `{ orchestrate }` from `"./orchestrate.js"`. Build an `InMemoryStore` +
-  `loadCorpus` for the real seed. Use the deterministic blocking-`queryFn` pattern (mirroring
+  `loadFixtureCorpus` for the fixture corpus. Use the deterministic blocking-`queryFn` pattern (mirroring
   `packages/agent/src/headless-orchestrator.test.ts`): the first `orchestrate()`'s injected `queryFn`
   awaits a test-held promise so it stays in flight; the second `orchestrate()` is awaited while the first
   is blocked; then the first is unblocked and drained.

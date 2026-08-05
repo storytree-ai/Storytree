@@ -28,7 +28,7 @@ proof:
 
 **Depends on —** [`library-schema-and-write-validation`](library-schema-and-write-validation.md), [`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** All five checks + the gate-vs-warn classification + the SEED gate are covered by REAL, passing, offline tests: `packages/cli/src/health.test.ts` (17 pure-function tests + 1 SEED gate test) is part of the `@storytree/cli` suite, which I ran. It observationally verifies the whole pure module AND wires two real collaborators (the health checks + the store's `loadCorpus`) at `health.test.ts:191-203`. But storytree's prove-it-gate did NOT drive these red→green, so this is brownfield `mapped`, not `healthy`. No would-be contracts here — every leaf has a real test. The CLI WIRING that surfaces this (dashboard banner, `--check` report) is NOT in this capability — see [`library-cli`](library-cli.md).
+> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** All five checks + the gate-vs-warn classification + the SEED gate are covered by REAL, passing, offline tests: `packages/cli/src/health.test.ts` (17 pure-function tests + 1 SEED gate test) is part of the `@storytree/cli` suite, which I ran. It observationally verifies the whole pure module AND wires two real collaborators (the health checks + the fixture loader `loadFixtureCorpus`) at `health.test.ts:191-203`. But storytree's prove-it-gate did NOT drive these red→green, so this is brownfield `mapped`, not `healthy`. No would-be contracts here — every leaf has a real test. The CLI WIRING that surfaces this (dashboard banner, `--check` report) is NOT in this capability — see [`library-cli`](library-cli.md).
 
 ## Guidance
 
@@ -40,9 +40,9 @@ The five checks: schema-conformance / retired-field / version-floor are GATE-cla
 
 ## Integration test
 
-**Goal —** Run the real health engine over the REAL seed corpus — `loadCorpus` into an `InMemoryStore`, `queryDocs`, then `libraryHealth` — and assert `gateFailures()` is EMPTY, proving the stamped seed clears the GATE-class checks so the ADR-0022 `pnpm -r test` run enforces migration/seed health offline.
+**Goal —** Run the real health engine over the REAL seed corpus — `loadFixtureCorpus` into an `InMemoryStore`, `queryDocs`, then `libraryHealth` — and assert `gateFailures()` is EMPTY, proving the stamped seed clears the GATE-class checks so the ADR-0022 `pnpm -r test` run enforces migration/seed health offline.
 
-Real collaborators, no stubs: the integration-flavoured proof is `packages/cli/src/health.test.ts:191-203` (passing): `loadCorpus` (the real `@storytree/library/store` seeder) into a real `InMemoryStore`, `queryDocs`, then `libraryHealth` — asserts `gateFailures()` is EMPTY (schema-conformance + retired-field + version-floor all clean on the stamped seed). That is exactly what makes `pnpm -r test` (ADR-0022) enforce migration/seed health offline, wiring two real collaborators (the health checks + the store's `loadCorpus`) with no stub.
+Real collaborators, no stubs: the integration-flavoured proof is `packages/cli/src/health.test.ts:191-203` (passing): `loadFixtureCorpus` (the real `@storytree/library/fixture` loader) into a real `InMemoryStore`, `queryDocs`, then `libraryHealth` — asserts `gateFailures()` is EMPTY (schema-conformance + retired-field + version-floor all clean on the stamped seed). That is exactly what makes `pnpm -r test` (ADR-0022) enforce migration/seed health offline, wiring two real collaborators (the health checks + the fixture loader `loadFixtureCorpus`) with no stub.
 
 Underneath, 17 pure-function tests (`health.test.ts:70-187`, all passing) cover every level of all five checks plus the gate-vs-warn classification and the cheap-subset shape. `mapped` (observational); the prove-it-gate did not drive it.
 
@@ -79,6 +79,6 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **covers —** `packages/cli/src/health.ts:218-225`
    - **proven by —** `packages/cli/src/health.test.ts:183-187` (REAL, passing)
 8. **`seed-gate-clean`** — The stamped seed corpus has zero gate-class failures
-   - **asserts —** Loading the real corpus via `loadCorpus` into an `InMemoryStore` and running `libraryHealth` yields an empty `gateFailures()`.
+   - **asserts —** Loading the real corpus via `loadFixtureCorpus` into an `InMemoryStore` and running `libraryHealth` yields an empty `gateFailures()`.
    - **covers —** `packages/cli/src/health.ts:203-211,238-240`
    - **proven by —** `packages/cli/src/health.test.ts:191-203` (REAL, passing)

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { InMemoryStore, type StoredDoc } from "@storytree/storage-protocol";
 import { CURRENT_SCHEMA_VERSION } from "@storytree/library";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import {
   libraryHealth,
@@ -200,7 +200,7 @@ test("libraryHealthCheap omits the fs-heavy referential-integrity check", () => 
 
 test("SEED gate: the stamped corpus has NO gate failures (schema/retired/version clean)", async () => {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
   const docs = await store.queryDocs();
   const results = libraryHealth(docs, BASE_OPTS);
   const gf = gateFailures(results);

@@ -1,4 +1,4 @@
-// OFFLINE process↔entrypoint bijection sweep (ADR-0154), wired into `pnpm gate` AND CI.
+// The process↔entrypoint bijection sweep (ADR-0154), wired into `pnpm gate` AND CI.
 //
 // The CLI/pnpm surface is a declared projection of the `process` tier (ADR-0154): every process names
 // its enacting entrypoint(s) in `surfaces`, and this gate asserts the bijection — (a) each named
@@ -6,8 +6,10 @@
 // it (else it is an orphan). "Which commands do we need?" is still a judgement the gate does not
 // adjudicate; the orphan list is the process-tier backfill worklist.
 //
-// It is DB-free (reads the offline seed + package.json — pure file reads), so unlike its live-store
-// sibling checks it runs identically local AND in CI. The WARN/OK logic is CI-proven by
+// It reads the LIVE store's `process` tier + `package.json` (ADR-0302 D1 — it read the committed
+// seed until that decision, which meant it judged a mirror that an authored process only reached
+// after an export ceremony; those ceremonies are deleted). It still runs identically local AND in
+// CI, because CI holds the credential (ADR-0302 D3). The WARN/OK logic is CI-proven by
 // check-surface-coverage.test.ts; the convention + design live in surface-coverage-gate.ts's header.
 //
 // FAIL-CLOSED AT A DRAIN CEILING (added by `verification-integrity-arc` under ADR-0252 D3, in
@@ -26,13 +28,23 @@
 // below always follows them, so what a reader sees and what the exit code does agree. WARN survives
 // only on the fail-OPEN substrate path, where the "not enforced" line is printed directly beneath it.
 //
-// Reachability policy is unchanged and now matters more: the catch-all below still SKIPs and exits 0
-// on any unexpected error, and a breach computed against a seed carrying no usable `process` tier is
-// reported but NOT enforced (fail-closed on the gaps, fail-open on the substrate).
+// Reachability policy gained a THIRD state when the source moved, and the three are distinct:
+//   • an unexpected error         → the catch-all SKIPs and exits 0 (advisory only, as always);
+//   • a corpus with no `process`  → the breach is REPORTED but not enforced (fail-open substrate);
+//   • an UNREACHABLE store        → the shared `STORYTREE_DB_REQUIRED` policy decides — SKIP on a
+//                                   local box with no credential, RED in CI where it is armed.
+// The third arm is not politeness. The real-repo 0/0 baseline used to be pinned hermetically inside
+// `pnpm -r test`; it moved here when the seed was deleted, so a plainly fail-open unreachable arm
+// would let a DB blip stop enforcing the bijection with nothing saying so — "kept but neutered"
+// (ADR-0302 D4) reached by accident rather than by design.
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { Store } from "@storytree/storage-protocol";
+import { openCorpusStore } from "@storytree/drive";
+
+import { DB_REQUIRED_ENV, dbIsRequired, evaluateDbAbsence } from "./db-required.js";
 import {
   DEFAULT_SURFACE_COVERAGE_DRAIN_CONFIG as CEILING,
   evaluateSurfaceCoverageDrain,
@@ -44,11 +56,44 @@ const TAG = "[check:surface-coverage]";
 // This file sits at packages/cli/src/ — three levels up is the repo root.
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
-function main(): void {
-  const { warn, lines, report } = runSurfaceCoverageGate({
+async function main(): Promise<void> {
+  let corpus: Awaited<ReturnType<typeof openCorpusStore>>;
+  try {
+    corpus = await openCorpusStore("check:surface-coverage");
+  } catch (err) {
+    // AN UNREACHABLE STORE IS NOW THIS CHECK'S SUBSTRATE-ABSENCE ARM, and it routes through the same
+    // `STORYTREE_DB_REQUIRED` policy as the two drain ceilings rather than getting a private answer.
+    // It matters more here than the fail-open wording alone suggests: the real-repo 0/0 baseline
+    // used to be pinned inside `pnpm -r test` (hermetic, always run in CI) and moved here when the
+    // seed went. Left plainly fail-open, a DB blip in CI would silently stop enforcing the bijection
+    // altogether — an assertion that relocated into a check that skips is an assertion that lapsed.
+    // Armed (CI), an unreachable store is RED; disarmed (a local box with no credential), it is the
+    // SKIP it always was.
+    const verdict = evaluateDbAbsence({
+      absence: { kind: "unreachable", detail: (err as Error).message.split("\n")[0] ?? "unknown" },
+      required: dbIsRequired(process.env[DB_REQUIRED_ENV]),
+      subject: "the process↔entrypoint bijection",
+    });
+    if (verdict.level === "red") {
+      console.error(`${TAG} ${verdict.message}`);
+      process.exitCode = 1;
+    } else {
+      console.log(`${TAG} ${verdict.message}`);
+    }
+    return;
+  }
+  try {
+    await sweep(corpus.store);
+  } finally {
+    await corpus.close();
+  }
+}
+
+async function sweep(store: Store): Promise<void> {
+  const { warn, lines, report } = await runSurfaceCoverageGate({
     loadInputs: () =>
       loadSurfaceCoverageInputs({
-        seedPath: path.join(repoRoot, "apps", "studio", "data", "knowledge.json"),
+        store,
         packageJsonPath: path.join(repoRoot, "package.json"),
       }),
   });
@@ -56,7 +101,7 @@ function main(): void {
 
   // ---- the drain ceiling (ADR-0168 D4's shape) ------------------------------------------------
   //
-  // The process tier is USABLE only when the seed actually yielded processes. A seed with none
+  // The process tier is USABLE only when the corpus actually yielded processes. A corpus with none
   // reclassifies every orphan-checked entrypoint as an orphan (measured on this checkout: 1 → 11),
   // which would turn a substrate failure into a bijection breach.
   const drain = evaluateSurfaceCoverageDrain(
@@ -104,11 +149,12 @@ function main(): void {
   process.exitCode = 1;
 }
 
-try {
-  main();
-} catch (err) {
+// `.catch` rather than a synchronous try: `main` is async since it reads the live store, so a
+// `try` would no longer observe a rejection and the advisory-only posture above would become an
+// unhandled rejection that kills the gate step it is meant never to fail.
+main().catch((err: unknown) => {
   // Even an unexpected error is advisory only — never fail the gate on an unreadable input.
   console.log(
     `${TAG} SKIP — unexpected error (${(err as Error).message}); surface coverage unverified, gate unaffected.`,
   );
-}
+});

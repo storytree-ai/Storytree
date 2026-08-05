@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import { renderDoctrine, renderDoctrines } from "./doctrine.js";
 
@@ -69,7 +69,7 @@ test("renderDoctrines preserves order and renders each", async () => {
 
 test("offline against the real corpus seed: the doctrine resolves with the explore command", async () => {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
   const line = await renderDoctrine(store, "edit-first-curation");
   assert.match(line, /^edit-first-curation — .+ {2}\(storytree library artifact edit-first-curation\)$/);
 });

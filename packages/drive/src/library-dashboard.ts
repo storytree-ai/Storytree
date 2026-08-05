@@ -77,7 +77,7 @@ export async function dashboard(store: Store): Promise<Envelope> {
     return {
       ok: false,
       body: "Library: EMPTY — no artifacts in the store.",
-      next: ["seed it: STORYTREE_DB_USER=<iam-email> npx tsx packages/store/src/load-corpus.ts"],
+      next: ["bring the live store up: pnpm db:up   (then pnpm db:probe to confirm)"],
     };
   }
   const groups = groupByKind(docs);

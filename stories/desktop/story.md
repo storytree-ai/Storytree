@@ -32,7 +32,7 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-
 #                       process (the single agent boundary, ADR-0004 / ADR-0090 d.2). @storytree/agent is
 #                       reached TRANSITIVELY through drive's `orchestrate` (the SDK single-import-site,
 #                       ADR-0004) — the desktop never imports @storytree/agent directly.
-#   - library         — @storytree/library/store (renderAgentPrompt + loadCorpus) for the local backend's
+#   - library         — @storytree/library/store (renderAgentPrompt + loadFixtureCorpus) for the local backend's
 #                       library/tree reads and the orchestrate composition's prompt render (ADR-0051).
 #   - app-guide — the chat/loop streaming CORE that ships INSIDE this desktop (the orchestrate-driven
 #                       session + its SSE-shaped event stream `startChatStream`, physically in
@@ -313,7 +313,7 @@ agent/SDK seam, the library schema, the studio frontend, or the app-guide-owned 
   through drive's `orchestrate` — the desktop never names the SDK (ADR-0004 single-import-site).
 - **`library`** — the **knowledge surface + prompt render**. The local backend's library/tree reads and
   the orchestrate composition consume `@storytree/library/store` (`renderAgentPrompt(store,
-  "session-orchestrator")` — the ONE loop definition, ADR-0051 — and `loadCorpus`).
+  "session-orchestrator")` — the ONE loop definition, ADR-0051 — and `loadFixtureCorpus`).
 - **`app-guide`** — the **chat/loop streaming CORE (the absorbed substrate, ADR-0175)**. The chat SSE
   streaming backend + the orchestrate-driven session that ship inside this desktop were
   headless-orchestrator's Phase 2 (`chat-session-stream`, `startChatStream`, ADR-0108, BUILT/green); as of

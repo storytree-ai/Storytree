@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 import type { SdkQueryFn } from "@storytree/agent";
 
 import { buildInspectDeps } from "./inspect-deps.js";
@@ -266,7 +266,7 @@ test("buildInspectDeps: a blank cwd is a typed { ok:false } refusal — never a 
 
 test("buildInspectDeps: orchestrate() with inspect deps advertises the three inspect tools — the diagnosis surface mounts", async () => {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
   const built = buildInspectDeps({ cwd: "/repo", exec: recordingExec().fn });
   assert.equal(built.ok, true);
   if (!built.ok) return;
@@ -292,7 +292,7 @@ test("buildInspectDeps: orchestrate() with inspect deps advertises the three ins
 
 test("buildInspectDeps: orchestrate() WITHOUT inspect deps advertises no mcp__inspect__* tool — byte-identical (the §7 scale-down)", async () => {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
   const q = capturingQuery();
 
   const r = await orchestrate({ intent: "Orient and propose.", store, queryFn: q.fn });

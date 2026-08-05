@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import { run } from "./commands.js";
 
@@ -22,7 +22,7 @@ import { run } from "./commands.js";
  */
 async function seeded(): Promise<InMemoryStore> {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
   return store;
 }
 

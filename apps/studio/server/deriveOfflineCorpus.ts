@@ -7,7 +7,26 @@
 
 import type { GuidanceAsset } from '../src/types';
 
-/** A raw knowledge unit as read from knowledge.json (validated downstream at the render boundary). */
+/**
+ * The offline sandbox's seed units: the library's committed FIXTURE corpus (ADR-0302 D1 deleted
+ * `apps/studio/data/knowledge.json`, which this used to read).
+ *
+ * Read what this makes the `STORYTREE_STUDIO_STORE=json` backend honestly IS: a small local sandbox
+ * with a handful of artifacts in it, not a browsable copy of the Library. That was already true in
+ * substance — the offline seed had been a frozen, drifting export for some time, and CLAUDE.md said
+ * so — this makes it true in SIZE as well, which is the part that stops a reader mistaking it for
+ * current. The studio's default backend is the live store; anyone wanting the real corpus wants that.
+ *
+ * DYNAMIC import for the same reason {@link deriveOfflineAssets} uses one: `@storytree/library`'s
+ * subpaths are raw TS with `.js` specifiers, which Node's ESM resolver cannot resolve at vite
+ * CONFIG-LOAD time. esbuild leaves a dynamic import of an EXTERNAL package as a runtime `import()`.
+ */
+export async function loadFixtureSeedUnits(): Promise<KnowledgeUnitLike[]> {
+  const { FIXTURE_CORPUS_UNITS } = await import('@storytree/library/fixture');
+  return FIXTURE_CORPUS_UNITS as unknown as KnowledgeUnitLike[];
+}
+
+/** A raw structured knowledge unit (validated downstream at the render boundary). */
 export interface KnowledgeUnitLike {
   id: string;
   kind: string;

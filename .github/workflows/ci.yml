@@ -184,10 +184,19 @@ jobs:
       # its drain ceiling (the backfill worklist) and REDS above it on either axis — bounded
       # 2026-07-27 by `verification-integrity-arc` (ADR-0252 D3), because thirteen days of green CI
       # passed over a bijection that had been broken since ADR-0195. Ceiling + baselines:
-      # packages/cli/src/surface-coverage-drain.ts. DB-free (reads the seed + root package.json), so
-      # unlike the local-only DB-backed sync checks it runs in CI too, honouring ADR-0154's
-      # "runs local + CI".
+      # packages/cli/src/surface-coverage-drain.ts.
+      #
+      # LIVE-STORE since ADR-0302 D1: it read the committed seed's `process` tier until that seed was
+      # deleted, so it judged a mirror an authored process only reached after an export ceremony.
+      # It keeps its early axis-1 position (it judges THIS branch's diff) because the auth step above
+      # runs right after `pnpm install`. ARMED, and that is load-bearing rather than tidiness: the
+      # real-repo 0/0 baseline used to be pinned hermetically inside `pnpm -r test`, and it moved
+      # here when the seed went — so a store this check could not reach would silently stop enforcing
+      # the bijection, which is the "kept but neutered" outcome ADR-0302 D4 forbids.
       - name: Surface coverage (bijection drain ceiling)
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+          STORYTREE_DB_REQUIRED: '1'
         run: pnpm check:surface-coverage
 
       # Wall-clock fence over gate-tier test files (ADR-0276 D3). A duration bound on a box shared

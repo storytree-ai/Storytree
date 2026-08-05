@@ -120,19 +120,19 @@ These are **within-story** edges, **read off the real source** (static analysis 
 - `eager-batch-migrate` → `migrate-on-write-upcaster`
   - `batch-migrate.ts:4` imports `upcast` + `CURRENT_SCHEMA_VERSION` from `../migrations.js` and runs `upcast` on every row, re-upserting only those whose `schemaVersion` actually changed (`batch-migrate.ts:54-56`) — a direct call into the migrate capability.
 - `seed-corpus-scripts` → `event-sourced-store-seam`
-  - `loadCorpus` (`load-corpus.ts:61-74`) upserts every knowledge unit + template through the `Store` write boundary.
+  - `loadFixtureCorpus` (`packages/library/src/fixture/index.ts`) upserts every fixture unit + template through the `Store` write boundary. (It was `loadCorpus` over the committed seed until ADR-0302 D1 deleted both.)
 - `seed-corpus-scripts` → `migrate-on-write-upcaster`
-  - each `loadCorpus` upsert runs `upcastAndValidate` at the boundary, so a lagging seed unit is upcast on the way in.
+  - each `loadFixtureCorpus` upsert runs `upcastAndValidate` at the boundary, so a lagging fixture unit is upcast on the way in.
 - `library-health-gate` → `library-schema-and-write-validation`
   - `health.ts:2` imports `KIND_SPECS` (the structured-kind set, `health.ts:65`) and the schema-conformance check (`health.ts:102-120`) validates each structured doc — a real consumer of the schema capability.
 - `library-health-gate` → `migrate-on-write-upcaster`
   - `health.ts:2` imports `upcastAndValidate`; schema-conformance literally calls `upcastAndValidate(bodyOf(d))` per structured doc (`health.ts:107`) — forwards-then-validates, which is why a doc that only NEEDS upcasting still PASSes.
 - `library-cli` → `event-sourced-store-seam`
-  - `main.ts:5-12` imports `PgLibraryStore` + `InMemoryStore`; `buildStore` (`main.ts:30-59`) swaps the live `PgLibraryStore` in under `--pg` and otherwise seeds an `InMemoryStore` — every read/write rides the store seam.
+  - `main.ts` imports `PgLibraryStore` + `HttpStore`; `buildStore` returns the live `PgLibraryStore` (plus the write seams) under `--pg`, the ADR-0259 door when `STORYTREE_STORE_URL` is set, and otherwise a LAZY read-only live store — every read/write rides the store seam, and since ADR-0302 D1 every one of the three is the same live corpus.
 - `library-cli` → `eager-batch-migrate`
   - `commands.ts:15` imports `renderStoredDoc` from `@storytree/library/store` (the view path, `viewArtifact` `commands.ts:242`) — the CLI's read corpus is rendered through the eager-migrate capability's render adapter.
 - `library-cli` → `seed-corpus-scripts`
-  - `main.ts:56-57` seeds the default offline store via `loadCorpus` — the CLI's read corpus is the seeder's output.
+  - the CLI's hermetic suites seed their store via `loadFixtureCorpus`; production reads live (ADR-0302 D1 removed the offline seed the CLI used to default to).
 - `library-cli` → `library-health-gate`
   - `commands.ts:25-31` imports the health helpers from `./health.js` for the dashboard banner (`commands.ts:141-149`) and the `--check` report (`libraryCheck`, `commands.ts:203-239`).
 - `library-cli` → `library-schema-and-write-validation`

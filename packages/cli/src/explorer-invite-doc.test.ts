@@ -29,7 +29,6 @@ const BOTH_ACCESS_REFUSED: DoctorObservations = {
   provisioned: true,
   dependencyCurrency: "current",
   remoteReachable: false, // GitHub Read refused
-  seedReadable: true,
   claudeCliPresent: true,
   claudeLoggedIn: true,
   checkoutBehind: 0,

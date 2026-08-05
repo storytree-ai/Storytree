@@ -149,7 +149,7 @@ onto the terminal `done` event, test-first.
 
 - **The new test —** `packages/drive/src/proposal-id-threading.test.ts` (`node:test` +
   `node:assert/strict`). Import `{ startChatStream }` from `"./chat-stream.js"`. Build an
-  `InMemoryStore` + `loadCorpus` for the real seed. Inject a `queryFn` scripted double (passed through
+  `InMemoryStore` + `loadFixtureCorpus` for the fixture corpus. Inject a `queryFn` scripted double (passed through
   to `orchestrate`) whose session declares a proposed unit id (the capability-1 path) — the SAME
   scripted-session pattern `chat-stream.test.ts` already uses, extended to declare an id. NO real SDK.
 - **The RED the spine observed (before IMPLEMENT) —** the files EXIST, so the red is a RUNTIME

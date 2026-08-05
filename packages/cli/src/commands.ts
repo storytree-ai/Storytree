@@ -94,7 +94,7 @@ import {
   graduateCommand,
   defaultLedgerPath,
   defaultMemoryDir,
-  defaultSnapshotPath,
+  readLiveSnapshot,
   parkCommand,
   parseParkFile,
   type ParkItem,
@@ -2927,9 +2927,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (sub === "graduate") {
     // Default the memory dir to the harness store keyed by the MAIN checkout (works from a worktree);
-    // --memory-dir overrides. The snapshot is the offline seed corpus (ADR-0095 reads it, not the DB).
-    // `defaultMemoryDir`/`defaultSnapshotPath`/`defaultLedgerPath` are shared with the
-    // `check:graduation-worklist` gate nudge so the two never drift on where memory / the seed /
+    // --memory-dir overrides. The dedupe snapshot is the LIVE corpus since ADR-0302 D1 (it was the
+    // committed seed; a stale one under-dedupes and re-offers already-graduated memories).
+    // `defaultMemoryDir`/`readLiveSnapshot`/`defaultLedgerPath` are shared with the
+    // `check:graduation-worklist` gate nudge so the two never drift on where memory / the corpus /
     // the park ledger live (@storytree/cli graduate.ts).
     const memoryDir = values["memory-dir"] ?? defaultMemoryDir(os.homedir());
     const now = new Date().toISOString().slice(0, 10);
@@ -2985,11 +2986,21 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     }
 
     if (help) return graduateHelp();
+    let snapshot;
+    try {
+      snapshot = await readLiveSnapshot();
+    } catch (e) {
+      return {
+        ok: false,
+        body: `Could not read the live Library corpus to dedupe against:\n\n${(e as Error).message}`,
+        next: ["pnpm db:up   (then re-run)", "pnpm db:probe   (confirm reachability)"],
+      };
+    }
     return graduateCommand(
       { review: values.review === true },
       {
         memoryDir,
-        snapshotPath: defaultSnapshotPath(),
+        snapshot,
         ledgerPath: defaultLedgerPath(memoryDir),
         now,
       },

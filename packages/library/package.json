@@ -10,7 +10,8 @@
     "./knowledge": "./src/knowledge.ts",
     "./knowledge-render": "./src/knowledge-render.ts",
     "./repo-root": "./src/repo-root.ts",
-    "./store": "./src/store/index.ts"
+    "./store": "./src/store/index.ts",
+    "./fixture": "./src/fixture/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

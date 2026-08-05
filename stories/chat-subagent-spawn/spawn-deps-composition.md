@@ -96,7 +96,7 @@ chain unchanged — offline, over the real seed corpus, scripted `queryFn`, inje
 store/worker doubles.
 
 Exercised against its **real in-story collaborators** — the real `renderAgentPrompt` over the real
-seed (`loadCorpus` + `InMemoryStore`), the real `orchestrate` composition, the real surface/gate
+fixture corpus (`loadFixtureCorpus` + `InMemoryStore`), the real `orchestrate` composition, the real surface/gate
 seams; the SDK `query()` scripted and the claim store / build runner injected (ADR-0010 §5).
 
 The integration test would:

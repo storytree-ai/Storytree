@@ -4,18 +4,16 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { parseParkLedger } from "@storytree/library";
+import { parseParkLedger, type LibrarySnapshot } from "@storytree/library";
 
 import {
   parseMemoryFile,
   buildSnapshot,
-  readSnapshot,
   projectSlug,
   harnessMemoryDir,
   graduateCommand,
   graduationNudge,
   defaultLedgerPath,
-  defaultSnapshotPath,
   parkCommand,
   parseParkFile,
   readParkLedger,
@@ -124,16 +122,6 @@ test("buildSnapshot skips docs without a string id and defaults a missing title/
   assert.deepEqual(snap.docs, [{ id: "c", kind: "", title: "" }]);
 });
 
-test("readSnapshot rejects a non-array JSON file", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "grad-snap-"));
-  try {
-    const f = path.join(dir, "knowledge.json");
-    writeFileSync(f, JSON.stringify({ not: "an array" }));
-    assert.throws(() => readSnapshot(f), /expected a JSON array/);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
 
 // ---- pure: the default harness-store memory dir ---------------------------------------------
 
@@ -169,16 +157,20 @@ function mem(m: Mem): string {
   ].join("\n");
 }
 
-/** Stand up a temp memory dir + a temp seed snapshot + a ledger path, run graduate, and clean up. */
+/**
+ * Stand up a temp memory dir + an in-memory corpus snapshot + a ledger path, run graduate, clean up.
+ *
+ * The snapshot was written to a temp `knowledge.json` and re-read until ADR-0302 D1 moved the
+ * corpus read out of this command; it is now built directly, which is what the command actually
+ * takes and removes a file round-trip from a pure unit test.
+ */
 function withFixture(
-  run: (deps: { memoryDir: string; snapshotPath: string; ledgerPath: string; now: string }) => void,
+  run: (deps: { memoryDir: string; snapshot: LibrarySnapshot; ledgerPath: string; now: string }) => void,
 ): void {
   const dir = mkdtempSync(path.join(tmpdir(), "grad-"));
   try {
     const memoryDir = path.join(dir, "memory");
-    const snapDir = path.join(dir, "seed");
     mkdirSync(memoryDir);
-    mkdirSync(snapDir);
     writeFileSync(path.join(memoryDir, "MEMORY.md"), "- index, excluded\n");
     writeFileSync(path.join(memoryDir, "a-reference.md"), mem({ name: "a-reference", type: "reference", body: "see [[An Existing Thing]] for more." }));
     writeFileSync(path.join(memoryDir, "feedback-rule.md"), mem({ name: "feedback-rule", type: "feedback" }));
@@ -186,15 +178,11 @@ function withFixture(
     writeFileSync(path.join(memoryDir, "user-pref.md"), mem({ name: "user-pref", type: "user" }));
     writeFileSync(path.join(memoryDir, "broken.md"), "no fence here\n");
 
-    const snapshotPath = path.join(snapDir, "knowledge.json");
-    writeFileSync(
-      snapshotPath,
-      JSON.stringify([
-        { id: "existing-thing", kind: "process", title: "An Existing Thing" },
-        { id: "another-doc", kind: "principle", title: "Another Doc" },
-      ]),
-    );
-    run({ memoryDir, snapshotPath, ledgerPath: defaultLedgerPath(memoryDir), now: "2026-06-22" });
+    const snapshot = buildSnapshot([
+      { id: "existing-thing", kind: "process", title: "An Existing Thing" },
+      { id: "another-doc", kind: "principle", title: "Another Doc" },
+    ]);
+    run({ memoryDir, snapshot, ledgerPath: defaultLedgerPath(memoryDir), now: "2026-06-22" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -242,7 +230,7 @@ test("graduate returns ok:false with guidance when the memory dir is unreadable"
   const missing = path.join(tmpdir(), "definitely-not-here-grad");
   const env = graduateCommand(
     { review: false },
-    { memoryDir: missing, snapshotPath: "x", ledgerPath: defaultLedgerPath(missing), now: "2026-06-22" },
+    { memoryDir: missing, snapshot: buildSnapshot([]), ledgerPath: defaultLedgerPath(missing), now: "2026-06-22" },
   );
   assert.equal(env.ok, false);
   assert.match(env.body, /could not read memory dir/);
@@ -291,13 +279,6 @@ test("graduationNudge: lease-expired candidates surface the inverted re-review q
 
 test("graduationNudge: negative counts are treated as empty (defensive), not a WARN", () => {
   assert.equal(graduationNudge({ new: -1, changed: 0, expired: 0, parked: 0 }).level, "OK");
-});
-
-test("defaultSnapshotPath resolves to the seed corpus under apps/studio/data", () => {
-  assert.ok(
-    defaultSnapshotPath().endsWith(path.join("apps", "studio", "data", "knowledge.json")),
-    defaultSnapshotPath(),
-  );
 });
 
 // ---- ADR-0202: the park verdict (ledger seam + `graduate park` + the lease-filtered worklist) --

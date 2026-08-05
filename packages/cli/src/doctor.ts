@@ -98,8 +98,6 @@ export interface DoctorObservations {
   readonly dependencyCurrency: DependencyCurrency;
   /** The read-only remote answers (`git ls-remote`): true reachable, false refused, null undetermined (offline). */
   readonly remoteReachable: boolean | null;
-  /** The offline seed corpus (`apps/studio/data/knowledge.json`) reads and parses. */
-  readonly seedReadable: boolean;
   /** The `claude` CLI resolves (`claude --version`). */
   readonly claudeCliPresent: boolean;
   /** A logged-in CLI is DETECTED by `~/.claude/.credentials.json` EXISTENCE (never read — D3). */
@@ -265,18 +263,13 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
     });
   }
 
-  // 6. seed-readable — the offline corpus parses (the zero-credential read path). Fix: re-provision/clone.
-  probes.push(
-    obs.seedReadable
-      ? { name: "seed-readable", level: "PASS", detail: "the offline seed corpus reads and parses" }
-      : {
-          name: "seed-readable",
-          level: "FAIL",
-          detail: "the seed corpus (apps/studio/data/knowledge.json) is missing or unparseable",
-          fixStep: "clone",
-          fixHint: "re-run the installer's clone step (install.ps1 @step:clone) to restore the checkout.",
-        },
-  );
+  // The `seed-readable` probe stood here. DELETED WITH ITS SUBJECT (ADR-0302 D1), not repointed at
+  // the live store — repointing would have destroyed the only thing it was good for. Its whole value
+  // was answering "is this checkout INTACT?" with ZERO credentials and zero network, which is
+  // exactly the situation a broken install leaves you in; a version of it that needed a database
+  // could not run in the case it existed to diagnose, and would report a DB outage as a corrupt
+  // checkout. Its neighbour `checkout-provisioned` answers the weaker, adjacent question (did an
+  // install ever complete here) and STAYS — read the two separately, as this module's header says.
 
   // 7. claude-cli — the dev's own agent CLI is installed. Installer @step:claude-cli.
   probes.push(
@@ -460,17 +453,6 @@ export function dependencyCurrency(checkoutDir: string, provisioned: boolean): D
   return lockfileAdvanced(checkoutDir) ? "stale" : "current";
 }
 
-/** The seed corpus reads and parses (a real array). Never throws. */
-function seedReadable(checkoutDir: string): boolean {
-  try {
-    const seedPath = path.join(checkoutDir, "apps", "studio", "data", "knowledge.json");
-    const parsed = JSON.parse(readFileSync(seedPath, "utf8")) as unknown;
-    return Array.isArray(parsed) && parsed.length > 0;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Probe the D4 hosted live read, read-only and fail-soft. Behind IAP an unauthenticated request is
  * REDIRECTED to a Google login, so `redirect: "manual"` is load-bearing: with the default
@@ -531,7 +513,6 @@ function gatherLocalObservations(checkoutDir: string): Omit<DoctorObservations, 
     provisioned,
     dependencyCurrency: dependencyCurrency(checkoutDir, provisioned),
     remoteReachable: remoteReachable(checkoutDir),
-    seedReadable: seedReadable(checkoutDir),
     claudeCliPresent: commandPresent("claude"),
     // D3: DETECT a logged-in CLI by the credentials file's EXISTENCE only — never read its contents.
     claudeLoggedIn: existsSync(path.join(os.homedir(), ".claude", ".credentials.json")),

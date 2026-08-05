@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { InMemoryStore } from "@storytree/storage-protocol";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
+
 import {
   DEFAULT_SURFACE_COVERAGE_DRAIN_CONFIG as CEILING,
   evaluateSurfaceCoverageDrain,
@@ -160,11 +163,24 @@ test("GUARD: the substrate flag suppresses ONLY when there is a breach, and neve
 // The baseline, pinned against the REAL repo
 // ---------------------------------------------------------------------------
 
-test("BASELINE: the real repo sweep sits within both ceilings — a CLEAN bijection at 0/0", () => {
+test("BASELINE: a sweep over the real entrypoints sits within both ceilings", async () => {
+  // THIS TEST NO LONGER PINS THE REAL REPO'S 0/0, AND THAT IS THE HONEST STATE — say so rather than
+  // let the title imply otherwise. It read the committed seed's process tier; ADR-0302 D1 deleted
+  // that file, and ADR-0302 D3 keeps `STORYTREE_DB_USER` out of `pnpm -r test`, so a hermetic test
+  // cannot see the real tier at all. The real-repo 0/0 baseline is enforced by the
+  // `check:surface-coverage` RUNG, which reads live and runs in BOTH `pnpm gate` and CI — so the
+  // enforcement moved rather than lapsed, and it moved somewhere STRONGER (it now judges the
+  // authored corpus rather than an export of it that lagged behind every live edit).
+  //
+  // What survives here is the wiring: the real entrypoint set, joined to a store's process tier,
+  // evaluated by the real ceiling — the path that must not throw or mis-shape before the rung can
+  // mean anything.
   const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+  const store = new InMemoryStore();
+  await loadFixtureCorpus(store);
   const report = classifySurfaceCoverage(
-    loadSurfaceCoverageInputs({
-      seedPath: path.join(repoRoot, "apps", "studio", "data", "knowledge.json"),
+    await loadSurfaceCoverageInputs({
+      store,
       packageJsonPath: path.join(repoRoot, "package.json"),
     }),
   );
@@ -175,27 +191,23 @@ test("BASELINE: the real repo sweep sits within both ceilings — a CLEAN biject
     },
     { processTierUsable: report.processCount > 0 },
   );
-  assert.notEqual(
-    v.level,
-    "red",
-    `the drain ceiling must not red on the committed repo: ${v.breaches.join(" | ")}`,
-  );
-  // Baselining means the ceiling equals what a real sweep found — so it can only be TIGHTENED. Both
-  // axes are at 0 since the 2026-07-28 drain, so this now pins the strongest form: the committed repo
-  // carries a CLEAN bijection, and any regression on either axis reds here as well as at the gate.
-  assert.ok(
-    report.unresolved.length <= CEILING.unresolvedCeiling,
-    "unresolved surfaces must stay at or below the baselined ceiling",
-  );
-  assert.ok(
-    report.orphans.length <= CEILING.orphanCeiling,
-    "orphan entrypoints must stay at or below the baselined ceiling",
-  );
-  assert.equal(v.level, "ok", "the drained baseline is CLEAN, not merely within ceilings");
-  // The drain itself, pinned: the process authored from ADR-0195 is what makes `pnpm ci:affected`
-  // non-orphan, so deleting it re-reds this test rather than silently restoring the old warning.
-  assert.ok(
-    report.processCount >= 14,
-    `the seed must carry the drained process tier (found ${report.processCount} processes)`,
-  );
+
+  // The whole path runs and produces a decidable verdict over REAL entrypoints. It will be `red`
+  // here — 13 fixture artifacts cannot name the repo's ~11 operator-facing launchers, and pretending
+  // otherwise would need a fixture that duplicated the corpus, which is the coupling this all
+  // exists to remove. What is asserted is what a hermetic test can honestly assert: the sweep
+  // COMPUTES rather than throws or suppresses, and every breach it reports NAMES its items, which is
+  // what makes the rung's output actionable.
+  assert.ok(["ok", "red"].includes(v.level), `expected a decided verdict, got ${v.level}`);
+  assert.equal(v.suppressed, undefined, "a populated process tier must not suppress the ceiling");
+  for (const b of v.breaches) assert.match(b, /: .+/, `a breach must name its items: ${b}`);
+  // The ceiling pair itself is still pinned here, and that is the part of the baseline that DID stay
+  // hermetic: 0/0 means the ceiling can only ever be tightened, and a session that loosened it to
+  // silence a red would fail this line without needing any corpus at all.
+  assert.equal(CEILING.unresolvedCeiling, 0, "the unresolved ceiling must not be loosened");
+  assert.equal(CEILING.orphanCeiling, 0, "the orphan ceiling must not be loosened");
+  // The real repo's counts against those ceilings — "the committed tree carries a CLEAN bijection,
+  // and the ADR-0195 process is what keeps `pnpm ci:affected` non-orphan" — are asserted by
+  // `check:surface-coverage` against the live corpus, in `pnpm gate` and in CI (armed, so an
+  // unreachable store reds there rather than skipping).
 });

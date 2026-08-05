@@ -27,7 +27,7 @@
  * The file sits next to the hook in `packages/cli/`, not under a repo-root path. Definitions are
  * storytree's METHOD corpus — they describe the way of working, not the project being described —
  * so under ADR-0246's repo-root parameterisation they belong with the tooling, exactly as the studio
- * anchors `knowledge.json` to `studioRoot` rather than `repoRoot` (ADR-0244 D3). A forest for
+ * anchors its own data dir to `studioRoot` rather than `repoRoot` (ADR-0244 D3). A forest for
  * someone else's project still wants storytree's definitions injected.
  *
  * ## What it deliberately does NOT carry

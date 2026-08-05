@@ -29,7 +29,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 import type { SdkQueryFn } from "@storytree/agent";
 
 // RED: chat-stream.ts does not exist yet — module-not-found is the right-kind red.
@@ -113,7 +113,7 @@ test(
   "startChatStream: successful session terminates with a `done` event carrying the proposal",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
 
     const events = await drain(
       startChatStream({
@@ -199,7 +199,7 @@ test(
   "startChatStream: done event surfaces costUsd and turns from the orchestrate result",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
 
     const events = await drain(
       startChatStream({
@@ -235,7 +235,7 @@ test(
   "startChatStream: streams assistant text deltas as `delta` events, in order, before the terminal `done`",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
 
     // A scripted session that streams three text fragments then a terminal result. The done event's
     // proposal is DISTINCT from the streamed fragments so we can prove the terminal answer is the
@@ -293,7 +293,7 @@ test(
   "startChatStream: the done event carries the run's sessionId — what the thin client threads back as resume (ADR-0170)",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
 
     const events = await drain(
       startChatStream({
@@ -317,7 +317,7 @@ test(
   "startChatStream: an injected resume is threaded down to the SDK options; absent → no resume key (ADR-0170)",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
 
     // With resume: the prior session id must reach the SDK options.
     const withResume = capturingQueryFn();
@@ -356,7 +356,7 @@ test(
   "startChatStream: drives the real orchestrate composition — the system prompt names session-orchestrator (not a fork)",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
 
     // Capture the system prompt the adapter feeds the SDK. orchestrate renders the REAL
     // session-orchestrator agent from the corpus and passes its prompt straight through; a fork
@@ -421,7 +421,7 @@ test(
   "startChatStream: no mcp__spawn__* tool is advertised — the claim-gated spawn surface is retired (ADR-0175)",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
     const q = capturingQueryFn();
 
     const events = await drain(
@@ -463,7 +463,7 @@ test(
   "startChatStream: mounts NO landing surface — the merge-ceremony tools are retired (ADR-0175)",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
     const q = capturingQueryFn();
 
     const events = await drain(
@@ -497,7 +497,7 @@ test(
   "startChatStream: without landing deps the session advertises no mcp__landing__* tool (the §7 scale-down)",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
     const q = capturingQueryFn();
 
     await drain(
@@ -523,7 +523,7 @@ test(
   "startChatStream: a second concurrent session is refused (single-session guard) while the first is in-flight and untouched",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
 
     // Session 1's scripted SDK session blocks mid-flight: it signals once its generator body is
     // running (by which point the guard's in-flight flag is already set — it is set synchronously

@@ -47,7 +47,7 @@ store and deletes target-only details of that kind, touching no other kind, idem
   principle / agent / open-question / any other kind in either store is never touched — the same
   wall ADR-0055 put around agents.
 - **Store seam only:** depend on `@storytree/storage-protocol`'s `Store` / `InMemoryStore`. Do NOT
-  import `@storytree/library/store` in this leaf — seed loading via `loadCorpus` and the CLI
+  import `@storytree/library/store` in this leaf — corpus loading via `loadFixtureCorpus` and the CLI
   `sync-… --pg` command are consumer glue after the port is green (ADR-0192).
 - **Idempotent:** a second reconcile against an already-synced target upserts identical content and
   deletes nothing.

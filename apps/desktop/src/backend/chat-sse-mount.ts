@@ -5,17 +5,12 @@
 // apps/studio/server). Reproduces local HTTP helpers (readBody, readJsonBody) as local-backend.ts
 // does. Does NOT import @storytree/library/store (no DB path in the chat route) and does NOT
 // import @storytree/storage-protocol directly (it is drive's internal dep, not desktop's declared
-// dep). Instead a minimal inline SeedStore satisfies the Store interface structurally at runtime.
+// dep). The corpus store comes from drive's `openCorpusStore`, so its type flows in structurally.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 import type { ChatStreamEvent, InspectSurfaceDeps } from "@storytree/drive";
-import { startChatStream } from "@storytree/drive";
-// The `template` artifacts, from the library's browser-safe root barrel (ADR-0210 — re-homed from
-// the retired generated assets.json). NOT the node:/pg-laden `@storytree/library/store` subpath.
-import { libraryTemplates } from "@storytree/library";
+import { startChatStream, openCorpusStore } from "@storytree/drive";
 
 // ---------- HTTP helpers (local copies — not imported from studio) ----------
 
@@ -38,131 +33,45 @@ async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
   }
 }
 
-// ---------- Inline minimal Store (mirrors @storytree/storage-protocol's Store structurally) ----------
-//
-// Avoids a direct import of @storytree/storage-protocol — that package is drive's declared dep,
-// not desktop's, so Node.js strict isolation prevents resolution from apps/desktop/.
-// The inline class satisfies the Store interface structurally at runtime (duck typing).
+// ---------- Default store (the LIVE corpus, opened once per process) ----------
 
-interface StoredDocLike {
-  id: string;
-  kind: string;
-  doc: unknown;
-  createdAt: string;
-  updatedAt: string;
-}
+/** The corpus store `startChatStream` reads — structurally, so no direct storage-protocol import. */
+type ChatCorpusStore = Awaited<ReturnType<typeof openCorpusStore>>["store"];
 
-interface StoreEventLike {
-  seq: number;
-  id: string;
-  kind: string;
-  type: "created" | "updated" | "deleted";
-  doc: unknown;
-  actor: string;
-  at: string;
-}
-
-class SeedStore {
-  private readonly docs = new Map<string, StoredDocLike>();
-  private seq = 0;
-
-  async upsertDoc(input: {
-    id: string;
-    kind: string;
-    doc: unknown;
-    actor?: string;
-  }): Promise<StoredDocLike> {
-    const now = new Date().toISOString();
-    const existing = this.docs.get(input.id);
-    const entry: StoredDocLike = {
-      id: input.id,
-      kind: input.kind,
-      doc: input.doc,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    };
-    this.docs.set(input.id, entry);
-    return entry;
-  }
-
-  async getDoc(id: string): Promise<StoredDocLike | null> {
-    return this.docs.get(id) ?? null;
-  }
-
-  async queryDocs(filter?: { kind?: string }): Promise<StoredDocLike[]> {
-    const all = Array.from(this.docs.values());
-    if (filter?.kind !== undefined) {
-      const kind = filter.kind;
-      return all.filter((d) => d.kind === kind);
-    }
-    return all;
-  }
-
-  async deleteDoc(
-    id: string,
-    _opts?: { actor?: string; reason?: string; supersededBy?: string },
-  ): Promise<boolean> {
-    return this.docs.delete(id);
-  }
-
-  async appendEvent(e: {
-    id: string;
-    kind: string;
-    type: "created" | "updated" | "deleted";
-    doc: unknown;
-    actor?: string;
-  }): Promise<StoreEventLike> {
-    return {
-      seq: ++this.seq,
-      id: e.id,
-      kind: e.kind,
-      type: e.type,
-      doc: e.doc,
-      actor: e.actor ?? "system",
-      at: new Date().toISOString(),
-    };
-  }
-
-  async readEvents(_filter?: { id?: string }): Promise<StoreEventLike[]> {
-    return [];
-  }
-}
-
-// ---------- Default store (seed corpus loaded once per process) ----------
-
-let defaultStorePromise: Promise<SeedStore> | null = null;
-
-function getDefaultStore(): Promise<SeedStore> {
-  if (defaultStorePromise === null) {
-    defaultStorePromise = loadDefaultStore();
-  }
-  return defaultStorePromise;
-}
+let defaultStorePromise: Promise<ChatCorpusStore> | null = null;
 
 /**
- * Create a SeedStore seeded with the corpus from apps/studio/data/.
- * Reproduces the algorithm from @storytree/library/store's loadCorpus without importing it:
- * the structured knowledge units from knowledge.json, and the `template` artifacts from the shared
- * `libraryTemplates()` (ADR-0210 — re-homed from the retired generated assets.json).
+ * The live library store, opened lazily on the first chat request and kept for the process (a
+ * connection pool is exactly the thing you hold open).
+ *
+ * IT USED TO CLONE `loadCorpus` INLINE over `apps/studio/data/knowledge.json`, and that file is
+ * deleted (ADR-0302 D1). The replacement had to be the live store rather than the small committed
+ * fixture, because of WHAT this store is for: `startChatStream` renders the real
+ * `session-orchestrator` agent out of it as the chat's system prompt. Serving a fixture here would
+ * not fail — it would succeed with a thinner agent, which is precisely the silent degradation
+ * ADR-0302 D4's "deleted, not left inert" rule exists to prevent.
+ *
+ * THE BOUNDARY IS INTACT AND WAS THE CONSTRAINT ON THE FIX: this reaches the store through
+ * `@storytree/drive`, already a declared dep and already the only package this module talks to. No
+ * `pg`, no Cloud SQL connector, no `@storytree/library/store` — the four import bans that
+ * chat-sse-mount.test.ts pins statically all still hold. The local `SeedStore` that satisfied the
+ * `Store` shape for the seed went with it; the type now flows through drive.
+ *
+ * A failure to open PROPAGATES: the caller turns it into an SSE error frame, so a chat request
+ * against an unreachable store says so instead of streaming an answer from an empty corpus.
  */
-async function loadDefaultStore(): Promise<SeedStore> {
-  const store = new SeedStore();
-
-  // Resolve data dir: apps/desktop/src/backend/ → 4 levels up → repo root → apps/studio/data/
-  const dataBase = new URL("../../../../apps/studio/data/", import.meta.url);
-
-  const units = JSON.parse(
-    await readFile(fileURLToPath(new URL("knowledge.json", dataBase)), "utf8"),
-  ) as Array<{ id: string; kind: string; [k: string]: unknown }>;
-  for (const unit of units) {
-    await store.upsertDoc({ id: unit.id, kind: unit.kind, doc: unit, actor: "corpus-migration" });
+function getDefaultStore(): Promise<ChatCorpusStore> {
+  if (defaultStorePromise === null) {
+    defaultStorePromise = openCorpusStore("desktop chat")
+      .then((c) => c.store)
+      // Do NOT cache a rejection: a DB that was down when the app booted must not poison every
+      // later chat request for the life of the process.
+      .catch((err: unknown) => {
+        defaultStorePromise = null;
+        throw err;
+      });
   }
-
-  for (const tpl of libraryTemplates()) {
-    await store.upsertDoc({ id: tpl.id, kind: "template", doc: tpl, actor: "corpus-migration" });
-  }
-
-  return store;
+  return defaultStorePromise;
 }
 
 // ---------- Types ----------
@@ -198,6 +107,18 @@ export type SseOrientationRunner = (
 
 /** Dependencies injected into {@link createChatSseMount}. */
 export interface ChatSseMountDeps {
+  /**
+   * Injectable CORPUS STORE — the library the session's system prompt is rendered from. Omit for a
+   * live run and the mount opens the live store lazily ({@link getDefaultStore}).
+   *
+   * It exists for the same reason `queryFn` does, and it became REQUIRED for the same reason: once
+   * ADR-0302 D1 moved the default from a committed file to Cloud SQL, a test that omitted it would
+   * dial a real database — and worse, would never exit, because the pool the mount deliberately
+   * holds for the process lifetime keeps the event loop alive. A unit test of an HTTP mount should
+   * touch neither the network nor a database, so the store joins the other injected collaborators.
+   */
+  store?: ChatCorpusStore;
+
   /**
    * Injectable SDK query function — an offline scripted double proves the mount without live
    * spend (ADR-0010 §5). Omit for a live run (the real SDK `query()` is used by default).
@@ -242,12 +163,12 @@ export interface ChatSseMountDeps {
 //
 // startChatStream's Store parameter type comes from @storytree/storage-protocol, which is
 // drive's dep but NOT desktop's declared dep (Node.js strict isolation).
-// Bridge the function type so TypeScript accepts our inline SeedStore without needing to
+// Bridge the function type so TypeScript accepts drive's store type without needing to
 // resolve @storytree/storage-protocol from desktop's module resolution chain.
 
 type BridgedStartStream = (args: {
   intent: string;
-  store: SeedStore;
+  store: ChatCorpusStore;
   resume?: string;
   queryFn?: SseMountQueryFn;
   runner?: SseOrientationRunner;
@@ -310,8 +231,9 @@ export function createChatSseMount(
     }
     const resume = typeof rawResume === "string" ? rawResume.trim() : undefined;
 
-    // Resolve the lazy-loaded seed corpus store (created once per process).
-    const store = await getDefaultStore();
+    // The corpus store: an injected one when the caller supplied it, else the lazily-opened live
+    // store (created once per process).
+    const store = deps.store ?? (await getDefaultStore());
 
     // Set SSE response headers before the first frame.
     res.statusCode = 200;
@@ -323,7 +245,7 @@ export function createChatSseMount(
     // (exactOptionalPropertyTypes).
     const streamArgs: {
       intent: string;
-      store: SeedStore;
+      store: ChatCorpusStore;
       resume?: string;
       queryFn?: SseMountQueryFn;
       runner?: SseOrientationRunner;

@@ -28,8 +28,7 @@ export { applySchema, SCHEMA_SQL_PATH } from "./migrate.js";
 // (ADR-0064): the CLI asserts a db-backed proof's STORYTREE_DB_NAME is non-prod before any build.
 export { createTestPool, assertTestDatabase, TEST_DB_ENV } from "./test-db.js";
 export { PgLibraryStore } from "./pg-store.js";
-export { loadCorpus, loadComments } from "./load-corpus.js";
-export type { LoadCorpusResult } from "./load-corpus.js";
+export { loadComments } from "./load-corpus.js";
 // The seed↔live reconcilers are GONE (ADR-0302 D4, ADR-0307 D3): `sync-agents`, `sync-corpus` and
 // `export-corpus` existed only to keep a committed mirror in step with the live store, and the
 // live store is now the only source of truth (ADR-0302 D1). Deleted, not left inert — a reconciler

@@ -3,9 +3,8 @@ import { randomUUID } from "node:crypto";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { HttpStore, InMemoryStore, type Store } from "@storytree/storage-protocol";
+import { HttpStore, type Store } from "@storytree/storage-protocol";
 import {
-  loadCorpus,
   createPool,
   closePool,
   PgLibraryStore,
@@ -27,24 +26,32 @@ import type { AdrAllocatorLike } from "./adr.js";
 import type { AttestationStoreLike } from "./attest.js";
 import { isRawEnvelope, run } from "./commands.js";
 import { formatEnvelope, withDeltaFooter, type Envelope } from "./envelope.js";
-import { deriveIdentity } from "@storytree/drive";
+import { deriveIdentity, resolveStoreDoor, openCorpusStore } from "@storytree/drive";
+import type { OpenCorpusStore } from "@storytree/drive";
 import type { ClaimLedgerStoreLike, SessionClaimStoreLike } from "@storytree/drive";
 import { loadLocalSecrets } from "./secrets.js";
-import { resolveStoreDoor } from "./store-door.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
 import type { UatVerdictStoreLike } from "./uat.js";
 
 /**
- * The `storytree` CLI entry (ADR-0023). Offline-first: by default it runs against an in-memory store
- * seeded from the studio data files (`loadCorpus`), so the read commands work with NO Cloud SQL and
- * NO API key. `--pg` swaps in the live Postgres store (the instance is STOPPED by default — bring it
- * up first). The dispatch lives in `run`; this file only wires the store and prints the envelope.
+ * The `storytree` CLI entry (ADR-0023). ONLINE-ONLY since ADR-0302 D1/D2: every store below is the
+ * live corpus, because there is no longer a second one. The dispatch lives in `run`; this file only
+ * wires the store and prints the envelope.
  *
- * THREE stores now, in this precedence: `--pg` (explicit, wins) → the ADR-0259 store door over HTTPS
- * when `STORYTREE_STORE_URL` is set → the offline seed. The door is the read path for a client that
- * cannot open a Cloud SQL connector at all, which is every remote session (ADR-0258 D2) — and it must
- * exist BEFORE ADR-0302 D1/D2 decommit the seed, or a remote session can read nothing
- * (`session-decoupling-arc`, entry `httpstore-lands-before-offline-drops`).
+ * THREE store shapes, one source, in this precedence:
+ *   `--pg`                       → the Cloud SQL connector WITH the write seams (claims, verdicts,
+ *                                  attestations, the ADR allocator). The only writing branch.
+ *   `STORYTREE_STORE_URL` set    → the ADR-0259 store door over ordinary HTTPS — the read path for a
+ *                                  client that cannot open a Cloud SQL connector at all, which is
+ *                                  every remote session (ADR-0258 D2). Read-only by the door's own
+ *                                  decision (ADR-0259 D5).
+ *   neither                      → the same live store, read-only, opened LAZILY on first use, so a
+ *                                  command that reads no corpus (`adr list`, `doctor`, the help
+ *                                  surfaces) never dials the connector at all.
+ *
+ * What used to sit in that third slot was an `InMemoryStore` seeded from the committed corpus. That
+ * seed is deleted; the hermetic suites read `@storytree/library/fixture` instead, and nothing in a
+ * PRODUCTION path reads a file corpus any more.
  */
 async function buildStore(usePg: boolean): Promise<{
   store: Store;
@@ -112,9 +119,63 @@ async function buildStore(usePg: boolean): Promise<{
       close: async () => {},
     };
   }
-  const store = new InMemoryStore();
-  await loadCorpus(store);
-  return { store, claims: null, ledger: null, verdicts: null, uatStore: null, attestations: null, adr: null, pullDeltas: null, close: async () => {} };
+  // NO FLAG, NO DOOR — the live store, read-only, and opened LAZILY. The committed seed that used
+  // to answer here is GONE (ADR-0302 D1), and the two shapes it could have been replaced by are
+  // both wrong: an EMPTY in-memory store would report `no artifact "x"` for artifacts that plainly
+  // exist — the exact fail-open ADR-0259's door rule was written against — and a refusal telling
+  // the reader to add `--pg` would be a papercut on the most-used verb in the CLI for a flag that,
+  // with one corpus left, carries no information about WHERE to read.
+  //
+  // LAZY IS NOT AN OPTIMISATION, IT IS THE CORRECTNESS CONDITION. `buildStore` runs before dispatch,
+  // for EVERY command — including the many that never touch the corpus (`adr list`, `doctor`,
+  // `noticeboard`, the help surfaces). Opening the connector eagerly would put a ~7 s Cloud SQL
+  // handshake, and a hard dependency on the database, in front of commands that read nothing but
+  // disk. It would also make `pnpm -r test` non-hermetic wherever a suite spawns the real binary,
+  // which ADR-0302 D3 deliberately prevents. So the pool opens on the FIRST store call and not
+  // before, and a command that makes none never dials at all.
+  //
+  // `--pg` keeps the meaning it always had for WRITES: it is the branch above, the only one that
+  // returns the claim / verdict / attestation / ADR-allocator seams. Those stay null here, so
+  // `library artifact edit` (and every other write) refuses with its existing "needs --pg" message
+  // rather than acquiring write power by accident.
+  //
+  // Unreachable is a LOUD, named failure carrying the remedy — never a degraded success.
+  let opened: OpenCorpusStore | null = null;
+  const open = async (): Promise<Store> => {
+    opened ??= await openCorpusStore("storytree");
+    return opened.store;
+  };
+  return {
+    store: lazyStore(open),
+    claims: null,
+    ledger: null,
+    verdicts: null,
+    uatStore: null,
+    attestations: null,
+    adr: null,
+    pullDeltas: null,
+    close: async () => {
+      if (opened !== null) await opened.close();
+    },
+  };
+}
+
+/**
+ * A {@link Store} that opens its backing store on the first call and not before.
+ *
+ * Every method just forwards, so this adds no behaviour of its own — including errors: an
+ * unreachable store throws `openCorpusStore`'s full remedy message out of whichever call first
+ * needed it, which is the command that actually wanted the corpus rather than the process start.
+ */
+function lazyStore(open: () => Promise<Store>): Store {
+  return {
+    upsertDoc: async (input) => (await open()).upsertDoc(input),
+    getDoc: async (id) => (await open()).getDoc(id),
+    queryDocs: async (filter) => (await open()).queryDocs(filter),
+    deleteDoc: async (id, opts) => (await open()).deleteDoc(id, opts),
+    appendEvent: async (e) => (await open()).appendEvent(e),
+    readEvents: async (filter) => (await open()).readEvents(filter),
+  };
 }
 
 /** Time budget for the delta footer's store read — a slow DB never stalls the command's output. */

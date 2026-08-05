@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 import type { SdkQueryFn } from "@storytree/agent";
 
 // RED: orchestrate.ts does not exist yet — module-not-found is the right-kind red.
@@ -51,7 +51,7 @@ test(
   "orchestrate: renders the real session-orchestrator from the seed corpus and feeds it to the runner as the system prompt",
   async () => {
     const store = new InMemoryStore();
-    await loadCorpus(store);
+    await loadFixtureCorpus(store);
 
     let capturedSystemPrompt: string | undefined;
     const capturingQuery: SdkQueryFn = ({ options }) => {
@@ -100,7 +100,7 @@ test(
 
 test("orchestrate: surfaces cost and turns from the headless session result", async () => {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
 
   const r = await orchestrate({
     intent: "Orient and propose.",
@@ -154,7 +154,7 @@ test(
 
 test("orchestrate: fails closed when the headless session yields no result message", async () => {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
 
   const r = await orchestrate({
     intent: "Orient.",

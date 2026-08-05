@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { type AdrMeta, loadAdrMetas } from "@storytree/drive";
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import {
   adrHealth,
@@ -207,7 +207,7 @@ test("REPO gate: every ADR parses, edges and story decisions hold, no green-flip
   assert.ok(stories.length >= 5, `expected the story seed, parsed ${stories.length}`);
 
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
   const docs = await store.queryDocs();
   const guardrails: GuardrailView[] = [];
   for (const d of docs) {

@@ -99,7 +99,7 @@ packages/agent         owned-loop session wrapper → normalized events
 packages/library       library schema + node-pg store subpath over Cloud SQL Postgres (keyless IAM)
 packages/cli           the choose-your-own-adventure Library CLI (ADR-0023)
 apps/studio            web IDE: React + SVG forest world, and the Library browser
-apps/studio/data       knowledge.json — the structured source of the Library corpus
+apps/studio/data       comments + the gitignored offline runtime store (the Library lives in the DB)
 docs/decisions         ADRs (0001–0023) — also the source-of-record for the Library `adr` category
 ```
 
@@ -108,15 +108,15 @@ docs/decisions         ADRs (0001–0023) — also the source-of-record for the 
 Durable project knowledge lives in the **Library** — a typed artifact tier
 (`definition` / `principle` / `pattern` / `guardrail` / `techstack` / `template` /
 `adr` / `open-question`), not in a sprawl of standalone docs. Its structured source is
-[`apps/studio/data/knowledge.json`](apps/studio/data/knowledge.json); it is migrated
-into the shared Cloud SQL Postgres store (ADR-0017 / ADR-0019), browsed in the studio,
-and explored from the CLI (`pnpm storytree library`).
+the shared Cloud SQL Postgres store (ADR-0017 / ADR-0019), browsed in the studio, and explored from
+the CLI (`pnpm storytree library`).
 
-The Library's source of truth is the structured `knowledge.json` (and, canonically, the live Cloud
-SQL store it seeds). Term definitions are authoritative as Library `definition` artifacts, looked up
-just-in-time (ADR-0135 retired the old generated `docs/glossary.md`; ADR-0210 retired the generated
-`apps/studio/data/assets.json` — the offline studio now derives its view from `knowledge.json` on the
-fly). To change the Library, edit `knowledge.json` (or use the CLI against the live DB).
+The live store is the ONLY source of truth (ADR-0302 D1) — no committed file mirrors it. Term
+definitions are authoritative as Library `definition` artifacts, looked up just-in-time (ADR-0135
+retired the old generated `docs/glossary.md`; ADR-0210 retired the generated
+`apps/studio/data/assets.json`; ADR-0302 D1 deleted `apps/studio/data/knowledge.json`, the last
+committed mirror). To change the Library, use the CLI against the live DB
+(`pnpm storytree library artifact edit <id> --pg`) or the studio.
 
 What remains under `docs/` is therefore intentionally lean — everything else durable has
 folded into the Library:

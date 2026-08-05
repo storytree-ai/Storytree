@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { loadCorpus } from "@storytree/library/store";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import { run } from "./commands.js";
 import { formatEnvelope } from "./envelope.js";
@@ -18,7 +18,7 @@ import { formatEnvelope } from "./envelope.js";
  */
 async function seeded(): Promise<InMemoryStore> {
   const store = new InMemoryStore();
-  await loadCorpus(store);
+  await loadFixtureCorpus(store);
   return store;
 }
 
