@@ -715,7 +715,7 @@ test("node resolve on library-cli shows its arc explicit-ID REAL proof", async (
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /buildable: +yes — source: spec/);
   assert.match(env.body, /REAL-buildable: yes/);
-  assert.match(env.body, /test file: +packages\/cli\/src\/arc\.explicit-id-fidelity\.test\.ts/);
+  assert.match(env.body, /test file: +packages\/cli\/src\/cli\.test\.ts/);
   assert.match(env.body, /source file: +packages\/cli\/src\/arc\.ts/);
   assert.match(env.body, /proof cmd: +pnpm --filter @storytree\/cli test/);
 });

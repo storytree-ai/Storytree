@@ -19,11 +19,11 @@ proof:
     testGlobs: ["packages/cli/src/**/*.test.ts"]
     sourceGlobs: ["packages/cli/src/**/*.ts"]
   real:
-    testFile: "packages/cli/src/arc.explicit-id-fidelity.test.ts"
+    testFile: "packages/cli/src/cli.test.ts"
     sourceFile: "packages/cli/src/arc.ts"
     editsExisting: true
     scope:
-      testGlobs: ["packages/cli/src/arc.explicit-id-fidelity.test.ts"]
+      testGlobs: ["packages/cli/src/cli.test.ts"]
       sourceGlobs: ["packages/cli/src/arc.ts"]
     install: true
     typecheck:
@@ -50,7 +50,8 @@ proof:
 explicit id, then refuses it before any store read or write when that normalised value exceeds the
 60-character id cap. A title-derived id may still be capped. The behavioural red at HEAD is a
 61-character explicit id: the shared slug helper truncates it to 60 characters and lets creation
-continue under a different id. The REAL proof must witness the refusal and zero store interaction,
+continue under a different id. Add the regression to the canonical coverage surface,
+`packages/cli/src/cli.test.ts`. The REAL proof must witness the refusal and zero store interaction,
 while retaining exactly-60 acceptance and normalisation-before-length-check behaviour. Assert zero
 interaction before any verification read, or make verification reads bypass the spy; a test-owned
 probe must never contaminate the call ledger whose emptiness proves the refusal happened pre-store.
@@ -130,4 +131,4 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
 14. **`arc-explicit-id-refuses-lossy-cap`** — `arc new` refuses an explicitly authored id that normalises beyond the 60-character cap rather than creating an arc under a truncated id
     - **asserts —** The explicit id is normalised before its length is checked; a normalised value over 60 characters returns `ok:false` before any store read or write, a value of exactly 60 remains accepted, and title-derived ids retain their existing capped derivation. Zero interaction is asserted before any verification read, or verification bypasses the spy; test-owned probes must not enter the call ledger.
     - **covers —** `packages/cli/src/arc.ts` (`arcNew`, explicit-id selection before store access)
-    - **would-be test —** `packages/cli/src/arc.explicit-id-fidelity.test.ts` is the declared REAL red; at HEAD the shared slug helper truncates an overlength explicit id and creation proceeds under that altered id.
+    - **would-be test —** The regression is added to the declared canonical REAL coverage file, `packages/cli/src/cli.test.ts`; at HEAD the shared slug helper truncates an overlength explicit id and creation proceeds under that altered id. Its zero-interaction assertion must run before any verification read, or verification must bypass the spy, so test-owned probes never enter the call ledger.
