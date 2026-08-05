@@ -700,7 +700,8 @@ export async function storyBuild(
       buildNode: async (spec, _index, remainingUsd) => {
         if (real) {
           // The REAL per-node build in the SHARED worktree (promote:false — the chain promotes once
-          // at the end). Each node walks the full prove-it-gate; honesty walls are per node.
+          // at the end). Each node walks the full prove-it-gate, INCLUDING its own pre-signature
+          // backstop (`sign-after-typecheck`); honesty walls are per node.
           const cfg = resolveBuildConfig(spec)?.config ?? null;
           if (cfg === null || cfg.real === undefined || worktree === undefined || phasePrompts === undefined) {
             // Unreachable past the real precheck + prompt assembly, but stays fail-closed.
@@ -797,9 +798,12 @@ export async function storyBuild(
           ? "nothing authored across the chain — every verdict attests the unchanged HEAD"
           : "the chain halted before any node signed a commit — nothing to park";
       } else if (run.passed && (opts.promote ?? true)) {
-        // Backstop ONCE at the final stacked HEAD: re-observe each DISTINCT install-bearing node's
-        // typecheck + package suite over the whole stack (tsx strips types — only tsc sees them; a
-        // green leaf must not break its package). A red of either keeps the branch LOCAL-ONLY. The
+        // The PUSH gate: re-observe each DISTINCT install-bearing node's typecheck + package suite
+        // over the whole stack (tsx strips types — only tsc sees them; a green leaf must not break
+        // its package). A red of either keeps the branch LOCAL-ONLY. This is NOT redundant with the
+        // per-node backstop `sign-after-typecheck` added inside each node's GATE: that one gates the
+        // SIGNATURE against the one commit its verdict attests, this one gates the PUSH over the
+        // whole stack — a stack can regress in a way no single commit's observation would catch. The
         // observations are READ-ONLY over INDEPENDENT packages, so they run CONCURRENTLY (bounded —
         // the dev-box OOM trap; chain-backstop.ts). Latency-only: `anyRed` is still the OR over every
         // observation and the lines keep their order, so a red in ANY package withholds the push

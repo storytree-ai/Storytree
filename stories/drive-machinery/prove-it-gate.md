@@ -44,6 +44,16 @@ injected via `ProveSpec` (`prove-it-gate.ts:48-72`), so the whole walk is offlin
 `gitTreeState` (`prove-it-gate.ts:200-206`) is the real tree seam callers inject
 (`git rev-parse HEAD` + `git status --porcelain`).
 
+**The pre-signature backstop (ADR-0315).** GATE carries one more refusal: the optional injected
+`ProveSpec.backstop`, run after the clean-tree and signer checks and before the signing append. In a
+REAL build the drive wires it to the installed worktree's package typecheck + regression suite
+(`buildNodeReal`), so a red means the unit is NOT PROVEN — no signing row — rather than a push
+withheld over a verdict that was signed anyway. The ordering is load-bearing in both directions: the
+two cheap refusals come FIRST (a dirty tree never pays for a typecheck), and the append comes LAST (a
+red backstop can leave nothing behind). The outcome is a precondition, never evidence: it does not
+enter `verdict.evidence`, which stays exactly the two spine observations. Absent ⇒ unchanged — every
+dry-run / live-smoke walk and every builtins-only node carries no backstop.
+
 **The executor seam (ADR-0030 §2):** the gate consumes `PhaseAuthor` as a TYPE from
 `@storytree/agent` (`prove-it-gate.ts:18`) and never constructs a leaf — the spine is
 author-agnostic by design. See the story's "The PhaseAuthor seam is consumed, not owned" section.
@@ -58,7 +68,7 @@ the genuine green, and the gate signs exactly one row
 (`packages/orchestrator/src/prove-it-gate.e2e.test.ts:160`). The negative twin plants a broken
 impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate.e2e.test.ts:214`).
 
-## Contracts (6)
+## Contracts (7)
 
 1. **`happy-path-signs-exactly-once`** — red then green, clean tree, signer present → a signed pass and exactly one signing row
    - **asserts —** `ok:true`, the verdict's fields pinned, one `kind:"signing"` event.
@@ -84,3 +94,7 @@ impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate
    - **asserts —** constructible seam (`prove-it-gate.test.ts:237`); against a REAL worktree it returns the spine-commit's sha with `clean:true` after `commitAuthored` ran.
    - **covers —** `prove-it-gate.ts:200-206`
    - **proven by —** `packages/orchestrator/src/resolve-prove-spec.test.ts:539` and `build-worktree.test.ts:28` (REAL, passing)
+7. **`backstop-precedes-the-signature`** — a verdict is never signed ahead of the package observation that backs it (ADR-0315)
+   - **asserts —** a RED `backstop` refuses at GATE with zero signing rows; a GREEN one is consulted exactly once and signs; an absent seam is unchanged; the seam is NEVER paid for when a cheaper GATE refusal (dirty tree, no signer) already fires, nor when the walk dies before GATE.
+   - **covers —** `proveUnit`'s GATE backstop step + `ProveSpec.backstop` (`packages/orchestrator/src/prove-it-gate.ts`)
+   - **proven by —** `packages/orchestrator/src/prove-it-gate.test.ts` cases (n)–(r), and end-to-end through the drive in `packages/drive/src/backstop-before-signature.test.ts` (both the single-node and the `promote:false` chain path) (REAL, passing)
