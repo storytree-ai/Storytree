@@ -76,6 +76,10 @@ library."* Recorded as open; a later ADR settles it. Note that the Library's age
 (the CLI, ADR-0023) is untouched by this — this decision is about the human map's slot allocation
 only.
 
+**Settled by [ADR-0314](0314-the-arc-surface-is-momentum-lanes-with-a-briefing-panel-bars.md) D6
+(2026-08-05):** the Library becomes an `Arcs | Library` toggle in the drawer header — the same slot,
+one click, arcs as the default.
+
 ### D4 — Open questions nest inside arcs, via an `arcRef` ON THE QUESTION
 
 An arc surfaces the questions waiting on the owner. **The containment edge is stored on the
@@ -145,24 +149,42 @@ separately. `waiting` has a definition here — the arc has open questions. `blo
 session that quietly makes `blocked` a synonym for `waiting`, or that invents a `blocked` predicate
 to close the gap, has exceeded this decision.
 
+**`blocked` now HAS a definition — [ADR-0314](0314-the-arc-surface-is-momentum-lanes-with-a-briefing-panel-bars.md)
+D4, from the owner on 2026-08-05:** the arc cannot proceed and there is nothing for the owner to
+answer (a claim it cannot take, or an unmet dependency), as against `waiting`, which is a question
+they can answer on the spot. The mock round did its job and the fence above did too — the three
+predicates it derived were all rejected as measuring the symptom rather than the cause. The
+must-not-be-collapsed rule stands unchanged.
+
 D7 is what makes ADR-0239 load-bearing rather than merely adjacent: "currently running" is not
 answerable while arc closure is prose in `endState` (see Consequences).
 
 ### What is deliberately NOT decided here
 
-Recorded as open, to be settled by later increments of `arc-orientation-surface-arc`:
+Recorded as open, to be settled by later increments of `arc-orientation-surface-arc`. **All three
+were settled on 2026-08-05 by [ADR-0314](0314-the-arc-surface-is-momentum-lanes-with-a-briefing-panel-bars.md),
+which amends this ADR** — the list is kept, with each item's resolution, because the reasoning for
+leaving them open is still the reasoning that shaped the answers:
 
-- **The UI shape** of the arc surface — the visual design, and **how multiple arcs are laid out**
-  together. This is the owner's next deliverable: mock options.
-- **What `blocked` means** (D7) — named as a distinct state, deliberately not defined here.
-- **Whether the orchestrator should be required to author an open-question briefing at escalation
+- ~~**The UI shape** of the arc surface — the visual design, and **how multiple arcs are laid out**
+  together. This is the owner's next deliverable: mock options.~~ → **Settled: ADR-0314 D1/D2/D3.**
+  The mock round ran (#1087, four options); the owner picked momentum lanes with the time axis
+  deleted, bars that count units rather than days, and a briefing panel in the space that frees.
+- ~~**What `blocked` means** (D7) — named as a distinct state, deliberately not defined here.~~ →
+  **Settled: ADR-0314 D4.** `blocked` = the arc cannot proceed and there is nothing for the owner to
+  answer (a claim it cannot take, or an unmet dependency); `waiting` = an authored question the owner
+  can answer on the spot. All three predicates the mock round derived were rejected.
+- ~~**Whether the orchestrator should be required to author an open-question briefing at escalation
   time.** Today agents escalate in chat rather than authoring an `open-question`, which is why the
   kind holds so few. This is arguably the higher-leverage half of D7 — it governs whether the read
-  surface has anything worth reading — and it is unsettled.
+  surface has anything worth reading — and it is unsettled.~~ → **Settled: ADR-0314 D5 — yes,
+  required.** The judgement that this is the higher-leverage half was borne out: by 2026-08-05 the
+  open-question tier had fallen from one (unhomed) to **zero**, so without D5 the surface's entire
+  waiting half would be decorative.
 
-*(Struck from this list by D6: "whether questions are answered in the surface or only found there"
-was originally recorded here as open. The owner settled it in the same conversation — read-only this
-round. Corrected in place per ADR-0139.)*
+*(Also struck from this list, earlier, by D6: "whether questions are answered in the surface or only
+found there" was originally recorded here as open. The owner settled it in the same conversation —
+read-only this round. Corrected in place per ADR-0139.)*
 
 This ADR settles the slot, the topology, the read/write posture, and the state vocabulary; it does
 not settle the picture.

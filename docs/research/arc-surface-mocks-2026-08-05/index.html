@@ -1,0 +1,2471 @@
+<meta charset="utf-8">
+<title>Arc surface — mock round</title>
+<style>
+/* Palette is lifted from the studio's own index.css so the mocks are judged in situ:
+   app shell (--bg/--surface/--text/--accent) for the document, and the REAL
+   .library-drawer parchment (--lp-*) for the drawer chrome the mocks live inside. */
+:root{
+  --bg:#f7f8fa; --panel:#ffffff; --panel2:#f0f2f5;
+  --ink:#1b1f27; --dim:#6b7280; --faint:#6b7280;
+  --line:#e2e5ea; --line2:#cdd2db;
+  --accent:#4f46e5; --accent-bg:#eef0fe;
+  --run:#15803d; --run-bg:#e9f6ee;
+  --wait:#b45309; --wait-bg:#fdf4e3;
+  --block:#b42318; --block-bg:#fdedea;
+  --quiet:#6b7280; --quiet-bg:#f0f2f5;
+  --arc:#7c2d92;                      /* studio --cat-arc */
+  --oq:#ea580c; --oq-bg:#fdf0e7;      /* studio --cat-open-question */
+  /* the real drawer's parchment world */
+  --lp-panel:#fbf6e7; --lp-panel2:#f8f2de; --lp-bar:#f2ead2; --lp-border:#d9cba4;
+  --lp-ink:#3a3323; --lp-soft:#736853; --lp-moss:#4e6b3f; --lp-sprout:#6fa35c;
+  --lp-clay:#c0693b; --lp-sun:#e3a93e;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#14161b; --panel:#1c1f26; --panel2:#22262f;
+    --ink:#e6e9ef; --dim:#9aa3b2; --faint:#8b94a4;
+    --line:#2b303a; --line2:#3c434f;
+    --accent:#a5a0f5; --accent-bg:#232145;
+    --run:#5cc98a; --run-bg:#13291d; --wait:#e0a34a; --wait-bg:#2e2211;
+    --block:#f08074; --block-bg:#331714; --quiet:#9aa3b2; --quiet-bg:#22262f;
+    --arc:#cf8ce0; --oq:#f7924e; --oq-bg:#33200f;
+    --lp-panel:#26221a; --lp-panel2:#2c2820; --lp-bar:#332e23; --lp-border:#4a4234;
+    --lp-ink:#ece4d0; --lp-soft:#a2977e; --lp-moss:#8db877; --lp-sprout:#9fce88;
+    --lp-clay:#dc9163; --lp-sun:#e9bb63;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14161b; --panel:#1c1f26; --panel2:#22262f;
+  --ink:#e6e9ef; --dim:#9aa3b2; --faint:#8b94a4;
+  --line:#2b303a; --line2:#3c434f; --accent:#a5a0f5; --accent-bg:#232145;
+  --run:#5cc98a; --run-bg:#13291d; --wait:#e0a34a; --wait-bg:#2e2211;
+  --block:#f08074; --block-bg:#331714; --quiet:#9aa3b2; --quiet-bg:#22262f;
+  --arc:#cf8ce0; --oq:#f7924e; --oq-bg:#33200f;
+  --lp-panel:#26221a; --lp-panel2:#2c2820; --lp-bar:#332e23; --lp-border:#4a4234;
+  --lp-ink:#ece4d0; --lp-soft:#a2977e; --lp-moss:#8db877; --lp-sprout:#9fce88;
+  --lp-clay:#dc9163; --lp-sun:#e9bb63;
+}
+:root[data-theme="light"]{
+  --bg:#f7f8fa; --panel:#ffffff; --panel2:#f0f2f5;
+  --ink:#1b1f27; --dim:#6b7280; --faint:#6b7280;
+  --line:#e2e5ea; --line2:#cdd2db; --accent:#4f46e5; --accent-bg:#eef0fe;
+  --run:#15803d; --run-bg:#e9f6ee; --wait:#b45309; --wait-bg:#fdf4e3;
+  --block:#b42318; --block-bg:#fdedea; --quiet:#6b7280; --quiet-bg:#f0f2f5;
+  --arc:#7c2d92; --oq:#ea580c; --oq-bg:#fdf0e7;
+  --lp-panel:#fbf6e7; --lp-panel2:#f8f2de; --lp-bar:#f2ead2; --lp-border:#d9cba4;
+  --lp-ink:#3a3323; --lp-soft:#736853; --lp-moss:#4e6b3f; --lp-sprout:#6fa35c;
+  --lp-clay:#c0693b; --lp-sun:#e3a93e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px 110px}
+h1,h2,h3,h4{margin:0;text-wrap:balance}
+h1{font-size:38px;font-weight:760;letter-spacing:-.032em;line-height:1.05}
+h2{font-size:21px;font-weight:680;letter-spacing:-.018em}
+h3{font-size:20px;font-weight:670;letter-spacing:-.015em}
+h4{font-size:14px;font-weight:660;letter-spacing:-.006em}
+p{margin:.7em 0}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono);font-size:.87em}
+section{margin-top:60px;scroll-margin-top:64px}
+.lede{font-size:17px;color:var(--dim);max-width:68ch;line-height:1.5}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--faint)}
+.sechead{border-bottom:1px solid var(--line);padding-bottom:11px;margin-bottom:18px;
+  display:flex;flex-direction:column;gap:5px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+header.top{padding:52px 0 10px}
+.kicker{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--faint);
+  text-transform:uppercase;margin-bottom:14px}
+.toc{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 90%,transparent);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line);margin-top:30px}
+.toc-in{max-width:1180px;margin:0 auto;padding:8px 22px;display:flex;gap:2px;
+  flex-wrap:wrap;align-items:center;font-size:13px}
+.toc a{color:var(--dim);text-decoration:none;padding:5px 10px;border-radius:6px}
+.toc a:hover{background:var(--panel);color:var(--ink)}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.note{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:16px 19px;margin:18px 0;border-top:3px solid var(--accent)}
+.note.warn{border-top-color:var(--block)}
+.note.synth{border-top-color:var(--oq)}
+.note h4{margin-bottom:5px}
+.note p{margin:.4em 0;font-size:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(134px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stat{background:var(--panel);padding:14px 16px}
+.stat .v{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.03em}
+.stat .k{font-size:11.5px;color:var(--dim);margin-top:3px;line-height:1.35}
+
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:670;
+  padding:2px 8px;border-radius:4px;letter-spacing:.05em;white-space:nowrap;
+  font-family:var(--mono);text-transform:uppercase}
+.chip.run{color:var(--run);background:var(--run-bg)}
+.chip.wait{color:var(--wait);background:var(--wait-bg)}
+.chip.block{color:var(--block);background:var(--block-bg)}
+.chip.quiet{color:var(--quiet);background:var(--quiet-bg)}
+.chip.synthetic{color:var(--oq);background:var(--oq-bg);
+  border:1px dashed var(--oq);padding:1px 7px}
+.dot{width:7px;height:7px;border-radius:2px;flex:none;display:inline-block}
+.dot.run{background:var(--run)} .dot.wait{background:var(--wait)}
+.dot.block{background:var(--block)} .dot.quiet{background:var(--quiet)}
+
+.pips{display:flex;gap:2px;align-items:flex-end;height:16px}
+.pip{width:4px;border-radius:1px;background:var(--line2);flex:none}
+.pip.hot{background:var(--run)}
+.pip.warm{background:color-mix(in srgb,var(--run) 50%,var(--line2))}
+.pips.dense .pip{width:2px}
+.pips.dense2 .pip{width:1px}
+.posline{display:flex;align-items:center;gap:10px;font-family:var(--mono);
+  font-size:11px;color:var(--dim);flex-wrap:wrap}
+.never{font-family:var(--mono);font-size:10.5px;color:var(--block);
+  border:1px dashed var(--block);border-radius:3px;padding:0 5px}
+
+/* ---- the drawer, in the studio's real parchment ---- */
+.mapframe{border:1px solid var(--line2);border-radius:10px;overflow:hidden;
+  background:linear-gradient(168deg,#c9dcc4,#b6cdb2 55%,#a7c2a6);position:relative}
+@media (prefers-color-scheme:dark){.mapframe{background:linear-gradient(168deg,#1a251f,#141d18 55%,#101711)}}
+:root[data-theme="dark"] .mapframe{background:linear-gradient(168deg,#1a251f,#141d18 55%,#101711)}
+:root[data-theme="light"] .mapframe{background:linear-gradient(168deg,#c9dcc4,#b6cdb2 55%,#a7c2a6)}
+.mapframe .forest{position:absolute;inset:0;pointer-events:none}
+.mapcap{font-family:var(--mono);font-size:10.5px;color:rgba(30,45,32,.62);
+  padding:6px 11px;text-align:right;letter-spacing:.03em;position:relative}
+@media (prefers-color-scheme:dark){.mapcap{color:rgba(200,220,200,.5)}}
+:root[data-theme="dark"] .mapcap{color:rgba(200,220,200,.5)}
+.drawer{position:relative;background:var(--lp-panel);color:var(--lp-ink);
+  border-bottom:1px solid var(--lp-border);box-shadow:0 12px 28px -14px rgba(20,30,20,.55)}
+.drawer-hd{display:flex;align-items:center;gap:12px;padding:9px 14px;
+  background:var(--lp-bar);border-bottom:1px solid var(--lp-border);min-height:42px}
+.wordmark{font-size:15px;font-weight:700;letter-spacing:-.02em;color:var(--lp-ink)}
+.seg{display:inline-flex;border:1px solid var(--lp-border);border-radius:6px;overflow:hidden;
+  font-size:11.5px;font-family:var(--mono)}
+.seg button{border:0;background:transparent;color:var(--lp-soft);padding:3px 11px;
+  cursor:pointer;font:inherit}
+.seg button[aria-pressed="true"]{background:var(--lp-ink);color:var(--lp-panel)}
+.grip{width:34px;height:4px;border-radius:3px;background:var(--lp-border);margin:0 auto}
+.handlebar{display:flex;align-items:center;justify-content:center;padding:5px;
+  background:var(--lp-bar);border-top:1px solid var(--lp-border);position:relative}
+.handlebar .arrow{position:absolute;right:12px;font-size:11px;color:var(--lp-soft)}
+.spacer{flex:1}
+.hint{font-family:var(--mono);font-size:11px;color:var(--lp-soft)}
+.drawer .dot.quiet{background:var(--lp-soft)}
+.drawer .chip.quiet{color:var(--lp-soft);background:rgba(139,128,101,.14)}
+
+/* ---- A: board ---- */
+.board{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--lp-border);
+  max-height:430px;overflow-y:auto}
+.col{background:var(--lp-panel);padding:8px;min-height:120px}
+.colhd{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;
+  text-transform:uppercase;letter-spacing:.07em;color:var(--lp-soft);
+  padding:3px 4px 8px;position:sticky;top:-8px;background:var(--lp-panel);z-index:2}
+.colhd .ct{margin-left:auto}
+.card{border:1px solid var(--lp-border);border-radius:7px;padding:8px 10px;margin-bottom:7px;
+  cursor:pointer;background:var(--lp-panel2)}
+.card:hover{border-color:var(--lp-moss)}
+.card .t{font-size:12.5px;font-weight:620;line-height:1.3;margin-bottom:5px;color:var(--lp-ink);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .meta{display:flex;align-items:center;gap:7px;font-family:var(--mono);
+  font-size:10px;color:var(--lp-soft)}
+.card.on{border-color:var(--lp-moss);box-shadow:0 0 0 2px rgba(78,107,63,.18)}
+.drawer .pip{background:var(--lp-border)}
+.drawer .pip.hot{background:var(--lp-moss)}
+.drawer .pip.warm{background:var(--lp-sprout)}
+.drawer .never{color:var(--lp-clay);border-color:var(--lp-clay)}
+.qbadge{font-family:var(--mono);font-size:10px;color:var(--oq);background:var(--oq-bg);
+  border:1px dashed var(--oq);border-radius:3px;padding:0 4px}
+
+/* ---- B: lanes ---- */
+.lanes{max-height:430px;overflow-y:auto;padding:0 0 8px}
+.laneaxis{display:grid;grid-template-columns:200px 1fr;font-family:var(--mono);font-size:10px;
+  color:var(--lp-soft);border-bottom:1px solid var(--lp-border);position:sticky;top:0;
+  background:var(--lp-bar);z-index:3}
+.laneaxis .ticks{position:relative;height:20px}
+.laneaxis .tk{position:absolute;top:4px;transform:translateX(-50%);white-space:nowrap}
+.lane{display:grid;grid-template-columns:200px 1fr;border-bottom:1px solid var(--lp-border);
+  cursor:pointer;align-items:center}
+.lane:hover,.lane.on{background:var(--lp-panel2)}
+.lane .nm{padding:5px 10px;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;display:flex;align-items:center;gap:6px;color:var(--lp-ink)}
+.lane .track{position:relative;height:26px;border-left:1px solid var(--lp-border)}
+.lane .tick{position:absolute;top:8px;width:5px;height:10px;border-radius:2px;
+  background:var(--lp-moss);transform:translateX(-50%)}
+.lane .tail{position:absolute;top:12.5px;height:0;border-top:1px dashed var(--lp-border)}
+.lane .now{position:absolute;top:3px;bottom:3px;width:1px;background:var(--lp-clay);opacity:.55}
+.lane.stale .tick{background:var(--lp-soft)}
+.lane .nostart{position:absolute;top:6px;left:8px;font-family:var(--mono);font-size:10px;
+  color:var(--lp-clay)}
+
+/* ---- C: reading room ---- */
+.reading{display:grid;grid-template-columns:236px 1fr;max-height:470px}
+.idx{border-right:1px solid var(--lp-border);overflow-y:auto;background:var(--lp-panel2)}
+.idxgrp{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--lp-soft);padding:9px 12px 4px;position:sticky;top:0;background:var(--lp-panel2)}
+.idxrow{display:flex;align-items:center;gap:7px;padding:5px 12px;font-size:12px;
+  cursor:pointer;border-left:2px solid transparent;color:var(--lp-ink)}
+.idxrow:hover{background:var(--lp-bar)}
+.idxrow.on{background:var(--lp-bar);border-left-color:var(--lp-moss);font-weight:640}
+.idxrow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.idxrow .n{font-family:var(--mono);font-size:10px;color:var(--lp-soft)}
+.brief{overflow-y:auto;padding:18px 22px;background:var(--lp-panel)}
+.brief h3{font-size:19px;margin-bottom:4px;color:var(--lp-ink)}
+.brief .sub{font-size:12.5px;color:var(--lp-soft);margin-bottom:14px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bfield{margin:14px 0}
+.bfield .lbl{font-family:var(--mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--lp-soft);margin-bottom:4px}
+.bfield .val{font-size:13.5px;line-height:1.5;color:var(--lp-ink);max-width:66ch}
+.log{border-left:2px solid var(--lp-border);padding-left:14px;margin-left:3px}
+.logitem{position:relative;margin-bottom:12px}
+.logitem::before{content:"";position:absolute;left:-19px;top:5px;width:8px;height:8px;
+  border-radius:2px;background:var(--lp-moss);border:2px solid var(--lp-panel)}
+.logitem.old::before{background:var(--lp-border)}
+.logitem .lh{font-family:var(--mono);font-size:10.5px;color:var(--lp-soft);margin-bottom:2px}
+.logitem .lb{font-size:12.5px;line-height:1.45;color:var(--lp-soft);max-width:66ch}
+.logitem.latest .lb{color:var(--lp-ink)}
+.qcard{border:1px dashed var(--oq);background:var(--oq-bg);border-radius:7px;
+  padding:10px 12px;margin:8px 0}
+.qcard .qt{font-size:13px;font-weight:640;margin-bottom:3px;color:var(--lp-ink)}
+.qcard .qs{font-size:12px;color:var(--lp-soft)}
+.reflist{display:flex;flex-wrap:wrap;gap:5px}
+.ref{font-family:var(--mono);font-size:10.5px;border:1px solid var(--lp-border);
+  border-radius:4px;padding:1px 6px;color:var(--lp-soft)}
+.ref.prop{border-color:var(--lp-sun);color:var(--lp-clay);background:rgba(227,169,62,.14)}
+.ref.ready{border-color:var(--lp-moss);color:var(--lp-moss);background:rgba(78,107,63,.12)}
+
+/* ---- D: contact sheet ---- */
+.sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:9px;
+  padding:12px;max-height:470px;overflow-y:auto}
+.tile{border:1px solid var(--lp-border);border-radius:8px;padding:10px;cursor:pointer;
+  display:flex;flex-direction:column;gap:7px;min-height:104px;background:var(--lp-panel2)}
+.tile:hover,.tile.on{border-color:var(--lp-moss)}
+.tile .tt{font-size:12px;font-weight:620;line-height:1.28;color:var(--lp-ink);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.tile .tf{margin-top:auto;display:flex;align-items:center;gap:6px}
+.tile.lib{border-style:dashed;align-items:center;justify-content:center;
+  color:var(--lp-soft);font-family:var(--mono);font-size:11.5px;text-align:center}
+.ring{width:24px;height:24px;flex:none}
+
+/* ---- tabs ---- */
+.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
+.tab{border:1px solid var(--line2);background:var(--panel);border-radius:8px;
+  padding:9px 15px;cursor:pointer;font:inherit;font-size:13px;color:var(--dim);text-align:left}
+.tab:hover{border-color:var(--accent)}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab .tl{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;opacity:.7;display:block}
+.tab .tn{font-weight:640;letter-spacing:-.01em}
+.opt{display:none}
+.opt.on{display:block}
+
+/* ---- diagrams ---- */
+.diagram{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;
+  overflow-x:auto}
+.diagram svg{display:block;min-width:560px;max-width:100%;height:auto}
+.dg-l{font-family:var(--mono);font-size:10px;fill:var(--faint)}
+.dg-t{font-family:var(--sans);font-size:11.5px;fill:var(--ink)}
+.dg-tb{font-family:var(--sans);font-size:12px;font-weight:640;fill:var(--ink)}
+.dg-box{fill:var(--panel2);stroke:var(--line2)}
+.dg-box-a{fill:var(--accent-bg);stroke:var(--accent)}
+.dg-ar{stroke:var(--line2);fill:none;marker-end:url(#ah)}
+.dg-ar-a{stroke:var(--accent);fill:none;marker-end:url(#aha)}
+
+/* ---- tables ---- */
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--dim);font-weight:600}
+td.mono{font-family:var(--mono);font-size:11.5px}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.tblwrap table td:first-child,.tblwrap table th:first-child{padding-left:14px}
+tbody tr:last-child td{border-bottom:0}
+.yes{color:var(--block);font-weight:660}
+.no{color:var(--faint)}
+
+/* ---- the asks ---- */
+.qa{border:1px solid var(--line);border-radius:10px;background:var(--panel);
+  padding:19px 21px;margin-bottom:16px}
+.qa .qn{font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.12em;
+  text-transform:uppercase}
+.qa h4{font-size:19px;font-weight:680;letter-spacing:-.018em;margin:6px 0 9px}
+.choices{display:grid;gap:8px;margin-top:13px}
+.choice{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;
+  background:var(--panel2)}
+.choice .cl{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:660}
+.choice .cd{color:var(--dim);font-size:12.5px;margin-top:2px}
+.rec{font-size:12.5px;color:var(--dim);border-top:1px solid var(--line);
+  margin-top:13px;padding-top:11px}
+.rec b{color:var(--ink)}
+
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;
+  font-family:var(--mono);margin-bottom:13px}
+.ctl button{border:1px solid var(--line2);background:var(--panel);color:var(--dim);
+  border-radius:6px;padding:4px 11px;cursor:pointer;font:inherit;font-size:12px}
+.ctl button[aria-pressed="true"]{background:var(--block);color:#fff;border-color:var(--block)}
+.tag{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:3px;
+  background:var(--panel2);color:var(--dim)}
+ul.tight{margin:.5em 0;padding-left:1.15em;max-width:70ch}
+ul.tight li{margin:.35em 0}
+.foot{margin-top:74px;padding-top:20px;border-top:1px solid var(--line);
+  font-size:12.5px;color:var(--faint);max-width:80ch}
+</style>
+
+<header class="top"><div class="wrap">
+  <div class="kicker">arc-orientation-surface-arc · increment 2 · mock round · 2026-08-02</div>
+  <h1>Where is every arc up to?</h1>
+  <p class="lede" style="margin-top:14px">Four genuinely different answers to ADR-0267 D7, each
+  rendered against the <b>real 20 active arcs</b> — real titles, real increment counts from 0 to 34,
+  real staleness. Nothing here is built. Pick a direction and the next increment builds it.</p>
+</div></header>
+
+<nav class="toc"><div class="toc-in">
+  <a href="#data">The real data</a>
+  <a href="#honesty">What the mocks can't show honestly</a>
+  <a href="#options">Four options</a>
+  <a href="#blocked">What “blocked” means</a>
+  <a href="#briefing">The briefing shape</a>
+  <a href="#ask">What I need from you</a>
+</div></nav>
+
+<div class="wrap">
+
+<section id="data">
+  <div class="sechead"><span class="eyebrow">grounding</span>
+    <h2>The data every mock below is drawn from</h2></div>
+  <p class="lede">Pulled from the live store through <code>loadArcRollups()</code> — the same join
+  behind <code>storytree arc show</code> and <code>GET /api/arcs</code>. No invented arcs anywhere
+  on this page.</p>
+
+  <div class="stats" style="margin:20px 0">
+    <div class="stat"><div class="v">20</div><div class="k">active arcs<br>the surface's real load</div></div>
+    <div class="stat"><div class="v">27</div><div class="k">closed arcs<br>hidden by ADR-0239</div></div>
+    <div class="stat"><div class="v">0–34</div><div class="k">increments per arc<br>the layout-breaking range</div></div>
+    <div class="stat"><div class="v">19–72</div><div class="k">title length, chars<br>truncation is unavoidable</div></div>
+    <div class="stat"><div class="v">3</div><div class="k">arcs that never landed<br>anything at all</div></div>
+    <div class="stat"><div class="v">1</div><div class="k">live open question<br>and no arc can see it</div></div>
+  </div>
+
+  <p>Two distribution facts decide whether a layout survives contact:</p>
+  <ul class="tight">
+    <li><b>Increments are wildly uneven.</b> Twelve arcs have four or fewer;
+      <code>verification-integrity-arc</code> has 34 and
+      <code>chapter2-pixellab-organic-growth-arc</code> has
+      19. Any glyph that draws one mark per increment must survive a 34:0 ratio in one viewport.</li>
+    <li><b>Recency is bimodal.</b> Eleven arcs landed something within 48 hours; eight have been quiet
+      for a week or more, six of those have <em>never</em> landed anything. The interesting signal
+      is the gap, not the count.</li>
+  </ul>
+</section>
+
+<section id="honesty">
+  <div class="sechead"><span class="eyebrow">caveats — read before judging the mocks</span>
+    <h2>Two things the mocks must not paper over</h2></div>
+
+  <div class="note warn">
+    <h4>The <code>waiting</code> state cannot happen today — and the reason got worse since 2026-08-02</h4>
+    <p><b>Re-measured 2026-08-05: the open-question tier is now completely EMPTY.</b>
+    <code>library artifact list open-question --pg</code> returns <b>0</b>, and all 20 arcs come back
+    from <code>GET /api/arcs</code> with <code>waiting: false</code>. At the 08-02 mock round there
+    was exactly one live question, <code>oq-public-live-forest-on-the-website</code>, and the finding
+    then was that the tier was <b>unhomed</b> rather than empty — the question existed but carried no
+    <code>arcRef</code>, so under ADR-0267 D4 no arc surfaced it. That question is now gone
+    entirely.</p>
+    <p>So the trajectory over three days is one question → zero. This is not a rendering gap that a
+    layout can close: <b>the <code>waiting</code> half of this surface has no source of content at
+    all</b>, and it will stay that way until something starts authoring open questions with an
+    <code>arcRef</code>. That makes question 3 below decisive rather than academic — answer it “no”
+    and the waiting column, the waiting lane, and the waiting index rows are permanently
+    decorative.</p>
+    <p>Every <code>waiting</code> arc below is therefore driven by
+    <span class="chip synthetic">synthetic</span> questions written for this mock. They are marked
+    wherever they appear, in orange with a dashed border. Nothing dashed-orange is real.</p>
+  </div>
+
+  <div class="note warn">
+    <h4><code>blocked</code> still has no definition, and I have not invented one</h4>
+    <p>ADR-0267 D7 names <code>blocked</code> and deliberately refuses to define it; increment 1
+    fenced its absence with a test. So the mocks ship a <b>switch</b>, not a predicate.
+    <a href="#blocked">The blocked section</a> puts three candidate meanings side by side and lets
+    you flip between them and watch the real 20 arcs re-sort. Whichever you pick becomes the
+    definition; picking none is also a result.</p>
+  </div>
+
+  <div class="note">
+    <h4>And one thing deliberately <em>not</em> drawn: a progress bar</h4>
+    <p>ADR-0267's Context says outright that “a percentage-complete bar would answer none of that”,
+    and an arc has no denominator — <code>endState</code> is prose, not a checklist. So “what step
+    are they up to” is rendered as a <b>three-part position read</b>, never a fraction:</p>
+    <div class="posline" style="margin:12px 0 5px">
+      <span class="pips"><i class="pip" style="height:8px"></i><i class="pip" style="height:10px"></i><i class="pip warm" style="height:12px"></i><i class="pip hot" style="height:14px"></i><i class="pip hot" style="height:16px"></i></span>
+      <span><b>distance</b> — one pip per landed increment</span>
+    </div>
+    <div class="posline" style="margin:5px 0"><span style="min-width:52px">4d ago</span>
+      <span><b>momentum</b> — days since the last landing, the number that exposes a stall</span></div>
+    <div class="posline" style="margin:5px 0"><span class="ref ready" style="min-width:52px;text-align:center">1 ready plan</span>
+      <span><b>next</b> — a <code>ready</code> plan, a <code>proposed</code> ADR, or nothing queued</span></div>
+  </div>
+
+  <div class="note warn">
+    <h4>Two requirements that postdate the 08-02 round — <em>none of the four layouts answers either</em></h4>
+    <p><b>1 · Parked work is now the biggest thing on an arc, and no mock draws it.</b> ADR-0298 D1
+    replaced the retired <code>proposal</code> kind with parked entries stored on the arc itself.
+    Measured today: <b>40 parked entries across 12 of the 20 active arcs</b> —
+    <code>verification-integrity-arc</code> carries 12, <code>cli-write-fidelity-arc</code> and
+    <code>session-decoupling-arc</code> 7 each. The 08-02 extract had no <code>proposals</code> field
+    at all, so every layout above renders “next” as <i>a ready plan, a proposed ADR, or nothing
+    queued</i> — and answers “nothing queued” for arcs that in fact have a dozen items parked on
+    them. That is the single most misleading thing on this page right now. Whichever layout you pick
+    needs somewhere for parked work to live.</p>
+    <p><b>2 · The surface must carry a factory-floor health signal, not only per-arc state.</b> Your
+    direction on 2026-08-04, parked on this arc as <code>factory-floor-health-signal</code>: <i>“I
+    think this will be solved when we setup the arc tracker/dashboard so when this stuff needs my
+    attention we can make it very visible that there is something wrong on the factory floor.”</i>
+    Every one of the four <code>blocked</code> candidates answers <i>what is the state of THIS arc</i>.
+    None answers <i>is the floor healthy</i> — the same bottleneck hit eight times in a week lights up
+    no arc state at all. The signal already exists in the data (friction reinforcement counts), so
+    this is thresholding and rendering, not new instrumentation — but it needs a home in the chosen
+    layout, and retrofitting it after the layout ships is the expensive order.</p>
+    <p class="hint">Both are folded into question 1 below rather than mocked separately: the 08-02
+    mock round is done and re-mocking is not what this session is for.</p>
+  </div>
+</section>
+
+<section id="options">
+  <div class="sechead"><span class="eyebrow">the options — pick one, or one layout with another's Library answer</span>
+    <h2>Four surfaces: interaction model, then the mock</h2></div>
+  <p class="lede">These are four different <em>questions to answer first</em>, not four skins.
+  A: triage. B: momentum. C: restoration. D: portfolio. Each also proposes where the Library goes,
+  which ADR-0267 D3 left open.</p>
+
+  <div class="tabs" role="tablist" style="margin-top:20px">
+    <button class="tab" role="tab" aria-selected="true" data-opt="a">
+      <span class="tl">OPTION A</span><span class="tn">Triage board</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-opt="b">
+      <span class="tl">OPTION B</span><span class="tn">Momentum lanes</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-opt="c">
+      <span class="tl">OPTION C</span><span class="tn">Reading room</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-opt="d">
+      <span class="tl">OPTION D</span><span class="tn">Contact sheet</span></button>
+  </div>
+
+  <div id="optbodies"></div>
+</section>
+
+<section id="blocked">
+  <div class="sechead"><span class="eyebrow">the undefined state</span>
+    <h2>What should <code>blocked</code> mean?</h2></div>
+  <p class="lede">Three candidates computable from what is already stored, plus one that is not. The
+  table shows exactly which real arcs each would light up today — that is the whole argument.</p>
+
+  <div class="ctl" style="margin-top:20px">
+    <span style="color:var(--dim)">Apply to the mocks above:</span>
+    <button data-bd="none" aria-pressed="true">none</button>
+    <button data-bd="b1" aria-pressed="false">B1 undecided</button>
+    <button data-bd="b2" aria-pressed="false">B2 never started</button>
+    <button data-bd="b3" aria-pressed="false">B3 gone quiet</button>
+    <span class="hint" id="bdnote" style="color:var(--faint)">no blocked predicate — the ADR-0267 default</span>
+  </div>
+
+  <div class="tblwrap"><table id="bdtable"></table></div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="panel">
+      <h4>B4 — “the arc is waiting on <em>you</em>”</h4>
+      <p style="font-size:13.5px;color:var(--dim);margin-top:7px">The meaning you may actually want,
+      and the only one that cannot be computed today. Around five of the twenty are sitting on an
+      owner look, an owner pick, or a spend approval — but that fact lives in prose inside the last
+      increment's outcome, not in any field.</p>
+      <p style="font-size:13.5px;color:var(--dim)">Cost: one authored value on the arc, written by
+      the session at the moment it halts. Cheap to add, but it is <b>new authored state</b>, which is
+      why I am not slipping it in as a derived predicate.</p>
+    </div>
+    <div class="panel">
+      <h4>Why <code>waiting</code> and <code>blocked</code> must stay apart</h4>
+      <p style="font-size:13.5px;color:var(--dim);margin-top:7px">D7 forbids collapsing them, and the
+      data shows why it would be tempting. Under B1, <code>verification-integrity-arc</code> becomes
+      blocked because three ADRs are <code>proposed</code> — and you can watch it leave the waiting
+      column when you press B1 above. Under B4 it would not be blocked at all: it landed a PR
+      yesterday and is moving.</p>
+      <p style="font-size:13.5px;color:var(--dim)"><b>waiting</b> = the arc needs an answer from you.
+      <b>blocked</b> = the arc cannot proceed. An arc can be neither, either, or both — which is an
+      argument for showing them as two marks rather than one column.</p>
+    </div>
+  </div>
+</section>
+
+<section id="briefing">
+  <div class="sechead"><span class="eyebrow">worked example</span>
+    <h2>What a good briefing looks like</h2></div>
+  <p class="lede">This is the fork that decides whether the surface ever has anything to show. Below
+  is the anatomy of the retired <code>oq-diff-view-altitude</code>, recovered from git — the shape
+  worth mandating.</p>
+  <div id="briefanat" style="margin-top:20px"></div>
+</section>
+
+<section id="ask">
+  <div class="sechead"><span class="eyebrow">over to you</span>
+    <h2>What I need from you</h2></div>
+  <div id="asks" style="margin-top:20px"></div>
+</section>
+
+<div class="foot">
+  Built for <code>arc-orientation-surface-arc</code> increment 2. Arc data pulled 2026-08-02 from the
+  live Cloud SQL store via <code>packages/drive/src/arc-rollup.ts</code>; the raw extract is committed
+  beside this file as <code>arc-data.json</code>. Drawer chrome uses the studio's own
+  <code>.library-drawer</code> palette from <code>apps/studio/src/index.css</code>, so the mocks are
+  judged in something close to their real setting. Read-only per ADR-0267 D6 — nothing on this page
+  writes anything, and the mocks carry no comment or answer affordance by design.
+</div>
+</div>
+
+<script>
+const DATA = {
+  "generatedAt": "2026-08-05",
+  "source": "GET /api/arcs (the increment-1 endpoint) against the live Cloud SQL store — loadArcRollups() in packages/drive/src/arc-rollup.ts, the same join behind storytree arc show",
+  "totals": {
+    "arcs": 47,
+    "active": 20,
+    "closed": 27
+  },
+  "liveOpenQuestions": [],
+  "arcs": [
+    {
+      "id": "act2-camera-choreography-arc",
+      "title": "The Act 2 regrow opens close on a growing island and pulls back to the fitted forest",
+      "description": "The Act 2 regrow has detail nobody sees.",
+      "intent": "The Act 2 regrow has detail nobody sees. Increment 1 of `act2-tree-and-plant-growth-arc` landed and\nwas owner-attested on 2026-08-03: every island's tree now walks exp-16's 19 frames off its island's\nown accretion cursor, 2,083 `parcel-flora` marks sprout from their own measured ground contacts, and\nthe art is varied per island by a seeded +/-6% scale and a mirror. At the LOOK the owner's reaction\nwas: \"from top down you dont really see detail, makes me wonder if we could optimise it\" — and then,\nin the same breath, the thing that actually resolves it: \"For the website intro i'd like the came…",
+      "endState": "The owner runs the Act 2 regrow on the real corpus at the default speed and the camera OPENS CLOSE —\nnear enough that a single island's tree reads as a tree, its trunk and branch structure and its\nseeded scale and mirror all visible — then pulls back as the forest grows, arriving fitted to the\nwhole forest as the last island lands. The detail increment 1 shipped is seen before the zoom takes\nit away. The owner stamps it under ADR-0070 stage 2.\n\nConcretely, the arc is done when all of these hold:\n\n- The camera's position and scale through a run are a PURE FUNCTION of the run's own progress\n  c…",
+      "lastLanded": null,
+      "ageDays": null,
+      "increments": [],
+      "proposals": [],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "arc-orientation-surface-arc",
+      "title": "Arcs as the map's primary orientation surface",
+      "description": "The owner returns to the map and reads where every arc is up to, what it is about, and what is next — without asking an agent to re-onboard them.",
+      "intent": "Make arcs the primary thing the owner meets on the forest map, so that returning after time away RESTORES the context an initiative needs — what it is about, where it is up to, what comes next, and which questions are waiting on the owner — instead of the owner asking an agent for a diagram and a re-onboarding briefing every time.",
+      "endState": "Closed when the owner can arrive at the map cold and, from its primary surface alone, say for any live arc what it is about, where it is up to, and what comes next — including the open questions that arc is waiting on them to answer, with enough context attached to answer them rather than merely find them. The surface distinguishes arcs that are currently running, waiting (they have open questions), and blocked, and an arc can be clicked through to read its questions. The Library remains reachable as a secondary option. The observable close condition is behavioural: the owner stops asking an …",
+      "lastLanded": "2026-08-03",
+      "ageDays": 2,
+      "increments": [
+        {
+          "date": "2026-07-29",
+          "pr": "#1020",
+          "outcome": "Increment 1 LANDED — the shape-independent infrastructure ADR-0267 owes, built so the mock round has something to render whichever UI option the owner picks. No UI, deliberately (D-not-decided: the visual design and multi-arc layout are the owner's next deliv…"
+        },
+        {
+          "date": "2026-08-03",
+          "pr": "1087",
+          "outcome": "Increment 2 LANDED — the MOCK round. Four genuinely different arc-surface options for the map's\nprimary top-drawer slot (ADR-0267 D1), each with an interaction diagram and a working visual mock,\ndelivered as a self-contained page at `docs/research/arc-surface…"
+        }
+      ],
+      "proposals": [
+        {
+          "id": "factory-floor-health-signal",
+          "title": "The arc surface makes factory-floor trouble visible, not just per-arc state",
+          "parked": "2026-08-04T11:31:55.791Z",
+          "realized": false
+        }
+      ],
+      "adrs": [
+        {
+          "number": 267,
+          "status": "accepted",
+          "title": "Arcs take the map's primary top-drawer slot, the Library becomes secondary"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "arcs-hold-increments-arc",
+      "title": "Arcs hold increments",
+      "description": "Collapse the arc's three parallel lists of work — `increments[]`, `proposals[]`, and the `plan` kind — into ONE durable, typed tier: an arc holds…",
+      "intent": "Collapse the arc's three parallel lists of work — `increments[]`, `proposals[]`, and the `plan` kind — into ONE durable, typed tier: an arc holds **increments**, and what is parked, what is running, and what landed become the same artifact at different lifecycle stages rather than three schemas that must be kept consistent by hand.\n\nThe initiative also removes the two structural reasons that tier is hard to reason about: an increment's body is five optional headings that no code distinguishes, and an increment names its stories and capabilities in prose because no pointer type exists for a wo…",
+      "endState": "`storytree arc show <id> --pg` renders ONE ordered increment list — parked, ready, active and closed entries in a single view, each closed entry carrying the landing outcome that used to be an `increments[]` row — and neither `increments[]` nor `proposals[]` remains on the arc schema.\n\nAn increment names its stories and capabilities as typed refs that RESOLVE, so \"which increments touch this capability\" is a query rather than a prose read, and an arc reaches its stories through the shared store rather than only through a scan of whichever working tree the command ran in.\n\nThe word `plan` no l…",
+      "lastLanded": "2026-08-05",
+      "ageDays": 0,
+      "increments": [
+        {
+          "date": "2026-08-04",
+          "pr": "#1142",
+          "outcome": "LANDED — the two design decisions that open the arc, docs-only (no schema or code changes).\n\nADR-0305 collapses `increments[]`, `proposals[]` and the `plan` kind into one durable tier: the kind is renamed `increment`, the lifecycle becomes `proposal / ready /…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "#1145",
+          "outcome": "LANDED — ADR-0308, the coordination half, docs-only (no schema or code changes). Closes the design pass; the arc's intent and end state were extended in the same landing to carry it.\n\nIncrements gain `dependsOn` (the arc's internals become a real DAG, not a c…"
+        },
+        {
+          "date": "2026-08-05",
+          "pr": "#1153",
+          "outcome": "LANDED — increment 1 of the sequenced fold: ADR-0305 D2/D4, the increment tier's body and status collapse. The first increment on this arc that changes schema and code rather than only documents.\n\nThe body is two fields where it was five. `KIND_SPECS.plan` is…"
+        }
+      ],
+      "proposals": [
+        {
+          "id": "structured-units-on-increments",
+          "title": "Structured units[] on an increment: order and proof route as data",
+          "parked": "2026-08-04T12:48:24.492Z",
+          "realized": false
+        },
+        {
+          "id": "increment-tier-is-addressable-at-entry-grain",
+          "title": "An increment is readable, addressable and correctable on its own",
+          "parked": "2026-08-05T03:37:29.438Z",
+          "realized": false
+        }
+      ],
+      "adrs": [
+        {
+          "number": 305,
+          "status": "accepted",
+          "title": "Arcs hold increments: one durable typed tier replaces increments, proposals and plans"
+        },
+        {
+          "number": 306,
+          "status": "accepted",
+          "title": "Typed work-hierarchy refs: increments cite stories and capabilities as resolvable pointers"
+        },
+        {
+          "number": 308,
+          "status": "accepted",
+          "title": "Increments form a DAG and carry their own claim set: depends_on for order, cites for the fence"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "chapter2-code-generated-organic-art-arc",
+      "title": "Chapter 2 organic art is generated by our own code",
+      "description": "Show the ceiling of code-generated organic art for Chapter 2: art produced by our own code rather than by an image model, with code owning the tree's skeleton…",
+      "intent": "Show the ceiling of code-generated organic art for Chapter 2: art produced by our own code rather than by an image model, with code owning the tree's skeleton, its calibrated camera and its growth over time, and a generative model demoted to supplying individual component assets and textures that the code then orchestrates (ADR-0280). The chosen technique is the hybrid — the space-colonisation skeleton, pipe-model girth and 20-degree calibrated camera of round 4's code-your-own-call, put through code-pixel-rasteriser's shading, quantisation and selective-outline finish — which generalises exp…",
+      "endState": "The owner has looked at a code-generated hero tree composited on the real app-owned SVG island at the established isometric camera, and has stated plainly whether code-generated art reaches the quality bar and whether reopening 3D is warranted. The delivered track is model-free in its skeleton, camera, growth and finish, renders deterministically from a seed at zero per-frame cost, declares its camera elevation in registration metadata calibrated to the app plate rather than chosen by taste, and guarantees topology continuity by construction — the tree at any age a strict prefix of the mature…",
+      "lastLanded": "2026-08-03",
+      "ageDays": 2,
+      "increments": [
+        {
+          "date": "2026-08-01",
+          "pr": "1065",
+          "outcome": "PR #1065 landed the arc's founding decision as design output only, with no product code change. ADR-0280 is accepted (owner-directed in conversation, ADR-0110): Chapter 2's organic art is generated by our own code, which owns the tree's skeleton, its calibrat…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1066",
+          "outcome": "PR #1066 admitted headless Blender to the pipeline as ADR-0280 D2a, owner-directed after another session called out that Blender is free and programmatically accessible. It sits behind the SAME seam the pixel rasteriser occupies — a render backend, never a ne…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1067",
+          "outcome": "PR #1067 landed the first exercise of ADR-0280 D2a as research evidence only — no product code, no candidate, no owner attestation. The owner installed Blender and asked to see what could be achieved with it; blender_tree.py drives headless Blender 5.2.0 LTS …"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1074",
+          "outcome": "PR #1074 landed the second exercise of ADR-0280 D2a and the FIRST code track ever composited on the app-owned SVG island — the gap ADR-0280 itself listed as where round-3 tracks lost points they had won on transparency. Research evidence plus the product-code…"
+        },
+        {
+          "date": "2026-08-02",
+          "pr": "1080",
+          "outcome": "PR #1080 landed the third exercise of ADR-0280 D2a, on the owner's reading of v2's honest bottom line — that the mistake was trying to render leaves, and that green clouds plus a leaves texture was the expected shape. Research evidence plus the product-code r…"
+        },
+        {
+          "date": "2026-08-02",
+          "outcome": "Blender ECOSYSTEM spike — owner-raised, and it re-scoped the arc.\n\nThe owner asked whether we hand-rolled a space-colonisation skeleton without checking what\nBlender already offers. Fair, and partly upheld: we had admitted Blender as a RENDERER\n(ADR-0280 D2a)…"
+        },
+        {
+          "date": "2026-08-03",
+          "pr": "1097",
+          "outcome": "PR #1097 landed the fourth exercise of ADR-0280 D2a, and the first aimed at defects the OWNER named\nrather than at a gap we found ourselves: ADR-0289 D2's two. Research evidence plus the product-code\nregistration that mounts it. No owner LOOK, no hero-tree se…"
+        },
+        {
+          "date": "2026-08-03",
+          "pr": "1103",
+          "outcome": "Blender hero tree v5 — the two gaps v4's README §6 named and did not claim are closed enough to\nmeasure, and the scale-convention fork is UNBLOCKED. No new decision was taken; no ADR minted.\n\nROOT FLARE was recorded as a tuning job (\"levers N_ROOT / FLARE_AMT…"
+        },
+        {
+          "date": "2026-08-03",
+          "pr": "1105",
+          "outcome": "Blender hero tree v6 — TWO PHASES: the wood extends and branches alone, then the leaves flush onto a\ntree that is already a tree. Owner-directed on looking at the v5 track, and ADR-0293 (born accepted\nunder ADR-0110, amends ADR-0289) is the decision: \"looks m…"
+        },
+        {
+          "date": "2026-08-03",
+          "pr": "1108",
+          "outcome": "Blender hero tree v7 — CROWN STRUCTURE, the one gap that survived every increment since v3, attacked\nwith the technique the OWNER supplied when he widened this arc: normals transferred from a smooth\ncrown proxy so the canopy shades as one volume rather than a…"
+        },
+        {
+          "date": "2026-08-03",
+          "pr": "#1118",
+          "outcome": "v8 — THE LOWER CROWN OPENS AND THE LIMBS READ. The arc's oldest surviving gap, carried since v3 and the only one v7 left standing, is closed: in-crown bark 206 -> 631 px against exp-16's 670 (4.4% -> 15.3% of crown against 15.7%), from 3.6x off to within 6%. …"
+        }
+      ],
+      "proposals": [
+        {
+          "id": "staging-boundary-survives-a-shape-constant-change",
+          "title": "The owner-picked staging boundary is checked, not eyeballed",
+          "parked": "2026-08-04T02:51:14.411Z",
+          "realized": false
+        }
+      ],
+      "adrs": [
+        {
+          "number": 280,
+          "status": "accepted",
+          "title": "Chapter 2 organic art is code-generated: code owns skeleton, camera and growth; models supply components"
+        },
+        {
+          "number": 289,
+          "status": "accepted",
+          "title": "The Chapter 2 growth track animates a tree FORMING, not a sapling maturing; the owned skeleton stands on measurement"
+        },
+        {
+          "number": 293,
+          "status": "accepted",
+          "title": "The Chapter 2 growth track grows the wood first and flushes the leaves after"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "chapter2-pixellab-organic-growth-arc",
+      "title": "Chapter 2 grows PixelLab trees and plants over the app-native SVG island",
+      "description": "Replace the rejected full-island PixelLab raster experiment with a layered Chapter 2 growth system: the existing app-owned SVG island and coastline remain the…",
+      "intent": "Finish Chapter 2 organic growth with the existing app-owned SVG island and coastline as the geometry, camera and land-growth substrate; retain Experiment 8's registered cutout/pose technique only for small ground plants and flowers; and resolve the hero tree through a separately selected treatment that reads as one attached organism. ADR-0274's broader coherent whole-tree PixelLab candidates remain eligible comparison evidence. The shared app continues to own semantics, progress, timing, navigation, reduced motion, sockets and painter order, while rejected canopy assemblies remain evidence ra…",
+      "endState": "A hosted real shared-app witness grows the existing SVG island and coastline app-natively at the established camera, presents a separately resolved hero tree whose trunk and canopy read as one connected organism, and grows locally versioned small plants and flowers through the retained registered cutout/pose tracks at stable app-owned ground sockets. The shared app owns semantic progress, timing, deterministic selection, navigation, replay, reduced motion, final settlement and painter order; there is no generated island, Experiment 8 cutout-trunk plus separately registered raster-canopy assem…",
+      "lastLanded": "2026-08-01",
+      "ageDays": 4,
+      "increments": [
+        {
+          "date": "2026-07-31",
+          "pr": "1040",
+          "outcome": "PR #1040 landed ADR-0274 and the corrected work hierarchy. The existing app-owned SVG island, coastline, parcel and established isometric camera are now the sole land substrate; PixelLab is limited to author-time registered hero-tree, canopy, plant, flower an…"
+        },
+        {
+          "date": "2026-07-31",
+          "pr": "#1045",
+          "outcome": "Held pose-to-pose organic-growth comparison landed in PR #1045 and is viewable on the real shared Studio at the dedicated organic-pose-to-pose Cloud Run tag. PixelLab was author-time only; 9 registered tree poses plus 5 registered plant poses ship locally wit…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "#1048",
+          "outcome": "Owner LOOK on held Experiment 5 rejected staggered socket choreography / the planting-wave composition as the Chapter 2 island-growth technique: the owner was not a fan of how the island grows in this comparison. Positive component signal is preserved — the t…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "#1047",
+          "outcome": "Owner LOOK on held Experiment 3 rejected texture-under-mask / stroke-matte reveal as the Chapter 2 organic-growth technique and ranked it least among the experiments viewed so far: the continuous mask made mature tree and plant plates read as a slowly reveale…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1046",
+          "outcome": "Owner LOOK on held Experiment 4 ranked registered key-pose blending as the strongest island-formation comparison so far, but did not accept it: the island still reads as fading in rather than growing from nothing, and the owner expects a better app-native for…"
+        },
+        {
+          "date": "2026-08-01",
+          "outcome": "Owner LOOK on held Experiment 2 (layered cutout puppet) produced a component-selective result: this comparison has the best trunk and ground-plant growth animations seen so far, and the plants animate particularly well. The complete mock is not adopted: islan…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "#1050",
+          "outcome": "Owner comparison LOOK on the held pose-to-pose witness from PR #1045, recorded in ADR-0274 by PR #1050: the tree animation is the provisional comparison leader (probably"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "#1050",
+          "outcome": "Correction to the immediately preceding truncated CLI entry for PR #1050. Owner comparison LOOK on the held pose-to-pose witness from PR #1045, recorded in ADR-0274 by PR #1050: the tree animation is the provisional comparison leader — the owner said it was p…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "#1055",
+          "outcome": "Owner LOOK on held Experiment 6, connected SVG accretion, in PR #1055 is positive: the island growth looks really good, and the plant and tree growth look good too. This is the first explicitly positive island-formation LOOK signal in the corrected ADR-0274 d…"
+        },
+        {
+          "date": "2026-08-01",
+          "outcome": "Owner LOOK on held Experiment 9, branch-emitted leaf bloom / hierarchical foliage rig, is negative: “this looks really buggy, the placement is all over the place.” The current authored socket/placement treatment fails visual coherence and is not adopted. Pres…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1054",
+          "outcome": "Owner LOOK on held Experiment 8 (PR #1054), occlusion-registered canopy sprouting, rejects the PixelLab/cutout registered-pose assembly for the hero tree. After the first review found a disconnected canopy and green blob, a targeted author-time correction rem…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "#1053",
+          "outcome": "Owner LOOK on held Experiment 7, SVG contour morph, found the island growth okay but below the current connected-SVG-accretion lead from Experiment 6, which yielded the better result. The reused pose-to-pose plant and tree growth looks decent and remains posi…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1054",
+          "outcome": "Correction to the immediately preceding Experiment 8 entry: ADR-0277 amends ADR-0274; it does not supersede the broader PixelLab-organic-track direction. The owner verdict is technique-specific: retain Experiment 8's registered cutout/pose treatment for small…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1057",
+          "outcome": "PR #1057 landed accepted ADR-0277 and the reconciled app-surface story projection. Experiment 8's cutout-trunk plus occlusion-registered raster-canopy/overlap-collar assembly is rejected for the hero tree; its registered cutout/pose technique is retained for …"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1056",
+          "outcome": "Owner LOOK on held Experiment 10 (PR #1056), registered hybrid handoff, is positive for the plant/tree composition: the mock actually"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1056",
+          "outcome": "Correction to the immediately preceding truncated CLI entry for PR #1056. Owner LOOK on held Experiment 10, registered hybrid handoff, is positive for the plant/tree composition: the mock \"actually looks quite nice.\" The exception is the initial cutout-trunk …"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1061",
+          "outcome": "Round 3 landed in PR #1061 as author-time comparison research only: eight hero-tree growth experiments over the settled island (Experiment 6 connected SVG accretion) and the ADR-0277-retained plant tracks, each adversarially re-measured. Six derive from recor…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1062",
+          "outcome": "PR #1062 landed the round-3 hosted comparison lab at ?organicGrowth=r3-lab#/tree: four hero-tree candidates (round-1 incumbent, exp-15 object-rig v3, exp-16 leader-repair, exp-18 eroded prior) switchable over ONE fixed composition - Experiment 6's connected S…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1063",
+          "outcome": "Witness-path hygiene: the ten per-experiment hosted Cloud Run witness tags were retired from the storytree-studio service at the owner's direction, superseded by the single round-3 comparison lab PR #1062 landed at ?organicGrowth=r3-lab#/tree. Retired: organi…"
+        }
+      ],
+      "proposals": [],
+      "adrs": [
+        {
+          "number": 274,
+          "status": "accepted",
+          "title": "PixelLab animates organic growth over the app-owned SVG island"
+        },
+        {
+          "number": 277,
+          "status": "accepted",
+          "title": "Occlusion-registered cutouts are retained for small plants, not the hero tree"
+        }
+      ],
+      "plans": [],
+      "stories": [
+        "app-surface"
+      ],
+      "questions": []
+    },
+    {
+      "id": "cli-write-fidelity-arc",
+      "title": "CLI write fidelity",
+      "description": "A CLI write records what the caller authored, or it refuses.",
+      "intent": "A CLI write records what the caller authored, or it refuses. Four separate defects measured in a single week share one shape: a `storytree` write path returns success while the durable record it stored differs from what the caller wrote — and the divergence is invisible unless someone deliberately reads the row back.\n\nThe four, each measured rather than reasoned about:\n\n- `library artifact retire --reason \"@<file>\"` and `library graduate park --reason \"@<file>\"` store the LITERAL `@path` string as the record. Four park records in `graduation-park.json` hold nothing but a path into a per-sessi…",
+      "endState": "A CLI write either records what the caller authored, or it refuses and says why. Success and fidelity stop being independent.\n\nThe four measured instances are closed: `@path` is expanded once at the flag-parsing boundary rather than per callsite, and an unresolvable `@` value is refused; an explicitly passed id that would be truncated is refused instead of silently sliced; `sync-corpus --pg` skips and reports a seed artifact whose latest live event is a more recent deletion; and every CLI store-write call site is mechanically checked to carry branch attribution.\n\nThe CLASS is fenced, not just…",
+      "lastLanded": "2026-08-05",
+      "ageDays": 0,
+      "increments": [
+        {
+          "date": "2026-08-05",
+          "pr": "#1152",
+          "outcome": "Increment 1 — the first work on this arc (7 parked entries, 0 increments before this). Two entries realized, both attacking the class rather than the instance.\n\nLANDED\n\n1. `declare-refuses-when-it-takes-no-claim`. `noticeboard declare` graded its verdict by w…"
+        }
+      ],
+      "proposals": [
+        {
+          "id": "cli-write-paths-carry-branch-attribution",
+          "title": "Every CLI store write path is checked to carry branch attribution",
+          "parked": "2026-08-03T12:28:34.346Z",
+          "realized": false
+        },
+        {
+          "id": "at-path-expansion-at-the-flag-boundary",
+          "title": "Expand @path at the flag boundary, and refuse an unresolvable one",
+          "parked": "2026-08-03T12:28:59.505Z",
+          "realized": true
+        },
+        {
+          "id": "scaffolder-refuses-an-id-it-would-truncate",
+          "title": "A scaffolder refuses an explicit id it would truncate",
+          "parked": "2026-08-03T12:29:19.033Z",
+          "realized": false
+        },
+        {
+          "id": "sync-corpus-skips-a-live-deletion",
+          "title": "sync-corpus skips a live deletion it would undo",
+          "parked": "2026-08-03T12:29:39.317Z",
+          "realized": false
+        },
+        {
+          "id": "realizing-an-entry-drops-the-friction-edge",
+          "title": "Realizing an entry drops its source friction edge",
+          "parked": "2026-08-03T14:46:15.950Z",
+          "realized": false
+        },
+        {
+          "id": "retired-proposal-rows-linger-in-the-seed",
+          "title": "Remove the 10 retired proposal rows from the seed",
+          "parked": "2026-08-04T07:07:17.593Z",
+          "realized": false
+        },
+        {
+          "id": "declare-refuses-when-it-takes-no-claim",
+          "title": "noticeboard declare refuses when it took no claim",
+          "parked": "2026-08-05T03:38:00.542Z",
+          "realized": true
+        }
+      ],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "context-decision-tree-arc",
+      "title": "Context decision tree — what was offered, and what the agent chose",
+      "description": "Record the branches an agent did NOT take, so a traversal draws as a decision tree instead of a containment chain.",
+      "intent": "Make an agent's context traversal legible as a sequence of DECISIONS rather than a record of reads: capture what the Library offered at each step alongside what was actually followed, so an owner watching a playback can see where a session chose one pathway over the others available to it.",
+      "endState": "A traversal playback shows decision points. At a visit that offered several onward links, the overview renders the branch the session took AND the branches it did not, so the shape on screen answers \"what else was on the table here?\" — not merely \"what did it read next?\". The distinction that closes this arc is that an unfollowed branch is visible: a tree drawn only from reads that happened is a containment chain, which the previous arc already delivers.\n\nAttribution is deterministic or absent. A followed edge is drawn only where the telemetry proves the agent answered a specific offer; where…",
+      "lastLanded": "2026-08-04",
+      "ageDays": 1,
+      "increments": [
+        {
+          "date": "2026-07-27",
+          "pr": "974",
+          "outcome": "OPENED THE ARC AND FILED ITS FORK. Owner-directed: after watching the regenerated playback (#962) the\nowner asked why a traversal renders as a chain rather than a decision tree. The honest answer is that\n`linked-session-context-arc` closed its worklist withou…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "994",
+          "outcome": "THE FORK IS SETTLED — ADR-0260 is ACCEPTED. The owner chose candidate B (\"offers carry an ID\") in\nconversation on 2026-07-27, from the four presented when the ADR was filed `proposed` earlier the same\nday. Design-time alignment IS the ratification (ADR-0110),…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "1003",
+          "outcome": "CANDIDATE SETS HAVE A PRODUCER — the arc's first BUILD increment, landing ADR-0260 D1/D2/D6/D7 and\ndeliberately not D3. `CandidateSetEvent` was defined in ADR-0235 clause 2 and had never been emitted\nby anything; a `storytree library artifact <id>` read now r…"
+        },
+        {
+          "date": "2026-07-29",
+          "pr": "1005",
+          "outcome": "THE OFFER'S IDENTITY TRAVELS, AND A READ CAN NOW SAY WHICH BRANCH IT TOOK — ADR-0260 D3/D4 built, the\narc's second build increment. `FollowedEdgeEvent` was defined in ADR-0235 clause 2 and had never been\nemitted by anything; a `storytree library artifact <id>…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1143",
+          "outcome": "THE UNFOLLOWED BRANCH IS VISIBLE — the arc's third build increment, and the surface it was opened against. New capability `decision-point-playback` (story `context-traversal-capture`), signed `--real` PASS at 7/7 contracts over a net-new file pair, plus the s…"
+        }
+      ],
+      "proposals": [],
+      "adrs": [
+        {
+          "number": 260,
+          "status": "accepted",
+          "title": "A followed edge needs an offer it can be joined to, and ordering cannot supply it"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "diagnosis-honesty-arc",
+      "title": "Diagnosis honesty — a command names its real blocker, not the substrate",
+      "description": "A storytree command reports a cause that is not the cause, or reports nothing at all, and the session pays to find the real one.",
+      "intent": "A storytree command reports a cause that is not the cause, or reports nothing at all, and the session pays to find the real one.\n\nFOUR MEASURED INSTANCES, two of which were already remedied one at a time — which is the tell that fixing the instance leaves the class open.\n\n1. An empty `STORYTREE_DB_USER` from a shell-mangled substitution surfaced as \"live store unreachable\" at the studio server, while a direct connector probe answered `SELECT 1`. Filed as `an-empty-env-var-from-a-shell-escape-reads-as-db-unreachable`, routed `tool`, DELIVERED in PR #1115 — scoped to the CLI's guards, which bra…",
+      "endState": "A command names its actual blocking precondition rather than a downstream symptom, and bounds every wait on an external dependency so that \"waiting\" and \"wedged\" are distinguishable without inspecting the process externally.\n\nONE — CREDENTIAL HYDRATION IS A PROPERTY OF THE COMPOSITION ROOT, NOT OF THE CLI. Every process that dials the live store — the CLI, the studio server in both dev and hosted mode, the desktop backend — hydrates credentials through the same composition root, and that is checked mechanically rather than remembered by the next author. The check is what closes the class; hyd…",
+      "lastLanded": null,
+      "ageDays": null,
+      "increments": [],
+      "proposals": [
+        {
+          "id": "studio-server-hydrates-secrets-like-the-cli",
+          "title": "The studio server hydrates secrets through the CLI's composition root",
+          "parked": "2026-08-05T03:39:21.079Z",
+          "realized": false
+        },
+        {
+          "id": "real-build-says-it-is-alive-and-bounds-its-waits",
+          "title": "A --real build says it is alive, and its preflight bounds its waits",
+          "parked": "2026-08-05T03:39:36.722Z",
+          "realized": false
+        }
+      ],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "directional-dag-arc",
+      "title": "The knowledge DAG is an authored dependency edge, not the citation web",
+      "description": "Give the Library a true directional, acyclic DAG via an authored standsOn edge, distinct from the cyclic citation web (ADR-0223).",
+      "intent": "Give the Library a true directional, acyclic dependency DAG built from an authored `standsOn` edge — distinct from and additive to the `references` citation web — so the tech-tree reads as a real dependency graph with honest \"stands on\" / \"stood on by\" sides, instead of a busy web whose mutual citations scramble the layout (ADR-0223).",
+      "endState": "The Library focus graph is driven by the authored `standsOn` edge, not by `references`: the knowledge schema carries `standsOn`, a fail-closed acyclicity gate rejects any cycle, the existing corpus is bootstrapped from down-tier citations and then curated, and the studio renders a directional tech-tree whose \"stands on\" and \"stood on by\" panes are literally the edge and its reverse. Citations survive unchanged as the free \"see also\" web. Closed when a member can select any artifact and see a clean, acyclic dependency DAG, and the librarian-curator maintains `standsOn` alongside `references` a…",
+      "lastLanded": null,
+      "ageDays": null,
+      "increments": [],
+      "proposals": [],
+      "adrs": [
+        {
+          "number": 223,
+          "status": "accepted",
+          "title": "The knowledge DAG is an authored standsOn edge, not the citation web"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "explorer-onboarding-arc",
+      "title": "Explorer onboarding & in-app guide",
+      "description": "Trusted devs (read-only, own Claude subscription) onboard through the desktop app: one owner-sent terminal command installs and provisions everything; the in-app guide runs on their token.",
+      "intent": "A trusted dev with read-only repo access onboards as an EXPLORER through the desktop app: one owner-sent terminal command installs the app and provisions a read-only checkout, a first-run wizard connects their own Claude subscription (the Claude path first; other agents later), and the in-app guide — powered by their token, seeing the live forest through the hosted read path — walks them through exploring the story tree, the library, and the decision log by talking to their agent.",
+      "endState": "Both target devs have completed the journey end-to-end with no owner hand-holding beyond sending the invite and the install one-liner: the command installs the desktop app and provisions a read-only checkout with prerequisites handled, the first-run wizard connects their own Claude subscription (their token, never the owner's secrets — the app only detects, never captures), the guide verifies the setup end-to-end (and repairs or escalates what it finds broken), and the guide holds its first conversation and tour on their token against the live tree. The onboarding path is the guided in-app ex…",
+      "lastLanded": "2026-07-19",
+      "ageDays": 17,
+      "increments": [
+        {
+          "date": "2026-07-17",
+          "pr": "#775",
+          "outcome": "Increment 1 LANDED: hierarchy reconcile — absorbed headless-orchestrator into app-guide (dormant chat substrate ownership); retired chat-subagent-spawn + spawn-visibility (ADR-0174/0175); pruned hostedStories.register + proof.real arms. Plan explorer-onboardi…"
+        },
+        {
+          "date": "2026-07-17",
+          "pr": "#776",
+          "outcome": "Design foundation LANDED: ADR-0207 born accepted (owner-directed) — D1 one-liner idempotent installer / D2 free-org Read + IAP identity, desktop-only v1 / D3 storytree-never-handles-Claude-credentials (dev-run setup-token fork) / D4 hosted live read day one /…"
+        },
+        {
+          "date": "2026-07-17",
+          "pr": "#781",
+          "outcome": "Owner prerequisite D2 (ADR-0207) LANDED: free-org repo transfer — `storytree` + `storytree-web` moved from the HuaMick account to the storytree-ai org. Retargeted .gitmodules, ci.yml's web-submodule clone, and the 3 infra WIF bindings (canonical names storytr…"
+        },
+        {
+          "date": "2026-07-17",
+          "pr": "#784",
+          "outcome": "Increment D1 (ADR-0207) LANDED: the Windows one-liner installer. infra/install.ps1 — idempotent `Invoke-Step` runner (git/node/pnpm/gh-cli/github-auth/clone/provision/claude-cli, then launches the desktop app from the checkout pre-D5); ASCII-only (PS 5.1 mis-…"
+        },
+        {
+          "date": "2026-07-17",
+          "pr": "#787",
+          "outcome": "Increment D6 (ADR-0207) LANDED: the bottom layer — `storytree doctor`, a read-only, offline-capable CLI (packages/cli/src/doctor.ts) that probes each explorer setup invariant (git/node/checkout-provisioned/repo-fetchable/seed-readable/claude-cli/claude-login/…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "#789",
+          "outcome": "Increment D6 TOP LAYER (ADR-0207) LANDED: the guide's repair planner core. packages/cli/src/repair-planner.ts — pure planRepairs(DoctorReport) -> ordered RepairPlan (one action per FAILing probe, in doctor's dependency order; formatRepairPlan renders it). D6 …"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "#791",
+          "outcome": "Increment D6 ESCALATION BLOB (ADR-0207) LANDED: the last machine-provable slice of D6. packages/cli/src/escalation-blob.ts — pure buildEscalationBlob(DoctorReport, {plan?}) -> secrets-redacted EscalationBlob (+ formatEscalationBlob) the dev pastes to the owne…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "#799",
+          "outcome": "Increment D6 GUIDE REPAIR-LOOP CONTROLLER LANDED: the sequencing core of ADR-0207 D6's conversational guide. packages/cli/src/guide-loop.ts — a PURE state machine (startGuide/stepGuide) composing the three landed single-shot D6 primitives (runDoctor probe -> …"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "#803",
+          "outcome": "Increment D6 ENACTABLE REPAIR LANDED: infra/install.ps1 gains `-Step <name>` single-step invocation — the missing executable link under the loop's run-installer-step directive (until now install.ps1 only ran the whole sequence, so 'repair' meant re-walking ev…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "#805",
+          "outcome": "Increment D6 GUIDE CLI LANDED — the D6 repair loop is now COMPLETE and RUNNABLE by a real dev in the terminal. packages/cli/src/guide.ts wires the finished pieces (runDoctor probe / planRepairs plan / buildEscalationBlob escalate / startGuide+stepGuide sequen…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "#807",
+          "outcome": "Increment D5 DISTRIBUTION BUCKET CODIFIED (owner-apply pending): infra/dist-bucket.tf + infra/dist-bucket.md — the public `storytree-dist` GCS bucket that serves the install script pre-auth (and later the binaries + electron-updater latest.yml feed), beside t…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "#809",
+          "outcome": "Increment D4/D6 HOSTED-READ PROBE LANDED: doctor now probes the D4 hosted live read, closing a real gap between D4 and D6 — a dev with GitHub Read but NO IAP membership grant was told 'setup is healthy' and discovered the broken live read themselves. New `hos…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "#812",
+          "outcome": "Increment D2/D4 INVITE CEREMONY RUNBOOK LANDED: infra/explorer-invite.md — the arc's 'no hand-holding beyond sending the invite' half, as ONE page. It existed only implicitly, scattered across ADR-0207 D2/D4 + studio-cloud.md + install.md, so the owner had to…"
+        },
+        {
+          "date": "2026-07-18",
+          "pr": "#817",
+          "outcome": "D5 BUCKET IS APPLIED (owner ran terraform apply) + the apply blocker was fixed. The owner's apply errored on an UNRELATED pre-existing resource — google_cloud_run_v2_service_iam_member.web_editor_deployer_run_admin 404'd because commit 4ef03938 (same day) sco…"
+        },
+        {
+          "date": "2026-07-19",
+          "pr": "#825",
+          "outcome": "D5 IS LIVE — the install one-liner works end-to-end. install.ps1 is published to the public storytree-dist bucket and `irm https://storage.googleapis.com/storytree-dist/install.ps1 | iex` is real. VERIFIED: anonymous curl returns HTTP 200 / 11041 bytes (no cr…"
+        },
+        {
+          "date": "2026-07-19",
+          "pr": "#827",
+          "outcome": "D5 COMPLETE — `check:dist-drift` closes the last weakness. The PUBLISHED object, not the repo copy, is what a fresh explorer machine downloads and EXECUTES, and publishing is a manual `gcloud storage cp`, so an edited infra/install.ps1 never reaches the bucke…"
+        }
+      ],
+      "proposals": [],
+      "adrs": [
+        {
+          "number": 207,
+          "status": "accepted",
+          "title": "Explorer onboarding v1: desktop entrypoint, dev-owned Claude auth, hosted live read, public distribution"
+        }
+      ],
+      "plans": [
+        {
+          "id": "explorer-onboarding-plan-1",
+          "title": "Explorer onboarding — build plan (inc 1: absorb headless-orchestrator into app-guide; retire chat work-spawn children)",
+          "status": "active",
+          "anchorSha": "5aef9ea6a"
+        }
+      ],
+      "stories": [
+        "app-guide"
+      ],
+      "questions": []
+    },
+    {
+      "id": "first-class-edges-arc",
+      "title": "The pathways between story nodes are first-class, addressable, claimable objects",
+      "description": "Make the pathways between story nodes first-class: give an edge an identity, an address, and a place in the claim namespace, so that the glue between two…",
+      "intent": "Make the pathways between story nodes first-class: give an edge an identity, an address, and a place in the claim namespace, so that the glue between two stories can be named, inspected, owned and claimed the same way a node can — and, before any of that is built, give the factory the instrument that can tell whether anyone actually contends on it.\n\nTHE OWNER'S DIRECTION, AND WHAT MEASUREMENT DID TO ITS JUSTIFICATION. The owner proposed this on 2026-08-05: \"i was thinking that the pathways/edges between story nodes probably needs to behave like a its own node that can be claimed\". The structu…",
+      "endState": "An edge between two story nodes is a first-class object: it has a stable derived address, it can be listed and inspected from the CLI, it resolves in a TYPED claim namespace that refuses ids naming nothing, and a session holding it is visible on the map along the trail the edge already draws. The factory can answer coordination questions from the audit log instead of from a one-shot script.\n\nClosed when all four hold:\n\n1. THE INSTRUMENT EXISTS. `events.claim_event` has a read verb. Any session can ask what actually happened on the ledger — the transition history for a unit, the refusals, who …",
+      "lastLanded": null,
+      "ageDays": null,
+      "increments": [],
+      "proposals": [
+        {
+          "id": "claim-audit-log-read-verb",
+          "title": "A read verb over events.claim_event — the missing instrument (increment 1)",
+          "parked": "2026-08-05T11:41:10.325Z",
+          "realized": false
+        },
+        {
+          "id": "typed-resolvable-claim-namespace",
+          "title": "A claim names a KIND and resolves, or it is refused (increment 2)",
+          "parked": "2026-08-05T11:41:41.081Z",
+          "realized": false
+        },
+        {
+          "id": "edges-become-addressable",
+          "title": "An edge gets a derived address and becomes a claimable kind (increment 3)",
+          "parked": "2026-08-05T11:42:07.956Z",
+          "realized": false
+        },
+        {
+          "id": "edge-claim-renders-on-its-trail",
+          "title": "The map shows a session holding an edge, without colliding with the selection lane (increment 4)",
+          "parked": "2026-08-05T11:42:37.306Z",
+          "realized": false
+        }
+      ],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "foreign-project-forest-arc",
+      "title": "Forests for other projects",
+      "description": "A storytree instance grows and proves a work tree for a repo that is not storytree.",
+      "intent": "Make storytree grow a forest for a project that is not storytree — a fresh tree, or one mapped from a brownfield repo — so the product builds the user's software instead of only its own.",
+      "endState": "Closed when a developer can point storytree at a repo that is not storytree, obtain a tree for it — grown fresh or mapped from what is already there — and drive that tree to a signed green through the prove-it-gate running that project's own proof commands, with no storytree checkout, no storytree ADR numbering, and no credential on storytree infrastructure anywhere in the loop.",
+      "lastLanded": "2026-07-28",
+      "ageDays": 8,
+      "increments": [
+        {
+          "date": "2026-07-26",
+          "pr": "931",
+          "outcome": "Arc chartered. ADR-0246 lifts ADR-0133 D5's deferral (\"No work is scoped to it here\") and records the boundary against distribution-posture-arc: that arc owns the DEPLOYMENT (packaging, the createPool cloudsql-iam|local mode fork, the seed split, the D4 updat…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "977",
+          "outcome": "Increment 1 LANDED — the repo root is a parameter, not a derivation. New pure `resolveRepoRoot` + `REPO_ROOT_ENV` (\"STORYTREE_REPO_ROOT\") in the `@storytree/library` ROOT barrel, precedence explicit > env > module-derived; blank/whitespace reads as unset (an …"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "984",
+          "outcome": "Increment 2 LANDED — the repo root is DRIVABLE, not just declared. Inc 1 made it a parameter; the only thing that could SET it was STORYTREE_REPO_ROOT, which is the wrong granularity for any caller that is not a shell (the desktop backend, the studio worker, …"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "986",
+          "outcome": "Increment 2 CURATION (the librarian pass, landed separately because automerge took #984 in ~4 min — faster than the pass could finish; the ceremony puts the pass BEFORE the merge, which in practice means before opening the PR). Two in-place ADR-0246 correctio…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "992",
+          "outcome": "Fork (a) SETTLED by the owner — ADR-0261 accepted (owner-directed, ADR-0110). Fresh-tree authoring (a1) is the arc's first user: a developer points storytree at their own repo and AUTHORS a story/capability/contract hierarchy for it, driven to a signed green …"
+        }
+      ],
+      "proposals": [],
+      "adrs": [
+        {
+          "number": 246,
+          "status": "accepted",
+          "title": "Forests for other projects: the ADR-0133 deferral is lifted and scoped as its own arc"
+        },
+        {
+          "number": 259,
+          "status": "accepted",
+          "title": "Every client reaches the store through an HTTP front door; direct pg is a server-side privilege"
+        },
+        {
+          "number": 261,
+          "status": "accepted",
+          "title": "Fork (a) settled: fresh-tree authoring is the foreign forest's first user; brownfield mapping becomes its own arc"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "gate-machinery-audit-arc",
+      "title": "Gate machinery audit — delete by default, re-add on evidence",
+      "description": "Audit all 25 gate rungs with an inverted burden of proof: a rung justifies its own existence or is deleted.",
+      "intent": "**The intent.** Audit every rung of `pnpm gate` with a standing bias to DELETE, and shrink the policy machinery an agent has to hold in its head. Owner-directed 2026-08-04, verbatim: \"I'd want to get rid of all the unnecessary policy machinery… bloat is asking for AI to get confused and cause sessions to drift, if it turns out we need it we can always re add it.\" The owner then directed this be its own arc rather than an increment of `session-decoupling-arc`.\n\nTHE BURDEN OF PROOF IS INVERTED, AND THAT IS THE DECISION. Normally a session must justify removing a check. Here a RUNG MUST JUSTIFY …",
+      "endState": "Every rung of `pnpm gate` either carries a written, current reason to exist or is gone, and the rung count has FALLEN.\n\nONE — EVERY SURVIVING RUNG IS JUSTIFIED IN WRITING. For each rung kept, a one-paragraph record states what it catches, an instance of it actually catching that, and what would ship without it. A rung that cannot produce an instance is deleted rather than kept on the argument that it might one day fire. The justifications live where a session will actually meet them, not in this arc.\n\nTWO — EVERY RUNG IS CLASSIFIED BEFORE IT IS JUDGED. Each is labelled either FACTORY BOOKKEEP…",
+      "lastLanded": null,
+      "ageDays": null,
+      "increments": [],
+      "proposals": [],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "remote-session-access-arc",
+      "title": "Remote sessions reach the live store",
+      "description": "Give a remote session (Claude Code on the web) working read access to the live library.",
+      "intent": "Give a remote session (Claude Code on the web) working read access to the live library. Owner-directed 2026-08-04, in the session that landed the store door: \"claudecode remote shouldnt be in scope for this, the focus really should be on moving the hot surfaces to the db\" — and, on priority, \"its not a priority, its only a nice to have atm\". This arc EXISTS TO HOLD THAT WORK OUT OF `session-decoupling-arc`, which was being distorted by it.\n\nREAD THIS FIRST, BECAUSE IT IS THE MOST EXPENSIVE THING TO GET WRONG: THE DOOR IS ALREADY BUILT, DEPLOYED AND PROVED. Do NOT rebuild it. PR #1140 (2026-08…",
+      "endState": "A session running on Claude Code for the web can run the Library READ commands against the live store — `storytree library`, `storytree library artifact <id>`, `storytree arc show`, the tree and noticeboard reads — and see exactly what a laptop session sees under `--pg`, with no Cloud SQL connector anywhere in the loop.\n\nThe concrete test, and it is a measurement rather than a review: from a remote session, `storytree library artifact <a-live-only-artifact>` returns the artifact. Today that command answers \"no artifact\" for anything not in the committed seed, and once `session-decoupling-arc`…",
+      "lastLanded": null,
+      "ageDays": null,
+      "increments": [],
+      "proposals": [
+        {
+          "id": "remote-session-door-credential",
+          "title": "Settle the OIDC-issuer probe, then pick the credential (owner-gated)",
+          "parked": "2026-08-04T12:35:08.290Z",
+          "realized": false
+        }
+      ],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "session-decoupling-arc",
+      "title": "Decoupling — a session stops paying for another session's landing",
+      "description": "Sessions stop paying for each other's landings: the coupling is the shared substrate, not the story nodes.",
+      "intent": "**The intent.** Stop sessions paying for each other's landings. Owner-directed 2026-08-04, in the design conversation that followed ADR-0300: \"i'm working full time, so in the morning or at night i will burst approvals on lots of parallel work pieces, while i'm at work it all churns in the background… what we need is some sort of work queue and a way for the system to have a birds eye view\" — refined, on measurement, to \"i'm more after the system having its own co-ordination layer/guard rails\", and then to \"we go all in on on-line and drop the need for offline work, db online or nothing.\"\n\nTH…",
+      "endState": "A session's cost no longer scales with how many siblings landed while it worked. Four things are true, and the arc closes on a MEASUREMENT, not on the four having shipped.\n\nONE — ONLINE OR NOTHING. The live Postgres store is the only source of truth for the library tier, and no committed file mirrors it. `apps/studio/data/knowledge.json` is no longer a per-commit repo surface (it becomes a generated artifact or a per-release snapshot, never a file every session rewrites), and the same holds for the other generated projections of live state — CLAUDE.md, AGENTS.md and the harness-native agent v…",
+      "lastLanded": "2026-08-05",
+      "ageDays": 0,
+      "increments": [
+        {
+          "date": "2026-08-04",
+          "pr": "1137",
+          "outcome": "Increment 1 LANDED — PR #1137. The arc is chartered and its three decisions are accepted. NO CODE CHANGED; this is a decision-only landing, and none of the five parked entries is built.\n\nWHAT THE MEASUREMENT ADDED TO ADR-0300, and why it redirected the design…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1138",
+          "outcome": "Increment 2 LANDED — PR #1138. Parked entry `escalation-lands-state-and-releases-claims` REALIZED: ADR-0303 is now encoded in the two guidance surfaces that carry session lifecycle. This is a guidance-only landing — no runtime code changed, and none of the ot…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1140",
+          "outcome": "Increment 2 LANDED — PR #1140. The store door is BUILT, WIRED and PROVED. The parked entry `httpstore-lands-before-offline-drops` is deliberately NOT marked realized, and that is the most important line in this entry: the ORDERING FENCE IS ONLY HALF DISCHARGE…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1139",
+          "outcome": "Increment 2 LANDED — the parked entry `affected-scoped-gate-and-merge-queue` is realized. ADR-0304 D1/D2 are BUILT; D3 is wired but INERT pending one owner repo-setting flip.\n\nWHAT SHIPPED, D BY D.\n\nD1/D2 — THE LOCAL GATE NOW MEASURES WHAT THE CHANGE AFFECTS.…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1141",
+          "outcome": "Increment 2 FOLLOW-UP LANDED — PR #1141, repairing a regression #1139 introduced two hours earlier. No parked entry changes state; `affected-scoped-gate-and-merge-queue` stays realized.\n\nWHAT BROKE AND WHY IT MATTERED. #1139's merge-queue guard read back whet…"
+        },
+        {
+          "date": "2026-08-04",
+          "outcome": "Increment 3 — the seed-decommit prerequisites are cleared, and the arc's SCOPE and ORDERING both changed. No build work; this is a decision + guidance landing, and it exists so the next sessions start from the corrected picture rather than the one increments …"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1144",
+          "outcome": "Increment 4 LANDED — PR #1144. Increment 3 recorded this work's INTENT before it landed and carries no PR ref; this is the landing, and it adds one finding increment 3 could not have known.\n\nTHE GATE FOUND SCOPE THE DESIGN MISSED, and it is the most useful th…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1146",
+          "outcome": "Increment 5 LANDED — PR #1146. The parked entry `db-247-and-ci-database-credentials` is REALIZED: ADR-0302 **D2 and D3 are both built**, in that order and in one PR. This is the first two links of D2 → D3 → D1 → D4, and it unblocks D1 and D4 — subject to two …"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1146",
+          "outcome": "Increment 5 FOLLOW-UP — the two owner-run steps are now APPLIED and VERIFIED. Increment 5 recorded them as pending; that is no longer true, and this entry supersedes that line. No code changed; this is an infrastructure landing.\n\n**BOTH RAN AGAINST A STALE CH…"
+        },
+        {
+          "date": "2026-08-05",
+          "pr": "1147",
+          "outcome": "Increment 7 LANDED — PR #1147. **ADR-0302 D3 is now FULLY ARMED**, and this closes the one line increment 6 left open. The two live-store gate rungs no longer merely RUN in CI; they GATE. Nothing about D1 or D4 changed.\n\nWHAT WAS WRONG. Both rungs were fail-c…"
+        },
+        {
+          "date": "2026-08-05",
+          "pr": "1148",
+          "outcome": "Increment 6 LANDED — PR #1148. **ADR-0302 D4 in FULL, ADR-0307 in full, and ADR-0302 D1 in PART.** The parked entry `decommit-the-seed-and-delete-mirror-machinery` is deliberately NOT marked realized, and that is the most important line here: the mirror MACHI…"
+        },
+        {
+          "date": "2026-08-05",
+          "pr": "1149",
+          "outcome": "**ADR-0307 D5 COMPLETE — the `uat-criterion` detail tier is live-canonical and `apps/studio/data/seed-kinds/` is deleted.** This was a MIGRATION first: all 70 committed detail bodies were carried into the live store before anything was removed, so nothing was…"
+        },
+        {
+          "date": "2026-08-05",
+          "pr": "1151",
+          "outcome": "Increment 8 LANDED — PR #1151. **ADR-0302 D1 is COMPLETE.** `apps/studio/data/knowledge.json` is DELETED, and every reader of it is re-homed. Increment 6 landed D1's churn half and named the readers as the honest remainder; this is that remainder, and nothing…"
+        },
+        {
+          "date": "2026-08-05",
+          "pr": "1151",
+          "outcome": "Increment 8 FOLLOW-UP, same PR #1151 — recorded separately because it was found AFTER the entry above was written, and it is the most transferable thing this increment produced. The landing is unchanged; what follows is a defect the local gate structurally co…"
+        }
+      ],
+      "proposals": [
+        {
+          "id": "httpstore-lands-before-offline-drops",
+          "title": "Deploy HttpStore before offline support is dropped (ORDERING FENCE)",
+          "parked": "2026-08-04T07:11:55.065Z",
+          "realized": true
+        },
+        {
+          "id": "db-247-and-ci-database-credentials",
+          "title": "Cloud SQL 24/7 and a CI database credential",
+          "parked": "2026-08-04T07:12:05.189Z",
+          "realized": true
+        },
+        {
+          "id": "decommit-the-seed-and-delete-mirror-machinery",
+          "title": "The seed stops being a committed file, and the mirror machinery goes with it",
+          "parked": "2026-08-04T07:12:33.734Z",
+          "realized": true
+        },
+        {
+          "id": "escalation-lands-state-and-releases-claims",
+          "title": "A blocked session lands its state on the arc and releases its claims",
+          "parked": "2026-08-04T07:12:43.690Z",
+          "realized": true
+        },
+        {
+          "id": "affected-scoped-gate-and-merge-queue",
+          "title": "The local gate scopes to affected packages, and a merge queue does the rebasing",
+          "parked": "2026-08-04T07:12:53.544Z",
+          "realized": true
+        },
+        {
+          "id": "claim-grain-is-a-fourth-coupling-channel",
+          "title": "The claim ledger is a fourth coupling channel: arc-grain claims serialise disjoint work",
+          "parked": "2026-08-04T10:41:51.973Z",
+          "realized": false
+        },
+        {
+          "id": "remote-session-door-credential",
+          "title": "The credential a remote session presents to the store door (owner-gated)",
+          "parked": "2026-08-04T11:28:33.445Z",
+          "realized": false
+        }
+      ],
+      "adrs": [
+        {
+          "number": 302,
+          "status": "accepted",
+          "title": "Online or nothing: the live store is the only source of truth and offline support is dropped"
+        },
+        {
+          "number": 303,
+          "status": "accepted",
+          "title": "An escalation is a landing event: a blocked session lands its state and releases its claims"
+        },
+        {
+          "number": 304,
+          "status": "accepted",
+          "title": "The gate measures what a change affects, and the queue does the rebasing"
+        },
+        {
+          "number": 307,
+          "status": "accepted",
+          "title": "The agent tier goes live-canonical: the committed seed stops being an authoring surface"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "session-isolation-arc",
+      "title": "Session isolation — the write-authority wall",
+      "description": "Concurrent sessions are made structurally unable to collide: a repository write requires a claim, and the wall enforcing it is inescapable by the agent it binds.",
+      "intent": "Make concurrent sessions structurally unable to collide — a repository write requires a held claim, the wall enforcing it is one the bound agent cannot disable or approve around, and a session reaching into a shared checkout is refused rather than trusted.\n",
+      "endState": "The shared primary checkout is not a workspace: no agent session treats it as one, and a write into\nit is refused by an authority boundary rather than by prompt guidance. When a collision is attempted,\nthe signal that follows reports the refusal instead of reporting success.\n\nAMENDED 2026-08-02 by ADR-0284 D1, on owner direction. This end state used to read \"a session in any\nsupported harness cannot write into a checkout it holds no claim on\" and to require proof \"under\nconcurrent load on both supported desktop surfaces\". Both are withdrawn. Session isolation means the\nLOBBY IS NOT A WORKSPAC…",
+      "lastLanded": "2026-08-03",
+      "ageDays": 2,
+      "increments": [
+        {
+          "date": "2026-07-29",
+          "pr": "#1001",
+          "outcome": "LANDED — the decision layer of the wall, and the decision behind it.\n\nADR-0257 accepted (owner-ratified 2026-07-28 alongside the five-day friction report). Its `amends: [255]` edge now binds and is recorded in place on ADR-0255: D1 narrowed to SHARED checkout…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1072",
+          "outcome": "LANDED — the wall is INSTALLED and SWITCHED OFF. Increment 1 built the decision and installed it nowhere; this wires it into the real write path as two layers, shipped inert.\n\nBuilt: `packages/drive/src/write-authority-receipt.ts` (the ADR-0257 D5 claim recei…"
+        },
+        {
+          "date": "2026-08-02",
+          "pr": "1076",
+          "outcome": "LANDED — the flip. The wall is ENFORCING, but only its LOBBY half; the arc's founding hazard (worktree-to-worktree) is still open.\n\nOwner confirmed a drained fleet before this landed (measured: zero live claims on the ledger, against 38-of-39 unclaimed on 08-…"
+        },
+        {
+          "date": "2026-08-02",
+          "pr": "1081",
+          "outcome": "LANDED — the semantic half is RETIRED, not finished. The arc's founding hazard is DE-SCOPED by owner decision, and this increment is the reversal of increment 3's direction.\n\nThe session was cut to register the PreToolUse hook — the one command left in increm…"
+        },
+        {
+          "date": "2026-08-02",
+          "pr": "1086",
+          "outcome": "THE GATE-TIME LOBBY ARM NOW COVERS EVERY SESSION — the narrowness this arc recorded in increment 4 is CLOSED, and that increment's closing sentence (\"ADR-0245 D5.2's gate-time lobby arm is far narrower than either ADR describes — in check-declared.ts it is re…"
+        },
+        {
+          "date": "2026-08-03",
+          "pr": "1094",
+          "outcome": "ADR-0284's KNOWN-HOLES LIST IS NOW FULLY DISCHARGED — and increment 5's closing sentence no longer describes the code. That sentence (\"ADR-0284's remaining known holes are unchanged: web/ is indexed as a file so its tree stays writable in the lobby, and the l…"
+        }
+      ],
+      "proposals": [
+        {
+          "id": "session-identity-from-any-linked-worktree",
+          "title": "Session identity derives from any git-registered linked worktree",
+          "parked": "2026-08-03T12:30:00.246Z",
+          "realized": true
+        }
+      ],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "session-staleness-arc",
+      "title": "Session staleness — a session is told its picture is stale",
+      "description": "Make a concurrent session's STALENESS a thing the system tells it, rather than a thing it discovers by spending.",
+      "intent": "Make a concurrent session's STALENESS a thing the system tells it, rather than a thing it discovers by spending. Owner-commissioned 2026-08-03 after halting most of the factory: \"felt like there was session sprawl and the system was thrashing… I suspect we didn't land something that was needed and the other sessions blocked up and got confused.\"\n\nThe survey confirmed the thrashing and located its mechanism, which is NOT the one the halt suspected. Measured across 2026-08-02/03: 44 PRs merged in ~2 days, peak 7 in one hour, with 40 `merge origin/main into <branch>` re-syncs against those 44 la…",
+      "endState": "A session is TOLD it is stale, at the moment it would otherwise pay to discover it, on each of the three measured paths.\n\nONE — a write refused because the STORED document carries a field this checkout's schema does not know is diagnosed as SCHEMA SKEW rather than as a bad field. The refusal names the cause, prints the merge remedy, and explicitly refuses the destructive workaround (stripping the key, which would persist the stripped doc back over another session's landed work). Charged by AUTHORSHIP against the doc as read from the store, the same move ADR-0290 made for `check:corpus-content…",
+      "lastLanded": "2026-08-03",
+      "ageDays": 2,
+      "increments": [
+        {
+          "date": "2026-08-03",
+          "pr": "1131",
+          "outcome": "Increment 1 LANDED — PR #1131. The two standing gate reds are cleared and ADR-0300 D1 is built; the arc's end-state item ONE is met, items TWO and THREE are not.\n\nBOTH REDS WERE LOCAL-ONLY AND CAUSED BY NO BRANCH, which is why they survived a day of merges. (…"
+        }
+      ],
+      "proposals": [],
+      "adrs": [
+        {
+          "number": 300,
+          "status": "accepted",
+          "title": "Staleness is diagnosed for the session, not discovered by it"
+        }
+      ],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "uat-journey-surgery-arc",
+      "title": "Story UAT is a journey — the ADR-0294 criteria surgery",
+      "description": "`asset:uat` defines a UAT as a prose journey run end-to-end against real collaborators, and says explicitly that capabilities get integration tests and…",
+      "intent": "`asset:uat` defines a UAT as a prose journey run end-to-end against real collaborators, and says explicitly that capabilities get integration tests and contracts get isolated unit tests, not UATs. The corpus drifted a long way from that definition on both witness kinds.\n\nMeasured against `origin/main` @ `7ef1e55` on 2026-08-03 by parsing every `stories/*/story.md` with the live `@storytree/library` parser: **282 criteria across 40 stories** — about 7 per story, which is a specification, not a walkthrough. Of the 133 bound machine legs, **100 run `pnpm --filter <pkg> test`** — a single package…",
+      "endState": "Every story's `## UAT Test Criteria` section reads as a narratable journey through a real surface, and the corpus total sits at roughly **60 criteria** (ADR-0294 D5 — a number that FALLS OUT of applying the decisions, recorded so a later drift back toward ~7 per story is visible as drift rather than growth; it is not a quota to hit mechanically, and the `studio` story's 13 consecutive Playwright-driven steps are D1's REFERENCE SHAPE and must survive intact rather than be cut to reach it).\n\nConcretely, closed means:\n\n1. **Every deletion names the lower-tier node that already proves it** — in t…",
+      "lastLanded": "2026-08-03",
+      "ageDays": 2,
+      "increments": [
+        {
+          "date": "2026-08-03",
+          "pr": "1110",
+          "outcome": "**The design increment — ADR-0294 and ADR-0295 landed together**, both owner-directed in conversation on 2026-08-03 (ADR-0110: design-time alignment IS the ratification). Recorded retroactively; this arc was created after the fact, on 2026-08-03, when the wor…"
+        },
+        {
+          "date": "2026-08-03",
+          "pr": "1120",
+          "outcome": "**Increment 1 — the proof/spine cluster: 26 criteria -> 6.** Corpus **282 -> 262** (268 -> 248 non-aspirational). Recorded retroactively when this arc was created.\n\nThe ADR's baseline was re-derived against the branch with the live parser before anything was …"
+        }
+      ],
+      "proposals": [
+        {
+          "id": "inc3-studio-library-cluster",
+          "title": "Increment 3 — the studio + library cluster (11 stories)",
+          "parked": "2026-08-03T13:32:37.014Z",
+          "realized": false
+        }
+      ],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    },
+    {
+      "id": "verification-integrity-arc",
+      "title": "Verification integrity — guard the proofs, not just the code",
+      "description": "Keep the proof machinery trustworthy as the codebase grows, because the measured debt is in the verification layer rather than the code.",
+      "intent": "Make storytree's verification layer as trustworthy as the code it judges. A four-instrument audit of the 60k-LOC codebase on 2026-07-26 found essentially no code slop — zero `any`/`as any`/`@ts-ignore` across 67k production lines, 0.6% dead exports, 1.2% of logic-role code untested, and cross-package commit fan-out DECLINING over 1,357 commits — but found every serious defect in the proof layer instead: a demonstrated path to a signed `pass` verdict for a proof that executed zero assertions, a shipped 'proof' that only greps source for an import string, and mirror surfaces that must agree wit…",
+      "endState": "The gate cannot be made to sign a verdict it did not observe. Every observation the spine trusts carries enough identity that a missing observation is distinguishable from a stale one, and the fail-closed behaviour the proof machinery documents about itself is the behaviour it actually has — verified by a regression test that exercises the real multi-observation sequence rather than a single call.\n\nThe recurring failure CLASS is fenced by durable Library guardrails, not by one-off fixes: a proof that cannot fail is not a proof; any two surfaces required to agree are gated by a test that compa…",
+      "lastLanded": "2026-08-04",
+      "ageDays": 1,
+      "increments": [
+        {
+          "date": "2026-07-26",
+          "pr": "936",
+          "outcome": "**Increment 1 — LANDED. The demonstrated signed-verdict forgery in the ADR-0211 assert-oracle protocol is closed; ADR-0249 records the re-decision.**\n\nThe defect was not that ADR-0211's floor was low — it admitted that honestly. It was that the layer **invert…"
+        },
+        {
+          "date": "2026-07-26",
+          "pr": "939",
+          "outcome": "**Increment 2 — the OPEN OWNER FORK is SETTLED. ADR-0252 records the detection pass's trigger and shape; the arc's last named blocker to close is gone. No code shipped — this increment is a decision.**\n\nThe charter said the trigger and shape were undecided an…"
+        },
+        {
+          "date": "2026-07-26",
+          "pr": "940",
+          "outcome": "**Increment 2 — LANDED. The mirror-drift class is fenced by a gate that compares the two surfaces; the demonstrated `/api/docs` drift is closed. ADR-0251 records the decision.**\n\nThe defect was ordinary; its INVISIBILITY was the finding. `apps/desktop/src/bac…"
+        },
+        {
+          "date": "2026-07-26",
+          "pr": "940",
+          "outcome": "**Correction to the entry above (PR 940) — two claims in it were overtaken between drafting and appending, by a sibling session landing PR 939 concurrently.**\n\nThe log is append-only, so the correction is an entry rather than an edit.\n\n1. **NUMBERING.** Two e…"
+        },
+        {
+          "date": "2026-07-26",
+          "pr": "#947",
+          "outcome": "Repaired the audit-confirmed binding-staleness hierarchy mismatch: boundhash-on-verdict, change-event-store, and source-drift now parse as capabilities matching the declared story capability list; focused loader/typecheck/prove-spec tests passed."
+        },
+        {
+          "date": "2026-07-26",
+          "pr": "946",
+          "outcome": "Increment — LANDED. The proof-binding-integrity hierarchy now defines an exhaustive evidence-or-refusal contract for every machine UAT leg, a complete corpus-audit successor, and a runtime projection explicitly held behind the active website-experience UI sou…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "#948",
+          "outcome": "Landed proof-binding outcome contract at 9553de51: a machine-leg resolver result now adapts exhaustively to literal observe-gate evidence or a stable non-runnable refusal; exact command and display-only adoption invocation are preserved, with no fallback sele…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "949",
+          "outcome": "**LANDED — the first instrument of ADR-0252's continuous mechanical half. `pnpm check:verification-decay` sweeps for contract-binding drift and carries the D3 drain ceiling; 5 units are bound to proof targets that no longer exist. Implementation of an already…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "950",
+          "outcome": "LANDED — PR #950 added the read-only machine-leg binding corpus audit. It emits exactly one source-provenance-bearing, deterministically ordered evidence-or-refusal row for every parsed explicit machine UAT leg; human/either legs are excluded, literal observe…"
+        },
+        {
+          "date": "2026-07-26",
+          "outcome": "LANDED — ADR-0252 D4 now has the live Library process `verification-decay-detection`. It requires every cheap signal to remain a region locator until a fresh, independent adversarial session begins from REFUTED and establishes a concrete inputs → wrong-outcom…"
+        },
+        {
+          "date": "2026-07-27",
+          "outcome": "Added four live-canonical verification guardrails: non-failing oracle proofs are not proof; unattributable observations are not evidence; required agreeing surfaces are conformance-gated; advisory lists stay bounded/readable or fail closed. Export to seed is …"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "955",
+          "outcome": "**LANDED — ADR-0252 D1's warn-escalation backstop now exists in `check:verification-decay`. A signal can cross a line and force the deep adversarial pass, independently of the D3 drain ceiling and unclearable by it. Implementation of an already-settled decisi…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "956",
+          "outcome": "**LANDED — the SECOND of ADR-0252 D1's four cheap instruments. `check:verification-decay` now sweeps for `mirror-pair-drift`; chartered coverage moves 1/4 → 2/4. And the drain ceiling SPLIT per instrument, because building the second instrument is what expose…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "959",
+          "outcome": "**RESIDUE OF THE PR #956 LANDING, not a new increment — and it closes the guardrail thread this arc has carried since increment 1.**\n\n**THE HELD GUARDRAIL REACHED TWO CONSUMERS AND LANDED — as a PATTERN, not a guardrail.** The held wording was *a backstop's d…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "963",
+          "outcome": "**LANDED — the THIRD of ADR-0252 D1's four cheap instruments. `check:verification-decay` now sweeps for `vacuous-proof`; chartered coverage moves 2/4 → 3/4. Implementation of an already-settled decision — no new ADR.**\n\n**THE PREMISE WAS VERIFIED FIRST, and i…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "965",
+          "outcome": "**LANDED — the FOURTH and LAST of ADR-0252 D1's chartered cheap instruments. `check:verification-decay` now sweeps for `warn-list-hygiene`; chartered coverage moves 3/4 → 4/4 and the `NOT swept` line is gone from every run. ADR-0252 D1's instrument charter is…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "970",
+          "outcome": "**ADR-0252 D1's deferral-keyed escalation lines are SETTLED — decided against, not deferred (ADR-0256, `proposed`).** The last structural gap in the arc's continuous-detection machinery is closed as a decision rather than as a build. Both candidate lines — a …"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "973",
+          "outcome": "**The FIRST of `warn-list-hygiene`'s six located worklists is bounded: `check:graduation-worklist` is now fail-closed at a drain ceiling.** `warn-list-hygiene` 6 → 5 located (total 28 → 27), its ceiling tightened to match; every instrument still within its ow…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "978",
+          "outcome": "Bounded `check:surface-coverage` at a two-axis drain ceiling — the SECOND of the six worklists the\n`warn-list-hygiene` instrument locates, after `check:graduation-worklist` (#973). The instrument now\nreads 4 located / ceiling 4; total 26 signals across 4 inst…"
+        },
+        {
+          "date": "2026-07-27",
+          "pr": "980",
+          "outcome": "**ADR-0256 ACCEPTED — owner-ratified 2026-07-27, and the status propagated through every consumer.** The owner ratified in conversation (\"accept ADR-0256\"), which IS the ratification under ADR-0110. The `## Status` prose was rewritten rather than the frontmat…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "985",
+          "outcome": "DRAINED `check:surface-coverage` to a CLEAN bijection and TIGHTENED its orphan ceiling 1 → 0 in the\nsame unit — the obligation the previous increment (#978) created when it baselined R=1 at exactly one\nun-drained item. This is the first of the six `warn-list-…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "988",
+          "outcome": "BOUNDED `check:corpus-content` at a two-axis drain ceiling and tightened `WARN_LIST_HYGIENE` 4 → 3 —\nthe third of the six worklists bounded under that instrument, and the first whose SUBSTRATE GUARD had\nto be built in the opposite direction to the worked exam…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "#991",
+          "outcome": "`check:coverage` — the fourth `warn-list-hygiene` worklist — is BOUNDED at a two-axis drain ceiling\n(`packages/cli/src/coverage-drain.ts`), and `WARN_LIST_HYGIENE` drops 3 → 2. It is the list ADR-0252\nitself names as this instrument's live counter-example (\"`…"
+        },
+        {
+          "date": "2026-07-29",
+          "pr": "996",
+          "outcome": "**LANDED — the friction report's headline question is answered with measurement, and answered NO. `check:coverage` stays name-granular; the clause segmenter is REFUSED rather than deferred. ADR-0262 (`proposed`) records the fork that would make clause coverag…"
+        },
+        {
+          "date": "2026-07-28",
+          "pr": "998",
+          "outcome": "Bounded the LAST TWO `warn-list-hygiene` worklists — `check:agents-sync` and `check:corpus-sync` — at\nzero drain ceilings (`packages/cli/src/sync-drain.ts`). The instrument now locates NOTHING and\n`WARN_LIST_HYGIENE` drops 2 → 0: the first of ADR-0252 D1's fo…"
+        },
+        {
+          "date": "2026-07-30",
+          "pr": "#1018",
+          "outcome": "Guidance-curator executed the three `principle` routes and consolidated FIVE friction items into TWO additions rather than five artifacts. NEW `principle:price-the-deferral` merges `an-unmeasured-risk-in-a-checks-own-prose-...` and `a-false-positive-clause-th…"
+        },
+        {
+          "date": "2026-07-30",
+          "pr": "1022",
+          "outcome": "**Increment 25 — LANDED. The mirror registry gains its second row, and the decay sweep is corrected to measure the population it guards.**\n\nExecutes the `tool` route for `friction-unfenced-cross-surface-mirrors`. Two pieces, and they are NOT interchangeable —…"
+        },
+        {
+          "date": "2026-07-30",
+          "pr": "1024",
+          "outcome": "ADR-0270 resolved and landed (owner picked option b, capability grain, in conversation — ADR-0110): the claim ledger's false rows are retired. D3 code: a waiting claim renders no queue position when no work claim is held (the 'position 1 of 1 behind nobody' f…"
+        },
+        {
+          "date": "2026-08-01",
+          "pr": "1060",
+          "outcome": "LANDED — the fifth verification-decay instrument, owner-ratified. ADR-0278 amends ADR-0252 D1's four-instrument charter; `unproven-seam-default` locates injected IO seams whose default implementation no test exercises, and `chartered coverage` now reads 5/5. …"
+        },
+        {
+          "date": "2026-08-03",
+          "outcome": "HALTED by owner (session-sprawl stand-down) after measurement, before the repair landed. Nothing committed; no PR.\n\nMEASURED, so the next session need not re-derive it: `check:verification-decay`'s `unproven-seam-default` breach on main (25 located / ceiling …"
+        },
+        {
+          "date": "2026-08-03",
+          "outcome": "HALTED by owner (session-sprawl stand-down) — the THIRD session on this same brief, and like the second it added nothing. Nothing committed; no PR; no claims taken.\n\nRECORDED BECAUSE THE REPETITION IS ITSELF THE FINDING, and it is evidence for the owner's ope…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1133",
+          "outcome": "LANDED — the gate scoreboard. `pnpm gate` runs EVERY step and reports per-step PASS / FAIL / NOT RUN; one red never hides the rest again. Realizes the parked entry `gate-runs-every-step-and-reports-per-step` (also `flaky-test-coverage-arc`'s increment 4, whic…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1134",
+          "outcome": "LANDED — the assert-oracle report path can no longer collide across concurrent proofs.\n\n`oracleReportPath(runId, unitId)` was deterministic with no per-process component, so two observers\nproving the SAME unit derived one path in the shared OS temp dir. ADR-0…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "#1136",
+          "outcome": "**LANDED — two fail-closed drain ceilings now charge BY AUTHORSHIP (ADR-0301), applying ADR-0290's move to the two remaining family members. Both parked entries realized: `verification-decay-charges-by-authorship` and `graduation-worklist-charges-by-authorshi…"
+        }
+      ],
+      "proposals": [
+        {
+          "id": "gate-runs-every-step-and-reports-per-step",
+          "title": "The gate runs every step and reports per-step, so one red never hides the rest",
+          "parked": "2026-08-03T12:28:00.061Z",
+          "realized": true
+        },
+        {
+          "id": "render-fixtures-default-to-the-shipped-map",
+          "title": "Render-test fixtures default to the shipped map's input set",
+          "parked": "2026-08-03T12:34:27.489Z",
+          "realized": false
+        },
+        {
+          "id": "verification-decay-charges-by-authorship",
+          "title": "check:verification-decay charges its ceiling by authorship",
+          "parked": "2026-08-03T12:34:38.330Z",
+          "realized": true
+        },
+        {
+          "id": "committed-derived-evidence-carries-producer",
+          "title": "Committed derived evidence carries its producer, and a check reads it",
+          "parked": "2026-08-03T12:34:48.246Z",
+          "realized": false
+        },
+        {
+          "id": "drain-unproven-seam-default-back-to-24",
+          "title": "Drain unproven-seam-default 25 to 24 by proving ownerLocalDate",
+          "parked": "2026-08-03T13:29:34.499Z",
+          "realized": true
+        },
+        {
+          "id": "oracle-report-path-collides-across-concurrent-proofs",
+          "title": "The assert-oracle report path collides across concurrent proofs",
+          "parked": "2026-08-03T13:41:06.447Z",
+          "realized": true
+        },
+        {
+          "id": "graduation-worklist-charges-by-authorship",
+          "title": "check:graduation-worklist charges its ceiling by authorship (memory-file provenance)",
+          "parked": "2026-08-03T22:23:36.370Z",
+          "realized": true
+        },
+        {
+          "id": "memory-queue-shared-drain-is-unprotected",
+          "title": "The agent-memory queue is machine-shared and its drain is unprotected",
+          "parked": "2026-08-04T03:55:49.753Z",
+          "realized": false
+        },
+        {
+          "id": "memory-provenance-stamp-has-no-writer",
+          "title": "The ADR-0301 memory provenance stamp has no writer, so the exclusion is dormant",
+          "parked": "2026-08-04T07:05:52.538Z",
+          "realized": false
+        },
+        {
+          "id": "seed-carries-rows-of-a-retired-kind",
+          "title": "The committed seed carries rows of a retired kind, and nothing parses it",
+          "parked": "2026-08-04T07:06:57.245Z",
+          "realized": false
+        },
+        {
+          "id": "gate-no-bail-and-skip-visibility",
+          "title": "Finish ADR-0276 increment 4: pnpm -r --no-bail, and a SKIP the scoreboard can show",
+          "parked": "2026-08-04T07:07:28.121Z",
+          "realized": false
+        },
+        {
+          "id": "drain-retired-proposal-rows-from-seed",
+          "title": "Drain the retired proposal-kind rows still sitting in the committed seed",
+          "parked": "2026-08-04T07:07:50.522Z",
+          "realized": false
+        }
+      ],
+      "adrs": [
+        {
+          "number": 249,
+          "status": "accepted",
+          "title": "Oracle-report freshness: an unattributable observation is not evidence"
+        },
+        {
+          "number": 251,
+          "status": "accepted",
+          "title": "Mirror conformance: two surfaces required to agree are gated by a test that compares them"
+        },
+        {
+          "number": 252,
+          "status": "accepted",
+          "title": "Verification-decay detection: continuous mechanical warns, a judgment-gated adversarial pass in a fresh session"
+        },
+        {
+          "number": 253,
+          "status": "accepted",
+          "title": "Criterion identity is immutable across UAT revisions"
+        },
+        {
+          "number": 256,
+          "status": "accepted",
+          "title": "Deferral-keyed escalation lines are not built: a backstop's trigger must be observable in-run"
+        },
+        {
+          "number": 262,
+          "status": "proposed",
+          "title": "Contract clauses are declared but not observable: check:coverage stays name-granular until a clause carries identity"
+        },
+        {
+          "number": 265,
+          "status": "proposed",
+          "title": "Per-contract falsifiability at CONFIRM_RED: the spine observes one red per file, not per contract"
+        },
+        {
+          "number": 269,
+          "status": "accepted",
+          "title": "A drain ceiling rises only when the measured population enlarges, never to absorb growth"
+        },
+        {
+          "number": 278,
+          "status": "accepted",
+          "title": "A fifth verification-decay instrument: an injected seam whose default no test exercises"
+        },
+        {
+          "number": 301,
+          "status": "accepted",
+          "title": "Drain ceilings charge by authorship: verification-decay and graduation-worklist"
+        }
+      ],
+      "plans": [
+        {
+          "id": "verification-integrity-identity-and-durable-controls-plan",
+          "title": "Verification integrity identity and durable-controls increment",
+          "status": "ready",
+          "anchorSha": "939358a2e"
+        },
+        {
+          "id": "verification-integrity-machine-leg-binding-audit-plan",
+          "title": "Verification integrity — machine-leg binding corpus audit",
+          "status": "ready",
+          "anchorSha": "9553de518"
+        },
+        {
+          "id": "verification-integrity-next-integrity-repair-plan",
+          "title": "Verification integrity — corpus repair and runtime pickup",
+          "status": "ready",
+          "anchorSha": "7976d83b1"
+        },
+        {
+          "id": "verification-integrity-proof-binding-contract-and-audit-plan",
+          "title": "Verification integrity — proof-binding contract then corpus audit",
+          "status": "ready",
+          "anchorSha": "65b727120"
+        }
+      ],
+      "stories": [
+        "proof-binding-integrity"
+      ],
+      "questions": []
+    },
+    {
+      "id": "worktree-reaper-integrity-arc",
+      "title": "Worktree reaper integrity — a drain that cannot silently no-op",
+      "description": "Make the SessionStart worktree reaper actually drain, honour locks, and report enough that a permanently no-op reaper is distinguishable from a healthy one.",
+      "intent": "Make worktree hygiene real. The SessionStart reaper (ADR-0142 / ADR-0033) is wired and running, but a 2026-07-27 owner-directed stock take found it has been silently no-op'ing while `.claude/worktrees/` grew to 79 registered worktrees and roughly 93 GB — up from the 21 GB measured on 2026-07-19. Its live verdict was `reap 5, keep 77`, and all five targets were directories git had already lost, so the run would have reclaimed zero bytes; 59 merged-clean-unlocked worktrees (~74 GB) were all held back by the single reason `merged but active < 48h ago`. The cause is the idle proxy in `packages/cl…",
+      "endState": "The reaper drains. `.claude/worktrees/` holds only worktrees that are plausibly live — unmerged branches, dirty trees, deliberate locked gates, and the current session's own — and the standing footprint is a small multiple of a single worktree rather than tens of gigabytes. The one-time backlog is cleared, with the dirty merged trees triaged rather than bulk-deleted: uncommitted work on an already-landed branch is either salvaged or discarded on an explicit decision, never silently removed.\n\nThe idle signal cannot be reset by activity that is not use. Whatever proxy replaces the current mtime…",
+      "lastLanded": "2026-08-04",
+      "ageDays": 1,
+      "increments": [
+        {
+          "date": "2026-07-28",
+          "pr": "981",
+          "outcome": "Increment 1 — the idle signal is honest, and `locked` is a first-class keep. Strands 1 and 2 of four LANDED; strands 3 and 4 remain, both escalated.\n\nTHE IDLE PROXY. `defaultStatMtimeMs` in `packages/cli/src/worktree.ts` no longer reads the admin `logs/HEAD`.…"
+        },
+        {
+          "date": "2026-08-04",
+          "pr": "1135",
+          "outcome": "Increment 2 — the drain is observable, and the observation can go red. Strand 3 of four LANDED; strand 4 and the lock-liveness fork remain, both still the owner's.\n\nWHAT WAS BLIND. The reaper was silent-on-success AND silent-on-nothing-to-do by contract, so a…"
+        }
+      ],
+      "proposals": [
+        {
+          "id": "drain-check-needs-a-gate-rung",
+          "title": "Wire a gate rung for the worktree drain check",
+          "parked": "2026-08-04T07:06:38.087Z",
+          "realized": false
+        }
+      ],
+      "adrs": [],
+      "plans": [],
+      "stories": [],
+      "questions": []
+    }
+  ]
+};
+
+/* ---------- synthetic questions (NOT REAL — see the caveats section) ---------- */
+const SYNTH = {
+  'arc-orientation-surface-arc': [
+    {id:'oq-blocked-definition', title:'What does <code>blocked</code> mean for an arc?',
+     stakes:'D7 names the state but refuses to define it. Until it is defined the surface can render running and waiting only, and the third column is decorative.'},
+    {id:'oq-escalation-briefing-required', title:'Must the orchestrator author a briefing when it escalates?',
+     stakes:'Agents escalate in chat today, so the open-question tier holds one item and no arc can see it. If escalation does not author, this surface has nothing to show.'}
+  ],
+  'verification-integrity-arc': [
+    {id:'oq-proof-binding-contract-shape', title:'Which of the three proposed proof-binding shapes wins?',
+     stakes:'ADR-0253, 0262 and 0265 all sit proposed against the same seam. Four ready plans are queued behind the pick and none can be consumed until it lands.'}
+  ],
+  'foreign-project-forest-arc': [
+    {id:'oq-brownfield-adoption-entry', title:'Where does a brownfield repo enter the tree?',
+     stakes:'ADR-0261 settled fresh-tree authoring first. Fork (c) — what happens to a repo that already has 200 files — is unscoped and gates increment 4.'}
+  ],
+  'chapter2-code-generated-organic-art-arc': [
+    {id:'oq-art-scale-convention', title:'One scale convention, or per-asset scale?',
+     stakes:'v3 solved crown fragmentation but the scale convention is still per-asset guesswork, so every new asset costs a manual tuning round.'}
+  ]
+};
+
+/* ---------- blocked candidates ---------- */
+const BLOCKED = {
+  none:{label:'none', note:'no blocked predicate — the ADR-0267 default', fn:()=>false},
+  b1:{label:'B1 undecided', note:'B1 · an ADR stamped to this arc is still proposed',
+      fn:a=>a.adrs.some(x=>x.status==='proposed')},
+  b2:{label:'B2 never started', note:'B2 · chartered but has never landed an increment',
+      fn:a=>a.increments.length===0},
+  b3:{label:'B3 gone quiet', note:'B3 · nothing landed in more than 7 days',
+      fn:a=>a.ageDays===null||a.ageDays>7}
+};
+let bd='none';
+
+function qs(a){ return (SYNTH[a.id]||[]).map(q=>({...q,synthetic:true})); }
+function stateOf(a){
+  if(BLOCKED[bd].fn(a)) return 'block';
+  if(qs(a).length) return 'wait';
+  if(a.ageDays!==null && a.ageDays<=2) return 'run';
+  return 'quiet';
+}
+const STATE={run:{n:'Running',d:'landed in the last 48h'},
+  wait:{n:'Waiting on you',d:'has open questions'},
+  block:{n:'Blocked',d:'per the selected definition'},
+  quiet:{n:'Quiet',d:'moving, but not this week'}};
+
+const arcs = DATA.arcs;
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const age=a=>a.ageDays===null?'never landed':a.ageDays===0?'today':a.ageDays===1?'1d ago':a.ageDays+'d ago';
+
+function pips(a,cls){
+  const n=a.increments.length;
+  if(n===0) return '<span class="never">no landings</span>';
+  const dense = n>28?'dense2':n>14?'dense':'';
+  let h='<span class="pips '+dense+' '+(cls||'')+'">';
+  for(let i=0;i<n;i++){
+    const fromEnd=n-1-i;
+    const k=fromEnd===0?'hot':fromEnd<3?'warm':'';
+    const ht = 6 + Math.round(10*(i+1)/n);
+    h+='<i class="pip '+k+'" style="height:'+ht+'px"></i>';
+  }
+  return h+'</span>';
+}
+function nextGlyph(a){
+  const ready=a.plans.filter(p=>p.status==='ready').length;
+  const prop=a.adrs.filter(x=>x.status==='proposed').length;
+  let h='';
+  if(ready) h+='<span class="ref ready">'+ready+' ready plan'+(ready>1?'s':'')+'</span>';
+  if(prop) h+='<span class="ref prop">'+prop+' proposed ADR'+(prop>1?'s':'')+'</span>';
+  return h||'<span class="ref">nothing queued</span>';
+}
+
+/* ================= shared chrome ================= */
+const DEFS = '<defs>'+
+ '<marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">'+
+ '<path d="M0 0 L8 4 L0 8 z" fill="var(--line2)"/></marker>'+
+ '<marker id="aha" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">'+
+ '<path d="M0 0 L8 4 L0 8 z" fill="var(--accent)"/></marker></defs>';
+
+function box(x,y,w,h,label,sub,accent){
+  return '<rect class="'+(accent?'dg-box-a':'dg-box')+'" x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7"/>'+
+   '<text class="dg-tb" x="'+(x+10)+'" y="'+(y+(sub?19:h/2+4))+'">'+label+'</text>'+
+   (sub?'<text class="dg-l" x="'+(x+10)+'" y="'+(y+34)+'">'+sub+'</text>':'');
+}
+function arrow(x1,y1,x2,y2,accent){
+  return '<path class="'+(accent?'dg-ar-a':'dg-ar')+'" d="M'+x1+' '+y1+' L'+x2+' '+y2+'"/>';
+}
+function alabel(x,y,t){ return '<text class="dg-l" x="'+x+'" y="'+y+'">'+t+'</text>'; }
+
+function forestBg(){
+  let t='';
+  const seed=[[8,72],[16,64],[26,78],[35,60],[44,71],[53,55],[62,74],[71,63],[80,77],[89,66],[95,58],
+              [12,88],[31,92],[49,86],[67,90],[84,85],[22,50],[58,46],[76,52],[40,44]];
+  seed.forEach(([x,y],i)=>{
+    const r=2.2+((i*7)%5)*0.5;
+    t+='<circle cx="'+x+'%" cy="'+y+'%" r="'+r+'" fill="rgba(46,90,60,.30)"/>';
+    t+='<circle cx="'+x+'%" cy="'+(y-1.2)+'%" r="'+(r*0.6)+'" fill="rgba(46,90,60,.20)"/>';
+  });
+  return '<svg class="forest">'+t+'</svg>';
+}
+function handleBar(){
+  return '<div class="handlebar"><span class="grip"></span><span class="arrow">▲</span></div>';
+}
+
+/* ================= OPTION A — triage board ================= */
+function diagA(){
+  return '<div class="diagram"><svg viewBox="0 0 700 208">'+DEFS+
+   box(10,64,116,52,'Forest map','the landing surface')+
+   arrow(130,90,166,90)+ alabel(133,82,'drawer')+
+   box(170,50,150,80,'ARC BOARD','sorted into 4 state columns',1)+
+   '<text class="dg-l" x="180" y="112">Running · Waiting · Blocked · Quiet</text>'+
+   arrow(324,74,372,74,1)+ alabel(328,66,'click card')+
+   box(376,44,150,58,'Arc briefing','slides over the board',1)+
+   arrow(324,110,372,110)+ alabel(328,126,'header toggle')+
+   box(376,116,150,50,'Library','same slot, other mode')+
+   arrow(530,73,566,73)+
+   box(570,50,120,52,'Open questions','read-only (D6)')+
+   '<text class="dg-l" x="10" y="180">The board answers WHICH ARCS NEED ME FIRST. State is the layout,</text>'+
+   '<text class="dg-l" x="10" y="195">so the sort order is the whole product — and it forces one state per arc.</text>'+
+   '</svg></div>';
+}
+function boardMock(){
+  const cols=['run','wait','block','quiet'];
+  const groups={run:[],wait:[],block:[],quiet:[]};
+  arcs.forEach(a=>groups[stateOf(a)].push(a));
+  let h='<div class="board">';
+  cols.forEach(c=>{
+    h+='<div class="col"><div class="colhd"><span class="dot '+c+'"></span>'+STATE[c].n+
+       '<span class="ct">'+groups[c].length+'</span></div>';
+    if(!groups[c].length) h+='<div class="hint" style="padding:6px 4px">—</div>';
+    groups[c].forEach(a=>{
+      const q=qs(a);
+      h+='<div class="card" data-arc="'+a.id+'"><div class="t">'+esc(a.title)+'</div>'+
+        '<div style="margin-bottom:5px">'+pips(a)+'</div>'+
+        '<div class="meta"><span>'+age(a)+'</span><span>·</span><span>'+a.increments.length+' inc</span>'+
+        (q.length?'<span class="qbadge s">'+q.length+' q</span>':'')+'</div></div>';
+    });
+    h+='</div>';
+  });
+  return h+'</div>';
+}
+function optA(){
+  return '<div class="opt" data-opt="a">'+
+  '<p><b>Answers first:</b> <i>which arcs need me, and in what order?</i> The four D7 states become the '+
+  'four columns, so triage is the layout itself — you read the board left to right and stop when you '+
+  'hit an empty column.</p>'+
+  diagA()+
+  '<div class="mapframe" style="margin-top:16px"><div class="drawer">'+
+   '<div class="drawer-hd"><span class="wordmark">Arcs</span>'+
+   '<span class="seg"><button aria-pressed="true">Arcs</button><button aria-pressed="false">Library</button></span>'+
+   '<span class="spacer"></span><span class="hint">20 active · 27 closed hidden</span></div>'+
+   boardMock()+ handleBar()+'</div>'+forestBg()+
+   '<div style="height:120px"></div><div class="mapcap">forest map stays live beneath — no scrim (ADR-0191)</div></div>'+
+  '<div class="grid2" style="margin-top:16px">'+
+   '<div class="panel"><h4>Where the Library goes</h4><p style="font-size:13.5px;color:var(--dim)">'+
+   'A two-way segmented control in the drawer header. Same slot, same drawer, one click away — the '+
+   'cheapest possible answer to D3, and it keeps the Library exactly as it is today.</p></div>'+
+   '<div class="panel"><h4>What it costs</h4><p style="font-size:13.5px;color:var(--dim)">'+
+   'Every arc must be assigned <b>one</b> state, so an arc that is both moving and waiting on you has '+
+   'to pick a column. At 17 arcs the columns are 3–7 cards deep, which is comfortable; at 30 the '+
+   'quiet column becomes a scroll dump. And with no blocked definition selected, one of the four '+
+   'columns is permanently empty — which looks broken rather than calm.</p></div></div></div>';
+}
+
+/* ================= OPTION B — momentum lanes ================= */
+function diagB(){
+  return '<div class="diagram"><svg viewBox="0 0 700 208">'+DEFS+
+   box(10,64,116,52,'Forest map','the landing surface')+
+   arrow(130,90,166,90)+ alabel(133,82,'drawer')+
+   box(170,44,190,92,'ARC LANES','one row per arc, shared date axis',1)+
+   '<text class="dg-l" x="180" y="112">position = when · gap = stall</text>'+
+   '<text class="dg-l" x="180" y="126">no sorting decision required</text>'+
+   arrow(364,74,404,74,1)+ alabel(367,66,'click lane')+
+   box(408,44,140,58,'Arc briefing','opens below the lane',1)+
+   arrow(364,112,404,112)+ alabel(367,128,'axis stays')+
+   box(408,116,140,50,'Library lens','same axis, artifacts')+
+   arrow(552,73,588,73)+
+   box(592,50,98,52,'Questions','read-only')+
+   '<text class="dg-l" x="10" y="180">The lanes answer WHAT IS ACTUALLY MOVING. Staleness is a shape, not a label —</text>'+
+   '<text class="dg-l" x="10" y="195">a long empty tail before the today-line is visible before you read a word.</text>'+
+   '</svg></div>';
+}
+function lanesMock(){
+  const span=42, today=new Date(DATA.generatedAt);
+  const pos=d=>{ const days=Math.round((today-new Date(d))/864e5);
+    return Math.max(0,Math.min(100, 100-(days/span)*100)); };
+  const sorted=[...arcs].sort((x,y)=>(x.ageDays===null?999:x.ageDays)-(y.ageDays===null?999:y.ageDays));
+  let h='<div class="lanes"><div class="laneaxis"><div style="padding:4px 10px">20 active arcs</div>'+
+    '<div class="ticks">';
+  [42,35,28,21,14,7,0].forEach(d=>{
+    const x=100-(d/span)*100;
+    h+='<span class="tk" style="left:'+x+'%">'+(d===0?'today':d+'d')+'</span>';
+  });
+  h+='</div></div>';
+  sorted.forEach(a=>{
+    const st=stateOf(a), q=qs(a);
+    h+='<div class="lane '+(a.ageDays===null||a.ageDays>7?'stale':'')+'" data-arc="'+a.id+'">'+
+      '<div class="nm"><span class="dot '+st+'"></span><span style="overflow:hidden;text-overflow:ellipsis">'+
+      esc(a.title)+'</span>'+(q.length?'<span class="qbadge s">'+q.length+'</span>':'')+'</div><div class="track">';
+    if(!a.increments.length){
+      h+='<span class="nostart">never landed — chartered only</span>';
+    } else {
+      const dated=a.increments.filter(i=>i.date);
+      dated.forEach(i=>{ h+='<span class="tick" style="left:'+pos(i.date)+'%"></span>'; });
+      const last=Math.max(...dated.map(i=>pos(i.date)));
+      if(last<99) h+='<span class="tail" style="left:'+last+'%;right:0"></span>';
+    }
+    h+='<span class="now" style="right:0"></span></div></div>';
+  });
+  return h+'</div>';
+}
+function optB(){
+  return '<div class="opt" data-opt="b">'+
+  '<p><b>Answers first:</b> <i>what is actually moving, and what has quietly stopped?</i> One lane per '+
+  'arc on a shared 6-week axis. You never read a status word — a dense cluster under the today-line is '+
+  'alive, a long dashed tail is a stall, and an empty lane never started.</p>'+
+  diagB()+
+  '<div class="mapframe" style="margin-top:16px"><div class="drawer">'+
+   '<div class="drawer-hd"><span class="wordmark">Arcs</span>'+
+   '<span class="seg"><button aria-pressed="true">Timeline</button><button aria-pressed="false">Library</button></span>'+
+   '<span class="spacer"></span><span class="hint">sorted by last landing</span></div>'+
+   lanesMock()+ handleBar()+'</div>'+forestBg()+
+   '<div style="height:120px"></div><div class="mapcap">the 34:0 increment range is the point — verification-integrity packs 34 ticks, six arcs draw nothing</div></div>'+
+  '<div class="grid2" style="margin-top:16px">'+
+   '<div class="panel"><h4>Where the Library goes</h4><p style="font-size:13.5px;color:var(--dim)">'+
+   'A second lens on the <em>same</em> axis — artifacts plotted by last edit instead of arcs by last '+
+   'landing. The Library stops being a browsable shelf and becomes “what has the corpus learned '+
+   'lately”, which is a genuinely different Library than the one you say you never open.</p></div>'+
+   '<div class="panel"><h4>What it costs</h4><p style="font-size:13.5px;color:var(--dim)">'+
+   'It answers momentum superbly and <b>subject</b> not at all — you get no sense of what an arc is '+
+   'about until you click. The axis also wastes most of its width: 12 of 17 arcs landed inside the '+
+   'last week, so the right quarter is crowded and the left three-quarters is nearly empty. A log '+
+   'scale would fix the crowding and make the axis harder to read.</p></div></div></div>';
+}
+
+/* ================= OPTION C — reading room ================= */
+function diagC(){
+  return '<div class="diagram"><svg viewBox="0 0 700 208">'+DEFS+
+   box(10,64,110,52,'Forest map','the landing surface')+
+   arrow(124,90,160,90)+
+   box(164,36,120,132,'INDEX RAIL','')+
+   '<text class="dg-l" x="174" y="66">Waiting on you  2</text>'+
+   '<text class="dg-l" x="174" y="82">Running        7</text>'+
+   '<text class="dg-l" x="174" y="98">Quiet          8</text>'+
+   '<text class="dg-l" x="174" y="122">─────────────</text>'+
+   '<text class="dg-l" x="174" y="138">Library</text>'+
+   '<text class="dg-l" x="174" y="154">Unhomed questions 1</text>'+
+   arrow(288,86,326,86,1)+ alabel(291,78,'select')+
+   box(330,36,200,132,'ONE ARC, FULLY RESTORED','',1)+
+   '<text class="dg-l" x="340" y="66">what it is about · intent</text>'+
+   '<text class="dg-l" x="340" y="82">where it is up to · last 3 landings</text>'+
+   '<text class="dg-l" x="340" y="98">what is next · plans, ADRs</text>'+
+   '<text class="dg-l" x="340" y="114">what needs you · questions</text>'+
+   '<text class="dg-l" x="340" y="138">reads cold, after two weeks away</text>'+
+   arrow(534,86,570,86)+
+   box(574,60,116,52,'Deep read','artifact overlay')+
+   '<text class="dg-l" x="10" y="192">The rail is an INDEX, not a dashboard — the product is the briefing on the right.</text>'+
+   '</svg></div>';
+}
+function briefFor(a){
+  const q=qs(a), st=stateOf(a);
+  const recent=[...a.increments].reverse().slice(0,3);
+  let h='<div class="brief"><h3>'+esc(a.title)+'</h3>'+
+   '<div class="sub"><span class="chip '+st+'">'+STATE[st].n+'</span> &nbsp;<span class="mono">'+
+   esc(a.id)+'</span></div>';
+  h+='<div class="posline" style="margin-bottom:14px">'+pips(a)+
+     '<span>'+a.increments.length+' landed</span><span>·</span><span>last '+age(a)+'</span>'+
+     '<span>·</span>'+nextGlyph(a)+'</div>';
+  h+='<div class="bfield"><div class="lbl">What this is about</div><div class="val">'+
+     esc(a.intent||a.description)+'</div></div>';
+  h+='<div class="bfield"><div class="lbl">Done when</div><div class="val" style="color:var(--dim)">'+
+     esc(a.endState||'—')+'</div></div>';
+  if(q.length){
+    h+='<div class="bfield"><div class="lbl">Waiting on you &nbsp;<span class="chip synthetic">synthetic</span></div>';
+    q.forEach(x=>{ h+='<div class="qcard synthetic"><div class="qt">'+x.title+'</div>'+
+      '<div class="qs">'+esc(x.stakes)+'</div></div>'; });
+    h+='</div>';
+  }
+  h+='<div class="bfield"><div class="lbl">Where it is up to — last '+recent.length+' landing'+
+     (recent.length===1?'':'s')+'</div><div class="log">';
+  if(!recent.length) h+='<div class="hint">Nothing has landed. This arc is chartered only.</div>';
+  recent.forEach((i,ix)=>{
+    h+='<div class="logitem '+(ix===0?'latest':'old')+'"><div class="lh">'+
+      (i.date||'undated')+(i.pr?' · PR #'+i.pr:'')+'</div><div class="lb">'+esc(i.outcome)+'</div></div>';
+  });
+  h+='</div></div>';
+  h+='<div class="bfield"><div class="lbl">Decisions &amp; plans</div><div class="reflist">';
+  if(!a.adrs.length&&!a.plans.length) h+='<span class="hint">none stamped</span>';
+  a.adrs.forEach(x=>h+='<span class="ref '+(x.status==='proposed'?'prop':'')+'">ADR-'+
+    String(x.number).padStart(4,'0')+(x.status==='proposed'?' proposed':'')+'</span>');
+  a.plans.forEach(p=>h+='<span class="ref '+(p.status==='ready'?'ready':'')+'">'+esc(p.id.slice(0,30))+
+    ' · '+p.status+'</span>');
+  h+='</div></div>';
+  return h+'</div>';
+}
+function readingMock(){
+  const groups={wait:[],block:[],run:[],quiet:[]};
+  arcs.forEach(a=>groups[stateOf(a)].push(a));
+  let h='<div class="reading"><div class="idx">';
+  ['wait','block','run','quiet'].forEach(g=>{
+    if(!groups[g].length) return;
+    h+='<div class="idxgrp">'+STATE[g].n+' · '+groups[g].length+'</div>';
+    groups[g].forEach(a=>{
+      h+='<div class="idxrow" data-arc="'+a.id+'"><span class="dot '+g+'"></span>'+
+        '<span class="nm">'+esc(a.title)+'</span><span class="n">'+a.increments.length+'</span></div>';
+    });
+  });
+  h+='<div class="idxgrp" style="border-top:1px solid var(--line);margin-top:8px;padding-top:10px">Elsewhere</div>'+
+     '<div class="idxrow"><span class="dot quiet"></span><span class="nm">Library</span><span class="n">204</span></div>'+
+     '<div class="idxrow"><span class="dot wait"></span><span class="nm">Unhomed questions</span><span class="n">1</span></div>'+
+     '<div class="idxrow"><span class="dot quiet"></span><span class="nm">Closed arcs</span><span class="n">15</span></div>';
+  h+='</div><div id="briefslot">'+briefFor(arcs.find(a=>a.id==='verification-integrity-arc')||arcs[0])+'</div></div>';
+  return h;
+}
+function optC(){
+  return '<div class="opt" data-opt="c">'+
+  '<p><b>Answers first:</b> <i>what was this arc about again?</i> This is the option that takes '+
+  'ADR-0267\'s stated problem literally — the need is <b>context restoration on return</b>, not '+
+  'progress reporting. So the list is demoted to a narrow index and the drawer\'s real estate goes '+
+  'to one arc, rendered as a cold-read briefing. Click any row in the rail.</p>'+
+  diagC()+
+  '<div class="mapframe" style="margin-top:16px"><div class="drawer">'+
+   '<div class="drawer-hd"><span class="wordmark">Arcs</span><span class="spacer"></span>'+
+   '<span class="hint">verification-integrity-arc — 29 landings, the heaviest arc we have</span></div>'+
+   readingMock()+ handleBar()+'</div>'+forestBg()+
+   '<div style="height:120px"></div><div class="mapcap">real intent, real end state, real increment log — only the purple questions are invented</div></div>'+
+  '<div class="grid2" style="margin-top:16px">'+
+   '<div class="panel"><h4>Where the Library goes</h4><p style="font-size:13.5px;color:var(--dim)">'+
+   'Into the same rail, below the arcs, under an “Elsewhere” heading — alongside unhomed questions '+
+   'and closed arcs. The rail becomes one universal index and the Library stops being a separate '+
+   'destination entirely. This is the most opinionated D3 answer here: it demotes the Library to a '+
+   'row.</p></div>'+
+   '<div class="panel"><h4>What it costs</h4><p style="font-size:13.5px;color:var(--dim)">'+
+   'You see one arc at a time, so “which of my 17 arcs need attention” is answered only by the dots '+
+   'in the rail — a much weaker triage read than option A. It also needs a default selection rule '+
+   '(most recent? most stale? last viewed?), and getting that wrong means the drawer opens on the '+
+   'wrong arc every time.</p></div></div></div>';
+}
+
+/* ================= OPTION D — contact sheet ================= */
+function diagD(){
+  return '<div class="diagram"><svg viewBox="0 0 700 208">'+DEFS+
+   box(10,64,104,52,'Forest map','landing surface')+
+   arrow(118,90,152,90)+
+   box(156,40,180,124,'CONTACT SHEET','all 17 at once, uniform tiles',1)+
+   '<g opacity=".85">'+
+   [0,1,2,3,4,5].map(i=>'<rect x="'+(166+(i%3)*56)+'" y="'+(72+Math.floor(i/3)*32)+
+     '" width="48" height="26" rx="4" class="dg-box"/>').join('')+'</g>'+
+   '<text class="dg-l" x="166" y="152">no scroll · no sort decision</text>'+
+   arrow(340,80,378,80,1)+ alabel(343,72,'click tile')+
+   box(382,40,150,72,'Tile expands IN PLACE','grid reflows around it',1)+
+   arrow(340,132,378,132)+
+   box(382,118,150,46,'Library tile','swaps drawer contents')+
+   arrow(536,76,572,76)+
+   box(576,50,114,52,'Questions','read-only')+
+   '<text class="dg-l" x="10" y="192">The sheet answers HOW MANY BALLS ARE IN THE AIR — the portfolio read, in one glance.</text>'+
+   '</svg></div>';
+}
+function ring(a){
+  const cap=14, v=a.ageDays===null?cap:Math.min(cap,a.ageDays);
+  const frac=1-(v/cap), C=2*Math.PI*9;
+  const col=a.ageDays===null?'var(--block)':a.ageDays<=2?'var(--run)':a.ageDays<=7?'var(--wait)':'var(--quiet)';
+  return '<svg class="ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" '+
+    'stroke="var(--line)" stroke-width="2.5"/><circle cx="12" cy="12" r="9" fill="none" stroke="'+col+
+    '" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="'+(C*frac).toFixed(1)+' '+C.toFixed(1)+
+    '" transform="rotate(-90 12 12)"/></svg>';
+}
+function sheetMock(){
+  const order=['wait','block','run','quiet'];
+  const sorted=[...arcs].sort((x,y)=>order.indexOf(stateOf(x))-order.indexOf(stateOf(y)));
+  let h='<div class="sheet">';
+  sorted.forEach(a=>{
+    const st=stateOf(a), q=qs(a);
+    h+='<div class="tile" data-arc="'+a.id+'"><div style="display:flex;gap:7px;align-items:flex-start">'+
+      ring(a)+'<div class="tt">'+esc(a.title)+'</div></div>'+
+      '<div>'+pips(a)+'</div>'+
+      '<div class="tf"><span class="chip '+st+'">'+(st==='wait'?'waiting':st==='block'?'blocked':st==='run'?'running':'quiet')+
+      '</span><span class="hint" style="margin-left:auto">'+age(a)+'</span>'+
+      (q.length?'<span class="qbadge s">'+q.length+'q</span>':'')+'</div></div>';
+  });
+  h+='<div class="tile lib">Library →</div>';
+  h+='<div class="tile lib" style="border-color:var(--wait);color:var(--wait)">1 unhomed question →</div>';
+  return h+'</div>';
+}
+function optD(){
+  return '<div class="opt" data-opt="d">'+
+  '<p><b>Answers first:</b> <i>how much is in the air?</i> Every active arc gets an identical tile, '+
+  'sized so the whole portfolio is nearly one glance. The ring is age-since-landing, the pips are '+
+  'landings. It is the only option where the <em>portfolio</em> — 17 things, three of them never '+
+  'started — is what you see before any individual arc.</p>'+
+  '<p class="hint" style="color:var(--dim);font-size:12.5px">Measured, not asserted: at this width '+
+  '19 tiles lay out 5-across and need about one short scroll at half-screen drawer height. Dragging '+
+  'the drawer taller (ADR-0193) clears it. At 17 arcs that is a near-glance; at 30 it is a grid you '+
+  'scan, which is still better than a list you scroll.</p>'+
+  diagD()+
+  '<div class="mapframe" style="margin-top:16px"><div class="drawer">'+
+   '<div class="drawer-hd"><span class="wordmark">Arcs</span><span class="spacer"></span>'+
+   '<span class="hint">17 tiles + Library + unhomed — everything in one viewport</span></div>'+
+   sheetMock()+ handleBar()+'</div>'+forestBg()+
+   '<div style="height:120px"></div><div class="mapcap">ring empties as an arc goes quiet; three rings are fully spent</div></div>'+
+  '<div class="grid2" style="margin-top:16px">'+
+   '<div class="panel"><h4>Where the Library goes</h4><p style="font-size:13.5px;color:var(--dim)">'+
+   'It becomes a tile in the same grid — peer to the arcs, last in reading order. Clicking it swaps '+
+   'the drawer contents wholesale. Demotion by <em>position</em> rather than by nesting, and it '+
+   'leaves room for other peers later (unhomed questions is already one).</p></div>'+
+   '<div class="panel"><h4>What it costs</h4><p style="font-size:13.5px;color:var(--dim)">'+
+   'The tile is too small to carry subject — a 72-character title clamps to three lines and you '+
+   'still learn nothing about what the arc is <em>for</em>. It is a great index and a poor briefing, '+
+   'which is close to the opposite of what ADR-0267 says the problem is. Uniform tiles also flatten '+
+   'the 34-increment arc and the 1-increment arc into the same visual weight.</p></div></div></div>';
+}
+
+/* ================= blocked table ================= */
+function renderBlockedTable(){
+  const cands=[
+    {k:'b1',n:'B1 — undecided',d:'An ADR stamped to this arc is still <code>proposed</code>.',
+     why:'Cheap, already stored, and points at a real fork. But an arc can be moving fast <em>and</em> carry a proposed ADR.'},
+    {k:'b2',n:'B2 — never started',d:'The arc has been chartered but has landed zero increments.',
+     why:'Surfaces genuine dead weight. But conflates “just chartered this morning” with “abandoned in June”.'},
+    {k:'b3',n:'B3 — gone quiet',d:'Nothing has landed in more than 7 days.',
+     why:'Purely temporal, needs no new state. But it is really a staleness read, and calling staleness “blocked” overstates it.'}
+  ];
+  let h='<thead><tr><th style="width:150px">Candidate</th><th style="width:190px">Definition</th>'+
+    '<th>Which real arcs it lights up today</th><th style="width:200px">The catch</th></tr></thead><tbody>';
+  cands.forEach(c=>{
+    const hit=arcs.filter(BLOCKED[c.k].fn);
+    h+='<tr><td><b>'+c.n+'</b><br><span class="tag">'+hit.length+' of 17</span></td>'+
+      '<td style="font-size:12.5px;color:var(--dim)">'+c.d+'</td><td>';
+    h+= hit.length? '<div style="display:flex;flex-direction:column;gap:3px">'+hit.map(a=>
+        '<span class="mono" style="font-size:11.5px"><span class="yes">●</span> '+esc(a.id)+
+        ' <span class="no">· '+a.increments.length+' inc · '+age(a)+'</span></span>').join('')+'</div>'
+      : '<span class="no">nothing</span>';
+    h+='</td><td style="font-size:12.5px;color:var(--dim)">'+c.why+'</td></tr>';
+  });
+  return h+'</tbody>';
+}
+
+/* ================= briefing anatomy ================= */
+function renderBriefAnat(){
+  const parts=[
+    ['stakes','What breaks if this stays unsettled',
+     'Members asked for a way to follow what is changing, but the wrong choice makes the feature useless — a whole-story code diff is an unreadable wall, and an inline code diff mostly is not available yet (only about one build in thirteen records the link from a unit of work to its commit).'],
+    ['statement','The actual question, in one sentence',
+     'At what altitude — story, capability, or contract — should a diff be shown, and should it show the spec/library history (always available) or the underlying source code (available only where a build recorded the commit)?'],
+    ['context','Context that glosses its own terms',
+     '“This question doubles as an onboarding primer, so it glosses the terms.” It then defines story, capability and contract from scratch, explains that only ~8% of changes carry a commit link, and names the one constraint a reader could not guess (the studio reads a database, not the repo).'],
+    ['diagram','A picture, because prose alone re-onboards badly',
+     'A four-node mermaid flowchart showing story → capability → contract, with a dashed edge labelled “diff at this altitude?” pointing at the fork being asked about.'],
+    ['options','Options with the trade-off stated, not just listed',
+     'Two independent axes — altitude (story / capability / contract) and kind (spec history / source code / hybrid) — each option carrying its own cost. “Complete, but usually an unreadable wall.”'],
+    ['recommendation','A non-binding lean, explicitly labelled',
+     '“Non-binding — this is the part we most want your read on. Our lean is C (hybrid) at the capability altitude.” It commits to an answer so you have something to push against, and says outright that it is not deciding.']
+  ];
+  let h='<div class="panel" style="margin-bottom:16px"><p style="margin-top:0"><b>Recovered from git '+
+   '(<code>4337959a</code>).</b> Six fields, and every one of them is doing work. The point is not the '+
+   'schema — the fields already exist on the <code>open-question</code> kind — it is that a briefing '+
+   'written to this standard can be <em>answered cold</em>, which is the whole premise of the arc '+
+   'surface. Today\'s one live question, <code>oq-public-live-forest-on-the-website</code>, hits the '+
+   'same bar. Both were written because someone chose to; nothing requires it.</p></div>';
+  h+='<div class="tblwrap"><table><thead><tr><th style="width:130px">Field</th>'+
+     '<th style="width:250px">What it is for</th><th>From the retired example</th></tr></thead><tbody>';
+  parts.forEach(([f,w,x])=>{
+    h+='<tr><td class="mono"><b>'+f+'</b></td><td style="font-size:12.5px">'+w+
+       '</td><td style="font-size:12.5px;color:var(--dim)">'+esc(x)+'</td></tr>';
+  });
+  return h+'</tbody></table></div>';
+}
+
+/* ================= the asks ================= */
+function renderAsks(){
+  const asks=[
+    {n:'Question 1',q:'Which layout — and where does the Library end up?',
+     body:'The four are not variations; they answer different questions first. You can also take a '+
+          'layout and swap its Library answer — they are independent picks.',
+     ch:[['A · Triage board','State is the layout. Best at “which needs me first”. Library = header toggle.'],
+         ['B · Momentum lanes','Time is the layout. Best at “what has quietly stopped”. Library = second lens on the same axis.'],
+         ['C · Reading room','One arc, fully restored. Closest to what ADR-0267 says the problem is. Library = a row in the index.'],
+         ['D · Contact sheet','All 17 at once. Best portfolio glance, weakest briefing. Library = a tile.']],
+     rec:'Non-binding: <b>C</b> is the one that matches the words in ADR-0267 — you described '+
+         'returning without the context to know where an arc is, and C is the only option that puts '+
+         'a cold-readable briefing in the main pane. But it is the weakest at triage, so <b>C with '+
+         'A\'s state dots in the rail</b> (already drawn that way above) is what I would build.'},
+    {n:'Question 2',q:'What should <code>blocked</code> mean?',
+     body:'The blocked section above shows exactly which arcs each candidate lights up, and the buttons '+
+          'there re-sort every mock live. B1 lights 1 arc, B2 lights 3, '+
+          'B3 lights 5. B4 — “waiting on you” — lights about 5 but cannot be computed from anything '+
+          'stored today.',
+     ch:[['B1 · undecided','An ADR on this arc is still proposed. → verification-integrity-arc only.'],
+         ['B2 · never started','Chartered, zero increments. → directional-dag, factory-self-load, friction-delivery-signal.'],
+         ['B3 · gone quiet','Nothing in 7+ days. → the three above plus explorer-onboarding and grounded-art-machinery.'],
+         ['B4 · waiting on you','Needs a new authored field the session writes when it halts. Not derivable today.']],
+     rec:'Non-binding: <b>B4</b> is what you actually mean when you say blocked — the other three are '+
+         'proxies for it. B2 and B3 are free and would do until B4 exists. My lean is ship <b>B2</b> '+
+         'now (it is unambiguous and lights exactly the three arcs that genuinely have not begun) and '+
+         'treat B4 as the follow-on, because it needs the same authoring habit question 3 is about.'},
+    {n:'Question 3',q:'Should the orchestrator be required to author an open-question briefing when it escalates?',
+     body:'This is the fork that decides whether the surface has anything to show. Right now agents '+
+          'escalate in chat: the tier holds one question, it has no <code>arcRef</code>, and every arc '+
+          'renders “(none)”. Every waiting state in the mocks above is invented. If escalation keeps '+
+          'happening in chat, the waiting column stays permanently empty and options A–D differ only '+
+          'in how elegantly they show you nothing.',
+     ch:[['Required at every escalation','Any owner-level fork must be written as an open-question with an arcRef before the session escalates. Maximum content, real ceremony cost per escalation.'],
+         ['Required only at session end','A session that halts on an owner decision must leave one briefing behind. Cheaper; misses mid-session questions you might have answered sooner.'],
+         ['Encouraged, not enforced','Guidance only, no gate. Costs nothing and — on the evidence of one question in the tier — changes nothing.'],
+         ['Not required','Keep escalating in chat. Then the arc surface should probably drop the waiting state entirely rather than render an empty column.']],
+     rec:'Non-binding: <b>required at session end</b>. The full requirement risks briefing-spam on '+
+         'every small fork, and “encouraged” is what we have now — one question in the tier. Halting '+
+         'on an owner decision is already a distinct, detectable moment, and it is exactly the moment '+
+         'whose context you lose by the time you come back. Whichever you pick, it needs the '+
+         '<code>arcRef</code> set at authoring time, or the question lands unhomed like today\'s.'}
+  ];
+  return asks.map(a=>{
+    let h='<div class="qa"><div class="qn">'+a.n+'</div><h4>'+a.q+'</h4><p style="font-size:13.5px;color:var(--dim)">'+
+      a.body+'</p><div class="choices">';
+    a.ch.forEach(([l,d])=>h+='<div class="choice"><div class="cl">'+l+'</div><div class="cd">'+d+'</div></div>');
+    return h+'</div><div class="rec">'+a.rec+'</div></div>';
+  }).join('');
+}
+
+/* ================= wire up ================= */
+function renderAll(){
+  document.getElementById('optbodies').innerHTML = optA()+optB()+optC()+optD();
+  document.getElementById('bdtable').innerHTML = renderBlockedTable();
+  const cur=document.querySelector('.tab[aria-selected="true"]').dataset.opt;
+  document.querySelectorAll('.opt').forEach(o=>o.classList.toggle('on',o.dataset.opt===cur));
+  document.querySelectorAll('.idxrow[data-arc]').forEach(r=>{
+    r.addEventListener('click',()=>{
+      const a=arcs.find(x=>x.id===r.dataset.arc); if(!a) return;
+      document.querySelectorAll('.idxrow').forEach(x=>x.classList.remove('on'));
+      r.classList.add('on');
+      document.getElementById('briefslot').innerHTML=briefFor(a);
+    });
+  });
+  document.querySelectorAll('[data-arc]').forEach(el=>{
+    if(el.classList.contains('idxrow')) return;
+    el.addEventListener('click',()=>{
+      const a=arcs.find(x=>x.id===el.dataset.arc); if(!a) return;
+      document.querySelectorAll('.card,.tile,.lane').forEach(x=>x.classList.remove('on'));
+      el.classList.add('on');
+      const tab=document.querySelector('.tab[data-opt="c"]');
+      tab.click(); tab.scrollIntoView({behavior:'smooth',block:'center'});
+      document.getElementById('briefslot').innerHTML=briefFor(a);
+      document.querySelectorAll('.idxrow').forEach(x=>
+        x.classList.toggle('on',x.dataset.arc===a.id));
+    });
+  });
+}
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected','false'));
+    t.setAttribute('aria-selected','true');
+    document.querySelectorAll('.opt').forEach(o=>o.classList.toggle('on',o.dataset.opt===t.dataset.opt));
+  });
+});
+document.querySelectorAll('[data-bd]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    bd=b.dataset.bd;
+    document.querySelectorAll('[data-bd]').forEach(x=>
+      x.setAttribute('aria-pressed', x.dataset.bd===bd ? 'true':'false'));
+    document.getElementById('bdnote').textContent=BLOCKED[bd].note;
+    renderAll();
+  });
+});
+document.getElementById('briefanat').innerHTML = renderBriefAnat();
+document.getElementById('asks').innerHTML = renderAsks();
+renderAll();
+
+</script>

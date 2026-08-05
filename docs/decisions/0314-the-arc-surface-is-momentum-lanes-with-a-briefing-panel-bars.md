@@ -1,0 +1,214 @@
+---
+status: accepted
+decided: 2026-08-05
+amends: [267]
+arc: arc-orientation-surface-arc
+---
+# ADR-0314: The arc surface is momentum lanes with a briefing panel: bars are units not time, blocked is stuck not answerable
+
+## Status
+
+accepted (2026-08-05) — decided/directed by the owner in conversation on 2026-08-05. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
+
+Amends **ADR-0267**, which stays current: this ADR answers the two things D3 and D7 deliberately left
+open (where the demoted Library goes, and what `blocked` means) and fixes the layout D1 assigned to
+the drawer's primary slot. ADR-0267 D6's read-only fence is untouched and re-affirmed below.
+
+## Context
+
+ADR-0267 D1 reassigns the map's primary top-drawer slot from the Library lens to arcs, and D7 names
+the states the surface must distinguish — running, `waiting`, `blocked` — while defining only
+`waiting` and saying outright that a session which invents a `blocked` predicate has exceeded the
+decision. Increment 1 (#1020) built the infrastructure: `arcRef` on the `open-question` kind, the
+guarded write path, and the shared join `deriveArcRollup`/`loadArcRollup`/`loadArcRollups` in
+`packages/drive/src/arc-rollup.ts` that both `storytree arc show` and `GET /api/arcs` render from.
+Increment 2 (#1087) delivered four mock layouts against real data and stopped, putting three
+questions to the owner. Those questions went unanswered for two days; this ADR records the answers.
+
+**The owner looked on 2026-08-05 and picked option B, modified.** The mocks were re-rendered first,
+because the population had moved enough to invalidate the numbers the pick would have rested on:
+17 → **20** active arcs, 15 → **27** closed, and — the part that matters — **10 of today's 20 active
+arcs did not exist on 08-02, while 7 of that round's 17 have closed**. Half the board turned over in
+three days. Three measurements taken at the same time shaped the decisions below.
+
+1. **The `waiting` state has no source of content at all.** At the mock round the open-question tier
+   held exactly one question, and the finding was that it was *unhomed* — it carried no `arcRef`, so
+   under D4's derived view no arc surfaced it. Re-measured today the tier is **empty**:
+   `library artifact list open-question --pg` returns 0 and all 20 arcs come back `waiting: false`.
+   The trajectory over three days is 1 → 0. This is not a gap a layout can close.
+2. **Parked work is the biggest thing on an arc and no mock drew it.** ADR-0298 D1's parked entries
+   postdate the 08-02 extract. Measured today: **40 entries across 12 of the 20 active arcs**
+   (`verification-integrity-arc` 12, `cli-write-fidelity-arc` and `session-decoupling-arc` 7 each).
+   Every mock renders "next" as *ready plan / proposed ADR / nothing queued* and therefore answers
+   "nothing queued" for arcs carrying a dozen parked items.
+3. **The `blocked` candidates degrade at today's density.** B3 "gone quiet" now lights 8 arcs and
+   leaves the `quiet` bucket holding exactly **1** — `blocked` and `quiet` collapse into near-synonyms,
+   which they did not at 17 arcs. B2 "never started" doubled 3 → 6. Only B1 held at 1. The candidate
+   the mock round leaned toward is the one that aged worst, which is precisely what re-rendering
+   before the pick was for.
+
+## Decision
+
+### D1 — The layout is momentum lanes (mock option B), with the time axis removed
+
+One lane per arc, as option B proposed. The shared 6-week date axis is **deleted**. It was the
+feature that made staleness a shape rather than a label, but it spent roughly 60% of its width on
+empty space — at today's recency distribution almost every landing sits inside the last 7 days,
+bunched against the today-line.
+
+### D2 — Bars are units, not time: green for landed, grey for not yet
+
+Each lane draws one bar per increment: **green for a closed (landed) increment, grey for one not
+completed yet**. Position along the lane carries no date meaning. This is what frees the horizontal
+space D3 spends.
+
+**This is not the progress bar ADR-0267's Context rules out, and the distinction is load-bearing.** A
+percentage bar claims a denominator; an arc has none, because `endState` is prose rather than a
+checklist. Green-and-grey bars claim only what is *known*: these units landed, these are queued. An
+arc with 3 green and 2 grey is not "60% done" — it is an arc with five known units, and the surface
+never asserts that five is all of them.
+
+D2 also closes Context finding 2: parked work stops being invisible, because a parked entry is
+exactly a grey bar.
+
+### D3 — The freed right-hand side is a briefing panel, and it is where the owner acts
+
+The space the deleted axis returns becomes a preview panel showing **what is waiting on the owner** —
+open questions and anything else halted on their decision. The panel carries **click-through into the
+actual Library artifact** holding the question, so the owner can reach whatever they need to answer it
+properly: the briefing, diagrams, mocks. The studio already routes `#/asset/<id>` and
+`#/doc/<relpath>`, so this is deep-linking rather than a new surface.
+
+This composes option C's reading room into option B's index, which is what the mock round said the
+four options were for ("a build could take one layout's index and another's detail pane"). The panel
+defaults to the selected arc's briefing and shows waiting items when there are any.
+
+### D4 — `waiting` and `blocked` stay separate: answerable versus stuck
+
+ADR-0267 D7 names both and forbids collapsing them. They are defined here as:
+
+- **`waiting`** — an authored open question with a briefing is sitting on this arc. It is
+  **answerable right now**, from the panel, without a re-onboarding round trip.
+- **`blocked`** — the arc cannot proceed and **there is nothing for the owner to answer**. Two
+  sources: a **claim it cannot take** on the story nodes / capabilities it needs, and an unmet
+  dependency on other work.
+
+The test between them is *can the owner discharge this by reading and replying?* Yes → `waiting`. No
+→ `blocked`. This deliberately rejects the mock round's three derived candidates: B1/B2/B3 all
+answered "has this arc been quiet", which is a *symptom* rather than a *cause*, and Context finding 3
+shows B3 ceasing to discriminate at today's density. `quiet` remains a state, and now means what it
+says — moving slowly, nobody stuck.
+
+The owner's expectation is that `blocked` will read "waiting on me" most of the time. That is a
+prediction about the data, not a third definition.
+
+### D5 — Escalating authors an open-question briefing
+
+**An orchestrator that escalates to the owner MUST author an `open-question` artifact carrying an
+`arcRef` and a briefing answerable cold.** Escalating in chat alone is no longer sufficient.
+
+This is the fork that decides whether this surface ever has content, and Context finding 1 makes it
+decisive rather than academic: agents escalate in chat today, which is exactly why the tier holds
+zero questions and every arc reports `waiting: false`. Without D5 the entire waiting half of the
+surface — the panel, the state, the lane marker — is permanently decorative. The retired
+`oq-diff-view-altitude` (recoverable from git at `4337959a`, dissected in #1087) is the worked
+example of the briefing shape: enough context attached to answer the question rather than merely
+find it.
+
+D5 is a change to orchestrator discipline, not to the studio. It does not depend on D8's sequencing
+and is separable from the surface build.
+
+### D6 — The Library becomes a toggle in the drawer header
+
+This answers **ADR-0267 D3**, which left the demoted Library's home open. An `Arcs | Library` toggle
+in the drawer header — the same slot, one click, arcs as the default. Option B's own proposal ("a
+second lens on the same time axis") died with the axis in D1, so the answer is borrowed from option A.
+
+### D7 — Factory-floor health is a persistent strip above the lanes
+
+The surface carries a **factory-floor health signal**, not only per-arc orientation: a band across the
+top of the drawer that stays quiet when the floor is fine and goes loud when a shared bottleneck
+recurs. Owner-directed 2026-08-04 and parked on this arc as `factory-floor-health-signal`: *"I think
+this will be solved when we setup the arc tracker/dashboard so when this stuff needs my attention we
+can make it very visible that there is something wrong on the factory floor."*
+
+It is deliberately **not** an arc state. Every per-arc state answers *what is the state of THIS arc*;
+none answers *is the floor healthy*, and the same bottleneck hit eight times in a week lights up no
+arc state at all. Persistent placement is the point — it must reach the owner without the owner going
+looking.
+
+**The unit is the DISTINCT bottleneck and its recurrence rate, never filing volume.** This is the trap
+that closed `factory-self-load-tune-the-guidance-loop-back-to-evidence-arc`: both its closing metrics
+counted filings, and a hundred reports of one bottleneck scores identically to a hundred reports of a
+hundred bottlenecks while meaning the opposite.
+
+### D8 — The build waits for ADR-0305's increment tier
+
+D2's grey bars and D4's claim-blocked both need state that does not exist yet, and the owner chose to
+wait for it rather than build an adapter over the shape it replaces.
+
+- **D2** is ADR-0305's model exactly: that ADR (accepted 2026-08-04) collapses `increments[]`,
+  `proposals[]` and the `plan` kind into one `increment` tier with lifecycle
+  `proposal → ready → active → closed`. Green is `closed`; grey is the other three. Verified
+  2026-08-05: the tier is **not built** — the schema still carries the `plan` kind and the two arrays
+  — and a sibling session holds a live claim to migrate it.
+- **D4's claim half** needs ADR-0306 (increments cite stories and capabilities as resolvable
+  pointers) and ADR-0308 (increments carry their own claim set). Measured today, only **3 of 20**
+  active arcs carry a story stamp, so arc → story → capability → claim cannot be computed for the
+  other 17. The edge that makes it derivable is the one ADR-0306 adds.
+
+Building against today's two-array shape would mean building on rows a session in flight is deleting.
+The surface build is therefore parked on this arc until the tier lands.
+
+### D9 — Read-only still holds
+
+ADR-0267 D6 is unchanged: no comment affordance, no answering in place, no write path. D3's
+click-through is a read, and D5's briefing is authored by the escalating session, not by the owner
+through this surface. A two-way surface remains a deferred follow-on whose trigger is the owner's
+("once i get a feel for this").
+
+## Consequences
+
+**The surface finally has a specified shape, and it is cheaper than the mock it came from.** Deleting
+the axis removes the densest rendering problem in option B and pays for the panel that makes the
+surface answer questions rather than merely list them.
+
+**Nothing renders until ADR-0305 lands.** This is the cost the owner accepted in D8, chosen over an
+adapter. `arc-orientation-surface-arc` gains a hard dependency on `arcs-hold-increments-arc`, which is
+in flight rather than idle — it landed #1153 on 2026-08-05 and a session holds a live claim on the
+migration. If that work stalls, this surface stalls with it, and the fallback is the adapter D8
+declined, not a redesign.
+
+**D5 changes agent behaviour, and it is the load-bearing half.** The surface can be built perfectly
+and still show an empty panel forever if escalations keep happening only in chat. D5 has no
+dependency on D8 and should land first; it is tracked as its own unit on the arc.
+
+**D4 rejects every predicate the mock round offered.** B1/B2/B3 were all derivable today, and
+`blocked` as defined here is derivable for almost no arc until ADR-0306/0308 lands. That is a
+deliberate trade of availability for meaning: a `blocked` that lights up 8 arcs by conflating
+"nobody has touched this" with "this cannot proceed" would train the owner to ignore it.
+
+**`quiet` becomes load-bearing.** With B3 rejected, an arc that has been still for a week and is
+neither waiting nor blocked reads as quiet — accurate, and no longer competing with `blocked` for the
+same arcs.
+
+**The mock round's data is stale within days.** Half the active arcs turned over in three days, which
+is itself evidence for D7's floor-health strip: a portfolio moving that fast is one the owner cannot
+track by memory between sessions.
+
+## References
+
+- [ADR-0267](0267-arcs-take-the-map-s-primary-top-drawer-slot-the-library-beco.md) — amended here:
+  D3 (Library placement) and D7 (`blocked`) are answered; D1's slot assignment and D6's read-only
+  fence stand.
+- [ADR-0305](0305-arcs-hold-increments-one-durable-typed-tier-replaces-increme.md) — the increment
+  tier D2's bars and D8's sequencing depend on.
+- [ADR-0306](0306-typed-work-hierarchy-refs-increments-cite-stories-and-capabi.md) /
+  [ADR-0308](0308-increments-form-a-dag-and-carry-their-own-claim-set-depends.md) — what makes D4's
+  claim-blocked derivable.
+- [ADR-0298](0298-proposals-fold-into-arcs-the-deferred-work-tier-is-an-arc-en.md) — the parked entries
+  that become D2's grey bars.
+- [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — why this ADR is born `accepted`.
+- `packages/drive/src/arc-rollup.ts` — the one join both surfaces render from (increment 1).
+- `docs/research/arc-surface-mocks-2026-08-05/` — the re-rendered options the owner picked from, and
+  the measurements quoted in Context.
