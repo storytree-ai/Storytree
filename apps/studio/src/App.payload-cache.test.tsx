@@ -235,12 +235,9 @@ async function runColdBootAndCaptureEntry(scenario: {
   apiMock.listDocs.mockResolvedValue(makeDocs(scenario.docIds));
 
   render(<App />);
-  await waitFor(
-    () => {
-      expectTerritories(scenario.storyIds);
-    },
-    { timeout: 5000 },
-  );
+  await waitFor(() => {
+    expectTerritories(scenario.storyIds);
+  });
   await waitFor(() => {
     expect(localStorageKeys().length).toBeGreaterThan(0);
   });
@@ -308,12 +305,9 @@ describe('map-payload-cache', () => {
 
     render(<App />);
 
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     await waitFor(() => {
       expect(localStorageKeys().length).toBeGreaterThan(0);
     });
@@ -341,12 +335,9 @@ describe('map-payload-cache', () => {
 
     render(<App />);
 
-    await waitFor(
-      () => {
-        expectTerritories(['alpha', 'beta']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha', 'beta']);
+    });
     expect(isShowingGrowingWorld()).toBe(false);
     expect(apiMock.tree).toHaveBeenCalled();
     expect(apiMock.listDocs).toHaveBeenCalled();
@@ -357,12 +348,9 @@ describe('map-payload-cache', () => {
       await Promise.resolve();
     });
 
-    await waitFor(
-      () => {
-        expectTerritories(['alpha', 'gamma']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha', 'gamma']);
+    });
   });
 
   it('map-payload-cache-withholds-live-coordination-signals: a cached paint seeds no build/claim/departure wisp, and the entry itself carries no in-flight coordination rows — a wisp appears only from the revalidated payload / the existing activity poll', async () => {
@@ -383,12 +371,9 @@ describe('map-payload-cache', () => {
     apiMock.activity.mockImplementation(() => activityDeferred.promise);
 
     render(<App />);
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     expect(document.querySelector('.world-claim-wisp')).toBeNull();
 
     await act(async () => {
@@ -417,12 +402,9 @@ describe('map-payload-cache', () => {
     apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
 
     const successRun = render(<App />);
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     await waitFor(() => {
       expect(treeWrapEl()?.getAttribute('data-cache-provisional')).toBe('true');
     });
@@ -447,12 +429,9 @@ describe('map-payload-cache', () => {
     apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
 
     render(<App />);
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     await waitFor(() => {
       expect(treeWrapEl()?.getAttribute('data-cache-provisional')).toBe('true');
     });
@@ -486,7 +465,7 @@ describe('map-payload-cache', () => {
     apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
 
     const foreignRun = render(<App />);
-    await screen.findByTestId('tree-route', {}, { timeout: 5000 });
+    await screen.findByTestId('tree-route');
     expect(isShowingGrowingWorld()).toBe(true);
     expectTerritories([]);
     await act(async () => {
@@ -510,7 +489,7 @@ describe('map-payload-cache', () => {
     apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
 
     render(<App />);
-    await screen.findByTestId('tree-route', {}, { timeout: 5000 });
+    await screen.findByTestId('tree-route');
     expect(isShowingGrowingWorld()).toBe(true);
     expectTerritories([]);
     await act(async () => {
@@ -534,12 +513,9 @@ describe('map-payload-cache', () => {
     await waitFor(() => {
       expect(apiMock.health).toHaveBeenCalled();
     });
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     evictRun.unmount();
     cleanup();
 
@@ -552,7 +528,7 @@ describe('map-payload-cache', () => {
     apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
 
     render(<App />);
-    await screen.findByTestId('tree-route', {}, { timeout: 5000 });
+    await screen.findByTestId('tree-route');
     expect(isShowingGrowingWorld()).toBe(true);
     expectTerritories([]);
 
@@ -578,12 +554,9 @@ describe('map-payload-cache', () => {
     apiMock.tree.mockClear();
     apiMock.listDocs.mockClear();
     const runA = render(<App />);
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     expect(apiMock.tree).toHaveBeenCalled();
     expect(apiMock.listDocs).toHaveBeenCalled();
     runA.unmount();
@@ -599,12 +572,9 @@ describe('map-payload-cache', () => {
     apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
     apiMock.listDocs.mockResolvedValue(makeDocs(['doc-a']));
     const runB = render(<App />);
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     runB.unmount();
     cleanup();
     restore();
@@ -615,12 +585,9 @@ describe('map-payload-cache', () => {
     apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
     apiMock.listDocs.mockResolvedValue(makeDocs(['doc-a']));
     const runC = render(<App />);
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     runC.unmount();
   });
 });

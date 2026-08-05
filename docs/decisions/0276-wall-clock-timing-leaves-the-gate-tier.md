@@ -106,7 +106,18 @@ class with zero confirmed flakes; the fence blocks its growth and it can drain o
 ## Consequences
 
 - Innocent diffs stop paying the 9–42 min flake tax for load on the dev box; the two classes that
-  actually redded gates (measured elapsed, `waitFor` 1 s) are dead after increments 1+2.
+  actually redded gates (measured elapsed, `waitFor` 1 s) are dead after increments 1+2 — ~~with the
+  `waitFor` half closed by the ceiling alone.~~ **CORRECTED IN PLACE 2026-08-06 (ADR-0139): increment
+  2's ceiling binds only the call sites that do not set their own budget.** @testing-library/dom
+  resolves it as a destructured DEFAULT parameter (`timeout = getConfig().asyncUtilTimeout`,
+  `dist/wait-for.js`), so a call-site `{ timeout: N }` REPLACES the ceiling instead of tightening it —
+  and 30 sites across three studio files were already passing 5000 ms, 3× under it. The class
+  therefore recurred: `App.docs-index-honesty.test.tsx` redded two consecutive full local gates on
+  diffs touching only `packages/orchestrator`, while passing 5/5 in isolation and green in CI. Neither
+  fence could see it — increment 3's `check:test-timing` apertures on `performance.now` /
+  `process.hrtime` only, and ADR-0311 D1 then retired that rung entirely (2026-08-05). The 30
+  opt-outs are removed and the gap is now observed by a test, not prose (see References). The
+  decision stands unchanged; only this claim of completeness was overtaken.
 - The routing perf contract survives, honestly: `STORYTREE_PERF=1 pnpm --filter
   @storytree/forest-world test` asserts the 2 s bound on demand; the measurement code still runs
   (and prints) every gate pass, so it cannot rot unnoticed.
@@ -139,6 +150,11 @@ class with zero confirmed flakes; the fence blocks its growth and it can drain o
   PR #1010 / #1014 / #1033 flake post-mortems.
 - Code (increments 1+2): `packages/forest-world/src/routing.test.ts` (env-gated bound),
   `apps/studio/vitest.setup.ts` (`asyncUtilTimeout` floor).
+- Code (the 2026-08-06 correction above): `apps/studio/src/asyncUtilTimeout-ceiling.test.ts` — the
+  observer the ceiling never had, failing any studio call site that passes its own `timeout` to a
+  testing-library async utility, plus asserting the ceiling itself is still configured. Removal of
+  the 30 opt-outs in `App.docs-index-honesty.test.tsx`, `App.boot-independence.test.tsx`, and
+  `App.payload-cache.test.tsx`. Friction: `per-call-waitfor-timeout-overrides-the-load-ceiling`.
 - Code (increment 3): `packages/cli/src/test-timing-gate.ts` (the sweep, the aperture, and the
   comment/string masker), `packages/cli/src/test-timing-drain.ts` (the two zero ceilings and their
   measured baselines), `packages/cli/src/check-test-timing.ts` (the shell), the `check:test-timing`

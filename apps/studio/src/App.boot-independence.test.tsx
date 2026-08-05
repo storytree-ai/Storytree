@@ -234,18 +234,12 @@ describe('map-boot-independence', () => {
     });
 
     // /api/assets is never resolved anywhere in this scenario — the map must proceed regardless.
-    await waitFor(
-      () => {
-        expect(apiMock.tree).toHaveBeenCalled();
-      },
-      { timeout: 5000 },
-    );
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expect(apiMock.tree).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     expect(probe().getAttribute('data-assets-status')).toBe('loading');
 
     // ── Ceiling 2: a NON-member never reaches the corpus at all (ADR-0043) ────────────────────
@@ -287,12 +281,9 @@ describe('map-boot-independence', () => {
 
     render(<App />);
 
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     // Let every boot-time call have its chance to fire before asserting an absence.
     await waitFor(() => {
       expect(apiMock.listDocs).toHaveBeenCalled();
@@ -328,7 +319,7 @@ describe('map-boot-independence', () => {
 
     render(<App />);
 
-    const libraryRoute = await screen.findByTestId('library-route', {}, { timeout: 5000 });
+    const libraryRoute = await screen.findByTestId('library-route');
 
     // PENDING: the initial empty `assets: []` must never masquerade as a resolved, empty corpus.
     expect(within(libraryRoute).queryByText(/Artifact not found/i)).toBeNull();
@@ -355,7 +346,7 @@ describe('map-boot-independence', () => {
     apiMock.listAssets.mockImplementation(() => secondAssets.promise);
 
     render(<App />);
-    await screen.findByTestId('library-route', {}, { timeout: 5000 });
+    await screen.findByTestId('library-route');
     await act(async () => {
       secondAssets.resolve([makeAsset('asset-x'), makeAsset('asset-y')]);
       await Promise.resolve();
@@ -377,12 +368,9 @@ describe('map-boot-independence', () => {
     render(<App />);
 
     // The map paints through the assets failure — it reads nothing from that payload.
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     // The old blanket "corpus" error box (the removed `status === 'error'` branch) must not have
     // replaced the whole content area, map included.
     expect(screen.queryByText(/Couldn.t reach the studio data API/i)).toBeNull();
@@ -401,7 +389,7 @@ describe('map-boot-independence', () => {
 
     render(<App />);
 
-    const libraryRoute = await screen.findByTestId('library-route', {}, { timeout: 5000 });
+    const libraryRoute = await screen.findByTestId('library-route');
     await waitFor(() => {
       expect(within(libraryRoute).getByText(/Trouble reaching the Library corpus/i)).toBeTruthy();
     });
@@ -432,12 +420,9 @@ describe('map-boot-independence', () => {
 
     render(<App />);
 
-    await waitFor(
-      () => {
-        expect(screen.getByText(/The live store is stopped/i)).toBeTruthy();
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expect(screen.getByText(/The live store is stopped/i)).toBeTruthy();
+    });
     expect(screen.queryByText(/this looks like a fault/i)).toBeNull();
     expect(screen.queryByTestId('tree-route')).toBeNull();
 
@@ -451,12 +436,9 @@ describe('map-boot-independence', () => {
 
     render(<App />);
 
-    await waitFor(
-      () => {
-        expect(screen.getByText(/this looks like a fault/i)).toBeTruthy();
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expect(screen.getByText(/this looks like a fault/i)).toBeTruthy();
+    });
     // The distinction is the whole point: a fault must never offer to wake a running DB.
     expect(screen.queryByText(/The live store is stopped/i)).toBeNull();
     expect(screen.queryByTestId('tree-route')).toBeNull();
@@ -469,12 +451,9 @@ describe('map-boot-independence', () => {
 
     render(<App />);
 
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     const callsAfterFirstPaint = apiMock.tree.mock.calls.length;
 
     navigate('#/asset/asset-x');
@@ -507,12 +486,9 @@ describe('map-boot-independence', () => {
 
     // The ghost must never appear — not even for a frame before the network answers.
     expect(uniqueTerritoryIds()).not.toContain('ghost-from-a-foreign-stamp');
-    await waitFor(
-      () => {
-        expectTerritories(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['alpha']);
+    });
     expect(uniqueTerritoryIds()).not.toContain('ghost-from-a-foreign-stamp');
 
     // ── Stage 2 guard 3 (structural shape): a malformed entry is refused even with a GOOD stamp ─
@@ -533,11 +509,8 @@ describe('map-boot-independence', () => {
 
     render(<App />);
 
-    await waitFor(
-      () => {
-        expectTerritories(['beta']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expectTerritories(['beta']);
+    });
   });
 });
