@@ -87,7 +87,7 @@ three gate rungs (the plan is 25 steps → 22), the `library sync-agents` / `syn
 with their suites, and `SEED_SCOPE_KINDS` — ~3,850 lines. The excision was clean exactly as
 increment 3 measured: no hidden dependents, and the only outward repairs were a stale remedy line in
 `check:surface-coverage` and a deny-list entry in `orientation-tools`. **MOVED:** `build:guidance`
-and `build:agents` now read the LIVE store through `packages/cli/src/corpus-store.ts`, which fails
+and `build:agents` now read the LIVE store through `packages/drive/src/corpus-store.ts`, which fails
 loudly rather than falling back — a generator that silently read a stale corpus would report "in
 sync" while reverting a live edit. Both were proved to render the committed projections
 byte-identically from live, which is the evidence that the two surfaces genuinely agreed. CI's

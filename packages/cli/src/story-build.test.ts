@@ -30,7 +30,7 @@ test("story build library --dry-run drives the capabilities topo-ordered and SIG
   assert.match(env.body, /story build library — DRY-RUN/);
   assert.match(env.body, /stories\/library\/story\.md/);
 
-  // The topo order: the three dependency-less roots first, the CLI capability after all six of its
+  // The topo order: the four dependency-less roots first, the CLI capability after all six of its
   // deps, and the story LAST.
   const orderLine = env.body.split("\n").find((l) => l.startsWith("order:"));
   assert.ok(orderLine !== undefined, "an order: line is part of the report");
@@ -39,11 +39,12 @@ test("story build library --dry-run drives the capabilities topo-ordered and SIG
     .split("→")
     .map((s) => s.trim());
   assert.equal(order[0], "graduation-park-lease", "the dep-less park-lease root runs first");
-  assert.equal(order[1], "library-dag-acyclic-core", "the dep-less DAG root follows");
-  assert.equal(order[2], "library-schema-and-write-validation", "the schema dependency root follows");
+  assert.equal(order[1], "hydrated-store-dialing-root", "the independent store-dialing root follows");
+  assert.equal(order[2], "library-dag-acyclic-core", "the dep-less DAG root follows");
+  assert.equal(order[3], "library-schema-and-write-validation", "the schema dependency root follows");
   assert.equal(order[order.length - 1], "library", "the story's UAT node is last in the order");
   assert.equal(order[order.length - 2], "library-cli", "the most-dependent capability runs just before the story");
-  assert.equal(order.length, 10, "9 capabilities + the story");
+  assert.equal(order.length, 11, "10 capabilities + the story");
   assert.ok(
     order.indexOf("migrate-on-write-upcaster") < order.indexOf("event-sourced-store-seam"),
     "depends_on edges are honoured",
@@ -52,11 +53,11 @@ test("story build library --dry-run drives the capabilities topo-ordered and SIG
   // ADR-0044/0040: library now declares uat_witness: machine (every Story UAT leg is an agent
   // exercise) → the gate drives AND signs the story's own UAT node, not just its capabilities.
   assert.match(env.body, /uat witness: machine \(declared\)/);
-  assert.match(env.body, /nodes: {7}10\/10 signed passes/);
+  assert.match(env.body, /nodes:\s+11\/11 signed passes/);
   assert.match(env.body, /library +PASS {3}rollup: healthy/);
   assert.doesNotMatch(env.body, /WITHHELD/);
   assert.match(env.body, /outcome: {5}PASSED — every node signed/);
-  assert.equal((env.body.match(/PASS {3}rollup: healthy/g) ?? []).length, 10);
+  assert.equal((env.body.match(/PASS {3}rollup: healthy/g) ?? []).length, 11);
 
   // The honest framing is part of the output.
   assert.match(env.body, /proves the CHAINING/);

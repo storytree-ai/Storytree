@@ -84,7 +84,7 @@ and no drift to detect. They go under ADR-0302 D4's "deleted, not left inert" ru
 
 *(As landed 2026-08-05: D1, D2 and D3 are all shipped. `sync-agents.ts`, `check-agents-sync.ts` and
 the `library sync-agents` command are gone; `build:guidance` / `build:agents` read the live store via
-`packages/cli/src/corpus-store.ts` and fail loudly when it is unreachable. The migration was proved
+`packages/drive/src/corpus-store.ts` and fail loudly when it is unreachable. The migration was proved
 rather than asserted — both generators re-rendered CLAUDE.md, AGENTS.md, all four harness agent
 directories and `definitions.generated.json` **byte-identically** from the live store, so the two
 surfaces demonstrably agreed at the moment of the switch.
