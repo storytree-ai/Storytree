@@ -5,8 +5,8 @@ title: "Studio UAT criterion rows stay one-line and open the Library detail"
 outcome: "The Studio story detail panel renders each UAT criterion as the story-owned one-line title and opening the row follows its Library detail pointer — never dumping procedure prose into the table."
 status: proposed
 proof_mode: UAT
-# Behaviour/geometry legs below are machine-witnessed (vitest). Absence would default the story
-# node to human (ADR-0040) and withhold story build --real dishonestly.
+# Machine-judged capability behaviour has no remaining story-UAT journey under ADR-0294; the
+# observe reliability gate carries the story's own proof obligation under ADR-0085.
 uat_witness: machine
 # Immutable arc provenance (ADR-0183): the FOURTH landable increment of the `model-uat-promotion` arc
 # (ADR-0209, owner-directed 2026-07-17). Increments 1–3 landed witness/tier, detail/pointer/hash, and
@@ -138,16 +138,18 @@ Runtime dependency (honest `depends_on`):
 
 ## UAT Test Criteria
 
-Integrated acceptance against the real `UatTestCriteriaSection` vitest surface. Every leg
-**(witness: machine)** — deterministic jsdom behaviour (no operator judgment gap).
+This story intentionally declares **zero story-UAT criteria** under ADR-0294. The deleted criteria
+described capability/component assertions, not an end-to-end journey exercised through a real
+surface. Their complete disposition audit is retained here before the absent numbered list:
 
-**Goal —** A reader sees one-line UAT rows and can open a pointed detail in the Library; long
-procedure prose never occupies the title cell.
+| deleted criterion title | legacy key | current criterion id | lower-tier proving node and assertion |
+|---|---|---|---|
+| The row shows the story-owned one-liner. | `uat-detail-studio#uat-1` | `uatc_c8ac95ae8657a719ee831875` | Capabilities `uat-row-one-liner` and `criterion-detail-pointer`: the Studio component test asserts that the exact one-line title renders; the pointer tests attach a resolved long action/success body and assert that neither field can replace the story title. |
+| Opening a pointed row reaches the Library detail. | `uat-detail-studio#uat-2` | `uatc_766469bf1341893d855b141e` | Capability `uat-row-opens-detail`, contract `uat-row-open-navigates-to-detail`: the component test asserts the exact Library asset href and that the one-liner remains the link label. |
+| A row without a detail pointer does not fake-open. | `uat-detail-studio#uat-3` | `uatc_6dd0345314a8967b907b6b16` | Capability `uat-row-opens-detail`, contracts `uat-row-without-pointer-does-not-fake-open` and `uat-row-open-preserves-sign-glyph`: the component test asserts no detail link exists, the one-line title remains, and the human sign affordance is retained. |
+| Witness sign path still works on a concise row. | `uat-detail-studio#uat-4` | `uatc_69926cb3a7b856f539e5ce3c` | Capability `uat-row-opens-detail`, contract `uat-row-open-preserves-sign-glyph`: the focused coexistence test asserts pointed human and machine rows keep distinct sign states, while the ADR-0082 witness tests assert a human leg is signable, a machine leg is inert, and signing issues the real sign call. |
 
-1. **The row shows the story-owned one-liner.** _(witness: machine)_ _(proof-gate: uat-detail-studio#gate-1)_ Render a criterion whose title is a short one-liner and whose optional detail body is long procedure prose. **Success —** the title cell shows the one-liner; the detail body's action/success text does not appear in the row. _(criterion-id: uatc_c8ac95ae8657a719ee831875)_ _(revision-id: uatr1:f9d41d56292ae15f)_
-2. **Opening a pointed row reaches the Library detail.** _(witness: machine)_ _(proof-gate: uat-detail-studio#gate-1)_ Render a criterion with `detailArtifactId`. Activate the row's open affordance. **Success —** navigation targets that detail artifact (Library asset/lens pathway); the one-liner remains the row label. _(criterion-id: uatc_766469bf1341893d855b141e)_ _(revision-id: uatr1:037167663826c4a0)_
-3. **A row without a detail pointer does not fake-open.** _(witness: machine)_ _(proof-gate: uat-detail-studio#gate-1)_ Render a criterion with no detail pointer. **Success —** no navigation to a fabricated detail id; the row still shows the one-liner and existing witness/sign behaviour is undisturbed. _(criterion-id: uatc_6dd0345314a8967b907b6b16)_ _(revision-id: uatr1:8ad795cb3843da19)_
-4. **Witness sign path still works on a concise row.** _(witness: machine)_ _(proof-gate: uat-detail-studio#gate-1)_ An unproven human leg remains signable via the person glyph; a machine leg stays non-clickable for sign. **Success —** concision does not break ADR-0082 attestation-surface behaviour. _(criterion-id: uatc_69926cb3a7b856f539e5ce3c)_ _(revision-id: uatr1:e2b0f056d22cd9b4)_
+No numbered story-UAT list follows because there is no remaining journey-level criterion to bind.
 
 End state — Studio UAT rows are scannable one-liners that open real Library detail when pointed; procedure prose stays in the artifact.
 
@@ -155,8 +157,9 @@ End state — Studio UAT rows are scannable one-liners that open real Library de
 
 1. **The Studio UAT-criteria section suite is green** _(gate: observe)_ _(covers: uat-row-one-liner, uat-row-opens-detail)_ `pnpm --filter studio exec vitest run src/components/UatTestCriteriaSection.test.tsx`.
    The spine observes the vitest file that proves one-liner display, open-detail navigation, no-pointer
-   honesty, and preserved sign behaviour. It then signs `uat-detail-studio#gate-1`; all four machine
-   criteria bind to this gate; the adopted pass greens both capabilities via `(covers:)`.
+   honesty, and preserved sign behaviour for the covered capabilities. It then signs
+   `uat-detail-studio#gate-1`; no story UAT criteria bind to this gate, and the adopted pass greens
+   both capabilities via `(covers:)`.
 
 Run from a clean committed rebuilt HEAD:
 `pnpm storytree adopt uat-detail-studio --signer <email> --pg`.
@@ -164,8 +167,10 @@ Run from a clean committed rebuilt HEAD:
 ## Proof
 
 Package/host registration (hostedStories) lands first; then the two leaves chain through
-`node build --real` (vitest); then story UAT + Adopt observe the section suite. Authored status stays
-`proposed`; `healthy` is derived (ADR-0020). Whole-story UAT is `uat_witness: machine`.
+`node build --real` (vitest); then Adopt observes the section suite. ADR-0085's own-proof union
+permits this story to declare zero UAT criteria because its behaviour is wholly proven by the
+capability proofs, while the reliability observe gate remains as the story-level adoption check.
+Authored status stays `proposed`; `healthy` is derived (ADR-0020).
 
 ## Where this sits in the arc
 
