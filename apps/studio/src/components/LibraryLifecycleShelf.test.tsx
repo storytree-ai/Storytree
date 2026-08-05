@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // The ONE-SELECTOR-GOVERNS-THE-PANEL rework (ADR-0197, the `library-lifecycle-shelf` capability —
-// the sibling `library-lifecycle-wire` owns the pure `lifecycleOf` projection + the plan-`status`
+// the sibling `library-lifecycle-wire` owns the pure `lifecycleOf` projection + the increment-`status`
 // wire it consumes). This capability's honest proof spans:
 //
 //   • the reworked pure count heart `buildCategoryShelf` (`../lib/libraryShelf`) — ADDING a
@@ -78,32 +78,32 @@ const frictionArchived = asset({
 });
 const FRICTION = [frictionOpen, frictionRouted, frictionArchived];
 
-// plan (open/active/archived, projected from the `status` wire mirror): 4 items — 1 open, 1 active,
+// increment (open/active/archived, projected from the `status` wire mirror): 4 items — 1 open, 1 active,
 // 2 archived. The vocabulary is ADR-0305 D2's four-state increment lifecycle; `ready` also projects
 // to `active` and is exercised exhaustively by the library's own `lifecycle` suite, so the middle
 // slot here carries `active` — the state whose PROJECTION changed (its predecessor `consumed` was
 // archived), which is the behaviour worth pinning on this surface.
 const planProposal = asset({
-  id: 'plan-proposal',
-  category: 'plan',
+  id: 'increment-proposal',
+  category: 'increment',
   title: 'A parked increment',
   status: 'proposal',
 });
 const planActive = asset({
-  id: 'plan-active',
-  category: 'plan',
+  id: 'increment-active',
+  category: 'increment',
   title: 'An executing increment',
   status: 'active',
 });
 const planClosedOne = asset({
-  id: 'plan-closed-one',
-  category: 'plan',
+  id: 'increment-closed-one',
+  category: 'increment',
   title: 'A landed increment',
   status: 'closed',
 });
 const planClosedTwo = asset({
-  id: 'plan-closed-two',
-  category: 'plan',
+  id: 'increment-closed-two',
+  category: 'increment',
   title: 'An abandoned increment',
   status: 'closed',
 });
@@ -161,7 +161,7 @@ describe('libraryShelf (per-state count rework)', () => {
     expect(frictionEntry?.stateCounts?.active).toBe(0);
     expect(frictionEntry?.stateCounts?.archived).toBe(2);
 
-    const planEntry = shelf.find((e) => e.category === 'plan');
+    const planEntry = shelf.find((e) => e.category === 'increment');
     expect(planEntry?.count).toBe(4);
     expect(planEntry?.stateCounts?.open).toBe(1);
     expect(planEntry?.stateCounts?.active).toBe(1);
@@ -203,12 +203,12 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
       screen.getByTestId('library-lifecycle-selector-archived').getAttribute('aria-pressed'),
     ).toBe('false');
 
-    // friction, plan, and Decisions each have exactly 1 open item -> all three render, plainly.
+    // friction, increment, and Decisions each have exactly 1 open item -> all three render, plainly.
     const frictionRow = screen.getByTestId('library-shelf-row-friction');
     expect(frictionRow.textContent).toContain('1');
     expect(frictionRow.textContent).not.toMatch(/of\s*3/);
 
-    const planRow = screen.getByTestId('library-shelf-row-plan');
+    const planRow = screen.getByTestId('library-shelf-row-increment');
     expect(planRow.textContent).toContain('1');
     expect(planRow.textContent).not.toMatch(/of\s*4/);
 
@@ -238,8 +238,8 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
 
     // friction has ZERO active items -> hidden now.
     expect(screen.queryByTestId('library-shelf-row-friction')).toBeNull();
-    // plan/pattern/arc/Decisions each have exactly 1 active item.
-    expect(screen.getByTestId('library-shelf-row-plan').textContent).toContain('1');
+    // increment/pattern/arc/Decisions each have exactly 1 active item.
+    expect(screen.getByTestId('library-shelf-row-increment').textContent).toContain('1');
     expect(screen.getByTestId('library-shelf-row-pattern').textContent).toContain('1');
     expect(screen.getByTestId('library-shelf-row-arc').textContent).toContain('1');
     expect(screen.getByTestId('library-shelf-decisions-row').textContent).toContain('1');
@@ -252,9 +252,9 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
     // pattern/arc have ZERO archived items -> hidden.
     expect(screen.queryByTestId('library-shelf-row-pattern')).toBeNull();
     expect(screen.queryByTestId('library-shelf-row-arc')).toBeNull();
-    // friction and plan each have 2 archived items, Decisions has 1.
+    // friction and increment each have 2 archived items, Decisions has 1.
     expect(screen.getByTestId('library-shelf-row-friction').textContent).toContain('2');
-    expect(screen.getByTestId('library-shelf-row-plan').textContent).toContain('2');
+    expect(screen.getByTestId('library-shelf-row-increment').textContent).toContain('2');
     expect(screen.getByTestId('library-shelf-decisions-row').textContent).toContain('1');
   });
 
@@ -263,30 +263,30 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
     const onSelect = vi.fn();
     render(<LibraryFinder assets={ASSETS} docs={DOCS} onSelect={onSelect} />);
 
-    // scope into plan under the default open state (plan has exactly 1 open item).
-    fireEvent.click(screen.getByTestId('library-shelf-row-plan'));
-    expect(screen.getByTestId('library-finder-row-plan-proposal')).toBeTruthy();
-    expect(screen.queryByTestId('library-finder-row-plan-active')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-closed-one')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-closed-two')).toBeNull();
+    // scope into increment under the default open state (it has exactly 1 open item).
+    fireEvent.click(screen.getByTestId('library-shelf-row-increment'));
+    expect(screen.getByTestId('library-finder-row-increment-proposal')).toBeTruthy();
+    expect(screen.queryByTestId('library-finder-row-increment-active')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-increment-closed-one')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-increment-closed-two')).toBeNull();
 
-    fireEvent.click(screen.getByTestId('library-finder-row-plan-proposal'));
+    fireEvent.click(screen.getByTestId('library-finder-row-increment-proposal'));
     expect(onSelect).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'plan-proposal', title: 'A parked increment', category: 'plan', source: 'asset' }),
+      expect.objectContaining({ id: 'increment-proposal', title: 'A parked increment', category: 'increment', source: 'asset' }),
     );
 
     // switching the selector WHILE scoped re-filters the same browse list.
     fireEvent.click(screen.getByTestId('library-lifecycle-selector-active'));
-    expect(screen.getByTestId('library-finder-row-plan-active')).toBeTruthy();
-    expect(screen.queryByTestId('library-finder-row-plan-proposal')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-closed-one')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-closed-two')).toBeNull();
+    expect(screen.getByTestId('library-finder-row-increment-active')).toBeTruthy();
+    expect(screen.queryByTestId('library-finder-row-increment-proposal')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-increment-closed-one')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-increment-closed-two')).toBeNull();
 
     fireEvent.click(screen.getByTestId('library-lifecycle-selector-archived'));
-    expect(screen.getByTestId('library-finder-row-plan-closed-one')).toBeTruthy();
-    expect(screen.getByTestId('library-finder-row-plan-closed-two')).toBeTruthy();
-    expect(screen.queryByTestId('library-finder-row-plan-proposal')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-active')).toBeNull();
+    expect(screen.getByTestId('library-finder-row-increment-closed-one')).toBeTruthy();
+    expect(screen.getByTestId('library-finder-row-increment-closed-two')).toBeTruthy();
+    expect(screen.queryByTestId('library-finder-row-increment-proposal')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-increment-active')).toBeNull();
   });
 
   // ── lls-selector-filters-search ───────────────────────────────────────────────────
@@ -295,14 +295,14 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
 
     const input = screen.getByLabelText('Search library');
 
-    // under default open: a "plan" query matches all 4 plans by id, but only the open one shows.
-    fireEvent.change(input, { target: { value: 'plan' } });
-    expect(screen.getByTestId('library-finder-row-plan-proposal')).toBeTruthy();
-    expect(screen.queryByTestId('library-finder-row-plan-active')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-closed-one')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-closed-two')).toBeNull();
+    // under default open: an "increment" query matches all 4 by id, but only the open one shows.
+    fireEvent.change(input, { target: { value: 'increment' } });
+    expect(screen.getByTestId('library-finder-row-increment-proposal')).toBeTruthy();
+    expect(screen.queryByTestId('library-finder-row-increment-active')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-increment-closed-one')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-increment-closed-two')).toBeNull();
     // the in-state result still renders its title + a kindLabel kind sub-line.
-    expect(screen.getByTestId('library-finder-result-kind-plan-proposal').textContent).toBe('plan');
+    expect(screen.getByTestId('library-finder-result-kind-increment-proposal').textContent).toBe('increment');
 
     // a "decision" query matches all 3 Decisions docs by title, but only the open (proposed) one shows.
     fireEvent.change(input, { target: { value: 'decision' } });
@@ -322,9 +322,9 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
       'epic',
     );
 
-    fireEvent.change(input, { target: { value: 'plan' } });
-    expect(screen.getByTestId('library-finder-row-plan-active')).toBeTruthy();
-    expect(screen.queryByTestId('library-finder-row-plan-proposal')).toBeNull();
+    fireEvent.change(input, { target: { value: 'increment' } });
+    expect(screen.getByTestId('library-finder-row-increment-active')).toBeTruthy();
+    expect(screen.queryByTestId('library-finder-row-increment-proposal')).toBeNull();
   });
 
   // ── lls-state-chips-retired ───────────────────────────────────────────────────────
@@ -336,7 +336,7 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
     expect(screen.queryByTestId('library-state-chips')).toBeNull();
 
     fireEvent.click(screen.getByTestId('library-scope-chip-remove'));
-    fireEvent.click(screen.getByTestId('library-shelf-row-plan'));
+    fireEvent.click(screen.getByTestId('library-shelf-row-increment'));
     expect(screen.queryAllByTestId(/^library-state-chip-/)).toHaveLength(0);
     expect(screen.queryByTestId('library-state-chips')).toBeNull();
   });
@@ -344,7 +344,7 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
   // ── lls-quiet-empty-states ────────────────────────────────────────────────────────
   it('lls-quiet-empty-states: an all-empty open shelf renders one quiet line and no shelf rows', () => {
     const onlyActiveAssets: GuidanceAsset[] = [
-      asset({ id: 'only-active-plan', category: 'plan', title: 'Only An Active Plan', status: 'ready' }),
+      asset({ id: 'only-active-increment', category: 'increment', title: 'Only An Active Increment', status: 'ready' }),
     ];
     const onlyActiveDocs: DocMeta[] = [
       doc({

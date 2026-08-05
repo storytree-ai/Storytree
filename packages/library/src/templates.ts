@@ -63,7 +63,7 @@ const GENERATED_AFTER_ADR: readonly GeneratedTemplateMeta[] = [
   { kind: "agent", title: "Template — agent", description: "Fillable scaffold for a new agent artifact (a role and its operating discipline).", createdAt: "2026-06-11T00:00:00.000Z", updatedAt: "2026-06-11T00:00:00.000Z" },
   { kind: "friction", title: "Template — friction", description: "Fillable scaffold for a new friction artifact (what fought a session, with evidence).", createdAt: "2026-06-11T00:00:00.000Z", updatedAt: "2026-06-11T00:00:00.000Z" },
   { kind: "arc", title: "Template — arc", description: "Fillable scaffold for a new arc artifact (a multi-story initiative tracked to a closed end-state).", createdAt: "2026-06-11T00:00:00.000Z", updatedAt: "2026-06-11T00:00:00.000Z" },
-  { kind: "plan", title: "Template — plan", description: "Fillable scaffold for a new plan artifact (disposable, git-anchored choreography for one arc increment).", createdAt: "2026-06-11T00:00:00.000Z", updatedAt: "2026-06-11T00:00:00.000Z" },
+  { kind: "increment", title: "Template — increment", description: "Fillable scaffold for a new increment artifact (one unit of arc work, from parked proposal through to closed).", createdAt: "2026-06-11T00:00:00.000Z", updatedAt: "2026-06-11T00:00:00.000Z" },
 ];
 
 /** Render a schema-derived template: editorial metadata + a body generated from KIND_SPECS. */

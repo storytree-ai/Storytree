@@ -102,9 +102,9 @@ function samePath(a: string, b: string): boolean {
  * specifically `.claude/`). Widened because a registered linked worktree at
  * `.codex/worktrees/<n>/storytree` was refused three times across three branches while `git worktree
  * list` showed it: the session HAD the isolation the rule exists to guarantee, and only the prefix
- * match disagreed. Since ADR-0200 D3 that refusal fences a whole runtime out of `check:declared` and
- * therefore out of the merge ceremony, and ADR-0232 makes Codex a first-class leaf, so it recurs by
- * construction.
+ * match disagreed. ADR-0200 D3 requires a live noticeboard claim before the merge ceremony, so that
+ * refusal fenced a whole runtime out of the ceremony; ADR-0232 makes Codex a first-class leaf, so
+ * it recurs by construction.
  *
  * `branch` = current HEAD branch name. `sessionId` resolves in this order:
  *
@@ -120,8 +120,8 @@ function samePath(a: string, b: string): boolean {
  *     `wt`, so a path-basename identity would collapse six sessions onto ONE claim — strictly worse
  *     than the refusal being fixed. Git has already spread them as `storytree`..`storytree5`.
  *  3. The PRIMARY CHECKOUT -> null, detected as git-dir === git-common-dir. Load-bearing and
- *     UNCHANGED: the shared lobby has no isolated identity, and `check:declared`'s lobby arm
- *     depends on it staying true.
+ *     UNCHANGED: the shared lobby has no isolated identity and cannot satisfy the explicit
+ *     noticeboard claim requirement for the merge ceremony.
  *
  * Returns `null` for the primary checkout, an empty basename, or any git error (unchanged).
  */
@@ -320,8 +320,8 @@ export async function noticeboardCommand(
     }
 
     const withheld = [...held, ...failed];
-    // The three outcomes are graded by WHAT THE SESSION HOLDS when the verb returns, because that
-    // is the only thing `check:declared` will ask about ten rungs into `pnpm gate` (ADR-0200 D3).
+    // The three outcomes are graded by WHAT THE SESSION HOLDS when the verb returns, because the
+    // merge ceremony explicitly requires a live noticeboard claim (ADR-0200 D3).
     // Fidelity over politeness: the headline and the exit code both report the ledger, not the
     // attempt. Until now every arm printed `Declared session "<x>"` and exited 0, so a declare that
     // took NOTHING read as done — and the session learned otherwise only at the gate, after the
@@ -364,8 +364,8 @@ export async function noticeboardCommand(
     if (acquired.length > 0 && withheld.length > 0) {
       bodyLines.push(
         "",
-        `Withheld: ${withheld.join(", ")}. This session IS claimed (${acquired.join(", ")}), so ` +
-          "check:declared passes — but the withheld node is not yours to write. Resolve it from " +
+        `Withheld: ${withheld.join(", ")}. This session DOES hold a live noticeboard claim ` +
+          `(${acquired.join(", ")}), but the withheld node is not yours to write. Resolve it from ` +
           "the board above on your own judgment: narrow to the capability you are actually " +
           "writing (ADR-0270 D1), or queue with a waiting claim. A claim conflict is not an owner " +
           "question (ADR-0270 D2).",
@@ -374,8 +374,8 @@ export async function noticeboardCommand(
       bodyLines.push(
         "",
         "Every declared node was withheld, so this declare anchored NOTHING. If this session holds " +
-          "no other live claim it cannot reach the merge ceremony: check:declared FAILs an " +
-          "unclaimed session (ADR-0200 D3) ten rungs into `pnpm gate`, after the work is done. " +
+          "no other live claim it is not ready for the merge ceremony: ADR-0200 D3 requires an " +
+          "explicit live noticeboard claim. " +
           "This non-zero exit is that failure, moved to the moment you can still act on it — " +
           "`storytree noticeboard --pg` shows what you actually hold.",
       );

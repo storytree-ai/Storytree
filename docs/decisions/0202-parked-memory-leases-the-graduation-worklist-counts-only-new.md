@@ -10,6 +10,9 @@ amends: [95]
 
 accepted (2026-07-16) — decided/directed by the owner in conversation on 2026-07-16. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**Amended by ADR-0311 (2026-08-05):** the park lease and live-candidate classifier remain current;
+`check:graduation-worklist` no longer runs as a root/CI merge obligation.
+
 ## Context
 
 The ADR-0095 memory→Library graduation loop gave the gate a best-effort tail check
@@ -48,12 +51,11 @@ A librarian verdict can **park** a reviewed memory, and the park is a **lease, n
    **graduate-then-delete** (it proved durable after all). A single default lease is the starting
    point; the recorded reason guides the re-review (flavour-specific leases are a refinement the
    re-review data can earn later, not part of this decision).
-4. **The counter counts only live candidates.** `check:graduation-worklist` WARNs on: candidates
+4. **The counter counts only live candidates.** The graduation review reports: candidates
    with no park record (new), parked candidates whose content hash no longer matches (changed), and
-   parked candidates past their lease (expired). The WARN is therefore normally **zero** and
-   meaningful when it isn't. It stays **local-only** (machine-local ledger; CI SKIPs it), exactly as
-   ADR-0095 D7 positioned it. *(This clause originally read "advisory/local-only (never a block)";
-   see the correction below — the counting rule decided here is untouched.)*
+   parked candidates past their lease (expired). The worklist is therefore normally **zero** and
+   meaningful when it isn't. `check:graduation-worklist` remains callable as a machine-local
+   diagnostic, but ADR-0311 retires it from root/CI gate policy. The counting rule is untouched.
 
 This **amends ADR-0095**: D7's librarian pass gains the park ceremony and the inverted expiry
 re-review; the deletion rule is refined from "deletion follows graduation" to "deletion follows
@@ -62,7 +64,7 @@ without an explicit reviewed verdict.
 
 ## Consequences
 
-- The graduation WARN regains signal: quiet when the pile is triaged, loud only on new material.
+- The graduation worklist regains signal: quiet when the pile is triaged, loud only on new material.
   Sessions stop paying repeat triage on the same ~70; the librarian's bounded pass goes to genuinely
   new candidates.
 - Dead memories are **bounded**: worst case a memory outlives its usefulness by one lease period,
@@ -76,7 +78,7 @@ without an explicit reviewed verdict.
 - The `graduation-synthesist`'s adjudication seat (ADR-0168 D5) is unchanged — parking is a
   librarian curation verdict about *memory residence*, not a friction adjudication.
 
-**Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+**Historical correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md); its blocking mechanism is retired by ADR-0311):
 D4's "never a block" was overtaken and is removed; the decision itself is untouched.**
 `check:graduation-worklist` is now **fail-closed at a drain ceiling** — live-candidate count > **N=4**
 or oldest lease-expired candidate > **M=21d**, two independent axes never summed, the
@@ -96,7 +98,7 @@ exact stale-prose harm ADR-0139 exists to prevent. Fail-open on the substrate is
 or unreadable park ledger reports the would-be breach and exits 0, so a missing machine-local file can
 never block a landing.
 
-**Correction (2026-08-04, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+**Historical correction (2026-08-04, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md); its blocking mechanism is retired by ADR-0311):
 the ceiling predicate restated just above is APERTURED by
 [ADR-0301](0301-drain-ceilings-charge-by-authorship-verification-decay-and-g.md) D4/D5; the counting
 rule THIS ADR decided is untouched, and neither N nor M moved.** Both axes now charge the live backlog

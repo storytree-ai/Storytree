@@ -652,15 +652,21 @@ async function citedArcs(doc: Record<string, unknown>, store: Store): Promise<st
  * be live. An ALREADY-REALIZED entry does not satisfy a forward routing: routing says the work is
  * deferred, and a landed remedy is a `--discharged-by` stamp instead.
  */
-function arcParksFriction(stored: StoredDoc | null, frictionId: string): boolean {
+async function arcParksFriction(
+  stored: StoredDoc | null,
+  frictionId: string,
+  store: Store,
+): Promise<boolean> {
   if (!stored || stored.kind !== "arc") return false;
-  const doc = typeof stored.doc === "object" && stored.doc !== null ? (stored.doc as Record<string, unknown>) : {};
-  const entries = Array.isArray(doc["proposals"]) ? doc["proposals"] : [];
-  return entries.some((e) => {
-    if (typeof e !== "object" || e === null) return false;
-    const entry = e as Record<string, unknown>;
-    if (entry["realized"] !== undefined) return false;
-    const refs = entry["frictionRefs"];
+  // A QUERY since ADR-0305 D1, where this read an array on the arc doc. The predicate is unchanged —
+  // an OPEN entry naming this item — but "open" is now a status rather than the absence of a
+  // `realized` field, and the entries are child rows joined by `arcRef`.
+  const increments = await store.queryDocs({ kind: "increment" });
+  return increments.some((d) => {
+    const doc = typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {};
+    if (doc["arcRef"] !== `asset:${stored.id}`) return false;
+    if (doc["status"] === "closed") return false;
+    const refs = doc["frictionRefs"];
     return Array.isArray(refs) && refs.includes(frictionId);
   });
 }
@@ -723,7 +729,7 @@ function sameAdjudicator(a: string | null, b: string | null): boolean {
  *
  * ROUTING TO `tool` IS FAIL-CLOSED ON THE EMISSION (ADR-0298 D2, replacing ADR-0287 D1's proposal
  * artifact): the item must cite an `arc` that carries a PARKED ENTRY naming it — `--arc <id>`
- * attaches the citation, and the entry is written first via `storytree arc proposal add … --friction
+ * attaches the citation, and the entry is written first via `storytree arc increment new … --friction
  * <id>`. BOTH halves are checked, because a citation alone would only prove an arc was named. The
  * enum is untouched (no ninth route; the ~125 existing `tool` rows keep their value); what changes is
  * that routing there stops discharging the obligation.
@@ -885,11 +891,11 @@ export async function routeFriction(
         next: [
           "storytree arc list --pg",
           'storytree arc new --title "..." --intent <text|@file> --end-state <text|@file> --pg',
-          `storytree arc proposal add <arc-id> --id <slug> --title "..." --summary <text|@file> --motivation <text|@file> --friction ${id} --pg`,
+          `storytree arc increment new <arc-id> --id <slug> --title "..." --objective <text|@file> --body <text|@file> --friction ${id} --pg`,
         ],
       };
     }
-    if (!arcParksFriction(target, id)) {
+    if (!(await arcParksFriction(target, id, deps.store))) {
       return {
         ok: false,
         body: [
@@ -899,12 +905,12 @@ export async function routeFriction(
           "`frictionRefs` includes this item, which is also what the delivery ceiling joins on, so an entry",
           "the ceiling can never reach would not be a delivery at all. Park it first, then route:",
           "",
-          `  storytree arc proposal add ${target.id} --id <slug> --title "<the change>" --summary <text|@file> --motivation <text|@file> --scope <text|@file> --friction ${id} --pg`,
+          `  storytree arc increment new ${target.id} --id <slug> --title "<the change>" --objective <text|@file> --body <text|@file> --friction ${id} --pg`,
           `  storytree friction route ${id} --route ${PARKED_WORK_ROUTE} --reason @<file> --arc ${target.id} --pg`,
         ].join("\n"),
         next: [
           `storytree arc show ${target.id} --pg`,
-          `storytree arc proposal add ${target.id} --id <slug> --friction ${id} --pg`,
+          `storytree arc increment new ${target.id} --id <slug> --friction ${id} --pg`,
         ],
       };
     }
@@ -931,7 +937,7 @@ export async function routeFriction(
         "FOLD FIRST, CHARTER SECOND (D6): find the arc this remedy belongs to before creating one.",
         "",
         `  storytree arc list --pg`,
-        `  storytree arc proposal add <arc-id> --id <slug> --title "<the change>" --summary <text|@file> --motivation <text|@file> --scope <text|@file> --friction ${id} --pg`,
+        `  storytree arc increment new <arc-id> --id <slug> --title "<the change>" --objective <text|@file> --body <text|@file> --friction ${id} --pg`,
         `  storytree friction route ${id} --route ${PARKED_WORK_ROUTE} --reason @<file> --arc <arc-id> --pg`,
         "",
         "The entry is the ADJUDICATOR's to write (ADR-0298 D2) — `asset:story-author` is fail-closed fenced",
@@ -1102,7 +1108,7 @@ export function frictionHelp(): Envelope {
       "        --arc cites the arc carrying the PARKED ENTRY the `tool` route emits (ADR-0298 D2):",
       "        routing to `tool` is refused until an arc carries an entry naming this item, so the remedy",
       "        lands on the initiative that will carry it instead of prose inside an archived row. Park it",
-      "        first with `storytree arc proposal add <arc-id> --friction <id> … --pg`; your SCOPE",
+      "        first with `storytree arc increment new <arc-id> --friction <id> … --pg`; your SCOPE",
       "        paragraph is its body. FOLD into an existing arc first; charter one only when none fits.",
       "        A routing that carries --discharged-by is exempt: the remedy already landed.",
       "  storytree friction list",

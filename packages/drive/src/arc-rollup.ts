@@ -23,42 +23,32 @@ import type { AdrStatus } from "./adr-frontmatter.js";
  * itself — the hard invariant is that `drive` never imports `cli`, so the arrow only points this way.
  */
 
-/** One landed increment as stored on the arc doc (schema-validated upstream; read defensively). */
-export interface ArcRollupIncrement {
-  date?: string;
-  pr?: string;
-  outcome?: string;
-}
-
 /**
- * One PARKED unit of work on the arc (ADR-0298 D1) — the successor to the retired `proposal` kind.
+ * One increment of arc work, projected from its own row (ADR-0305 D1).
+ *
+ * It used to be THREE shapes — `ArcRollupIncrement` (a landing, read out of `arc.increments[]`),
+ * `ArcRollupProposal` (parked work, out of `arc.proposals[]`) and `ArcRollupPlan` (a `plan` doc
+ * citing the arc). They described one thing at three stages of its life, so they are one shape now,
+ * distinguished by `status`.
+ *
  * Read defensively like every other leg here: the schema validates on WRITE, this view never throws
  * on a malformed row.
- *
- * Deliberately projected SEPARATELY from `increments` rather than merged into one timeline: the two
- * have opposite lifecycles (parked vs landed), and a surface that showed them together would present
- * unbuilt intentions as things that happened (ADR-0298 D4).
  */
-export interface ArcRollupProposal {
-  id?: string;
-  title?: string;
-  /** When it was parked — the delivery ceiling's comparison point (ADR-0298 D3). */
-  parked?: string;
-  summary?: string;
-  /** The source friction ids — the ceiling's join. */
-  frictionRefs?: string[];
-  /** Present ⇒ the work landed and the entry no longer presses. */
-  realized?: { date?: string; pr?: string; note?: string };
-}
-
-/** A plan that cites this arc (`plan.arcRef`, ADR-0183 D3). */
-export interface ArcRollupPlan {
+export interface ArcRollupIncrement {
   id: string;
   title: string;
-  /** The increment's lifecycle (`proposal`/`ready`/`active`/`closed`, ADR-0305 D2); `"?"` when a doc omits it. */
+  /** The one-sentence lead — what this increment delivers. */
+  objective: string;
+  /** `proposal` | `ready` | `active` | `closed` (ADR-0305 D2); `"?"` when a doc omits it. */
   status: string;
-  /** The git anchor's short sha, or `"?"` when unreadable — the freshness check's subject. */
-  anchorSha: string;
+  /** When it was parked — the delivery ceiling's comparison point (ADR-0298 D3 / ADR-0305 D6). */
+  parked?: string;
+  /** The source friction ids — the ceiling's join. */
+  frictionRefs?: string[];
+  /** The git anchor's short sha, when it has one — the freshness check's subject. */
+  anchorSha?: string;
+  /** Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5). */
+  outcome?: { date?: string; pr?: string; note?: string };
 }
 
 /** A decision stamped to this arc (frontmatter `arc:`, ADR-0183 D3). */
@@ -100,11 +90,22 @@ export interface ArcRollup {
   lifecycle: "active" | "closed";
   intent: string;
   endState: string;
-  /** The durable residue: the append-at-landing log (ADR-0183 D1), in authored order. */
+  /**
+   * Every increment citing this arc (`increment.arcRef`, ADR-0183 D3 / ADR-0305 D1), in ONE list —
+   * ordered by {@link INCREMENT_STATUS_RANK}, so the FORWARD-LOOKING entries come first.
+   *
+   * That order is a requirement, not a preference. `renderArcRollup` used to emit the landing log
+   * before the parked section, which put the newest unbuilt intentions LAST: on
+   * `verification-integrity-arc` the parked block sat at line 998 of 1069, and a truncated read once
+   * made a session conclude that two entries it had been sent to read did not exist. Chronological
+   * order over one merged list would reproduce that exactly, so it is deliberately not chronological
+   * at the top level.
+   *
+   * Every SURFACE that renders this must still separate the not-yet-started from the landed
+   * (ADR-0305 D7). Ordering makes forward work reachable; it does not make it distinguishable, and a
+   * reader who saw the two merged would read unbuilt intentions as things that happened.
+   */
   increments: ArcRollupIncrement[];
-  /** The parked work the arc owns (ADR-0298 D1), in authored order — unbuilt, never a landing. */
-  proposals: ArcRollupProposal[];
-  plans: ArcRollupPlan[];
   adrs: ArcRollupAdr[];
   /** Story directory names carrying this arc's frontmatter stamp. */
   stories: string[];
@@ -124,6 +125,57 @@ function bagOf(stored: StoredDoc): Record<string, unknown> {
   return typeof stored.doc === "object" && stored.doc !== null
     ? (stored.doc as Record<string, unknown>)
     : {};
+}
+
+/**
+ * The sort rank of each increment status — FORWARD-LOOKING WORK FIRST.
+ *
+ * This is the ordering rule ADR-0305's fold left unspecified and the parked entry
+ * `increment-tier-is-addressable-at-entry-grain` named as the one thing the fold does NOT address on
+ * its own. "One ordered increment list" says nothing about the order, and the obvious choice —
+ * chronological — reproduces the defect the fold was meant to remove: on `verification-integrity-arc`
+ * the parked block sat at line 998 of 1069 because 34 landings were emitted ahead of it, and a
+ * truncated read made a session report that entries it had been sent to read did not exist. Under a
+ * merged chronological list the newest unbuilt work would again be last, which is worse, not better.
+ *
+ * A status rank is not merely a nicer sort: it is the same separation ADR-0298 D4 built structurally
+ * out of two arrays, preserved as data now that there is one list. Renderers read it to keep the two
+ * halves visibly apart (ADR-0305 D7) rather than interleaving them.
+ *
+ * An unrecognised status ranks with the forward-looking half rather than the landed one — a row this
+ * code does not understand stays VISIBLE at the top instead of sinking into a long history where the
+ * original defect hid it.
+ */
+const INCREMENT_STATUS_RANK: Readonly<Record<string, number>> = {
+  proposal: 0,
+  ready: 1,
+  active: 2,
+  closed: 4,
+};
+const UNKNOWN_STATUS_RANK = 3;
+
+/** True when this status is one of the not-yet-landed ones — the split every arc surface must show. */
+export function isForwardLooking(status: string): boolean {
+  return (INCREMENT_STATUS_RANK[status] ?? UNKNOWN_STATUS_RANK) < INCREMENT_STATUS_RANK["closed"]!;
+}
+
+/**
+ * PURE: the arc's one ordered increment list — status rank first, then OLDEST FIRST within a rank.
+ *
+ * Oldest-first is deliberate on both halves and means different things on each. Among forward-looking
+ * entries it surfaces the LONGEST-WAITING remedy at the top, which is the same thing the delivery
+ * ceiling measures off `parked`. Among closed entries it is the chronological landing log the arc has
+ * always printed, unchanged. Ties fall back to `id` so the order is total and a render is stable
+ * between runs.
+ */
+function compareIncrements(a: ArcRollupIncrement, b: ArcRollupIncrement): number {
+  const ra = INCREMENT_STATUS_RANK[a.status] ?? UNKNOWN_STATUS_RANK;
+  const rb = INCREMENT_STATUS_RANK[b.status] ?? UNKNOWN_STATUS_RANK;
+  if (ra !== rb) return ra - rb;
+  const ka = a.outcome?.date ?? a.parked ?? "";
+  const kb = b.outcome?.date ?? b.parked ?? "";
+  if (ka !== kb) return ka < kb ? -1 : 1;
+  return a.id.localeCompare(b.id);
 }
 
 /**
@@ -185,8 +237,8 @@ export function storyArcStamps(storiesDir: string): { story: string; arc: string
 export interface ArcRollupInput {
   /** The arc doc itself. */
   arc: StoredDoc;
-  /** EVERY plan doc — filtered here by `arcRef`, so a caller never re-implements the predicate. */
-  planDocs: readonly StoredDoc[];
+  /** EVERY increment doc — filtered here by `arcRef`, so a caller never re-implements the predicate. */
+  incrementDocs: readonly StoredDoc[];
   /** EVERY open-question doc — filtered here by `arcRef` (ADR-0267 D4). */
   questionDocs: readonly StoredDoc[];
   /** Every parsed ADR — filtered here by the frontmatter `arc:` stamp. */
@@ -205,31 +257,34 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
   const doc = bagOf(arc);
   const id = arc.id;
 
-  const increments = Array.isArray(doc["increments"])
-    ? (doc["increments"] as ArcRollupIncrement[])
-    : [];
-
-  const proposals = Array.isArray(doc["proposals"])
-    ? (doc["proposals"] as ArcRollupProposal[])
-    : [];
-
-  const plans = input.planDocs
+  const increments = input.incrementDocs
     .filter((p) => arcRefOf(p) === id)
-    .map((p) => {
+    .map((p): ArcRollupIncrement => {
       const pd = bagOf(p);
       const anchor = pd["anchor"];
       const sha =
         typeof anchor === "object" && anchor !== null && typeof (anchor as Record<string, unknown>)["sha"] === "string"
           ? ((anchor as Record<string, unknown>)["sha"] as string).slice(0, 9)
-          : "?";
-      return {
+          : undefined;
+      const outcome = pd["outcome"];
+      const refs = Array.isArray(pd["frictionRefs"])
+        ? (pd["frictionRefs"] as unknown[]).filter((r): r is string => typeof r === "string")
+        : undefined;
+      const row: ArcRollupIncrement = {
         id: p.id,
         title: str(pd, "title"),
+        objective: str(pd, "objective"),
         status: typeof pd["status"] === "string" ? (pd["status"] as string) : "?",
-        anchorSha: sha,
       };
+      if (typeof pd["parked"] === "string") row.parked = pd["parked"] as string;
+      if (refs !== undefined && refs.length > 0) row.frictionRefs = refs;
+      if (sha !== undefined) row.anchorSha = sha;
+      if (typeof outcome === "object" && outcome !== null) {
+        row.outcome = outcome as NonNullable<ArcRollupIncrement["outcome"]>;
+      }
+      return row;
     })
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort(compareIncrements);
 
   const questions = input.questionDocs
     .filter((q) => arcRefOf(q) === id)
@@ -259,8 +314,6 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
     intent: str(doc, "intent"),
     endState: str(doc, "endState"),
     increments,
-    proposals,
-    plans,
     adrs,
     stories,
     questions,
@@ -280,12 +333,12 @@ export interface ArcRollupDeps {
 
 /** Load the three child sets once — so a multi-arc rollup does not re-scan per arc. */
 async function loadChildren(deps: ArcRollupDeps): Promise<Omit<ArcRollupInput, "arc">> {
-  const [planDocs, questionDocs] = await Promise.all([
-    deps.store.queryDocs({ kind: "plan" }),
+  const [incrementDocs, questionDocs] = await Promise.all([
+    deps.store.queryDocs({ kind: "increment" }),
     deps.store.queryDocs({ kind: "open-question" }),
   ]);
   return {
-    planDocs,
+    incrementDocs,
     questionDocs,
     adrs: loadTitledAdrMetas(deps.decisionsDir).adrs,
     storyStamps: storyArcStamps(deps.storiesDir),

@@ -42,7 +42,7 @@ function chain(spec: string): GateStep[] {
 // ── the walls ────────────────────────────────────────────────────────────────
 
 test("firstExpensiveIndex finds the earliest minutes-cost leg, lastExpensiveIndex the latest", () => {
-  const steps = chain("pnpm check:manifest && pnpm -r typecheck && pnpm -r test && pnpm check:late");
+  const steps = chain("pnpm check:boundaries && pnpm -r typecheck && pnpm -r test && pnpm check:late");
   assert.equal(firstExpensiveIndex(steps), 1);
   assert.equal(lastExpensiveIndex(steps), 2);
 });
@@ -51,8 +51,8 @@ test("firstExpensiveIndex finds the earliest minutes-cost leg, lastExpensiveInde
 
 test("evaluateGateOrder passes a plan whose cheap checks all precede the expensive legs", () => {
   const v = evaluateGateOrder({
-    steps: chain("pnpm check:declared && pnpm -r typecheck && pnpm -r test && pnpm check:late"),
-    earlyChecks: new Set(["check:declared"]),
+    steps: chain("pnpm check:boundaries && pnpm -r typecheck && pnpm -r test && pnpm check:late"),
+    earlyChecks: new Set(["check:boundaries"]),
   });
   assert.equal(v.verdict, "ok");
   assert.deepEqual(v.misordered, []);
@@ -60,8 +60,8 @@ test("evaluateGateOrder passes a plan whose cheap checks all precede the expensi
 
 test("evaluateGateOrder FAILS a cheap check stranded behind the expensive legs, naming the fix", () => {
   const v = evaluateGateOrder({
-    steps: chain("pnpm check:manifest && pnpm -r typecheck && pnpm -r test && pnpm check:agents"),
-    earlyChecks: new Set(["check:manifest", "check:agents"]),
+    steps: chain("pnpm check:boundaries && pnpm -r typecheck && pnpm -r test && pnpm check:agents"),
+    earlyChecks: new Set(["check:boundaries", "check:agents"]),
   });
   assert.equal(v.verdict, "fail");
   assert.deepEqual(v.misordered, ["check:agents"]);
@@ -74,24 +74,24 @@ test("evaluateGateOrder FAILS a cheap check stranded behind the expensive legs, 
 test("evaluateGateOrder FAILS a shared-environment check that runs before the expensive legs", () => {
   // The axis-2 regression: a check that can red on a sibling's state, ahead of the session's own answer.
   const v = evaluateGateOrder({
-    steps: chain("pnpm check:declared && pnpm -r typecheck && pnpm -r test"),
+    steps: chain("pnpm check:verification-decay && pnpm -r typecheck && pnpm -r test"),
     earlyChecks: new Set<string>(),
-    lateChecks: new Set(["check:declared"]),
+    lateChecks: new Set(["check:verification-decay"]),
   });
   assert.equal(v.verdict, "fail");
-  assert.deepEqual(v.premature, ["check:declared"]);
+  assert.deepEqual(v.premature, ["check:verification-decay"]);
   assert.match(v.message, /may be a sibling session's/);
 });
 
 test("evaluateGateOrder measures axis 2 against the LAST expensive leg, not the first", () => {
   // Between typecheck and test is still ahead of the session's own answer.
   const v = evaluateGateOrder({
-    steps: chain("pnpm -r typecheck && pnpm check:declared && pnpm -r test"),
+    steps: chain("pnpm -r typecheck && pnpm check:verification-decay && pnpm -r test"),
     earlyChecks: new Set<string>(),
-    lateChecks: new Set(["check:declared"]),
+    lateChecks: new Set(["check:verification-decay"]),
   });
   assert.equal(v.verdict, "fail");
-  assert.deepEqual(v.premature, ["check:declared"]);
+  assert.deepEqual(v.premature, ["check:verification-decay"]);
 });
 
 // ── fail-closed ──────────────────────────────────────────────────────────────
@@ -99,8 +99,8 @@ test("evaluateGateOrder measures axis 2 against the LAST expensive leg, not the 
 test("evaluateGateOrder fails CLOSED on a plan with no recognised expensive leg", () => {
   // "nothing is on the wrong side of the wall" is vacuously true when the wall was never found.
   const v = evaluateGateOrder({
-    steps: chain("pnpm check:manifest && pnpm check:declared"),
-    earlyChecks: new Set(["check:declared"]),
+    steps: chain("pnpm check:boundaries && pnpm check:verification-decay"),
+    earlyChecks: new Set(["check:boundaries"]),
   });
   assert.equal(v.verdict, "fail");
   assert.match(v.message, /expensive legs were not recognised/);
@@ -109,19 +109,19 @@ test("evaluateGateOrder fails CLOSED on a plan with no recognised expensive leg"
 test("evaluateGateOrder fails CLOSED on a declared check the plan no longer runs — either set", () => {
   const early = evaluateGateOrder({
     steps: chain("pnpm -r typecheck && pnpm -r test"),
-    earlyChecks: new Set(["check:manifest"]),
+    earlyChecks: new Set(["check:boundaries"]),
   });
   assert.equal(early.verdict, "fail");
-  assert.deepEqual(early.missing, ["check:manifest"]);
+  assert.deepEqual(early.missing, ["check:boundaries"]);
   assert.match(early.message, /not in the plan at all/);
 
   const late = evaluateGateOrder({
     steps: chain("pnpm -r typecheck && pnpm -r test"),
     earlyChecks: new Set<string>(),
-    lateChecks: new Set(["check:declared"]),
+    lateChecks: new Set(["check:verification-decay"]),
   });
   assert.equal(late.verdict, "fail");
-  assert.deepEqual(late.missing, ["check:declared"]);
+  assert.deepEqual(late.missing, ["check:verification-decay"]);
 });
 
 // ── the REAL plan ────────────────────────────────────────────────────────────
@@ -144,17 +144,31 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("check:declared — the claim rung — is pinned LATE, and the move is deliberate", () => {
-  // It sat cheap-first until 2026-08-04. Under the run-every-step runner an early red no longer
-  // hides the rest, and its lobby arm reds on another session's dirt (ADR-0245 D5.2 D3 forbids this
-  // session remediating it) — so it must not precede the session's own answer. Pinned by name in
-  // BOTH directions so neither position can drift back in silence. Reasoning: gate-order.ts header.
-  assert.ok(SHARED_ENVIRONMENT_CHECKS.has("check:declared"));
-  assert.ok(!PRE_EXPENSIVE_CHECKS.has("check:declared"));
+test("the REAL gate plan is exactly the nine audited survivors in their declared order", () => {
+  assert.deepEqual(
+    GATE_PLAN.map((step) => step.command),
+    [
+      "pnpm check:boundaries",
+      "pnpm check:mirror-conformance",
+      "pnpm check:web-grounding",
+      "pnpm check:web-engine",
+      "pnpm -r typecheck",
+      "pnpm -r test",
+      "pnpm check:guidance",
+      "pnpm check:agents",
+      "pnpm check:verification-decay",
+    ],
+  );
+});
 
-  const at = GATE_PLAN.findIndex((s) => s.check === "check:declared");
-  assert.notEqual(at, -1, "the gate plan must still run check:declared");
-  assert.ok(at > lastExpensiveIndex(GATE_PLAN), "check:declared must run after the expensive legs");
+test("the three live/shared checks are pinned LATE", () => {
+  for (const check of ["check:guidance", "check:agents", "check:verification-decay"]) {
+    assert.ok(SHARED_ENVIRONMENT_CHECKS.has(check));
+    assert.ok(!PRE_EXPENSIVE_CHECKS.has(check));
+    const at = GATE_PLAN.findIndex((s) => s.check === check);
+    assert.notEqual(at, -1, `the gate plan must still run ${check}`);
+    assert.ok(at > lastExpensiveIndex(GATE_PLAN), `${check} must run after the expensive legs`);
+  }
 });
 
 test("the two ordering sets are disjoint — no check may be pinned both early and late", () => {

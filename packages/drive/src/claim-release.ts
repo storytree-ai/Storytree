@@ -2,10 +2,10 @@
  * Claim-release honesty (the second instance of the ADR-0199 class).
  *
  * THE DEFECT THIS CLOSES. A session declares its claim, runs `node build --real` / `story build
- * --real`, and afterwards holds NO claim — so `check:declared` FAILs at the merge ceremony, hours
- * after whatever cleared it, naming only the symptom. Nothing released it deliberately and nothing
- * warned. Measured on session `competent-cohen-ba0e29` / unit `context-traversal-capture`, and the
- * event log names the path exactly:
+ * --real`, and afterwards held NO claim — so the then-current `check:declared` failed at the merge
+ * ceremony, hours after whatever cleared it, naming only the symptom. Nothing released it
+ * deliberately and nothing warned. Measured on session `competent-cohen-ba0e29` / unit
+ * `context-traversal-capture`, and the event log names the path exactly:
  *
  *   seq=969 claimed  intent="orchestrate"   <- the session's own declare
  *   seq=978 claimed  intent="real"          <- the build re-claims the SAME (unit, session) row
@@ -65,8 +65,8 @@ export type ClaimExitDecision =
  * (that is the ADR-0121 mutex working, and it must keep working).
  *
  * Deliberately NOT "restore the previous grade/intent". The measured harm is the row VANISHING —
- * `check:declared` FAILs on a missing row, not on a stale intent — and re-authoring the displaced
- * row's grade adds a store write path with its own failure modes for a harm nobody has observed.
+ * the retired `check:declared` failed on a missing row, not on a stale intent — and re-authoring the
+ * displaced row's grade adds a store write path with its own failure modes for a harm nobody has observed.
  * What the run displaced is REPORTED instead ({@link displacedClaimNotice}), so if that ever does
  * bite, it bites visibly.
  */
@@ -76,15 +76,15 @@ export function decideClaimExit(displaced: ClaimDocT | undefined): ClaimExitDeci
 
 /**
  * PURE: the warning an unexplicit release emits. Names the claim, the caller and the time, and says
- * what the reader should do — because the symptom (`check:declared` FAIL: "holds NO live claim")
- * surfaces arbitrarily far from this moment, which is what made the original instance expensive.
+ * what the reader should do — because the merge ceremony requires an explicit live noticeboard
+ * claim, and learning the row vanished later is what made the original instance expensive.
  */
 export function unexplicitReleaseWarning(notice: ReleaseNotice): string {
   return [
     `[claim] WARNING — the claim on "${notice.unitId}" (session "${notice.sessionId}") was RELEASED at ${notice.at}`,
     `        by: ${notice.caller} — not by an explicit \`noticeboard done\`.`,
-    "        If this session still needs the claim, `check:declared` will FAIL at the merge ceremony",
-    "        (ADR-0200 D3) with \"holds NO live claim\". Re-take it with:",
+    "        If this session still needs the claim, ADR-0200 D3 requires it to hold a live",
+    "        noticeboard claim before the merge ceremony. Re-take it with:",
     `          pnpm storytree noticeboard declare --node ${notice.unitId} --pg`,
     "        This is reported at the moment it happens because the same class went silent once before",
     "        (ADR-0199) and was only discovered a full gate cycle later.",
