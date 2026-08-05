@@ -162,11 +162,11 @@ test("end-to-end: the loader reads a store's process tier + the real package.jso
   // follow it onto the live store here — ADR-0302 D3 keeps `STORYTREE_DB_USER` out of
   // `pnpm -r test` so the suites stay hermetic — so it reads the fixture corpus.
   //
-  // WHAT MOVED, so the coverage is not quietly weaker than it looks: the "the real corpus's process
-  // tier is populated and its bijection is clean" assertion is now the `check:surface-coverage`
-  // RUNG's, which reads live and runs in BOTH `pnpm gate` and CI. What this test still owns is the
-  // loader's own contract — that it joins a store's `process` docs to the real entrypoint set and
-  // produces something the classifier can consume.
+  // WHAT MOVED, so the coverage is not quietly stronger than it is: the
+  // `check:surface-coverage` gate rung was retired by the survival audit. This test still owns the
+  // loader's contract — that it joins a store's `process` docs to the real entrypoint set and
+  // produces something the classifier can consume — but it must not resurrect the deleted root
+  // command as an expected entrypoint.
   const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
   const store = new InMemoryStore();
   await loadFixtureCorpus(store);
@@ -186,7 +186,7 @@ test("end-to-end: the loader reads a store's process tier + the real package.jso
   const byId = new Map(entrypoints.map((e) => [e.id, e]));
   assert.equal(byId.get("storytree library")?.orphanChecked, false, "a CLI area is resolution-only");
   assert.equal(byId.get("pnpm db:up")?.orphanChecked, true, "db:up is an operator-facing launcher");
-  assert.equal(byId.get("pnpm check:surface-coverage")?.orphanChecked, false, "this gate is internal");
+  assert.equal(byId.has("pnpm check:surface-coverage"), false, "the retired gate is not an entrypoint");
   assert.equal(byId.get("pnpm --filter desktop start")?.orphanChecked, true, "the desktop launcher is enumerated");
 
   // The classifier runs clean-of-crashes and never flags a CLI area as an orphan (they are not checked).

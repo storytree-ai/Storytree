@@ -25,9 +25,9 @@ ratification; ADR-0084: the green flip). The owner's direction, recorded verbati
    not a good benchmark"* — mechanical scaffolding is retained ONLY where frontier-era evidence
    (2025–26), not 2023 weak-model caution, shows judgment still fails (see "Calibration" below).
 
-Fork F2 (the fail-closed drain ceiling) was recommended in the proposal and stood unobjected; with
-the owner out of the default loop it never pulls the owner in (a ceiling breach spawns an agent-side
-drain session), so it stands as decided. The prior-art research pass that informs this design is
+Fork F2 (the fail-closed drain ceiling) was recommended in the proposal and originally stood
+unobjected. **ADR-0311 amends that mechanism (2026-08-05):** the bounded agent-side drain remains,
+but queue size/age no longer blocks an unrelated merge. The prior-art research pass that informs this design is
 [`docs/research/session-retro-feedback-loop-prior-art.md`](../research/session-retro-feedback-loop-prior-art.md)
 (dated and model-tagged per source, per the owner's charter).
 
@@ -115,7 +115,7 @@ are the ones **frontier-era** evidence justifies:
 |---|---|
 | Evidence required at capture, fail-closed | Mem0 production audit (2025): judgment-only admission shipped 97.8% junk |
 | No agent ever holistically rewrites the friction store; per-item edits + deterministic archival | ACE context collapse (2025, DeepSeek-V3.1): one whole-store rewrite → below no-memory baseline |
-| Fail-closed drain ceiling | This repo (2026): the WARN-only worklist rot, 31→58 during one session |
+| Bounded standing drain | This repo (2026): the WARN-only worklist rot, 31→58 during one session |
 | Provenance + tombstones + re-open paths (structural staleness) | STALE benchmark (2026): best frontier model 55.2% at noticing invalidated memories |
 | Cap 3 items per retro, distilled not raw | ReasoningBank ablation (2025, Gemini-2.5/Claude-3.7): raw failure logs hurt, max-3 distilled lessons helped |
 
@@ -129,7 +129,7 @@ threshold ever decides what graduates (ADR-0032 §3/§5 intact).
 **dedicated adjudicator subagent (the un-parked `graduation-synthesist`) with the whole-system view**
 drains the friction worklist through a justification gate, routing each item to
 **ADR / tool / principle-or-guardrail / process / definition / edit-existing / nothing** with
-verification proportional to blast radius, a fail-closed ceiling, and a rollback story — **the owner
+verification proportional to blast radius, a bounded standing drain, and a rollback story — **the owner
 appears only when the adjudicator escalates** (a friction-born ADR, a genuine owner fork), never as
 a standing step.
 
@@ -140,7 +140,7 @@ pass (a seed-canonical agent edit, ADR-0055): review the session for friction �
 what cost, with what evidence* — and file **at most 3** items; **"nothing to report" is a
 first-class, free outcome** (no marker, no penalty). Capture compliance is **discipline** (the
 generated workflow region), not a per-session gate — a compliance gate would price the ceremony
-toward retro theater; the backstop is the worklist ceiling (D4). `friction-analyst` (per-run,
+toward retro theater; the backstop is the standing librarian drain (D4). `friction-analyst` (per-run,
 evidence-typed) may also file items when invoked — the best-evidenced producer.
 
 ### D2 — `friction` is a Library artifact kind (owner direction 1)
@@ -176,7 +176,7 @@ rewrites the friction tier wholesale** (per Calibration).
 (**Amended 2026-07-14 — [ADR-0196](0196-unified-artifact-lifecycle-open-active-archived.md) D2:**
 the derived lifecycle collapses to **open** (no route) → **archived** (any route set — `routed` folds
 into `archived`; `route` stays the where-it-went audit detail, and `route: nothing` stays the
-re-openable tombstone flavour). The drain ceiling still gates `open` only. D5's born-`proposed` ADR
+re-openable tombstone flavour). The drain worklist still counts `open` only. D5's born-`proposed` ADR
 escalation route reads born-`open` under the universal triad — preserved unchanged.)
 
 **The D5 relationship (ADR-0095, amended here):** `friction` joins `open-question` and `proposal` as
@@ -197,26 +197,20 @@ live session's librarian pass) files it live and deletes the staging file — mi
 The `friction new` CLI validates fail-closed: evidence present and concrete (a resolvable
 path/PR#/command/error marker — a structural floor, deliberately dumb about truth); >3 items per
 branch/date refused; `references` must resolve. The zod schema is `.strict()` like every kind.
-`check:corpus-content` extends to friction docs; `check:friction-drain` (below) carries the hygiene
-WARNs/red. The inbox staging dir is validated by the same schema in `pnpm gate` (offline-checkable).
+`check:friction-drain` remains available as an on-demand hygiene report; ADR-0311 retires its root/CI
+gate wiring. The capture path itself remains fail-closed at the CLI/schema boundary.
 
-### D4 — The drain: bounded, aged, and fail-closed at a ceiling (the load-bearing mechanism)
+### D4 — The drain: bounded, aged, and standing (the load-bearing mechanism)
 
 - **Aged:** an item becomes *routable* only once it is at least one session old (the session that
   filed it never adjudicates it — no marking your own homework).
 - **Bounded:** the pre-merge librarian pass hygiene-checks new items and drains the **K oldest
   routable items** (K≈3) — never the whole worklist per merge (doesn't scale with landing rate;
   parallel sessions would clobber same-artifact adjudications).
-- **Fail-closed ceiling:** at open-count > **N (≈12)** or oldest-open > **M (≈21 days)**,
-  `check:friction-drain` flips WARN → **red** and landing requires a **board drain session** — a
-  spawned adjudicator (D5) session that drains the backlog. The board is **agent-side**; it does not
-  pull the owner in. Its output digest is a *visibility* surface (the studio, the PR), not a
-  sign-off. A WARN-only drain is the mechanism that already produced the worklist rot; the
-  fail-closed cap follows `meter-fail-closed-caps-in-real-cost` / the ADR-0130 turn-cap precedent.
-  The ceiling gates **queue hygiene only** — no count or age ever decides what *graduates*.
-  (Honest cost of the kind substrate: the live-store check runs where the DB is reachable — local
-  gates — and SKIPs in DB-free CI, like `check:agents-sync`; the offline-checkable parts are the
-  inbox schema and the seed export. The standing adjudicator duty, not CI, is the primary drain.)
+- **Standing, not merge-blocking:** the librarian pass drains the oldest eligible items and can use
+  `check:friction-drain` to inspect queue size/age, but ADR-0311 retires the fail-closed merge
+  ceiling. No count or age decides what *graduates*. The board remains agent-side; its output digest
+  is a visibility surface, not an owner sign-off.
 
 ### D5 — The adjudicator: the un-parked `graduation-synthesist` (owner direction 2)
 
@@ -291,14 +285,9 @@ graduated rule self-sealing: sessions obey it and questioning it reads as defect
 ### D7 — Three-layer enforcement (the ADR-0161 mapping)
 
 - **Machine, blocking:** the `friction new` capture validator (evidence, cap, refs) + schema
-  strictness; the drain ceiling (where the store is reachable); `adr-health` edges on the ADR route;
-  inbox-staging schema in the gate. (This row named ONE drain ceiling when this ADR landed. A second
-  now sits here — `check:arc-proposal-drain`, the `tool` route's delivery gate — added by ADR-0287 D3
-  and carried onto the arc-borne shape by ADR-0298 D3, not by this ADR; see the second correction
-  under D8.)
-- **Machine, WARN:** drain-age advisories below the ceiling. (`check:graduation-worklist` sat here
-  when this ADR landed — unchanged BY it. It has since moved to the blocking row above; see the
-  correction under D8.)
+  strictness; `adr-health` edges on the ADR route.
+- **Machine, diagnostic:** queue-age/count reports remain callable, but ADR-0311 removes
+  `check:friction-drain` and `check:arc-proposal-drain` from root/CI gate policy.
 - **Adjudicator/librarian judgment:** the seven questions, routing, reinforce-vs-new calls,
   tombstoning, **owner-escalation judgment** — worth is never arithmetic.
 - **Owner-held:** ratifying friction-born ADRs and whatever else the adjudicator escalates;
@@ -313,7 +302,7 @@ happened to that check afterwards. ADR-0032 §5's anti-gaming deferral is **reaf
 this ADR answers observed slop with structure-only mechanics; no forge-resistance, no cite-integrity
 machinery, no worth-thresholds.
 
-**Correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+**Historical correction (2026-07-27, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md); its blocking mechanism is retired by ADR-0311):
 `check:graduation-worklist` is no longer WARN-only, so D7's enforcement map and D8's present-tense
 "unchanged" were overtaken; both are scoped rather than reversed.** That check is now **fail-closed
 at a drain ceiling** of exactly this D4 shape — two independent axes, never summed: live-candidate
@@ -334,7 +323,7 @@ once the count is normally zero can a ceiling be honest rather than permanently 
 because a reader of D7's table alone would place a blocking check in the WARN row and "fix" the red
 by removing it — the exact stale-prose harm ADR-0139 exists to prevent.
 
-**Correction (2026-08-03, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+**Historical correction (2026-08-03, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md); its blocking mechanism is retired by ADR-0311):
 D7's "Machine, blocking" row named a single drain ceiling; there are now TWO, and the second one gates
 this loop's own `tool` route.** [ADR-0287](0287-the-tool-route-emits-a-proposal-and-the-proposal-tier-carrie.md)
 amended D5's `tool` routing-table row so that routing EMITS an artifact the item cites (D1 — machine-
@@ -377,8 +366,8 @@ or high enough to reconstitute a standing owner step** (the escalation judgment 
   (an OQ is already a question, a proposal already a decided change) — the eager-synthesis failure
   this design defers to adjudication; and neither can carry evidence-required-at-capture or
   reinforcement without distorting its spec.
-- **F2 — drain ceiling: fail-closed, as recommended** (N≈12 / M≈21 days, tunable on evidence);
-  unobjected at review, and agent-side under direction 2.
+- **F2 — amended by ADR-0311:** the drain remains bounded and agent-side, but no queue ceiling
+  blocks an unrelated merge.
 - **Adjudicator staffing: DECIDED by direction 2** — a dedicated subagent; the
   `graduation-synthesist` is un-parked and takes the chair (librarian-curator holds it until built).
 - **Owner involvement: DECIDED by direction 2** — escalation-only, at the adjudicator's judgment.
@@ -393,20 +382,19 @@ its substrate); raw friction stays out of the durable tiers (the lifecycle tier 
 drained); every worth-decision remains judgment; loop health is measured against agent effectiveness
 (recurrence extinction), not Library growth.
 
-**Bad / costs.** Honest build cost is **~6–7 units** (the kind + validators + template; the
+**Bad / costs.** Honest build cost was **~6–7 units** (the kind + validators + template; the
 `friction new/reinforce/list/route` CLI; `check:friction-drain` + corpus-content extension + inbox
 fallback; a full studio unit — `types.ts`/`Library.tsx`/`apiRouter.ts` allowlist/`knowledgeFields.ts`/
 CSS/`build-corpus.mjs` all hardcode the kind list; the synthesist agent build; corpus authoring +
-agent edits). The drain ceiling can block an unrelated landing until a board session runs (its job —
-but it will annoy). The live-store check is CI-blind (DB-free CI), so the adjudicator duty carries
-the drain. The biggest residual risk is unchanged: **adjudication-cadence collapse** — if board
-sessions rubber-stamp `nothing` to clear the ceiling (the archive mill), the loop performs instead of
+agent edits). ADR-0311 accepts that queue growth can persist without blocking an unrelated landing;
+the adjudicator duty carries the drain. The biggest residual risk is unchanged:
+**adjudication-cadence collapse** — if board sessions rubber-stamp `nothing` (the archive mill), the loop performs instead of
 learning; the Success-measures tripwires exist to catch exactly that, and with the owner out of the
 default loop, the tripwires are the adjudicator's standing obligation to watch.
 
-**Build (authorised; landed as separate provable units in dependency order):** (1) the `friction`
+**Build history (authorised; landed as separate provable units in dependency order):** (1) the `friction`
 kind — `KnowledgeKind` + `KIND_SPECS` + schema fields + `template-friction` (no migration, verified);
-(2) the capture CLI + fail-closed validator + inbox fallback; (3) `check:friction-drain` + gate
+(2) the capture CLI + fail-closed validator + inbox fallback; (3) `check:friction-drain` + its then-current gate
 wiring; (4) the studio kind surfaces; (5) the `graduation-synthesist` agent build (seed-canonical) +
 `friction-adjudication` process + `friction-justification-bar` principle + session-orchestrator/
 librarian-curator agent edits + regenerate + `sync-agents`.
