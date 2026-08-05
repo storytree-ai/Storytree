@@ -84,7 +84,8 @@ The mean offer set holds 4.25 refs (median 3, max 28). **25.8% of offer sets hav
 
 ## References
 
-- ADR-0260 — the decision this amends: offers carry an identity and the answering command names it; D4 (under-report, never repair) and D7 (declare the gaps) both stand.
+- ADR-0260 — the decision this amends: offers carry an identity and the answering command names it; D4 (under-report, never repair) and D7 (declare the gaps) both stand. Its Context's "majority of a typical offer set" claim and its Consequences' "closing it is a candidate increment in its own right" clause are both annotated in place as overtaken by this ADR (ADR-0139 correction, 2026-08-06).
+- `asset:unrun-check-is-unverified-not-refuted` — D2's general rule REHOMED into the Library so a future report reaches it while authoring its buckets rather than by opening this ADR (ADR-0139 rehome, ADR-0095 D4, `asset:reference-dont-restate`). Its fourth face states the mechanism D2 turns on: the unknown bucket is gated by a capability predicate, so widening that predicate adds no observations and only moves items into the negative one. The reasoning below is the decision record and stays here in full; the artifact carries the reusable form.
 - ADR-0235 — clause 3 bans temporal proximity as proof; clause 6 requires the coverage declaration this measurement makes quantitative; clause 7 holds observability before behaviour change.
 - `packages/context-traversal-capture/src/offer-candidate-sets.ts` — `OFFER_CANDIDATE_SET_CAVEATS`, home of `doc-refs-are-offered-but-follows-are-unobservable`.
 - `packages/context-traversal-capture/src/follow-offer-edges.ts` — `renderOfferFollowUps`'s skip rule, and `emitFollowedEdge`'s `library-artifact`-only answering surface.

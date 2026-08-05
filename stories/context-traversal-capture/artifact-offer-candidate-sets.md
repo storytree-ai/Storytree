@@ -93,8 +93,15 @@ all. Keep a `doc:` ref VERBATIM, prefix included: an ADR file has no canonical L
 stripping the prefix would forge an `asset:`-shaped id for something the telemetry can never observe
 a visit to. Any other ref shape passes through verbatim (`groupSources` prints it under `Other`).
 
-**`doc:` refs are OFFERED, not dropped.** They are the majority of a typical offer set (five of the
-eight in ADR-0260's sampled read) and following one is invisible to this adapter. Excluding them
+**`doc:` refs are OFFERED, not dropped.** They are a large minority of the corpus's references
+(36.7% of 1500, measured over the live store 2026-08-05 by ADR-0312) and can be anywhere from none to
+all of an INDIVIDUAL offer set — 25.8% of sets have nothing observable in them at all — and following
+one is invisible to this adapter. (This sentence used to read "the majority of a typical offer set",
+generalising from the five-of-eight sample in ADR-0260's Context; ADR-0312 measured the corpus and
+that generalisation is false, though the sampled artifact itself has since grown to 8 `doc:` of 12.
+Corrected in place per ADR-0139 — the instruction below is unaffected, and the per-set variance is
+exactly why ADR-0312 renders the observable denominator per set rather than quoting any one figure.)
+Excluding them
 would make the tree read as though the session stayed inside the asset graph — the exact distortion
 ADR-0260's Consequences names. They go in the candidate set, and the gap goes in the caveats (D7,
 contract 7). Under-report the FOLLOW; never under-report the OFFER.
