@@ -153,9 +153,14 @@ before the fix and GREEN after.
 
 A cross-check against evidence of **unknown provenance** is not fail-closed, whatever its own logic
 does — the check can be satisfied by evidence from an earlier, healthy run. Establishing provenance is
-part of the check, not a precondition someone else can be assumed to have arranged. This belongs to the
-`verification-integrity-arc`'s durable half, where it is being authored as Library guidance alongside
-"a proof that cannot fail is not a proof".
+part of the check, not a precondition someone else can be assumed to have arranged.
+
+*(Corrected in place 2026-08-06 — this paragraph said the lesson "is being authored" as Library
+guidance. It HAS been: both halves landed as guardrails in the `verification-integrity-arc`'s durable
+half — `asset:an-unattributable-observation-is-not-evidence` for the provenance rule above, and
+`asset:an-assert-oracle-proof-that-cannot-fail-is-not-a-proof` for its sibling. Those artifacts are
+now the guidance an agent reads at the moment it authors a cross-check; this paragraph is the source
+decision's record of the lesson, and cites rather than restates them.)*
 
 ## References
 
