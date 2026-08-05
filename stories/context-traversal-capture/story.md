@@ -21,6 +21,8 @@ capabilities:
     artifact-offer-candidate-sets,
     offer-follow-edges,
     decision-point-playback,
+    offer-observability-share,
+    offer-set-render-agreement,
   ]
 proof:
   command:

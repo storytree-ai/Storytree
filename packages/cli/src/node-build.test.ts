@@ -565,7 +565,29 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   assert.match(bare.body, /REAL-buildable nodes: .*camera-rasterisation-probe/);
   assert.match(bare.body, /REAL-buildable nodes: .*arc-explicit-id-fidelity/);
   assert.match(bare.body, /REAL-buildable nodes: .*hydrated-store-dialing-root/);
+  // offer-set-render-agreement (stories/context-traversal-capture/offer-set-render-agreement.md —
+  // ADR-0260 D1/D4, ADR-0312): the four nodes above all verify against RECORDED offers — the
+  // traversal's own account of what it was shown — which is circular with respect to this arc's end
+  // state, which asks for offers known INDEPENDENTLY of the traversal that consumed them. This node
+  // asks the prior question: does the recorded `candidate_set` match what the artifact REALLY offers?
+  // The oracle is the CLI's own printed Sources block, parsed out of a REAL spawned process's stdout
+  // (the offer is DEFINED as that block, ADR-0260 D1) — never `doc.references`, which would re-run
+  // the telemetry's own derivation, and never `offerIdOf`, which would rebuild the circularity one
+  // layer down. Measured 2026-08-06 over 357 referencing artifacts and confirmed end-to-end on a real
+  // spawned read: MEMBERSHIP agrees everywhere, zero divergences; ORDER diverges on 177 of 280
+  // multi-ref artifacts, because `resolveArtifactOffers` records authored order while the block prints
+  // regrouped by `SOURCE_GROUP_ORDER`. The order divergence is PINNED, not repaired: nothing joins on
+  // offer position (every `candidateNodeIds` consumer is set-, count-, or display-based) and ADR-0235
+  // clause 3 independently bans ordering as evidence, so no verdict moves — making the two agree is an
+  // owner decision with its own ADR, and asserting it follows ADR-0312 D5's `list` precedent that a
+  // silent divergence is how the next drift starts. A NET-NEW node:test `real:` arm over a NET-NEW
+  // file pair in the story's own package
+  // (packages/context-traversal-capture/src/offer-set-render-agreement.{ts,test.ts}) — a new
+  // capability rather than an extension of the ten holding signed verdicts, since a failed --real
+  // permanently under-claims one. Emits nothing and edits no existing file, so no coverage constant
+  // moves and no sibling capability's anchor drifts.
   assert.match(bare.body, /REAL-buildable nodes: .*offer-observability-share/);
+  assert.match(bare.body, /REAL-buildable nodes: .*offer-set-render-agreement/);
   const catalogWithoutFocusedNodes = bare.body
     .replace(
       /(REAL-buildable nodes:[^\n]*builder-role), camera-rasterisation-probe/,
@@ -575,6 +597,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
       /(REAL-buildable nodes:[^\n]*app-surface-world-view), arc-explicit-id-fidelity/,
       "$1",
     )
+    .replace(/(REAL-buildable nodes:[^\n]*offer-observability-share), offer-set-render-agreement/, '$1')
     .replace(/(REAL-buildable nodes:[^\n]*offer-follow-edges), offer-observability-share/, '$1');
   assert.match(
     catalogWithoutFocusedNodes,
