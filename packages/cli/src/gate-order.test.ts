@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -10,13 +10,16 @@ import {
   type GateStep,
   NON_GATE_CHECK_SCRIPTS,
   PRE_EXPENSIVE_CHECKS,
+  RETIRED_CHECKS,
   SHARED_ENVIRONMENT_CHECKS,
+  UNWIRED_MARKER,
   evaluateGateOrder,
   firstExpensiveIndex,
   lastExpensiveIndex,
 } from "./gate-order.js";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+const cliSrc = fileURLToPath(new URL(".", import.meta.url));
 
 /** The REAL root scripts — a missing `gate` script is a failure, never a skip. */
 function rootScripts(): Record<string, string> {
@@ -240,4 +243,97 @@ test("the root `gate` script invokes the runner, so GATE_PLAN is what actually r
   // The plan is only the source of truth while the script points at the runner that walks it. If the
   // `gate` script is ever reverted to an `&&` chain, every assertion above becomes decoration.
   assert.match(rootScripts()["gate"] ?? "", /gate-run\.ts/);
+});
+
+// ── the tombstone vs. the real source tree (ADR-0311 D2/D5) ──────────────────
+//
+// The three tests above guard a check that EXISTS but never runs. These guard the mirror image: a
+// check that RUNS NOWHERE but still exists. ADR-0311 kept the retired implementations deliberately
+// and named the cost in its Consequences — "discoverable code whose unwired status must not be
+// mistaken for a forgotten gate rung" — without paying it. These pay it, mechanically, so the
+// status cannot rot back into prose.
+
+/** Every distinct file the tombstone claims survived, deduped across checks that shared one. */
+function retiredSources(): string[] {
+  return [...new Set([...RETIRED_CHECKS.values()].flatMap((entry) => entry.sources))].sort();
+}
+
+/** The `src/<name>.ts` entrypoints the root `check:*` scripts actually invoke. */
+function wiredEntrypoints(): Set<string> {
+  const wired = new Set<string>();
+  for (const [name, command] of Object.entries(rootScripts())) {
+    if (!name.startsWith("check:")) continue;
+    for (const [, file] of command.matchAll(/\bsrc\/([\w.-]+\.ts)\b/g)) {
+      if (file !== undefined) wired.add(file);
+    }
+  }
+  return wired;
+}
+
+test("no retired check has quietly returned as a root script", () => {
+  // A retired name reappearing in package.json is either a deliberate re-wiring — which ADR-0311 D5
+  // says needs fresh production-catch evidence and an ADR, not just a script line — or an
+  // accident. Either way the tombstone above is then lying, and this is where that surfaces.
+  const resurrected = [...RETIRED_CHECKS.keys()].filter((name) => Object.hasOwn(rootScripts(), name));
+
+  assert.deepEqual(
+    resurrected,
+    [],
+    `these checks are declared RETIRED but the root package.json declares them: ${resurrected.join(", ")}. ` +
+      "Re-wiring a retired rung needs new evidence and an ADR (ADR-0311 D5); if that happened, remove " +
+      "it from RETIRED_CHECKS, add it to GATE_PLAN, and drop its UNWIRED banner.",
+  );
+});
+
+test("every surviving retired source exists and carries the UNWIRED banner", () => {
+  // THE LOAD-BEARING ONE. This is what stops a tested, confident-looking, wired-to-nothing fence
+  // from reading as enforcement — the defect that put a false "enforced rather than merely advised"
+  // claim into the `test-creation-principles` artifact a day after `check:test-timing` was retired.
+  const unmarked: string[] = [];
+  const missing: string[] = [];
+
+  for (const file of retiredSources()) {
+    let body: string;
+    try {
+      body = readFileSync(path.join(cliSrc, file), "utf8");
+    } catch {
+      missing.push(file);
+      continue;
+    }
+    if (!body.includes(UNWIRED_MARKER)) unmarked.push(file);
+  }
+
+  assert.deepEqual(
+    missing,
+    [],
+    `RETIRED_CHECKS names ${missing.join(", ")}, which no longer exist. A deleted source is fine — ` +
+      "drop it from the inventory so the tombstone keeps describing the real tree.",
+  );
+  assert.deepEqual(
+    unmarked,
+    [],
+    `these retired sources do not carry the \`${UNWIRED_MARKER}\` banner: ${unmarked.join(", ")}. ` +
+      "Each still compiles and its own tests still pass, so without the banner a reader has no way " +
+      "to tell it enforces nothing. Add the banner, or — if it was re-wired — update RETIRED_CHECKS.",
+  );
+});
+
+test("every check-shaped source file is either wired into the gate or declared retired", () => {
+  // The completeness half: the two tests above only judge files someone remembered to inventory.
+  // This one judges the DIRECTORY, so a newly orphaned check cannot slip in unlisted and a session
+  // reading `RETIRED_CHECKS` can trust it to be the whole tombstone rather than a sample.
+  const wired = wiredEntrypoints();
+  const retired = new Set(retiredSources());
+  const unaccounted = readdirSync(cliSrc)
+    .filter((file) => /^check-.+\.ts$|.+-check\.ts$/.test(file) && !file.endsWith(".test.ts"))
+    .filter((file) => !wired.has(file) && !retired.has(file))
+    .sort();
+
+  assert.deepEqual(
+    unaccounted,
+    [],
+    `these files look like gate checks but are neither invoked by a root check:* script nor listed ` +
+      `in RETIRED_CHECKS: ${unaccounted.join(", ")}. Wire it, or declare it retired and banner it — ` +
+      "an unaccounted check-shaped file is exactly the ambiguity this inventory exists to remove.",
+  );
 });

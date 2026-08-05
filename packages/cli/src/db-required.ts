@@ -1,3 +1,11 @@
+// ⚠ UNWIRED — the shared policy behind THREE retired rungs (`check:friction-drain`,
+// `check:arc-proposal-drain`, `check:surface-coverage`), all retired by ADR-0311 D2 (2026-08-05).
+// Those three entrypoints are its only importers, and none of them is invoked by anything, so
+// this policy is now unreachable in practice and its own tests stay GREEN while it decides
+// nothing. Kept deliberately (ADR-0311 D5). Tombstone: `RETIRED_CHECKS` in `gate-order.ts`.
+//
+// NOTE the header below is HISTORY: `STORYTREE_DB_REQUIRED` is no longer set anywhere in
+// `.github/workflows/ci.yml`, because the two rungs that read it no longer run there.
 // Whether a live-store read is OPTIONAL or MANDATORY in this environment — the pure policy behind
 // the DB-dependent gate rungs (`check:friction-drain`, `check:arc-proposal-drain`).
 //

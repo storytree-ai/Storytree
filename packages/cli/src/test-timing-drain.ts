@@ -1,3 +1,13 @@
+// ⚠ UNWIRED — part of retired `check:test-timing`, which ADR-0311 D2 removed from the gate on
+// 2026-08-05. This module is the ceilings and their evidence; its entrypoint
+// `check-test-timing.ts` is invoked by nothing, and it is reached only from there and from its
+// own tests — so those tests stay GREEN while it enforces NOTHING. Kept deliberately (ADR-0311
+// D5), not forgotten; re-wiring needs fresh production-catch evidence AND an ADR, never just the
+// wiring.
+// Tombstone: `RETIRED_CHECKS` in `gate-order.ts`, pinned by `gate-order.test.ts`.
+//
+// What follows is retained as written — read it as what this DID, not as current gate policy.
+//
 // The test-timing drain ceiling — the PURE, IO-free core of `check:test-timing`.
 //
 // ADR-0276 D3 asked for "a fail-closed `check:test-timing` in the gate + CI — the drain-ceiling
