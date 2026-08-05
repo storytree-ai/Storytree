@@ -22,6 +22,7 @@ import { resolveSigner } from "./proof/signer.js";
 import type { SignerInputs } from "./proof/signer.js";
 import { classifyDeclaredCoverage, extractVouchingTestNames } from "./proof/contract-coverage.js";
 import { PathWriteScope } from "./phase-machine.js";
+import type { ExpectedRed } from "./phase-machine.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
 import { ShellTestExecutor, runShellCommand } from "./shell-test-executor.js";
 import type { ShellCommand, ShellRunResult } from "./shell-test-executor.js";
@@ -29,6 +30,7 @@ import {
   PROOF_REPORT_ENV,
   assertOracleGuardUrl,
   allocateOracleReportPath,
+  classifyRedByOracle,
   resetOracleReport,
   verifyOracleExercised,
 } from "./proof/oracle-accounting.js";
@@ -529,6 +531,11 @@ function resolveReal(
       ? {
           beforeRun: () => resetOracleReport(reportPath),
           verifyGreen: (out: ShellRunResult) => verifyOracleExercised(reportPath, out),
+          // `gate-the-right-kind-red`: the SAME cleared-then-read report that vetoes a hollow green
+          // also MEASURES a red's kind — 0 assertions means the run never reached one (structural),
+          // >=1 means the oracle ran and refused (assertion). Wired only alongside beforeRun, for the
+          // same freshness reason: an uncleared report's count is not attributable to this run.
+          measureRedKind: () => classifyRedByOracle(reportPath),
         }
       : {}),
   });
@@ -659,10 +666,33 @@ function resolveReal(
     // Real mode only: dry-run / live-smoke prove a SYNTHETIC pair unrelated to the node's contracts, so
     // they carry no axis (their proveSpec omits the seam).
     contractCoverage: () => computeContractCoverage(spec, real.testFile, opts.workspace),
+    // `gate-the-right-kind-red`: the node's DECLARED red, so CONFIRM_RED can refuse a measured red of
+    // the wrong kind instead of advancing on any non-zero exit. Real mode only, for the same reason
+    // the coverage axis is: the synthetic arms have no declared shape to be judged against.
+    expectedRed: declaredExpectedRed(real),
   };
   return liveAuthor !== undefined
     ? { ok: true, spec: proveSpec, liveAuthor }
     : { ok: true, spec: proveSpec };
+}
+
+/**
+ * The node's DECLARED CONFIRM_RED kind (`gate-the-right-kind-red`), read off the two brief-axis flags
+ * that already exist on {@link RealProofConfig} — no new authoring surface, and nothing for a node
+ * author to keep in sync.
+ *
+ *  - `editsExisting` (ADR-0057 C) ⇒ `"assertion"`. Its brief already DEMANDS a runtime assertion
+ *    against current behaviour and explicitly forbids a missing-symbol red; until now nothing checked
+ *    that the leaf complied, so a test that merely failed to resolve an import advanced the phase and
+ *    the "regression" proved nothing about the behaviour it claimed to fix.
+ *  - everything else ⇒ `"structural"`. That covers both the NET-NEW default (the missing symbol IS
+ *    the point) and ADR-0098's R2 `refactorForTests`, whose red is structural BY DESIGN — the seam
+ *    under test has not been introduced yet. R2 is not a separate case here even though it is a
+ *    separate brief: it wants the same red as net-new, and the schema's own refine makes the two flags
+ *    mutually exclusive, so this stays a two-way split rather than a three-way one.
+ */
+function declaredExpectedRed(real: RealProofConfig): ExpectedRed {
+  return real.editsExisting === true ? "assertion" : "structural";
 }
 
 /**

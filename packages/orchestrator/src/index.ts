@@ -5,7 +5,9 @@ export type { StepFn, SequenceRun, LoopArgs, LoopRun } from "./sequence.js";
 export { runSequence, runLoop } from "./sequence.js";
 
 export type {
+  ExpectedRed,
   Phase,
+  RedKindBasis,
   TestObservation,
   PhaseTransition,
   WriteScope,
