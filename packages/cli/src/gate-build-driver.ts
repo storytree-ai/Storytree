@@ -387,11 +387,13 @@ function buildPromotionLines(
   promotionSkipped: string | undefined,
 ): string[] {
   return [
+    // Since `sign-after-typecheck` both observations run BEFORE the signature, so a red is why
+    // there is no verdict — not a push withheld over one that was signed anyway.
     ...(typecheck !== undefined
-      ? [`typecheck:   package typecheck ${typecheck.toUpperCase()} in the worktree${typecheck === "red" ? " — push withheld" : ""}`]
+      ? [`typecheck:   package typecheck ${typecheck.toUpperCase()} in the worktree${typecheck === "red" ? " — verdict REFUSED before signing" : ""}`]
       : []),
     ...(regression !== undefined
-      ? [`regression:  package suite ${regression.toUpperCase()} in the worktree${regression === "red" ? " — push withheld" : ""}`]
+      ? [`regression:  package suite ${regression.toUpperCase()} in the worktree${regression === "red" ? " — verdict REFUSED before signing" : ""}`]
       : []),
     ...(promotion !== undefined
       ? [`promoted:    ${promotion.branch} @ ${promotion.commitSha.slice(0, 7)} (${promotion.detail})`]

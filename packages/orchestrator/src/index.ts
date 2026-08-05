@@ -44,6 +44,7 @@ export type {
 export { WriteScopedToolExecutor } from "./write-scoped-executor.js";
 
 export type {
+  BackstopOutcome,
   TreeState,
   PhasePrompts,
   ProveSpec,
