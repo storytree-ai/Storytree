@@ -290,7 +290,11 @@ export async function noticeboardCommand(
     // acquisition ADR-0138 §3 named. Fail-soft per node: one refusal/hiccup never loses the other
     // nodes' claims; every outcome is surfaced loudly.
     const claimLines: string[] = [];
-    const acquired: { unitId: string; branch: string }[] = [];
+    const acquired: string[] = [];
+    // Withheld splits two ways because the remedies differ: a HELD node is a conflict the session
+    // resolves itself (ADR-0270 D2), a FAILED write is a store problem no re-declare will fix.
+    const held: string[] = [];
+    const failed: string[] = [];
     for (const nodeId of opts.nodes) {
       try {
         const res = await claims.claim(
@@ -301,7 +305,8 @@ export async function noticeboardCommand(
             kind: "orchestrate",
           }),
         );
-        if (res.acquired) acquired.push({ unitId: nodeId, branch: deps.identity.branch });
+        if (res.acquired) acquired.push(nodeId);
+        else held.push(nodeId);
         claimLines.push(
           res.acquired
             ? `    ${nodeId}: claimed — the story wisp is lit`
@@ -309,23 +314,112 @@ export async function noticeboardCommand(
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        failed.push(nodeId);
         claimLines.push(`    ${nodeId}: claim write FAILED (${msg}) — wisp NOT lit`);
       }
     }
 
-    const body = [
-      `Declared session "${deps.identity.sessionId}" on the claim ledger.`,
+    const withheld = [...held, ...failed];
+    // The three outcomes are graded by WHAT THE SESSION HOLDS when the verb returns, because that
+    // is the only thing `check:declared` will ask about ten rungs into `pnpm gate` (ADR-0200 D3).
+    // Fidelity over politeness: the headline and the exit code both report the ledger, not the
+    // attempt. Until now every arm printed `Declared session "<x>"` and exited 0, so a declare that
+    // took NOTHING read as done — and the session learned otherwise only at the gate, after the
+    // work. Two sibling sessions filed that same defect 20 minutes apart on 2026-08-04.
+    //
+    //   A. every node claimed      -> ok, byte-compatible with the pre-fix render.
+    //   B. SOME claimed (partial)  -> ok, but the headline names the shortfall. The session DOES
+    //      hold a live claim, so the gate passes and stopping it would be a lie in the other
+    //      direction; it just is not writing the withheld node. Decided explicitly rather than
+    //      inherited: the observed defect was the total case, and a partial declare is a different
+    //      situation with a different honest answer.
+    //   C. NOTHING claimed         -> NOT ok. This declare anchored nothing, so saying "Declared"
+    //      is the untrue record. This is the arc's class — a write path reporting success while the
+    //      durable row disagrees — resolved the way the arc charters it: refuse, and say why.
+    //
+    // Arm C stays a REFUSAL-WITH-A-BOARD, never a bare error: ADR-0270 D2 makes resolving a claim
+    // conflict the session's own call and never an owner question, and a session cannot exercise
+    // that judgment against a message it read as success. The board is what it judges from.
+    //
+    // Arm C claims only what THIS DECLARE did, never that the session holds nothing anywhere: the
+    // store seam here takes claims, it does not read the session's other rows, and a session that
+    // declared a second unit after a first one usually does hold one. Asserting "UNCLAIMED" would
+    // be this verb committing the same overclaim it is being fixed for.
+    const headline =
+      withheld.length === 0
+        ? `Declared session "${deps.identity.sessionId}" on the claim ledger.`
+        : acquired.length > 0
+          ? `Declared session "${deps.identity.sessionId}" — PARTIAL: claimed ${acquired.length} of ${opts.nodes.length} nodes.`
+          : `Declare took NO claim — nothing was anchored for session "${deps.identity.sessionId}".`;
+
+    const bodyLines = [
+      headline,
       `  branch:     ${deps.identity.branch}`,
       `  workingOn:  ${workingOn.trim()}`,
       `  nodes:      ${opts.nodes.join(", ")}`,
       "  claims:",
       ...claimLines,
-    ].join("\n");
+    ];
+
+    if (acquired.length > 0 && withheld.length > 0) {
+      bodyLines.push(
+        "",
+        `Withheld: ${withheld.join(", ")}. This session IS claimed (${acquired.join(", ")}), so ` +
+          "check:declared passes — but the withheld node is not yours to write. Resolve it from " +
+          "the board above on your own judgment: narrow to the capability you are actually " +
+          "writing (ADR-0270 D1), or queue with a waiting claim. A claim conflict is not an owner " +
+          "question (ADR-0270 D2).",
+      );
+    } else if (withheld.length > 0) {
+      bodyLines.push(
+        "",
+        "Every declared node was withheld, so this declare anchored NOTHING. If this session holds " +
+          "no other live claim it cannot reach the merge ceremony: check:declared FAILs an " +
+          "unclaimed session (ADR-0200 D3) ten rungs into `pnpm gate`, after the work is done. " +
+          "This non-zero exit is that failure, moved to the moment you can still act on it — " +
+          "`storytree noticeboard --pg` shows what you actually hold.",
+      );
+      if (held.length > 0) {
+        bodyLines.push(
+          "",
+          "Resolve it here, from the board above, on your own judgment — a claim conflict is not " +
+            "an owner question (ADR-0270 D2). Either narrow to the capability you are actually " +
+            "writing (ADR-0270 D1) and re-declare, or queue behind the holder with a waiting " +
+            "claim, which is itself a live claim and satisfies the gate.",
+        );
+      }
+      if (failed.length > 0) {
+        bodyLines.push(
+          "",
+          `${failed.length} claim write${failed.length !== 1 ? "s" : ""} FAILED against the store ` +
+            "— that is a store problem, not a conflict: no re-declare fixes it until the write " +
+            "lands. Check the DB and re-declare.",
+        );
+      }
+    }
+
+    // `next` points at the remedy for the state the session is actually in — for arm C that is the
+    // one command the measured sessions eventually reached for, rather than the onward navigation
+    // a successful declare offers.
+    const firstHeld = held[0];
+    let next: string[];
+    if (acquired.length > 0) {
+      next = [`storytree tree ${opts.nodes[0]} --pg`, "storytree noticeboard --pg"];
+    } else if (firstHeld !== undefined) {
+      next = [
+        "storytree noticeboard declare --working-on <prose> --node <capability-id> --pg   (narrow to what you are writing, ADR-0270 D1)",
+        `storytree noticeboard claim ${firstHeld} --grade waiting --intent "<why>" --pg`,
+        `storytree noticeboard claims ${firstHeld} --pg`,
+      ];
+    } else {
+      // Nothing held and nothing acquired: every node's write FAILED, so the store is the problem.
+      next = ["pnpm db:probe", "storytree noticeboard declare --working-on <prose> --node <unit-id> --pg"];
+    }
 
     return {
-      ok: true,
-      body,
-      next: [`storytree tree ${opts.nodes[0]} --pg`, "storytree noticeboard --pg"],
+      ok: acquired.length > 0,
+      body: bodyLines.join("\n"),
+      next,
     };
   }
 

@@ -201,10 +201,14 @@ test("deriveIdentity: returns null for a .claude/worktrees prefix without a subd
 interface FakeClaims extends SessionClaimStoreLike {
   claimed: ClaimRequest[];
   releasedSessions: string[];
-  /** When set, claim() refuses every request with this holder. */
+  /** When set, claim() refuses with this holder — every request, or only {@link refuseUnits}. */
   refuseWith?: ClaimDocT;
+  /** Scopes {@link refuseWith} to these unit ids; absent = refuse every request (the old shape). */
+  refuseUnits?: readonly string[];
   /** When set, claim()/releaseClaimsBySession() throw. */
   throwing?: boolean;
+  /** Scopes the claim() throw to these unit ids — a store hiccup on SOME nodes, not all. */
+  throwUnits?: readonly string[];
   releaseCount: number;
 }
 
@@ -214,9 +218,16 @@ function makeFakeClaims(over: Partial<FakeClaims> = {}): FakeClaims {
     releasedSessions: [],
     releaseCount: 0,
     async claim(req: ClaimRequest): Promise<ClaimResult> {
-      if (self.throwing === true) throw new Error("claim store unavailable");
+      if (self.throwing === true || self.throwUnits?.includes(req.unitId) === true) {
+        throw new Error("claim store unavailable");
+      }
       self.claimed.push(req);
-      if (self.refuseWith !== undefined) return { acquired: false, heldBy: self.refuseWith };
+      if (
+        self.refuseWith !== undefined &&
+        (self.refuseUnits === undefined || self.refuseUnits.includes(req.unitId))
+      ) {
+        return { acquired: false, heldBy: self.refuseWith };
+      }
       return {
         acquired: true,
         reclaimed: false,
@@ -453,33 +464,131 @@ test("declare --node takes the work-time claim on each declared node (orchestrat
   assert.match(env.body, /story-a: claimed/);
   assert.match(env.body, /wisp is lit/);
   assert.match(env.body, /workingOn: {2}landing ADR-0142/);
+  // The all-claimed render stays byte-compatible: only the arms that took LESS than they were
+  // asked for changed. A session that got what it asked for reads exactly what it always did.
+  assert.match(env.body, /^Declared session "wt-claim" on the claim ledger\.$/m);
+  assert.doesNotMatch(env.body, /PARTIAL|UNCLAIMED|Withheld/);
 });
 
-test("declare: a claim REFUSAL never fails the declare — the holder is named per node", async () => {
-  const claims = makeFakeClaims({
-    refuseWith: {
-      unitId: "story-a",
-      sessionId: "other-session",
-      branch: "claude/other",
-      intent: "orchestrate",
-      claimedAt: NOW.toISOString(),
-      heartbeatAt: NOW.toISOString(),
-    },
-  });
+// ---------------------------------------------------------------------------
+// declare — success and fidelity are the SAME thing (cli-write-fidelity-arc)
+//
+// The verb reports what the session HOLDS when it returns, not that it tried. Until this landed,
+// every arm printed `Declared session "<x>"` and exited 0 — so a declare whose nodes were all
+// already held read as done, and the session learned it was unclaimed at `check:declared`, ten
+// rungs and ~10 minutes into `pnpm gate`, after the work. Filed independently by two sibling
+// sessions 20 minutes apart on 2026-08-04.
+// ---------------------------------------------------------------------------
+
+const OTHER_HOLDER: ClaimDocT = {
+  unitId: "story-a",
+  sessionId: "other-session",
+  branch: "claude/other",
+  intent: "orchestrate",
+  claimedAt: NOW.toISOString(),
+  heartbeatAt: NOW.toISOString(),
+};
+
+test("declare: EVERY node held → ok:false, the headline says it anchored nothing, holder named", async () => {
+  const claims = makeFakeClaims({ refuseWith: OTHER_HOLDER });
   const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
   const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-a"] }, deps);
-  assert.equal(env.ok, true, env.body);
+  assert.equal(env.ok, false, "a declare that took no claim is not a declare");
+  assert.match(env.body, /Declare took NO claim/);
+  assert.match(env.body, /nothing was anchored/);
+  assert.doesNotMatch(
+    env.body,
+    /^Declared session/m,
+    "the success headline must not survive a total refusal — that is the whole defect",
+  );
+  // The per-node board survives untouched: it is what the session judges from (ADR-0270 D2).
   assert.match(env.body, /HELD by other-session/);
   assert.match(env.body, /claude\/other/);
 });
 
-test("declare: a THROWING claim store never crashes the declare — surfaced as FAILED, wisp not lit", async () => {
+test("declare: the refusal never asserts the SESSION is unclaimed — it knows only what it took", async () => {
+  // This seam takes claims; it does not read the session's other rows. A session that declared a
+  // second unit after a first usually DOES hold one, so "session is UNCLAIMED" would be this verb
+  // committing the same overclaim it exists to fix. Measured live on 2026-08-05: the refusal fired
+  // for a held node while the session held another capability the whole time.
+  const claims = makeFakeClaims({ refuseWith: OTHER_HOLDER });
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
+  const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-a"] }, deps);
+  assert.doesNotMatch(env.body, /is UNCLAIMED/);
+  assert.doesNotMatch(env.body, /this session holds NO live claim/);
+  assert.match(env.body, /this declare anchored NOTHING/);
+  assert.match(env.body, /If this session holds no other live claim/, "the gate cost is conditional");
+});
+
+test("declare: a total refusal explains the gate cost and hands back the ADR-0270 D2 remedies", async () => {
+  const claims = makeFakeClaims({ refuseWith: OTHER_HOLDER });
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
+  const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-a"] }, deps);
+  assert.equal(env.ok, false);
+  assert.match(env.body, /check:declared/, "names the gate rung the session would otherwise hit");
+  assert.match(env.body, /ADR-0270 D2/, "resolving the conflict is the session's own call");
+  assert.match(env.body, /not an owner question/);
+  // The remedy the measured sessions eventually reached for, offered up front.
+  assert.ok(
+    env.next?.some((n) => n.includes("claim story-a") && n.includes("--grade waiting")),
+    `next should offer the waiting claim; got ${JSON.stringify(env.next)}`,
+  );
+  assert.ok(
+    env.next?.some((n) => n.includes("--node <capability-id>")),
+    "next should offer narrowing to the capability actually being written (ADR-0270 D1)",
+  );
+});
+
+test("declare: PARTIAL — some claimed, some held → ok:true, but the headline names the shortfall", async () => {
+  // Decided explicitly, not inherited: the session DOES hold a live claim here, so check:declared
+  // passes and refusing would be a lie in the other direction. It just is not writing story-a.
+  const claims = makeFakeClaims({ refuseWith: OTHER_HOLDER, refuseUnits: ["story-a"] });
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
+  const env = await noticeboardCommand(
+    "declare",
+    { workingOn: "x", nodes: ["story-a", "story-b"] },
+    deps,
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /PARTIAL: claimed 1 of 2 nodes/);
+  assert.match(env.body, /story-a: HELD by other-session/);
+  assert.match(env.body, /story-b: claimed — the story wisp is lit/);
+  assert.match(env.body, /Withheld: story-a/);
+  assert.match(env.body, /ADR-0270 D2/);
+});
+
+test("declare: a THROWING claim store never crashes the declare — FAILED, wisp not lit, ok:false", async () => {
   const claims = makeFakeClaims({ throwing: true });
   const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
   const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-a"] }, deps);
-  assert.equal(env.ok, true, env.body);
+  assert.equal(env.ok, false, "a failed write leaves the session just as unclaimed as a refusal");
   assert.match(env.body, /claim write FAILED/);
   assert.match(env.body, /wisp NOT lit/);
+  // A store problem is NOT a claim conflict — no re-declare fixes it, so the conflict remedy is
+  // withheld and the store probe is offered instead.
+  assert.match(env.body, /store problem, not a conflict/);
+  assert.doesNotMatch(env.body, /not an owner question/);
+  assert.ok(env.next?.some((n) => n.includes("db:probe")), `got ${JSON.stringify(env.next)}`);
+});
+
+test("declare: held AND failed together → ok:false with BOTH explanations, neither swallowing the other", async () => {
+  const claims = makeFakeClaims({
+    refuseWith: OTHER_HOLDER,
+    refuseUnits: ["story-a"],
+    throwUnits: ["story-b"],
+  });
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
+  const env = await noticeboardCommand(
+    "declare",
+    { workingOn: "x", nodes: ["story-a", "story-b"] },
+    deps,
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /Declare took NO claim/);
+  assert.match(env.body, /story-a: HELD by other-session/);
+  assert.match(env.body, /story-b: claim write FAILED/);
+  assert.match(env.body, /not an owner question/, "the held node's remedy");
+  assert.match(env.body, /store problem, not a conflict/, "the failed node's remedy");
 });
 
 test("declare: next points onward to the first node's tree + the board", async () => {

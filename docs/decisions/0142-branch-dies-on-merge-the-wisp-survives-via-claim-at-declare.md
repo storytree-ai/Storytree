@@ -84,9 +84,10 @@ Three legs, one invariant — *the branch dies on merge; visibility survives it 
   landed branch's claims, and the fresh-branch discipline makes "branch" and "landed unit" the same
   thing, so the clear can never erase live work again.
 - Branch reuse after merge becomes impossible to land (CI-refused), retiring the trap family it fed.
-- Costs: `declare`/`done` now write two stores (claim writes are fail-soft — a claim hiccup never
-  loses the presence declare); the verify job spends one `gh` API call; `events.node_claim` gains
-  two session-scoped bulk operations (`releaseClaimsBySession`, `bumpHeartbeatsBySession`).
+- Costs: `declare`/`done` write the claim store (claim writes are fail-soft PER NODE — one node's
+  refusal or hiccup never costs the other nodes their claims); the verify job spends one `gh` API
+  call; `events.node_claim` gains two session-scoped bulk operations (`releaseClaimsBySession`,
+  `bumpHeartbeatsBySession`).
 - The stale-reclaim window (2h) remains the backstop for sessions that vanish without `done`; the
   heartbeat bump keeps live sessions out of it.
 

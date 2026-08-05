@@ -308,16 +308,23 @@ test("defect 3: route --reason and reinforce --evidence read a value from @path"
   assert.equal(afterReinforce.data.reinforcedBy?.[0]?.evidence, evidence.trim());
 });
 
-test("defect 3: a missing @path file is guidance, not a throw", async () => {
+test("defect 3: a missing @path file is guidance, not a throw — and never a stored literal", async () => {
   const s = store();
   const dirs = tempDirs();
   await fileNew(s, frictionDoc("f-nofile"), dirs, { writable: true });
+  const missing = path.join(dirs.docsDir, "gone.txt");
   const env = await run(
-    ["friction", "route", "f-nofile", "--route", "tool", "--reason", `@${path.join(dirs.docsDir, "gone.txt")}`, "--pg"],
+    ["friction", "route", "f-nofile", "--route", "tool", "--reason", `@${missing}`, "--pg"],
     { store: s, writable: true, friction: frictionDeps(dirs) },
   );
   assert.equal(env.ok, false);
-  assert.match(env.body, /could not read a @file value/);
+  // Refused at the `@path` flag boundary now (cli-write-fidelity-arc), which names the flag and the
+  // path the old shared message did not.
+  assert.match(env.body, /--reason .* could not be read/);
+  assert.ok(env.body.includes(missing), "the unreadable path is named");
+  // The point of the refusal: the write never happened, so no route carries the literal @path.
+  const after = (await s.getDoc("f-nofile"))?.doc as Record<string, unknown>;
+  assert.equal(after["routeReason"], undefined, "an unresolvable reason stores nothing at all");
 });
 
 test("new stamps provenance + kind and files a schema-valid live item", async () => {
