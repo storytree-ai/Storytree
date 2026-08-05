@@ -388,7 +388,7 @@ export function arcIdFromTitle(title: string): string {
  *
  * `arc new`'s explicit-id path needs to detect a too-long id and refuse it, not derive a shorter one
  * by dropping characters off the end: `kebabSlug` is right for a DERIVED id (there is no "the author
- * meant" to preserve), but wrong for an AUTHORED one (ADR-0183 D3's `arc-explicit-id-fidelity`) —
+ * meant" to preserve), but wrong for an AUTHORED one (ADR-0298 D7; `arc-explicit-id-fidelity`) —
  * silently creating the arc under a truncated id would mean a copy-pasted reference to the id the
  * author actually typed resolves to nothing.
  */
