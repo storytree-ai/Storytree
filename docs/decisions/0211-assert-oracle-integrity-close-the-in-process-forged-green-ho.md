@@ -169,6 +169,13 @@ It sits inside the threat model stated above, and hiding the path does not close
   conditional — which is why it is deferred, not shipped in the floor.
 - **Custom-command coverage.** Extend accounting to package-suite / vitest proofs (count `expect`
   too, or a runner-level assertion plan) so custom-`proofCommand` nodes are no longer exit-code-only.
+  **STILL OPEN, but no longer SILENT (2026-08-06, `parallel-red-green-arc` entry
+  `oracle-veto-covers-custom-proof-commands`).** Extending the accounting is unbuilt. What landed is
+  the disclosure that makes the gap legible: a green observed with no cross-check wired is stamped
+  `UNVETTED_GREEN_NOTE` and a cross-checked green reports the count it measured, both riding onto the
+  verdict's evidence — so a vetted and an unvetted green are no longer byte-identical in the signed
+  record. Sharpening the case for the rest: the un-accounted population structurally includes EVERY
+  ADR-0098 R2 `refactorForTests` node, because R2's own schema refine REQUIRES a `proofCommand`.
 
 ## References
 

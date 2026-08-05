@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import {
   DEFAULT_PROOF_TIMEOUT_MS,
   ShellTestExecutor,
+  UNVETTED_GREEN_NOTE,
   defaultClassifyKind,
   isScrubbedEnvKey,
   nodeEvalExecutor,
@@ -16,7 +17,11 @@ import {
 test("nodeEvalExecutor: a green script (exit 0) is observed as green", async () => {
   const exec = nodeEvalExecutor({ ok: "process.exit(0)" });
   const obs = await exec.run("ok");
-  assert.deepEqual(obs, { result: "green", testId: "ok" });
+  // The shape gained a `note` under `oracle-veto-covers-custom-proof-commands`: this executor wires
+  // no assert-oracle cross-check, so its green now says so. What this case asserts — exit 0 is
+  // observed GREEN, under this testId — is unchanged; the vetting stamp is asserted on its own below.
+  assert.equal(obs.result, "green");
+  assert.equal(obs.testId, "ok");
 });
 
 test("nodeEvalExecutor: an exit-1 script is a red with kind 'runtime'", async () => {
@@ -311,4 +316,47 @@ test("defaultClassifyKind: classifies TS-diagnostic and missing-symbol shapes as
     defaultClassifyKind({ stdout: "AssertionError", stderr: "", code: 1 }),
     "runtime",
   );
+});
+
+// ── `oracle-veto-covers-custom-proof-commands`: a green says whether it was VETTED ────────────────
+// ADR-0211's assert-oracle veto is wired only for the DEFAULT `node --import tsx --test <file>`
+// command. Custom-`proofCommand` nodes — package suites, vitest, and structurally EVERY ADR-0098 R2
+// `refactorForTests` node, whose schema refine REQUIRES a proofCommand — keep exit-code-only
+// observation. That narrowing is defensible; leaving it INVISIBLE is not. A vetted green and an
+// unvetted one were byte-identical in the signed verdict, so no reader could tell which they held.
+
+test("a green with NO oracle cross-check is stamped UNVETTED (the gap is visible, not silent)", async () => {
+  // nodeEvalExecutor wires no verifyGreen — the exit-code-only shape a custom proofCommand gets.
+  const exec = nodeEvalExecutor({ ok: "process.exit(0)" });
+  const obs = await exec.run("ok");
+
+  assert.equal(obs.result, "green");
+  assert.equal(
+    obs.note,
+    UNVETTED_GREEN_NOTE,
+    "an unvetted green must SAY it is unvetted rather than look like a vetted one",
+  );
+});
+
+test("a green WITH a passing oracle cross-check carries that check's own note (vetted, and says how)", async () => {
+  const exec = new ShellTestExecutor({
+    command: () => ({ file: process.execPath, args: ["-e", "process.exit(0)"] }),
+    verifyGreen: () => ({ ok: true, note: "assert-oracle: 7 assertion(s) executed" }),
+  });
+  const obs = await exec.run("t");
+
+  assert.equal(obs.result, "green");
+  assert.equal(obs.note, "assert-oracle: 7 assertion(s) executed");
+  assert.notEqual(obs.note, UNVETTED_GREEN_NOTE, "a VETTED green must never read as unvetted");
+});
+
+test("a vetoed green is still a fail-closed RED carrying the veto reason (ADR-0211 unchanged)", async () => {
+  const exec = new ShellTestExecutor({
+    command: () => ({ file: process.execPath, args: ["-e", "process.exit(0)"] }),
+    verifyGreen: () => ({ ok: false, reason: "0 assertions executed" }),
+  });
+  const obs = await exec.run("t");
+
+  assert.equal(obs.result, "red");
+  assert.equal(obs.note, "0 assertions executed");
 });

@@ -59,6 +59,17 @@ export interface ShellCommand {
  *  - `classifyKind(out)` optionally classifies a RED's `kind` from the captured output; when absent,
  *    {@link defaultClassifyKind} is used.
  */
+/**
+ * `oracle-veto-covers-custom-proof-commands`: the note stamped on a green that had NO assert-oracle
+ * cross-check available, so a reader of the signed verdict can tell an UNVETTED green from a vetted
+ * one. It is a disclosure, never a downgrade — the observation stays green, because exit-code-only
+ * is the honest observation this proof command supports, not a failure of it.
+ */
+export const UNVETTED_GREEN_NOTE =
+  "unvetted: exit-code-only — no assert-oracle cross-check is wired for this proof command " +
+  "(ADR-0211's guard covers the default node:test command; a custom proofCommand may assert " +
+  "through APIs the guard does not count)";
+
 export interface ShellTestResolver {
   command: (testId: string) => ShellCommand;
   classifyKind?: (out: ShellRunResult) => "compile" | "runtime" | undefined;
@@ -69,7 +80,9 @@ export interface ShellTestResolver {
    * the proof process — neutralises the assertion oracle or truncates the run yet still exits 0
    * (see {@link ./proof/oracle-accounting.ts}). Absent ⇒ exit-code-only observation (unchanged).
    */
-  verifyGreen?: (out: ShellRunResult) => { ok: true } | { ok: false; reason: string };
+  verifyGreen?: (
+    out: ShellRunResult,
+  ) => { ok: true; note?: string } | { ok: false; reason: string };
   /**
    * ADR-0249: an optional PRE-observation step, run before the command is spawned, that establishes
    * the out-of-band evidence {@link ShellTestResolver.verifyGreen} will read belongs to THIS
@@ -165,7 +178,15 @@ export class ShellTestExecutor implements TestExecutor {
       if (veto !== undefined && !veto.ok) {
         return { result: "red", kind: "runtime", testId, note: veto.reason };
       }
-      return { result: "green", testId };
+      // `oracle-veto-covers-custom-proof-commands`: SAY which kind of green this is. ADR-0211's veto
+      // is wired only for the default node:test command, so a custom-`proofCommand` node (package
+      // suite, vitest, and structurally every ADR-0098 R2 `refactorForTests` node) is observed on the
+      // exit code alone. That narrowing is defensible; leaving it invisible is not — a vetted green
+      // and an unvetted one were byte-identical in the signed verdict, so no reader could tell which
+      // they were holding. An absent cross-check now stamps itself, and a passing one reports what it
+      // actually measured. This never changes red/green: it records how the green was reached.
+      const note = veto === undefined ? UNVETTED_GREEN_NOTE : veto.note;
+      return note === undefined ? { result: "green", testId } : { result: "green", testId, note };
     }
 
     // `gate-the-right-kind-red`: prefer a MEASURED kind (the assert-oracle count) over the text

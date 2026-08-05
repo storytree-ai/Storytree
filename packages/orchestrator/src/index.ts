@@ -29,6 +29,7 @@ export type {
 } from "./shell-test-executor.js";
 export {
   ShellTestExecutor,
+  UNVETTED_GREEN_NOTE,
   defaultClassifyKind,
   nodeEvalExecutor,
   runShellCommand,

@@ -356,9 +356,14 @@ function exhaustionNote(reason: string | null, target: string): string {
 
 /** Turn a spine observation into an {@link EvidenceRef} backing the verdict (the captured red/green). */
 function toEvidence(obs: TestObservation): EvidenceRef {
-  const note = obs.kind === undefined
+  const base = obs.kind === undefined
     ? `observed ${obs.result}`
     : `observed ${obs.result} (${obs.kind})`;
+  // `oracle-veto-covers-custom-proof-commands`: the observation's own note rides through into the
+  // verdict. `note` is where the spine records WHY an observation reads as it does — ADR-0211's
+  // downgrade reason, and now whether a green was cross-checked by the assert oracle at all. Without
+  // this the distinction dies at the gate and every signed green looks equally vetted.
+  const note = obs.note === undefined ? base : `${base} — ${obs.note}`;
   return { kind: `observation:${obs.result}`, ref: obs.testId, note };
 }
 
