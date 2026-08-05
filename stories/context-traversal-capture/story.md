@@ -218,6 +218,24 @@ uncertainty and every ADR-0241 honesty rule intact.
    session turned an offer down. And the negative half, asserted in the same leg: a replay of a
    session that recorded NO offer carries no `decision points:` block at all — the section appears
    only where a real offer was observed, never as a heading announcing an absence.
+10. **A real replay states how much of each offer set it could NOT see.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In one _(criterion-id: uatc_413f00cf1ff8cd520194c4c4)_ _(revision-id: uatr1:e58f48ee23bb441e)_
+    temporary directory and one session, spawn the real CLI offline and without `--pg`: the offering
+    read (`library artifact plan`), whose Sources block carries BOTH followable `asset:` refs and a
+    `doc:` ref no CLI read can reach. Then spawn `traversal show <sessionId>` against the same
+    directory. **Success —** the rendered body carries an `offer observability:` block naming that
+    read's recorded `candidateSetId`; its `offered` count equals the number of ids in that read's
+    recorded `candidateNodeIds`, so the denominator is the whole offer and not a filtered subset; its
+    `observable` count is strictly SMALLER than `offered`, which is the distortion made legible —
+    the `[candidate-set]` line beside it reports only the offered count, and a reader taking that as
+    the denominator over-reports how often the session stayed inside the asset graph; every
+    unobservable entry is accounted for by a NAMED reason rather than a bare remainder; and the block
+    closes with a total line stating that the followed counts are over the observable branches, not
+    the offered ones. The rendered `offered` count also equals the number of entries the
+    `decision points:` block lists for that same set, so the two derived views cannot disagree about
+    what was on the table. And the negative halves, asserted in the same leg: a replay of a session
+    that recorded NO offer carries no `offer observability:` block at all, and the block never renders
+    a percentage — no `%` appears anywhere within it, since a rounded share of a three-element offer
+    set claims precision the observation does not carry.
 
 ## Evidence
 

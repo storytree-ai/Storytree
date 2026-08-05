@@ -73,6 +73,19 @@ export type {
 } from "./decision-point-playback.js";
 
 export {
+  classifyOfferObservability,
+  computeOfferObservability,
+  followArgvFor,
+  renderOfferObservability,
+} from "./offer-observability-share.js";
+export type {
+  ObservabilityReport,
+  OfferObservability,
+  PointObservability,
+  UnobservableReason,
+} from "./offer-observability-share.js";
+
+export {
   renderTraversalSessions,
   renderTraversalSession,
   type TraversalRenderEnvelope,
