@@ -56,22 +56,22 @@ test("llw-friction-and-plan-project-lifecycle — friction route and plan status
 
   // The increment tier's four states (ADR-0305 D2): proposal -> open, ready|active -> active,
   // closed -> archived.
-  assert.equal(lifecycleOf("plan", { status: "proposal" }), "open");
-  assert.equal(lifecycleOf("plan", { status: "ready" }), "active");
-  assert.equal(lifecycleOf("plan", { status: "active" }), "active");
-  assert.equal(lifecycleOf("plan", { status: "closed" }), "archived");
+  assert.equal(lifecycleOf("increment", { status: "proposal" }), "open");
+  assert.equal(lifecycleOf("increment", { status: "ready" }), "active");
+  assert.equal(lifecycleOf("increment", { status: "active" }), "active");
+  assert.equal(lifecycleOf("increment", { status: "closed" }), "archived");
 
   // `active` projects to ACTIVE where its predecessor `consumed` projected to archived — the rename
   // earning its keep, not drift. `consumed` read as spent because a consumed plan was prunable;
   // ADR-0305 D3 makes increments durable, so the state under execution is exactly the in-flight one.
   // Shelving an executing increment as archived would hide live work from every worklist.
-  assert.notEqual(lifecycleOf("plan", { status: "active" }), "archived");
+  assert.notEqual(lifecycleOf("increment", { status: "active" }), "archived");
 
   // The retired vocabulary is fenced at the SCHEMA, so it can only reach this projection from a
   // hand-edited or unmigrated row. It degrades to `open` via the default branch — visible in the
   // worklist rather than silently archived (ADR-0196 D2: never invent an absent closed state).
   for (const gone of ["draft", "consumed", "superseded", "retired"]) {
-    assert.equal(lifecycleOf("plan", { status: gone }), "open", `retired status "${gone}" fails OPEN`);
+    assert.equal(lifecycleOf("increment", { status: gone }), "open", `retired status "${gone}" fails OPEN`);
   }
 });
 
@@ -118,7 +118,7 @@ test("an arc's stored lifecycle field projects onto the triad (ADR-0239 D1), thr
 
   // The field is read for `arc` ONLY — no other kind grows a second status surface off it
   // (ADR-0196 D4), and the arc branch ignores the vocabularies that are not its own.
-  assert.equal(lifecycleOf("plan", { lifecycle: "closed", status: "ready" }), "active");
+  assert.equal(lifecycleOf("increment", { lifecycle: "closed", status: "ready" }), "active");
   assert.equal(lifecycleOf("adr", { lifecycle: "closed", status: "accepted" }), "active");
   assert.equal(lifecycleOf("principle", { lifecycle: "closed" }), "active");
   assert.equal(lifecycleOf("arc", { lifecycle: "closed", status: "ready" }), "archived");
@@ -145,7 +145,7 @@ test("llw-lifecycleof-exported-and-browser-safe — lifecycleOf is re-exported f
 
 test("llw-plan-status-crosses-the-wire — a stored plan doc surfaces status on the RenderedAsset (structured branch)", () => {
   const planDoc = {
-    kind: "plan",
+    kind: "increment",
     id: "sample-plan",
     title: "Sample plan",
     description: "a fixture plan",
@@ -159,7 +159,7 @@ test("llw-plan-status-crosses-the-wire — a stored plan doc surfaces status on 
   };
   const stored: StoredDoc = {
     id: "sample-plan",
-    kind: "plan",
+    kind: "increment",
     doc: planDoc,
     createdAt: "2026-07-01T00:00:00Z",
     updatedAt: "2026-07-01T00:00:00Z",

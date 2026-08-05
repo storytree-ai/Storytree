@@ -51,14 +51,16 @@ export const PROSE_FLAGS: ReadonlySet<string> = new Set([
   "end-state",
   "outcome",
   "description",
-  // arc proposal add — the parked entry's body (ADR-0298 D1).
-  "summary",
-  "motivation",
+  // arc increment new — the increment's body (ADR-0298 D1, folded onto the increment by ADR-0305
+  // D4). TWO where the parked entry had seven: `summary`/`motivation`/`readiness`/`risks` left the
+  // schema with those headings, so they left this list too rather than lingering as classified
+  // flags the CLI no longer declares. `change`/`scope`/`migration` stay — they are still declared,
+  // for `storytree drift` and the graduate surfaces.
+  "objective",
+  "body",
   "change",
   "scope",
   "migration",
-  "readiness",
-  "risks",
   // The recorded-verdict prose: `library artifact retire`, `library graduate park`, `friction`.
   // These two are the measured defect this boundary exists to close.
   "reason",

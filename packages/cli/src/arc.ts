@@ -1,6 +1,13 @@
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { explainDocValidationError, upcastAndValidate } from "@storytree/library";
-import { arcIsClosed, loadArcRollup, storyArcStamps, type ArcRollup } from "@storytree/drive";
+import {
+  arcIsClosed,
+  isForwardLooking,
+  loadArcRollup,
+  loadArcRollups,
+  storyArcStamps,
+  type ArcRollup,
+} from "@storytree/drive";
 
 // The ADR scaffolder's kebab-caser, reused rather than copied: `arc new` derives an id slug from a
 // title exactly as `adr new` derives a filename slug, and a second implementation would be a drift
@@ -41,13 +48,6 @@ export interface ArcViewDeps {
   pg: boolean;
 }
 
-/** One landed increment as stored on the arc doc (schema-validated upstream; read defensively here). */
-interface IncrementRow {
-  date?: string;
-  pr?: string;
-  outcome?: string;
-}
-
 /** Read a string field off an untyped stored doc body ("" when absent). */
 function str(stored: StoredDoc, key: string): string {
   const doc = stored.doc as Record<string, unknown>;
@@ -71,13 +71,17 @@ export function arcScopeOf(opts: { all?: boolean | undefined; closed?: boolean |
 }
 
 async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
-  const arcs = await deps.store.queryDocs({ kind: "arc" });
-  if (arcs.length === 0) {
+  // The rollup, not a bare `queryDocs({kind:"arc"})`. Since the fold (ADR-0305 D1) an arc's
+  // increments are their OWN rows, so counting them means joining — and `loadArcRollups` loads the
+  // child sets ONCE for every arc rather than per-arc, which is why the list can afford the join it
+  // used to get for free off an array on the doc.
+  const rollups = await loadArcRollups(deps);
+  if (rollups.length === 0) {
     return {
       ok: true,
       body: deps.pg
         ? "no arcs in the live store yet — an arc is born when a multi-session initiative starts (ADR-0183 D6)."
-        : "no arcs here — arcs are LIVE-canonical (and plans live-only), so the offline seed shows none. Re-run with --pg.",
+        : "no arcs here — arcs are LIVE-canonical (and increments live-only), so the offline fixture shows none. Re-run with --pg.",
       // This offer used to point at `library artifact new --file <arc.json>` — the hand-authoring path
       // that WAS the friction (`no-arc-new-scaffolder-verb`): it handed the reader a filename and left
       // them to reverse-engineer the schema. The scaffolder is the honest first move now.
@@ -86,20 +90,25 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
         : ["storytree arc list --pg"],
     };
   }
-  const sorted = [...arcs].sort((a, b) => a.id.localeCompare(b.id));
-  const closedCount = sorted.filter((d) => arcIsClosed(d)).length;
+  const closedCount = rollups.filter((a) => a.lifecycle === "closed").length;
   const shown =
-    scope === "all" ? sorted : sorted.filter((d) => arcIsClosed(d) === (scope === "closed"));
-  const width = Math.max(1, ...shown.map((d) => d.id.length));
-  const rows = shown.map((d) => {
-    const doc = d.doc as Record<string, unknown>;
-    const increments = Array.isArray(doc["increments"]) ? (doc["increments"] as IncrementRow[]) : [];
-    const last = increments[increments.length - 1];
-    const lastNote = last ? `last ${last.date ?? "?"}${last.pr !== undefined ? ` ${last.pr}` : ""}` : "no landings yet";
+    scope === "all" ? rollups : rollups.filter((a) => (a.lifecycle === "closed") === (scope === "closed"));
+  const width = Math.max(1, ...shown.map((a) => a.id.length));
+  const rows = shown.map((a) => {
+    const landed = a.increments.filter((i) => !isForwardLooking(i.status));
+    const open = a.increments.length - landed.length;
+    const last = landed[landed.length - 1];
+    const lastNote = last
+      ? `last ${last.outcome?.date ?? "?"}${last.outcome?.pr !== undefined ? ` ${last.outcome.pr}` : ""}`
+      : "no landings yet";
+    // The OPEN count rides every row since the fold. Before it, forward-looking work lived in a
+    // second array this list never read, so an arc with nine parked remedies and no landings printed
+    // "0 increment(s), no landings yet" — indistinguishable from an arc nobody had started.
+    const openNote = open > 0 ? `, ${open} open` : "";
     // The state tag rides every closed row so `--all` / `--closed` are never the old blind list;
     // under the default scope no closed arc is shown, so it never appears there.
-    const tag = arcIsClosed(d) ? "[closed] " : "";
-    return `  ${d.id.padEnd(width)}  ${increments.length} increment(s), ${lastNote}  — ${tag}${str(d, "title")}`;
+    const tag = a.lifecycle === "closed" ? "[closed] " : "";
+    return `  ${a.id.padEnd(width)}  ${landed.length} landed${openNote}, ${lastNote}  — ${tag}${a.title}`;
   });
 
   const label = scope === "all" ? "arc(s)" : `${scope} arc(s)`;
@@ -123,7 +132,7 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
     ok: true,
     body,
     next: [
-      ...shown.slice(0, 3).map((d) => `storytree arc show ${d.id}${pgFlag}`),
+      ...shown.slice(0, 3).map((a) => `storytree arc show ${a.id}${pgFlag}`),
       ...(scope === "active" && closedCount > 0 ? [`storytree arc list --all${pgFlag}`] : []),
     ],
   };
@@ -179,46 +188,68 @@ export function renderArcRollup(rollup: ArcRollup, pg: boolean): string[] {
   if (rollup.intent) lines.push(`**The intent.** ${rollup.intent}`, "");
   if (rollup.endState) lines.push("## End state", "", rollup.endState, "");
 
-  // The durable residue: the append-at-landing increment log (ADR-0183 D1).
-  lines.push("## Increment log");
-  if (rollup.increments.length === 0) lines.push("  (no landings yet)");
-  for (const inc of rollup.increments) {
-    lines.push(`  - ${inc.date ?? "?"}${inc.pr !== undefined ? `  ${inc.pr}` : ""}  ${inc.outcome ?? ""}`.trimEnd());
-  }
+  // ONE increment list (ADR-0305 D1), rendered as TWO sections in this order: forward-looking work
+  // FIRST, the landing log after. Both halves of that are requirements.
+  //
+  // FORWARD-LOOKING FIRST, because the old order put it last and that is what broke. `arc show`
+  // emitted the increment log before `## Parked work`, so on `verification-integrity-arc` the parked
+  // block sat at line 998 of 1069 — behind 34 landings — and a truncated read made a session conclude
+  // that two entries it had been directed to read did not exist. Ordering is `deriveArcRollup`'s job
+  // (`INCREMENT_STATUS_RANK`), not this renderer's; what happens here is only the split.
+  //
+  // STILL TWO SECTIONS, because merging them is a different defect and a worse one. ADR-0298 D4 kept
+  // unbuilt work out of the landing log STRUCTURALLY, with two arrays that could not be confused. The
+  // fold weakens that guarantee to a rendering rule, and ADR-0305 D7 states the obligation outright:
+  // no surface may present a `proposal` increment alongside `closed` ones as though it were something
+  // that happened. A reader who saw them interleaved would read intentions as history.
+  //
+  // Each row is ONE line plus its objective and a PULL COMMAND — never its body. That is the other
+  // half of what the fold buys: `arc show` on the busiest arc returned 44.6 KB, overflowed the tool
+  // result, and took three further passes to read for one paragraph, because an entry was an element
+  // of an array inside this document and there was no narrower view. Now there is one, and it is the
+  // ordinary artifact read.
+  const forward = rollup.increments.filter((i) => isForwardLooking(i.status));
+  const landed = rollup.increments.filter((i) => !isForwardLooking(i.status));
 
-  // The parked work the arc owns (ADR-0298 D1). Rendered as its OWN section immediately after the
-  // increment log and never merged into it: the two have opposite lifecycles, and a reader who saw
-  // them interleaved would read unbuilt intentions as things that happened (D4).
-  const parked = rollup.proposals.filter((p) => p.realized === undefined);
-  const realized = rollup.proposals.filter((p) => p.realized !== undefined);
-  lines.push("", `## Parked work  (${parked.length} parked, ${realized.length} realized)`);
-  if (rollup.proposals.length === 0) {
-    lines.push("  (none — this arc has no deferred work parked on it)");
-  }
-  for (const p of parked) {
-    lines.push(`  - ${p.id ?? "?"}  [parked ${(p.parked ?? "?").slice(0, 10)}]  — ${p.title ?? ""}`.trimEnd());
-    if (p.summary) lines.push(`      ${p.summary}`);
-    // The friction ids are printed because they are what the delivery ceiling joins on (D3): a
-    // reader wondering why an entry went red can follow the edge without querying the store.
-    if (p.frictionRefs !== undefined && p.frictionRefs.length > 0) {
-      lines.push(`      from friction: ${p.frictionRefs.join(", ")}`);
-    }
-  }
-  for (const p of realized) {
-    const r = p.realized ?? {};
+  const byStatus = (s: string): number => forward.filter((i) => i.status === s).length;
+  lines.push(
+    "",
+    `## Work  (${byStatus("proposal")} proposal · ${byStatus("ready")} ready · ${byStatus("active")} active)`,
+  );
+  if (forward.length === 0) {
     lines.push(
-      `  - ${p.id ?? "?"}  [realized ${r.date ?? "?"}${r.pr !== undefined ? ` ${r.pr}` : ""}]  — ${p.title ?? ""}`.trimEnd(),
+      pg
+        ? "  (nothing open — every increment on this arc is closed)"
+        : "  (none visible OFFLINE — increments are live-only, ADR-0183 D2; try --pg)",
     );
-    if (r.note) lines.push(`      ${r.note}`);
+  }
+  for (const i of forward) {
+    const parked = i.parked === undefined ? "" : `, parked ${i.parked.slice(0, 10)}`;
+    const anchor = i.anchorSha === undefined ? "" : `, anchor ${i.anchorSha}`;
+    lines.push(`  - ${i.id}  [${i.status}${parked}${anchor}]  — ${i.title}`.trimEnd());
+    if (i.objective) lines.push(`      ${i.objective}`);
+    // The friction ids are printed because they are what the delivery ceiling joins on (ADR-0298 D3):
+    // a reader wondering why an entry went red can follow the edge without querying the store.
+    if (i.frictionRefs !== undefined && i.frictionRefs.length > 0) {
+      lines.push(`      from friction: ${i.frictionRefs.join(", ")}`);
+    }
+    lines.push(`      read/edit it:  storytree library artifact ${i.id}${pg ? " --pg" : ""}`);
   }
 
-  // Derived children (D3: every edge lives on the CHILD; this view is a query, never authored).
-  lines.push("", `## Plans  (derived: plan.arcRef → ${rollup.id})`);
-  if (rollup.plans.length === 0) {
-    lines.push(pg ? "  (none)" : "  (none visible OFFLINE — plans are live-only, ADR-0183 D2; try --pg)");
-  }
-  for (const p of rollup.plans) {
-    lines.push(`  - ${p.id}  [${p.status}]  anchor ${p.anchorSha}  — ${p.title}`);
+  // The durable residue: what LANDED (ADR-0183 D1, now the closed increments themselves — ADR-0305 D3
+  // keeps them by never pruning the artifact that produced the entry).
+  lines.push("", `## Increment log  (${landed.length} closed)`);
+  if (landed.length === 0) lines.push("  (no landings yet)");
+  for (const i of landed) {
+    const o = i.outcome ?? {};
+    lines.push(
+      `  - ${o.date ?? "?"}${o.pr !== undefined ? `  ${o.pr}` : ""}  ${i.id}  — ${i.title}`.trimEnd(),
+    );
+    if (i.objective) lines.push(`      ${i.objective}`);
+    // `note` is the REASON it closed, and it is printed rather than folded into the objective because
+    // ADR-0305 D2 removed `superseded`/`retired` on the understanding that the reason would be
+    // written here instead. A closure whose reason is invisible is the state collapse's cost unpaid.
+    if (o.note !== undefined && o.note !== "" && o.note !== i.objective) lines.push(`      ${o.note}`);
   }
 
   // The questions the arc is waiting on (ADR-0267 D4): an `arcRef` on the QUESTION, derived by
@@ -251,10 +282,17 @@ export function renderArcRollup(rollup: ArcRollup, pg: boolean): string[] {
   return lines;
 }
 
-/** The ADR-0023 `next:` offers for one arc — its plans' freshness checks, then the artifact itself. */
+/**
+ * The ADR-0023 `next:` offers for one arc — the freshness check for its consumable increments, then
+ * the arc artifact itself. `ready` only: a `proposal` has no anchor to check yet and an `active` one
+ * is past the point where a freshness verdict would change anything.
+ */
 function arcShowNext(rollup: ArcRollup, pg: boolean): string[] {
   return [
-    ...rollup.plans.slice(0, 2).map((p) => `storytree plan check ${p.id}${pg ? " --pg" : ""}`),
+    ...rollup.increments
+      .filter((i) => i.status === "ready")
+      .slice(0, 2)
+      .map((i) => `storytree increment check ${i.id}${pg ? " --pg" : ""}`),
     `storytree library artifact ${rollup.id}${pg ? " --pg" : ""}`,
   ];
 }
@@ -578,199 +616,260 @@ export async function arcEdit(
   return { ok: true, body: `updated arc ${saved.id} (${changed}).`, next: [`storytree arc show ${saved.id} --pg`] };
 }
 
+// ---------------------------------------------------------------------------
+// The INCREMENT verbs (ADR-0305 D1).
+//
+// Three verbs replace four, and the collapse is the decision. `arc increment add` (the landing log),
+// `arc proposal add` (park deferred work) and `arc proposal realize` (discharge it) all mutated an
+// ARRAY on the arc doc; an increment is its own row now, so they write documents instead. The fourth
+// operation they never had — CORRECTING an entry — needs no verb at all: `library artifact edit
+// <increment-id> --pg` is it, which is why a duplicate parked minutes earlier by a concurrent session
+// stops being permanent.
+// ---------------------------------------------------------------------------
+
+/** PURE: the first sentence of some prose, whitespace-collapsed — the derived `objective` / `title`. */
+function firstSentenceOf(text: string, cap: number): string {
+  const flat = oneLine(text);
+  const sentence = /^(.+?[.!?])(?:\s|$)/.exec(flat)?.[1] ?? flat;
+  if (sentence.length <= cap) return sentence;
+  const cut = sentence.slice(0, cap);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[,;:]+$/, "")}…`;
+}
+
+/** The cap on a DERIVED increment title before it is cut at a word boundary. */
+const DERIVED_TITLE_CAP = 80;
+
 /**
- * `storytree arc increment add <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` —
- * APPEND one {@link ArcIncrement} to the arc's landing log (ADR-0183 D1: the durable residue). This is
- * the operation `library artifact edit --set` structurally CANNOT do (the log is an array of objects);
- * the old path was a raw `upsertDoc` one-shot that bypassed validation. `--outcome` is required (what
- * landed / halted / was re-planned); `--pr` is optional (an increment can close without its own PR);
- * `--date` defaults to today (the landing date). Re-validates the WHOLE arc — the new increment must
- * satisfy the ArcIncrement schema — then upserts (append-only, like the decision log).
+ * Validate and upsert one increment doc, reporting a refusal against the doc the caller MEANT.
+ *
+ * Shared by all three verbs so the conditional invariants (`assertIncrementInvariants`) are enforced
+ * on one path — a verb that assembled its own `upsertDoc` call could write a `proposal` with no
+ * `parked` stamp and quietly un-measure it from the delivery ceiling.
+ */
+async function upsertIncrement(
+  deps: ArcWriteDeps,
+  doc: Record<string, unknown>,
+  what: string,
+  arcId: string,
+): Promise<Envelope | { saved: { id: string } }> {
+  let valid: unknown;
+  try {
+    valid = upcastAndValidate(doc);
+  } catch (e) {
+    return {
+      ok: false,
+      body: `${what} would be invalid:\n${explainDocValidationError(doc, e)}`,
+      next: [`storytree arc show ${arcId} --pg`],
+    };
+  }
+  const saved = await deps.store.upsertDoc({
+    id: doc["id"] as string,
+    kind: "increment",
+    doc: valid,
+    actor: deps.actor ?? defaultCliActor(),
+  });
+  return { saved };
+}
+
+/** Refuse an id already taken — an increment id is GLOBAL now, not merely arc-unique. */
+async function refuseTakenId(deps: ArcWriteDeps, id: string): Promise<Envelope | null> {
+  const existing = await deps.store.getDoc(id);
+  if (existing === null || existing === undefined) return null;
+  return {
+    ok: false,
+    body:
+      `"${id}" already exists as a ${existing.kind}. An increment is its own row, so its id is unique ` +
+      "across the whole store rather than only within one arc — pick another, or edit the existing " +
+      "one in place.",
+    next: [`storytree library artifact ${id} --pg`, `storytree library artifact edit ${id} --pg`],
+  };
+}
+
+/**
+ * `storytree arc increment add <arc-id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>]
+ * [--id <slug>] --pg` — record one LANDING on the arc: the merge ceremony's residue step (ADR-0271).
+ *
+ * Before the fold this appended a row to `arc.increments[]`. It now CREATES a closed increment doc,
+ * which is ADR-0305's named ergonomic cost stated plainly: "work that landed with no increment
+ * authored has nowhere to record itself, and the closing leg must create one rather than assume it."
+ * It is still ONE command, and the fields it does not ask for are derived — `objective` and `title`
+ * from the outcome's first sentence, `id` from the arc plus the next free ordinal — so the ceremony
+ * costs the session exactly what it did before.
+ *
+ * Work that was PARKED first should close its existing increment (`arc increment close`) rather than
+ * mint a second one here; that is what keeps a deferred intention traceable to the landing that
+ * discharged it instead of leaving two rows describing one piece of work.
  */
 export async function arcIncrementAdd(
   deps: ArcWriteDeps,
-  id: string | undefined,
-  opts: { date?: string | undefined; pr?: string | undefined; outcome?: string | undefined },
+  arcId: string | undefined,
+  opts: { date?: string | undefined; pr?: string | undefined; outcome?: string | undefined; id?: string | undefined },
 ): Promise<Envelope> {
   if (!deps.writable) return arcNotWritable("increment add");
-  if (id === undefined) {
+  if (arcId === undefined) {
     return {
       ok: false,
-      body: "arc increment add needs an id: storytree arc increment add <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
+      body: "arc increment add needs an arc id:  storytree arc increment add <arc-id> --outcome <text|@file> --pg",
       next: ["storytree arc list --pg"],
     };
   }
-  const outcome = opts.outcome?.trim();
-  if (outcome === undefined || outcome === "") {
+  const outcomeText = opts.outcome?.trim();
+  if (outcomeText === undefined || outcomeText === "") {
     return {
       ok: false,
       body: "arc increment add needs --outcome — what landed / halted / was re-planned (long prose: --outcome @path reads from a file).",
-      next: [`storytree arc show ${id} --pg`],
+      next: [`storytree arc show ${arcId} --pg`],
     };
   }
-  const found = await loadArcForWrite(deps, id);
+  const found = await loadArcForWrite(deps, arcId);
   if ("error" in found) return found.error;
 
   const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
   const pr = opts.pr?.trim();
-  const increment: Record<string, unknown> = { date, outcome, ...(pr !== undefined && pr !== "" ? { pr } : {}) };
 
-  const base = found.doc;
-  const priorIncrements = Array.isArray(base["increments"]) ? [...(base["increments"] as unknown[])] : [];
-  base["increments"] = [...priorIncrements, increment];
-  base["updatedAt"] = deps.now;
-
-  let valid: unknown;
-  try {
-    valid = upcastAndValidate(base);
-  } catch (e) {
-    return {
-      ok: false,
-      body: `increment would make "${id}" invalid:\n${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}`,
-      next: [`storytree arc show ${id} --pg`],
-    };
+  // The id: an explicit `--id`, else `<arc>-inc-NN` at the next free ordinal. The scan skips ids
+  // already taken, so a re-run mints a fresh row rather than silently overwriting a landing.
+  let id = opts.id?.trim();
+  if (id === undefined || id === "") {
+    const siblings = (await deps.store.queryDocs({ kind: "increment" })).filter((d) => {
+      const bag = d.doc as Record<string, unknown>;
+      return bag["arcRef"] === `asset:${arcId}`;
+    });
+    let n = siblings.length + 1;
+    while (await deps.store.getDoc(`${arcId}-inc-${String(n).padStart(2, "0")}`)) n += 1;
+    id = `${arcId}-inc-${String(n).padStart(2, "0")}`;
   }
-  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
-  const count = Array.isArray((valid as Record<string, unknown>)["increments"])
-    ? ((valid as Record<string, unknown>)["increments"] as unknown[]).length
-    : 0;
+  const taken = await refuseTakenId(deps, id);
+  if (taken !== null) return taken;
 
-  // ADR-0239 D4 — the closure reminder lives HERE, in the output of the command the situation forces
-  // you to run, not in any agent prompt or the generated CLAUDE.md region. Cost: zero context for
-  // every session that is not landing an arc increment, which is almost all of them (the ADR-0023
-  // pull model applied to a ceremony step). The session that just appended an increment reads the
-  // closure question at the exact moment it can answer it, against the arc's OWN stored end state —
-  // echoed back so the judgment is made from data, not memory. It never asserts the end state was
-  // met; the "(if …)" is load-bearing, since that call is irreducibly the session's.
-  const validDoc = valid as Record<string, unknown>;
-  const endState = typeof validDoc["endState"] === "string" ? validDoc["endState"] : "";
-  const alreadyClosed = validDoc["lifecycle"] === "closed";
+  const lead = firstSentenceOf(outcomeText, DERIVED_TITLE_CAP);
+  const doc: Record<string, unknown> = {
+    kind: "increment",
+    id,
+    title: lead,
+    description: arcDescriptionFrom(outcomeText),
+    objective: lead,
+    body: outcomeText,
+    arcRef: `asset:${arcId}`,
+    status: "closed",
+    // A landing whose PR ref is absent still owes a reason (`assertIncrementInvariants`), and the
+    // outcome prose IS that reason — an owner attestation, an honest halt.
+    outcome: { date, ...(pr !== undefined && pr !== "" ? { pr } : { note: outcomeText }) },
+    references: [],
+    createdAt: deps.now,
+    updatedAt: deps.now,
+  };
+  const result = await upsertIncrement(deps, doc, `increment "${id}"`, arcId);
+  if ("ok" in result) return result;
+
+  // The closure reminder lives HERE, in the output of the command the situation forces you to run,
+  // not in any agent prompt (ADR-0239 D4 — the ADR-0023 pull model applied to a ceremony step). The
+  // session that just recorded a landing reads the closure question at the exact moment it can answer
+  // it, against the arc's OWN stored end state. It never asserts the end state was met; the "(if …)"
+  // is load-bearing, since that call is irreducibly the session's.
+  const endState = typeof found.doc["endState"] === "string" ? found.doc["endState"] : "";
+  const alreadyClosed = found.doc["lifecycle"] === "closed";
   const closureHint = !alreadyClosed && endState !== "" ? `\n\nthis arc's end state: ${endState}` : "";
 
   return {
     ok: true,
     body:
-      `appended increment to arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${outcome}\n(${count} increment(s) now).` +
+      `recorded increment ${result.saved.id} on arc ${arcId} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}\n` +
+      `${lead}` +
       closureHint,
     next: [
-      `storytree arc show ${saved.id} --pg`,
+      `storytree arc show ${arcId} --pg`,
+      `storytree library artifact ${result.saved.id} --pg`,
       ...(alreadyClosed
         ? []
-        : [`storytree arc close ${saved.id} --outcome "…" --pg  (if this landing met the end state)`]),
+        : [`storytree arc close ${arcId} --outcome "…" --pg  (if this landing met the end state)`]),
     ],
   };
 }
 
-/** The body fields a parked entry carries, in the retired `proposal` KIND_SPECS order (ADR-0298 D1). */
-export interface ArcProposalBodyOpts {
-  summary?: string | undefined;
-  motivation?: string | undefined;
-  change?: string | undefined;
-  scope?: string | undefined;
-  migration?: string | undefined;
-  readiness?: string | undefined;
-  risks?: string | undefined;
+/** The body an increment carries at birth. */
+export interface ArcIncrementBodyOpts {
+  objective?: string | undefined;
+  body?: string | undefined;
 }
 
-/** The five OPTIONAL body fields, in render order — the shared list the add verb copies through. */
-const OPTIONAL_PROPOSAL_FIELDS = ["change", "scope", "migration", "readiness", "risks"] as const;
-
 /**
- * `storytree arc proposal add <arc-id> --id <slug> --title "…" --summary <text|@file>
- * --motivation <text|@file> [--change|--scope|--migration|--readiness|--risks <text|@file>]
- * [--friction <id>]... --pg` — PARK one unit of deferred work on the arc that owns it (ADR-0298 D1).
+ * `storytree arc increment new <arc-id> --id <slug> --title "…" --objective <text|@file>
+ * --body <text|@file> [--friction <id>]... --pg` — PARK one unit of decided-but-unbuilt work on the
+ * arc that owns it (ADR-0298 D1, on the increment tier since ADR-0305 D1).
  *
- * This is the successor to `storytree proposal new`, and the difference is the whole decision: there
- * is no way to park work without naming an arc, so a remedy can no longer arrive detached from the
- * initiative that carries it. Charter one first (`storytree arc new`) when none fits — that stays
- * first-class and free (D6); what is refused is a HOMELESS item, not a new arc.
+ * The successor to `arc proposal add`, and the difference ADR-0298 built is preserved exactly: there
+ * is no way to park work without naming an arc, so a remedy can never arrive detached from the
+ * initiative that carries it. Charter one first (`arc new`) when none fits — that stays first-class
+ * and free; what is refused is a HOMELESS item, not a new arc.
+ *
+ * Two things the array-based predecessor could not do now come for free, and they are the reason the
+ * fold was worth building: the entry is READABLE on its own (`library artifact <id> --pg`, which
+ * prints the whole body rather than the five fields `arc show` happened to render), and it is
+ * CORRECTABLE (`library artifact edit <id> --pg`), so a duplicate parked minutes earlier by a
+ * concurrent session is no longer permanent.
  *
  * `parked` is stamped from the composition-root clock and is never caller-supplied: it is the
- * delivery ceiling's comparison point (D3), so a caller able to backdate it could silence the very
- * recurrences that select an entry. Re-validates the WHOLE arc, then upserts.
+ * delivery ceiling's comparison point (ADR-0298 D3), so a caller able to backdate it could silence
+ * the very recurrences that select an entry.
  */
-export async function arcProposalAdd(
+export async function arcIncrementNew(
   deps: ArcWriteDeps,
   arcId: string | undefined,
-  opts: ArcProposalBodyOpts & { id?: string | undefined; title?: string | undefined; friction?: string[] | undefined },
+  opts: ArcIncrementBodyOpts & { id?: string | undefined; title?: string | undefined; friction?: string[] | undefined },
 ): Promise<Envelope> {
-  if (!deps.writable) return arcNotWritable("proposal add");
+  if (!deps.writable) return arcNotWritable("increment new");
   if (arcId === undefined) {
     return {
       ok: false,
-      body: 'arc proposal add needs an arc id: storytree arc proposal add <arc-id> --id <slug> --title "…" --summary <text|@file> --motivation <text|@file> --pg',
+      body: 'arc increment new needs an arc id: storytree arc increment new <arc-id> --id <slug> --title "…" --objective <text|@file> --body <text|@file> --pg',
       next: ["storytree arc list --pg", 'storytree arc new --title "…" --intent @file --end-state @file --pg'],
     };
   }
-  const entryId = opts.id?.trim();
+  const id = opts.id?.trim();
   const title = opts.title?.trim();
-  const summary = opts.summary?.trim();
-  const motivation = opts.motivation?.trim();
+  const objective = opts.objective?.trim();
+  const body = opts.body?.trim();
   const missing = [
-    entryId === undefined || entryId === "" ? "--id <slug>" : "",
+    id === undefined || id === "" ? "--id <slug>" : "",
     title === undefined || title === "" ? '--title "…"' : "",
-    summary === undefined || summary === "" ? "--summary <text|@file>" : "",
-    motivation === undefined || motivation === "" ? "--motivation <text|@file>" : "",
+    objective === undefined || objective === "" ? "--objective <text|@file>" : "",
+    body === undefined || body === "" ? "--body <text|@file>" : "",
   ].filter((s) => s !== "");
-  if (missing.length > 0 || entryId === undefined || title === undefined || summary === undefined || motivation === undefined) {
+  if (missing.length > 0 || id === undefined || title === undefined || objective === undefined || body === undefined) {
     return {
       ok: false,
       body:
-        `arc proposal add needs ${missing.join(", ")}.\n` +
-        "`--motivation` is required for the same reason `friction new` demands evidence: a parked entry with no stated cost of NOT doing it is the thin filing this tier exists to prevent (long prose: --field @path reads from a file).",
+        `arc increment new needs ${missing.join(", ")}.\n` +
+        "`--body` is required for the same reason `friction new` demands evidence: a parked entry with no stated cost of NOT doing it is the thin filing this tier exists to prevent. Say what prompts it, the blast radius, the ordered steps, and the risks — the schema no longer has a heading per question (ADR-0305 D4), so the body is where they go (long prose: --field @path reads from a file).",
       next: [`storytree arc show ${arcId} --pg`],
     };
   }
 
   const found = await loadArcForWrite(deps, arcId);
   if ("error" in found) return found.error;
-  const base = found.doc;
-
-  const prior = Array.isArray(base["proposals"]) ? [...(base["proposals"] as unknown[])] : [];
-  // A duplicate id inside one arc would make `arc proposal realize --id` ambiguous, so it is refused
-  // rather than resolved by a first-match rule nobody would predict.
-  const clash = prior.some(
-    (p) => typeof p === "object" && p !== null && (p as Record<string, unknown>)["id"] === entryId,
-  );
-  if (clash) {
-    return {
-      ok: false,
-      body: `arc ${arcId} already carries a parked entry "${entryId}" — ids are unique within an arc so \`arc proposal realize --id\` is unambiguous.`,
-      next: [`storytree arc show ${arcId} --pg`],
-    };
-  }
+  const taken = await refuseTakenId(deps, id);
+  if (taken !== null) return taken;
 
   const frictionRefs = (opts.friction ?? []).map((f) => f.trim()).filter((f) => f !== "");
-  const entry: Record<string, unknown> = {
-    id: entryId,
+  const doc: Record<string, unknown> = {
+    kind: "increment",
+    id,
     title,
+    description: arcDescriptionFrom(objective),
+    objective,
+    body,
+    arcRef: `asset:${arcId}`,
+    status: "proposal",
     parked: deps.now,
-    summary,
-    motivation,
+    ...(frictionRefs.length > 0 ? { frictionRefs } : {}),
+    references: [],
+    createdAt: deps.now,
+    updatedAt: deps.now,
   };
-  for (const field of OPTIONAL_PROPOSAL_FIELDS) {
-    const v = opts[field]?.trim();
-    if (v !== undefined && v !== "") entry[field] = v;
-  }
-  if (frictionRefs.length > 0) entry["frictionRefs"] = frictionRefs;
-
-  base["proposals"] = [...prior, entry];
-  base["updatedAt"] = deps.now;
-
-  let valid: unknown;
-  try {
-    valid = upcastAndValidate(base);
-  } catch (e) {
-    return {
-      ok: false,
-      body: `parking "${entryId}" would make arc "${arcId}" invalid:\n${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}`,
-      next: [`storytree arc show ${arcId} --pg`],
-    };
-  }
-  const saved = await deps.store.upsertDoc({ id: arcId, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
-  const parkedCount = (((valid as Record<string, unknown>)["proposals"] as unknown[]) ?? []).filter(
-    (p) => typeof p === "object" && p !== null && (p as Record<string, unknown>)["realized"] === undefined,
-  ).length;
+  const result = await upsertIncrement(deps, doc, `parking "${id}" on arc ${arcId}`, arcId);
+  if ("ok" in result) return result;
 
   // The obligation this write opens, stated where it is incurred rather than left to memory (the
   // ADR-0239 D4 precedent). An entry with no `--friction` is unreachable by the recurrence ceiling
@@ -783,122 +882,123 @@ export async function arcProposalAdd(
 
   return {
     ok: true,
-    body:
-      `parked "${entryId}" on arc ${saved.id} — ${title}\n(${parkedCount} parked entr(ies) now.)` +
-      uncited,
+    body: `parked increment ${result.saved.id} on arc ${arcId} — ${title}` + uncited,
     next: [
-      `storytree arc show ${saved.id} --pg`,
+      `storytree arc show ${arcId} --pg`,
+      `storytree library artifact edit ${result.saved.id} --pg   (correct it in place)`,
       ...(frictionRefs.length > 0
-        ? [
-            `storytree friction route ${frictionRefs[0]} --route tool --reason @<file> --arc ${saved.id} --pg`,
-          ]
+        ? [`storytree friction route ${frictionRefs[0]} --route tool --reason @<file> --arc ${arcId} --pg`]
         : []),
-      `storytree arc proposal realize ${saved.id} --id ${entryId} --pr <ref> --pg   (when it lands)`,
+      `storytree arc increment close ${result.saved.id} --pr <ref> --pg   (when it lands)`,
     ],
   };
 }
 
 /**
- * `storytree arc proposal realize <arc-id> --id <slug> [--pr <ref>] [--date <YYYY-MM-DD>]
- * [--note <text|@file>] --pg` — mark a parked entry as LANDED (ADR-0298 D3/D4).
+ * `storytree arc increment close <id> [--pr <ref>] [--date <YYYY-MM-DD>] [--note <text|@file>] --pg`
+ * — mark one increment TERMINAL (ADR-0305 D2/D5), for any reason.
  *
- * This is the delivery ceiling's structural discharge, and it is deliberately cheap because it rides
- * a step the closing leg already performs (ADR-0271: append the increment, release the claims). The
- * retired tier's only discharge was a manual `friction --discharged-by` stamp, measured at 6-of-125
- * and called a FLOOR precisely because it is expensive enough to skip.
+ * The successor to `arc proposal realize`, and it is deliberately wider. `realize` meant LANDED and
+ * nothing else, so an entry that turned out to be wrong, duplicated, or discharged by a deletion
+ * elsewhere had no honest exit: marking it realized would have been a false landing on the very tier
+ * that exists to prevent those, and there was no other verb. `close` covers both, and the difference
+ * is written down rather than implied — which is exactly why **`--note` is REQUIRED when there is no
+ * `--pr`.** ADR-0305 D2 removed `superseded` and `retired` as separate states on the grounds that the
+ * difference between them was a REASON, not a state; that trade only holds if the reason is recorded.
  *
- * The entry is MARKED, never deleted: retiring a realized proposal left nothing behind but a
- * retirement reason, whereas a realized entry sits next to the increment that discharged it.
+ * Closing is cheap because it rides a step the closing leg already performs (ADR-0271). The
+ * increment is CLOSED, never deleted — its own history is the trace, and a closed increment IS the
+ * arc's landing-log entry (D3).
  */
-export async function arcProposalRealize(
+export async function arcIncrementClose(
   deps: ArcWriteDeps,
-  arcId: string | undefined,
-  opts: { id?: string | undefined; pr?: string | undefined; date?: string | undefined; note?: string | undefined },
+  id: string | undefined,
+  opts: { pr?: string | undefined; date?: string | undefined; note?: string | undefined },
 ): Promise<Envelope> {
-  if (!deps.writable) return arcNotWritable("proposal realize");
-  const entryId = opts.id?.trim();
-  if (arcId === undefined || entryId === undefined || entryId === "") {
+  if (!deps.writable) return arcNotWritable("increment close");
+  if (id === undefined || id.trim() === "") {
     return {
       ok: false,
-      body: "arc proposal realize needs an arc id and --id <slug>: storytree arc proposal realize <arc-id> --id <slug> --pr <ref> --pg",
+      body: "arc increment close needs an increment id: storytree arc increment close <id> --pr <ref> --pg",
       next: ["storytree arc list --pg"],
     };
   }
-  const found = await loadArcForWrite(deps, arcId);
-  if ("error" in found) return found.error;
-  const base = found.doc;
-
-  const prior = Array.isArray(base["proposals"]) ? [...(base["proposals"] as unknown[])] : [];
-  const idx = prior.findIndex(
-    (p) => typeof p === "object" && p !== null && (p as Record<string, unknown>)["id"] === entryId,
-  );
-  if (idx === -1) {
-    const known = prior
-      .map((p) => (typeof p === "object" && p !== null ? (p as Record<string, unknown>)["id"] : undefined))
-      .filter((s): s is string => typeof s === "string");
+  const stored = await deps.store.getDoc(id);
+  if (!stored || stored.kind !== "increment") {
     return {
       ok: false,
-      body:
-        `arc ${arcId} carries no parked entry "${entryId}".` +
-        (known.length > 0 ? `\nparked here: ${known.join(", ")}` : "\n(this arc has no parked work.)"),
-      next: [`storytree arc show ${arcId} --pg`],
+      body: stored
+        ? `"${id}" is a ${stored.kind}, not an increment.`
+        : `no increment "${id}"${deps.pg ? "" : " in the OFFLINE fixture — increments are live-ONLY (ADR-0183 D2); run with --pg"}.`,
+      next: ["storytree arc list --pg"],
     };
   }
-  const entry = { ...(prior[idx] as Record<string, unknown>) };
-  if (entry["realized"] !== undefined) {
+  const doc =
+    typeof stored.doc === "object" && stored.doc !== null ? { ...(stored.doc as Record<string, unknown>) } : {};
+  const arcRef = typeof doc["arcRef"] === "string" ? (doc["arcRef"] as string).replace(/^asset:/, "") : "?";
+
+  if (doc["status"] === "closed") {
     return {
       ok: false,
-      body: `"${entryId}" on arc ${arcId} is already realized — realization is recorded once, like an increment.`,
-      next: [`storytree arc show ${arcId} --pg`],
+      body: `increment "${id}" is already closed — closure is recorded once, like a landing.`,
+      next: [`storytree arc show ${arcRef} --pg`, `storytree library artifact ${id} --pg`],
     };
   }
 
   const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
   const pr = opts.pr?.trim();
   const note = opts.note?.trim();
-  entry["realized"] = {
+  if ((pr === undefined || pr === "") && (note === undefined || note === "")) {
+    return {
+      ok: false,
+      body: [
+        "arc increment close needs --pr <ref> or --note <text|@file>.",
+        "ADR-0305 D2 removed `superseded` and `retired` as states because the difference between them",
+        "was a REASON, not a state — so the reason has to be written somewhere. Give the landing ref,",
+        "or say why it closed: discharged by a deletion, duplicated by a sibling, decided against.",
+        "An unexplained closure reads as a landing that never happened (long prose: --note @path).",
+      ].join("\n"),
+      next: [`storytree library artifact ${id} --pg`],
+    };
+  }
+
+  doc["status"] = "closed";
+  doc["outcome"] = {
     date,
     ...(pr !== undefined && pr !== "" ? { pr } : {}),
     ...(note !== undefined && note !== "" ? { note } : {}),
   };
-  prior[idx] = entry;
-  base["proposals"] = prior;
-  base["updatedAt"] = deps.now;
+  doc["updatedAt"] = deps.now;
 
-  let valid: unknown;
-  try {
-    valid = upcastAndValidate(base);
-  } catch (e) {
-    return {
-      ok: false,
-      body: `realizing "${entryId}" would make arc "${arcId}" invalid:\n${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}`,
-      next: [`storytree arc show ${arcId} --pg`],
-    };
-  }
-  const saved = await deps.store.upsertDoc({ id: arcId, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
-  const stillParked = (((valid as Record<string, unknown>)["proposals"] as unknown[]) ?? []).filter(
-    (p) => typeof p === "object" && p !== null && (p as Record<string, unknown>)["realized"] === undefined,
-  ).length;
+  const result = await upsertIncrement(deps, doc, `closing increment "${id}"`, arcRef);
+  if ("ok" in result) return result;
 
   return {
     ok: true,
-    body: `realized "${entryId}" on arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}\n(${stillParked} still parked.)`,
-    next: [
-      `storytree arc increment add ${saved.id} --outcome @<file> --pr ${pr ?? "<ref>"} --pg   (the landing log)`,
-      `storytree arc show ${saved.id} --pg`,
-    ],
+    body:
+      `closed increment ${result.saved.id} on arc ${arcRef} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}` +
+      (note !== undefined && note !== "" ? `\n${note}` : ""),
+    next: [`storytree arc show ${arcRef} --pg`, `storytree library artifact ${result.saved.id} --pg`],
   };
 }
 
 /**
  * `storytree arc close <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` — the
- * ONE closing verb (ADR-0239 D2): it appends the terminal increment AND sets `lifecycle: closed` in
- * a SINGLE validated upsert, so the state and the prose that justifies it can never be written apart.
+ * ONE closing verb (ADR-0239 D2): it records the terminal increment AND sets `lifecycle: closed`, so
+ * the state and the prose that justifies it are written together.
  *
  * `--outcome` is REQUIRED and that is the whole design: an arc cannot go closed without a terminal
  * increment stating the observable `endState` condition it met. This is the ADR-0084/0086 discipline
  * applied unchanged — a status is a projection of prose that supports it, never a free flip — which
  * is also why `library artifact edit --set lifecycle=closed` is refused at the generic edit surface.
+ *
+ * ADR-0239 D2's "SINGLE atomic write" DOES NOT SURVIVE THE FOLD, and that is stated here rather than
+ * quietly dropped. The terminal increment is its own row now (ADR-0305 D1), so closing an arc writes
+ * two documents and no transaction spans them. The ORDER is the mitigation: the increment lands
+ * first, so an interrupted close leaves an increment recorded against an arc that is still open —
+ * visibly unfinished, and fixed by re-running this verb — rather than a `closed` arc with no prose
+ * behind it, which is precisely the lie the atomicity was written to prevent. The invariant that
+ * mattered is preserved; the mechanism that delivered it could not be.
  *
  * Re-opening (`closed → active`) is deliberately NOT a verb here: it is owner-only, mirroring
  * ADR-0084's human-only `accepted → proposed` un-deciding. An agent may recognise that an end state
@@ -945,35 +1045,38 @@ export async function arcClose(
     };
   }
 
-  const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
-  const pr = opts.pr?.trim();
-  const increment: Record<string, unknown> = { date, outcome, ...(pr !== undefined && pr !== "" ? { pr } : {}) };
+  // 1. The terminal increment FIRST — see the header for why this order is the mitigation.
+  const terminal = await arcIncrementAdd(deps, id, {
+    outcome,
+    ...(opts.pr !== undefined ? { pr: opts.pr } : {}),
+    ...(opts.date !== undefined ? { date: opts.date } : {}),
+  });
+  if (!terminal.ok) return terminal;
 
-  const priorIncrements = Array.isArray(base["increments"]) ? [...(base["increments"] as unknown[])] : [];
-  base["increments"] = [...priorIncrements, increment];
+  // 2. Then the flip.
   base["lifecycle"] = "closed";
   base["updatedAt"] = deps.now;
-
   let valid: unknown;
   try {
     valid = upcastAndValidate(base);
   } catch (e) {
     return {
       ok: false,
-      body: `close would make "${id}" invalid:\n${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}`,
+      body:
+        `the terminal increment was recorded, but the lifecycle flip would make "${id}" invalid:\n` +
+        `${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}\n` +
+        "the arc is still OPEN — fix the doc and re-run `arc close` (it will refuse to duplicate the increment).",
       next: [`storytree arc show ${id} --pg`],
     };
   }
-  // ONE upsert — the terminal increment and the flip land together or not at all.
   const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
-  const count = Array.isArray((valid as Record<string, unknown>)["increments"])
-    ? ((valid as Record<string, unknown>)["increments"] as unknown[]).length
-    : 0;
+  const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
+  const pr = opts.pr?.trim();
   return {
     ok: true,
     body: [
       `closed arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${outcome}`,
-      `(${count} increment(s); lifecycle: closed).`,
+      "(lifecycle: closed; the terminal increment is its own row).",
       "It drops out of `storytree arc list` (--all / --closed still show it) and reads as archived on the library shelves.",
     ].join("\n"),
     next: [`storytree arc show ${saved.id} --pg`, "storytree arc list --pg"],
@@ -984,10 +1087,17 @@ export function arcHelp(): Envelope {
   return {
     ok: true,
     body: [
-      "storytree arc — the derived initiative view (ADR-0183): an arc reveals its plans / stories / ADRs by query.",
+      "storytree arc — the derived initiative view (ADR-0183): an arc reveals its increments / stories / ADRs by query.",
       "",
-      "  storytree arc list [--all|--closed] [--pg]   the ACTIVE arcs (ADR-0239 D3): intent + increment log summary",
-      "  storytree arc show <id> [--pg]               one arc, closed or not: lifecycle / intent / end state / increments",
+      "  storytree arc list [--all|--closed] [--pg]   the ACTIVE arcs (ADR-0239 D3): landed + open counts",
+      "  storytree arc show <id> [--pg]               one arc: lifecycle / intent / end state / work / increment log",
+      "",
+      "AN ARC HOLDS INCREMENTS (ADR-0305 D1). What was `increments[]`, `proposals[]` and the `plan`",
+      "kind is ONE tier now — an `increment` doc citing its arc, moving through",
+      "proposal → ready → active → closed. So each entry is its OWN row: read one with",
+      "`storytree library artifact <increment-id> --pg` (the whole body, not a summary), and CORRECT",
+      "one with `storytree library artifact edit <increment-id> --pg`. There is no arc verb for",
+      "either — that is the point of the fold.",
       "",
       "write an arc (validated write path — no fragile store one-shot; long prose via @path reads from a file):",
       '  storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file> --pg',
@@ -997,36 +1107,41 @@ export function arcHelp(): Envelope {
       "        one; `--description` overrides the one-liner derived from the intent. No number to",
       "        reserve — an arc id is a slug, so this is cheaper than `adr new`, not dearer.",
       "  storytree arc edit <id> [--intent <text|@file>] [--end-state <text|@file>] --pg",
-      "  storytree arc increment add <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
-      "        APPEND one landing to the increment log (ADR-0183 D1) — the merge-ceremony residue.",
       "",
-      "park deferred work ON the arc that owns it (ADR-0298 — the retired `proposal` kind's successor):",
-      '  storytree arc proposal add <arc-id> --id <slug> --title "..." --summary <text|@file>',
-      "        --motivation <text|@file> [--change|--scope|--migration|--readiness|--risks <text|@file>]",
-      "        [--friction <id>]... --pg",
+      "the increment verbs:",
+      "  storytree arc increment add <arc-id> --outcome <text|@file> [--pr <ref>] [--date] [--id <slug>] --pg",
+      "        RECORD one landing — the merge-ceremony residue (ADR-0271). Creates a CLOSED increment;",
+      "        title / objective / id are derived, so it still costs one command. Work that was PARKED",
+      "        first should `increment close` its existing row instead of minting a second one.",
+      '  storytree arc increment new <arc-id> --id <slug> --title "..." --objective <text|@file>',
+      "        --body <text|@file> [--friction <id>]... --pg",
       "        PARK one decided-but-unbuilt unit of work. There is no way to park without naming an arc:",
       "        that is the decision, not an inconvenience — charter one first (`arc new`) when none fits.",
       "        `--friction <id>` (repeatable) is the DELIVERY CEILING'S JOIN: the entry goes RED on a later",
       "        session's gate once one of those friction items is reinforced after this entry was parked.",
       "        An entry with no --friction can never red, and the command says so.",
-      "  storytree arc proposal realize <arc-id> --id <slug> [--pr <ref>] [--date] [--note <text|@file>] --pg",
-      "        Mark a parked entry LANDED — the ceiling's discharge, run in the closing leg beside",
-      "        `increment add`. The entry is MARKED, never deleted, so it sits next to the increment.",
+      "  storytree arc increment close <id> [--pr <ref>] [--date] [--note <text|@file>] --pg",
+      "        Mark one increment TERMINAL — for ANY reason, not only a landing. `--note` is REQUIRED",
+      "        when there is no `--pr`: ADR-0305 D2 dropped `superseded`/`retired` because the",
+      "        difference was a REASON not a state, so a closure that is not a landing has to say why.",
+      "        This is what lets a wrong or duplicate entry close honestly instead of reading as landed.",
       "",
       "  storytree arc close <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
-      "        The terminal increment AND lifecycle: closed, in one write (ADR-0239 D2). --outcome is",
-      "        required — an arc never closes without prose stating the end-state condition it met, and",
-      "        a bare `library artifact edit --set lifecycle=closed` is refused. Re-opening is OWNER-only.",
+      "        The terminal increment AND lifecycle: closed (ADR-0239 D2). --outcome is required — an",
+      "        arc never closes without prose stating the end-state condition it met, and a bare",
+      "        `library artifact edit --set lifecycle=closed` is refused. Re-opening is OWNER-only.",
+      "        Since the fold this is TWO rows, written increment-first: an interrupted close leaves an",
+      "        open arc with an extra increment, never a closed arc with no prose behind it.",
       "",
-      "Every containment edge lives on the CHILD (plan.arcRef; ADR/story frontmatter `arc:` stamps via",
-      "`storytree adr new --arc <id>`), so this view is derived-from-source and can never drift.",
-      "Arcs are live-canonical and plans live-ONLY — run with --pg (pnpm db:up) for the real view.",
+      "Every containment edge lives on the CHILD (increment.arcRef; ADR/story frontmatter `arc:` stamps",
+      "via `storytree adr new --arc <id>`), so this view is derived-from-source and can never drift.",
+      "Arcs are live-canonical and increments live-ONLY — run with --pg (pnpm db:up) for the real view.",
     ].join("\n"),
     next: [
       "storytree arc list --pg",
       "storytree arc show <id> --pg",
       'storytree arc new --title "<the initiative>" --intent "…" --end-state "…" --pg',
-      "storytree arc increment add <id> --outcome \"<what landed>\" --pr <ref> --pg",
+      "storytree arc increment add <arc-id> --outcome \"<what landed>\" --pr <ref> --pg",
       "storytree arc close <id> --outcome \"<the end-state condition met>\" --pg",
     ],
   };

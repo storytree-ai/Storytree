@@ -415,7 +415,7 @@ test("lte-process-branchedges-surface: a process doc's branchEdges surface on th
 
 test("lte-plan-arcref-surface: a plan doc's arcRef surfaces on the GuidanceAsset wire shape", () => {
   const plan = {
-    kind: "plan",
+    kind: "increment",
     id: "example-plan",
     title: "Example plan",
     description: "an example plan for the typed-edge contract",
@@ -430,7 +430,7 @@ test("lte-plan-arcref-surface: a plan doc's arcRef surfaces on the GuidanceAsset
   };
   const stored: StoredDoc = {
     id: "example-plan",
-    kind: "plan",
+    kind: "increment",
     doc: plan,
     createdAt: "2026-07-02T00:00:00Z",
     updatedAt: "2026-07-03T00:00:00Z",

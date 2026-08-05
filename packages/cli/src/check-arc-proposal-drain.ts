@@ -96,31 +96,34 @@ function str(rec: Record<string, unknown>, key: string): string | undefined {
 }
 
 /**
- * Flatten one stored ARC into its parked entries, in the pure core's minimal shape — defensively,
- * never throwing. An arc with no `proposals` contributes nothing, which is the normal case.
+ * Project one stored INCREMENT into the pure core's minimal shape — defensively, never throwing.
+ *
+ * A QUERY over child rows since ADR-0305 D1, where this flattened an array on the arc doc. The
+ * CEILING is unchanged and deliberately so: the same `parked` comparison point, the same
+ * `frictionRefs` join, the same open/discharged split. Only the two things the fold moved differ —
+ * the arc id comes from `arcRef` rather than from the enclosing document, and "discharged" is now a
+ * `closed` STATUS rather than the presence of a `realized` field.
+ *
+ * Returns null for a row that names no arc: an increment with no `arcRef` cannot be attributed, and
+ * counting it against an arbitrary arc would be worse than not counting it.
  */
-function projectArcEntries(stored: { id: string; doc: unknown }): ArcProposalRecord[] {
+function projectIncrement(stored: { id: string; doc: unknown }): ArcProposalRecord | null {
   const rec = body(stored);
-  const raw = Array.isArray(rec["proposals"]) ? (rec["proposals"] as unknown[]) : [];
-  const out: ArcProposalRecord[] = [];
-  for (const item of raw) {
-    if (typeof item !== "object" || item === null) continue;
-    const e = item as Record<string, unknown>;
-    const id = str(e, "id");
-    if (id === undefined) continue;
-    const refs = Array.isArray(e["frictionRefs"])
-      ? (e["frictionRefs"] as unknown[]).filter((r): r is string => typeof r === "string")
-      : [];
-    out.push({
-      arcId: stored.id,
-      id,
-      title: str(e, "title"),
-      parked: str(e, "parked"),
-      frictionRefs: refs,
-      realized: e["realized"],
-    });
-  }
-  return out;
+  const arcRef = str(rec, "arcRef");
+  if (arcRef === undefined || !arcRef.startsWith("asset:")) return null;
+  const refs = Array.isArray(rec["frictionRefs"])
+    ? (rec["frictionRefs"] as unknown[]).filter((r): r is string => typeof r === "string")
+    : [];
+  return {
+    arcId: arcRef.slice("asset:".length),
+    id: stored.id,
+    title: str(rec, "title"),
+    parked: str(rec, "parked"),
+    frictionRefs: refs,
+    // The pure evaluator treats any DEFINED value as discharged, so a closed increment's own
+    // `outcome` is handed straight through — it is the same landing record `realized` used to hold.
+    realized: rec["status"] === "closed" ? (rec["outcome"] ?? true) : undefined,
+  };
 }
 
 /** Project a stored friction doc down to the reinforcement side of the join. */
@@ -207,8 +210,7 @@ function report(v: ArcProposalDrainVerdict): void {
   }
   console.error(`${TAG}     2. MARK IT LANDED once it ships — run this beside the closing leg's increment:`);
   for (const [key] of [...grouped].slice(0, 3)) {
-    const [arcId, entryId] = key.split("/");
-    console.error(`${TAG}          storytree arc proposal realize ${arcId} --id ${entryId} --pr "<ref>" --pg`);
+    console.error(`${TAG}          storytree arc increment close ${key.split("/")[1]} --pr "<ref>" --pg`);
   }
   console.error(
     `${TAG}     3. STAMP it if the remedy landed WITHOUT ever being parked (the pre-ADR-0298 path):`,
@@ -256,14 +258,17 @@ async function main(): Promise<void> {
   try {
     handle = await createPool();
     const pg = new PgLibraryStore(handle.pool);
-    // Two reads, one timeout budget: the parked entries live inside the arc docs (ADR-0298 D1), and
-    // the whole friction worklist is the join's other half.
-    const [arcs, frictions] = await withTimeout(
-      Promise.all([pg.queryDocs({ kind: "arc" }), pg.queryDocs({ kind: "friction" })]),
+    // Two reads, one timeout budget: the parked entries are `increment` docs (ADR-0298 D1, folded
+    // onto their own tier by ADR-0305 D1), and the whole friction worklist is the join's other half.
+    const [increments, frictions] = await withTimeout(
+      Promise.all([pg.queryDocs({ kind: "increment" }), pg.queryDocs({ kind: "friction" })]),
       LIVE_READ_TIMEOUT_MS,
       "live read",
     );
-    verdict = evaluateArcProposalDrain(arcs.flatMap(projectArcEntries), frictions.map(projectFriction));
+    verdict = evaluateArcProposalDrain(
+      increments.map(projectIncrement).filter((r): r is ArcProposalRecord => r !== null),
+      frictions.map(projectFriction),
+    );
   } catch (err) {
     // Infra failure (stopped DB, cold-start timeout, network). SKIP by default — the ceiling is
     // fail-closed on the QUEUE, fail-open on the SUBSTRATE — unless this environment declared the

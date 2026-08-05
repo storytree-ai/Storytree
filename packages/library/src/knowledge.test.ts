@@ -37,11 +37,15 @@ function minimalDoc(kind: KnowledgeKind): Record<string, unknown> {
       doc[spec.field] = spec.refList === true ? [`asset:parity-${spec.field}`] : `content for ${spec.field}`;
     }
   }
-  // `plan` requires two STRUCTURED (non-KIND_SPECS) fields at birth (ADR-0183 D2/D3): the arc it
-  // cites and the git anchor its freshness check runs against.
-  if (kind === "plan") {
+  // An `increment` requires STRUCTURED (non-KIND_SPECS) fields at birth: the arc it cites
+  // (ADR-0183 D3), and — because `status` defaults to `proposal` — the `parked` stamp the delivery
+  // ceiling compares against (ADR-0305 D6, enforced by `assertIncrementInvariants`). `anchor` is
+  // OPTIONAL since the fold (a parked intention has nothing to anchor to yet) but is carried here so
+  // the anchor-shape assertions below have something to perturb.
+  if (kind === "increment") {
     doc["arcRef"] = "asset:parity-arc";
     doc["anchor"] = { sha: "0123abc", date: "2026-07-11" };
+    doc["parked"] = "2026-08-05T00:00:00.000Z";
   }
   return doc;
 }
@@ -387,153 +391,99 @@ test("friction kind: a reinforcement without its own evidence is refused (ADR-01
   assert.throws(() => validateLibraryDoc(routeOnAPrinciple), "route on a non-friction kind must be rejected");
 });
 
-test("arc kind (ADR-0183 D1): the increment log validates and fails closed", () => {
-  // A freshly-born arc has no landings yet — `increments` is optional.
-  assert.doesNotThrow(() => validateLibraryDoc(minimalDoc("arc")), "increments is optional");
-
-  // A well-formed landing log validates; `pr` is optional (an owner attestation or an honest halt
-  // can close an increment without its own PR).
-  const valid = {
-    ...minimalDoc("arc"),
-    increments: [
-      { date: "2026-07-11", pr: "#676", outcome: "kinds landed; plan tier next" },
-      { date: "2026-07-12", outcome: "halted at the owner-attested look leg" },
-    ],
-  };
-  const parsed = validateLibraryDoc(valid) as {
-    increments?: ReadonlyArray<{ date: string; pr?: string; outcome: string }>;
-  };
-  assert.deepEqual(parsed.increments, [
-    { date: "2026-07-11", pr: "#676", outcome: "kinds landed; plan tier next" },
-    { date: "2026-07-12", outcome: "halted at the owner-attested look leg" },
-  ]);
-
-  // An increment without an outcome fails closed — a dateline with no record is not a landing.
-  const noOutcome = { ...minimalDoc("arc"), increments: [{ date: "2026-07-11" }] };
-  assert.throws(() => validateLibraryDoc(noOutcome), "an increment without outcome must be rejected");
-
-  // An increment without a date fails closed.
-  const noDate = { ...minimalDoc("arc"), increments: [{ outcome: "landed" }] };
-  assert.throws(() => validateLibraryDoc(noDate), "an increment without date must be rejected");
-
-  // A stray field inside an increment fails closed (ArcIncrement is .strict()).
-  const stray = {
-    ...minimalDoc("arc"),
-    increments: [{ date: "2026-07-11", outcome: "landed", files: ["a.ts"] }],
-  };
-  assert.throws(() => validateLibraryDoc(stray), "a stray increment field must be rejected");
-
-  // Regression guard for the .extend() approach: the arc object stays .strict().
-  const strayTopLevel = { ...valid, notInTheSpec: "drift" };
-  assert.throws(
-    () => validateLibraryDoc(strayTopLevel),
-    ".extend() must preserve .strict(): an unknown top-level arc field is still rejected",
-  );
-
-  // increments is arc-only: a non-arc kind must reject it (it is not in commonShape).
-  const onAPrinciple = {
-    ...minimalDoc("principle"),
-    increments: [{ date: "2026-07-11", outcome: "landed" }],
-  };
-  assert.throws(() => validateLibraryDoc(onAPrinciple), "increments on a non-arc kind must be rejected");
-});
-
-test("arc kind (ADR-0298 D1): the parked-work list validates and fails closed on the ceiling's own fields", () => {
-  const parked = {
-    id: "widen-the-identity-derivation",
-    title: "Session identity derives from any registered linked worktree",
-    parked: "2026-08-03T00:06:56.911Z",
-    summary: "Widen the noticeboard's identity derivation to admit any git-registered linked worktree.",
-    motivation: "The claim is mandatory and the verb refuses, so a whole runtime is fenced out of landing work.",
-  };
-
-  // An arc with no parked work is normal — `proposals` is optional, exactly like `increments`.
-  assert.doesNotThrow(() => validateLibraryDoc(minimalDoc("arc")), "proposals is optional");
-
-  // The five optional body fields are the retired `proposal` KIND_SPECS table, carried verbatim, so
-  // nothing a proposal could say has nowhere to go (ADR-0298 D1).
-  const full = {
-    ...minimalDoc("arc"),
-    proposals: [
-      {
-        ...parked,
-        change: "deriveIdentity admits any `git worktree list` entry, not only `.claude/worktrees/<name>`.",
-        scope: "packages/drive/src/noticeboard.ts and its CLI dispatch, plus tests.",
-        migration: "1. widen the helper. 2. red-green a Codex-shaped path. 3. re-check presence-hook.sh.",
-        readiness: "No precondition — the change is local and covered by unit tests.",
-        risks: "A wider prefix could admit a path that is not a session; the git registration check fences it.",
-        frictionRefs: ["friction-codex-root-session-cannot-declare-presence"],
-      },
-    ],
-  };
-  const parsedFull = validateLibraryDoc(full) as { proposals?: ReadonlyArray<Record<string, unknown>> };
-  assert.equal(parsedFull.proposals?.length, 1);
-  assert.equal(parsedFull.proposals?.[0]?.["scope"], "packages/drive/src/noticeboard.ts and its CLI dispatch, plus tests.");
-
-  // `realized` is ABSENT while parked — that absence is what the delivery ceiling reads as "still
-  // pressing" (ADR-0298 D3), so it must never be defaulted into existence.
-  const stillParked = { ...minimalDoc("arc"), proposals: [parked] };
-  const parsedParked = validateLibraryDoc(stillParked) as {
-    proposals?: ReadonlyArray<{ realized?: unknown }>;
-  };
-  assert.equal(parsedParked.proposals?.[0]?.realized, undefined, "an unrealized entry must carry no realized field");
-
-  // ...and when the work lands it carries the landing.
-  const done = {
-    ...minimalDoc("arc"),
-    proposals: [{ ...parked, realized: { date: "2026-08-04", pr: "#1130" } }],
-  };
-  const parsedDone = validateLibraryDoc(done) as {
-    proposals?: ReadonlyArray<{ realized?: { date: string; pr?: string } }>;
-  };
-  assert.deepEqual(parsedDone.proposals?.[0]?.realized, { date: "2026-08-04", pr: "#1130" });
-
-  // THE CEILING'S TWO LOAD-BEARING FIELDS FAIL CLOSED. `parked` is the comparison point a recurrence
-  // is dated against; an entry without one is unevaluable, so it is refused at the schema rather than
-  // silently sitting quiet forever.
-  for (const [drop, why] of [
-    ["parked", "the delivery ceiling has no date to compare a recurrence against"],
-    ["id", "the entry is unaddressable, so `arc proposal realize` can never discharge it"],
-    ["title", "a parked entry with no title is unreadable in a list or a gate report"],
-    ["summary", "an entry with no statement of the change is not a parked remedy"],
-    ["motivation", "an entry with no reason is exactly the thin filing the tier exists to prevent"],
-  ] as const) {
-    const without: Record<string, unknown> = { ...parked };
-    delete without[drop];
+test("arc kind (ADR-0305 D1): the two structured arrays are GONE and fail closed", () => {
+  // The arc is `intent` + `endState` + `lifecycle` + the common fields, and nothing else. Its work
+  // entries are `increment` DOCS found by query on the child's `arcRef`, so the arrays that used to
+  // hold them are not merely unused — they are REFUSED, which is what stops a session on
+  // main-derived code from writing one back and splitting the tier in two.
+  for (const gone of ["increments", "proposals"]) {
     assert.throws(
-      () => validateLibraryDoc({ ...minimalDoc("arc"), proposals: [without] }),
-      `a parked entry without \`${drop}\` must be rejected: ${why}`,
+      () => validateLibraryDoc({ ...minimalDoc("arc"), [gone]: [] }),
+      `\`${gone}\` on an arc must be rejected — ADR-0305 D1 removed it`,
     );
   }
-
-  // A stray field inside an entry fails closed (ArcProposal is .strict()) — including the one a
-  // session migrating off the retired kind would most plausibly carry over.
-  assert.throws(
-    () => validateLibraryDoc({ ...minimalDoc("arc"), proposals: [{ ...parked, kind: "proposal" }] }),
-    "a stray entry field must be rejected",
-  );
-  assert.throws(
-    () => validateLibraryDoc({ ...minimalDoc("arc"), proposals: [{ ...parked, realized: { pr: "#1130" } }] }),
-    "a realization without a date must be rejected",
-  );
-
-  // proposals is arc-only: it is not in commonShape, so no other kind may grow a parallel tier.
-  assert.throws(
-    () => validateLibraryDoc({ ...minimalDoc("principle"), proposals: [parked] }),
-    "proposals on a non-arc kind must be rejected",
-  );
+  assert.doesNotThrow(() => validateLibraryDoc(minimalDoc("arc")), "an arc with neither array validates");
 });
 
-test("the `proposal` KIND is retired (ADR-0298 D1) — it is gone from the union and KIND_SPECS", () => {
-  // Deliberately asserted rather than left to the KIND_SPECS↔zod parity tests above: those iterate
-  // over what EXISTS, so a re-added kind would satisfy every one of them. This is the guard against
-  // the kind quietly coming back — the whole decision is that there is exactly ONE place an unstarted
-  // intention lives, and a second one is the failure ADR-0298 exists to end.
-  assert.equal(Object.hasOwn(KIND_SPECS, "proposal"), false, "KIND_SPECS must carry no proposal entry");
-  assert.throws(
-    () => Knowledge.parse({ ...minimalDoc("open-question"), kind: "proposal" }),
-    "the discriminated union must not accept a proposal doc",
+test("increment kind (ADR-0305 D5/D6): outcome / parked / frictionRefs validate and fail closed", () => {
+  // `parked` and `frictionRefs` moved off the arc's array entry onto the increment UNCHANGED
+  // (ADR-0305 D6), so ADR-0298 D2's join and D3's comparison point keep answering per artifact.
+  const parked = validateLibraryDoc({
+    ...minimalDoc("increment"),
+    frictionRefs: ["a-verb-drops-an-edge", "another-item"],
+  }) as { parked?: string; frictionRefs?: string[] };
+  assert.equal(parked.parked, "2026-08-05T00:00:00.000Z");
+  assert.deepEqual(parked.frictionRefs, ["a-verb-drops-an-edge", "another-item"]);
+
+  // An empty friction id is refused — a blank join key would silently match nothing.
+  assert.throws(() => validateLibraryDoc({ ...minimalDoc("increment"), frictionRefs: [""] }));
+
+  // `outcome` is `ArcIncrement`'s old shape moved onto the artifact it describes (D5).
+  const closed = validateLibraryDoc({
+    ...minimalDoc("increment"),
+    status: "closed",
+    outcome: { date: "2026-08-05", pr: "#1153", note: "landed" },
+  }) as { outcome?: Record<string, unknown> };
+  assert.deepEqual(closed.outcome, { date: "2026-08-05", pr: "#1153", note: "landed" });
+
+  // `.strict()`: a stray field inside the outcome fails closed.
+  assert.throws(() =>
+    validateLibraryDoc({
+      ...minimalDoc("increment"),
+      status: "closed",
+      outcome: { date: "2026-08-05", pr: "#1", files: ["a.ts"] },
+    }),
   );
+  // A date-less outcome is refused — the delivery log's ordering key can never be optional.
+  assert.throws(() =>
+    validateLibraryDoc({ ...minimalDoc("increment"), status: "closed", outcome: { pr: "#1" } }),
+  );
+
+  // All three are increment-only: no other kind grows them (they are not in commonShape).
+  for (const field of ["parked", "frictionRefs", "outcome"] as const) {
+    const value = field === "frictionRefs" ? ["x"] : field === "outcome" ? { date: "2026-08-05" } : "2026-08-05";
+    assert.throws(
+      () => validateLibraryDoc({ ...minimalDoc("principle"), [field]: value }),
+      `${field} on a non-increment kind must be rejected`,
+    );
+  }
+});
+
+test("increment kind (ADR-0305 D2/D5/D6): the two CONDITIONAL invariants fail closed at the write boundary", () => {
+  // These cannot live on the schema — refining a `z.discriminatedUnion` member turns it into a
+  // ZodEffects and the union stops discriminating — so they are asserted in `validateLibraryDoc`,
+  // which every store write funnels through. See `assertIncrementInvariants`.
+
+  // 1. A `proposal` MUST carry `parked`. Without it the ADR-0298 D3 ceiling has nothing to compare a
+  //    reinforcement against, so the entry can never red and the queue silently stops draining.
+  const unparked: Record<string, unknown> = { ...minimalDoc("increment") };
+  delete unparked["parked"];
+  assert.throws(() => validateLibraryDoc(unparked), /carries no `parked` timestamp/);
+  // A non-proposal status does not need one — a landing was never parked.
+  assert.doesNotThrow(() =>
+    validateLibraryDoc({ ...unparked, status: "closed", outcome: { date: "2026-08-05", pr: "#1" } }),
+  );
+
+  // 2. A `closed` increment MUST carry an `outcome` — it IS the arc's landing-log entry (D3/D5), so
+  //    closing without one deletes the residue the fold exists to keep.
+  assert.throws(
+    () => validateLibraryDoc({ ...minimalDoc("increment"), status: "closed" }),
+    /carries no `outcome`/,
+  );
+
+  // 3. ...and that outcome needs a REF or a REASON. ADR-0305 D2 collapsed `superseded`/`retired`
+  //    into `closed` on the grounds that the difference was a reason, not a state; an unexplained
+  //    closure would read as a landing that never happened.
+  assert.throws(
+    () => validateLibraryDoc({ ...minimalDoc("increment"), status: "closed", outcome: { date: "2026-08-05" } }),
+    /neither `outcome.pr` nor `outcome.note`/,
+  );
+  for (const outcome of [
+    { date: "2026-08-05", pr: "#1153" },
+    { date: "2026-08-05", note: "discharged by deletion" },
+  ]) {
+    assert.doesNotThrow(() => validateLibraryDoc({ ...minimalDoc("increment"), status: "closed", outcome }));
+  }
 });
 
 test("arc kind (ADR-0239 D1): the stored lifecycle flag defaults to active and is enum-fenced", () => {
@@ -559,40 +509,43 @@ test("arc kind (ADR-0239 D1): the stored lifecycle flag defaults to active and i
   // lifecycle is arc-only: no other kind grows a second status surface off it (ADR-0196 D4).
   const onAPrinciple = { ...minimalDoc("principle"), lifecycle: "closed" };
   assert.throws(() => validateLibraryDoc(onAPrinciple), "lifecycle on a non-arc kind must be rejected");
-  const onAPlan = { ...minimalDoc("plan"), lifecycle: "closed" };
+  const onAPlan = { ...minimalDoc("increment"), lifecycle: "closed" };
   assert.throws(() => validateLibraryDoc(onAPlan), "lifecycle on a plan must be rejected");
 });
 
 test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum-fenced", () => {
   // The minimal increment (objective + body + arcRef + anchor) validates; status defaults to
   // `proposal` — decided, not started (ADR-0305 D2, which dropped `draft` outright).
-  const parsed = validateLibraryDoc(minimalDoc("plan")) as { status?: string; arcRef?: string };
+  const parsed = validateLibraryDoc(minimalDoc("increment")) as { status?: string; arcRef?: string };
   assert.equal(parsed.status, "proposal", "an unstated status parses as proposal — decided, not started");
   assert.equal(parsed.arcRef, "asset:parity-arc");
 
   // A plan WITHOUT its arc is refused — a plan is born citing its arc (D3: the edge lives on the child).
-  const orphan: Record<string, unknown> = { ...minimalDoc("plan") };
+  const orphan: Record<string, unknown> = { ...minimalDoc("increment") };
   delete orphan["arcRef"];
   assert.throws(() => validateLibraryDoc(orphan), "an arc-less plan must be rejected");
 
   // The arcRef is a typed asset: pointer — doc:/prose refs fail closed (the ref-list discipline).
-  const docRef = { ...minimalDoc("plan"), arcRef: "doc:decisions/0183.md" };
+  const docRef = { ...minimalDoc("increment"), arcRef: "doc:decisions/0183.md" };
   assert.throws(() => validateLibraryDoc(docRef), "a doc: arcRef must be rejected");
 
-  // A plan WITHOUT its git anchor is refused — the freshness check has nothing to run against.
-  const unanchored: Record<string, unknown> = { ...minimalDoc("plan") };
+  // An increment WITHOUT its git anchor now VALIDATES, where the plan tier refused one. The fold
+  // (ADR-0305 D1) made an increment exist from `proposal` onward, and a parked intention has nothing
+  // to be anchored to yet — it is anchored when it is planned. Nothing is silently blessed by that:
+  // `increment check` refuses to freshness-check an unanchored row rather than reporting it fresh.
+  const unanchored: Record<string, unknown> = { ...minimalDoc("increment") };
   delete unanchored["anchor"];
-  assert.throws(() => validateLibraryDoc(unanchored), "an unanchored plan must be rejected");
+  assert.doesNotThrow(() => validateLibraryDoc(unanchored), "a parked increment has no anchor yet");
 
   // A non-SHA anchor fails closed.
-  const badSha = { ...minimalDoc("plan"), anchor: { sha: "main", date: "2026-07-11" } };
+  const badSha = { ...minimalDoc("increment"), anchor: { sha: "main", date: "2026-07-11" } };
   assert.throws(() => validateLibraryDoc(badSha), "a branch name is not an anchor — must be rejected");
-  const noDate = { ...minimalDoc("plan"), anchor: { sha: "0123abc" } };
+  const noDate = { ...minimalDoc("increment"), anchor: { sha: "0123abc" } };
   assert.throws(() => validateLibraryDoc(noDate), "an anchor without a date must be rejected");
   // A full 40-char SHA validates too.
   assert.doesNotThrow(() =>
     validateLibraryDoc({
-      ...minimalDoc("plan"),
+      ...minimalDoc("increment"),
       anchor: { sha: "6df02e16e45793015d75fd59d42787987f021f70", date: "2026-07-11" },
     }),
   );
@@ -600,12 +553,15 @@ test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum
   // Every lifecycle state ADR-0305 D2 names validates; free prose fails closed (the FrictionRoute
   // precedent).
   for (const status of ["proposal", "ready", "active", "closed"]) {
+    // `closed` additionally owes an `outcome` (ADR-0305 D5) — that conditional is asserted on its
+    // own below; here the point is only that the enum admits all four.
+    const extra = status === "closed" ? { outcome: { date: "2026-08-05", pr: "#1" } } : {};
     assert.doesNotThrow(
-      () => validateLibraryDoc({ ...minimalDoc("plan"), status }),
+      () => validateLibraryDoc({ ...minimalDoc("increment"), status, ...extra }),
       `status ${status} must validate`,
     );
   }
-  const proseStatus = { ...minimalDoc("plan"), status: "half-done, mostly" };
+  const proseStatus = { ...minimalDoc("increment"), status: "half-done, mostly" };
   assert.throws(() => validateLibraryDoc(proseStatus), "a non-enum status must be rejected");
 
   // The four RETIRED states fail closed at the schema (ADR-0305 D2). This is the fence that makes
@@ -613,20 +569,20 @@ test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum
   // upcaster has to remap it before validation or the next write of that doc is refused.
   for (const gone of ["draft", "consumed", "superseded", "retired"]) {
     assert.throws(
-      () => validateLibraryDoc({ ...minimalDoc("plan"), status: gone }),
+      () => validateLibraryDoc({ ...minimalDoc("increment"), status: gone }),
       `the retired status "${gone}" must be rejected — the enum is the fence, migration 4 the ramp`,
     );
   }
 
   // A stray field inside the anchor fails closed (PlanAnchor is .strict()).
   const strayInAnchor = {
-    ...minimalDoc("plan"),
+    ...minimalDoc("increment"),
     anchor: { sha: "0123abc", date: "2026-07-11", branch: "main" },
   };
   assert.throws(() => validateLibraryDoc(strayInAnchor), "a stray anchor field must be rejected");
 
   // Regression guard for the .extend() approach: the plan object stays .strict().
-  const strayTopLevel = { ...minimalDoc("plan"), notInTheSpec: "drift" };
+  const strayTopLevel = { ...minimalDoc("increment"), notInTheSpec: "drift" };
   assert.throws(
     () => validateLibraryDoc(strayTopLevel),
     ".extend() must preserve .strict(): an unknown top-level plan field is still rejected",
@@ -684,7 +640,7 @@ test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops 
   // ADR-0267's own change added an OPTIONAL field and bumped nothing. The pin has since moved to 4
   // for an unrelated reason (ADR-0305 D2/D4's increment reshape, which REMOVES fields and so cannot
   // be a zero-migration change) — what this guards is that no migration strips the edge.
-  assert.equal(CURRENT_SCHEMA_VERSION, 4, "the pin tracks migrations.ts, not this ADR's change");
+  assert.equal(CURRENT_SCHEMA_VERSION, 5, "the pin tracks migrations.ts, not this ADR's change");
   const stamped = {
     ...minimalDoc("open-question"),
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -702,7 +658,7 @@ test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops 
 });
 
 test("EPHEMERAL_KINDS (ADR-0183 D2): plan is ephemeral, every member is a real kind, arcs are not", () => {
-  assert.ok(EPHEMERAL_KINDS.has("plan"), "plan is the first ephemeral kind");
+  assert.ok(EPHEMERAL_KINDS.has("increment"), "plan is the first ephemeral kind");
   // An arc is NOT ephemeral — it is durable live state that outlives the plans it contains. This was
   // once one of two kind-partitions and had to be kept distinct from the seed scope; ADR-0302 D4
   // deleted SEED_SCOPE_KINDS with the ceremonies it bounded, so ephemerality is now the only
@@ -734,13 +690,25 @@ test("renderBody: a ref-list renders as one bullet per ref; an empty optional li
 });
 
 test("knownFieldsForKind: exact schema fields per kind (KIND_SPECS body + schema extras), null for non-kinds", () => {
-  // arc carries the KIND_SPECS narrative fields AND the schema-level `increments` extra.
+  // arc carries the KIND_SPECS narrative fields AND the schema-level `lifecycle` extra.
   const arc = knownFieldsForKind("arc");
   assert.ok(arc, "arc is a known kind");
-  for (const f of ["intent", "endState", "increments", "id", "title", "description"]) {
+  for (const f of ["intent", "endState", "lifecycle", "id", "title", "description"]) {
     assert.ok(arc!.has(f), `arc field set includes ${f}`);
   }
   assert.ok(!arc!.has("endstate"), "a typo'd field is absent (this is what the CLI guard keys on)");
+  // The two folded arrays are absent, so `artifact edit --set increments=…` gets the clear
+  // unknown-field refusal rather than an opaque `.strict()` dump (ADR-0305 D1).
+  for (const gone of ["increments", "proposals"]) {
+    assert.ok(!arc!.has(gone), `the folded \`${gone}\` array is no longer an arc field`);
+  }
+
+  // The increment's own schema-level extras — the whole tier's state, outside its body table.
+  const increment = knownFieldsForKind("increment");
+  assert.ok(increment, "increment is a known kind");
+  for (const f of ["objective", "body", "arcRef", "anchor", "status", "parked", "frictionRefs", "outcome"]) {
+    assert.ok(increment!.has(f), `increment field set includes ${f}`);
+  }
 
   // Every structured kind resolves; the set is never empty.
   for (const kind of KINDS) {
