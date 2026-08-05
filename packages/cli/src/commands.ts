@@ -32,6 +32,7 @@ import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
+import { expandAtPathFlags, formatAtPathRefusal } from "./at-path.js";
 import {
   arcCommand,
   arcHelp,
@@ -592,11 +593,13 @@ export async function newArtifact(
 }
 
 /**
- * Resolve a CLI value that may reference a file: a leading `@` means "read the rest as a UTF-8 file
- * path" (the curl -d @file convention). Lets long/multi-line prose — an arc's endState, an increment
- * outcome, a `--set field=@path` value — come from a file instead of a shell argument that would
- * mangle newlines into a literal `\n`. A plain value passes through unchanged. Throws (ENOENT etc.)
- * when the file can't be read — callers convert that into an envelope.
+ * Resolve the `--set field=@path` INNER value — the one `@path` shape the flag boundary cannot see,
+ * because its `@` sits after the `=` and the flag's own value is `field=@path`. Every other prose
+ * flag is expanded once, up front, by {@link expandAtPathFlags} (see `at-path.ts`); this is not a
+ * general-purpose helper to reach for from a new write verb, and a new one should not need it.
+ *
+ * A plain value passes through unchanged. Throws (ENOENT etc.) when the file can't be read — the
+ * `--set` parser converts that into an envelope.
  */
 export async function resolveAtPathValue(value: string): Promise<string> {
   return value.startsWith("@") ? readFile(value.slice(1), "utf8") : value;
@@ -1858,6 +1861,120 @@ function witnessHelp(): Envelope {
 }
 
 /**
+ * Every flag the CLI declares, as ONE table at module scope.
+ *
+ * Hoisted out of `run`'s `parseArgs` call so it can be ENUMERATED (`at-path.test.ts`): the
+ * `@path` boundary classifies each string flag as prose or literal, and its exhaustiveness guard
+ * reads this object rather than a hand-kept second list that could drift from it. Adding a flag
+ * here and nowhere else fails that guard, which is the point — the classification cannot be
+ * forgotten (cli-write-fidelity-arc).
+ */
+export const CLI_OPTIONS = {
+  pg: { type: "boolean", default: false },
+  check: { type: "boolean", default: false },
+  help: { type: "boolean", short: "h", default: false },
+  json: { type: "string" },
+  file: { type: "string" },
+  set: { type: "string", multiple: true },
+  raw: { type: "string" },
+  "decided-date": { type: "string" },
+  "dry-run": { type: "boolean", default: false },
+  // `storytree guide --fix` — opt in to enacting the D6 repairs (ADR-0207).
+  fix: { type: "boolean", default: false },
+  live: { type: "boolean", default: false },
+  real: { type: "boolean", default: false },
+  "emit-wisp": { type: "boolean", default: false },
+  dwell: { type: "string" },
+  model: { type: "string" },
+  budget: { type: "string" },
+  "max-turns": { type: "string" },
+  actor: { type: "string" },
+  store: { type: "string" },
+  "working-on": { type: "string" },
+  node: { type: "string", multiple: true },
+  // `storytree noticeboard claim/downgrade` — the claim grade + intent prose (ADR-0200 D2).
+  grade: { type: "string" },
+  intent: { type: "string" },
+  outcome: { type: "string" },
+  witness: { type: "string" },
+  signer: { type: "string" },
+  "relayed-by": { type: "string" },
+  note: { type: "string" },
+  title: { type: "string" },
+  // `storytree arc new` — override the card one-liner the scaffolder would otherwise derive
+  // from the intent.
+  description: { type: "string" },
+  supersedes: { type: "string" },
+  amends: { type: "string" },
+  arc: { type: "string" },
+  // `storytree arc new` / `arc edit` / `arc increment add` / `arc close` — the first-class arc
+  // write verbs (long prose via @path).
+  "end-state": { type: "string" },
+  // `storytree arc list --all | --closed` — widen past the default active-only worklist
+  // (ADR-0239 D3). `--all` wins when both are passed.
+  all: { type: "boolean", default: false },
+  closed: { type: "boolean", default: false },
+  date: { type: "string" },
+  pr: { type: "string" },
+  threshold: { type: "string" },
+  decided: { type: "boolean", default: false },
+  current: { type: "boolean", default: false },
+  "load-bearing": { type: "boolean", default: false },
+  status: { type: "string" },
+  bound: { type: "string" },
+  change: { type: "string", multiple: true },
+  reason: { type: "string" },
+  "superseded-by": { type: "string" },
+  "memory-dir": { type: "string" },
+  // `storytree library graduate park` — the lease override in days (ADR-0202; default 60).
+  "lease-days": { type: "string" },
+  review: { type: "boolean", default: false },
+  readings: { type: "string" },
+  // `storytree library export-corpus --id <id>` (repeatable) — scope the live→seed export to
+  // named artifacts (ADR-0290), so a session discharges what it authored and carries no
+  // sibling's body into its commit.
+  id: { type: "string", multiple: true },
+  write: { type: "boolean", default: false },
+  step: { type: "string" },
+  "agent-type": { type: "string" },
+  evidence: { type: "string" },
+  route: { type: "string" },
+  // `storytree friction route --discharged-by <ref>` — the delivery stamp (remedy landed).
+  "discharged-by": { type: "string" },
+  // `storytree friction route --re-route` — overwrite ANOTHER adjudicator's standing route on
+  // purpose. Without it a foreign route refuses, so a concurrent board drain cannot silently
+  // destroy a peer's `routeReason` (measured: 4 items, ~22k chars, 2026-07-30).
+  "re-route": { type: "boolean", default: false },
+  // `storytree arc proposal add --friction <id>` (repeatable) — the source friction an entry
+  // remedies, and the DELIVERY CEILING'S JOIN (ADR-0298 D2/D3). `storytree friction route
+  // --route tool --arc <id>` names the owning arc on the other side of the same edge; it reuses
+  // the `arc` flag declared above rather than the retired `--proposal`.
+  friction: { type: "string", multiple: true },
+  // `storytree arc proposal add` — the parked entry's body fields (long prose via @path).
+  // `--change` is NOT here: it is already declared (multiple) above for `storytree drift`, and
+  // the arc-proposal path reads that same array, joining repeats into paragraphs.
+  summary: { type: "string" },
+  motivation: { type: "string" },
+  scope: { type: "string" },
+  migration: { type: "string" },
+  readiness: { type: "string" },
+  risks: { type: "string" },
+  source: { type: "string" },
+  // `storytree worktree prune` — destructive, so force+yes are BOTH required to remove.
+  force: { type: "boolean", default: false },
+  yes: { type: "boolean", default: false },
+  cap: { type: "string" },
+  "include-detached": { type: "boolean", default: false },
+  "threshold-hours": { type: "string" },
+  // `storytree desktop install-shortcut --runtime <path>` — the pinned-main runtime worktree (ADR-0181).
+  runtime: { type: "string" },
+  // `storytree library artifact <id> --from-offer <candidateSetId>` — the offer an answering
+  // read is declaring it followed (ADR-0260 D3). Registered so the flag parses; the VALUE is
+  // read from argv by the capture boundary in `main.ts`, never from here.
+  "from-offer": { type: "string" },
+} as const;
+
+/**
  * Parse `argv` and dispatch. `--help`/`-h` shows the page for the deepest area reached; `--pg` is a
  * store-selection flag consumed by `main` (declared here so parsing does not reject it). Returns an
  * {@link Envelope}; `main` formats it and maps `ok` to the exit code.
@@ -1943,116 +2060,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "threshold-hours"?: string;
     runtime?: string;
     "from-offer"?: string;
-    "hook-from"?: string;
   };
   try {
     const parsed = parseArgs({
       args: [...argv],
       allowPositionals: true,
-      options: {
-        pg: { type: "boolean", default: false },
-        check: { type: "boolean", default: false },
-        help: { type: "boolean", short: "h", default: false },
-        json: { type: "string" },
-        file: { type: "string" },
-        set: { type: "string", multiple: true },
-        raw: { type: "string" },
-        "decided-date": { type: "string" },
-        "dry-run": { type: "boolean", default: false },
-        // `storytree guide --fix` — opt in to enacting the D6 repairs (ADR-0207).
-        fix: { type: "boolean", default: false },
-        live: { type: "boolean", default: false },
-        real: { type: "boolean", default: false },
-        "emit-wisp": { type: "boolean", default: false },
-        dwell: { type: "string" },
-        model: { type: "string" },
-        budget: { type: "string" },
-        "max-turns": { type: "string" },
-        actor: { type: "string" },
-        store: { type: "string" },
-        "working-on": { type: "string" },
-        node: { type: "string", multiple: true },
-        // `storytree noticeboard claim/downgrade` — the claim grade + intent prose (ADR-0200 D2).
-        grade: { type: "string" },
-        intent: { type: "string" },
-        outcome: { type: "string" },
-        witness: { type: "string" },
-        signer: { type: "string" },
-        "relayed-by": { type: "string" },
-        note: { type: "string" },
-        title: { type: "string" },
-        // `storytree arc new` — override the card one-liner the scaffolder would otherwise derive
-        // from the intent.
-        description: { type: "string" },
-        supersedes: { type: "string" },
-        amends: { type: "string" },
-        arc: { type: "string" },
-        // `storytree arc new` / `arc edit` / `arc increment add` / `arc close` — the first-class arc
-        // write verbs (long prose via @path).
-        "end-state": { type: "string" },
-        // `storytree arc list --all | --closed` — widen past the default active-only worklist
-        // (ADR-0239 D3). `--all` wins when both are passed.
-        all: { type: "boolean", default: false },
-        closed: { type: "boolean", default: false },
-        date: { type: "string" },
-        pr: { type: "string" },
-        threshold: { type: "string" },
-        decided: { type: "boolean", default: false },
-        current: { type: "boolean", default: false },
-        "load-bearing": { type: "boolean", default: false },
-        status: { type: "string" },
-        bound: { type: "string" },
-        change: { type: "string", multiple: true },
-        reason: { type: "string" },
-        "superseded-by": { type: "string" },
-        "memory-dir": { type: "string" },
-        // `storytree library graduate park` — the lease override in days (ADR-0202; default 60).
-        "lease-days": { type: "string" },
-        review: { type: "boolean", default: false },
-        readings: { type: "string" },
-        // `storytree library export-corpus --id <id>` (repeatable) — scope the live→seed export to
-        // named artifacts (ADR-0290), so a session discharges what it authored and carries no
-        // sibling's body into its commit.
-        id: { type: "string", multiple: true },
-        write: { type: "boolean", default: false },
-        step: { type: "string" },
-        "agent-type": { type: "string" },
-        evidence: { type: "string" },
-        route: { type: "string" },
-        // `storytree friction route --discharged-by <ref>` — the delivery stamp (remedy landed).
-        "discharged-by": { type: "string" },
-        // `storytree friction route --re-route` — overwrite ANOTHER adjudicator's standing route on
-        // purpose. Without it a foreign route refuses, so a concurrent board drain cannot silently
-        // destroy a peer's `routeReason` (measured: 4 items, ~22k chars, 2026-07-30).
-        "re-route": { type: "boolean", default: false },
-        // `storytree arc proposal add --friction <id>` (repeatable) — the source friction an entry
-        // remedies, and the DELIVERY CEILING'S JOIN (ADR-0298 D2/D3). `storytree friction route
-        // --route tool --arc <id>` names the owning arc on the other side of the same edge; it reuses
-        // the `arc` flag declared above rather than the retired `--proposal`.
-        friction: { type: "string", multiple: true },
-        // `storytree arc proposal add` — the parked entry's body fields (long prose via @path).
-        // `--change` is NOT here: it is already declared (multiple) above for `storytree drift`, and
-        // the arc-proposal path reads that same array, joining repeats into paragraphs.
-        summary: { type: "string" },
-        motivation: { type: "string" },
-        scope: { type: "string" },
-        migration: { type: "string" },
-        readiness: { type: "string" },
-        risks: { type: "string" },
-        source: { type: "string" },
-        // `storytree worktree prune` — destructive, so force+yes are BOTH required to remove.
-        force: { type: "boolean", default: false },
-        yes: { type: "boolean", default: false },
-        cap: { type: "string" },
-        "include-detached": { type: "boolean", default: false },
-        "threshold-hours": { type: "string" },
-        // `storytree desktop install-shortcut --runtime <path>` — the pinned-main runtime worktree (ADR-0181).
-        runtime: { type: "string" },
-        // `storytree library artifact <id> --from-offer <candidateSetId>` — the offer an answering
-        // read is declaring it followed (ADR-0260 D3). Registered so the flag parses; the VALUE is
-        // read from argv by the capture boundary in `main.ts`, never from here.
-        "from-offer": { type: "string" },
-      },
+      options: CLI_OPTIONS,
     });
     positionals = parsed.positionals;
     values = parsed.values;
@@ -2063,6 +2076,22 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       body: `bad arguments: ${(err as Error).message}`,
       next: ["storytree library"],
     };
+  }
+
+  // The `@path` boundary (cli-write-fidelity-arc): every long-prose flag is expanded from its file
+  // HERE, once, before any verb reads it — so a write verb cannot store the literal string
+  // `@C:/…/scratch.txt` as its durable record by forgetting to call a helper. An unreadable path
+  // refuses the whole command rather than passing the path through as the value.
+  {
+    const expanded = await expandAtPathFlags(values);
+    if (!expanded.ok) {
+      return {
+        ok: false,
+        body: formatAtPathRefusal(expanded.refusal),
+        next: [`storytree ${positionals[0] ?? "library"} --help`],
+      };
+    }
+    values = expanded.values;
   }
 
   const [area, sub, third, fourth] = positionals;
@@ -2509,7 +2538,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         now: new Date().toISOString(),
         pg: values.pg === true,
       };
-      let resolved: {
+      // Every field here arrives ALREADY `@path`-expanded — the boundary at the top of `run` did it
+      // once, for every prose flag, before any verb saw the value (cli-write-fidelity-arc). This is
+      // now a plain rename from flag names to the write path's field names; `--change` is repeatable
+      // and its (expanded) values join into paragraphs.
+      const resolved: {
         intent?: string;
         endState?: string;
         outcome?: string;
@@ -2522,29 +2555,23 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         readiness?: string;
         risks?: string;
         note?: string;
+      } = {
+        ...(values.intent !== undefined ? { intent: values.intent } : {}),
+        ...(values["end-state"] !== undefined ? { endState: values["end-state"] } : {}),
+        ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
+        ...(values.description !== undefined ? { description: values.description } : {}),
+        // The parked-entry body (ADR-0298 D1) — the long-prose flags a scope paragraph arrives in.
+        ...(values.summary !== undefined ? { summary: values.summary } : {}),
+        ...(values.motivation !== undefined ? { motivation: values.motivation } : {}),
+        ...(Array.isArray(values.change) && values.change.length > 0
+          ? { change: values.change.join("\n\n") }
+          : {}),
+        ...(values.scope !== undefined ? { scope: values.scope } : {}),
+        ...(values.migration !== undefined ? { migration: values.migration } : {}),
+        ...(values.readiness !== undefined ? { readiness: values.readiness } : {}),
+        ...(values.risks !== undefined ? { risks: values.risks } : {}),
+        ...(values.note !== undefined ? { note: values.note } : {}),
       };
-      try {
-        resolved = {
-          ...(values.intent !== undefined ? { intent: await resolveAtPathValue(values.intent) } : {}),
-          ...(values["end-state"] !== undefined ? { endState: await resolveAtPathValue(values["end-state"]) } : {}),
-          ...(values.outcome !== undefined ? { outcome: await resolveAtPathValue(values.outcome) } : {}),
-          ...(values.description !== undefined ? { description: await resolveAtPathValue(values.description) } : {}),
-          // The parked-entry body (ADR-0298 D1). Every one goes through the SAME `@path` resolver as
-          // the fields above — these are exactly the long-prose flags a scope paragraph arrives in.
-          ...(values.summary !== undefined ? { summary: await resolveAtPathValue(values.summary) } : {}),
-          ...(values.motivation !== undefined ? { motivation: await resolveAtPathValue(values.motivation) } : {}),
-          ...(Array.isArray(values.change) && values.change.length > 0
-            ? { change: (await Promise.all(values.change.map((c) => resolveAtPathValue(c)))).join("\n\n") }
-            : {}),
-          ...(values.scope !== undefined ? { scope: await resolveAtPathValue(values.scope) } : {}),
-          ...(values.migration !== undefined ? { migration: await resolveAtPathValue(values.migration) } : {}),
-          ...(values.readiness !== undefined ? { readiness: await resolveAtPathValue(values.readiness) } : {}),
-          ...(values.risks !== undefined ? { risks: await resolveAtPathValue(values.risks) } : {}),
-          ...(values.note !== undefined ? { note: await resolveAtPathValue(values.note) } : {}),
-        };
-      } catch (e) {
-        return { ok: false, body: `could not read a @file value: ${(e as Error).message}`, next: ["storytree arc --help"] };
-      }
 
       // `arc proposal add|realize <arc-id>` — park deferred work ON the arc that owns it, and mark it
       // landed (ADR-0298 D1/D3). `--id` is declared `multiple` (it is `export-corpus`'s repeatable
@@ -2840,24 +2867,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(values.file !== undefined ? { file: values.file } : {}),
       }, ctx);
     }
-    // The two prose flags accept `@path` (the `--set field=@path` / `arc edit --intent @path`
-    // convention, resolved at the dispatch site exactly as arc's are). Without it a multi-line
-    // justification flattens to a literal `\n` through the pnpm forwarder, and a `->` inside the
-    // string escapes shell quoting badly enough to truncate the value and drop a stray redirect
-    // file into the worktree — the `friction-capture-surface-is-itself-high-friction` item, defect 3.
+    // `--evidence` / `--reason` arrive already `@path`-expanded from the boundary at the top of
+    // `run` (cli-write-fidelity-arc). Without that expansion a multi-line justification flattens to
+    // a literal `\n` through the pnpm forwarder, and a `->` inside the string escapes shell quoting
+    // badly enough to truncate the value and drop a stray redirect file into the worktree — the
+    // `friction-capture-surface-is-itself-high-friction` item, defect 3.
     if (sub === "reinforce" || sub === "route") {
-      let evidence: string | undefined;
-      let reason: string | undefined;
-      try {
-        if (values.evidence !== undefined) evidence = await resolveAtPathValue(values.evidence);
-        if (values.reason !== undefined) reason = await resolveAtPathValue(values.reason);
-      } catch (e) {
-        return {
-          ok: false,
-          body: `could not read a @file value: ${(e as Error).message}`,
-          next: ["storytree friction --help"],
-        };
-      }
+      const evidence = values.evidence;
+      const reason = values.reason;
       if (sub === "reinforce") {
         return reinforceFriction(deps, third, {
           ...(evidence !== undefined ? { evidence } : {}),
