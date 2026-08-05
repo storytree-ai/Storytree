@@ -84,14 +84,18 @@ test("the warning names the CLAIM, the CALLER and the TIME — the three facts t
   assert.match(warning, /2026-07-25T15:42:19\.289Z/, "the time");
 });
 
-test("the warning points at the symptom it front-runs (check:declared) and the exact remedy", () => {
+test("the warning names the merge-ceremony claim requirement and the exact remedy", () => {
   const warning = unexplicitReleaseWarning({
     unitId: "u",
     sessionId: "s",
     caller: "c",
     at: "2026-08-03T00:00:00.000Z",
   });
-  assert.match(warning, /check:declared/, "names the gate rung that would otherwise surface it hours later");
+  assert.match(
+    warning,
+    /hold a live\s+noticeboard claim before the merge ceremony/,
+    "names the explicit requirement",
+  );
   assert.match(warning, /noticeboard declare --node u --pg/, "and the command that fixes it, unit substituted");
 });
 

@@ -40,12 +40,12 @@ import {
   arcEdit,
   arcIncrementAdd,
   arcClose,
-  arcProposalAdd,
-  arcProposalRealize,
+  arcIncrementClose,
+  arcIncrementNew,
   arcScopeOf,
   type ArcWriteDeps,
 } from "./arc.js";
-import { planCommand, planHelp, type CountCommitsSince } from "./plan.js";
+import { incrementCommand, incrementHelp, type CountCommitsSince } from "./increment.js";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import { CLI_AREAS } from "./cli-areas.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
@@ -197,7 +197,7 @@ const KIND_ORDER = [
   "process",
   "agent",
   "arc",
-  "plan",
+  "increment",
   "open-question",
   "friction",
   "template",
@@ -725,26 +725,20 @@ export async function editArtifact(
           body: [
             "an arc's lifecycle is not a free flip — closure is written FROM EVIDENCE, in one verb:",
             `  storytree arc close ${id} --outcome "<the end-state condition this landing met>" --pg`,
-            "which appends the terminal increment and sets lifecycle: closed in a single write (ADR-0239 D2).",
+            "which records the terminal increment and sets lifecycle: closed together (ADR-0239 D2 —",
+            "increment first since ADR-0305 D1 made it its own row, so an interrupted close never leaves",
+            "a closed arc with no prose behind it).",
             "Re-opening a closed arc (closed → active) is OWNER-only, mirroring ADR-0084's human-only un-deciding.",
           ].join("\n"),
           next: [`storytree arc show ${id} --pg`, `storytree arc close ${id} --outcome "…" --pg`],
         };
       }
-      // An arc's increment log is APPEND-ONLY (ADR-0183 D1 — the durable residue of each landing).
-      // Generic array support below would otherwise open a wholesale-rewrite path over landed
-      // history, so the log keeps its first-class verb and refuses `--set` by policy.
-      if (kindStr === "arc" && field === "increments") {
-        return {
-          ok: false,
-          body: [
-            "an arc's increment log is append-only — one landing per verb:",
-            `  storytree arc increment add ${id} --outcome "<what landed>" [--pr <ref>] --pg`,
-            "A wholesale --set would let a session rewrite landed history (ADR-0183 D1).",
-          ].join("\n"),
-          next: [`storytree arc show ${id} --pg`, `storytree arc increment add ${id} --outcome "…" --pg`],
-        };
-      }
+      // The `increments` policy guard stood here — an explicit refusal of a wholesale `--set` over
+      // the arc's append-only landing log. ADR-0305 D1 removed the field from the arc schema
+      // entirely, so the UNKNOWN-FIELD refusal above now fires first and does the same job more
+      // strongly: it names the field, lists what IS editable, and points at `arc increment add`. A
+      // second guard for a field the schema no longer declares would be unreachable code that reads
+      // like a live rule.
       // `field=@path` reads the value from a file (long/multi-line prose, no shell mangling).
       let value: string;
       try {
@@ -1945,20 +1939,20 @@ export const CLI_OPTIONS = {
   // purpose. Without it a foreign route refuses, so a concurrent board drain cannot silently
   // destroy a peer's `routeReason` (measured: 4 items, ~22k chars, 2026-07-30).
   "re-route": { type: "boolean", default: false },
-  // `storytree arc proposal add --friction <id>` (repeatable) — the source friction an entry
+  // `storytree arc increment new --friction <id>` (repeatable) — the source friction an entry
   // remedies, and the DELIVERY CEILING'S JOIN (ADR-0298 D2/D3). `storytree friction route
   // --route tool --arc <id>` names the owning arc on the other side of the same edge; it reuses
   // the `arc` flag declared above rather than the retired `--proposal`.
   friction: { type: "string", multiple: true },
-  // `storytree arc proposal add` — the parked entry's body fields (long prose via @path).
-  // `--change` is NOT here: it is already declared (multiple) above for `storytree drift`, and
-  // the arc-proposal path reads that same array, joining repeats into paragraphs.
-  summary: { type: "string" },
-  motivation: { type: "string" },
+  // `storytree arc increment new` — the increment's two body fields (long prose via @path).
+  // TWO where the parked entry had seven (ADR-0305 D4): `summary`/`motivation`/`change`/`scope`/
+  // `migration`/`readiness`/`risks` are gone from the schema, so the flags that fed them are gone
+  // too rather than left inert. `--objective` is the one-sentence lead; everything those headings
+  // prompted for goes in `--body`.
+  objective: { type: "string" },
+  body: { type: "string" },
   scope: { type: "string" },
   migration: { type: "string" },
-  readiness: { type: "string" },
-  risks: { type: "string" },
   source: { type: "string" },
   // `storytree worktree prune` — destructive, so force+yes are BOTH required to remove.
   force: { type: "boolean", default: false },
@@ -2045,12 +2039,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "discharged-by"?: string;
     "re-route"?: boolean;
     friction?: string[];
-    summary?: string;
-    motivation?: string;
+    objective?: string;
+    body?: string;
     scope?: string;
     migration?: string;
-    readiness?: string;
-    risks?: string;
     source?: string;
     force?: boolean;
     fix?: boolean;
@@ -2547,64 +2539,60 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         endState?: string;
         outcome?: string;
         description?: string;
-        summary?: string;
-        motivation?: string;
-        change?: string;
-        scope?: string;
-        migration?: string;
-        readiness?: string;
-        risks?: string;
+        objective?: string;
+        body?: string;
         note?: string;
       } = {
         ...(values.intent !== undefined ? { intent: values.intent } : {}),
         ...(values["end-state"] !== undefined ? { endState: values["end-state"] } : {}),
         ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
         ...(values.description !== undefined ? { description: values.description } : {}),
-        // The parked-entry body (ADR-0298 D1) — the long-prose flags a scope paragraph arrives in.
-        ...(values.summary !== undefined ? { summary: values.summary } : {}),
-        ...(values.motivation !== undefined ? { motivation: values.motivation } : {}),
-        ...(Array.isArray(values.change) && values.change.length > 0
-          ? { change: values.change.join("\n\n") }
-          : {}),
-        ...(values.scope !== undefined ? { scope: values.scope } : {}),
-        ...(values.migration !== undefined ? { migration: values.migration } : {}),
-        ...(values.readiness !== undefined ? { readiness: values.readiness } : {}),
-        ...(values.risks !== undefined ? { risks: values.risks } : {}),
+        // The increment body (ADR-0305 D4) — two long-prose flags where the parked entry had seven.
+        ...(values.objective !== undefined ? { objective: values.objective } : {}),
+        ...(values.body !== undefined ? { body: values.body } : {}),
         ...(values.note !== undefined ? { note: values.note } : {}),
       };
 
-      // `arc proposal add|realize <arc-id>` — park deferred work ON the arc that owns it, and mark it
-      // landed (ADR-0298 D1/D3). `--id` is declared `multiple` (it is `export-corpus`'s repeatable
-      // scope flag), so the entry slug is its first value.
-      if (sub === "proposal") {
+      // `arc increment new|add|close` — the three increment verbs (ADR-0305 D1). `--id` is declared
+      // `multiple` (it is `export-corpus`'s repeatable scope flag), so an entry slug is its first value.
+      if (sub === "increment" || sub === "proposal") {
         const entryId = Array.isArray(values.id) ? values.id[0] : undefined;
-        if (third === "realize") {
-          return arcProposalRealize(writeDeps, fourth, {
+        // `arc proposal add|realize` are the pre-fold spellings. They are REFUSED with the new verb
+        // named rather than silently aliased: the shapes differ (an entry is a doc now, `realize`
+        // has become the wider `close`), so an alias would take a `--summary` this schema no longer
+        // has and fail on the field instead of on the rename.
+        if (sub === "proposal") {
+          const replacement =
+            third === "realize"
+              ? "storytree arc increment close <increment-id> --pr <ref> --pg"
+              : 'storytree arc increment new <arc-id> --id <slug> --title "..." --objective <text|@file> --body <text|@file> --pg';
+          return {
+            ok: false,
+            body: [
+              `\`arc proposal ${third ?? ""}\` is gone — the arc's \`proposals[]\` array folded into the increment tier (ADR-0305 D1).`,
+              "A parked entry is an `increment` doc with status `proposal`, so:",
+              `  ${replacement}`,
+              "and it is now readable and CORRECTABLE on its own: `storytree library artifact [edit] <increment-id> --pg`.",
+            ].join("\n"),
+            next: [replacement, "storytree arc --help"],
+          };
+        }
+        if (third === "new") {
+          return arcIncrementNew(writeDeps, fourth, {
             ...(entryId !== undefined ? { id: entryId } : {}),
+            ...(values.title !== undefined ? { title: values.title } : {}),
+            ...(resolved.objective !== undefined ? { objective: resolved.objective } : {}),
+            ...(resolved.body !== undefined ? { body: resolved.body } : {}),
+            ...(Array.isArray(values.friction) ? { friction: values.friction } : {}),
+          });
+        }
+        if (third === "close") {
+          return arcIncrementClose(writeDeps, fourth, {
             ...(values.pr !== undefined ? { pr: values.pr } : {}),
             ...(values.date !== undefined ? { date: values.date } : {}),
             ...(resolved.note !== undefined ? { note: resolved.note } : {}),
           });
         }
-        if (third === "add") {
-          return arcProposalAdd(writeDeps, fourth, {
-            ...(entryId !== undefined ? { id: entryId } : {}),
-            ...(values.title !== undefined ? { title: values.title } : {}),
-            ...(resolved.summary !== undefined ? { summary: resolved.summary } : {}),
-            ...(resolved.motivation !== undefined ? { motivation: resolved.motivation } : {}),
-            ...(resolved.change !== undefined ? { change: resolved.change } : {}),
-            ...(resolved.scope !== undefined ? { scope: resolved.scope } : {}),
-            ...(resolved.migration !== undefined ? { migration: resolved.migration } : {}),
-            ...(resolved.readiness !== undefined ? { readiness: resolved.readiness } : {}),
-            ...(resolved.risks !== undefined ? { risks: resolved.risks } : {}),
-            ...(Array.isArray(values.friction) ? { friction: values.friction } : {}),
-          });
-        }
-        return {
-          ok: false,
-          body: `unknown arc proposal command "${third ?? ""}". try: storytree arc proposal add <arc-id> --id <slug> ... --pg  |  storytree arc proposal realize <arc-id> --id <slug> --pg`,
-          next: ["storytree arc --help", "storytree arc list --pg"],
-        };
       }
       // The SCAFFOLDER (the missing first lifecycle step): the id is an optional positional, matching
       // every other arc verb — omitted, it is derived from --title.
@@ -2622,8 +2610,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           ...(resolved.endState !== undefined ? { endState: resolved.endState } : {}),
         });
       }
-      // The landing-log write (ADR-0183 D1) and the CLOSING write (ADR-0239 D2) share every flag —
-      // `close` is `increment add` plus the atomic `lifecycle: closed` flip in the same upsert.
+      // The CLOSING write (ADR-0239 D2) shares every flag with `increment add`, and since the fold it
+      // delegates to it: `close` is `increment add` followed by the `lifecycle: closed` flip.
       if (sub === "close") {
         return arcClose(writeDeps, third, {
           ...(values.date !== undefined ? { date: values.date } : {}),
@@ -2631,12 +2619,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           ...(resolved.outcome !== undefined ? { outcome: resolved.outcome } : {}),
         });
       }
-      // `arc increment add <id>` (canonical) or the shorthand `arc increment <id>` — both append one.
-      const incId = third === "add" ? fourth : third;
-      return arcIncrementAdd(writeDeps, incId, {
+      // `arc increment add <arc-id>` (canonical) or the shorthand `arc increment <arc-id>`.
+      const incArcId = third === "add" ? fourth : third;
+      return arcIncrementAdd(writeDeps, incArcId, {
         ...(values.date !== undefined ? { date: values.date } : {}),
         ...(values.pr !== undefined ? { pr: values.pr } : {}),
         ...(resolved.outcome !== undefined ? { outcome: resolved.outcome } : {}),
+        ...(Array.isArray(values.id) && values.id[0] !== undefined ? { id: values.id[0] } : {}),
       });
     }
 
@@ -2654,10 +2643,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     );
   }
 
-  if (area === "plan") {
+  if (area === "increment") {
     // The consumption-time freshness check (ADR-0183 D2): git-log the paths the plan names since
     // its anchor; drift past threshold → re-plan, not repair. The git seam is injectable for tests.
-    if (help) return planHelp();
+    if (help) return incrementHelp();
     const countCommits =
       deps.planCountCommits ??
       ((sha: string, p: string): number =>
@@ -2667,7 +2656,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
             encoding: "utf8",
           }).trim(),
         ));
-    return planCommand(
+    return incrementCommand(
       sub,
       third,
       { ...(values.threshold !== undefined ? { threshold: values.threshold } : {}) },

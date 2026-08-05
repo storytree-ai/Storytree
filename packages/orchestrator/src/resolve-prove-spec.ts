@@ -43,6 +43,7 @@ import {
 } from "./test-command-registry.js";
 import type { NodeBuildConfig, RealProofConfig } from "./proof-config.js";
 import { commitAuthored, platformShellCommand } from "./build-worktree.js";
+import type { CommitScope } from "./build-worktree.js";
 
 /**
  * The resolver (drive-machinery Phase B, plan §2): turn a loaded {@link NodeSpec} into the full
@@ -604,16 +605,39 @@ function resolveReal(
   // The GATE's tree seam: commit the authored files (attributed to the resolved signer; a
   // non-resolving signer still fails the gate itself), then read the REAL git state. Honest by
   // construction: if anything is still dirty after that commit, the gate fails closed.
+  //
+  // The commit stages the node's DECLARED scope only (`commit-scoped-not-all` on
+  // `parallel-red-green-arc`), never `-A`: a verdict must attest a tree containing the work that was
+  // proved, and nothing else. `real.scope` is the same glob set the per-phase write wall enforces,
+  // so what the leaf could write is exactly what the commit can stage. The ONE deliberate addition is
+  // the ADR-0064 spine-driven `pnpm add` output — a lockfile/manifest change the SPINE made and the
+  // leaf structurally cannot (both sit outside every write scope) — enumerated only for a node that
+  // actually declares `addDeps`.
   const signer = resolveSigner(opts.signerInputs);
   const commitAuthor = signer.ok ? signer.signer : "spine@storytree.invalid";
+  const commitScope: CommitScope = {
+    globs: [...real.scope.testGlobs, ...real.scope.sourceGlobs],
+    ...((real.addDeps ?? []).length > 0
+      ? { spineOutputGlobs: ["pnpm-lock.yaml", "**/package.json"] }
+      : {}),
+  };
   const treeState =
     opts.treeState ??
     (async (): Promise<TreeState> => {
-      await commitAuthored({
+      const commit = await commitAuthored({
         worktreeRoot: opts.workspace,
         message: `storytree real build ${opts.runId}: ${spec.id} (authored by the gated leaf)`,
         author: commitAuthor,
+        scope: commitScope,
       });
+      if (commit.outOfScope.length > 0) {
+        // Surfaced, not swept: the gate's clean-tree read is about to refuse over exactly these,
+        // and a reader of the build log should see WHICH paths rather than a bare "not clean".
+        console.error(
+          `[spine] node "${spec.id}": ${commit.outOfScope.length} dirty path(s) lie outside the ` +
+            `declared proof scope and were NOT committed — ${commit.outOfScope.join(", ")}`,
+        );
+      }
       return gitTreeState(opts.workspace)();
     });
 

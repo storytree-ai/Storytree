@@ -65,9 +65,27 @@ beforeAll(async () => {
       description: 'the arc surface',
       intent: 'Arcs are what the owner meets on the map.',
       endState: 'The owner stops asking for a re-onboarding briefing.',
-      increments: [{ date: '2026-07-30', pr: '#1010', outcome: 'the rollup landed' }],
       references: [],
       createdAt: '2026-07-29',
+      updatedAt: '2026-07-30',
+    },
+  });
+  // The landing is a CHILD ROW since ADR-0305 D1 — the arc doc carries no increment array at all.
+  await store.upsertDoc({
+    id: 'surface-arc-inc-01',
+    kind: 'increment',
+    doc: {
+      kind: 'increment',
+      id: 'surface-arc-inc-01',
+      title: 'the rollup landed',
+      description: 'd',
+      objective: 'the rollup landed',
+      body: 'the rollup landed',
+      arcRef: 'asset:surface-arc',
+      status: 'closed',
+      outcome: { date: '2026-07-30', pr: '#1010' },
+      references: [],
+      createdAt: '2026-07-30',
       updatedAt: '2026-07-30',
     },
   });
@@ -129,9 +147,16 @@ describe('/api/arcs', () => {
   it('carries the increment log, the derived children, and the D7 waiting state', async () => {
     storeResult = store;
     const body = (await (await fetch(`${base}/api/arcs/surface-arc`)).json()) as Record<string, unknown>;
-    // The increment log is the durable residue the surface needs to answer "where is it up to".
+    // ONE increment list, joined by `arcRef` — the studio reads the SAME value `arc show` renders,
+    // so the two surfaces cannot disagree about what an arc contains.
     expect(body['increments']).toEqual([
-      { date: '2026-07-30', pr: '#1010', outcome: 'the rollup landed' },
+      {
+        id: 'surface-arc-inc-01',
+        title: 'the rollup landed',
+        objective: 'the rollup landed',
+        status: 'closed',
+        outcome: { date: '2026-07-30', pr: '#1010' },
+      },
     ]);
     expect(body['adrs']).toEqual([{ number: 267, status: 'accepted', title: 'Arcs take the slot' }]);
     expect(body['stories']).toEqual(['surface-story']);

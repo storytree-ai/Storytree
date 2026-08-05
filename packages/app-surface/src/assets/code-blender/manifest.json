@@ -25,17 +25,17 @@
       "y": 120
     },
     "maxAnchorResidualPx": 0.5,
-    "measuredContactAnchorSpreadPx": 2.348,
-    "framesRequiringAShift": 9,
+    "measuredContactAnchorSpreadPx": 2.4169,
+    "framesRequiringAShift": 8,
     "totalFrames": 19,
     "maxAbsShiftPx": 2,
     "groundRowSpreadPx": 4,
     "groundRowSpreadReason": "the camera is fixed and the trunk base is pinned at world z=0, but SECONDARY GROWTH thickens the trunk, so the front of its own footprint descends by r*sin(20 deg) as it fattens. Pinning the bottom row to a constant would mean shifting the frame upward as the tree matures \u2014 the tree would appear to rise out of the ground. This track states the band instead of buying a constant row with base drift (ADR-0280 D1).",
     "costOfApplyingTheAppliedRule": {
-      "bodyCentroidSpreadBeforePx": 3.5112,
-      "bodyCentroidSpreadAfterPx": 5.9378,
-      "bodyCentroidMaxFrameToFrameStepBeforePx": 1.7126,
-      "bodyCentroidMaxFrameToFrameStepAfterPx": 2.9788
+      "bodyCentroidSpreadBeforePx": 3.4635,
+      "bodyCentroidSpreadAfterPx": 5.8901,
+      "bodyCentroidMaxFrameToFrameStepBeforePx": 1.7204,
+      "bodyCentroidMaxFrameToFrameStepAfterPx": 2.7204
     }
   },
   "tracks": [
@@ -89,7 +89,7 @@
       "growthPacing": "19 frames placed at equal SILHOUETTE-CHANGE arc length, measured author-time from an analytic projection of the skeleton, not at equal time (ADR-0280 D1: growth pacing is authored)",
       "staging": "TWO PHASES (ADR-0293, owner-directed): the wood extends and branches ALONE, then the leaves flush onto a tree that is already a tree. The canopy carries no weight before the flush begins, so the early frames are bare wood by construction rather than by a threshold. Where the phase boundary sits is an owner pick from rendered options, not a derived number; the frame budget either side of it is NOT authored \u2014 the pacing rule above re-allocates it from the measured silhouette change, so moving the boundary moves the frames with it",
       "contactShadow": "a second Blender pass: the tree casts but is invisible to camera, so alpha carries the shadow alone. Composited at alpha 96 \u2014 the only semi-transparent pixels in the track \u2014 because the island is the substrate (ADR-0274 D1) and a shadow darkens it rather than replacing it. Clipped at the tree's own contact row so it cannot define the ground socket.",
-      "encodedBytes": 32569,
+      "encodedBytes": 32959,
       "decodedRgbaBytes": 1245184
     },
     {
@@ -103,7 +103,7 @@
       "decodedRgbaBytes": 184320
     }
   ],
-  "knownWeakness": "against exp-16 this track still loses on SCALE CONVENTION, on crown structure, and on the steadiness of its own ground registration. Measured across exp-16's 19 frames, it holds 91-99% of its mature height from frame 03 onward and is NON-monotone about it (110 px at f03, 96 px at f12, 112 px at f18); only f00-f02 are smaller, at 65/70/82%. So its convention is close to a CONSTANT apparent height from stage 3, with growth reading as width (53 -> 95 px) and density rather than as height. This track holds ONE camera framed to the mature extent, so its apparent height ramps 14% -> 100% across the whole track. That is the ADR-0280 D1 invariant doing its job, not a bug, but it is an art-direction fork the owner has not been asked about \u2014 and it is no longer blocked on anything of ours, since the mid-stage weakness that made magnifying the early frames unflattering is the one this increment fixed. Crown structure: our crown is 70% green against exp-16's 51%, i.e. fewer limbs run visibly through the foliage. Registration: the applied rule now reads a nine-spur root fan that is not left-right symmetric, so contact-anchor spread is 3.02 px against 1.76 before the buttress, paid at author time only.",
+  "knownWeakness": "No owner LOOK has attested this track. Against exp-16, mature foliage still starts one point high (45% versus 44%); crown area is 4200 versus 4280; visible in-crown bark is 630 px / 15.0% versus 670 / 15.7%; and warm highlight is 773 versus 874, although mean crown luma holds at 119, the widest band holds at 0.58-0.67, and highlight caps are close at 11 / 29% versus 12 / 30%. The SCALE CONVENTION also remains open: exp-16 holds 91-99% of mature height from frame 03 onward and is non-monotone about it, while this track holds one camera framed to mature extent and ramps apparent height from 14% to 100%. That is the ADR-0280 D1 invariant, not a runtime bug, but the owner has not chosen between the conventions. Author-time registration has 2.4169 px contact-anchor spread, shifts 8 frames. Applying that shared anchor rule worsens body-centroid spread / max step from 3.4635 / 1.7204 px before normalization to 5.8901 / 2.7204 after; the mid-flush bare twig tips remain untuned.",
   "runtime": {
     "appOwns": [
       "semantic state",
@@ -124,7 +124,7 @@
   },
   "budget": {
     "restatedFor": "code-blender",
-    "encodedBytes": 57104,
+    "encodedBytes": 57494,
     "decodedRgbaBytes": 1429504,
     "frameCount": 24,
     "simultaneousOrganicLayers": 2,

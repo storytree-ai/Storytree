@@ -120,9 +120,13 @@ moves into that agent's guidance (D4). The status enum becomes `proposal / ready
 (D2), which also supersedes the ADR-0196 projection recorded directly above. And "consumed plans are
 prunable" is **reversed**: increments are durable and never pruned, because a closed increment IS the
 landing-log entry the arc used to copy into `increments[]` (D3). What is NOT amended: Postgres-only,
-absent from `knowledge.json`, skipped by every seed ceremony, git-anchored, and freshness-checked at
-consumption — the owner's "managing them in git will be a pain" is untouched, and `EPHEMERAL_KINDS`
-keeps this kind as its member.)
+git-anchored, and freshness-checked at consumption — the owner's "managing them in git will be a
+pain" is untouched, and `EPHEMERAL_KINDS` keeps this kind as its member under the renamed key.
+The clause that stood here also said "absent from `knowledge.json`, skipped by every seed ceremony";
+that is struck as overtaken rather than reversed (ADR-0139), because ADR-0302 D1 decommissioned the
+seed and D4 deleted all three ceremonies, so being outside them stopped distinguishing this kind from
+any other. What still marks it as ephemeral is its LIFECYCLE — disposable by construction — not an
+exemption from machinery that no longer exists.)
 
 ### D3 — Topology: upstream by provenance, edges authored on the child
 

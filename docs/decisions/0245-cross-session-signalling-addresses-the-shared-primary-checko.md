@@ -17,7 +17,8 @@ ratification):
 So this ADR is accepted **in two speeds**, and the distinction is load-bearing — do not read the
 green status as "all six decisions are built":
 
-- **D1, D2, D5, D6 are accepted AND D5.2 is BUILT** (`check:declared`'s lobby arm). The reasoning
+- **D1, D2, D5, D6 are accepted AND D5.2 was BUILT** (`check:declared`'s lobby arm). ADR-0311
+  retires that arm from root/CI gate policy; its source remains diagnostic. The reasoning
   that the addressable entity is the *checkout* rather than a session (D2) is what D5.2 rests on,
   so it is ratified with it.
 - **D3 and D4 — the push/delivery half — are accepted as ANALYSIS but deliberately PARKED, not
@@ -29,9 +30,10 @@ green status as "all six decisions are built":
   the record of what was ruled out and why, so a future revisit starts from the finding, not from
   scratch. Re-opening it needs no new ADR unless the conclusion changes.
 
-The `amends: [200]` edge is now BINDING, and only for what shipped: ADR-0200 D3's `check:declared`
-SKIP arm no longer returns silently for a dirty primary checkout. ADR-0200 D4's cursor-once
-principle is untouched (nothing was added to the ledger, and no scheduled notification exists).
+The `amends: [200]` edge remains binding for the checkout-addressed signal and the historical D5.2
+implementation. **ADR-0311 amends the enforcement mechanism:** the dirty-primary diagnostic no
+longer blocks landing through `pnpm gate`. ADR-0200 D4's cursor-once principle is untouched (nothing
+was added to the ledger, and no scheduled notification exists).
 
 **Reconciled with ADR-0255 / ADR-0257 by the librarian pass, 2026-07-28 — this ADR is NOT
 superseded.** [ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md)
@@ -42,9 +44,9 @@ ADR; that missing edge is now recorded there as `amends: [… 245]`, and
 ADR's machinery). The honest relationship is **complementary defence in depth, differently keyed**,
 not duplication:
 
-- **This ADR is the GATE-TIME arm** — keyed on **dirty**, it refuses the *landing* once the shared
-  checkout already carries uncommitted work. It is BUILT (D5.2), and it is the only arm that covers a
-  **shell** (re-checked 2026-08-02, see the write-time entry below).
+- **This ADR built the former GATE-TIME arm** — keyed on **dirty**, it diagnosed a shared checkout
+  carrying uncommitted work. ADR-0311 retires its landing refusal; the on-demand diagnostic remains
+  the only arm that can observe a shell-created dirty lobby.
 - **ADR-0255 is the WRITE-TIME arm** — keyed on an *agent write attempt*, it aims to stop the
   checkout becoming dirty at all, via a claim-bound authority boundary. *(Build state corrected in
   place 2026-08-02, twice in one day as increments landed — this entry first read "It is **not
@@ -62,8 +64,8 @@ not duplication:
   [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) D2 deleted the
   hook, the receipt and the `STORYTREE_WRITE_AUTHORITY` switch instead of finishing them, because a
   `PreToolUse` hook fails open and cannot be an authority boundary. **So the write-time arm is now
-  permanently the static deny block alone, and this ADR's gate arm is permanently load-bearing rather
-  than an interim backstop.** There is no receipt to be unsigned, and Codex remains untouched with no
+  permanently the static deny block alone. ADR-0311 later retires this ADR's gate arm rather than
+  making it permanent.** There is no receipt to be unsigned, and Codex remains untouched with no
   adapter scheduled.)*
 
 What ADR-0255 amends here is **D5's ranking, not D5's machinery**: the merge gate is no longer "the
@@ -254,15 +256,16 @@ interrupt a session mid-turn.** Ranked by latency, honestly:
 | `UserPromptSubmit` hook | The target's next **human turn** | Yes, offline |
 | `SessionStart` hook | The next session opened in that checkout | Yes, offline |
 | `--pg` CLI delta footer (ADR-0200 D4) | Next `--pg` command | **No** — no cursor row (Context fact 3) |
-| `pnpm gate` | Before landing — the latest possible moment | Yes (via D5) |
+| `check:declared` (on demand) | When explicitly invoked | Yes (via D5) |
 
-The honest summary: **the offending session learns of this at its next human turn, or at its gate.**
+The honest summary after ADR-0311: **the offending session learns of this at its next human turn or
+when the diagnostic is explicitly invoked; the merge gate no longer supplies delivery.**
 Not instantly. That is acceptable for this signal — the ask is "move to a worktree", not "abort now" —
 and it should not be oversold as a real-time channel. The *other* half of the value is immediate and
 needs no delivery at all: the **landing** session detects the condition itself (D1) and halts before
 committing, which is the harm that actually cost time in the incident.
 
-### D5 — Advice in the lobby, refusal at the gate
+### D5 — Advice in the lobby, diagnostic at the former gate boundary
 
 The lobby is a legitimate place: ADR-0200 D3 has sessions *open* there, and reads, `db:status` and
 `worktree create` all belong there; ADR-0220's auto-repair does git surgery there. A hard block on
@@ -278,14 +281,14 @@ existing WARN-then-FAIL precedents:
    `permissions.deny` block, so for the file tools the lobby is not silent — it never goes dirty. The
    D3 park remains the accepted cost for everything the wall does not bind: shells, Codex, and every
    machine without the wall installed.)*
-2. **FAIL (`check:declared`)** — close the SKIP that fails open (Context fact 2). When
+2. **HISTORICAL FAIL, now diagnostic (`check:declared`)** — this arm originally closed the SKIP that
+   failed open (Context fact 2). ADR-0311 removes it from root/CI gate wiring. When invoked directly,
    `deriveIdentity()` is null **and** the cwd is the primary checkout of a repo that has a
    `.claude/worktrees/` directory **and** the tree is dirty, FAIL with the `worktree create` ceremony
    instead of returning silently. CI and plain clones keep their SKIP (CI is DB-free and must stay
    green, and this arm needs no DB at all — it is pure git, so it can run before the DB probe).
-   This is the single highest-value change in the ADR: it reuses an existing fail-closed gate,
-   needs no new machinery, and lands the refusal at the boundary that matters — before the merge
-   ceremony, where ADR-0200 D3 already put the wall.
+   This was the single highest-value change in the ADR when built. It remains useful diagnostic
+   code, but it no longer supplies a refusal before the merge ceremony.
 
    > **BUILT (2026-07-26).** `evaluateLobby` + `evaluateLobbyFromGit` in
    > `packages/cli/src/check-declared.ts`, with the fingerprint as a strict conjunction
@@ -339,16 +342,14 @@ Enforcement stays keyed on **dirty**, never on **present**. A session reading, o
 
 ## Consequences
 
-**Good.** The highest-value fix (D5.2) is a few lines in an existing gate and closes a fail-open hole
-in the one claim gate we have. Detection is pure git — offline, CI-safe, DB-free, and works
+**Good.** D5.2 remains a few lines of pure-git detection — offline, DB-free, and works
 identically for Claude, Codex, and a human at a terminal, which no session-id-keyed design can
-claim. The landing session gains a provable halt condition, which addresses the actual cost of the
-incident. Nothing is added to the ledger, so ADR-0200's one-machinery property survives intact.
+claim. ADR-0311 withdraws the provable landing halt; nothing is added to the ledger, so ADR-0200's
+one-machinery property survives intact.
 
 **Bad / accepted.** Delivery to a running session is best-effort and bounded by its next human turn;
 this is a real limitation, not a temporary one, and it is inherent to the harness. Sessions that
-never take another human turn and never gate are unreachable — the backstop is that they also never
-land. The `.claude/` dedup marker is new checkout-local state that must be kept trivial or it will
+never take another human turn and never run the diagnostic are unreachable. The `.claude/` dedup marker is new checkout-local state that must be kept trivial or it will
 drift toward the parallel ledger this ADR refuses. And the hooks add work to `UserPromptSubmit`,
 which is already on the per-turn budget path (ADR-0162) — the probe must stay a couple of git calls,
 not a status walk of every worktree.
@@ -363,7 +364,7 @@ the seam; the story/capability decomposition to build it is the `story-author`'s
 ## References
 
 - [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md) — the claim ledger,
-  the lobby, `check:declared` FAIL, and D4's cursor-once delivery principle (amended in surface
+  the lobby, the former `check:declared` FAIL, and D4's cursor-once delivery principle (amended in surface
   enumeration only).
 - [ADR-0033](0033-session-presence-notice-board.md) — worktree-derived identity; D3's
   never-blocking-hooks contract, which this design honours.
@@ -394,9 +395,8 @@ the seam; the story/capability decomposition to build it is the `story-author`'s
   block is the whole of ADR-0257 that runs, permanently.)*
 - [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) — accepted
   2026-08-02; amends ADR-0257 and is the current word on the write-time arm. It makes this ADR's
-  D5.2 gate arm **permanently** load-bearing rather than an interim backstop, and cites it as the
-  only arm covering a shell — while also recording that the arm is narrower than either ADR
-  described (see the note at D5.2).
+  D5.2 gate arm load-bearing at that time. ADR-0311 later withdraws the merge-gate obligation while
+  leaving the static write-authority wall and diagnostic source intact.
 - [ADR-0162](0162-manage-session-onboarding-cost-optimize-the-cost-centers-the.md) — the per-turn startup budget the `UserPromptSubmit` probe
   must respect.
 - Friction (the adjudicated inputs, routed to this ADR):

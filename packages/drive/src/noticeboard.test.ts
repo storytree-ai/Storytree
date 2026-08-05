@@ -82,7 +82,7 @@ function gitFake(opts: {
 
 test("deriveIdentity: THE PRIMARY CHECKOUT stays refused — git-dir === git-common-dir (ADR-0033 D1's load-bearing half)", () => {
   // Unchanged by the widening and asserted separately from it: the shared lobby has no isolated
-  // identity to claim under, and `check:declared`'s lobby arm depends on this staying true.
+  // identity to claim under, so it cannot satisfy the merge ceremony's explicit claim requirement.
   assert.equal(
     deriveIdentity(
       gitFake({
@@ -517,15 +517,20 @@ test("declare: the refusal never asserts the SESSION is unclaimed — it knows o
   assert.doesNotMatch(env.body, /is UNCLAIMED/);
   assert.doesNotMatch(env.body, /this session holds NO live claim/);
   assert.match(env.body, /this declare anchored NOTHING/);
-  assert.match(env.body, /If this session holds no other live claim/, "the gate cost is conditional");
+  assert.match(env.body, /If this session holds no other live claim/, "the ceremony shortfall is conditional");
 });
 
-test("declare: a total refusal explains the gate cost and hands back the ADR-0270 D2 remedies", async () => {
+test("declare: a total refusal explains the ceremony requirement and ADR-0270 D2 remedies", async () => {
   const claims = makeFakeClaims({ refuseWith: OTHER_HOLDER });
   const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
   const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-a"] }, deps);
   assert.equal(env.ok, false);
-  assert.match(env.body, /check:declared/, "names the gate rung the session would otherwise hit");
+  assert.match(
+    env.body,
+    /not ready for the merge ceremony/,
+    "names the explicit ceremony requirement",
+  );
+  assert.match(env.body, /explicit live noticeboard claim/, "names the required claim state");
   assert.match(env.body, /ADR-0270 D2/, "resolving the conflict is the session's own call");
   assert.match(env.body, /not an owner question/);
   // The remedy the measured sessions eventually reached for, offered up front.
@@ -540,8 +545,8 @@ test("declare: a total refusal explains the gate cost and hands back the ADR-027
 });
 
 test("declare: PARTIAL — some claimed, some held → ok:true, but the headline names the shortfall", async () => {
-  // Decided explicitly, not inherited: the session DOES hold a live claim here, so check:declared
-  // passes and refusing would be a lie in the other direction. It just is not writing story-a.
+  // Decided explicitly, not inherited: the session DOES hold a live claim here, so it satisfies the
+  // ceremony requirement and refusing would be a lie in the other direction. It is not writing story-a.
   const claims = makeFakeClaims({ refuseWith: OTHER_HOLDER, refuseUnits: ["story-a"] });
   const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
   const env = await noticeboardCommand(

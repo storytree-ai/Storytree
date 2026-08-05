@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "serve": "node --import tsx server/serve.ts",
+    "measure:camera-rasterisation": "node --import tsx scripts/measure-camera-rasterisation.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "uat": "playwright test"

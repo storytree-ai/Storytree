@@ -14,8 +14,8 @@ import {
   arcIdFromTitle,
   arcIncrementAdd,
   arcNew,
-  arcProposalAdd,
-  arcProposalRealize,
+  arcIncrementClose,
+  arcIncrementNew,
   arcScopeOf,
   storyArcStamps,
   type ArcViewDeps,
@@ -39,10 +39,6 @@ async function seededStore(): Promise<InMemoryStore> {
       description: "d",
       intent: "Pathways on the map.",
       endState: "Owner sees pathways.",
-      increments: [
-        { date: "2026-07-01", pr: "#640", outcome: "items 1-3 landed" },
-        { date: "2026-07-05", outcome: "halted at the look wall" },
-      ],
       references: [],
       createdAt: "2026-07-01",
       updatedAt: "2026-07-01",
@@ -50,9 +46,9 @@ async function seededStore(): Promise<InMemoryStore> {
   });
   await store.upsertDoc({
     id: "map-arc-plan-1",
-    kind: "plan",
+    kind: "increment",
     doc: {
-      kind: "plan",
+      kind: "increment",
       id: "map-arc-plan-1",
       title: "Increment 4 choreography",
       description: "d",
@@ -69,9 +65,9 @@ async function seededStore(): Promise<InMemoryStore> {
   // A plan on a DIFFERENT arc — must not leak into map-arc's view.
   await store.upsertDoc({
     id: "other-plan",
-    kind: "plan",
+    kind: "increment",
     doc: {
-      kind: "plan",
+      kind: "increment",
       id: "other-plan",
       title: "other",
       description: "d",
@@ -135,19 +131,17 @@ test("arc show derives plans (arcRef), ADRs (frontmatter stamp), and stories (fr
   try {
     const res = await arcCommand("show", "map-arc", depsFor(await seededStore(), fx));
     assert.equal(res.ok, true);
-    // The arc's own state: intent, end state, and the append-at-landing increment log.
+    // The arc's own state: intent and end state. Its WORK is derived children now (ADR-0305 D1).
     assert.match(res.body, /Pathways on the map\./);
-    assert.match(res.body, /2026-07-01 {2}#640 {2}items 1-3 landed/);
-    assert.match(res.body, /halted at the look wall/);
-    // Derived children — and ONLY this arc's.
-    assert.match(res.body, /map-arc-plan-1 {2}\[ready\] {2}anchor abcdef123/);
+    // Derived children — and ONLY this arc's. A `ready` increment sits in the forward-looking half.
+    assert.match(res.body, /map-arc-plan-1 {2}\[ready, anchor abcdef123\]/);
     assert.doesNotMatch(res.body, /other-plan/);
     assert.match(res.body, /ADR-0201 {2}accepted {3}A stamped decision/);
     assert.doesNotMatch(res.body, /ADR-0202/);
     assert.match(res.body, /- map-story/);
     assert.doesNotMatch(res.body, /plain-story/);
-    // The freshness check is the suggested next door for a consumable plan.
-    assert.ok((res.next ?? []).some((n) => n.includes("plan check map-arc-plan-1")));
+    // The freshness check is the suggested next door for a consumable increment.
+    assert.ok((res.next ?? []).some((n) => n.includes("increment check map-arc-plan-1")));
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
@@ -216,12 +210,17 @@ test("arc show says so honestly when an arc is waiting on nothing", async () => 
   }
 });
 
-test("arc list summarises every arc with its increment count", async () => {
+test("arc list summarises every arc by landed count AND open count", async () => {
   const fx = diskFixture();
   try {
-    const res = await arcCommand("list", undefined, depsFor(await seededStore(), fx));
+    const store = await seededStore();
+    await arcIncrementAdd(writeDeps(store), "map-arc", { outcome: "items 1-3 landed", pr: "#640", date: "2026-07-01" });
+    const res = await arcCommand("list", undefined, depsFor(store, fx));
     assert.equal(res.ok, true);
-    assert.match(res.body, /map-arc {2}2 increment\(s\), last 2026-07-05/);
+    // The OPEN count is new since the fold: before it, forward-looking work lived in an array this
+    // list never read, so an arc with parked remedies and no landings was indistinguishable from
+    // one nobody had started.
+    assert.match(res.body, /map-arc {2}1 landed, 1 open, last 2026-07-01 #640/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
@@ -245,7 +244,6 @@ async function withClosedArc(store: InMemoryStore): Promise<InMemoryStore> {
       intent: "Deliver the thing.",
       endState: "The thing is delivered.",
       lifecycle: "closed",
-      increments: [{ date: "2026-07-25", pr: "#767", outcome: "THE ARC'S END STATE IS REACHED" }],
       references: [],
       createdAt: "2026-07-01",
       updatedAt: "2026-07-25",
@@ -320,7 +318,7 @@ test("arc show renders a CLOSED arc and states its lifecycle (only the LIST filt
     const done = await arcCommand("show", "done-arc", depsFor(store, fx));
     assert.equal(done.ok, true, "a closed arc is always readable");
     assert.match(done.body, /lifecycle: closed/);
-    assert.match(done.body, /THE ARC'S END STATE IS REACHED/);
+    assert.match(done.body, /## Increment log/);
 
     const live = await arcCommand("show", "map-arc", depsFor(store, fx));
     assert.match(live.body, /lifecycle: active \(in flight\)/);
@@ -338,7 +336,7 @@ test("arc show on a missing/wrong-kind id fails honestly; offline hints at --pg"
     assert.match(missing.body, /OFFLINE seed — arcs are live-canonical/);
     const wrongKind = await arcCommand("show", "map-arc-plan-1", depsFor(store, fx));
     assert.equal(wrongKind.ok, false);
-    assert.match(wrongKind.body, /is a plan, not an arc/);
+    assert.match(wrongKind.body, /is a increment, not an arc/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
@@ -427,7 +425,7 @@ test("a scaffolded arc is immediately readable by the arc VIEW path (writer + re
 
     const list = await arcCommand("list", undefined, depsFor(store, fx));
     assert.equal(list.ok, true);
-    assert.match(list.body, /arc-orientation-surface-arc {2}0 increment\(s\), no landings yet/);
+    assert.match(list.body, /arc-orientation-surface-arc {2}0 landed, no landings yet/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
@@ -493,15 +491,16 @@ test("arc new refuses an id that already exists — a scaffold never overwrites 
   assert.equal(existing.ok, false);
   assert.match(existing.body, /arc map-arc already exists — edit it, don't recreate it/);
   assert.match((existing.next ?? []).join("\n"), /storytree arc edit map-arc/);
-  // The seeded arc is untouched — its two increments and original intent survive.
+  // The seeded arc is untouched — its original intent survives, and so do its child increments,
+  // which a scaffolder could not have reached anyway since the fold moved them off the arc doc.
   const untouched = (await store.getDoc("map-arc"))?.doc as Record<string, unknown>;
   assert.equal(untouched["intent"], "Pathways on the map.");
-  assert.equal((untouched["increments"] as unknown[]).length, 2);
+  assert.equal((await store.queryDocs({ kind: "increment" })).length, 2);
 
   // Ids are shared across kinds, so a plan/definition holding the id is a distinct, honest refusal.
   const wrongKind = await arcNew(writeDeps(store), "map-arc-plan-1", { title: "T", intent: "i", endState: "e" });
   assert.equal(wrongKind.ok, false);
-  assert.match(wrongKind.body, /already a plan, not an arc/);
+  assert.match(wrongKind.body, /already a increment, not an arc/);
 
   // A COLLIDING derived id says where the id came from, so the fix (pass one) is obvious.
   const derivedClash = await arcNew(writeDeps(store), undefined, {
@@ -575,8 +574,9 @@ test("arc edit patches intent + endState through the validated path and re-persi
   // Multi-line prose round-trips as REAL newlines (the value arrives already @path/quote-resolved).
   assert.equal(got["endState"], "line one\nline two\nline three");
   assert.equal(got["updatedAt"], NOW);
-  // The increment log is untouched by a narrative edit.
-  assert.equal((got["increments"] as unknown[]).length, 2);
+  // The increment rows are untouched by a narrative edit — they are separate documents now, so a
+  // narrative write cannot reach them even by accident (ADR-0305 D1).
+  assert.equal((await store.queryDocs({ kind: "increment" })).length, 2);
 });
 
 test("arc edit refuses offline, on a missing id, on a wrong kind, and with nothing to change", async () => {
@@ -591,46 +591,78 @@ test("arc edit refuses offline, on a missing id, on a wrong kind, and with nothi
 
   const wrongKind = await arcEdit(writeDeps(store), "map-arc-plan-1", { intent: "x" });
   assert.equal(wrongKind.ok, false);
-  assert.match(wrongKind.body, /is a plan, not an arc/);
+  assert.match(wrongKind.body, /is a increment, not an arc/);
 
   const nothing = await arcEdit(writeDeps(store), "map-arc", {});
   assert.equal(nothing.ok, false);
   assert.match(nothing.body, /nothing to change/);
 });
 
-test("arc increment add APPENDS one validated increment to the log (the op --set cannot do)", async () => {
+// ---------------------------------------------------------------------------
+// THE INCREMENT VERBS (ADR-0305 D1). An entry is its own ROW now, so the three verbs write
+// documents rather than mutating an array on the arc — and the fourth operation the array shape
+// could not offer at all, CORRECTING an entry, is `library artifact edit` with no verb here.
+// ---------------------------------------------------------------------------
+
+test("arc increment add RECORDS a landing as its own closed increment row (ADR-0305 D1/D5)", async () => {
   const store = await seededStore();
   const res = await arcIncrementAdd(writeDeps(store), "map-arc", {
     date: "2026-07-20",
     pr: "#900",
-    outcome: "increment 5 landed",
+    outcome: "Increment 5 landed. It reshaped the render and migrated the live rows.",
   });
   assert.equal(res.ok, true);
-  assert.match(res.body, /appended increment to arc map-arc — 2026-07-20 {2}#900 {2}increment 5 landed/);
-  assert.match(res.body, /\(3 increment\(s\) now\)/);
-  const increments = (await store.getDoc("map-arc"))?.doc as Record<string, unknown>;
-  const log = increments["increments"] as Array<Record<string, unknown>>;
-  assert.equal(log.length, 3);
-  assert.deepEqual(log[2], { date: "2026-07-20", pr: "#900", outcome: "increment 5 landed" });
-  // The append round-trips through the show view (proof the whole arc re-validated).
+  assert.match(res.body, /recorded increment map-arc-inc-\d+ on arc map-arc — 2026-07-20 {2}#900/);
+
+  // The arc doc is UNTOUCHED — the landing is a child row, and the containment edge lives on it.
+  const arc = (await store.getDoc("map-arc"))?.doc as Record<string, unknown>;
+  assert.equal("increments" in arc, false, "the arc's array is gone; a landing never writes to it");
+
+  const written = (await store.queryDocs({ kind: "increment" })).find((d) => d.id.startsWith("map-arc-inc-"));
+  assert.ok(written, "the landing is its own row");
+  const doc = written.doc as Record<string, unknown>;
+  assert.equal(doc["status"], "closed");
+  assert.equal(doc["arcRef"], "asset:map-arc");
+  assert.deepEqual(doc["outcome"], { date: "2026-07-20", pr: "#900" });
+  // objective/title are DERIVED from the outcome's first sentence, so the ceremony stays one command.
+  assert.equal(doc["objective"], "Increment 5 landed.");
+  assert.equal(doc["body"], "Increment 5 landed. It reshaped the render and migrated the live rows.");
+
+  // It round-trips through the show view — the whole write re-validated (proof of the shared join).
   const fx = diskFixture();
   try {
     const shown = await arcCommand("show", "map-arc", depsFor(store, fx));
-    assert.match(shown.body, /2026-07-20 {2}#900 {2}increment 5 landed/);
+    assert.match(shown.body, /## Increment log/);
+    assert.match(shown.body, /2026-07-20 {2}#900 {2}map-arc-inc-\d+ {2}— Increment 5 landed\./);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
 });
 
-test("arc increment add defaults the date to today and works without a PR", async () => {
+test("arc increment add defaults the date to today, and a PR-less landing carries its reason", async () => {
   const store = await seededStore();
   const res = await arcIncrementAdd(writeDeps(store), "map-arc", { outcome: "an owner-attested halt" });
   assert.equal(res.ok, true);
-  const log = (await store.getDoc("map-arc"))?.doc as { increments: Array<Record<string, unknown>> };
-  const added = log.increments[log.increments.length - 1];
-  assert.equal(added?.date, "2026-07-20"); // NOW's date part
-  assert.equal(added?.outcome, "an owner-attested halt");
-  assert.ok(!("pr" in (added ?? {})), "no pr key when --pr is omitted");
+  const written = (await store.queryDocs({ kind: "increment" })).find((d) => d.id.startsWith("map-arc-inc-"));
+  const outcome = (written?.doc as Record<string, unknown>)["outcome"] as Record<string, unknown>;
+  assert.equal(outcome["date"], "2026-07-20"); // NOW's date part
+  assert.equal(outcome["pr"], undefined, "no pr key when --pr is omitted");
+  // `assertIncrementInvariants` refuses a closure with neither a ref nor a reason, so the outcome
+  // prose becomes the note. A landing that cannot point at a PR still has to say what happened.
+  assert.equal(outcome["note"], "an owner-attested halt");
+});
+
+test("arc increment add mints a FRESH id per landing — a re-run never overwrites one", async () => {
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  await arcIncrementAdd(deps, "map-arc", { outcome: "first landing" });
+  await arcIncrementAdd(deps, "map-arc", { outcome: "second landing" });
+  const ids = (await store.queryDocs({ kind: "increment" }))
+    .filter((d) => d.id.startsWith("map-arc-inc-"))
+    .map((d) => d.id)
+    .sort();
+  // The seeded `map-arc-plan-1` already cites this arc, so the ordinal starts at 02.
+  assert.deepEqual(ids, ["map-arc-inc-02", "map-arc-inc-03"]);
 });
 
 test("arc increment add refuses offline, without --outcome, and on a wrong kind", async () => {
@@ -645,7 +677,7 @@ test("arc increment add refuses offline, without --outcome, and on a wrong kind"
 
   const wrongKind = await arcIncrementAdd(writeDeps(store), "map-arc-plan-1", { outcome: "x" });
   assert.equal(wrongKind.ok, false);
-  assert.match(wrongKind.body, /is a plan, not an arc/);
+  assert.match(wrongKind.body, /is a increment, not an arc/);
 });
 
 // ---------------------------------------------------------------------------
@@ -678,10 +710,12 @@ test("arc increment add on an ALREADY-closed arc offers no close hint", async ()
 });
 
 // ---------------------------------------------------------------------------
-// ADR-0239 D2 — `arc close`: ONE verb, atomically the terminal increment AND the lifecycle flip.
+// ADR-0239 D2 — `arc close`: the terminal increment AND the lifecycle flip. Since ADR-0305 D1 that
+// is TWO rows rather than one atomic upsert, written increment-FIRST so an interrupted close leaves
+// an open arc with a spare increment, never a closed arc with no prose behind it.
 // ---------------------------------------------------------------------------
 
-test("arc close appends the terminal increment AND flips lifecycle in one write", async () => {
+test("arc close records the terminal increment AND flips lifecycle, increment first", async () => {
   const store = await seededStore();
   const res = await arcClose(writeDeps(store), "map-arc", {
     pr: "#1012",
@@ -691,46 +725,46 @@ test("arc close appends the terminal increment AND flips lifecycle in one write"
   assert.match(res.body, /closed arc map-arc — 2026-07-20 {2}#1012 {2}the owner sees pathways/);
   assert.match(res.body, /lifecycle: closed/);
 
-  const doc = (await store.getDoc("map-arc"))?.doc as { lifecycle?: string; increments: Array<Record<string, unknown>> };
+  const doc = (await store.getDoc("map-arc"))?.doc as { lifecycle?: string };
   assert.equal(doc.lifecycle, "closed");
-  // The prose that JUSTIFIES the flip landed with it — that is the whole point of one verb.
-  assert.equal(doc.increments.length, 3, "the terminal increment was appended, not replaced");
-  assert.deepEqual(doc.increments[2], {
-    date: "2026-07-20",
-    pr: "#1012",
-    outcome: "the owner sees pathways on the map — the end state is met",
-  });
+
+  // The prose that JUSTIFIES the flip landed with it — the invariant ADR-0239 D2 wrote atomicity
+  // for, preserved by ORDER now that one transaction cannot span two documents.
+  const terminal = (await store.queryDocs({ kind: "increment" })).find((d) => d.id.startsWith("map-arc-inc-"));
+  assert.ok(terminal, "the terminal increment is its own row");
+  const bag = terminal.doc as Record<string, unknown>;
+  assert.equal(bag["status"], "closed");
+  assert.deepEqual(bag["outcome"], { date: "2026-07-20", pr: "#1012" });
+  assert.equal(bag["body"], "the owner sees pathways on the map — the end state is met");
 });
 
 test("arc close defaults the date to today and works without a PR", async () => {
   const store = await seededStore();
-  const res = await arcClose(writeDeps(store), "map-arc", { outcome: "owner-attested; the end state is met" });
+  const res = await arcClose(writeDeps(store), "map-arc", { outcome: "delivered, attested by the owner" });
   assert.equal(res.ok, true);
-  const doc = (await store.getDoc("map-arc"))?.doc as { lifecycle?: string; increments: Array<Record<string, unknown>> };
-  const terminal = doc.increments[doc.increments.length - 1];
-  assert.equal(terminal?.date, "2026-07-20"); // NOW's date part
-  assert.ok(!("pr" in (terminal ?? {})), "an arc can close on an owner attestation, with no PR of its own");
-  assert.equal(doc.lifecycle, "closed");
+  assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "closed");
+  const terminal = (await store.queryDocs({ kind: "increment" })).find((d) => d.id.startsWith("map-arc-inc-"));
+  const outcome = (terminal?.doc as Record<string, unknown>)["outcome"] as Record<string, unknown>;
+  assert.equal(outcome["date"], "2026-07-20");
+  assert.equal(outcome["note"], "delivered, attested by the owner");
 });
 
 test("arc close REFUSES without --outcome — no closure without the prose that justifies it", async () => {
   const store = await seededStore();
-  const noOutcome = await arcClose(writeDeps(store), "map-arc", {});
-  assert.equal(noOutcome.ok, false);
-  assert.match(noOutcome.body, /needs --outcome/);
-  assert.match(noOutcome.body, /projection of the prose that supports it/);
-  // NOTHING was written — not the increment, and above all not the state.
-  const doc = (await store.getDoc("map-arc"))?.doc as { lifecycle?: string; increments: unknown[] };
-  assert.notEqual(doc.lifecycle, "closed");
-  assert.equal(doc.increments.length, 2);
+  const res = await arcClose(writeDeps(store), "map-arc", { pr: "#1012" });
+  assert.equal(res.ok, false);
+  assert.match(res.body, /needs --outcome/);
+  assert.match(res.body, /a projection of the prose that supports it/);
+  // Nothing was written on either side — the refusal is total.
+  assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, undefined);
+  assert.equal((await store.queryDocs({ kind: "increment" })).filter((d) => d.id.startsWith("map-arc-inc-")).length, 0);
 });
 
 test("arc close refuses offline, on a missing id, on a wrong kind, and on an already-closed arc", async () => {
   const store = await withClosedArc(await seededStore());
-
   const offline = await arcClose(writeDeps(store, false, false), "map-arc", { outcome: "x" });
   assert.equal(offline.ok, false);
-  assert.match(offline.body, /writes to the shared store — run with --pg/);
+  assert.match(offline.body, /writes to the shared store/);
 
   const missing = await arcClose(writeDeps(store), "nope", { outcome: "x" });
   assert.equal(missing.ok, false);
@@ -738,265 +772,245 @@ test("arc close refuses offline, on a missing id, on a wrong kind, and on an alr
 
   const wrongKind = await arcClose(writeDeps(store), "map-arc-plan-1", { outcome: "x" });
   assert.equal(wrongKind.ok, false);
-  assert.match(wrongKind.body, /is a plan, not an arc/);
+  assert.match(wrongKind.body, /is a increment, not an arc/);
 
-  // Re-closing is a no-op refusal, and the message names the owner-only re-open (ADR-0084 mirror).
-  const again = await arcClose(writeDeps(store), "done-arc", { outcome: "again" });
+  const again = await arcClose(writeDeps(store), "done-arc", { outcome: "x" });
   assert.equal(again.ok, false);
   assert.match(again.body, /already closed/);
-  assert.match(again.body, /OWNER-only/);
-  const doc = (await store.getDoc("done-arc"))?.doc as { increments: unknown[] };
-  assert.equal(doc.increments.length, 1, "a refused re-close appends nothing");
+  assert.match(again.body, /Re-opening a closed arc is OWNER-only/);
 });
 
 test("a closed arc leaves the default worklist end-to-end (D2 write → D3 filter)", async () => {
+  const store = await seededStore();
   const fx = diskFixture();
   try {
-    const store = await seededStore();
-    // A second, still-live arc, so the post-close worklist is non-empty and the footer is exercised.
-    await store.upsertDoc({
-      id: "zz-live-arc",
-      kind: "arc",
-      doc: {
-        kind: "arc",
-        id: "zz-live-arc",
-        title: "Still in flight",
-        description: "d",
-        intent: "Keep going.",
-        endState: "Not yet.",
-        references: [],
-        createdAt: "2026-07-01",
-        updatedAt: "2026-07-01",
-      },
-    });
     const before = await arcCommand("list", undefined, depsFor(store, fx));
-    assert.match(before.body, /2 active arc\(s\)/);
     assert.match(before.body, /map-arc/);
 
     await arcClose(writeDeps(store), "map-arc", { outcome: "the end state is met" });
 
     const after = await arcCommand("list", undefined, depsFor(store, fx));
-    assert.match(after.body, /1 active arc\(s\)/);
-    assert.doesNotMatch(after.body, /map-arc {2}\d+ increment/, "the closed arc is out of the worklist");
-    assert.match(after.body, /zz-live-arc/, "the arc still in flight stays in the worklist");
-    assert.match(after.body, /\(1 closed — --all\)/);
+    assert.doesNotMatch(after.body, /map-arc {2}/, "the closed arc leaves the default list");
+    assert.match(after.body, /all 1 arc\(s\) here are closed/);
+
     const all = await arcCommand("list", undefined, depsFor(store, fx), "all");
-    assert.match(all.body, /map-arc.*\[closed\]/, "--all still shows it");
+    assert.match(all.body, /\[closed\] Map pathways/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
 });
 
-test("arc help advertises the new + close verbs and the list filters", async () => {
-  const fx = diskFixture();
-  try {
-    const help = await arcCommand(undefined, undefined, depsFor(new InMemoryStore(), fx));
-    assert.match(help.body, /storytree arc new \[<id>\] --title/);
-    assert.match(help.body, /storytree arc close <id> --outcome/);
-    assert.match(help.body, /--all\|--closed/);
-    assert.match(help.body, /Re-opening is OWNER-only/);
-  } finally {
-    rmSync(fx.root, { recursive: true, force: true });
-  }
+test("arc help advertises the three increment verbs and refuses the retired proposal spelling", async () => {
+  const help = await arcCommand(undefined, undefined, depsFor(new InMemoryStore(), diskFixture()));
+  assert.equal(help.ok, true);
+  assert.match(help.body, /arc increment add/);
+  assert.match(help.body, /arc increment new/);
+  assert.match(help.body, /arc increment close/);
+  // The correction path is advertised where a reader looks for a verb that does not exist.
+  assert.match(help.body, /storytree library artifact edit <increment-id> --pg/);
 });
 
 test("an EMPTY arc list offers the scaffolder, not the hand-authoring path it replaced", async () => {
-  // The discovery half of the friction: this offer used to read `library artifact new --file
-  // <arc.json>`, handing the reader a filename and leaving the schema to be reverse-engineered.
   const fx = diskFixture();
   try {
-    const live = await arcCommand("list", undefined, depsFor(new InMemoryStore(), fx));
-    assert.equal(live.ok, true);
-    const offers = (live.next ?? []).join("\n");
-    assert.match(offers, /^storytree arc new --title/m);
-    assert.doesNotMatch(offers, /library artifact new --file/);
-
-    // Offline the honest first move is still "re-run with --pg" — arcs are live-canonical.
-    const offline = await arcCommand("list", undefined, depsFor(new InMemoryStore(), fx, false));
-    assert.deepEqual(offline.next, ["storytree arc list --pg"]);
+    const empty = await arcCommand("list", undefined, depsFor(new InMemoryStore(), fx));
+    assert.equal(empty.ok, true);
+    assert.match(empty.body, /no arcs in the live store yet/);
+    assert.ok(
+      (empty.next ?? []).some((n) => n.startsWith("storytree arc new")),
+      "the scaffolder is the honest first move, not the hand-authoring path it replaced",
+    );
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
 });
 
-
 // ---------------------------------------------------------------------------
-// PARKED WORK on an arc (ADR-0298 D1) — the retired `proposal` kind's successor
+// PARKING and CLOSING one increment — the successors to `arc proposal add` / `realize`.
 // ---------------------------------------------------------------------------
 
-/** The two required body fields, so each test states only what it is actually about. */
-const BODY = {
-  summary: "expand @path once, at the flag-parsing boundary",
-  motivation: "three verbs already re-opened the hole; a per-callsite fix re-opens it a fourth time",
-};
+const BODY = { objective: "Fold the arrays into rows.", body: "Touches `packages/library/src/knowledge.ts`." };
 
-test("arc proposal add PARKS one validated entry, stamping the ceiling's own date (ADR-0298 D1/D3)", async () => {
+test("arc increment new PARKS one validated row, stamping the ceiling's own date (ADR-0298 D3)", async () => {
   const store = await seededStore();
-  const res = await arcProposalAdd(writeDeps(store), "map-arc", {
-    id: "at-path-at-the-boundary",
-    title: "Expand @path at the flag boundary",
+  const res = await arcIncrementNew(writeDeps(store), "map-arc", {
+    id: "density-lod",
+    title: "Density LOD",
     ...BODY,
-    scope: "packages/cli/src flag parsing, plus one stored-value regression test per prose flag",
-    friction: ["artifact-retire-reason-ignores-the-at-path-form"],
+    friction: ["map-is-unreadable-zoomed-out"],
   });
-  assert.equal(res.ok, true, res.body);
-  assert.match(res.body, /parked "at-path-at-the-boundary" on arc map-arc/);
-  assert.match(res.body, /\(1 parked entr\(ies\) now\.\)/);
+  assert.equal(res.ok, true);
+  assert.match(res.body, /parked increment density-lod on arc map-arc — Density LOD/);
 
-  const doc = (await store.getDoc("map-arc"))?.doc as { proposals: Array<Record<string, unknown>> };
-  assert.equal(doc.proposals.length, 1);
-  const entry = doc.proposals[0]!;
-  assert.equal(entry["id"], "at-path-at-the-boundary");
-  assert.equal(entry["summary"], BODY.summary);
-  assert.equal(entry["scope"], "packages/cli/src flag parsing, plus one stored-value regression test per prose flag");
-  assert.deepEqual(entry["frictionRefs"], ["artifact-retire-reason-ignores-the-at-path-form"]);
+  const doc = (await store.getDoc("density-lod"))?.doc as Record<string, unknown>;
+  assert.equal(doc["kind"], "increment");
+  assert.equal(doc["status"], "proposal");
+  assert.equal(doc["arcRef"], "asset:map-arc");
+  assert.deepEqual(doc["frictionRefs"], ["map-is-unreadable-zoomed-out"]);
+  // `parked` is stamped from the composition-root clock and is NEVER caller-supplied: a caller able
+  // to backdate it could silence the very recurrences that select the entry (ADR-0298 D3).
+  assert.equal(doc["parked"], NOW);
+  // The arc itself is untouched — the containment edge lives on the child (ADR-0183 D3).
+  assert.equal("proposals" in ((await store.getDoc("map-arc"))?.doc as object), false);
 
-  // `parked` comes from the COMPOSITION-ROOT CLOCK and is never caller-supplied: it is the delivery
-  // ceiling's comparison point, so a caller able to backdate it could silence the very recurrences
-  // that select the entry.
-  assert.equal(entry["parked"], NOW);
-  assert.equal(entry["realized"], undefined, "a freshly parked entry is not realized");
-
-  // The parked entry does NOT enter the increment log — the two lifecycles stay apart (D4).
-  assert.equal((doc as unknown as { increments: unknown[] }).increments.length, 2);
+  // THE POINT OF THE FOLD: the entry is addressable and CORRECTABLE with no arc verb at all.
+  const correct = (res.next ?? []).find((n) => n.includes("library artifact edit"));
+  assert.ok(correct, "the correction path is offered where the old shape had none");
 });
 
-test("arc proposal add NAMES the gap when no --friction is given (ADR-0095: no silent caps)", async () => {
+test("arc increment new NAMES the gap when no --friction is given (ADR-0095: no silent caps)", async () => {
   const store = await seededStore();
-  const res = await arcProposalAdd(writeDeps(store), "map-arc", {
-    id: "no-source",
-    title: "Work nobody filed friction about",
-    ...BODY,
-  });
-  assert.equal(res.ok, true, res.body);
-  // Legitimate, and therefore said out loud rather than hidden: with no source friction the
-  // recurrence ceiling can never reach this entry.
+  const res = await arcIncrementNew(writeDeps(store), "map-arc", { id: "quiet", title: "t", ...BODY });
+  assert.equal(res.ok, true);
   assert.match(res.body, /the delivery ceiling can never red this entry/);
-  const entry = ((await store.getDoc("map-arc"))?.doc as { proposals: Array<Record<string, unknown>> }).proposals[0]!;
-  assert.equal(entry["frictionRefs"], undefined);
 });
 
-test("arc proposal add refuses a DUPLICATE entry id within one arc (realize must stay unambiguous)", async () => {
+test("arc increment new refuses an id already taken ANYWHERE — an increment id is global", async () => {
   const store = await seededStore();
-  const first = await arcProposalAdd(writeDeps(store), "map-arc", { id: "dup", title: "t", ...BODY });
-  assert.equal(first.ok, true, first.body);
-
-  const second = await arcProposalAdd(writeDeps(store), "map-arc", { id: "dup", title: "other", ...BODY });
+  const deps = writeDeps(store);
+  const first = await arcIncrementNew(deps, "map-arc", { id: "dup", title: "t", ...BODY });
+  assert.equal(first.ok, true);
+  const second = await arcIncrementNew(deps, "map-arc", { id: "dup", title: "other", ...BODY });
   assert.equal(second.ok, false);
-  assert.match(second.body, /already carries a parked entry "dup"/);
-  const doc = (await store.getDoc("map-arc"))?.doc as { proposals: unknown[] };
-  assert.equal(doc.proposals.length, 1, "the refused add wrote nothing");
+  assert.match(second.body, /already exists as a increment/);
+  // The id is unique across the STORE, not merely within one arc — a collision with any other kind
+  // is refused too, since `library artifact <id>` has to resolve to one thing.
+  const clash = await arcIncrementNew(deps, "map-arc", { id: "map-arc", title: "t", ...BODY });
+  assert.equal(clash.ok, false);
+  assert.match(clash.body, /already exists as a arc/);
 });
 
-test("arc proposal add refuses offline, without its required fields, and on a wrong kind", async () => {
+test("arc increment new refuses offline, without its required fields, and on a missing arc", async () => {
   const store = await seededStore();
-
-  const offline = await arcProposalAdd(writeDeps(store, false, false), "map-arc", { id: "x", title: "t", ...BODY });
+  const offline = await arcIncrementNew(writeDeps(store, false, false), "map-arc", { id: "x", title: "t", ...BODY });
   assert.equal(offline.ok, false);
   assert.match(offline.body, /writes to the shared store/);
 
-  // `--motivation` is required for the same reason `friction new` demands evidence — a thin filing
-  // is the failure the tier exists to prevent, so it is refused at the verb, not reviewed later.
-  const thin = await arcProposalAdd(writeDeps(store), "map-arc", { id: "x", title: "t", summary: "s" });
+  const thin = await arcIncrementNew(writeDeps(store), "map-arc", { id: "x", title: "t" });
   assert.equal(thin.ok, false);
-  assert.match(thin.body, /--motivation <text\|@file>/);
+  assert.match(thin.body, /--objective <text\|@file>, --body <text\|@file>/);
+  assert.match(thin.body, /the thin filing this tier exists to prevent/);
 
-  const noId = await arcProposalAdd(writeDeps(store), "map-arc", { title: "t", ...BODY });
+  const noId = await arcIncrementNew(writeDeps(store), "map-arc", { title: "t", ...BODY });
   assert.equal(noId.ok, false);
   assert.match(noId.body, /--id <slug>/);
 
-  const wrongKind = await arcProposalAdd(writeDeps(store), "map-arc-plan-1", { id: "x", title: "t", ...BODY });
-  assert.equal(wrongKind.ok, false);
-  assert.match(wrongKind.body, /is a plan, not an arc/);
-
-  const missing = await arcProposalAdd(writeDeps(store), "no-such-arc", { id: "x", title: "t", ...BODY });
-  assert.equal(missing.ok, false);
-  assert.match(missing.body, /no arc "no-such-arc"/);
+  const noArc = await arcIncrementNew(writeDeps(store), "nope", { id: "x", title: "t", ...BODY });
+  assert.equal(noArc.ok, false);
+  assert.match(noArc.body, /no arc "nope"/);
 });
 
-test("arc proposal realize MARKS the entry landed — it is never deleted (ADR-0298 D3/D4)", async () => {
+test("arc increment close marks one TERMINAL — it is closed, never deleted (ADR-0305 D5)", async () => {
   const store = await seededStore();
-  await arcProposalAdd(writeDeps(store), "map-arc", { id: "shipped", title: "The remedy", ...BODY });
+  const deps = writeDeps(store);
+  await arcIncrementNew(deps, "map-arc", { id: "density-lod", title: "Density LOD", ...BODY });
 
-  const res = await arcProposalRealize(writeDeps(store), "map-arc", { id: "shipped", pr: "#1130", date: "2026-08-04" });
-  assert.equal(res.ok, true, res.body);
-  assert.match(res.body, /realized "shipped" on arc map-arc — 2026-08-04 {2}#1130/);
-  assert.match(res.body, /\(0 still parked\.\)/);
+  const res = await arcIncrementClose(deps, "density-lod", { pr: "#1123" });
+  assert.equal(res.ok, true);
+  assert.match(res.body, /closed increment density-lod on arc map-arc — 2026-07-20 {2}#1123/);
 
-  const doc = (await store.getDoc("map-arc"))?.doc as { proposals: Array<Record<string, unknown>> };
-  assert.equal(doc.proposals.length, 1, "realizing MARKS the entry rather than removing it");
-  assert.deepEqual(doc.proposals[0]!["realized"], { date: "2026-08-04", pr: "#1130" });
-  // The body it was parked with survives the realization — the record of what was intended stays
-  // next to the record of what landed.
-  assert.equal(doc.proposals[0]!["summary"], BODY.summary);
-
-  // It offers the increment as the next step: realizing and logging the landing are one ceremony.
-  assert.ok((res.next ?? []).some((n) => n.includes("arc increment add map-arc")));
+  const doc = (await store.getDoc("density-lod"))?.doc as Record<string, unknown>;
+  assert.equal(doc["status"], "closed");
+  assert.deepEqual(doc["outcome"], { date: "2026-07-20", pr: "#1123" });
+  // The row SURVIVES, so a deferred intention stays traceable to the landing that discharged it.
+  assert.equal(doc["parked"], NOW, "the parking stamp is not erased by closure");
+  assert.equal(doc["body"], BODY.body, "the body it was parked with is still readable");
 });
 
-test("arc proposal realize refuses a missing entry, a SECOND realization, and offline", async () => {
+test("arc increment close REQUIRES a reason when there is no --pr (ADR-0305 D2's collapsed states)", async () => {
   const store = await seededStore();
-  await arcProposalAdd(writeDeps(store), "map-arc", { id: "one", title: "t", ...BODY });
+  const deps = writeDeps(store);
+  await arcIncrementNew(deps, "map-arc", { id: "wrong-entry", title: "A duplicate", ...BODY });
 
-  const ghost = await arcProposalRealize(writeDeps(store), "map-arc", { id: "never-parked" });
-  assert.equal(ghost.ok, false);
-  assert.match(ghost.body, /carries no parked entry "never-parked"/);
-  assert.match(ghost.body, /parked here: one/, "the refusal names what IS parked");
+  // This is the case `arc proposal realize` could not express: an entry that is not LANDING.
+  const bare = await arcIncrementClose(deps, "wrong-entry", {});
+  assert.equal(bare.ok, false);
+  assert.match(bare.body, /needs --pr <ref> or --note <text\|@file>/);
+  assert.match(bare.body, /was a REASON, not a state/);
+  assert.equal(((await store.getDoc("wrong-entry"))?.doc as Record<string, unknown>)["status"], "proposal");
 
-  const first = await arcProposalRealize(writeDeps(store), "map-arc", { id: "one", pr: "#1" });
-  assert.equal(first.ok, true, first.body);
-  // Realization is recorded ONCE, like an increment — a second call must not overwrite the landing.
-  const again = await arcProposalRealize(writeDeps(store), "map-arc", { id: "one", pr: "#2" });
+  // With a note it closes HONESTLY — not marked as a landing that never happened.
+  const withNote = await arcIncrementClose(deps, "wrong-entry", {
+    note: "discharged by deletion: the verb it names was removed by ADR-0302 D4.",
+  });
+  assert.equal(withNote.ok, true);
+  const doc = (await store.getDoc("wrong-entry"))?.doc as Record<string, unknown>;
+  assert.equal(doc["status"], "closed");
+  assert.equal(
+    (doc["outcome"] as Record<string, unknown>)["note"],
+    "discharged by deletion: the verb it names was removed by ADR-0302 D4.",
+  );
+  assert.equal((doc["outcome"] as Record<string, unknown>)["pr"], undefined);
+});
+
+test("arc increment close refuses a missing id, a SECOND closure, a wrong kind, and offline", async () => {
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  await arcIncrementNew(deps, "map-arc", { id: "once", title: "t", ...BODY });
+  assert.equal((await arcIncrementClose(deps, "once", { pr: "#1" })).ok, true);
+
+  const again = await arcIncrementClose(deps, "once", { pr: "#2" });
   assert.equal(again.ok, false);
-  assert.match(again.body, /is already realized/);
-  const doc = (await store.getDoc("map-arc"))?.doc as { proposals: Array<Record<string, unknown>> };
-  assert.deepEqual(doc.proposals[0]!["realized"], { date: "2026-07-20", pr: "#1" });
+  assert.match(again.body, /already closed/);
 
-  const offline = await arcProposalRealize(writeDeps(store, false, false), "map-arc", { id: "one" });
+  const missing = await arcIncrementClose(deps, "nope", { pr: "#1" });
+  assert.equal(missing.ok, false);
+  assert.match(missing.body, /no increment "nope"/);
+
+  const wrongKind = await arcIncrementClose(deps, "map-arc", { pr: "#1" });
+  assert.equal(wrongKind.ok, false);
+  assert.match(wrongKind.body, /is a arc, not an increment/);
+
+  const offline = await arcIncrementClose(writeDeps(store, false, false), "once", { pr: "#1" });
   assert.equal(offline.ok, false);
   assert.match(offline.body, /writes to the shared store/);
 });
 
-test("arc show renders parked and realized work as its OWN section, never inside the increment log", async () => {
+test("arc show puts FORWARD-LOOKING work first, in its own section, never inside the increment log", async () => {
   const store = await seededStore();
-  await arcProposalAdd(writeDeps(store), "map-arc", {
-    id: "still-parked",
-    title: "Not built yet",
+  const deps = writeDeps(store);
+  await arcIncrementAdd(deps, "map-arc", { outcome: "a landing", pr: "#900", date: "2026-07-19" });
+  await arcIncrementNew(deps, "map-arc", {
+    id: "density-lod",
+    title: "Density LOD",
     ...BODY,
-    friction: ["some-friction-item"],
+    friction: ["map-is-unreadable-zoomed-out"],
   });
-  await arcProposalAdd(writeDeps(store), "map-arc", { id: "done", title: "Built", ...BODY });
-  await arcProposalRealize(writeDeps(store), "map-arc", { id: "done", pr: "#1130" });
 
   const fx = diskFixture();
   try {
     const shown = await arcCommand("show", "map-arc", depsFor(store, fx));
-    assert.equal(shown.ok, true, shown.body);
-    assert.match(shown.body, /## Parked work {2}\(1 parked, 1 realized\)/);
-    assert.match(shown.body, /still-parked {2}\[parked 2026-07-20\] {2}— Not built yet/);
-    // The friction ids print, because they are what the ceiling joins on — a reader wondering why an
-    // entry went red can follow the edge without querying the store.
-    assert.match(shown.body, /from friction: some-friction-item/);
-    assert.match(shown.body, /done {2}\[realized 2026-07-20 #1130\] {2}— Built/);
-
-    // The separation D4 insists on: unbuilt work never appears in the landing log.
-    const incrementLog = shown.body.slice(
-      shown.body.indexOf("## Increment log"),
-      shown.body.indexOf("## Parked work"),
-    );
-    assert.doesNotMatch(incrementLog, /still-parked/, "parked work is not a landing");
+    const work = shown.body.indexOf("## Work");
+    const log = shown.body.indexOf("## Increment log");
+    assert.ok(work > 0 && log > 0, "both sections render");
+    // THE ORDERING REQUIREMENT: forward-looking work is reachable FIRST. The old render emitted the
+    // log before the parked block, which on a busy arc pushed unbuilt intentions past a truncation
+    // boundary and made a session report that entries it was sent to read did not exist.
+    assert.ok(work < log, "forward-looking work precedes the landing log");
+    // ...and STAYS SEPARATE (ADR-0305 D7 / ADR-0298 D4): never interleaved, or a reader takes an
+    // unbuilt intention for something that happened.
+    assert.match(shown.body, /## Work {2}\(1 proposal · 1 ready · 0 active\)/);
+    assert.match(shown.body, /## Increment log {2}\(1 closed\)/);
+    assert.ok(shown.body.indexOf("density-lod") < log, "the parked row sits in Work, not in the log");
+    assert.match(shown.body, /from friction: map-is-unreadable-zoomed-out/);
+    // Each row offers the NARROW view — the discharge for "arc show is the only view there is".
+    assert.match(shown.body, /read\/edit it: {2}storytree library artifact density-lod/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
 });
 
-test("arc show says so plainly when an arc carries no parked work", async () => {
-  const store = await seededStore();
+test("arc show says so plainly when an arc has nothing at all", async () => {
+  const store = await withClosedArc(await seededStore());
   const fx = diskFixture();
   try {
-    const shown = await arcCommand("show", "map-arc", depsFor(store, fx));
-    assert.match(shown.body, /## Parked work {2}\(0 parked, 0 realized\)/);
-    assert.match(shown.body, /\(none — this arc has no deferred work parked on it\)/);
+    //  carries no increments of any kind — both halves must say so rather than render
+    // an empty heading a reader could mistake for a truncation.
+    const shown = await arcCommand("show", "done-arc", depsFor(store, fx));
+    assert.match(shown.body, /## Work {2}\(0 proposal · 0 ready · 0 active\)/);
+    assert.match(shown.body, /nothing open — every increment on this arc is closed/);
+    assert.match(shown.body, /## Increment log {2}\(0 closed\)/);
+    assert.match(shown.body, /\(no landings yet\)/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }

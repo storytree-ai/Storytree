@@ -15,7 +15,7 @@ import { KIND_SPECS } from "./knowledge.js";
  */
 
 /** The schema version every freshly-written structured Knowledge doc conforms to. */
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 /** One forward, version-numbered transform on a JSONB document. */
 export interface Migration {
@@ -169,16 +169,97 @@ export const MIGRATIONS: readonly Migration[] = [
       return rest;
     },
   },
+  {
+    version: 5,
+    name: "arc-increments-fold",
+    up(doc) {
+      // ADR-0305 D1 — the arc's two structured arrays are removed and the `plan` kind is renamed
+      // `increment`. This is the RAMP half of the fold, not the fold itself: it makes an old-shape
+      // row valid again on its next write. MOVING the array entries into their own increment docs is
+      // a one-shot backfill, because a per-doc transform cannot create documents (migration #1's
+      // header records the same split for the seeAlso reshape).
+      //
+      // Order matters at the call site, therefore: the backfill must READ the arrays and mint the
+      // increment rows BEFORE any arc is re-upserted, since this transform drops them on the way
+      // through. The event log keeps the prior arc doc either way, so a mis-ordered run is
+      // recoverable — but it is recoverable by hand, so do not rely on it.
+      const kind = doc["kind"];
+
+      if (kind === "plan" || kind === "increment") {
+        // A stored `plan` row is invalid the moment `KnowledgeKind` stops naming that key, so the
+        // re-key has to happen here or all 55 of them hard-refuse at their next write. Note the
+        // migration-4 above still tests `kind === "plan"`: version 4 runs BEFORE this one on any doc
+        // pinned below 4, so it sees the pre-rename key by construction. Leave it alone.
+        const out: Record<string, unknown> = { ...doc, kind: "increment" };
+
+        // The two CONDITIONAL fields D5/D6 introduce have to be BACKFILLED, not merely declared, or
+        // the rows that most need them become unwritable. `assertIncrementInvariants` refuses a
+        // `proposal` with no `parked` and a `closed` with no `outcome`, and every row arriving here
+        // predates both fields — including the 10 live rows migration 4 mapped from
+        // `superseded`/`retired` to `closed`. Declaring the invariant without this backfill would
+        // have bricked exactly the documents the fold exists to preserve.
+        //
+        // Both stamps derive from the doc's OWN timestamps. `up()` is pure and has no clock, which
+        // is the right constraint here anyway: `parked` is the delivery ceiling's comparison point,
+        // so stamping it "now" would silently reset every waiting entry's age to zero.
+        const day = (v: unknown, fallback: string): string =>
+          typeof v === "string" && v.length >= 10 ? v.slice(0, 10) : fallback;
+        const created = typeof out["createdAt"] === "string" ? (out["createdAt"] as string) : "";
+        const updated = typeof out["updatedAt"] === "string" ? (out["updatedAt"] as string) : "";
+
+        if (out["status"] === "proposal" && out["parked"] === undefined) {
+          out["parked"] = created !== "" ? created : updated !== "" ? updated : "1970-01-01";
+        }
+        if (out["status"] === "closed" && out["outcome"] === undefined) {
+          out["outcome"] = {
+            date: day(updated !== "" ? updated : created, "1970-01-01"),
+            // Honest about what cannot be recovered: migration 4 mapped BOTH `superseded` and
+            // `retired` onto `closed`, so the doc no longer records which — and the reason ADR-0305
+            // D2 moved into `outcome.note` was never written for a row that closed before the field
+            // existed. The event log is where the original status survives.
+            note: "closed before ADR-0305 D5 introduced `outcome`; the original terminal status (`superseded` or `retired`) is recoverable only from `events.library_event`.",
+          };
+        }
+        return out;
+      }
+
+      if (kind === "arc") {
+        // `.strict()` refuses a stored `increments` / `proposals` on an arc whose schema no longer
+        // declares them, so this drop is what keeps every one of the 46 live arcs writable.
+        const { increments: _increments, proposals: _proposals, ...rest } = doc;
+        return rest;
+      }
+
+      return doc;
+    },
+  },
 ];
 
 /**
- * True iff `doc` is a STRUCTURED Knowledge doc — i.e. its `kind` is one of the `KIND_SPECS` keys.
+ * Kind keys a registered migration RE-KEYS, and which are therefore no longer in `KIND_SPECS`.
+ *
+ * This exists because of a trap that would silently defeat any kind rename. `upcast` skips anything
+ * {@link isStructuredKnowledge} rejects, and that predicate asks whether the doc's `kind` is a
+ * current `KIND_SPECS` key — so the instant a rename lands, every STORED row still carrying the old
+ * key stops being recognised as structured, passes through the upcaster UNCHANGED, and then fails
+ * validation on the key the migration existed to fix. The migration would be dead on exactly the
+ * documents it was written for, and the failure would look like a schema bug rather than a skipped
+ * transform.
+ *
+ * So a retired key stays admissible here until nothing can still be stored under it. `plan` is the
+ * first member (ADR-0305 D1, migration #5).
+ */
+const LEGACY_KINDS: ReadonlySet<string> = new Set(["plan"]);
+
+/**
+ * True iff `doc` is a STRUCTURED Knowledge doc — i.e. its `kind` is one of the `KIND_SPECS` keys, or
+ * a {@link LEGACY_KINDS} key a migration will re-key into one.
  * A rendered LibraryAsset (has `category` + `body`, no structured `kind`) is NOT structured: its
  * schema is `.strict()` and has no `schemaVersion` field, so stamping it would break validation.
  */
 function isStructuredKnowledge(doc: Record<string, unknown>): boolean {
   const kind = doc["kind"];
-  return typeof kind === "string" && Object.hasOwn(KIND_SPECS, kind);
+  return typeof kind === "string" && (Object.hasOwn(KIND_SPECS, kind) || LEGACY_KINDS.has(kind));
 }
 
 /**

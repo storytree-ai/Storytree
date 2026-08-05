@@ -174,6 +174,13 @@ import {
   useStableVegetationLayer,
 } from './act2Intro.js';
 import { Act2IntroControl } from './Act2IntroControl.js';
+import {
+  CAMERA_RASTERISATION_EXPECTED_ISLANDS,
+  CAMERA_RASTERISATION_PROTOCOL,
+  applyCameraRasterisationTransform,
+  readCameraRasterisationRoute,
+  type CameraRasterisationProbeSnapshot,
+} from './cameraRasterisationProbe.js';
 
 // The current `?…` search string, SSR-guarded ('' when there is no window). The
 // panel-exposed readers default to this so non-panel call sites (and SSR) keep
@@ -1708,6 +1715,7 @@ export function TreeView({
   // selecting a story centres + zooms on that territory.
   const frameRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const cameraRef = useRef<SVGGElement>(null);
   const [cam, setCam] = useState<Camera | null>(null);
   const limitsRef = useRef<ScaleLimits>({ min: 0.01, max: 100 });
   // `animate` is on only for the programmatic mount/select moves (smooth);
@@ -2252,6 +2260,12 @@ export function TreeView({
   // the gear panel. `?act2=intro` now means "play whatever the session flag says, and mount the
   // diagnostic readout" — a stable URL for watching it, not the way in.
   const act2Intro = useMemo(() => readAct2Intro(search), [search]);
+  // Production diagnostic only. Both query values must match exactly; every near miss leaves the
+  // product route untouched. This is a measurement overlay around the real regrow, not choreography.
+  const cameraRasterisationRoute = useMemo(
+    () => readCameraRasterisationRoute(search),
+    [search],
+  );
   const act2ReducedMotion = useReducedMotion();
   const act2Speed = useMemo(() => readRegrowSpeed(search), [search]);
   // ADR-0286: the regrow plays on the FIRST arrival at the map in a browser session, and the map is
@@ -2282,7 +2296,7 @@ export function TreeView({
   // cheap; the accretion plans below are a scene walk per island, and a session that has already
   // seen the intro should not pay for one. Once asked for, it STAYS on for the life of the page so
   // Regrow can replay without rebuilding anything.
-  const act2Enabled = act2Intro || act2StartToken > 0;
+  const act2Enabled = act2Intro || cameraRasterisationRoute !== null || act2StartToken > 0;
   // The routed geometry the regrow's pathways grow ALONG (ADR-0283 D1): each segment's drawn
   // length in world units, so a long haul takes longer to travel than a short spur instead of
   // every pathway costing the same. Derived once per world — never per frame.
@@ -2311,6 +2325,37 @@ export function TreeView({
     edges: world?.trails.edges ?? null,
     segmentLengths: act2Enabled ? trailSegLengths : null,
   });
+  // The camera probe has no animation clock of its own. React reaches this layout effect only when
+  // the EXISTING Act 2 player publishes a new semantic cursor, and the effect writes that sample to
+  // either the real repaint-heavy SVG camera or the real compositor HTML wrapper. Cleanup restores
+  // the exact fit transform/style observed before the write on settle, abort and route exit.
+  const cameraProbeRestoreRef = useRef<() => void>(() => {});
+  const mappedIslandCount = world?.territories.length ?? 0;
+  const cameraProbeCorpusAccepted =
+    mappedIslandCount === CAMERA_RASTERISATION_EXPECTED_ISLANDS;
+  useLayoutEffect(() => {
+    cameraProbeRestoreRef.current();
+    cameraProbeRestoreRef.current = () => {};
+    if (
+      !cameraRasterisationRoute ||
+      !cameraProbeCorpusAccepted ||
+      !cam ||
+      !cameraRef.current ||
+      !panLayerRef.current
+    ) return;
+    const fitTransform = `translate(${cam.tx} ${cam.ty}) scale(${cam.scale})`;
+    const restore = applyCameraRasterisationTransform(
+      { svgCamera: cameraRef.current, htmlCompositor: panLayerRef.current },
+      cameraRasterisationRoute.variant,
+      act2Player.progress,
+      fitTransform,
+    );
+    cameraProbeRestoreRef.current = restore;
+    return () => {
+      restore();
+      if (cameraProbeRestoreRef.current === restore) cameraProbeRestoreRef.current = () => {};
+    };
+  }, [cameraRasterisationRoute, cameraProbeCorpusAccepted, cam, act2Player.progress]);
   // Held apart from `scene` on purpose: the per-island `caps` / `radius` / `status` the ADR-0292
   // vegetation variation reads live on the SceneInput, not on the drawable tree the scene walk
   // produces. Deriving them a second time from `world` would be a second definition of the same fold.
@@ -2420,6 +2465,82 @@ export function TreeView({
   const act2PlayedToken = useRef(0);
   const act2Replay = act2Player.replay;
   const act2Settle = act2Player.settle;
+
+  // Small production-browser protocol consumed by the committed Playwright collector. It exposes
+  // observations and the player's EXISTING replay/settle actions only: sampling never drives motion.
+  // A non-40-island corpus stays inspectable but fail-closed, so it can be recorded as incomparable.
+  const cameraProbeSnapshotRef = useRef<() => CameraRasterisationProbeSnapshot>(() => {
+    throw new Error('camera rasterisation probe is not ready');
+  });
+  cameraProbeSnapshotRef.current = () => ({
+    protocol: CAMERA_RASTERISATION_PROTOCOL,
+    ready:
+      cameraProbeCorpusAccepted &&
+      cam !== null &&
+      act2Player.plan !== null &&
+      act2AccretionPlans !== null,
+    rejectionReason: cameraProbeCorpusAccepted
+      ? null
+      : `expected-${CAMERA_RASTERISATION_EXPECTED_ISLANDS}-mapped-islands-got-${mappedIslandCount}`,
+    variant: cameraRasterisationRoute?.variant ?? 'growth-only',
+    corpus: { storyCount: stories?.length ?? 0, mappedIslandCount },
+    settings: {
+      regrowSpeed: act2Speed,
+      reducedMotion: act2ReducedMotion,
+      durationMs: act2Player.plan?.durationMs ?? null,
+      schedule:
+        act2Player.plan?.steps.map((step) => ({
+          storyId: step.storyId,
+          wave: step.wave,
+          order: step.order,
+          reach: step.reach,
+          startMs: step.startMs,
+          endMs: step.endMs,
+          start: step.start,
+          end: step.end,
+        })) ?? [],
+    },
+    player: {
+      cursor: act2Player.progress,
+      playing: act2Player.playing,
+      regrowing: act2Player.regrowing,
+    },
+    growthNodeCount:
+      svgRef.current?.querySelectorAll('[data-island-accretion-cell]').length ?? 0,
+    mapNodeCount: cameraRef.current?.querySelectorAll('*').length ?? 0,
+    svgTransform: cameraRef.current?.getAttribute('transform') ?? null,
+    htmlTransform: panLayerRef.current?.style.transform ?? '',
+    fitTransform: cam ? `translate(${cam.tx} ${cam.ty}) scale(${cam.scale})` : null,
+  });
+  useEffect(() => {
+    if (!cameraRasterisationRoute || typeof window === 'undefined') return;
+    const bridge = {
+      snapshot: () => cameraProbeSnapshotRef.current(),
+      start: (): { ok: boolean; reason?: string } => {
+        const snapshot = cameraProbeSnapshotRef.current();
+        if (!snapshot.ready) {
+          return { ok: false, reason: snapshot.rejectionReason ?? 'probe-not-ready' };
+        }
+        act2Replay();
+        return { ok: true };
+      },
+      settle: (): void => {
+        act2Settle();
+        cameraProbeRestoreRef.current();
+      },
+      abort: (): void => {
+        act2Settle();
+        cameraProbeRestoreRef.current();
+      },
+    };
+    window.__storytreeCameraRasterisationProbe = bridge;
+    return () => {
+      if (window.__storytreeCameraRasterisationProbe === bridge) {
+        delete window.__storytreeCameraRasterisationProbe;
+      }
+      cameraProbeRestoreRef.current();
+    };
+  }, [cameraRasterisationRoute, act2Replay, act2Settle]);
   useEffect(() => {
     if (act2StartToken <= act2PlayedToken.current) return;
     if (act2ReducedMotion) {
@@ -2788,6 +2909,7 @@ export function TreeView({
           <div
             className="world-viewport"
             ref={bindViewport}
+            data-camera-rasterisation-probe={cameraRasterisationRoute?.variant}
             tabIndex={0}
             aria-label="story forest map (pan and zoom)"
             onPointerDown={onPointerDown}
@@ -2900,6 +3022,7 @@ export function TreeView({
                 are not positional). Hidden until the first frame is computed so
                 there's no flash of un-framed content. */}
             <g
+              ref={cameraRef}
               className="world-camera"
               transform={cam ? `translate(${cam.tx} ${cam.ty}) scale(${cam.scale})` : undefined}
               style={{
