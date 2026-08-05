@@ -51,7 +51,9 @@ explicit id, then refuses it before any store read or write when that normalised
 60-character id cap. A title-derived id may still be capped. The behavioural red at HEAD is a
 61-character explicit id: the shared slug helper truncates it to 60 characters and lets creation
 continue under a different id. The REAL proof must witness the refusal and zero store interaction,
-while retaining exactly-60 acceptance and normalisation-before-length-check behaviour.
+while retaining exactly-60 acceptance and normalisation-before-length-check behaviour. Assert zero
+interaction before any verification read, or make verification reads bypass the spy; a test-owned
+probe must never contaminate the call ledger whose emptiness proves the refusal happened pre-store.
 
 The agent-facing surface (ADR-0023): every command returns an `Envelope` (`packages/drive/src/envelope.ts:8-29`) — result + doctrine pointers + next branches — and `run` (`commands.ts:592-682`) NEVER throws on an expected miss (unknown id/category/area => `ok:false` + next).
 
@@ -126,6 +128,6 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
     - **covers —** `packages/cli/src/commands.ts:117-121`
     - **would-be test —** only the OK banner is tested (`cli.test.ts:25`); the FAIL/WARN variant has no committed assertion (the stamped seed is always green).
 14. **`arc-explicit-id-refuses-lossy-cap`** — `arc new` refuses an explicitly authored id that normalises beyond the 60-character cap rather than creating an arc under a truncated id
-    - **asserts —** The explicit id is normalised before its length is checked; a normalised value over 60 characters returns `ok:false` before any store read or write, a value of exactly 60 remains accepted, and title-derived ids retain their existing capped derivation.
+    - **asserts —** The explicit id is normalised before its length is checked; a normalised value over 60 characters returns `ok:false` before any store read or write, a value of exactly 60 remains accepted, and title-derived ids retain their existing capped derivation. Zero interaction is asserted before any verification read, or verification bypasses the spy; test-owned probes must not enter the call ledger.
     - **covers —** `packages/cli/src/arc.ts` (`arcNew`, explicit-id selection before store access)
     - **would-be test —** `packages/cli/src/arc.explicit-id-fidelity.test.ts` is the declared REAL red; at HEAD the shared slug helper truncates an overlength explicit id and creation proceeds under that altered id.
