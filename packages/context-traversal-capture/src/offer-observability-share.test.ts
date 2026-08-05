@@ -33,7 +33,7 @@ import { isContextVisitEvent } from "@storytree/context-traversal-telemetry";
 import type { CandidateSetEvent, ContextTraversalEvent } from "@storytree/context-traversal-telemetry";
 
 import { candidateSetIdOf, LIBRARY_ARTIFACT_SURFACE } from "./offer-candidate-sets.js";
-import { isFollowableOfferId } from "./decision-point-playback.js";
+import { computeDecisionPoints, isFollowableOfferId } from "./decision-point-playback.js";
 import { observeCliInvocation } from "./observe-cli.js";
 import type { ObserveCliDeps } from "./observe-cli.js";
 import {
@@ -340,4 +340,44 @@ test("the-denominator-covers-exactly-the-recorded-offers-with-none-dropped-or-ad
   assert.equal(report.offered, 4);
   assert.equal(report.observable, pointA.observable + pointB.observable);
   assert.equal(report.observable, 3);
+
+  // THE COMPOSITION PIN, derived from BOTH returned reports rather than from hand-matched literals:
+  // this denominator and the `decision points:` view must never disagree about what was on the table.
+  // A reader sees the two blocks side by side, so an observability point covering a different set of
+  // offers than the decision point above it would state a denominator for a picture nobody is looking
+  // at. Both sides are read off the compute functions' own output; nothing here is re-composed.
+  const decisions = computeDecisionPoints(events);
+  assert.equal(
+    decisions.points.length,
+    report.points.length,
+    "one observability point per decision point — neither view may skip a recorded candidate_set",
+  );
+  for (const [index, decisionPoint] of decisions.points.entries()) {
+    const observabilityPoint = report.points[index];
+    assert.notEqual(observabilityPoint, undefined);
+    if (observabilityPoint === undefined) throw new Error("unreachable");
+
+    assert.equal(
+      observabilityPoint.candidateSetId,
+      decisionPoint.candidateSetId,
+      "the two views must pair up in the same observed order, set for set",
+    );
+    assert.equal(
+      observabilityPoint.offered,
+      decisionPoint.candidates.length,
+      "the denominator must be the count the decision view actually renders",
+    );
+    assert.deepEqual(
+      observabilityPoint.offers.map((offer) => offer.nodeId),
+      decisionPoint.candidates.map((candidate) => candidate.nodeId),
+      "…over exactly the same ids in exactly the same authored order, duplicates included",
+    );
+  }
+
+  const decisionOfferedTotal = decisions.points.reduce((sum, point) => sum + point.candidates.length, 0);
+  assert.equal(
+    report.offered,
+    decisionOfferedTotal,
+    "the trace-level denominator must cover exactly the offers the decision view renders",
+  );
 });

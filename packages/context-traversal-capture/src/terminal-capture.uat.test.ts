@@ -913,3 +913,129 @@ test("a-real-replay-draws-the-branches-not-taken: a real spawned replay renders 
     `a replay with no recorded offer must render no decision block; got:\n${bareShown.stdout}`,
   );
 });
+
+// ---------------------------------------------------------------------------
+// 10. a real replay states how much of each offer set it could NOT see
+// ---------------------------------------------------------------------------
+
+/** The lines of the rendered `offer observability:` block, or `[]` when the block is absent. */
+function observabilityBlockLines(stdout: string): string[] {
+  const lines = stdout.split("\n");
+  const start = lines.findIndex((line) => line === "offer observability:");
+  if (start === -1) return [];
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => line.trimEnd() === "");
+  return end === -1 ? rest : rest.slice(0, end);
+}
+
+test("a-real-replay-states-how-much-of-each-offer-set-it-could-not-see: a real spawned replay renders the observable denominator beside the offered count, names a reason for every unobservable offer, and renders no block at all for a session that recorded none", () => {
+  const dir = freshDir("contract10");
+  const sessionId = "session-contract10";
+  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, STORYTREE_SESSION_ID: sessionId };
+
+  // `plan`'s Sources block carries BOTH followable `asset:` refs and a `doc:` ref no CLI read reaches.
+  const offering = runCli(["library", "artifact", "plan"], env);
+  assert.equal(offering.status, 0, `expected the offering read to exit 0: ${offering.stderr}`);
+
+  const { replay } = readTraversalSession({ dir, sessionId });
+  const recordedOffer = candidateSetsOf(replay.events)[0];
+  assert.ok(recordedOffer !== undefined, "the offering read must have recorded its offer");
+
+  const docIds = recordedOffer.candidateNodeIds.filter((id) => id.startsWith("doc:"));
+  assert.ok(docIds.length > 0, "this leg needs an offer set that really does carry a doc: ref");
+
+  const shown = runCli(["traversal", "show", sessionId], env);
+  assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
+
+  const block = observabilityBlockLines(shown.stdout);
+  assert.ok(block.length > 0, `the replay must render an observability block; got:\n${shown.stdout}`);
+
+  const pointLine = block.find((line) => line.includes(recordedOffer.candidateSetId));
+  assert.ok(
+    pointLine !== undefined,
+    `the block must name the recorded offer ${recordedOffer.candidateSetId}; got:\n${block.join("\n")}`,
+  );
+
+  // The DENOMINATOR is the whole offer, not a filtered subset: `offered` equals what was recorded.
+  const offeredCount = recordedOffer.candidateNodeIds.length;
+  assert.ok(
+    pointLine.includes(`offered ${offeredCount}`),
+    `the offered count must equal the ${offeredCount} ids actually recorded; got: ${pointLine}`,
+  );
+
+  // …and `observable` is STRICTLY smaller, which is the distortion this leg exists to make legible:
+  // the `[candidate-set]` line beside it reports only the offered count, and a reader taking that as
+  // the denominator over-reports how often the session stayed inside the asset graph.
+  const observableMatch = /observable (\d+) of (\d+)/.exec(pointLine);
+  assert.ok(observableMatch !== null, `the point line must state "observable M of N"; got: ${pointLine}`);
+  const observableCount = Number(observableMatch[1]);
+  assert.equal(Number(observableMatch[2]), offeredCount, "…over the offered count as denominator");
+  assert.ok(
+    observableCount < offeredCount,
+    `a set carrying a doc: ref must report fewer observable than offered; got: ${pointLine}`,
+  );
+  assert.equal(
+    observableCount,
+    offeredCount - docIds.length,
+    "…and exactly the doc: refs are the ones no follow could land on",
+  );
+
+  // Every unobservable offer is accounted for by a NAMED reason, never a bare remainder.
+  assert.ok(
+    pointLine.includes(`unobservable ${docIds.length}:`),
+    `the unobservable count must be stated; got: ${pointLine}`,
+  );
+  assert.ok(
+    pointLine.includes("no-cli-read-shape-observes-a-visit-for-this-offer"),
+    `…with the reason named rather than left as a remainder; got: ${pointLine}`,
+  );
+
+  // The total line is the sentence that stops the misreading.
+  const totalLine = block.find((line) => line.includes("trace total"));
+  assert.ok(totalLine !== undefined, `the block must close with a trace total; got:\n${block.join("\n")}`);
+  assert.ok(
+    totalLine.includes("observable branches, not") && totalLine.includes("offered"),
+    `…stating the followed counts are over the observable branches; got: ${totalLine}`,
+  );
+
+  // The two DERIVED views cannot disagree about what was on the table: the decision block lists one
+  // line per offered id, and this block's denominator is that same count.
+  const decisionLines = decisionBlockLines(shown.stdout);
+  const decisionSummary = decisionLines.find((line) => line.includes(recordedOffer.candidateSetId));
+  assert.ok(decisionSummary !== undefined, "the decision block must name the same offer");
+  const decisionSummaryIdx = decisionLines.indexOf(decisionSummary);
+  const decisionRest = decisionLines.slice(decisionSummaryIdx + 1);
+  const nextDecisionSummary = decisionRest.findIndex((line) => line.startsWith("  candidate-set:"));
+  const decisionCandidateLines =
+    nextDecisionSummary === -1 ? decisionRest : decisionRest.slice(0, nextDecisionSummary);
+  assert.equal(
+    decisionCandidateLines.length,
+    offeredCount,
+    "the two derived views must agree on how many offers were on the table",
+  );
+
+  // NO PERCENTAGE anywhere in the block: a rounded share of a small offer set claims precision the
+  // observation does not carry.
+  assert.ok(
+    !block.some((line) => line.includes("%")),
+    `the observability block must render no percentage; got:\n${block.join("\n")}`,
+  );
+
+  // THE NEGATIVE HALF, in the same leg: a session that recorded no offer renders no block at all.
+  const bareDir = freshDir("contract10-nooffer");
+  const bareSession = "session-contract10-nooffer";
+  const bareEnvironment = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: bareDir, STORYTREE_SESSION_ID: bareSession };
+  const spec = runCli(["tree", "spec", "context-traversal-telemetry"], bareEnvironment);
+  assert.equal(spec.status, 0, `expected the spec read to exit 0: ${spec.stderr}`);
+
+  const bareReplay = readTraversalSession({ dir: bareDir, sessionId: bareSession });
+  assert.equal(candidateSetsOf(bareReplay.replay.events).length, 0, "this read records no offer");
+  assert.ok(visitsOf(bareReplay.replay.events).length > 0, "…but it did record a visit, so the trace is real");
+
+  const bareShown10 = runCli(["traversal", "show", bareSession], bareEnvironment);
+  assert.equal(bareShown10.status, 0, `expected traversal show to exit 0: ${bareShown10.stderr}`);
+  assert.ok(
+    !bareShown10.stdout.includes("offer observability:"),
+    `a replay with no recorded offer must render no observability block; got:\n${bareShown10.stdout}`,
+  );
+});
