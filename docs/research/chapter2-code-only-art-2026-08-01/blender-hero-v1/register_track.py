@@ -242,35 +242,24 @@ manifest = {
             "decodedRgbaBytes": 184320,
         },
     ],
-    # The scale-convention sentence here was WRONG from #1074 through #1080 and is corrected
-    # in place rather than carried. It claimed exp-16 "draws each stage to fill the frame",
-    # which nobody had measured; measured, exp-16 is at 91-99% of its mature height from
-    # frame 03 onward and is NON-monotone about it (110 px at f03, 96 at f12, 112 at f18),
-    # with only f00-f02 smaller. Its convention is closer to a CONSTANT apparent height with
-    # growth reading as width. That makes the fork BROADER than the mis-statement implied —
-    # the gap is the whole middle of the track, not one small opening frame — which is worth
-    # knowing before ADR-0289's deflation of it is taken as a dissolution.
-    #
-    # Root flare was the other named gap here and is largely CLOSED, so the sentence claiming
-    # it is corrected in place rather than left standing: base-band half-width 10 -> 22 against
-    # exp-16's 23, and the 5%-of-height row 14 -> 40 px against 46.
-    "knownWeakness": ("against exp-16 this track still loses on SCALE CONVENTION, on crown "
-                      "structure, and on the steadiness of its own ground registration. Measured "
-                      "across exp-16's 19 frames, it holds 91-99% of its mature height from frame "
-                      "03 onward and is NON-monotone about it (110 px at f03, 96 px at f12, 112 "
-                      "px at f18); only f00-f02 are smaller, at 65/70/82%. So its convention is "
-                      "close to a CONSTANT apparent height from stage 3, with growth reading as "
-                      "width (53 -> 95 px) and density rather than as height. This track holds "
-                      "ONE camera framed to the mature extent, so its apparent height ramps 14% "
-                      "-> 100% across the whole track. That is the ADR-0280 D1 invariant doing "
-                      "its job, not a bug, but it is an art-direction fork the owner has not been "
-                      "asked about — and it is no longer blocked on anything of ours, since the "
-                      "mid-stage weakness that made magnifying the early frames unflattering is "
-                      "the one this increment fixed. Crown structure: our crown is 70% green "
-                      "against exp-16's 51%, i.e. fewer limbs run visibly through the foliage. "
-                      "Registration: the applied rule now reads a nine-spur root fan that is not "
-                      "left-right symmetric, so contact-anchor spread is 3.02 px against 1.76 "
-                      "before the buttress, paid at author time only."),
+    # Current v9 truth, not an inherited diagnosis. v8 closed the large crown-structure gap;
+    # v9 returns the foliage floor to within one point without giving the bark back. The
+    # remaining scale-convention difference is an un-attested art-direction fork, while the
+    # smaller pixel deltas and author-time registration cost are measured residuals.
+    "knownWeakness": ("No owner LOOK has attested this track. Against exp-16, mature foliage "
+                      "still starts one point high (45% versus 44%); crown area is 4200 versus "
+                      "4280; visible in-crown bark is 630 px / 15.0% versus 670 / 15.7%; and "
+                      "warm highlight is 773 versus 874, although mean crown luma holds at 119, "
+                      "the widest band holds at 0.58-0.67, and highlight caps are close at 11 "
+                      "/ 29% versus 12 / 30%. The SCALE CONVENTION also remains open: exp-16 "
+                      "holds 91-99% of mature height from frame 03 onward and is non-monotone "
+                      "about it, while this track holds one camera framed to mature extent and "
+                      "ramps apparent height from 14% to 100%. That is the ADR-0280 D1 invariant, "
+                      "not a runtime bug, but the owner has not chosen between the conventions. "
+                      "Author-time registration has 2.4169 px contact-anchor spread, shifts 8 "
+                      "frames. Applying that shared anchor rule worsens body-centroid spread / "
+                      "max step from 3.4635 / 1.7204 px before normalization to 5.8901 / 2.7204 "
+                      "after; the mid-flush bare twig tips remain untuned."),
     "runtime": {
         "appOwns": ["semantic state", "normalized progress", "progress-to-frame selection",
                     "easing and deliberate holds", "Next, Back and Replay",

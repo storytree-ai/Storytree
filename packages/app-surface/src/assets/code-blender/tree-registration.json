@@ -8,17 +8,17 @@
   "y": 120
  },
  "maxAnchorResidualPx": 0.5,
- "measuredContactAnchorSpreadPx": 2.348,
- "framesRequiringAShift": 9,
+ "measuredContactAnchorSpreadPx": 2.4169,
+ "framesRequiringAShift": 8,
  "totalFrames": 19,
  "maxAbsShiftPx": 2,
  "groundRowSpreadPx": 4,
  "groundRowSpreadReason": "the camera is fixed and the trunk base is pinned at world z=0, but SECONDARY GROWTH thickens the trunk, so the front of its own footprint descends by r*sin(20 deg) as it fattens. Pinning the bottom row to a constant would mean shifting the frame upward as the tree matures \u2014 the tree would appear to rise out of the ground. This track states the band instead of buying a constant row with base drift (ADR-0280 D1).",
  "costOfApplyingTheAppliedRule": {
-  "bodyCentroidSpreadBeforePx": 3.5112,
-  "bodyCentroidSpreadAfterPx": 5.9378,
-  "bodyCentroidMaxFrameToFrameStepBeforePx": 1.7126,
-  "bodyCentroidMaxFrameToFrameStepAfterPx": 2.9788
+  "bodyCentroidSpreadBeforePx": 3.4635,
+  "bodyCentroidSpreadAfterPx": 5.8901,
+  "bodyCentroidMaxFrameToFrameStepBeforePx": 1.7204,
+  "bodyCentroidMaxFrameToFrameStepAfterPx": 2.7204
  },
  "frames": [
   {
@@ -380,7 +380,7 @@
     "y": 120
    },
    "measuredGroundRow": 120,
-   "sourceAnchorExact": 61.364,
+   "sourceAnchorExact": 61.2534,
    "normalizationOffset": {
     "x": 1,
     "y": 0
@@ -390,10 +390,10 @@
     "y": 120
    },
    "measuredAfter": {
-    "x": 62.364,
+    "x": 62.2534,
     "y": 120
    },
-   "residualPx": 0.364
+   "residualPx": 0.2534
   },
   {
    "file": "tree/frame-17.png",
@@ -402,7 +402,7 @@
     "y": 120
    },
    "measuredGroundRow": 120,
-   "sourceAnchorExact": 61.218,
+   "sourceAnchorExact": 61.0831,
    "normalizationOffset": {
     "x": 1,
     "y": 0
@@ -412,21 +412,21 @@
     "y": 120
    },
    "measuredAfter": {
-    "x": 62.218,
+    "x": 62.0831,
     "y": 120
    },
-   "residualPx": 0.218
+   "residualPx": 0.0831
   },
   {
    "file": "tree/frame-18.png",
    "sourceAnchor": {
-    "x": 63,
+    "x": 62,
     "y": 120
    },
    "measuredGroundRow": 121,
-   "sourceAnchorExact": 62.5998,
+   "sourceAnchorExact": 62.4773,
    "normalizationOffset": {
-    "x": -1,
+    "x": 0,
     "y": 0
    },
    "normalizedAnchor": {
@@ -434,12 +434,12 @@
     "y": 120
    },
    "measuredAfter": {
-    "x": 61.5998,
+    "x": 62.4773,
     "y": 121
    },
-   "residualPx": 0.4002
+   "residualPx": 0.4773
   }
  ],
- "encodedBytes": 32569,
+ "encodedBytes": 32959,
  "decodedRgbaBytes": 1245184
 }

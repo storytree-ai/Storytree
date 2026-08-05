@@ -28,6 +28,7 @@ interface DecodedPng {
   readonly height: number;
   readonly bitDepth: number;
   readonly colourType: number;
+  readonly rgba: Uint8Array;
   readonly alpha: Uint8Array;
 }
 
@@ -105,7 +106,64 @@ function decodePng(bytes: Uint8Array): DecodedPng {
 
   const alpha = new Uint8Array(width * height);
   for (let i = 0; i < width * height; i += 1) alpha[i] = out[i * bpp + 3]!;
-  return { width, height, bitDepth, colourType, alpha };
+  return { width, height, bitDepth, colourType, rgba: out, alpha };
+}
+
+type Rgb = readonly [number, number, number];
+
+function findFoliageBands(value: unknown): readonly Rgb[] | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const record = value as Record<string, unknown>;
+  const bands = record['foliageBands'];
+  if (
+    Array.isArray(bands) &&
+    bands.every(
+      (band) =>
+        Array.isArray(band) &&
+        band.length === 3 &&
+        band.every((channel) => typeof channel === 'number'),
+    )
+  ) {
+    return bands as unknown as readonly Rgb[];
+  }
+  for (const child of Object.values(record)) {
+    const nested = findFoliageBands(child);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
+function codeBlenderFoliageBands(): readonly Rgb[] {
+  const manifest = manifestOf(chapter2Round3TreeCandidate('code-blender'));
+  const shippedBands = findFoliageBands(manifest);
+  if (shippedBands) return shippedBands;
+
+  // The shipped manifest identifies the authoring source; its registration records the exact
+  // palette family used by the raster back half. Follow that declaration instead of copying
+  // colour literals into this independently implemented pixel proof.
+  const researchDir = manifest['researchDir'];
+  if (typeof researchDir !== 'string') throw new Error('code-blender lost its palette source');
+  const authorRegistration = JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL(`../../../${researchDir}/frames/registration.json`, import.meta.url)),
+      'utf8',
+    ),
+  ) as Record<string, unknown>;
+  const sourceBands = findFoliageBands(authorRegistration);
+  if (!sourceBands) throw new Error('code-blender palette source lost its foliage bands');
+  return sourceBands;
+}
+
+function countFoliagePixels(png: DecodedPng, bands: readonly Rgb[]): number {
+  let count = 0;
+  for (let i = 0; i < png.width * png.height; i += 1) {
+    if (png.rgba[i * 4 + 3]! <= 200) continue;
+    const r = png.rgba[i * 4]!;
+    const g = png.rgba[i * 4 + 1]!;
+    const b = png.rgba[i * 4 + 2]!;
+    if (bands.some((band) => r === band[0] && g === band[1] && b === band[2])) count += 1;
+  }
+  return count < 7 ? 0 : count;
 }
 
 /**
@@ -259,6 +317,25 @@ describe('Chapter 2 round-3 hero-tree candidates', () => {
         }).toEqual(track.groundAnchor);
       }
       expect(worstResidual).toBeCloseTo(candidate.anchorRule.maxAnchorResidualPx, 4);
+    }
+  });
+
+  it('ships the owner-picked code-blender staging boundary as bare wood before the leaf flush', () => {
+    const track = heroTree(chapter2Round3TreeCandidate('code-blender'));
+    const bands = codeBlenderFoliageBands();
+    const foliage = track.frames.map((frame) => {
+      const path = fileURLToPath(new URL(frame.modulePath, import.meta.url));
+      return countFoliagePixels(decodePng(new Uint8Array(readFileSync(path))), bands);
+    });
+
+    // Match the author-side classifier's explicit noise floor: fewer than seven pixels is
+    // quantisation noise from shaded bark, not a canopy. The proof itself reads shipped RGBA.
+    expect(foliage.slice(0, 7)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+    expect(foliage.findIndex((count) => count > 0)).toBe(7);
+    for (let frame = 8; frame < foliage.length; frame += 1) {
+      expect(foliage[frame], `frame ${frame} foliage`).toBeGreaterThanOrEqual(
+        foliage[frame - 1]!,
+      );
     }
   });
 

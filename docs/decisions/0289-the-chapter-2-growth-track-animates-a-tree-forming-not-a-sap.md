@@ -146,9 +146,11 @@ purchase remains an owner action.
   v5 discharged. That is an observation, not a recommendation and not a ratification; `fixed` still
   ships as the default of an undecided fork. Evidence:
   `docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/README.md` §5, and
-  `framing-fork.png` — both now stand on the v8 frames, whose two changes are canopy-only and leave
-  the wood phase this fork turns on untouched, so the reading above is unmoved; the earlier
-  renderings and section numbering are recoverable from git.
+  `framing-fork.png`.
+  **Corrected in place 2026-08-06 (ADR-0139); the decision remains unchanged.** The README now
+  stands on the v9 frames while `framing-fork.png` deliberately remains the v8 rendering. Both v8
+  and v9 are canopy-only changes and leave the wood phase this fork turns on untouched, so the
+  reading above is unmoved; the earlier renderings and section numbering are recoverable from git.
 
 **Bad, or at least owed.**
 
