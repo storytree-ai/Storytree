@@ -1,3 +1,12 @@
+// ⚠ UNWIRED — part of retired `check:friction-drain`, which ADR-0311 D2 removed from the gate on
+// 2026-08-05. This module is the ceiling core; its entrypoint `check-friction-drain.ts` is
+// invoked by nothing, and it is reached only from there and from its own tests — so those tests
+// stay GREEN while it enforces NOTHING. Kept deliberately (ADR-0311 D5), not forgotten; re-wiring
+// needs fresh production-catch evidence AND an ADR, never just the wiring.
+// Tombstone: `RETIRED_CHECKS` in `gate-order.ts`, pinned by `gate-order.test.ts`.
+//
+// What follows is retained as written — read it as what this DID, not as current gate policy.
+//
 // The friction-drain ceiling — the PURE, DB-free core of `check:friction-drain` (ADR-0168 D4).
 //
 // ADR-0168's load-bearing lesson (Context): a WARN-backed worklist with no drain OBLIGATION rots —

@@ -1,5 +1,17 @@
-// The friction-drain ceiling gate (ADR-0168 D4), wired into `pnpm gate` AND — since ADR-0302 D3 —
-// into CI's `verify` job.
+// ⚠ UNWIRED — `check:friction-drain` was RETIRED from the gate by ADR-0311 D2 (2026-08-05), and NOTHING
+// invokes this file: it appears in no root `package.json` script, no `GATE_PLAN` step
+// (`gate-order.ts`), and no CI job. Its own unit tests still run under `pnpm -r test`, so they
+// stay GREEN while this enforces NOTHING — a passing test here is not evidence that the rule
+// below is enforced anywhere.
+//
+// KEPT DELIBERATELY, not forgotten (ADR-0311 D5 — the implementations stay so re-wiring is
+// cheap). Re-adding it needs fresh production-catch evidence AND an ADR, never just the wiring.
+// Tombstone: `RETIRED_CHECKS` in `gate-order.ts`, pinned by `gate-order.test.ts`.
+//
+// The description below is retained as written; read it as what this check DID, not as current
+// gate policy.
+// The friction-drain ceiling gate (ADR-0168 D4). It WAS wired into `pnpm gate` and — from ADR-0302
+// D3 — into CI's `verify` job; ADR-0311 D2 removed it from both.
 //
 // ADR-0168's load-bearing lesson: a WARN-backed worklist with no drain OBLIGATION rots. So unlike its
 // sibling advisory checks (`check:corpus-sync` / `check:corpus-content` / `check:agents-sync`, all

@@ -131,12 +131,10 @@ export interface GatePlanStep extends GateStep {
  *   unproven-seam-default; without it vacuous filters, skipped tests credited as proof, and
  *   fake-only defaults can ship.
  *
- * TOMBSTONE (bounded). ADR-0302 had already removed check:agents-sync, check:corpus-sync, and
- * check:corpus-content. This audit removes check:manifest, check:process-graph, check:test-timing,
- * check:web-experience, check:declared, check:friction-drain, check:arc-proposal-drain,
- * check:coverage, check:surface-coverage, check:graduation-worklist, check:node-version,
- * check:dist-drift, and check:deploy-health. These are the complete 16 original deletions: three
- * prior and thirteen from this audit. No surviving rung was weakened and no ceiling was raised.
+ * TOMBSTONE (bounded). The complete 16 original deletions — three by ADR-0302 and thirteen by this
+ * audit — are DECLARED in {@link RETIRED_CHECKS} below rather than recited here, because twelve of
+ * them left source behind and prose cannot be held to that source. No surviving rung was weakened
+ * and no ceiling was raised.
  */
 export const GATE_PLAN: readonly GatePlanStep[] = [
   // ── A. own-work, seconds ───────────────────────────────────────────────────
@@ -216,6 +214,114 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
 export const NON_GATE_CHECK_SCRIPTS: ReadonlyMap<string, string> = new Map([
   ["check:claude", "a back-compat alias for `check:guidance`, which the plan already runs"],
 ]);
+
+/** One retired rung: the decision that retired it, and the source it left behind. */
+export interface RetiredCheck {
+  /** The decision that retired it, e.g. `"ADR-0311 D2"`. */
+  readonly retiredBy: string;
+  /**
+   * Surviving files under `packages/cli/src/`, ENTRYPOINT FIRST — empty when the check was deleted
+   * outright. A file may appear under more than one check when they shared it.
+   */
+  readonly sources: readonly string[];
+}
+
+/**
+ * THE TOMBSTONE, DECLARED — the 16 rungs the gate no longer runs, and the source each left behind.
+ *
+ * WHY THIS IS A LITERAL AND NOT A COMMENT. ADR-0311 kept the retired implementations on purpose
+ * (D5: re-wiring stays cheap) and named the price in its own Consequences: it "leaves discoverable
+ * code whose unwired status must not be mistaken for a forgotten gate rung." That price was left
+ * unpaid. Twelve of the sixteen left source behind — 23 files that still compile, still carry
+ * confident headers, and whose own unit tests still run GREEN under `pnpm -r test` while enforcing
+ * NOTHING. A session grepping for the rule finds a complete, tested, plausible fence and concludes
+ * it is enforced. That already happened one layer up: the `test-creation-principles` artifact
+ * asserted the wall-clock rule was "enforced rather than merely advised" by `check:test-timing` a
+ * full day after it was retired. This is the same defect the gate exists to refuse — believing
+ * something is watching when nothing is.
+ *
+ * So the inventory is DATA, and `gate-order.test.ts` holds the repo to it three ways: no retired
+ * name may reappear as a root script unnoticed, every file named here must carry the `UNWIRED`
+ * banner, and every check-shaped source file must be either wired or listed here. A new orphan
+ * cannot be introduced silently, and a re-wiring cannot leave a stale banner behind.
+ *
+ * A NAME HERE IS HISTORY, NOT POLICY. Re-adding any of these needs fresh production-catch evidence
+ * and an ADR (D5) — never merely the wiring.
+ */
+export const RETIRED_CHECKS: ReadonlyMap<string, RetiredCheck> = new Map<string, RetiredCheck>([
+  // ── retired by ADR-0302 D4: deleted outright, no source survives ────────────
+  ["check:agents-sync", { retiredBy: "ADR-0302 D4", sources: [] }],
+  ["check:corpus-sync", { retiredBy: "ADR-0302 D4", sources: [] }],
+  ["check:corpus-content", { retiredBy: "ADR-0302 D4", sources: [] }],
+
+  // ── retired by ADR-0311 D2 ─────────────────────────────────────────────────
+  ["check:manifest", { retiredBy: "ADR-0311 D2", sources: [] }],
+  ["check:process-graph", { retiredBy: "ADR-0311 D2", sources: ["check-process-graph.ts"] }],
+  [
+    "check:test-timing",
+    {
+      retiredBy: "ADR-0311 D2",
+      sources: ["check-test-timing.ts", "test-timing-gate.ts", "test-timing-drain.ts"],
+    },
+  ],
+  ["check:web-experience", { retiredBy: "ADR-0311 D2", sources: ["web-experience-check.ts"] }],
+  ["check:declared", { retiredBy: "ADR-0311 D2", sources: ["check-declared.ts"] }],
+  [
+    "check:friction-drain",
+    {
+      retiredBy: "ADR-0311 D2",
+      sources: ["check-friction-drain.ts", "friction-drain.ts", "db-required.ts"],
+    },
+  ],
+  [
+    "check:arc-proposal-drain",
+    {
+      retiredBy: "ADR-0311 D2",
+      sources: ["check-arc-proposal-drain.ts", "arc-proposal-drain.ts", "db-required.ts"],
+    },
+  ],
+  [
+    "check:coverage",
+    {
+      retiredBy: "ADR-0311 D2",
+      // NOT `coverage.ts` — that one stays LIVE behind the `storytree` coverage verb (`commands.ts`).
+      sources: ["check-coverage.ts", "coverage-gate.ts", "coverage-drain.ts"],
+    },
+  ],
+  [
+    "check:surface-coverage",
+    {
+      retiredBy: "ADR-0311 D2",
+      sources: [
+        "check-surface-coverage.ts",
+        "surface-coverage-gate.ts",
+        "surface-coverage-drain.ts",
+        "db-required.ts",
+      ],
+    },
+  ],
+  [
+    "check:graduation-worklist",
+    {
+      retiredBy: "ADR-0311 D2",
+      sources: ["check-graduation-worklist.ts", "graduation-drain.ts"],
+    },
+  ],
+  ["check:node-version", { retiredBy: "ADR-0311 D2", sources: ["check-node-version.ts"] }],
+  ["check:dist-drift", { retiredBy: "ADR-0311 D2", sources: ["check-dist-drift.ts"] }],
+  [
+    "check:deploy-health",
+    { retiredBy: "ADR-0311 D2", sources: ["check-deploy-health.ts", "deploy-health.ts"] },
+  ],
+]);
+
+/**
+ * The banner every surviving retired source must carry, and the token the test greps for.
+ *
+ * Deliberately a bare ASCII word rather than a decorated string: it has to survive reformatting and
+ * be greppable by a session that does not know this module exists.
+ */
+export const UNWIRED_MARKER = "UNWIRED";
 
 /**
  * The seconds-cost steps that MUST run BEFORE {@link EXPENSIVE_STEPS} — axis 1.

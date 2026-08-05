@@ -1,4 +1,17 @@
-// OFFLINE wall-clock fence over gate-tier test files (ADR-0276 D3), wired into `pnpm gate` AND CI.
+// ⚠ UNWIRED — `check:test-timing` was RETIRED from the gate by ADR-0311 D2 (2026-08-05), and NOTHING
+// invokes this file: it appears in no root `package.json` script, no `GATE_PLAN` step
+// (`gate-order.ts`), and no CI job. Its own unit tests still run under `pnpm -r test`, so they
+// stay GREEN while this enforces NOTHING — a passing test here is not evidence that the rule
+// below is enforced anywhere.
+//
+// KEPT DELIBERATELY, not forgotten (ADR-0311 D5 — the implementations stay so re-wiring is
+// cheap). Re-adding it needs fresh production-catch evidence AND an ADR, never just the wiring.
+// Tombstone: `RETIRED_CHECKS` in `gate-order.ts`, pinned by `gate-order.test.ts`.
+//
+// The description below is retained as written; read it as what this check DID, not as current
+// gate policy.
+// OFFLINE wall-clock fence over gate-tier test files (ADR-0276 D3). It WAS wired into `pnpm gate`
+// and CI; ADR-0311 D2 removed it from both.
 //
 // A wall-clock duration is never a gate-tier assertion (ADR-0276). Increments 1+2 fixed the two
 // classes that were actually redding gates — the routing `elapsed < 2000` bound went behind
@@ -13,7 +26,7 @@
 // evidence, and both baselines live in the pure `test-timing-drain.ts`; this shell prints and sets
 // the exit code.
 //
-// PLACED CHEAP-FIRST, ahead of `pnpm -r test` in the gate chain (`gate-order.ts`): it is a static
+// WAS PLACED CHEAP-FIRST, ahead of `pnpm -r test` in the gate chain (`gate-order.ts`): it is a static
 // file scan costing seconds, and its answer does not depend on the suite passing. Behind the
 // minutes it would tell a session at minute ten what was knowable at second forty — and this
 // particular check exists because of gate runs that cost 9–42 minutes to nobody's benefit.
