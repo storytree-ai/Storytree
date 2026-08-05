@@ -563,10 +563,16 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // permanently under-claims one. Emits nothing, so no coverage constant moves; the query-render append
   // and the index export are glue (ADR-0158), claimed by no `real:` arm.
   assert.match(bare.body, /REAL-buildable nodes: .*camera-rasterisation-probe/);
-  const catalogWithoutCameraProbe = bare.body.replace(
-    /(REAL-buildable nodes:[^\n]*builder-role), camera-rasterisation-probe/,
-    '$1',
-  );
+  assert.match(bare.body, /REAL-buildable nodes: .*arc-explicit-id-fidelity/);
+  const catalogWithoutCameraProbe = bare.body
+    .replace(
+      /(REAL-buildable nodes:[^\n]*builder-role), camera-rasterisation-probe/,
+      '$1',
+    )
+    .replace(
+      /(REAL-buildable nodes:[^\n]*app-surface-world-view), arc-explicit-id-fidelity/,
+      "$1",
+    );
   assert.match(
     catalogWithoutCameraProbe,
     /REAL-buildable nodes: +accept-reject-suggestion-api, act2-beat-director, agent-ref-descent, ambient-integration, app-surface-world-view, artifact-offer-candidate-sets, auto-grow-input, backend-chat-reset-route, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, brokered-local-uat-signing, build-spawn-capture, builder-role, change-event-store, change-store-pg, chat-panel, chat-sse-mount, claim-store-work-time, cloud-sql-admin-rest, coalesced-camera-pan, collapsed-suggestion-view, colour-by-subagent, compose-build-command, compositor-pan-transform, context-traversal-capture, context-traversal-telemetry, credential-broker, criterion-detail-hash-anchor, criterion-detail-pointer, decision-point-playback, declared-edge-drift-report, deploy-health-signal, desktop-build-route, desktop-launch-preconditions, dogfood-probe-mrfuze9m, drift-reads-store, event-sourced-store-seam, experience-rollout-guardrails, gate-emits-change, graduation-park-lease, hosted-story-landlord-rule, hud-chrome, independent-judge-seam, inline-comment-thread, judge-result-shape, leaf-slice-spawn-observations, leaf-slices-observer-activation, leaf-tool-surface, library-adr-wire-signals, library-category-shelf, library-dag-acyclic-core, library-dag-canvas, library-dive-body, library-drawer-shell, library-finder, library-lifecycle-shelf, library-lifecycle-wire, library-open-overlay, library-open-trigger, library-overview, library-permanent-lens, library-process-flow, library-retire-standalone-page, library-selection-card, library-top-drawer, library-typed-edges, live-author-accounting-override, local-backend-boot, local-credential-wiring, map-boot-independence, map-build-seeds-terminal, map-payload-cache, map-route-retention, map-server-memo, member-suggest-write-policy, model-eligibility-registry, model-escalation-ladder, model-judged-uat, model-runtime-seam, model-tier-classification, model-uat-pilot, model-uat-witness, multi-adapter-replay, multi-session-tabs, multi-turn-transcript, node-resolve-report, noticeboard-cli, offer-follow-edges, offer-observability-share, organic-growth-app-witness, orientation-runner-telemetry, owned-turn-loop, packages-forward-refusal, pilot-criteria-classified, pilot-detail-seed, pilot-migration-harness, pixellab-organic-growth-tracks, pty-session-manager, r3f-world-spike, render-claim-as-wisp, repo-picker-panel, repo-selection, review-mode-toggle, review-refresh-feed, revisit-link-metadata, routed-node-real-dispatch, seed-corpus-scripts, seed-opens-new-tab, semantic-growth-replay-view, semantic-growth-studio-demo, shared-forest-connection, source-drift, spine-judge-validation, story-author-detail-authority, studio-app-surface-adapter, suggestion-edit-store, svg-island-growth-track, take-claim-at-spawn, terminal-boundary-observations, terminal-capture-activation, terminal-dock-panel, terminal-repo-gate, three-kind-witness, transcript-occupancy-extraction, transcript-occupancy-ingest, transcript-reset, transcript-session-correlation, traversal-event-vocabulary, traversal-session-query, traversal-trace-sink, tree-view, uat-bound-command-adoption, uat-criterion-detail, uat-criterion-library-surface, uat-detail-kind, uat-detail-studio, uat-machine-gate-resolution, uat-machine-proof-binding, uat-row-one-liner, uat-row-opens-detail, verdict-glyphs, verdict-line, verified-attribution, web-experience-sync, witnessable-verdict, worker-relocation, write-broker/,
@@ -739,6 +745,17 @@ test("node resolve on library-cli shows source=spec but NOT real-buildable (the 
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /buildable: +yes — source: spec/);
   assert.match(env.body, /REAL-buildable: no/);
+});
+
+test("node resolve on arc-explicit-id-fidelity shows its focused REAL proof", async () => {
+  const env = await run(["node", "resolve", "arc-explicit-id-fidelity"], deps);
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /buildable: +yes — source: spec/);
+  assert.match(env.body, /REAL-buildable: yes/);
+  assert.match(env.body, /test file: +packages\/cli\/src\/cli\.test\.ts/);
+  assert.match(env.body, /source file: +packages\/cli\/src\/arc\.ts/);
+  assert.match(env.body, /edits source: +true/);
+  assert.match(env.body, /proof cmd: +pnpm --filter @storytree\/cli test/);
 });
 
 test("node resolve on a non-buildable node fails closed, naming BOTH routes out", async () => {

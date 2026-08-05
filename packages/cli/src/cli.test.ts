@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { InMemoryStore } from "@storytree/storage-protocol";
+import { InMemoryStore, type DeleteDocOpts, type Store, type StoredDoc, type StoreEvent } from "@storytree/storage-protocol";
 import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import { run } from "./commands.js";
@@ -762,6 +762,72 @@ test("arc list --all / --closed parse as flags and widen the default worklist (A
   const closed = await run(["arc", "list", "--closed", "--pg"], { store, writable: true });
   assert.equal(closed.ok, true, closed.body);
   assert.match(closed.body, /shipped-arc/);
+});
+
+/**
+ * A {@link Store} wrapper that counts `getDoc` calls and delegates everything else to a real
+ * {@link InMemoryStore}. Exists so a test can prove a refusal happened BEFORE any store read — the
+ * clash-check `getDoc` inside `arcNew` — without that proof being contaminated by the test's OWN
+ * verification reads afterward, which go through `queryDocs` (a distinct, uncounted method) instead.
+ */
+class GetDocCountingStore implements Store {
+  #inner: InMemoryStore;
+  getDocCalls = 0;
+  constructor(inner: InMemoryStore) {
+    this.#inner = inner;
+  }
+  async getDoc(id: string): Promise<StoredDoc | null> {
+    this.getDocCalls += 1;
+    return this.#inner.getDoc(id);
+  }
+  upsertDoc(input: { id: string; kind: string; doc: unknown; actor?: string }): Promise<StoredDoc> {
+    return this.#inner.upsertDoc(input);
+  }
+  queryDocs(filter?: { kind?: string }): Promise<StoredDoc[]> {
+    return this.#inner.queryDocs(filter);
+  }
+  deleteDoc(id: string, opts?: DeleteDocOpts): Promise<boolean> {
+    return this.#inner.deleteDoc(id, opts);
+  }
+  appendEvent(e: {
+    id: string;
+    kind: string;
+    type: "created" | "updated" | "deleted";
+    doc: unknown;
+    actor?: string;
+  }): Promise<StoreEvent> {
+    return this.#inner.appendEvent(e);
+  }
+  readEvents(filter?: { id?: string }): Promise<StoreEvent[]> {
+    return this.#inner.readEvents(filter);
+  }
+}
+
+test("arc-explicit-id-refuses-lossy-cap: arc new refuses an explicit id whose normalised form exceeds the 60-char cap, before any store read", async () => {
+  const counting = new GetDocCountingStore(new InMemoryStore());
+  // 61 lowercase letters — already in normalised form (no case/punctuation to collapse), so its
+  // normalised length is exactly 61: one character past the cap that `kebabSlug` would otherwise
+  // silently slice away, letting creation continue under a DIFFERENT, truncated id.
+  const longId = "a".repeat(61);
+
+  const env = await run(
+    ["arc", "new", longId, "--title", "T", "--intent", "i", "--end-state", "e", "--pg"],
+    { store: counting, writable: true },
+  );
+
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /60/, "the refusal names the cap it exceeded");
+  // The refusal happens BEFORE the clash-check store read — a lossy id is rejected pre-store, not
+  // merely pre-write. Asserted on the counted method only; the check below uses queryDocs instead so
+  // it cannot itself inflate this count.
+  assert.equal(
+    counting.getDocCalls,
+    0,
+    "arc new must refuse a lossy explicit id before touching the store at all",
+  );
+  // And nothing was written under either the 61-char id or its silently-truncated 60-char form.
+  const written = await counting.queryDocs({ kind: "arc" });
+  assert.equal(written.length, 0, "no arc was created under a truncated id");
 });
 
 // ---- `library artifact <id> --raw <field>` — the bare-bytes read (proposal
