@@ -1,3 +1,15 @@
+// ⚠ UNWIRED — `check:node-version` was RETIRED from the gate by ADR-0311 D2 (2026-08-05), and NOTHING
+// invokes this file: it appears in no root `package.json` script, no `GATE_PLAN` step
+// (`gate-order.ts`), and no CI job. Its own unit tests still run under `pnpm -r test`, so they
+// stay GREEN while this enforces NOTHING — a passing test here is not evidence that the rule
+// below is enforced anywhere.
+//
+// KEPT DELIBERATELY, not forgotten (ADR-0311 D5 — the implementations stay so re-wiring is
+// cheap). Re-adding it needs fresh production-catch evidence AND an ADR, never just the wiring.
+// Tombstone: `RETIRED_CHECKS` in `gate-order.ts`, pinned by `gate-order.test.ts`.
+//
+// The description below is retained as written; read it as what this check DID, not as current
+// gate policy.
 // Node-version drift check (ADR-0250 follow-on), wired into `pnpm gate`.
 //
 // The root `package.json` declares `engines.node: ">=24"` and CI runs Node 24, but pnpm does NOT

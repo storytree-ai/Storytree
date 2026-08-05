@@ -89,12 +89,17 @@ truth about available imports.
   `package.json` / `pnpm-lock.yaml` are unwritable in every phase. V1's slow-growth rule carries
   forward: a new dependency is explicit story work, never a leaf's workaround. The brief says so.
 - **The package regression suite guards promotion** (V1's full-workspace baseline, adapted to
-  package grain): for installed worktrees, after the signed pass the spine re-observes the node's
-  registered package suite in the worktree (same honesty floor: exit code only, `NODE_TEST*`
-  scrubbed). A red suite keeps the promotion branch **local-only** (preserved for forensics,
-  never pushed as a landing candidate) — a green leaf must not break its package. The verdict
-  itself stands either way: it attests the node's proof, not the package's; the suite gates
-  *landing*, not *truth*.
+  package grain): for installed worktrees the spine re-observes the node's registered package suite
+  in the worktree (same honesty floor: exit code only, `NODE_TEST*` scrubbed). A red suite keeps the
+  promotion branch **local-only** (preserved for forensics, never pushed as a landing candidate) —
+  a green leaf must not break its package.
+  **AMENDED 2026-08-06 by [ADR-0315](0315-a-verdict-is-never-signed-ahead-of-its-package-backstop.md)
+  — the clause "the verdict itself stands either way; the suite gates *landing*, not *truth*" is
+  REVERSED for the per-node observation.** The typecheck + suite now run inside phase GATE, before
+  the signing append, and a red REFUSES the verdict fail-closed: a signed PASS may never out-run the
+  package observation that backs it. The wall described here survives as the CHAIN-END push gate over
+  the stacked HEAD, where "gates landing, not truth" is still exactly right — that one observes a
+  whole stack, not the single commit any one verdict attests.
 - Builtins-only (no-install) targets remain the default and skip the regression run — their proof
   command is their package surface.
 - Windows mechanics: `pnpm` is a `.cmd` shim `execFile` cannot spawn; `platformShellCommand`

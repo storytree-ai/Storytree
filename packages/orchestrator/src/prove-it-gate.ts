@@ -122,7 +122,31 @@ export interface ProveSpec {
    * with nothing to check against must not invent an expectation.
    */
   expectedRed?: ExpectedRed;
+  /**
+   * `sign-after-typecheck` (optional): the package-level backstop this verdict must not out-run —
+   * in a REAL build, the installed worktree's package typecheck plus its regression suite, observed
+   * over the very commit about to be attested. The gate runs it inside GATE, AFTER the cheap
+   * refusals (clean tree, resolved signer) and BEFORE the signing append, and a red outcome refuses
+   * fail-closed like any other GATE refusal — so NO signing row is written at all.
+   *
+   * That ordering is the whole point. The backstop used to run after the signature (single node) or
+   * once at the stacked HEAD (story chain), and a red withheld only the PUSH, which left
+   * `events.verdict` free to hold a signed PASS over code the repo's own typecheck rejects. `main`
+   * was never at risk (CI re-proves, ADR-0022); the SIGNED HISTORY was, and that is the artifact the
+   * proof spine exists to make trustworthy.
+   *
+   * DEFAULT-ABSENT ⇒ zero behaviour change: dry-run / live-smoke walks and every node with no
+   * installed worktree carry no backstop, and a gate with nothing to observe must not invent one.
+   */
+  backstop?: () => Promise<BackstopOutcome>;
 }
+
+/**
+ * The outcome of {@link ProveSpec.backstop}: green, or a red carrying the reason the GATE refusal
+ * quotes verbatim. Deliberately NOT a red/green observation type — the backstop is a precondition
+ * on signing, never evidence in the verdict (the two spine observations remain the only evidence).
+ */
+export type BackstopOutcome = { ok: true } | { ok: false; reason: string };
 
 /** The result of {@link proveUnit}: a signed pass, or a fail-closed refusal with the phase it died at. */
 export type ProveResult =
@@ -237,6 +261,21 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   const signer = resolveSigner(spec.signerInputs);
   if (!signer.ok) {
     return fail("GATE", `no signer resolved: ${signer.error}`, visited);
+  }
+
+  // `sign-after-typecheck`: the verdict must never out-run its backstop. Placed AFTER the two cheap
+  // refusals above — a dirty tree or an unresolved signer still refuses without paying for a
+  // package typecheck — and BEFORE the append below, so a red backstop leaves no signing row at all.
+  // The proof run is tsx-driven (types stripped), so this is the only observation that sees
+  // type-illegal code; a red here is not "withhold the push", it is "this is not proven".
+  const backstop = await spec.backstop?.();
+  if (backstop !== undefined && !backstop.ok) {
+    return fail(
+      "GATE",
+      `backstop RED: ${backstop.reason}; a Pass signed ahead of its backstop attests code the ` +
+        `repo's own checks reject`,
+      visited,
+    );
   }
 
   // ADR-0127: the per-contract coverage axis, computed lazily HERE (the test file is on disk and

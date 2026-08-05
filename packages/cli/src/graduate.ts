@@ -720,9 +720,9 @@ export function parkCommand(items: readonly ParkItem[], deps: ParkDeps): Envelop
   return {
     ok: true,
     body,
-    next: [
-      "storytree library graduate   (the worklist — parked items now silenced)",
-      "pnpm check:graduation-worklist   (the gate nudge)",
-    ],
+    // NOT `pnpm check:graduation-worklist` — ADR-0311 D2 retired that rung and the root script no
+    // longer exists, so suggesting it hands the operator a command that fails. The worklist verb
+    // below is the surviving surface (ADR-0311 D4: the obligation stands, the gate rung does not).
+    next: ["storytree library graduate   (the worklist — parked items now silenced)"],
   };
 }

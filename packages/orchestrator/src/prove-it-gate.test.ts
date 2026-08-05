@@ -424,6 +424,83 @@ test("(m) the coverage seam is NEVER consulted when the walk fails before GATE (
   assert.equal(await signingRows(store), 0);
 });
 
+// ── (n)–(r) `sign-after-typecheck`: the verdict never out-runs its backstop ───────────────────────
+// A signed PASS is the durable claim "this commit passes". Until now the package typecheck +
+// regression suite that backs that claim ran AFTER the signature (single node) or once at the
+// stacked HEAD (chain), and a red withheld only the PUSH — leaving `events.verdict` free to hold a
+// signed PASS over code the repo's own typecheck rejects. The backstop is now a GATE seam: it runs
+// before the signing append, and a red refuses fail-closed like any other GATE refusal.
+
+test("(n) a RED backstop refuses at GATE and writes NO signing row (the verdict never out-runs it)", async () => {
+  const { spec, store } = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  spec.backstop = async () => ({ ok: false, reason: "package typecheck RED in the worktree" });
+
+  const result = await proveUnit(spec);
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.failedAt, "GATE");
+  assert.match(result.reason, /package typecheck RED in the worktree/);
+  assert.equal(await signingRows(store), 0, "a red backstop leaves NO signed verdict behind");
+});
+
+test("(o) a GREEN backstop signs exactly once (the pass path is unchanged)", async () => {
+  const { spec, store } = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  let ran = 0;
+  spec.backstop = async () => {
+    ran += 1;
+    return { ok: true };
+  };
+
+  const result = await proveUnit(spec);
+
+  assert.equal(result.ok, true);
+  assert.equal(ran, 1, "the backstop is consulted exactly once per walk");
+  assert.equal(await signingRows(store), 1);
+});
+
+test("(p) no backstop seam => unchanged behaviour (every dry-run / non-install caller)", async () => {
+  const { spec, store } = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  // no backstop set — a pre-`sign-after-typecheck` caller, or a node with no installed worktree.
+  const result = await proveUnit(spec);
+  assert.equal(result.ok, true);
+  assert.equal(await signingRows(store), 1);
+});
+
+test("(q) the backstop is NEVER paid for when a cheaper GATE refusal already fires (dirty tree, no signer)", async () => {
+  let ran = 0;
+  const counting = async (): Promise<{ ok: true }> => {
+    ran += 1;
+    return { ok: true };
+  };
+
+  const dirty = freshSpec({ observations: [RED, GREEN], tree: DIRTY, signerInputs: SIGNER });
+  dirty.spec.backstop = counting;
+  const dirtyResult = await proveUnit(dirty.spec);
+  assert.equal(dirtyResult.ok, false);
+
+  const unsigned = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: {} });
+  unsigned.spec.backstop = counting;
+  const unsignedResult = await proveUnit(unsigned.spec);
+  assert.equal(unsignedResult.ok, false);
+
+  assert.equal(ran, 0, "a dirty tree or an unresolved signer refuses without spending a typecheck");
+});
+
+test("(r) the backstop is NEVER consulted when the walk dies before GATE", async () => {
+  // A forged green at CONFIRM_RED aborts the walk — nothing downstream may spend.
+  const { spec, store } = freshSpec({ observations: [GREEN, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  let ran = 0;
+  spec.backstop = async () => {
+    ran += 1;
+    return { ok: true };
+  };
+  const result = await proveUnit(spec);
+  assert.equal(result.ok, false);
+  assert.equal(ran, 0);
+  assert.equal(await signingRows(store), 0);
+});
+
 // ── gitTreeState typechecks + is constructible (NOT exercised against a live tree here) ──────────
 
 test("gitTreeState returns a callable treeState seam (constructible; not run against a live tree)", () => {

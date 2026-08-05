@@ -197,12 +197,9 @@ describe('a failed doc index is reported, and never blanks the map', () => {
     render(<App />);
 
     // The fence (stage 4's contract): the map reads nothing from this payload and must paint anyway.
-    await waitFor(
-      () => {
-        expect(uniqueTerritoryIds()).toEqual(['alpha']);
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expect(uniqueTerritoryIds()).toEqual(['alpha']);
+    });
     expect(screen.getByTestId('tree-route')).toBeTruthy();
     // …and the old blanket corpus error box stays gone — no shared readiness gate came back.
     expect(screen.queryByText(/Couldn.t reach the studio data API/i)).toBeNull();
@@ -242,7 +239,7 @@ describe('a doc reference is only called unknown once the index can answer', () 
 
     render(<App />);
 
-    const route = await screen.findByTestId('library-route', {}, { timeout: 5000 });
+    const route = await screen.findByTestId('library-route');
     await waitFor(() => {
       expect(within(route).getByText(/the document index failed to load/i)).toBeTruthy();
     });
@@ -259,7 +256,7 @@ describe('a doc reference is only called unknown once the index can answer', () 
 
     render(<App />);
 
-    const route = await screen.findByTestId('library-route', {}, { timeout: 5000 });
+    const route = await screen.findByTestId('library-route');
     await waitFor(() => {
       expect(within(route).getByText(/the document index is still loading/i)).toBeTruthy();
     });
@@ -285,7 +282,7 @@ describe('a doc reference is only called unknown once the index can answer', () 
 
     render(<App />);
 
-    const route = await screen.findByTestId('library-route', {}, { timeout: 5000 });
+    const route = await screen.findByTestId('library-route');
     await waitFor(() => {
       expect(within(route).getByText('decisions/0240-map.md').closest('a')).toBeTruthy();
     });

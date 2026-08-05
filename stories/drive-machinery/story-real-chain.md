@@ -40,14 +40,16 @@ and signed, so the whole story grows to signed verdicts in one dependency-ordere
 The change, no orchestrator code (the spine's `runStoryBuild`/`runSequence` are reused verbatim):
 
 - **`node-build.ts`** — the single-node REAL lifecycle is extracted into `buildNodeReal` (resolve →
-  `proveUnit` → spine commit → ADR-0031 backstop + promotion) and the two real-mode prechecks into
+  `proveUnit`, whose GATE now runs the ADR-0031 backstop BEFORE it signs (ADR-0315) → promotion) and the two real-mode prechecks into
   `realConfigRefusal`, both SHARED with the chain so `node build --real` and `story build --real`
   behave identically per node. `buildNodeReal` measures "nothing authored" against the node's
   `baseSha` (the HEAD it entered at), never the stale original worktree cut.
 - **`story-build.ts`** — the `--real` arm: ONE shared worktree for the whole chain (each node authors
   + the spine commits into it in dependency order, so a later node sees earlier nodes' committed
   source — a fresh-per-node worktree could not resolve intra-story deps); `buildNodeReal` per node
-  with `promote: false`; a `currentHead` accumulator advances on each pass. After the chain greens,
+  with `promote: false` (which since ADR-0315 defers PROMOTION only — each node still pays its own
+  pre-signature backstop inside its GATE, so no chained verdict is signed over a commit its package
+  rejects); a `currentHead` accumulator advances on each pass. After the chain greens,
   the proven chain is promoted ONCE at the stacked HEAD (`promoteRealPass`, ADR-0031) — every node's
   verdict commit is an ancestor of the one branch; land via a NON-SQUASH PR. `runStoryBuild` carries
   topo order + halt-is-never-a-pass + the total budget; `--store pg` and the UAT-withhold compose
@@ -60,7 +62,7 @@ spine-commit boundary, not spatial isolation); a stray out-of-scope file is wall
 and would show in the promoted PR diff. Install is story-grain (installed once iff ANY driven node
 declares install); a no-install node briefed "NO node_modules" while running in an installed worktree
 is a minor, SAFE honesty relaxation (the write wall, not the install boundary, is the real guard; the
-chain-end typecheck/regression + CI catch the rest).
+per-node pre-signature backstop, the chain-end typecheck/regression, and CI catch the rest).
 
 A `--real` story's UAT node has no `real:` arm (its proof is a UAT, not a test-file red→green): a
 human-witnessed story WITHHOLDS it (the capabilities are still real-built + promoted — the main
