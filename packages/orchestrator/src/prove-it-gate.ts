@@ -29,6 +29,7 @@ import type { SignerInputs } from "./proof/signer.js";
 
 import { advancePhase, nextPhase } from "./phase-machine.js";
 import type {
+  ExpectedRed,
   Phase,
   TestExecutor,
   TestObservation,
@@ -110,6 +111,17 @@ export interface ProveSpec {
    * DEFAULT-ABSENT ⇒ zero behaviour change: every pre-ADR-0048 caller omits it and is never called.
    */
   onPhase?: (phase: Phase) => void | Promise<void>;
+  /**
+   * `gate-the-right-kind-red` (optional): the kind of red this node DECLARES its CONFIRM_RED should
+   * be — `"structural"` for a net-new seam or an ADR-0098 R2 refactor, `"assertion"` for ADR-0057 C's
+   * `editsExisting`. When present, a MEASURED red of the wrong kind is refused fail-closed at
+   * CONFIRM_RED instead of advancing.
+   *
+   * Absent on every dry-run / live-smoke walk and every pre-ADR caller, so their behaviour is
+   * unchanged: those arms prove a SYNTHETIC pair with no node-declared shape behind it, and a gate
+   * with nothing to check against must not invent an expectation.
+   */
+  expectedRed?: ExpectedRed;
 }
 
 /** The result of {@link proveUnit}: a signed pass, or a fail-closed refusal with the phase it died at. */
@@ -157,11 +169,19 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   visited.push("CONFIRM_RED");
   await spec.onPhase?.("CONFIRM_RED");
   const redObs = await spec.testExecutor.run(spec.testId);
-  const redGate = nextPhase("CONFIRM_RED", redObs);
+  const redGate = nextPhase("CONFIRM_RED", redObs, spec.expectedRed);
   if (!redGate.ok) {
     // If the slice was exhausted AND no red landed, the actionable signal is "raise the ceiling and
     // retry", not just "not red" — preserve that context the fall-through would otherwise swallow.
-    return fail("CONFIRM_RED", redGate.reason + exhaustionNote(authorExhaustion, "a red test"), visited);
+    // A note is present when the observation was DOWNGRADED (a cleared/unattributable oracle report,
+    // ADR-0249), so surface it here for the same reason CONFIRM_GREEN does: the refusal should say
+    // WHY, not just "not red".
+    const redNote = redObs.note !== undefined ? ` — ${redObs.note}` : "";
+    return fail(
+      "CONFIRM_RED",
+      redGate.reason + redNote + exhaustionNote(authorExhaustion, "a red test"),
+      visited,
+    );
   }
 
   // ── Phase 3: IMPLEMENT ──────────────────────────────────────────────────

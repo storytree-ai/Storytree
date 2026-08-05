@@ -23,6 +23,82 @@ test("nextPhase: CONFIRM_RED rejects a green (a forged/early pass)", () => {
   assert.ok(!bad.ok && /requires an observed red/.test(bad.reason));
 });
 
+// ── The red must be the RIGHT KIND (`gate-the-right-kind-red`) ───────────────
+//
+// `nextPhase` gated on `obs.result === "red"` alone, so ANY red advanced CONFIRM_RED — a syntax
+// error in the fresh test, an unrelated pre-existing failure in scope, a timeout kill. The kind was
+// computed on every red and read in exactly one place: the evidence note. Derived, published, and
+// never allowed to refuse. These arm it against the node's DECLARED expectation — and only on a
+// MEASURED kind, because refusing real work on a text guess is not an improvement.
+
+/** A measured red of the given kind (the assert-oracle count basis — the only gated one). */
+const measuredRed = (kind: "compile" | "runtime"): TestObservation => ({
+  result: "red",
+  kind,
+  testId: "t1",
+  kindBasis: "oracle-count",
+});
+
+test("right-kind-red: a MEASURED structural red satisfies a net-new node and is refused for editsExisting", () => {
+  // net-new / refactorForTests declare `structural` — the missing symbol IS the point.
+  assert.deepEqual(nextPhase("CONFIRM_RED", measuredRed("compile"), "structural"), {
+    ok: true,
+    next: "IMPLEMENT",
+  });
+  // editsExisting declares `assertion`: a structural red means the test could not resolve what it
+  // imports, so a passing implementation would silence it without proving behaviour changed.
+  const bad = nextPhase("CONFIRM_RED", measuredRed("compile"), "assertion");
+  assert.equal(bad.ok, false);
+  assert.ok(!bad.ok && /observed a compile red/.test(bad.reason));
+  assert.ok(!bad.ok && /declares a assertion red \(runtime\)/.test(bad.reason));
+  assert.ok(!bad.ok && /WRONG red/.test(bad.reason));
+});
+
+test("right-kind-red: a MEASURED assertion red satisfies editsExisting and is refused for a net-new node", () => {
+  assert.deepEqual(nextPhase("CONFIRM_RED", measuredRed("runtime"), "assertion"), {
+    ok: true,
+    next: "IMPLEMENT",
+  });
+  const bad = nextPhase("CONFIRM_RED", measuredRed("runtime"), "structural");
+  assert.equal(bad.ok, false);
+  assert.ok(!bad.ok && /observed a runtime red/.test(bad.reason));
+  assert.ok(!bad.ok && /net-new seam/.test(bad.reason));
+});
+
+test("right-kind-red: an UNMEASURED (text-inferred) kind never refuses — the heuristic is not a gate", () => {
+  // THE false-refusal fence. `defaultClassifyKind` mis-read Node's own `Cannot find module` for as
+  // long as nothing consumed its answer, so a text guess must never be able to refuse real work: a
+  // wrong-kind text red advances exactly as it did before, in BOTH directions.
+  const textRed: TestObservation = {
+    result: "red",
+    kind: "runtime",
+    testId: "t1",
+    kindBasis: "output-text",
+  };
+  assert.deepEqual(nextPhase("CONFIRM_RED", textRed, "structural"), { ok: true, next: "IMPLEMENT" });
+  const textCompile: TestObservation = { ...textRed, kind: "compile" };
+  assert.deepEqual(nextPhase("CONFIRM_RED", textCompile, "assertion"), { ok: true, next: "IMPLEMENT" });
+});
+
+test("right-kind-red: no declared expectation, or no kind at all, leaves the pre-existing behaviour exactly", () => {
+  // The dry-run / live-smoke arms prove a SYNTHETIC pair and declare nothing — a gate with nothing
+  // to check against must not invent an expectation.
+  assert.deepEqual(nextPhase("CONFIRM_RED", measuredRed("compile")), { ok: true, next: "IMPLEMENT" });
+  assert.deepEqual(nextPhase("CONFIRM_RED", measuredRed("runtime")), { ok: true, next: "IMPLEMENT" });
+  // A kind-less observation is unjudgeable, not wrong.
+  const kindless: TestObservation = { result: "red", testId: "t1", kindBasis: "oracle-count" };
+  assert.deepEqual(nextPhase("CONFIRM_RED", kindless, "assertion"), { ok: true, next: "IMPLEMENT" });
+});
+
+test("right-kind-red: a GREEN at CONFIRM_RED is still refused as a forged pass, whatever is declared", () => {
+  // The kind gate is ADDITIVE — it must not become a way past the original red requirement.
+  for (const expected of ["structural", "assertion"] as const) {
+    const forged = nextPhase("CONFIRM_RED", { result: "green", testId: "t1" }, expected);
+    assert.equal(forged.ok, false);
+    assert.ok(!forged.ok && /requires an observed red/.test(forged.reason));
+  }
+});
+
 test("nextPhase: CONFIRM_GREEN -> GATE requires an observed green", () => {
   const ok = nextPhase("CONFIRM_GREEN", GREEN);
   assert.deepEqual(ok, { ok: true, next: "GATE" });

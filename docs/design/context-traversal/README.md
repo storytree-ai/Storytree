@@ -172,6 +172,18 @@ without the temporal proximity ADR-0235 clause 3 refuses. Concretely:
   is the first surface anywhere in the repo on which an UNFOLLOWED branch is visible. It is a text
   replay, not this pictorial panel; what it settles for a future artifact is that the metadata and the
   honest-gap vocabulary now exist to draw one from.
+- The offer set's own DENOMINATOR is stated as of 2026-08-05 (capability `offer-observability-share`,
+  same story, ADR-0312): each recorded offer renders `offered N, observable M of N` with a named reason
+  for every unobservable entry, closing with the sentence that the followed counts are over the
+  observable branches and not the offered ones. This matters for anything drawn FROM this metadata,
+  including a future version of this panel: `doc:` refs are 36.7% of the corpus's 1500 references and
+  an individual offer set can be anywhere from 0% to 100% unobservable, so a fork count drawn without
+  the denominator systematically over-reports how often a session stayed inside the asset graph. A
+  pictorial panel that draws forks must therefore also show what it could not see — the same
+  honest-gap rule the "explicit-only forks" clause already states, applied to the SET rather than to
+  the individual edge. ADR-0312 also settles that this gap is measured rather than closed: `doc:` refs
+  gain no CLI read shape, because making one followable would turn every unanswered `doc:` offer into
+  a *declined branch* it never was.
 
 These artifacts are still NOT redrawn to show any of it, for exactly the reason given above: recorded
 session `02b6a304` predates every one of those emissions, so drawing offers or forks over it would be

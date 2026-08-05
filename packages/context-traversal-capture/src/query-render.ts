@@ -16,6 +16,7 @@ import type {
 } from "@storytree/context-traversal-telemetry";
 
 import { computeDecisionPoints, renderDecisionPoints } from "./decision-point-playback.js";
+import { computeOfferObservability, renderOfferObservability } from "./offer-observability-share.js";
 import type { TraversalSessionSummary } from "./sink.js";
 
 /** The local envelope shape (ADR-0023): a body plus optional `next:` pointers. */
@@ -201,6 +202,19 @@ export function renderTraversalSession(
   if (decisions !== "") {
     lines.push("");
     lines.push(decisions);
+  }
+
+  // The DENOMINATOR for the block above (capability `offer-observability-share`, ADR-0312). The
+  // decision view names every offer and what happened to it, but a reader takes its offered count as
+  // the denominator — and on this corpus 36.7% of all references are `doc:` refs no CLI read can
+  // reach, ranging 0–100% by artifact. "Followed 1 of 12" and "followed 1 of 4 observable" are
+  // different claims about a session, and only the second is supported. Appended for the same reason
+  // the decision block is: the chronological lines and the decision block are each pinned verbatim by
+  // signed UAT legs, so this states what they cannot rather than rewriting them.
+  const observability = renderOfferObservability(computeOfferObservability(replay.events));
+  if (observability !== "") {
+    lines.push("");
+    lines.push(observability);
   }
 
   return { ok: true, body: lines.join("\n") };

@@ -82,18 +82,49 @@ export interface ShellTestResolver {
    * into a fail-open one.
    */
   beforeRun?: () => { ok: true } | { ok: false; reason: string };
+  /**
+   * `gate-the-right-kind-red`: a MEASURED red-kind classifier, consulted on every red BEFORE
+   * {@link ShellTestResolver.classifyKind}. When it returns a kind, that kind wins and the
+   * observation is stamped `kindBasis: "oracle-count"` — which is the only basis
+   * {@link nextPhase}'s right-kind-red gate will refuse on. Returning `undefined` means "cannot
+   * measure this one" and falls back to the text heuristic (stamped `"output-text"`, never gated).
+   *
+   * Wired by the resolver to the assert-oracle report for oracle-accounted proof commands: the report
+   * says how many assertions really RAN, so 0 means the proof never reached an assertion (structural)
+   * and >=1 means one ran and failed (assertion). That is a measurement of the thing the kind is
+   * actually about, where the text heuristic is a guess about how a toolchain phrased itself.
+   */
+  measureRedKind?: (out: ShellRunResult) => "compile" | "runtime" | undefined;
 }
 
 /**
  * The default RED classifier (ADR-0020 §3 "right-kind red"): a missing-symbol / unresolved-module /
  * syntax / TS-diagnostic shape in stdout+stderr reads as a `compile` red; anything else (an assertion
  * failure, a panic) reads as a `runtime` red.
+ *
+ * The module-resolution alternatives were WRONG for years and nothing caught it
+ * (`gate-the-right-kind-red`). The list read `cannot find name|is not defined|no such module|…`,
+ * which is TypeScript's and some other toolchain's wording — and matches NONE of what Node actually
+ * prints for the dominant case. A net-new node's red IS an unresolved import, Node says
+ * `Cannot find module './thing.js'` / `ERR_MODULE_NOT_FOUND`, and this returned `runtime`. So every
+ * net-new verdict's evidence note has been claiming "observed red (runtime)" over a structural red.
+ *
+ * It survived because nothing DEPENDED on the answer: the value was dead to control flow but live to
+ * the attestation, so it was exercised on every red and published on every verdict while no test
+ * could ever go red over it being wrong. Fixing the patterns is a precondition for
+ * {@link nextPhase} gating on the kind at all — and even then the gate arms only on the MEASURED
+ * basis (see {@link classifyRedByOracle}), because a heuristic is the wrong instrument to refuse
+ * real work with.
  */
 export function defaultClassifyKind(
   out: ShellRunResult,
 ): "compile" | "runtime" {
   const text = `${out.stdout}\n${out.stderr}`;
-  if (/cannot find name|is not defined|no such module|SyntaxError|TS\d{3,}/i.test(text)) {
+  if (
+    /cannot find name|cannot find module|cannot find package|is not defined|no such module|ERR_MODULE_NOT_FOUND|ERR_UNKNOWN_FILE_EXTENSION|MODULE_NOT_FOUND|SyntaxError|TS\d{3,}/i.test(
+      text,
+    )
+  ) {
     return "compile";
   }
   return "runtime";
@@ -137,12 +168,19 @@ export class ShellTestExecutor implements TestExecutor {
       return { result: "green", testId };
     }
 
+    // `gate-the-right-kind-red`: prefer a MEASURED kind (the assert-oracle count) over the text
+    // heuristic, and record WHICH it was — `nextPhase` refuses a wrong-kind red only on the measured
+    // basis, so the basis is part of the observation, not a detail of how it was computed.
+    const measured = this.resolver.measureRedKind?.(out);
+    if (measured !== undefined) {
+      return { result: "red", kind: measured, testId, kindBasis: "oracle-count" };
+    }
     const classify = this.resolver.classifyKind ?? defaultClassifyKind;
     const kind = classify(out);
     // exactOptionalPropertyTypes: only attach `kind` when it is defined.
     return kind === undefined
       ? { result: "red", testId }
-      : { result: "red", kind, testId };
+      : { result: "red", kind, testId, kindBasis: "output-text" };
   }
 
   /** Spawn via the shared {@link runShellCommand} (env-scrubbed, exit-code-as-data). */
