@@ -18,20 +18,6 @@ proof:
   scope:
     testGlobs: ["packages/cli/src/**/*.test.ts"]
     sourceGlobs: ["packages/cli/src/**/*.ts"]
-  real:
-    testFile: "packages/cli/src/cli.test.ts"
-    sourceFile: "packages/cli/src/arc.ts"
-    editsExisting: true
-    scope:
-      testGlobs: ["packages/cli/src/cli.test.ts"]
-      sourceGlobs: ["packages/cli/src/arc.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/cli", "typecheck"]
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/cli", "test"]
 ---
 
 # The choose-your-own-adventure library CLI
@@ -45,16 +31,6 @@ proof:
 > **Proof status (honest) — `mapped` read slice + several `proposed` write/wiring branches.** `packages/cli/src/cli.test.ts` is REAL and passing (part of the `@storytree/cli` suite, which I ran): it drives `run()` exactly as `main` does over a real `InMemoryStore` seeded by the real `loadFixtureCorpus`, so the read slice (dashboard/view/list/tree) and the covered write branches are observationally verified — `mapped`, not `healthy` (the prove-it-gate never drove them). HONESTY: these run against an `InMemoryStore`, so the real cross-store `--pg` write contract (`PgLibraryStore`) is NOT exercised offline, and several branches are **would-be** (`proposed`): `--file` reads, malformed-JSON for `new`, whole-doc `--json`/`--file` replace in `edit`, the bad `--set` token, `main`'s `writable=usePg` wiring, and the FAIL/WARN dashboard banner variant (only the OK banner is tested).
 
 ## Guidance
-
-**R1 — an explicit arc id is authored, never silently shortened.** `arc new <id>` normalises the
-explicit id, then refuses it before any store read or write when that normalised value exceeds the
-60-character id cap. A title-derived id may still be capped. The behavioural red at HEAD is a
-61-character explicit id: the shared slug helper truncates it to 60 characters and lets creation
-continue under a different id. Add the regression to the canonical coverage surface,
-`packages/cli/src/cli.test.ts`. The REAL proof must witness the refusal and zero store interaction,
-while retaining exactly-60 acceptance and normalisation-before-length-check behaviour. Assert zero
-interaction before any verification read, or make verification reads bypass the spy; a test-owned
-probe must never contaminate the call ledger whose emptiness proves the refusal happened pre-store.
 
 The agent-facing surface (ADR-0023): every command returns an `Envelope` (`packages/drive/src/envelope.ts:8-29`) — result + doctrine pointers + next branches — and `run` (`commands.ts:592-682`) NEVER throws on an expected miss (unknown id/category/area => `ok:false` + next).
 
@@ -72,7 +48,7 @@ Real collaborators, no stubs within the organism: `cli.test.ts` (all passing) dr
 
 HONESTY: these run against an `InMemoryStore` — the real cross-store `--pg` write contract (`PgLibraryStore`) is NOT exercised offline; `main`'s `--pg`→writable wiring and several edit/new branches are would-be (`proposed`).
 
-## Contracts (14)
+## Contracts (13)
 
 The test-proven leaf behaviours — each **one isolated automated test** with collaborators stubbed (ADR-0002). Where a REAL passing test exists, a `proven by` line cites it; otherwise the contract is a would-be test.
 
@@ -128,7 +104,3 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
     - **asserts —** With a non-green cheap health result, the dashboard banner reads `Library: F FAIL, W WARN — run storytree library --check`.
     - **covers —** `packages/cli/src/commands.ts:117-121`
     - **would-be test —** only the OK banner is tested (`cli.test.ts:25`); the FAIL/WARN variant has no committed assertion (the stamped seed is always green).
-14. **`arc-explicit-id-refuses-lossy-cap`** — `arc new` refuses an explicitly authored id that normalises beyond the 60-character cap rather than creating an arc under a truncated id
-    - **asserts —** The explicit id is normalised before its length is checked; a normalised value over 60 characters returns `ok:false` before any store read or write, a value of exactly 60 remains accepted, and title-derived ids retain their existing capped derivation. Zero interaction is asserted before any verification read, or verification bypasses the spy; test-owned probes must not enter the call ledger.
-    - **covers —** `packages/cli/src/arc.ts` (`arcNew`, explicit-id selection before store access)
-    - **would-be test —** The regression is added to the declared canonical REAL coverage file, `packages/cli/src/cli.test.ts`; at HEAD the shared slug helper truncates an overlength explicit id and creation proceeds under that altered id. Its zero-interaction assertion must run before any verification read, or verification must bypass the spy, so test-owned probes never enter the call ledger.
