@@ -160,6 +160,18 @@ wait for it rather than build an adapter over the shape it replaces.
 Building against today's two-array shape would mean building on rows a session in flight is deleting.
 The surface build is therefore parked on this arc until the tier lands.
 
+**THE TIER LANDED THE SAME DAY — the blocker is CLEARED and this decision is already satisfied
+(corrected in place per ADR-0139; the decision is unchanged, only its status).** ADR-0305 D1/D2
+merged to `main` on 2026-08-06, hours after the choice above was made: `packages/cli/src/plan.ts` is
+renamed `increment.ts`, `KnowledgeKind` carries `"increment"`, and `IncrementStatus` is the
+enum-fenced `proposal | ready | active | closed`. The live rows migrated cleanly — this very arc now
+reads **2 closed** in its increment log and **3 proposal** in its Work view, which is exactly D2's
+two green bars and three grey ones, already derivable from stored state.
+
+So the wait D8 chose cost hours rather than days, and the adapter it declined was never needed. The
+build unit parked on this arc is **ready to start**; what remains genuinely blocked is only D4's
+claim half, which still needs ADR-0306/0308's per-increment claim set and resolvable unit pointers.
+
 ### D9 — Read-only still holds
 
 ADR-0267 D6 is unchanged: no comment affordance, no answering in place, no write path. D3's
