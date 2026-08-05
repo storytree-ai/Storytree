@@ -15,7 +15,7 @@ import { KIND_SPECS } from "./knowledge.js";
  */
 
 /** The schema version every freshly-written structured Knowledge doc conforms to. */
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 /** One forward, version-numbered transform on a JSONB document. */
 export interface Migration {
@@ -109,6 +109,63 @@ export const MIGRATIONS: readonly Migration[] = [
           (r) => r !== "doc:glossary.md",
         );
       }
+      return rest;
+    },
+  },
+  {
+    version: 4,
+    name: "increment-body-and-status-collapse",
+    up(doc) {
+      // ADR-0305 D2/D4 — the increment tier's body collapses to `objective` + `body`, and its
+      // five-value lifecycle collapses to four. `plan` docs only; every other kind no-ops.
+      //
+      // A registered migration is what makes this safe rather than a breaking change: the schema's
+      // `.strict()` would reject a stored doc still carrying `decomposition`, and its enum would
+      // reject a stored `consumed`, so WITHOUT this transform the next write of any of the 55 live
+      // plan docs would fail validation. `upcast` folds it in at the write boundary, so an old-shape
+      // row is forward-migrated rather than refused.
+      if (doc["kind"] !== "plan") return doc;
+      const { decomposition, lanes, budgets, traps, ...rest } = doc;
+
+      // The four dropped headings fold into `body` IN RENDER ORDER, each keeping its heading. This
+      // is deliberately lossless prose-wise, and one part of it is load-bearing: the freshness check
+      // (`extractPlanPaths`) mines BACKTICK-quoted paths out of the body fields, so a fold that
+      // dropped or reflowed this text would silently turn a checkable plan into a VACUOUS one.
+      const sections: string[] = [];
+      const existing = typeof rest["body"] === "string" ? (rest["body"] as string).trim() : "";
+      if (existing !== "") sections.push(existing);
+      for (const [heading, value] of [
+        ["Decomposition", decomposition],
+        ["Lanes", lanes],
+        ["Budgets", budgets],
+        ["Traps", traps],
+      ] as const) {
+        if (typeof value === "string" && value.trim() !== "") {
+          sections.push(`## ${heading}\n\n${value.trim()}`);
+        }
+      }
+      // `body` is REQUIRED, so a plan whose four headings were all absent still needs one. Its
+      // `objective` is required too and is the honest fallback — never an empty string, which the
+      // schema's `Markdown` min-length would reject anyway.
+      const objective = typeof rest["objective"] === "string" ? rest["objective"].trim() : "";
+      rest["body"] = sections.length > 0 ? sections.join("\n\n") : objective !== "" ? objective : "(no body recorded)";
+
+      // draft → proposal · consumed → active · superseded|retired → closed. An unrecognised or
+      // absent status lands on the birth default, matching `Plan.status`'s own `.default()`.
+      const STATUS_MAP: Record<string, string> = {
+        draft: "proposal",
+        ready: "ready",
+        consumed: "active",
+        superseded: "closed",
+        retired: "closed",
+        // already-new values pass through, so the transform is idempotent under a re-run.
+        proposal: "proposal",
+        active: "active",
+        closed: "closed",
+      };
+      const status = typeof rest["status"] === "string" ? rest["status"] : "";
+      rest["status"] = STATUS_MAP[status] ?? "proposal";
+
       return rest;
     },
   },

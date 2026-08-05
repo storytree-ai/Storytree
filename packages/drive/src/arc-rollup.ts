@@ -55,7 +55,7 @@ export interface ArcRollupProposal {
 export interface ArcRollupPlan {
   id: string;
   title: string;
-  /** The plan's lifecycle (`draft`/`ready`/`consumed`/…); `"?"` when a doc predates or omits it. */
+  /** The increment's lifecycle (`proposal`/`ready`/`active`/`closed`, ADR-0305 D2); `"?"` when a doc omits it. */
   status: string;
   /** The git anchor's short sha, or `"?"` when unreadable — the freshness check's subject. */
   anchorSha: string;

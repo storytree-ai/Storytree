@@ -78,33 +78,36 @@ const frictionArchived = asset({
 });
 const FRICTION = [frictionOpen, frictionRouted, frictionArchived];
 
-// plan (open/active/archived, projected from the `status` wire mirror): 4 items, one per state
-// plus a second archived one — 1 open, 1 active, 2 archived.
-const planDraft = asset({
-  id: 'plan-draft',
+// plan (open/active/archived, projected from the `status` wire mirror): 4 items — 1 open, 1 active,
+// 2 archived. The vocabulary is ADR-0305 D2's four-state increment lifecycle; `ready` also projects
+// to `active` and is exercised exhaustively by the library's own `lifecycle` suite, so the middle
+// slot here carries `active` — the state whose PROJECTION changed (its predecessor `consumed` was
+// archived), which is the behaviour worth pinning on this surface.
+const planProposal = asset({
+  id: 'plan-proposal',
   category: 'plan',
-  title: 'A draft plan',
-  status: 'draft',
+  title: 'A parked increment',
+  status: 'proposal',
 });
-const planReady = asset({
-  id: 'plan-ready',
+const planActive = asset({
+  id: 'plan-active',
   category: 'plan',
-  title: 'A ready plan',
-  status: 'ready',
+  title: 'An executing increment',
+  status: 'active',
 });
-const planConsumed = asset({
-  id: 'plan-consumed',
+const planClosedOne = asset({
+  id: 'plan-closed-one',
   category: 'plan',
-  title: 'A consumed plan',
-  status: 'consumed',
+  title: 'A landed increment',
+  status: 'closed',
 });
-const planRetired = asset({
-  id: 'plan-retired',
+const planClosedTwo = asset({
+  id: 'plan-closed-two',
   category: 'plan',
-  title: 'A retired plan',
-  status: 'retired',
+  title: 'An abandoned increment',
+  status: 'closed',
 });
-const PLAN = [planDraft, planReady, planConsumed, planRetired];
+const PLAN = [planProposal, planActive, planClosedOne, planClosedTwo];
 
 // two evergreen-active (stateless) categories — never `open`, never `archived`.
 const patternX = asset({ id: 'pattern-x', category: 'pattern', title: 'Some Pattern' });
@@ -262,28 +265,28 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
 
     // scope into plan under the default open state (plan has exactly 1 open item).
     fireEvent.click(screen.getByTestId('library-shelf-row-plan'));
-    expect(screen.getByTestId('library-finder-row-plan-draft')).toBeTruthy();
-    expect(screen.queryByTestId('library-finder-row-plan-ready')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-consumed')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-retired')).toBeNull();
+    expect(screen.getByTestId('library-finder-row-plan-proposal')).toBeTruthy();
+    expect(screen.queryByTestId('library-finder-row-plan-active')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-plan-closed-one')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-plan-closed-two')).toBeNull();
 
-    fireEvent.click(screen.getByTestId('library-finder-row-plan-draft'));
+    fireEvent.click(screen.getByTestId('library-finder-row-plan-proposal'));
     expect(onSelect).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'plan-draft', title: 'A draft plan', category: 'plan', source: 'asset' }),
+      expect.objectContaining({ id: 'plan-proposal', title: 'A parked increment', category: 'plan', source: 'asset' }),
     );
 
     // switching the selector WHILE scoped re-filters the same browse list.
     fireEvent.click(screen.getByTestId('library-lifecycle-selector-active'));
-    expect(screen.getByTestId('library-finder-row-plan-ready')).toBeTruthy();
-    expect(screen.queryByTestId('library-finder-row-plan-draft')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-consumed')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-retired')).toBeNull();
+    expect(screen.getByTestId('library-finder-row-plan-active')).toBeTruthy();
+    expect(screen.queryByTestId('library-finder-row-plan-proposal')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-plan-closed-one')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-plan-closed-two')).toBeNull();
 
     fireEvent.click(screen.getByTestId('library-lifecycle-selector-archived'));
-    expect(screen.getByTestId('library-finder-row-plan-consumed')).toBeTruthy();
-    expect(screen.getByTestId('library-finder-row-plan-retired')).toBeTruthy();
-    expect(screen.queryByTestId('library-finder-row-plan-draft')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-ready')).toBeNull();
+    expect(screen.getByTestId('library-finder-row-plan-closed-one')).toBeTruthy();
+    expect(screen.getByTestId('library-finder-row-plan-closed-two')).toBeTruthy();
+    expect(screen.queryByTestId('library-finder-row-plan-proposal')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-plan-active')).toBeNull();
   });
 
   // ── lls-selector-filters-search ───────────────────────────────────────────────────
@@ -294,12 +297,12 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
 
     // under default open: a "plan" query matches all 4 plans by id, but only the open one shows.
     fireEvent.change(input, { target: { value: 'plan' } });
-    expect(screen.getByTestId('library-finder-row-plan-draft')).toBeTruthy();
-    expect(screen.queryByTestId('library-finder-row-plan-ready')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-consumed')).toBeNull();
-    expect(screen.queryByTestId('library-finder-row-plan-retired')).toBeNull();
+    expect(screen.getByTestId('library-finder-row-plan-proposal')).toBeTruthy();
+    expect(screen.queryByTestId('library-finder-row-plan-active')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-plan-closed-one')).toBeNull();
+    expect(screen.queryByTestId('library-finder-row-plan-closed-two')).toBeNull();
     // the in-state result still renders its title + a kindLabel kind sub-line.
-    expect(screen.getByTestId('library-finder-result-kind-plan-draft').textContent).toBe('plan');
+    expect(screen.getByTestId('library-finder-result-kind-plan-proposal').textContent).toBe('plan');
 
     // a "decision" query matches all 3 Decisions docs by title, but only the open (proposed) one shows.
     fireEvent.change(input, { target: { value: 'decision' } });
@@ -320,8 +323,8 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
     );
 
     fireEvent.change(input, { target: { value: 'plan' } });
-    expect(screen.getByTestId('library-finder-row-plan-ready')).toBeTruthy();
-    expect(screen.queryByTestId('library-finder-row-plan-draft')).toBeNull();
+    expect(screen.getByTestId('library-finder-row-plan-active')).toBeTruthy();
+    expect(screen.queryByTestId('library-finder-row-plan-proposal')).toBeNull();
   });
 
   // ── lls-state-chips-retired ───────────────────────────────────────────────────────

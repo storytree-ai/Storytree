@@ -34,14 +34,23 @@ export function lifecycleOf(kind: string, doc: LifecycleDoc): Lifecycle {
       return doc.route ? "archived" : "open";
 
     case "plan":
+      // The increment tier's four states (ADR-0305 D2), projected onto the triad. `proposal` is
+      // decided-but-not-started => open. `ready` (authored, consumable) and `active` (execution
+      // started) are both in flight => active. `closed` is terminal for any reason => archived.
+      //
+      // Note `active` maps to `active`, where its predecessor `consumed` mapped to `archived`. That
+      // is the rename earning its keep rather than a drift: `consumed` was read as spent because a
+      // consumed plan was prunable, but ADR-0305 D3 makes increments durable — a closed increment IS
+      // the arc's landing-log entry — so the state under execution is exactly the in-flight one the
+      // triad's middle value names. Shelving an executing increment as `archived` would hide live
+      // work.
       switch (doc.status) {
         case "ready":
+        case "active":
           return "active";
-        case "consumed":
-        case "superseded":
-        case "retired":
+        case "closed":
           return "archived";
-        case "draft":
+        case "proposal":
         default:
           return "open";
       }
