@@ -305,7 +305,7 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
     const centre = asset({ id: 'marker-centre', category: 'definition', title: 'Marker Centre' });
     const planNode = asset({
       id: 'marker-plan',
-      category: 'plan',
+      category: 'increment',
       title: 'Marker Plan',
       references: ['asset:marker-centre'],
     });

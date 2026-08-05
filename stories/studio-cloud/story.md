@@ -29,7 +29,7 @@ depends_on: [studio, library, studio-members, notice-board, proof-protocol, cli]
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
 artifact_edges: [studio, library, cli]
-decisions: [42, 49, 117, 194] # deciding ADRs (ADR-0037 §2): 0042 stood it up, 0049 lets it wake its own DB, 0117 the members-gated write-broker + builder scope, 0194 the deploy-health gate signal
+decisions: [42, 49, 117, 311] # deciding ADRs (ADR-0037 §2): 0042 stood it up, 0049 lets it wake its own DB, 0117 the members-gated write-broker + builder scope, 0311 retires the deploy-health gate signal
 ---
 
 # Studio cloud — the trusted circle interacts with a served studio

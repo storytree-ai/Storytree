@@ -107,6 +107,8 @@ export {
 export type {
   AddDepsGroup,
   BuildWorktree,
+  CommitAuthoredResult,
+  CommitScope,
   CreateBuildWorktreeOptions,
   PromotionResult,
 } from "./build-worktree.js";

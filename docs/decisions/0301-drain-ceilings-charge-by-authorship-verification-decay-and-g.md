@@ -12,6 +12,10 @@ accepted (2026-08-04) — directed by the owner in conversation on 2026-08-04, w
 constraints verbatim and delegated ONE judgement (recorded in D6 below) to the executing session.
 Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**Amended by ADR-0311 (2026-08-05):** the attribution logic for both diagnostics remains current.
+`check:verification-decay` remains a gate rung with every ceiling unchanged;
+`check:graduation-worklist` retires from root/CI gate policy and is now on-demand only.
+
 ## Context
 
 ADR-0290 established that a fail-closed drain ceiling must measure what the BRANCH authored, not what a
@@ -140,8 +144,9 @@ rather than the queue.
 ## Consequences
 
 **Good.**
-- The measured defect is gone on both checks. A session that authored nothing is no longer blocked by,
-  nor asked to investigate, a breach that was on `main` before it started.
+- The measured defect remains closed for `check:verification-decay`: a session that authored nothing
+  is no longer blocked by a breach that was on `main` before it started. The graduation diagnostic
+  retains the same attribution when invoked, but ADR-0311 removes its merge-blocking role entirely.
 - A session that DOES introduce a signal is caught exactly as precisely as before — and now named as
   YOURS, so the report distinguishes the two cases it previously conflated.
 - Attribution is strictly more honest than the entry specified: four instruments whose cross-references
@@ -163,7 +168,7 @@ rather than the queue.
   over-charging, chosen deliberately over per-symbol history walks on cost, and it is the fail-closed
   direction.
 - One `merge-base`, one `diff`, one `ls-files`, one `ls-tree` and one `show` per touched test file, per
-  run. Bounded and local; both checks remain local-only and DB-free.
+  run. Bounded and local; both checks remain DB-free, but only verification-decay remains in the gate.
 - **The sequencing the parked entry asked for was already lost.** It said to land this BEFORE draining
   the 25th signal, so the change would have a real pre-existing breach to demonstrate against. The
   drain landed first (PR #1131, 2026-08-04), so both checks are green today and the proof rests on

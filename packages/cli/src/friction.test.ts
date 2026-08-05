@@ -84,12 +84,11 @@ async function newArc(s: InMemoryStore, id: string) {
 async function parkOnArc(s: InMemoryStore, arcId: string, entryId: string, frictionId: string) {
   return run(
     [
-      "arc", "proposal", "add", arcId,
+      "arc", "increment", "new", arcId,
       "--id", entryId,
       "--title", `Park ${entryId}`,
-      "--summary", "collapse the three export ceremonies into one command",
-      "--motivation", "three near-identical seed ceremonies, each with its own zero ceiling",
-      "--scope", "packages/cli only; the store schema is UNCHANGED",
+      "--objective", "collapse the three export ceremonies into one command",
+      "--body", "three near-identical seed ceremonies, each with its own zero ceiling; touches `packages/cli` only",
       "--friction", frictionId,
       "--pg",
     ],
@@ -689,7 +688,7 @@ test("routing to `tool` is refused until the item cites an arc that parks it (AD
   // The refusal hands over the commands in order — the affordance paired with the fence — and it
   // says FOLD FIRST, which is the behaviour ADR-0298 D6 exists to produce.
   assert.match(bare.body, /FOLD FIRST, CHARTER SECOND/);
-  assert.match(bare.body, /storytree arc proposal add <arc-id>/);
+  assert.match(bare.body, /storytree arc increment new <arc-id>/);
   assert.match(bare.body, /--arc <arc-id>/);
 
   // NOTHING was written on the way to the refusal: the item is still open and unrouted, so a

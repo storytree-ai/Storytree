@@ -53,11 +53,10 @@ browser downloads rather than displays the script; pass `--content-type=text/pla
 render. Versioning is on, so an overwrite is recoverable.
 
 **This is a manual step today** — a script edited in the repo does not reach the bucket until someone
-re-runs the copy. `pnpm gate`'s **`check:dist-drift`** guards against forgetting: it fetches the
-published object and WARNs when it differs from `infra/install.ps1` (naming the republish command),
-SKIPs when offline, and never blocks. So a stale publish is visible before a push rather than
-discovered by a dev running an old installer. Fully automating the publish (D5's "published by Cloud
-Build on release") is still the open follow-on below.
+re-runs the copy, and no `pnpm gate` or CI rung checks the published object. The retired diagnostic
+still exists at `packages/cli/src/check-dist-drift.ts` for an explicit operator check, but publishing
+and verifying the result remain part of the manual ceremony. Fully automating the publish (D5's
+"published by Cloud Build on release") is still the open follow-on below.
 
 ## How it was first applied (one-time, historical)
 

@@ -156,8 +156,8 @@ kind owes a seed export any more.
   to it. A **bare `storytree library …` read now dials the LIVE store** — `--pg` is no longer needed
   to be current (it still is for WRITES, which is the only branch carrying the write seams), and the
   connector opens LAZILY, so `adr list` / `doctor` / the help surfaces still touch no database.
-  Everything else that used to read the seed reads live too: `check:process-graph`,
-  `check:surface-coverage`, `graduate`, the leaf/curator prompt renderers, the desktop chat mount.
+  Everything else that used to read the seed reads live too: the process-graph and surface-coverage
+  diagnostics, `graduate`, the leaf/curator prompt renderers, and the desktop chat mount.
   - **Hermetic tests read `@storytree/library/fixture` instead** — `loadFixtureCorpus(store)` over a
     small FROZEN literal (13 artifacts). It is deliberately NOT a mirror and never reconciled, so it
     drifts by design; that is what keeps `pnpm -r test` credential-free under ADR-0302 D3. Assertions
@@ -270,20 +270,19 @@ kind owes a seed export any more.
   long `&&` chain, so the first red aborted it and every later step was left UNRUN and reported as
   *nothing at all* — which cost ~25 min of hand re-runs per hit and once hid a genuine RED behind an
   unrelated flake. It is now a runner over a declared plan
-  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes all **22** steps and prints a per-step
-  **PASS / FAIL / NOT RUN** table. (It was 25 until ADR-0302 D4 deleted the three seed-mirror rungs;
-  the plan is the count's source of truth, so read the table rather than any number quoted in prose.)
+  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes the **nine** evidence-backed steps
+  retained by ADR-0311 and prints a per-step **PASS / FAIL / NOT RUN** table. (The plan carried 25
+  steps before ADR-0302 and ADR-0311 retired sixteen; the plan remains the count's source of truth.)
   **Read the table, not the tail** — and read `NOT RUN` as
   *unverified*, never as passed (it appears only under `--fail-fast`, or when a run was interrupted /
   a step was killed). Any step not passing still exits non-zero, so `pnpm gate:bg` and every
   exit-code caller are unchanged. Two consequences worth knowing: a FAILING run now takes the full
   wall clock instead of stopping early, so **background it** (`pnpm gate:bg`, merge-ceremony step 2);
-  and the steps are ordered *own-work first* — the checks and both `-r` legs that judge YOUR diff run
-  ahead of the ones that judge the shared environment (`check:declared`, the drain ceilings), whose
-  red is often a sibling session's. `STORYTREE_GATE_FAIL_FAST=1 pnpm gate`
+  and the steps are ordered *own-work first* — four branch-local checks and both `-r` proof legs run
+  ahead of the three retained checks that can observe shared live state. `STORYTREE_GATE_FAIL_FAST=1 pnpm gate`
   (or `pnpm gate --fail-fast`) restores the old stop-at-first-red for a fast inner loop.
   **`pnpm -r`'s own halt is NOT fixed**: a flake in one workspace still hides later workspaces' tests
-  *inside* the `pnpm -r test` step — it just no longer skips the thirteen steps behind it.
+  *inside* the `pnpm -r test` step, though the outer runner still continues to later gate steps.
 - **The gate's two `-r` legs now test only what your branch AFFECTS (ADR-0304 D1, since 2026-08-04).**
   `pnpm gate` resolves what this branch changes on top of `main` — `merge-base(origin/main, HEAD)`
   vs the working tree, **untracked files included** — and narrows `typecheck`/`test` to the owning
@@ -514,7 +513,7 @@ Never self-exempt from the gate or the ceremony.
   ledger (grades exploring / waiting / work); advisory session-presence rows are **retired**, so the
   hooks no longer auto-declare — the `SessionStart` hook injects the claim-ledger anchor nudge
   (ADR-0143), the studio dock renders claims grouped by session, and an unclaimed session is
-  invisible on the map and **FAILs** the gate's `check:declared` until it claims (ADR-0200 D3).
+  invisible on the map and is not ready for the merge ceremony until it claims (ADR-0200 D3).
 - **Landing work** is the `session-orchestrator` operating discipline above (generated from the
   library `merge-ceremony`, the single source of truth — don't hand-copy the rule back here):
   green unit → **non-draft** PR → CI auto-merges (ADR-0022); never `gh pr merge`; a hold (draft /
@@ -527,11 +526,10 @@ Never self-exempt from the gate or the ceremony.
   in this one. Inert is not mute: a landed session still answers questions and analysis freely —
   it just opens no new work. Full ceremony text: `storytree library artifact merge-ceremony`.
 - **A PR is not "done" until CI is green — WATCH it, don't open-and-walk-away.** CI
-  (`.github/workflows/ci.yml`) runs `check:manifest` + `pnpm -r typecheck` + `pnpm -r test` +
-  `pnpm -r build` against the **merge of your branch with `main`**, so a green local `pnpm gate` does
+  (`.github/workflows/ci.yml`) runs the retained checks plus affected `typecheck` / `test` and the
+  monorepo build against the **merge of your branch with `main`**, so a green local `pnpm gate` does
   NOT guarantee a green CI: a clean branch can fail on something that landed on `main` *after* you cut
-  it (e.g. a new root entry the `repo-surface-allowlist` manifest must list — this exact case stranded
-  three PRs at once). After opening, check `gh pr checks <n>`; on a `verify` failure read the cause
+  it. After opening, check `gh pr checks <n>`; on a `verify` failure read the cause
   (`gh run view --job=<id> --log-failed`), fix it, and push — never leave a red PR sitting unmerged.
   **First suspect a stale branch:** `git fetch origin && git merge origin/main`, re-gate, push (a
   branch many commits behind `main` is the usual reason a local-green PR is CI-red).

@@ -21,12 +21,12 @@ depends_on: [studio-cloud, notice-board]
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
 artifact_edges: [studio-cloud, notice-board]
-# Deciding ADRs (ADR-0037 §2): the green gate + auto-merge (22), repo-surface manifest (25),
+# Deciding ADRs (ADR-0037 §2): the green gate + auto-merge (22), the repo-surface manifest gate's retirement (311),
 # decision binding + adr-health (37), the ADR-number allocator (50), session presence the retire
 # backstop serves (33), the display posture it heals (41), studio CD (46), keyless WIF auth (21),
 # the dependency-direction / no-cycle model that fixed this story's edges (58), and the fourth
 # harness-native generated agent view covered by check:agents — Gemini CLI (234).
-decisions: [22, 25, 37, 50, 33, 41, 46, 21, 58, 234]
+decisions: [22, 311, 37, 50, 33, 41, 46, 21, 58, 234]
 ---
 
 # CI/CD — the one enforced pipeline every green unit crosses to reach trunk

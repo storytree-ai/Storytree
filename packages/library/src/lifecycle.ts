@@ -33,7 +33,7 @@ export function lifecycleOf(kind: string, doc: LifecycleDoc): Lifecycle {
       // (D2 collapses `routed` and `archived` into one).
       return doc.route ? "archived" : "open";
 
-    case "plan":
+    case "increment":
       // The increment tier's four states (ADR-0305 D2), projected onto the triad. `proposal` is
       // decided-but-not-started => open. `ready` (authored, consumable) and `active` (execution
       // started) are both in flight => active. `closed` is terminal for any reason => archived.

@@ -23,11 +23,10 @@ writer never exits non-zero: the merge already landed and claim state is advisor
 this must never fail the merge job. Deliberately **ungated on the head-ref shape** — any branch shape
 can hold claims, and a `claude/*` gate once let a `worktree-…` claim outlive its merge by 46 minutes.
 
-**2. `verify` — the live-store gate rungs (READ).** Since **ADR-0302 D3** CI is no longer DB-free:
-`check:friction-drain` and `check:arc-proposal-drain` run at the end of `verify` against the live
-corpus, so the drain ceilings stop being local-only reds that block the dev box while CI shows green.
+**2. `verify` — generated guidance checks (READ).** CI is not DB-free: `check:guidance` and
+`check:agents` read the live-canonical Library and compare it with the committed harness projections.
 `STORYTREE_DB_USER` is set **per-step**, never at job level, so no live credential reaches
-`pnpm -r test`.
+`pnpm -r test`. The retired drain ceilings no longer run in `verify`.
 
 This depends on the instance running **24/7** (ADR-0302 D2), and not incidentally: this service
 account holds `roles/cloudsql.client` + `roles/cloudsql.instanceUser` and **no wake role** — waking is
@@ -97,33 +96,26 @@ The two jobs are deliberately opposite, and the asymmetry is the point.
 the merge already landed, and claim state is advisory coordination, so a missing credential leaves the
 claims to be cleared by the session's own closing leg. This must never fail the merge job.
 
-**`verify` reds.** Its steps are fail-closed on the QUEUE and were fail-OPEN on the SUBSTRATE — an
-absent credential or an unreachable store exited 0 and said so on stdout. **That arm is why a
-credential alone did not make the ceilings gate**, and it is now closed in CI (below). The policy, and
-why it is an explicit declaration rather than an `if (CI)`, is in
-[`packages/cli/src/db-required.ts`](../packages/cli/src/db-required.ts).
+**`verify` reds.** Authentication is fail-loud, and the retained `check:guidance` / `check:agents`
+steps have no canonical source when the live store is unreachable. A missing credential or database
+outage therefore blocks verification instead of turning stale harness projections green.
 
-### The ceilings are ARMED in CI — ADR-0302 D3 is complete
+### Historical: the drain ceilings were armed in CI
 
 **Done 2026-08-05**, after both owner-run steps above succeeded and were verified in the cloud. The
 two edits in `.github/workflows/ci.yml` belong together and landed together:
 
-1. `STORYTREE_DB_REQUIRED: '1'` sits beside `STORYTREE_DB_USER` on **both** live-store steps, flipping
-   an absent credential and an unreachable store from SKIP to red;
-2. `continue-on-error: true` is gone from the `verify` job's GCP auth step — once a skip is no longer
-   acceptable, an unauthenticated runner must not look like a pass either.
+1. `STORYTREE_DB_REQUIRED: '1'` sat beside `STORYTREE_DB_USER` on both drain steps, flipping an absent
+   credential and an unreachable store from SKIP to red;
+2. `continue-on-error: true` was removed from the `verify` job's GCP auth step.
 
 Arming was correctly refused until the preconditions held: on #1146's own `verify` both rungs printed
 `SKIP — live DB not reachable (permission denied for table library_artifact)`, which armed would have
 redded that PR and every one after it, on an instance no session could fix.
 
-**The standing cost, accepted (ADR-0302 Consequences): a Cloud SQL outage now blocks every merge**,
-with no bypass short of a `hold` label or a draft PR. That is the trade — an unverified ceiling is not
-a passed one — and it is why the nightly sleep window had to be retired first (D2 before D3).
-
-**To re-soften, unset BOTH.** Restoring `continue-on-error` while leaving the flag set does not
-restore the old posture: the steps would still red, just two steps later and reading like a database
-outage rather than an auth failure.
+**The standing cost remains: a Cloud SQL outage blocks every merge**, now because live-canonical
+guidance and agent projections cannot be verified. Re-softening that dependency requires re-deciding
+the live Library's canonical role; there is no retired drain-rung flag to toggle.
 
 ## Scope
 

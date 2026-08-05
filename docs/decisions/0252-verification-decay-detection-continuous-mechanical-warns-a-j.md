@@ -14,6 +14,11 @@ the `verification-integrity-arc` charter named as blocking its close: the detect
 process's **trigger and shape**. At charter time the owner leaned toward "something like the librarian
 pass" and said explicitly they had not decided; this ADR is that decision.
 
+**Amended by ADR-0311 (2026-08-05):** `check:verification-decay` survives intact as one of the nine
+audited gate rungs; the separately-wired `check:coverage` and `check:surface-coverage` applications
+of this ADR's drain-ceiling pattern retire from root/CI policy. No verification-decay predicate was
+weakened and no ceiling was raised.
+
 ## Context
 
 The arc's charter was built on a four-instrument audit of the 60k-LOC codebase (2026-07-26) that found
@@ -57,8 +62,8 @@ The process **splits by cost**. Four owner calls, recorded as answered.
 **1. Trigger — continuous mechanical warns, plus a deep adversarial pass that is judgment-gated at arc
 close.**
 
-The cheap mechanical checks run on **every** `pnpm gate`: mirror-pair drift, vacuous-proof detection,
-WARN-list hygiene, and contract-binding drift.
+The cheap mechanical instruments run together inside `check:verification-decay` on **every**
+`pnpm gate`: mirror-pair drift, vacuous-proof detection, WARN-list hygiene, and contract-binding drift.
 
 The expensive adversarial pass has **no calendar cadence**. It fires at **arc close**, and only when
 the orchestrator closing the last leg **judges it warranted** — the owner rejected all three cadences
@@ -76,20 +81,11 @@ session. Two reasons, both load-bearing:
 - The pass is expensive — the chartering audit ran ~1.2M tokens. It needs its own context and budget,
   not the tail of a session that has already spent most of both.
 
-**2. Shape — the cheap half lives in `pnpm gate` as non-blocking warns.**
+**2. Shape — the cheap half lives in `pnpm gate` inside `check:verification-decay`.**
 
-Alongside `check:agents-sync`, `check:corpus-sync`, and — at this decision — `check:coverage`, which
-already carry exactly this warn-not-block pattern. (**Updated 2026-07-28 — all THREE have since gained
-decision 3's own ceiling, so none is purely warn-not-block any more.** `check:coverage` was bounded on
-2026-07-28 (`coverage-drain.ts`), and `check:agents-sync` / `check:corpus-sync` on the same day
-(`sync-drain.ts`, both at zero) — the fifth and sixth worklists bounded under D1's `warn-list-hygiene`
-instrument, which now locates nothing. This parenthetical read "the other two still are" until that
-landing. The precedent this sentence cites is the **gate-resident WARN**, and THAT is unchanged in all
-three: every one of them still prints its advisory line, still SKIPs offline, and still blocks on no
-individual finding — only on GROWTH past its own ceiling, exactly as decision 3 requires. Nothing in
-this decision is re-decided; the cheap half still lives in `pnpm gate`.) Every session sees it with no
-new invocation to remember. The accepted cost is added noise in a gate output that is already noisy — which decision 3
-exists to bound.
+Every session sees its located findings with no new invocation to remember. Individual located
+findings remain advisory; the per-instrument ceilings and escalation semantics below still enforce
+growth. ADR-0311 retires the sibling standalone coverage/surface checks without changing this rung.
 
 **3. Enforcement — advisory per finding, with a fixed drain ceiling on the COUNT.**
 
@@ -129,7 +125,7 @@ incidental detail:
 ## Consequences
 
 **Good.** Verification decay is found by machinery rather than by an owner noticing it in the running
-app. The per-gate cost is near zero, so the continuous half is affordable at every merge. The expensive
+app. The retained rung keeps the continuous half at every merge. The expensive
 half is spent only when someone with the closing context believes it will pay, and it is spent in a
 session with the budget to do it properly. The drain ceiling means the advisory list has a defined
 failure boundary instead of degrading silently. And a blocking gate — which the evidence says would be

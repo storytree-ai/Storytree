@@ -1,67 +1,32 @@
 // The gate's ORDERING invariant — the PURE half (`green-gate`, stories/ci-cd).
 //
-// This module owns the canonical, ordered {@link GATE_PLAN} the gate runs, plus the invariant that
-// judges it. Until 2026-08-04 the plan lived as a 25-link `&&` chain in the root `package.json` and
-// this module parsed it; the chain is now {@link GATE_PLAN} and `pnpm gate` is a runner over it
-// (`gate-run.ts`, executed by the pure `gate-runner.ts`). The reason the chain had to go is in that
-// runner's header — in one line: `&&` is fail-fast, so the first red left every later step UNRUN and
-// reported it as nothing at all rather than as unverified.
+// This module owns the canonical, ordered {@link GATE_PLAN} walked by `pnpm gate`. The runner runs
+// every step and reports every verdict: one red never turns later proof into an invisible skip.
 //
 // THE PLAN IS DECLARED LITERAL, AND THE RUNNER MAY NARROW IT (ADR-0304 D1). {@link GATE_PLAN} always
 // names the full `pnpm -r typecheck` / `pnpm -r test`; `gate-run.ts` rewrites those two commands to
 // the affected scope (`pnpm --filter ...<name> …`) just before running them, using CI's own
 // classifier. This module therefore recognises BOTH forms ({@link isExpensiveStep}) — the ordering
 // invariant below has to be judgeable over the plan that actually runs, not only over the one on the
-// page. What scoping changes is how much each leg covers; it changes nothing about the order, the
-// step count, or whether a red blocks.
+// page. Scoping changes how much each leg covers; it changes nothing about order or whether a red
+// blocks.
 //
 // TWO AXES, both fail-closed, both about WHEN a verdict arrives rather than about what it says.
 //
-// AXIS 1 — CHEAP FIRST. Two steps are the MINUTES — `pnpm -r typecheck` and `pnpm -r test`, together
-// ~8-10 minutes on a dev box — while every `check:*` step is SECONDS (measured 2026-07-28: 2-19 s
-// each, the slowest being the ones that open a Cloud SQL connection). A seconds-cost check placed
-// after the minutes is only ever read once the whole suite has run, so a session waits the full
-// chain to learn something that was knowable at second 40.
-//
-// That is not hypothetical. `check:declared` — the claim rung (ADR-0200 D3), which refuses a session
-// holding no live claim — sat LAST. Concurrency is precisely what makes a claim go absent underneath
-// a session, so the rung fires often, and it fired at the merge ceremony where a wasted gate run
-// costs the most. Filed four separate times in five days
-// (`check-declared-fails-last-after-a-full-gate`, `claim-absence-surfaces-only-after-the-gates-
-// expensive-legs`, `session-claim-silently-cleared-mid-session-fails-the-gate-late`,
-// `gate-runs-check-declared-last`).
+// AXIS 1 — CHEAP FIRST. The four retained branch-local `check:*` steps precede the two independent
+// minutes-cost legs, `pnpm -r typecheck` and `pnpm -r test`.
 //
 // AXIS 2 — THE SESSION'S OWN WORK BEFORE THE SHARED ENVIRONMENT (parked entry
 // `gate-runs-every-step-and-reports-per-step` on `verification-integrity-arc`, from friction
-// `gate-aborts-early-hiding-thirteen-later-steps`). Some steps can only red on something in THIS
-// branch's diff; others can red on state this session did not author — another session's dirt in the
-// shared primary checkout, a sibling's live-store write, a sibling's memory file, a backlog ceiling
-// counted over the whole corpus, the box's Node version, a deployed artifact. The session's own
-// answer must not sit behind a condition it is not permitted to remediate (ADR-0245 D5.2 D3 forbids
-// automatic remediation of the lobby outright), so every {@link SHARED_ENVIRONMENT_CHECKS} member
-// runs AFTER both expensive legs.
-//
-// THE TWO AXES DISAGREE ABOUT EXACTLY ONE STEP, AND THE DISAGREEMENT IS SETTLED HERE, DELIBERATELY.
-// `check:declared` is a seconds-cost check (axis 1 wants it early) that judges the shared checkout
-// (axis 2 wants it late), and it is the rung whose late position was filed four times. It moves to
-// the LATE block, and the four filings are not being re-opened: every one of them measured the same
-// harm — a whole ~10-minute gate run spent to learn ONLY that a claim had lapsed, because `&&`
-// aborted there and nothing after it ran. Under the run-every-step runner that harm cannot occur.
-// The same run now returns all 25 verdicts, and the remedy for a lapsed claim is a 3-second
-// `noticeboard declare` plus a 5-second re-run of that ONE step — the other 24 verdicts still hold,
-// nothing about the tree having changed. What is left of the old cost is latency on a signal, and
-// what is bought is that a red the session cannot fix never precedes the session's own answer. Both
-// directions are now PINNED (`evaluateGateOrder` fails on a shared check that drifts early just as
-// it fails on an own-work check that drifts late), so this is more constraint than the single axis
-// it replaces, not less.
+// `gate-aborts-early-hiding-thirteen-later-steps`). The retained projection checks read the live
+// Library, and `check:verification-decay` can red on shared proof state, so all three run AFTER both
+// expensive legs.
 //
 // Deliberately NOT a `check:gate-order` gate rung: the invariant is about the shape of the gate plan,
 // so a rung inside that plan would be a step checking the list it is a member of. The honest home is
 // a test in `pnpm -r test` (`gate-order.test.ts`), which holds the plan to the sets below AND to the
-// real root `package.json` — every planned step must name a script that exists, and every `check:*`
-// script that exists must be in the plan. That second assertion is the load-bearing one: without it,
-// adding a check to `package.json` and forgetting the plan would make the gate silently never run
-// it, which is the very defect class this arc exists to close.
+// real root `package.json` — every planned step must name a script that exists, and every retained
+// `check:*` script must be in the plan or carry an explicit non-gate reason.
 //
 // Pure: no I/O. The caller supplies the plan and the root package.json's script names.
 
@@ -81,8 +46,8 @@ export const EXPENSIVE_STEPS: readonly string[] = ["pnpm -r typecheck", "pnpm -r
  * that actually runs unjudgeable. The runner re-evaluates the invariant over the SCOPED plan for
  * exactly that reason; this is what lets it.
  *
- * Anchored (`^`/`$`) so it cannot swallow a neighbour: `pnpm check:test-timing` ends in
- * `check:test-timing`, not `test`, and no `check:*` step begins with `-r` or `--filter`.
+ * Anchored (`^`/`$`) so it cannot swallow a neighbour: `pnpm check:unit-test` ends in
+ * `check:unit-test`, not `test`, and no `check:*` step begins with `-r` or `--filter`.
  */
 const SCOPED_EXPENSIVE_LEG = /^pnpm\s+(?:-r|--filter\s+.+?)\s+(?:typecheck|test)$/;
 
@@ -114,7 +79,7 @@ export type GateCost = "seconds" | "minutes";
 
 /** One step of the gate, in plan order. */
 export interface GateStep {
-  /** The step's command text, trimmed (e.g. `pnpm check:declared`). */
+  /** The step's command text, trimmed (e.g. `pnpm check:boundaries`). */
   readonly command: string;
   /** Its `check:*` script name, or `undefined` for a step that runs no check (typecheck/test). */
   readonly check: string | undefined;
@@ -138,17 +103,43 @@ export interface GatePlanStep extends GateStep {
  *   C. shared-environment  — seconds each, but a red may be a sibling's; never ahead of B
  *
  * Adding a step is a deliberate edit in three places at once (here, its `subject`, and its `why`),
- * and `gate-order.test.ts` refuses a `check:*` script that exists in `package.json` but not here.
+ * and `gate-order.test.ts` refuses a `check:*` script absent here unless it has an explicit
+ * non-gate reason.
+ */
+/*
+ * SURVIVAL AUDIT (bounded, authoritative; gate-machinery-audit-arc).
+ * Each retained standalone rung has demonstrated a concrete catch and names the escape it blocks:
+ * - check:boundaries — FACTORY BOOKKEEPING. Commit 8b588085 caught a real dependency cycle, and
+ *   04939391 / PR425 caught undeclared imports; without it invisible cycles and cross-story
+ *   coupling ship.
+ * - check:mirror-conformance — PROOF INTEGRITY. Commit 3ef84c96 records a historical studio-only
+ *   docs change producing 256+4 divergences; without it desktop and studio behavior diverge.
+ * - check:guidance — FACTORY BOOKKEEPING. A clean worktree on 2026-08-05 caught stale
+ *   definitions.generated.json after the live source moved; without it root operating guidance and
+ *   definitions ship stale.
+ * - check:agents — FACTORY BOOKKEEPING. Commit 66b70db3 / PR232 caught stale corpus-investigator
+ *   and librarian projections; without it harness agents run stale instructions.
+ * - check:web-grounding — FACTORY BOOKKEEPING. Commit ae90d950 records escaped stale doctrine after
+ *   ADR-0040; without it public copy cites missing or superseded decisions.
+ * - check:web-engine — FACTORY BOOKKEEPING. Commit 59b6504d / PR650 caught parent/web gitlink drift;
+ *   without it the public site runs a stale forest engine.
+ * - pnpm -r typecheck — PROOF INTEGRITY. CI run 27761462602, fix 34f320dc, PR224 caught a moved,
+ *   nonexistent export after other gates and build were green; without it a stale loader ships.
+ * - pnpm -r test — PROOF INTEGRITY. CI run 30976384824, fix 327151fb, PR1151 caught
+ *   credential-dependent suites after typecheck was green; without it behavior regressions ship.
+ * - check:verification-decay — PROOF INTEGRITY. PR1119 on 2026-08-03 fired on
+ *   unproven-seam-default; without it vacuous filters, skipped tests credited as proof, and
+ *   fake-only defaults can ship.
+ *
+ * TOMBSTONE (bounded). ADR-0302 had already removed check:agents-sync, check:corpus-sync, and
+ * check:corpus-content. This audit removes check:manifest, check:process-graph, check:test-timing,
+ * check:web-experience, check:declared, check:friction-drain, check:arc-proposal-drain,
+ * check:coverage, check:surface-coverage, check:graduation-worklist, check:node-version,
+ * check:dist-drift, and check:deploy-health. These are the complete 16 original deletions: three
+ * prior and thirteen from this audit. No surviving rung was weakened and no ceiling was raised.
  */
 export const GATE_PLAN: readonly GatePlanStep[] = [
   // ── A. own-work, seconds ───────────────────────────────────────────────────
-  {
-    command: "pnpm check:manifest",
-    check: "check:manifest",
-    subject: "own-work",
-    cost: "seconds",
-    why: "reds on a root/docs entry this diff added",
-  },
   {
     command: "pnpm check:boundaries",
     check: "check:boundaries",
@@ -164,34 +155,6 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     why: "reds when this diff moves one mirrored surface and not its twin",
   },
   {
-    command: "pnpm check:guidance",
-    check: "check:guidance",
-    subject: "own-work",
-    cost: "seconds",
-    why: "reds when this diff edits the agent seed without regenerating the root views",
-  },
-  {
-    command: "pnpm check:agents",
-    check: "check:agents",
-    subject: "own-work",
-    cost: "seconds",
-    why: "same generated-view drift, for .claude/.cursor/.codex/.gemini agent files",
-  },
-  {
-    command: "pnpm check:process-graph",
-    check: "check:process-graph",
-    subject: "own-work",
-    cost: "seconds",
-    why: "reds on a process/step graph this diff broke; reads the committed seed only",
-  },
-  {
-    command: "pnpm check:test-timing",
-    check: "check:test-timing",
-    subject: "own-work",
-    cost: "seconds",
-    why: "ZERO ceiling on a clean baseline (ADR-0276 D3) — a breach is a timing assertion this diff added",
-  },
-  {
     command: "pnpm check:web-grounding",
     check: "check:web-grounding",
     subject: "own-work",
@@ -205,14 +168,6 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     cost: "seconds",
     why: "reds when this diff moves packages/forest-world without re-syncing the vendored copy",
   },
-  {
-    command: "pnpm check:web-experience",
-    check: "check:web-experience",
-    subject: "own-work",
-    cost: "seconds",
-    why: "reds on the pinned site's experience markers, and the pin is in this diff",
-  },
-
   // ── B. own-work, minutes ───────────────────────────────────────────────────
   {
     command: "pnpm -r typecheck",
@@ -231,30 +186,18 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
 
   // ── C. shared environment ──────────────────────────────────────────────────
   {
-    command: "pnpm check:declared",
-    check: "check:declared",
+    command: "pnpm check:guidance",
+    check: "check:guidance",
     subject: "shared-environment",
     cost: "seconds",
-    why: "its lobby arm reds on dirt another session left in the shared primary checkout (ADR-0245 D5.2), which this session is forbidden to clean",
-  },
-  // `check:agents-sync` / `check:corpus-sync` / `check:corpus-content` stood here. All three
-  // compared the committed seed against the live store, and ADR-0302 D1 decommissioned the seed as
-  // a source of truth — so all three are DELETED (D4: "deleted, not left inert"), and the plan is
-  // three rungs shorter. They were the archetype of this section's own hazard: every one of them
-  // could red on a SIBLING's write, which is why ADR-0290 had to teach one of them authorship.
-  {
-    command: "pnpm check:friction-drain",
-    check: "check:friction-drain",
-    subject: "shared-environment",
-    cost: "seconds",
-    why: "a ceiling over the SHARED friction backlog, which any session can grow",
+    why: "the committed views are branch-local, but their live Library source can move under a sibling",
   },
   {
-    command: "pnpm check:arc-proposal-drain",
-    check: "check:arc-proposal-drain",
+    command: "pnpm check:agents",
+    check: "check:agents",
     subject: "shared-environment",
     cost: "seconds",
-    why: "a ceiling over parked work on SHARED arcs, which any session can grow",
+    why: "the harness projections are branch-local, but their live Library source is shared",
   },
   {
     command: "pnpm check:verification-decay",
@@ -262,48 +205,6 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     subject: "shared-environment",
     cost: "seconds",
     why: "reds every session the moment any instrument breaches on main — the measured case behind the parked entry `verification-decay-charges-by-authorship`",
-  },
-  {
-    command: "pnpm check:coverage",
-    check: "check:coverage",
-    subject: "shared-environment",
-    cost: "seconds",
-    why: "a two-axis ceiling over the whole corpus's unproven contracts; a sibling's landing can breach it",
-  },
-  {
-    command: "pnpm check:surface-coverage",
-    check: "check:surface-coverage",
-    subject: "shared-environment",
-    cost: "seconds",
-    why: "a ceiling over the SHARED process↔entrypoint bijection backlog",
-  },
-  {
-    command: "pnpm check:graduation-worklist",
-    check: "check:graduation-worklist",
-    subject: "shared-environment",
-    cost: "seconds",
-    why: "counts memory files sibling sessions wrote — the parked entry `graduation-worklist-charges-by-authorship` is exactly this",
-  },
-  {
-    command: "pnpm check:node-version",
-    check: "check:node-version",
-    subject: "shared-environment",
-    cost: "seconds",
-    why: "judges the BOX's Node runtime, not the diff (WARN-class, always exit 0)",
-  },
-  {
-    command: "pnpm check:dist-drift",
-    check: "check:dist-drift",
-    subject: "shared-environment",
-    cost: "seconds",
-    why: "judges the PUBLISHED installer, an artifact outside this diff",
-  },
-  {
-    command: "pnpm check:deploy-health",
-    check: "check:deploy-health",
-    subject: "shared-environment",
-    cost: "seconds",
-    why: "judges the DEPLOYED hosted studio, an artifact outside this diff",
   },
 ];
 
@@ -329,41 +230,20 @@ export const NON_GATE_CHECK_SCRIPTS: ReadonlyMap<string, string> = new Map([
  * the plan would agree with the plan by construction and could never contradict it.
  */
 export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
-  "check:manifest",
   "check:boundaries",
   "check:mirror-conformance",
-  "check:guidance",
-  "check:agents",
-  "check:process-graph",
   "check:web-grounding",
   "check:web-engine",
-  "check:web-experience",
-  // The wall-clock fence (ADR-0276 D3). A static scan of test FILES — it needs neither a compile nor
-  // a passing suite, and it belongs ahead of `pnpm -r test` on its own subject matter: a session
-  // should learn its new timing assertion is fenced in seconds, not after the ten minutes this very
-  // check exists to stop being wasted (3 of 4 overnight gate runs, 9-42 min each, on docs-only diffs).
-  "check:test-timing",
 ]);
 
 /**
  * The steps that MUST run AFTER {@link EXPENSIVE_STEPS} — axis 2. Each can red on state this session
  * did not author, so none of them may precede the session's own answer.
- *
- * `check:declared` is the deliberate move recorded in this module's header: it left
- * {@link PRE_EXPENSIVE_CHECKS} when the runner made an early red stop hiding the rest, and its
- * position is now pinned from BOTH sides rather than one.
  */
 export const SHARED_ENVIRONMENT_CHECKS: ReadonlySet<string> = new Set([
-  "check:declared",
-  "check:friction-drain",
-  "check:arc-proposal-drain",
+  "check:guidance",
+  "check:agents",
   "check:verification-decay",
-  "check:coverage",
-  "check:surface-coverage",
-  "check:graduation-worklist",
-  "check:node-version",
-  "check:dist-drift",
-  "check:deploy-health",
 ]);
 
 /** The index of the plan's FIRST minutes-cost leg, or -1 when it runs none. */
