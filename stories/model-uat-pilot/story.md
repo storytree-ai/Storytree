@@ -2,7 +2,7 @@
 id: "model-uat-pilot"
 tier: story
 title: "Three pilot stories migrate to explicit witnesses and addressable UAT detail"
-outcome: "Every UAT criterion on drive-machinery, library-review, and library-tech-tree-overlay is explicitly classified as machine, tiered model, or human with a resolvable seed-canonical detail pointer — zero legacy-unresolved either remains on those three — and a machine harness reports the migration counts that inform corpus-wide rollout."
+outcome: "Every UAT criterion on drive-machinery, library-review, and library-tech-tree-overlay is explicitly classified as machine, tiered model, or human with a resolvable live-canonical detail pointer — zero legacy-unresolved either remains on those three — and a machine harness reports the migration counts that inform corpus-wide rollout."
 status: proposed
 proof_mode: UAT
 # Every story-UAT leg below is deterministic and machine-witnessed. Absence would default the
@@ -16,7 +16,8 @@ uat_witness: machine
 arc: model-uat-promotion
 # Packages-forward (ADR-0192): the machine harness lives in a NEW port
 # `@storytree/model-uat-pilot` (`packages/model-uat-pilot`). Classification edits touch the three
-# pilot stories under `stories/**`; detail seeds live under the admitted uat-criterion seed dir;
+# pilot stories under `stories/**`; detail BODIES are live Library artifacts (ADR-0307 D5), written
+# with `library artifact new|edit <id> --pg` rather than committed anywhere;
 # Library KIND registration is hosted glue in `@storytree/library` (loudly owned here — deferred
 # from uat-criterion-detail). Ownership option A: this story owns those corpus edits as its leaf
 # work (one classify→detail→observe journey), not a follow-on story-author pass.
@@ -35,7 +36,9 @@ depends_on:
 # are consumed conceptually (landed before this increment) but not as runtime package deps here.
 artifact_edges: [drive-machinery, library-review, library-tech-tree-overlay]
 # Deciding ADRs: 0209 (D8 — charter); 0192 (packages-forward / hosted honesty); 0082 (per-test
-# UAT); 0106 (Adopt resolves witness); 0055 (seed-canonical class); 0184 (drive-machinery machine
+# UAT); 0106 (Adopt resolves witness); 0307 (D5 — withdrew the seed-canonical posture for this
+# detail class, so the pointers resolve to LIVE artifacts; supersedes the ADR-0055 once cited here);
+# 0184 (drive-machinery machine
 # conversion precedent); 0070 (LOOK stays human); 0010 (organism + splitting-rule).
 decisions: [209, 192, 82, 106, 307, 184, 70, 10]
 capabilities:
@@ -75,7 +78,7 @@ proof:
 
 **Outcome —** Every UAT criterion on `drive-machinery`, `library-review`, and
 `library-tech-tree-overlay` is explicitly classified as `machine`, tiered `model`, or `human` with
-a resolvable seed-canonical detail pointer — zero legacy-unresolved `either` remains on those three —
+a resolvable live-canonical detail pointer — zero legacy-unresolved `either` remains on those three —
 and a machine harness reports the migration counts that inform corpus-wide rollout.
 
 This is the **three-story pilot migration** of the `model-uat-promotion` arc (ADR-0209 D8 /
@@ -118,10 +121,13 @@ split (option B) would conjunction the outcome across two journeys.
 - **Story title stays display-canonical.** Detail artifacts hold action / successConditions /
   evidenceExpectations (+ optional `asset:` refs); they never carry a competing title (ADR-0209
   D5/D6). Criterion annotations use `(detail: <story>#uat-<n>)` (or the story's stable detail id).
-- **Seed-canonical details.** Detail JSON lives under
-  `apps/studio/data/seed-kinds/uat-criterion/` and validates as `@storytree/uat-criterion`'s
-  `uat-criterion` kind. Library `KIND_SPECS` registration (deferred from increment 2) lands here so
-  Studio/Library can resolve the pointers the prior increment's UI already opens.
+- **Live-canonical details (ADR-0307 D5, re-pointed 2026-08-05).** A detail body is a LIVE Library
+  artifact, authored with `storytree library artifact new|edit <id> --pg` and validating as
+  `@storytree/uat-criterion`'s `uat-criterion` kind. It is NOT committed JSON: this floor once read
+  "detail JSON lives under `apps/studio/data/seed-kinds/uat-criterion/`", and that directory has
+  been deleted along with the seed-canonical posture it rested on. Library `KIND_SPECS` registration
+  (deferred from increment 2) still lands here — with the store canonical it is now the ONLY thing
+  making the pointers resolvable for Studio/Library, so it carries more weight, not less.
 - **Hash-anchor stands.** Substantive detail edits invalidate prior green via the landed
   content-hash classifier; this story does not reopen that port.
 
@@ -144,15 +150,15 @@ Listed roots-first. Cap 1 is library-hosted glue (ADR-0192 honesty). Caps 2–3 
 
 | # | capability | class | outcome | depends on |
 |---|---|---|---|---|
-| 1 | [`uat-criterion-library-surface`](uat-criterion-library-surface.md) | LEAF | Library recognizes `uat-criterion` as a first-class kind (`KnowledgeKind` + `KIND_SPECS`) and the seed-kinds directory layout is the admitted detail surface. | — |
+| 1 | [`uat-criterion-library-surface`](uat-criterion-library-surface.md) | LEAF | Library recognizes `uat-criterion` as a first-class kind (`KnowledgeKind` + `KIND_SPECS`) so a detail artifact resolves through the Library kind tables like every other live-canonical kind. | — |
 | 2 | [`pilot-criteria-classified`](pilot-criteria-classified.md) | LEAF | Every UAT criterion on the three pilot stories carries an explicit `machine` / `model`(+tier) / `human` tag — zero `either` on those three. | — |
-| 3 | [`pilot-detail-seed`](pilot-detail-seed.md) | LEAF | Every pilot criterion carries a `(detail: …)` pointer to a validating seed-canonical detail artifact under the uat-criterion seed dir. | `uat-criterion-library-surface`, `pilot-criteria-classified` |
+| 3 | [`pilot-detail-seed`](pilot-detail-seed.md) | LEAF | Every pilot criterion carries a `(detail: …)` pointer that resolves to a validating `uat-criterion` detail artifact in the live Library. | `uat-criterion-library-surface`, `pilot-criteria-classified` |
 | 4 | [`pilot-migration-harness`](pilot-migration-harness.md) | LEAF | A public `@storytree/model-uat-pilot` harness parses the three stories + seed, refuses incomplete migration / silent model default, and reports classified counts. | `pilot-criteria-classified`, `pilot-detail-seed` |
 
 ## Within-story dependency graph
 
-- `pilot-detail-seed` → `uat-criterion-library-surface` — seeds are only honest once the kind is a
-  real Library kind and the seed dir is the admitted surface.
+- `pilot-detail-seed` → `uat-criterion-library-surface` — a detail body is only addressable once
+  the kind is a real Library kind; with no seed directory left, registration is the whole surface.
 - `pilot-detail-seed` → `pilot-criteria-classified` — pointers attach to already-classified
   criteria (`<story>#uat-<n>`).
 - `pilot-migration-harness` → `pilot-criteria-classified` + `pilot-detail-seed` — the harness
@@ -166,11 +172,12 @@ Listed roots-first. Cap 1 is library-hosted glue (ADR-0192 honesty). Caps 2–3 
   any minimal sync recognition). Loud, owner-visible foreign-building work — the deferred
   increment-2 consumer glue this pilot cannot complete without.
 - **Corpus edits (option A):** `pilot-criteria-classified` sourceGlobs include the three pilot
-  `stories/*/story.md` UAT sections; `pilot-detail-seed` writes
-  `apps/studio/data/seed-kinds/uat-criterion/*.json`. story-author runtime fence injection
-  (`isStoryAuthorWriteAllowed` into `runSpawnStoryAuthor`) remains desirable consumer glue — land
-  it with cap 1 or 3 if the leaf that authors seeds needs the widened fence; otherwise the
-  prove-it-gate leaf may write the seed paths under its own write-scope for those nodes.
+  `stories/*/story.md` UAT sections; `pilot-detail-seed` edits those same story files to add the
+  `(detail: …)` tags, and authors the detail BODIES as live Library artifacts (`--pg`) rather than
+  as files (ADR-0307 D5). story-author runtime fence injection (`isStoryAuthorWriteAllowed` into
+  `runSpawnStoryAuthor`) remains consumer glue, but it no longer WIDENS anything: every file this
+  story writes is already under `stories/**`, and the detail bodies are out of any file fence's
+  reach.
 
 Runtime depends_on (already declared): foundation stories 1–4 plus the three pilot stories being
 migrated.
@@ -182,10 +189,10 @@ The integrated **acceptance walkthrough** proving the pilot end-to-end against t
 **(witness: machine)**.
 
 **Goal —** The three pilot stories are fully migrated: every criterion is explicitly classified,
-every detail pointer resolves to a seed-canonical artifact, and the harness reports the counts
-with no silent path into model judgment.
+every detail pointer resolves to a live-canonical Library artifact, and the harness reports the
+counts with no silent path into model judgment.
 
-1. **Library surface admits the detail kind.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Import / resolve `uat-criterion` through the Library kind tables. **Success —** `uat-criterion` is a `KnowledgeKind` with a `KIND_SPECS` entry; the seed path `apps/studio/data/seed-kinds/uat-criterion/` is the admitted detail surface (ADR-0209 D5). _(criterion-id: uatc_2da84216aec52749bba2a930)_ _(revision-id: uatr1:d5aa50ae863c7754)_
+1. **Library surface admits the detail kind.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Import / resolve `uat-criterion` through the Library kind tables. **Success —** `uat-criterion` is a `KnowledgeKind` with a `KIND_SPECS` entry, so a detail artifact resolves by id through those tables. No committed directory participates: ADR-0307 D5 withdrew the seed-canonical posture ADR-0209 D5 rested on, so kind registration is the whole admitted surface. _(criterion-id: uatc_2da84216aec52749bba2a930)_ _(previous-revision-id: uatr1:d5aa50ae863c7754)_ _(revision-id: uatr1:e1d419fafeb51bd1)_
 2. **Zero legacy-unresolved on the three pilots.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Parse `drive-machinery`, `library-review`, and `library-tech-tree-overlay` via `@storytree/model-uat` `parseCriteria`. **Success —** every criterion's witness ∈ {machine, model, human}; none is `either`; every `model` criterion declares `advanced` or `frontier` (ADR-0209 D8/D2). _(criterion-id: uatc_2fd3f06617acf375e5c74c53)_ _(revision-id: uatr1:f85b950747bd855c)_
 3. **Every pilot criterion has a resolvable detail.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Parse pointers via `@storytree/uat-criterion` `parseCriterionPointers` and load seed details. **Success —** pointer count equals criterion count on each pilot story; every detail id validates as `UatCriterionDetail`; `displayTitle` remains the story one-liner. _(criterion-id: uatc_001591d1102af0b3efaf822c)_ _(revision-id: uatr1:0a7fbb901b38ec3b)_
 4. **Silent model default is refused.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Present an untagged fixture criterion to the harness alongside the pilots. **Success —** it remains legacy-unresolved / outside the "migrated" set; it cannot enter model judgment; the pilots' completeness check does not coerce it (ADR-0209 D8). _(criterion-id: uatc_e64c1f58d3377dfff5093b47)_ _(revision-id: uatr1:423c15adeff48150)_
@@ -216,7 +223,7 @@ stays `proposed`. Whole-story UAT is `uat_witness: machine`.
 ## Where this sits in the arc
 
 1. **`model-uat-witness`** (landed) — tiered-witness DATA + eligibility.
-2. **`uat-criterion-detail`** (landed) — seed-canonical detail kind, pointer, hash, author scope.
+2. **`uat-criterion-detail`** (landed) — the detail kind, pointer, hash, author scope.
 3. **`model-judged-uat`** (landed) — judge + spine validation + escalation.
 4. **`uat-detail-studio`** (landed) — Studio one-liner + open-Library-detail.
 5. **`model-uat-pilot`** (THIS story) — three-story pilot migration (ADR-0209 D8).

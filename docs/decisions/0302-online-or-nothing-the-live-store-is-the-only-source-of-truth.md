@@ -93,9 +93,14 @@ those two rungs keep their early axis-1 position. **NOT YET DONE, and this is th
 it as canonical, so the CHURN this decision targeted is gone — but ~23 test files, the CLI's offline
 read path, `check:process-graph`, `check-surface-coverage`, the desktop's inline `loadCorpus` clone
 and the studio's JSON backend still read it, and it stays as a declared frozen fixture until they are
-re-homed. Separately, `apps/studio/data/seed-kinds/uat-criterion/` holds 70 detail artifacts of which
-**52 exist in no other place** — measured against the live store, which carries 22 — so that
-directory is a MIGRATION, not a deletion. Both remainders are parked on the arc.)*
+re-homed. The OTHER seed remainder is now closed: `apps/studio/data/seed-kinds/uat-criterion/` held
+70 detail artifacts of which 52 existed in no other place, so it was a MIGRATION rather than a
+deletion — the 52 were created in the live store, the 18 already-present ids were left untouched
+after their proof-bearing fields verified byte-identical, and the directory was deleted on 2026-08-05
+(ADR-0307 D5). The live tier now holds **74**, not 70: the seed and the store had each carried rows
+the other did not, so re-measuring rather than trusting the inherited 70/22/52 figures is what kept
+the migration from deleting four live-only artifacts. `apps/studio/data/knowledge.json` is the one
+remainder still parked on the arc.)*
 
 **D5 — what stays on disk, and why this is not a contradiction.** The harness-native guidance
 surfaces — CLAUDE.md, AGENTS.md and `.claude/agents/*` — remain committed files, because the harness

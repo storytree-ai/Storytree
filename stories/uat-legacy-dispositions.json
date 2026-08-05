@@ -1497,9 +1497,9 @@
     },
     {
       "legacyTestId": "uat-criterion-detail#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-05",
+      "rationale": "Deleted by ADR-0307 D5 (2026-08-05): the leg's subject is withdrawn, not merely unproven. `uatc_95e12e2ee8569f9d8b8ab499` (\"seed-canonical reconcile is kind-fenced and idempotent\") proved the seed-canonical posture ADR-0307 D5 withdrew wherever ADR-0055 had been extended. With no committed seed there is no source store to reconcile FROM, and `packages/uat-criterion/src/detail-seed-sync.ts` was deleted with the posture under ADR-0302 D4's \"deleted, not left inert\" rule. The ordinal 2 is retired in place and never reused: surviving legs keep the numbers 1, 3, 4 and 5 so no already-signed verdict is silently re-pointed.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "uat-criterion-detail#uat-3",
@@ -1521,9 +1521,9 @@
     },
     {
       "legacyTestId": "uat-criterion-detail#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-05",
+      "rationale": "Deleted by ADR-0307 D5 (2026-08-05): both halves of the leg's premise are withdrawn. `uatc_af56a253f73ea5b29d75f36a` (\"offline seed resolve matches the reconciled contract\") required a committed seed to resolve FROM and a reconciler to match AGAINST; the seed directory and `reconcileDetails` are both deleted, and ADR-0302 D2 retired offline as a supported mode. The surviving half of the property — a detail's content hash is stable across a store round-trip — is already covered by the story's uat-4 and by `detail-hash.test.ts`, so nothing is left unproven. The ordinal 6 is retired in place and never reused.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "uat-detail-studio#uat-1",

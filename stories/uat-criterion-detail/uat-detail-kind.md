@@ -8,7 +8,7 @@ outcome: "A detailed UAT criterion validates as a structured Library artifact ki
 status: proposed
 proof_mode: integration-test
 depends_on: []
-decisions: [209, 55, 192]
+decisions: [209, 307, 192]
 # Node-borne proof config (ADR-0057 / ADR-0192 packages-forward). NET-NEW pair in this story's own
 # `@storytree/uat-criterion` package: AUTHOR_TEST writes detail-kind.test.ts importing the missing
 # detail-kind.ts; IMPLEMENT authors the zod kind schema. `install: true` for zod/tsx; typecheck
@@ -42,8 +42,8 @@ principles/processes — and refuses a malformed or title-redefining body.
 ## Guidance
 
 - Author the detail-kind schema in the story-owned `packages/uat-criterion/src/detail-kind.ts`. The
-  kind id is the stable Library kind string for this seed-canonical class (settle the exact spelling
-  at build — e.g. `uat-criterion` — and keep it one exported constant so sync / pointer / fence all
+  kind id is the stable Library kind string for this class (settle the exact spelling
+  at build — e.g. `uat-criterion` — and keep it one exported constant so pointer / hash / fence all
   share it).
 - **Body fields (ADR-0209 D5):** required action, success conditions, and evidence expectations;
   optional references to reusable Library principles/processes (`asset:` refs). These are the

@@ -3,7 +3,7 @@ status: accepted
 load_bearing: true
 decided: 2026-08-04
 supersedes: [55]
-amends: [209]
+amends: [209, 247]
 arc: session-decoupling-arc
 ---
 # ADR-0307: The agent tier goes live-canonical: the committed seed stops being an authoring surface
@@ -21,7 +21,10 @@ reverses. 0055 is kept as browsable history.
 
 **Amends** [ADR-0209](0209-tier-model-judged-uat-below-irreducible-human-witness.md) — its D5 explicitly
 "extend[s] ADR-0055's seed-canonical exception beyond agents" to the per-criterion `uat-criterion`
-detail class, and D5 is accepted and load-bearing with **73 seed detail artifacts** resting on it. The
+detail class, and D5 is accepted and load-bearing with **70 seed detail artifacts** resting on it
+*(count corrected in place 2026-08-05, ADR-0139: this ADR was drafted saying "73", a figure inherited
+unchecked from ADR-0209 and ADR-0247; `git ls-tree` shows the directory held 70 files on 2026-08-04
+and had held 70 since 2026-08-03, when ADR-0294 increment 1 deleted four)*. The
 posture 0055 established therefore has a second home, and the seed removal kills it in both. Only D5's
 *canonicality direction* moves; D5's substance — one detail artifact per detailed UAT criterion, owned
 by `story-author`, authored atomically with the hierarchy — is untouched, which is why this is an
@@ -84,11 +87,23 @@ the `library sync-agents` command are gone; `build:guidance` / `build:agents` re
 `packages/cli/src/corpus-store.ts` and fail loudly when it is unreachable. The migration was proved
 rather than asserted — both generators re-rendered CLAUDE.md, AGENTS.md, all four harness agent
 directories and `definitions.generated.json` **byte-identically** from the live store, so the two
-surfaces demonstrably agreed at the moment of the switch. D5's wider scope is NOT done: the 70
-`uat-criterion` detail seeds under `apps/studio/data/seed-kinds/` are still on disk, and 52 of them
-exist in no other place — the live store carries 22 — so withdrawing the posture there is a migration
-and is parked on `session-decoupling-arc`. `detail-seed-sync.ts` is untouched, as D5 said it should
-be: it reconciles store→store and did not fall with the ADR-0302 D4 family.)*
+surfaces demonstrably agreed at the moment of the switch.
+
+D5 landed separately on 2026-08-05 and is now COMPLETE. All 70 committed `uat-criterion` detail
+bodies were migrated into the live store and `apps/studio/data/seed-kinds/` was deleted; there is no
+seed-authored kind left anywhere. Re-measuring before the migration corrected the scope in one
+material way: the 22 live rows were **not** a subset of the 70 seed files. Four
+(`drive-machinery#uat-1/2/5/6`) existed only live — orphans of criteria the story later dropped — so
+the union was **74**, not 70, and a full seed→live `reconcileDetails` would have DELETED those four
+and overwritten the other 18. The migration was therefore create-only: 52 new rows, the 22
+pre-existing ones untouched, each new doc wrapped in the Library envelope and pushed through
+`upcastAndValidate` (the seed files were bare bodies, so a raw upsert would have written 74
+envelope-less rows). `detail-seed-sync.ts` was DELETED under D3's rule rather than kept: it had no
+production caller — the `loadCorpus` and `sync-uat-details --pg` consumers named in its own doc
+comment never existed — and its delete-target-extras semantics were actively wrong for every
+remaining direction. `story-author`'s write fence narrows back to a single admitted root,
+`stories/**`: a detail body is now a live `--pg` write, so the file fence has nothing left to admit
+for it.)*
 
 ### D4 — A generator may hold a store connection; a session-start hook may not
 
@@ -113,12 +128,12 @@ stories (`model-uat-pilot`, `model-uat-witness`, `scoped-glue-actuator`, `uat-cr
 cite ADR-0055 as deciding, and re-pointing them to a decision covering only agents would have been a
 false citation. They are re-pointed to this ADR, which is why it must carry the general posture.
 
-Migration scope this adds, so it is costed rather than discovered: the 73 detail artifacts move with
+Migration scope this adds, so it is costed rather than discovered: the 70 detail artifacts move with
 the rest of the corpus under ADR-0302 D1, and `packages/uat-criterion/src/detail-seed-sync.ts` — a
 structural clone of `sync-agents` that reconciles store→store over the `Store` seam — is re-read
 under D3's rule. It imports nothing from `@storytree/library/store`, so deleting the ADR-0302 D4
 family does not break it; whether it survives on its own terms is that increment's call, not this
-ADR's.
+ADR's. *(That call was made on 2026-08-05: deleted. See the "as landed" note under D3.)*
 
 ## Consequences
 
@@ -140,6 +155,14 @@ D1's increment.
 ## References
 
 - [ADR-0055](0055-the-library-agent-tier-is-seed-canonical-sync-agents-reconci.md) — superseded: the seed-canonical agent tier.
+- [ADR-0209](0209-tier-model-judged-uat-below-irreducible-human-witness.md) — **amended**: D5's
+  canonicality direction reverses; D5's substance is untouched.
+- [ADR-0247](0247-retire-the-model-uat-witness-tier-the-witness-split-is-human.md) — **amended**
+  *(edge recorded 2026-08-05, ADR-0139)*: its decision 3 restated ADR-0209 D5's seed-canonical posture
+  in its own words ("the `uat-criterion` kind is seed-canonical and reconciled … Nothing here weakens
+  the ADR-0055 seed-canonical exception"). D5 here withdraws the posture *wherever it was extended*,
+  so that clause is void and is annotated in place there. 0247's own decision — keep ADR-0209 D5–D7 —
+  is untouched, which is why this is an `amends` rather than a second supersession.
 - [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md) — D1/D4 remove the
   seed and the reconcilers; D5 keeps the views committed. D3 is a hard prerequisite, per Consequences.
 - [ADR-0023](0023-library-cli-choose-your-own-adventure.md) — the live-canonical default this rejoins.

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The uat-criterion-detail organism: seed-canonical per-criterion Library detail artifacts — kind schema, seed sync, criterion pointer, hash-anchor invalidation, and story-author write-scope. Pure zod + Store seam; packages-forward (ADR-0192 / ADR-0209 D5/D6).",
+  "description": "The uat-criterion-detail organism: live-canonical per-criterion Library detail artifacts — kind schema, criterion pointer, hash-anchor invalidation, and story-author write-scope. Pure zod; packages-forward (ADR-0192 / ADR-0209 D5/D6, seed-canonical posture withdrawn by ADR-0307 D5).",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@storytree/model-uat": "workspace:*",
-    "@storytree/storage-protocol": "workspace:*",
     "zod": "^3.24.1"
   },
   "devDependencies": {

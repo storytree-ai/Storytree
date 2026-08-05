@@ -1,8 +1,0 @@
-{
-  "kind": "uat-criterion",
-  "id": "terminal-repo-picker#uat-5",
-  "action": "In the Electron `_electron` harness, prove persistence across a REAL process restart using TWO sequential `electron.launch` calls sharing one userData directory. LAUNCH 1: start against a clean userData (back up and restore any real repo-selection.json so a dev box is left untouched, as session-survival.e2e.mjs already does), stub `dialog.showOpenDialog` in the main to return a known git checkout, call `window.desktopRepo.pick()`, and confirm the selection landed. Close the app. LAUNCH 2: start again against the SAME userData, with NO dialog stub and NO second pick.",
-  "successConditions": "After launch 1, `<userData>/repo-selection.json` exists on disk and contains the picked path. After launch 2, `window.desktopRepo.get()` (ipc `repo:get` → repo-selection.current()) returns that same path with no pick having occurred in the second process, the gate does NOT show \"Select a repository to start the terminal\", and expanding the terminal spawns a pty whose cwd is the remembered checkout. The proof must be two genuinely separate OS processes sharing a userData path — reading the JSON file back inside a single launch would prove serialization, not durability across a restart, and does not discharge this leg.",
-  "evidenceExpectations": "The e2e spec's node:test output showing both launches, the on-disk repo-selection.json content asserted between them, and the post-relaunch repo:get assertion. The userData backup/restore must be visible in the spec so the run is safe on a developer machine.",
-  "refs": ["asset:human-witness-is-a-judgment-gap-not-cost"]
-}

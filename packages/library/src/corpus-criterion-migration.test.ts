@@ -53,21 +53,37 @@ test("disk-canonical UAT corpus has authored exact identities and a complete exp
   );
 
   // ADR-0294 D2's honesty wall, as far as a machine can check it. No mechanical check can verify that
-  // the named lower-tier node ACTUALLY proves the deleted claim — the ADR says so explicitly, and that
-  // adjudication stays human. What IS checkable: a criterion deleted by that pass must leave a
-  // `superseded` entry that NAMES where the proof now lives, so a reader can audit the claim rather
-  // than discovering an unexplained absence.
+  // a named lower-tier node ACTUALLY proves the deleted claim — the ADR says so explicitly, and that
+  // adjudication stays human. What IS checkable: a deleted criterion must leave a `superseded` entry
+  // that cites the deciding ADR and ACCOUNTS for the claim, so a reader can audit it rather than
+  // discovering an unexplained absence.
+  //
+  // Both halves used to be pinned to ADR-0294 specifically — the only pass that had ever superseded a
+  // criterion, and one that always deleted for the same reason (the proof exists one rung down).
+  // ADR-0307 D5 supersedes for a genuinely different reason: the leg's SUBJECT is withdrawn (the
+  // seed-canonical posture, and the reconciler that implemented it, no longer exist), so there is no
+  // lower-tier node to point at and demanding one would force a false citation. So the check now
+  // encodes the property rather than one pass's phrasing: cite SOME deciding ADR, and account for the
+  // claim in one of the two honest ways. Re-pinning to /ADR-0294|ADR-0307/ would just re-arm the same
+  // break for the next pass.
   for (const entry of ledger.dispositions) {
     if (entry.disposition !== "superseded") continue;
     assert.match(
       entry.rationale,
-      /ADR-0294/,
+      /ADR-\d{4}/,
       `${entry.legacyTestId}: a superseded disposition must cite the deciding ADR`,
     );
-    assert.match(
-      entry.rationale,
-      /proven by the (capability|contract|capabilities)|proven in two places|is proven by/,
-      `${entry.legacyTestId}: a superseded disposition must NAME the lower-tier node that proves the deleted claim (ADR-0294 D2)`,
+    // Either the proof MOVED (name where it now lives) or the claim was WITHDRAWN (say so). A
+    // rationale that does neither leaves the deleted claim unaccounted for.
+    const namesWhereProofMoved =
+      /proven by the (capability|contract|capabilities)|proven in two places|is proven by/.test(
+        entry.rationale,
+      );
+    const declaresClaimWithdrawn = /withdrawn|retired|no longer exists?/.test(entry.rationale);
+    assert.ok(
+      namesWhereProofMoved || declaresClaimWithdrawn,
+      `${entry.legacyTestId}: a superseded disposition must either NAME the lower-tier node that ` +
+        `proves the deleted claim (ADR-0294 D2) or state that the claim itself was withdrawn`,
     );
   }
 });

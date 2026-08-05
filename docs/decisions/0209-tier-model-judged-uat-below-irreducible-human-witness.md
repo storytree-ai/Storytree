@@ -11,19 +11,32 @@ arc: model-uat-promotion
 
 accepted (2026-07-17) — decided/directed by the owner in conversation on 2026-07-17. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
-**PARTLY REVERSED — read this before the body (corrected in place 2026-07-26, ADR-0139).** This ADR
-remains `accepted` because part of it is still current state, but it is NOT current in full. Amended
-by [ADR-0247](0247-retire-the-model-uat-witness-tier-the-witness-split-is-human.md):
+**PARTLY REVERSED — read this before the body (corrected in place 2026-07-26, extended 2026-08-05,
+ADR-0139).** This ADR remains `accepted` because part of it is still current state, but it is NOT
+current in full. Amended TWICE — by
+[ADR-0247](0247-retire-the-model-uat-witness-tier-the-witness-split-is-human.md) (D1–D4) and by
+[ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md) (D5's canonicality
+direction):
 
 - **D1–D4 are REVERSED. Do not read them as doctrine.** The `model` witness kind, the
   `advanced`/`frontier` capability tiers, the independent read-only model judge, and the model-tier
   escalation ladder are retired. **The UAT witness split is binary: `human` or `machine`.** The
   reasoning below is kept as the historical record of why the third rung was tried, not as guidance.
-- **D5, D6 and D7 STAND UNCHANGED and are load-bearing today.** Per-criterion detail artifacts, verdict
-  anchoring to a detail-artifact revision, and the concise Studio row were justified independently of
-  the model tier and survive it intact — 73 seed detail artifacts depend on them, and the
-  seed-canonical `uat-criterion` class this ADR added to ADR-0055 is live. **Nothing in the reversal
-  touches the detail-artifact machinery.**
+- **D5, D6 and D7 STAND and are load-bearing today — but D5 no longer stands *unchanged*.**
+  Per-criterion detail artifacts, verdict anchoring to a detail-artifact revision, and the concise
+  Studio row were justified independently of the model tier and survive it intact. **Nothing in the
+  ADR-0247 reversal touches the detail-artifact machinery.** What DID later move is D5's canonicality
+  direction — see the next bullet.
+- **D5's `seed-canonical` half is DEAD (added in place 2026-08-05, ADR-0139).** Amended by
+  [ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md): its D5 withdraws
+  the seed-canonical posture this ADR extended from ADR-0055 "wherever it was extended", so the
+  `uat-criterion` detail kind is **live-canonical like every other kind**. Landed 2026-08-05 — the 70
+  committed detail bodies were migrated into the live store and `apps/studio/data/seed-kinds/` was
+  deleted, leaving 74 live artifacts (the seed and the store had each held rows the other did not).
+  A detail artifact is now read and written with `storytree library artifact <story>#uat-<n> --pg`;
+  there is no committed detail file and none may be recreated. **D5's substance is untouched** — one
+  detail artifact per detailed criterion, owned by `story-author`, authored atomically with the
+  hierarchy — which is why 0307's edge is an `amends`, not a second supersession.
 - **D8 is COMPLETE.** The pilot ran and the corpus-wide migration finished on 2026-07-26: 26 stories
   adjudicated leg by leg produced **zero** `model` legs, and the final corpus measures 42 human /
   214 machine / 0 model / 0 either across 256 legs. That null result is the evidence base for
@@ -66,9 +79,10 @@ frontier UAT judge until the registry and judge integration explicitly admit a C
 
 ## Decision
 
-> **Currency map (corrected in place 2026-07-26, ADR-0139).** D1–D4 REVERSED by ADR-0247 · D5–D7
-> STAND, load-bearing · D8 COMPLETE. Each decision below is marked. A reversed decision is history;
-> it is not the rule, and re-introducing it needs an ADR that supersedes ADR-0247.
+> **Currency map (corrected in place 2026-07-26, extended 2026-08-05, ADR-0139).** D1–D4 REVERSED by
+> ADR-0247 · D5–D7 STAND, load-bearing, but D5's `seed-canonical` half is REVERSED by ADR-0307 D5 ·
+> D8 COMPLETE. Each decision below is marked. A reversed decision is history; it is not the rule, and
+> re-introducing it needs an ADR that supersedes ADR-0247 (for D1–D4) or ADR-0307 (for D5's direction).
 
 1. **[REVERSED by ADR-0247 — the witness split is binary, `human` or `machine`; there is no `model`
    witness kind.]** **Add `model` as a distinct per-criterion witness.** UAT criteria resolve to one of three honest
@@ -112,16 +126,22 @@ frontier UAT judge until the registry and judge integration explicitly admit a C
    One eligible judge is sufficient at each tier; Fable and any future peer frontier model do not
    both have to agree unless a later criterion explicitly introduces a stronger risk policy.
 
-5. **[STANDS — current state, load-bearing. Only the words "and minimum model tier" in the first
-   sentence are void with D2: a criterion declares a witness kind and no tier. The rest of this
-   decision is unchanged and live — 73 seed detail artifacts rest on it.]** **Create one seed-canonical Library artifact per detailed UAT criterion.** The story remains the
+5. **[STANDS — current state, load-bearing — with TWO clauses void. (a) "and minimum model tier" in
+   the first sentence is void with D2: a criterion declares a witness kind and no tier. (b) The
+   `seed-canonical` sentence is void with ADR-0307 D5: the kind is LIVE-canonical, authored through
+   `storytree library artifact … --pg`, and the committed seed directory is deleted. Everything else
+   here is unchanged and live — the detail tier measured 74 live artifacts on 2026-08-05.]**
+   **Create one Library artifact per detailed UAT criterion.** The story remains the
    authority for the stable criterion id, canonical one-line title, witness kind, and minimum model
    tier. Its criterion points to a new detailed UAT artifact whose body carries the action, success
    conditions, evidence expectations, and references to reusable Library principles/processes.
-   This kind is seed-canonical and reconciled into the live Library, extending ADR-0055's
+   ~~This kind is seed-canonical and reconciled into the live Library, extending ADR-0055's
    seed-canonical exception beyond agents so offline builds and CI can resolve the same proof
-   contract. The `story-author` owns these artifacts together with the hierarchy and may author the
-   pair atomically.
+   contract.~~ *(Void with ADR-0307 D5 — the stated reason, "offline builds and CI can resolve the
+   same proof contract", is the exact capability ADR-0302 D2/D3 retired, so the rule went with it.)*
+   The `story-author` owns these artifacts together with the hierarchy and may author the
+   pair atomically. *(The pair is still authored together; only the second half's MEDIUM changed,
+   from a committed file to a live `--pg` write.)*
 
 6. **[STANDS — current state, load-bearing. Read "a model or human UAT verdict" as "a UAT verdict":
    the anchoring rule applies to every witness kind that remains, which is `human` and `machine`.]**
@@ -157,9 +177,9 @@ frontier UAT judge until the registry and judge integration explicitly admit a C
 
 > **These were the CONSEQUENCES PREDICTED in 2026-07-17, not a report of what happened.** Every
 > consequence below that turns on the `model` tier is void with D1–D4; the migration measured the
-> opposite of the first two "Good" bullets. Only the detail-artifact consequences (the Studio-row and
-> seed-canonical bullets, and the re-attestation cost) describe current state. ADR-0247's own
-> Consequences section is the current one.
+> opposite of the first two "Good" bullets. Only the detail-artifact consequences (the Studio-row
+> bullet and the re-attestation cost) describe current state — the two `seed-canonical` bullets went
+> void with ADR-0307 D5 and are struck below. ADR-0247's own Consequences section is the current one.
 
 **Good.**
 
@@ -172,15 +192,22 @@ frontier UAT judge until the registry and judge integration explicitly admit a C
   laundered through an operator click.~~ *(The model clauses are void with D1–D3. The
   builder-cannot-self-approve rule is ADR-0020's and is untouched by the reversal.)*
 - Story panels stay scannable while full acceptance detail remains addressable and versioned.
-- Seed-canonical detail makes the judged contract reproducible in offline tests and CI.
+- ~~Seed-canonical detail makes the judged contract reproducible in offline tests and CI.~~ *(Void
+  with ADR-0307 D5 — offline is no longer a supported mode at all (ADR-0302 D2), so this benefit had
+  nothing left to buy. The detail tier is live-canonical and CI now holds a DB credential (D3).)*
 
 **Cost / watch.**
 
 - ~~The proof protocol, witness resolution, verdict provenance, Library schema/sync machinery, Studio,
   CLI, and story-author authority all gain a new concept.~~ *(This cost was paid and then found not to
   earn its keep — the concept never reached a single leg. Its unwinding is ADR-0247 D5.)*
-- A second seed-canonical Library kind is an intentional exception to the live-canonical default and
-  needs its own fail-closed reconciliation checks. *(Still current — D5 stands.)*
+- ~~A second seed-canonical Library kind is an intentional exception to the live-canonical default and
+  needs its own fail-closed reconciliation checks.~~ *(Void with ADR-0307 D5. The cost is worth
+  keeping as history because it was PAID and then found unearned: the reconciler this bullet called
+  for was written (`packages/uat-criterion/src/detail-seed-sync.ts`) but never wired to a caller —
+  the `loadCorpus` and `sync-uat-details --pg` consumers named in its own doc comment never existed —
+  so the 70 committed detail files were carried into the corpus by nothing, and 52 of them ended up
+  existing in no other place. The exception is withdrawn and the reconciler is deleted.)*
 - Per-criterion artifacts increase corpus volume. ~~The pilot must measure whether the navigation and
   authoring cost is justified before bulk migration.~~ *(Measured: the migration completed and judged
   the per-criterion detail its most valuable output — ADR-0247 D3. The volume cost stands, the open
@@ -195,14 +222,20 @@ frontier UAT judge until the registry and judge integration explicitly admit a C
 ## References
 
 - [ADR-0247](0247-retire-the-model-uat-witness-tier-the-witness-split-is-human.md) — **amends this
-  ADR**: D1–D4 reversed, D5–D7 stand, D8 complete. Read it for current state.
+  ADR**: D1–D4 reversed, D5–D7 stand, D8 complete. Read it for current state. Note its D3 restated
+  D5's now-void `seed-canonical` clause in its own words; that restatement is annotated there.
+- [ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md) — **also amends this
+  ADR**: its D5 withdraws D5's seed-canonical direction here (and supersedes ADR-0055 outright), so
+  the `uat-criterion` detail kind is live-canonical. D5's substance is untouched.
 - [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) — why the reversal
   is annotated in this body in place rather than left for the reader to discover elsewhere.
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) — the spine observes and
   signs; leaves do not self-certify. *(Link corrected 2026-07-26 — the slug had rotted.)*
 - [ADR-0055](0055-the-library-agent-tier-is-seed-canonical-sync-agents-reconci.md) — amended from one
-  seed-canonical kind to an explicit seed-canonical class. **This amendment STANDS** (it is D5's, not
-  D1's). *(Link corrected 2026-07-26 — the slug had rotted.)*
+  seed-canonical kind to an explicit seed-canonical class. ~~**This amendment STANDS** (it is D5's,
+  not D1's).~~ **This amendment is UNDONE by ADR-0307**: 0055 is superseded outright and the class it
+  established has no members left — every kind is live-canonical. *(Link corrected 2026-07-26 — the
+  slug had rotted.)*
 - [ADR-0082](0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) — amended
   from binary human/machine per-test proof to include model witness. **This amendment is UNDONE by
   ADR-0247**: ADR-0082's binary human/machine per-test proof is current state again. *(Link corrected

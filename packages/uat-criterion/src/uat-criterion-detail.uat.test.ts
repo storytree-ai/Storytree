@@ -2,21 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Criterion } from "@storytree/model-uat";
 import { EXACT_CRITERION } from "./criterion.test-helpers.js";
-import { InMemoryStore } from "@storytree/storage-protocol";
 
 /**
  * The story-level UAT walkthrough for `uat-criterion-detail` (ADR-0209 D5/D6), run EXCLUSIVELY
  * against the PUBLIC `@storytree/uat-criterion` ROOT barrel (`./index.js`) — never against a
- * sibling capability file directly. Each capability (kind schema, seed-canonical reconcile,
- * criterion pointer + display-canonical title, hash-anchor freshness, story-author write-scope)
- * is already proven in isolation by its own `*.test.ts`; this file pins the STORY-level outcome:
+ * sibling capability file directly. Each capability (kind schema, criterion pointer +
+ * display-canonical title, hash-anchor freshness, story-author write-scope) is already proven in
+ * isolation by its own `*.test.ts`; this file pins the STORY-level outcome:
  * a consumer that imports `@storytree/uat-criterion` (the barrel, not a deep sibling path) must
  * actually get the working contract.
  *
  * `packages/uat-criterion/src/index.ts` at HEAD is a bootstrap-only doc comment with no
  * re-exports at all — every assertion below currently fails because the symbol it pulls off the
- * barrel is `undefined`. Each test genuinely DRIVES behaviour (round-trip / kind-fenced reconcile
- * / display-title / hash-freshness / scope-fence) through whatever the barrel provides; none of
+ * barrel is `undefined`. Each test genuinely DRIVES behaviour (round-trip / display-title /
+ * hash-freshness / scope-fence) through whatever the barrel provides; none of
  * them merely check that a name is present. Deletion check: remove the eventual barrel
  * re-exports and every test below returns to red — each one both requires the symbol and then
  * exercises real behaviour through it.
@@ -29,7 +28,6 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 type DetailKindModule = typeof import("./detail-kind.js");
 type CriterionPointerModule = typeof import("./criterion-pointer.js");
 type DetailHashModule = typeof import("./detail-hash.js");
-type DetailSeedSyncModule = typeof import("./detail-seed-sync.js");
 type StoryAuthorScopeModule = typeof import("./story-author-scope.js");
 
 const barrel: Record<string, unknown> = (await import("./index.js")) as unknown as Record<
@@ -77,40 +75,14 @@ test("uat-1: the root barrel's UatCriterionDetail refuses a title-redefining bod
   assert.equal(result.success, false, "the detail schema must not admit a title field");
 });
 
-// ── uat-2: seed-canonical reconcile is kind-fenced and idempotent ──────────
-
-test("uat-2: the root barrel's reconcileDetails upserts, deletes stale, and leaves other kinds untouched", async () => {
-  const reconcileDetails = need<DetailSeedSyncModule["reconcileDetails"]>("reconcileDetails");
-
-  const source = new InMemoryStore();
-  await source.upsertDoc({ id: "s1#c1", kind: "uat-criterion", doc: WELL_FORMED_DETAIL });
-
-  const target = new InMemoryStore();
-  await target.upsertDoc({
-    id: "s1#gone",
-    kind: "uat-criterion",
-    doc: { ...WELL_FORMED_DETAIL, id: "s1#gone" },
-  });
-  await target.upsertDoc({ id: "p1", kind: "principle", doc: { id: "p1", kind: "principle" } });
-
-  const result = await reconcileDetails(source, target);
-  assert.deepEqual(result.upserted, ["s1#c1"]);
-  assert.deepEqual(result.deleted, ["s1#gone"]);
-  assert.ok(await target.getDoc("p1"), "an unrelated kind must be left untouched by the sync");
-  assert.equal(await target.getDoc("s1#gone"), null, "the stale detail of THIS kind must be deleted");
-});
-
-test("uat-2: a second reconcile via the barrel is a no-op (inSync, nothing left to delete)", async () => {
-  const reconcileDetails = need<DetailSeedSyncModule["reconcileDetails"]>("reconcileDetails");
-  const source = new InMemoryStore();
-  await source.upsertDoc({ id: "s1#c1", kind: "uat-criterion", doc: WELL_FORMED_DETAIL });
-  const target = new InMemoryStore();
-
-  await reconcileDetails(source, target);
-  const second = await reconcileDetails(source, target);
-  assert.deepEqual(second.deleted, []);
-  assert.equal(second.inSync, true);
-});
+// ── uat-2 RETIRED (ADR-0307 D5) ────────────────────────────────────────────
+// The story's uat-2 proved "seed-canonical reconcile is kind-fenced and idempotent" through the
+// barrel's `reconcileDetails`. ADR-0307 D5 withdrew the seed-canonical posture, the committed seed
+// directory is gone, and the reconciler was deleted with it (ADR-0302 D4's "deleted, not left
+// inert"). There is no source store to reconcile FROM, so the leg has no subject.
+//
+// The remaining criterion numbers are deliberately NOT renumbered: a UAT criterion id is positional,
+// so closing the gap would silently re-point every already-signed verdict onto a different leg.
 
 // ── uat-3: the criterion points; the story title stays display-canonical ───
 
@@ -158,44 +130,39 @@ test("uat-4: the story-owned display title never participates in the barrel's ha
 
 // ── uat-5: story-author's fence admits the pair and denies the rest ────────
 
-test("uat-5: the root barrel's write-scope predicate admits stories/** and the detail seed surface", () => {
+test("uat-5: the root barrel's write-scope predicate admits stories/**", () => {
   const isStoryAuthorWriteAllowed = need<StoryAuthorScopeModule["isStoryAuthorWriteAllowed"]>(
     "isStoryAuthorWriteAllowed",
-  );
-  const seedDir = need<StoryAuthorScopeModule["UAT_CRITERION_DETAIL_SEED_DIR"]>(
-    "UAT_CRITERION_DETAIL_SEED_DIR",
   );
 
   assert.equal(isStoryAuthorWriteAllowed("stories/demo-story/story.md"), true);
-  assert.equal(isStoryAuthorWriteAllowed(`${seedDir}demo-story#uat-1.json`), true);
+  assert.equal(isStoryAuthorWriteAllowed("stories/demo-story/some-capability.md"), true);
 });
 
-test("uat-5: the root barrel's write-scope predicate denies a neighbouring kind and every foreign path", () => {
+test("uat-5: the root barrel's write-scope predicate denies every corpus and foreign path", () => {
   const isStoryAuthorWriteAllowed = need<StoryAuthorScopeModule["isStoryAuthorWriteAllowed"]>(
     "isStoryAuthorWriteAllowed",
   );
-  const seedRoot = need<StoryAuthorScopeModule["LIBRARY_SEED_KIND_ROOT"]>("LIBRARY_SEED_KIND_ROOT");
 
-  assert.equal(isStoryAuthorWriteAllowed(`${seedRoot}agent/story-author.json`), false);
+  // Since ADR-0307 D5 a detail body is a LIVE-store write, not a committed file — so no corpus path
+  // is admitted any more, this kind's retired seed directory included.
+  assert.equal(
+    isStoryAuthorWriteAllowed("apps/studio/data/seed-kinds/uat-criterion/demo-story#uat-1.json"),
+    false,
+  );
+  assert.equal(
+    isStoryAuthorWriteAllowed("apps/studio/data/seed-kinds/agent/story-author.json"),
+    false,
+  );
   assert.equal(isStoryAuthorWriteAllowed("packages/uat-criterion/src/index.ts"), false);
   assert.equal(isStoryAuthorWriteAllowed("docs/decisions/0209-model-uat-promotion.md"), false);
 });
 
-// ── uat-6: offline seed resolve matches the reconciled contract ────────────
-
-test("uat-6: a detail resolved from the seed store after reconcile parses and hashes identically to the source", async () => {
-  const reconcileDetails = need<DetailSeedSyncModule["reconcileDetails"]>("reconcileDetails");
-  const UatCriterionDetail = need<DetailKindModule["UatCriterionDetail"]>("UatCriterionDetail");
-  const computeDetailHash = need<DetailHashModule["computeDetailHash"]>("computeDetailHash");
-
-  const source = new InMemoryStore();
-  await source.upsertDoc({ id: "demo-story#uat-1", kind: "uat-criterion", doc: WELL_FORMED_DETAIL });
-  const target = new InMemoryStore();
-  await reconcileDetails(source, target);
-
-  const resolved = await target.getDoc("demo-story#uat-1");
-  assert.ok(resolved, "the detail must resolve from the target after reconcile");
-  const detail = UatCriterionDetail.parse(resolved!.doc);
-  assert.equal(detail.action, WELL_FORMED_DETAIL.action);
-  assert.equal(computeDetailHash(detail), computeDetailHash(WELL_FORMED_DETAIL));
-});
+// ── uat-6 RETIRED (ADR-0307 D5) ────────────────────────────────────────────
+// The story's uat-6 proved "offline seed resolve matches the reconciled contract" — it round-tripped
+// a detail through `reconcileDetails` into a target store and re-hashed it. Both halves of its
+// premise are withdrawn: there is no seed to resolve offline from (ADR-0302 D2 drops offline as a
+// supported mode), and no reconciler. The surviving half of the property — that a detail's content
+// hash is stable across a store round-trip — is already covered by uat-4 and by detail-hash.test.ts.
+//
+// As with uat-2: the number is retired in place, never reused and never renumbered.

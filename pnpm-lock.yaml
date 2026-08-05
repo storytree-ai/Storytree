@@ -754,9 +754,6 @@ importers:
       '@storytree/model-uat':
         specifier: workspace:*
         version: link:../model-uat
-      '@storytree/storage-protocol':
-        specifier: workspace:*
-        version: link:../storage-protocol
       zod:
         specifier: ^3.24.1
         version: 3.25.76
