@@ -279,7 +279,12 @@ function leafPromptRefusal(problems: readonly string[]): Envelope {
  * dangling manifest ref, OR an unreachable store REFUSES the build rather than degrading it. A leaf
  * silently running a thinner prompt is the failure this function exists to prevent.
  */
-export async function renderLeafPhasePrompts(): Promise<LeafPhasePromptResult> {
+export async function renderLeafPhasePrompts(store?: Store): Promise<LeafPhasePromptResult> {
+  // An INJECTED store short-circuits the live open. It exists for the suites: ADR-0302 D3 keeps
+  // `STORYTREE_DB_USER` out of `pnpm -r test`, so a test exercising a `--real` chain would otherwise
+  // fail on an unreachable store for a reason that has nothing to do with what it is testing —
+  // green on a developer box that happens to hold credentials, red in CI. Production passes nothing.
+  if (store !== undefined) return renderPhasePromptsFrom(store);
   let corpus: Awaited<ReturnType<typeof openCorpusStore>>;
   try {
     corpus = await openCorpusStore("build --live/--real");
@@ -899,6 +904,15 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
 export interface NodeBuildOpts {
   dryRun: boolean;
   /**
+   * OPTIONAL corpus store the leaf's per-phase system prompts are rendered from. Omit in production
+   * and the live store is opened (ADR-0302 D1). Present ONLY so a hermetic suite can exercise a
+   * `--real` chain without a credential — ADR-0302 D3 keeps `STORYTREE_DB_USER` out of
+   * `pnpm -r test`, so without this seam such a test is green on a box that holds credentials and
+   * red in CI, for a reason unrelated to what it asserts.
+   */
+  corpusStore?: Store;
+
+  /**
    * Observe the finished build's per-slice leaf run accounting (ADR-0235). Injected by the CLI so
    * drive never imports the traversal adapter — see {@link LeafSlicesObserver} for why.
    */
@@ -1135,7 +1149,7 @@ export async function nodeBuild(
   // needs no leaf prompt, so only live/real renders it.
   let phasePrompts: LeafPhasePrompts | undefined;
   if (live || real) {
-    const rendered = await renderLeafPhasePrompts();
+    const rendered = await renderLeafPhasePrompts(opts.corpusStore);
     if (!rendered.ok) return rendered.refusal;
     phasePrompts = rendered.prompts;
   }

@@ -401,21 +401,34 @@ export function composeCuratorSystemPrompt(agentBody: string): string {
  * The reason carries `openCorpusStore`'s full remedy text, so an unreachable store is named rather
  * than mistaken for a missing agent.
  */
-export async function renderCuratorPrompt(): Promise<
-  { ok: true; systemPrompt: string } | { ok: false; reason: string }
-> {
+export async function renderCuratorPrompt(
+  store?: Store,
+): Promise<{ ok: true; systemPrompt: string } | { ok: false; reason: string }> {
+  // An INJECTED store short-circuits the live open — see `renderLeafPhasePrompts` for why the seam
+  // exists (hermetic suites under ADR-0302 D3). Production passes nothing.
+  if (store !== undefined) return renderFrom(store);
   try {
     const corpus = await openCorpusStore("curate");
     try {
-      const res = await renderAgentPrompt(corpus.store, CURATOR_AGENT_ID);
-      if (!res.ok) return { ok: false, reason: res.reason };
-      if (res.agent.missingRefs.length > 0) {
-        return { ok: false, reason: `dangling refs: ${res.agent.missingRefs.join(", ")}` };
-      }
-      return { ok: true, systemPrompt: composeCuratorSystemPrompt(res.agent.prompt) };
+      return await renderFrom(corpus.store);
     } finally {
       await corpus.close();
     }
+  } catch (e) {
+    return { ok: false, reason: (e as Error).message };
+  }
+}
+
+async function renderFrom(
+  store: Store,
+): Promise<{ ok: true; systemPrompt: string } | { ok: false; reason: string }> {
+  try {
+    const res = await renderAgentPrompt(store, CURATOR_AGENT_ID);
+    if (!res.ok) return { ok: false, reason: res.reason };
+    if (res.agent.missingRefs.length > 0) {
+      return { ok: false, reason: `dangling refs: ${res.agent.missingRefs.join(", ")}` };
+    }
+    return { ok: true, systemPrompt: composeCuratorSystemPrompt(res.agent.prompt) };
   } catch (e) {
     return { ok: false, reason: (e as Error).message };
   }

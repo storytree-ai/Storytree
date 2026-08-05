@@ -65,6 +65,12 @@ import {
 
 /** Seams a real build-tests-gate drive needs, all injectable so the R2 walk is offline-testable. */
 export interface GateBuildDriverDeps {
+  /**
+   * OPTIONAL corpus store the leaf's per-phase system prompts render from. Omit in production (the
+   * live store opens, ADR-0302 D1); present only so a hermetic suite can drive a real gate build
+   * without a credential — ADR-0302 D3 keeps `STORYTREE_DB_USER` out of `pnpm -r test`.
+   */
+  corpusStore?: Store;
   /** The stories dir the referenced `(build:)` node spec is resolved from. */
   storiesDir: string;
   /** The repo root the worktree is cut from + promotion targets (a fixture repo in offline tests). */
@@ -229,7 +235,7 @@ export async function driveBuildTestsGate(
   // 6. Assemble the live SDK leaf's per-phase system prompts from the Library (offline-safe — reads
   //    the seed). Fail-loud before any spend; the offline driver test injects authorOverride, but the
   //    prompts are still rendered (a missing red-builder/green-builder agent must refuse, not degrade).
-  const rendered = await renderLeafPhasePrompts();
+  const rendered = await renderLeafPhasePrompts(deps.corpusStore);
   if (!rendered.ok) return rendered.refusal;
 
   // 6b. ADR-0098 (U4): the pre-build BATCH DECISION-SWEEP. Before any spend (no DB brought up, no

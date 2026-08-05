@@ -5,6 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 import type { RealProofConfig } from "@storytree/orchestrator";
 
 import { run } from "./commands.js";
@@ -20,6 +21,21 @@ import {
   workspacePackageForSource,
 } from "@storytree/drive";
 import type { ClaimStoreLike, SessionIdentity, WispSmokeStore } from "@storytree/drive";
+
+/**
+ * The corpus the leaf's per-phase system prompts render from, INJECTED rather than opened.
+ *
+ * A `--real` / `--live` build renders `red-builder` / `green-builder` out of the Library
+ * (ADR-0051 §4), and since ADR-0302 D1 the default source for that is the LIVE store. ADR-0302 D3
+ * keeps `STORYTREE_DB_USER` out of `pnpm -r test`, so without this seam these cases are green on a
+ * box that happens to hold credentials and red in CI — for a reason unrelated to what they assert.
+ */
+async function fixtureCorpus(): Promise<InMemoryStore> {
+  const corpus = new InMemoryStore();
+  await loadFixtureCorpus(corpus);
+  return corpus;
+}
+
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C), driven through `run` exactly as
@@ -544,7 +560,7 @@ test("renderLeafPhasePrompts assembles the live leaf's per-phase prompts from th
   // green-builder (IMPLEMENT) agent — assembled offline from the seed corpus, fail-loud on a
   // missing agent or a dangling ref. This pins that the wiring resolves the renamed agents and
   // injects their bodies (the anti-blindside guarantee: never a generic fallback).
-  const res = await renderLeafPhasePrompts();
+  const res = await renderLeafPhasePrompts(await fixtureCorpus());
   assert.equal(res.ok, true, res.ok ? "" : res.refusal.body);
   if (!res.ok) return;
   // The AUTHOR_TEST prompt is the red-builder agent, the IMPLEMENT prompt is the green-builder.
@@ -864,6 +880,7 @@ test("node build --dry-run --emit-wisp --dwell 0 is refused (dwell must be posit
 test("node build --dry-run --emit-wisp drives the smoke: building appended + deleted for the REAL node, never a verdict", async () => {
   const { store, kinds, deleted } = fakeWispStore();
   const env = await nodeBuild("library-cli", {
+    corpusStore: await fixtureCorpus(),
     dryRun: true,
     emitWisp: true,
     dwellSec: 1,
@@ -923,6 +940,7 @@ const CLAIM_IDENTITY: SessionIdentity = { sessionId: "this-session-abc", branch:
 test("node build REFUSES when another live session already holds the unit's claim (ADR-0121)", async () => {
   const { store, claims, releases } = fakeClaimStore(false);
   const env = await nodeBuild("library-cli", {
+    corpusStore: await fixtureCorpus(),
     dryRun: true,
     actor: "tester@example.com",
     claim: { store },
@@ -941,6 +959,7 @@ test("node build REFUSES when another live session already holds the unit's clai
 test("node build ACQUIRES the claim, runs the gate, and RELEASES it on success (ADR-0121)", async () => {
   const { store, claims, releases } = fakeClaimStore(true);
   const env = await nodeBuild("library-cli", {
+    corpusStore: await fixtureCorpus(),
     dryRun: true,
     actor: "tester@example.com",
     claim: { store },
@@ -955,6 +974,7 @@ test("node build ACQUIRES the claim, runs the gate, and RELEASES it on success (
 test("node build does NOT claim when identity is absent (a non-worktree build does not contend)", async () => {
   const { store, claims } = fakeClaimStore(false); // would refuse IF consulted
   const env = await nodeBuild("library-cli", {
+    corpusStore: await fixtureCorpus(),
     dryRun: true,
     actor: "tester@example.com",
     claim: { store },

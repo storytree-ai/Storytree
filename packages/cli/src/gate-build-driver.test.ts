@@ -7,6 +7,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
 import type { Store } from "@storytree/storage-protocol";
 import { FileToolExecutor, FILE_WRITE_TOOLS } from "@storytree/agent";
 import type { PhaseAuthor } from "@storytree/agent";
@@ -21,6 +22,21 @@ import type { DecisionFork, NodeSpec } from "@storytree/orchestrator";
 import type { ReliabilityGate } from "@storytree/library";
 
 import { driveBuildTestsGate } from "./gate-build-driver.js";
+
+/**
+ * The corpus the leaf's per-phase system prompts render from, INJECTED rather than opened.
+ *
+ * A `--real` / `--live` build renders `red-builder` / `green-builder` out of the Library
+ * (ADR-0051 §4), and since ADR-0302 D1 the default source for that is the LIVE store. ADR-0302 D3
+ * keeps `STORYTREE_DB_USER` out of `pnpm -r test`, so without this seam these cases are green on a
+ * box that happens to hold credentials and red in CI — for a reason unrelated to what they assert.
+ */
+async function fixtureCorpus(): Promise<InMemoryStore> {
+  const corpus = new InMemoryStore();
+  await loadFixtureCorpus(corpus);
+  return corpus;
+}
+
 
 /**
  * ADR-0098 (U2) — the gate→loop wiring, proven OFFLINE: a `build-tests` gate carrying a
@@ -152,6 +168,7 @@ test("drives a build-tests gate's R2 red→green and signs a DRIVEN verdict FOR 
   try {
     const gate = buildTestsGate();
     const env = await driveBuildTestsGate(gate, "builder@example.com", {
+      corpusStore: await fixtureCorpus(),
       storiesDir: stories,
       repoRoot: repo,
       store, // the test OWNS the store, so it can roll up the events below
@@ -212,6 +229,7 @@ test("U3 regression wall: an R2 refactor that REGRESSES the sibling test reds th
         writeTools: FILE_WRITE_TOOLS,
       });
     const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
+      corpusStore: await fixtureCorpus(),
       storiesDir: stories,
       repoRoot: repo,
       store,
@@ -250,6 +268,7 @@ test("U4 — an UNRESOLVED key design fork HALTS the drive before any spend (no 
     // A fork that changes a public seam other code depends on = the owner's call (d.5 bar). Unresolved,
     // so the sweep blocks. The halt is BEFORE store/worktree, so repoRoot is never touched (`.` is fine).
     const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
+      corpusStore: await fixtureCorpus(),
       storiesDir: stories,
       repoRoot: ".",
       store,
@@ -278,6 +297,7 @@ test("U4 — a ROUTINE choice + a RESOLVED key fork sweep CLEAR; the drive proce
   const store: Store = new InMemoryStore();
   try {
     const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
+      corpusStore: await fixtureCorpus(),
       storiesDir: stories,
       repoRoot: repo,
       store,
@@ -309,6 +329,7 @@ test("U4 — a ROUTINE choice + a RESOLVED key fork sweep CLEAR; the drive proce
 
 test("refuses a build-tests gate with no (build:) reference", async () => {
   const env = await driveBuildTestsGate(buildTestsGate({ buildNode: undefined }), "builder@example.com", {
+    corpusStore: await fixtureCorpus(),
     storiesDir: ".",
     repoRoot: ".",
     store: new InMemoryStore(),
@@ -321,6 +342,7 @@ test("refuses when the referenced build node spec does not exist", async () => {
   const stories = await fixtureStories();
   try {
     const env = await driveBuildTestsGate(buildTestsGate({ buildNode: "ghost-node" }), "builder@example.com", {
+      corpusStore: await fixtureCorpus(),
       storiesDir: stories,
       repoRoot: ".",
       store: new InMemoryStore(),
