@@ -260,7 +260,7 @@ export function buildFocusGraph({
       source: meta.source,
       side: sideOf.get(id) ?? 'centre',
       onChain: true,
-      ephemeral: meta.category === 'plan',
+      ephemeral: meta.category === 'increment',
       x: pos?.x ?? 0,
       y: pos?.y ?? 0,
     };

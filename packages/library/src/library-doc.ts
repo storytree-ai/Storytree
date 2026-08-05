@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Knowledge, type KnowledgeKind } from "./knowledge.js";
+import { assertIncrementInvariants, type Increment, Knowledge, type KnowledgeKind } from "./knowledge.js";
 import { upcast } from "./migrations.js";
 
 /**
@@ -54,7 +54,21 @@ export type LibraryDoc = z.infer<typeof LibraryDoc>;
  * structured type name stays `Knowledge`.)
  */
 export function validateLibraryDoc(input: unknown): LibraryDoc {
-  return LibraryDoc.parse(input);
+  const parsed = LibraryDoc.parse(input);
+  // The two CONDITIONAL invariants zod cannot express on a discriminated-union member (refining one
+  // turns it into a ZodEffects and the union stops discriminating). They belong at THIS boundary
+  // rather than at each write verb because every store write already funnels through here, so there
+  // is no path that reaches the database around them. See `assertIncrementInvariants` for what each
+  // one prevents.
+  //
+  // The cast is load-bearing rather than lazy: `buildKindSchema(kind: KnowledgeKind)` builds each
+  // member with `z.literal(kind)` where `kind` is a VARIABLE, so every member's `kind` types as the
+  // whole `KnowledgeKind` union and TypeScript cannot narrow on the discriminant. The runtime check
+  // on the line is the real one.
+  if ("kind" in parsed && parsed.kind === "increment") {
+    assertIncrementInvariants(parsed as Increment);
+  }
+  return parsed;
 }
 
 /**

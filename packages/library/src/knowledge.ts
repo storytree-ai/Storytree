@@ -69,7 +69,7 @@ export type KnowledgeKind =
   // ({@link ArcProposal} / `Arc.proposals`), never a kind of its own. Do not re-add it.
   | "friction"
   | "arc"
-  | "plan"
+  | "increment"
   | "uat-criterion";
 
 /**
@@ -483,7 +483,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
   // A `plan` (ADR-0183 D2) is the git-anchored choreography for ONE increment of an arc — an
   // EPHEMERAL kind (see EPHEMERAL_KINDS below): Postgres-only, never in any seed ceremony.
   // Its structured lifecycle fields (`arcRef` / `anchor` / `status`) live OUTSIDE this body table,
-  // on the schema — see the Plan schema below. Consumption begins with a mechanical freshness check
+  // on the schema — see the Increment schema below. Consumption begins with a mechanical freshness check
   // (git-log the paths the body names since `anchor.sha`); drift past threshold means re-plan, never
   // repair. Once execution starts it is never edited — supersede it.
   //
@@ -497,7 +497,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
   // ONE convention survives the collapse and is now load-bearing on `body` ALONE (D4): the freshness
   // check mines BACKTICK-QUOTED paths, and reports a plan naming none as VACUOUS — explicitly not a
   // green. File surfaces must still be named in backticks, which is why the placeholder says so.
-  plan: [
+  increment: [
     {
       field: "objective",
       lead: true,
@@ -561,7 +561,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
  * owning arc's increment log is the durable residue. Typed `ReadonlySet<string>` so store/CLI
  * consumers can probe an untyped `doc.kind` without casting.
  */
-export const EPHEMERAL_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>(["plan"]);
+export const EPHEMERAL_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>(["increment"]);
 
 /*
  * SEED_SCOPE_KINDS stood here (ADR-0263): the allowlist of kinds the committed
@@ -719,122 +719,40 @@ export const FrictionReinforcement = z
 export type FrictionReinforcement = z.infer<typeof FrictionReinforcement>;
 
 /**
- * One landed increment on an `arc` (ADR-0183 D1): the durable residue the initiative keeps after
- * its plans are pruned. Appended at LANDING (the merge ceremony) — the arc's only fast-moving
- * authored mutation — and append-only, like the decision log. `outcome` is required (what landed,
- * halted, or was re-planned, and what was consumed); `pr` is optional because an increment can
- * close without its own PR (an owner attestation, an honest halt). Like `reinforcedBy` on
- * `friction`, this is schema-level metadata, never a KIND_SPECS body section — it does not
- * round-trip through markdown.
+ * The landing (or other terminal event) that CLOSED one increment (ADR-0305 D5).
+ *
+ * This is `ArcIncrement`'s shape moved onto the artifact it describes, with `ArcProposalRealization`
+ * — its exact duplicate — removed. Absent until the increment closes; written in the SAME closing leg
+ * that already runs the merge ceremony's residue step (ADR-0271), which is what keeps recording one
+ * cheap.
+ *
+ * `note` is what makes `closed` honest as a SINGLE terminal state. ADR-0305 D2 removed `superseded`
+ * and `retired` on the grounds that both were terminal and differed only in WHY the work stopped —
+ * a reason string wearing a state's clothes. The reason lands here instead, which is also what lets a
+ * wrong or duplicate increment be closed with its reason stated rather than marked realized: a false
+ * landing on the very tier that exists to prevent them.
  */
-export const ArcIncrement = z
+export const IncrementOutcome = z
   .object({
-    /** When the increment landed / closed (ISO date). */
+    /** When it closed (ISO date). */
     date: z.string().min(1),
     /** The landing PR(s) or ref, when there is one (e.g. "#676"). */
     pr: z.string().min(1).optional(),
-    /** What happened: landed / halted / re-planned — and what was consumed. */
-    outcome: z.string().min(1),
-  })
-  .strict();
-export type ArcIncrement = z.infer<typeof ArcIncrement>;
-
-/**
- * The landing that discharged a parked entry (ADR-0298 D3/D4). Absent while the entry is parked;
- * set in the SAME closing leg that appends the arc's `ArcIncrement` (ADR-0271), which is what makes
- * a realized entry cheap to record — it rides a step the merge ceremony already performs.
- *
- * This is the delivery ceiling's structural discharge. The retired `proposal` tier had only one:
- * a manual `friction --discharged-by` stamp, which ADR-0287's own Context measured at 6-of-125 and
- * called "a FLOOR, not a precise rate" because applying it is expensive and known-skipped.
- */
-export const ArcProposalRealization = z
-  .object({
-    /** When the work landed (ISO date). */
-    date: z.string().min(1),
-    /** The landing PR / ref, when there is one (e.g. "#1123"). */
-    pr: z.string().min(1).optional(),
-    /** What actually shipped, when it differs from what was parked. */
+    /** WHY it closed — required by {@link assertIncrementInvariants} when there is no `pr`. */
     note: z.string().min(1).optional(),
   })
   .strict();
-export type ArcProposalRealization = z.infer<typeof ArcProposalRealization>;
+export type IncrementOutcome = z.infer<typeof IncrementOutcome>;
 
-/**
- * One PARKED unit of work on an `arc` (ADR-0298 D1) — the successor to the retired `proposal` kind.
- *
- * It captures the INTENT of a change worth doing later so it can be parked now and kicked off when
- * ready. Forward-looking like an `open-question`, but NOT a question: **the decision is made, only
- * the EXECUTION is deferred.** The body fields below are the retired kind's `KIND_SPECS` table
- * carried over verbatim, so nothing a proposal could say has nowhere to go.
- *
- * WHY IT LIVES ON THE ARC AND NOT AS A KIND (ADR-0298 Context). `proposal` was change-sized and
- * `arc` initiative-sized, but both answered "what is decided and not yet built" — and nothing said
- * which a session should reach for, so sessions reached for the cheaper one and the remedy arrived
- * with no owning initiative. Measured 2026-08-03: 8 live proposals, 0 reachable from any arc, and
- * all 8 belonging to an arc that existed or should have.
- *
- * NOT AN INCREMENT, and the pair is the point (D4). {@link ArcIncrement} is appended AT LANDING and
- * is the arc's durable residue — it must never hold unbuilt work, or it stops being evidence. This
- * is appended AT PARKING, mutated once (`realized`), and prunable after. A parked entry that gets
- * built BECOMES an increment, and the arc holding both halves is what makes a deferred intention
- * traceable to the landing that discharged it — which no proposal ever was, since realizing one was
- * a delete whose only residue was a retirement reason.
- *
- * SURFACE IS ALLOWED HERE, and that is a narrowing of ADR-0183 D4 rather than a breach of it (D5).
- * D4 permits implementation surface in "anchored, disposable artifacts" and forbids it in durable
- * undated ones. An entry passes both halves of that test: `parked` is REQUIRED (and load-bearing for
- * the delivery ceiling, so it can never be quietly omitted), and the entry is realized and prunable
- * the moment the work lands. The arc's own `intent` / `endState` still carry no file lists.
- *
- * Schema-level metadata like `increments` / `reinforcedBy` — never a KIND_SPECS body section, so it
- * does not round-trip through markdown.
+/*
+ * `ArcIncrement`, `ArcProposalRealization` and `ArcProposal` stood here. ADR-0305 D1 collapsed all
+ * three into the one `increment` kind, so the arc's two structured arrays — and the pair of
+ * identical `{date, pr?, note|outcome}` shapes written twice — are gone. What each carried now lives
+ * on the increment doc itself: an entry's body is `objective` + `body`, its parking stamp is
+ * `parked`, its delivery join is `frictionRefs`, and its landing is {@link IncrementOutcome}. The
+ * lifecycle field that used to be implied by WHICH ARRAY a row sat in is now stated outright as
+ * {@link IncrementStatus}.
  */
-export const ArcProposal = z
-  .object({
-    /**
-     * A slug unique WITHIN the arc, so the entry is addressable by `arc proposal realize <arc>
-     * --id <slug>` and nameable in a gate report.
-     */
-    id: z.string().min(1),
-    /** One line naming the change — what a reader sees in a list. */
-    title: z.string().min(1),
-    /**
-     * When it was parked (ISO timestamp). **The delivery ceiling's comparison point** (ADR-0298 D3),
-     * which is why it is required and why it is per-ENTRY: an arc long outlives any one parked item,
-     * so the arc's own age says nothing about when this remedy was deferred.
-     */
-    parked: z.string().min(1),
-    /**
-     * The source friction ids this entry remedies — **the delivery ceiling's join** (ADR-0298 D2).
-     * The friction item separately cites the ARC in its `references` (ADR-0168 D2's routed
-     * lifecycle), but that citation names only the arc; an arc may carry many entries, so it cannot
-     * say which one a recurrence presses on. This can. ADR-0287 needed no such pointer because a
-     * proposal was 1:1 with its friction; an entry is not.
-     */
-    frictionRefs: z.array(z.string().min(1)).optional(),
-    /** The landing that discharged it. Absent ⇒ still parked, and still pressing. */
-    realized: ArcProposalRealization.optional(),
-
-    // ---- the retired `proposal` KIND_SPECS body, carried verbatim ----
-
-    /** The change being proposed, in one sentence — the decision is made; execution is deferred. */
-    summary: z.string().min(1),
-    /** What prompts this — the friction it removes, and the cost of NOT doing it. */
-    motivation: z.string().min(1),
-    /** The before→after mapping (renames, moved surfaces, new vocabulary), old and new named exactly. */
-    change: z.string().min(1).optional(),
-    /** The blast radius — surfaces, files, identifiers, stored data — and explicitly the non-goals. */
-    scope: z.string().min(1).optional(),
-    /** The ordered steps to execute when this is kicked off, each with how it is verified green. */
-    migration: z.string().min(1).optional(),
-    /** The preconditions for safely running it, and how a session knows it is time to start. */
-    readiness: z.string().min(1).optional(),
-    /** What could go wrong and the mitigation. */
-    risks: z.string().min(1).optional(),
-  })
-  .strict();
-export type ArcProposal = z.infer<typeof ArcProposal>;
 
 /**
  * A `plan`'s git anchor (ADR-0183 D2): the commit the choreography was planned against.
@@ -843,7 +761,7 @@ export type ArcProposal = z.infer<typeof ArcProposal>;
  * source-drift move (`packages/orchestrator/src/proof/source-drift.ts`) applied to intentions:
  * staleness is checked mechanically at consumption, never assumed absent.
  */
-export const PlanAnchor = z
+export const IncrementAnchor = z
   .object({
     /** The git commit SHA the plan was authored against (7–40 lowercase hex chars). */
     sha: z.string().regex(/^[0-9a-f]{7,40}$/, {
@@ -853,7 +771,7 @@ export const PlanAnchor = z
     date: z.string().min(1),
   })
   .strict();
-export type PlanAnchor = z.infer<typeof PlanAnchor>;
+export type IncrementAnchor = z.infer<typeof IncrementAnchor>;
 
 /**
  * The closed lifecycle of ONE increment of arc work (ADR-0305 D2): born `proposal` (decided, not
@@ -938,7 +856,7 @@ export const Process = buildKindSchema("process").extend({
 // table: `arcRef`, the arc the question is waiting on. ADR-0183 D3's containment rule puts the edge
 // on the CHILD, so the arc's question view is DERIVED by query — deliberately NOT an authored
 // question-list field on the arc, which would need editing every time a question is raised or
-// closed (precisely the rot D3 exists to prevent). Mirrors `Plan.arcRef` — same `AssetRef` shape,
+// closed (precisely the rot D3 exists to prevent). Mirrors `Increment.arcRef` — same `AssetRef` shape,
 // so `doc:`/prose refs still fail closed — but OPTIONAL where the plan's is required: a question can
 // be raised before any arc owns it, and every EXISTING open-question doc must still validate. So
 // there is NO `CURRENT_SCHEMA_VERSION` bump and zero migration (the `Arc.increments` /
@@ -984,42 +902,125 @@ export const Friction = buildKindSchema("friction").extend({
   // `CURRENT_SCHEMA_VERSION` bump and zero migration.
   dischargedBy: z.string().min(1).optional(),
 });
-// The `arc` kind (ADR-0183 D1) carries one structured field OUTSIDE its KIND_SPECS body table:
-// `increments`, the append-at-landing log that is the initiative's durable residue (the
-// `reinforcedBy` precedent — schema-level metadata, never a rendered body section; it does not
-// round-trip through markdown). OPTIONAL — a freshly-born arc has no landings yet. `.extend()`
-// preserves `.strict()` and the `kind` literal; a NEW kind touches no existing doc, so there is no
-// `CURRENT_SCHEMA_VERSION` bump and zero migration (the ADR-0168 friction precedent, re-verified:
-// every registered migration is a per-doc transform that no-ops on a fresh arc/plan doc).
-// ...and, since ADR-0239 D1, one more: `lifecycle`, the stored closure flag. Same schema-level shape
-// (never a KIND_SPECS body field, so it does not round-trip through markdown) and
-// OPTIONAL-WITH-DEFAULT like `plan`'s `status` — every arc authored before this field validates
-// unchanged, so there is NO `CURRENT_SCHEMA_VERSION` bump and no migration. It closes ADR-0196 D2's
-// deferral: the arc-close write finally has a field to land in, so the `archived` half of that ADR's
-// arc row stops being unreachable by construction. The flip is never free — `storytree arc close`
-// writes it in the SAME atomic write as the terminal increment that justifies it (D2).
-// ...and, since ADR-0298 D1, a third: `proposals`, the PARKED work the arc owns — the successor to
-// the retired `proposal` kind. Same schema-level shape and same OPTIONAL rule as `increments`, so
-// every arc authored before the field validates unchanged and there is NO `CURRENT_SCHEMA_VERSION`
-// bump and no migration. Deliberately a SECOND array rather than a flag on `increments`: the two
-// have opposite lifecycles (appended at parking vs at landing) and conflating them would put unbuilt
-// work in the log that is supposed to be evidence of what happened (D4).
+// The `arc` kind carries exactly ONE structured field outside its KIND_SPECS body table:
+// `lifecycle`, the stored closure flag (ADR-0239 D1). Schema-level metadata, never a rendered body
+// section, so it does not round-trip through markdown; OPTIONAL-WITH-DEFAULT, so an arc authored
+// before the field validates unchanged and reads as in flight. It closes ADR-0196 D2's deferral: the
+// arc-close write finally has a field to land in, so the `archived` half of that ADR's arc row stops
+// being unreachable by construction.
+//
+// IT USED TO CARRY THREE (ADR-0305 D1). `increments` (ADR-0183 D1's append-at-landing log) and
+// `proposals` (ADR-0298 D1's parked work) are GONE — an arc's work entries are `increment` DOCS
+// found the way its plans already were, by query on the child's `arcRef`, so ADR-0183 D3's rule that
+// every containment edge lives on the child now holds without exception and the arc row names no
+// child at all. That is the fold's whole point: the two arrays had opposite lifecycles and had to be
+// kept consistent by hand, and neither could be READ, EDITED or ADDRESSED on its own — an entry was
+// an element of an array inside a large document, so the only view of one paragraph was the whole
+// initiative. As rows, `library artifact <increment-id> --pg` is the narrow view and `library
+// artifact edit` is the correction path, with no new verb for either.
+//
+// An arc doc is therefore exactly: `intent`, `endState`, `lifecycle`, and the common fields.
+//
+// ADR-0239 D2's "SINGLE atomic write" for `arc close` does NOT survive this, and that is stated
+// rather than quietly dropped: the terminal increment is its own row now, so closing an arc writes
+// two. `arcClose` orders them increment-then-flip, so an interrupted close leaves an increment
+// without its closure (recoverable, and visibly unclosed) rather than a closure without the prose
+// that justifies it (a lie the ADR wrote that invariant to prevent).
 export const Arc = buildKindSchema("arc").extend({
-  increments: z.array(ArcIncrement).optional(),
-  proposals: z.array(ArcProposal).optional(),
   lifecycle: ArcLifecycle.default("active"),
 });
-// The `plan` kind (ADR-0183 D2/D3) carries three structured fields beyond its KIND_SPECS table:
-// `arcRef` is REQUIRED — a plan is born citing its arc (D3: the containment edge lives on the
-// child; the arc's plan view is derived by query, never authored on the arc); `anchor` is the
-// REQUIRED git anchor the consumption-time freshness check runs against; `status` is the
-// enum-fenced lifecycle, defaulting to `proposal` at birth (ADR-0305 D2 — was `draft`). Ephemeral
-// (see EPHEMERAL_KINDS): live-store-only, so there is no seed round-trip to preserve.
-export const Plan = buildKindSchema("plan").extend({
+// The `increment` kind (ADR-0183 D2/D3, folded by ADR-0305 D1) — ONE unit of arc work, from the
+// moment it is decided through to the moment it closes. It carries six structured fields beyond its
+// KIND_SPECS body table:
+//
+// - `arcRef` is REQUIRED — an increment is born citing its arc (ADR-0183 D3: the containment edge
+//   lives on the child, and the arc's view of its increments is derived by query, never authored on
+//   the arc). This is the field that makes the fold work at all.
+// - `anchor` is the git anchor the consumption-time freshness check runs against. OPTIONAL since the
+//   fold, where the plan tier had it REQUIRED: an increment now exists from `proposal` onward, and a
+//   parked intention has nothing to be anchored to yet — it is anchored when it is planned. An
+//   unanchored increment is not silently blessed; `increment check` refuses to freshness-check one.
+// - `status` is the enum-fenced lifecycle (ADR-0305 D2), defaulting to `proposal` at birth.
+// - `parked` and `frictionRefs` are ADR-0298 D2/D3's delivery-ceiling inputs, moved onto the
+//   increment unchanged by ADR-0305 D6 so "how long has this decided-but-unbuilt remedy been
+//   waiting" keeps answering, per artifact, exactly as before.
+// - `outcome` is the closing record (ADR-0305 D5).
+//
+// Ephemeral (see EPHEMERAL_KINDS): live-store-only. Read that as its LIFECYCLE, not as an exemption —
+// ADR-0302 D1/D4 left every kind live-only, so what still marks this one is that it is disposable by
+// construction. It is NOT prunable, though, and that half of ADR-0183 D2 is reversed by ADR-0305 D3:
+// a closed increment IS the landing-log entry the arc used to copy into `increments[]`, so the log
+// survives precisely by nothing deleting the artifact that produced it.
+export const Increment = buildKindSchema("increment").extend({
   arcRef: AssetRef,
-  anchor: PlanAnchor,
+  anchor: IncrementAnchor.optional(),
   status: IncrementStatus.default("proposal"),
+  /**
+   * When it was parked (ISO timestamp) — **the delivery ceiling's comparison point** (ADR-0298 D3).
+   * Per-INCREMENT rather than per-arc because an arc long outlives any one entry, so the arc's own
+   * age says nothing about when this remedy was deferred. Conditionally REQUIRED — see
+   * {@link assertIncrementInvariants}.
+   */
+  parked: z.string().min(1).optional(),
+  /**
+   * The source friction ids this increment remedies — **the delivery ceiling's join** (ADR-0298 D2).
+   * The friction item separately cites the ARC in its `references`, but that citation names only the
+   * arc; an arc carries many increments, so it cannot say which one a recurrence presses on.
+   */
+  frictionRefs: z.array(z.string().min(1)).optional(),
+  /** The landing (or other terminal event) that closed it — absent until it does (ADR-0305 D5). */
+  outcome: IncrementOutcome.optional(),
 });
+
+/**
+ * The two CONDITIONAL invariants on an increment, checked at the write boundary
+ * ({@link import("./library-doc.js").validateLibraryDoc}) rather than on the schema.
+ *
+ * They live here and not as a `.superRefine` for a structural reason, not a stylistic one:
+ * {@link Knowledge} is a `z.discriminatedUnion`, whose members must be plain `ZodObject`s. Refining
+ * one turns it into a `ZodEffects` and the union stops discriminating — so the choice is between a
+ * post-parse assertion and no fence at all. A post-parse assertion is enough because EVERY store
+ * write already funnels through `upcastAndValidate`, so there is no path that reaches the database
+ * around it.
+ *
+ * - **`proposal` ⇒ `parked`.** `parked` is what the ADR-0298 D3 ceiling compares a reinforcement
+ *   against. A parked increment without it is not merely under-documented — it is unmeasurable, and
+ *   it fails OPEN: the ceiling can never red it, so the queue silently stops being drained.
+ * - **`closed` ⇒ `outcome`, and an outcome with no `pr` needs a `note`.** ADR-0305 D2 collapsed
+ *   `superseded` and `retired` into one terminal state on the grounds that the difference was a
+ *   reason, not a state. That trade only holds if the reason is actually written down: a `closed`
+ *   increment with neither a landing ref nor a note is exactly the "false landing" this tier exists
+ *   to prevent, since a reader cannot tell a shipped increment from an abandoned one.
+ *
+ * Throws a plain `Error` (never a `ZodError`) — `explainDocValidationError` falls back to the raw
+ * message for anything it cannot place, so the text below is what the author sees.
+ */
+export function assertIncrementInvariants(doc: Increment): void {
+  if (doc.status === "proposal" && doc.parked === undefined) {
+    throw new Error(
+      `increment "${doc.id}" is status "proposal" but carries no \`parked\` timestamp. ` +
+        "`parked` is the delivery ceiling's comparison point (ADR-0298 D3 / ADR-0305 D6): without it " +
+        "no recurrence can ever be measured against this entry, so it would sit in the queue " +
+        "permanently un-drainable. `arc increment new` stamps it from the composition-root clock.",
+    );
+  }
+  if (doc.status === "closed" && doc.outcome === undefined) {
+    throw new Error(
+      `increment "${doc.id}" is status "closed" but carries no \`outcome\`. ` +
+        "A closed increment IS the arc's landing-log entry (ADR-0305 D3/D5) — closing one without " +
+        "recording what happened deletes the residue the fold exists to keep. Use `arc increment " +
+        "close <id> --pr <ref> --pg`, or `--note` when it closed for any other reason.",
+    );
+  }
+  if (doc.outcome !== undefined && doc.outcome.pr === undefined && doc.outcome.note === undefined) {
+    throw new Error(
+      `increment "${doc.id}" closed with neither \`outcome.pr\` nor \`outcome.note\`. ` +
+        "ADR-0305 D2 removed `superseded` and `retired` as states because the difference between " +
+        "them was a REASON, not a state — so the reason has to be written: give the landing ref, or " +
+        "say why it closed. An unexplained closure reads as a landing that never happened.",
+    );
+  }
+}
 // The `uat-criterion` kind (ADR-0209 D5/D6): seed-canonical detailed UAT acceptance. Built from
 // KIND_SPECS only — no structured extras. commonShape still supplies Library card `title` /
 // `description` for navigation; the story criterion remains display-canonical for UAT row
@@ -1038,7 +1039,7 @@ export const Knowledge = z.discriminatedUnion("kind", [
   Agent,
   Friction,
   Arc,
-  Plan,
+  Increment,
   UatCriterion,
 ]);
 
@@ -1053,7 +1054,7 @@ export type OpenQuestion = z.infer<typeof OpenQuestion>;
 export type Agent = z.infer<typeof Agent>;
 export type Friction = z.infer<typeof Friction>;
 export type Arc = z.infer<typeof Arc>;
-export type Plan = z.infer<typeof Plan>;
+export type Increment = z.infer<typeof Increment>;
 export type UatCriterion = z.infer<typeof UatCriterion>;
 
 /**
