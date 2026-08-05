@@ -251,7 +251,10 @@ test("HONEST GREEN: a real node:assert test still greens under the guard, and th
     const report = path.join(dir, "report.json");
     const obs = await guarded(dir, testRel, report).run("t");
     assert.equal(obs.result, "green", "the guard must never false-red an honest proof");
-    assert.equal(obs.note, undefined);
+    // `oracle-veto-covers-custom-proof-commands`: a VETTED green now reports what the oracle
+    // measured instead of carrying no note at all. What must never appear here is a DOWNGRADE
+    // reason — this proof is accounted, so it is the one shape that must not read as unvetted.
+    assert.match(obs.note ?? "", /assert-oracle: \d+ assertion\(s\) executed/);
     assert.ok((readAssertionCount(report) ?? 0) >= 1, "the guard counted the real assertion(s)");
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
@@ -303,7 +306,11 @@ test("verifyOracleExercised: a positive count is OK; zero and a missing report a
     const ok = path.join(dir, "ok.json");
     await fs.writeFile(ok, JSON.stringify({ assertions: 3 }));
     assert.equal(readAssertionCount(ok), 3);
-    assert.deepEqual(verifyOracleExercised(ok), { ok: true });
+    // OK, and it now REPORTS the count it read (the vetted-green disclosure) rather than a bare ok.
+    assert.deepEqual(verifyOracleExercised(ok), {
+      ok: true,
+      note: "assert-oracle: 3 assertion(s) executed",
+    });
 
     const zero = path.join(dir, "zero.json");
     await fs.writeFile(zero, JSON.stringify({ assertions: 0 }));
@@ -398,9 +405,9 @@ test("CONCURRENT SIBLINGS (forced interleaving): a sibling proving the same unit
     const verdict = verifyOracleExercised(minePath, out);
     const siblingOut = await siblingRun;
     assert.equal(siblingOut.code, 0, "precondition: the sibling's honest proof also exits 0");
-    assert.deepEqual(
-      verdict,
-      { ok: true },
+    assert.equal(
+      verdict.ok,
+      true,
       "a sibling observation must not be able to destroy this observation's assertion report",
     );
   } finally {

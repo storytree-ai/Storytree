@@ -86,7 +86,7 @@ the phase machine's observation seam.
 a real authored test file and the spine's CONFIRM_RED/CONFIRM_GREEN decisions ride its
 observations — a genuinely failing then genuinely passing child process, exit codes only.
 
-## Contracts (10)
+## Contracts (11)
 
 1. **`exit-code-is-the-verdict-channel`** — exit 0 observes green; exit 1 observes a runtime red; a compile-shaped message + exit 1 observes a compile red
    - **asserts —** the three observation shapes off real spawned scripts.
@@ -128,3 +128,7 @@ observations — a genuinely failing then genuinely passing child process, exit 
     - **asserts —** with `measureRedKind` returning a kind, that kind wins over contradicting output text and `kindBasis === "oracle-count"`; returning `undefined` means "cannot measure" (never a kind) and yields the heuristic's kind with `kindBasis === "output-text"`, which the phase gate will not refuse on.
     - **covers —** `shell-test-executor.ts:171-183`
     - **proven by —** `shell-test-executor.test.ts:112` and `:128` (REAL, passing)
+11. **`a-green-declares-whether-it-was-vetted`** — an unvetted green SAYS so, and a cross-checked one reports what it measured
+    - **asserts —** a green observed with no `verifyGreen` wired carries `UNVETTED_GREEN_NOTE`; a green whose `verifyGreen` returns `{ok:true, note}` carries that note instead and never reads as unvetted; a `{ok:false}` veto is still a fail-closed RED carrying the veto reason (ADR-0211 unchanged).
+    - **covers —** the green branch of `ShellTestExecutor.run` + `UNVETTED_GREEN_NOTE` (`packages/orchestrator/src/shell-test-executor.ts`)
+    - **proven by —** `packages/orchestrator/src/shell-test-executor.test.ts`, the three `oracle-veto-covers-custom-proof-commands` cases (REAL, passing)

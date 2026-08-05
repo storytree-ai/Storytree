@@ -68,7 +68,7 @@ the genuine green, and the gate signs exactly one row
 (`packages/orchestrator/src/prove-it-gate.e2e.test.ts:160`). The negative twin plants a broken
 impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate.e2e.test.ts:214`).
 
-## Contracts (7)
+## Contracts (8)
 
 1. **`happy-path-signs-exactly-once`** — red then green, clean tree, signer present → a signed pass and exactly one signing row
    - **asserts —** `ok:true`, the verdict's fields pinned, one `kind:"signing"` event.
@@ -98,3 +98,7 @@ impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate
    - **asserts —** a RED `backstop` refuses at GATE with zero signing rows; a GREEN one is consulted exactly once and signs; an absent seam is unchanged; the seam is NEVER paid for when a cheaper GATE refusal (dirty tree, no signer) already fires, nor when the walk dies before GATE.
    - **covers —** `proveUnit`'s GATE backstop step + `ProveSpec.backstop` (`packages/orchestrator/src/prove-it-gate.ts`)
    - **proven by —** `packages/orchestrator/src/prove-it-gate.test.ts` cases (n)–(r), and end-to-end through the drive in `packages/drive/src/backstop-before-signature.test.ts` (both the single-node and the `promote:false` chain path) (REAL, passing)
+8. **`evidence-carries-the-observation-note`** — the verdict records WHY an observation reads as it does, including whether a green was vetted
+   - **asserts —** an observation carrying a `note` produces evidence reading `observed <result> [(kind)] — <note>`, on the returned verdict AND the persisted signing row; an observation with no note keeps the bare wording (back-compat).
+   - **covers —** `toEvidence` (`packages/orchestrator/src/prove-it-gate.ts`)
+   - **proven by —** `packages/orchestrator/src/prove-it-gate.test.ts` cases (s)–(t) (REAL, passing)

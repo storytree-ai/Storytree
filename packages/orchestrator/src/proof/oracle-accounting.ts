@@ -194,7 +194,7 @@ export function classifyRedByOracle(
 export function verifyOracleExercised(
   reportPath: string,
   _out?: ShellRunResult,
-): { ok: true } | { ok: false; reason: string } {
+): { ok: true; note?: string } | { ok: false; reason: string } {
   const count = readAssertionCount(reportPath);
   if (count === null) {
     return {
@@ -212,5 +212,9 @@ export function verifyOracleExercised(
         `neutralised or the run was truncated before any assertion; refusing the green as unproven`,
     };
   }
-  return { ok: true };
+  // `oracle-veto-covers-custom-proof-commands`: report what was actually MEASURED, not just "ok".
+  // The count rides onto the verdict's green evidence, so a reader can see this green was
+  // cross-checked and by how much — the counterpart to the UNVETTED stamp an un-accounted proof
+  // command gets. Prose only; the veto decision is unchanged.
+  return { ok: true, note: `assert-oracle: ${count} assertion(s) executed` };
 }

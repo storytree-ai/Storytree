@@ -501,6 +501,52 @@ test("(r) the backstop is NEVER consulted when the walk dies before GATE", async
   assert.equal(await signingRows(store), 0);
 });
 
+// ── (s)–(t) `oracle-veto-covers-custom-proof-commands`: the verdict CARRIES the vetting status ────
+// An observation's `note` is where the spine records WHY an observation reads as it does — ADR-0211's
+// downgrade reason, and now whether a green was cross-checked by the assert oracle at all. The
+// verdict's evidence must carry that through, or the distinction dies at the gate and every signed
+// green looks equally vetted.
+
+test("(s) an observation's note rides through into the signed verdict's evidence", async () => {
+  const { spec, store } = freshSpec({
+    observations: [
+      RED,
+      { result: "green", testId: "T", note: "no assert-oracle cross-check for this proof command" },
+    ],
+    tree: CLEAN,
+    signerInputs: SIGNER,
+  });
+
+  const result = await proveUnit(spec);
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const green = result.verdict.evidence.find((e) => e.kind === "observation:green");
+  assert.ok(green !== undefined);
+  assert.match(
+    green.note ?? "",
+    /no assert-oracle cross-check for this proof command/,
+    "a reader of the signed verdict must be able to tell a vetted green from an unvetted one",
+  );
+
+  // On the PERSISTED row too, not only the returned verdict — the rollups read the row.
+  const signing = (await store.readEvents()).find((e) => e.kind === "signing");
+  assert.ok(signing !== undefined);
+  const persisted = (signing.doc as Verdict).evidence.find((e) => e.kind === "observation:green");
+  assert.match(persisted?.note ?? "", /no assert-oracle cross-check/);
+});
+
+test("(t) an observation with NO note keeps the bare evidence wording (back-compat)", async () => {
+  const { spec } = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  const result = await proveUnit(spec);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(
+    result.verdict.evidence.map((e) => e.note),
+    ["observed red (compile)", "observed green"],
+  );
+});
+
 // ── gitTreeState typechecks + is constructible (NOT exercised against a live tree here) ──────────
 
 test("gitTreeState returns a callable treeState seam (constructible; not run against a live tree)", () => {
