@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -87,7 +87,7 @@ build/secrets seam re-pointed off `cli` onto `@storytree/drive` by ADR-0112) —
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
 
-## Capabilities (16)
+## Capabilities (17)
 
 Listed roots-first (a capability appears after everything it depends on).
 
@@ -109,6 +109,7 @@ Listed roots-first (a capability appears after everything it depends on).
 | 14 | [`map-server-memo`](map-server-memo.md) | An operator's repeated studio load is answered without re-reading a corpus that has not changed on disk. | — |
 | 15 | [`map-boot-independence`](map-boot-independence.md) | An operator's forest map begins fetching its own data as soon as membership resolves, instead of waiting on Library-corpus payloads the map never reads. | — |
 | 16 | [`compositor-pan-transform`](compositor-pan-transform.md) | A forest drag moves the already-rasterised map on the compositor, so the `.world-camera` `<g>` transform is written once at the end of a gesture rather than once per frame. | `coalesced-camera-pan` |
+| 17 | [`camera-rasterisation-probe`](camera-rasterisation-probe.md) | A repeatable Studio diagnostic reports the rasterisation-cost delta between the real 40-island regrow growth-only baseline and cursor-driven camera-transform variants under ADR-0286's bracketed idle-floor protocol. | — |
 
 ## Dependency graph (code-derived)
 
@@ -117,7 +118,7 @@ imports / data-flow between capabilities), never hand-drawn from UAT need (ADR-0
 A → B means A's code actually couples to B's code inside the one organism. The graph is
 acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, `chat-panel`,
 `coalesced-camera-pan`, `map-route-retention`, `map-payload-cache`, `map-server-memo`, and
-`map-boot-independence` are the roots. (Cross-story edges are NOT in this graph — they are boundary
+`map-boot-independence`, and `camera-rasterisation-probe` are the roots. (Cross-story edges are NOT in this graph — they are boundary
 interfaces, declared in §"Cross-story boundary" below and encoded as frontmatter `depends_on` —
 ADR-0010 §4.)
 
@@ -204,6 +205,11 @@ ADR-0010 §4.)
     delivers — it landed and proves green with no wrapper present. It adds no package import (the
     shared `WorldSceneView`/`SceneView` seam it paints through is the already-declared `studio →
     app-surface` cross-story edge, untouched), so it adds no cross-story edge.
+- `camera-rasterisation-probe` → (no within-story edge — a NINTH root)
+  - This is a Studio-owned production diagnostic around the already-shipped regrow and camera
+    controller. It consumes their current public behaviour without requiring another named Studio
+    capability's delivered outcome, changes no product choreography, and adds no package import. The
+    existing `studio → app-surface` boundary already covers the rendered world it measures.
 
 ## Cross-story boundary (ADR-0010 §4)
 
