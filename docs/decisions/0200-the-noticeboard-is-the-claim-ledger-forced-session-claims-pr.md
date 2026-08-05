@@ -18,7 +18,8 @@ as observability on the forest — or at least the core machinery powering these
 sessions are **forced to claim at start** (*"it can always release the claims if needed … this might
 push us to better worktree hygiene"*); the exploring state renders as a wisp that *"hovers over the
 story without moving … we capture intent"*; work claims *"push all other sessions to wait in line"*
-[overtaken 2026-07-30, ADR-0270: what is enforced is check:declared's any-live-claim fence (D3) — a
+[overtaken 2026-07-30, ADR-0270, then again 2026-08-05 by ADR-0311: the session ceremony requires a
+live claim, but `check:declared` is no longer a root/CI gate rung — a
 `waiting` claim queues for the work slot's promotion but never blocks a session from building, and
 the session ceremony's grain is now the capability being written, story grain remaining for
 cross-capability work];
@@ -49,8 +50,8 @@ primary-checkout lobby and claim-before-worktree ceremony stand, but the admitte
 overtaken **as a decision**: ADR-0255 D1 rules the lobby mechanically read-only to every agent
 harness, and ADR-0257 D5/D7 require generic writes to carry a recognised repository-minted worktree
 with matching live claim and branch, with an unavailable ledger refusing new writes. SessionStart
-nudges and `check:declared` are thereby demoted to feedback/defence in depth rather than the first
-enforcement point.
+nudges remain the feedback layer. `check:declared` was demoted to defence in depth here and ADR-0311
+later retired its standalone merge-gate wiring; its source remains an on-demand diagnostic.
 
 *(Build state corrected in place 2026-08-02, the correction above unchanged in substance — the
 paragraph stated a decided state in the present indicative and read as achieved. Measured on that
@@ -71,8 +72,8 @@ overtakes.)*
 is decided: **the claim ledger never became a write-authority input, and per ADR-0284 it will not
 be.** Claims coordinate; they do not gate a filesystem write. The one mechanism that would have made
 Decision 3's ceremony mechanically binding on a generic write is retired. What binds is a static path
-list that knows nothing of claims, plus this ADR's own D3 landing gate — see ADR-0245 D5.2, and note
-its recorded narrowness there.)*
+list that knows nothing of claims. ADR-0311 also retires this ADR's former D3 landing-gate backstop;
+the claim requirement remains operating discipline and coordination state.)*
 
 ## Context
 
@@ -143,9 +144,10 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
    SessionStart provisioning path of ADR-0162 for this flow), and returns the **start payload** in
    its envelope: claims taken + the board digest + the "work from this path" ceremony. The
    enforcement ratchet: spawners we own call `worktree create` (deterministic); hand-opened
-   sessions get the SessionStart nudge re-aimed at it; and **`check:declared` flips WARN → FAIL**
-   (an unclaimed session cannot reach the merge ceremony). The one grade of "forced" we do not
-   pretend to have: a fail-silent hook cannot divine a story; the wall is the workspace + the gate.
+   sessions get the SessionStart nudge re-aimed at it. **Amended by ADR-0311:** `check:declared` no
+   longer blocks the merge ceremony; claims remain required by the session workflow and by the
+   claim-aware commands themselves. The one grade of "forced" we do not pretend to have: a
+   fail-silent hook cannot divine a story.
 
 4. **Push is cursor-once deltas riding existing outputs — never a schedule.** Each session holds a
    cursor over the sequenced `claim_event` log; deltas that intersect the session's own claim set
@@ -221,8 +223,8 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
   rather than removing it. Capability-grain claims remain the named scale-up. [Taken 2026-07-30:
   ADR-0270 moved the session ceremony to capability grain — the serialisation cost now applies only
   to work that stays at story grain (cross-capability edits, unit unknown at start).]
-- A session that ignores the lobby ceremony is invisible until the gate wall catches it; claim-free
-  actions (ADR authoring, curation — ADR-0138 D3's exception) stay invisible on the map. Accepted
+- A session that ignores the lobby ceremony stays invisible; ADR-0311 retires the former gate-time
+  backstop. Claim-free actions (ADR authoring, curation — ADR-0138 D3's exception) stay invisible on the map. Accepted
   at inner-circle scale; a session-scoped claim key is the named escape hatch if it ever matters.
 - ~~Until the arc's final increment lands, both worlds run side by side (presence still written by
   hooks/declare); the interim cost is bounded by ADR-0199 having already removed the destructive

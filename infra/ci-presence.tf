@@ -6,8 +6,8 @@
 #     merged branch's `events.node_claim` rows and appends their `events.claim_event` history
 #     (ADR-0138 §4 / ADR-0200; a branch dies on merge, ADR-0142). This replaced the original
 #     presence-retire job when ADR-0200 D7 dropped the `events.session` tables.
-#   • `verify` READS the corpus — `check:friction-drain` and `check:arc-proposal-drain` run against
-#     the live store since ADR-0302 D3, so the drain ceilings stop being local-only reds.
+#   • `verify` READS the corpus — `check:guidance` and `check:agents` compare the live-canonical
+#     Library with committed harness projections. The retired drain ceilings no longer run in CI.
 #
 # Both talk to Cloud SQL over IAM (no password). For CI to authenticate WITHOUT a long-lived JSON key
 # (ADR-0021 forbids a key in a GH secret), this wires GitHub Actions OIDC → Workload Identity
@@ -28,8 +28,8 @@
 #   cd infra && terraform init && terraform apply
 #   # then, FROM THE REPO ROOT (the path is repo-root-relative):
 #   STORYTREE_DB_USER=hua.mick@gmail.com npx tsx infra/apply-ci-presence-grants.ts
-# Until each is done the corresponding consumer degrades rather than breaks — the merge still lands,
-# and the live-store checks report SKIP. Full runbook: infra/ci-presence.md.
+# Until each is done, merge-time claim release degrades but the live guidance checks fail closed.
+# Full runbook: infra/ci-presence.md.
 
 variable "github_repository" {
   type        = string
@@ -84,7 +84,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 
 resource "google_service_account" "ci_presence" {
   account_id   = "storytree-ci-presence"
-  display_name = "CI database identity — claim release + live-store gate rungs, keyless WIF"
+  display_name = "CI database identity — claim release + live guidance checks, keyless WIF"
 }
 
 # Connect to + log in as an IAM user on the Cloud SQL instance. Mirrors the studio host SA

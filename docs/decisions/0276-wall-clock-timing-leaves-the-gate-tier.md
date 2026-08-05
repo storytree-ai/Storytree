@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-07-31
 arc: flaky-test-coverage-arc
 ---
@@ -7,7 +7,11 @@ arc: flaky-test-coverage-arc
 
 ## Status
 
-accepted (2026-07-31) — decided/directed by the owner in conversation on 2026-07-31. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
+superseded by [ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md)
+(2026-08-05). The wall-clock test cleanup remains history, but `check:test-timing` is no longer a
+standalone merge obligation.
+
+Originally accepted (2026-07-31) — decided/directed by the owner in conversation on 2026-07-31. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
 ## Context
 

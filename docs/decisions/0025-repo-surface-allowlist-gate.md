@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-06-08
 ---
 
@@ -7,7 +7,11 @@ decided: 2026-06-08
 
 ## Status
 
-accepted (2026-06-08). Extends the [ADR-0022](0022-ci-green-gate-and-auto-merge.md) dev-repo
+superseded by [ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md)
+(2026-08-05). This record is kept as the history of the repo-manifest gate; its standalone merge
+obligation is no longer current.
+
+Originally accepted (2026-06-08). Extended the [ADR-0022](0022-ci-green-gate-and-auto-merge.md) dev-repo
 green gate with a repo-hygiene check. Operationalises the owner's directive that the **Library**
 is the home for durable project knowledge: a new standalone doc must justify why it does *not*
 belong there, and new root files must be explicitly allow-listed.

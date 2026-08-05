@@ -5,8 +5,8 @@
 --      needs to DELETE the merged branch's `events.node_claim` rows (RETURNING needs SELECT; the
 --      in-transaction oldest-waiter promotion needs UPDATE) and append one `events.claim_event`
 --      history row per cleared claim.
---   2. READ — the live-store gate rungs (ADR-0302 D3). `verify` runs `check:friction-drain` and
---      `check:arc-proposal-drain`, which read `friction` and `arc` documents out of the corpus.
+--   2. READ — the generated-guidance gate rungs. `verify` runs `check:guidance` and `check:agents`,
+--      which read the live-canonical Library before comparing committed harness projections.
 --
 -- THE READ HALF IS READ-ONLY, AND THAT IS A DECISION, NOT AN OVERSIGHT. CI has no business writing
 -- the corpus: every corpus write is authored by a session or the studio through a validated write
@@ -49,13 +49,12 @@ GRANT INSERT ON events.claim_event
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA events
   TO "storytree-ci-presence@storytree-498613.iam";
 
--- The corpus READ half (ADR-0302 D3). `check:friction-drain` and `check:arc-proposal-drain` call
--- PgLibraryStore.queryDocs({kind}) for `friction` and `arc` documents; without this the CI runs die
--- with "permission denied for table library_artifact" and — because both checks are fail-open on the
--- substrate — report SKIP and pass, which is the silent-no-op this grant exists to prevent.
+-- The corpus READ half. `check:guidance` and `check:agents` read the live-canonical Library;
+-- without this they fail with "permission denied for table library_artifact" and cannot verify the
+-- committed harness projections.
 --
 -- SELECT only, on the corpus projection and its append-only history. `library_artifact` is what the
--- two checks actually read today; `library_event` is the same corpus's history and is granted with
+-- retained checks read today; `library_event` is the same corpus's history and is granted with
 -- it so that a later READ-ONLY check does not cost a second owner-run round-trip. Neither confers
 -- any write: no INSERT, no UPDATE, no DELETE, and no grant on any other table in the schema.
 GRANT SELECT ON events.library_artifact, events.library_event
