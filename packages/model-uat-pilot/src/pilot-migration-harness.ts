@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   parseCriteria,
@@ -11,9 +11,7 @@ import {
 type ClassifiedWitness = Exclude<CriterionWitness, "either">;
 import {
   parseCriterionPointers,
-  UatCriterionDetail,
-  displayTitle,
-  UAT_CRITERION_DETAIL_SEED_DIR,
+  DetailArtifactId,
   type CriterionDetailBinding,
 } from "@storytree/uat-criterion";
 import { PILOT_STORY_IDS, type PilotStoryId } from "./pilot-cast.js";
@@ -50,29 +48,24 @@ function storyMdPath(repoRoot: string, storyId: PilotStoryId): string {
   return join(repoRoot, "stories", storyId, "story.md");
 }
 
-function seedDir(repoRoot: string): string {
-  return join(repoRoot, UAT_CRITERION_DETAIL_SEED_DIR);
-}
-
-/** On-disk filename for a detail id (`#` → `__`). */
-export function detailSeedFilename(detailId: string): string {
-  return `${detailId.replace(/#/g, "__")}.json`;
-}
-
-function loadDetail(repoRoot: string, detailId: string): UatCriterionDetail {
-  const path = join(seedDir(repoRoot), detailSeedFilename(detailId));
-  const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
-  return UatCriterionDetail.parse(raw);
-}
-
 function loadStoryBody(repoRoot: string, storyId: PilotStoryId): string {
   return readFileSync(storyMdPath(repoRoot, storyId), "utf8");
 }
 
 /**
  * Assert the three pilot stories are fully migrated: zero legacy-unresolved
- * `either`, every model has a tier, every criterion has a resolvable detail
- * pointer whose seed body validates, and display titles stay story-owned.
+ * `either`, every model has a tier, and every criterion carries a well-formed
+ * detail pointer.
+ *
+ * **This deliberately does not open the detail BODY (ADR-0307 D5).** It used to
+ * read each body from the committed seed directory and re-validate it. That
+ * directory is retired: the `uat-criterion` tier is live-canonical, so a body
+ * now lives only in the shared store. Resolving one here would put a database
+ * behind `pnpm -r test`, which is hermetic by design — no DB, no API key — so
+ * the harness asserts what a story file can honestly witness on its own: that
+ * every criterion is classified and points somewhere well-formed. Whether the
+ * pointed-to artifact EXISTS is a live-store question and belongs to a
+ * store-backed check, not to a package unit test.
  */
 export function assertPilotMigrationComplete(paths: PilotPaths): void {
   for (const storyId of PILOT_STORY_IDS) {
@@ -101,14 +94,11 @@ export function assertPilotMigrationComplete(paths: PilotPaths): void {
       if (binding === undefined) {
         throw new Error(`${c.criterionId}: missing (detail: …) pointer`);
       }
-      const detail = loadDetail(paths.repoRoot, binding.detailArtifactId);
-      if (detail.id !== binding.detailArtifactId) {
+      const id = DetailArtifactId.safeParse(binding.detailArtifactId);
+      if (!id.success) {
         throw new Error(
-          `${c.criterionId}: detail id mismatch seed=${detail.id} pointer=${binding.detailArtifactId}`,
+          `${c.criterionId}: malformed detail pointer "${binding.detailArtifactId}" — ${id.error.issues[0]?.message ?? "invalid"}`,
         );
-      }
-      if (displayTitle({ criterion: c, detail }) !== c.title) {
-        throw new Error(`${c.criterionId}: displayTitle must stay story-owned`);
       }
     }
   }
@@ -172,15 +162,6 @@ export function reportPilotMigration(paths: PilotPaths): PilotMigrationReport {
       detailPointers: totalPointers,
     },
   };
-}
-
-/** List seed detail ids present on disk under the admitted seed dir. */
-export function listSeedDetailIds(repoRoot: string): string[] {
-  const dir = seedDir(repoRoot);
-  return readdirSync(dir)
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => f.replace(/\.json$/, "").replace(/__/g, "#"))
-    .sort();
 }
 
 export type { CriterionDetailBinding };

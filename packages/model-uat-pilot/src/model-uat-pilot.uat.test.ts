@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { KIND_SPECS, type KnowledgeKind } from "@storytree/library";
-import { UAT_CRITERION_DETAIL_SEED_DIR } from "@storytree/uat-criterion";
 import { parseCriteria, Criterion } from "@storytree/model-uat";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -27,7 +26,10 @@ test("uat-1: Library surface admits the detail kind", () => {
     specs.some((s) => s.field === "title" || s.lead === true && s.field !== "action"),
     false,
   );
-  assert.equal(UAT_CRITERION_DETAIL_SEED_DIR, "apps/studio/data/seed-kinds/uat-criterion/");
+  // The old tail of this leg pinned the seed directory constant. ADR-0307 D5 retired the committed
+  // seed surface, so the property that remains is the one this criterion was always really about:
+  // the kind is resolvable through the Library kind tables as a first-class kind.
+  assert.ok((KIND_SPECS[kind]?.length ?? 0) > 0);
 });
 
 test("uat-2: Zero legacy-unresolved on the three pilots", () => {

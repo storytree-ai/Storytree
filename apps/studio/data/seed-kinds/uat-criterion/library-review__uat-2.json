@@ -1,8 +1,0 @@
-{
-  "kind": "uat-criterion",
-  "id": "library-review#uat-2",
-  "action": "Execute the story UAT walk for \"Comment at a block position.\" against the real surface named by the criterion.",
-  "successConditions": "The success conditions stated on library-review#uat-2 in stories/library-review/story.md hold observably (human witness).",
-  "evidenceExpectations": "Capture operator attestation evidence (screenshot or signed UAT row) for the irreducible judgment gap.",
-  "refs": []
-}

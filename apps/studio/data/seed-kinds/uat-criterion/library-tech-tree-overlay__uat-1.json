@@ -1,8 +1,0 @@
-{
-  "kind": "uat-criterion",
-  "id": "library-tech-tree-overlay#uat-1",
-  "action": "Execute the story UAT walk for \"Open the Library drawer on the map.\" against the real surface named by the criterion.",
-  "successConditions": "The success conditions stated on library-tech-tree-overlay#uat-1 in stories/library-tech-tree-overlay/story.md hold observably (machine witness).",
-  "evidenceExpectations": "Capture the bound proof-gate command transcript / suite output that witnesses this leg.",
-  "refs": []
-}

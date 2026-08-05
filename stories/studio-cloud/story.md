@@ -115,9 +115,14 @@ owner reads, without touching a terminal.
 > model tier: nothing here is a rubric-judged semantic call, so ADR-0209's `model` rung is not in play.
 >
 > **Detail pointers removed (2026-07-26).** All eight legs previously declared a detail-artifact
-> pointer at `studio-cloud#uat-1` … `#uat-8`. **None of those artifacts has ever existed** — not among
-> the seed-canonical `apps/studio/data/seed-kinds/uat-criterion/` docs, not in the live Library — so
-> every one of the eight dangled. Under the owner's 2026-07-25 narrower bar (ADR-0209 §5: author a
+> pointer at `studio-cloud#uat-1` … `#uat-8`. **None of those artifacts has ever existed** — checked
+> at the time against both surfaces then in play, the committed detail docs and the live Library — so
+> every one of the eight dangled. *(Wording corrected 2026-08-05: this note used to call the
+> committed `apps/studio/data/seed-kinds/uat-criterion/` docs the seed-canonical surface and contrast
+> them with the live Library. ADR-0307 D5 withdrew that posture and the directory is deleted — the
+> detail docs now live IN the live Library, which is exactly the surface this note implied they were
+> absent from. The finding is unchanged: these eight ids exist on neither surface, then or now.)*
+> Under the owner's 2026-07-25 narrower bar (ADR-0209 §5: author a
 > detail artifact ONLY where the one-line title is too thin to judge against, never one per leg), eight
 > pointers for eight legs is precisely the over-application that bar removed. Each leg already carries
 > its full action and success conditions inline here, and this file stays the canonical, versioned
