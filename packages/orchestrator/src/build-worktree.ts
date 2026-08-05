@@ -18,6 +18,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { globMatch } from "./phase-machine.js";
 import { ShellTestExecutor } from "./shell-test-executor.js";
 import type { ShellCommand } from "./shell-test-executor.js";
 
@@ -203,26 +204,88 @@ function samePath(a: string, b: string): boolean {
 }
 
 /**
+ * What a spine-side commit is ALLOWED to stage (`parallel-red-green-arc` / `commit-scoped-not-all`).
+ *
+ * `commitAuthored` used to run `git add -A`, which stages the WHOLE worktree. On today's serial
+ * chain that is merely coarse — the only uncommitted content is the node's own. It becomes an
+ * HONESTY break the moment two walks share a tree: node A's commit sweeps node B's half-written
+ * IMPLEMENT files in, and A's signed verdict `commitSha` attests work nobody proved. Forgery by
+ * accident — no leaf lied, no gate was bypassed, and the signed row is still wrong.
+ *
+ * The scope is therefore NAMED, never inferred: a caller must say which paths the proof covered.
+ */
+export interface CommitScope {
+  /**
+   * The node's declared proof scope — normally `real.scope.testGlobs` ∪ `real.scope.sourceGlobs`
+   * (`resolve-prove-spec.ts`). Matched with {@link globMatch}, the SAME predicate
+   * {@link PathWriteScope} walls writes with, so what the leaf was allowed to write is exactly what
+   * the commit is allowed to stage — one dialect, no second implementation to drift.
+   */
+  globs: string[];
+  /**
+   * Extra globs for output the SPINE ITSELF legitimately produced outside every declared scope.
+   * Today that is only the ADR-0064 spine-driven `pnpm add` (`pnpm-lock.yaml` + the target package's
+   * `package.json` — paths the LEAF can never write, since they sit outside every write scope).
+   * Deliberately enumerated by the caller per node; never a catch-all, or the sweep is back.
+   */
+  spineOutputGlobs?: string[];
+}
+
+/** The outcome of {@link commitAuthored}. */
+export interface CommitAuthoredResult {
+  /** Whether a commit object was actually created. */
+  committed: boolean;
+  /** The commit the verdict will attest — the new commit, or the unchanged HEAD. */
+  commitSha: string;
+  /** Repo-relative paths (forward slashes) this commit staged. */
+  staged: string[];
+  /**
+   * Dirty paths DELIBERATELY left uncommitted because no declared glob covers them. Not an error
+   * here: the GATE reads the real `git status` next and fails closed on the leftover dirt, which is
+   * the honest outcome — the alternative is attesting a tree containing unproven work.
+   */
+  outOfScope: string[];
+}
+
+/**
  * The SPINE-side commit of whatever the leaf authored (Phase F's clean-tree answer): called after
  * CONFIRM_GREEN, before the GATE reads the tree, so the gate's clean-tree requirement is met by a
  * REAL commit — never by faking `clean: true`. Attribution is explicit: the committer identity is
  * the spine acting for the resolved signer (passed per-command, no global config touched).
  *
- * Returns `committed: false` when the tree is already clean (nothing authored — the gate will then
- * attest the unchanged HEAD, which is honest: the proof ran against what HEAD already held).
+ * Stages the declared {@link CommitScope} ONLY (see its doc). Anything dirty outside it is left
+ * alone and reported in `outOfScope`, so the gate's own clean-tree read refuses the build rather
+ * than the commit quietly absorbing it. This makes the long-standing comment above the callsite —
+ * "if anything is still dirty after that commit, the gate fails closed" — actually TRUE; under
+ * `git add -A` nothing could ever be left dirty, so the claim was unfalsifiable.
+ *
+ * Returns `committed: false` when nothing IN SCOPE is dirty (the gate then attests the unchanged
+ * HEAD, which is honest: the proof ran against what HEAD already held).
  */
 export async function commitAuthored(args: {
   worktreeRoot: string;
   message: string;
   /** The signer the commit is attributed to (email; the name is the spine's fixed identity). */
   author: string;
-}): Promise<{ committed: boolean; commitSha: string }> {
-  const porcelain = (await runGit(["status", "--porcelain"], args.worktreeRoot)).trim();
-  if (porcelain.length === 0) {
+  /** The paths this commit may stage. Required — a commit never infers its own scope. */
+  scope: CommitScope;
+}): Promise<CommitAuthoredResult> {
+  const dirty = await dirtyPaths(args.worktreeRoot);
+  const globs = [...args.scope.globs, ...(args.scope.spineOutputGlobs ?? [])];
+  const staged = dirty.filter((p) => globs.some((g) => globMatch(g, p)));
+  const outOfScope = dirty.filter((p) => !staged.includes(p));
+
+  if (staged.length === 0) {
     const sha = (await runGit(["rev-parse", "HEAD"], args.worktreeRoot)).trim();
-    return { committed: false, commitSha: sha };
+    return { committed: false, commitSha: sha, staged: [], outOfScope };
   }
-  await runGit(["add", "-A"], args.worktreeRoot);
+
+  // `:(literal)` pathspec magic: a path is a PATH, never a pattern — a filename containing `*` or
+  // `[` can neither widen the commit nor silently match nothing. Chunked so a wide scope cannot
+  // overflow the platform argv limit.
+  for (const chunk of chunked(staged, 200)) {
+    await runGit(["add", "--", ...chunk.map((p) => `:(literal)${p}`)], args.worktreeRoot);
+  }
   await runGit(
     [
       "-c",
@@ -236,7 +299,48 @@ export async function commitAuthored(args: {
     args.worktreeRoot,
   );
   const sha = (await runGit(["rev-parse", "HEAD"], args.worktreeRoot)).trim();
-  return { committed: true, commitSha: sha };
+  return { committed: true, commitSha: sha, staged, outOfScope };
+}
+
+/**
+ * Every dirty path in the worktree, repo-relative with forward slashes.
+ *
+ * `-uall` (not the default `-unormal`) so an untracked DIRECTORY is expanded into its files —
+ * collapsed as `dir/` it could match no glob and be dropped even though its contents are squarely
+ * in scope. `-z` so paths arrive NUL-separated and UNQUOTED: git's default porcelain quotes and
+ * escapes non-ASCII/space-bearing names, and a path we mis-unquote is a path we mis-stage.
+ */
+async function dirtyPaths(worktreeRoot: string): Promise<string[]> {
+  const out = await runGit(["status", "--porcelain", "-uall", "-z"], worktreeRoot);
+  const records = out.split("\0");
+  const paths: string[] = [];
+  for (let i = 0; i < records.length; i += 1) {
+    const record = records[i];
+    // Each record is `XY <path>`; a trailing empty split artefact is skipped.
+    if (record === undefined || record.length <= 3) continue;
+    paths.push(normalizeRepoPath(record.slice(3)));
+    // A rename/copy carries its ORIGIN in the NEXT NUL field — that path is dirty too (the
+    // deletion side), so it must be considered for staging on its own merits.
+    const x = record[0];
+    if (x === "R" || x === "C") {
+      i += 1;
+      const origin = records[i];
+      if (origin !== undefined && origin.length > 0) paths.push(normalizeRepoPath(origin));
+    }
+  }
+  return [...new Set(paths)];
+}
+
+/** Git already emits forward slashes; normalise anyway so the glob dialect sees one separator. */
+function normalizeRepoPath(p: string): string {
+  return p.replace(/\\/g, "/");
+}
+
+/** Split `items` into chunks of at most `size` (argv-limit safety for wide `git add` calls). */
+function chunked<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
 }
 
 // ── Promotion (ADR-0031 §1): a signed REAL pass lands, it does not evaporate ─
