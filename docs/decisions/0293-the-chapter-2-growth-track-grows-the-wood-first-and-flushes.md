@@ -120,10 +120,12 @@ is already a tree.**
   anything left to serve. Rather than delete on suspicion, the `--no-render` plan now PRINTS the
   answer (`mat`, `con`, and how many live lobes sit on juvenile seats). At the delivered staging the
   first leafy frame carries **`mat` = 0.69**, and `mat` climbs 0.69 → 1.00 across the flush — so the
-  shell easing is shaping most of the leafing-out, not a vestige. The seats are the weak case: a
-  juvenile seat owns exactly ONE live lobe, on four frames (f09-f12). Nothing is deleted here, and
-  the case for deleting the SEATS specifically is now a measurement someone can re-run rather than
-  an argument. ADR-0289 D1's precedent still governs if it ever goes to zero.
+  shell easing is shaping most of the leafing-out, not a vestige.
+  **Corrected in place 2026-08-06 (ADR-0139); the decision remains unchanged.** The current
+  `--no-render` plan reports ZERO live lobes on juvenile seats in all 19 frames, not one across
+  f09–f12. The shell easing is still live; the juvenile SEATS have now reached the zero-use condition
+  this paragraph anticipated. They remain in the generator in this increment, so ADR-0289 D1's
+  deletion precedent is applicable residue rather than a completed cleanup.
 - **The flush shows bare twig tips, and there is no length lever.** In a two-phase track the twigs
   reach full length in the wood phase and the clouds then grow outward from inside them, so through
   the flush every outer twig stands proud of the foliage arriving on it. The only lever is RADIUS —
