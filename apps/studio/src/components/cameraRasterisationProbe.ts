@@ -10,12 +10,13 @@ export const CAMERA_RASTERISATION_QUERY_KEY = 'cameraRasterisation';
 export const CAMERA_RASTERISATION_QUERY_VALUE = 'probe';
 export const CAMERA_RASTERISATION_VARIANT_KEY = 'cameraVariant';
 export const CAMERA_RASTERISATION_EXPECTED_ISLANDS = 40;
-export const CAMERA_RASTERISATION_PROTOCOL = 1;
+export const CAMERA_RASTERISATION_PROTOCOL = 2;
 
 export const CAMERA_RASTERISATION_VARIANTS = [
   'growth-only',
   'svg-camera',
   'html-compositor',
+  'final-product',
 ] as const;
 
 export type CameraRasterisationVariant = (typeof CAMERA_RASTERISATION_VARIANTS)[number];
@@ -73,8 +74,10 @@ export function applyCameraRasterisationTransform(
   variant: CameraRasterisationVariant,
   cursor: number,
   fitTransform: string,
+  finalProductTransform = fitTransform,
 ): () => void {
-  // The control must be the shipped growth-only path: no camera attribute/style writes at all.
+  // The diagnostic control must be growth-only: TreeView suppresses product motion on every probe
+  // route, and this arm performs no camera attribute/style writes at all.
   // Reassigning the same SVG transform can itself invalidate the paint artifact, which would make
   // the baseline measure the very camera cost it is meant to exclude.
   if (variant === 'growth-only') return () => {};
@@ -85,12 +88,13 @@ export function applyCameraRasterisationTransform(
   const oldHtmlWillChange = targets.htmlCompositor.style.willChange;
   const transform = cameraRasterisationTransformAtCursor(cursor);
 
-  if (variant === 'svg-camera') {
+  if (variant === 'svg-camera' || variant === 'final-product') {
     // A CSS transition would be an independent clock. The diagnostic always writes sampled values.
     targets.svgCamera.style.transition = 'none';
-    targets.svgCamera.setAttribute(
-      'transform',
-      `translate(${transform.dx} ${transform.dy}) scale(${transform.scale}) ${fitTransform}`,
+    targets.svgCamera.setAttribute('transform',
+      variant === 'final-product'
+        ? finalProductTransform
+        : `translate(${transform.dx} ${transform.dy}) scale(${transform.scale}) ${fitTransform}`,
     );
   }
 
@@ -100,7 +104,7 @@ export function applyCameraRasterisationTransform(
   }
 
   return () => {
-    if (variant === 'svg-camera') {
+    if (variant === 'svg-camera' || variant === 'final-product') {
       if (oldSvgTransform === null) targets.svgCamera.removeAttribute('transform');
       else targets.svgCamera.setAttribute('transform', oldSvgTransform);
       targets.svgCamera.style.transition = oldSvgTransition;

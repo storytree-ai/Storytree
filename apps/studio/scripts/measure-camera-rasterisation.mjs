@@ -12,7 +12,7 @@ import {
 } from '../src/components/cameraRasterisationProbe.ts';
 
 const VIEWPORT = { width: 1600, height: 1000 };
-const VARIANTS = ['growth-only', 'svg-camera', 'html-compositor'];
+const VARIANTS = ['growth-only', 'final-product'];
 
 function readArgs(argv) {
   const values = new Map();
@@ -100,8 +100,8 @@ function runOrder(repeats) {
     // Each variant is bracketed by controls over the two repeats; reversing the second half avoids
     // a warm or contended interval being confounded with one fixed variant position.
     order.push(...(repeat % 2 === 0
-      ? ['growth-only', 'svg-camera', 'growth-only', 'html-compositor']
-      : ['html-compositor', 'growth-only', 'svg-camera', 'growth-only']));
+      ? ['growth-only', 'final-product', 'growth-only', 'final-product']
+      : ['final-product', 'growth-only', 'final-product', 'growth-only']));
   }
   return order;
 }
@@ -150,7 +150,10 @@ async function main() {
       const cleanupMatchesFit =
         settled.svgTransform === settled.fitTransform &&
         (settled.htmlTransform === '' || settled.htmlTransform === 'none');
-      const measured = { runId, ordinal, variant, preIdle, postIdle, frames };
+      const runSpanMs = frames.length > 1
+        ? frames[frames.length - 1].timestamp - frames[0].timestamp
+        : 0;
+      const measured = { runId, ordinal, variant, preIdle, postIdle, frames, runSpanMs };
       runs.push({
         ...measured,
         descriptor,
@@ -193,6 +196,15 @@ async function main() {
     `Build: \`${args.build}\` · Chromium ${browserVersion} · ${VIEWPORT.width}×${VIEWPORT.height}`,
     '',
     formatCameraRasterisationComparisonTable(summary).trimEnd(),
+    '',
+    '| variant | admitted run spans |',
+    '| --- | ---: |',
+    ...VARIANTS.map((variant) => {
+      const spans = runs
+        .filter((run) => run.variant === variant && run.admissibility.accepted)
+        .map((run) => `${(run.runSpanMs / 1000).toFixed(2)} s`);
+      return `| ${variant} | ${spans.length > 0 ? spans.join(', ') : 'none'} |`;
+    }),
     '',
     `Accepted runs: ${summary.acceptedRunIds.length}; rejected runs: ${runs.length - summary.acceptedRunIds.length}.`,
     '',

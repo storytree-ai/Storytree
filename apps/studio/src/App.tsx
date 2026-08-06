@@ -263,6 +263,7 @@ export function App(): React.JSX.Element {
                   >
                     <TreeView
                       focus={route.name === 'tree' ? route.focus : null}
+                      active={route.name === 'tree'}
                       codeHeadRef={codeHeadRef}
                       cacheWriteSuppressedRef={cacheEvictedThisBootRef}
                     />

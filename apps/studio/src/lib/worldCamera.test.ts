@@ -8,6 +8,8 @@ import {
   centerOn,
   fitWorld,
   limitsForFit,
+  act2RegrowCamera,
+  ACT2_REGROW_OPENING_SCALE,
   type Camera,
   type ScaleLimits,
 } from './worldCamera.js';
@@ -159,5 +161,34 @@ describe('fitWorld', () => {
 describe('limitsForFit', () => {
   it('returns the expected min/max multiples of the fit scale', () => {
     expect(limitsForFit(2)).toEqual({ min: 2 * 0.4, max: 2 * 5 });
+  });
+});
+
+describe('act2RegrowCamera', () => {
+  const fitted: Camera = { tx: 120, ty: 40, scale: 0.5 };
+  const frame = { width: 1600, height: 1000 };
+
+  it('opens at one fixed close framing and zooms monotonically outward on the existing cursor', () => {
+    const opening = act2RegrowCamera(fitted, frame, 0);
+    const quarter = act2RegrowCamera(fitted, frame, 0.25);
+    const halfway = act2RegrowCamera(fitted, frame, 0.5);
+    const anchor = screenToWorld(fitted, frame.width / 2, frame.height / 2);
+
+    expect(opening.scale).toBe(fitted.scale * ACT2_REGROW_OPENING_SCALE);
+    expect(opening.scale).toBeGreaterThan(quarter.scale);
+    expect(quarter.scale).toBeGreaterThan(halfway.scale);
+    for (const camera of [opening, quarter, halfway]) {
+      expect(worldToScreen(camera, anchor.x, anchor.y)).toEqual({
+        x: frame.width / 2,
+        y: frame.height / 2,
+      });
+    }
+    expect(act2RegrowCamera(fitted, frame, 0.25)).toEqual(quarter);
+  });
+
+  it('returns the ordinary fitted camera exactly at settle and whenever motion is reduced', () => {
+    expect(act2RegrowCamera(fitted, frame, 1)).toEqual(fitted);
+    expect(act2RegrowCamera(fitted, frame, 9)).toEqual(fitted);
+    expect(act2RegrowCamera(fitted, frame, 0.25, true)).toEqual(fitted);
   });
 });

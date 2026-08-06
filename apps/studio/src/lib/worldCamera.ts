@@ -17,6 +17,43 @@ export interface ScaleLimits {
   max: number;
 }
 
+export interface CameraFrame {
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * The deliberately small Act 2 opening reveal. It is a product parameter rather than a hidden
+ * animation state: the operator-attested leg judges this amount and the cursor projection below.
+ */
+export const ACT2_REGROW_OPENING_SCALE = 2.25;
+
+/**
+ * Project the existing Act 2 regrow cursor onto one fixed camera framing.
+ *
+ * The world point under the fitted viewport centre stays fixed for the whole pull-back; only scale
+ * changes. There is no tracker, tween, clock or retained camera progress here. Returning the fitted
+ * value at the settled boundary is explicit so cursor 1 is exact identity, not merely close after
+ * floating-point interpolation. Reduced motion takes that same identity path for every sample.
+ */
+export function act2RegrowCamera(
+  fitted: Camera,
+  frame: CameraFrame,
+  cursor: number,
+  reducedMotion = false,
+): Camera {
+  const progress = Number.isFinite(cursor) ? Math.max(0, Math.min(1, cursor)) : 0;
+  if (reducedMotion || progress === 1 || frame.width <= 0 || frame.height <= 0) return { ...fitted };
+
+  const anchor = screenToWorld(fitted, frame.width / 2, frame.height / 2);
+  const scale = fitted.scale * (1 + (ACT2_REGROW_OPENING_SCALE - 1) * (1 - progress));
+  return {
+    scale,
+    tx: frame.width / 2 - scale * anchor.x,
+    ty: frame.height / 2 - scale * anchor.y,
+  };
+}
+
 /** Clamp a scale into [min, max]. */
 export function clampScale(scale: number, limits: ScaleLimits): number {
   return Math.min(limits.max, Math.max(limits.min, scale));

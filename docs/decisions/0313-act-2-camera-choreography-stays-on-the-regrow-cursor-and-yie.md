@@ -1,16 +1,16 @@
 ---
-status: proposed
+status: accepted
 arc: act2-camera-choreography-arc
 ---
 # ADR-0313: Act 2 camera choreography stays on the regrow cursor and yields cleanly to the viewer
 
 ## Status
 
-proposed (2026-08-05) — the owner has directed the invariants (one existing run cursor, no second
-clock, reduced-motion support, no fight with manual pan/zoom, and a still fitted camera at settle),
-but has not chosen the framing, curve, base-node focus, or manual-input takeover policy. The
-production measurement below rules out treating either tested camera path as free; it narrows the
-fork without ratifying a choreography.
+accepted (2026-08-06) — the owner directed the remaining product choices after reviewing the
+production measurement: open close enough to reveal the existing tree detail, zoom out with the
+existing Act 2 regrow cursor, and finish at the ordinary fitted whole-forest camera. The scripted
+camera owns the short regrow and ordinary pan/zoom controls resume after settle. There is no
+first-person view, focal-island tracker, pan choreography, or user-takeover state machine.
 
 ## Context
 
@@ -64,52 +64,65 @@ state. Cursor 1 returns the ordinary fitted camera exactly; nothing camera-relat
 transform after settle. Changing ADR-0286's speed changes only how quickly the shared cursor is
 crossed.
 
-This is already owner-directed, but the ADR remains proposed because the product choices below are
-not separable implementation details: they determine what the camera shows and how it yields.
+The owner directed this invariant and the product choices below on 2026-08-06.
 
-### D2 — No production choreography ships on the measured paths yet
+### D2 — Ship the bounded, measured cursor-driven zoom-out
 
-Both tested paths add material cost in the heavy painting buckets, and both can stretch wall-clock
-duration under the existing player. The measurement increment therefore ships the reproducible
-diagnostic and evidence, not a camera move. A later proposal must either reduce that cost, reduce how
-often/where the camera changes, or explicitly present a measured trade to the owner. It may not quote
-ADR-0272's static-pan result as evidence that translate during a changing regrow is free.
+The production probe shows that moving the camera while the forest changes is not free, so the
+implementation fixes one deliberately small product parameter: an opening scale `2.25` times the
+ordinary fitted camera, under one centre-anchored framing. The final path re-ran the same interleaved
+40-island production protocol against a same-build growth-only control; it may not quote ADR-0272's
+static-pan result as evidence that movement during a changing regrow is free.
 
-### D3 — Reduced motion is narrowed, not yet ratified
+On build `c7eaac1b+act2-regrow-camera-final`, all 8 runs were admitted and none rejected. The final
+product's pooled painting-frame p50 deltas across the 0–4k, 4–8k, 8–12k and 12–20k map-node buckets
+were respectively 0.0, 0.0, -16.5 and 0.0 ms. Growth-only runs spanned 29.55–29.57 s and final-product
+runs 29.55–29.58 s. This records no material frame-cost or duration penalty for the chosen path on
+that build/browser/box; it does not turn one controlled comparison into a claim that camera movement
+is generally free.
 
-The proposed reduced-motion behavior is the fitted whole-forest camera with no choreography. It is
-consistent with the existing regrow settlement and guarantees no camera motion is playing, but it
-remains part of the owner's unratified product choice while this ADR is proposed.
+The product choreography starts zoomed in, derives scale and framing directly from the existing
+normalized regrow cursor, and returns the ordinary fitted camera exactly at cursor 1. It changes only
+what the viewer sees: island order, accretion timing, vegetation timing, and the regrow schedule stay
+authoritative.
 
-### D4 — Manual input must own the camera; the takeover shape remains open
+### D3 — Reduced motion stays fitted without choreography
 
-The eventual implementation must never reapply choreography after the viewer pans or zooms. The
-recommended policy is that the first wheel, drag, or keyboard camera input cancels choreography and
-leaves the viewer holding the camera they created; disabling input for the run is the alternative
-the arc explicitly permits. This ADR chooses neither while proposed.
+When `prefers-reduced-motion` is active, the camera remains at the ordinary fitted whole-forest view.
+No zoom plays and settlement requires no camera cleanup.
 
-### D5 — The remaining visual forks stay explicit
+### D4 — The scripted camera owns the short regrow, then ordinary controls resume
 
-Still open for owner/design resolution: fixed curve versus growth-frontier tracking; one base island
-versus the four graph roots; the amount of close framing; and whether the website consumes exactly
-the app choreography or only the app-owned camera primitive. None is encoded in the diagnostic
-motion shape, whose only purpose is to exercise real browser transform paths.
+Pan and zoom input do not take over during the scripted regrow. At settle the choreography stops
+writing camera transforms and the existing pan, wheel, keyboard, and zoom controls resume against the
+ordinary fitted camera. There is no cancellation or user-takeover state machine.
+
+### D5 — The choreography is a simple zoom-out, not a tracker or pan sequence
+
+The camera follows one fixed, cursor-derived zoom from a close opening frame to the fitted forest.
+It does not track the growth frontier, select a focal island, pan between islands, enter a
+first-person mode, or introduce a second narration/state machine. The opening scale is bounded by the
+requested tree-detail reveal, the production measurement, and the operator-attested visual leg. The
+shipped implementation remains Studio-owned. This decision does not deliver website integration; if
+the website intro adopts the move later, that increment must consume an app-owned shared seam rather
+than reimplement the choreography.
 
 ## Consequences
 
-**Good.** The first increment settles the performance premise before spending on choreography. It
-leaves a repeatable exact-route production instrument, raw frame/cursor/node/transform evidence, and
-a comparison table. The clean app route is unchanged, the regrow remains authoritative, and the
-diagnostic cleanup proves the settled camera is exact.
+**Good.** The owner gets one legible opening view and one direct pull-back without another clock or
+another interaction mode. The repeatable exact-route production instrument remains the evidence
+surface, the regrow stays authoritative, reduced motion stays quiet, and the fitted settled camera is
+exact.
 
-**Costs.** The arc is not visually complete and has no operator-attested leg yet. The measurement
-shows that the obvious SVG and compositor mechanisms both miss the present duration/cost fence in
-the heavy forest, so the next increment needs an evidence-backed mechanism or an owner-approved
-trade rather than a straightforward tween.
+**Costs.** PR #1160 measured material rasterisation cost for both obvious diagnostic transform paths
+during the changing forest. The final product remeasurement found no material frame-cost or run-span
+penalty for this bounded path on the measured build, but it still changes a live transform while the
+forest paints; the decision and one clean comparison do not make camera movement generally free.
 
-**Risk.** The absolute growth-only baseline varied materially from the inherited pair while the
-idle brackets were clean. Future work must continue interleaving controls and variants on the same
-build/browser/box; historical absolute numbers are calibration context, not a substitute control.
+**Risk.** The absolute growth-only baseline varied materially from the inherited pair while the idle
+brackets were clean. The final measurement must continue interleaving controls and the chosen path
+on the same build/browser/box; historical absolute numbers are calibration context, not a substitute
+control. Appearance and pacing still require the owner's stage-2 visual verdict.
 
 ## References
 
@@ -125,3 +138,5 @@ build/browser/box; historical absolute numbers are calibration context, not a su
 - `apps/studio/scripts/measure-camera-rasterisation.mjs` — production Chromium collector.
 - `docs/research/act2-camera-rasterisation-2026-08-05/` — raw JSON and comparison table for the
   admitted 8-run set.
+- `docs/research/act2-regrow-camera-final-2026-08-06/` — raw JSON and comparison table for the final
+  product curve's admitted 8-run set.
