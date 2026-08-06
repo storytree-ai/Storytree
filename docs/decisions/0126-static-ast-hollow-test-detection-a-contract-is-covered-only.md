@@ -22,6 +22,30 @@ gap was not in the deferred-limits list below, so a reader calibrating to this A
 non-running test cannot vouch. It is added there, with the measurement. Truth-maintenance, not a
 re-decision.
 
+**Corrected in place again 2026-08-06 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).**
+The decision still stands ENTIRELY. What was overtaken this time is the CONSERVATIVE-BIAS claim below —
+"it flags only a clearly-hollow test … never a real test" — which was stated as if it covered the whole
+classifier and did not. It holds on the axis it was decided for (HOLLOWNESS) and never held on a second
+axis nobody had named: whether the classifier can READ a test's title at all. A title it could not read
+was dropped from the observed set, so an honest, substantively-asserting test flagged its contract
+UNCOVERED — the exact false-hollow this ADR's bias exists to prevent, arriving through a door the bias
+was not written to cover. Measured and FIXED 2026-08-06 (see the two-axis limit below);
+truth-maintenance, not a re-decision.
+
+**Also corrected in place 2026-08-06 — a SECOND, unrelated overtaking found on the same pass.**
+[ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md) D2 retired
+`check:coverage` from root policy and CI on 2026-08-05, so this ADR's present-tense claims that the
+check runs *at the gate* — and its instruction to **run** `pnpm check:coverage` — described wiring
+that no longer exists: no `package.json` declares that script, and it is absent from the gate plan
+(`packages/cli/src/gate-order.ts` lists it under `retiredBy: "ADR-0311 D2"`). `check-coverage.ts` /
+`coverage-gate.ts` / `coverage-drain.ts` survive as source only, which ADR-0311 D5 explicitly warns
+is *not* evidence that the old gate policy stands. The DECISION here is untouched — ADR-0126 chose
+the static-AST path and added **no signer and no gate posture of its own**, and `storytree coverage`,
+the on-demand surface it actually decided, is live and was re-run at this seat. Only the wiring
+sentences are re-tensed below. This is the decision-log instance of the class the friction item
+`retired-rung-leaves-prose-asserting-it-still-runs` measured across `packages/cli/src`; that audit
+swept source banners and printed output, not ADR bodies.
+
 **Amends** [ADR-0122](0122-per-contract-coverage-check-map-each-declared-contract-to-an.md) — ADR-0122
 built the per-contract coverage check on STATIC NAME-PRESENCE and named the hollow-test hole as a
 deferred follow-on; this closes that hole, choosing the static path over the runtime one 0122
@@ -71,15 +95,32 @@ test that VOUCHES for it — a test that **(a)** runs (is not `.skip`/`.todo`, n
   `classifyContractCoverage` is UNCHANGED — it simply receives only the vouching names. The two
   production loaders ([`loadCoverageUnit`](../../packages/cli/src/commands.ts) for `storytree coverage`,
   [`loadRealBuildCoverageUnits`](../../packages/cli/src/coverage-gate.ts) for the `check:coverage`
-  sweep) swap `extractTestNames` → `extractVouchingTestNames`.
+  sweep) swap `extractTestNames` → `extractVouchingTestNames`. **Since 2026-08-06** `loadCoverageUnit`
+  calls `readTestSurface` instead — the same vouching names, plus the count of titles the reader could
+  not read in full; `loadRealBuildCoverageUnits` still calls `extractVouchingTestNames`, now behind a
+  rung that no longer runs (see the Status correction above).
 - **No new signer, no new gate posture** (inherits ADR-0122 / ADR-0020): it is a structural check —
   WARN-only at the gate (`check:coverage`), exits-non-zero on demand (`storytree coverage`). No store /
-  git / clock / execution.
+  git / clock / execution. **As of ADR-0311 D2 the gate half is GONE** — the `check:coverage` rung was
+  retired from root policy and CI, leaving the on-demand verb as the only live surface. The decision
+  itself is unaffected, and this is the direction it always pointed: *no new gate posture* was the
+  claim, and there is now none.
 
 Detection is CONSERVATIVE by design: it flags only a clearly-hollow test (no assertion, a constant-only
 assertion, or a skip), biasing toward "covered" to avoid false-hollows (telling an honest author their
 real test does not count). A false-real (a missed hollow) is no worse than the name-presence status quo;
 a false-hollow would erode trust, so the line is drawn to avoid it.
+
+**Scoped 2026-08-06: that bias is the HOLLOWNESS axis's, and it is not the classifier's only fold.**
+Reading a test's TITLE is a second axis, and it folds the other way — a title that cannot be read
+statically vouches for nothing, because a name never seen cannot be shown to carry a contract id. The
+two are compatible only under one rule, which the code now enforces: **whatever is statically readable
+MUST be read.** A readable title left unread routes an honest test into the uncovered bucket, i.e. the
+readability fold delivers the false-hollow the hollowness fold exists to prevent. And because the folds
+disagree, an UNREAD title may never share a bucket with an ABSENT test: "I could not read six titles"
+and "six tests are missing" are different claims about different things, so `readTestSurface` returns
+the count of unreadable titles alongside the vouching names and `storytree coverage` prints it, rather
+than letting a `0/N` silently mean either.
 
 ## Consequences
 
@@ -107,7 +148,35 @@ a false-hollow would erode trust, so the line is drawn to avoid it.
   reviewer's job, not a structural check's.
 - The report still says only "no substantive test covers it" — it does not yet DISTINGUISH a dropped
   contract (no test names it) from a hollow one (a test names it but is hollow). A cheap refinement,
-  deferred to keep this slice tight.
+  deferred to keep this slice tight. **Partly closed 2026-08-06:** the THIRD case — a test whose title
+  this checker could not read — is now separated out and reported (`readTestSurface`'s `unreadTitles`,
+  rendered by `storytree coverage`). Dropped-vs-hollow remains undistinguished, as deferred here.
+- **The classifier read only a bare string literal or a template as a title, so a title assembled from
+  several literals was invisible — found and FIXED 2026-08-06, MEASURED not predicted.** `testCallName`
+  accepted `ts.isStringLiteralLike` or `ts.isTemplateExpression` and returned null for anything else, so
+  `matchTestCall` dropped the whole declaration: a title split across two lines as
+  `test("<id>: …" + "…", …)` — the ordinary way to keep a long title inside the line limit — was not an
+  observed test at all, and its contract read UNCOVERED. Nothing about that title is dynamic; it is
+  fully static and trivially foldable. A bare parenthesised literal `("<id>: …")` was dropped for the
+  same reason. **The wrong outcome went out under a signature**: PR #1172 stamped
+  `coverage 0/6 contracts` onto capability `offer-set-render-agreement`'s signed `--real` verdict while
+  all six tests existed, named their contracts verbatim, asserted substantively, and passed — and since
+  [ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md) retired
+  `check:coverage` as a gate rung, the stamped number is what survives. Re-measured through the real
+  `storytree coverage` path on 2026-08-06 by splitting one live title: `5/6, 1 UNCOVERED` before the
+  fix, `6/6` after, with nothing else changed. `readTestCallTitle` now folds `+` over literals
+  recursively and reads through parentheses — **literals only, never evaluating a runtime expression**
+  — and marks a partially-static title so it is reported rather than passed off as a clean read. A
+  related residual is deliberately unchanged: a title with a genuinely runtime part still contributes
+  only its literal text (the pre-existing template rule), which is why the count exists.
+- **The reader was CLONED into a second package, and the clone would have silently diverged — deleted
+  2026-08-06.** `findOptionsFormSkips` (`packages/cli/src/verification-decay.ts`, ADR-0252 D1) carried a
+  hand-kept copy of `testCallName` whose own comment named the hazard: its names are JOINED against
+  `extractVouchingTestNames`'s output, so a different spelling makes the join miss and the
+  `vacuous-proof` instrument "under-report while still looking healthy". Teaching this classifier to
+  fold concatenated titles would have realised exactly that. The copy now delegates to the exported
+  `readTestCallTitle` (both packages resolve the same `typescript`), so the agreement is structural
+  rather than remembered, and a test pins it.
 - **It reads only the `.skip`/`.todo` MODIFIER, so the OPTIONS form of skip is invisible — added
   2026-07-27, MEASURED not predicted.** `analyzeObservedTests` derives `skipped` from
   `test.skip(name, fn)`; `node:test` equally accepts `test(name, { skip: !DB }, fn)`, a second
@@ -115,10 +184,14 @@ a false-hollow would erode trust, so the line is drawn to avoid it.
   asserts, `vouches: true` — so a test that DOES NOT RUN is, to this check, a test that runs and
   asserts. The wrong outcome is live in this repo: `stories/wisp-as-story-claim/claim-store-work-time.md`
   declares `release-claims-by-branch-clears-the-branch`, whose only test carries `{ skip: !DB }` in
-  `packages/notice-board/src/store/claim-store-release-by-branch.live.test.ts`; run `pnpm check:coverage`
-  offline (the default for the whole gate and for CI) and it prints `claim-store-work-time: 2/3
-  uncovered`, naming the OTHER two — that contract reads COVERED, proven by a test that did not
-  execute. Located across 7 test files by the `vacuous-proof` instrument of `pnpm
+  `packages/notice-board/src/store/claim-store-release-by-branch.live.test.ts`; run offline and the
+  check prints `claim-store-work-time: 2/3 uncovered`, naming the OTHER two — that contract reads
+  COVERED, proven by a test that did not execute. **Re-tensed 2026-08-06:** this originally read *run
+  `pnpm check:coverage` offline (the default for the whole gate and for CI)*, and ADR-0311 D2 retired
+  that rung, so the sentence was handing a reader a command that no longer exists. The live
+  reproduction is `pnpm storytree coverage claim-store-work-time`, re-run at this seat on 2026-08-06:
+  same `2/3`, same two names, the skipped test still reading COVERED. The blind spot is the
+  classifier's, not the rung's, so retiring the rung did not touch it. Located across 7 test files by the `vacuous-proof` instrument of `pnpm
   check:verification-decay` (ADR-0252 D1), which is where the current count lives.
   **The skip itself is usually CORRECT** — these are mostly live-DB proofs that cannot run without a
   database (ADR-0064) — so the defect is the INVISIBILITY, never "this should not skip", and the fix
@@ -136,7 +209,11 @@ a false-hollow would erode trust, so the line is drawn to avoid it.
   nothing read covered"). So the fix is a PATCH plus a one-line ceiling re-baseline in the same commit,
   not a story-shape call — the number is recorded in advance at `DEFAULT_COVERAGE_DRAIN_CONFIG`
   (`packages/cli/src/coverage-drain.ts`), which names this as the one legitimate upward move of the
-  `uncovered` ceiling. **Nothing is re-decided**: ADR-0126 chose the static-AST path and shipped the
+  `uncovered` ceiling. **Re-tensed 2026-08-06:** that re-baseline obligation lapsed with ADR-0311 D2 —
+  `coverage-drain.ts` and its ceiling still compile, but nothing reads them at the gate, so the patch
+  no longer owes a ceiling bump to keep anything green. The 119 → 120 / exactly-one-contract
+  MEASUREMENT stands; only its consequence for a merge does not. **Nothing is re-decided**: ADR-0126
+  chose the static-AST path and shipped the
   modifier-only classifier, and neither changes. What is corrected is an unmeasured cost estimate that
   was re-quoted rather than re-derived, and on that reading deferred bounding `check:coverage` — the
   worklist ADR-0252 names as its own live counter-example — behind three other increments. A related

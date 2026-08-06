@@ -22,7 +22,7 @@ import type { UatTestCriterion, ReliabilityGate } from "@storytree/library";
 import {
   loadNodeSpec,
   findNodeSpecFile,
-  extractVouchingTestNames,
+  readTestSurface,
   resolveSignerFromEnv,
   platformShellCommand,
   runShellCommand,
@@ -1514,11 +1514,15 @@ function loadCoverageUnit(storiesDir: string, root: string, unitId: string): Cov
   }
   const existing = absFiles.filter((f) => existsSync(f));
   const testNames: string[] = [];
+  let unreadTitles = 0;
   for (const f of existing) {
     try {
       // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so its contract
-      // reads uncovered.
-      testNames.push(...extractVouchingTestNames(readFileSync(f, "utf8")));
+      // reads uncovered. `unreadTitles` rides along so the report can distinguish a contract NO test
+      // names from one whose test has a title the static reader could not read.
+      const surface = readTestSurface(readFileSync(f, "utf8"));
+      testNames.push(...surface.vouching);
+      unreadTitles += surface.unreadTitles;
     } catch {
       // An unreadable test file contributes no names (fail-closed toward "uncovered").
     }
@@ -1528,6 +1532,7 @@ function loadCoverageUnit(storiesDir: string, root: string, unitId: string): Cov
     contractIds: spec.contracts.map((c) => c.id),
     testNames,
     testFiles: existing.map((f) => path.relative(root, f).replace(/\\/g, "/")),
+    unreadTitles,
   };
 }
 

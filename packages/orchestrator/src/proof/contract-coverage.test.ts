@@ -7,6 +7,7 @@ import {
   extractTestNames,
   extractVouchingTestNames,
   analyzeObservedTests,
+  readTestSurface,
   testNameCoversContract,
 } from "./contract-coverage.js";
 
@@ -186,6 +187,99 @@ test("contrast: static name-presence (extractTestNames) counts the hollow test �
   assert.ok(extractTestNames(hollow).some((n) => n.includes("fr-bounded-never-hangs")));
   // The NEW signal: the hollow test does not vouch → the contract is honestly uncovered.
   assert.ok(!extractVouchingTestNames(hollow).includes("fr-bounded-never-hangs: deadline"));
+});
+
+// ---------------------------------------------------------------------------
+// Static TITLE READING — the readability axis (found 2026-08-06 via PR #1172)
+//
+// The readability axis is NOT the hollowness axis. Hollowness folds toward "covered" (ADR-0126:
+// never tell an honest author their real test does not count); readability folds toward
+// "uncovered" (an unread title vouches for nothing). The bug these pin: a title the checker COULD
+// read statically was being folded as if it were unreadable, which routed an honest test into the
+// uncovered bucket — the exact outcome ADR-0126's bias forbids.
+//
+// NB (the negative control): an ordinary-title fixture passes with the blind spot fully intact, so
+// every test here uses a title shape the old extractor could not read.
+// ---------------------------------------------------------------------------
+
+test("readTitle: a `+`-concatenated title is READ (PR #1172 — six honest tests read 0/6 uncovered)", () => {
+  // The shape a leaf authors when a title is too long for one line. Fully static, trivially foldable.
+  const src = `
+    test("osra-offer-set-is-stable: the offer set is stable across " +
+         "repeated renders", () => { assert.deepEqual(first, second); });
+  `;
+  assert.deepEqual(extractVouchingTestNames(src), [
+    "osra-offer-set-is-stable: the offer set is stable across repeated renders",
+  ]);
+});
+
+test("readTitle: concatenation folds recursively (3-way) and through parentheses", () => {
+  const src = `
+    test("c-a" + ("-three: " + "folded recursively"), () => { assert.ok(v); });
+    test(("c-b: parenthesised literal"), () => { assert.ok(w); });
+  `;
+  assert.deepEqual(extractVouchingTestNames(src), [
+    "c-a-three: folded recursively",
+    "c-b: parenthesised literal",
+  ]);
+});
+
+test("readTitle: only LITERALS fold — a runtime operand is never evaluated, just elided", () => {
+  // The static text is read (it still carries the id prefix, mirroring the template rule); the
+  // runtime operand is elided, NEVER evaluated. `suffix` must not appear in the name.
+  const src = `test("c-x: static lead " + suffix, () => { assert.ok(v); });`;
+  assert.deepEqual(extractVouchingTestNames(src), ["c-x: static lead "]);
+});
+
+test("readTitle: a fully-dynamic title is OBSERVED as unread, not silently dropped", () => {
+  // The honesty point: "could not parse this title" and "no test names this contract" are DIFFERENT
+  // facts. The old extractor bucketed both as absent, so a signed 0/N could not be read back.
+  const src = `test(titleFromAVariable, () => { assert.ok(v); });`;
+  const observed = analyzeObservedTests(src);
+  assert.equal(observed.length, 1, "the test call is observed even though its title is unreadable");
+  assert.equal(observed[0]?.titleFullyStatic, false);
+  assert.equal(observed[0]?.name, "", "no static text was readable");
+  // …and it vouches for NOTHING — the readability fold stays closed toward "uncovered".
+  assert.deepEqual(extractVouchingTestNames(src), []);
+});
+
+test("readTestSurface: separates 'could not read the title' from 'no such test' (the two facts)", () => {
+  const src = `
+    test("c-a: fully static and read", () => { assert.ok(v); });
+    test(fromAVariable, () => { assert.ok(w); });
+    test(\`c-c: template with \${sub}\`, () => { assert.ok(x); });
+  `;
+  const surface = readTestSurface(src);
+  // Only the readable titles reach the classifier…
+  assert.deepEqual(surface.vouching, ["c-a: fully static and read", "c-c: template with "]);
+  // …and the two titles that were NOT fully static are COUNTED, so a 0/N report can say WHY.
+  assert.equal(surface.unreadTitles, 2);
+  // A surface with nothing to flag reports zero (no false alarm on ordinary titles).
+  assert.equal(readTestSurface(`test("c-a: plain", () => { assert.ok(v); });`).unreadTitles, 0);
+});
+
+test("readTitle: a concatenated title still obeys hollow-test detection (ADR-0126 is untouched)", () => {
+  // Reading the title must not smuggle a hollow test past the vouching rule — the two axes compose.
+  const hollow = `test("c-x: reads fine but " + "proves nothing", () => { assert(true); });`;
+  assert.deepEqual(extractVouchingTestNames(hollow), []);
+  const skipped = `test.skip("c-x: reads fine but " + "never runs", () => { assert.equal(a, b); });`;
+  assert.deepEqual(extractVouchingTestNames(skipped), []);
+});
+
+test("RED→GREEN (PR #1172): a contract named ONLY by a concatenated title reads COVERED", () => {
+  // The end-to-end regression: this is what stamped `coverage 0/6` onto a signed --real verdict
+  // while all six tests existed, named their contracts verbatim, asserted substantively, and passed.
+  const src = `
+    test("osra-offer-set-is-stable: the offer set is stable " +
+         "across repeated renders", () => { assert.deepEqual(first, second); });
+  `;
+  const report = classifyContractCoverage({
+    unitId: "offer-set-render-agreement",
+    contractIds: ["osra-offer-set-is-stable"],
+    testNames: extractVouchingTestNames(src),
+  });
+  assert.deepEqual(report.uncovered, []);
+  assert.deepEqual(report.covered, ["osra-offer-set-is-stable"]);
 });
 
 // ---------------------------------------------------------------------------

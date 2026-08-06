@@ -12,6 +12,20 @@ accepted (2026-06-27) — decided/directed by the owner in conversation on 2026-
 two-list shape · additive/optional · no new signer). Design-time alignment IS the ratification
 (ADR-0110); no second end-of-flow ask. BUILT in the same unit.
 
+**Corrected in place 2026-08-06 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).**
+This decision stands ENTIRELY — the minimal two-list shape, additive/optional, no new signer, the lazy
+GATE-time seam. What was overtaken is a GUARANTEE that read as complete: decision 2's *FAIL-CLOSED …
+never a false "fully covered"* bounds one direction only, and the opposite direction is what went
+wrong in production — PR #1172 stamped `coverage 0/6 contracts` onto a signed `--real` verdict whose
+six tests all existed and passed. The clause is scoped below and the incident added to the deferred
+limits, with the residual that survives the fix named (the signed path takes the vouching names but
+not `readTestSurface`'s `unreadTitles` caveat). Truth-maintenance, not a re-decision.
+Two `check:coverage` mentions below (the **Amends** paragraph and Context) are left as written: both
+sit in past-tense frames describing what ADR-0122 built and the pre-0127 world, and are history rather
+than live wiring claims — that rung was retired by
+[ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md) D2 on 2026-08-05, and
+`storytree coverage` is the surviving live surface.
+
 **Amends** [ADR-0122](0122-per-contract-coverage-check-map-each-declared-contract-to-an.md) — ADR-0122
 built the per-contract coverage check as a LIVE-DERIVABLE tool (`storytree coverage` / `check:coverage`)
 and named "no coverage axis on the verdict shape" as a deferred follow-on (its "Option A"); this closes
@@ -64,6 +78,12 @@ ADR-0126 / ADR-0020).
    extracts the VOUCHING names (`extractVouchingTestNames`, ADR-0126) and runs `classifyDeclaredCoverage`
    against the unit's `## Contracts`. FAIL-CLOSED: a unit with no declared contracts or an unreadable
    test surface yields `undefined` and the gate OMITS the axis (never a false "fully covered").
+   **Scoped 2026-08-06: that fail-closed guarantee is ONE-DIRECTIONAL and was written as if it were
+   both.** It bounds a false *fully-covered*; it never bounded a false *uncovered*, and the surface it
+   fails closed on is the whole FILE (`readFileSync` throwing, or the parse failing), never an
+   individual test whose TITLE the reader could not read — such a test is silently dropped from the
+   observed set, and its contract is then stamped `uncovered` on a signed verdict. That is the
+   direction that actually went wrong; see the last deferred limit below.
 
 3. **Scope — the real red→green path only.** Only a `--real` driven green that resolves a unit's
    contracts carries the axis; dry-run / live-smoke prove a SYNTHETIC pair unrelated to the node's
@@ -98,6 +118,24 @@ ADR-0126 / ADR-0020).
   here.
 - The axis rides only the `--real` driven-green path; coverage for adopted/operator-attested green is
   out of scope (those modes have no named per-contract test surface to classify).
+- **A wrong `uncovered` went out under a signature, and the axis carries no way to tell — added
+  2026-08-06, MEASURED not predicted.** PR #1172 stamped `coverage 0/6 contracts` onto capability
+  `offer-set-render-agreement`'s signed `--real` verdict while all six tests existed, named their
+  contracts verbatim, asserted substantively and passed. The cause was in the shared reader, not here:
+  a title assembled as `"…" + "…"` (the ordinary way to split a long title across two lines) was not
+  read, so the whole test was dropped before `classifyDeclaredCoverage` ever saw it — the exact seam
+  quoted above, with the leaf-authored file inside that PR carrying the shape. **The reader is FIXED
+  (ADR-0126, 2026-08-06) and the fix DOES reach this path**, because `extractVouchingTestNames` is now
+  a thin wrapper over `readTestSurface` — verified in source here rather than assumed. What did NOT
+  reach this path is the CAVEAT: `readTestSurface` also returns `unreadTitles`, the count of titles it
+  could not read in full, and `storytree coverage` prints it, but `computeContractCoverage`
+  (`resolve-prove-spec.ts`) still takes only `.vouching` and discards the count. So for the residual
+  shapes the reader still cannot fold — a title with a genuinely RUNTIME part, which ADR-0126
+  deliberately leaves contributing only its literal text — the live tool says *I could not read N
+  titles* while the signed verdict says a bare `uncovered`, indistinguishable from a real gap and
+  frozen. Consuming `unreadTitles` at this seam (omit the axis, or carry the count) is the obvious
+  follow-on and is NOT built here; recorded as a known limit rather than left for the next incident to
+  find. The reader keys off PRESENCE (decision 1), so an omitted axis is already safe to add.
 
 ## References
 
