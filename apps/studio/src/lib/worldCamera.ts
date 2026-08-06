@@ -83,6 +83,14 @@ export function act2RegrowCamera(
     const containScale = targetY / (groundWorldY * progress);
     if (containScale < scale) scale = containScale;
   }
+  // The containment clamp above is derived assuming the settled fitted camera already shows the
+  // envelope's own top at or above the frame's top edge — true for a 'contain'-shaped fit, but NOT
+  // true of fitWorld's default 'width' fit, which deliberately overflows vertically. Under that
+  // shape the clamp can drive `scale` below the settled `fitted.scale` well before progress 1, which
+  // would force a discontinuous zoom-IN snap back to `fitted.scale` at the very end of what is
+  // supposed to be a monotonic zoom-OUT. Floor the scale at the settled value so the pull-back only
+  // ever approaches settle from above (never overshoots past it and springs back).
+  if (scale < fitted.scale) scale = fitted.scale;
   return {
     scale,
     tx: frame.width / 2 - scale * anchorX,

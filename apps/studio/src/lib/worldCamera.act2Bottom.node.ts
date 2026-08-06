@@ -154,3 +154,56 @@ test(
     }
   },
 );
+
+/**
+ * `act2-regrow-camera-zoom-out`, contract `act2-regrow-camera-projects-the-existing-cursor`:
+ *
+ * "each intermediate camera monotonically expands the visible bounds upward ... and cursor `1`
+ * equals the ordinary fitted whole-forest camera exactly." Read together, the settled fitted camera
+ * is the ENDPOINT of a monotonic pull-back: every intermediate cursor must stay at least as zoomed
+ * in as the final settled scale (the pull-back must never zoom out PAST the settled framing and then
+ * snap back IN the instant the cursor reaches 1), and no later cursor may be more zoomed in than an
+ * earlier one.
+ *
+ * `act2RegrowCamera`'s envelope-containment clamp (`containScale = targetY / (groundWorldY *
+ * progress)`) is derived assuming the settled fitted camera already shows the growth envelope's own
+ * top at or above the frame's top edge — true whenever the fit is `'contain'`-shaped (production's
+ * real shape, per `TreeView.tsx`), but NOT true of `fitWorld`'s own DEFAULT `'width'` fit, which the
+ * module's own docstring names as deliberately overflowing vertically ("the forest reads as a tall
+ * portrait column that overflows vertically and is panned through"). A bottom-aligned `'width'` fit
+ * still carries `groundWorldY` — `fitWorld` sets it for every bottom-aligned fit regardless of `fit`
+ * mode — so it is a legitimate input to `act2RegrowCamera`, not a contrived one. Under it, the clamp
+ * drives the scale far BELOW the settled `fitted.scale` well before cursor 1 is reached, so the
+ * camera then has to jump back IN, discontinuously, the instant the cursor settles — a visible
+ * zoom-in at the very end of a pull-back that is supposed to only ever zoom out.
+ */
+test(
+  "act2-regrow-camera-projects-the-existing-cursor: the pull-back never zooms back in as the cursor advances toward settle, even under a vertically-overflowing (default 'width') fit",
+  () => {
+    const worldW = 800;
+    const worldH = 3000;
+    const frame: CameraFrame = { width: 1600, height: 1000 };
+    // Default fit ('width'), bottom-aligned: fitWorld still records `groundWorldY`, and the module's
+    // own docstring names this shape ("overflows vertically and is panned through") as the intended
+    // default behaviour, so it is a legitimate `fitted` input, not a contrived one.
+    const fitted = fitWorld(worldW, worldH, frame.width, frame.height, {
+      padding: 16,
+      align: "bottom",
+    });
+
+    const cursors = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1];
+    let previousScale = Infinity;
+    for (const cursor of cursors) {
+      const camera = act2RegrowCamera(fitted, frame, cursor);
+      assert.ok(
+        camera.scale <= previousScale + 1e-9,
+        `scale increased (zoomed back in) at cursor ${cursor}: got ${camera.scale}, previous sample was ${previousScale}`,
+      );
+      assert.ok(
+        camera.scale >= fitted.scale - 1e-9,
+        `scale overshot past the settled fitted scale at cursor ${cursor}: got ${camera.scale}, fitted.scale is ${fitted.scale} — the pull-back must approach settle monotonically, never zoom out past it and snap back in`,
+      );
+      previousScale = camera.scale;
+    }
+  },
+);
