@@ -80,6 +80,12 @@ import {
   type ScaleLimits,
 } from '../lib/worldCamera.js';
 import {
+  cameraCompositorTransform,
+  deliverWorldCameraFrame,
+  sameWorldCameraVisualIdentity,
+  type WorldCameraFrameDelivery,
+} from '../lib/worldCameraFrameDelivery.js';
+import {
   promotedStamps,
   stampsByCarrier,
   sharedIslandStories,
@@ -1770,6 +1776,15 @@ export function TreeView({
   // ADR-0272 decision 2 (compositor-pan-transform): the HTML wrapper the live per-frame write
   // targets (a compositor-only CSS transform), never the SVG `<g class="world-camera">`.
   const panLayerRef = useRef<HTMLDivElement>(null);
+  // Act 2's cursor can be delivered partly by the existing compositor wrapper. This ref retains only
+  // the last pure delivery result; it is not another camera state machine or clock. A visual-picture
+  // identity change folds the exact desired camera into SVG synchronously during the same commit.
+  const act2CameraDeliveryRef = useRef<WorldCameraFrameDelivery | null>(null);
+  // Probe-only observation of the last COMMITTED complete picture. Neither ref participates in
+  // camera delivery; the integer lets the collector distinguish truly stable pictures from the
+  // weaker `growthNodeCount === 0` proxy without introducing state, a clock or another render.
+  const cameraProbePictureIdentityRef = useRef<readonly unknown[] | null>(null);
+  const cameraProbePictureRevisionRef = useRef(0);
   // The total pixel offset currently PAINTED on `.world-pan-layer` — accumulated frame-by-frame
   // during a gesture, not yet folded into `cam`.
   const liveOffsetRef = useRef({ x: 0, y: 0 });
@@ -2388,9 +2403,9 @@ export function TreeView({
     [fittedCam, cameraFrame.width, cameraFrame.height, act2Player.progress, act2ReducedMotion],
   );
   // Every diagnostic route suppresses the shipped choreography first. `final-product` then applies
-  // this same projection imperatively through the measurement seam, while `growth-only` performs
-  // no camera write at all. Outside the probe, the rendered camera is a pure cursor projection.
-  const presentedCam = !active
+  // the shipped hybrid projection below, while `growth-only` performs no camera write at all. The
+  // diagnostic SVG/HTML arms continue through the imperative measurement seam.
+  const desiredPresentedCam = !active
     ? fittedCam
     : cameraRasterisationRoute
     ? fittedCam
@@ -2439,6 +2454,7 @@ export function TreeView({
     cameraProbeRestoreRef.current = () => {};
     if (
       !cameraRasterisationRoute ||
+      cameraRasterisationRoute.variant === 'final-product' ||
       !cameraProbeCorpusAccepted ||
       !cam ||
       !cameraRef.current ||
@@ -2610,6 +2626,7 @@ export function TreeView({
       playing: act2Player.playing,
       regrowing: act2Player.regrowing,
     },
+    pictureRevision: cameraProbePictureRevisionRef.current,
     growthNodeCount:
       svgRef.current?.querySelectorAll('[data-island-accretion-cell]').length ?? 0,
     mapNodeCount: cameraRef.current?.querySelectorAll('*').length ?? 0,
@@ -2867,6 +2884,74 @@ export function TreeView({
     [onSelectStoryStable, onSelectCapStable],
   );
 
+  // Hybrid Act 2 camera delivery: when the rendered picture has not changed, retain the SVG camera
+  // and express the exact desired camera as a compositor delta on the existing HTML pan wrapper.
+  // When ANY picture-bearing input changes, fold desired into SVG and reset the wrapper in this same
+  // React commit. These are stable identities/signatures already owned by the render; notably this
+  // never keys product behaviour from growthNodeCount or a newly invented growth frontier.
+  //
+  // `arrivalIds` is deliberately compared by value. Its Set can be reconstructed from a new semantic
+  // player state even when it names the same visible arrivals; treating that allocation as a picture
+  // change would throw away the raw-gap frames the stable regrow/vegetation/trail layers expose.
+  const arrivalPictureSignature = arrivalIds ? [...arrivalIds].sort().join('\u0000') : '';
+  const act2PictureIdentity: readonly unknown[] = [
+    scene,
+    world,
+    renderScene,
+    selectedStory,
+    hidden,
+    arrivalPictureSignature,
+    growPlan,
+    act2TrailPlan,
+    act2RegrowLayer,
+    vegetationLayer,
+    neighbourPlan,
+    laneLayoutPlan,
+    selectionMotion,
+    spriteSheet,
+    artScale,
+    arriveRun,
+  ];
+  // Diagnostic only, and commit-accurate: speculative renders never advance the observed revision.
+  // The first committed probe picture is revision 1; after that the integer advances exactly when
+  // any complete picture-identity seat changes. Leaving the probe resets the observation.
+  useLayoutEffect(() => {
+    if (!cameraRasterisationRoute) {
+      cameraProbePictureIdentityRef.current = null;
+      cameraProbePictureRevisionRef.current = 0;
+      return;
+    }
+    const committed = cameraProbePictureIdentityRef.current;
+    if (!committed || !sameWorldCameraVisualIdentity(committed, act2PictureIdentity)) {
+      cameraProbePictureIdentityRef.current = act2PictureIdentity;
+      cameraProbePictureRevisionRef.current += 1;
+    }
+  }, [cameraRasterisationRoute, act2PictureIdentity]);
+  const hybridAct2Camera =
+    active &&
+    act2Player.regrowing &&
+    (!cameraRasterisationRoute || cameraRasterisationRoute.variant === 'final-product') &&
+    finalProductCam
+      ? deliverWorldCameraFrame(
+          act2CameraDeliveryRef.current,
+          finalProductCam,
+          act2PictureIdentity,
+        )
+      : null;
+  // Persist only what React actually commits. Advancing this ref during render would let an
+  // interrupted/concurrent render become the next base even though its matching SVG/wrapper pair
+  // never reached the DOM. Committing `null` through the same path resets retained delivery on every
+  // settle, route exit, parked tree and diagnostic-probe leg.
+  useLayoutEffect(() => {
+    act2CameraDeliveryRef.current = hybridAct2Camera;
+  }, [hybridAct2Camera]);
+  const presentedCam = hybridAct2Camera?.svgCamera ?? desiredPresentedCam;
+  const act2CompositorTransform = hybridAct2Camera
+    ? cameraCompositorTransform(hybridAct2Camera)
+    : undefined;
+  const act2CompositorPromoted =
+    act2CompositorTransform !== undefined && act2CompositorTransform !== 'none';
+
   // semantic-growth-studio-demo: mounted BEFORE any of the clean-route early returns below, so
   // the demo never depends on (or waits on) the live tree load — it is a static witness stage,
   // not a variant of the product controller. Every other value (absent/empty/unknown) falls
@@ -3037,13 +3122,20 @@ export function TreeView({
               sceneTapSelect(e.clientX, e.clientY);
             }}
           >
-          {/* ADR-0272 decision 2 (compositor-pan-transform): the live per-frame write during a
-              gesture lands HERE — a cheap compositor-only CSS transform on this HTML wrapper —
-              never on the SVG `<g class="world-camera">` below, which stays frozen for the whole
-              gesture (writing it invalidates paint for the whole subtree). The wrapper commits back
-              to identity in the same visual frame the `<g>` takes the composed total (see the
-              useLayoutEffect keyed on `cam`, above the JSX). */}
-          <div className="world-pan-layer" ref={panLayerRef}>
+          {/* ADR-0272 decision 2 (compositor-pan-transform): live drag writes land HERE, never on
+              the SVG `<g class="world-camera">`. Act 2 now reuses the same cheap surface only on
+              stable-picture cursor frames; picture changes fold the exact desired camera into the
+              `<g>` and reset this wrapper in one commit. Ordinary drag folding remains the existing
+              useLayoutEffect keyed on `cam`. */}
+          <div
+            className="world-pan-layer"
+            ref={panLayerRef}
+            style={{
+              transform: act2CompositorTransform,
+              transformOrigin: hybridAct2Camera?.transformOrigin,
+              willChange: act2CompositorPromoted ? 'transform' : undefined,
+            }}
+          >
           <svg
             ref={svgRef}
             className={`world-scene lane-motion-${selectionMotion}${

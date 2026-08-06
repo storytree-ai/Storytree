@@ -6,8 +6,13 @@ import { AppDataContext, type AppData } from '../lib/appData';
 import type { TreeStory } from '../types';
 
 const act2Harness = vi.hoisted(() => ({
+  now: new Date('2026-08-06T00:00:00.000Z'),
+  builds: [] as never[],
+  claimActivity: { claims: [] as never[], departures: [] as never[] },
   reducedMotion: false,
   inputs: [] as Array<{ enabled: boolean }>,
+  regrowLayer: null as object | null,
+  vegetationLayer: null as object | null,
   player: {
     plan: null,
     state: null,
@@ -25,11 +30,14 @@ const act2Harness = vi.hoisted(() => ({
 
 vi.mock('../api', () => ({ api: { tree: vi.fn(), activity: vi.fn() } }));
 vi.mock('../lib/buildActivity', () => ({
-  useBuildActivity: () => [],
-  useClaimActivity: () => ({ claims: [], departures: [] }),
+  useBuildActivity: () => act2Harness.builds,
+  useClaimActivity: () => act2Harness.claimActivity,
 }));
-vi.mock('../lib/poll', () => ({ useNowTick: () => new Date('2026-08-06T00:00:00.000Z') }));
+vi.mock('../lib/poll', () => ({ useNowTick: () => act2Harness.now }));
 vi.mock('../lib/sessionClaims', () => ({ useSessionClaimGroups: () => [] }));
+vi.mock('../lib/factoryBuildings.js', () => ({
+  loadHeroTreeVariants: () => new Promise(() => {}),
+}));
 vi.mock('@storytree/app-surface', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@storytree/app-surface')>();
   return {
@@ -52,6 +60,8 @@ vi.mock('./act2Intro.js', async (importOriginal) => {
       return act2Harness.player;
     },
     useReducedMotion: () => act2Harness.reducedMotion,
+    useStableForestRegrowLayer: () => act2Harness.regrowLayer,
+    useStableVegetationLayer: () => act2Harness.vegetationLayer,
   };
 });
 vi.mock('./WorldLegend.js', () => ({
@@ -101,6 +111,27 @@ const cameraValues = (camera: Element): { tx: number; ty: number; scale: number 
   return { tx: Number(match[1]), ty: Number(match[2]), scale: Number(match[3]) };
 };
 
+const compositorValues = (layer: HTMLElement): { tx: number; ty: number; scale: number } => {
+  if (layer.style.transform === 'none' || layer.style.transform === '') {
+    return { tx: 0, ty: 0, scale: 1 };
+  }
+  const match = layer.style.transform.match(
+    /^translate3d\(([^p]+)px, ([^p]+)px, 0(?:px)?\) scale\(([^)]+)\)$/,
+  );
+  if (!match) throw new Error(`unexpected compositor transform: ${layer.style.transform}`);
+  return { tx: Number(match[1]), ty: Number(match[2]), scale: Number(match[3]) };
+};
+
+const composedCameraValues = (camera: Element, layer: HTMLElement) => {
+  const base = cameraValues(camera);
+  const compositor = compositorValues(layer);
+  return {
+    tx: compositor.tx + compositor.scale * base.tx,
+    ty: compositor.ty + compositor.scale * base.ty,
+    scale: compositor.scale * base.scale,
+  };
+};
+
 const mountMap = async (props: { focus?: string | null; active?: boolean } = {}) => {
   const activeProps = props.active === undefined ? {} : { active: props.active };
   const view = render(
@@ -114,7 +145,9 @@ const mountMap = async (props: { focus?: string | null; active?: boolean } = {})
     expect(node?.getAttribute('transform')).toBeTruthy();
     return node!;
   });
-  return { ...view, viewport, camera };
+  const panLayer = view.container.querySelector('.world-pan-layer') as HTMLElement;
+  expect(panLayer).toBeTruthy();
+  return { ...view, viewport, camera, panLayer };
 };
 
 const rerenderMap = (
@@ -150,6 +183,8 @@ beforeEach(() => {
   window.sessionStorage.setItem(ACT2_INTRO_SESSION_KEY, '1');
   act2Harness.reducedMotion = false;
   act2Harness.inputs = [];
+  act2Harness.regrowLayer = null;
+  act2Harness.vegetationLayer = null;
   Object.assign(act2Harness.player, { progress: 0, playing: true, regrowing: true });
   vi.mocked(api.tree).mockResolvedValue({ stories: STORIES, builds: [], claims: [] });
 });
@@ -164,17 +199,68 @@ afterEach(() => {
 });
 
 describe('act2-regrow-camera-projects-the-existing-cursor', () => {
-  it('drives the real world-camera directly from each published cursor without a transition', async () => {
+  it('act2-camera-gap-frames-deliver-through-the-compositor: holds the SVG camera frozen on stable-picture frames and delivers the exact cursor through the compositor', async () => {
     window.history.replaceState(null, '', '/?artStyle=vector&act2=intro');
     const view = await mountMap();
     const opening = cameraValues(view.camera);
     expect((view.camera as SVGGElement).style.transition).toBe('none');
+    expect(view.panLayer.style.transformOrigin).toBe('0 0');
+
+    let rootTransformWrites = 0;
+    let wrapperStyleWrites = 0;
+    const observer = new MutationObserver((records) => {
+      rootTransformWrites += records.filter(
+        (record) => record.attributeName === 'transform' && record.target === view.camera,
+      ).length;
+      wrapperStyleWrites += records.filter(
+        (record) => record.attributeName === 'style' && record.target === view.panLayer,
+      ).length;
+    });
+    observer.observe(view.camera, { attributes: true, attributeFilter: ['transform'] });
+    observer.observe(view.panLayer, { attributes: true, attributeFilter: ['style'] });
 
     act2Harness.player.progress = 0.5;
     rerenderMap(view.rerender);
-    const middle = cameraValues(view.camera);
+    await Promise.resolve();
+    observer.disconnect();
+
+    expect(cameraValues(view.camera)).toEqual(opening);
+    expect(rootTransformWrites).toBe(0);
+    expect(wrapperStyleWrites).toBeGreaterThan(0);
+    expect(view.panLayer.style.transform).not.toBe('none');
+    expect(view.panLayer.style.willChange).toBe('transform');
+    const middle = composedCameraValues(view.camera, view.panLayer);
     expect(middle.scale).toBeLessThan(opening.scale);
     expect(middle.scale).toBeGreaterThan(0);
+
+    Object.assign(act2Harness.player, { progress: 1, playing: false, regrowing: false });
+    rerenderMap(view.rerender);
+    expect(view.panLayer.style.willChange).toBe('');
+  });
+
+  it('act2-camera-compositor-folds-exactly-and-cleans-up: folds a changed picture into SVG exactly once and resets the wrapper without a camera jump', async () => {
+    window.history.replaceState(null, '', '/?artStyle=vector&act2=intro');
+    const view = await mountMap();
+    act2Harness.player.progress = 0.5;
+    rerenderMap(view.rerender);
+    const beforeFold = composedCameraValues(view.camera, view.panLayer);
+
+    let rootTransformWrites = 0;
+    const observer = new MutationObserver((records) => {
+      rootTransformWrites += records.filter(
+        (record) => record.attributeName === 'transform' && record.target === view.camera,
+      ).length;
+    });
+    observer.observe(view.camera, { attributes: true, attributeFilter: ['transform'] });
+    act2Harness.regrowLayer = { picture: 'changed' };
+    rerenderMap(view.rerender);
+    await Promise.resolve();
+    observer.disconnect();
+
+    expect(rootTransformWrites).toBe(1);
+    expect(view.panLayer.style.transform).toBe('none');
+    expect(view.panLayer.style.willChange).toBe('');
+    expect(composedCameraValues(view.camera, view.panLayer)).toEqual(beforeFold);
   });
 });
 
@@ -317,19 +403,63 @@ describe('act2-regrow-camera-reduces-motion-and-settles-exactly', () => {
 });
 
 describe('act2-regrow-camera-preserves-the-run-and-reports-its-cost', () => {
-  it('makes growth-only write-free and wires the same final product projection into the 40-island probe', async () => {
+  it('makes growth-only write-free and runs the shipped hybrid unchanged in the 40-island final-product probe', async () => {
     window.history.replaceState(null, '', '/?artStyle=vector&act2=intro&cameraRasterisation=probe&cameraVariant=growth-only');
     const control = await mountMap();
     const fitted = cameraValues(control.camera);
+    const controlRevision = window.__storytreeCameraRasterisationProbe?.snapshot().pictureRevision;
+    expect(controlRevision).toBeGreaterThan(0);
     act2Harness.player.progress = 0.5;
     rerenderMap(control.rerender);
     expect(cameraValues(control.camera)).toEqual(fitted);
+    expect(window.__storytreeCameraRasterisationProbe?.snapshot().pictureRevision).toBe(controlRevision);
+    act2Harness.regrowLayer = { picture: 'growth-only-changed' };
+    rerenderMap(control.rerender);
+    expect(window.__storytreeCameraRasterisationProbe?.snapshot().pictureRevision).toBe(
+      (controlRevision ?? 0) + 1,
+    );
     control.unmount();
 
+    act2Harness.regrowLayer = null;
     Object.assign(act2Harness.player, { progress: 0, playing: true, regrowing: true });
     window.history.replaceState(null, '', '/?artStyle=vector&act2=intro&cameraRasterisation=probe&cameraVariant=final-product');
     const product = await mountMap();
-    await waitFor(() => expect(cameraValues(product.camera).scale).toBeGreaterThan(fitted.scale));
-    expect(window.__storytreeCameraRasterisationProbe?.snapshot().corpus.mappedIslandCount).toBe(40);
+    const opening = cameraValues(product.camera);
+    expect(opening.scale).toBeGreaterThan(fitted.scale);
+    const productRevision = window.__storytreeCameraRasterisationProbe?.snapshot().pictureRevision;
+    expect(productRevision).toBeGreaterThan(0);
+
+    let rootTransformWrites = 0;
+    let wrapperStyleWrites = 0;
+    const observer = new MutationObserver((records) => {
+      rootTransformWrites += records.filter(
+        (record) => record.attributeName === 'transform' && record.target === product.camera,
+      ).length;
+      wrapperStyleWrites += records.filter(
+        (record) => record.attributeName === 'style' && record.target === product.panLayer,
+      ).length;
+    });
+    observer.observe(product.camera, { attributes: true, attributeFilter: ['transform'] });
+    observer.observe(product.panLayer, { attributes: true, attributeFilter: ['style'] });
+    act2Harness.player.progress = 0.5;
+    rerenderMap(product.rerender);
+    await Promise.resolve();
+    observer.disconnect();
+
+    expect(cameraValues(product.camera)).toEqual(opening);
+    expect(rootTransformWrites).toBe(0);
+    expect(wrapperStyleWrites).toBeGreaterThan(0);
+    expect(product.panLayer.style.willChange).toBe('transform');
+    const middle = composedCameraValues(product.camera, product.panLayer);
+    expect(middle.scale).toBeLessThan(opening.scale);
+    expect(middle.scale).toBeGreaterThan(0);
+    expect(window.__storytreeCameraRasterisationProbe?.snapshot().pictureRevision).toBe(productRevision);
+    act2Harness.vegetationLayer = { picture: 'final-product-changed' };
+    rerenderMap(product.rerender);
+    const changedSnapshot = window.__storytreeCameraRasterisationProbe?.snapshot();
+    expect(changedSnapshot?.pictureRevision).toBe((productRevision ?? 0) + 1);
+    expect(product.panLayer.style.transform).toBe('none');
+    expect(product.panLayer.style.willChange).toBe('');
+    expect(changedSnapshot?.corpus.mappedIslandCount).toBe(40);
   });
 });

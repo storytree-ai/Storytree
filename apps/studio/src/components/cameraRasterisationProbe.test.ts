@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   applyCameraRasterisationTransform,
   assessCameraRasterisationRun,
+  cameraRasterisationStablePictureFailureReason,
   cameraRasterisationTransformAtCursor,
   formatCameraRasterisationComparisonTable,
+  formatCameraRasterisationStablePictureTable,
   readCameraRasterisationRoute,
   summariseCameraRasterisationRuns,
   type CameraRasterisationRun,
@@ -18,6 +20,8 @@ const frame = (deltaMs: number, growthNodeCount: number) => ({
   cursor: 0.5,
   growthNodeCount: 1,
   mapNodeCount: growthNodeCount,
+  pictureRevision: 1,
+  pictureChangedSincePreviousFrame: true,
   svgTransform: 'translate(1 2) scale(1)',
   htmlTransform: 'none',
 });
@@ -35,6 +39,13 @@ const run = (
   frames: [frame(deltaMs, 5_000), frame(deltaMs, 5_100)],
   ...overrides,
 });
+const stableFrames = (deltaMs: number, count: number, mapNodeCount = 15_000) =>
+  Array.from({ length: count }, (_, index) => ({
+    ...frame(deltaMs, mapNodeCount),
+    timestamp: index * deltaMs,
+    growthNodeCount: 0,
+    pictureChangedSincePreviousFrame: false,
+  }));
 
 describe('camera-raster-probe-reuses-the-regrow-cursor', () => {
   it('accepts only the exact diagnostic flag and a named variant', () => {
@@ -83,11 +94,21 @@ describe('camera-raster-probe-reports-traceable-cost-deltas', () => {
     expect(formatCameraRasterisationComparisonTable(forward)).toContain('| svg-camera | 4-8k | 17.00 ms | 23.00 ms | +6.00 ms |');
   });
 
-  it('excludes wave gaps and buckets painting frames by total map nodes, not live accretion cells', () => {
-    const gap = { ...frame(999, 5_000), growthNodeCount: 0 };
+  it('separates committed-picture stability from the live-accretion painting predicate', () => {
+    const changedWithoutAccretion = { ...frame(999, 5_000), growthNodeCount: 0 };
+    const unchangedWithAccretion = {
+      ...frame(20, 20_500),
+      pictureChangedSincePreviousFrame: false,
+    };
     const summary = summariseCameraRasterisationRuns([
-      { ...run('b', 'growth-only', 20), frames: [gap, frame(20, 20_500)] },
-      { ...run('s', 'svg-camera', 30), frames: [gap, frame(30, 20_500)] },
+      { ...run('b', 'growth-only', 20), frames: [changedWithoutAccretion, unchangedWithAccretion] },
+      {
+        ...run('s', 'svg-camera', 30),
+        frames: [
+          changedWithoutAccretion,
+          { ...unchangedWithAccretion, deltaMs: 30 },
+        ],
+      },
     ]);
     expect(summary.comparisons).toEqual([
       expect.objectContaining({
@@ -97,6 +118,91 @@ describe('camera-raster-probe-reports-traceable-cost-deltas', () => {
         variantFrameMs: 30,
       }),
     ]);
+    expect(
+      summary.stablePictureComparisons.find(
+        (row) => row.variant === 'svg-camera' && row.bucket === '4-8k',
+      ),
+    ).toMatchObject({ baselineFrameMs: null, variantFrameMs: null, baselineSamples: 0, variantSamples: 0 });
+    expect(
+      summary.stablePictureComparisons.find(
+        (row) => row.variant === 'svg-camera' && row.bucket === '20k+',
+      ),
+    ).toMatchObject({ baselineFrameMs: 20, variantFrameMs: 30, baselineSamples: 1, variantSamples: 1 });
+  });
+
+  it('uses the historical 12-20k proxy counts only as diagnostic calibration', () => {
+    const summary = summariseCameraRasterisationRuns([
+      { ...run('growth-gap', 'growth-only', 1), frames: stableFrames(16.7, 987) },
+      { ...run('product-gap', 'final-product', 1), frames: stableFrames(83.3, 216) },
+    ]);
+
+    expect(summary.stablePictureTarget).toMatchObject({
+      variant: 'final-product',
+      bucket: '12-20k',
+      baselineSamples: 987,
+      variantSamples: 216,
+      minimumSamplesPerArm: 100,
+      observedDeltaMs: expect.closeTo(66.6, 10),
+      verdict: 'fail',
+    });
+    expect(formatCameraRasterisationStablePictureTable(summary)).toContain(
+      '| final-product | 12-20k | 16.70 ms | 83.30 ms | +66.60 ms | 987/216; min 100 | adequate | fail |',
+    );
+    expect(cameraRasterisationStablePictureFailureReason(summary.stablePictureTarget)).toBe(
+      'stable-picture-target-regression',
+    );
+  });
+
+  it('act2-camera-production-gap-closes-without-regression', () => {
+    const adequate = summariseCameraRasterisationRuns([
+      {
+        ...run('growth-adequate', 'growth-only', 1),
+        frames: [...stableFrames(16.7, 2), ...stableFrames(16.7, 716, 20_500)],
+      },
+      {
+        ...run('product-adequate', 'final-product', 1),
+        frames: [...stableFrames(33.4, 4), ...stableFrames(33.4, 398, 20_500)],
+      },
+    ]);
+    expect(adequate.stablePictureTarget).toMatchObject({
+      bucket: '20k+',
+      baselineSamples: 716,
+      variantSamples: 398,
+      observedDeltaMs: expect.closeTo(16.7, 10),
+      verdict: 'pass',
+    });
+    expect(formatCameraRasterisationStablePictureTable(adequate)).toContain(
+      '| final-product | 20k+ | 16.70 ms | 33.40 ms | +16.70 ms | 716/398; min 100 | adequate | pass |',
+    );
+    expect(cameraRasterisationStablePictureFailureReason(adequate.stablePictureTarget)).toBeNull();
+    expect(
+      adequate.stablePictureComparisons.find(
+        (row) => row.variant === 'final-product' && row.bucket === '12-20k',
+      ),
+    ).toMatchObject({ baselineSamples: 2, variantSamples: 4, adequacy: 'inadequate' });
+  });
+
+  it('fails closed with an explicit null target when no bucket has two adequate arms', () => {
+    const inadequate = summariseCameraRasterisationRuns([
+      { ...run('growth-short', 'growth-only', 1), frames: stableFrames(16.7, 99) },
+      { ...run('product-enough', 'final-product', 1), frames: stableFrames(20, 100) },
+    ]);
+    expect(inadequate.stablePictureTarget).toEqual({
+      variant: 'final-product',
+      bucket: null,
+      maximumDeltaMs: 16.7,
+      baselineSamples: null,
+      variantSamples: null,
+      minimumSamplesPerArm: 100,
+      observedDeltaMs: null,
+      verdict: 'insufficient-samples',
+    });
+    expect(formatCameraRasterisationStablePictureTable(inadequate)).toContain(
+      '| final-product target | no adequate bucket | — | — | — | —/—; min 100 | inadequate | insufficient-samples |',
+    );
+    expect(cameraRasterisationStablePictureFailureReason(inadequate.stablePictureTarget)).toBe(
+      'stable-picture-target-insufficient-samples',
+    );
   });
 });
 
