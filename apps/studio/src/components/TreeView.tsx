@@ -2359,9 +2359,24 @@ export function TreeView({
   const fittedCam = fitCameraRef.current ?? cam;
   const cameraFrame = cameraFrameRef.current;
   const finalProductCam = useMemo(
-    () => fittedCam
-      ? act2RegrowCamera(fittedCam, cameraFrame, act2Player.progress, act2ReducedMotion)
-      : null,
+    () => {
+      if (!fittedCam) return null;
+      const projected = act2RegrowCamera(
+        fittedCam,
+        cameraFrame,
+        act2Player.progress,
+        act2ReducedMotion,
+      );
+      // The ordinary fit pins the forest base at the bottom padding. Preserve that same world
+      // point throughout the pull-back: the close opening then reveals upward from the roots
+      // instead of zooming around the viewport centre.
+      const bottomY = cameraFrame.height - 16;
+      const forestBottom = (bottomY - fittedCam.ty) / fittedCam.scale;
+      return {
+        ...projected,
+        ty: bottomY - projected.scale * forestBottom,
+      };
+    },
     [fittedCam, cameraFrame.width, cameraFrame.height, act2Player.progress, act2ReducedMotion],
   );
   // Every diagnostic route suppresses the shipped choreography first. `final-product` then applies

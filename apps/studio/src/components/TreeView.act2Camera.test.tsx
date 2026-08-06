@@ -164,7 +164,7 @@ afterEach(() => {
 });
 
 describe('act2-regrow-camera-projects-the-existing-cursor', () => {
-  it('drives the real world-camera directly from each published cursor without a transition', async () => {
+  it('keeps the fitted forest bottom anchored while the published cursor pulls back to its exact fit', async () => {
     window.history.replaceState(null, '', '/?artStyle=vector&act2=intro');
     const view = await mountMap();
     const opening = cameraValues(view.camera);
@@ -175,6 +175,15 @@ describe('act2-regrow-camera-projects-the-existing-cursor', () => {
     const middle = cameraValues(view.camera);
     expect(middle.scale).toBeLessThan(opening.scale);
     expect(middle.scale).toBeGreaterThan(0);
+
+    Object.assign(act2Harness.player, { progress: 1, playing: false, regrowing: false });
+    rerenderMap(view.rerender);
+    const fitted = cameraValues(view.camera);
+    const fittedBottomY = 984;
+    const forestBottom = (fittedBottomY - fitted.ty) / fitted.scale;
+
+    expect(opening.ty + opening.scale * forestBottom).toBeCloseTo(fittedBottomY, 12);
+    expect(cameraValues(view.camera)).toEqual(fitted);
   });
 });
 
