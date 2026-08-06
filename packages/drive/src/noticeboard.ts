@@ -306,6 +306,8 @@ export async function noticeboardCommand(
     const held: string[] = [];
     const failed: string[] = [];
     const unresolved: string[] = [];
+    /** Owners of the SUBTREES this declare actually claimed — the overlap footer's input. */
+    const subtreeOwners = new Set<string>();
     for (const nodeId of opts.nodes) {
       // The namespace fence runs BEFORE the write, per node: one bad id must not cost the others
       // their claims, which is the same fail-soft posture the loop already takes for a conflict.
@@ -330,9 +332,16 @@ export async function noticeboardCommand(
         );
         if (res.acquired) acquired.push(nodeId);
         else held.push(nodeId);
+        // A declare may anchor several nodes, so the subtree/owner overlap is stated ONCE for the
+        // whole verb rather than per line (ADR-0317 D3 — announced, not enforced; see
+        // `subtreeClaimNote`). Only nodes actually claimed are collected: telling a session about an
+        // overlap on a row it does not hold would be this verb overclaiming again.
+        if (res.acquired && named.kind === "subtree" && named.owner !== null) {
+          subtreeOwners.add(named.owner);
+        }
         claimLines.push(
           res.acquired
-            ? `    ${nodeId}${kindSuffix(named.kind)}: claimed — the wisp is lit`
+            ? `    ${nodeId}${kindSuffix(named.kind, named.owner)}: claimed — the wisp is lit`
             : `    ${nodeId}: HELD by ${res.heldBy.sessionId} (branch ${res.heldBy.branch}, intent "${res.heldBy.intent}") — coordinate or pick other work`,
         );
       } catch (err) {
@@ -383,6 +392,16 @@ export async function noticeboardCommand(
       "  claims:",
       ...claimLines,
     ];
+
+    if (subtreeOwners.size > 0) {
+      const owners = [...subtreeOwners].sort().join(", ");
+      bodyLines.push(
+        "",
+        "You claimed a declared SUBTREE (ADR-0317 D3). The ledger keys claims by id and knows no",
+        `containment, so a session holding ${owners} does NOT contend with you over the same`,
+        "files — check both boards before you write.",
+      );
+    }
 
     if (acquired.length > 0 && withheld.length > 0) {
       bodyLines.push(

@@ -155,6 +155,25 @@ ADR-0310 D2 (typed, resolvable claim namespace) is the hard prerequisite and is 
 it, nothing can distinguish a legitimate new claimable kind from one of the 26 measured phantom ids.
 D3 here does not license claiming before D2 ships.
 
+*(BUILT 2026-08-06, and one thing this decision left open is settled by the build — recorded here in
+place, ADR-0139, because "declared subtrees are claimable" does not on its own say BY WHAT ID.*
+***A subtree's claim id is its `sourceOwnership.subtrees` KEY, verbatim, and only an exact key
+resolves.*** *The key is where the object is declared, so it is its address; a derived slug would be
+a second name to keep in sync, and it would collide (`packages/cli/src/ownership.ts` and
+`packages/cli/src/*ownership*.ts` slug alike). Exactness is a correctness rule rather than a
+preference: a claim row is keyed by the raw `unit_id` string, so resolving any CONTAINED file path
+would write the file as the row and let two sessions hold two ids over the same code without ever
+contending — the "claim that protects nothing" ADR-0310 D2 exists to close. A contained path is a
+near-miss suggestion instead, naming the subtree and its declared owner.*
+
+*Two consequences worth carrying. **A subtree claim does not contend with a claim on its declared
+owner**, and that overlap is announced at claim time rather than enforced: the ledger keys claims by
+id and knows no containment, and teaching it one across globs has no measured demand behind it —
+all 56 refusals in the 40-day history were on nodes, none cross-grain — which is the bar ADR-0311
+set. And **a subtree cannot ANCHOR a worktree**, since `worktree create` derives a directory and
+branch name from its first `--node`; it may be claimed as a later node, and the refusal now says so
+rather than advising a rename.)*
+
 ## Consequences
 
 **Good.** The owner's question has a precise answer that does not impugn a working check or a diligent
