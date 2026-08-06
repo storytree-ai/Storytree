@@ -1,20 +1,25 @@
 /**
- * The Library drawer — a persistent TOP DRAWER HANDLE (ADR-0191, polished by ADR-0193), replacing
+ * The map's top drawer — a persistent TOP DRAWER HANDLE (ADR-0191, polished by ADR-0193), replacing
  * the ADR-0188 dec-6 component-local Minimise/Restore machine. Lens state is URL-DERIVED, not
- * component-local: `?overlay=library` present in `search` => expanded; absent => collapsed to a
- * SLIM, TITLE-LESS handle bar. The handle's single arrow toggle is the SINGLE open/close
+ * component-local: an `?overlay=` lens value present in `search` => expanded; absent => collapsed to
+ * a SLIM, TITLE-LESS handle bar. The handle's single arrow toggle is the SINGLE open/close
  * affordance in both states — clicking it fires the `onToggle` callback prop; the component
  * itself NEVER mutates the URL/history. The parent glue owns the URL write (via `commitSearch`,
  * the same reactive seam the gear dials ride).
  *
+ * It carries TWO lenses since ADR-0267 D1 (arcs take the primary slot) and ADR-0314 D6 (the demoted
+ * Library becomes an `Arcs | Library` toggle in this header): `?overlay=arcs` shows `arcsSlot`,
+ * `?overlay=library` shows `bodySlot`.
+ *
  * The lens:
- *   - COLLAPSED (search lacks `?overlay=library`): a stable `data-lens-state="collapsed"` marker,
- *     the handle bar (grip + arrow toggle, NO "Library" wordmark) present, the `bodySlot` NOT
- *     rendered, no resize separator, no inline height;
- *   - EXPANDED (search carries `?overlay=library`): a stable `data-lens-state="expanded"` marker,
- *     the handed `bodySlot` content visible, the handle bar still present WITH the "Library"
- *     wordmark (ADR-0193 dec 2), and a drag-resize separator (ADR-0193 dec 1) whose drag changes
- *     the drawer's inline height;
+ *   - COLLAPSED (search carries no recognised `?overlay=` lens): a stable
+ *     `data-lens-state="collapsed"` marker, the handle bar (grip + arrow toggle, NO lens toggle and
+ *     so neither wordmark) present, no body rendered, no resize separator, no inline height;
+ *   - EXPANDED (search carries `?overlay=arcs` or `?overlay=library`): a stable
+ *     `data-lens-state="expanded"` marker, the active lens's slot content visible, the handle bar
+ *     still present WITH the `Arcs | Library` toggle in the wordmark's slot (ADR-0193 dec 2's
+ *     expanded-only rule, ADR-0314 D6's control), and a drag-resize separator (ADR-0193 dec 1) whose
+ *     drag changes the drawer's inline height;
  *   - carries NO full-screen dimming scrim in EITHER state — the forest map stays fully
  *     live/interactive beneath it at all times;
  *   - the inc-8 bottom selection-preview strip (`library-drawer-selection-preview`, the
@@ -29,6 +34,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { SearchResult } from '../lib/librarySearch';
+import { readDrawerLens, type DrawerLens } from '../lib/drawerLens';
 
 // ---------- the query-flag reader (the worldSettings `?layout=` precedent) ----------
 
@@ -40,6 +46,18 @@ import type { SearchResult } from '../lib/librarySearch';
 export function readLibraryOverlay(search: string): boolean {
   return new URLSearchParams(search).get('overlay') === 'library';
 }
+
+// ---------- the two lenses (ADR-0267 D1 / ADR-0314 D6) ----------
+//
+// `readDrawerLens` / `DrawerLens` live in ../lib/drawerLens.ts, not here — see that module's header
+// for why (three TreeView suites stub this component to null and would each need a copy). Option B's
+// own proposal for the demoted Library, "a second lens on the same time axis", died with the axis in
+// ADR-0314 D1, so D6's answer is borrowed from option A: a toggle in this header.
+//
+// `readLibraryOverlay` above is UNCHANGED and stays exported here — it is `library-drawer-shell`'s
+// signed contract (four ids in LibraryDrawer.test.tsx) and answers a narrower question: is the
+// LIBRARY lens the one open. Widening it in place would have silently re-pointed those contracts at
+// a different question.
 
 // ---------- the permanent lens ----------
 
@@ -88,23 +106,43 @@ export interface LibraryDrawerProps {
    * the parent glue owns the URL write (via `commitSearch`) that actually flips `search`.
    */
   onToggle?: () => void;
+  /**
+   * What fills the drawer on the ARCS lens (ADR-0267 D1's primary slot) — the momentum-lanes
+   * surface, composed by the parent glue exactly as `bodySlot` composes the Library one. Absent →
+   * the arcs lens renders empty, the same way `bodySlot` does.
+   */
+  arcsSlot?: React.ReactNode;
+  /**
+   * Fired when the header's `Arcs | Library` toggle is clicked (ADR-0314 D6) with the lens the
+   * owner asked for. Like `onToggle`, the component never writes the URL itself — the parent glue
+   * owns the `?overlay=` write, so the lens stays URL-derived and deep-linkable.
+   */
+  onSelectLens?: (lens: DrawerLens) => void;
 }
 
 /**
- * The Library top drawer — its state is URL-derived from `search` (`readLibraryOverlay`), never
+ * The map's top drawer — its state is URL-derived from `search` (`readDrawerLens`), never
  * component-local. Collapsed renders just the slim, title-less handle bar; expanded renders the
- * handed `bodySlot` above the same handle bar (now carrying the "Library" wordmark) plus a
- * drag-resize separator. No dimming scrim in either state. The handle's single arrow toggle
- * fires `onToggle` — it never mutates the URL/history itself.
+ * active lens's body above the same handle bar (now carrying the `Arcs | Library` toggle) plus a
+ * drag-resize separator. No dimming scrim in either state. The handle's single arrow toggle fires
+ * `onToggle` and the lens toggle fires `onSelectLens` — it never mutates the URL/history itself.
+ *
+ * TWO LENSES SINCE ADR-0267 D1 / ADR-0314 D6: `?overlay=arcs` shows `arcsSlot` (the primary slot —
+ * the momentum-lanes arc surface), `?overlay=library` shows `bodySlot` (the demoted Library lens),
+ * and anything else stays collapsed. Arcs is the default the collapsed handle opens onto
+ * ({@link DEFAULT_DRAWER_LENS}) — the parent glue owns that choice, since it owns the URL write.
  */
 export function LibraryDrawer({
   search,
   bodySlot,
   peekSlot,
   onToggle,
+  arcsSlot,
+  onSelectLens,
 }: LibraryDrawerProps) {
-  const expanded = readLibraryOverlay(search);
-  const body = bodySlot ?? peekSlot;
+  const lens = readDrawerLens(search);
+  const expanded = lens !== null;
+  const body = lens === 'arcs' ? arcsSlot : (bodySlot ?? peekSlot);
 
   const lensRef = useRef<HTMLDivElement | null>(null);
   const [heightPx, setHeightPx] = useState<number | null>(null);
@@ -152,7 +190,31 @@ export function LibraryDrawer({
       ) : null}
       <div className="library-drawer-handle-bar" data-testid="library-drawer-handle-bar">
         <span className="library-drawer-handle-grip" aria-hidden="true" />
-        {expanded ? <span className="library-drawer-handle-wordmark">Library</span> : null}
+        {/* ADR-0314 D6: the `Arcs | Library` lens toggle takes the wordmark's slot — same header,
+            one click, arcs the default. It names the ACTIVE lens the way the wordmark used to name
+            the only one, so `library-top-drawer`'s expanded-only wordmark contract still holds:
+            collapsed shows neither word, expanded shows both as the choice they now are. */}
+        {expanded ? (
+          <span
+            className="library-drawer-lens-toggle"
+            data-testid="library-drawer-lens-toggle"
+            role="group"
+            aria-label="drawer lens"
+          >
+            {(['arcs', 'library'] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={`library-drawer-lens${lens === option ? ' on' : ''}`}
+                data-testid={`library-drawer-lens:${option}`}
+                aria-pressed={lens === option}
+                onClick={() => onSelectLens?.(option)}
+              >
+                {option === 'arcs' ? 'Arcs' : 'Library'}
+              </button>
+            ))}
+          </span>
+        ) : null}
         <button
           type="button"
           className="library-drawer-toggle"

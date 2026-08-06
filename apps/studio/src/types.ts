@@ -947,6 +947,90 @@ export interface ClaimsPayload {
   sessions: SessionClaimGroup[] | null;
 }
 
+// ---------- the arc surface (GET /api/arcs, ADR-0267 / ADR-0314) ----------
+//
+// THESE ARE WIRE MIRRORS, NOT A SECOND JOIN. The authoritative shapes are `ArcRollup` &co in
+// `packages/drive/src/arc-rollup.ts` — the ONE join `storytree arc show` and `GET /api/arcs` both
+// render from. The frontend cannot import them: `@storytree/drive` is forbidden in apps/studio/src
+// (ADR-0004, fenced by modelPathBoundary.test.ts), because drive is the model-path carrier. So the
+// studio rides the wire with locally-declared plain types, the same move `ChatDoneEvent` &co make
+// for the desktop chat SSE frames. Re-cite the producer at `packages/drive/src/arc-rollup.ts`.
+//
+// What this must NEVER become is a re-derivation. An arc's `increments` and `lifecycle` are
+// `.extend()` metadata that the GuidanceAsset wire's `extractFields` never projects, so rebuilding
+// the rollup from `listAssets()` would LOOK like it followed the `arcRef`-on-the-wire precedent
+// while silently forking the join (measured in increment 1, #1020). Everything below arrives
+// already-joined from the server.
+
+/**
+ * One increment of arc work as it arrives on the wire (ADR-0305 D1) — the unit ADR-0314 D2 draws as
+ * one bar. `status` is `proposal` | `ready` | `active` | `closed`, or `"?"` when a stored row omits
+ * it; it is typed as a plain `string` rather than a union because the server reads it defensively
+ * off an untyped doc and a value this build has never heard of must render, not crash.
+ */
+export interface ArcRollupIncrement {
+  id: string;
+  title: string;
+  /** The one-sentence lead — what this increment delivers. */
+  objective: string;
+  status: string;
+  /** When it was parked (ISO), on a not-yet-landed entry. */
+  parked?: string;
+  /** The source friction ids this increment remedies. */
+  frictionRefs?: string[];
+  /** The git anchor's short sha, when it has one. */
+  anchorSha?: string;
+  /** Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5). */
+  outcome?: { date?: string; pr?: string; note?: string };
+}
+
+/** A decision stamped to this arc (ADR frontmatter `arc:`). `status` is drive's `AdrStatus`,
+ *  mirrored as a plain string so a new status never turns into a compile error on this side. */
+export interface ArcRollupAdr {
+  number: number;
+  status: string;
+  title: string;
+}
+
+/**
+ * An open question waiting on this arc (`open-question.arcRef`, ADR-0267 D4) — the content ADR-0314
+ * D3's briefing panel exists to show. `stakes` leads deliberately: a panel that lists questions but
+ * forces a re-onboarding round trip to answer them "has not moved the problem" (ADR-0267).
+ */
+export interface ArcRollupQuestion {
+  id: string;
+  title: string;
+  description: string;
+  stakes: string;
+}
+
+/** One arc plus everything derived from its children — the wire mirror of drive's `ArcRollup`. */
+export interface ArcRollup {
+  id: string;
+  title: string;
+  description: string;
+  lifecycle: 'active' | 'closed';
+  intent: string;
+  endState: string;
+  /** Every increment citing this arc, forward-looking entries FIRST (drive's status-rank order). */
+  increments: ArcRollupIncrement[];
+  adrs: ArcRollupAdr[];
+  stories: string[];
+  questions: ArcRollupQuestion[];
+  /** ADR-0267 D7's one server-computed state: this arc has open questions waiting on the owner. */
+  waiting: boolean;
+}
+
+/**
+ * GET /api/arcs — sibling of {@link ClaimsPayload} and {@link ActivityPayload} in its advisory
+ * contract: `arcs: null` means the backend has no document store (the offline json one), which is a
+ * DIFFERENT fact from "there are no arcs". A surface built to restore context must not blur the two
+ * into a confident empty state, so the two answers render differently.
+ */
+export interface ArcsPayload {
+  arcs: ArcRollup[] | null;
+}
+
 // ---------- UI-driven build (POST/GET /api/build, ADR-0090 Phase 1) ----------
 
 /** A build run's lifecycle state (mirrors the server's `BuildRunStatus`). */

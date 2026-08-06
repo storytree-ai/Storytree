@@ -168,9 +168,21 @@ enum-fenced `proposal | ready | active | closed`. The live rows migrated cleanly
 reads **2 closed** in its increment log and **3 proposal** in its Work view, which is exactly D2's
 two green bars and three grey ones, already derivable from stored state.
 
-So the wait D8 chose cost hours rather than days, and the adapter it declined was never needed. The
-build unit parked on this arc is **ready to start**; what remains genuinely blocked is only D4's
-claim half, which still needs ADR-0306/0308's per-increment claim set and resolvable unit pointers.
+So the wait D8 chose cost hours rather than days, and the adapter it declined was never needed.
+
+**AND THE SURFACE HAS NOW SHIPPED** (corrected in place per ADR-0139; the decision is unchanged,
+only its build state). The `arc-surface-lanes-and-briefing-panel` unit landed 2026-08-06 — lanes
+with no axis, green/grey unit bars off the `increment` tier, the briefing panel with click-through,
+the `Arcs | Library` header toggle, and D7's strip as a frame. It renders from `GET /api/arcs` —
+drive's one join — and measured against the live store on the day it landed it drew **20 active
+lanes and 203 bars, 167 landed against 36 queued**, which is D2's model working on real rows with no
+adapter anywhere.
+
+What remains genuinely blocked is only D4's claim half, which still needs ADR-0306/0308's
+per-increment claim set and resolvable unit pointers. The shipped surface leaves `blocked` **unlit
+and says so on the panel** rather than substituting one of the rejected predicates — an owner told
+the surface distinguishes `blocked` must be able to see that it currently cannot, instead of reading
+its absence as "nothing is blocked".
 
 ### D9 — Read-only still holds
 
@@ -185,11 +197,12 @@ through this surface. A two-way surface remains a deferred follow-on whose trigg
 the axis removes the densest rendering problem in option B and pays for the panel that makes the
 surface answer questions rather than merely list them.
 
-**Nothing renders until ADR-0305 lands.** This is the cost the owner accepted in D8, chosen over an
-adapter. `arc-orientation-surface-arc` gains a hard dependency on `arcs-hold-increments-arc`, which is
-in flight rather than idle — it landed #1153 on 2026-08-05 and a session holds a live claim on the
-migration. If that work stalls, this surface stalls with it, and the fallback is the adapter D8
-declined, not a redesign.
+**Nothing rendered until ADR-0305 landed, and it landed the next day.** This was the cost the owner
+accepted in D8, chosen over an adapter, and it came to a wait of hours: `arc-orientation-surface-arc`
+took a hard dependency on `arcs-hold-increments-arc`, which was in flight rather than idle (#1153 on
+2026-08-05), and the tier merged 2026-08-06 with the surface following the same day. The contingency
+this paragraph reserved — falling back to the adapter D8 declined rather than redesigning — was never
+reached.
 
 **D5 changes agent behaviour, and it is the load-bearing half.** The surface can be built perfectly
 and still show an empty panel forever if escalations keep happening only in chat. D5 has no
@@ -249,6 +262,9 @@ track by memory between sessions.
 - [ADR-0279](0279-a-corpus-mandated-ceremony-that-only-an-agent-s-discretion-e.md) — `proposed`; the
   standing counter-argument to D5 shipping as discipline rather than as a gate rung.
 - `packages/drive/src/arc-rollup.ts` — the one join both surfaces render from (increment 1).
+- `apps/studio/src/components/ArcSurface.tsx` + `apps/studio/src/lib/arcSurface.ts` — the shipped
+  surface (D1/D2/D3/D4/D9); `apps/studio/src/components/FloorHealthStrip.tsx` is D7's frame, whose
+  figure stays unwired until `factory-floor-health-arc`'s instrument exists (ADR-0316 D5).
 - `packages/cli/src/question.ts` — the `storytree question new` verb that realizes D5, and
   `asset:merge-ceremony` step 10(b), where the escalation landing runs it.
 - `docs/research/arc-surface-mocks-2026-08-05/` — the re-rendered options the owner picked from, and
