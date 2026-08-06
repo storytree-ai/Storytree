@@ -46,7 +46,15 @@ Greenfield work is creating the capability, so it cannot claim it. Planning, ADR
 landings never write a capability at all.
 
 This is not hypothetical. ADR-0200 D3 fails `check:declared` for a session holding no claim, so a
-session with nothing legitimate to claim must invent something. **Measured in the session that
+session with nothing legitimate to claim must invent something. *(Corrected in place 2026-08-06 per
+ADR-0139 — this sentence is now HISTORICAL and nothing in this ADR is re-decided.
+[ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md) D2 retired
+`check:declared` from root policy and CI, so the MACHINE pressure described here no longer exists: a
+session holding no claim is refused by nothing. **The problem this ADR fixes survives the change** —
+ADR-0200 D3's obligation to hold a claim still stands as discipline, the measured PR #1142 borrowing
+still happened, and a session that follows the ceremony still needs something honest to name. What is
+gone is only the mechanism that forced the dishonest workaround. Read the motivation as a standing
+correctness argument rather than a live gate refusal.)* **Measured in the session that
 produced this ADR:** PR #1142 touched four ADR files and no code, and declared on
 `library-schema-and-write-validation` — holding, for the duration, a capability it never wrote and
 on which a session doing real work there would have been refused. The ledger accepted it because
@@ -114,9 +122,13 @@ story grain remains legitimate where D1 says it is.
 
 The increment id always exists by the time anyone drives it — an increment is authored at `proposal`
 or `ready` before it is taken — so there is always a truthful unit to name. No substrate change is
-required, for the reason D1 itself recorded: the ledger, `check:declared`, and the map accept any
+required, for the reason D1 itself recorded: the ledger and the map accept any
 unit id. ADR-0200 D3 is untouched — a session still must hold a claim; this decision gives the
-no-capability cases something honest to hold instead of a borrowed capability.
+no-capability cases something honest to hold instead of a borrowed capability. *(Corrected in place
+2026-08-06 per ADR-0139; the no-substrate-change conclusion is unchanged. The list read "the ledger,
+`check:declared`, and the map" — ADR-0311 D2 retired that rung from root/CI policy, so only the ledger
+and the map remain to accept the id. "ADR-0200 D3 is untouched" stays true as a statement about the
+obligation; the check that used to enforce it does not run.)*
 
 Greenfield resolves under the same rule with no special case: the first increment claims itself, and
 once the capability exists, later increments cite and claim it.

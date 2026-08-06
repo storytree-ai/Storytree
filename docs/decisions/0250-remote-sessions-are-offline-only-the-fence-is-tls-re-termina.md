@@ -77,9 +77,16 @@ the whole case against it:
 | Code + docs authoring, full GitHub/PR surface | no | — |
 | Library read commands (`library`, `artifact <id>`, `tree focus`) | no | run on the in-memory seed |
 | `adr new` number allocation | degraded | falls back to `max+1` with a loud "not reserved" warning; the `adr-number-unique` gate + the cross-PR CI check catch a collision before it lands (ADR-0050) |
-| `noticeboard declare --pg` | yes | the session is invisible on the map. **`check:declared` SKIPs** on an unreachable DB, so the gate is *not* blocked (ADR-0200 D3) |
+| `noticeboard declare --pg` | yes | the session is invisible on the map. The gate is *not* blocked — see the note below this table |
 | `library artifact edit/new --pg` | **yes, hard** | no workaround |
 | `--live` / `--real` builds with `--store pg` | yes | no workaround — and proof-bearing builds are laptop work by design anyway (ADR-0089 D1, ADR-0091) |
+
+*(Corrected in place 2026-08-06 per ADR-0139; nothing decided here is re-decided and the table's verdict
+is unchanged — a remote session's gate is still not blocked by being unable to declare. The reason
+changed. This row read "**`check:declared` SKIPs** on an unreachable DB, so the gate is not blocked
+(ADR-0200 D3)". ADR-0311 D2 retired `check:declared` from root policy and CI outright, so the gate is
+now unblocked because the rung does not run at all — not because it skips. The stronger conclusion holds
+for the same practical purpose, but a reader must not infer a live SKIP arm that is still watching.)*
 
 So the genuinely lost capability is **library artifact writes**. Everything else is either unaffected,
 gracefully degraded, or already tethered by an existing decision.
@@ -207,8 +214,10 @@ sending them down port-shaped dead ends.
 - The fingerprint in D2 is a heuristic over an environment the repo does not own. It is conservative,
   overridable, and fails **open** (an unrecognised remote session degrades to today's behaviour, not
   to a false refusal) — but it will need revisiting if the harness changes its container shape.
-- A remote session remains invisible on the notice board. `check:declared` SKIPs rather than fails, so
-  nothing is blocked, but the map under-reports.
+- A remote session remains invisible on the notice board. Nothing is blocked, but the map under-reports.
+  *(Corrected in place 2026-08-06 per ADR-0139; the consequence is unchanged. This read "`check:declared`
+  SKIPs rather than fails, so nothing is blocked" — ADR-0311 D2 retired that rung from root/CI policy,
+  so nothing is blocked because nothing runs.)*
 
 **Neutral**
 

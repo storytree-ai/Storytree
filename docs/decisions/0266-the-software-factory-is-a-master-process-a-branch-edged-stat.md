@@ -14,6 +14,17 @@ master process and that has upstream child processes"* — and then chose the fu
 **plus** an interactive flow canvas, with the Library canonical and the published HTML page a view.
 Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**Correction (2026-08-06, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+this ADR's decision — the master process, its branch-edged station index, Library-canonical with a
+render — is untouched and nothing here is re-decided. What is overtaken is the *enforcement* prose it
+leans on in three places, all of it about rungs this ADR did not decide and no longer describes:**
+`check:process-graph` was retired from root policy and CI by ADR-0311 D2 (its source survives, unwired,
+as `packages/cli/src/check-process-graph.ts`), and `check:corpus-content` plus the `export-corpus`
+ceremony were DELETED by ADR-0302 D4 along with the committed seed. So the branch edges this ADR
+authors are **not** gate-enforced: a rename that breaks one is caught by nobody until someone invokes
+the checker. The per-claim notes are inline below. Read the "maintenance surface with no gate behind
+it" consequence as the *whole* story now, not the residual it was written as.
+
 ## Context
 
 The delivery loop this repo runs on is real, enforced, and **undocumented as a whole**. Its parts are
@@ -32,7 +43,9 @@ Four capabilities needed to close that gap already exist, and three of them are 
   ADR-0154 and un-deferred by ADR-0161 dec 5 as the process node of the Library context DAG.
 - **`check:process-graph`** — wired into `pnpm gate`, enforcing that every branch edge resolves and no
   cycle forms. Its own header records what it is waiting for: *"A NO-OP today (no seed process carries
-  branchEdges), exactly as intended."*
+  branchEdges), exactly as intended."* *(HISTORICAL as of ADR-0311 D2 — corrected in place 2026-08-06
+  per ADR-0139. The rung is no longer wired into `pnpm gate` or CI; the source remains as an on-demand
+  checker only. This bullet describes the capability inventory as it stood on 2026-07-29.)*
 - **The typed-edge wire** — `library-typed-edges` surfaces a process's `branchEdges` onto the rendered
   `GuidanceAsset` through `renderStoredDoc`, and it is **built and signed** (commit `3c69dd21`, the
   `lte-*` contracts in `render-doc.test.ts`), through `apps/studio/server/libraryBackend.ts` onto
@@ -112,10 +125,21 @@ future artifact rename that breaks a branch edge now fails the gate instead of p
 is the intended effect, and it is also the first time the check's own correctness is exercised against
 real data rather than fixtures.
 
+*(OVERTAKEN — corrected in place 2026-08-06 per ADR-0139; nothing decided here is re-decided. This
+consequence did hold when it landed. ADR-0311 D2 then retired `check:process-graph` from root policy
+and CI, so a rename that breaks a branch edge no longer fails the gate — it passes silently, exactly
+the outcome this paragraph said the check had closed. The two rules still hold whenever the checker is
+invoked directly; nothing enforces that it is.)*
+
 **A durable-tier write obligation attaches.** Both artifacts are durable-tier, so per ADR-0263 the
 live edit must be discharged with `storytree library export-corpus --pg --write` to keep
 `check:corpus-content` at its zero ceiling. Skipping it now fails the local gate rather than accruing
 silently, which is ADR-0252 D3's design working as intended.
+
+*(WITHDRAWN — corrected in place 2026-08-06 per ADR-0139; nothing decided here is re-decided. This
+obligation no longer exists in any form: ADR-0302 D4 deleted the committed seed, the `export-corpus`
+ceremony and `check:corpus-content` together, so the command named here does not exist and there is no
+ceiling to keep. A live durable-tier edit owes no export. Do not attempt to discharge this.)*
 
 **The master becomes a maintenance surface with no gate behind it.** `check:process-graph` proves the
 edges resolve; nothing proves the *body* still describes the loop. If a station changes — a gate check

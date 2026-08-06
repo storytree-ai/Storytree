@@ -16,6 +16,22 @@ internal mechanism whose shape accepted ADRs already settle), so it is flipped g
 under [ADR-0084](0084-agents-may-flip-an-adr-green.md); the catch is observability — the new
 `check:corpus-sync` gate makes the drift it addresses self-surfacing.
 
+**Correction (2026-08-06, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)) —
+READ THIS BEFORE ANYTHING BELOW. BOTH mechanisms this ADR decided are DELETED, not merely unwired.**
+[ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md) D1/D4 decommissioned
+the committed seed `apps/studio/data/knowledge.json` and deleted the `sync-corpus` ceremony and the
+`check:corpus-sync` gate outright ("deleted, not neutered" — they left no source behind). The live
+Postgres store is now the ONLY source of truth for every kind, so the seed→live migration gap this ADR
+exists to close **cannot occur**: there is no seed to be ahead of live. Every present-tense sentence
+below — the gate that "nags", the WARN that makes drift "self-surfacing", the extra graduation step —
+describes machinery that no longer exists. **Do not run `pnpm storytree library sync-corpus`; the
+command is gone.** The parallel is exact with this ADR's own parent: ADR-0055 (seed-canonical
+`sync-agents`) was SUPERSEDED by ADR-0307 when the agent tier went live-canonical, and this ADR is that
+decision generalised to the non-agent tier. It is left `accepted` here only because re-statusing it
+requires recording a `supersedes` edge on ADR-0302, which is that decision's edge set to change and not
+this pass's — the substance is fully overtaken either way. Read
+[ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md) for the live model.
+
 ## Context
 
 The Library's knowledge tier has two opposite canonicality rules:

@@ -93,6 +93,11 @@ owner-directed calls. Four parts:
    SKIPs at exit 0, so CI stays DB-free. A reader of "WARN-only" alone would otherwise conclude the
    shipped exit code VIOLATES this ADR and "fix" it by removing the red — the exact stale-prose harm
    ADR-0139 exists to prevent.
+   **Re-corrected 2026-08-06 per ADR-0139: this 2026-07-28 note is now wholly HISTORICAL.** Both checks
+   it discusses were DELETED by ADR-0302 D4 — `check:corpus-content` along with the seed it compared
+   against, and `check:corpus-sync` with it — so neither the ceiling, the exit code, nor the SKIP arm
+   exists to be reasoned about. "Untouched and still true" described 2026-07-28 and stopped being true
+   on 2026-08-05. See the Status correction at the top of this ADR, which owns the current picture.
    **Correction (2026-07-29 — ADR-0139 pass): both ceilings are now ZERO, and the "no individual
    drift blocks a landing" half of the note above is retired as FALSE.** That clause was true only
    while `valueDriftCeiling` was 14 — headroom that existed because the backlog's only sanctioned

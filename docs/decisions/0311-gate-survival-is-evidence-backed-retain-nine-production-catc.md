@@ -2,7 +2,7 @@
 status: accepted
 decided: 2026-08-05
 supersedes: [25, 194, 276]
-amends: [154, 168, 200, 202, 245, 252, 298, 301, 302]
+amends: [122, 126, 143, 154, 161, 168, 200, 202, 215, 216, 245, 252, 298, 301, 302]
 arc: gate-machinery-audit-arc
 ---
 # ADR-0311: Gate survival is evidence-backed: retain nine production-catching rungs and retire sixteen
@@ -16,10 +16,25 @@ obligation its core decision (`check:manifest`, `check:deploy-health`, `check:te
 owner-directed survival audit withdraws those obligations, so leaving any of the three accepted
 would make the current set false.
 
-**Amends** ADR-0154, ADR-0168, ADR-0200, ADR-0202, ADR-0245, ADR-0252, ADR-0298, ADR-0301 and
-ADR-0302. Their process ownership, friction, claim, memory-lease, verification and live-store
-decisions remain current. What retires is only their claim that a named standalone check must be a
-root/CI gate rung or that its drain ceiling blocks landing.
+**Amends** ADR-0122, ADR-0126, ADR-0143, ADR-0154, ADR-0161, ADR-0168, ADR-0200, ADR-0202, ADR-0215,
+ADR-0216, ADR-0245, ADR-0252, ADR-0298, ADR-0301 and ADR-0302. Their coverage, hollow-test,
+session-anchoring, process ownership, context-DAG, friction, claim, memory-lease, website-experience,
+verification and live-store decisions remain current. What retires is only their claim that a named
+standalone check must be a root/CI gate rung or that its drain ceiling blocks landing.
+
+*(Edge set COMPLETED 2026-08-06 per ADR-0139, which is a correction to this ADR's frontmatter and not
+a change to anything it decided. As first written the set named nine targets and missed six —
+ADR-0122 and ADR-0126, which decided and built on `check:coverage`; ADR-0143, which DECIDED
+`check:declared` as one of its only two mechanisms; ADR-0161, whose "the new edges are born enforced"
+rested on `check:process-graph`; and ADR-0215 D5 / ADR-0216 D7, whose machine floor was
+`check:web-experience`. Each stands in exactly the relationship ADR-0139 defines for `amends` — still
+current, no longer wholly self-describing — and each is the same shape as targets the set already
+carried, so the omission was an oversight rather than a distinction. It mattered because
+`storytree adr list --load-bearing` follows `amends` edges and prints back-edges: a reader of those six
+saw no pointer to the decision that unwired their rung. The retirements needing NO new edge are
+unchanged: `check:manifest`, `check:test-timing` and `check:deploy-health` are covered by the
+`supersedes` edges above, `check:node-version` and `check:dist-drift` are named by no ADR at all, and
+ADR-0127 / ADR-0159 mention a retired rung without resting a decision on it.)*
 
 ## Context
 

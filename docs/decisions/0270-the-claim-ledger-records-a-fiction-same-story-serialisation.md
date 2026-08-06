@@ -98,8 +98,13 @@ on an open question — it re-opens a **decided** one, deliberately, under copy-
 ADR-0200 pre-name.** A session declares/claims the **capability it is actually writing** when it
 knows it (`noticeboard declare --node <capability-id>` / `claim <capability-id>` /
 `worktree create --node <capability-id>`), reusing the per-unit machinery ADR-0121 already built —
-the ledger, the gate (`check:declared` is grade- and tier-blind and needs no change), and the map
-all already accept any unit id; this is a ceremony change, not substrate. **Story grain remains
+the ledger and the map
+all already accept any unit id; this is a ceremony change, not substrate.
+*(Corrected in place 2026-08-06 per ADR-0139; D1 is unchanged — capability-grain claims still need no
+substrate change, and that is the load-bearing claim here. The list read "the ledger, the gate
+(`check:declared` is grade- and tier-blind and needs no change), and the map". ADR-0311 D2 retired
+`check:declared` from root/CI policy, so there is no gate in the list to be grain-blind; the ledger and
+map carry the property on their own.)* **Story grain remains
 legitimate** for cross-capability work and for sessions that do not yet know their unit — and a
 story-grain claim then means what ADR-0138 said it means: same-story siblings queue or negotiate.
 The migration is pull-based (ADR-0192 style): sessions adopt capability grain at their next declare;

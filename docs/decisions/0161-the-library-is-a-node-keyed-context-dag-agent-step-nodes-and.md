@@ -17,8 +17,12 @@ either. ADR-0156's essentials-only decision and CLI-first build order stand in f
 constraint that its `storytree agents <name> --step` affordance and ADR-0154's process-graph must emit
 through ONE shared `node → next:` emitter over a compatible edge shape, and that ADR-0156's own
 way-of-working graduates a `process` artifact. ADR-0154's §2 derived-process model and its
-`check:surface-coverage` gate stand; what this changes is its Consequences deferral of the process
+`check:surface-coverage` bijection stand; what this changes is its Consequences deferral of the process
 `next:`-graph follow-on — that item is **un-deferred** and folded into this arc under a standing owner.
+*(Tense corrected in place 2026-08-06 per ADR-0139; nothing here is re-decided. This read "its
+`check:surface-coverage` **gate** stand". ADR-0311 D2 retired that rung from root/CI policy — ADR-0154
+D2 now records it as an on-demand diagnostic — so what stands is the bijection and the charter, not a
+gate obligation.)*
 
 ## Context
 
@@ -90,8 +94,13 @@ serves.* The readiness review (2026-07-05) established the precise seam:
    **DRAINED 2026-07-28.** `process:affected-pr-test-scope` was authored from ADR-0195 under ADR-0154's
    charter, and the sweep is CLEAN again — **14 processes / 67 entrypoints, unresolved 0 / orphans 0** —
    with the orphan ceiling tightened 1 → 0 in the same unit, so the state this clause describes cannot
-   silently recur. Neither the 2026-07-05 nor the 2026-07-27 count is current; run
-   `pnpm check:surface-coverage` for the live numbers rather than calibrating to any figure here.
+   silently recur. Neither the 2026-07-05 nor the 2026-07-27 count is current; run the
+   surface-coverage checker for the live numbers rather than calibrating to any figure here.
+   *(Invocation corrected in place 2026-08-06 per ADR-0139; nothing here is re-decided. This said "run
+   `pnpm check:surface-coverage`" — ADR-0311 D2 removed that root script, so the command no longer
+   resolves. The checker itself survives unwired at
+   `packages/cli/src/check-surface-coverage.ts`; invoke it directly. The instruction not to calibrate
+   to any figure in this ADR is unchanged and matters more now that nothing re-measures on a schedule.)*
 
 4. **ADR-0156's way-of-working graduates its own `process`.** Per ADR-0154's charter (a load-bearing
    way-of-working ADR carries a current `process`), ADR-0156 — how a subagent gets context — graduates
@@ -101,7 +110,11 @@ serves.* The readiness review (2026-07-05) established the precise seam:
 5. **The new edges are born enforced.** ADR-0156's size/structure gate additionally asserts STEP→REFS
    INTEGRITY (every entry names a real workflow step; no dangling ref key), and the process-graph unit
    adds GRAPH INTEGRITY (branch-edges resolve; no cycles) — the dangling-ref fence extended to
-   structured edges. (*Delivered* by `check:process-graph`, ADR-0161 inc 7c: resolve + acyclic. The
+   structured edges. *(Half OVERTAKEN — corrected in place 2026-08-06 per ADR-0139; nothing here is
+   re-decided and the edges were born enforced as decided. ADR-0311 D2 then retired
+   `check:process-graph` from root/CI policy, so the GRAPH INTEGRITY half is no longer enforced at any
+   gate — only on demand. The STEP→REFS half rides ADR-0156's own gate and is unaffected.)*
+   (*Delivered* by `check:process-graph`, ADR-0161 inc 7c: resolve + acyclic. The
    third property this originally named, "unreachable nodes", is DEFERRED — the process branch-edge
    graph declares no traversal ROOT, and reachability is only computable relative to one; enforcing it
    would mean inventing a root semantics the corpus does not settle, so it becomes definable once a real

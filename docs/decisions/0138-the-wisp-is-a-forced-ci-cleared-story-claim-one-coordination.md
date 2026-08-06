@@ -105,6 +105,13 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
    timing is no longer the orchestrator's to choose. The claim-free exception survives but widened:
    ADR-0200 names ADR authoring **and curation** as the claim-free actions that stay invisible on the
    map.]*
+   *[Half withdrawn by [ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md)
+   D2 — corrected in place 2026-08-06 per ADR-0139. The **claim-at-workspace-creation** half stands
+   exactly as written, and it is the half this note's argument rests on: `worktree create` still takes
+   the claim first, so no claim still means no workspace. The `check:declared` half does NOT stand — it
+   was retired from root policy and CI, so an unclaimed session that obtains a workspace by any other
+   route CAN now reach the merge ceremony. The claim-free exception for ADR authoring and curation is
+   unaffected.]*
 
 4. **Cleared on the CI merge by branch; staleness is a trace-driven backstop.** The merge job — which
    already *"sweep[s] possibly-dead presence rows"* — also **releases `node_claim` rows for the
@@ -165,6 +172,12 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
   the Decision 3 note): the runtime wall this bullet says we do not have was built — claim-gated
   `worktree create` plus a FAILing `check:declared` — so the guarantee no longer rests on the spawn
   being the choke point.]*
+  *[Narrowed by [ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md) D2 —
+  corrected in place 2026-08-06 per ADR-0139. Of the two-part wall named above, only claim-gated
+  `worktree create` survives; the FAILing `check:declared` backstop was retired from root/CI policy.
+  The bullet's retirement still holds — a runtime wall does exist and the guarantee no longer rests on
+  the spawn — but it now rests on **one** mechanism at workspace-creation time rather than two, with no
+  landing-time backstop behind it.]*
 - More to render honestly: the claim≠proof wall (§5) must be enforced visually.
 
 **Neutral / reconciliation**

@@ -98,7 +98,12 @@ traps, escalation points.
 
 - **Excluded from the seed and every seed ceremony**: `export-corpus`, `sync-corpus`, and the
   `check:corpus-sync` gate warning must all ignore the `plan` kind (else every live plan reads as
-  seed drift forever). Plans never appear in `knowledge.json`.
+  seed drift forever). Plans never appear in `knowledge.json`. *(MOOT as of 2026-08-06 — corrected in
+  place per ADR-0139; nothing here is re-decided. ADR-0302 D1/D4 deleted the seed
+  `knowledge.json` and all three ceremonies named in this bullet, so there is no seed for `plan` to be
+  excluded FROM and no ceremony left to teach. The property this bullet was protecting — a live plan
+  never reads as drift — now holds by construction. `plan` remains Postgres-only and ephemeral exactly
+  as decided; only the exclusion obligation is discharged.)*
 - **Git-anchored:** a plan pins the git SHA it was planned against. **Consumption begins with a
   mechanical freshness check** — git-log the paths the plan names since its anchor; drift past
   threshold means re-plan, not repair. (This promotes the "stale would-be spec — git-log before

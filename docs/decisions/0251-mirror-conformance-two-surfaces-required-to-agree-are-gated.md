@@ -68,8 +68,12 @@ The forces on the fix:
 ## Decision
 
 **A ROOT gate, `pnpm check:mirror-conformance`, runs each surface's own probe in its own process over
-one shared input and diffs the decoded JSON.** Sibling of `check:boundaries` / `check:manifest`, wired
-into `pnpm gate` and into CI's `verify` job.
+one shared input and diffs the decoded JSON.** Sibling of `check:boundaries`, wired
+into `pnpm gate` and into CI's `verify` job. *(Corrected in place 2026-08-06 per ADR-0139; this
+decision is unchanged and `check:mirror-conformance` is untouched — it is rung 2 of the nine ADR-0311
+retained. The sibling list read "`check:boundaries` / `check:manifest`"; `check:manifest` was retired
+from root/CI wiring by ADR-0311 D2, so naming it as a co-wired peer would now assert live wiring that
+no longer exists. `check:boundaries` remains a wired sibling and carries the analogy alone.)*
 
 1. **Per-surface probes, no cross-imports anywhere.** `apps/studio/server/docsMirrorProbe.ts` and
    `apps/desktop/src/backend/docs-mirror-probe.ts` each import ONLY their own surface's module, take
