@@ -45,6 +45,7 @@ import {
   arcScopeOf,
   type ArcWriteDeps,
 } from "./arc.js";
+import { questionCommand, questionHelp, type QuestionWriteDeps } from "./question.js";
 import { incrementCommand, incrementHelp, type CountCommitsSince } from "./increment.js";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import { CLI_AREAS } from "./cli-areas.js";
@@ -1987,6 +1988,15 @@ export const CLI_OPTIONS = {
   // prompted for goes in `--body`.
   objective: { type: "string" },
   body: { type: "string" },
+  // `storytree question new` — the open-question briefing fields (ADR-0314 D5). The four required
+  // ones are `KIND_SPECS`' own; `--arc` is declared above and reused. All long prose via @path — the
+  // bar is a briefing the owner can answer COLD, which is not a value that fits on a command line.
+  stakes: { type: "string" },
+  statement: { type: "string" },
+  context: { type: "string" },
+  options: { type: "string" },
+  diagram: { type: "string" },
+  recommendation: { type: "string" },
   scope: { type: "string" },
   migration: { type: "string" },
   source: { type: "string" },
@@ -2084,6 +2094,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     friction?: string[];
     objective?: string;
     body?: string;
+    /** `question new` — the open-question briefing fields (ADR-0314 D5). */
+    stakes?: string;
+    statement?: string;
+    context?: string;
+    options?: string;
+    diagram?: string;
+    recommendation?: string;
     scope?: string;
     migration?: string;
     source?: string;
@@ -2710,6 +2727,33 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // ADR-0239 D3 — the list is a worklist: active-only unless explicitly widened.
       arcScopeOf({ all: values.all === true, closed: values.closed === true }),
     );
+  }
+
+  if (area === "question") {
+    // The open-question authoring surface (ADR-0314 D5): the verb an escalating session uses to put
+    // a decision in front of the owner. WRITE-only by design — reading is `library artifact list
+    // open-question --pg`, and answering is out of scope this round (ADR-0314 D9 keeps it read-only).
+    // Every prose flag arrives already `@path`-expanded from the boundary at the top of `run`, which
+    // is what lets a mermaid `--diagram` or a multi-paragraph `--context` survive the shell.
+    if (help) return questionHelp();
+    const writeDeps: QuestionWriteDeps = {
+      store: deps.store,
+      writable: deps.writable === true,
+      ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
+      now: new Date().toISOString(),
+      pg: values.pg === true,
+    };
+    return questionCommand(sub, third, writeDeps, {
+      ...(values.arc !== undefined ? { arc: values.arc } : {}),
+      ...(values.title !== undefined ? { title: values.title } : {}),
+      ...(values.stakes !== undefined ? { stakes: values.stakes } : {}),
+      ...(values.statement !== undefined ? { statement: values.statement } : {}),
+      ...(values.context !== undefined ? { context: values.context } : {}),
+      ...(values.options !== undefined ? { options: values.options } : {}),
+      ...(values.diagram !== undefined ? { diagram: values.diagram } : {}),
+      ...(values.recommendation !== undefined ? { recommendation: values.recommendation } : {}),
+      ...(values.description !== undefined ? { description: values.description } : {}),
+    });
   }
 
   if (area === "increment") {

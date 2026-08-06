@@ -61,6 +61,16 @@ export const PROSE_FLAGS: ReadonlySet<string> = new Set([
   "change",
   "scope",
   "migration",
+  // question new — the open-question briefing (ADR-0314 D5). Every one of these is a durable prose
+  // field on the authored artifact, and the bar is COLD-ANSWERABLE, so they are exactly the values
+  // long enough that a shell argument is the wrong place for them (a mermaid `--diagram` cannot be
+  // passed any other way — it is multi-line by construction).
+  "stakes",
+  "statement",
+  "context",
+  "options",
+  "diagram",
+  "recommendation",
   // The recorded-verdict prose: `library artifact retire`, `library graduate park`, `friction`.
   // These two are the measured defect this boundary exists to close.
   "reason",

@@ -30,6 +30,7 @@ export const CLI_AREAS = [
   "drift",
   "adr",
   "arc",
+  "question",
   "increment",
   "proposal",
   "desktop",
