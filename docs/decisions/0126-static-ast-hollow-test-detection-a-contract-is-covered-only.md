@@ -98,7 +98,9 @@ test that VOUCHES for it — a test that **(a)** runs (is not `.skip`/`.todo`, n
   sweep) swap `extractTestNames` → `extractVouchingTestNames`. **Since 2026-08-06** `loadCoverageUnit`
   calls `readTestSurface` instead — the same vouching names, plus the count of titles the reader could
   not read in full; `loadRealBuildCoverageUnits` still calls `extractVouchingTestNames`, now behind a
-  rung that no longer runs (see the Status correction above).
+  rung that no longer runs (see the Status correction above). A THIRD consumer outside these two
+  loaders takes the surface whole: ADR-0127's gate-time `computeContractCoverage`
+  (`resolve-prove-spec.ts`), which is where the count reaches a signature.
 - **No new signer, no new gate posture** (inherits ADR-0122 / ADR-0020): it is a structural check —
   WARN-only at the gate (`check:coverage`), exits-non-zero on demand (`storytree coverage`). No store /
   git / clock / execution. **As of ADR-0311 D2 the gate half is GONE** — the `check:coverage` rung was
@@ -121,6 +123,16 @@ disagree, an UNREAD title may never share a bucket with an ABSENT test: "I could
 and "six tests are missing" are different claims about different things, so `readTestSurface` returns
 the count of unreadable titles alongside the vouching names and `storytree coverage` prints it, rather
 than letting a `0/N` silently mean either.
+
+**Completed 2026-08-06 (same day, second pass): that separation now holds on the SIGNED surface too.**
+As first written, this paragraph stated the never-share-a-bucket rule universally while citing only the
+on-demand tool as enforcing it — and the surface where the two DID still share a bucket was the one
+that matters most, the signed `--real` verdict, which took the vouching names and discarded the count.
+[ADR-0127](0127-record-per-contract-coverage-on-the-signed-verdict-shape-adr.md) recorded that gap as
+its own deferred limit and has now closed it: `ContractCoverageAxis` carries `unreadTitles`, so a
+frozen `uncovered` states which of the two claims it is making. The rule is unchanged — what changed
+is that it is now enforced everywhere this classifier's output is read, rather than only where a human
+re-runs it.
 
 ## Consequences
 
@@ -150,7 +162,9 @@ than letting a `0/N` silently mean either.
   contract (no test names it) from a hollow one (a test names it but is hollow). A cheap refinement,
   deferred to keep this slice tight. **Partly closed 2026-08-06:** the THIRD case — a test whose title
   this checker could not read — is now separated out and reported (`readTestSurface`'s `unreadTitles`,
-  rendered by `storytree coverage`). Dropped-vs-hollow remains undistinguished, as deferred here.
+  rendered by `storytree coverage` and, since the second pass that day, carried on the signed verdict
+  and rendered by `verdictLine` — ADR-0127). Dropped-vs-hollow remains undistinguished, as deferred
+  here.
 - **The classifier read only a bare string literal or a template as a title, so a title assembled from
   several literals was invisible — found and FIXED 2026-08-06, MEASURED not predicted.** `testCallName`
   accepted `ts.isStringLiteralLike` or `ts.isTemplateExpression` and returned null for anything else, so
@@ -169,6 +183,23 @@ than letting a `0/N` silently mean either.
   — and marks a partially-static title so it is reported rather than passed off as a clean read. A
   related residual is deliberately unchanged: a title with a genuinely runtime part still contributes
   only its literal text (the pre-existing template rule), which is why the count exists.
+- **That count then over-reported, because a `.each` FACTORY was being observed as a test — found and
+  FIXED 2026-08-06 (second pass), MEASURED not predicted.** A parameterised `it.each(table)(title, fn)`
+  is TWO nested calls and only the OUTER one declares a test; the inner `it.each(table)` reaches the
+  same root `it`, and its first argument is the DATA TABLE, so `matchTestCall` observed it as an extra
+  test whose title could not be read. That is a PHANTOM — neither a test nor an unread title — and it
+  inflated `unreadTitles` for a file every one of whose real titles read perfectly. Measured across all
+  123 real-build test surfaces in the repo, it was the ONLY `unreadTitles` hit anywhere, i.e. every
+  genuine title in the repo currently reads clean and the sole non-zero count was this artefact.
+  The tell is exact and `matchTestCall` now uses it: the INVOCATION of a factory has a callee that is
+  itself a call, so a `.each` node whose own callee is not a call is the factory and is not a
+  declaration; the outer node that invokes it still is. **This is a fix to which
+  nodes are test DECLARATIONS at all, and it does not touch the title-FOLDING rule above** — literals
+  only, never evaluating a runtime expression, still stands exactly as decided. It matters beyond a
+  miscount because the number is now frozen on a signature (ADR-0127): a caveat the checker cannot
+  stand behind is worse than none, and the rejected alternative at that seam — omit the axis whenever
+  a title is unread — would have deleted `render-claim-as-wisp`'s correct 2/3 coverage axis on the
+  strength of this phantom alone.
 - **The reader was CLONED into a second package, and the clone would have silently diverged — deleted
   2026-08-06.** `findOptionsFormSkips` (`packages/cli/src/verification-decay.ts`, ADR-0252 D1) carried a
   hand-kept copy of `testCallName` whose own comment named the hazard: its names are JOINED against

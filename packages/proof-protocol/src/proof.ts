@@ -49,6 +49,15 @@ export type VerdictOutputVersion = z.infer<typeof VerdictOutputVersion>;
  * covering test name(s) stay live-derivable (`storytree coverage`), not frozen here. `covered` ∪
  * `uncovered` is the unit's declared contract set at sign time; `uncovered` non-empty means the green
  * over-claims those contracts. Both lists are `[]` for a unit that declares no contracts.
+ *
+ * Plus ONE honesty qualifier on those lists — `unreadTitles` (2026-08-06). It is not a richer record
+ * of the kind the owner's minimal choice ruled out (that was about freezing covering test NAMES,
+ * verbosity with no honesty payoff); it is what makes `uncovered` mean one thing instead of two.
+ * ADR-0126's two folds point in OPPOSITE directions: hollowness folds toward covered, readability
+ * folds toward UNCOVERED — so without this count, "no test names this contract" and "I could not read
+ * that test's title" arrive at a reader identically, and frozen on a signature. That is not
+ * hypothetical: it is the failure ADR-0127 already records (PR #1172 stamped `coverage 0/6` over six
+ * tests that all existed and passed).
  */
 export const ContractCoverageAxis = z
   .object({
@@ -56,6 +65,20 @@ export const ContractCoverageAxis = z
     covered: z.array(z.string()),
     /** Declared contract ids no substantive test named — the green over-claims these (ADR-0122). */
     uncovered: z.array(z.string()),
+    /**
+     * How many observed test titles the static reader could NOT read in full at sign time — the
+     * qualifier that tells a `0/N` apart from a `0/N`. Read as THREE states, which is why the
+     * producer stamps it even when zero:
+     *  - **absent** — a verdict signed before this field existed: not measured, so `uncovered` carries
+     *    the old ambiguity and cannot be resolved after the fact;
+     *  - **`0`** — measured clean: every title was legible, so `uncovered` is a statement about the
+     *    TESTS and the green genuinely over-claims those contracts;
+     *  - **`> 0`** — measured with a caveat: part of the surface was never legible to a static reader,
+     *    so `uncovered` is at least partly a statement about the CHECKER, not about the tests.
+     * OPTIONAL purely for back-compat with verdicts already stored without it; the current producer
+     * always populates it. Never a gate signal on its own — it qualifies a claim, it does not make one.
+     */
+    unreadTitles: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type ContractCoverageAxis = z.infer<typeof ContractCoverageAxis>;

@@ -258,6 +258,32 @@ test("readTestSurface: separates 'could not read the title' from 'no such test' 
   assert.equal(readTestSurface(`test("c-a: plain", () => { assert.ok(v); });`).unreadTitles, 0);
 });
 
+test("readTestSurface: a parameterised `it.each(table)(title, …)` is ONE test, not a phantom unread", () => {
+  // `it.each(table)(title, fn)` is TWO nested calls that both reach root `it`. Only the OUTER one
+  // declares a test — the inner factory's first argument is the data TABLE, which is not a title and
+  // must not be counted as one the reader "could not read". MEASURED 2026-08-06: this phantom was the
+  // ONLY unreadTitles hit across all 123 real-build test surfaces in the repo, and it sat on a unit
+  // (`render-claim-as-wisp`) whose titles all read perfectly — so the caveat it raised was pure noise
+  // on an otherwise-correct axis, and the reject-the-axis alternative would have DELETED that axis.
+  const src = `
+    it.each(['a', 'b'] as const)('c-each: carries %s through the fold', (v) => { assert.ok(v); });
+    describe.each([1, 2])('c-suite: the %i case', (n) => { assert.equal(n, n + 0); });
+  `;
+  const surface = readTestSurface(src);
+  assert.deepEqual(surface.vouching, ["c-each: carries %s through the fold", "c-suite: the %i case"]);
+  assert.equal(surface.unreadTitles, 0, "a data table is not an unread title");
+  assert.equal(analyzeObservedTests(src).length, 2, "the factories are not extra tests");
+});
+
+test("readTestSurface: the `.each` exception is STRUCTURAL — a genuinely runtime title still reads unread", () => {
+  // The fix drops the FACTORY, never a title. The outer call still owns the title, so an unreadable
+  // one is on the record exactly as before — the readability fold is unchanged, only de-duplicated.
+  const src = `it.each(table)(titleFromAVariable, (v) => { assert.ok(v); });`;
+  const surface = readTestSurface(src);
+  assert.deepEqual(surface.vouching, []);
+  assert.equal(surface.unreadTitles, 1, "the OUTER call's unreadable title is still counted");
+});
+
 test("readTitle: a concatenated title still obeys hollow-test detection (ADR-0126 is untouched)", () => {
   // Reading the title must not smuggle a hollow test past the vouching rule — the two axes compose.
   const hollow = `test("c-x: reads fine but " + "proves nothing", () => { assert(true); });`;
