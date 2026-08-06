@@ -69,7 +69,20 @@ export function act2RegrowCamera(
     ? fitted.ty + fitted.scale * groundWorldY
     : frame.height;
 
-  const scale = fitted.scale * (1 + (ACT2_REGROW_OPENING_SCALE - 1) * (1 - progress));
+  let scale = fitted.scale * (1 + (ACT2_REGROW_OPENING_SCALE - 1) * (1 - progress));
+  // Contain the growth envelope already revealed at this cursor (the world's own bottom-up
+  // fraction, `groundWorldY * (1 - progress)`) — its top must never project above the frame's own
+  // top edge. `targetY` is exactly the screen y the ground point (`groundWorldY`) sits at for
+  // whatever scale is used, so the envelope top's screen y is `targetY - scale * groundWorldY *
+  // progress`; requiring that be >= 0 bounds `scale` by `targetY / (groundWorldY * progress)`. The
+  // single linear opening interpolation above does not always zoom out fast enough through the
+  // cursor range near 1 under a real padded/contain fit, so clamp down to the containing scale
+  // whenever it is tighter (never looser — this only ever zooms OUT further, preserving the
+  // monotonic pull-back and the exact identity/opening endpoints at progress 1 and 0).
+  if (groundWorldY !== undefined && groundWorldY > 0 && progress > 0) {
+    const containScale = targetY / (groundWorldY * progress);
+    if (containScale < scale) scale = containScale;
+  }
   return {
     scale,
     tx: frame.width / 2 - scale * anchorX,

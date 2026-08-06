@@ -105,3 +105,52 @@ test(
     }
   },
 );
+
+/**
+ * `act2-regrow-camera-zoom-out`, contract `act2-regrow-camera-projects-the-existing-cursor`:
+ *
+ * "each intermediate camera monotonically expands the visible bounds upward to contain the growth
+ * envelope revealed at that cursor ... as it expands upward" (walkthrough step 1: "contain the
+ * immutable-geometry envelope of growth revealed by that cursor", "without a runtime
+ * focal-island/frontier tracker"). With no per-island state available to a pure projection, the
+ * envelope revealed by cursor `c` is the one immutable-geometry quantity derivable from the world's
+ * own bounds alone: the bottom-up fraction of the world's height, from the ground up to world Y
+ * `worldH * (1 - c)` (nothing revealed at cursor 0, the whole world revealed by cursor 1). "Contain"
+ * means that top point of the already-revealed envelope must never land ABOVE the frame's own top
+ * edge (a negative screen y) at any intermediate cursor — i.e. the pull-back must never let growth it
+ * has already revealed scroll off the top of the viewport.
+ *
+ * TreeView's real fitted camera is always a `fit: 'contain'`, `align: 'bottom'`, `padding: 16` fit
+ * (`apps/studio/src/components/TreeView.tsx`) of a portrait forest. Under that real fit shape, once
+ * the frame is tall enough that the fit's HEIGHT dimension keeps binding the scale (any window taller
+ * than roughly 1300px at this padding), `act2RegrowCamera`'s single linear
+ * `ACT2_REGROW_OPENING_SCALE` interpolation does not zoom out fast enough through the cursor range
+ * around 0.9: the camera's own visible top edge sits measurably BELOW (screen y < 0, i.e. above the
+ * frame) the envelope's top, clipping already-revealed growth off the top of the screen instead of
+ * containing it.
+ */
+test(
+  "act2-regrow-camera-projects-the-existing-cursor: the pull-back never clips the growth envelope already revealed by its own cursor off the top of the frame",
+  () => {
+    const worldW = 800;
+    const worldH = 20000;
+    const frame: CameraFrame = { width: 1600, height: 4000 };
+    const fitted = fitWorld(worldW, worldH, frame.width, frame.height, {
+      padding: 16,
+      align: "bottom",
+      fit: "contain",
+    });
+
+    for (const cursor of [0.7, 0.8, 0.9, 0.95]) {
+      const camera = act2RegrowCamera(fitted, frame, cursor);
+      // The immutable-geometry envelope revealed at this cursor: the world's own bottom-up fraction —
+      // independent of act2RegrowCamera's internal computation, so this is not a tautology against it.
+      const envelopeTopWorldY = worldH * (1 - cursor);
+      const envelopeTopScreenY = worldToScreen(camera, worldW / 2, envelopeTopWorldY).y;
+      assert.ok(
+        envelopeTopScreenY >= -1e-6,
+        `growth envelope clipped above the frame at cursor ${cursor}: envelope top projects to screen y ${envelopeTopScreenY}, want >= 0 (the frame's own top edge)`,
+      );
+    }
+  },
+);
