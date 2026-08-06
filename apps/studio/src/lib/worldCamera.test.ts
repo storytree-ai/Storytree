@@ -168,11 +168,11 @@ describe('act2RegrowCamera', () => {
   const fitted: Camera = { tx: 120, ty: 40, scale: 0.5 };
   const frame = { width: 1600, height: 1000 };
 
-  it('opens at one fixed close framing and zooms monotonically outward on the existing cursor', () => {
+  it('opens at one fixed close framing and zooms monotonically outward from the fitted bottom centre', () => {
     const opening = act2RegrowCamera(fitted, frame, 0);
     const quarter = act2RegrowCamera(fitted, frame, 0.25);
     const halfway = act2RegrowCamera(fitted, frame, 0.5);
-    const anchor = screenToWorld(fitted, frame.width / 2, frame.height / 2);
+    const anchor = screenToWorld(fitted, frame.width / 2, frame.height);
 
     expect(opening.scale).toBe(fitted.scale * ACT2_REGROW_OPENING_SCALE);
     expect(opening.scale).toBeGreaterThan(quarter.scale);
@@ -180,7 +180,7 @@ describe('act2RegrowCamera', () => {
     for (const camera of [opening, quarter, halfway]) {
       expect(worldToScreen(camera, anchor.x, anchor.y)).toEqual({
         x: frame.width / 2,
-        y: frame.height / 2,
+        y: frame.height,
       });
     }
     expect(act2RegrowCamera(fitted, frame, 0.25)).toEqual(quarter);

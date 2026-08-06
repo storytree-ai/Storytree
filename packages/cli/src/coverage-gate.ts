@@ -210,14 +210,39 @@ function walkSpecFiles(absDir: string): string[] {
   return out;
 }
 
+/** The directory prefix of a test glob, up to (not including) its first wildcard segment. */
+function globBaseDir(glob: string): string {
+  const base: string[] = [];
+  for (const segment of glob.split("/")) {
+    if (segment.includes("*")) break;
+    base.push(segment);
+  }
+  return base.join("/");
+}
+
+/** Recursively collect `*.test.ts` files under an absolute dir (a missing/odd dir yields none). */
+function walkTestFiles(absDir: string): string[] {
+  const out: string[] = [];
+  try {
+    for (const entry of readdirSync(absDir, { withFileTypes: true })) {
+      const full = path.join(absDir, entry.name);
+      if (entry.isDirectory()) out.push(...walkTestFiles(full));
+      else if (entry.isFile() && entry.name.endsWith(".test.ts")) out.push(full);
+    }
+  } catch {
+    // A missing / unreadable directory yields no test files.
+  }
+  return out;
+}
+
 /**
  * Load every capability under `storiesDir` carrying a registered real-build test surface
- * (`proof.real.testFile`) AND ≥1 declared `## Contracts`. The proof surface is exactly that
- * `real.testFile` — the tightest honest signal (the EXACT file a signed `--real` green attests). A spec
- * that throws (malformed) or carries no real block / no contracts is skipped — this is the FILTER that
- * keeps unbuilt `proposed` capabilities out of the sweep. A missing/unreadable test file contributes no
- * names (fail-closed → every contract reads uncovered — a legitimate WARN: a registered real surface
- * with no authored test IS under-covered). Paths are resolved against `repoRoot`.
+ * (`proof.real.testFile`) AND ≥1 declared `## Contracts`. The proof surface unions that exact signed
+ * `real.testFile` with the real arm's declared test globs, deduplicated. A spec that throws (malformed)
+ * or carries no real block / no contracts is skipped — this is the FILTER that keeps unbuilt
+ * `proposed` capabilities out of the sweep. A missing/unreadable test file contributes no names
+ * (fail-closed → every contract reads uncovered — a legitimate WARN: a registered real surface with
+ * no authored test IS under-covered). Paths are resolved against `repoRoot`.
  */
 export function loadRealBuildCoverageUnits(storiesDir: string, repoRoot: string): GateCoverageUnit[] {
   return sweepRealBuildCoverage(storiesDir, repoRoot).units;
@@ -242,18 +267,26 @@ export function sweepRealBuildCoverage(
     } catch {
       continue; // a malformed spec is skipped (advisory sweep — never throw out of the gate)
     }
-    const testFile = spec.buildConfig?.real?.testFile;
-    if (testFile === undefined || spec.contracts.length === 0) continue;
+    const real = spec.buildConfig?.real;
+    if (real === undefined || spec.contracts.length === 0) continue;
+    const testFile = real.testFile;
     const abs = path.join(repoRoot, testFile);
     const testFilePresent = existsSync(abs);
-    let testNames: string[] = [];
-    if (testFilePresent) {
+    const scopedFiles = real.scope.testGlobs.flatMap((glob) => {
+      const absolute = path.join(repoRoot, glob);
+      return glob.includes("*") ? walkTestFiles(path.join(repoRoot, globBaseDir(glob))) : [absolute];
+    });
+    const absFiles = [abs, ...scopedFiles].filter(
+      (candidate, index, files) => files.indexOf(candidate) === index,
+    );
+    const testNames: string[] = [];
+    for (const testPath of absFiles.filter((candidate) => existsSync(candidate))) {
       try {
         // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so a contract
         // named only by an `assert(true)` reads uncovered (not falsely covered).
-        testNames = extractVouchingTestNames(readFileSync(abs, "utf8"));
+        testNames.push(...extractVouchingTestNames(readFileSync(testPath, "utf8")));
       } catch {
-        testNames = []; // an unreadable test file contributes no names (fail-closed toward uncovered)
+        // An unreadable test file contributes no names (fail-closed toward uncovered).
       }
     }
     units.push({
@@ -261,7 +294,7 @@ export function sweepRealBuildCoverage(
       tier: spec.tier,
       contractIds: spec.contracts.map((c) => c.id),
       testNames,
-      testFiles: [testFile.replace(/\\/g, "/")],
+      testFiles: absFiles.map((candidate) => path.relative(repoRoot, candidate).replace(/\\/g, "/")),
       testFilePresent,
     });
   }
