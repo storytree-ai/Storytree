@@ -74,6 +74,25 @@ world.
    using its existing 40-island, viewport and idle-floor admissibility rules. Emit and read back the
    measured delta and run span; report a material cost or duration change rather than hiding it.
 
+## Guidance
+
+Mechanical re-drive for exactly one behaviour: the opening must be strictly closer than PR #1175's
+`2.25`. Rewrite only the BODY of the existing
+`apps/studio/src/lib/worldCamera.act2Bottom.node.ts` test titled
+`act2-regrow-camera-projects-the-existing-cursor: the opening and every intermediate sample stay anchored to the forest's bottom growth origin, not the frame centre`;
+keep that title and its contract id byte-for-byte unchanged, and add no new `test()`/`it()` block or
+scratch probe. Make its ordered HEAD-failing assertions first prove
+`ACT2_REGROW_OPENING_SCALE > 2.25`, then prove the cursor-`0` camera scale is greater than
+`fitted.scale * 2.25`, while retaining the existing exact
+`opening.scale === fitted.scale * ACT2_REGROW_OPENING_SCALE` projection and bottom-anchor assertions.
+
+Implement only the deliberate opening product parameter in `apps/studio/src/lib/worldCamera.ts`.
+Use `2.5`: the smallest obvious quarter-step above `2.25`, still below the existing fitted-scale zoom
+maximum of `5`. The appearance magnitude remains owner-attested. Do not touch the already-built
+`groundWorldY`/padded-safe-frame anchor, upward-envelope containment clamp, monotonic fitted-scale
+floor, exact cursor-`1` or reduced-motion behaviour, `TreeView`/probe wiring, controls, schedule, or
+timing.
+
 ## Contracts
 
 1. **`act2-regrow-camera-projects-the-existing-cursor`**
