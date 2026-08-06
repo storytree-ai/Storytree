@@ -10,6 +10,14 @@ export interface Camera {
   tx: number;
   ty: number;
   scale: number;
+  /**
+   * The world Y-coordinate of this camera's bottom-aligned ground point (the world content's own
+   * bottom edge), set by `fitWorld` when `align: 'bottom'`. A hand-built `Camera` that never went
+   * through `fitWorld` naturally omits it, so consumers that anchor to the ground (`act2RegrowCamera`)
+   * fall back to unprojecting the raw frame edge rather than guessing at a world coordinate they were
+   * never given.
+   */
+  groundWorldY?: number;
 }
 
 export interface ScaleLimits {
@@ -26,15 +34,22 @@ export interface CameraFrame {
  * The deliberately small Act 2 opening reveal. It is a product parameter rather than a hidden
  * animation state: the operator-attested leg judges this amount and the cursor projection below.
  */
-export const ACT2_REGROW_OPENING_SCALE = 2.25;
+export const ACT2_REGROW_OPENING_SCALE = 2.5;
 
 /**
  * Project the existing Act 2 regrow cursor onto one fixed camera framing.
  *
- * The world point under the fitted viewport centre stays fixed for the whole pull-back; only scale
- * changes. There is no tracker, tween, clock or retained camera progress here. Returning the fitted
- * value at the settled boundary is explicit so cursor 1 is exact identity, not merely close after
- * floating-point interpolation. Reduced motion takes that same identity path for every sample.
+ * The world point under the fitted viewport's BOTTOM-CENTRE pixel — the forest's bottom growth
+ * origin — stays fixed for the whole pull-back; only scale changes. There is no tracker, tween,
+ * clock or retained camera progress here. Returning the fitted value at the settled boundary is
+ * explicit so cursor 1 is exact identity, not merely close after floating-point interpolation.
+ * Reduced motion takes that same identity path for every sample.
+ *
+ * The anchor's world Y comes from `fitted.groundWorldY` when present (the exact bottom-aligned
+ * `fitWorld` ground point, immune to the fit's own padding) rather than by unprojecting the raw
+ * `frame.height` pixel — that raw pixel is only the true ground when padding is zero, and a padded
+ * production fit otherwise lets the real bottom growth origin drift across the pull-back. A
+ * hand-built `Camera` with no `groundWorldY` keeps the prior raw-pixel behaviour exactly.
  */
 export function act2RegrowCamera(
   fitted: Camera,
@@ -45,12 +60,41 @@ export function act2RegrowCamera(
   const progress = Number.isFinite(cursor) ? Math.max(0, Math.min(1, cursor)) : 0;
   if (reducedMotion || progress === 1 || frame.width <= 0 || frame.height <= 0) return { ...fitted };
 
-  const anchor = screenToWorld(fitted, frame.width / 2, frame.height / 2);
-  const scale = fitted.scale * (1 + (ACT2_REGROW_OPENING_SCALE - 1) * (1 - progress));
+  const anchorX = screenToWorld(fitted, frame.width / 2, frame.height).x;
+  const groundWorldY = fitted.groundWorldY;
+  const anchorY = groundWorldY !== undefined
+    ? groundWorldY
+    : screenToWorld(fitted, frame.width / 2, frame.height).y;
+  const targetY = groundWorldY !== undefined
+    ? fitted.ty + fitted.scale * groundWorldY
+    : frame.height;
+
+  let scale = fitted.scale * (1 + (ACT2_REGROW_OPENING_SCALE - 1) * (1 - progress));
+  // Contain the growth envelope already revealed at this cursor (the world's own bottom-up
+  // fraction, `groundWorldY * (1 - progress)`) — its top must never project above the frame's own
+  // top edge. `targetY` is exactly the screen y the ground point (`groundWorldY`) sits at for
+  // whatever scale is used, so the envelope top's screen y is `targetY - scale * groundWorldY *
+  // progress`; requiring that be >= 0 bounds `scale` by `targetY / (groundWorldY * progress)`. The
+  // single linear opening interpolation above does not always zoom out fast enough through the
+  // cursor range near 1 under a real padded/contain fit, so clamp down to the containing scale
+  // whenever it is tighter (never looser — this only ever zooms OUT further, preserving the
+  // monotonic pull-back and the exact identity/opening endpoints at progress 1 and 0).
+  if (groundWorldY !== undefined && groundWorldY > 0 && progress > 0) {
+    const containScale = targetY / (groundWorldY * progress);
+    if (containScale < scale) scale = containScale;
+  }
+  // The containment clamp above is derived assuming the settled fitted camera already shows the
+  // envelope's own top at or above the frame's top edge — true for a 'contain'-shaped fit, but NOT
+  // true of fitWorld's default 'width' fit, which deliberately overflows vertically. Under that
+  // shape the clamp can drive `scale` below the settled `fitted.scale` well before progress 1, which
+  // would force a discontinuous zoom-IN snap back to `fitted.scale` at the very end of what is
+  // supposed to be a monotonic zoom-OUT. Floor the scale at the settled value so the pull-back only
+  // ever approaches settle from above (never overshoots past it and springs back).
+  if (scale < fitted.scale) scale = fitted.scale;
   return {
     scale,
-    tx: frame.width / 2 - scale * anchor.x,
-    ty: frame.height / 2 - scale * anchor.y,
+    tx: frame.width / 2 - scale * anchorX,
+    ty: targetY - scale * anchorY,
   };
 }
 
@@ -142,11 +186,12 @@ export function fitWorld(
     opts?.fit === 'contain' ? Math.min(widthScale, (frameH - 2 * pad) / worldH) : widthScale;
   if (opts?.maxScale !== undefined) scale = Math.min(scale, opts.maxScale);
   const tx = (frameW - worldW * scale) / 2;
-  const ty =
-    (opts?.align ?? 'bottom') === 'bottom'
-      ? frameH - pad - worldH * scale
-      : (frameH - worldH * scale) / 2;
-  return { tx, ty, scale };
+  const bottomAlign = (opts?.align ?? 'bottom') === 'bottom';
+  const ty = bottomAlign ? frameH - pad - worldH * scale : (frameH - worldH * scale) / 2;
+  // Bottom-aligned fits record their exact world ground point so downstream consumers (the Act 2
+  // regrow pull-back) can anchor to it directly instead of unprojecting the frame's raw bottom
+  // pixel, which drifts from the true ground by `padding / scale` whenever `padding` is non-zero.
+  return bottomAlign ? { tx, ty, scale, groundWorldY: worldH } : { tx, ty, scale };
 }
 
 /** Zoom range derived from the fit scale, so it adapts to world size. */

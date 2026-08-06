@@ -45,6 +45,7 @@ import {
   arcScopeOf,
   type ArcWriteDeps,
 } from "./arc.js";
+import { questionCommand, questionHelp, type QuestionWriteDeps } from "./question.js";
 import { incrementCommand, incrementHelp, type CountCommitsSince } from "./increment.js";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import { CLI_AREAS } from "./cli-areas.js";
@@ -87,6 +88,8 @@ import {
 } from "./friction.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { coverageCommand, type CoverageUnit } from "./coverage.js";
+// ADR-0317 D2 — the subtree-grain ownership map + its disk-walk totality report (report-only).
+import { gatherFromDisk, ownershipCommand, ownershipHelp } from "./ownership.js";
 import { agentsCommand, agentStepCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike, type AttestDeps } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
@@ -120,9 +123,11 @@ import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
 import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
 import { claimLedgerCommand, isClaimLedgerVerb } from "@storytree/drive";
+import { claimHistoryCommand, isClaimHistoryVerb } from "@storytree/drive";
 import type { ClaimLedgerReadLike, ClaimLedgerStoreLike } from "@storytree/drive";
 // The claim namespace (ADR-0310 D2) — supplied by main.ts under --pg, never defaulted here.
 import type { ClaimUniverseLoader } from "@storytree/drive";
+import type { ClaimHistoryStoreLike } from "@storytree/drive";
 import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
 import type { ClaimDocT } from "@storytree/notice-board";
 import { findDependents } from "./retire.js";
@@ -1134,9 +1139,22 @@ function noticeboardHelp(): Envelope {
       "  storytree noticeboard release <unit-id> --pg                      drop this session's claim (any grade)",
       "  storytree noticeboard claims <unit-id> --pg                       the unit's rows, queue order",
       "",
+      "the AUDIT LOG (ADR-0310 D1) — every verb above reads STATE; `history` reads TRANSITIONS.",
+      "a refusal leaves no state behind, so only this can tell 'refused and about to queue' from",
+      "'never claimed'. read-only; default window 30 days.",
+      "  storytree noticeboard history --pg                                the window's summary: totals, types, hot spots",
+      "  storytree noticeboard history <unit-id> --pg                      that unit's transitions + hold spans",
+      "  storytree noticeboard history --refusals --pg                     every refusal + who blocked it",
+      "  storytree noticeboard history --holdings --pg                     who held what, and for how long",
+      "    scope/window: --session <id> · --type <transition> · --days <n|all> · --limit <n|all>",
+      "",
       "writes need the live DB: pnpm db:up first. The board read degrades politely without it.",
     ].join("\n"),
-    next: ["pnpm db:up", "storytree noticeboard --pg"],
+    next: [
+      "pnpm db:up",
+      "storytree noticeboard --pg",
+      "storytree noticeboard history --pg",
+    ],
   };
 }
 
@@ -1265,7 +1283,11 @@ export interface RunDeps {
     readonly ledger?:
       | (ClaimLedgerStoreLike &
           Partial<ClaimLedgerReadLike> &
-          Partial<{ claimsBySession(sessionId: string): Promise<ClaimDocT[]> }>)
+          Partial<{ claimsBySession(sessionId: string): Promise<ClaimDocT[]> }> &
+          // The AUDIT-log read half (`noticeboard history`, ADR-0310 D1) — `PgClaimStore` carries
+          // it; a fake without it degrades that one verb to its offline refusal, exactly as the
+          // read halves above degrade the board.
+          Partial<ClaimHistoryStoreLike>)
       | null;
   };
   /**
@@ -1504,10 +1526,10 @@ function walkTestFiles(absDir: string): string[] {
  * A capability's coverage facts for the contract-coverage check (ADR-0020 follow-on): its declared
  * `## Contracts` ids + the VOUCHING test names across its proof surface (ADR-0126 — a test only counts
  * if it runs and asserts substantively, so a hollow `assert(true)` is excluded). Null for a missing/odd
- * spec. The proof surface is the registered real-build test file when present (the EXACT file a signed
- * `--real` green attests — the tightest honest signal for the gap), else the package/dir test files
- * walked from the proof scope's test globs (a suite-proven capability). Pure-by-injection seam for
- * `coverageCommand`.
+ * spec. The proof surface is the union of the registered real-build test file (the EXACT file a signed
+ * `--real` green attests — the tightest honest signal for the gap) and the real proof scope's test
+ * globs. A config without a real arm keeps the package/dir walk over its ordinary proof scope.
+ * Pure-by-injection seam for `coverageCommand`.
  */
 function loadCoverageUnit(storiesDir: string, root: string, unitId: string): CoverageUnit | null {
   const file = findNodeSpecFile(storiesDir, unitId);
@@ -1519,14 +1541,15 @@ function loadCoverageUnit(storiesDir: string, root: string, unitId: string): Cov
     return null;
   }
   const real = spec.buildConfig?.real;
-  let absFiles: string[];
-  if (real?.testFile !== undefined) {
-    absFiles = [path.join(root, real.testFile)];
-  } else {
-    const globs = spec.buildConfig?.scope.testGlobs ?? [];
-    const dirs = [...new Set(globs.map((g) => path.join(root, globBaseDir(g))))];
-    absFiles = [...new Set(dirs.flatMap((d) => walkTestFiles(d)))];
-  }
+  const globs = real?.scope.testGlobs ?? spec.buildConfig?.scope.testGlobs ?? [];
+  const scopedFiles = globs.flatMap((glob) => {
+    const absolute = path.join(root, glob);
+    return glob.includes("*") ? walkTestFiles(path.join(root, globBaseDir(glob))) : [absolute];
+  });
+  const absFiles = [
+    ...(real?.testFile !== undefined ? [path.join(root, real.testFile)] : []),
+    ...scopedFiles,
+  ].filter((candidate, index, files) => files.indexOf(candidate) === index);
   const existing = absFiles.filter((f) => existsSync(f));
   const testNames: string[] = [];
   let unreadTitles = 0;
@@ -1909,6 +1932,15 @@ export const CLI_OPTIONS = {
   // `storytree noticeboard claim/downgrade` — the claim grade + intent prose (ADR-0200 D2).
   grade: { type: "string" },
   intent: { type: "string" },
+  // `storytree noticeboard history` — the claim AUDIT-log read (ADR-0310 D1). `--days` windows
+  // (default 30, `all` for the whole log), `--session`/`--type` scope, `--limit` caps the rows,
+  // `--refusals`/`--holdings` pick the view. Read-only; nothing here touches a claim.
+  days: { type: "string" },
+  session: { type: "string" },
+  type: { type: "string" },
+  limit: { type: "string" },
+  refusals: { type: "boolean", default: false },
+  holdings: { type: "boolean", default: false },
   outcome: { type: "string" },
   witness: { type: "string" },
   signer: { type: "string" },
@@ -1971,6 +2003,15 @@ export const CLI_OPTIONS = {
   // prompted for goes in `--body`.
   objective: { type: "string" },
   body: { type: "string" },
+  // `storytree question new` — the open-question briefing fields (ADR-0314 D5). The four required
+  // ones are `KIND_SPECS`' own; `--arc` is declared above and reused. All long prose via @path — the
+  // bar is a briefing the owner can answer COLD, which is not a value that fits on a command line.
+  stakes: { type: "string" },
+  statement: { type: "string" },
+  context: { type: "string" },
+  options: { type: "string" },
+  diagram: { type: "string" },
+  recommendation: { type: "string" },
   scope: { type: "string" },
   migration: { type: "string" },
   source: { type: "string" },
@@ -2023,6 +2064,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     node?: string[];
     grade?: string;
     intent?: string;
+    /** `noticeboard history` — the audit-log read's window / scope / view (ADR-0310 D1). */
+    days?: string;
+    session?: string;
+    type?: string;
+    limit?: string;
+    refusals?: boolean;
+    holdings?: boolean;
     outcome?: string;
     witness?: string;
     signer?: string;
@@ -2061,6 +2109,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     friction?: string[];
     objective?: string;
     body?: string;
+    /** `question new` — the open-question briefing fields (ADR-0314 D5). */
+    stakes?: string;
+    statement?: string;
+    context?: string;
+    options?: string;
+    diagram?: string;
+    recommendation?: string;
     scope?: string;
     migration?: string;
     source?: string;
@@ -2196,6 +2251,32 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       deps.presence !== undefined && deps.presence.identity !== undefined
         ? deps.presence.identity
         : deriveIdentity();
+    // `history` — the claim AUDIT-log read (ADR-0310 D1). Routed BEFORE the ledger verbs because it
+    // needs no identity (it writes nothing) and drives a different store slice: the append-only
+    // `events.claim_event` log rather than the live `node_claim` rows. A fake ledger without the
+    // read half degrades to the offline refusal, like every other --pg surface here.
+    if (isClaimHistoryVerb(sub)) {
+      const auditStore = deps.presence?.ledger ?? null;
+      const auditHistory = auditStore?.auditHistory;
+      return claimHistoryCommand(
+        third,
+        {
+          ...(values.days !== undefined ? { days: values.days } : {}),
+          ...(values.session !== undefined ? { session: values.session } : {}),
+          ...(values.type !== undefined ? { type: values.type } : {}),
+          ...(values.limit !== undefined ? { limit: values.limit } : {}),
+          refusals: values.refusals === true,
+          holdings: values.holdings === true,
+        },
+        {
+          history:
+            auditHistory !== undefined
+              ? { auditHistory: (query) => auditHistory.call(auditStore, query) }
+              : null,
+          now: () => new Date(),
+        },
+      );
+    }
     // The graded claim-ledger verbs (ADR-0200 D2) route to the leaf-proven claimLedgerCommand;
     // declare/done keep the exact noticeboardCommand path below (byte-compatible).
     if (isClaimLedgerVerb(sub)) {
@@ -2669,6 +2750,33 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     );
   }
 
+  if (area === "question") {
+    // The open-question authoring surface (ADR-0314 D5): the verb an escalating session uses to put
+    // a decision in front of the owner. WRITE-only by design — reading is `library artifact list
+    // open-question --pg`, and answering is out of scope this round (ADR-0314 D9 keeps it read-only).
+    // Every prose flag arrives already `@path`-expanded from the boundary at the top of `run`, which
+    // is what lets a mermaid `--diagram` or a multi-paragraph `--context` survive the shell.
+    if (help) return questionHelp();
+    const writeDeps: QuestionWriteDeps = {
+      store: deps.store,
+      writable: deps.writable === true,
+      ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
+      now: new Date().toISOString(),
+      pg: values.pg === true,
+    };
+    return questionCommand(sub, third, writeDeps, {
+      ...(values.arc !== undefined ? { arc: values.arc } : {}),
+      ...(values.title !== undefined ? { title: values.title } : {}),
+      ...(values.stakes !== undefined ? { stakes: values.stakes } : {}),
+      ...(values.statement !== undefined ? { statement: values.statement } : {}),
+      ...(values.context !== undefined ? { context: values.context } : {}),
+      ...(values.options !== undefined ? { options: values.options } : {}),
+      ...(values.diagram !== undefined ? { diagram: values.diagram } : {}),
+      ...(values.recommendation !== undefined ? { recommendation: values.recommendation } : {}),
+      ...(values.description !== undefined ? { description: values.description } : {}),
+    });
+  }
+
   if (area === "increment") {
     // The consumption-time freshness check (ADR-0183 D2): git-log the paths the plan names since
     // its anchor; drift past threshold → re-plan, not repair. The git seam is injectable for tests.
@@ -2830,6 +2938,20 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return coverageCommand(sub, {
       loadUnit: (unitId) => loadCoverageUnit(storiesDir, root, unitId),
     });
+  }
+
+  if (area === "ownership") {
+    // ADR-0317 D2 — the SECOND declared ownership map, at subtree grain, held to the disk by a
+    // totality walk. REPORT-ONLY: it names every source file falling under no declared subtree and
+    // fails nothing. It reads `repo-manifest.json` `sourceOwnership`, never `proof.real.sourceFile`
+    // (a unit→file build target) or `scope.sourceGlobs` (a write fence) — neither is ownership, and
+    // both stay untouched so the prove-it-gate carries no risk. Offline, read-only.
+    if (help) return ownershipHelp();
+    const root = repoRoot();
+    return ownershipCommand(
+      { gather: () => gatherFromDisk(root) },
+      { all: values.all === true, ...(sub !== undefined ? { pkg: sub } : {}) },
+    );
   }
 
   if (area === "desktop") {

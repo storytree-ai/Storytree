@@ -49,6 +49,10 @@ export * from "./noticeboard-claims.js";
 // disk tree and the live Library, and carries the guard every claim-taking verb calls.
 export * from "./claim-namespace.js";
 export * from "./claim-universe.js";
+// `noticeboard history` — the READ verb over the claim AUDIT log (ADR-0310 D1): the ledger verbs
+// above and the board render STATE, this reads TRANSITIONS (holdings, refusals, the summary). A
+// refusal leaves no state behind, so no state read can answer for it.
+export * from "./noticeboard-history.js";
 // Claim-release honesty (the second instance of the ADR-0199 class): a run releases only the claim
 // its OWN take created, and every release that is not an explicit ceremony names the claim, the
 // caller and the time — so a silently-cleared claim is discovered when it happens, not a full gate

@@ -126,6 +126,14 @@ test("end-to-end over the REAL corpus: the disk loader filters to real-build cap
     health.testFiles.some((f) => f.includes("deploy-health.test.ts")),
     "deploy-health-signal's scanned surface should be its registered real-build test file",
   );
+
+  const act2 = report.scanned.find((u) => u.unitId === "act2-regrow-camera-zoom-out");
+  assert.ok(act2, "act2-regrow-camera-zoom-out should be scanned");
+  assert.deepEqual(act2.uncovered, [], "the drain sweep sees contract names from both real proof files");
+  assert.deepEqual(act2.testFiles, [
+    "apps/studio/src/lib/worldCamera.act2Bottom.node.ts",
+    "apps/studio/src/components/TreeView.act2Camera.test.tsx",
+  ]);
 });
 
 // ---------------------------------------------------------------------------
