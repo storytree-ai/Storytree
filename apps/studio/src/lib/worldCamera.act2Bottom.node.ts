@@ -40,6 +40,14 @@ test(
     const quarter = act2RegrowCamera(fitted, frame, 0.25);
     const halfway = act2RegrowCamera(fitted, frame, 0.5);
 
+    assert.ok(
+      ACT2_REGROW_OPENING_SCALE > 2.25,
+      `opening product parameter must be strictly closer than PR #1175's 2.25: got ${ACT2_REGROW_OPENING_SCALE}`,
+    );
+    assert.ok(
+      opening.scale > fitted.scale * 2.25,
+      `cursor-0 opening scale must be strictly closer (more zoomed in) than PR #1175's 2.25x: got ${opening.scale}, want > ${fitted.scale * 2.25}`,
+    );
     assert.equal(opening.scale, fitted.scale * ACT2_REGROW_OPENING_SCALE);
 
     for (const camera of [opening, quarter, halfway]) {

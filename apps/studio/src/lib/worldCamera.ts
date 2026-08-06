@@ -34,7 +34,7 @@ export interface CameraFrame {
  * The deliberately small Act 2 opening reveal. It is a product parameter rather than a hidden
  * animation state: the operator-attested leg judges this amount and the cursor projection below.
  */
-export const ACT2_REGROW_OPENING_SCALE = 2.25;
+export const ACT2_REGROW_OPENING_SCALE = 2.5;
 
 /**
  * Project the existing Act 2 regrow cursor onto one fixed camera framing.
