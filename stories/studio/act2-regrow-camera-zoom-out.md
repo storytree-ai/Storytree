@@ -21,7 +21,7 @@ proof:
     sourceFile: "apps/studio/src/lib/worldCamera.ts"
     editsExisting: true
     scope:
-      testGlobs: ["apps/studio/src/lib/worldCamera.act2Bottom.node.ts"]
+      testGlobs: ["apps/studio/src/lib/worldCamera.act2Bottom.node.ts", "apps/studio/src/components/TreeView.act2Camera.test.tsx"]
       sourceGlobs: ["apps/studio/src/lib/worldCamera.ts"]
     install: true
     typecheck:
