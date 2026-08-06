@@ -429,3 +429,84 @@ test("create: a refused take never reaches the baseline (no workspace, no cursor
   assert.equal(env.ok, false);
   assert.deepEqual(ledger.baselines, [], "no claim, no workspace, no baseline");
 });
+
+// ---------------------------------------------------------------------------
+// The claim namespace (ADR-0310 D2) — a phantom id never mints a worktree
+// ---------------------------------------------------------------------------
+
+/** A universe knowing story-a only, so anything else is a phantom. */
+const KNOWS_STORY_A = async () => ({
+  targets: [{ id: "story-a", kind: "story" as const }],
+  nonClaimable: [],
+  complete: true,
+  unreadSources: [],
+});
+
+test("create: an id naming NOTHING refuses with ZERO claim and ZERO worktree IO", async () => {
+  // The most expensive shape of the phantom failure: born-claimed on nothing, with a branch and a
+  // whole installed worktree hung off it. The fence sits in the parse block, on the right side of
+  // the ceremony's load-bearing invariant.
+  const ledger = fakeLedger();
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-aa"], intent: "poking at the seam" },
+    { ledger, universe: KNOWS_STORY_A, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+  );
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /names nothing in the work graph/);
+  assert.match(env.body, /story-a {2}\[story\]/, "the near-miss is named");
+  assert.deepEqual(ledger.takes, [], "no claim");
+  assert.equal(io.calls.exists.length, 0, "not even a mint draw");
+  assert.equal(io.calls.fetch, 0);
+  assert.equal(io.calls.add.length, 0);
+  assert.equal(io.calls.install.length, 0);
+});
+
+test("create: EVERY node is checked before any is refused — two typos are reported together", async () => {
+  const ledger = fakeLedger();
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-aa", "story-a", "stories/story-a"], intent: "x" },
+    { ledger, universe: KNOWS_STORY_A, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+  );
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /"story-aa"/);
+  assert.match(env.body, /"stories\/story-a"/, "the second bad id is not left for a re-run");
+  assert.deepEqual(ledger.takes, []);
+});
+
+test("create: a resolvable node proceeds through the whole ceremony untouched", async () => {
+  const ledger = fakeLedger();
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "poking at the seam" },
+    { ledger, universe: KNOWS_STORY_A, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.equal(ledger.takes.length, 1);
+  assert.equal(io.calls.add.length, 1);
+});
+
+test("create: with NO universe every id passes, exactly as before ADR-0310", async () => {
+  const ledger = fakeLedger();
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["whoami"], intent: "x" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(
+    ledger.takes.map((t) => t.unitId),
+    ["whoami"],
+  );
+});
+
+test("create: the missing-intent refusal still precedes the namespace check — it needs no corpus read", async () => {
+  const ledger = fakeLedger();
+  const env = await createWorktree(
+    { nodes: ["story-aa"], intent: "  " },
+    { ledger, universe: KNOWS_STORY_A, io: fakeIo(), stamps: NO_STAMPS },
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /requires --intent/);
+});

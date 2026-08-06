@@ -92,19 +92,22 @@ loudly rather than falling back — a generator that silently read a stale corpu
 sync" while reverting a live edit. Both were proved to render the committed projections
 byte-identically from live, which is the evidence that the two surfaces genuinely agreed. CI's
 `verify` acquires the ADR-0302 D3 credential right after `pnpm install` (setup, not a check) so
-those two rungs remain in CI. ADR-0311 later moves them to the late shared-state block. **NOT YET DONE, and this is the honest remainder:**
-`apps/studio/data/knowledge.json` is still on disk. Nothing writes it and no production path treats
-it as canonical, so the CHURN this decision targeted is gone — but ~23 test files, the CLI's offline
-read path, `check:process-graph`, `check-surface-coverage`, the desktop's inline `loadCorpus` clone
-and the studio's JSON backend still read it, and it stays as a declared frozen fixture until they are
-re-homed. The OTHER seed remainder is now closed: `apps/studio/data/seed-kinds/uat-criterion/` held
+those two rungs remain in CI. ADR-0311 later moves them to the late shared-state block. **DONE SINCE — corrected in place
+2026-08-06 per ADR-0139** (this read: "NOT YET DONE, and this is the honest remainder:
+`apps/studio/data/knowledge.json` is still on disk … it stays as a declared frozen fixture until they
+are re-homed"). The file was DELETED in `0a933392` and every reader re-homed: hermetic suites read
+`@storytree/library/fixture` instead — a small FROZEN literal that is deliberately NOT a mirror and is
+never reconciled, which is what keeps `pnpm -r test` credential-free under D3 — and the rest read the
+LIVE store. Two of the rungs named in the original wording, `check:process-graph` and
+`check:surface-coverage`, were retired outright by ADR-0311 D2 rather than re-homed. **Do not look for
+that file and do not re-create it**, and add no check that compares anything to it. The OTHER seed remainder is now closed: `apps/studio/data/seed-kinds/uat-criterion/` held
 70 detail artifacts of which 52 existed in no other place, so it was a MIGRATION rather than a
 deletion — the 52 were created in the live store, the 18 already-present ids were left untouched
 after their proof-bearing fields verified byte-identical, and the directory was deleted on 2026-08-05
 (ADR-0307 D5). The live tier now holds **74**, not 70: the seed and the store had each carried rows
 the other did not, so re-measuring rather than trusting the inherited 70/22/52 figures is what kept
-the migration from deleting four live-only artifacts. `apps/studio/data/knowledge.json` is the one
-remainder still parked on the arc.)*
+the migration from deleting four live-only artifacts. Both seed remainders are now closed; no
+committed file mirrors the corpus.)*
 
 **D5 — what stays on disk, and why this is not a contradiction.** The harness-native guidance
 surfaces — CLAUDE.md, AGENTS.md and `.claude/agents/*` — remain committed files, because the harness

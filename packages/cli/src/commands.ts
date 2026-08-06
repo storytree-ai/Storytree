@@ -125,6 +125,8 @@ import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
 import { claimLedgerCommand, isClaimLedgerVerb } from "@storytree/drive";
 import { claimHistoryCommand, isClaimHistoryVerb } from "@storytree/drive";
 import type { ClaimLedgerReadLike, ClaimLedgerStoreLike } from "@storytree/drive";
+// The claim namespace (ADR-0310 D2) — supplied by main.ts under --pg, never defaulted here.
+import type { ClaimUniverseLoader } from "@storytree/drive";
 import type { ClaimHistoryStoreLike } from "@storytree/drive";
 import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
 import type { ClaimDocT } from "@storytree/notice-board";
@@ -1289,6 +1291,19 @@ export interface RunDeps {
       | null;
   };
   /**
+   * The claim NAMESPACE (ADR-0310 D2): resolves a claimed unit id to a real story / capability /
+   * contract / arc / increment, so `noticeboard claim`, `noticeboard upgrade`, `noticeboard declare
+   * --node` and `worktree create --node` refuse an id that names nothing rather than writing a row
+   * that protects nothing.
+   *
+   * DELIBERATELY NOT DEFAULTED HERE. `main.ts` supplies it, and only under `--pg`, because only the
+   * composition root knows that `store` is the live corpus. Defaulting it from `deps.store` would
+   * hand every test holding an `InMemoryStore` a universe that is EMPTY and yet reports itself
+   * COMPLETE — which is exactly the shape that refuses legitimate claims. Absent/null = unchecked,
+   * the pre-ADR-0310 behaviour, which is what every test sees unless it injects one.
+   */
+  readonly claimUniverse?: ClaimUniverseLoader | null;
+  /**
    * The verdict event log (verdict-glyphs): the live work-store slice when --pg; null/absent
    * offline — the tree's glyph column is then silently absent (never an error).
    */
@@ -2276,6 +2291,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           claims: deps.presence?.ledger ?? null,
           identity,
           now: () => new Date(),
+          universe: deps.claimUniverse ?? null,
         },
       );
     }
@@ -2305,6 +2321,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           listLiveClaims !== undefined
             ? { listLiveClaims: () => listLiveClaims.call(ledgerStore) }
             : null,
+        // The claim namespace (ADR-0310 D2) — `declare --node` is a claim-taking path.
+        universe: deps.claimUniverse ?? null,
       },
     );
   }
@@ -2371,6 +2389,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         { nodes: values.node ?? [], intent: values.intent ?? "" },
         {
           ledger: deps.presence?.ledger ?? null,
+          // The claim namespace (ADR-0310 D2) — this ceremony BORNS a session claimed, so a
+          // phantom id here mints a whole worktree around a claim on nothing.
+          universe: deps.claimUniverse ?? null,
           ...(deps.worktree?.createIo !== undefined ? { io: deps.worktree.createIo } : {}),
           ...(deps.worktree?.stamps !== undefined ? { stamps: deps.worktree.stamps } : {}),
           ...(deps.worktree?.generateSuffix !== undefined

@@ -29,7 +29,7 @@ import process from "node:process";
 
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
 import { claimGrade, exploringClaimRequest } from "@storytree/notice-board";
-
+import { guardClaimNamespace, type ClaimUniverseLoader } from "@storytree/drive";
 
 import { storyArcStamps } from "./arc.js";
 import type { Envelope } from "./envelope.js";
@@ -223,6 +223,12 @@ export interface WorktreeCreateOpts {
 export interface WorktreeCreateDeps {
   /** The live claim ledger (--pg); null offline — the ceremony refuses (no claim, no workspace). */
   readonly ledger: WorktreeCreateLedgerLike | null;
+  /**
+   * The claim NAMESPACE (ADR-0310 D2). This ceremony BORNS a session claimed, so a phantom id here
+   * mints a whole worktree around a claim on nothing — the most expensive shape of the failure.
+   * Absent/null = unchecked (the pre-ADR-0310 behaviour).
+   */
+  readonly universe?: ClaimUniverseLoader | null;
   readonly io?: WorktreeCreateIo;
   /** Story→arc provenance stamps for the mint; defaults to reading `<primary>/stories/`. */
   readonly stamps?: () => ReadonlyArray<{ story: string; arc: string }>;
@@ -294,6 +300,27 @@ export async function createWorktree(
       next: ["pnpm db:up", USAGE],
     };
   }
+  // THE NAMESPACE FENCE (ADR-0310 D2) — still inside the parse block, so it lands on the right side
+  // of the ceremony's load-bearing invariant: no claim, no workspace. A phantom id caught here costs
+  // nothing; the same id caught after the mint would already have a branch and a worktree hung off
+  // a claim that protects nothing. Every node is checked before any is refused, so a session with
+  // two typos is told about both rather than discovering the second on the re-run.
+  const unresolved: Envelope[] = [];
+  for (const node of nodes) {
+    const named = await guardClaimNamespace({ id: node, universe: deps.universe, verb: USAGE });
+    if (!named.ok) unresolved.push(named.refusal);
+  }
+  const firstUnresolved = unresolved[0];
+  if (firstUnresolved !== undefined) {
+    return unresolved.length === 1
+      ? firstUnresolved
+      : {
+          ok: false,
+          body: unresolved.map((r) => r.body).join("\n\n"),
+          next: [...new Set(unresolved.flatMap((r) => r.next ?? []))],
+        };
+  }
+
   const ledger = deps.ledger;
   const io = deps.io ?? defaultWorktreeCreateIo;
 

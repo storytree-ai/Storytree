@@ -15,6 +15,23 @@ of the decisions below were directed, so under ADR-0110 this is `proposed`. D1 a
 measurement supports outright and are unconditional; D3 is a recommendation on the fork, and D4
 escalates the question the recommendation cannot settle.
 
+**Still `proposed` after D2 shipped (2026-08-06), and deliberately so.** Building an unconditional
+decision is not the owner ratifying the ADR. The green flip under ADR-0084 only transcribes prose
+that already supports it, and this prose reserves ratification — "none of the decisions below were
+directed". ADR-0110 decided exactly this case: ADR-0106 and ADR-0107 were owner-directed AND built
+and still sat `proposed`, because flipping them would have invented a ratification their own prose
+says never happened.
+
+Much of this content HAS since been directed — but in ADR-0317, not here. ADR-0317 (accepted,
+owner-directed 2026-08-06, `amends` this ADR) settles D4's fork outright, and it also takes both
+halves of D3: its D2 ships the ownership map REPORT-ONLY "per ADR-0310 D3 — unchanged", and its D3
+makes the declared substrate entry claimable, which closes the failure mode D3 named. So D3 is no
+longer an open recommendation — but it was ratified THERE, in the ADR that records the owner's
+direction, and copying that ratification back onto this one would double-record a single owner
+decision across two ADRs. What remains unratified here is D5, whose edge design is still conditional
+on an unmade choice and which ADR-0317 D3 reframes as an instance of a general rule rather than a
+separate design. D1 and D2 were always unconditional and needed no ratification to build.
+
 ## Context
 
 ### What is NOT the problem — stated first, because two earlier framings were wrong
@@ -120,11 +137,24 @@ including this arc's own falsifier, and it is the cheapest item on the list.
 **D2. The claim namespace becomes typed and resolvable — unconditional, and a prerequisite for BOTH
 candidates below.** A claim names a KIND and an id that resolves to a real object of that kind; an id
 resolving to nothing is REFUSED at the point of claiming, naming the near-miss, instead of being
-accepted and reported as a lit wisp. `check:declared` verifies resolution rather than mere presence.
-This does not re-open ADR-0270 D3: that made the rung blind to GRADE and TIER so it fences against
-having no claim rather than the wrong one; refusing an id that names nothing is orthogonal — a
-phantom claim is the absence D3 already means to catch, wearing a string. Whatever object is made
-claimable next, this must exist first, or nothing can distinguish a legitimate new kind from a typo.
+accepted and reported as a lit wisp. This does not re-open ADR-0270 D3, and the citation is worth
+getting right: ADR-0270 D3 is the HONESTY remedy in `noticeboard-claims.ts` — a `waiting` claim stops
+rendering a fictional queue position, and a refusal prints the unit's full claim board — and this
+landing leaves both untouched, adding a resolution check AHEAD of them. Grade- and tier-blindness is
+a different decision: ADR-0200 D3's rung fence, which ADR-0270's Context measured as "a fence against
+having no claim, never against having the wrong one", and which ADR-0311 D2 has since retired
+outright. Refusing an id that names nothing is orthogonal to both — a phantom claim is the absence
+those fences already mean to catch, wearing a string. Whatever object is made claimable next, this
+must exist first, or nothing can distinguish a legitimate new kind from a typo.
+
+*This decision originally carried a second clause — "`check:declared` verifies resolution rather
+than mere presence" — which is CORRECTED IN PLACE rather than left standing, because the rung it
+names no longer exists: **ADR-0311 D2 retired `check:declared` from the gate on 2026-08-05**, the
+same day this was written, and `packages/cli/src/check-declared.ts` now carries the `UNWIRED`
+banner. Re-wiring it would need fresh production-catch evidence AND its own ADR (ADR-0311 D5), which
+this is not. The sequencing fence below anticipated exactly this and named the answer: the
+refuse-at-claim-time half stands alone and is the more important half, because it catches the typo
+at the moment it is made rather than at the next gate. That half is what shipped.*
 
 **D3. RECOMMENDATION on the fork: substrate addressability before edge addressability — the coverage
 gate ships REPORT-ONLY first, and its escape hatch must itself be claimable.** Three findings drive
@@ -200,11 +230,49 @@ exercise: 398 files need a declaration of some kind, and the binding mechanism i
 for ownership, so it may need widening before it can carry this. Report-only means the hole stays
 open while it is walked down, and a report nobody reads changes nothing.
 
-**Sequencing.** `gate-machinery-audit-arc` is auditing gate rungs with a standing bias to DELETE, so
-homing rungs that may be deleted is waste — but that fence covers ~22 rungs, not 398 files, so it
-constrains a subset of the exercise rather than gating it. D2 hardens `check:declared`, which is
-itself in that audit: confirm the rung survives before investing, though D2's refuse-at-claim-time
-half stands alone and is the more important half regardless.
+*(Corrected in place 2026-08-06 per ADR-0139: the binding-mechanism guidance in the paragraph above
+is overtaken and must not be acted on as written. **ADR-0317 D1/D2 answered it — do NOT widen
+`proof.real.sourceFile`.** It is a unit→file build target and cannot be inverted into file→owner,
+being neither surjective nor injective, so the enumeration is nearly FULL rather than decayed and no
+future check, report or ADR may read the strict-coverage number as a maintenance backlog. Ownership
+instead becomes a SECOND declared map at SUBTREE grain, where globs ARE permitted because that map
+binds no verdict, held to the disk by a totality check; `proof.real.sourceFile` and
+`scope.sourceGlobs` are untouched. The 78.2% figure above stands — ADR-0317 says so explicitly — but
+only as a statement about what the prove-it-gate covers. Subtree grain also softens the ratchet
+argument: the initial unowned list becomes a walkable backlog rather than 398 files.)*
+
+**Sequencing — ANSWERED, and the fence fired.** `gate-machinery-audit-arc` was auditing gate rungs
+with a standing bias to DELETE, so homing rungs that may be deleted is waste — that fence covered
+~22 rungs, not 398 files, so it constrained a subset of the exercise rather than gating it. D2 named
+`check:declared` and told the builder to confirm the rung survived before investing. **It did not
+survive**: ADR-0311 D2 retired it, and the arc closed. The check confirmed the fence was worth
+carrying — the rung half of D2 was dropped unbuilt and the refuse-at-claim-time half, which D2 had
+already named as the more important one, was built alone.
+
+**What D2 shipped, 2026-08-06 (`first-class-edges-arc` increment 2).** The four claim-taking paths —
+`noticeboard claim`, `noticeboard upgrade`, `noticeboard declare --node` and `worktree create
+--node` — resolve the id before writing, and refuse an unresolvable one naming the near-miss.
+`packages/drive/src/claim-namespace.ts` is the pure resolver; `claim-universe.ts` gathers the
+namespace from the disk tree (story / capability / contract) and the live Library (arc / increment).
+Three findings from building it, each of which changed the decision as written:
+
+- **The claimable kind set is FIVE, not four.** `increment` had to be added: sessions already claim
+  increments as work (`escalation-authors-an-open-question-briefing`), and omitting it would have
+  refused legitimate claims — a worse failure than the leak. The membership rule is now measured
+  rather than reasoned: a kind is claimable when the ledger shows it claimed as work.
+- **The kind is DERIVED, not typed by the caller and not persisted.** "A claim names a KIND" is
+  satisfied by resolution deriving it. A `--kind` flag would tax every claim to restate what the id
+  determines, and an enum column in `events.node_claim` would need a migration per new kind — which
+  ADR-0317 D3 guarantees there will be.
+- **The check stands DOWN rather than refuse when the namespace cannot be read in full.** A false
+  refusal blocks real work; the leak only fails to catch a typo. So an absent loader, an unreadable
+  source, or a throwing read all proceed exactly as before.
+
+Measured against the live corpus on landing: all 26 phantom ids refused, 14 of 14 near-misses
+surfaced, and **zero false refusals across all 199 legitimate ids in the 40-day ledger.** The 26 are
+explained — not deleted, they are audit rows — as a declared inventory (`MEASURED_PHANTOM_CLAIMS`)
+held to the resolver by test, the `RETIRED_CHECKS` pattern. The event count had already grown 84 → 86
+between this ADR being written and the fix landing, which is the leak demonstrating itself.
 
 **Not a concurrency cap.** Every decision here removes coupling by making things finer and more
 precisely addressable, or adds an instrument. The owner rejected a cap on 2026-08-04 on the ground
@@ -226,7 +294,13 @@ reinstates one.
 - ADR-0242 / PR #923 — the `trail-lit` selection lane any future edge render must not collide with.
 - ADR-0223 / `directional-dag-arc` — the same first-class-edge question for the knowledge graph's
   `standsOn` edge; sibling, not parent.
+- ADR-0311 D2 — retired `check:declared`, which is why D2's rung clause is corrected above.
+- ADR-0317 — `amends` this ADR, and reaches two of its decisions: D3 there answered D4's fork (the
+  claim unit is any addressable object), while D2 there took D3's report-only coverage gate and
+  corrected the binding-mechanism guidance in D3's consequences (a second subtree-grain map; do NOT
+  widen `proof.real.sourceFile`).
 - `repo-manifest.json` (`packageOwnership`), `packages/cli/src/check-coverage.ts`,
-  `packages/cli/src/check-declared.ts`, `packages/drive/src/noticeboard-claims.ts`,
+  `packages/drive/src/claim-namespace.ts`, `packages/drive/src/claim-universe.ts`,
+  `packages/cli/src/check-declared.ts` (UNWIRED), `packages/drive/src/noticeboard-claims.ts`,
   `packages/library/src/schema.ts`, `packages/forest-world/src/routing.ts`,
   `packages/library/src/store/schema.sql` (`events.claim_event`).

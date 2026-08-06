@@ -1,5 +1,6 @@
 #!/usr/bin/env -S tsx
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -26,7 +27,13 @@ import type { AdrAllocatorLike } from "./adr.js";
 import type { AttestationStoreLike } from "./attest.js";
 import { isRawEnvelope, run } from "./commands.js";
 import { formatEnvelope, withDeltaFooter, type Envelope } from "./envelope.js";
-import { deriveIdentity, resolveStoreDoor, openCorpusStore } from "@storytree/drive";
+import {
+  createClaimUniverseLoader,
+  deriveIdentity,
+  openCorpusStore,
+  repoRoot,
+  resolveStoreDoor,
+} from "@storytree/drive";
 import type { OpenCorpusStore } from "@storytree/drive";
 import type { ClaimLedgerStoreLike, SessionClaimStoreLike } from "@storytree/drive";
 import { loadLocalSecrets } from "./secrets.js";
@@ -313,6 +320,18 @@ export async function main(): Promise<void> {
       store,
       writable: usePg,
       presence: { claims, ledger },
+      // The claim NAMESPACE (ADR-0310 D2) — supplied HERE and only here, because this is the one
+      // place that knows the store is the live corpus rather than a test double. A memoised loader,
+      // invoked lazily by the claim-taking verbs alone, so a command that takes no claim never
+      // reads it; and only under --pg, since every one of those verbs already refuses without it.
+      ...(usePg
+        ? {
+            claimUniverse: createClaimUniverseLoader({
+              storiesDir: path.join(repoRoot(), "stories"),
+              library: store,
+            }),
+          }
+        : {}),
       verdicts,
       uatStore,
       attestations,
