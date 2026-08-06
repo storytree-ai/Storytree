@@ -54,6 +54,25 @@ test("RED: a unit with an uncovered contract FAILS the check and names the uncov
   assert.match(env.body, /fr-ready-when-broker-accepts-builder\s+COVERED/);
 });
 
+test("an UNCOVERED report says whether the titles were UNREADABLE or the tests absent", async () => {
+  // The two facts a `0/N` can mean. Same uncovered list, different claim — the report must say which.
+  const absent = await coverageCommand("u", deps({ loadUnit: () => ({ ...FOREST_UNIT, unreadTitles: 0 }) }));
+  assert.match(absent.body, /3 UNCOVERED contract\(s\)/);
+  assert.ok(
+    !/could NOT be read/.test(absent.body),
+    "with every title readable, the uncovered list is a claim about the TESTS — no reader caveat",
+  );
+
+  const unread = await coverageCommand("u", deps({ loadUnit: () => ({ ...FOREST_UNIT, unreadTitles: 2 }) }));
+  assert.match(unread.body, /2 test title\(s\) could NOT be read in full/);
+  assert.match(unread.body, /limit of the\s+READER rather than a missing test/);
+});
+
+test("a loader that does not measure unread titles adds no caveat (absent ≠ zero-claim)", async () => {
+  const env = await coverageCommand("u", deps({ loadUnit: () => FOREST_UNIT }));
+  assert.ok(!/could NOT be read/.test(env.body));
+});
+
 test("GREEN: a unit whose every contract is named by a test PASSES the check", async () => {
   const env = await coverageCommand(
     "deploy-health-signal",

@@ -64,6 +64,11 @@
 
 import ts from "typescript";
 
+// ADR-0126's OWN title reader, shared rather than cloned — `findVacuousProof` joins these names
+// against `extractVouchingTestNames`'s output, so the two must spell a title identically (see
+// `declaredName`). Both packages resolve the same `typescript`, so the AST nodes are interchangeable.
+import { readTestCallTitle } from "@storytree/orchestrator";
+
 // TYPE-ONLY, and deliberately so: the attribution core imports `DecayFinding` from here, so a value
 // import either way would be a cycle. Attribution decides WHO a located signal belongs to; this file
 // decides WHAT is located and what a backlog costs. Neither owns the other.
@@ -473,18 +478,19 @@ function calleeRoot(expr: ts.Expression): string | undefined {
 }
 
 /**
- * The name a declaration declares — its first string-literal-like argument. Deliberately IDENTICAL to
- * ADR-0126's `testCallName`, including the template-with-substitutions case: these names are JOINED
- * against `extractVouchingTestNames`'s output, so a different spelling here would silently fail to
- * match and the instrument would under-report while still looking healthy.
+ * The name a declaration declares — DELEGATED to ADR-0126's own reader (`readTestCallTitle`), never
+ * re-implemented. These names are JOINED against `extractVouchingTestNames`'s output, so a different
+ * spelling here would silently fail to match and the instrument would under-report while still
+ * looking healthy. This used to be a hand-kept COPY carrying that warning in a comment; the warning
+ * came true on 2026-08-06, when teaching the classifier to fold `+`-concatenated titles would have
+ * left the copy behind. Sharing the function makes the agreement structural instead of remembered.
+ *
+ * A title with NO readable static text reads `null` here, exactly as the copy did: an unnamed
+ * declaration cannot join against anything, so it contributes no finding either way.
  */
 function declaredName(arg: ts.Expression | undefined): string | null {
-  if (arg === undefined) return null;
-  if (ts.isStringLiteralLike(arg)) return arg.text;
-  if (ts.isTemplateExpression(arg)) {
-    return arg.head.text + arg.templateSpans.map((s) => s.literal.text).join("");
-  }
-  return null;
+  const title = readTestCallTitle(arg);
+  return title !== null && title.text.length > 0 ? title.text : null;
 }
 
 /**

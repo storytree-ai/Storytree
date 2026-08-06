@@ -29,10 +29,17 @@ export interface CoverageUnit {
   tier: string;
   /** The declared contract ids (`NodeSpec.contracts`), in declared order. */
   contractIds: string[];
-  /** The observed test names across the unit's proof surface (from `extractTestNames`). */
+  /** The observed test names across the unit's proof surface (from `readTestSurface`). */
   testNames: string[];
   /** The test file(s) scanned, repo-relative — honest provenance for the report footer. */
   testFiles: string[];
+  /**
+   * How many observed test titles the static reader could NOT read in full (`readTestSurface`).
+   * Absent = the loader did not measure it. Non-zero means an UNCOVERED verdict below is at least
+   * partly a statement about this checker's reach, not about the tests — a different claim from
+   * "no test names this contract", and one the report must not swallow.
+   */
+  unreadTitles?: number;
 }
 
 export interface CoverageDeps {
@@ -110,6 +117,20 @@ export async function coverageCommand(
       "  not every enumerated contract. Author a test that NAMES each (the `describe(\"<id>: …\")`",
       "  convention) AND asserts something substantive (a hollow `assert(true)` does not count, ADR-0126),",
       "  or split/retire the contract if it is not a real obligation.",
+    );
+  }
+
+  // "Could not read the title" is NOT "no such test" — say which one this report means. Without this
+  // line an uncovered list reads as a claim about the TESTS when it may be a claim about the READER.
+  const unread = unit.unreadTitles ?? 0;
+  if (unread > 0) {
+    lines.push(
+      "",
+      `⚠ ${unread} test title(s) could NOT be read in full by this static check.`,
+      "  Only their literal text was read, so a contract id sitting in an elided part was invisible and any",
+      "  UNCOVERED above may be a limit of the READER rather than a missing test. A title is read statically:",
+      "  a `${…}` substitution or a runtime-built name is elided, while concatenated string literals ARE read",
+      "  (folded), as are parenthesised ones — so the usual fix is to make the dynamic part a plain literal.",
     );
   }
 

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { extractVouchingTestNames } from "@storytree/orchestrator";
+
 import { attributeDecayFindings } from "./decay-attribution.js";
 import {
   CHARTERED_INSTRUMENTS,
@@ -315,6 +317,28 @@ describe("findOptionsFormSkips: reading the skip form the repo's own classifier 
       "x.test.ts",
     );
     assert.deepEqual([...skips.keys()], []);
+  });
+
+  it("spells a title EXACTLY as ADR-0126's classifier does, so the vacuous-proof join holds", () => {
+    // The coupling this instrument rests on: `findVacuousProof` matches these names against
+    // `extractVouchingTestNames`'s output. A title shape only ONE of the two readers understands
+    // makes the join miss silently — the instrument reports nothing and still looks healthy. This
+    // used to be kept true by a hand-copied reader; it is now the same function, and this pins it.
+    const src = [
+      'test("gated-contract: a title split " + "across two literals",',
+      "     { skip: !DB }, () => { assert.equal(actual, expected); });",
+    ].join("\n");
+    const skipped = [...findOptionsFormSkips(src, "x.test.ts").keys()];
+    // Both readers must produce the SAME string for the join to land…
+    assert.deepEqual(skipped, ["gated-contract: a title split across two literals"]);
+    // …which is only checkable against the other reader itself. (The options-form skip is invisible
+    // to `analyzeObservedTests` by design, ADR-0126's named blind spot, so it reads as vouching.)
+    assert.deepEqual(extractVouchingTestNames(src), skipped);
+    // And the finding the join produces is actually emitted, end to end.
+    const findings = findVacuousProof([
+      testFile("x.test.ts", { "gated-contract: a title split across two literals": "skip: !DB" }, skipped),
+    ]);
+    assert.equal(findings.length, 1);
   });
 });
 
