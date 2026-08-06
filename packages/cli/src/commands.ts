@@ -1489,10 +1489,10 @@ function walkTestFiles(absDir: string): string[] {
  * A capability's coverage facts for the contract-coverage check (ADR-0020 follow-on): its declared
  * `## Contracts` ids + the VOUCHING test names across its proof surface (ADR-0126 — a test only counts
  * if it runs and asserts substantively, so a hollow `assert(true)` is excluded). Null for a missing/odd
- * spec. The proof surface is the registered real-build test file when present (the EXACT file a signed
- * `--real` green attests — the tightest honest signal for the gap), else the package/dir test files
- * walked from the proof scope's test globs (a suite-proven capability). Pure-by-injection seam for
- * `coverageCommand`.
+ * spec. The proof surface is the union of the registered real-build test file (the EXACT file a signed
+ * `--real` green attests — the tightest honest signal for the gap) and the real proof scope's test
+ * globs. A config without a real arm keeps the package/dir walk over its ordinary proof scope.
+ * Pure-by-injection seam for `coverageCommand`.
  */
 function loadCoverageUnit(storiesDir: string, root: string, unitId: string): CoverageUnit | null {
   const file = findNodeSpecFile(storiesDir, unitId);
@@ -1504,14 +1504,15 @@ function loadCoverageUnit(storiesDir: string, root: string, unitId: string): Cov
     return null;
   }
   const real = spec.buildConfig?.real;
-  let absFiles: string[];
-  if (real?.testFile !== undefined) {
-    absFiles = [path.join(root, real.testFile)];
-  } else {
-    const globs = spec.buildConfig?.scope.testGlobs ?? [];
-    const dirs = [...new Set(globs.map((g) => path.join(root, globBaseDir(g))))];
-    absFiles = [...new Set(dirs.flatMap((d) => walkTestFiles(d)))];
-  }
+  const globs = real?.scope.testGlobs ?? spec.buildConfig?.scope.testGlobs ?? [];
+  const scopedFiles = globs.flatMap((glob) => {
+    const absolute = path.join(root, glob);
+    return glob.includes("*") ? walkTestFiles(path.join(root, globBaseDir(glob))) : [absolute];
+  });
+  const absFiles = [
+    ...(real?.testFile !== undefined ? [path.join(root, real.testFile)] : []),
+    ...scopedFiles,
+  ].filter((candidate, index, files) => files.indexOf(candidate) === index);
   const existing = absFiles.filter((f) => existsSync(f));
   const testNames: string[] = [];
   let unreadTitles = 0;

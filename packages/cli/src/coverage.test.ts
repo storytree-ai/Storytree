@@ -132,3 +132,14 @@ test("end-to-end over the REAL corpus: deploy-health-signal's three contracts ar
   assert.match(env.body, /deploy-health-red-run-classifies-loud\s+COVERED/);
   assert.match(env.body, /scanned 1 test file\(s\).*deploy-health\.test\.ts/);
 });
+
+test("end-to-end: coverage unions real.testFile with the extra real scope test globs", async () => {
+  const env = await run(["coverage", "act2-regrow-camera-zoom-out"], { store: new InMemoryStore() });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /contracts: 4\s+\(4 covered, 0 uncovered\)/);
+  assert.match(env.body, /act2-regrow-camera-projects-the-existing-cursor\s+COVERED/);
+  assert.match(env.body, /act2-regrow-camera-owns-input-only-until-settle\s+COVERED/);
+  assert.match(env.body, /scanned 2 test file\(s\)/);
+  assert.match(env.body, /worldCamera\.act2Bottom\.node\.ts/);
+  assert.match(env.body, /TreeView\.act2Camera\.test\.tsx/);
+});
