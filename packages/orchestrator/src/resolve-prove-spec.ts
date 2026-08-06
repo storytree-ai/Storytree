@@ -20,7 +20,8 @@ import type { ContractCoverageAxis } from "@storytree/proof-protocol";
 
 import { resolveSigner } from "./proof/signer.js";
 import type { SignerInputs } from "./proof/signer.js";
-import { classifyDeclaredCoverage, extractVouchingTestNames } from "./proof/contract-coverage.js";
+import { classifyDeclaredCoverage, readTestSurface } from "./proof/contract-coverage.js";
+import type { TestSurfaceRead } from "./proof/contract-coverage.js";
 import { PathWriteScope } from "./phase-machine.js";
 import type { ExpectedRed } from "./phase-machine.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
@@ -698,10 +699,26 @@ function declaredExpectedRed(real: RealProofConfig): ExpectedRed {
 /**
  * The GATE-time per-contract coverage compute (ADR-0127): classify the unit's declared `## Contracts`
  * against the VOUCHING test names (ADR-0126) extracted from the leaf-authored test file, returning the
- * {covered, uncovered} axis the gate stamps onto the verdict. Read at GATE (the file is on disk +
- * committed by then). FAIL-CLOSED throughout: a unit that declares no contracts (nothing to attest) or
- * a test surface that cannot be read/parsed returns `undefined`, so the gate OMITS the axis rather than
- * stamping a false "fully covered". Pure but for the one `readFileSync` of the authored test.
+ * {covered, uncovered, unreadTitles} axis the gate stamps onto the verdict. Read at GATE (the file is
+ * on disk + committed by then). Pure but for the one `readFileSync` of the authored test.
+ *
+ * FAIL-CLOSED on the WHOLE-FILE surface: a unit that declares no contracts (nothing to attest) or a
+ * test file that cannot be read/parsed returns `undefined`, so the gate OMITS the axis rather than
+ * stamping a false "fully covered".
+ *
+ * That guarantee is ONE-DIRECTIONAL, and the other direction is what this function must not lose: an
+ * unread title can only REMOVE a name from the vouching set, so it can never manufacture a false
+ * *covered* — only a false *uncovered*, which is exactly the direction that went wrong in production
+ * (ADR-0127's PR #1172 incident). So the count rides ALONG rather than the axis being dropped: it
+ * takes {@link readTestSurface} whole instead of just `.vouching`, and stamps `unreadTitles` even when
+ * it is ZERO. Stamping the zero is the point — absent, `0` and `> 0` are three different claims
+ * ("never measured" / "measured clean" / "measured with a caveat"), and omitting the zero would
+ * collapse the first two back into one ambiguity.
+ *
+ * Dropping the axis on any unread title was the considered alternative and is REJECTED: it destroys
+ * the coverage fact for the readable majority to flag a minority caveat, and measurement is against
+ * it — across all 123 real-build surfaces in this repo the only unread title was a phantom, and that
+ * rule would have deleted a correct 2/3 axis on the strength of it.
  */
 function computeContractCoverage(
   spec: NodeSpec,
@@ -711,14 +728,18 @@ function computeContractCoverage(
   if (spec.contracts.length === 0) return undefined;
   const testAbs = path.join(workspace, testFileRel);
   if (!existsSync(testAbs)) return undefined;
-  let testNames: string[];
+  let surface: TestSurfaceRead;
   try {
-    testNames = extractVouchingTestNames(readFileSync(testAbs, "utf8"));
+    surface = readTestSurface(readFileSync(testAbs, "utf8"));
   } catch {
     return undefined;
   }
-  const report = classifyDeclaredCoverage(spec.id, spec.contracts, testNames);
-  return { covered: report.covered, uncovered: report.uncovered };
+  const report = classifyDeclaredCoverage(spec.id, spec.contracts, surface.vouching);
+  return {
+    covered: report.covered,
+    uncovered: report.uncovered,
+    unreadTitles: surface.unreadTitles,
+  };
 }
 
 /** Resolve the tsx loader to an ABSOLUTE url usable by `node --import` in a bare worktree. */

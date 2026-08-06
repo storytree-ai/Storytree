@@ -96,4 +96,43 @@ describe("verdictLine", () => {
   it("omits the coverage clause entirely when contractCoverage is absent (pre-ADR-0127 back-compat)", () => {
     assert.doesNotMatch(verdictLine(base), /coverage/);
   });
+
+  // ── the unread-titles qualifier: an `uncovered` list must not be read as a claim about the TESTS
+  //    when part of the surface was never legible to the static reader ──────────────────────────────
+
+  it("appends an unread-titles caveat beside the uncovered list, so the two claims stay distinct", () => {
+    const verdict: Verdict = {
+      ...base,
+      contractCoverage: { covered: ["c-1"], uncovered: ["c-2"], unreadTitles: 2 },
+    };
+    const line = verdictLine(verdict);
+    assert.match(line, /coverage 1\/2 contracts/);
+    assert.match(line, /uncovered: c-2/);
+    assert.match(line, /2 title\(s\) unread/);
+  });
+
+  it("renders the caveat even when nothing is uncovered — it qualifies the READ, not just the gap", () => {
+    const verdict: Verdict = {
+      ...base,
+      contractCoverage: { covered: ["c-1"], uncovered: [], unreadTitles: 1 },
+    };
+    const line = verdictLine(verdict);
+    assert.match(line, /1 title\(s\) unread/);
+    assert.doesNotMatch(line, /uncovered/);
+  });
+
+  it("a measured-clean `unreadTitles: 0` renders byte-identically to a verdict carrying no count", () => {
+    // Stamping the zero is how the AXIS distinguishes "measured clean" from "never measured"; the
+    // RENDER has nothing to add for a clean read, so every currently-clean verdict line is unchanged.
+    const withZero: Verdict = {
+      ...base,
+      contractCoverage: { covered: ["c-1", "c-2"], uncovered: [], unreadTitles: 0 },
+    };
+    const without: Verdict = {
+      ...base,
+      contractCoverage: { covered: ["c-1", "c-2"], uncovered: [] },
+    };
+    assert.equal(verdictLine(withZero), verdictLine(without));
+    assert.doesNotMatch(verdictLine(withZero), /unread/);
+  });
 });

@@ -155,6 +155,11 @@ export interface ObservedTest {
 const TEST_CALL_ROOTS = new Set(["describe", "test", "it"]);
 /** Modifiers that mean "named but never runs" — a `.skip`/`.todo` test asserts nothing at runtime. */
 const SKIP_MODIFIERS = new Set(["skip", "todo"]);
+/**
+ * Modifiers that make a call a table-bound FACTORY rather than a test declaration: `it.each(table)`
+ * returns the function that is THEN called with the title. See {@link matchTestCall}.
+ */
+const EACH_MODIFIERS = new Set(["each"]);
 /** The assertion-API roots this codebase uses: `node:assert/strict` (`assert.*`) and vitest (`expect`). */
 const ASSERTION_NAMES = new Set(["assert", "expect"]);
 
@@ -246,6 +251,19 @@ export function readTestCallTitle(arg: ts.Expression | undefined): ReadTitle | n
  * null when it is not a test call at all. A test call whose title could NOT be read is still
  * MATCHED (with empty text and `titleFullyStatic: false`) — dropping it would erase the difference
  * between "this checker could not read the title" and "no such test exists".
+ *
+ * ONE structural exception, and it is not a title-reading rule: a PARAMETERISED
+ * `it.each(table)(title, fn)` is TWO nested calls, and only the OUTER one declares a test. The inner
+ * `it.each(table)` is the table-bound FACTORY — its first argument is the DATA TABLE, not a title —
+ * yet it reaches the same root `it`, so it used to be observed as an extra test whose "title" read as
+ * unreadable. That is a PHANTOM: neither a test nor an unread title, and it inflates
+ * {@link TestSurfaceRead.unreadTitles} for a file whose titles were all read perfectly. Measured
+ * 2026-08-06 across all 123 real-build test surfaces in the repo, it was the ONLY `unreadTitles` hit
+ * — every genuine title read clean — and it would have stamped a false caveat onto
+ * `render-claim-as-wisp`'s otherwise-correct 2/3 axis. The tell is exact: the invocation of a factory
+ * has a callee that is ITSELF a call, so the outer node is kept and the inner one is not a
+ * declaration. Nothing here changes how a title FOLDS (ADR-0126's literals-only rule is untouched);
+ * it changes only which nodes are test declarations at all.
  */
 function matchTestCall(
   node: ts.Node,
@@ -253,6 +271,9 @@ function matchTestCall(
   if (!ts.isCallExpression(node)) return null;
   const { root, members } = calleeParts(node.expression);
   if (root === undefined || !TEST_CALL_ROOTS.has(root)) return null;
+  if (members.some((m) => EACH_MODIFIERS.has(m)) && !ts.isCallExpression(node.expression)) {
+    return null; // the `.each(table)` factory itself — the title lives on the call that invokes it
+  }
   const title = readTestCallTitle(node.arguments[0]);
   if (title === null) return null;
   return {

@@ -861,6 +861,59 @@ test("ADR-0127 — the injected contractCoverage seam classifies declared contra
     assert.deepEqual(result.spec.contractCoverage!(), {
       covered: ["c-1"],
       uncovered: ["c-2", "c-3"],
+      // Every title here read cleanly, so the axis attests a MEASURED-CLEAN read: these two uncovered
+      // contracts are a statement about the TESTS, not about the reader's reach.
+      unreadTitles: 0,
+    });
+  } finally {
+    await fs.rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("the seam CARRIES unreadTitles, so a signed `uncovered` says which of the two things it means", async () => {
+  // The last hop of the ADR-0126/0127 partial-blindness fix. `readTestSurface` already separated "no
+  // test names this contract" from "I could not read that test's title", and `storytree coverage`
+  // printed the caveat — but the SIGNED path took only `.vouching` and discarded the count, so the
+  // verdict stamped a bare `uncovered` that was indistinguishable from a real gap and frozen on the
+  // signature. ADR-0311 D2 retired `check:coverage`, so the stamped number is what survives.
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-coverage-unread-"));
+  try {
+    const testRel = "widget.test.ts";
+    await fs.writeFile(
+      path.join(workspace, testRel),
+      [
+        'import test from "node:test";',
+        'import assert from "node:assert/strict";',
+        "// c-1: read cleanly → covered",
+        'test("c-1: the widget doubles its input", () => {',
+        "  assert.equal(widget(2), 4);",
+        "});",
+        "// c-2 is declared. A test DOES name it — but the title is built at runtime, so this static",
+        "// reader sees no text at all. Without the count, c-2 lands on the verdict as a bare",
+        "// `uncovered`, identical to a contract nobody wrote a test for.",
+        "test(titleForTheBoundedCase, () => {",
+        "  assert.ok(widget.bounded);",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    const spec = coverageSpec(
+      "coverage-unread",
+      [
+        { id: "c-1", title: "doubles" },
+        { id: "c-2", title: "bounded" },
+      ],
+      testRel,
+    );
+    const result = resolveRealForCoverage(spec, workspace);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.spec.contractCoverage!(), {
+      covered: ["c-1"],
+      uncovered: ["c-2"],
+      // The whole point: c-2 reads uncovered AND the verdict admits the reader could not read one
+      // title — so a later auditor can tell a genuine gap from a limit of this checker.
+      unreadTitles: 1,
     });
   } finally {
     await fs.rm(workspace, { recursive: true, force: true });
