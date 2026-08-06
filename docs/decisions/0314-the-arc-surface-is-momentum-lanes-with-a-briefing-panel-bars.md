@@ -195,6 +195,31 @@ declined, not a redesign.
 and still show an empty panel forever if escalations keep happening only in chat. D5 has no
 dependency on D8 and should land first; it is tracked as its own unit on the arc.
 
+**D5 HAS LANDED, and it did land first (corrected in place per ADR-0139; the decision is unchanged,
+only its build state).** The `escalation-authors-an-open-question-briefing` unit on
+`arc-orientation-surface-arc` shipped 2026-08-06, ahead of D8's surface build as this paragraph
+directed. Two halves: `storytree question new` scaffolds an `open-question` from flags, with `--arc`
+**required at the verb** — even though `OpenQuestion.arcRef` is schema-optional — and required to
+RESOLVE to a real arc. Context finding 1's unhomed question is the measured failure that fences
+against, and an unhomed question is not a lesser question but an invisible one. Second: the
+`session-orchestrator` agent's `workflow` step 7 and `escalation` field now bind
+escalating-authors-the-question. The
+ceremony half is `asset:merge-ceremony` step 10(b), where the escalation landing now produces two
+artifacts — the arc entry as the residue and the authored question as the ask.
+
+Two sub-decisions this D5 deliberately left to the builder were settled **from the corpus rather than
+escalated**, and are recorded here because a later reader will otherwise re-open them. (1) *Which
+escalations it binds:* the one the session is **ENDING** on — ADR-0303's escalation-as-landing
+ceremony already covers both the mid-unit owner gate and ADR-0275 D2's post-merge owner-gated hard
+end, so both are bound; an inline approval the session is standing by to act on within the same turn
+is **not**, because it closes with the turn and an artifact would outlive its own question. (2) *How
+it is enforced:* as **discipline**, not a gate rung, on ADR-0168 D1's finding that a compliance gate
+prices a ceremony toward theater. That second call has a standing counter-argument which is
+deliberately not resolved here — [ADR-0279](0279-a-corpus-mandated-ceremony-that-only-an-agent-s-discretion-e.md)
+(`proposed`, `amends: [95]`) argues that a corpus-mandated ceremony only an agent's discretion
+enforces is not mandated at all. If the owner ratifies ADR-0279, D5's enforcement half is what it
+reaches first.
+
 **D4 rejects every predicate the mock round offered.** B1/B2/B3 were all derivable today, and
 `blocked` as defined here is derivable for almost no arc until ADR-0306/0308 lands. That is a
 deliberate trade of availability for meaning: a `blocked` that lights up 8 arcs by conflating
@@ -221,6 +246,10 @@ track by memory between sessions.
 - [ADR-0298](0298-proposals-fold-into-arcs-the-deferred-work-tier-is-an-arc-en.md) — the parked entries
   that become D2's grey bars.
 - [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — why this ADR is born `accepted`.
+- [ADR-0279](0279-a-corpus-mandated-ceremony-that-only-an-agent-s-discretion-e.md) — `proposed`; the
+  standing counter-argument to D5 shipping as discipline rather than as a gate rung.
 - `packages/drive/src/arc-rollup.ts` — the one join both surfaces render from (increment 1).
+- `packages/cli/src/question.ts` — the `storytree question new` verb that realizes D5, and
+  `asset:merge-ceremony` step 10(b), where the escalation landing runs it.
 - `docs/research/arc-surface-mocks-2026-08-05/` — the re-rendered options the owner picked from, and
   the measurements quoted in Context.
