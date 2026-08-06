@@ -6,17 +6,20 @@ arc: act2-camera-choreography-arc
 
 ## Status
 
-accepted (2026-08-06) — the owner directed the remaining product choices after reviewing the
-production measurement: open close enough to reveal the existing tree detail, zoom out with the
-existing Act 2 regrow cursor, and finish at the ordinary fitted whole-forest camera. The scripted
-camera owns the short regrow and ordinary pan/zoom controls resume after settle. There is no
-first-person view, focal-island tracker, pan choreography, or user-takeover state machine.
+accepted (2026-08-06, corrected in place after the PR #1175 visual review) — the owner directed the
+remaining product choices after reviewing the production measurement, then corrected the opening
+framing after seeing the first landed version: open closer than PR #1175 at the BOTTOM of the forest,
+pull back from that fixed bottom anchor as the existing Act 2 regrow reveals upward, and finish at the
+ordinary fitted whole-forest camera. The scripted camera owns the short regrow and ordinary pan/zoom
+controls resume after settle. There is no first-person view, focal-island or growth-frontier tracker,
+independently timed pan choreography, or user-takeover state machine.
 
 ## Context
 
 The Act 2 regrow already contains the detail the owner asked to see, but the fitted whole-forest
 camera makes a 128×128 tree read as a smudge. The intended app feature opens close enough to read an
-island and pulls back to the fitted forest as the existing 40-island run grows.
+island at the forest's bottom and pulls back from that foundation to fit the upward reveal as the
+existing 40-island run grows.
 
 The architecture has one load-bearing fence: the camera must be a pure projection of the same
 normalized cursor that drives pathways, accretion, and vegetation. ADR-0292 removed a second
@@ -66,25 +69,29 @@ crossed.
 
 The owner directed this invariant and the product choices below on 2026-08-06.
 
-### D2 — Ship the bounded, measured cursor-driven zoom-out
+### D2 — Ship the bounded bottom-anchored cursor-driven zoom-out
 
-The production probe shows that moving the camera while the forest changes is not free, so the
-implementation fixes one deliberately small product parameter: an opening scale `2.25` times the
-ordinary fitted camera, under one centre-anchored framing. The final path re-ran the same interleaved
-40-island production protocol against a same-build growth-only control; it may not quote ADR-0272's
-static-pan result as evidence that movement during a changing regrow is free.
+The production probe shows that moving the camera while the forest changes is not free. PR #1175
+therefore fixed one deliberately small product parameter: an opening scale `2.25` times the ordinary
+fitted camera under one centre-anchored framing. The owner's visual review accepted that move
+mechanically but rejected its opening composition: the replacement opens closer than `2.25` and
+keeps the immutable forest-bottom point at the ordinary fit's lower safe-frame position while the
+visible span expands upward on the same cursor. Scale and translation are one projection, not a
+separately timed pan. The replacement must re-run the same interleaved 40-island production protocol
+against a same-build growth-only control; it may not quote either ADR-0272's static-pan result or PR
+#1175's centre-anchored result as evidence that the revised movement is free.
 
-On build `c7eaac1b+act2-regrow-camera-final`, all 8 runs were admitted and none rejected. The final
-product's pooled painting-frame p50 deltas across the 0–4k, 4–8k, 8–12k and 12–20k map-node buckets
-were respectively 0.0, 0.0, -16.5 and 0.0 ms. Growth-only runs spanned 29.55–29.57 s and final-product
-runs 29.55–29.58 s. This records no material frame-cost or duration penalty for the chosen path on
-that build/browser/box; it does not turn one controlled comparison into a claim that camera movement
-is generally free.
+On build `c7eaac1b+act2-regrow-camera-final`, all 8 runs were admitted and none rejected. PR #1175's
+centre-anchored path had pooled painting-frame p50 deltas of 0.0, 0.0, -16.5 and 0.0 ms across the
+0–4k, 4–8k, 8–12k and 12–20k map-node buckets. Growth-only runs spanned 29.55–29.57 s and that path's
+runs 29.55–29.58 s. This records no material frame-cost or duration penalty for the superseded
+centre-anchored composition on that build/browser/box; it is calibration context only and supplies
+no evidence for the replacement.
 
-The product choreography starts zoomed in, derives scale and framing directly from the existing
-normalized regrow cursor, and returns the ordinary fitted camera exactly at cursor 1. It changes only
-what the viewer sees: island order, accretion timing, vegetation timing, and the regrow schedule stay
-authoritative.
+The product choreography starts closer at the forest bottom, derives the bottom-anchored visible
+span directly from the existing normalized regrow cursor plus immutable frame/world geometry, and
+returns the ordinary fitted camera exactly at cursor 1. It changes only what the viewer sees: island
+order, accretion timing, vegetation timing, and the regrow schedule stay authoritative.
 
 ### D3 — Reduced motion stays fitted without choreography
 
@@ -97,32 +104,36 @@ Pan and zoom input do not take over during the scripted regrow. At settle the ch
 writing camera transforms and the existing pan, wheel, keyboard, and zoom controls resume against the
 ordinary fitted camera. There is no cancellation or user-takeover state machine.
 
-### D5 — The choreography is a simple zoom-out, not a tracker or pan sequence
+### D5 — The choreography is one bottom-anchored zoom-out, not a tracker or pan sequence
 
-The camera follows one fixed, cursor-derived zoom from a close opening frame to the fitted forest.
-It does not track the growth frontier, select a focal island, pan between islands, enter a
-first-person mode, or introduce a second narration/state machine. The opening scale is bounded by the
-requested tree-detail reveal, the production measurement, and the operator-attested visual leg. The
-shipped implementation remains Studio-owned. This decision does not deliver website integration; if
-the website intro adopts the move later, that increment must consume an app-owned shared seam rather
-than reimplement the choreography.
+The camera follows one cursor-derived zoom from a close bottom frame to the fitted forest. Its
+translation is only the geometry required to retain the immutable forest-bottom anchor while the
+visible span grows upward; it is not free pan choreography. It does not inspect or track a runtime
+growth frontier, select a focal island, pan between islands, enter a first-person mode, or introduce a
+second narration/state machine. The opening scale is closer than PR #1175's `2.25` and must be
+bounded by the requested tree-detail reveal, the replacement production measurement, and the
+operator-attested visual leg. The shipped implementation remains Studio-owned. This decision does not
+deliver website integration; if the website intro adopts the move later, that increment must consume
+an app-owned shared seam rather than reimplement the choreography.
 
 ## Consequences
 
-**Good.** The owner gets one legible opening view and one direct pull-back without another clock or
-another interaction mode. The repeatable exact-route production instrument remains the evidence
+**Good.** The owner gets one legible bottom opening and one upward-reveal pull-back without another
+clock or interaction mode. The repeatable exact-route production instrument remains the evidence
 surface, the regrow stays authoritative, reduced motion stays quiet, and the fitted settled camera is
 exact.
 
 **Costs.** PR #1160 measured material rasterisation cost for both obvious diagnostic transform paths
-during the changing forest. The final product remeasurement found no material frame-cost or run-span
-penalty for this bounded path on the measured build, but it still changes a live transform while the
-forest paints; the decision and one clean comparison do not make camera movement generally free.
+during the changing forest. PR #1175's centre-anchored remeasurement found no material frame-cost or
+run-span penalty for that bounded path on the measured build, but the replacement still changes a
+live transform while the forest paints and has not yet been measured. The prior clean comparison
+does not make camera movement generally free or prove the replacement cheap.
 
 **Risk.** The absolute growth-only baseline varied materially from the inherited pair while the idle
-brackets were clean. The final measurement must continue interleaving controls and the chosen path
-on the same build/browser/box; historical absolute numbers are calibration context, not a substitute
-control. Appearance and pacing still require the owner's stage-2 visual verdict.
+brackets were clean. The replacement measurement must continue interleaving controls and the chosen
+path on the same build/browser/box; historical absolute numbers and PR #1175's centre-anchored run are
+calibration context, not a substitute control. The closer bottom framing and the upward reveal's
+appearance and pacing still require the owner's stage-2 visual verdict.
 
 ## References
 

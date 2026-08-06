@@ -3,8 +3,8 @@ id: "act2-regrow-camera-zoom-out"
 tier: capability
 story: studio
 arc: act2-camera-choreography-arc
-title: "The Act 2 regrow pulls the camera back to the whole forest"
-outcome: "The existing Act 2 regrow carries the Studio camera from a close opening view to the ordinary fitted whole-forest view on its own cursor."
+title: "The Act 2 regrow opens at the forest bottom and pulls back to the whole forest"
+outcome: "The existing Act 2 regrow carries the Studio camera along the upward growth reveal from a close bottom-anchored opening to the ordinary fitted whole-forest view on its own cursor."
 status: proposed
 proof_mode: integration-test
 depends_on: [camera-rasterisation-probe]
@@ -32,18 +32,20 @@ proof:
       args: ["--filter", "studio", "exec", "vitest", "run", "src/lib/worldCamera.test.ts", "src/components/TreeView.act2Camera.test.tsx", "src/components/cameraRasterisationProbe.test.ts"]
 ---
 
-# The Act 2 regrow pulls the camera back to the whole forest
+# The Act 2 regrow opens at the forest bottom and pulls back to the whole forest
 
-**Outcome —** The existing Act 2 regrow carries the Studio camera from a close opening view to the
-ordinary fitted whole-forest view on its own cursor.
+**Outcome —** The existing Act 2 regrow carries the Studio camera along the upward growth reveal from
+a close bottom-anchored opening to the ordinary fitted whole-forest view on its own cursor.
 
 ## Why this is one capability
 
 The operator has one continuous journey: start the existing forest regrow close enough to read its
-tree detail, watch that same run pull back, and arrive at the ordinary fitted forest with the normal
-camera controls restored. Every leg shares one precondition (an Act 2 regrow is active), one driver
-(the existing normalized regrow cursor), and one observable (the camera presented by `TreeView`). A
-close-only opening or a pull-back that does not settle would be a defect, not a smaller journey.
+tree detail at the bottom of the forest, watch that same run pull back to fit growth as it reveals
+upward, and arrive at the ordinary fitted forest with the normal camera controls restored. Every leg
+shares one precondition (an Act 2 regrow is active), one driver (the existing normalized regrow
+cursor), and one observable (the camera presented by `TreeView`). A close-only opening, an opening
+that misses the forest bottom, or a pull-back that loses revealed growth or does not settle would be
+a defect, not a smaller journey.
 
 This is a bounded child of the existing `studio` story. It depends on
 [`camera-rasterisation-probe`](camera-rasterisation-probe.md) because the final shipped zoom curve must
@@ -55,9 +57,12 @@ world.
 ## Proof walkthrough first
 
 1. Give the pure camera projection the ordinary fitted camera, immutable frame/world geometry, and
-   representative values of the existing normalized regrow cursor. Prove cursor `0` returns the fixed
-   close opening, intermediate samples zoom monotonically outward without tracking a changing island,
-   and cursor `1` returns the ordinary fitted camera exactly.
+   representative values of the existing normalized regrow cursor. Prove cursor `0` returns a closer
+   camera whose lower safe-frame anchor is the forest's bottom growth origin; prove intermediate
+   samples zoom monotonically outward around that bottom anchor and contain the immutable-geometry
+   envelope of growth revealed by that cursor as it expands upward; and prove cursor `1` returns the
+   ordinary fitted camera exactly. Vary viewport and world bounds so regressions to centre framing or
+   clipping the upward reveal fail geometrically, without a runtime focal-island/frontier tracker.
 2. Mount the real `TreeView`, start the existing first-arrival/replay path, and advance its existing
    semantic cursor. Prove each published cursor sample supplies the camera projection directly, with no
    tween, CSS transition, timer, private rAF driver, second progress value, or independently advancing
@@ -76,10 +81,13 @@ world.
 
 1. **`act2-regrow-camera-projects-the-existing-cursor`**
    - **asserts —** the camera is a deterministic pure projection of the existing normalized regrow
-     cursor plus immutable fitted-camera/frame/world inputs: cursor `0` is the fixed close opening,
-     scale moves monotonically outward under one fixed framing, and cursor `1` equals the ordinary
-     fitted whole-forest camera exactly; no focal-island/frontier input, tween, transition, timer,
-     private rAF driver, second cursor or independently advancing state exists.
+     cursor plus immutable fitted-camera/frame/world inputs: cursor `0` is a closer opening anchored
+     to the forest's bottom growth origin, each intermediate camera monotonically expands the visible
+     bounds upward to contain the growth envelope revealed at that cursor while retaining the bottom
+     anchor, and cursor `1` equals the ordinary fitted whole-forest camera exactly. Scale and
+     translation form one cursor projection rather than a separately timed pan; no runtime
+     focal-island/frontier input, tween, transition, timer, private rAF driver, second cursor or
+     independently advancing state exists.
 2. **`act2-regrow-camera-owns-input-only-until-settle`**
    - **asserts —** wheel, pointer-pan and keyboard camera input cannot displace the scripted camera
      while the existing player reports an active regrow, and the unchanged ordinary handlers resume
@@ -97,16 +105,17 @@ world.
 
 ## Operator-attested finish
 
-Machine proof covers geometry, ownership, settlement, schedule and measured cost. The opening amount
-and pull-back curve are appearance/pacing judgments with no compiler. After green, stage a verified
-Studio URL at the ordinary speed for the owner to judge only whether the opening reveals the shipped
-tree detail and whether the pull-back arrives naturally at the ordinary whole-forest view. The agent
-does not sign that verdict.
+Machine proof covers the bottom anchor, upward-growth containment, ownership, settlement, schedule
+and measured cost. The opening amount and pull-back curve are appearance/pacing judgments with no
+compiler. After green, stage a verified Studio URL at the ordinary speed for the owner to judge only
+whether the opening is close enough and visibly framed at the bottom of the forest, and whether the
+pull-back naturally fits growth as it reveals upward before arriving at the ordinary whole-forest
+view. The agent does not sign that verdict.
 
 ## Explicitly outside this increment
 
-- First-person camera, focal-island or growth-frontier tracking, pan choreography, and any manual-input
-  takeover/cancellation state machine.
+- First-person camera, runtime focal-island or growth-frontier tracking, an independently timed pan
+  choreography, and any manual-input takeover/cancellation state machine.
 - A second clock, transition, tween, animation library, private frame driver, or camera-owned progress.
 - Changes to island order, causal timing, run duration policy, accretion, vegetation, art, density,
   renderer, or the settled forest.
