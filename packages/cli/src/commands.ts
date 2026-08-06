@@ -118,7 +118,7 @@ import { nodeBuild, nodeHelp, nodeResolve, specView } from "@storytree/drive";
 import { orchestrate } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
-import { renderOfferFollowUps } from "@storytree/context-traversal-capture";
+import { renderOfferFollowUps, OFFER_FOLLOW_NOTE } from "@storytree/context-traversal-capture";
 import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
 import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
@@ -409,7 +409,17 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
   // pasteable follow-up per FOLLOWABLE ref, each naming the candidate set it came from. A `doc:` ref
   // gets none — it resolves to a file, not to a CLI read — which is the declared coverage caveat
   // rather than a hole to paper over with a command that could not run.
-  if (offerId !== undefined) next = [...next, ...renderOfferFollowUps(offerId, a.references)];
+  //
+  // ADR-0320: the form alone was measured insufficient (5048 offers, zero edges), so it now travels
+  // with the ASK. The note is attached only when follow-ups were ACTUALLY produced — an artifact
+  // whose refs are all `doc:` offers nothing followable, and a note pointing at commands that are
+  // not there would be noise on the exact reads the caveats already call unobservable.
+  if (offerId !== undefined) {
+    const followUps = renderOfferFollowUps(offerId, a.references);
+    if (followUps.length > 0) {
+      return { ok: true, body: lines.join("\n"), next: [...next, ...followUps], note: OFFER_FOLLOW_NOTE };
+    }
+  }
   return { ok: true, body: lines.join("\n"), next };
 }
 

@@ -55,6 +55,7 @@ export {
   FOLLOW_OFFER_EDGE_CAVEATS,
   FOLLOW_OFFER_EDGE_COVERAGE,
   OFFER_FLAG,
+  OFFER_FOLLOW_NOTE,
 } from "./follow-offer-edges.js";
 export type { FollowDeps, FollowedOffer, OfferIdentity } from "./follow-offer-edges.js";
 

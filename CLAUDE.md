@@ -346,10 +346,15 @@ kind owes a seed export any more.
   optional `--budget` total, while Codex records subscription usage and refuses a fake USD cap).
   `--store pg` on live/real builds persists verdicts to `events.work_event`/`events.verdict`
   (refused for dry-runs — a scripted PASS persisted would be a forged healthy).
-- Library CLI (ADR-0023): `pnpm storytree library` (explore). Reads and writes alike want the live
-  store: `pnpm db:up` then `pnpm storytree library artifact edit <id> --set <field>=<value> --pg`
-  (a bare read without `--pg` still answers from the frozen bootstrap fixture and is no longer
-  current — see the Library section above). Note: inline `--json` needs
+- Library CLI (ADR-0023): `pnpm storytree library` (explore). **READ BARE — `--pg` is for WRITES:**
+  `pnpm db:up` then `pnpm storytree library artifact edit <id> --set <field>=<value> --pg`. A bare
+  read already dials the live store and is current (the Library section above), so `--pg` buys a read
+  nothing — and it COSTS one thing: the offer is minted only for the bare three-token
+  `library artifact <id>` shape, so a `--pg` read prints no `--from-offer` follow-ups and records no
+  candidate set at all. **Following a pointer the render just offered? Run its `next:` line AS
+  PRINTED** — the trailing `--from-offer` id records which branch you chose, and retyping the bare
+  form loses the edge (ADR-0260 D3, ADR-0320). Discipline, not a gate: no `check:*` scores it, and
+  never add the flag to a read that answered no offer. Note: inline `--json` needs
   `npx tsx packages/cli/src/main.ts`, not `pnpm`.
   Two write-ergonomics: `--set field=@path` reads the value from a FILE (long/multi-line prose
   without shell mangling), and a typo'd `--set` field on a structured kind is REFUSED with a clear
