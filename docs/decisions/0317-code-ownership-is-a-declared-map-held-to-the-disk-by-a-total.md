@@ -115,8 +115,16 @@ the `packageOwnership` pattern one level down.** Owner-directed 2026-08-06.
   map fails loudly and incompletely instead, which is the failure mode the totality check converts
   into a gate.
 - It is declared over **subtrees, and globs are permitted here** — safe precisely because this map
-  binds no verdict. That is what keeps the entry count in the tens rather than at 519, and it is the
-  same economy that makes 24 `packageOwnership` entries sustainable.
+  binds no verdict, the same economy that makes 24 `packageOwnership` entries sustainable.
+  *(Corrected in place 2026-08-06 after the map was authored in full, ADR-0139: this bullet
+  predicted the economy would "keep the entry count in the tens rather than at 519". Measured, it
+  does not. 527 files took **372 declarations**. The economy holds where a directory is homogeneous —
+  `packages/forest-world/src` is one line, `packages/procedural-architecture/src/buildings` is one
+  line — and breaks in flat, heterogeneous `src/` directories where ownership genuinely varies file
+  by file: `packages/cli/src` is 100 files fronting ~20 different organisms with no subdirectory
+  structure to exploit. Globs still pay — 372 is a 29% reduction on per-file — but "tens" was an
+  estimate made before anyone walked the backlog, and 372:527 is what totality actually costs here.
+  It is also the maintenance bill any future blocking rung must argue against.)*
 - Its **totality check is a disk walk**: every source file must fall under some declared subtree, and
   a file falling under none is named. This is the missing rung, and it is the only part of the
   arrangement that keeps the map honest over time.
@@ -168,6 +176,18 @@ initial authoring of the map across `packages/cli` (91 unowned files), `apps/stu
 `packages/drive` (38), `packages/orchestrator` (31), `packages/library` (29) and `apps/desktop` (26)
 is real work that nobody has scheduled yet. And report-only means the hole stays open while it is
 walked down — a report nobody reads changes nothing.
+
+*(Corrected in place 2026-08-06, ADR-0139 — the decision is unchanged, two of its stated costs are
+now settled facts rather than predictions. The initial authoring IS DONE: 527 of 527 files carry a
+declared owner across 372 declarations, 0 contested / 0 stale / 0 unresolved. The coarseness this
+paragraph accepts showed up exactly where predicted and is recorded rather than hidden —
+`apps/studio/src/components/TreeView.tsx`, named by seven units, is declared at STORY grain because
+no single capability is responsible for it. And the grain mix is now COUNTED: 363 files (68.9%)
+capability-grain, 164 (31.1%) story-grain, the residual concentrating in `cli` 51, `studio` 34,
+`drive-machinery` 13 and `desktop` 11 — a `story-author` worklist, not a closed hole. The totality
+check demonstrated itself during that authoring: a merge of `main` brought two new
+`packages/drive/src` files and the report named them unowned immediately, which is why the map
+carries no per-package catch-all that would have absorbed them silently.)*
 
 **Not a concurrency cap.** The owner rejected any in-flight limit, dispatch throttle or queue depth on
 2026-08-04, on the ground that the system was divided into story nodes precisely so work could run in
