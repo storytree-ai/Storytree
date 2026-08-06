@@ -183,6 +183,21 @@ behind substrate addressability, and remains governed by this arc's falsifier �
 thirty days show no edge-grain claim and no refusal an edge claim would have prevented, it is
 re-justified on addressability alone or dropped.
 
+*THE FALSIFIER WAS RUN ONCE ON 2026-08-06 AND IT FIRED — recorded here because this paragraph
+delegated the question and would otherwise strand its reader on an open referral.* The read covered
+the whole log (2,059 events, 2026-06-27 → 2026-08-06, 230 distinct claimed ids, 58 refusals; the
+binding thirty-day window holds 1,815 events and 49 of those refusals). Zero claims at edge grain —
+trivially, since `CLAIMABLE_KINDS` holds six kinds and no edge — and, on the load-bearing clause,
+**zero of the 58 refusals would have been prevented by an edge-grain claim**, judged one by one. Ten
+contended a capability, an arc or a phantom id and are out of an edge's reach structurally; the other
+48 were two sessions writing INSIDE the same story's package surface, contending over overlapping
+files. That is sub-node contention, and an edge — an object BETWEEN two nodes — is not an address
+either session could have taken instead. Both edge increments were therefore DROPPED rather than
+re-justified: their charter was addressability *in service of* claiming, and nothing measured wants
+an edge address for any other purpose. The sequence in this paragraph is consequently complete at its
+first term: substrate got an address (PRs #1183 / #1190 / #1194) and glue did not, because glue never
+turned out to be what sessions were contending over.
+
 **D4. The wider rule is escalated to the owner, not decided here.** The owner floated "the claim unit
 is any addressable object in the work graph, not just a story node" and has not chosen it. Both
 candidates in D3 are INSTANCES of that rule — substrate declarations and edges are each "an
@@ -194,6 +209,17 @@ every version of the rule needs them.
 **D5. IF edges are built — the design, settled now so the fork is a scheduling question rather than
 an open design.** This decision is CONDITIONAL: it binds only if D4's fork lands on edges, and
 nothing here argues that it should.
+
+*THE CONDITION DID NOT FIRE, so nothing below binds.* D4 was answered by the owner on 2026-08-06 with
+the wider rule (ADR-0317 D3: the claim unit is any addressable object in the work graph), which made
+edges an instance of a settled rule rather than a separate design; the arc's falsifier then ran once
+the same day and killed the claiming rationale outright — see the addendum under D3. The two edge
+increments are closed as dropped. The design below is kept as written, not withdrawn: the structural
+finding it rests on was re-verified and still holds (an edge has no identity, `depends_on` /
+`consumed_by` are bare `z.array(z.string())`, the routed edge carries no id, 127 distinct declared
+story-to-story edges across 45 stories with zero declared from both ends). If a need for edge
+addressability is ever MEASURED, this is the plan and it can be re-chartered on that evidence — what
+it may not do is proceed on the contention rationale that has now failed its own test.
 
 - *The address is DERIVED from the merged `{from, to}` pair, never authored.* That pair is already
   the key the whole render pipeline uses — `TrailEdgeOut` carries it and `neighbourHighlightPlan`
