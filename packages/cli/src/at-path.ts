@@ -107,6 +107,11 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "store",
   "node",
   "grade",
+  // `noticeboard history` — a day count, a session id, a transition type, a row cap.
+  "days",
+  "session",
+  "type",
+  "limit",
   "witness",
   "signer",
   "relayed-by",

@@ -10,6 +10,7 @@ import {
   type ClaimResult,
   type OverlapDelta,
 } from "../claim.js";
+import type { ClaimAuditQuery, ClaimAuditRow } from "../claim-history.js";
 
 /**
  * The Postgres-backed CLAIM-LEDGER store (ADR-0200 D2: the noticeboard IS the claim ledger —
@@ -67,6 +68,16 @@ export interface ClaimAuditEvent {
   sessionId: string;
   doc: unknown;
   at: string;
+}
+
+/** The raw `events.claim_event` row shape behind {@link PgClaimStore.auditHistory}. */
+interface AuditRow {
+  seq: string | number;
+  unit_id: string;
+  type: string;
+  session_id: string;
+  doc: unknown;
+  at: Date | string;
 }
 
 // ── Internal row shape ───────────────────────────────────────────────────────
@@ -634,6 +645,53 @@ export class PgClaimStore {
     return (res.rows as { unit_id: string; session_id: string; doc: unknown; at: Date | string }[]).map(
       (row) => ({ unitId: row.unit_id, sessionId: row.session_id, doc: row.doc, at: toIso(row.at) }),
     );
+  }
+
+  /**
+   * The FILTERED, WINDOWED audit read over `events.claim_event` — the history surface the CLI's
+   * `noticeboard history` verb renders (ADR-0310 D1, increment 1 of `first-class-edges-arc`). The
+   * unit-keyed {@link history} below answers one question ("what happened on this unit"); this
+   * answers the rest — a session's transitions, every refusal, a time window across ALL units —
+   * which is what every measurement in ADR-0310 hand-wrote a one-shot script to get.
+   *
+   * Filters AND together; every one is optional, so a bare call reads the whole log. `sinceMs`
+   * windows on `at` (the server's clock, not the caller's). `limit` takes the MOST RECENT n — the
+   * SQL orders `seq DESC` and the rows are reversed here — because a truncated history read wants
+   * the recent end, never the 2026-06 beginning. Returned ASCENDING by `seq` either way: the folds
+   * read a timeline forward.
+   *
+   * `unit_id` carries no foreign key, so rows naming ids that resolve to nothing come back like any
+   * other (increment 2's subject — hiding them would hide its evidence). Read-only (no transaction).
+   */
+  async auditHistory(query: ClaimAuditQuery = {}): Promise<ClaimAuditRow[]> {
+    const where: string[] = [];
+    const values: unknown[] = [];
+    const bind = (value: unknown): string => {
+      values.push(value);
+      return `$${values.length}`;
+    };
+    if (query.unitId !== undefined) where.push(`unit_id = ${bind(query.unitId)}`);
+    if (query.sessionId !== undefined) where.push(`session_id = ${bind(query.sessionId)}`);
+    if (query.type !== undefined) where.push(`type = ${bind(query.type)}`);
+    if (query.sinceMs !== undefined) {
+      where.push(`at > now() - (${bind(query.sinceMs)}::bigint * interval '1 millisecond')`);
+    }
+    const clause = where.length > 0 ? ` WHERE ${where.join(" AND ")}` : "";
+    const limit = query.limit !== undefined ? ` LIMIT ${bind(query.limit)}` : "";
+    const res = await this.#pool.query(
+      `SELECT seq, unit_id, type, session_id, doc, at FROM events.claim_event${clause}
+        ORDER BY seq DESC${limit}`,
+      values,
+    );
+    const rows = (res.rows as AuditRow[]).map((row) => ({
+      seq: Number(row.seq),
+      unitId: row.unit_id,
+      type: row.type,
+      sessionId: row.session_id,
+      doc: row.doc,
+      at: toIso(row.at),
+    }));
+    return rows.reverse(); // seq DESC + LIMIT gave the recent tail; the folds want it ascending
   }
 
   /** The append-only audit history for `unitId`, ascending by `seq`. */

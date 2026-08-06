@@ -1105,3 +1105,94 @@ test("recentDepartures: empty rows → empty list (a quiet window is a plain no,
   const rows = await new PgClaimStore(pool as never).recentDepartures(120_000);
   assert.deepEqual(rows, []);
 });
+
+// ---------------------------------------------------------------------------
+// auditHistory — the windowed audit read behind `noticeboard history` (ADR-0310 D1)
+// ---------------------------------------------------------------------------
+
+const AUDIT_ROWS = [
+  {
+    seq: "3",
+    unit_id: "cli",
+    type: "queued",
+    session_id: "sess-B",
+    doc: { grade: "waiting" },
+    at: new Date("2026-08-04T02:04:00.000Z"),
+  },
+  {
+    seq: 2,
+    unit_id: "cli",
+    type: "conflict-refused",
+    session_id: "sess-B",
+    doc: { sessionId: "sess-A", grade: "work" },
+    at: "2026-08-04T02:02:00.000Z",
+  },
+];
+
+test("auditHistory: a bare query reads the WHOLE log — no WHERE, and the rows come back ascending", async () => {
+  const pool = new FakeReadPool();
+  pool.rows = AUDIT_ROWS; // the SQL returns seq DESC; the store reverses
+  const rows = await new PgClaimStore(pool as never).auditHistory();
+
+  const call = pool.calls[0];
+  assert.ok(call, "one query issued");
+  assert.match(call.text, /FROM events\.claim_event/);
+  assert.doesNotMatch(call.text, /WHERE/, "no filters ⇒ no WHERE clause at all");
+  assert.match(call.text, /ORDER BY seq DESC/, "the cap must take the RECENT tail, not the 2026-06 head");
+  assert.doesNotMatch(call.text, /LIMIT/, "no --limit ⇒ no cap");
+  assert.deepEqual(call.values, []);
+
+  // Ascending by seq on the way out: the folds read a timeline forward.
+  assert.deepEqual(
+    rows.map((r) => r.seq),
+    [2, 3],
+  );
+  assert.equal(rows[0]?.seq, 2, "a bigint `seq` arriving as a STRING is normalised to a number");
+  assert.equal(rows[1]?.at, "2026-08-04T02:04:00.000Z", "a Date `at` normalises to ISO");
+  assert.deepEqual(rows[0]?.doc, { sessionId: "sess-A", grade: "work" }, "the doc passes through untouched");
+});
+
+test("auditHistory: every filter ANDs, bound positionally in the order given", async () => {
+  const pool = new FakeReadPool();
+  await new PgClaimStore(pool as never).auditHistory({
+    unitId: "cli",
+    sessionId: "sess-B",
+    type: "conflict-refused",
+    sinceMs: 2_592_000_000,
+    limit: 500,
+  });
+
+  const call = pool.calls[0];
+  assert.ok(call);
+  assert.match(call.text, /WHERE unit_id = \$1 AND session_id = \$2 AND type = \$3 AND at > now\(\)/);
+  assert.match(call.text, /LIMIT \$5/, "the cap is a bound parameter, never interpolated");
+  assert.deepEqual(call.values, ["cli", "sess-B", "conflict-refused", 2_592_000_000, 500]);
+});
+
+test("auditHistory: a partial filter set binds only what was asked (no phantom placeholders)", async () => {
+  const pool = new FakeReadPool();
+  await new PgClaimStore(pool as never).auditHistory({ type: "released", limit: 10 });
+
+  const call = pool.calls[0];
+  assert.ok(call);
+  assert.match(call.text, /WHERE type = \$1/, "the first bound filter is always $1");
+  assert.match(call.text, /LIMIT \$2/);
+  assert.deepEqual(call.values, ["released", 10]);
+});
+
+test("auditHistory: an id that resolves to nothing is read like any other — no filtering", async () => {
+  // `whoami` is one of the 26 phantom ids measured 2026-08-05. The read must NOT try to resolve it:
+  // hiding unresolvable rows would hide the evidence for the typed-namespace increment (ADR-0310 D2).
+  const pool = new FakeReadPool();
+  pool.rows = [
+    { seq: 1, unit_id: "whoami", type: "claimed", session_id: "sess-A", doc: null, at: "2026-08-04T01:00:00.000Z" },
+  ];
+  const rows = await new PgClaimStore(pool as never).auditHistory({ unitId: "whoami" });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.unitId, "whoami");
+});
+
+test("auditHistory: empty rows → empty list (a quiet window is a plain no, not an error)", async () => {
+  const pool = new FakeReadPool();
+  assert.deepEqual(await new PgClaimStore(pool as never).auditHistory({ sinceMs: 1 }), []);
+});
