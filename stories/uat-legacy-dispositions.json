@@ -1275,21 +1275,21 @@
     },
     {
       "legacyTestId": "studio-cloud#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-06",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-06): duplicates lower-tier proof. `uatc_ccd2aaa5cb592dc7b6a8d213` (a member's forged client author is replaced by the verified identity before persistence) is proven by the capability `guest-scope`, at `apps/studio/server/serveApi.integration.test.ts` (`comment authorship is stamped from the verified identity — the client field is ignored`), observed by `studio-cloud#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-cloud#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-06",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-06): duplicates lower-tier proof. `uatc_19fa35837d4f215bac5faf3c` (member asset and DB-control refusals, own-comment reach, other-author refusal, and admin privilege) is proven by the capability `guest-scope`, at `apps/studio/server/serveApi.integration.test.ts` (`a member reads, comments as self, but cannot write assets or reach user mgmt`; `the bootstrap-seed admin writes assets`; `a member edits their own comment but not another author's; an admin may touch any`; `db control is 403 for member AND admin`), observed by `studio-cloud#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-cloud#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-06",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-06): duplicates lower-tier proof. `uatc_53f880acb76b7ab23c01619b` (identity-less static SPA access remains open while sampled guarded APIs all return 401) is proven by the capabilities `serve-mode` and `guest-scope`, at `apps/studio/server/serveApi.integration.test.ts` (`serves index.html at / and real assets by path (no identity needed)` and `refuses identity-less /api/* with 401 — every route, health and me included`), observed by `studio-cloud#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-cloud#uat-7",

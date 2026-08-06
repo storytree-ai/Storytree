@@ -95,20 +95,18 @@ side, so a silently-failed deploy is loud at the gate tail — ADR-0194).
 **Goal —** One trusted dev who has never seen the system goes from an invite to a comment the
 owner reads, without touching a terminal.
 
-> **Per-leg witness (ADR-0106 / ADR-0184 / ADR-0209 §8, re-adjudicated 2026-07-26).** All eight legs
-> are `witness: machine`: every success condition below is an observable IAM, HTTP, persisted-store or
-> browser-DOM fact — never human merely because the faithful proof is live, cross-process, or not yet
-> harnessed. Legs 4–6 bind to the exact landed, command-bearing hosted-router gate. Legs 1–3, 7 and 8
-> deliberately carry NO proof-gate binding: the repo has no standing command or persisted live-proof
-> verifier that grants/revokes production IAP, drives Google's real sign-in, verifies the deployed
-> browser journey, or composes a thick-local desktop build → the production broker → the live store →
-> the deployed forest. They are explicit machine-proof BINDING GAPS that adoption must refuse until a
-> faithful deliberate live producer + standing verifier lands. This story is already adopt-blocked on
-> legs 1–3 and 7 today (no partial verdict — one unbound machine leg refuses the whole UAT-signing
-> pass), so leg 8 joining them adds no new cost.
+> **Per-leg witness (ADR-0106 / ADR-0184 / ADR-0209 §8, re-adjudicated 2026-07-26; surgically
+> reduced under ADR-0294 on 2026-08-06).** The five surviving legs are `witness: machine`: every
+> success condition below is an observable IAM, HTTP, persisted-store or browser-DOM fact — never
+> human merely because the faithful proof is live, cross-process, or not yet harnessed. None of the
+> five surviving legs carries a proof-gate binding: the repo has no standing command or persisted
+> live-proof verifier that grants/revokes production IAP, drives Google's real sign-in, verifies the
+> deployed browser journey, or composes a thick-local desktop build → the production broker → the live
+> store → the deployed forest. They are explicit machine-proof BINDING GAPS that adoption must refuse
+> until a faithful deliberate live producer + standing verifier lands.
 >
 > **The supplemental suites below are supplements, never substitutes — a PASSING run of any of them
-> is a FALSE PASS for legs 1–3, 7 and 8.** Each proves a stubbed slice: a recording fake backend, an
+> is a FALSE PASS for the five surviving legs.** Each proves a stubbed slice: a recording fake backend, an
 > injected `now`, a forged-then-stripped header, no IAP, no live store, no deployed browser, no
 > desktop. Binding one as an observe gate for those legs would be exactly the rubber stamp ADR-0097 §2
 > bans — leave them unbound and let the gap stay loud. No leg rests `either`, and no leg carries a
@@ -127,6 +125,19 @@ owner reads, without touching a terminal.
 > pointers for eight legs is precisely the over-application that bar removed. Each leg already carries
 > its full action and success conditions inline here, and this file stays the canonical, versioned
 > surface for them, so the dead pointers are DELETED rather than backfilled.
+
+### ADR-0294 disposition of the eight original criteria
+
+| original leg | criterion id | disposition |
+|---|---|---|
+| 1. **Grant** | `uatc_cf832d40045d76c96a9fb153` | **Keep.** [`circle-onboarding`](circle-onboarding.md) declares live grant/revoke UAT, but has no lower-tier automated proof that changes and enumerates the real production IAP IAM policy. |
+| 2. **Sign in** | `uatc_7f0c7763d324ffb43169bb76` | **Keep.** [`cloud-run-iap`](cloud-run-iap.md) declares the IAP door as UAT; the mounted-router tests forge an already-verified header and never complete Google's real sign-in or render the deployed live-store world. |
+| 3. **Browse** | `uatc_74a8267a8cb36c8780ff3a88` | **Keep.** [`serve-mode`](serve-mode.md) and [`guest-scope`](guest-scope.md) prove local mounted HTTP slices, not one authenticated production-browser traversal of the deployed world, story panel, Library lens, and ADR against real served routes. |
+| 4. **Comment** | `uatc_ccd2aaa5cb592dc7b6a8d213` | **Delete as duplicate.** [`guest-scope`](guest-scope.md), `apps/studio/server/serveApi.integration.test.ts`, test **“comment authorship is stamped from the verified identity — the client field is ignored”**: POST returns `201` and `seen.createdComment.author` equals the verified member, not the forged client author. |
+| 5. **Scope walls** | `uatc_19fa35837d4f215bac5faf3c` | **Delete as duplicate of the exact enumerated operations.** [`guest-scope`](guest-scope.md), `apps/studio/server/serveApi.integration.test.ts`: **“a member reads, comments as self, but cannot write assets or reach user mgmt”** asserts member asset POST `403`; **“the bootstrap-seed admin writes assets (becomes an effective active admin)”** asserts admin asset POST `201`; **“a member edits their own comment but not another author's; an admin may touch any”** asserts member own/other comment PATCH `200`/`403` and admin PATCH `200`; **“db control is 403 for member AND admin”** asserts GET `/api/db/status` is `403` for both roles. These are only the methods/routes claimed here, not every asset/comment verb or DB route. |
+| 6. **No identity, no API** | `uatc_53f880acb76b7ab23c01619b` | **Delete as duplicate.** [`serve-mode`](serve-mode.md), test **“serves index.html at / and real assets by path (no identity needed)”**, asserts `/` and `/assets/app.js` return `200`; [`guest-scope`](guest-scope.md), test **“refuses identity-less /api/* with 401 — every route, health and me included”**, samples assets, health, tree/corpus, me/membership, and DB status and asserts `401` for each. Both tests are in `apps/studio/server/serveApi.integration.test.ts`. |
+| 7. **Revoke** | `uatc_79977112ba53b5410622e661` | **Keep.** [`circle-onboarding`](circle-onboarding.md) declares live revoke UAT, but no lower-tier test removes a real production IAM binding, re-enumerates policy, and observes Google's edge deny a fresh visit before the app. |
+| 8. **Broker a build (ADR-0117)** | `uatc_57f6f0fcb7addad5b9f35c44` | **Keep.** [`write-broker`](write-broker.md) proves broker walls through an injected recording store with no live DB or IAP; no lower-tier proof composes a thick-local build, production broker, live store, and deployed forest bloom. |
 
 1. **Grant.** _(witness: machine)_ _(criterion-id: uatc_cf832d40045d76c96a9fb153)_ _(revision-id: uatr1:8ab2d240e8e5a9b7)_
    The owner grants `dev@example.com` `roles/iap.httpsResourceAccessor` on the production Cloud Run
@@ -148,24 +159,11 @@ owner reads, without touching a terminal.
    dec 6 retired the standalone `#/library` page — `parseRoute` redirects every `/library` path to the
    tree route — so the Library is reached as an overlay lens over the forest map, and a harness that
    deep-links `#/library` will silently land on the map instead of failing.)*
-4. **Comment.** _(witness: machine)_ _(criterion-id: uatc_ccd2aaa5cb592dc7b6a8d213)_ _(revision-id: uatr1:40ead13fdbfc2327)_
-   _(proof-gate: studio-cloud#gate-1)_ POST a comment carrying a forged client author through the
-   mounted hosted route table as a member. **Success —** the backend persistence seam receives the
-   comment with `author` stamped to the verified member email, never the client value.
-5. **Scope walls.** _(witness: machine)_ _(criterion-id: uatc_19fa35837d4f215bac5faf3c)_ _(revision-id: uatr1:a4017dd0df2ed8fd)_
-   _(proof-gate: studio-cloud#gate-1)_ Exercise member asset writes, hosted DB control, and comment
-   ownership through the mounted route table. **Success —** member asset writes and DB control are
-   `403`, the member can patch their own comment, another author's comment is `403`, and an admin may
-   perform the privileged asset/comment operations.
-6. **No identity, no API.** _(witness: machine)_ _(criterion-id: uatc_53f880acb76b7ab23c01619b)_ _(revision-id: uatr1:a307e9ef3b58990a)_
-   _(proof-gate: studio-cloud#gate-1)_ Request the static SPA and guarded API routes without the IAP
-   identity header. **Success —** `/` and a real static asset return `200`, while every sampled
-   `/api/*` route — including health, membership, corpus, and DB control — returns `401`.
-7. **Revoke.** _(witness: machine)_ _(criterion-id: uatc_79977112ba53b5410622e661)_ _(revision-id: uatr1:476854f0f2907be8)_
+4. **Revoke.** _(witness: machine)_ _(criterion-id: uatc_79977112ba53b5410622e661)_ _(revision-id: uatr1:476854f0f2907be8)_
    The owner removes `dev@example.com`'s `roles/iap.httpsResourceAccessor` binding from the
    production IAP resource, then the dev starts a fresh visit. **Success —** the real IAP policy no
    longer contains the user and Google's edge denies the next visit before any studio API is reached.
-8. **Broker a build (ADR-0117).** _(witness: machine)_ The owner marks `friend@example.com` a _(criterion-id: uatc_57f6f0fcb7addad5b9f35c44)_ _(revision-id: uatr1:aa5a8227739592b0)_
+5. **Broker a build (ADR-0117).** _(witness: machine)_ The owner marks `friend@example.com` a _(criterion-id: uatc_57f6f0fcb7addad5b9f35c44)_ _(revision-id: uatr1:aa5a8227739592b0)_
    **builder** in the deployed Members panel; the friend's thick-local desktop performs a REAL local
    build and POSTs its already-signed verdict through the production hosted write-broker into the
    live shared store. **Success —** the broker validates shape, attribution, and builder scope and
@@ -198,6 +196,10 @@ owner reads, without touching a terminal.
 
 ## Reliability Gates
 
+`studio-cloud#gate-1` is retained, unrenumbered, as this story's independent reliability obligation.
+It is not a proof binding for any of the five surviving journey legs and must not be deleted with the
+three duplicate criteria.
+
 1. **The hosted route-table policy journey is green** _(gate: observe)_
    `pnpm --filter studio test -- server/serveApi.integration.test.ts`.
 
@@ -205,7 +207,7 @@ owner reads, without touching a terminal.
 
 - `pnpm --filter studio uat` is the local real-browser read/comment shadow, but repository convention
   requires a separately installed Playwright Chromium. It is not self-preparing and does not cross
-  production IAP, so it is not an adoption observe gate for legs 1–3 or 7.
+  production IAP, so it is not an adoption observe gate for Grant, Sign in, Browse, or Revoke.
 - `pnpm --filter studio test -- server/serveApi.integration.test.ts` additionally proves the
   application-membership and exact IAP-header boundary using a stub backend; those assertions
   supplement, but do not replace, the production IAM/sign-in/revoke facts.
@@ -214,7 +216,7 @@ owner reads, without touching a terminal.
   verdict-to-bloom/status projections. Re-verified green 2026-07-26, and the claim holds clause by
   clause. It runs against a RECORDING STUB backend with an injected `now`, and composes no
   thick-local desktop, no production IAP, no live store and no deployed browser — so it supplements
-  leg 8's machine proof and can never stand in for it.
+  Broker a build's machine proof and can never stand in for it.
 
 ## Open modeling calls (for the owner)
 

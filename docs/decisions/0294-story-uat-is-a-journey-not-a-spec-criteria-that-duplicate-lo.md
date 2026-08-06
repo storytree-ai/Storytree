@@ -3,6 +3,7 @@ status: accepted
 decided: 2026-08-03
 amends: [70, 106]
 load_bearing: true
+arc: uat-journey-surgery-arc
 ---
 # ADR-0294: Story UAT is a journey, not a spec — criteria that duplicate lower-tier proof are deleted
 
