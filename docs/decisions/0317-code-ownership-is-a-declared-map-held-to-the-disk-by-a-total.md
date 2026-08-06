@@ -196,17 +196,30 @@ initial authoring of the map across `packages/cli` (91 unowned files), `apps/stu
 is real work that nobody has scheduled yet. And report-only means the hole stays open while it is
 walked down — a report nobody reads changes nothing.
 
-*(Corrected in place 2026-08-06, ADR-0139 — the decision is unchanged, two of its stated costs are
-now settled facts rather than predictions. The initial authoring IS DONE: 527 of 527 files carry a
-declared owner across 372 declarations, 0 contested / 0 stale / 0 unresolved. The coarseness this
-paragraph accepts showed up exactly where predicted and is recorded rather than hidden —
-`apps/studio/src/components/TreeView.tsx`, named by seven units, is declared at STORY grain because
-no single capability is responsible for it. And the grain mix is now COUNTED: 363 files (68.9%)
-capability-grain, 164 (31.1%) story-grain, the residual concentrating in `cli` 51, `studio` 34,
-`drive-machinery` 13 and `desktop` 11 — a `story-author` worklist, not a closed hole. The totality
-check demonstrated itself during that authoring: a merge of `main` brought two new
-`packages/drive/src` files and the report named them unowned immediately, which is why the map
-carries no per-package catch-all that would have absorbed them silently.)*
+*(Corrected in place 2026-08-06 and re-measured 2026-08-07, ADR-0139 — the decision is unchanged,
+two of its stated costs are now settled facts rather than predictions. The initial authoring IS
+DONE: on landing, 527 of 527 files carried a declared owner across 372 declarations, 0 contested /
+0 stale / 0 unresolved. The coarseness this paragraph accepts showed up exactly where predicted and
+is recorded rather than hidden — `apps/studio/src/components/TreeView.tsx`, named by seven units, is
+declared at STORY grain because no single capability is responsible for it. The grain mix is COUNTED
+— and it MOVES, so read it from `storytree ownership`'s own grain line rather than quoting a figure
+from here: 363 files (68.9%) capability-grain / 164 (31.1%) story-grain on 2026-08-06, and 372 of
+537 (69.3%) / 165 (30.7%) on 2026-08-07. **The residual is no longer unscheduled.**
+`capability-layer-coverage-arc` was chartered 2026-08-07 to resolve every story-grain declaration one
+of two ways — re-point it at a capability that STATES ITS PROOF, or record the story as one
+competence with the reason written down (the `proof-protocol` / `storage-protocol` shape) — so this
+is a chartered worklist, not an open hole and not a closed one. Read its movement carefully: that
+arc's increment 1 re-pointed FIVE declarations under `packages/drive/src` from story to capability
+grain, taking `drive-machinery` from 13 owned files to 8, and that is all it did to this number; the
+rest of the day's movement was not its work — `studio` went 34 → 39 and `desktop` 11 → 12 as new
+code landed story-grain on `main`. The residual therefore accrues as well as drains, which is why a
+falling count is not the measure of that arc: its own end state calls a count driven to zero by
+authoring unprovable capabilities a FAILURE. Concentration on 2026-08-07: `cli` 51, `studio` 39,
+`desktop` 12, `app-surface` 8, `drive-machinery` 8 — with `proof-protocol` 8 and `storage-protocol`
+6 already decided as one-competence stories and so not residue at all. The totality check
+demonstrated itself during that authoring: a merge of `main` brought two new `packages/drive/src`
+files and the report named them unowned immediately, which is why the map carries no per-package
+catch-all that would have absorbed them silently.)*
 
 **Not a concurrency cap.** The owner rejected any in-flight limit, dispatch throttle or queue depth on
 2026-08-04, on the ground that the system was divided into story nodes precisely so work could run in
@@ -219,6 +232,16 @@ settled before a checker was written ("Decide which one carries ownership BEFORE
 or the checker will encode the wrong answer"). No new arc is chartered: the detection-mechanism
 question is not separable from the remedy that arc already owns. ADR-0310 D1 and D2 remain the first
 two increments and are unblocked by this decision.
+
+*(Corrected in place 2026-08-07, ADR-0139 — tense and reach, not decision. `first-class-edges-arc`
+CLOSED 2026-08-06 with D1, D2 and D3 all built, so the paragraph above reads as history: ADR-0310
+D1 and D2 shipped, and this ADR's own map was authored in full under that arc. "No new arc is
+chartered" was and remains true **of the detection-mechanism question** — but it must not be read as
+saying the grain residue this ADR's Consequences names is unowned. That residue is chartered
+separately as `capability-layer-coverage-arc` (2026-08-07), which re-opens nothing decided here: it
+takes `storytree ownership` as given and REPORT-ONLY, leaves `check:boundaries`,
+`proof.real.sourceFile` and `scope.sourceGlobs` untouched, and is forbidden from opening with a mass
+re-pointing of declarations.)*
 
 ## References
 
@@ -234,7 +257,11 @@ two increments and are unblocked by this decision.
   essentially unpopulated in the disk-canonical markdown, so it is not chosen here.
 - ADR-0192 — the landlord rule, which already consumes `real.sourceFile` + literal `sourceGlobs` via
   `readUnitSourceFiles`; unaffected, since neither field changes.
-- `first-class-edges-arc` — the owning arc, carrying the increments and the falsifier.
+- `first-class-edges-arc` — the owning arc, carrying the increments and the falsifier; CLOSED
+  2026-08-06 with D1, D2 and D3 built and the map authored in full.
+- `capability-layer-coverage-arc` — chartered 2026-08-07 to work the grain residue D2 leaves behind
+  (re-point a story-grain declaration at a capability that states its proof, or record the story as
+  one competence). It consumes this decision and re-opens none of it.
 - `packages/orchestrator/src/proof-config.ts` (`RealProofConfig.sourceFile` / `scope`),
   `packages/cli/src/check-boundaries.ts` (`:81` totality rule, `:227` glob filter,
   `readUnitSourceFiles`), `repo-manifest.json` (`packageOwnership`).

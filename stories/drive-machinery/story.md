@@ -5,7 +5,7 @@ title: "The drive machinery"
 outcome: "The spine drives any registered node through a genuine red→green proof and lands the proven commit through the merge gate."
 status: proposed
 proof_mode: UAT
-capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, oq-hygiene-gate, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption, live-author-accounting-override, leaf-slices-observer-activation]
+capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, oq-hygiene-gate, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption, live-author-accounting-override, leaf-slices-observer-activation, live-build-db-preflight, post-build-curation-pass, build-usage-accounting, phase-activity-write]
 # Story-level edge (ADR-0010 §4, code-import-evidenced; ADR-0036): the drive consumes the
 # library story's store connection seam — createPool/closePool/applySchema in
 # packages/drive/src/node-build.ts:41-44 (events.work_event/verdict are its OWN tables), and the
@@ -116,7 +116,7 @@ and this story's frontmatter carries the `agent` edge in `depends_on`. The coupl
 documented prose — it is a first-class declared, world-visible edge (the boundary gate, ADR-0074,
 now sees the spine↔leaf seam).
 
-## Capabilities (23)
+## Capabilities (27)
 
 Listed roots-first (a capability appears after everything it depends on). `mapped` = a real
 passing offline suite observationally verifies the dominant behaviour; the Proof blockquote in
@@ -147,6 +147,17 @@ each file pins the `proposed` pockets.
 | 21 | [`uat-bound-command-adoption`](uat-bound-command-adoption.md) | `runAdopt` observes and signs each machine UAT leg only through the command supplied by that leg's resolved proof-gate binding. | proposed | `build-drive-cli`, `uat-machine-gate-resolution` |
 | 22 | [`live-author-accounting-override`](live-author-accounting-override.md) | An offline caller can supply the resolved live author for accounting, and supplying it without an author override is refused fail-closed. | proposed | `prove-spec-resolution` |
 | 23 | [`leaf-slices-observer-activation`](leaf-slices-observer-activation.md) | An offline real chain invokes the leaf-slices observer once per node with that node's own run accounting, and a canned live author still cannot move a verdict. | proposed | `live-author-accounting-override`, `story-real-chain` |
+| 24 | [`live-build-db-preflight`](live-build-db-preflight.md) | A build that owns the live store begins only against a database it has just watched accept connections. | mapped | — |
+| 25 | [`post-build-curation-pass`](post-build-curation-pass.md) | A green story build ends by enacting a scoped curator's open-question judgments behind a kind fence the curator cannot open. | mapped | — |
+| 26 | [`build-usage-accounting`](build-usage-accounting.md) | A build's per-slice token accounting lands on its own event stream as a kind no verdict reads. | mapped | `work-verdict-event-log` |
+| 27 | [`phase-activity-write`](phase-activity-write.md) | Each phase the spine commits to is recorded as a fresh phase-stamped `building` event by an observer that lives outside the gate. | mapped | `work-verdict-event-log` |
+
+Capabilities 24–27 were authored on 2026-08-07 (`capability-layer-coverage-arc`) over drive code that
+was already implemented and already had a passing colocated suite, but which no node's `outcome:`
+covered — so `repo-manifest.json` declared it at STORY grain for want of a capability. They are
+brownfield `mapped` and, like capabilities 19–23, are deliberately absent from every `(covers:)` list
+in **Reliability Gates** below: gate-3 RUNS their proving files, but adding them to a frozen covers-list
+changes what an already-signed verdict claims, so it stays a separate, id-aware decision.
 
 ## Dependency graph (code-derived)
 
