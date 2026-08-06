@@ -83,7 +83,11 @@ periodic human / `librarian-curator` review.
    stories it is a missing declaration the report surfaces).
 3. **Emit it as a WARN/report, never a block.** It runs in `check:boundaries` (or a sibling check) and
    prints the drift list without failing the gate — the `pnpm gate` `check:agents-sync` / `check:corpus-sync`
-   precedent (best-effort, never blocks). A declared-but-unbacked edge is frequently LEGITIMATE (a real
+   precedent as it stood at this decision (best-effort, never blocks). *(Corrected in place 2026-08-06
+   per ADR-0139; this decision — emit as a WARN, never a block — is unchanged, and `check:boundaries`,
+   the check it rides, is one of the nine rungs ADR-0311 retained. Only the two ADRs cited as
+   PRECEDENT are gone: ADR-0302 D4 deleted `check:agents-sync` and `check:corpus-sync` outright. The
+   reasoning they were cited for stands on its own.)* A declared-but-unbacked edge is frequently LEGITIMATE (a real
    build-artifact or IoC honesty edge), so blocking on it would be wrong; the report is a review nudge.
 
    **Correction (2026-07-28 — [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)

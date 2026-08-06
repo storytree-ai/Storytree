@@ -36,6 +36,19 @@ being built**; what exists is a static, claim-blind `permissions.deny` block on 
 ADR's own two mechanisms are unaffected either way — and are, if anything, MORE load-bearing now, not
 less. Read the build state from ADR-0284, which owns it, not from here and not from ADR-0257.)*
 
+**Correction ([ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md) D2, per
+ADR-0139 — 2026-08-06): the sentence directly above is no longer true, and this is the one place it
+matters most. This ADR decided TWO mechanisms; ADR-0311 D2 retired the second.** `check:declared` was
+removed from root policy and CI, so **only the SessionStart nudge remains as a live mechanism**. The
+checker survives unwired at `packages/cli/src/check-declared.ts` and answers when invoked directly;
+nothing invokes it on a merge path. Every claim below that an unclaimed session "cannot reach the merge
+ceremony" is therefore overtaken — it can, and nothing stops it. **Nothing in this ADR is re-decided:**
+the nudge stands exactly as decided, the rejection of a creation-time gate stands, and the reasoning
+for both is untouched. What is withdrawn is the *enforcement* the later ADR-0200/ADR-0245 hardening
+notes recorded — see the inline notes on Decision 2 and in Consequences. The net ratchet on the
+developer machine is now the nudge plus ADR-0284's static `permissions.deny` block (file tools only,
+one machine, claim-blind); read the build state from ADR-0284, which owns it.
+
 ## Context
 
 ADR-0142 made `noticeboard declare --node` take the work-time story claim — the wisp. But lighting
@@ -112,6 +125,16 @@ Two never-blocking mechanisms, replacing discipline with structure without a cre
    it covered only a caller standing in the lobby, which since ADR-0257 made that checkout unwritable
    is the rarest shape there is, while every worktree session skipped the question. See ADR-0245
    D5.2's build note.]**
+   **[RETIRED 2026-08-06 per [ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md)
+   D2 — corrected in place per ADR-0139; the decision this ADR took is not re-decided. The whole of
+   Decision 2 is now HISTORICAL: `check:declared` is no longer a step in `pnpm gate` or CI at all, so
+   neither the original WARN, ADR-0200 D3's hardening to FAIL, nor ADR-0245 D5.2's lobby arm executes on
+   any landing path. An unclaimed session CAN now reach the merge ceremony without being told. The two
+   correction notes above remain accurate about the *code*, which survives intact and unwired at
+   `packages/cli/src/check-declared.ts` — the predicates, the claim-ledger keying and the SKIP arms are
+   all still there and still behave as described when the checker is invoked directly. What was removed
+   is only the wiring that made it run. Re-adding it needs fresh production-catch evidence and a new
+   ADR (ADR-0311 D5), never merely the wiring.]**
 
 The enforcement ladder is unchanged above this: build-claim hard-refusal (ADR-0121), the merge
 ceremony + merged-branch guard (ADR-0142), and — when ADR-0137 Phase 3 lands — claim-at-spawn
@@ -121,7 +144,9 @@ ceremony + merged-branch guard (ADR-0142), and — when ADR-0137 Phase 3 lands �
 
 - Every interactive session is prompted to anchor itself at the moment it starts and reminded at
   every gate run — the two moments it is guaranteed to be listening — with zero new blocking paths
-  and zero DB coupling at session start.
+  and zero DB coupling at session start. *(Half OVERTAKEN 2026-08-06 per ADR-0139: ADR-0311 D2 retired
+  `check:declared`, so the gate-run reminder no longer fires. **One** of the two moments survives —
+  SessionStart — and it is now the only machine reminder a session gets.)*
 - The SessionStart print-nothing contract is narrowed, not abandoned: one static line, `start` mode
   only; `end` and `statusline` are unchanged, and the never-blocking-hooks audit still holds.
 - A session that ignores both signals still lands only through the merge ceremony, whose guard and
@@ -130,6 +155,11 @@ ceremony + merged-branch guard (ADR-0142), and — when ADR-0137 Phase 3 lands �
   hard gate rather than the only pressure. **[Corrected 2026-07-16 per ADR-0200 D3: the gate rung
   is no longer merely a warn — `check:declared` now FAILs an unclaimed session, so the hard gate at
   the landing ceremony already exists; the nudge remains the soft edge above it.]**
+  **[RE-CORRECTED 2026-08-06 per ADR-0139 — ADR-0311 D2 withdrew that hard gate. There is no longer a
+  `check:declared` rung at the landing ceremony in any form, so the 2026-07-16 note above is HISTORICAL:
+  the nudge is not the soft edge above a hard gate, it is the only edge. This bullet's original
+  conditional — that a real hard gate arrives with claim-at-spawn (ADR-0137 Phase 3) — is once again
+  the accurate statement of where one would come from.]**
 
 ## References
 

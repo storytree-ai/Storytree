@@ -71,7 +71,12 @@ the shared primary checkout — and shipped the first enforcement of it to be **
 *(build state corrected in place 2026-08-02: this read "the only enforcement … in force today", with
 a parenthetical that the write-time wall "enforces nothing yet". ADR-0257 increment 3 flipped the
 wall on the same day, so it is no longer the only one — see the note at the end of this block)*: its
-**D5.2 gate-time backstop**, `check:declared`'s lobby arm. **That arm stands and stays built.** D4 below
+**D5.2 gate-time backstop**, `check:declared`'s lobby arm. **That arm stands and stays built.**
+*(Corrected in place 2026-08-06 per ADR-0139 — "stays built" is still true, "gate-time" is not.
+[ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md) D2 retired
+`check:declared` from root policy and CI, so the lobby arm is no longer a backstop at any gate; the
+code survives unwired and answers only when invoked directly. This ADR's D1 — the primary checkout is a
+read-only agent lobby — is untouched, and ADR-0284 owns what actually enforces it now.)* D4 below
 already places it in the feedback layer, and "Rejected alternatives" rejects the merge gate only as
 *the authority boundary*, never as defence in depth — "the late gate remains defence in depth" is
 this ADR's own words. What is amended is ADR-0245 D5's **ranking**: the gate is no longer "the
@@ -141,6 +146,11 @@ enforcement does not make that sentence true for a general-purpose agent harness
   it asks the dirty-lobby question first, from wherever the gate is invoked. The other two clauses —
   it still skips on absent creds or an unreachable ledger, and the whole check still runs only at the
   landing gate — remain literally true, and they are what the argument below rests on.)*
+  *(Re-corrected 2026-08-06 per ADR-0139: the second of those two clauses no longer holds. ADR-0311 D2
+  retired `check:declared` from root policy and CI, so it does not run at the landing gate — it runs
+  nowhere unless invoked by hand. The skip-on-absent-creds clause still holds. **The argument below is
+  strengthened, not weakened:** this ADR argued that a late gate cannot be the write-authority boundary,
+  and there is now no late gate at all.)*
 - `.claude/settings.json` supplies Claude-specific, fail-silent orientation hooks; it is not a
   Codex policy surface and contains no pre-write refusal. *(Still literally true of the COMMITTED
   project file, re-verified 2026-08-02 — it declares neither `permissions.deny` nor a `PreToolUse`
@@ -225,6 +235,10 @@ projections of one rule.
      the lobby, ambiguous shell commands are denied rather than guessed read-only.
    - SessionStart instructions, statuslines, noticeboard deltas and `check:declared` remain the
      feedback layer. They explain the refusal and show the next ceremony; they are not the wall.
+     *(Corrected in place 2026-08-06 per ADR-0139: `check:declared` left this layer when ADR-0311 D2
+     retired it from root/CI policy — it now explains nothing on any path a session travels. The other
+     three feedback surfaces stand, and the clause that carries the argument — none of them is the
+     wall — is unchanged.)*
    - A project-local hook alone is insufficient where the harness lets a user disable, distrust or
      bypass it. Claude and Codex integrations must use the strongest non-bypassable policy surface
      that each deployed runtime provides. A platform that cannot supply that boundary is

@@ -115,6 +115,12 @@ would make the question a seed artifact missing from live, which `check:corpus-s
 drain ceiling since 2026-07-28 (ADR-0252 D3) — fails the local gate on, and which
 `sync-corpus --pg` would silently resurrect.
 
+*(WITHDRAWN as an instruction 2026-08-06 — corrected in place per ADR-0139; nothing this ADR decided is
+re-decided. The retire is no longer two-surface and there is nothing to do in a second place:
+ADR-0302 D1/D4 deleted `apps/studio/data/knowledge.json`, `sync-corpus` and `check:corpus-sync`
+together, so there is no seed entry to remove, no gate to red, and no resurrection risk. A live retire
+is now the whole operation. Do not go looking for the seed file.)*
+
 ### D6 — The surface is READ-ONLY this round; two-way is deferred, not rejected
 
 The owner: *"i think it should just all be a read surface for now, once i get a feel for this then we
