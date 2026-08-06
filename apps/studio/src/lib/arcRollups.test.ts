@@ -6,9 +6,10 @@
 // THE LOAD-BEARING CASE IS THE FAILED READ WITH NOTHING KNOWN YET, and it is a REGRESSION test: the
 // hook's first landing (#1191) swallowed that failure and left the state at `undefined` forever, so
 // the desktop app — which loads the compiled studio bundle against its own local backend, and that
-// backend does not mirror `/api/arcs` — sat on "Reading arcs…" permanently. A spinner that will
+// backend did not then mirror `/api/arcs` — sat on "Reading arcs…" permanently. A spinner that will
 // never resolve is a worse lie than an empty list: it tells the owner to wait for something that is
-// not coming.
+// not coming. The desktop mirrors the route now, which removes that ONE cause and none of the
+// others: a request can still fail, and a build older than the mirror still 404s.
 //
 // The four answers this hook distinguishes, each a different fact:
 //   `undefined`     nothing has answered yet
@@ -102,8 +103,9 @@ describe('useArcRollups — four answers, four different facts', () => {
   });
 
   it('reports `unreachable` when the read fails with nothing known yet (the #1191 regression)', async () => {
-    // The desktop local backend 404s `/api/arcs`; `http()` throws. Before this, the catch swallowed
-    // it and the surface rendered "Reading arcs…" forever.
+    // A backend that does not serve `/api/arcs` 404s it and `http()` throws — the shape the desktop
+    // local backend had before it mirrored the route. Before this test, the catch swallowed it and
+    // the surface rendered "Reading arcs…" forever.
     apiMock.arcs.mockRejectedValue(new Error('404 Not Found'));
     const { result } = renderArcs(true);
     await act(async () => {});

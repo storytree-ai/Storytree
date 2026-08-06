@@ -16,10 +16,17 @@
 // not blur them into a confident empty state. The FIRST TWO are the distinction this hook got wrong
 // on its first landing (#1191), and the cost was measured rather than theorised: the desktop app
 // loads the compiled studio bundle against its own local backend (`apps/desktop/src/backend/
-// local-backend.ts`), which does not mirror `/api/arcs` and 404s it. The catch below swallowed that
-// and left the state at `undefined` forever, so the desktop arc lens sat on "Reading arcs…"
-// permanently — a spinner that will never resolve, which is a worse lie than an empty list because
-// it tells the owner to wait.
+// local-backend.ts`), and that backend did not mirror `/api/arcs` — it 404'd it. The catch below
+// swallowed that and left the state at `undefined` forever, so the desktop arc lens sat on
+// "Reading arcs…" permanently — a spinner that will never resolve, which is a worse lie than an
+// empty list because it tells the owner to wait.
+//
+// THE DESKTOP MIRRORS THE ROUTE NOW (its `docStore` seam + `/api/arcs` pair, held to the studio's
+// payload by the `MIRRORS` row in packages/cli/src/mirror-conformance.ts), so the thick client
+// reaches the third and fourth answers like the studio does. `'unreachable'` did NOT become
+// unreachable code: a request can still fail, and a desktop build older than that mirror still
+// 404s. The state earned its keep on a case that has been fixed and remains the honest answer for
+// the cases that have not.
 //
 // A TRANSIENT failure is still absorbed: once anything has answered, a later error keeps the
 // last-known value rather than flapping the surface to unreachable on one dropped poll. Only a

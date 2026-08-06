@@ -514,6 +514,18 @@ async function main(): Promise<void> {
         foldDepartures(await claimLedger.recentDepartures(DEPARTURE_WINDOW_MS), new Date()),
       ),
     sessionClaims: async () => advisory("session-claims", async () => claimLedger.listLiveClaims()),
+    // The library DOCUMENT STORE behind GET /api/arcs (ADR-0267 / ADR-0314) — the live PgLibraryStore
+    // built above, handed straight to drive's arc rollup. Mirrors the studio PgBackend.docStore
+    // (re-composed here, the surface boundary — no apps/studio/server import, ADR-0100), and it is the
+    // SAME `Store` the CLI drives under `--pg`, so the desktop arc lens, the hosted studio and
+    // `storytree arc show` all read one join.
+    //
+    // DELIBERATELY NOT WRAPPED IN `advisory`, unlike every read above it. Those return a VALUE and
+    // null-on-failure is an honest under-claim; this returns the STORE ITSELF, and `null` here means
+    // something else entirely — "this backend has no document store" (the offline json posture), which
+    // the route answers with `{ arcs: null }` / 503. Nulling it on a transient DB blip would tell the
+    // owner their machine has no store at all rather than surfacing the failure.
+    docStore: async () => library,
   };
 
   // The THREE dispatchers the Electron main mounts in sequence (ADR-0119 §2 + the chat-SSE increment):

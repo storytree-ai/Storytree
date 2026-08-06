@@ -74,13 +74,14 @@ export function ArcSurface({ arcs, now, floorHealth }: ArcSurfaceProps): React.J
           {arcs === undefined ? (
             <p className="muted small arc-lanes-note">Reading arcs…</p>
           ) : arcs === ARCS_UNREACHABLE ? (
-            /* The read never answered — no such route on this backend (the desktop's local backend
-               does not mirror `/api/arcs`), or the request failed. Distinct from "Reading arcs…":
-               a spinner that will never resolve is a worse lie than an empty list, because it tells
-               the owner to wait for something that is not coming. */
+            /* The read never answered — the request failed, or this backend does not serve the
+               route at all. The desktop's local backend used to be the standing example of the
+               latter; it mirrors `/api/arcs` now, so what reaches here is a backend older than that
+               mirror, or a genuine failure. Distinct from "Reading arcs…": a spinner that will never
+               resolve is a worse lie than an empty list, because it tells the owner to wait for
+               something that is not coming. */
             <p className="muted small arc-lanes-note" data-testid="arc-lanes-unreachable">
-              Arcs aren&apos;t available here — this app didn&apos;t answer the arc read. The studio
-              serves them.
+              Arcs aren&apos;t available here — the arc read didn&apos;t answer.
             </p>
           ) : arcs === null ? (
             /* `null` and `[]` are DIFFERENT facts (the /api/arcs handler is explicit about this):
