@@ -93,6 +93,14 @@ span directly from the existing normalized regrow cursor plus immutable frame/wo
 returns the ordinary fitted camera exactly at cursor 1. It changes only what the viewer sees: island
 order, accretion timing, vegetation timing, and the regrow schedule stay authoritative.
 
+The replacement ran the same interleaved protocol on build
+`9379cfe0+act2-bottom-anchor`, Chromium 148.0.7778.96, at 1600×1000 against exactly 40 mapped
+islands. All 8 runs were admitted, every start bracket passed, and every run restored the exact
+fitted camera. Its pooled painting-frame p50 deltas against same-build growth-only controls were
+0.0, +16.5, +16.6 and -49.9 ms across the 0–4k, 4–8k, 8–12k and 12–20k map-node buckets. Growth-only
+runs spanned 29.55–31.00 s and final-product runs 29.07–30.25 s. These are the replacement's
+production results; as above, they support no cross-build claim about absolute frame cost.
+
 ### D3 — Reduced motion stays fitted without choreography
 
 When `prefers-reduced-motion` is active, the camera remains at the ordinary fitted whole-forest view.
@@ -125,14 +133,16 @@ exact.
 
 **Costs.** PR #1160 measured material rasterisation cost for both obvious diagnostic transform paths
 during the changing forest. PR #1175's centre-anchored remeasurement found no material frame-cost or
-run-span penalty for that bounded path on the measured build, but the replacement still changes a
-live transform while the forest paints and has not yet been measured. The prior clean comparison
-does not make camera movement generally free or prove the replacement cheap.
+run-span penalty for that bounded path on the measured build. The bottom-anchored replacement's
+same-build comparison measured +16.5 and +16.6 ms pooled p50 deltas in the two middle map-node
+buckets, with 0.0 and -49.9 ms in the smallest and largest buckets; its admitted run spans remained
+within the interleaved growth-only range. This bounded result does not make camera movement generally
+free or prove another composition cheap.
 
 **Risk.** The absolute growth-only baseline varied materially from the inherited pair while the idle
-brackets were clean. The replacement measurement must continue interleaving controls and the chosen
-path on the same build/browser/box; historical absolute numbers and PR #1175's centre-anchored run are
-calibration context, not a substitute control. The closer bottom framing and the upward reveal's
+brackets were clean. The replacement measurement therefore interleaved controls and the chosen path
+on the same build/browser/box; historical absolute numbers and PR #1175's centre-anchored run remain
+calibration context, not substitute controls. The closer bottom framing and the upward reveal's
 appearance and pacing still require the owner's stage-2 visual verdict.
 
 ## References
@@ -149,5 +159,5 @@ appearance and pacing still require the owner's stage-2 visual verdict.
 - `apps/studio/scripts/measure-camera-rasterisation.mjs` — production Chromium collector.
 - `docs/research/act2-camera-rasterisation-2026-08-05/` — raw JSON and comparison table for the
   admitted 8-run set.
-- `docs/research/act2-regrow-camera-final-2026-08-06/` — raw JSON and comparison table for the final
-  product curve's admitted 8-run set.
+- `docs/research/act2-bottom-anchored-camera-2026-08-06/` — raw JSON and comparison table for the
+  bottom-anchored final product curve's admitted 8-run set.
