@@ -10,7 +10,11 @@ export const CAMERA_RASTERISATION_QUERY_KEY = 'cameraRasterisation';
 export const CAMERA_RASTERISATION_QUERY_VALUE = 'probe';
 export const CAMERA_RASTERISATION_VARIANT_KEY = 'cameraVariant';
 export const CAMERA_RASTERISATION_EXPECTED_ISLANDS = 40;
-export const CAMERA_RASTERISATION_PROTOCOL = 2;
+export const CAMERA_RASTERISATION_PROTOCOL = 5;
+/** Predeclared adequacy floor for each arm of a stable-picture bucket comparison. */
+export const CAMERA_RASTERISATION_STABLE_PICTURE_MIN_SAMPLES_PER_ARM = 100;
+/** One 60 Hz refresh interval: the maximum accepted final-product stable-picture penalty. */
+export const CAMERA_RASTERISATION_STABLE_PICTURE_TARGET_DELTA_MS = 16.7;
 
 export const CAMERA_RASTERISATION_VARIANTS = [
   'growth-only',
@@ -128,6 +132,10 @@ export interface CameraRasterisationFrameSample {
   readonly growthNodeCount: number;
   /** Total elements currently present under `.world-camera`: the ADR-0286 bucket axis. */
   readonly mapNodeCount: number;
+  /** Committed visual revision observed at the end of this browser-frame interval. */
+  readonly pictureRevision: number;
+  /** Exact stable-picture predicate: the committed visual revision did not change this interval. */
+  readonly pictureChangedSincePreviousFrame: boolean;
   readonly svgTransform: string | null;
   readonly htmlTransform: string;
 }
@@ -181,6 +189,8 @@ export const CAMERA_RASTERISATION_BUCKETS = [
   { key: '20k+', min: 20_000, max: Number.POSITIVE_INFINITY },
 ] as const;
 
+export type CameraRasterisationBucketKey = (typeof CAMERA_RASTERISATION_BUCKETS)[number]['key'];
+
 export interface CameraRasterisationComparisonRow {
   readonly variant: Exclude<CameraRasterisationVariant, 'growth-only'>;
   readonly bucket: string;
@@ -191,10 +201,53 @@ export interface CameraRasterisationComparisonRow {
   readonly variantSamples: number;
 }
 
+export type CameraRasterisationStablePictureAdequacy = 'adequate' | 'inadequate';
+export type CameraRasterisationStablePictureVerdict = 'pass' | 'fail' | 'insufficient-samples';
+
+export interface CameraRasterisationStablePictureComparisonRow {
+  readonly variant: Exclude<CameraRasterisationVariant, 'growth-only'>;
+  readonly bucket: CameraRasterisationBucketKey;
+  readonly baselineFrameMs: number | null;
+  readonly variantFrameMs: number | null;
+  readonly deltaMs: number | null;
+  readonly baselineSamples: number;
+  readonly variantSamples: number;
+  readonly minimumSamplesPerArm: number;
+  readonly adequacy: CameraRasterisationStablePictureAdequacy;
+}
+
+export interface CameraRasterisationStablePictureTargetVerdict {
+  readonly variant: 'final-product';
+  /** Highest declared map-node bucket with an adequate control and product arm, or null. */
+  readonly bucket: CameraRasterisationBucketKey | null;
+  readonly maximumDeltaMs: number;
+  readonly baselineSamples: number | null;
+  readonly variantSamples: number | null;
+  readonly minimumSamplesPerArm: number;
+  readonly observedDeltaMs: number | null;
+  readonly verdict: CameraRasterisationStablePictureVerdict;
+}
+
+export type CameraRasterisationStablePictureFailureReason =
+  | 'stable-picture-target-regression'
+  | 'stable-picture-target-insufficient-samples';
+
+/** A passing target is the collector's only successful performance outcome. */
+export function cameraRasterisationStablePictureFailureReason(
+  target: CameraRasterisationStablePictureTargetVerdict,
+): CameraRasterisationStablePictureFailureReason | null {
+  if (target.verdict === 'pass') return null;
+  return target.verdict === 'fail'
+    ? 'stable-picture-target-regression'
+    : 'stable-picture-target-insufficient-samples';
+}
+
 export interface CameraRasterisationSummary {
   readonly acceptedRunIds: readonly string[];
   readonly rejected: readonly { runId: string; reason: Admissibility['reason'] }[];
   readonly comparisons: readonly CameraRasterisationComparisonRow[];
+  readonly stablePictureComparisons: readonly CameraRasterisationStablePictureComparisonRow[];
+  readonly stablePictureTarget: CameraRasterisationStablePictureTargetVerdict;
 }
 
 const bucketFor = (growthNodeCount: number) =>
@@ -207,19 +260,26 @@ export function summariseCameraRasterisationRuns(
   runs: readonly CameraRasterisationRun[],
 ): CameraRasterisationSummary {
   const accepted = runs.filter((run) => assessCameraRasterisationRun(run).accepted);
-  const samples = new Map<string, number[]>();
+  const paintingSamples = new Map<string, number[]>();
+  const stablePictureSamples = new Map<string, number[]>();
   for (const run of accepted) {
     for (const frame of run.frames) {
-      // ADR-0286: only a frame with live accretion is a painting frame. The bucket is the total
-      // number of nodes then present on the map; conflating these two counts floods the first bucket
-      // with idle wave gaps and makes the raster cost look like the 16.7 ms idle floor.
-      if (frame.growthNodeCount <= 0) continue;
+      // ADR-0286's painting predicate remains live accretion. Stable-picture evidence instead uses
+      // the committed visual revision: zero accretion can still change paths or vegetation, while
+      // an accretion cell can remain unchanged over one measured browser-frame interval.
       const bucket = bucketFor(frame.mapNodeCount);
       if (!bucket || !Number.isFinite(frame.deltaMs) || frame.deltaMs < 0) continue;
       const key = `${run.variant}:${bucket.key}`;
-      const values = samples.get(key);
-      if (values) values.push(frame.deltaMs);
-      else samples.set(key, [frame.deltaMs]);
+      if (frame.growthNodeCount > 0) {
+        const values = paintingSamples.get(key);
+        if (values) values.push(frame.deltaMs);
+        else paintingSamples.set(key, [frame.deltaMs]);
+      }
+      if (frame.pictureChangedSincePreviousFrame === false) {
+        const values = stablePictureSamples.get(key);
+        if (values) values.push(frame.deltaMs);
+        else stablePictureSamples.set(key, [frame.deltaMs]);
+      }
     }
   }
 
@@ -227,8 +287,8 @@ export function summariseCameraRasterisationRuns(
   for (const variant of CAMERA_RASTERISATION_VARIANTS) {
     if (variant === 'growth-only') continue;
     for (const bucket of CAMERA_RASTERISATION_BUCKETS) {
-      const baseline = samples.get(`growth-only:${bucket.key}`) ?? [];
-      const measured = samples.get(`${variant}:${bucket.key}`) ?? [];
+      const baseline = paintingSamples.get(`growth-only:${bucket.key}`) ?? [];
+      const measured = paintingSamples.get(`${variant}:${bucket.key}`) ?? [];
       if (baseline.length === 0 || measured.length === 0) continue;
       const baselineFrameMs = median(baseline);
       const variantFrameMs = median(measured);
@@ -244,12 +304,68 @@ export function summariseCameraRasterisationRuns(
     }
   }
 
+  // Unlike painting comparisons, every stable-picture bucket is emitted even when it is empty.
+  // This makes the predeclared sample floor observable and prevents missing target evidence from
+  // being mistaken for a passing result.
+  const stablePictureComparisons: CameraRasterisationStablePictureComparisonRow[] = [];
+  for (const variant of CAMERA_RASTERISATION_VARIANTS) {
+    if (variant === 'growth-only') continue;
+    for (const bucket of CAMERA_RASTERISATION_BUCKETS) {
+      const baseline = stablePictureSamples.get(`growth-only:${bucket.key}`) ?? [];
+      const measured = stablePictureSamples.get(`${variant}:${bucket.key}`) ?? [];
+      const baselineFrameMs = baseline.length > 0 ? median(baseline) : null;
+      const variantFrameMs = measured.length > 0 ? median(measured) : null;
+      const adequate =
+        baseline.length >= CAMERA_RASTERISATION_STABLE_PICTURE_MIN_SAMPLES_PER_ARM &&
+        measured.length >= CAMERA_RASTERISATION_STABLE_PICTURE_MIN_SAMPLES_PER_ARM;
+      stablePictureComparisons.push({
+        variant,
+        bucket: bucket.key,
+        baselineFrameMs,
+        variantFrameMs,
+        deltaMs:
+          baselineFrameMs === null || variantFrameMs === null
+            ? null
+            : variantFrameMs - baselineFrameMs,
+        baselineSamples: baseline.length,
+        variantSamples: measured.length,
+        minimumSamplesPerArm: CAMERA_RASTERISATION_STABLE_PICTURE_MIN_SAMPLES_PER_ARM,
+        adequacy: adequate ? 'adequate' : 'inadequate',
+      });
+    }
+  }
+
+  const adequateTargetRows = stablePictureComparisons.filter(
+    (row) => row.variant === 'final-product' && row.adequacy === 'adequate',
+  );
+  // Comparisons inherit CAMERA_RASTERISATION_BUCKETS order, so the last adequate row is the
+  // highest-density map state the same-build control and product arms can both support.
+  const targetRow = adequateTargetRows[adequateTargetRows.length - 1] ?? null;
+  const stablePictureTarget: CameraRasterisationStablePictureTargetVerdict = {
+    variant: 'final-product',
+    bucket: targetRow?.bucket ?? null,
+    maximumDeltaMs: CAMERA_RASTERISATION_STABLE_PICTURE_TARGET_DELTA_MS,
+    baselineSamples: targetRow?.baselineSamples ?? null,
+    variantSamples: targetRow?.variantSamples ?? null,
+    minimumSamplesPerArm: CAMERA_RASTERISATION_STABLE_PICTURE_MIN_SAMPLES_PER_ARM,
+    observedDeltaMs: targetRow?.deltaMs ?? null,
+    verdict:
+      targetRow === null
+        ? 'insufficient-samples'
+        : targetRow.deltaMs !== null &&
+            targetRow.deltaMs <= CAMERA_RASTERISATION_STABLE_PICTURE_TARGET_DELTA_MS
+          ? 'pass'
+          : 'fail',
+  };
+
   return {
     acceptedRunIds: accepted.map((run) => run.runId),
     rejected: runs
       .map((run) => ({ runId: run.runId, reason: assessCameraRasterisationRun(run).reason }))
       .filter((run) => run.reason !== 'accepted'),
     comparisons,
+    stablePictureComparisons,
+    stablePictureTarget,
   };
 }
 
@@ -269,6 +385,33 @@ export function formatCameraRasterisationComparisonTable(
   return `${lines.join('\n')}\n`;
 }
 
+const formatNullableMilliseconds = (value: number | null): string =>
+  value === null ? '—' : `${value.toFixed(2)} ms`;
+
+export function formatCameraRasterisationStablePictureTable(
+  summary: CameraRasterisationSummary,
+): string {
+  const lines = [
+    '| variant | map nodes | control stable-picture p50 | variant stable-picture p50 | delta | samples (control/variant; min each) | adequacy | target verdict |',
+    '| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |',
+  ];
+  for (const row of summary.stablePictureComparisons) {
+    const isTarget =
+      summary.stablePictureTarget.bucket !== null &&
+      row.variant === summary.stablePictureTarget.variant &&
+      row.bucket === summary.stablePictureTarget.bucket;
+    lines.push(
+      `| ${row.variant} | ${row.bucket} | ${formatNullableMilliseconds(row.baselineFrameMs)} | ${formatNullableMilliseconds(row.variantFrameMs)} | ${row.deltaMs === null ? '—' : `${row.deltaMs >= 0 ? '+' : ''}${row.deltaMs.toFixed(2)} ms`} | ${row.baselineSamples}/${row.variantSamples}; min ${row.minimumSamplesPerArm} | ${row.adequacy} | ${isTarget ? summary.stablePictureTarget.verdict : '—'} |`,
+    );
+  }
+  if (summary.stablePictureTarget.bucket === null) {
+    lines.push(
+      `| final-product target | no adequate bucket | — | — | — | —/—; min ${summary.stablePictureTarget.minimumSamplesPerArm} | inadequate | insufficient-samples |`,
+    );
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 export interface CameraRasterisationProbeSnapshot {
   readonly protocol: number;
   readonly ready: boolean;
@@ -284,6 +427,7 @@ export interface CameraRasterisationProbeSnapshot {
   readonly player: { readonly cursor: number; readonly playing: boolean; readonly regrowing: boolean };
   readonly growthNodeCount: number;
   readonly mapNodeCount: number;
+  readonly pictureRevision: number;
   readonly svgTransform: string | null;
   readonly htmlTransform: string;
   readonly fitTransform: string | null;

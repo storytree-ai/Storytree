@@ -7,7 +7,9 @@ import {
   CAMERA_RASTERISATION_EXPECTED_ISLANDS,
   CAMERA_RASTERISATION_PROTOCOL,
   assessCameraRasterisationRun,
+  cameraRasterisationStablePictureFailureReason,
   formatCameraRasterisationComparisonTable,
+  formatCameraRasterisationStablePictureTable,
   summariseCameraRasterisationRuns,
 } from '../src/components/cameraRasterisationProbe.ts';
 
@@ -61,7 +63,8 @@ async function observeIdleFloor(page, frameCount = 18) {
 async function observeRegrow(page) {
   return page.evaluate(() => new Promise((resolveRun, rejectRun) => {
     const frames = [];
-    let previous = null;
+    let previousTimestamp = null;
+    let previousPictureRevision = null;
     const timeout = setTimeout(() => rejectRun(new Error('regrow observation exceeded 120 seconds')), 120_000);
     const observe = (timestamp) => {
       const bridge = window.__storytreeCameraRasterisationProbe;
@@ -71,18 +74,23 @@ async function observeRegrow(page) {
         return;
       }
       const snapshot = bridge.snapshot();
-      if (previous !== null) {
+      // The first rAF establishes both interval baselines and is deliberately not a sample.
+      if (previousTimestamp !== null && previousPictureRevision !== null) {
         frames.push({
           timestamp,
-          deltaMs: timestamp - previous,
+          deltaMs: timestamp - previousTimestamp,
           cursor: snapshot.player.cursor,
           growthNodeCount: snapshot.growthNodeCount,
           mapNodeCount: snapshot.mapNodeCount,
+          pictureRevision: snapshot.pictureRevision,
+          pictureChangedSincePreviousFrame:
+            snapshot.pictureRevision !== previousPictureRevision,
           svgTransform: snapshot.svgTransform,
           htmlTransform: snapshot.htmlTransform,
         });
       }
-      previous = timestamp;
+      previousTimestamp = timestamp;
+      previousPictureRevision = snapshot.pictureRevision;
       if (!snapshot.player.playing && snapshot.player.cursor >= 1 && frames.length > 0) {
         clearTimeout(timeout);
         resolveRun(frames);
@@ -195,7 +203,19 @@ async function main() {
     '',
     `Build: \`${args.build}\` · Chromium ${browserVersion} · ${VIEWPORT.width}×${VIEWPORT.height}`,
     '',
+    '## Painting frames',
+    '',
     formatCameraRasterisationComparisonTable(summary).trimEnd(),
+    '',
+    '## Committed stable-picture frames',
+    '',
+    summary.stablePictureTarget.bucket === null
+      ? `Target: no final-product stable-picture bucket has at least ${summary.stablePictureTarget.minimumSamplesPerArm} samples in both arms. Verdict: **${summary.stablePictureTarget.verdict}**.`
+      : `Target: final-product ${summary.stablePictureTarget.bucket} stable-picture p50 is no more than ${summary.stablePictureTarget.maximumDeltaMs.toFixed(1)} ms above the same-build growth-only control. Verdict: **${summary.stablePictureTarget.verdict}**.`,
+    '',
+    formatCameraRasterisationStablePictureTable(summary).trimEnd(),
+    '',
+    '## Admitted run-span envelope',
     '',
     '| variant | admitted run spans |',
     '| --- | ---: |',
@@ -212,10 +232,22 @@ async function main() {
   await writeFile(tablePath, table, 'utf8');
 
   const hardFailures = runs.filter(
-    (run) => !run.start.ok || !run.cleanupMatchesFit || run.descriptor.protocol !== CAMERA_RASTERISATION_PROTOCOL,
+    (run) =>
+      !run.start.ok ||
+      !run.admissibility.accepted ||
+      !run.cleanupMatchesFit ||
+      run.descriptor.protocol !== CAMERA_RASTERISATION_PROTOCOL,
   );
   if (hardFailures.length > 0) {
     throw new Error(`probe failed closed; inspect ${args.output} (${hardFailures.map((run) => run.runId).join(', ')})`);
+  }
+  const performanceFailureReason = cameraRasterisationStablePictureFailureReason(
+    summary.stablePictureTarget,
+  );
+  if (performanceFailureReason !== null) {
+    throw new Error(
+      `probe performance failed closed (${performanceFailureReason}); inspect ${args.output}`,
+    );
   }
   process.stdout.write(`${table}\nRaw evidence: ${args.output}\nComparison table: ${tablePath}\n`);
 }
