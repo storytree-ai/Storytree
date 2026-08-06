@@ -229,6 +229,8 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // the BROWNFIELD studio vitest `real:` arm over TreeView.tsx's frame-coalesced drag camera controller.
   // Its camera-rasterisation-probe sibling is the query-gated production Chromium diagnostic over
   // the real 40-island Act 2 regrow and both SVG-camera / HTML-compositor transform paths.
+  // Its act2-regrow-camera-zoom-out child is the shipped cursor projection plus the final-product
+  // arm of that same production protocol.
   // Its ADR-0240 sibling map-route-retention (stories/studio/map-route-retention.md) is another
   // BROWNFIELD studio vitest `real:` arm: App-level composition keeps a visited TreeView alive across
   // hash routes while safely parking it outside the active route's paint and input tree.
@@ -563,6 +565,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // permanently under-claims one. Emits nothing, so no coverage constant moves; the query-render append
   // and the index export are glue (ADR-0158), claimed by no `real:` arm.
   assert.match(bare.body, /REAL-buildable nodes: .*camera-rasterisation-probe/);
+  assert.match(bare.body, /REAL-buildable nodes: .*act2-regrow-camera-zoom-out/);
   assert.match(bare.body, /REAL-buildable nodes: .*arc-explicit-id-fidelity/);
   assert.match(bare.body, /REAL-buildable nodes: .*hydrated-store-dialing-root/);
   // offer-set-render-agreement (stories/context-traversal-capture/offer-set-render-agreement.md —
@@ -589,6 +592,10 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   assert.match(bare.body, /REAL-buildable nodes: .*offer-observability-share/);
   assert.match(bare.body, /REAL-buildable nodes: .*offer-set-render-agreement/);
   const catalogWithoutFocusedNodes = bare.body
+    .replace(
+      /(REAL-buildable nodes:[^\n]*act2-beat-director), act2-regrow-camera-zoom-out/,
+      '$1',
+    )
     .replace(
       /(REAL-buildable nodes:[^\n]*builder-role), camera-rasterisation-probe/,
       '$1',

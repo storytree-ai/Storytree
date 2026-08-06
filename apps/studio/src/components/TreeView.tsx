@@ -75,6 +75,7 @@ import {
   centerOn,
   panBy,
   zoomAt,
+  act2RegrowCamera,
   type Camera,
   type ScaleLimits,
 } from '../lib/worldCamera.js';
@@ -1490,10 +1491,13 @@ const PAN_FOLD_THRESHOLD_PX = 4000;
 
 export function TreeView({
   focus,
+  active = true,
   codeHeadRef: codeHeadRefFromApp,
   cacheWriteSuppressedRef: cacheWriteSuppressedRefFromApp,
 }: {
   focus: string | null;
+  /** False while App retains this instance off-route. A parked forest settles; it never plays hidden. */
+  active?: boolean;
   /**
    * map-payload-cache (ADR-0240 decision 2 stage 2): the server code stamp App lifted from
    * StoreBanner's single `/api/health` poller (`code.head`), so a successful reloadTree can stamp
@@ -1717,6 +1721,11 @@ export function TreeView({
   const svgRef = useRef<SVGSVGElement>(null);
   const cameraRef = useRef<SVGGElement>(null);
   const [cam, setCam] = useState<Camera | null>(null);
+  const fitCameraRef = useRef<Camera | null>(null);
+  const cameraFrameRef = useRef({ width: 0, height: 0 });
+  // Input handlers are declared before the Act 2 player. The ref lets those stable handlers obey
+  // the player without adding a second camera state machine or rebuilding their native bindings.
+  const act2RegrowingRef = useRef(false);
   const limitsRef = useRef<ScaleLimits>({ min: 0.01, max: 100 });
   // `animate` is on only for the programmatic mount/select moves (smooth);
   // every interactive handler (wheel/drag/keys) turns it off so dragging and
@@ -1775,6 +1784,8 @@ export function TreeView({
       fit: 'contain', // show the WHOLE forest in the window-filling viewport, not a width-clipped slice
     });
     limitsRef.current = limitsForFit(fit.scale);
+    fitCameraRef.current = fit;
+    cameraFrameRef.current = { width: fw, height: fh };
     setAnimate(false);
     if (selectedStory) {
       const territory = world.territories.find((t) => t.story.id === selectedStory);
@@ -1826,6 +1837,8 @@ export function TreeView({
       fit: 'contain',
     });
     limitsRef.current = limitsForFit(fit.scale);
+    fitCameraRef.current = fit;
+    cameraFrameRef.current = { width: fw, height: fh };
     atFitRef.current = true;
     setAnimate(false);
     setCam(fit);
@@ -1940,6 +1953,19 @@ export function TreeView({
     panFrameGenerationRef.current += 1;
   }, []);
 
+  // Entering the scripted regrow can race a pointer gesture that began one render earlier. Drop
+  // every uncommitted/painted manual offset at that boundary so a later pointer-up cannot alter the
+  // fitted camera waiting underneath the script.
+  const discardPanForAct2 = useCallback((): void => {
+    cancelPanFrame();
+    pendingPanRef.current = { dx: 0, dy: 0 };
+    liveOffsetRef.current = { x: 0, y: 0 };
+    foldPendingRef.current = { x: 0, y: 0 };
+    dragRef.current = null;
+    if (panLayerRef.current) panLayerRef.current.style.willChange = 'auto';
+    paintPanLayer();
+  }, [cancelPanFrame, paintPanLayer]);
+
   useEffect(() => cancelPanFrame, [cancelPanFrame]);
 
   // Wheel → zoom-to-cursor. React's onWheel can be passive (preventDefault
@@ -1947,6 +1973,7 @@ export function TreeView({
   // functional updater + limitsRef so the handler can stay identity-stable.
   const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
+    if (act2RegrowingRef.current) return;
     // ADR-0272 decision 2: settle any live drag offset into the camera BEFORE the anchor rect is
     // read — a translated wrapper moves that rect, so zooming over a live offset would anchor to
     // the wrong point. flushPendingPan lands any still-queued frame delta, then folds the whole
@@ -2013,6 +2040,7 @@ export function TreeView({
   );
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (act2RegrowingRef.current) return;
     if (e.button !== 0) return;
     // Start each gesture fresh: clear any suppression a prior drag left set when
     // its synthetic click never arrived, so a real click is never wrongly eaten.
@@ -2026,6 +2054,7 @@ export function TreeView({
     // must stay capture-free so it reaches the node.
   }, []);
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (act2RegrowingRef.current) return;
     const d = dragRef.current;
     if (!d) return;
     // Until the pointer wanders past the slop the press is still a CLICK: don't pan and don't mark it
@@ -2090,6 +2119,7 @@ export function TreeView({
   // WASD / arrows → pan (the div is tabIndex={0}). Arrow keys preventDefault so
   // the page never scrolls; modifier-held or input-focused keystrokes pass through.
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (act2RegrowingRef.current) return;
     if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const target = e.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
@@ -2314,7 +2344,7 @@ export function TreeView({
     return lengths;
   }, [world]);
   const act2Player = useAct2Intro({
-    enabled: act2Enabled,
+    enabled: active && act2Enabled,
     stories,
     reducedMotion: act2ReducedMotion,
     speed: act2Speed,
@@ -2325,6 +2355,54 @@ export function TreeView({
     edges: world?.trails.edges ?? null,
     segmentLengths: act2Enabled ? trailSegLengths : null,
   });
+  act2RegrowingRef.current = active && act2Player.regrowing;
+  const fittedCam = fitCameraRef.current ?? cam;
+  const cameraFrame = cameraFrameRef.current;
+  const finalProductCam = useMemo(
+    () => fittedCam
+      ? act2RegrowCamera(fittedCam, cameraFrame, act2Player.progress, act2ReducedMotion)
+      : null,
+    [fittedCam, cameraFrame.width, cameraFrame.height, act2Player.progress, act2ReducedMotion],
+  );
+  // Every diagnostic route suppresses the shipped choreography first. `final-product` then applies
+  // this same projection imperatively through the measurement seam, while `growth-only` performs
+  // no camera write at all. Outside the probe, the rendered camera is a pure cursor projection.
+  const presentedCam = !active
+    ? fittedCam
+    : cameraRasterisationRoute
+    ? fittedCam
+    : act2Player.regrowing
+      ? finalProductCam
+      : cam;
+
+  // A replay may begin after the operator panned or zoomed. Reset the ordinary camera once, on entry,
+  // so settlement already owns the exact fitted value; there is deliberately no camera write on exit
+  // or after cursor 1. The visible in-flight values remain the pure projection above.
+  const act2WasRegrowingRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!active) {
+      discardPanForAct2();
+      if (fittedCam) {
+        atFitRef.current = true;
+        setAnimate(false);
+        setCam(fittedCam);
+      }
+      act2WasRegrowingRef.current = false;
+      return;
+    }
+    if (act2Player.regrowing && !act2WasRegrowingRef.current) {
+      // The first render can precede the mount-fit layout effect. Do not latch the entry until a
+      // real fitted camera exists and has actually replaced a deep-link/territory focus camera.
+      if (!fittedCam) return;
+      discardPanForAct2();
+      atFitRef.current = true;
+      setAnimate(false);
+      setCam(fittedCam);
+      act2WasRegrowingRef.current = true;
+      return;
+    }
+    act2WasRegrowingRef.current = act2Player.regrowing;
+  }, [active, act2Player.regrowing, fittedCam, discardPanForAct2]);
   // The camera probe has no animation clock of its own. React reaches this layout effect only when
   // the EXISTING Act 2 player publishes a new semantic cursor, and the effect writes that sample to
   // either the real repaint-heavy SVG camera or the real compositor HTML wrapper. Cleanup restores
@@ -2343,19 +2421,23 @@ export function TreeView({
       !cameraRef.current ||
       !panLayerRef.current
     ) return;
-    const fitTransform = `translate(${cam.tx} ${cam.ty}) scale(${cam.scale})`;
+    const fit = fittedCam ?? cam;
+    if (!fit || !finalProductCam) return;
+    const fitTransform = `translate(${fit.tx} ${fit.ty}) scale(${fit.scale})`;
+    const finalProductTransform = `translate(${finalProductCam.tx} ${finalProductCam.ty}) scale(${finalProductCam.scale})`;
     const restore = applyCameraRasterisationTransform(
       { svgCamera: cameraRef.current, htmlCompositor: panLayerRef.current },
       cameraRasterisationRoute.variant,
       act2Player.progress,
       fitTransform,
+      finalProductTransform,
     );
     cameraProbeRestoreRef.current = restore;
     return () => {
       restore();
       if (cameraProbeRestoreRef.current === restore) cameraProbeRestoreRef.current = () => {};
     };
-  }, [cameraRasterisationRoute, cameraProbeCorpusAccepted, cam, act2Player.progress]);
+  }, [cameraRasterisationRoute, cameraProbeCorpusAccepted, cam, fittedCam, finalProductCam, act2Player.progress]);
   // Held apart from `scene` on purpose: the per-island `caps` / `radius` / `status` the ADR-0292
   // vegetation variation reads live on the SceneInput, not on the drawable tree the scene walk
   // produces. Deriving them a second time from `world` would be a second definition of the same fold.
@@ -2510,7 +2592,7 @@ export function TreeView({
     mapNodeCount: cameraRef.current?.querySelectorAll('*').length ?? 0,
     svgTransform: cameraRef.current?.getAttribute('transform') ?? null,
     htmlTransform: panLayerRef.current?.style.transform ?? '',
-    fitTransform: cam ? `translate(${cam.tx} ${cam.ty}) scale(${cam.scale})` : null,
+    fitTransform: fittedCam ? `translate(${fittedCam.tx} ${fittedCam.ty}) scale(${fittedCam.scale})` : null,
   });
   useEffect(() => {
     if (!cameraRasterisationRoute || typeof window === 'undefined') return;
@@ -3024,10 +3106,10 @@ export function TreeView({
             <g
               ref={cameraRef}
               className="world-camera"
-              transform={cam ? `translate(${cam.tx} ${cam.ty}) scale(${cam.scale})` : undefined}
+              transform={presentedCam ? `translate(${presentedCam.tx} ${presentedCam.ty}) scale(${presentedCam.scale})` : undefined}
               style={{
-                transition: animate ? 'transform .35s ease' : 'none',
-                visibility: cam ? undefined : 'hidden',
+                transition: act2Player.regrowing || cameraRasterisationRoute ? 'none' : animate ? 'transform .35s ease' : 'none',
+                visibility: presentedCam ? undefined : 'hidden',
               }}
             >
             {renderScene && worldPresentationModel ? (

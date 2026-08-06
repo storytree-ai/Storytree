@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -41,7 +41,7 @@ depends_on: [library, drive-machinery, notice-board, forest-world, studio-member
 # that way — so stage 5 is `compositor-pan-transform` (D2: the camera stops being a `<g transform>`
 # for the duration of a gesture). 272 is therefore a NEW deciding ADR here: it amends 240's decisions
 # 1 and 3 and changes which increment this story authors next.
-decisions: [8, 36, 38, 100, 112, 221, 222, 237, 240, 272]
+decisions: [8, 36, 38, 100, 112, 221, 222, 237, 240, 272, 313]
 ---
 
 # The studio
@@ -87,7 +87,7 @@ build/secrets seam re-pointed off `cli` onto `@storytree/drive` by ADR-0112) —
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
 
-## Capabilities (17)
+## Capabilities (18)
 
 Listed roots-first (a capability appears after everything it depends on).
 
@@ -110,6 +110,7 @@ Listed roots-first (a capability appears after everything it depends on).
 | 15 | [`map-boot-independence`](map-boot-independence.md) | An operator's forest map begins fetching its own data as soon as membership resolves, instead of waiting on Library-corpus payloads the map never reads. | — |
 | 16 | [`compositor-pan-transform`](compositor-pan-transform.md) | A forest drag moves the already-rasterised map on the compositor, so the `.world-camera` `<g>` transform is written once at the end of a gesture rather than once per frame. | `coalesced-camera-pan` |
 | 17 | [`camera-rasterisation-probe`](camera-rasterisation-probe.md) | A repeatable Studio diagnostic reports the rasterisation-cost delta between the real 40-island regrow growth-only baseline and cursor-driven camera-transform variants under ADR-0286's bracketed idle-floor protocol. | — |
+| 18 | [`act2-regrow-camera-zoom-out`](act2-regrow-camera-zoom-out.md) | The existing Act 2 regrow carries the Studio camera from a close opening view to the ordinary fitted whole-forest view on its own cursor. | `camera-rasterisation-probe` |
 
 ## Dependency graph (code-derived)
 
@@ -210,6 +211,13 @@ ADR-0010 §4.)
     controller. It consumes their current public behaviour without requiring another named Studio
     capability's delivered outcome, changes no product choreography, and adds no package import. The
     existing `studio → app-surface` boundary already covers the rendered world it measures.
+- `act2-regrow-camera-zoom-out` → `camera-rasterisation-probe`
+  - The product zoom consumes the probe's delivered production-comparison boundary to measure the
+    final shipped curve against interleaved growth-only controls under the same 40-island idle-floor
+    protocol. The reverse does not hold: the probe already reports declarative camera variants without
+    this product choreography, so the graph remains acyclic. The camera implementation stays
+    Studio-owned and adds no package import; the existing `studio → app-surface` edge still covers the
+    rendered world.
 
 ## Cross-story boundary (ADR-0010 §4)
 

@@ -14,6 +14,7 @@ const treeProbe = vi.hoisted(() => ({
   unmounts: 0,
   nextWorld: 1,
   focuses: [] as Array<string | null>,
+  activeStates: [] as boolean[],
   load: vi.fn<() => Promise<unknown>>(),
 }));
 
@@ -45,11 +46,12 @@ vi.mock('./components/MembersPanel', () => ({
 vi.mock('./components/TreeView', async () => {
   const React = await import('react');
   return {
-    TreeView: ({ focus }: { focus: string | null }) => {
+    TreeView: ({ focus, active = true }: { focus: string | null; active?: boolean }) => {
       const [camera, setCamera] = React.useState(0);
       const worldId = React.useRef('');
       if (!worldId.current) worldId.current = `world-${treeProbe.nextWorld++}`;
       treeProbe.focuses.push(focus);
+      treeProbe.activeStates.push(active);
       React.useEffect(() => {
         treeProbe.mounts += 1;
         void treeProbe.load();
@@ -65,6 +67,7 @@ vi.mock('./components/TreeView', async () => {
           data-world-id={worldId.current}
           data-camera={camera}
           data-focus={focus ?? ''}
+          data-active={active}
         >
           <button type="button" onClick={() => setCamera((value) => value + 1)}>
             move forest camera
@@ -106,6 +109,7 @@ beforeEach(() => {
   treeProbe.unmounts = 0;
   treeProbe.nextWorld = 1;
   treeProbe.focuses = [];
+  treeProbe.activeStates = [];
   treeProbe.load.mockReset();
   vi.mocked(api.me).mockResolvedValue(MEMBER);
   vi.mocked(api.listDocs).mockResolvedValue([]);
@@ -154,6 +158,22 @@ describe('App forest route retention', () => {
     expect(treeProbe.mounts).toBe(1);
     expect(treeProbe.unmounts).toBe(0);
     expect(api.tree).toHaveBeenCalledTimes(1);
+  });
+
+  it('map-route-retention-tells-the-live-tree-when-it-is-parked and active again', async () => {
+    window.history.replaceState(null, '', '#/tree');
+    await renderReadyApp();
+    const tree = screen.getByTestId('retained-tree-view');
+    expect(tree.getAttribute('data-active')).toBe('true');
+
+    navigate('#/members');
+    await screen.findByTestId('members-surface');
+    expect(tree.getAttribute('data-active')).toBe('false');
+
+    navigate('#/tree');
+    await waitFor(() => expect(tree.getAttribute('data-active')).toBe('true'));
+    expect(screen.getByTestId('retained-tree-view')).toBe(tree);
+    expect(treeProbe.activeStates).toEqual(expect.arrayContaining([true, false]));
   });
 
   it('map-route-retention-restores-live-world-and-terminal-state', async () => {

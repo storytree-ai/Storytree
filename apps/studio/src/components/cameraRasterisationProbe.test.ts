@@ -39,6 +39,7 @@ const run = (
 describe('camera-raster-probe-reuses-the-regrow-cursor', () => {
   it('accepts only the exact diagnostic flag and a named variant', () => {
     expect(readCameraRasterisationRoute('?cameraRasterisation=probe&cameraVariant=growth-only')).toEqual({ variant: 'growth-only' });
+    expect(readCameraRasterisationRoute('?cameraRasterisation=probe&cameraVariant=final-product')).toEqual({ variant: 'final-product' });
     expect(readCameraRasterisationRoute('?cameraRasterisation=on&cameraVariant=growth-only')).toBeNull();
     expect(readCameraRasterisationRoute('?cameraRasterisation=probe&cameraVariant=unknown')).toBeNull();
     expect(readCameraRasterisationRoute('?cameraRasterisation=probe')).toBeNull();
@@ -133,5 +134,18 @@ describe('camera-raster-probe-leaves-product-choreography-unchanged', () => {
       expect(htmlCompositor.style.transform).toBe('none');
       expect(htmlCompositor.style.willChange).toBe('auto');
     }
+
+    const product = 'translate(20 30) scale(1.25)';
+    const restoreProduct = applyCameraRasterisationTransform(
+      { svgCamera, htmlCompositor },
+      'final-product',
+      0.5,
+      fit,
+      product,
+    );
+    expect(svgCamera.getAttribute('transform')).toBe(product);
+    expect(svgCamera.style.transition).toBe('none');
+    restoreProduct();
+    expect(svgCamera.getAttribute('transform')).toBe(fit);
   });
 });
