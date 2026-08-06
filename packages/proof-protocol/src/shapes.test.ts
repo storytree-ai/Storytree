@@ -143,6 +143,22 @@ test("ContractCoverageAxis round-trips a valid doc and rejects a malformed one (
   );
 });
 
+test("ContractCoverageAxis.unreadTitles qualifies `uncovered` across three states, additively", () => {
+  const base = { covered: ["c-1"], uncovered: ["c-2"] };
+  // ABSENT → not measured. Every verdict signed before the field existed round-trips untouched, so
+  // no stored doc needs migration and no reader breaks (the additive posture ADR-0127 decided).
+  assert.equal(ContractCoverageAxis.parse(base).unreadTitles, undefined);
+  // 0 → MEASURED CLEAN: every title was legible, so `uncovered` is a claim about the TESTS. This is
+  // distinct from absent, which is why the producer stamps the zero rather than omitting it.
+  assert.equal(ContractCoverageAxis.parse({ ...base, unreadTitles: 0 }).unreadTitles, 0);
+  // > 0 → MEASURED WITH A CAVEAT: `uncovered` is at least partly a claim about the CHECKER.
+  assert.equal(ContractCoverageAxis.parse({ ...base, unreadTitles: 3 }).unreadTitles, 3);
+  // a count is a non-negative integer — a negative or fractional "number of titles" is meaningless
+  assert.equal(ContractCoverageAxis.safeParse({ ...base, unreadTitles: -1 }).success, false);
+  assert.equal(ContractCoverageAxis.safeParse({ ...base, unreadTitles: 1.5 }).success, false);
+  assert.equal(ContractCoverageAxis.safeParse({ ...base, unreadTitles: "2" }).success, false);
+});
+
 test("Verdict: contractCoverage is preserved when present and absent when omitted (ADR-0127 back-compat)", () => {
   const base = {
     unitId: "shared-forest-connection",
