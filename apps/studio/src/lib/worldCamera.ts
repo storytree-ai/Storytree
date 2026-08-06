@@ -10,6 +10,14 @@ export interface Camera {
   tx: number;
   ty: number;
   scale: number;
+  /**
+   * The world Y-coordinate of this camera's bottom-aligned ground point (the world content's own
+   * bottom edge), set by `fitWorld` when `align: 'bottom'`. A hand-built `Camera` that never went
+   * through `fitWorld` naturally omits it, so consumers that anchor to the ground (`act2RegrowCamera`)
+   * fall back to unprojecting the raw frame edge rather than guessing at a world coordinate they were
+   * never given.
+   */
+  groundWorldY?: number;
 }
 
 export interface ScaleLimits {
@@ -36,6 +44,12 @@ export const ACT2_REGROW_OPENING_SCALE = 2.25;
  * clock or retained camera progress here. Returning the fitted value at the settled boundary is
  * explicit so cursor 1 is exact identity, not merely close after floating-point interpolation.
  * Reduced motion takes that same identity path for every sample.
+ *
+ * The anchor's world Y comes from `fitted.groundWorldY` when present (the exact bottom-aligned
+ * `fitWorld` ground point, immune to the fit's own padding) rather than by unprojecting the raw
+ * `frame.height` pixel — that raw pixel is only the true ground when padding is zero, and a padded
+ * production fit otherwise lets the real bottom growth origin drift across the pull-back. A
+ * hand-built `Camera` with no `groundWorldY` keeps the prior raw-pixel behaviour exactly.
  */
 export function act2RegrowCamera(
   fitted: Camera,
@@ -46,12 +60,20 @@ export function act2RegrowCamera(
   const progress = Number.isFinite(cursor) ? Math.max(0, Math.min(1, cursor)) : 0;
   if (reducedMotion || progress === 1 || frame.width <= 0 || frame.height <= 0) return { ...fitted };
 
-  const anchor = screenToWorld(fitted, frame.width / 2, frame.height);
+  const anchorX = screenToWorld(fitted, frame.width / 2, frame.height).x;
+  const groundWorldY = fitted.groundWorldY;
+  const anchorY = groundWorldY !== undefined
+    ? groundWorldY
+    : screenToWorld(fitted, frame.width / 2, frame.height).y;
+  const targetY = groundWorldY !== undefined
+    ? fitted.ty + fitted.scale * groundWorldY
+    : frame.height;
+
   const scale = fitted.scale * (1 + (ACT2_REGROW_OPENING_SCALE - 1) * (1 - progress));
   return {
     scale,
-    tx: frame.width / 2 - scale * anchor.x,
-    ty: frame.height - scale * anchor.y,
+    tx: frame.width / 2 - scale * anchorX,
+    ty: targetY - scale * anchorY,
   };
 }
 
@@ -143,11 +165,12 @@ export function fitWorld(
     opts?.fit === 'contain' ? Math.min(widthScale, (frameH - 2 * pad) / worldH) : widthScale;
   if (opts?.maxScale !== undefined) scale = Math.min(scale, opts.maxScale);
   const tx = (frameW - worldW * scale) / 2;
-  const ty =
-    (opts?.align ?? 'bottom') === 'bottom'
-      ? frameH - pad - worldH * scale
-      : (frameH - worldH * scale) / 2;
-  return { tx, ty, scale };
+  const bottomAlign = (opts?.align ?? 'bottom') === 'bottom';
+  const ty = bottomAlign ? frameH - pad - worldH * scale : (frameH - worldH * scale) / 2;
+  // Bottom-aligned fits record their exact world ground point so downstream consumers (the Act 2
+  // regrow pull-back) can anchor to it directly instead of unprojecting the frame's raw bottom
+  // pixel, which drifts from the true ground by `padding / scale` whenever `padding` is non-zero.
+  return bottomAlign ? { tx, ty, scale, groundWorldY: worldH } : { tx, ty, scale };
 }
 
 /** Zoom range derived from the fit scale, so it adapts to world size. */
