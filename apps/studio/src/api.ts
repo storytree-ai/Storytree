@@ -2,6 +2,7 @@
 
 import type {
   ActivityPayload,
+  ArcsPayload,
   AssetInput,
   AttestationsPayload,
   BuildIntentResult,
@@ -256,6 +257,14 @@ export const api = {
   // the session dock is open — not on the world's poll cadence.
   claims: (): Promise<ClaimsPayload> =>
     http('/api/claims', { signal: AbortSignal.timeout(10_000) }),
+  // The arc surface's read (ADR-0267 / ADR-0314) — every value already joined by drive's
+  // `loadArcRollups`, the SAME join `storytree arc show` renders, so the map and the CLI can never
+  // disagree about what an arc contains. Read-only by decision (ADR-0267 D6 / ADR-0314 D9): there is
+  // no write verb here and a non-GET is refused server-side. Same advisory contract + abort backstop
+  // as claims — a backend with no document store answers `{arcs: null}`. Fetched only while the
+  // arcs lens is open, not on the world's poll cadence.
+  arcs: (): Promise<ArcsPayload> =>
+    http('/api/arcs', { signal: AbortSignal.timeout(10_000) }),
   // UI-driven build (ADR-0090 Phase 1 "the local loop"). build() posts a build INTENT (a safe
   // write — never a verdict); buildStatus() polls the run's coarse transcript + status. The frontend
   // imports NO build code (ADR-0004) — its only path to a build is these two endpoints.
