@@ -41,10 +41,25 @@
  * the report's headline payload. ADR-0311 retired sixteen gate rungs for want of evidence, so any
  * future blocking rung must earn its place on this report's own numbers before it lands.
  *
- * PURE: no I/O, no `fs`, no `process`, and — like `boundaries.ts` — no imports at all, so the suite
- * proves offline in a bare worktree. The disk walk that supplies `files` is the gatherer's job
- * ({@link file://./ownership.ts}).
+ * PURE: no I/O, no `fs`, no `process`, no clock. The disk walk that supplies `files` is the
+ * gatherer's job ({@link file://./ownership.ts}).
+ *
+ * ONE IMPORT, ADDED DELIBERATELY 2026-08-06 (ADR-0317 D3). This module used to advertise no imports
+ * at all, "like `boundaries.ts`, so the suite proves offline in a bare worktree". The subtree
+ * MATCHER now has a second caller — the claim namespace, which answers "you named a FILE; the
+ * declared subtree over it is X" (`claim-namespace.ts`) — and it lives in `@storytree/drive` because
+ * `cli` may import `drive` and `drive` may never import `cli`. A second copy would let "who owns
+ * this file" diverge between the report and the claim resolver, silently, in exactly the direction
+ * this arc exists to close; that was judged worth more than a bare-worktree property no test asserts
+ * and `pnpm -r test` cannot exercise anyway. The invariant that carries weight — no I/O of any kind —
+ * is untouched.
  */
+
+import { matchesSubtree } from "@storytree/drive";
+
+// Re-exported so this module stays the ownership map's front door: callers of the judge ask it what
+// a subtree covers, and never have to know the matcher was lifted to be shared.
+export { matchesSubtree };
 
 /**
  * One entry of the declared map: a subtree, and the addressable object responsible for it.
@@ -184,57 +199,6 @@ export interface SourceOwnershipReport {
   readonly grain: GrainTally;
   /** Absent when no baseline was supplied — no trend is stated rather than a zero invented. */
   readonly trend: OwnershipTrend | undefined;
-}
-
-/** Regex metacharacters to escape when compiling a subtree pattern — `*` is handled separately. */
-const REGEX_SPECIALS = /[.+^${}()|[\]\\?]/g;
-
-/**
- * Compile one subtree pattern to an anchored matcher.
- *
- * `**` spans path segments, `*` stays within one, and `/**​/` collapses to "zero or more directories"
- * so `packages/cli/src/**​/*.ts` matches `packages/cli/src/a.ts` as well as `packages/cli/src/x/a.ts`.
- * A pattern with no `*` at all is NOT compiled here — {@link matchesSubtree} handles it as an exact
- * file or a directory prefix, which is the form a hand-written map reaches for most.
- */
-function compile(pattern: string): RegExp {
-  let out = "";
-  let i = 0;
-  while (i < pattern.length) {
-    const ch = pattern[i] ?? "";
-    if (ch !== "*") {
-      out += ch.replace(REGEX_SPECIALS, "\\$&");
-      i += 1;
-      continue;
-    }
-    const doubled = pattern[i + 1] === "*";
-    if (!doubled) {
-      out += "[^/]*";
-      i += 1;
-      continue;
-    }
-    // `/**/` — zero or more whole directories, so the glob also matches the flat case.
-    if (pattern[i + 2] === "/" && out.endsWith("/")) {
-      out += "(?:[^/]+/)*";
-      i += 3;
-      continue;
-    }
-    out += ".*";
-    i += 2;
-  }
-  return new RegExp(`^${out}$`);
-}
-
-/**
- * Does `file` fall under `pattern`?
- *
- * Three accepted forms, chosen so a hand-authored map needs no glob syntax to say the common things:
- * an exact file (`packages/cli/src/boundaries.ts`), a bare directory claiming everything beneath it
- * (`packages/library/src/store`), and a glob (`packages/cli/src/adr*.ts`).
- */
-export function matchesSubtree(pattern: string, file: string): boolean {
-  if (!pattern.includes("*")) return file === pattern || file.startsWith(`${pattern}/`);
-  return compile(pattern).test(file);
 }
 
 /** The workspace package a repo-relative path belongs to (`packages/cli/src/x.ts` → `packages/cli`). */
@@ -470,7 +434,10 @@ export function formatSourceOwnershipReport(
     if (report.grain.story > 0) {
       lines.push(
         "  A story-grain entry satisfies totality but is coarser than claims are taken at",
-        "  (ADR-0270 D1) — it leaves a session nothing finer to bind to.",
+        "  (ADR-0270 D1) — no capability exists for that subtree, so the residual is a",
+        "  `story-author` worklist. It is no longer a dead end for a session: every subtree KEY",
+        "  below is itself claimable (ADR-0317 D3), so claim the subtree you are writing —",
+        "    storytree noticeboard claim '<subtree-key>' --grade work --pg",
       );
     }
   }

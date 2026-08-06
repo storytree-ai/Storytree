@@ -1,10 +1,11 @@
 /**
  * Gathering the claim namespace — the I/O half of `claim-namespace.ts` (ADR-0310 D2).
  *
- * The universe a claim is judged against has TWO sources, because the addressable work graph does:
+ * The universe a claim is judged against has THREE sources, because the addressable work graph does:
  * the DISK tree (`stories/**` — story / capability / contract, ADR-0192's landlord rule keeps it
- * file-canonical) and the LIVE Library (arcs and increments, which are store-canonical under
- * ADR-0302 D1). Neither can answer for the other, so a claim check needs both.
+ * file-canonical), the LIVE Library (arcs and increments, which are store-canonical under
+ * ADR-0302 D1), and the REPO MANIFEST (`sourceOwnership.subtrees` — the declared subtree map,
+ * ADR-0317 D2, claimable since D3). None can answer for the others, so a claim check needs all three.
  *
  * ## Every read failure withdraws the licence to refuse
  *
@@ -15,8 +16,10 @@
  * claim proceeds exactly as it did before this check existed. There is no partial-refusal mode.
  *
  * Concretely: no `stories/` directory, an unreadable directory, a node file whose frontmatter
- * declares a tier but no id, a null library store, or a library read that throws — each one alone
- * is enough to stand every claim down.
+ * declares a tier but no id, a null library store, a library read that throws, an absent or
+ * unparseable `repo-manifest.json`, or a manifest carrying no `sourceOwnership.subtrees` map — each
+ * one alone is enough to stand every claim down. The manifest joining the sources therefore cannot
+ * START refusing anything: the worst an unreadable map can do is switch the check off (ADR-0317 D3).
  *
  * ## Why the library read is not filtered by kind
  *
@@ -42,6 +45,7 @@ import {
   type ClaimUniverse,
 } from "./claim-namespace.js";
 import type { Envelope } from "./envelope.js";
+import { readSourceOwnershipMap } from "./source-ownership-map.js";
 
 /**
  * The Library read slice, duck-typed — never a `/store` import, so this module and everything above
@@ -54,8 +58,18 @@ export interface LibraryDocsReadLike {
 /** The tiers the disk tree declares, and the {@link ClaimKind} each becomes. Identity, but named. */
 const TREE_TIERS = new Set<string>(["story", "capability", "contract"]);
 
-/** Library kinds that ARE claimable — the store-canonical half of {@link CLAIMABLE_KINDS}. */
-const LIVE_CLAIMABLE = new Set<string>(CLAIMABLE_KINDS.filter((k) => !TREE_TIERS.has(k)));
+/** The kinds the REPO MANIFEST is authoritative for — never sourced from the Library. */
+const MANIFEST_KINDS = new Set<string>(["subtree"]);
+
+/**
+ * Library kinds that ARE claimable — the store-canonical slice of {@link CLAIMABLE_KINDS}, i.e. what
+ * is left once the disk tree's and the manifest's kinds are removed. Subtracted rather than listed
+ * so a kind can only ever have ONE authoritative source: a Library artifact that called itself a
+ * `subtree` would be a `nonClaimable` artifact here, not a second way to mint a claimable id.
+ */
+const LIVE_CLAIMABLE = new Set<string>(
+  CLAIMABLE_KINDS.filter((k) => !TREE_TIERS.has(k) && !MANIFEST_KINDS.has(k)),
+);
 
 /**
  * PURE: pull `id` and `tier` out of a node file's YAML frontmatter.
@@ -170,19 +184,45 @@ export async function readLibraryTargets(
   return { targets, nonClaimable, unread: [] };
 }
 
-/** Read both sources and fold them into one universe. */
+/**
+ * The declared subtree map as claim targets (ADR-0317 D3) — each entry's KEY is its id, verbatim,
+ * and the unit the map holds responsible rides along as {@link ClaimTarget.owner} so a claim can
+ * name it.
+ *
+ * The key is used as-is deliberately: it is where the object is declared, so it is the object's
+ * address. See `claim-namespace.ts`'s header for why resolution stays exact-key-only rather than
+ * accepting any contained file path — a claim row is keyed by the raw string, so a per-file id would
+ * be a claim two sessions could hold over the same code without ever contending.
+ */
+export function readSubtreeTargets(manifestPath: string | null): SourceResult {
+  const map = readSourceOwnershipMap(manifestPath);
+  return {
+    targets: map.subtrees.map((d) => ({ id: d.subtree, kind: "subtree", owner: d.owner })),
+    nonClaimable: [],
+    unread: map.unread,
+  };
+}
+
+/** Read all three sources and fold them into one universe. */
 export async function loadClaimUniverse(sources: {
   readonly storiesDir: string;
   readonly library: LibraryDocsReadLike | null;
+  /**
+   * Path to `repo-manifest.json`. REQUIRED rather than optional, and `null` is a legal value meaning
+   * "no caller composed one" — so a new composition site has to decide in the open instead of
+   * silently switching the whole check off, which is what an omittable field would allow.
+   */
+  readonly manifestPath: string | null;
 }): Promise<ClaimUniverse> {
-  const [tree, live] = await Promise.all([
+  const [tree, live, subtrees] = await Promise.all([
     Promise.resolve(readTreeTargets(sources.storiesDir)),
     readLibraryTargets(sources.library),
+    Promise.resolve(readSubtreeTargets(sources.manifestPath)),
   ]);
-  const unreadSources = [...tree.unread, ...live.unread];
+  const unreadSources = [...tree.unread, ...live.unread, ...subtrees.unread];
   return {
-    targets: [...tree.targets, ...live.targets],
-    nonClaimable: [...tree.nonClaimable, ...live.nonClaimable],
+    targets: [...tree.targets, ...live.targets, ...subtrees.targets],
+    nonClaimable: [...tree.nonClaimable, ...live.nonClaimable, ...subtrees.nonClaimable],
     complete: unreadSources.length === 0,
     unreadSources,
   };
@@ -201,6 +241,7 @@ export type ClaimUniverseLoader = () => Promise<ClaimUniverse>;
 export function createClaimUniverseLoader(sources: {
   readonly storiesDir: string;
   readonly library: LibraryDocsReadLike | null;
+  readonly manifestPath: string | null;
 }): ClaimUniverseLoader {
   let pending: Promise<ClaimUniverse> | undefined;
   return () => (pending ??= loadClaimUniverse(sources));
@@ -215,7 +256,12 @@ export function createClaimUniverseLoader(sources: {
  * not run) or refuse (carrying the ready-made envelope).
  */
 export type NamespaceGuard =
-  | { readonly ok: true; readonly kind: ClaimKind | null }
+  | {
+      readonly ok: true;
+      readonly kind: ClaimKind | null;
+      /** {@link ClaimTarget.owner} — a subtree's declared owner, else null. */
+      readonly owner: string | null;
+    }
   | {
       readonly ok: false;
       /** Ready-made, for a single-id verb. */
@@ -225,7 +271,7 @@ export type NamespaceGuard =
     };
 
 /** Proceed unchecked — the shape returned wherever the namespace could not have its say. */
-const UNCHECKED: NamespaceGuard = { ok: true, kind: null };
+const UNCHECKED: NamespaceGuard = { ok: true, kind: null, owner: null };
 
 /**
  * Judge one id before a claim is written. The ONE place the four claim-taking paths — `noticeboard
@@ -253,7 +299,13 @@ export async function guardClaimNamespace(input: {
     // The namespace check is never the reason a claim fails to be taken.
     return UNCHECKED;
   }
-  if (resolution.verdict === "resolved") return { ok: true, kind: resolution.target.kind };
+  if (resolution.verdict === "resolved") {
+    return {
+      ok: true,
+      kind: resolution.target.kind,
+      owner: resolution.target.owner ?? null,
+    };
+  }
   if (resolution.verdict === "unverified") return UNCHECKED;
   return {
     ok: false,
@@ -266,9 +318,34 @@ export async function guardClaimNamespace(input: {
   };
 }
 
-/** `" [capability]"` when the kind is known, `""` when the check did not run. */
-export function kindSuffix(kind: ClaimKind | null): string {
-  return kind === null ? "" : ` [${kind}]`;
+/**
+ * `" [capability]"` when the kind is known, `""` when the check did not run — and
+ * `" [subtree, owned by gate-ci-parity]"` for a declared subtree, because the kind alone would leave
+ * the session guessing which unit the code it just claimed belongs to.
+ */
+export function kindSuffix(kind: ClaimKind | null, owner: string | null = null): string {
+  if (kind === null) return "";
+  return owner === null ? ` [${kind}]` : ` [${kind}, owned by ${owner}]`;
+}
+
+/**
+ * The lines a SUBTREE claim adds to an exclusive-slot verb (`claim --grade work`, `upgrade`,
+ * `declare --node`). Empty for every other kind.
+ *
+ * WHY THIS EXISTS AT ALL. A subtree and its owning unit are two ids over the SAME code, and the
+ * ledger keys claims by id — so a session holding `gate-ci-parity` and a session holding
+ * `packages/cli/src/gate*.ts` both get their wisp and neither is told about the other. That overlap
+ * is real and is deliberately NOT enforced: containment across globs is a mechanism with no measured
+ * demand (all 56 refusals in the 40-day history were on nodes, none cross-grain) and ADR-0311
+ * retired sixteen rungs for want of exactly that evidence. Announcing it at the moment the claim is
+ * taken, with the board command to check, is what keeps the gap VISIBLE rather than undiscovered.
+ */
+export function subtreeClaimNote(kind: ClaimKind | null, owner: string | null): string[] {
+  if (kind !== "subtree" || owner === null) return [];
+  return [
+    `  This is the SUBTREE, not ${owner}. The ledger keys claims by id and knows no containment,`,
+    `  so a session holding ${owner} does NOT contend with you over the same files — check both.`,
+  ];
 }
 
 function msg(err: unknown): string {

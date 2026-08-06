@@ -46,9 +46,16 @@ export * from "./noticeboard-claims.js";
 // an id that resolves to a real object of that kind, or it is refused at the point of claiming with
 // the near-miss named. `claim-namespace.js` is the pure resolver + the declared inventory of the 26
 // phantom ids that accumulated before it existed; `claim-universe.js` gathers the namespace from the
-// disk tree and the live Library, and carries the guard every claim-taking verb calls.
+// disk tree, the live Library and the declared subtree map, and carries the guard every
+// claim-taking verb calls.
 export * from "./claim-namespace.js";
 export * from "./claim-universe.js";
+// The declared subtree ownership map (ADR-0317 D2), read ONCE for both of its consumers: the
+// `storytree ownership` report in `cli` (which re-exports the matcher) and the claim namespace
+// above, which makes each declaration claimable (D3). Two readers could disagree about what is
+// declared, which is the divergence `first-class-edges-arc` exists to close.
+export * from "./source-ownership-map.js";
+export * from "./subtree-match.js";
 // `noticeboard history` — the READ verb over the claim AUDIT log (ADR-0310 D1): the ledger verbs
 // above and the board render STATE, this reads TRANSITIONS (holdings, refusals, the summary). A
 // refusal leaves no state behind, so no state read can answer for it.

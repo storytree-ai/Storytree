@@ -33,7 +33,32 @@
  * written to `events.node_claim` either, for the same reason: an enum column would need a migration
  * per new kind, and the id determines it at read time. What changes is that a success line now
  * NAMES what it lit (`[capability]`) instead of saying "the story wisp is lit" over a capability.
+ *
+ * That prediction came true one increment later and cost nothing: adding `subtree` (ADR-0317 D3,
+ * `first-class-edges-arc` increment 3) is one entry in {@link CLAIMABLE_KINDS} plus a third source in
+ * `claim-universe.ts`. No flag, no migration, no caller re-taught.
+ *
+ * ## A SUBTREE's id is its declaration KEY, verbatim, and only an EXACT key resolves
+ *
+ * `repo-manifest.json` → `sourceOwnership.subtrees` keys the map by path-or-glob
+ * (`packages/cli/src/gate*.ts`), and that key IS the object's address — deriving a slug beside it
+ * would create a second name for one object, to be kept in sync and to collide
+ * (`packages/cli/src/ownership.ts` and `packages/cli/src/*ownership*.ts` slug alike).
+ *
+ * Resolution is therefore EXACT-KEY-ONLY, and the reason is the ledger rather than taste: a claim row
+ * is keyed by the raw `unit_id` STRING, so resolving a contained file path (`…/gate-run.ts` → the
+ * `…/gate*.ts` subtree) would write the FILE as the row, and two sessions writing two files under one
+ * subtree would not contend at all — a claim that protects nothing, which is the defect this module
+ * closed. A contained path is a near-miss SUGGESTION instead ({@link SuggestionReason} `owning-subtree`),
+ * which teaches the canonical id at the moment of the mistake.
+ *
+ * The measured pasted-PATH hazard cuts the other way too and does NOT swallow a legitimate subtree
+ * claim: {@link normalisePastedPath} strips only a `stories/` prefix and `.md`/`/story.md` suffixes,
+ * which no `packages/`|`apps/` key carries — and the exact hit short-circuits ahead of it regardless.
+ * `source-ownership-map.test.ts` pins that over every key in the live manifest.
  */
+
+import { matchesSubtree } from "./subtree-match.js";
 
 // ---------------------------------------------------------------------------
 // The namespace
@@ -44,12 +69,12 @@
  * work graph).
  *
  * THE MEMBERSHIP RULE, because getting it wrong in either direction is a real cost: a kind belongs
- * here when the 40-day ledger shows it claimed AS WORK, or ADR-0317 D3 names it. All five below
+ * here when the 40-day ledger shows it claimed AS WORK, or ADR-0317 D3 names it. The first five
  * satisfy both readings — `contract` carries 4 claim events and `increment` carries the one that
- * this list was widened for (`escalation-authors-an-open-question-briefing`, an increment on
+ * this list was first widened for (`escalation-authors-an-open-question-briefing`, an increment on
  * `arc-orientation-surface-arc`). Omitting a kind sessions genuinely claim would REFUSE legitimate
  * work, which is worse than the leak this module closes, so the set was measured rather than
- * reasoned: every one of the 199 non-phantom ids in the ledger resolves against exactly these five.
+ * reasoned: every one of the 199 non-phantom ids in the ledger resolves against exactly those five.
  *
  * The Library's other kinds — `friction`, `open-question`, `uat-criterion`, `agent`, `principle`,
  * … — are addressable KNOWLEDGE, not work surfaces, and none has ever been claimed except
@@ -57,11 +82,25 @@
  * {@link AddressableNonClaimable} arm instead, so claiming one gets a refusal that names what it
  * actually is rather than a bare "unknown".
  *
- * `subtree` is deliberately ABSENT: declared subtrees are increment 3's object and do not exist
- * yet, and a kind admitted before the objects exist admits every typo that looks like one.
- * Widening this list is the whole mechanism by which a new claimable kind becomes claimable.
+ * `subtree` ADDED 2026-08-06, on the ledger's other clause: ADR-0317 D3 names it, and — the fence
+ * increment 2 left — THE OBJECTS NOW EXIST. `repo-manifest.json` → `sourceOwnership.subtrees`
+ * carries 372 declarations covering 527 of 527 source files, 0 contested / 0 stale / 0 unresolved
+ * (`first-class-edges-arc` increment 3). Admitting the kind before that would have admitted every
+ * typo that looked like a path; admitting it now is what gives the 164 files (31%) declared at STORY
+ * grain — `cli` 51, `studio` 34, `drive-machinery` 13, `desktop` 11 — something finer to bind to
+ * without waiting on `story-author` to author ~40 capabilities. A declared entry that cannot be
+ * claimed is "the same hole with a declaration in front of it" (ADR-0317 D3).
+ *
+ * Widening this list is still the whole mechanism by which a new claimable kind becomes claimable.
  */
-export const CLAIMABLE_KINDS = ["story", "capability", "contract", "arc", "increment"] as const;
+export const CLAIMABLE_KINDS = [
+  "story",
+  "capability",
+  "contract",
+  "arc",
+  "increment",
+  "subtree",
+] as const;
 
 export type ClaimKind = (typeof CLAIMABLE_KINDS)[number];
 
@@ -69,6 +108,18 @@ export type ClaimKind = (typeof CLAIMABLE_KINDS)[number];
 export interface ClaimTarget {
   readonly id: string;
   readonly kind: ClaimKind;
+  /**
+   * SUBTREE targets only: the addressable unit the map declares responsible for this subtree.
+   *
+   * Carried so a claim can SAY it — `[subtree, owned by gate-ci-parity]`. Claiming the subtree does
+   * NOT contend with a claim on that owner and is not meant to: the ledger keys claims by id and
+   * knows no containment relation, so the two rows sit side by side. Teaching it one would be a real
+   * mechanism with no measured demand behind it (all 56 refusals in the 40-day history were on
+   * nodes, none cross-grain), and ADR-0311 retired sixteen gate rungs for want of exactly that kind
+   * of evidence. So the overlap is ANNOUNCED at the moment a subtree claim is taken rather than
+   * enforced — visible instead of undiscovered.
+   */
+  readonly owner?: string;
 }
 
 /**
@@ -102,6 +153,13 @@ export interface ClaimUniverse {
 export type SuggestionReason =
   /** The caller pasted a PATH where an id belonged (`stories/studio` → `studio`). */
   | "path"
+  /**
+   * The caller named a SOURCE PATH, and the declared map covers it (or holds entries beneath it):
+   * `packages/cli/src/gate-run.ts` → the `packages/cli/src/gate*.ts` subtree. Not a guess — the map
+   * says so — and the one pass that makes an exact-key-only namespace usable without reading the
+   * manifest by hand.
+   */
+  | "owning-subtree"
   /** The id names a real Library artifact of a kind that is not claimable. */
   | "not-claimable"
   /** Within edit distance — a typo. */
@@ -114,6 +172,8 @@ export interface ClaimSuggestion {
   /** A {@link ClaimKind}, or the Library kind for a `not-claimable` suggestion. */
   readonly kind: string;
   readonly reason: SuggestionReason;
+  /** {@link ClaimTarget.owner}, carried through for a subtree suggestion. */
+  readonly owner?: string;
 }
 
 export type ClaimResolution =
@@ -207,9 +267,10 @@ interface ScoredSuggestion extends ClaimSuggestion {
 function rank(scored: readonly ScoredSuggestion[]): readonly ClaimSuggestion[] {
   const precedence: Record<SuggestionReason, number> = {
     path: 0,
-    "not-claimable": 1,
-    typo: 2,
-    related: 3,
+    "owning-subtree": 1,
+    "not-claimable": 2,
+    typo: 3,
+    related: 4,
   };
   const seen = new Set<string>();
   return [...scored]
@@ -221,7 +282,12 @@ function rank(scored: readonly ScoredSuggestion[]): readonly ClaimSuggestion[] {
     )
     .filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true)))
     .slice(0, MAX_SUGGESTIONS)
-    .map(({ id, kind, reason }) => ({ id, kind, reason }));
+    .map(({ id, kind, reason, owner }) => ({
+      id,
+      kind,
+      reason,
+      ...(owner !== undefined ? { owner } : {}),
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -258,13 +324,23 @@ export function resolveClaimId(rawId: string, universe: ClaimUniverse): ClaimRes
     if (hit !== undefined) scored.push({ ...hit, reason: "path", score: 0 });
   }
 
-  // 2. Addressable but not claimable — a real object, the wrong namespace.
+  // 2. A SOURCE PATH where a subtree id belonged — the map answers, so this is not a guess either.
+  // Both directions of the mistake: a file the declaration covers, and a directory the declarations
+  // sit beneath (`packages/cli/src`, which is a real place and no entry's key).
+  for (const t of universe.targets) {
+    if (t.kind !== "subtree") continue;
+    if (matchesSubtree(t.id, id) || t.id.startsWith(`${id}/`)) {
+      scored.push({ ...t, reason: "owning-subtree", score: 0 });
+    }
+  }
+
+  // 3. Addressable but not claimable — a real object, the wrong namespace.
   const artifact = universe.nonClaimable.find((a) => a.id === id);
   if (artifact !== undefined) {
     scored.push({ id: artifact.id, kind: artifact.kind, reason: "not-claimable", score: 0 });
   }
 
-  // 3/4. Typo distance and token relatedness, over the claimable targets only.
+  // 4/5. Typo distance and token relatedness, over the claimable targets only.
   const limit = typoLimit(id);
   const idTokens = tokens(id);
   for (const t of universe.targets) {
@@ -273,6 +349,13 @@ export function resolveClaimId(rawId: string, universe: ClaimUniverse): ClaimRes
       scored.push({ ...t, reason: "typo", score: 1 + d / (limit + 1) });
       continue;
     }
+    // A PATH is never a near-miss for a NAME. `tokens()` splits on `/` too, so a bare word would
+    // score 1.0 against every declaration in the matching directory (`drive` → `packages/drive/src`,
+    // and a hundred more under `packages/cli/src`) and crowd the three slots with directory
+    // coincidences. Only RELATEDNESS is withdrawn: a subtree still reaches a caller by the exact
+    // hit, by pass 2, and by edit distance above — a mistyped key is a real near-miss, and the
+    // length guard keeps a bare word from ever reaching a path that way.
+    if (t.kind === "subtree") continue;
     const overlap = tokenOverlap(idTokens, tokens(t.id));
     if (overlap >= RELATED_OVERLAP) {
       // Rank by how much is shared, then prefer the closer-sized id: a query matching many
@@ -317,7 +400,7 @@ export function claimNamespaceRefusalBody(input: {
   if (suggestions.length > 0) {
     lines.push("", "Did you mean:");
     for (const s of suggestions) {
-      lines.push(`  - ${s.id}  [${s.kind}]${suggestionNote(s.reason)}`);
+      lines.push(`  - ${s.id}  [${describeKind(s)}]${suggestionNote(s.reason)}`);
     }
   } else {
     lines.push(
@@ -340,6 +423,8 @@ function suggestionNote(reason: SuggestionReason): string {
   switch (reason) {
     case "path":
       return "  — you pasted a PATH; the id is the last segment";
+    case "owning-subtree":
+      return "  — the DECLARED SUBTREE at or over that path; claim it by its key, exactly";
     case "not-claimable":
       return "  — a real Library artifact, but not a claimable work unit";
     case "typo":
@@ -349,13 +434,29 @@ function suggestionNote(reason: SuggestionReason): string {
   }
 }
 
+/** `subtree` alone is half the story — a subtree suggestion also names who the map says owns it. */
+function describeKind(s: ClaimSuggestion): string {
+  return s.owner === undefined ? s.kind : `${s.kind}, owned by ${s.owner}`;
+}
+
+/**
+ * Shell-quote a claim id for a copy-pasteable command line.
+ *
+ * A SUBTREE id is a path-or-glob (`packages/cli/src/gate*.ts`), and an unquoted `*` is expanded by
+ * the shell BEFORE storytree sees it — silently turning one id into a list of filenames. Every
+ * command string this module hands back is quoted, so the remedy it prints is a command that works.
+ */
+export function quoteClaimId(id: string): string {
+  return /^[A-Za-z0-9._\-/]+$/.test(id) ? id : `'${id.replaceAll("'", `'\\''`)}'`;
+}
+
 /**
  * The COMPACT form, for a multi-node verb that reports one line per node (`declare --node a --node
  * b`). The full body above would drown a three-node declare in three copies of the same paragraph,
  * so the paragraph is printed once for the whole verb and each node gets this.
  */
 export function claimNamespaceOneLine(suggestions: readonly ClaimSuggestion[]): string {
-  const named = suggestions.map((s) => `${s.id} [${s.kind}]`).join(", ");
+  const named = suggestions.map((s) => `${s.id} [${describeKind(s)}]`).join(", ");
   return named.length > 0
     ? `NOT CLAIMED — that id names nothing in the work graph; did you mean ${named}?`
     : "NOT CLAIMED — that id names nothing in the work graph, and nothing close to it either";
@@ -366,9 +467,10 @@ export function claimNamespaceRefusalNext(suggestions: readonly ClaimSuggestion[
   const first = suggestions.find((s) => s.reason !== "not-claimable");
   return [
     ...(first !== undefined
-      ? [`storytree noticeboard claim ${first.id} --grade work --pg`]
+      ? [`storytree noticeboard claim ${quoteClaimId(first.id)} --grade work --pg`]
       : []),
     "storytree tree",
+    "storytree ownership --all",
     "storytree library artifact list arc --pg",
   ];
 }

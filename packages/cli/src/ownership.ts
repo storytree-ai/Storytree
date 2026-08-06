@@ -28,8 +28,10 @@
  * from this command.
  */
 
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readdirSync, existsSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+
+import { readSourceOwnershipMap } from "@storytree/drive";
 
 import type { Envelope } from "./envelope.js";
 import {
@@ -101,35 +103,32 @@ export function gatherSourceFiles(repoRoot: string): string[] {
 /**
  * The declared map, read from `repo-manifest.json` `sourceOwnership.subtrees`.
  *
- * DECLARATION ORDER IS SIGNIFICANT and is the JSON's key order: the first matching entry wins, so a
- * specific subtree must be declared before a broader one that also covers it. The judge reports every
- * overlap regardless, so a mis-ordering surfaces rather than silently re-attributing files.
+ * DELEGATED, not re-implemented: `readSourceOwnershipMap` in `@storytree/drive` is the ONE reader of
+ * this block, because the claim namespace turns the same declarations into claimable objects
+ * (ADR-0317 D3, `claim-universe.ts`) and two readers could disagree about what is declared. It lives
+ * in `drive` only because `cli` may import `drive` and never the reverse; this remains the report's
+ * gatherer.
+ *
+ * DECLARATIONS ARE DISJOINT, so order carries no meaning here — corrected in place 2026-08-06 after
+ * the map was authored in full. The earlier guidance said to declare a specific subtree before a
+ * broader one, but {@link judgeSourceOwnership} collects EVERY match and reports a second as
+ * CONTESTED regardless of key order, so that shape would have lit the warning permanently over 350+
+ * files and destroyed the one signal separating an authoring mistake from a design choice. The
+ * manifest's own `$comment` carries the authoring rules.
+ *
+ * An unreadable map yields an EMPTY declaration list here, which the report renders as "everything
+ * unowned" — loud, and the right answer for an instrument whose job is naming what is undeclared.
+ * The claim namespace reads the same failure the opposite way and stands down; see that module.
  */
 export function gatherDeclarations(repoRoot: string): {
   declarations: SubtreeDeclaration[];
   baseline: OwnershipBaseline | undefined;
 } {
-  const file = join(repoRoot, "repo-manifest.json");
-  if (!existsSync(file)) return { declarations: [], baseline: undefined };
-  const manifest = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-  const block = (manifest["sourceOwnership"] ?? {}) as Record<string, unknown>;
-  const subtrees = (block["subtrees"] ?? {}) as Record<string, unknown>;
-
-  const declarations: SubtreeDeclaration[] = [];
-  for (const [subtree, owner] of Object.entries(subtrees)) {
-    if (subtree.startsWith("$") || typeof owner !== "string") continue;
-    declarations.push({ subtree, owner });
-  }
-
-  const raw = block["baseline"];
-  let baseline: OwnershipBaseline | undefined;
-  if (raw !== null && typeof raw === "object") {
-    const b = raw as Record<string, unknown>;
-    if (typeof b["date"] === "string" && typeof b["files"] === "number" && typeof b["unowned"] === "number") {
-      baseline = { date: b["date"], files: b["files"], unowned: b["unowned"] };
-    }
-  }
-  return { declarations, baseline };
+  const map = readSourceOwnershipMap(join(repoRoot, "repo-manifest.json"));
+  return {
+    declarations: map.subtrees.map((d) => ({ subtree: d.subtree, owner: d.owner })),
+    baseline: map.baseline,
+  };
 }
 
 /**
@@ -222,6 +221,9 @@ export function ownershipCommand(deps: OwnershipDeps, options: FormatOptions & {
   const next = [
     "storytree ownership --all",
     "storytree ownership packages/cli",
+    // Every key in this map is a claim id (ADR-0317 D3) — quoted, because a glob key would
+    // otherwise be expanded by the shell before storytree saw it.
+    "storytree noticeboard claim '<subtree-key>' --grade work --pg",
     "storytree library artifact capability-coverage-report-and-claimable-substrate --pg",
   ];
   return { ok: true, body, next };
@@ -242,6 +244,10 @@ export function ownershipHelp(): Envelope {
       "`repo-manifest.json` → `sourceOwnership.subtrees` (globs permitted; it binds no verdict).",
       "It does NOT read `proof.real.sourceFile` or `scope.sourceGlobs`, which are a build target",
       "and a write fence — not ownership (ADR-0317 D1).",
+      "",
+      "Every KEY in that map is also a CLAIM id (ADR-0317 D3) — claim the subtree you are writing",
+      "with `storytree noticeboard claim '<subtree-key>' --grade work --pg`, exactly as keyed and",
+      "quoted. A claim on the subtree does not contend with one on its declared owner.",
     ].join("\n"),
     next: ["storytree ownership", "storytree ownership --all"],
   };

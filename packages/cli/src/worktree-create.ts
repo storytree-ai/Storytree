@@ -81,9 +81,15 @@ export function mintWorktreeName(
     throw new Error("cannot mint a worktree name from a blank anchor node");
   }
   if (!SAFE_NODE.test(anchor)) {
+    // A declared SUBTREE became claimable in ADR-0317 D3 and its id is a PATH-or-glob, so this is
+    // now reachable by a legitimate claim rather than only by a typo — and "rename the node" is
+    // useless advice for a path. The anchor is the only node that names the directory and branch;
+    // the rest are just claims, so the remedy is ordering, not renaming.
     throw new Error(
       `anchor node "${anchor}" has characters unsafe for a directory/branch name ` +
-        "(allowed: lowercase alphanumerics and hyphens) — rename the node, it is never silently normalised",
+        "(allowed: lowercase alphanumerics and hyphens). A declared subtree is claimable but its id " +
+        "is a path, so it cannot ANCHOR a workspace: put the story or capability first and pass the " +
+        "subtree as a later --node. A tree node is renamed, never silently normalised.",
     );
   }
   if (suffix.trim().length === 0) {
