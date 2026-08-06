@@ -129,6 +129,31 @@ export function renderOfferFollowUps(candidateSetId: string, refs: readonly stri
   return lines;
 }
 
+/**
+ * The ASK that rides beside the printed form (ADR-0320) — rendered as the envelope's `note:`
+ * immediately above the follow-ups {@link renderOfferFollowUps} produced, and only when it produced
+ * some.
+ *
+ * It lives HERE, beside the form and beside the `follow-completeness-depends-on-the-offered-command-form`
+ * caveat below, because those three are one fact wearing three faces: the caveat states the
+ * dependency to a coverage READER, the form gives an agent the line, and this states the ask to the
+ * agent looking at it. Printing the form alone was measured insufficient — over every session trace
+ * on the dev box on 2026-08-06, 5048 offered ids produced ZERO `followed_edge` events, and the cause
+ * was not reluctance but silence: `--from-offer` appeared in no guidance anywhere, so the trailing
+ * flag read as an internal token to strip rather than the point of the line (ADR-0320 Context).
+ *
+ * Two things it deliberately is NOT. It is not a gate and never becomes one (ADR-0320 D2): a check
+ * that rewarded the flag's presence would buy it on reads that answered no offer, manufacturing the
+ * false edges ADR-0260 D4 refuses. And it does not widen scope (ADR-0320 D4) — hence the closing
+ * sentence, since a read reached from a chip, a search, or an agent's own memory has no offer to
+ * name and naming one anyway is fabrication, not diligence.
+ */
+export const OFFER_FOLLOW_NOTE: readonly string[] = [
+  `Following one of the pointers below? Run that line AS PRINTED — its trailing \`${OFFER_FLAG}\``,
+  "id is what records which branch you chose (ADR-0260 D3). Retyping the bare form reads the same",
+  "artifact and silently loses the edge. Never add the flag to a read that answered no offer.",
+];
+
 /** Locate the index of the `library-artifact` surface visit within `observed`, or -1. */
 function findAnsweringVisitIndex(observed: readonly ContextTraversalEvent[]): number {
   return observed.findIndex(

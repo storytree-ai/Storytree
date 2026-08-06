@@ -37,7 +37,7 @@ import { test, before, after } from "node:test";
 import { isContextVisitEvent } from "@storytree/context-traversal-telemetry";
 import type { ContextTraversalEvent, ContextVisitEvent } from "@storytree/context-traversal-telemetry";
 
-import { OFFER_FLAG } from "./follow-offer-edges.js";
+import { OFFER_FLAG, OFFER_FOLLOW_NOTE } from "./follow-offer-edges.js";
 import { readTraversalSession } from "./sink.js";
 
 const LAUNCHER = fileURLToPath(new URL("../../cli/launch.mjs", import.meta.url));
@@ -412,14 +412,26 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
   // no telemetry FAILURE may alter an envelope, which an opted-out run never engages. ADR-0241's own
   // Consequences make that split — don't re-file this leg under D3.) Comparing the payloads rather
   // than tuning a fixture is the honest repair: the claim did not move, the surface underneath it did.
+  //
+  // ADR-0320 WIDENED THE OFFER-CARRYING SURFACE AGAIN, and the same repair applies a second time. The
+  // printed form now travels with an ASK — the envelope's `note:` stanza — because printing the form
+  // alone was measured insufficient (5048 offered ids, zero `followed_edge` events, 2026-08-06). So
+  // "byte-identical" can no longer mean stdout-minus-the-`--from-offer`-lines either; it means
+  // stdout minus the whole offer SURFACE, which is now that stanza plus those lines. The stanza is
+  // stripped via the exported constant rather than a copied literal, so re-wording the ask cannot
+  // silently break this leg — and the note is asserted present-with-the-offer and absent-without it
+  // below, which is the same present-only-where-genuinely-recorded claim the offer lines already carry.
   const OFFER_LINE = ` ${OFFER_FLAG} `;
+  const NOTE_STANZA = `note:\n${OFFER_FOLLOW_NOTE.map((line) => `  ${line}`).join("\n")}\n\n`;
   const payloadOf = (stdout: string): string =>
     stdout
+      .replace(NOTE_STANZA, "")
       .split("\n")
       .filter((line) => !line.includes(OFFER_LINE))
       .join("\n");
   const offerLinesOf = (stdout: string): string[] =>
     stdout.split("\n").filter((line) => line.includes(OFFER_LINE));
+  const carriesNote = (stdout: string): boolean => stdout.includes(NOTE_STANZA);
 
   // Variant CAPTURED: capture unambiguously ON — an explicit session id and a real trace directory,
   // so this run's behaviour does not depend on whether the test's own cwd happens to be a worktree
@@ -435,10 +447,14 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
     offerLinesOf(onResult.stdout).length > 0,
     "a run that records an offer MUST print the follow-up commands carrying its id (ADR-0260 D3)",
   );
+  assert.ok(
+    carriesNote(onResult.stdout),
+    "and it MUST print the ask beside them (ADR-0320) — the form alone was measured insufficient",
+  );
   assert.equal(
     payloadOf(onResult.stdout),
     payloadOf(baseline.stdout),
-    "capture adds follow-up lines and NOTHING else — the command's own payload is untouched",
+    "capture adds the offer surface and NOTHING else — the command's own payload is untouched",
   );
 
   // Variant A: explicit opt-out, even with a valid session id and a real trace directory.
@@ -460,6 +476,11 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
     [],
     "an opted-out run records no offer, so it must print no offer id — a printed id nothing recorded " +
       "is an id an agent can return that names a candidate set which never existed",
+  );
+  assert.equal(
+    carriesNote(offResult.stdout),
+    false,
+    "and it must print no ask either — an ask about follow-ups that were never printed is noise",
   );
   assert.deepEqual(listDir(offDir), [], "STORYTREE_TRAVERSAL=off must create no trace file");
 
@@ -494,6 +515,11 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
     offerLinesOf(noIdResult.stdout),
     [],
     "an uninstrumented run records no offer, so it must print no offer id either",
+  );
+  assert.equal(
+    carriesNote(noIdResult.stdout),
+    false,
+    "nor the ask that goes with one",
   );
   assert.deepEqual(listDir(noIdDir), [], "an unresolved identity must create no trace file");
 });

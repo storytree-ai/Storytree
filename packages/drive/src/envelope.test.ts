@@ -68,6 +68,47 @@ test("the emitted envelope round-trips through formatEnvelope with a `next:` blo
   assert.match(text, /next:\n {2}- storytree library artifact one/);
 });
 
+// ── note (ADR-0320): the prose ask that rides ABOVE the `next:` block ──
+
+test("formatEnvelope renders `note:` immediately BEFORE next: — it is an ask about the lines below", () => {
+  const text = formatEnvelope({
+    ok: true,
+    body: "b",
+    note: ["first line", "second line"],
+    next: ["storytree library artifact one --from-offer candidate-set:v"],
+  });
+  assert.match(text, /note:\n {2}first line\n {2}second line/, "prose lines, no `- ` bullet");
+  assert.match(
+    text,
+    /note:[\s\S]*next:/,
+    "the note precedes next:, so an instruction about those commands is read before them",
+  );
+  assert.doesNotMatch(text, /next:[\s\S]*note:/);
+});
+
+test("formatEnvelope: doctrine, note and next render in that order when all three are present", () => {
+  const text = formatEnvelope({
+    ok: true,
+    body: "b",
+    doctrine: ["d — storytree library artifact d"],
+    note: ["n"],
+    next: ["c"],
+  });
+  assert.match(text, /doctrine:[\s\S]*note:[\s\S]*next:/);
+});
+
+test("formatEnvelope: an absent or empty note renders byte-identically to one from before the field existed", () => {
+  // ADR-0241 D2's opt-out-clean envelope survives the new field: every command that never sets a
+  // note — which is all of them but an offering artifact render — is untouched. The third shape,
+  // an explicit `note: undefined`, is not asserted because `exactOptionalPropertyTypes` makes it
+  // unrepresentable: the compiler already refuses it, so a runtime assertion would only restate
+  // a fence the type system holds more strongly.
+  const base = { ok: true, body: "b", next: ["c"] } as const;
+  const baseline = formatEnvelope(base);
+  assert.equal(formatEnvelope({ ...base, note: [] }), baseline);
+  assert.doesNotMatch(baseline, /note:/);
+});
+
 // ── withDeltaFooter (ADR-0200 D4): the cursor-once delta piggyback composer ──
 
 import { withDeltaFooter } from "./envelope.js";

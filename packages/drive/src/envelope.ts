@@ -14,6 +14,15 @@ export interface Envelope {
   readonly doctrine?: readonly string[];
   /** Suggested next commands, the branches of the adventure. */
   readonly next?: readonly string[];
+  /**
+   * A short prose ask ABOUT the `next:` block, rendered immediately before it so it sits with the
+   * commands it is about. Prose lines, not commands — `next` stays a list of things to run.
+   *
+   * Optional and normally absent: an envelope that sets no note renders byte-identically to one
+   * from before this field existed, which is what keeps ADR-0241 D2 (the opt-out-clean envelope)
+   * true for every command that never sets one.
+   */
+  readonly note?: readonly string[];
 }
 
 /** Render an {@link Envelope} to the text the agent reads on stdout. */
@@ -21,6 +30,10 @@ export function formatEnvelope(e: Envelope): string {
   const parts: string[] = [e.body.replace(/\s+$/, "")];
   if (e.doctrine && e.doctrine.length > 0) {
     parts.push("doctrine:\n" + e.doctrine.map((d) => `  - ${d}`).join("\n"));
+  }
+  // Before `next:`, never after — the note is an instruction about the lines below it.
+  if (e.note && e.note.length > 0) {
+    parts.push("note:\n" + e.note.map((n) => `  ${n}`).join("\n"));
   }
   if (e.next && e.next.length > 0) {
     parts.push("next:\n" + e.next.map((n) => `  - ${n}`).join("\n"));
