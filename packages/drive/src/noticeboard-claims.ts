@@ -9,9 +9,11 @@
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
 import { claimGrade, exploringClaimRequest, waitingClaimRequest } from "@storytree/notice-board";
 
+import { quoteClaimId } from "./claim-namespace.js";
 import {
   guardClaimNamespace,
   kindSuffix,
+  subtreeClaimNote,
   type ClaimUniverseLoader,
 } from "./claim-universe.js";
 import type { Envelope } from "./envelope.js";
@@ -136,6 +138,7 @@ async function renderQueued(
   heldBy: ClaimDocT,
 ): Promise<Envelope> {
   const pos = await queuePosition(store, unitId, sessionId);
+  const cmdId = quoteClaimId(unitId);
   const where =
     pos !== null ? ` (position ${pos.position} of ${pos.length} in the line)` : "";
   return {
@@ -145,8 +148,8 @@ async function renderQueued(
       `waiting in line behind ${heldBy.sessionId}${where}. ` +
       "On release the store promotes the oldest live waiter (ADR-0200 D2).",
     next: [
-      `storytree noticeboard claims ${unitId} --pg`,
-      `storytree noticeboard release ${unitId} --pg`,
+      `storytree noticeboard claims ${cmdId} --pg`,
+      `storytree noticeboard release ${cmdId} --pg`,
     ],
   };
 }
@@ -179,6 +182,10 @@ export async function claimLedgerCommand(
   }
   if (deps.claims === null) return needsPg(verb);
   const store = deps.claims;
+  // Every command string below is built from the QUOTED id: a subtree claim id is a path-or-glob
+  // (ADR-0317 D3), and an unquoted `*` would be expanded by the shell before storytree saw it —
+  // handing the session a "next" line that silently means something else. A plain id is unchanged.
+  const cmdId = quoteClaimId(unitId);
 
   // -------------------------------------------------------------------------
   // claims — the read view (queue/board), no identity needed
@@ -190,7 +197,7 @@ export async function claimLedgerCommand(
         ok: true,
         body: `No claims on "${unitId}".`,
         next: [
-          `storytree noticeboard claim ${unitId} --grade exploring --intent "<prose>" --pg`,
+          `storytree noticeboard claim ${cmdId} --grade exploring --intent "<prose>" --pg`,
         ],
       };
     }
@@ -202,8 +209,8 @@ export async function claimLedgerCommand(
       ok: true,
       body: lines.join("\n"),
       next: [
-        `storytree noticeboard claim ${unitId} --grade waiting --pg`,
-        `storytree noticeboard upgrade ${unitId} --pg`,
+        `storytree noticeboard claim ${cmdId} --grade waiting --pg`,
+        `storytree noticeboard upgrade ${cmdId} --pg`,
       ],
     };
   }
@@ -221,7 +228,7 @@ export async function claimLedgerCommand(
       return {
         ok: false,
         body: `unknown claim grade "${grade}" — a claim is exploring, waiting, or work (ADR-0200 D2).`,
-        next: [`storytree noticeboard claim ${unitId} --grade exploring --intent "<prose>" --pg`],
+        next: [`storytree noticeboard claim ${cmdId} --grade exploring --intent "<prose>" --pg`],
       };
     }
     // THE NAMESPACE FENCE (ADR-0310 D2) — ahead of every other check in this arm, because the
@@ -245,7 +252,7 @@ export async function claimLedgerCommand(
           body:
             'An exploring claim requires --intent "<prose>" — the "what I\'m thinking" prose IS the ' +
             "claim's payload (ADR-0200 D2); it renders on the hovering wisp.",
-          next: [`storytree noticeboard claim ${unitId} --grade exploring --intent "<prose>" --pg`],
+          next: [`storytree noticeboard claim ${cmdId} --grade exploring --intent "<prose>" --pg`],
         };
       }
       req = exploringClaimRequest({ unitId, sessionId, branch, intent });
@@ -284,8 +291,8 @@ export async function claimLedgerCommand(
         ].join("\n"),
         next: [
           `storytree noticeboard claim <capability-id> --grade work --pg`,
-          `storytree noticeboard claim ${unitId} --grade waiting --pg`,
-          `storytree noticeboard claims ${unitId} --pg`,
+          `storytree noticeboard claim ${cmdId} --grade waiting --pg`,
+          `storytree noticeboard claims ${cmdId} --pg`,
         ],
       };
     }
@@ -295,10 +302,13 @@ export async function claimLedgerCommand(
         ok: true,
         // The kind is NAMED (ADR-0310 D2). This line said "the STORY wisp is lit" for any string —
         // untrue over a capability, an arc or an increment, and untrue over a typo.
-        body: `Work claim acquired on "${unitId}"${kindSuffix(named.kind)}${reclaimedNote} — the wisp is lit.`,
+        body: [
+          `Work claim acquired on "${unitId}"${kindSuffix(named.kind, named.owner)}${reclaimedNote} — the wisp is lit.`,
+          ...subtreeClaimNote(named.kind, named.owner),
+        ].join("\n"),
         next: [
-          `storytree noticeboard claims ${unitId} --pg`,
-          `storytree noticeboard release ${unitId} --pg`,
+          `storytree noticeboard claims ${cmdId} --pg`,
+          `storytree noticeboard release ${cmdId} --pg`,
         ],
       };
     }
@@ -316,8 +326,8 @@ export async function claimLedgerCommand(
             "you meant a narrower surface, claim the capability you are actually writing instead " +
             "(ADR-0270 D1).",
           next: [
-            `storytree noticeboard upgrade ${unitId} --pg`,
-            `storytree noticeboard claims ${unitId} --pg`,
+            `storytree noticeboard upgrade ${cmdId} --pg`,
+            `storytree noticeboard claims ${cmdId} --pg`,
           ],
         };
       }
@@ -326,24 +336,24 @@ export async function claimLedgerCommand(
       const where = idx !== -1 ? ` (position ${idx + 1} of ${waiting.length} in the line)` : "";
       return {
         ok: true,
-        body: `Waiting claim taken on "${unitId}"${kindSuffix(named.kind)} — queued for the work slot${where}.`,
+        body: `Waiting claim taken on "${unitId}"${kindSuffix(named.kind, named.owner)} — queued for the work slot${where}.`,
         next: [
-          `storytree noticeboard claims ${unitId} --pg`,
-          `storytree noticeboard upgrade ${unitId} --pg`,
+          `storytree noticeboard claims ${cmdId} --pg`,
+          `storytree noticeboard upgrade ${cmdId} --pg`,
         ],
       };
     }
     return {
       ok: true,
       body: [
-        `Exploring claim taken on "${unitId}"${kindSuffix(named.kind)} — shared; the hovering wisp carries your intent.`,
+        `Exploring claim taken on "${unitId}"${kindSuffix(named.kind, named.owner)} — shared; the hovering wisp carries your intent.`,
         `  session:  ${result.claim.sessionId}`,
         `  branch:   ${result.claim.branch}`,
         `  intent:   "${result.claim.intent}"`,
       ].join("\n"),
       next: [
-        `storytree noticeboard upgrade ${unitId} --pg`,
-        `storytree noticeboard claims ${unitId} --pg`,
+        `storytree noticeboard upgrade ${cmdId} --pg`,
+        `storytree noticeboard claims ${cmdId} --pg`,
       ],
     };
   }
@@ -368,16 +378,19 @@ export async function claimLedgerCommand(
       return {
         ok: false,
         body: `Upgrade on "${unitId}" REFUSED — work slot HELD by ${describeHolder(result.heldBy)}.`,
-        next: [`storytree noticeboard claims ${unitId} --pg`],
+        next: [`storytree noticeboard claims ${cmdId} --pg`],
       };
     }
     const reclaimedNote = result.reclaimed ? " (a stale holder was reclaimed)" : "";
     return {
       ok: true,
-      body: `Upgraded to the WORK claim on "${unitId}"${kindSuffix(named.kind)}${reclaimedNote} — the wisp is lit.`,
+      body: [
+        `Upgraded to the WORK claim on "${unitId}"${kindSuffix(named.kind, named.owner)}${reclaimedNote} — the wisp is lit.`,
+        ...subtreeClaimNote(named.kind, named.owner),
+      ].join("\n"),
       next: [
-        `storytree noticeboard claims ${unitId} --pg`,
-        `storytree noticeboard downgrade ${unitId} --grade exploring --pg`,
+        `storytree noticeboard claims ${cmdId} --pg`,
+        `storytree noticeboard downgrade ${cmdId} --grade exploring --pg`,
       ],
     };
   }
@@ -393,7 +406,7 @@ export async function claimLedgerCommand(
         body:
           "downgrade needs --grade exploring|waiting — the shared grades (the work grade is what " +
           "you're stepping down FROM, ADR-0200 D2).",
-        next: [`storytree noticeboard downgrade ${unitId} --grade exploring --pg`],
+        next: [`storytree noticeboard downgrade ${cmdId} --grade exploring --pg`],
       };
     }
     const downgraded = await store.downgrade(unitId, sessionId, grade);
@@ -401,7 +414,7 @@ export async function claimLedgerCommand(
       return {
         ok: false,
         body: `Nothing of yours to downgrade on "${unitId}" — this session holds no claim there.`,
-        next: [`storytree noticeboard claims ${unitId} --pg`],
+        next: [`storytree noticeboard claims ${cmdId} --pg`],
       };
     }
     return {
@@ -409,7 +422,7 @@ export async function claimLedgerCommand(
       body:
         `Downgraded your claim on "${unitId}" to ${grade}. If this freed the work slot, the store ` +
         "promoted the oldest live waiter in the same transaction (ADR-0200 D2).",
-      next: [`storytree noticeboard claims ${unitId} --pg`],
+      next: [`storytree noticeboard claims ${cmdId} --pg`],
     };
   }
 
@@ -421,7 +434,7 @@ export async function claimLedgerCommand(
     return {
       ok: false,
       body: `Nothing of yours to release on "${unitId}" — this session holds no claim there.`,
-      next: [`storytree noticeboard claims ${unitId} --pg`],
+      next: [`storytree noticeboard claims ${cmdId} --pg`],
     };
   }
   return {
@@ -429,6 +442,6 @@ export async function claimLedgerCommand(
     body:
       `Released your claim on "${unitId}". If it was the work slot, the store promoted the oldest ` +
       "live waiter in the same transaction (ADR-0200 D2).",
-    next: [`storytree noticeboard claims ${unitId} --pg`],
+    next: [`storytree noticeboard claims ${cmdId} --pg`],
   };
 }

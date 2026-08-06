@@ -329,6 +329,9 @@ export async function main(): Promise<void> {
             claimUniverse: createClaimUniverseLoader({
               storiesDir: path.join(repoRoot(), "stories"),
               library: store,
+              // The declared subtree map (ADR-0317 D2/D3) — the third source. Unreadable here means
+              // the whole check stands down, never that a subtree claim starts being refused.
+              manifestPath: path.join(repoRoot(), "repo-manifest.json"),
             }),
           }
         : {}),

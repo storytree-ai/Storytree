@@ -253,13 +253,20 @@ already named as the more important one, was built alone.
 `noticeboard claim`, `noticeboard upgrade`, `noticeboard declare --node` and `worktree create
 --node` — resolve the id before writing, and refuse an unresolvable one naming the near-miss.
 `packages/drive/src/claim-namespace.ts` is the pure resolver; `claim-universe.ts` gathers the
-namespace from the disk tree (story / capability / contract) and the live Library (arc / increment).
-Three findings from building it, each of which changed the decision as written:
+namespace from the disk tree (story / capability / contract), the live Library (arc / increment) and
+the repo manifest (subtree). Three findings from building it, each of which changed the decision as
+written:
 
-- **The claimable kind set is FIVE, not four.** `increment` had to be added: sessions already claim
+- **The claimable kind set is SIX, not four.** `increment` had to be added: sessions already claim
   increments as work (`escalation-authors-an-open-question-briefing`), and omitting it would have
   refused legitimate claims — a worse failure than the leak. The membership rule is now measured
-  rather than reasoned: a kind is claimable when the ledger shows it claimed as work.
+  rather than reasoned: a kind is claimable when the ledger shows it claimed as work, **or ADR-0317
+  D3 names it**. *(Corrected in place 2026-08-06, ADR-0139 — the rule is unchanged, the set grew by
+  its own second clause. Increment 2 fenced `subtree` out "until increment 3 creates the objects";
+  increment 3 created them — `sourceOwnership.subtrees` now carries 372 declarations covering 527 of
+  527 source files — and increment 3's claimable half added it. A subtree's id is its declaration
+  KEY verbatim and only an exact key resolves, because a claim row is keyed by the raw string: an id
+  per contained file would let two sessions hold the same code without ever contending.)*
 - **The kind is DERIVED, not typed by the caller and not persisted.** "A claim names a KIND" is
   satisfied by resolution deriving it. A `--kind` flag would tax every claim to restate what the id
   determines, and an enum column in `events.node_claim` would need a migration per new kind — which

@@ -128,6 +128,11 @@ whether the opening is close enough and visibly framed at the bottom of the fore
 pull-back naturally fits growth as it reveals upward before arriving at the ordinary whole-forest
 view. The agent does not sign that verdict.
 
+**Owner attestation — 2026-08-06.** At the hosted Studio route, the owner visually reviewed the
+landed PR #1185 camera and returned the verdict “looks great,” accepting the bottom-framed opening
+amount and the pull-back’s appearance and pacing through the ordinary whole-forest view. This records
+the operator-attested finish only; the authored status remains `proposed` under ADR-0020.
+
 ## Explicitly outside this increment
 
 - First-person camera, runtime focal-island or growth-frontier tracking, an independently timed pan

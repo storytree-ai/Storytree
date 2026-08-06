@@ -8,6 +8,7 @@ import {
   claimNamespaceOneLine,
   claimNamespaceRefusalBody,
   normalisePastedPath,
+  quoteClaimId,
   resolveClaimId,
   type ClaimUniverse,
 } from "./claim-namespace.js";
@@ -58,6 +59,10 @@ const FIXTURE: ClaimUniverse = {
     { id: "first-class-edges-arc", kind: "arc" },
     { id: "noticeboard-claim-ledger-arc", kind: "arc" },
     { id: "typed-resolvable-claim-namespace", kind: "increment" },
+    // Declared subtrees (ADR-0317 D3): the id is the manifest KEY, and the owner rides along. Both
+    // idioms the map uses — a glob and a bare directory — because they match differently.
+    { id: "packages/cli/src/gate*.ts", kind: "subtree", owner: "gate-ci-parity" },
+    { id: "packages/library/src/store", kind: "subtree", owner: "library-cli" },
   ],
   nonClaimable: [
     { id: "session-orchestrator", kind: "agent" },
@@ -87,7 +92,7 @@ test("an id naming a real object of a claimable kind RESOLVES, carrying its kind
   }
 });
 
-test("all five claimable kinds resolve — the set is measured, not assumed", () => {
+test("every claimable kind resolves — the set is measured, not assumed", () => {
   const resolvedKinds = new Set(
     FIXTURE.targets.map((t) => {
       const r = resolveClaimId(t.id, FIXTURE);
@@ -168,6 +173,79 @@ test("a package name claimed instead of the node's is caught by token relatednes
   assert.equal(r.verdict, "unknown");
   if (r.verdict !== "unknown") return;
   assert.ok(r.suggestions.some((s) => s.id === "drive-machinery"));
+});
+
+// ---------------------------------------------------------------------------
+// Declared subtrees (ADR-0317 D3)
+// ---------------------------------------------------------------------------
+
+test("a subtree resolves by its manifest KEY, verbatim — globs and all", () => {
+  for (const id of ["packages/cli/src/gate*.ts", "packages/library/src/store"]) {
+    const r = resolveClaimId(id, FIXTURE);
+    assert.equal(r.verdict, "resolved", `${id} should resolve`);
+    if (r.verdict !== "resolved") return;
+    assert.equal(r.target.kind, "subtree");
+    assert.ok(r.target.owner !== undefined, "and it carries who the map says owns it");
+  }
+});
+
+test("normalisePastedPath NEVER swallows a subtree id — the measured hazard cuts one way only", () => {
+  // The pasted-PATH pass exists because `stories/studio` was claimed twice. A subtree id is also a
+  // path, so the two could have collided; they cannot, because normalisation strips only a
+  // `stories/` prefix and `.md`/`/story.md` tails, which no `packages/`|`apps/` key carries — and
+  // the exact hit short-circuits ahead of normalisation regardless. Pinned over the LIVE manifest
+  // in `source-ownership-map.test.ts`; here over the idioms.
+  for (const id of ["packages/cli/src/gate*.ts", "packages/library/src/store", "apps/studio/src"]) {
+    assert.equal(normalisePastedPath(id), id);
+  }
+});
+
+test("a FILE under a declared subtree is refused, and told the subtree that covers it", () => {
+  // Exact-key-only is a correctness rule, not fussiness: the ledger keys a claim row by the raw
+  // string, so resolving each contained file would mint an id per file and let two sessions hold
+  // the same code without contending — a claim that protects nothing, which is this module's whole
+  // subject. The suggestion is how the canonical id gets taught at the moment of the mistake.
+  const r = resolveClaimId("packages/cli/src/gate-run.ts", FIXTURE);
+  assert.equal(r.verdict, "unknown");
+  if (r.verdict !== "unknown") return;
+  assert.deepEqual(r.suggestions[0], {
+    id: "packages/cli/src/gate*.ts",
+    kind: "subtree",
+    owner: "gate-ci-parity",
+    reason: "owning-subtree",
+  });
+});
+
+test("a DIRECTORY that is no declaration's key surfaces the declarations beneath it", () => {
+  const r = resolveClaimId("packages/library/src", FIXTURE);
+  assert.equal(r.verdict, "unknown");
+  if (r.verdict !== "unknown") return;
+  assert.equal(r.suggestions[0]?.id, "packages/library/src/store");
+  assert.equal(r.suggestions[0]?.reason, "owning-subtree");
+});
+
+test("a PATH is never a near-miss for a NAME — subtrees stay out of token relatedness", () => {
+  // `tokens()` splits on `/` too, so a bare word scores 1.0 against every declaration in the
+  // matching directory. Left in, `drive` would surface `packages/drive/src` and its neighbours
+  // ahead of the node the session actually meant, and `packages/cli/src`'s hundred entries would
+  // crowd the three slots with directory coincidences.
+  const r = resolveClaimId("gate", FIXTURE);
+  assert.equal(r.verdict, "unknown");
+  if (r.verdict !== "unknown") return;
+  assert.deepEqual(
+    r.suggestions.filter((s) => s.reason === "related" && s.kind === "subtree"),
+    [],
+  );
+});
+
+test("quoteClaimId quotes what the shell would eat, and leaves a plain id alone", () => {
+  assert.equal(quoteClaimId("noticeboard-cli"), "noticeboard-cli");
+  assert.equal(quoteClaimId("packages/library/src/store"), "packages/library/src/store");
+  assert.equal(
+    quoteClaimId("packages/cli/src/gate*.ts"),
+    "'packages/cli/src/gate*.ts'",
+    "an unquoted glob is expanded by the shell BEFORE storytree sees it",
+  );
 });
 
 test("a genuinely unrelated string gets NO suggestions rather than a coincidence", () => {
