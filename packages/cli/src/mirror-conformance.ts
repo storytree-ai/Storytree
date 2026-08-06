@@ -77,8 +77,13 @@ export interface Probe {
  *   each probe prints the route's response body VERBATIM, which
  *   {@link projectActivityPayload} turns into entries. The projection lives here, on the third
  *   party, so the two probes cannot drift in how they reshape what they measured.
+ * - `arc-fixtures` — argv is fixture DIRECTORIES (a doc set, a `docs/decisions` tree and a
+ *   `stories/` tree — the three inputs the arc rollup joins over — plus the REQUEST LIST both
+ *   probes replay). Each probe prints `{ [label]: { status, body } }` for those requests, which
+ *   {@link projectArcsPayload} turns into entries. The request list rides the FIXTURE rather than
+ *   living in each probe: two hand-kept lists of what to ask is the same drift class one level up.
  */
-export type MirrorInputSet = "docs-trees" | "activity-fixtures";
+export type MirrorInputSet = "docs-trees" | "activity-fixtures" | "arc-fixtures";
 
 /** One registered mirrored payload: the rules, the input protocol, plus the two probes. */
 export interface MirrorTarget {
@@ -171,6 +176,42 @@ export const MIRRORS: readonly MirrorTarget[] = [
     reference: { appDir: "apps/studio", file: "apps/studio/server/activityMirrorProbe.ts" },
     mirror: { appDir: "apps/desktop", file: "apps/desktop/src/backend/activity-mirror-probe.ts" },
   },
+  {
+    // THE THIRD ROW, registered in the SAME branch that created the pair — the moment the desktop
+    // began serving `/api/arcs` (ADR-0267 / ADR-0314's arc surface), not weeks later after a drift.
+    //
+    // WHAT IS AND IS NOT AT RISK HERE, stated precisely because this pair's drift class is a
+    // different SHAPE from the other two. The arc → children JOIN is genuinely shared code:
+    // `loadArcRollup`/`loadArcRollups` live in @storytree/drive and BOTH surfaces call them, so the
+    // rollup's CONTENT carries no re-composition risk (that is `deriveArcRollup`'s own suites' job).
+    // What is hand-copied is the ENVELOPE — the method guard, the two "no document store" answers,
+    // the unknown-id answer, the id decode, and the `{ arcs }` key itself — and every one of those
+    // is a DECISION the desktop copy could silently lose. It matters more here than the shape of the
+    // payload: `apps/studio/src/lib/arcRollups.ts` keeps FOUR states apart (loading / unreachable /
+    // no-store / rollups) and renders each differently, so a desktop copy that answered `{ arcs: [] }`
+    // for a missing store, or 404'd where the studio 503s, would drive the SAME compiled bundle into
+    // a confidently wrong state rather than an honest one.
+    //
+    // Both probes therefore print the REAL served `{ status, body }` — they drive each surface's own
+    // dispatcher and its own central error mapping, not the arcs handler in isolation, so the status
+    // codes and error bodies are inside the assertion rather than re-implemented beside it.
+    spec: {
+      surface: "GET /api/arcs ({arcs} list · one ArcRollup)",
+      route: "/api/arcs",
+      reference: "studio",
+      mirror: "desktop",
+      // The projection's synthetic key (`response:<label>` / `<label>#<arcId>`), not a payload field
+      // — see `projectArcsPayload`; the payload's own `id` is compared like any other field. Spelled
+      // literally, like the row above: `ARCS_KEY` is declared below this table.
+      key: "_key",
+      // EMPTY BY DESIGN: both surfaces serve this wire to the SAME compiled arc lens, which reads
+      // every field from either. A difference here is a defect, never a deliberate narrowing.
+      referenceOnlyFields: [],
+    },
+    inputs: "arc-fixtures",
+    reference: { appDir: "apps/studio", file: "apps/studio/server/arcsMirrorProbe.ts" },
+    mirror: { appDir: "apps/desktop", file: "apps/desktop/src/backend/arcs-mirror-probe.ts" },
+  },
 ];
 
 /**
@@ -201,6 +242,13 @@ export type Entry = Record<string, unknown>;
 
 /** The projection's key field — synthetic, so it can never collide with a payload's own `key`. */
 export const ACTIVITY_KEY = "_key";
+
+/**
+ * The `/api/arcs` projection's key field — the SAME synthetic name, deliberately: this is one
+ * projection protocol used by two payloads, not two protocols that happen to agree. Aliased rather
+ * than re-spelled so a future change to the name cannot move one and leave the other.
+ */
+export const ARCS_KEY = ACTIVITY_KEY;
 
 /**
  * PURE: project a `GET /api/activity` response body — `{builds, claims, departures}`, each an array
@@ -247,6 +295,79 @@ export function projectActivityPayload(body: unknown): Entry[] {
       // displace it and collapse two rows onto one entry.
       out.push({ ...fields, [ACTIVITY_KEY]: `${layer}#${i}` });
     });
+  }
+  return out;
+}
+
+/**
+ * PURE: project a `GET /api/arcs` probe payload — `{ [label]: { status, body } }`, one entry per
+ * request both probes replayed — into comparable {@link Entry} rows.
+ *
+ * WHY STATUS AND BODY TOGETHER, and not the body alone as the activity projection takes it. This
+ * route's hand-copied part is its ENVELOPE, and most of that envelope is expressed as a STATUS: the
+ * 405 that makes read-only a decision rather than an omission (ADR-0267 D6 / ADR-0314 D9), the 503
+ * that refuses to answer "one arc" without a store, the 404 that refuses to answer an unknown id
+ * with an empty shell. A projection over bodies alone would compare three error objects and never
+ * notice that one surface returned them under different codes.
+ *
+ * THREE ENTRY KINDS PER LABEL, for the same reason the activity projection emits layer markers:
+ *
+ *   `response:<label>` — the status, the body's SHAPE, and its top-level key SET. The key set is
+ *     what catches an envelope that gained or lost a key while every shared key still agreed; the
+ *     shape is what keeps `{ arcs: null }` and `{ arcs: [] }` apart, which is the whole distinction
+ *     this route exists to preserve.
+ *   `<label>:arcs` — the list payload's own shape + row count, so a `null`-for-`[]` swap is a field
+ *     divergence rather than two payloads that both contribute zero rows and agree.
+ *   `<label>#<id>` / `<label>#body` — one entry per row of a list answer, or the single object of a
+ *     one-arc / error answer, compared FIELD BY NAME. Per-field is deliberate: a whole-body
+ *     JSON-string compare would make object KEY ORDER — not a semantic difference in JSON — a red
+ *     gate, and would report a whole-payload mismatch where the real defect is one field.
+ */
+export function projectArcsPayload(body: unknown): Entry[] {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error(`arcs payload must be a JSON object keyed by request label, got ${render(body)}`);
+  }
+  const out: Entry[] = [];
+  // Sorted so the entry order is the request SET, never the probe's iteration order.
+  for (const label of Object.keys(body as Record<string, unknown>).sort()) {
+    const answer = (body as Record<string, unknown>)[label];
+    if (answer === null || typeof answer !== "object" || Array.isArray(answer)) {
+      throw new Error(`arcs answer "${label}" must be a { status, body } object, got ${render(answer)}`);
+    }
+    const { status, body: payload } = answer as { status?: unknown; body?: unknown };
+    const isRecord = payload !== null && typeof payload === "object" && !Array.isArray(payload);
+    const fields = isRecord ? (payload as Record<string, unknown>) : {};
+    out.push({
+      [ARCS_KEY]: `response:${label}`,
+      status: status ?? null,
+      shape: payload === null ? "null" : Array.isArray(payload) ? "array" : typeof payload,
+      keys: Object.keys(fields).sort().join(","),
+    });
+    if (!isRecord) continue;
+
+    if (Object.hasOwn(fields, "arcs")) {
+      const arcs = fields["arcs"];
+      out.push({
+        [ARCS_KEY]: `${label}:arcs`,
+        shape: arcs === null ? "null" : Array.isArray(arcs) ? "array" : typeof arcs,
+        rows: Array.isArray(arcs) ? arcs.length : null,
+      });
+      if (!Array.isArray(arcs)) continue;
+      arcs.forEach((arc, i) => {
+        const row: Record<string, unknown> =
+          arc !== null && typeof arc === "object" && !Array.isArray(arc)
+            ? (arc as Record<string, unknown>)
+            : { value: arc };
+        // Keyed by the arc's own id where it has one (a mirror that DROPPED an arc then reports a
+        // missing entry naming it, not an order shift); the index is the fallback.
+        const id = typeof row["id"] === "string" ? row["id"] : String(i);
+        // The synthetic key is written LAST so a payload carrying `_key` cannot displace it.
+        out.push({ ...row, [ARCS_KEY]: `${label}#${id}` });
+      });
+      continue;
+    }
+    // A one-arc answer, or an error body — one entry, compared field by field.
+    out.push({ ...fields, [ARCS_KEY]: `${label}#body` });
   }
   return out;
 }

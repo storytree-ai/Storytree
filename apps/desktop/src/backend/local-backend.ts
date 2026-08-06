@@ -7,6 +7,7 @@
 // discovery, library reads) the studio server is built from, exactly as devApi.ts does.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import path from "node:path";
 
 import { writeToForestBroker } from "./forest-readiness.js";
 import type {
@@ -29,6 +30,22 @@ const loadProofProtocol = (): Promise<typeof import("@storytree/proof-protocol")
 let noticeBoardModule: Promise<typeof import("@storytree/notice-board")> | null = null;
 const loadNoticeBoard = (): Promise<typeof import("@storytree/notice-board")> =>
   (noticeBoardModule ??= import("@storytree/notice-board"));
+// The arc → children JOIN behind `/api/arcs` is SHARED code, not a re-composition: `loadArcRollups`
+// lives in @storytree/drive (already this app's declared dep) precisely so the CLI, the studio server
+// and this backend read one join and cannot disagree about what an arc contains (ADR-0267). Loaded
+// lazily like the two above — drive pulls `node:`-bearing modules, and nothing on the health/tree
+// path should pay for them.
+type DriveModule = typeof import("@storytree/drive");
+let driveModule: Promise<DriveModule> | null = null;
+const loadDrive = (): Promise<DriveModule> => (driveModule ??= import("@storytree/drive"));
+
+/**
+ * The document store the arc rollup reads through — DRIVE'S OWN `Store` type, reached structurally
+ * so this module needs no `@storytree/storage-protocol` import: that package is drive's declared dep
+ * and not desktop's, and pnpm's strict isolation will not resolve it from here. The same route
+ * `chat-sse-mount.ts`'s `ChatCorpusStore` takes, for the same reason.
+ */
+type ArcDocStore = Parameters<DriveModule["loadArcRollups"]>[0]["store"];
 
 // ---------- minimal HTTP helpers (local copies — not imported from studio) ----------
 
@@ -122,6 +139,19 @@ export interface LocalBackendBackend {
    * wires it (electron/backend-entry.ts) over PgClaimStore.listLiveClaims.
    */
   sessionClaims?: () => Promise<unknown[] | null>;
+  /**
+   * The library DOCUMENT STORE, for the arc rollup behind `GET /api/arcs` (ADR-0267 / ADR-0314) —
+   * the SAME `Store` the CLI drives under `--pg`, handed straight to drive's `loadArcRollups`, so
+   * the desktop, the studio and `storytree arc show` read ONE join and cannot disagree about what
+   * an arc contains. Optional exactly like {@link sessionClaims}: a narrow stub may omit it, and
+   * production wires it (electron/backend-entry.ts) to the live `PgLibraryStore`.
+   *
+   * ITS ABSENCE IS NOT THE SAME ADVISORY NULL the overlay seams above carry, and the route treats
+   * it differently on purpose. "This backend has no document store" and "the store is here and
+   * holds no arcs" are DIFFERENT facts — preserving that distinction is the whole reason
+   * `/api/arcs` answers `{ arcs: null }` rather than `{ arcs: [] }` when the seam is missing.
+   */
+  docStore?: () => Promise<ArcDocStore | null>;
 }
 
 /**
@@ -141,7 +171,8 @@ export interface LocalBackendBuild {
 export interface LocalBackendDeps {
   /** Absolute path to the repo's `stories/` dir — passed to orchestrator discovery. */
   storiesDir: string;
-  /** Absolute path to the repo's `docs/` dir — reserved for future /api/docs route. */
+  /** Absolute path to the repo's `docs/` dir — `<docsDir>/decisions` is what `/api/arcs` scans for
+   * the frontmatter `arc:` stamps that join ADRs to their arc (ADR-0183 D3). */
   docsDir: string;
   /** The read backend (in-memory seed for CI, pg-backed for production). */
   backend: LocalBackendBackend;
@@ -227,6 +258,8 @@ async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, 
  *                        (ADR-0138), `{ builds, claims }` — both advisory
  * - GET  /api/claims   — the claim-ledger DOCK view (ADR-0200 D7), `{ sessions }` — live claim rows
  *                        grouped by session (advisory: `{ sessions: null }` when the seam/DB is silent)
+ * - GET  /api/arcs     — the ARC SURFACE's rollups (ADR-0267 / ADR-0314), `{ arcs }`; `/api/arcs/<id>`
+ *                        serves one. Read-only by decision (405 on a write, ADR-0267 D6 / ADR-0314 D9)
  * - GET  /api/assets   — library assets from the injected `backend`
  * - POST /api/build    — dispatch a build intent via the injected `build` seam (404 when absent)
  * - *    /api/*        — 404 with an error body
@@ -292,6 +325,57 @@ export function createLocalBackend(
               new Date(),
             ),
           });
+        }
+      } else if (url.pathname === "/api/arcs" || url.pathname.startsWith("/api/arcs/")) {
+        // The ARC SURFACE's read (ADR-0267 / ADR-0314): `{ arcs: ArcRollup[] }` for the list, one
+        // `ArcRollup` for `/api/arcs/<id>`. Re-composes the studio's handleArcs (apiRouter.ts) — no
+        // apps/studio/server import (ADR-0100 / ADR-0176) — but the COMPUTE is genuinely shared:
+        // drive's `loadArcRollup`/`loadArcRollups` is the same join `storytree arc show` renders, so
+        // nothing is derived here and the three surfaces cannot disagree about an arc's contents.
+        //
+        // WHY THE DESKTOP NEEDS IT AT ALL: the Electron app loads the COMPILED STUDIO BUNDLE against
+        // this backend, so it already ships the arc lens the studio gained — a lens that 404'd here
+        // and rendered the honest-but-empty "Arcs aren't available here" notice, leaving the thick
+        // client with no arc orientation while the studio showed the whole portfolio.
+        //
+        // THREE BEHAVIOURS ARE THE STUDIO'S, VERBATIM, and each is a decision rather than an
+        // accident: a non-GET is a typed 405 because the surface is read-only BY DECISION (ADR-0267
+        // D6 / ADR-0314 D9), not by omission; no document store answers 200 `{ arcs: null }` for the
+        // list and 503 for a single id, because "the store isn't here" and "there are no arcs" are
+        // different facts and a surface built to RESTORE context must not blur them into a confident
+        // empty state (`apps/studio/src/lib/arcRollups.ts` keeps all four states apart downstream);
+        // and an unknown id is a 404 rather than an empty shell.
+        if ((req.method ?? "GET") !== "GET") {
+          throw new HttpError(
+            405,
+            "method not allowed — the arc surface is read-only this round (ADR-0267 D6)",
+          );
+        }
+        const store = await (deps.backend.docStore?.() ?? Promise.resolve(null));
+        const rest = url.pathname.slice("/api/arcs".length).replace(/^\//, "");
+        const id = rest === "" ? null : decodeURIComponent(rest);
+        if (store === null) {
+          if (id !== null) {
+            throw new HttpError(
+              503,
+              "the arc view needs the live store — arcs are live-canonical (ADR-0183)",
+            );
+          }
+          sendJson(res, 200, { arcs: null });
+        } else {
+          const { loadArcRollup, loadArcRollups } = await loadDrive();
+          const arcDeps = {
+            store,
+            decisionsDir: path.join(deps.docsDir, "decisions"),
+            storiesDir: deps.storiesDir,
+          };
+          if (id === null) {
+            sendJson(res, 200, { arcs: await loadArcRollups(arcDeps) });
+          } else {
+            const rollup = await loadArcRollup(arcDeps, id);
+            if (rollup === null) throw new HttpError(404, `no arc "${id}"`);
+            sendJson(res, 200, rollup);
+          }
         }
       } else if (url.pathname === "/api/assets") {
         if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");

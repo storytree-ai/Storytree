@@ -552,6 +552,284 @@ test("local-backend: /api/claims refuses a non-GET method with 405 (the only err
   });
 });
 
+// ===========================================================================
+// GET /api/arcs — the ARC SURFACE (ADR-0267 / ADR-0314). Re-composes the studio's handleArcs over
+// the SAME shared join (drive's loadArcRollup/loadArcRollups), so the desktop, the studio and
+// `storytree arc show` cannot disagree about what an arc contains.
+//
+// THE GAP THESE CLOSE, measured rather than theorised: the Electron app loads the COMPILED STUDIO
+// BUNDLE against this backend, so it already shipped the arc lens that landed in the studio — and
+// the lens 404'd here, leaving the thick client with NO arc orientation while the studio showed the
+// whole portfolio. Every assertion below fails if the route is removed.
+// ===========================================================================
+
+/**
+ * A minimal in-memory document store, defined HERE rather than imported: `@storytree/storage-protocol`
+ * is drive's declared dep and not desktop's, so pnpm's strict isolation will not resolve `InMemoryStore`
+ * from apps/desktop (the same reason chat-sse-mount.test.ts carries its own `FixtureStore`). Only
+ * `getDoc`/`queryDocs` are exercised by the rollup; the rest satisfy the seam's shape.
+ */
+class ArcFixtureStore {
+  readonly #docs = new Map<string, { id: string; kind: string; doc: unknown; createdAt: string; updatedAt: string }>();
+  #seq = 0;
+
+  async upsertDoc(input: { id: string; kind: string; doc: unknown; actor?: string }) {
+    const now = new Date().toISOString();
+    const entry = {
+      id: input.id,
+      kind: input.kind,
+      doc: input.doc,
+      createdAt: this.#docs.get(input.id)?.createdAt ?? now,
+      updatedAt: now,
+    };
+    this.#docs.set(input.id, entry);
+    return entry;
+  }
+  async getDoc(id: string) {
+    return this.#docs.get(id) ?? null;
+  }
+  async queryDocs(filter?: { kind?: string }) {
+    const all = [...this.#docs.values()];
+    return filter?.kind === undefined ? all : all.filter((d) => d.kind === filter.kind);
+  }
+  async deleteDoc(id: string) {
+    return this.#docs.delete(id);
+  }
+  async appendEvent(e: {
+    id: string;
+    kind: string;
+    type: "created" | "updated" | "deleted";
+    doc: unknown;
+    actor?: string;
+  }) {
+    return { seq: ++this.#seq, ...e, actor: e.actor ?? "system", at: new Date().toISOString() };
+  }
+  async readEvents() {
+    return [];
+  }
+}
+
+/**
+ * Seed the three inputs the rollup joins over: the doc store (arc + increment + open-question rows,
+ * each carrying the `arcRef` containment edge ADR-0183 D3 puts on the CHILD), a `docs/decisions`
+ * tree with a frontmatter `arc:` stamp, and a `stories/` tree with the same stamp.
+ */
+async function seedArcFixture(): Promise<{
+  store: ArcFixtureStore;
+  docsDir: string;
+  storiesDir: string;
+  cleanup: () => Promise<void>;
+}> {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "local-backend-arcs-"));
+  const docsDir = path.join(root, "docs");
+  const storiesDir = path.join(root, "stories");
+  await fsp.mkdir(path.join(docsDir, "decisions"), { recursive: true });
+  await fsp.mkdir(path.join(storiesDir, "surface-story"), { recursive: true });
+  await fsp.writeFile(
+    path.join(docsDir, "decisions", "0267-arcs-take-the-slot.md"),
+    "---\nstatus: accepted\narc: surface-arc\n---\n\n# ADR-0267: Arcs take the slot\n",
+    "utf8",
+  );
+  await fsp.writeFile(
+    path.join(storiesDir, "surface-story", "story.md"),
+    '---\nid: "surface-story"\ntier: story\narc: surface-arc\n---\n\n# Surface story\n',
+    "utf8",
+  );
+
+  const store = new ArcFixtureStore();
+  await store.upsertDoc({
+    id: "surface-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "surface-arc",
+      title: "Arcs as the primary orientation surface",
+      description: "the arc surface",
+      intent: "Arcs are what the owner meets on the map.",
+      endState: "The owner stops asking for a re-onboarding briefing.",
+      references: [],
+      createdAt: "2026-07-29",
+      updatedAt: "2026-07-30",
+    },
+  });
+  await store.upsertDoc({
+    id: "surface-arc-inc-01",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "surface-arc-inc-01",
+      title: "the rollup landed",
+      description: "d",
+      objective: "the rollup landed",
+      body: "the rollup landed",
+      arcRef: "asset:surface-arc",
+      status: "closed",
+      outcome: { date: "2026-07-30", pr: "#1010" },
+      references: [],
+      createdAt: "2026-07-30",
+      updatedAt: "2026-07-30",
+    },
+  });
+  await store.upsertDoc({
+    id: "oq-blocked-meaning",
+    kind: "open-question",
+    doc: {
+      kind: "open-question",
+      id: "oq-blocked-meaning",
+      title: "What exactly qualifies as blocked?",
+      description: "D7 names blocked but does not define it",
+      stakes: "The surface cannot render a blocked state until this is settled.",
+      statement: "s",
+      context: "c",
+      arcRef: "asset:surface-arc",
+      references: [],
+      createdAt: "2026-07-30",
+      updatedAt: "2026-07-30",
+    },
+  });
+
+  return {
+    store,
+    docsDir,
+    storiesDir,
+    cleanup: async () => fsp.rm(root, { recursive: true, force: true }),
+  };
+}
+
+// THE CORE OUTCOME: the thick client serves the arc surface's list, joined from the store + the two
+// on-disk trees. Deletion test — before this route existed the request fell through to the 404
+// 'unknown endpoint', which is exactly what left the desktop arc lens empty.
+test("local-backend: GET /api/arcs serves the arc rollups — not a 404 fall-through", async () => {
+  const { store, docsDir, storiesDir, cleanup } = await seedArcFixture();
+  try {
+    const backend = overlayBackend({ docStore: async () => store });
+    const handler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/arcs`);
+      assert.equal(res.status, 200, "arcs must be 200 — the route is mounted, not a 404");
+      const body = (await res.json()) as { arcs: Array<Record<string, unknown>> };
+      assert.ok(Array.isArray(body.arcs), "the list answer carries an `arcs` array");
+      assert.deepEqual(
+        body.arcs.map((a) => a["id"]),
+        ["surface-arc"],
+      );
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+// The payload is DRIVE'S JOIN, with nothing derived locally — asserted against `loadArcRollup`
+// itself rather than a hand-shaped literal, so a handler that ever started deriving its own view
+// (or a desktop copy that drifted from the studio's) goes red HERE.
+test("local-backend: GET /api/arcs/<id> serves the SAME rollup drive's join produces", async () => {
+  const { store, docsDir, storiesDir, cleanup } = await seedArcFixture();
+  try {
+    const backend = overlayBackend({ docStore: async () => store });
+    const handler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/arcs/surface-arc`);
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as Record<string, unknown>;
+
+      const { loadArcRollup } = await import("@storytree/drive");
+      const expected = await loadArcRollup(
+        {
+          store: store as unknown as Parameters<typeof loadArcRollup>[0]["store"],
+          decisionsDir: path.join(docsDir, "decisions"),
+          storiesDir,
+        },
+        "surface-arc",
+      );
+      assert.deepEqual(body, JSON.parse(JSON.stringify(expected)));
+
+      // And the join really joined: the children reached the desktop payload, not just an arc shell.
+      assert.deepEqual(body["adrs"], [
+        { number: 267, status: "accepted", title: "Arcs take the slot" },
+      ]);
+      assert.deepEqual(body["stories"], ["surface-story"]);
+      assert.equal((body["increments"] as unknown[]).length, 1);
+      assert.equal(body["waiting"], true, "ADR-0267 D7's one defined state rides the payload");
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+// An unknown id is a 404, never a confident empty shell.
+test("local-backend: GET /api/arcs/<unknown> is a 404, not an empty arc", async () => {
+  const { store, docsDir, storiesDir, cleanup } = await seedArcFixture();
+  try {
+    const backend = overlayBackend({ docStore: async () => store });
+    const handler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/arcs/no-such-arc`);
+      assert.equal(res.status, 404);
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.ok(typeof body["error"] === "string", "carries the standard error body");
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+// "NO STORE" AND "NO ARCS" ARE DIFFERENT FACTS, and the pair of answers is what keeps them apart:
+// the list is 200 { arcs: null } (the frontend's `null` branch — "needs the live store"), a single
+// id is 503. An `{ arcs: [] }` here would tell the owner this machine HAS the store and the
+// portfolio is empty, which is the confident-empty lie the surface exists to avoid.
+test("local-backend: /api/arcs distinguishes no-store from no-arcs — list 200 { arcs: null }, one id 503", async () => {
+  // stubBackend omits docStore entirely — the narrow/offline posture.
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend: stubBackend(),
+    store: "json",
+  });
+  await withServer(handler, async (base) => {
+    const list = await fetch(`${base}/api/arcs`);
+    assert.equal(list.status, 200, "a missing store is a 200 with a null payload, never a 503");
+    assert.deepEqual(await list.json(), { arcs: null }, "null — NOT [], which would claim emptiness");
+
+    const one = await fetch(`${base}/api/arcs/surface-arc`);
+    assert.equal(one.status, 503, "one arc without a store is a 503 — there is no honest null here");
+  });
+});
+
+// A seam that ANSWERS null (wired, but this backend has no document store) reads identically to an
+// absent seam — the frontend's `null` branch either way.
+test("local-backend: /api/arcs answers { arcs: null } when the docStore seam answers null", async () => {
+  const backend = overlayBackend({ docStore: async () => null });
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend,
+    store: "json",
+  });
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/arcs`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { arcs: null });
+  });
+});
+
+// Read-only BY DECISION, not by omission (ADR-0267 D6 / ADR-0314 D9): a write is a typed 405 with
+// the reason, never a silent fall-through to the 404.
+test("local-backend: /api/arcs refuses a non-GET method with 405 — read-only by decision", async () => {
+  const { store, docsDir, storiesDir, cleanup } = await seedArcFixture();
+  try {
+    const backend = overlayBackend({ docStore: async () => store });
+    const handler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/arcs/surface-arc`, { method: "POST" });
+      assert.equal(res.status, 405, "a write is refused by decision, with the ADR named");
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.match(String(body["error"]), /read-only/, "the refusal states WHY, not just that");
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
 // Pins that the read-dispatch seam is wired: listAssets is called and its result (the stub's
 // empty array) is serialised as the response body.
 test("local-backend: GET /api/assets returns the stub backend's result as an array", async () => {

@@ -33,6 +33,14 @@
  *     folds must drop) and the ADVISORY-ABSENCE shape (`null` layers, zero rows), which is the arm
  *     that catches a route emitting `[]` where its mirror emits `null`.
  *
+ *   `arc-fixtures` — `GET /api/arcs`, compared over two synthetic fixture DIRECTORIES. Each carries
+ *     the three inputs the arc rollup joins over (a doc set, a `docs/decisions` tree, a `stories/`
+ *     tree) plus the request list both probes replay. What is at risk here is the ENVELOPE rather
+ *     than the payload — the join itself is shared code in @storytree/drive, which both surfaces
+ *     call — so each probe prints the STATUS as well as the body, and the second arm wires NO
+ *     document store: the only way to catch a mirror answering `{ arcs: [] }` where its reference
+ *     answers `{ arcs: null }`, or 404-ing one id where its reference 503s.
+ *
  * FAIL-CLOSED, and never vacuous. A probe that dies, prints unparseable output, or returns an
  * EMPTY payload for a non-empty input is a FAILURE, not a skip: two silent surfaces agree
  * perfectly, and "a proof that cannot fail is not a proof" is the class this arc exists to fence.
@@ -49,6 +57,7 @@ import {
   compareMirrors,
   formatDivergences,
   projectActivityPayload,
+  projectArcsPayload,
   type Divergence,
   type Entry,
   type MirrorInputSet,
@@ -175,6 +184,147 @@ function buildActivityFixtures(): { dir: string; inputs: { label: string; arg: s
 }
 
 /**
+ * Build the two synthetic `/api/arcs` fixtures both probes replay. Each is a DIRECTORY carrying the
+ * three inputs the arc rollup joins over — a doc set (`arcs.json`), a `docs/decisions` tree and a
+ * `stories/` tree — plus the REQUEST LIST both probes replay against it.
+ *
+ * WHY THE REQUESTS RIDE THE FIXTURE. Each probe could hold its own list of what to ask, and that
+ * would be two hand-kept lists of the same fact — the exact drift class this harness exists to
+ * fence, one level up from the payloads. A probe replays what it is handed and decides nothing.
+ *
+ * WHY TWO ARMS, and why the second one is not optional. `populated` proves the join reaches the
+ * wire (arcs, their increments, their questions, the ADR and story stamps) and that the id decode,
+ * the unknown-id answer and the method guard all agree. `no-store` is the ADVISORY-ABSENCE arm: it
+ * is the ONLY thing that catches a mirror answering `{ arcs: [] }` where its reference answers
+ * `{ arcs: null }`, or 404-ing a single id where its reference 503s — and that distinction is
+ * precisely what the compiled arc lens renders differently ("needs the live store" vs "no arcs").
+ * Without it, both surfaces would agree on every populated request and the defect would ship.
+ *
+ * There is deliberately no "real corpus" arm: arcs are live-canonical (ADR-0183) and CI is DB-free,
+ * so the honest input is a fixture rather than a store nobody can reach.
+ */
+function buildArcFixtures(): { dir: string; inputs: { label: string; arg: string }[] } {
+  const root = mkdtempSync(join(tmpdir(), "storytree-arcs-"));
+
+  // The SAME requests against both arms — the point of the second arm is that identical asks give
+  // different honest answers, so asking different things would defeat it.
+  const requests = [
+    { label: "list", method: "GET", path: "/api/arcs" },
+    { label: "one", method: "GET", path: "/api/arcs/surface-arc" },
+    { label: "closed", method: "GET", path: "/api/arcs/closed-arc" },
+    { label: "unknown", method: "GET", path: "/api/arcs/no-such-arc" },
+    // Percent-encoded: both surfaces must DECODE before the lookup, so the miss names `needs decoding`.
+    { label: "encoded", method: "GET", path: "/api/arcs/needs%20decoding" },
+    { label: "write", method: "POST", path: "/api/arcs/surface-arc" },
+  ];
+
+  const doc = (id: string, kind: string, body: Record<string, unknown>): Record<string, unknown> => ({
+    id,
+    kind,
+    doc: { kind, id, references: [], createdAt: "2026-07-29", updatedAt: "2026-07-30", ...body },
+    createdAt: "2026-07-29",
+    updatedAt: "2026-07-30",
+  });
+
+  const docs = [
+    doc("surface-arc", "arc", {
+      title: "Arcs as the primary orientation surface",
+      description: "the arc surface",
+      intent: "Arcs are what the owner meets on the map.",
+      endState: "The owner stops asking for a re-onboarding briefing.",
+    }),
+    // A CLOSED arc: `loadArcRollups` returns closed arcs too (filtering is the caller's), so both
+    // surfaces must carry `lifecycle: "closed"` rather than one of them dropping the row.
+    doc("closed-arc", "arc", {
+      title: "A finished initiative",
+      description: "closed",
+      intent: "done",
+      endState: "done",
+      lifecycle: "closed",
+    }),
+    // Two increments on one arc, one LANDED and one PARKED — the status-rank ordering
+    // (forward-looking first) is part of the payload, so a mirror that re-sorted would go red.
+    doc("surface-arc-inc-01", "increment", {
+      title: "the rollup landed",
+      description: "d",
+      objective: "the rollup landed",
+      body: "the rollup landed",
+      arcRef: "asset:surface-arc",
+      status: "closed",
+      outcome: { date: "2026-07-30", pr: "#1010" },
+    }),
+    doc("surface-arc-inc-02", "increment", {
+      title: "the lanes are not built yet",
+      description: "d",
+      objective: "build the lanes",
+      body: "build the lanes",
+      arcRef: "asset:surface-arc",
+      status: "proposal",
+      parked: "2026-07-31",
+      frictionRefs: ["friction-arc-context-reconstruction"],
+    }),
+    // An increment on ANOTHER arc — the `arcRef` filter must exclude it from both payloads.
+    doc("other-arc-inc-01", "increment", {
+      title: "belongs elsewhere",
+      description: "d",
+      objective: "elsewhere",
+      body: "elsewhere",
+      arcRef: "asset:some-other-arc",
+      status: "closed",
+    }),
+    doc("oq-blocked-meaning", "open-question", {
+      title: "What exactly qualifies as blocked?",
+      description: "D7 names blocked but does not define it",
+      stakes: "The surface cannot render a blocked state until this is settled.",
+      statement: "s",
+      context: "c",
+      arcRef: "asset:surface-arc",
+    }),
+  ];
+
+  const populated = join(root, "populated");
+  mkdirSync(join(populated, "docs", "decisions"), { recursive: true });
+  mkdirSync(join(populated, "stories", "surface-story"), { recursive: true });
+  mkdirSync(join(populated, "stories", "unstamped-story"), { recursive: true });
+  writeFileSync(
+    join(populated, "docs", "decisions", "0267-arcs-take-the-slot.md"),
+    "---\nstatus: accepted\narc: surface-arc\n---\n\n# ADR-0267: Arcs take the slot\n",
+    "utf8",
+  );
+  // An ADR with NO `arc:` stamp — both joins must leave it out.
+  writeFileSync(
+    join(populated, "docs", "decisions", "0268-unstamped.md"),
+    "---\nstatus: accepted\n---\n\n# ADR-0268: Unstamped\n",
+    "utf8",
+  );
+  writeFileSync(
+    join(populated, "stories", "surface-story", "story.md"),
+    '---\nid: "surface-story"\ntier: story\narc: surface-arc\n---\n\n# Surface story\n',
+    "utf8",
+  );
+  writeFileSync(
+    join(populated, "stories", "unstamped-story", "story.md"),
+    '---\nid: "unstamped-story"\ntier: story\n---\n\n# Unstamped story\n',
+    "utf8",
+  );
+  writeFileSync(join(populated, "arcs.json"), JSON.stringify({ docs, requests }), "utf8");
+
+  // The advisory-absence arm: `docs: null` tells each probe to wire NO document store at all — the
+  // offline/json posture. Its trees are never read, and are absent on purpose.
+  const noStore = join(root, "no-store");
+  mkdirSync(noStore, { recursive: true });
+  writeFileSync(join(noStore, "arcs.json"), JSON.stringify({ docs: null, requests }), "utf8");
+
+  return {
+    dir: root,
+    inputs: [
+      { label: "arcs-populated", arg: populated },
+      { label: "arcs-no-store", arg: noStore },
+    ],
+  };
+}
+
+/**
  * Assemble every input set, and the cleanup that removes what was written to disk. Each
  * {@link MirrorInputSet} is built ONCE and shared by every row that names it, so two mirrors over
  * the same input are compared over the identical bytes.
@@ -185,6 +335,7 @@ function buildInputSets(): {
 } {
   const docsFixture = buildDocsFixture();
   const activity = buildActivityFixtures();
+  const arcs = buildArcFixtures();
   return {
     sets: {
       "docs-trees": [
@@ -192,10 +343,12 @@ function buildInputSets(): {
         { label: "docs/", arg: join(repoRoot, "docs") },
       ],
       "activity-fixtures": activity.inputs,
+      "arc-fixtures": arcs.inputs,
     },
     cleanup: () => {
       rmSync(docsFixture, { recursive: true, force: true });
       rmSync(activity.dir, { recursive: true, force: true });
+      rmSync(arcs.dir, { recursive: true, force: true });
     },
   };
 }
@@ -221,6 +374,12 @@ function decodePayload(probe: Probe, inputs: MirrorInputSet, payload: unknown, a
     case "activity-fixtures":
       try {
         return projectActivityPayload(payload);
+      } catch (err) {
+        throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
+      }
+    case "arc-fixtures":
+      try {
+        return projectArcsPayload(payload);
       } catch (err) {
         throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
       }

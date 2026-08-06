@@ -8,10 +8,12 @@ import assert from "node:assert/strict";
 
 import {
   ACTIVITY_KEY,
+  ARCS_KEY,
   compareMirrors,
   formatDivergences,
   MIRRORS,
   projectActivityPayload,
+  projectArcsPayload,
   registeredMirrorRoutes,
   REPORT_LIMIT,
   type Entry,
@@ -236,6 +238,100 @@ test("a payload that is not a JSON object is a THROW, never a silently empty pro
   for (const bad of [null, [], "{}", 7]) {
     assert.throws(() => projectActivityPayload(bad), /must be a JSON object/);
   }
+});
+
+// ---------- projectArcsPayload: the `/api/arcs` projection ----------
+
+const ARCS_SPEC: MirrorSpec = {
+  surface: "GET /api/arcs",
+  route: "/api/arcs",
+  reference: "studio",
+  mirror: "desktop",
+  key: ARCS_KEY,
+  referenceOnlyFields: [],
+};
+
+const answer = (status: number, body: unknown): Entry => ({ status, body }) as unknown as Entry;
+
+test("the arcs projection emits a response marker per label, plus one entry per arc", () => {
+  const entries = projectArcsPayload({
+    list: answer(200, { arcs: [{ id: "b-arc", waiting: false }, { id: "a-arc", waiting: true }] }),
+    one: answer(200, { id: "a-arc", waiting: true }),
+  });
+  // Labels SORTED, so the entry order is the request SET and never the probe's iteration order.
+  // Arc rows keep the payload's own order — the list is id-sorted by drive, and a mirror that
+  // re-sorted it would render a different list.
+  assert.deepEqual(entries.map((e) => e[ARCS_KEY]), [
+    "response:list",
+    "list:arcs",
+    "list#b-arc",
+    "list#a-arc",
+    "response:one",
+    "one#body",
+  ]);
+  assert.deepEqual(entries[0], {
+    [ARCS_KEY]: "response:list",
+    status: 200,
+    shape: "object",
+    keys: "arcs",
+  });
+  assert.deepEqual(entries[1], { [ARCS_KEY]: "list:arcs", shape: "array", rows: 2 });
+});
+
+test("a STATUS that diverges is a divergence — most of this envelope is expressed as a code", () => {
+  // The class the arcs pair exists to fence: the 405 (read-only BY DECISION, ADR-0267 D6), the 503
+  // (no store, for one id) and the 404 (unknown id) are the hand-copied part. A body-only
+  // projection would compare three error objects and never notice they arrived under different codes.
+  const studio = projectArcsPayload({ write: answer(405, { error: "method not allowed" }) });
+  const desktop = projectArcsPayload({ write: answer(404, { error: "method not allowed" }) });
+
+  assert.deepEqual(compareMirrors(studio, desktop, ARCS_SPEC, "arcs-populated"), [
+    { kind: "field", where: "arcs-populated", key: "response:write", field: "status", reference: "405", mirror: "404" },
+  ]);
+});
+
+test("`{ arcs: null }` and `{ arcs: [] }` are distinguished — no store is not no arcs", () => {
+  // The exact defect a desktop mirror invites: answering a confident empty portfolio where the
+  // reference says "this backend has no document store". The compiled arc lens renders the two
+  // differently, so blurring them is worse than a 404.
+  const studio = projectArcsPayload({ list: answer(200, { arcs: null }) });
+  const desktop = projectArcsPayload({ list: answer(200, { arcs: [] }) });
+
+  assert.deepEqual(compareMirrors(studio, desktop, ARCS_SPEC, "arcs-no-store"), [
+    { kind: "field", where: "arcs-no-store", key: "list:arcs", field: "shape", reference: '"null"', mirror: '"array"' },
+    { kind: "field", where: "arcs-no-store", key: "list:arcs", field: "rows", reference: "null", mirror: "0" },
+  ]);
+});
+
+test("an envelope key the mirror drops is a divergence even when every shared field agrees", () => {
+  const studio = projectArcsPayload({ list: answer(200, { arcs: [] }) });
+  const desktop = projectArcsPayload({ list: answer(200, {}) });
+
+  const divergences = compareMirrors(studio, desktop, ARCS_SPEC, "arcs-no-store");
+  assert.ok(
+    divergences.some((d) => d.kind === "field" && d.field === "keys"),
+    "the response marker's key SET catches an envelope that lost `arcs` entirely",
+  );
+  assert.ok(
+    divergences.some((d) => d.kind === "missing-entry" && d.key === "list:arcs"),
+    "and the layer marker goes missing with it",
+  );
+});
+
+test("an arc the mirror drops is reported BY ID, not as an order shift", () => {
+  const studio = projectArcsPayload({ list: answer(200, { arcs: [{ id: "a" }, { id: "b" }] }) });
+  const desktop = projectArcsPayload({ list: answer(200, { arcs: [{ id: "a" }] }) });
+
+  const divergences = compareMirrors(studio, desktop, ARCS_SPEC, "arcs-populated");
+  assert.ok(divergences.some((d) => d.kind === "missing-entry" && d.key === "list#b"));
+});
+
+test("an arcs payload that is not a JSON object is a THROW, never a silently empty projection", () => {
+  // Fail-closed on both levels: the envelope, and each label's `{ status, body }` answer.
+  for (const bad of [null, [], "{}", 7]) {
+    assert.throws(() => projectArcsPayload(bad), /must be a JSON object/);
+  }
+  assert.throws(() => projectArcsPayload({ list: "200 OK" }), /must be a \{ status, body \} object/);
 });
 
 test("formatDivergences reports a per-field census and elides past the limit", () => {

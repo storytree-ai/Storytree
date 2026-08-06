@@ -246,15 +246,16 @@ not settle the picture.
   "re-check its landed status before depending on the verb or the filter existing", because the
   status flip had not yet reached `origin/main` when it was written. That instruction is discharged:
   the flip and the implementation are both on `main`.)
-- **The infrastructure gap was real; its read half is now CLOSED, its UI half is not.** This bullet
-  originally named two gaps and called them "another session's job". The join half is DONE
-  (increment 1, PR #1020): the derived arc → children join is no longer CLI-only — `deriveArcRollup`
-  / `loadArcRollup` / `loadArcRollups` live in `packages/drive/src/arc-rollup.ts`, and both
-  `storytree arc show` and `GET /api/arcs` + `/api/arcs/<id>` render from that ONE value, so the CLI
-  and the studio cannot drift apart. What REMAINS open is the UI half: no component under
-  `apps/studio/src` consumes that endpoint, so the studio still shows an arc only as a flat artifact
-  card. That is deliberate — the visual design is the owner's next deliverable (see "What is
-  deliberately NOT decided here"), so the read path was built ahead of it and no UI was.
+- **The infrastructure gap was real, and BOTH halves are now closed.** This bullet originally named
+  two gaps and called them "another session's job". The join half was done first (increment 1, PR
+  #1020): the derived arc → children join is no longer CLI-only — `deriveArcRollup` /
+  `loadArcRollup` / `loadArcRollups` live in `packages/drive/src/arc-rollup.ts`, and every surface
+  that answers `GET /api/arcs` + `/api/arcs/<id>` renders from that ONE value, so none of them can
+  drift apart. The UI half followed (`arc-surface-lanes-and-briefing-panel`, PR #1191, under
+  ADR-0314): `apps/studio/src` consumes the endpoint, and an arc is a momentum lane with a briefing
+  panel rather than a flat artifact card. The desktop thick client serves the same route from its
+  own re-composed backend — held to the studio's payload by a `MIRRORS` row rather than by an
+  import, since ADR-0176 forbids the desktop to import the studio.
 - **The Library's demotion leaves it in an interim state** until D3's open redesign lands: reachable
   but no longer privileged, with no decided replacement shape. That is accepted deliberately rather
   than blocking the slot reassignment on a Library redesign.
