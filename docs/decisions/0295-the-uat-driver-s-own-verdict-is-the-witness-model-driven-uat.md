@@ -3,6 +3,7 @@ status: accepted
 decided: 2026-08-03
 amends: [247]
 load_bearing: true
+arc: uat-journey-surgery-arc
 ---
 # ADR-0295: The UAT driver's own verdict is the witness — model-driven UAT by default
 
