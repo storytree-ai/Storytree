@@ -95,6 +95,9 @@ import { DetailDisclosure } from './DetailDisclosure.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { LibraryDrawer } from './LibraryDrawer.js';
+import { ArcSurface } from './ArcSurface.js';
+import { useArcRollups } from '../lib/arcRollups.js';
+import { readDrawerLens, DEFAULT_DRAWER_LENS, type DrawerLens } from '../lib/drawerLens.js';
 import { LibraryFinder } from './LibraryFinder.js';
 import { LibraryFocusGraph } from './LibraryFocusGraph.js';
 import { LibraryOpenOverlay } from './LibraryOpenOverlay.js';
@@ -1689,18 +1692,38 @@ export function TreeView({
     setSearch(nextSearch);
   }, []);
 
-  // The library drawer's URL-write seam (ADR-0191): lens state is URL-derived (`?overlay=library`
+  // The top drawer's URL-write seam (ADR-0191): lens state is URL-derived (an `?overlay=` lens value
   // = expanded, absent = the collapsed top handle), and the drawer's handle fires `onToggle` — this
   // callback is the parent-owned write that actually flips the param, through `commitSearch`
   // (replaceState, no reload — the same reactive seam the gear dials ride). The PR-#715 bottom-corner
   // `.world-library-dock` toggle that used to own this is RETIRED (ADR-0191 dec 4).
+  //
+  // TWO LENSES SINCE ADR-0267 D1 / ADR-0314 D6. The drawer's PRIMARY slot is arcs, with the Library
+  // demoted to an `Arcs | Library` toggle in the same header — so the collapsed handle opens onto
+  // `?overlay=arcs` (DEFAULT_DRAWER_LENS), and either lens value collapses back to no param.
+  const drawerLens = readDrawerLens(search);
   const toggleLibrary = useCallback(() => {
     const params = new URLSearchParams(search);
-    if (params.get('overlay') === 'library') params.delete('overlay');
-    else params.set('overlay', 'library');
+    if (readDrawerLens(search) !== null) params.delete('overlay');
+    else params.set('overlay', DEFAULT_DRAWER_LENS);
     const qs = params.toString();
     commitSearch(qs ? `?${qs}` : '');
   }, [search, commitSearch]);
+
+  // The lens toggle's URL write (ADR-0314 D6) — the same parent-owned seam as `toggleLibrary`, so
+  // the lens stays URL-derived and a deep link opens the drawer where it says it will.
+  const selectDrawerLens = useCallback(
+    (lens: DrawerLens) => {
+      const params = new URLSearchParams(search);
+      params.set('overlay', lens);
+      commitSearch(`?${params.toString()}`);
+    },
+    [search, commitSearch],
+  );
+
+  // The arc rollups behind the arcs lens (ADR-0267's `GET /api/arcs` — drive's one join). Fetched
+  // only while that lens is open, on the shared slow cadence: no new always-on cost class.
+  const arcRollups = useArcRollups(drawerLens === 'arcs');
 
   // The island ground is always the Townscaper mesh (ADR-0233 — the `?substrate=` gear control is
   // retired). Live tuning (`jitter`/`iters`/`relax`/`wheatScatter`) is still read from the URL so the
@@ -3247,6 +3270,11 @@ export function TreeView({
           <LibraryDrawer
             search={search}
             onToggle={toggleLibrary}
+            onSelectLens={selectDrawerLens}
+            /* ADR-0267 D1's PRIMARY slot: the momentum-lanes arc surface (ADR-0314). Supplement
+               glue — the surface itself is proven in isolation (ArcSurface.test.tsx); this mount
+               hands it the polled rollups and the world's clock and nothing else. */
+            arcsSlot={<ArcSurface arcs={arcRollups} now={now} />}
             bodySlot={
               <div className="library-lens-panes">
                 <aside className="library-side">

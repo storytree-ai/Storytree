@@ -12,7 +12,10 @@ framing after seeing the first landed version: open closer than PR #1175 at the 
 pull back from that fixed bottom anchor as the existing Act 2 regrow reveals upward, and finish at the
 ordinary fitted whole-forest camera. The scripted camera owns the short regrow and ordinary pan/zoom
 controls resume after settle. There is no first-person view, focal-island or growth-frontier tracker,
-independently timed pan choreography, or user-takeover state machine.
+independently timed pan choreography, or user-takeover state machine. After PR #1185 landed that
+replacement, the owner reviewed it at the hosted Studio route on 2026-08-06 and returned the stage-2
+visual verdict “looks great,” accepting the bottom-framed opening and the pull-back’s appearance and
+pacing through the ordinary fitted whole-forest view.
 
 ## Context
 
@@ -142,8 +145,8 @@ free or prove another composition cheap.
 **Risk.** The absolute growth-only baseline varied materially from the inherited pair while the idle
 brackets were clean. The replacement measurement therefore interleaved controls and the chosen path
 on the same build/browser/box; historical absolute numbers and PR #1175's centre-anchored run remain
-calibration context, not substitute controls. The closer bottom framing and the upward reveal's
-appearance and pacing still require the owner's stage-2 visual verdict.
+calibration context, not substitute controls. The owner supplied the remaining stage-2 visual verdict
+at the hosted Studio route on 2026-08-06: “looks great.”
 
 ## References
 
