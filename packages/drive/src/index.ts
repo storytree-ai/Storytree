@@ -42,6 +42,10 @@ export * from "./noticeboard.js";
 // the noticeboard IS the claim ledger; declare/done live in ./noticeboard.js as the claim-taking
 // anchor ceremony + bulk release (presence retired, ADR-0200 D7).
 export * from "./noticeboard-claims.js";
+// `noticeboard history` — the READ verb over the claim AUDIT log (ADR-0310 D1): the ledger verbs
+// above and the board render STATE, this reads TRANSITIONS (holdings, refusals, the summary). A
+// refusal leaves no state behind, so no state read can answer for it.
+export * from "./noticeboard-history.js";
 // Claim-release honesty (the second instance of the ADR-0199 class): a run releases only the claim
 // its OWN take created, and every release that is not an explicit ceremony names the claim, the
 // caller and the time — so a silently-cleared claim is discovered when it happens, not a full gate
