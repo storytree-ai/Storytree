@@ -4,26 +4,44 @@
 // GET /api/arcs once when `open` flips true and then re-polls on the SAME shared slow cadence
 // (lib/poll.ts) for as long as it stays open — no new background cost class when it is closed.
 //
-// THREE ANSWERS, NOT TWO, and the third is the point. `undefined` = nothing has answered yet;
-// `null` = the backend answered but has no document store (the offline json backend, or a desktop
-// backend that does not mirror this route); an array = the store answered. A surface built to
-// restore context must not render "no arcs" over any of the other two — `arcs: null` and `arcs: []`
-// are different facts (the server's own handler is explicit about this), and "still loading" is a
-// third. Collapsing them is how a surface tells a confident lie about an empty portfolio.
+// FOUR ANSWERS, AND EVERY ONE OF THEM IS A DIFFERENT FACT:
+//
+//   `undefined`      nothing has answered yet — genuinely still loading.
+//   `'unreachable'`  the read did not answer at all: no such route here, or the request failed.
+//   `null`           the backend answered and has NO document store (the offline json backend).
+//   `ArcRollup[]`    the store answered.
+//
+// The third and fourth are the distinction the server's own handler insists on — "the store isn't
+// here" and "there are no arcs" are different facts, and a surface built to restore context must
+// not blur them into a confident empty state. The FIRST TWO are the distinction this hook got wrong
+// on its first landing (#1191), and the cost was measured rather than theorised: the desktop app
+// loads the compiled studio bundle against its own local backend (`apps/desktop/src/backend/
+// local-backend.ts`), which does not mirror `/api/arcs` and 404s it. The catch below swallowed that
+// and left the state at `undefined` forever, so the desktop arc lens sat on "Reading arcs…"
+// permanently — a spinner that will never resolve, which is a worse lie than an empty list because
+// it tells the owner to wait.
+//
+// A TRANSIENT failure is still absorbed: once anything has answered, a later error keeps the
+// last-known value rather than flapping the surface to unreachable on one dropped poll. Only a
+// failure with nothing yet known is reported, because that is the one a reader cannot wait out.
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { ArcRollup } from '../types';
 import { SLOW_POLL_MS } from './poll';
 
-/** `undefined` before the first answer · `null` when the backend has no store · the rollups. */
-export type ArcRollupsState = ArcRollup[] | null | undefined;
+/** The read did not answer — no such route on this backend, or the request failed outright. */
+export const ARCS_UNREACHABLE = 'unreachable';
+
+/**
+ * `undefined` before anything answers · `'unreachable'` when the read did not answer · `null` when
+ * the backend has no document store · the rollups.
+ */
+export type ArcRollupsState = ArcRollup[] | null | typeof ARCS_UNREACHABLE | undefined;
 
 /**
  * Fetch + poll the arc rollups while `open` is true. Stops polling the instant `open` flips false;
- * reopening re-fetches immediately rather than waiting out the interval. A failed request (the
- * studio server itself not answering, or a backend that 404s this route) keeps the last-known
- * value — advisory like every other poll here, never an error surface.
+ * reopening re-fetches immediately rather than waiting out the interval.
  */
 export function useArcRollups(open: boolean): ArcRollupsState {
   const [arcs, setArcs] = useState<ArcRollupsState>(undefined);
@@ -38,7 +56,8 @@ export function useArcRollups(open: boolean): ArcRollupsState {
         const payload = await api.arcs();
         setArcs(payload.arcs);
       } catch {
-        // The studio server itself didn't answer — keep the last-known value.
+        // Nothing has answered yet ⇒ say so. Something has ⇒ this is a blip; keep what we know.
+        setArcs((known) => (known === undefined ? ARCS_UNREACHABLE : known));
       } finally {
         inFlight.current = false;
       }
