@@ -24,6 +24,7 @@ export const CLI_AREAS = [
   "adopt",
   "build",
   "coverage",
+  "ownership",
   "node",
   "story",
   "drift",

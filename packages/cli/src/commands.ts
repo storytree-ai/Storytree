@@ -87,6 +87,8 @@ import {
 } from "./friction.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { coverageCommand, type CoverageUnit } from "./coverage.js";
+// ADR-0317 D2 — the subtree-grain ownership map + its disk-walk totality report (report-only).
+import { gatherFromDisk, ownershipCommand, ownershipHelp } from "./ownership.js";
 import { agentsCommand, agentStepCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike, type AttestDeps } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
@@ -120,7 +122,9 @@ import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
 import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
 import { claimLedgerCommand, isClaimLedgerVerb } from "@storytree/drive";
+import { claimHistoryCommand, isClaimHistoryVerb } from "@storytree/drive";
 import type { ClaimLedgerReadLike, ClaimLedgerStoreLike } from "@storytree/drive";
+import type { ClaimHistoryStoreLike } from "@storytree/drive";
 import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
 import type { ClaimDocT } from "@storytree/notice-board";
 import { findDependents } from "./retire.js";
@@ -1132,9 +1136,22 @@ function noticeboardHelp(): Envelope {
       "  storytree noticeboard release <unit-id> --pg                      drop this session's claim (any grade)",
       "  storytree noticeboard claims <unit-id> --pg                       the unit's rows, queue order",
       "",
+      "the AUDIT LOG (ADR-0310 D1) — every verb above reads STATE; `history` reads TRANSITIONS.",
+      "a refusal leaves no state behind, so only this can tell 'refused and about to queue' from",
+      "'never claimed'. read-only; default window 30 days.",
+      "  storytree noticeboard history --pg                                the window's summary: totals, types, hot spots",
+      "  storytree noticeboard history <unit-id> --pg                      that unit's transitions + hold spans",
+      "  storytree noticeboard history --refusals --pg                     every refusal + who blocked it",
+      "  storytree noticeboard history --holdings --pg                     who held what, and for how long",
+      "    scope/window: --session <id> · --type <transition> · --days <n|all> · --limit <n|all>",
+      "",
       "writes need the live DB: pnpm db:up first. The board read degrades politely without it.",
     ].join("\n"),
-    next: ["pnpm db:up", "storytree noticeboard --pg"],
+    next: [
+      "pnpm db:up",
+      "storytree noticeboard --pg",
+      "storytree noticeboard history --pg",
+    ],
   };
 }
 
@@ -1263,7 +1280,11 @@ export interface RunDeps {
     readonly ledger?:
       | (ClaimLedgerStoreLike &
           Partial<ClaimLedgerReadLike> &
-          Partial<{ claimsBySession(sessionId: string): Promise<ClaimDocT[]> }>)
+          Partial<{ claimsBySession(sessionId: string): Promise<ClaimDocT[]> }> &
+          // The AUDIT-log read half (`noticeboard history`, ADR-0310 D1) — `PgClaimStore` carries
+          // it; a fake without it degrades that one verb to its offline refusal, exactly as the
+          // read halves above degrade the board.
+          Partial<ClaimHistoryStoreLike>)
       | null;
   };
   /**
@@ -1895,6 +1916,15 @@ export const CLI_OPTIONS = {
   // `storytree noticeboard claim/downgrade` — the claim grade + intent prose (ADR-0200 D2).
   grade: { type: "string" },
   intent: { type: "string" },
+  // `storytree noticeboard history` — the claim AUDIT-log read (ADR-0310 D1). `--days` windows
+  // (default 30, `all` for the whole log), `--session`/`--type` scope, `--limit` caps the rows,
+  // `--refusals`/`--holdings` pick the view. Read-only; nothing here touches a claim.
+  days: { type: "string" },
+  session: { type: "string" },
+  type: { type: "string" },
+  limit: { type: "string" },
+  refusals: { type: "boolean", default: false },
+  holdings: { type: "boolean", default: false },
   outcome: { type: "string" },
   witness: { type: "string" },
   signer: { type: "string" },
@@ -2009,6 +2039,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     node?: string[];
     grade?: string;
     intent?: string;
+    /** `noticeboard history` — the audit-log read's window / scope / view (ADR-0310 D1). */
+    days?: string;
+    session?: string;
+    type?: string;
+    limit?: string;
+    refusals?: boolean;
+    holdings?: boolean;
     outcome?: string;
     witness?: string;
     signer?: string;
@@ -2182,6 +2219,32 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       deps.presence !== undefined && deps.presence.identity !== undefined
         ? deps.presence.identity
         : deriveIdentity();
+    // `history` — the claim AUDIT-log read (ADR-0310 D1). Routed BEFORE the ledger verbs because it
+    // needs no identity (it writes nothing) and drives a different store slice: the append-only
+    // `events.claim_event` log rather than the live `node_claim` rows. A fake ledger without the
+    // read half degrades to the offline refusal, like every other --pg surface here.
+    if (isClaimHistoryVerb(sub)) {
+      const auditStore = deps.presence?.ledger ?? null;
+      const auditHistory = auditStore?.auditHistory;
+      return claimHistoryCommand(
+        third,
+        {
+          ...(values.days !== undefined ? { days: values.days } : {}),
+          ...(values.session !== undefined ? { session: values.session } : {}),
+          ...(values.type !== undefined ? { type: values.type } : {}),
+          ...(values.limit !== undefined ? { limit: values.limit } : {}),
+          refusals: values.refusals === true,
+          holdings: values.holdings === true,
+        },
+        {
+          history:
+            auditHistory !== undefined
+              ? { auditHistory: (query) => auditHistory.call(auditStore, query) }
+              : null,
+          now: () => new Date(),
+        },
+      );
+    }
     // The graded claim-ledger verbs (ADR-0200 D2) route to the leaf-proven claimLedgerCommand;
     // declare/done keep the exact noticeboardCommand path below (byte-compatible).
     if (isClaimLedgerVerb(sub)) {
@@ -2810,6 +2873,20 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return coverageCommand(sub, {
       loadUnit: (unitId) => loadCoverageUnit(storiesDir, root, unitId),
     });
+  }
+
+  if (area === "ownership") {
+    // ADR-0317 D2 — the SECOND declared ownership map, at subtree grain, held to the disk by a
+    // totality walk. REPORT-ONLY: it names every source file falling under no declared subtree and
+    // fails nothing. It reads `repo-manifest.json` `sourceOwnership`, never `proof.real.sourceFile`
+    // (a unit→file build target) or `scope.sourceGlobs` (a write fence) — neither is ownership, and
+    // both stay untouched so the prove-it-gate carries no risk. Offline, read-only.
+    if (help) return ownershipHelp();
+    const root = repoRoot();
+    return ownershipCommand(
+      { gather: () => gatherFromDisk(root) },
+      { all: values.all === true, ...(sub !== undefined ? { pkg: sub } : {}) },
+    );
   }
 
   if (area === "desktop") {
