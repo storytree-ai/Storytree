@@ -44,7 +44,7 @@ import {
   type ArcLane,
 } from '../lib/arcSurface';
 import type { ArcRollupIncrement } from '../types';
-import type { ArcRollupsState } from '../lib/arcRollups';
+import { ARCS_UNREACHABLE, type ArcRollupsState } from '../lib/arcRollups';
 import { FloorHealthStrip, type FloorHealthSignal } from './FloorHealthStrip';
 
 export interface ArcSurfaceProps {
@@ -57,7 +57,7 @@ export interface ArcSurfaceProps {
 }
 
 export function ArcSurface({ arcs, now, floorHealth }: ArcSurfaceProps): React.JSX.Element {
-  const lanes = arcs == null ? [] : arcLanes(arcs, now);
+  const lanes = Array.isArray(arcs) ? arcLanes(arcs, now) : [];
   const [picked, setPicked] = useState<string | null>(null);
   // The pick is only honoured while it still names a live lane: the list re-polls, and an arc that
   // closed under the owner must not leave the panel pinned to a lane that is no longer drawn.
@@ -73,6 +73,15 @@ export function ArcSurface({ arcs, now, floorHealth }: ArcSurfaceProps): React.J
         <div className="arc-lanes" data-testid="arc-lanes" aria-label="arcs">
           {arcs === undefined ? (
             <p className="muted small arc-lanes-note">Reading arcs…</p>
+          ) : arcs === ARCS_UNREACHABLE ? (
+            /* The read never answered — no such route on this backend (the desktop's local backend
+               does not mirror `/api/arcs`), or the request failed. Distinct from "Reading arcs…":
+               a spinner that will never resolve is a worse lie than an empty list, because it tells
+               the owner to wait for something that is not coming. */
+            <p className="muted small arc-lanes-note" data-testid="arc-lanes-unreachable">
+              Arcs aren&apos;t available here — this app didn&apos;t answer the arc read. The studio
+              serves them.
+            </p>
           ) : arcs === null ? (
             /* `null` and `[]` are DIFFERENT facts (the /api/arcs handler is explicit about this):
                "the store isn't here" must never render as a confident "no arcs". */

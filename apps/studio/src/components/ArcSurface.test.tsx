@@ -13,9 +13,11 @@
 //   D7 — the floor-health strip is present, above the lanes.
 //   D9 — READ-ONLY: no comment box, no answer field, no write affordance of any kind.
 //
-// Plus the honest-absence contract the surface inherits from its endpoint: `arcs: null` (no
-// document store) and `arcs: []` (a store with no arcs) are DIFFERENT facts and must render
-// differently — a surface built to restore context cannot blur them into a confident empty state.
+// Plus the honest-absence contract, which is FOUR facts and not two. `arcs: null` (no document
+// store) and `arcs: []` (a store with no arcs) are the distinction the endpoint itself insists on;
+// still-loading and the read-never-answered are the pair this surface got wrong on its first
+// landing (#1191), where a 404 from the desktop's local backend left it rendering "Reading arcs…"
+// forever. A surface built to restore context can blur none of them.
 //
 // No backend seam (no `api`, no fetch, no socket, no DB) — the rollups are handed in as props; no
 // agent / drive / model import (the modelPathBoundary.test.ts wall stays green). The lane
@@ -25,6 +27,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import { ArcSurface } from './ArcSurface';
+import { ARCS_UNREACHABLE } from '../lib/arcRollups';
 import type { ArcRollup, ArcRollupIncrement, ArcRollupQuestion } from '../types';
 
 afterEach(cleanup);
@@ -211,17 +214,33 @@ describe('ArcSurface — the floor-health strip sits above the lanes (ADR-0314 D
 });
 
 describe('ArcSurface — honest absence: no store ≠ no arcs', () => {
-  it('renders three DIFFERENT answers for loading, no-store and no-arcs', () => {
+  it('renders four DIFFERENT answers for loading, unreachable, no-store and no-arcs', () => {
     const { rerender } = render(<ArcSurface arcs={undefined} now={NOW} />);
     expect(screen.getByTestId('arc-lanes').textContent).toContain('Reading arcs…');
+
+    // The read never answered — no such route on this backend, or the request failed. Distinct from
+    // loading: a spinner that will never resolve tells the owner to wait for something that is not
+    // coming. This is the #1191 regression the desktop app exposed.
+    rerender(<ArcSurface arcs={ARCS_UNREACHABLE} now={NOW} />);
+    expect(screen.getByTestId('arc-lanes-unreachable')).not.toBeNull();
+    expect(screen.getByTestId('arc-lanes').textContent).not.toContain('Reading arcs…');
 
     rerender(<ArcSurface arcs={null} now={NOW} />);
     // "the store isn't here" must never render as a confident "no arcs".
     expect(screen.getByTestId('arc-lanes-no-store')).not.toBeNull();
+    expect(screen.queryByTestId('arc-lanes-unreachable')).toBeNull();
 
     rerender(<ArcSurface arcs={[]} now={NOW} />);
     expect(screen.queryByTestId('arc-lanes-no-store')).toBeNull();
     expect(screen.getByTestId('arc-lanes').textContent).toContain('No active arcs.');
+  });
+
+  it('keeps the briefing panel honest in every non-answer state — no lane, no stale pick', () => {
+    for (const state of [undefined, ARCS_UNREACHABLE, null] as const) {
+      const { unmount } = render(<ArcSurface arcs={state} now={NOW} />);
+      expect(screen.getByTestId('arc-briefing').textContent).toContain('Pick an arc');
+      unmount();
+    }
   });
 
   it('drops closed arcs from the lanes (ADR-0239 D3’s active-only default)', () => {
