@@ -20,6 +20,8 @@ import type {
 } from "@storytree/notice-board";
 import { groupClaimsBySession, workClaimRequest } from "@storytree/notice-board";
 
+import { claimNamespaceOneLine } from "./claim-namespace.js";
+import { guardClaimNamespace, kindSuffix, type ClaimUniverseLoader } from "./claim-universe.js";
 import type { Envelope } from "./envelope.js";
 
 // ---------------------------------------------------------------------------
@@ -62,6 +64,12 @@ export interface NoticeboardDeps {
   claims?: SessionClaimStoreLike | null;
   /** The claim-ledger read (ADR-0200 D7); null = offline — the board renders empty. */
   ledger?: ClaimLedgerReadLike | null;
+  /**
+   * The claim NAMESPACE (ADR-0310 D2) — `declare --node` is the highest-volume claim-taking path
+   * and took two of the 26 measured phantoms as PATHS pasted where an id belonged. Absent/null =
+   * unchecked, the pre-ADR-0310 behaviour.
+   */
+  universe?: ClaimUniverseLoader | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -291,11 +299,26 @@ export async function noticeboardCommand(
     // nodes' claims; every outcome is surfaced loudly.
     const claimLines: string[] = [];
     const acquired: string[] = [];
-    // Withheld splits two ways because the remedies differ: a HELD node is a conflict the session
-    // resolves itself (ADR-0270 D2), a FAILED write is a store problem no re-declare will fix.
+    // Withheld splits THREE ways because the remedies differ: a HELD node is a conflict the session
+    // resolves itself (ADR-0270 D2), a FAILED write is a store problem no re-declare will fix, and
+    // an UNRESOLVED id (ADR-0310 D2) is a typo only the session can correct — no amount of retrying
+    // or waiting makes a name that refers to nothing refer to something.
     const held: string[] = [];
     const failed: string[] = [];
+    const unresolved: string[] = [];
     for (const nodeId of opts.nodes) {
+      // The namespace fence runs BEFORE the write, per node: one bad id must not cost the others
+      // their claims, which is the same fail-soft posture the loop already takes for a conflict.
+      const named = await guardClaimNamespace({
+        id: nodeId,
+        universe: deps.universe,
+        verb: "storytree noticeboard declare --working-on <prose> --node <unit-id> --pg",
+      });
+      if (!named.ok) {
+        unresolved.push(nodeId);
+        claimLines.push(`    ${nodeId}: ${claimNamespaceOneLine(named.suggestions)}`);
+        continue;
+      }
       try {
         const res = await claims.claim(
           workClaimRequest({
@@ -309,7 +332,7 @@ export async function noticeboardCommand(
         else held.push(nodeId);
         claimLines.push(
           res.acquired
-            ? `    ${nodeId}: claimed — the story wisp is lit`
+            ? `    ${nodeId}${kindSuffix(named.kind)}: claimed — the wisp is lit`
             : `    ${nodeId}: HELD by ${res.heldBy.sessionId} (branch ${res.heldBy.branch}, intent "${res.heldBy.intent}") — coordinate or pick other work`,
         );
       } catch (err) {
@@ -319,7 +342,7 @@ export async function noticeboardCommand(
       }
     }
 
-    const withheld = [...held, ...failed];
+    const withheld = [...held, ...failed, ...unresolved];
     // The three outcomes are graded by WHAT THE SESSION HOLDS when the verb returns, because the
     // merge ceremony explicitly requires a live noticeboard claim (ADR-0200 D3).
     // Fidelity over politeness: the headline and the exit code both report the ledger, not the
@@ -365,7 +388,7 @@ export async function noticeboardCommand(
       bodyLines.push(
         "",
         `Withheld: ${withheld.join(", ")}. This session DOES hold a live noticeboard claim ` +
-          `(${acquired.join(", ")}), but the withheld node is not yours to write. Resolve it from ` +
+          `(${acquired.join(", ")}), but the withheld node was not anchored. Resolve it from ` +
           "the board above on your own judgment: narrow to the capability you are actually " +
           "writing (ADR-0270 D1), or queue with a waiting claim. A claim conflict is not an owner " +
           "question (ADR-0270 D2).",
@@ -396,6 +419,23 @@ export async function noticeboardCommand(
             "lands. Check the DB and re-declare.",
         );
       }
+    }
+
+    // Outside the arms above, because an unresolvable id needs saying in BOTH: a declare that
+    // anchored two of three nodes still wrote nothing for the third, and the session would
+    // otherwise read "PARTIAL" and assume a sibling holds it. Nothing else in this verb tells the
+    // difference between "someone has it" and "it does not exist".
+    if (unresolved.length > 0) {
+      bodyLines.push(
+        "",
+        `${unresolved.length} declared id${unresolved.length !== 1 ? "s name" : " names"} nothing ` +
+          `in the work graph: ${unresolved.join(", ")} (ADR-0310 D2). No row was written for ` +
+          `${unresolved.length !== 1 ? "them" : "it"} — this is NOT a conflict and NOT a store ` +
+          "problem, so neither waiting nor re-running changes it. A claim on an id that resolves " +
+          "to nothing protects no code and contends with no sibling; 26 such ids accumulated " +
+          "silently before this check existed. Fix the id (the suggestions above are the closest " +
+          "real nodes) and re-declare.",
+      );
     }
 
     // `next` points at the remedy for the state the session is actually in — for arm C that is the

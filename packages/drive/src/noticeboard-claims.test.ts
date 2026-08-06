@@ -216,7 +216,7 @@ test("claim --grade waiting with NO work holder: no queue position is rendered �
   assert.match(env.body, /ADR-0270/);
 });
 
-test("claim --grade work acquired: the story wisp is lit; reclaim is named", async () => {
+test("claim --grade work acquired: the wisp is lit; reclaim is named", async () => {
   const ledger = makeFakeLedger();
   const env = await claimLedgerCommand(
     "claim",
@@ -228,7 +228,7 @@ test("claim --grade work acquired: the story wisp is lit; reclaim is named", asy
   assert.deepEqual(ledger.takes, [
     { unitId: "story-x", sessionId: "wt-ledger", branch: "claude/ledger", grade: "work", intent: "real" },
   ]);
-  assert.match(env.body, /story wisp is lit/);
+  assert.match(env.body, /wisp is lit/);
   assert.doesNotMatch(env.body, /reclaimed/);
 
   ledger.nextResult = {
@@ -297,7 +297,7 @@ test("upgrade: maps to upgrade(unit, session) with the identity branch (fail-clo
     { unitId: "story-x", sessionId: "wt-ledger", opts: { branch: "claude/ledger" } },
   ]);
   assert.match(env.body, /Upgraded to the WORK claim/);
-  assert.match(env.body, /story wisp is lit/);
+  assert.match(env.body, /wisp is lit/);
 });
 
 test("upgrade queued: reported as waiting in line behind the holder, with the queue position", async () => {
@@ -412,4 +412,114 @@ test("claims: an empty unit reads as no claims, with the claim command as next",
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /No claims on "story-x"/);
   assert.ok(env.next?.some((n) => n.includes("noticeboard claim story-x")));
+});
+
+// ---------------------------------------------------------------------------
+// The claim namespace (ADR-0310 D2) — refuse an id that names nothing
+// ---------------------------------------------------------------------------
+
+/**
+ * A universe knowing exactly one story, so a claim on anything else is a phantom. Injected as a
+ * loader rather than reached through the real corpus: these tests are about what the VERB does with
+ * the answer, not about how the answer is gathered (that is `claim-universe.test.ts`).
+ */
+const KNOWS_STORY_X: NonNullable<ClaimLedgerDeps["universe"]> = async () => ({
+  targets: [{ id: "story-x", kind: "story" }],
+  nonClaimable: [{ id: "session-orchestrator", kind: "agent" }],
+  complete: true,
+  unreadSources: [],
+});
+
+function depsWithUniverse(claims: ClaimLedgerStoreLike | null): ClaimLedgerDeps {
+  return { ...deps(claims), universe: KNOWS_STORY_X };
+}
+
+test("claim: an id that names NOTHING is refused, and no row is written", async () => {
+  const ledger = makeFakeLedger();
+  const env = await claimLedgerCommand(
+    "claim",
+    "story-xx",
+    { grade: "work" },
+    depsWithUniverse(ledger),
+  );
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /REFUSED/);
+  assert.match(env.body, /names nothing in the work graph/);
+  assert.match(env.body, /story-x {2}\[story\]/, "the near-miss is named");
+  assert.deepEqual(ledger.takes, [], "the phantom NEVER reaches the store");
+});
+
+test("claim: the refusal lands BEFORE the missing-intent refusal — the id is the thing to fix", async () => {
+  // An exploring claim needs --intent. Told that about an id naming nothing, a session would
+  // supply the intent and then take the phantom row anyway.
+  const ledger = makeFakeLedger();
+  const env = await claimLedgerCommand("claim", "story-xx", {}, depsWithUniverse(ledger));
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /names nothing in the work graph/);
+  assert.doesNotMatch(env.body, /requires --intent/);
+});
+
+test("claim: a resolvable id passes through and the success line NAMES THE KIND", async () => {
+  const ledger = makeFakeLedger();
+  const env = await claimLedgerCommand(
+    "claim",
+    "story-x",
+    { grade: "work" },
+    depsWithUniverse(ledger),
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /Work claim acquired on "story-x" \[story\] — the wisp is lit/);
+  assert.equal(ledger.takes.length, 1);
+});
+
+test("claim: with NO universe the line omits the kind rather than guessing `story`", async () => {
+  // The pre-ADR-0310 render said "the STORY wisp is lit" for any string. Unchecked, it now says
+  // only what it knows.
+  const ledger = makeFakeLedger();
+  const env = await claimLedgerCommand("claim", "anything", { grade: "work" }, deps(ledger));
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /Work claim acquired on "anything" — the wisp is lit/);
+  assert.doesNotMatch(env.body, /\[story\]/);
+});
+
+test("claim: an addressable-but-not-claimable artifact is refused as what it IS", async () => {
+  const ledger = makeFakeLedger();
+  const env = await claimLedgerCommand(
+    "claim",
+    "session-orchestrator",
+    { grade: "work" },
+    depsWithUniverse(ledger),
+  );
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /session-orchestrator {2}\[agent\]/);
+  assert.match(env.body, /not a claimable work unit/);
+  assert.deepEqual(ledger.takes, []);
+});
+
+test("upgrade: fenced too — it CREATES a work row, so a phantom reaches the ledger through it", async () => {
+  const ledger = makeFakeLedger();
+  const env = await claimLedgerCommand("upgrade", "story-xx", {}, depsWithUniverse(ledger));
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /names nothing in the work graph/);
+  assert.deepEqual(ledger.upgrades, []);
+});
+
+test("release / downgrade / claims are NOT fenced — they take no claim", async () => {
+  // Refusing a release on an unresolvable id would strand the 26 measured phantoms permanently:
+  // the remedy for a bad row is to be able to drop it.
+  const ledger = makeFakeLedger({ rows: [doc({ unitId: "whoami", sessionId: "wt-ledger" })] });
+  const released = await claimLedgerCommand("release", "whoami", {}, depsWithUniverse(ledger));
+  assert.equal(released.ok, true, released.body);
+  assert.deepEqual(ledger.releases, [{ unitId: "whoami", sessionId: "wt-ledger" }]);
+
+  const down = await claimLedgerCommand(
+    "downgrade",
+    "whoami",
+    { grade: "exploring" },
+    depsWithUniverse(ledger),
+  );
+  assert.equal(down.ok, true, down.body);
+
+  const board = await claimLedgerCommand("claims", "whoami", {}, depsWithUniverse(ledger));
+  assert.equal(board.ok, true, board.body);
 });

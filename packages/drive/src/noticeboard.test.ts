@@ -557,7 +557,7 @@ test("declare: PARTIAL — some claimed, some held → ok:true, but the headline
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /PARTIAL: claimed 1 of 2 nodes/);
   assert.match(env.body, /story-a: HELD by other-session/);
-  assert.match(env.body, /story-b: claimed — the story wisp is lit/);
+  assert.match(env.body, /story-b: claimed — the wisp is lit/);
   assert.match(env.body, /Withheld: story-a/);
   assert.match(env.body, /ADR-0270 D2/);
 });
@@ -666,4 +666,80 @@ test("unknown subcommand returns a help envelope listing declare, done, and the 
   assert.match(env.body, /done/);
   // 'noticeboard' or listing of sub-commands
   assert.match(env.body, /noticeboard/);
+});
+
+// ---------------------------------------------------------------------------
+// declare + the claim namespace (ADR-0310 D2)
+// ---------------------------------------------------------------------------
+
+/**
+ * A universe knowing story-a and story-b. `declare --node` is the highest-volume claim-taking path
+ * and took two of the 26 measured phantoms as PATHS pasted where an id belonged, so it is fenced
+ * per node with the same fail-soft posture the loop already takes for a conflict.
+ */
+const KNOWS_AB: NonNullable<NoticeboardDeps["universe"]> = async () => ({
+  targets: [
+    { id: "story-a", kind: "story" },
+    { id: "story-b", kind: "story" },
+  ],
+  nonClaimable: [],
+  complete: true,
+  unreadSources: [],
+});
+
+test("declare: an id naming NOTHING is refused per node — no row written, no wisp claimed", async () => {
+  const claims = makeFakeClaims();
+  const deps: NoticeboardDeps = {
+    identity: CLAIM_IDENTITY,
+    now: nowFn,
+    claims,
+    universe: KNOWS_AB,
+  };
+  const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-c"] }, deps);
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /story-c: NOT CLAIMED/);
+  assert.match(env.body, /did you mean story-a \[story\], story-b \[story\]/);
+  assert.deepEqual(claims.claimed, [], "the phantom never reaches the store");
+  assert.match(env.body, /1 declared id names nothing in the work graph: story-c/);
+  assert.match(env.body, /NOT a conflict and NOT a store problem/);
+});
+
+test("declare: one bad id never costs the GOOD ones their claims (fail-soft, per node)", async () => {
+  const claims = makeFakeClaims();
+  const deps: NoticeboardDeps = {
+    identity: CLAIM_IDENTITY,
+    now: nowFn,
+    claims,
+    universe: KNOWS_AB,
+  };
+  const env = await noticeboardCommand(
+    "declare",
+    { workingOn: "x", nodes: ["story-a", "stories/story-b", "story-zz"] },
+    deps,
+  );
+  assert.equal(env.ok, true, "the session DOES hold a live claim, so the ceremony is satisfied");
+  assert.match(env.body, /PARTIAL: claimed 1 of 3 nodes/);
+  assert.match(env.body, /story-a \[story\]: claimed — the wisp is lit/);
+  assert.deepEqual(
+    claims.claimed.map((c) => c.unitId),
+    ["story-a"],
+  );
+  // The pasted PATH is caught as a path, not as a coincidence.
+  assert.match(env.body, /stories\/story-b: NOT CLAIMED.*did you mean story-b \[story\]/);
+  assert.match(env.body, /story-zz: NOT CLAIMED/);
+  // The unresolved block renders in the PARTIAL arm too: "PARTIAL" alone would read as
+  // "a sibling holds it", which is a different situation with a different remedy.
+  assert.match(env.body, /2 declared ids name nothing in the work graph/);
+});
+
+test("declare: with NO universe every id passes, exactly as before ADR-0310", async () => {
+  const claims = makeFakeClaims();
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
+  const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["whoami"] }, deps);
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(
+    claims.claimed.map((c) => c.unitId),
+    ["whoami"],
+  );
+  assert.doesNotMatch(env.body, /NOT CLAIMED/);
 });

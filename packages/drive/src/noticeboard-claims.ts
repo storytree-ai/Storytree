@@ -9,6 +9,11 @@
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
 import { claimGrade, exploringClaimRequest, waitingClaimRequest } from "@storytree/notice-board";
 
+import {
+  guardClaimNamespace,
+  kindSuffix,
+  type ClaimUniverseLoader,
+} from "./claim-universe.js";
 import type { Envelope } from "./envelope.js";
 import type { SessionIdentity } from "./noticeboard.js";
 import { IDENTITY_REFUSAL_BODY } from "./noticeboard.js";
@@ -41,6 +46,13 @@ export interface ClaimLedgerDeps {
   /** Worktree-derived session identity (never typed); null outside a recognised worktree. */
   identity: SessionIdentity | null;
   now: () => Date;
+  /**
+   * The claim NAMESPACE (ADR-0310 D2): resolves a unit id to a real object of a claimable kind, so
+   * an id naming nothing is refused here instead of taking a row that protects nothing. Absent/null
+   * = unchecked, which is exactly the pre-ADR-0310 behaviour — see `guardClaimNamespace` for why
+   * every uncertainty resolves that way rather than into a refusal.
+   */
+  universe?: ClaimUniverseLoader | null;
 }
 
 /** The ledger verbs this module dispatches (the CLI routes these before declare/done). */
@@ -212,6 +224,16 @@ export async function claimLedgerCommand(
         next: [`storytree noticeboard claim ${unitId} --grade exploring --intent "<prose>" --pg`],
       };
     }
+    // THE NAMESPACE FENCE (ADR-0310 D2) — ahead of every other check in this arm, because the
+    // remedy is to fix the ID, and a session told "an exploring claim requires --intent" about an
+    // id that names nothing would supply the intent and then take the phantom row anyway.
+    const named = await guardClaimNamespace({
+      id: unitId,
+      universe: deps.universe,
+      verb: `storytree noticeboard claim <unit-id> --grade ${grade} --pg`,
+    });
+    if (!named.ok) return named.refusal;
+
     const intent = opts.intent;
     let req: ClaimRequest;
     if (grade === "exploring") {
@@ -271,7 +293,9 @@ export async function claimLedgerCommand(
       const reclaimedNote = result.reclaimed ? " (reclaimed from a stale holder)" : "";
       return {
         ok: true,
-        body: `Work claim acquired on "${unitId}"${reclaimedNote} — the story wisp is lit.`,
+        // The kind is NAMED (ADR-0310 D2). This line said "the STORY wisp is lit" for any string —
+        // untrue over a capability, an arc or an increment, and untrue over a typo.
+        body: `Work claim acquired on "${unitId}"${kindSuffix(named.kind)}${reclaimedNote} — the wisp is lit.`,
         next: [
           `storytree noticeboard claims ${unitId} --pg`,
           `storytree noticeboard release ${unitId} --pg`,
@@ -302,7 +326,7 @@ export async function claimLedgerCommand(
       const where = idx !== -1 ? ` (position ${idx + 1} of ${waiting.length} in the line)` : "";
       return {
         ok: true,
-        body: `Waiting claim taken on "${unitId}" — queued for the work slot${where}.`,
+        body: `Waiting claim taken on "${unitId}"${kindSuffix(named.kind)} — queued for the work slot${where}.`,
         next: [
           `storytree noticeboard claims ${unitId} --pg`,
           `storytree noticeboard upgrade ${unitId} --pg`,
@@ -312,7 +336,7 @@ export async function claimLedgerCommand(
     return {
       ok: true,
       body: [
-        `Exploring claim taken on "${unitId}" — shared; the hovering wisp carries your intent.`,
+        `Exploring claim taken on "${unitId}"${kindSuffix(named.kind)} — shared; the hovering wisp carries your intent.`,
         `  session:  ${result.claim.sessionId}`,
         `  branch:   ${result.claim.branch}`,
         `  intent:   "${result.claim.intent}"`,
@@ -328,6 +352,14 @@ export async function claimLedgerCommand(
   // upgrade — exploring→work (queued arm when the slot is held, ADR-0200 D2)
   // -------------------------------------------------------------------------
   if (verb === "upgrade") {
+    // Fenced too (ADR-0310 D2): upgrade CREATES a work row when the session holds none, so it is a
+    // claim-taking path in its own right and a phantom reaches the ledger through it unaided.
+    const named = await guardClaimNamespace({
+      id: unitId,
+      universe: deps.universe,
+      verb: "storytree noticeboard upgrade <unit-id> --pg",
+    });
+    if (!named.ok) return named.refusal;
     // Branch always supplied from identity: the store fail-closes when the session holds no prior
     // row and no branch was given — the CLI never invents attribution, it derives it (ADR-0033).
     const result = await store.upgrade(unitId, sessionId, { branch });
@@ -342,7 +374,7 @@ export async function claimLedgerCommand(
     const reclaimedNote = result.reclaimed ? " (a stale holder was reclaimed)" : "";
     return {
       ok: true,
-      body: `Upgraded to the WORK claim on "${unitId}"${reclaimedNote} — the story wisp is lit.`,
+      body: `Upgraded to the WORK claim on "${unitId}"${kindSuffix(named.kind)}${reclaimedNote} — the wisp is lit.`,
       next: [
         `storytree noticeboard claims ${unitId} --pg`,
         `storytree noticeboard downgrade ${unitId} --grade exploring --pg`,

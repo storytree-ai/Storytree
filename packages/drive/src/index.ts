@@ -42,6 +42,13 @@ export * from "./noticeboard.js";
 // the noticeboard IS the claim ledger; declare/done live in ./noticeboard.js as the claim-taking
 // anchor ceremony + bulk release (presence retired, ADR-0200 D7).
 export * from "./noticeboard-claims.js";
+// The claim NAMESPACE (ADR-0310 D2, `first-class-edges-arc` increment 2): a claim names a KIND and
+// an id that resolves to a real object of that kind, or it is refused at the point of claiming with
+// the near-miss named. `claim-namespace.js` is the pure resolver + the declared inventory of the 26
+// phantom ids that accumulated before it existed; `claim-universe.js` gathers the namespace from the
+// disk tree and the live Library, and carries the guard every claim-taking verb calls.
+export * from "./claim-namespace.js";
+export * from "./claim-universe.js";
 // Claim-release honesty (the second instance of the ADR-0199 class): a run releases only the claim
 // its OWN take created, and every release that is not an explicit ceremony names the claim, the
 // caller and the time — so a silently-cleared claim is discovered when it happens, not a full gate

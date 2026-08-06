@@ -1,6 +1,7 @@
 ---
 status: accepted
 decided: 2026-08-06
+load_bearing: true
 arc: first-class-edges-arc
 amends: [310]
 ---
