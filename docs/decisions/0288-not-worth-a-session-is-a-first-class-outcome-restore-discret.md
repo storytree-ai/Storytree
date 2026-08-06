@@ -83,6 +83,18 @@ The tell is *who surfaced it*, and the 4-minute finding is why:
 - **Enumerated at the closing leg** because the leg asked "what's next?" — **starts below the bar.**
   Queue it only if you can name the cost of leaving it undone.
 
+*[Narrowed by ADR-0319 (2026-08-06): the second arm covers work the leg **INVENTED** — the follow-up
+did not exist until the leg asked, which is the class the 16-of-19 finding measured. It does NOT cover
+work the leg **UNBLOCKED**: a parked increment authored earlier on a LIVE arc with no open questions,
+which this session's own landed decision made ready. That class clears the bar by default, because its
+cost of being left undone was already written on the entry by an author who was not standing at a
+closing leg justifying a chip. What is defaulted is only that the lane gets DISPATCHED — the vehicle
+stays the session-orchestrator's per-lane call under ADR-0275 D1 Axis 2 (drive it here on a fresh
+worktree, or cut a fresh session), so this does not mandate a chip either. The bar itself does not
+move, and everything outside that narrow class is priced exactly as this D2 prices it. ADR-0319 D4
+also pulls apart the reading error that fed the confusion — an arc RECORDS decided work and dispatches
+nobody, so "the arc already carries it" answers ADR-0271 D2(c) and never D2(b).]*
+
 **D3 — Declining is stated, never silent. The debrief is the backstop.** A follow-up considered and
 declined is named in the debrief in one line with its reason ("considered X; not worth a session
 because Y"). Silence is not permitted and is not what this ADR makes free — *the judgment* is what
@@ -124,14 +136,21 @@ behind it.
   — "owner-gated work always re-enters through a chip" becomes "**when** it re-enters, it re-enters
   through a chip, never by a session waiting on the owner." The anti-waiting rule survives intact.
 - **ADR-0275 D3**'s per-landing debrief ("every chip by title") reads through D6's first bullet.
-- The rule lives in **two** artifacts on **opposite** edit surfaces, and both change together or the
-  corpus contradicts itself. `session-orchestrator` (kind `agent`) is **seed-canonical** (ADR-0055):
-  edited in `knowledge.json`, regenerated into `CLAUDE.md`, reconciled live with `sync-agents --pg`.
-  `merge-ceremony` (kind `process`) is **live-canonical**: edited via `artifact edit … --pg`, with the
-  seed hand-reconciled per `asset:library-edit-ceremony` — never a blind `export-corpus --write`.
-  "NOT a judgment call" leaves the corpus; `merge-ceremony` step (d) gains the bar, step (e) stops
-  saying a hard end forces a chip, and its failure-mode list gains **"Declining a follow-up in
-  SILENCE"** so the new risk is guarded where this ceremony keeps its guards.
+- The rule lives in **two** artifacts, and both change together or the corpus contradicts itself:
+  `session-orchestrator` (kind `agent`) and `merge-ceremony` (kind `process`). Both are
+  **live-canonical** — edited via `storytree library artifact edit … --pg`; the agent tier's committed
+  projections are then regenerated with `pnpm build:guidance && pnpm build:agents`, and `pnpm gate`'s
+  `check:guidance` / `check:agents` rungs fail if an edit lands without them. "NOT a judgment call"
+  leaves the corpus; `merge-ceremony` step (d) gains the bar, step (e) stops saying a hard end forces
+  a chip, and its failure-mode list gains **"Declining a follow-up in SILENCE"** so the new risk is
+  guarded where this ceremony keeps its guards.
+  *[Mechanism corrected in place 2026-08-06 per ADR-0139 — the DECISION (both artifacts change
+  together) is unchanged, so this is not a re-decision. What was overtaken: this bullet described the
+  agent tier as seed-canonical per ADR-0055, edited in `knowledge.json` and reconciled with
+  `sync-agents --pg`. ADR-0307 D1 superseded ADR-0055 and made the agent tier live-canonical like
+  every other tier, and ADR-0302 D1/D4 deleted `knowledge.json` along with the `sync-agents` /
+  `sync-corpus` / `export-corpus` ceremonies outright — the commands no longer exist. The "opposite
+  edit surfaces" framing went with them: there is now one writer path for both artifacts.]*
 
 **D7 — Falsifiable predictions and a revert rule.** Measured against the arc's follow-on window:
 (a) the share of sessions started by an agent-written prompt falls from 88%; (b) the share of chips
