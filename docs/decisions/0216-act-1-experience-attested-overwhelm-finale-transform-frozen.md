@@ -87,6 +87,12 @@ LOOK stays [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-fo
 operator-attested — appearance and feel never self-signed. Machine floor is the
 `experience-rollout-guardrails` markers (`check:web-experience`).
 
+*(Corrected in place 2026-08-06 per ADR-0139; D7 is unchanged — LOOK is still operator-attested and
+never self-signed. What moved is the floor beneath it: ADR-0311 D2 retired `check:web-experience` from
+root policy and CI, so the marker check no longer runs on any merge. It survives unwired at
+`packages/cli/src/web-experience-check.ts` and answers on demand. The operator attestation, which is
+what this decision actually rests on, is untouched.)*
+
 ## Open iteration
 
 **Frozen.** No open LOOK collaboration surface on this ADR. Reopen only via a new ADR that

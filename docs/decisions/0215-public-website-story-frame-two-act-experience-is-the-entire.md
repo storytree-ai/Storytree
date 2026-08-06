@@ -122,8 +122,13 @@ that would have carried the excluded fields are absent from the public view enti
 
 The only non-experience exits for a capable visitor are **none**. Escapes that remain are
 accessibility only: persistent **skip** and the **calm / reduced-motion / no-JS fallback**. No
-capable-visitor brochure hatch. Gate-enforced by `check:web-experience` markers
+capable-visitor brochure hatch. Marker-checked by `check:web-experience`
 ([`experience-rollout-guardrails`](../../stories/website-experience/experience-rollout-guardrails.md)).
+*(Corrected in place 2026-08-06 per ADR-0139; D5 itself is unchanged — the escapes that remain are
+still accessibility-only. This read "Gate-enforced by". ADR-0311 D2 retired `check:web-experience`
+from root policy and CI, so the markers are no longer checked at any gate; the checker survives unwired
+at `packages/cli/src/web-experience-check.ts` and answers only when invoked. The website keeps two
+retained rungs — `check:web-grounding` and `check:web-engine` — but neither asserts this decision.)*
 
 ### D6 — Replay-only
 

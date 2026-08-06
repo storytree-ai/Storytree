@@ -22,7 +22,7 @@ Tracing it to root:
 - **The only wired inbound path to a `process` is trace-history, not the log.** librarian-curator authors a process only reactively, as a graduation output from agent-memory (ADR-0095). Nothing reads the *decision log forward* into the process tier — exactly the gap the owner named.
 - **No one owns the CLI surface as a projection.** Command structure is decided ad hoc, one ADR per area (ADR-0116 for `adopt`, ADR-0118 for the workflow reshape), by whoever builds that area. There is no process tier for it to project from and no standing check that every way-of-working has a surface, or every surface a way-of-working. ADR-0053 already made the CLI's guidance *prose* library-derived; its *structure* was never given the same discipline.
 
-"Which commands do we need?" is a judgement and cannot be gated. But "does every process name a real entrypoint, and does every entrypoint belong to a process?" is an objective bijection — the same shape as the existing `check:coverage` (contracts↔tests) and `check:agents-sync` gates.
+"Which commands do we need?" is a judgement and cannot be gated. But "does every process name a real entrypoint, and does every entrypoint belong to a process?" is an objective bijection — the same shape as the `check:coverage` (contracts↔tests) and `check:agents-sync` gates **as they stood at this decision**. *(Tense corrected in place 2026-08-06 per ADR-0139; the analogy and the decision it supports are unchanged. Neither comparator is a gate rung any more — `check:agents-sync` was deleted by ADR-0302 D4 and `check:coverage` retired by ADR-0311 D2 — so "the existing … gates" would now read as a claim about live wiring rather than the shape argument it was making.)*
 
 ## Decision
 

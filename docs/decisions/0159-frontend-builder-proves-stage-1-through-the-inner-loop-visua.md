@@ -83,10 +83,13 @@ attached ceremonies/assets are the step→mapping input that arc consumes for fr
 
 ## Consequences
 
-- Frontend caps built through the re-authored process earn signed spine verdicts and `check:coverage`
+- Frontend caps built through the re-authored process earn signed spine verdicts and coverage
   credit (`coverage-gate.ts` scans the cap's `proof.real.testFile`, `.tsx` included), so a green story
   crown honestly reflects proven visual work — closing the `unregistered` gap BY CONSTRUCTION rather than
-  by post-hoc `adopt`.
+  by post-hoc `adopt`. *(Corrected in place 2026-08-06 per ADR-0139; nothing here is re-decided. This
+  read "`check:coverage` credit". ADR-0311 D2 retired `check:coverage` from root/CI gate policy, so the
+  credit is no longer collected at the gate — it is still computed by the same scanner, now reachable
+  only through the on-demand `storytree coverage` verb.)*
 - The ADR-0097 `adopt` path (observe-gate `(covers:)`) remains the honest RECOVERY for caps already
   landed gate-only; the re-authored process is the honest PREVENTION (route through `--real` up front).
   The two are peers (ADR-0105), not rivals.

@@ -156,7 +156,12 @@ decision is unaffected, only the implementation moved.
   populated site tree in the primary checkout. **Closed by PR #1085.** The manifest was NOT
   misclassified and must never be "fixed": `check-manifest.mjs` sorts tracked paths by `git ls-files`,
   which reports a submodule as ONE gitlink entry, so `web` genuinely IS a root file to the gate that
-  owns the manifest — moving it to `root.dirs` makes `pnpm check:manifest` block. The bug was in the
+  owns the manifest — moving it to `root.dirs` makes `scripts/check-manifest.mjs` block. *(Invocation
+  corrected in place 2026-08-06 per ADR-0139; nothing here is re-decided and the instruction stands —
+  the manifest must still never be "fixed". This named `pnpm check:manifest`; ADR-0311 D2 removed that
+  root script, so the command no longer resolves. Both the checker and `repo-manifest.json` survive
+  and their behaviour is unchanged — what is gone is only the gate wiring, so a misclassification now
+  goes uncaught until someone runs the script.)* The bug was in the
   RULE GENERATOR, and that is where the fix went: `lobbyDenyRules` now emits BOTH an exact-path and a
   `/**` tree rule for every `root.files` entry. Both forms rather than a filesystem probe,
   deliberately — a probe answers "file" for an uninitialised submodule, i.e. exactly on the machines

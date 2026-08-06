@@ -65,8 +65,11 @@ Not "sessions skipped a step". **There is no step, and no mechanism to perform i
    rules out the only mutation that could record closure.
 3. **No other role owns it.** `librarian-curator`'s workflow curates the decision log and graduates
    memory — no arc duty. `planner` reads the arc's increment log to scope the next increment — it
-   never closes one. No gate checks arcs (`pnpm gate` has `check:friction-drain` for the friction
-   worklist; there is no arc equivalent).
+   never closes one. No gate checks arcs (`pnpm gate` had `check:friction-drain` for the friction
+   worklist; there was never an arc equivalent). *(Tense corrected in place 2026-08-06 per ADR-0139;
+   the point is unchanged and, if anything, stronger. ADR-0311 D2 retired `check:friction-drain` from
+   root/CI policy, so `pnpm gate` now watches neither the friction worklist nor arcs — the comparator
+   this clause used to draw the contrast is gone, and "no gate checks arcs" remains true.)*
 4. **A scan of the whole live guidance corpus confirms it**: across all 213 non-arc/plan/friction
    live docs, the only `arc` + `close` matches are *descriptive* — the `arc` definition ("tracked to
    a closed end-state") and `template-arc` ("what closed looks like"). **Zero** instruct anyone to

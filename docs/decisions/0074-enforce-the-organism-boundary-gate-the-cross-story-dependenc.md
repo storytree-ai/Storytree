@@ -36,7 +36,13 @@ A 2026-06-19 audit (the ADR-0068 closeout) measured what is actually enforced:
   ports — no wildcards — so a deep import into another organism's internals fails to resolve
   (verified: `import … from "@storytree/orchestrator/src/proof/signer.js"` → `error TS2307`, red
   typecheck). pnpm refuses an **undeclared** `@storytree/*` import. `check:manifest` refuses a new
-  top-level `packages/<x>` dir.
+  top-level `packages/<x>` dir. *(Corrected in place 2026-08-06 per ADR-0139 — the `check:manifest`
+  clause is HISTORICAL and nothing decided here is re-decided. ADR-0311 D2 retired that rung from root
+  policy and CI, so a new top-level `packages/<x>` dir is refused by nothing on any merge path. The
+  checker itself is NOT gone — `scripts/check-manifest.mjs` and `repo-manifest.json` both survive and
+  behave as before when invoked directly; only the wiring was removed, and the `pnpm check:manifest`
+  alias with it. The other two gates in this bullet — the `exports` map and pnpm's undeclared-import
+  refusal — stand unchanged, and they are the ones this ADR's argument rests on.)*
 - **Gap A — declared barrel coupling is unchecked.** An agent can add `@storytree/other` to a
   `package.json`, import its **barrel**, and stay green — with **no** corresponding story
   `depends_on` edge. Nothing asserts the package-dep graph is a subgraph of the declared story graph.
