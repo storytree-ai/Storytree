@@ -87,6 +87,8 @@ import {
 } from "./friction.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { coverageCommand, type CoverageUnit } from "./coverage.js";
+// ADR-0317 D2 — the subtree-grain ownership map + its disk-walk totality report (report-only).
+import { gatherFromDisk, ownershipCommand, ownershipHelp } from "./ownership.js";
 import { agentsCommand, agentStepCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike, type AttestDeps } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
@@ -2809,6 +2811,20 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return coverageCommand(sub, {
       loadUnit: (unitId) => loadCoverageUnit(storiesDir, root, unitId),
     });
+  }
+
+  if (area === "ownership") {
+    // ADR-0317 D2 — the SECOND declared ownership map, at subtree grain, held to the disk by a
+    // totality walk. REPORT-ONLY: it names every source file falling under no declared subtree and
+    // fails nothing. It reads `repo-manifest.json` `sourceOwnership`, never `proof.real.sourceFile`
+    // (a unit→file build target) or `scope.sourceGlobs` (a write fence) — neither is ownership, and
+    // both stay untouched so the prove-it-gate carries no risk. Offline, read-only.
+    if (help) return ownershipHelp();
+    const root = repoRoot();
+    return ownershipCommand(
+      { gather: () => gatherFromDisk(root) },
+      { all: values.all === true, ...(sub !== undefined ? { pkg: sub } : {}) },
+    );
   }
 
   if (area === "desktop") {

@@ -203,8 +203,9 @@ test("top help and the unknown-area guidance both list the adopt area", async ()
   const unknown = await run(["wat"], { store });
   assert.equal(unknown.ok, false);
   // the area roster is consistent — it carries adopt, the new `build` workflow (ADR-0118, with
-  // node/story as its back-compat aliases), and the coverage-honesty check (ADR-0020).
-  assert.match(unknown.body, /gate, adopt, build, coverage, node/);
+  // node/story as its back-compat aliases), the coverage-honesty check (ADR-0020), and the
+  // subtree-ownership report beside it (ADR-0317 D2 — both answer "what does this cover?").
+  assert.match(unknown.body, /gate, adopt, build, coverage, ownership, node/);
   assert.match(unknown.body, /story, drift, adr/);
 });
 
