@@ -14,22 +14,19 @@ proof:
     file: pnpm
     args: ["--filter", "studio", "test"]
   scope:
-    testGlobs: ["apps/studio/src/lib/worldCamera.test.ts", "apps/studio/src/components/TreeView.act2Camera.test.tsx", "apps/studio/src/components/cameraRasterisationProbe.test.ts", "packages/cli/src/node-build.test.ts"]
+    testGlobs: ["apps/studio/src/lib/worldCamera.test.ts", "apps/studio/src/lib/worldCamera.act2Bottom.node.ts", "apps/studio/src/components/TreeView.act2Camera.test.tsx", "apps/studio/src/components/cameraRasterisationProbe.test.ts", "packages/cli/src/node-build.test.ts"]
     sourceGlobs: ["apps/studio/src/lib/worldCamera.ts", "apps/studio/src/components/TreeView.tsx", "apps/studio/src/components/cameraRasterisationProbe.ts", "apps/studio/scripts/measure-camera-rasterisation.mjs"]
   real:
-    testFile: "apps/studio/src/components/TreeView.act2Camera.test.tsx"
-    sourceFile: "apps/studio/src/components/TreeView.tsx"
+    testFile: "apps/studio/src/lib/worldCamera.act2Bottom.node.ts"
+    sourceFile: "apps/studio/src/lib/worldCamera.ts"
     editsExisting: true
     scope:
-      testGlobs: ["apps/studio/src/lib/worldCamera.test.ts", "apps/studio/src/components/TreeView.act2Camera.test.tsx", "apps/studio/src/components/cameraRasterisationProbe.test.ts", "packages/cli/src/node-build.test.ts"]
-      sourceGlobs: ["apps/studio/src/lib/worldCamera.ts", "apps/studio/src/components/TreeView.tsx", "apps/studio/src/components/cameraRasterisationProbe.ts", "apps/studio/scripts/measure-camera-rasterisation.mjs"]
+      testGlobs: ["apps/studio/src/lib/worldCamera.act2Bottom.node.ts"]
+      sourceGlobs: ["apps/studio/src/lib/worldCamera.ts"]
     install: true
     typecheck:
       file: pnpm
       args: ["--filter", "studio", "typecheck"]
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "studio", "exec", "vitest", "run", "src/lib/worldCamera.test.ts", "src/components/TreeView.act2Camera.test.tsx", "src/components/cameraRasterisationProbe.test.ts"]
 ---
 
 # The Act 2 regrow opens at the forest bottom and pulls back to the whole forest
