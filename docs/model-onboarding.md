@@ -1,12 +1,20 @@
 # Onboarding a model onto storytree
 
-How to bring a new model — and, if it needs one, a new harness — onto this system.
+**You are the model being onboarded.** Someone handed you this guide because you are sitting in a
+coding harness — OpenCode, Codex CLI, Gemini CLI, or something newer — pointed at this repository,
+and someone asked *"can we use you here?"* This guide is your answer and your work plan: you will
+onboard **yourself**, and if your harness is new here, you will onboard **it** too (ADR-0321).
 
-Read this when someone says *"can we use &lt;model&gt; here?"*. It answers where the model plugs in,
-what it has to be able to do, what you have to build, and what you get for free.
+That means: you verify your own capabilities against §2, you configure your own harness per §4, you
+prove yourself against this repo with a real observed tool call, and you record the result on the
+sponsoring arc. The human who handed you this guide has exactly three irreducible jobs: giving you
+the API key value (§3 — never type it into the repo yourself, and never invent one you were not
+given), running anything that needs a privileged install, and reviewing what you land. Everything
+else is yours. Do not ask the human to run a command you can run.
 
 > **Worked example.** Every step below has a live instance: **Kimi K3 via Fireworks AI, driven by
-> OpenCode**, onboarded 2026-08-07. Its exact commands are in
+> OpenCode** — onboarded 2026-08-07 *before this guide existed* (the guide was written from that
+> run), and given subagent parity a day later. Its exact commands are in
 > [§5](#5-worked-example--kimi-k3-via-fireworks-in-opencode).
 
 ---
@@ -26,9 +34,9 @@ magnitude, so get this right before you touch anything.
 | Needs an ADR? | No | **Yes** — it admits a new funded runtime |
 | Effort | ~an hour | A build, with an ADR and a live smoke |
 
-**Most requests are the outer loop.** "I want to use model X to work on storytree" almost always
-means *"give X a terminal and let it drive"* — which is configuration, not a build. Do not reach for
-the leaf seam unless the ask is specifically *"prove units with X behind the gate"*.
+**Most requests are the outer loop.** "Can we use you here?" almost always means *"give you a
+terminal and let you drive"* — which is configuration, not a build. Do not reach for the leaf seam
+unless the ask is specifically *"prove units with you behind the gate"*.
 
 ### The outer loop is nearly free, and here is why
 
@@ -61,8 +69,8 @@ Precedent, in order: **ADR-0177** opened the seam to Cursor, **ADR-0198** retire
 
 ## 2. The capability bar
 
-Before configuring anything, check the model can actually do the job. Ask the provider's API, don't
-trust a marketing page:
+Before configuring anything, check that YOU can actually do the job. Ask your provider's API, don't
+trust your marketing page:
 
 ```bash
 curl -s https://<provider>/v1/models -H "Authorization: Bearer $KEY"
@@ -78,11 +86,12 @@ pricing, reasoning options and capability flags that the provider's own `/models
 | **Large context** | `AGENTS.md` alone is ~21 KB before any repo file | ✅ 1,048,576 in / 131,072 out |
 | **OpenAI-compatible `/v1/chat/completions`** | What every harness's generic adapter speaks | ✅ |
 | **Streaming** | TUIs need it to feel alive | ✅ |
-| Vision | Only if you want it reading screenshots/UAT evidence | ✅ `supports_image_input` |
+| Vision | Only if you want to read screenshots/UAT evidence | ✅ `supports_image_input` |
 
-Then **prove tool-calling end to end** before wiring a harness — one `curl` with a `tools` array,
-and confirm the reply carries `finish_reason: "tool_calls"`. A model that answers prose instead of
-calling the tool will fail silently and confusingly inside a harness.
+Then **prove your tool-calling end to end** before wiring the harness — one `curl` with a `tools`
+array, and confirm the reply carries `finish_reason: "tool_calls"`. A model that answers prose
+instead of calling the tool will fail silently and confusingly inside a harness. Note the direction
+of the proof: it is the provider's API answering as you, observed by you — not your own say-so.
 
 ---
 
@@ -99,11 +108,17 @@ it:
    code needs it** — i.e. when you build an inner-loop leaf. An interactive harness reads its own
    store, not this file, so adding an unused key here is speculative wiring.
 
-Source of truth for this project's keys is GCP Secret Manager:
+**Getting the value is the human's one irreducible act.** If you were not handed the key, ASK — or,
+if the human says this box is authenticated to GCP, fetch it yourself from the house source of
+truth:
 
 ```bash
 gcloud secrets versions access latest --secret=<name> --project=635716509357
 ```
+
+Never paste the value anywhere it could be committed, never echo it into a file under the repo
+root, and never invent a credential you were not given — an auth failure you cannot explain is a
+stop-and-ask, not a retry-with-variations.
 
 Committed config references a secret, never contains one — `{env:VAR}` or the harness's store.
 
@@ -111,17 +126,42 @@ Committed config references a secret, never contains one — `{env:VAR}` or the 
 
 ## 4. The onboarding checklist
 
-1. **Pick the seam** (§1). Outer loop → continue. Inner loop → write the ADR first.
-2. **Verify the capability bar** (§2), against the provider's API.
-3. **Install the harness.**
-4. **Store the credential** (§3) — never in the repo.
-5. **Check the harness's model registry** (`https://models.dev/api.json`) before writing any provider
-   block — most providers are already there with correct limits and cost. Pin the model in the
-   project config, committed and secret-free. Hand-roll a provider only if it is genuinely absent.
-6. **Prove it end to end**: a real run that makes the model *use a tool* against this repo.
-7. **Confirm orientation**: the harness reads `AGENTS.md` (or add a pointer if it uses another
-   filename).
-8. **Record it**: append the increment to the owning arc, and document any deviation here.
+Work it in order. Every step is yours to execute unless it says otherwise.
+
+1. **Pick your seam** (§1). Outer loop → continue. Inner loop → stop and write the ADR first.
+2. **Verify you clear the capability bar** (§2), against your provider's API.
+3. **Install your harness** if it isn't — or ask the human to: an installer that wants admin rights
+   is a legitimate handoff, one of the three.
+4. **Store your credential** (§3) — never in the repo. The value comes from the human or the
+   `gcloud` fetch they authorize; nowhere else.
+5. **Check the model registry your harness uses** (`https://models.dev/api.json` for OpenCode and
+   other models.dev-based harnesses) before writing any provider block — most providers are already
+   there with correct limits and cost. Pin yourself in the project config, committed and
+   secret-free. Hand-roll a provider block only if yours is genuinely absent.
+6. **Prove yourself end to end**: a real run that makes you *use a tool* against this repo —
+   observed in your own transcript, not asserted.
+7. **Confirm orientation**: your harness reads `AGENTS.md` (add a pointer from whatever filename it
+   does read, if different — as `opencode.json`'s `instructions` does).
+8. **Onboard your harness's subagent surface, if it has one.** The nine delegatable Library agents
+   are rendered to each harness's native subagent directory by `pnpm build:agents` and drift-gated
+   by `check:agents`. If your harness has such a directory and no target exists yet, add one — this
+   is a small, proven pattern, not a build: one renderer function beside `renderOpencodeAgentFile`
+   in `packages/library/src/store/render-agent.ts` (the shaping rule: your harness's subagent mode
+   marker, and **no `model` key** — subagents inherit the session model, because the Library's
+   `sonnet`/`opus` tiers are Claude-specific labels), one entry in the `targets` array in
+   `packages/cli/src/build-agents.ts`, tests mirroring the OpenCode cases, then `pnpm build:agents`
+   and commit. Never hand-write the agent files — the drift gate prunes orphans. If your harness
+   has no subagent surface, skip this step entirely: `AGENTS.md` alone is enough.
+9. **Record the landing on the arc that sponsored your onboarding** — the human who handed you this
+   guide names it (`storytree arc increment add <sponsoring-arc> --outcome "..." --pr <n> --pg`;
+   the historical instance is `onboard-non-claude-models-onto-storytree-arc`, now closed). Document
+   any deviation from this guide **in this guide** — a step that needed editing to follow is the
+   guide failing at exactly the moment it mattered, and the fix belongs here, not in your session
+   transcript.
+
+You are done when: your harness boots on you in this repo, reads `AGENTS.md`, and you have explored
+the Library, run `pnpm gate` green, and landed one real change through the ordinary merge ceremony
+— the arc record in step 9 is that landing's residue.
 
 ---
 
@@ -232,13 +272,11 @@ opencode
 OpenCode reads `AGENTS.md` at the repo root, so Kimi K3 boots with the same
 `session-orchestrator` discipline every other session runs.
 
-The delegatable Library agents come along too: `pnpm build:agents` projects them to
-`.opencode/agent/<id>.md` (generated, committed, drift-gated by `check:agents`) — the same nine
-subagents Claude Code and Codex get, so fan-out works the same in every harness. The generated
-files deliberately carry **no `model` key**: a subagent inherits the driving session's model. The
-Library's `sonnet`/`opus` tiers are Claude-specific labels, and pinning a Fireworks id into a
-committed file would break the same files for a session driving on any other model — the model pin
-lives in `opencode.json` (§5 above) and nowhere else.
+OpenCode has a native subagent directory, so it also got the §4-step-8 treatment: the nine
+delegatable Library agents render to `.opencode/agent/<id>.md` (via `renderOpencodeAgentFile` —
+`mode: subagent`, no `model` key), so fan-out works the same in every harness. That projection
+landed a day after the model itself (PR #1210) — the guide predates it, which is exactly the kind
+of drift step 9 exists to catch.
 
 ### What this deliberately did NOT do
 
@@ -276,3 +314,8 @@ own ADR. Kimi K3 drives the outer loop: it runs the gate, it does not sign verdi
   `pnpm db:*` command, or they fail with errors naming the wrong cause.
 - **Context size is not context quality.** A 1M window does not make a model good at this repo. Judge
   a new model on a real unit driven to green, not on the spec sheet.
+- **You cannot smoke-test yourself in the third person.** Every proof in this guide is something you
+  OBSERVE — the `finish_reason: "tool_calls"` in the curl reply, the tool call in your own
+  transcript, the gate's green summary — never something you assert about yourself. If a proof did
+  not run, the honest report is "unverified", and the stop-and-ask is cheap. A self-onboarding that
+  grades its own homework has failed at the only step that can't be reviewed from the diff.
