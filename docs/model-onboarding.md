@@ -232,6 +232,14 @@ opencode
 OpenCode reads `AGENTS.md` at the repo root, so Kimi K3 boots with the same
 `session-orchestrator` discipline every other session runs.
 
+The delegatable Library agents come along too: `pnpm build:agents` projects them to
+`.opencode/agent/<id>.md` (generated, committed, drift-gated by `check:agents`) — the same nine
+subagents Claude Code and Codex get, so fan-out works the same in every harness. The generated
+files deliberately carry **no `model` key**: a subagent inherits the driving session's model. The
+Library's `sonnet`/`opus` tiers are Claude-specific labels, and pinning a Fireworks id into a
+committed file would break the same files for a session driving on any other model — the model pin
+lives in `opencode.json` (§5 above) and nowhere else.
+
 ### What this deliberately did NOT do
 
 Kimi K3 is **not** a `PhaseAuthor` leaf. `--runtime kimi` does not exist, and

@@ -18,9 +18,13 @@ CLAUDE.md projection. It does not change the specialist-agent population governe
 
 ADR-0051 made the Library `session-orchestrator` agent canonical, but projected its digest only into
 a marked region of `CLAUDE.md`. ADR-0052 and its later amendments already render the delegatable
-population into `.claude/agents`, `.cursor/agents`, `.codex/agents`, and `.gemini/agents`; the
+population into `.claude/agents`, `.cursor/agents`, `.codex/agents`, `.gemini/agents`, and
+`.opencode/agent`; the
 session-orchestrator is deliberately excluded because it owns a root main-session surface. Codex
 therefore had native specialist agents but no native root project/session guidance.
+*(Directory list corrected in place 2026-08-08, per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): OpenCode's
+`.opencode/agent` joined as the fifth specialist target — the decision below is unchanged.)*
 
 Copying the discipline into a hand-authored `AGENTS.md` would recreate the drift ADR-0051 removed.
 Adding the session-orchestrator to `.codex/agents` would confuse the outer loop with a delegatable

@@ -1,6 +1,7 @@
 // Render the delegatable library `agent` artifacts to each harness-native subagent directory:
 // `.claude/agents/<id>.md` (ADR-0052), `.cursor/agents/<id>.md` (ADR-0178),
-// `.codex/agents/<id>.toml`, and `.gemini/agents/<id>.md`. All are generated
+// `.codex/agents/<id>.toml`, `.gemini/agents/<id>.md`, and `.opencode/agent/<id>.md` (the
+// onboard-non-claude-models arc). All are generated
 // VIEWS of one Library population, drift-gated so no harness can diverge by hand.
 //
 //   pnpm build:agents      (re)generate every harness agent view
@@ -27,6 +28,7 @@ import {
   renderCursorAgentFile,
   renderCodexAgentFile,
   renderGeminiAgentFile,
+  renderOpencodeAgentFile,
   essentialsGateViolations,
 } from "@storytree/library/store";
 
@@ -68,6 +70,12 @@ const targets = [
     dir: path.join(repoRoot, ".gemini", "agents"),
     extension: "md",
     render: renderGeminiAgentFile,
+  },
+  {
+    label: ".opencode/agent",
+    dir: path.join(repoRoot, ".opencode", "agent"),
+    extension: "md",
+    render: renderOpencodeAgentFile,
   },
 ] as const;
 

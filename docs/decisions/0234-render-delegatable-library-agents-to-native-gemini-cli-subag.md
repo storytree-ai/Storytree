@@ -49,10 +49,12 @@ be false: those are Library tiers for Claude-compatible harness frontmatter, not
    emits no `tools`, turn, or timeout policy until those grants have a structured, harness-neutral
    Library representation.
 
-4. **One build and one drift gate cover all four harnesses.** `pnpm build:agents` writes and
-   orphan-prunes Claude, Cursor, Codex, and Gemini targets. `pnpm check:agents` refuses a stale,
+4. **One build and one drift gate cover all five harnesses.** `pnpm build:agents` writes and
+   orphan-prunes Claude, Cursor, Codex, Gemini, and OpenCode targets. `pnpm check:agents` refuses a stale,
    missing, orphaned, dangling, or re-bloated Gemini view through the same pipeline. `.gemini` is an
-   admitted root surface in `repo-manifest.json`.
+   admitted root surface in `repo-manifest.json`. *(Count and list corrected in place 2026-08-08, per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): OpenCode's
+   `.opencode/agent/*.md` joined as the fifth target — the one-population decision is unchanged.)*
 
 5. **This decision is specifically about Gemini CLI.** It makes no claim that Antigravity's
    desktop or CLI surfaces consume `.gemini/agents`; those products expose different agent
