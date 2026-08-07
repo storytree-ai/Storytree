@@ -2,20 +2,22 @@
 id: "gate-ci-parity"
 tier: capability
 story: ci-cd
-title: "Gate↔CI parity — the local gate equals CI minus build, declared and checkable"
-outcome: "The local pnpm gate and the CI verify invariant sets stand in one declared, checkable relationship (gate = CI − build, HEAD vs merge-ref); a stale-behind-main branch is surfaced."
+title: "Gate↔CI parity — the local gate and CI verify stand in one declared two-way delta, checkable"
+outcome: "The local pnpm gate and the CI verify invariant sets stand in one declared, checkable relationship — a shared content floor of eight checks, a two-way content delta (CI keeps steps the local plan does not, and the local plan keeps one CI does not), and HEAD vs merge-ref; a stale-behind-main branch is surfaced."
 status: proposed
 proof_mode: integration-test
 depends_on: [green-gate]
 ---
 
-# Gate↔CI parity — the local gate equals CI minus build, declared and checkable
+# Gate↔CI parity — the local gate and CI verify stand in one declared two-way delta, checkable
 
 **Outcome —** The local `pnpm gate` and the CI `verify` invariant sets stand in **one declared,
-checkable relationship** — `gate` runs exactly the `verify` content checks MINUS `pnpm -r build`, and
-on HEAD rather than the merge-with-main ref — and a branch that is stale behind `main` is surfaced.
-So "my local gate was green but CI went red" stops being tribal knowledge and becomes a checkable
-fact about TWO declared deltas: the **build** step and the **merge-ref**.
+checkable relationship** — they share a content floor of eight checks, each side additionally keeps
+steps the other does not (a TWO-WAY content delta, not an equality), and `gate` runs on the working
+tree / HEAD while `verify` runs on the merge-with-`main` ref — and a branch that is stale behind
+`main` is surfaced. So "my local gate was green but CI went red" stops being tribal knowledge and
+becomes a checkable fact about a declared **shared content floor** plus two declared deltas: the
+**two-way content delta** and the **merge-ref**.
 
 > **No deciding ADR yet (owner escalation).** This is the only genuinely NEW capability in the story
 > — today the parity invariant lives ONLY in CLAUDE.md prose ("a green local `pnpm gate` does NOT
@@ -33,11 +35,18 @@ fact about TWO declared deltas: the **build** step and the **merge-ref**.
   script's text, which since 2026-08-04 is just the runner invocation and names zero steps, so a text
   parse silently yields the EMPTY set (the same blindness that made `check-verification-decay.ts`'s
   `loadGateChecks` go dark when the `&&` chain was removed; a sweep of `pnpm gate`'s CALLERS does not
-  find a consumer that reads its DEFINITION). Then
+  find a consumer that reads its DEFINITION). **Slice to the `GATE_PLAN` literal itself** — the same
+  file also declares `RETIRED_CHECKS`, so a whole-file search finds a retired rung (e.g.
+  `check:manifest`) and reports it as LIVE, which silently falsifies every "absent from the local
+  plan" negative. Then
   parse the `verify` job's step list out of `ci.yml`, normalise both to a SET of content checks, and
-  assert: `verify_set − {pnpm -r build} == gate_set`. The delta set is EXACTLY `{build}` and the
-  ref-delta is `{HEAD vs merge-ref}` — both declared as named constants the test compares against, so
-  adding a step to one and not the other FAILS this check loudly. That is the whole capability: the
+  assert the TWO-WAY relationship: the shared content floor is present in BOTH; the CI-only steps
+  (`pnpm -r build`, the two PR-only guards, the pinned web-submodule checkout, affected-scope
+  selection) are present in `ci.yml` and ABSENT from `GATE_PLAN`; and `check:verification-decay` is
+  present in `GATE_PLAN` and ABSENT from `ci.yml`. The ref-delta stays `{HEAD vs merge-ref}`. Each
+  side's set is declared as named constants the test compares against, and each direction is asserted
+  BOTH ways — present here AND absent there — so adding a step to one and not the other, or MIGRATING
+  a step between them, FAILS this check loudly. That is the whole capability: the
   delta is pinned, not folklore.
 - This is a META-gate: it guards the *correspondence* of the two gates, not code behaviour. If the
   walkthrough can't be written as "extract both step sets, assert the declared delta," the capability
@@ -50,19 +59,24 @@ fact about TWO declared deltas: the **build** step and the **merge-ref**.
 - The `build` delta exists for a real reason (recorded against `green-gate`): the packages export raw
   TS with no build step; the only buildable target is `apps/studio` (`vite build`), which can fail on
   something `tsx` tolerates. So `build` is legitimately CI-only — the parity contract DECLARES it as
-  the one allowed difference, it does not try to eliminate it.
+  one of the declared CI-only steps, it does not try to eliminate it.
 
 ## Contracts (3)
 
-1. **`declared-content-delta-is-exactly-build`** — the two invariant sets differ by one named step
-   - **asserts —** the set of content checks the local `gate` runs equals the set the CI `verify` job
-     runs with `pnpm -r build` removed; if a check is added to `verify` (or `gate`) without the other,
-     the parity check FAILS and names the divergent step. The allowed delta is the single declared
-     constant `{pnpm -r build}` — nothing else.
+1. **`declared-content-delta-is-two-way`** — the two invariant sets differ in BOTH directions, by named steps
+   - **asserts —** the local `gate` and the CI `verify` job share a content floor of eight checks
+     present in BOTH sets, and every step outside that floor is a declared named constant on one side
+     or the other: the CI-only steps (`pnpm -r build`, the two PR-only guards, the pinned
+     web-submodule checkout, affected-scope selection) are present in `verify` and ABSENT from the
+     local plan, while `check:verification-decay` is present in the local plan and ABSENT from
+     `verify`. Each direction is asserted BOTH ways — present here AND absent there — so a check
+     added to one side without the other, or MIGRATING between the two sides, FAILS the parity check,
+     which names the divergent step. There is no allowed undeclared difference in either direction.
 2. **`ref-delta-is-declared`** — HEAD-vs-merge-ref is a named, expected difference
    - **asserts —** the relationship records that `gate` runs on the working tree / HEAD while `verify`
      runs on the branch-merged-with-`main` ref, as the second declared delta — so a green local gate
-     is documented to predict CI green ONLY up to the build step AND a non-stale branch.
+     is documented to predict CI green ONLY up to contract 1's declared CI-only steps AND a non-stale
+     branch.
 3. **`stale-branch-surfaced`** — a branch behind main is diagnosed, not a silent CI surprise
    - **asserts —** a branch whose tip is behind `origin/main` is reported as stale (the
      "first suspect a stale branch" condition) with the `git fetch && git merge origin/main` remedy;
