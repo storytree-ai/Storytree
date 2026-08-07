@@ -15,7 +15,14 @@ proof_mode: UAT
 # as SSE — IS a desktop capability (`chat-sse-mount`), the thin glue the consuming surface owns. The
 # renderer chat PANEL is a `studio` frontend component (consumed compiled), not a capability
 # here (see the Cross-story boundary section + "Renderer chat panel placement").
-capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-routes, chat-sse-mount, local-credential-wiring, shared-forest-connection, brokered-local-uat-signing, desktop-launch-preconditions]
+# The last two are BROWNFIELD capabilities authored over already-built, already-tested code by
+# capability-layer-coverage-arc increment 2 (2026-08-07), both `status: mapped` with a spec-borne
+# `proof:` block and deliberately NO `real:` arm (ADR-0094): `pinned-runtime-apply` (the ADR-0164/
+# ADR-0181 apply-a-landed-fix loop — resolve a pinned-`main` runtime, report the running version,
+# fast-forward onto merged `main` or refuse) and `advisory-overlay-reads` (the ADR-0033 advisory-read
+# helper the sidecar's five overlay reads share). Both are independent ROOTS in the code sense; the
+# second declares a `local-backend-boot` edge because its route-level proof composes the real backend.
+capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-routes, chat-sse-mount, local-credential-wiring, shared-forest-connection, brokered-local-uat-signing, desktop-launch-preconditions, pinned-runtime-apply, advisory-overlay-reads]
 # Story-level edges (ADR-0010 §4 / ADR-0074 — these are the cross-story `depends_on` the boundary
 # gate (`check:boundaries`) enforces against apps/desktop/package.json's @storytree/* deps, ADR-0100;
 # ADR-0113 §8 requires the desktop → studio-server/drive edges to be DECLARED here or CI goes red):
@@ -233,9 +240,13 @@ pulled into this story, to keep the thick-client journey small.
 >    sharing stays deferred (a shared read-route organism touching the `studio` story is the clean
 >    follow-on, ADR-0119 "Bad / accepted costs").
 
-## Capabilities (9)
+## Capabilities (11)
 
-Listed roots-first (a capability appears after everything it depends on).
+Listed roots-first (a capability appears after everything it depends on). Rows 10–11 are BROWNFIELD
+(`status: mapped`, authored over already-built and already-tested code by capability-layer-coverage-arc
+increment 2, 2026-08-07): their proof is a spec-borne `proof:` block over REAL passing offline tests,
+with deliberately no `real:` arm — the green path for `mapped` is Adopt (ADR-0085 / ADR-0094), never a
+manufactured red on mature code (ADR-0159).
 
 | # | capability | outcome | proof | depends on |
 |---|------------|---------|-------|------------|
@@ -248,6 +259,8 @@ Listed roots-first (a capability appears after everything it depends on).
 | 7 | [`shared-forest-connection`](shared-forest-connection.md) | The local backend BROKERS its verdict/presence writes to the hosted studio's members-gated write-broker (no local DB connection; ADR-0117), with a readiness probe that fails closed (and clear guidance) when the broker is unreachable or the member is not an authorized `builder`. | contract-test (CI red→green) + operator-attested live broker/builder-grant | `local-backend-boot` |
 | 8 | [`brokered-local-uat-signing`](brokered-local-uat-signing.md) | A local human's observation of a declared human-witness UAT leg becomes a real operator-attested verdict pinned to a clean git HEAD and persisted through the injected forest broker writer; machine legs, blank/agent signers, dirty/malformed state, unknown tests, and broker refusals fail closed. | integration-test (CI red→green) | `shared-forest-connection`, `boot-read-routes` |
 | 9 | [`desktop-launch-preconditions`](desktop-launch-preconditions.md) | Before the sidecar wires ANY backend, a pure gate proves two launch preconditions — an available git checkout and a reachable live store (auto-waking it if asleep, bounded) — and refuses with a clear reason naming the unmet precondition, so the sidecar wires the ONE full backend or refuses cleanly, never degrading to a partial read shell (ADR-0176). | contract-test (CI red→green) + operator-attested refuse UX | — (independent root; front-runs the backend boot) |
+| 10 | [`pinned-runtime-apply`](pinned-runtime-apply.md) | A landed fix reaches the running desktop app only by a fast-forward of its pinned-`main` runtime worktree — the app reporting the code it is actually running, and refusing a runtime that is not pinned rather than serving a stray branch (ADR-0164 / ADR-0181). | integration-test, `mapped` (real passing offline tests across the `desktop` + `studio` suites; observational, NOT driven red→green) | — (independent root; consumed BY the health composition and the Electron main, which are glue) |
+| 11 | [`advisory-overlay-reads`](advisory-overlay-reads.md) | Every overlay read the sidecar makes fails to a bounded, logged null rather than to a throw or a hang, so a down store leaves the forest under-claiming instead of hanging `/api/tree` (ADR-0033). | integration-test, `mapped` (real passing offline tests; observational, NOT driven red→green) | `local-backend-boot` |
 
 The **chat surface** the member talks to has THREE layers, split across two stories:
 - its provable streaming **BACKEND** (the SSE/intake core that drives `orchestrate`, `startChatStream`)
@@ -287,6 +300,21 @@ any backend is wired at all, and consumes only `@storytree/drive`'s `ensureLiveD
 - `brokered-local-uat-signing` → `shared-forest-connection`, `boot-read-routes` (it consumes the
   brokered `ForestWriter` persistence boundary and the declared local UAT test context; `LOCAL_ME`
   remains deliberately `member`, while the signer is a separately injected local operator identity).
+
+- `pinned-runtime-apply` — a root (added 2026-08-07, brownfield). Its five modules import no other
+  in-story capability; everything that touches them is a CONSUMER, not an upstream. `backend-entry.ts`
+  mounts its two probes into `/api/health` and `main.ts` drives its resolve + rebuild, and both are
+  operator-attested glue. Note the near-miss with `desktop-launch-preconditions`: the graph text above
+  says that gate "consumes `code-stamp.ts`'s `gitHead`", but the gate imports NOTHING from it — it takes
+  `probeGitRepo` as an injected effect, and the GLUE (`backend-entry.ts:337`) happens to satisfy that
+  effect with `gitHead`. A shared glue call site is not a capability edge, and the gate's own proof
+  injects a double, so no `depends_on` is drawn in either direction.
+- `advisory-overlay-reads` → `local-backend-boot` (added 2026-08-07, brownfield). The only in-story edge
+  among the two new units, and it is earned by the PROOF rather than by an import: the helper's
+  route-level test composes the REAL `createLocalBackend` over a real `node:http` server to assert that
+  a failing overlay read reaches the client as an under-claiming `200 { builds: null }` rather than a
+  500. The direction does not invert — `local-backend-boot` receives its seams already advisory-wrapped
+  by `backend-entry.ts`, so it needs nothing from this unit.
 
 `credential-broker` (Step 1's CI-proven core) and `local-backend-boot` (the thick keystone) share no
 edge — Step 1's safety boundary and Step 2's backend boot are independent roots that
@@ -715,6 +743,41 @@ operator-attested GLUE in item 1 below and in `chat-sse-mount.md`; THIS open ite
    ADR-0119 finding 1 / §1). Extracting the studio's FULL route table into a shared read-route organism
    (which would touch the `studio` story) is still a clean follow-on, not pulled into this journey to keep
    it small.
+3. **Two modules stay at STORY grain as one-competence residue — deliberately NOT capabilities**
+   (story-author 2026-08-07, capability-layer-coverage-arc increment 2). Both are pure single-purpose
+   functions whose only honest proof is a handful of ISOLATED unit tests with no collaborators at all —
+   contract-shaped, not organ-shaped. Neither can state a capability-tier proof (an integration test
+   against real in-story collaborators), and `a capability that cannot state its proof must not be
+   authored`: authoring one anyway would drive a declaration count down while leaving an unprovable node
+   behind, which is invisible afterwards. Recorded here so the decision is legible rather than an
+   unexplained gap. The `doctrine.ts` precedent from that arc's increment 1.
+   - **`apps/desktop/src/backend/orchestrator-turns.ts`** (35 ln, ADR-0151) — one pure function
+     resolving the desktop chat's orchestrator-session turn ceiling from
+     `STORYTREE_ORCHESTRATOR_MAX_TURNS` (unbounded by default, an env-only re-imposed cap), proven by 4
+     isolated unit tests. Its only plausible host is [`chat-sse-mount`](chat-sse-mount.md), which
+     EXPLICITLY excludes this seam from its contract in a `story-author 2026-06-27` decision block: the
+     landed `ChatSseMountDeps` does not forward `maxTurns`, and extending it is "operator-attested glue,
+     NOT an offline-provable contract". The module's own header agrees — the `backend-entry.ts` glue
+     that reads `process.env` and threads the result into `createChatSseMount` is attested, because a
+     `node:test` over it would spawn a subscription-billed SDK session. Confirmed, not overturned.
+   - **`apps/desktop/src/backend/open-link-policy.ts`** (37 ln) — the scheme allowlist applied in the
+     Electron main immediately before `shell.openExternal`, proven by 3 isolated unit tests over a pure
+     predicate. **It stays with `desktop`, and this OVERTURNS the reading that its honest owner is the
+     `embedded-terminal` story.** It ORIGINATED in that story's patterns survey (increment D) and its
+     header still frames it as terminal-scoped, but at HEAD only ONE of its three call sites is:
+     `main.ts:748` (`terminal:open-link`). The other two — `main.ts:502` (`will-navigate`) and `:508`
+     (`setWindowOpenHandler`) — are the **top-frame navigation lockdown for the whole Electron window**,
+     ADR-0109 §Decision 4 hardening that exists to stop a hostile navigation inheriting the
+     `desktopApply` / `desktopAuth` / `desktopTerminal` preload bridges. That is a `desktop` shell
+     concern, and `embedded-terminal` is a virtual story that draws no edge to the shell and states it
+     "builds a terminal, not an observer". Re-homing it there would put the shell's navigation lockdown
+     under a story that disclaims the shell. Folding it into [`electron-shell`](electron-shell.md) is
+     also refused: that capability is `operator-attested`, and hiding a headlessly-provable predicate
+     behind a human witness is exactly the mis-tag `human-witness-is-a-judgment-gap-not-cost` forbids.
+     Folding it into `embedded-terminal`'s [`pty-session-manager`](../embedded-terminal/pty-session-manager.md)
+     is refused too — that unit is BUILT & SIGNED with a `real:` arm, the fused outcome would need a
+     conjunction, and the two share neither precondition (an injected `PtyPort` and a live session
+     registry, versus a string) nor observable.
 
 The only **owner-level** item is operational, not modeling, and ADR-0117 SIMPLIFIED it: it is no longer
 an attended Cloud SQL IAM `gcloud` grant but an **in-app `builder` mark in the Members panel** (ADR-0117
