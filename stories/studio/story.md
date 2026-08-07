@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery, arc-orientation-lens, act2-intro-cursor]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -87,7 +87,7 @@ build/secrets seam re-pointed off `cli` onto `@storytree/drive` by ADR-0112) —
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
 
-## Capabilities (19)
+## Capabilities (21)
 
 Listed roots-first (a capability appears after everything it depends on).
 
@@ -112,6 +112,14 @@ Listed roots-first (a capability appears after everything it depends on).
 | 17 | [`camera-rasterisation-probe`](camera-rasterisation-probe.md) | A repeatable Studio diagnostic reports the rasterisation-cost delta between the real 40-island regrow growth-only baseline and cursor-driven camera-transform variants under ADR-0286's bracketed idle-floor protocol. | — |
 | 18 | [`act2-regrow-camera-zoom-out`](act2-regrow-camera-zoom-out.md) | The existing Act 2 regrow carries the Studio camera from a close opening view to the ordinary fitted whole-forest view on its own cursor. | `camera-rasterisation-probe` |
 | 19 | [`act2-regrow-camera-frame-delivery`](act2-regrow-camera-frame-delivery.md) | The approved Act 2 bottom-anchored zoom-out preserves its exact choreography while its stable-picture frames reach the display within one refresh interval of the growth-only control. | `act2-regrow-camera-zoom-out`, `camera-rasterisation-probe` |
+| 20 | [`arc-orientation-lens`](arc-orientation-lens.md) | An owner arriving cold is oriented by the map's arc lens alone, without asking an agent to reconstruct the context. | — |
+| 21 | [`act2-intro-cursor`](act2-intro-cursor.md) | The Act 2 forest regrow is driven end to end by one app-owned cursor the operator can move. | — |
+
+Rows 20–21 are **brownfield `mapped` units authored retrospectively** by
+`capability-layer-coverage-arc` increment 4 (2026-08-07) over already-working, already-tested code.
+They close ADR-0317's grain residue: six `repo-manifest.json` subtrees whose declared owner was this
+STORY only because no capability existed for that code. Both carry a spec-borne `proof:` and no
+`real:` arm (ADR-0094) — see each file's frontmatter comment for why that omission is load-bearing.
 
 ## Dependency graph (code-derived)
 
@@ -119,8 +127,9 @@ These are **within-story** edges, **read off the real source** (static analysis 
 imports / data-flow between capabilities), never hand-drawn from UAT need (ADR-0010 §3):
 A → B means A's code actually couples to B's code inside the one organism. The graph is
 acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, `chat-panel`,
-`coalesced-camera-pan`, `map-route-retention`, `map-payload-cache`, `map-server-memo`, and
-`map-boot-independence`, and `camera-rasterisation-probe` are the roots. (Cross-story edges are NOT in this graph — they are boundary
+`coalesced-camera-pan`, `map-route-retention`, `map-payload-cache`, `map-server-memo`,
+`map-boot-independence`, `camera-rasterisation-probe`, `arc-orientation-lens` and
+`act2-intro-cursor` are the roots. (Cross-story edges are NOT in this graph — they are boundary
 interfaces, declared in §"Cross-story boundary" below and encoded as frontmatter `depends_on` —
 ADR-0010 §4.)
 
@@ -219,6 +228,27 @@ ADR-0010 §4.)
     this product choreography, so the graph remains acyclic. The camera implementation stays
     Studio-owned and adds no package import; the existing `studio → app-surface` edge still covers the
     rendered world.
+- `arc-orientation-lens` → (no within-story edge — a TENTH root)
+  - The four modules this organ owns reach only `src/api.ts`, `src/lib/poll.ts`, `src/types.ts` and
+    `src/lib/route.ts`'s `assetHref` — three story-grain infrastructure files no capability owns,
+    plus one deep-link helper. Its mount sits beside the camera and drawer slices in `TreeView.tsx`,
+    which is the same same-file-adjacency-is-not-an-edge call the four map-stage siblings above
+    already make: it consumes nothing any named `studio` capability produces, and its proof takes
+    rollups as PROPS, so no sibling's delivered outcome is a precondition of it. Its `ArcRollup[]`
+    arrives over `GET /api/arcs` from `@storytree/drive`'s shared join — the already-declared
+    `drive-machinery` and `storage-protocol` cross-story seams, untouched — so it adds no in-story
+    or cross-story dependency.
+- `act2-intro-cursor` → (no within-story edge — an ELEVENTH root)
+  - The regrow's ORDER, geometry and render layers are `@storytree/app-surface`'s
+    (`deriveForestRegrowPlan`), which is the already-declared `studio → app-surface` edge; this unit
+    owns only the clock, the cursor and the transport over them. It adds no package import.
+    **The one edge a reader would reasonably question runs the OTHER way:**
+    `act2-regrow-camera-zoom-out` names its driver as *"the existing normalized regrow cursor"* —
+    this unit's — so the camera capabilities consume it, not the reverse. Tested both ways the edge
+    is one-directional and the graph stays acyclic: this unit landed and proves green with no camera
+    choreography present. That inbound edge is NOT yet declared on the two camera specs; increment 4
+    recorded it in [`act2-intro-cursor.md`](act2-intro-cursor.md) rather than editing them, because
+    changing a `proposed` capability's `depends_on` moves `story build`'s topo order.
 
 ## Cross-story boundary (ADR-0010 §4)
 
