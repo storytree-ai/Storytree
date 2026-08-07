@@ -50,8 +50,10 @@ repos) and [ADR-0046](../../docs/decisions/0046-studio-merge-deploy-cd.md) (merg
 
 > **This story is the first WORK-TRACKED home for two things that currently live only in CLAUDE.md
 > prose + session memory:** (1) the **gate↔CI parity** invariant — that `pnpm gate` locally and the
-> CI `verify` job enforce the SAME content checks except CI adds `pnpm -r build` and tests the
-> *merge-with-main* ref (the recurring "local-green / CI-red" surprise); and (2) the **merge-ceremony
+> CI `verify` job share a content floor of eight checks, while CI adds `pnpm -r build`, the two
+> PR-only guards, the web-submodule checkout, affected-scope selection and the *merge-with-main* ref,
+> and the local plan adds `check:verification-decay` (the recurring "local-green / CI-red" surprise
+> lives in that two-way delta); and (2) the **merge-ceremony
 > discipline** (green unit → non-draft PR → CI auto-merges; never a manual `gh pr merge`). The
 > `gate-ci-parity` capability below pins (1) into a checkable relationship; the ceremony (2) is the
 > `session-orchestrator` operating discipline these caps mechanise. Neither has an ADR of its own —
@@ -66,10 +68,18 @@ repos) and [ADR-0046](../../docs/decisions/0046-studio-merge-deploy-cd.md) (merg
   (GitHub's PR merge ref), so a unit is proven against the trunk it will actually land on — a clean
   branch can still fail on something that landed on `main` *after* it was cut. This is the load-bearing
   reason a green local `pnpm gate` does not guarantee a green CI.
-- **The gate is content; the build is CI-only.** `pnpm gate` and CI enforce the same content
-  invariants (manifest + root CLAUDE.md/AGENTS.md and specialist-agent sync + typecheck + test); CI
-  adds exactly `pnpm -r build` and the merge-ref. That delta is DECLARED and checkable
-  (`gate-ci-parity`), not tribal knowledge.
+- **The gate and CI share a content floor; each keeps steps the other does not.** They overlap on
+  EIGHT checks — `check:boundaries`, `check:mirror-conformance`, `check:web-grounding`,
+  `check:web-engine`, typecheck, test, `check:guidance`, `check:agents`. CI additionally runs
+  `pnpm -r build`, the two PR-only guards (ADR-number collision, merged-branch), the pinned web
+  submodule checkout, affected-scope selection, and the merge-ref; the local plan additionally runs
+  `check:verification-decay`. So it is a two-way delta, **not** "gate = CI − build" — that older
+  equality was true once and is not now. The relationship is DECLARED and checkable
+  (`gate-ci-parity`), not tribal knowledge, and the two lists are read from their own sources: CI's
+  from [`ci.yml`](../../.github/workflows/ci.yml), the local plan's from `GATE_PLAN` in
+  [`packages/cli/src/gate-order.ts`](../../packages/cli/src/gate-order.ts) — never from the root
+  `gate` script's text, which is now just the runner invocation and names zero steps, so any
+  substring test against it is vacuous.
 - **Auto-merge is a consequence of green, never a decision.** A non-draft, non-`hold` PR merges the
   instant `verify` passes. Draft / `hold` is the only opt-out, and it is temporary — flip to ready on
   green. Humans approve by making the PR ready, not by clicking merge.
@@ -90,7 +100,7 @@ reaches forward to a sibling story.
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
-| 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves it against the merge of branch+main — manifest, root CLAUDE.md + AGENTS.md plus all four harness-native specialist agent views in sync, typecheck, test, build — and a red anything blocks the merge. | proposed | — |
+| 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves it against the merge of branch+main — organism boundaries, cross-surface mirror conformance, the two web checks, typecheck, test, build, and root CLAUDE.md + AGENTS.md plus all four harness-native specialist agent views in sync — and a red anything blocks the merge. | proposed | — |
 | 2 | [`repo-surface-manifest`](repo-surface-manifest.md) | `pnpm check:manifest` refuses any tracked root entry or loose doc not declared in `repo-manifest.json`, so ad-hoc junk can't merge. | proposed | — |
 | 3 | [`adr-health-gate`](adr-health-gate.md) | Decision-binding hygiene on the dev-repo path: atomic ADR-number allocation + the full adr-health suite (frontmatter, edges, supersede, story-decisions, green-flip, number-uniqueness) reddens a PR, plus a cross-open-PR collision check. | proposed | — |
 | 4 | [`gate-ci-parity`](gate-ci-parity.md) | The local `pnpm gate` and the CI `verify` invariant sets stand in one declared, checkable relationship (gate = CI − build, HEAD vs merge-ref); a stale-behind-main branch is surfaced. | proposed | `green-gate` |
@@ -194,11 +204,23 @@ the branch's coordination claim, and dispatches the keyless Studio deployment.
    between `runGate` and `openLandingPr`; invoking them in gate-before-PR order is the required
    landing procedure.
 2. **The verify workflow keeps its hard merge-candidate floor** _(gate: observe)_
-   `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['pull_request:','branches: [main]','uses: actions/checkout@v6','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','run: pnpm check:manifest','run: pnpm check:boundaries','run: pnpm check:guidance','run: pnpm check:agents','run: pnpm check:web-grounding','run: pnpm check:web-engine','run: pnpm check:web-experience','Affected scope (PRs only)','- name: Typecheck','- name: Test','run: pnpm -r build','needs: verify'])if(!c.includes(s))throw new Error('missing verify seam: '+s)"`.
-   The command reads the landed workflow itself and fails on removal of any named standing seam.
+   `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['pull_request:','branches: [main]','uses: actions/checkout@v6','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','run: pnpm check:boundaries','run: pnpm check:mirror-conformance','run: pnpm check:web-grounding','run: pnpm check:web-engine','Affected scope (PRs only)','- name: Typecheck','- name: Test','run: pnpm -r build','run: pnpm check:guidance','run: pnpm check:agents','needs: verify'])if(!c.includes(s))throw new Error('missing verify seam: '+s)"`.
+   The command reads the landed workflow itself and fails on removal of any named standing seam. The
+   named checks are the nine the job runs TODAY; `check:manifest` and `check:web-experience` were
+   removed from this list when ADR-0311 D2 retired them, because a seam-presence gate that names a
+   retired rung reds on the retirement itself rather than on drift.
 3. **The current local/CI relationship is declared** _(gate: observe)_
-   `node --input-type=module -e "import fs from 'node:fs';const g=JSON.parse(fs.readFileSync('package.json','utf8')).scripts.gate;const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['check:manifest','check:boundaries','check:guidance','check:agents','check:web-grounding','check:web-engine','check:web-experience','typecheck','test'])if(!g.includes(s)||!c.includes(s))throw new Error('shared gate seam drifted: '+s);for(const s of ['check:process-graph','check:agents-sync','check:corpus-sync','check:deploy-health'])if(!g.includes(s))throw new Error('local tail drifted: '+s);for(const s of ['ADR number collision (open PRs)','Affected scope (PRs only)','pnpm -r build'])if(!c.includes(s))throw new Error('CI delta drifted: '+s)"`.
-   This checks the actual declarations and intentionally does not revive the stale equality claim.
+   `node --input-type=module -e "import fs from 'node:fs';const src=fs.readFileSync('packages/cli/src/gate-order.ts','utf8');const i=src.indexOf('export const GATE_PLAN');if(i<0)throw new Error('GATE_PLAN literal not found');const end=src.indexOf('];',i);if(end<0)throw new Error('GATE_PLAN literal unterminated');const plan=src.slice(i,end);const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['check:boundaries','check:mirror-conformance','check:web-grounding','check:web-engine','check:guidance','check:agents'])if(!plan.includes(s)||!c.includes(s))throw new Error('shared gate seam drifted: '+s);for(const s of ['pnpm -r typecheck','pnpm -r test'])if(!plan.includes(s))throw new Error('shared expensive leg missing from GATE_PLAN: '+s);for(const s of ['- name: Typecheck','- name: Test'])if(!c.includes(s))throw new Error('shared expensive leg missing from verify: '+s);for(const s of ['pnpm -r build','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','Affected scope (PRs only)'])if(!c.includes(s)||plan.includes(s))throw new Error('CI-only delta drifted: '+s);if(!plan.includes('check:verification-decay')||c.includes('check:verification-decay'))throw new Error('local-only delta drifted: check:verification-decay')"`.
+   It reads the local gate's real step list from the `GATE_PLAN` literal in
+   `packages/cli/src/gate-order.ts` — **never** from `package.json`'s `gate` script, which since
+   2026-08-04 is just the runner invocation (`… src/gate-run.ts`) and names zero steps, so every
+   substring assertion against its text passes vacuously. Slicing to the literal is what keeps the
+   `plan.includes(…)` negatives honest: the same file also declares `RETIRED_CHECKS`, so a whole-file
+   search would find `check:manifest` and report a retired rung as live. The assertions are the
+   two-way relationship, not the obsolete "gate = CI − build" equality: the eight shared checks are
+   present in both, `pnpm -r build` + the two PR-only guards + affected selection are present in CI
+   and absent from the plan, and `check:verification-decay` is present in the plan and absent from
+   CI — each direction asserted BOTH ways, so a step migrating between them fails here.
 4. **The green-only non-squash automerge rail is present** _(gate: observe)_
    `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['automerge:','needs: verify','github.event.pull_request.draft == false','!contains(github.event.pull_request.labels.*.name','hold','gh pr merge','--merge','--delete-branch'])if(!c.includes(s))throw new Error('automerge seam drifted: '+s)"`.
    The audit is structural and deterministic; it does not claim to create a live PR.
@@ -235,17 +257,49 @@ Surfaced rather than guessed — plain files, cheap to revise.
    pipeline) rather than re-homing them to the targets; the apparent ci-cd↔studio-cloud cycle was an
    artifact of double-counting "stay fresh," which is ci-cd's outcome alone (§1). Verified acyclic
    globally.
-3. **`green-gate`'s invariant set is broader than the original spec named.** The live `verify` job
-   runs `check:manifest` + `check:guidance` (ADRs 0051/0291: the canonical `session-orchestrator`
-   rendered to root CLAUDE.md + AGENTS.md) + **`check:agents`** (ADRs 0052/0178/0234: the same
-   delegatable Library population rendered to specialist `.claude/agents`, `.cursor/agents`,
-   `.codex/agents`, and Gemini CLI's native `.gemini/agents`) + `typecheck` + `test` + `build` — i.e.
-   there are now THREE generated-view/surface gates, not the two (`manifest` + `guidance`) the scope
-   brief named. I grounded `green-gate` and `gate-ci-parity` in what the file actually runs
-   (including `check:agents`). The Gemini view inherits its parent Gemini CLI session's model/tools;
-   this projection makes no Antigravity compatibility claim.
+3. **`green-gate`'s invariant set moves, and this entry has now been wrong in BOTH directions.** It
+   once read "there are now THREE generated-view/surface gates, not the two the scope brief named" —
+   counting `check:manifest` + `check:guidance` + `check:agents`. That is stale: ADR-0311 D2 retired
+   `check:manifest` outright (declared in `RETIRED_CHECKS` in
+   [`packages/cli/src/gate-order.ts`](../../packages/cli/src/gate-order.ts); it is no longer a root
+   script and no longer a `verify` step), leaving **TWO** generated-view gates — `check:guidance`
+   (ADRs 0051/0291: the canonical `session-orchestrator` rendered to root CLAUDE.md + AGENTS.md) and
+   `check:agents` (ADRs 0052/0178/0234: the same delegatable Library population rendered to
+   specialist `.claude/agents`, `.cursor/agents`, `.codex/agents`, and Gemini CLI's native
+   `.gemini/agents`). The live `verify` job's full content set is the NINE listed in `green-gate`.
+   The Gemini view inherits its parent Gemini CLI session's model/tools; this projection makes no
+   Antigravity compatibility claim. **The standing lesson, not the count:** a spec that enumerates
+   gate steps goes false every time the gate is re-decided, so `green-gate` now points at
+   [`ci.yml`](../../.github/workflows/ci.yml) as the live list and contracts the INVARIANT (no step
+   is soft) rather than the membership.
 4. **Status stays `proposed` (greenfield, like notice-board).** This machinery is live and working,
    but it has never been driven through storytree's own prove-it-gate red→green, and per ADR-0031
    authored status is a projection of signed verdicts, not of "it works in prod." Confirm `proposed`
    for the whole story (the honest call) rather than `mapped` — the CI workflows have no offline
    `node:test` suite the way the library tier does, so even `mapped` would over-claim.
+5. **`repo-surface-manifest` describes a capability that no longer exists (escalation).** Verified
+   on the bytes: `check:manifest` is retired by ADR-0311 D2 — it is not a step in `ci.yml`'s
+   `verify` job, it is not a script in the root `package.json`, and it is declared in
+   `RETIRED_CHECKS` in [`packages/cli/src/gate-order.ts`](../../packages/cli/src/gate-order.ts). The
+   capability's whole outcome ("`pnpm check:manifest` refuses any tracked root entry or loose doc not
+   declared in `repo-manifest.json`") is therefore a claim about a gate that does not run. Two
+   partial survivals complicate the obvious answer, which is why this is surfaced rather than
+   guessed: `scripts/check-manifest.mjs` and `repo-manifest.json` are both still on disk, and
+   `repo-manifest.json` has acquired a **second, live** role as the ownership map that
+   `storytree write-authority install --write` derives the ADR-0255/ADR-0284 write-authority deny
+   block from — so the FILE is load-bearing even though the GATE is not. **Call:** retire the
+   capability, re-scope it to the surviving write-authority role (which is arguably a different
+   story's organ), or re-wire the gate under ADR-0311 D5's fresh-evidence bar. Retiring or
+   re-scoping a capability is a structural call I do not make unilaterally; I left the file
+   untouched.
+6. **`gate-ci-parity`'s contract 1 asserts a relationship that is no longer true (escalation).**
+   `declared-content-delta-is-exactly-build` asserts the local gate's content-check set equals the CI
+   `verify` set minus `pnpm -r build` — "the allowed delta is the single declared constant
+   `{pnpm -r build}` — nothing else." Verified false: the delta is two-way. CI additionally runs
+   `pnpm -r build`, the two PR-only guards, the pinned web-submodule checkout and affected-scope
+   selection; the local `GATE_PLAN` additionally runs `check:verification-decay`. The capability's
+   TITLE and outcome carry the same "gate = CI − build" equality. Everything else in that file is
+   sound — including its own Guidance, which already warns that the root `gate` script names zero
+   steps and that `GATE_PLAN` is the thing to read. **Call:** re-state contract 1 as a two-way
+   declared delta (and re-title the capability), or split it — one contract per direction. Rewriting
+   a capability's central contract is the same class of structural call as (5); surfaced, not taken.

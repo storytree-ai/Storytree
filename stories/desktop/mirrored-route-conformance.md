@@ -181,11 +181,14 @@ fork, and settled against four candidates rather than two).
      logic about two other surfaces, reached by no verb.
    - **`ci-cd` — checked, because the routing brief did not list it, and it is the obvious home for a
      gate step.** It is not the home. Nothing there already covers this:
-     [`green-gate`](../ci-cd/green-gate.md) enumerates six `verify` steps and contract
-     `all-six-steps-required` pins the list to exactly those six, which does not include this one (or
-     `check:boundaries`). More decisively, ci-cd's capabilities own the PIPELINE (the workflow jobs,
+     [`green-gate`](../ci-cd/green-gate.md) contracts that every step `verify` runs is BLOCKING
+     (`every-step-is-required`) and that the job proves the merge ref — properties of the JOB, held
+     over whatever steps it runs. `verify` does in fact run this check and `check:boundaries`, but
+     being run by the job is not being OWNED by it: `green-gate` deliberately contracts no
+     membership and asserts nothing about what any individual check judges. More decisively, ci-cd's
+     capabilities own the PIPELINE (the workflow jobs,
      the automerge rail, the deploy dispatch) plus the repo-hygiene gates that have no other owner
-     (`check:manifest` → `repo-surface-manifest`, `adr*` → `adr-health-gate`). "It is a gate step" is
+     (`adr*` → `adr-health-gate`). "It is a gate step" is
      true of every gate step, so it discriminates nothing — homing this there makes ci-cd a bucket,
      which is precisely what a capability-is-an-organ rule refuses. ci-cd is also deliberately
      zero-inbound and owns no `apps/` building.
