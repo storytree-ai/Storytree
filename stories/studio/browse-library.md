@@ -21,8 +21,10 @@ depends_on: [dev-server-persistence-backbone, seed-library-corpus, read-corpus]
 > described above is **retired** — `seed.assets.mjs` gave way to the `build-corpus.mjs` generator at
 > ADR-0018, artifact state became live Cloud SQL-canonical at ADR-0023, and the last committed
 > `assets.json` + the `build-corpus.mjs` generator were retired at ADR-0210. The studio's Library tier
-> is now DB-backed, the offline backend deriving its view from `knowledge.json` (+ `@storytree/library`
-> `libraryTemplates()`) at runtime. This stays a retrospective spec of the original JSON-store era —
+> is now DB-backed (the offline backend derives its view at runtime from the library's committed
+> FIXTURE corpus, `@storytree/library/fixture`, plus `@storytree/library` `libraryTemplates()` —
+> ADR-0302 D1 deleted the `knowledge.json` that seed used to read, and the fixture is a small sandbox
+> seed, not a copy of the Library). This stays a retrospective spec of the original JSON-store era —
 > kept as history, not current code.
 
 ## Guidance

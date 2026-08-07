@@ -21,9 +21,11 @@ depends_on: []
 > this spec is entirely about is **retired**. `seed.assets.mjs` was superseded by the `build-corpus.mjs`
 > generator at ADR-0018, artifact state became live Cloud SQL-canonical at ADR-0023, and the last
 > committed `assets.json` + the `build-corpus.mjs` generator were retired at ADR-0210 — the 13 `template`
-> artifacts now come from `@storytree/library` `libraryTemplates()` and knowledge bodies re-render from
-> `knowledge.json`. This stays a retrospective spec of the original JSON-store era — kept as history,
-> not current code.
+> artifacts now come from `@storytree/library` `libraryTemplates()` and the offline backend re-renders
+> its knowledge bodies at runtime from the library's committed FIXTURE corpus,
+> `@storytree/library/fixture` (ADR-0302 D1 deleted the `knowledge.json` that seed used to read, and the
+> fixture is a small sandbox seed, not a copy of the Library). This stays a retrospective spec of the
+> original JSON-store era — kept as history, not current code.
 
 ## Guidance
 
