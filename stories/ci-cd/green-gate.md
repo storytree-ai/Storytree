@@ -67,11 +67,12 @@ step it does run is blocking, and that `automerge` cannot outrun it — never a 
    - **asserts —** `check:guidance` fails when either root main-session view — CLAUDE.md or Codex
      AGENTS.md — drifts from the canonical
      `session-orchestrator` artifact (ADRs 0051/0291; `check:claude` remains a compatibility alias);
-     `check:agents` separately fails when any specialist Claude, Cursor, Codex, or Gemini CLI native
+     `check:agents` separately fails when any specialist Claude, Cursor, Codex, Gemini CLI, or
+     OpenCode native
      view is stale, missing, orphaned, dangling, or differs from the same delegatable Library agent
      population
-     (`.claude/agents/*.md`, `.cursor/agents/*.md`, `.codex/agents/*.toml`, `.gemini/agents/*.md`;
-     ADRs 0052/0178/0234). Gemini files emit no model or tool grant, so the
+     (`.claude/agents/*.md`, `.cursor/agents/*.md`, `.codex/agents/*.toml`, `.gemini/agents/*.md`,
+     `.opencode/agent/*.md`; ADRs 0052/0178/0234). Gemini files emit no model or tool grant, so the
      native Gemini CLI subagent inherits its parent session's model/tools; this contract makes no
      claim that Antigravity consumes the Gemini CLI surface. Each sync check is a real `verify`
      step, not advisory.

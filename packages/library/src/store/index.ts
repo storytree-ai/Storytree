@@ -47,6 +47,7 @@ export {
   renderAgentFile,
   renderCursorAgentFile,
   renderGeminiAgentFile,
+  renderOpencodeAgentFile,
   renderCodexAgentFile,
   renderAgentStep,
   delegatableAgentIds,

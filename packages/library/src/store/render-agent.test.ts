@@ -11,6 +11,7 @@ import {
   renderCursorAgentFile,
   renderCodexAgentFile,
   renderGeminiAgentFile,
+  renderOpencodeAgentFile,
   renderAgentStep,
   delegatableAgentIds,
   essentialsGateViolations,
@@ -330,6 +331,50 @@ test("a pinned Claude model tier is not translated into a foreign Gemini model i
   assert.match(claude.content, /\nmodel: sonnet\n---\n/);
   assert.match(cursor.content, /\nmodel: sonnet\n---\n/);
   assert.ok(!gemini.content.includes("\nmodel:"));
+});
+
+test("renderOpencodeAgentFile emits OpenCode subagent frontmatter (mode: subagent), inheriting the session model", async () => {
+  const store = await seeded();
+  const res = await renderOpencodeAgentFile(store, "clean-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+
+  assert.match(
+    res.content,
+    /^---\nname: clean-agent\ndescription: "a role whose refs all resolve"\nmode: subagent\n---\n\n/,
+  );
+  assert.ok(res.content.includes(GENERATED_AGENT_MARKER));
+  assert.match(res.content, /The clean agent does one thing\./);
+  assert.ok(!res.content.includes("\nmodel:"), "OpenCode subagents inherit the spawning session model");
+  assert.ok(res.content.endsWith("\n"));
+  assert.ok(!res.content.endsWith("\n\n"));
+  assert.deepEqual(res.missingRefs, []);
+});
+
+test("a pinned Claude model tier is not translated into an OpenCode model id", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "sonnet-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "Sonnet Agent",
+      description: "a workhorse pinned to sonnet",
+      oneLine: "The sonnet agent is a mechanical workhorse.",
+      role: "It exists to test the model tier pin.",
+      outcome: "Its harness files carry model: sonnet.",
+      context: ["asset:test-principle"],
+      tools: "none",
+      workflow: "orient, then stop.",
+      model: "sonnet",
+      references: [],
+    },
+  });
+  const res = await renderOpencodeAgentFile(store, "sonnet-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.match(res.content, /\nmode: subagent\n---\n/);
+  assert.ok(!res.content.includes("\nmodel:"), "no foreign model tier leaks into the OpenCode file");
 });
 
 test("renderAgentFile surfaces a dangling ref via missingRefs (the build:agents fail-closed guard)", async () => {

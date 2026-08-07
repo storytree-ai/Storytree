@@ -663,6 +663,22 @@ export async function renderGeminiAgentFile(
 }
 
 /**
+ * Render the committed `.opencode/agent/<id>.md` view consumed by OpenCode subagents (the
+ * onboard-non-claude-models arc: Kimi K3 drives the outer loop through OpenCode). OpenCode agent
+ * files are Markdown with YAML frontmatter; `mode: subagent` makes the agent delegatable through
+ * the harness's task tool without letting it take over the primary session. No `model` key: the
+ * Library's `sonnet`/`opus` tiers are Claude-specific labels, not OpenCode model identifiers, so
+ * the subagent inherits the spawning session's model — the session pins its model in
+ * `opencode.json` and the fan-out follows it (the Gemini-target rationale).
+ */
+export async function renderOpencodeAgentFile(
+  store: Store,
+  name: string,
+): Promise<RenderAgentFileResult> {
+  return renderHarnessAgentFile(store, name, () => ["mode: subagent"]);
+}
+
+/**
  * Render the committed `.codex/agents/<id>.toml` view of a Library agent. Codex custom agents
  * require a name, description, and developer instructions; model selection deliberately inherits
  * from the spawning session because the Library's Claude-oriented sonnet/opus tiers are not Codex

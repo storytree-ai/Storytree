@@ -22,6 +22,11 @@ project-file contract.
 one-population/many-native-surfaces rule now also generates Gemini CLI's `.gemini/agents/*.md`
 directory alongside Claude, Cursor, and Codex. Cursor's native policy below is unchanged.
 
+**Correction (OpenCode target, 2026-08-08, per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the same rule
+now also generates OpenCode's `.opencode/agent/*.md` alongside Claude, Cursor, Codex, and Gemini.
+Cursor's native policy below is unchanged.
+
 ## Context
 
 Storytree already solved subagent authorship for Claude. Library `agent` artifacts are canonical;
@@ -57,9 +62,10 @@ generated-view gate.
    - `renderAgentFile` remains the backwards-compatible Claude renderer.
    - `renderCursorAgentFile` emits Cursor-native frontmatter and the same generated marker +
      essentials prompt.
-   - Codex and Gemini render the same essentials through their native TOML/Markdown wrappers.
+   - Codex and Gemini render the same essentials through their native TOML/Markdown wrappers;
+     OpenCode renders them through its native Markdown wrapper.
    - `pnpm build:agents` writes and orphan-prunes `.claude/agents/*.md`, `.cursor/agents/*.md`,
-     `.codex/agents/*.toml`, and `.gemini/agents/*.md`.
+     `.codex/agents/*.toml`, `.gemini/agents/*.md`, and `.opencode/agent/*.md`.
 
 3. **Cursor files start with the minimum explicit native policy:** `name`, `description`, and
    `model: inherit`. Do not infer `readonly` or `is_background` from prose. Those fields grant
@@ -84,7 +90,7 @@ generated-view gate.
 
 **Good.**
 
-- Claude, Cursor, Codex, and Gemini CLI spawn the same authored specialists with no prompt duplication.
+- Claude, Cursor, Codex, Gemini CLI, and OpenCode spawn the same authored specialists with no prompt duplication.
 - Cursor IDE compatibility works immediately, while the native `.cursor` view gives the SDK a
   documented, highest-precedence project contract.
 - Existing essentials, dangling-reference, orphan, and drift checks extend to the new harness rather
@@ -93,7 +99,7 @@ generated-view gate.
 
 **Bad / watch.**
 
-- Every agent-artifact edit now changes four generated directories, increasing review noise.
+- Every agent-artifact edit now changes five generated directories, increasing review noise.
 - Cursor-specific execution policy is intentionally conservative until the Library schema can express
   it structurally; prose `Tools` text is not a safe source for `readonly`.
 - A local SDK caller that forgets `settingSources: ["project"]` gets no generated subagents. Runtime

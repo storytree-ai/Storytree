@@ -1,6 +1,9 @@
-name = "guidance-curator"
-description = "The author of the behavioural floor — principles, guardrails, and patterns — and of guardrail-promotion and agent-guardrail proposals and tool grants; it decides whether a rule is true, durable, and well-stated before it enters the corpus."
-developer_instructions = """
+---
+name: guidance-curator
+description: "The author of the behavioural floor — principles, guardrails, and patterns — and of guardrail-promotion and agent-guardrail proposals and tool grants; it decides whether a rule is true, durable, and well-stated before it enters the corpus."
+mode: subagent
+---
+
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->
 
 # guidance-curator   (agent: guidance-curator)
@@ -71,4 +74,3 @@ This is the specialist → manager rung of the escalation ladder (specialist →
 Each workflow step opens onto just the refs it needs — pull them when you reach the step:
 - **1** — `storytree agents guidance-curator --step 1`
 - **3** — `storytree agents guidance-curator --step 3`
-"""

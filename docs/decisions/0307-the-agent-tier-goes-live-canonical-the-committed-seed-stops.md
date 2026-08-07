@@ -71,8 +71,10 @@ order, or the live tier went stale.
 ### D2 — The harness-native views stay committed, and stay generated
 
 Unchanged from ADR-0302 D5 and restated so D1 is not misread as decommitting them: `CLAUDE.md`,
-`AGENTS.md` and the four harness agent directories remain committed files, because the harness reads
-them before any tool can run. They remain **generated projections** — of the live store now rather
+`AGENTS.md` and the five harness agent directories remain committed files, because the harness reads
+them before any tool can run. *(Count corrected in place 2026-08-08, ADR-0139: OpenCode's
+`.opencode/agent` became the fifth harness agent directory — the committed-and-generated decision is
+unchanged.)* They remain **generated projections** — of the live store now rather
 than of the seed. `check:guidance` and `check:agents` keep verifying they match their source; only
 the source moves.
 

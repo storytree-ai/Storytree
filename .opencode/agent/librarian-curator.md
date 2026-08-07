@@ -1,6 +1,9 @@
-name = "librarian-curator"
-description = "The keeper of the Library as a library: it dedupes new material against the existing corpus, maintains cross-references and the reference tier (definitions / techstack), prunes reconstructible guidance, keeps the ADR decision log's statuses / edges / load_bearing set honest, and keeps the `process` tier a current projection of the decision log — structure and history, not rule content."
-developer_instructions = """
+---
+name: librarian-curator
+description: "The keeper of the Library as a library: it dedupes new material against the existing corpus, maintains cross-references and the reference tier (definitions / techstack), prunes reconstructible guidance, keeps the ADR decision log's statuses / edges / load_bearing set honest, and keeps the `process` tier a current projection of the decision log — structure and history, not rule content."
+mode: subagent
+---
+
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->
 
 # librarian-curator   (agent: librarian-curator)
@@ -76,4 +79,3 @@ Each workflow step opens onto just the refs it needs — pull them when you reac
 - **3** — `storytree agents librarian-curator --step 3`
 - **4** — `storytree agents librarian-curator --step 4`
 - **7** — `storytree agents librarian-curator --step 7`
-"""

@@ -265,8 +265,8 @@ Surfaced rather than guessed — plain files, cheap to revise.
    script and no longer a `verify` step), leaving **TWO** generated-view gates — `check:guidance`
    (ADRs 0051/0291: the canonical `session-orchestrator` rendered to root CLAUDE.md + AGENTS.md) and
    `check:agents` (ADRs 0052/0178/0234: the same delegatable Library population rendered to
-   specialist `.claude/agents`, `.cursor/agents`, `.codex/agents`, and Gemini CLI's native
-   `.gemini/agents`). The live `verify` job's full content set is the NINE listed in `green-gate`.
+   specialist `.claude/agents`, `.cursor/agents`, `.codex/agents`, Gemini CLI's native
+   `.gemini/agents`, and OpenCode's `.opencode/agent`). The live `verify` job's full content set is the NINE listed in `green-gate`.
    The Gemini view inherits its parent Gemini CLI session's model/tools; this projection makes no
    Antigravity compatibility claim. **The standing lesson, not the count:** a spec that enumerates
    gate steps goes false every time the gate is re-decided, so `green-gate` now points at
