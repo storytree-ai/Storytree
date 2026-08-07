@@ -138,6 +138,25 @@ and stubbed operation runners:
   `@storytree/agent` / `@storytree/drive` / desktop main-process code. Tests inject a fake implementing
   `store`, `status`, and `signOut` — the `BuildSection` / `chat-panel` discipline (`vi.mock` or
   `vi.hoisted` on the seam, `@testing-library/react`, jsdom).
+- **The renderer-side bridge MODULE — `apps/studio/src/lib/desktopAuth.ts` — is owned by THIS
+  capability** (made explicit 2026-08-07, capability-layer-coverage-arc increment 2; ADR-0179). It is
+  not incidental studio plumbing: it is the seam the contracts above are *defined over*. `CredentialKind`
+  and `CREDENTIAL_KINDS` are the two-kind vocabulary of contract 1 (`oauth` | `api-key`, ADR-0198);
+  `DesktopAuthBridge` is where the renderer half of contract 2 is TYPED — `store` is the only member
+  taking a raw value, and `status` / `signOut` return `Promise<boolean>`, so no response shape can carry
+  a stored credential back; and `getDesktopAuth()` returning `undefined` in a plain browser is exactly
+  the feature gate contract 5 asserts, which is what keeps non-functional keychain controls out of the
+  hosted studio. Both credential consumers are already this capability's —
+  `CredentialsPanel.tsx` and `DesktopCredentialsDock.tsx`. The module carries no colocated test of its
+  own and needs none: it is 3 lines of behaviour proven through those component suites (contracts 5–9),
+  and its type surface is proven by the studio typecheck (contract 2).
+- **Honest caveat — two consumers use this bridge for something OTHER than credentials.** `App.tsx:206`
+  and `Hud.tsx:64` call `getDesktopAuth()` purely as a *"am I running inside the desktop app?"* probe,
+  to pick a `HudPosture` — no credential is stored, read, or removed on those paths. That is a use this
+  capability's outcome does not cover, and it means the credential bridge's mere PRESENCE has become a
+  de-facto desktop-host detector. It is recorded, not adopted: those two call sites are not claimed by
+  any contract here, and if a dedicated host-detect seam is ever wanted, that is a `studio`-side
+  refactor (`one-way-to-do-things`), not an expansion of the credential broker's journey.
 - **Typecheck is part of the boundary proof.** Contract `typed-ipc-never-discloses` already pins the
   main/preload signatures; the studio typecheck must declare a matching renderer-side
   `DesktopAuth` / `window.desktopAuth` type with the same kind union and boolean-only read surfaces.
