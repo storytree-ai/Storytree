@@ -103,7 +103,7 @@ reaches forward to a sibling story.
 | 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves it against the merge of branch+main — organism boundaries, cross-surface mirror conformance, the two web checks, typecheck, test, build, and root CLAUDE.md + AGENTS.md plus all four harness-native specialist agent views in sync — and a red anything blocks the merge. | proposed | — |
 | 2 | [`repo-surface-manifest`](repo-surface-manifest.md) | `pnpm check:manifest` refuses any tracked root entry or loose doc not declared in `repo-manifest.json`, so ad-hoc junk can't merge. | proposed | — |
 | 3 | [`adr-health-gate`](adr-health-gate.md) | Decision-binding hygiene on the dev-repo path: atomic ADR-number allocation + the full adr-health suite (frontmatter, edges, supersede, story-decisions, green-flip, number-uniqueness) reddens a PR, plus a cross-open-PR collision check. | proposed | — |
-| 4 | [`gate-ci-parity`](gate-ci-parity.md) | The local `pnpm gate` and the CI `verify` invariant sets stand in one declared, checkable relationship (gate = CI − build, HEAD vs merge-ref); a stale-behind-main branch is surfaced. | proposed | `green-gate` |
+| 4 | [`gate-ci-parity`](gate-ci-parity.md) | The local `pnpm gate` and the CI `verify` invariant sets stand in one declared, checkable relationship — a shared content floor of eight checks, a two-way content delta (CI keeps steps the local plan does not, and the local plan keeps one CI does not), and HEAD vs merge-ref; a stale-behind-main branch is surfaced. | proposed | `green-gate` |
 | 5 | [`auto-merge-on-green`](auto-merge-on-green.md) | A non-draft, non-`hold` PR auto-merges the instant `verify` is green — never a manual merge. | proposed | `green-gate` |
 | 6 | [`merge-presence-retire`](merge-presence-retire.md) | On merge, the merged session's presence row is authoritatively retired (the SessionEnd-miss backstop), keyless and fail-soft. | proposed | `auto-merge-on-green` |
 | 7 | [`deploy-on-merge`](deploy-on-merge.md) | A studio-touching merge to `main` redeploys the live studio to Cloud Run — keyless WIF → Cloud Build image → `gcloud run deploy` with the full IAP posture. | proposed | `auto-merge-on-green` |
@@ -292,14 +292,19 @@ Surfaced rather than guessed — plain files, cheap to revise.
    story's organ), or re-wire the gate under ADR-0311 D5's fresh-evidence bar. Retiring or
    re-scoping a capability is a structural call I do not make unilaterally; I left the file
    untouched.
-6. **`gate-ci-parity`'s contract 1 asserts a relationship that is no longer true (escalation).**
-   `declared-content-delta-is-exactly-build` asserts the local gate's content-check set equals the CI
-   `verify` set minus `pnpm -r build` — "the allowed delta is the single declared constant
-   `{pnpm -r build}` — nothing else." Verified false: the delta is two-way. CI additionally runs
-   `pnpm -r build`, the two PR-only guards, the pinned web-submodule checkout and affected-scope
-   selection; the local `GATE_PLAN` additionally runs `check:verification-decay`. The capability's
-   TITLE and outcome carry the same "gate = CI − build" equality. Everything else in that file is
-   sound — including its own Guidance, which already warns that the root `gate` script names zero
-   steps and that `GATE_PLAN` is the thing to read. **Call:** re-state contract 1 as a two-way
-   declared delta (and re-title the capability), or split it — one contract per direction. Rewriting
-   a capability's central contract is the same class of structural call as (5); surfaced, not taken.
+6. **RESOLVED (owner-directed, 2026-08-07).** `gate-ci-parity`'s contract 1 —
+   `declared-content-delta-is-exactly-build` — asserted that the local gate's content-check set
+   equals the CI `verify` set minus `pnpm -r build`, "the single declared constant `{pnpm -r build}`
+   — nothing else." Verified false: the delta is **two-way**. CI-only are `pnpm -r build`, the two
+   PR-only guards (ADR-number collision, merged-branch), the pinned web-submodule checkout and
+   affected-scope selection; local-only is `check:verification-decay`. Established in PR #1204 (main
+   `fc4c0246`) and re-verified against the `GATE_PLAN` literal in
+   [`packages/cli/src/gate-order.ts`](../../packages/cli/src/gate-order.ts) and the `verify` job in
+   [`ci.yml`](../../.github/workflows/ci.yml). **Decided:** re-state it as ONE two-way contract,
+   renamed `declared-content-delta-is-two-way` — **not** split one contract per direction. The
+   reason worth recording: both directions are read from the SAME two sources in a single pass, so
+   one isolated test proves the whole relationship, and Reliability Gate leg 3 above already asserts
+   both directions in one command — one contract mirrors the proof shape that exists. The
+   capability's title, frontmatter `outcome`, body Outcome paragraph and contract 2's caveat clause
+   were brought into line, as was row 4 of the capabilities table above; the capability stays at
+   three contracts.
