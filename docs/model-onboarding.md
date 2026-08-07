@@ -190,6 +190,39 @@ opencode run "Read package.json and tell me the pinned pnpm version. Do not modi
 
 A pass looks like a `Read` tool call followed by the correct answer — tool use, not a guess.
 
+### Windows ARM64: the TUI needs the x64 binary
+
+On an ARM64 Windows box the npm install resolves to `opencode-windows-arm64`, whose bundled runtime
+has **no FFI** — so the terminal UI dies at startup:
+
+```
+Failed to initialize OpenTUI render library: bun:ffi dlopen() is not available in this build (TinyCC is disabled)
+```
+
+Only the TUI is affected. `opencode run`, `opencode serve` and the model itself are fine, which is
+why this is easy to misdiagnose as a bad credential or a bad model id.
+
+The `opencode-windows-x64` build *does* have FFI and runs correctly under Windows' x64 emulation.
+`npm install -g opencode-ai --cpu=x64` does **not** work — a postinstall arch check refuses it — so
+swap the binary the launcher shim calls:
+
+```bash
+G="$(npm root -g)/opencode-ai/bin"
+cd "$(mktemp -d)" && npm pack opencode-windows-x64 && tar -xzf opencode-windows-x64-*.tgz
+cp "$G/opencode.exe" "$G/opencode-arm64.exe.bak"   # reversible
+cp package/bin/opencode.exe "$G/opencode.exe"
+```
+
+Stop any running `opencode` process first or the copy fails with *device or resource busy*. Re-do
+this after any `opencode upgrade` — an upgrade restores the arm64 binary and the TUI breaks again.
+
+Two workarounds if you would rather not swap the binary:
+
+```bash
+opencode web     # full UI in the browser — same server, no TUI
+opencode run "…" # one-shot headless
+```
+
 ### Then just drive it
 
 ```bash
@@ -224,6 +257,13 @@ own ADR. Kimi K3 drives the outer loop: it runs the gate, it does not sign verdi
 - **Model ids with slashes.** Fireworks ids are paths (`accounts/fireworks/models/kimi-k3`). Harnesses
   that join provider and model with `/` produce a double-barrelled reference. That is correct, not a
   typo.
+- **Windows ARM64: the harness's TUI may be the only broken part.** On this dev machine `opencode`
+  dies at startup with *"Failed to initialize OpenTUI render library: bun:ffi dlopen() is not
+  available in this build (TinyCC is disabled)"*. The `opencode-windows-arm64` binary ships without
+  FFI, so the terminal UI cannot load its native renderer — while the server, the model and the
+  headless path all work fine. **Don't read a dead TUI as a dead install**; check `opencode run …`
+  and `opencode serve` before concluding anything about the model or the credential. The fix and the
+  two workarounds are in [§5](#windows-arm64-the-tui-needs-the-x64-binary).
 - **A fresh worktree has no `node_modules`.** `pnpm install` in it before any `pnpm storytree …` or
   `pnpm db:*` command, or they fail with errors naming the wrong cause.
 - **Context size is not context quality.** A 1M window does not make a model good at this repo. Judge
