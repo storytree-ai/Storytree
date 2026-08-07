@@ -7,7 +7,7 @@ outcome: "Every `/api/*` payload the desktop re-composes is proven equal to the 
 status: mapped
 proof_mode: integration-test
 depends_on: [local-backend-boot, boot-read-routes]
-decisions: [251, 176, 100, 252, 249]
+decisions: [251, 176, 100, 252, 249, 57]
 # A brownfield capability over already-implemented, already-tested code (the arc that authored it:
 # capability-layer-coverage-arc increment 3, 2026-08-07). The `proof:` block is spec-borne (ADR-0057);
 # there is deliberately NO `real:` arm, and here that omission is load-bearing TWICE over:
@@ -63,8 +63,11 @@ is the dependency test in both directions: neither of them needs anything from t
 > units.
 >
 > **The outcome half — `pnpm check:mirror-conformance`.** One of the NINE retained gate steps
-> (`packages/cli/src/gate-order.ts:148-154`), and one of only two classified **PROOF INTEGRITY**
-> rather than factory bookkeeping (`:115-116`). It spawns all six probes in their own processes over
+> (`packages/cli/src/gate-order.ts:148-154`), classified **PROOF INTEGRITY** rather than factory
+> bookkeeping (`:115-116`). FOUR of the nine carry that classification — this rung, both `-r` legs and
+> `check:verification-decay` — so the discriminating count is the narrower one: of the seven STANDALONE
+> `check:*` rungs it is one of only TWO proof-integrity rungs, the other five being factory bookkeeping
+> (the full classification is `:110-133`). It spawns all six probes in their own processes over
 > one shared fixture set and compares the real decoded payloads. That is a genuine integration proof
 > against real in-story collaborators — the desktop's own `/api/*` dispatcher and route handlers, run
 > for real — not a unit test over doubles. It has a recorded catch: `gate-order.ts:115-116` cites
@@ -195,12 +198,23 @@ fork, and settled against four candidates rather than two).
      different journey (whether a machine UAT leg exposes its observe-gate chain). Confirmed by
      reading it, not assumed.
 
-**THE PROOF COMMAND — why a bare check script rather than a package-test filter.** Both sibling
-brownfield units in this story and its two arc predecessors use `pnpm --filter <pkg> … test`, so a
-check-script command is novel here and was verified before being committed to rather than assumed:
-`proof.command` is a `ShellCommandSchema` — `{file, args, cwd?}`, `.strict()`
-(`packages/orchestrator/src/proof-config.ts:205-211`) — with no constraint that it name a test
-runner. The scope globs were checked against the ADR-0087 structural bound (`scopeGlobBoundIssue`,
+**THE PROOF COMMAND — why a bare check script rather than a package-test filter, and why that is a
+GRANTED form rather than an unforbidden one.** ADR-0057 Decision 3 stage B names the sanctioned
+proof-command vocabulary outright: a node declares its proof command — *"`pnpm --filter x test`,
+vitest, **a `check:*` gate**, a shell test"* — plus scope. A `check:*` gate is therefore an
+EXPLICITLY GRANTED form, and this command rests on that grant rather than on an argument from
+silence. The schema then agrees rather than deciding: `proof.command` is a `ShellCommandSchema` —
+`{file, args, cwd?}`, `.strict()` (`packages/orchestrator/src/proof-config.ts:205-211`) — carrying no
+constraint that narrows the granted vocabulary back down to a test runner.
+
+It is nonetheless novel IN PRACTICE, which is a claim about this corpus and not about the decision: of
+the 190 spec-borne `proof.command` blocks, 189 are `pnpm --filter <pkg> test` and this is the only
+`check:*` — the two sibling brownfield units in this story and its two arc predecessors among them.
+Novel in practice is not novel in decision. The form was sanctioned when ADR-0057 staged the
+proof-mode vocabulary beyond `node:test`; it had simply not yet been reached for, because until this
+unit no outcome needed a standing gate to prove it.
+
+The scope globs were checked against the ADR-0087 structural bound (`scopeGlobBoundIssue`,
 `:243-264`): each is repo-relative, rooted at `packages/` or `apps/`, and names ONE concrete unit in
 its second segment, so a three-unit scope is in bounds because the bound is per-glob, not per-spec.
 The command is the honest one because it is the only one that runs the outcome; the cost of choosing
