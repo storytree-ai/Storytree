@@ -204,7 +204,8 @@ is recorded rather than hidden — `apps/studio/src/components/TreeView.tsx`, na
 declared at STORY grain because no single capability is responsible for it. The grain mix is COUNTED
 — and it MOVES, so read it from `storytree ownership`'s own grain line rather than quoting a figure
 from here: 363 files (68.9%) capability-grain / 164 (31.1%) story-grain on 2026-08-06, and 372 of
-537 (69.3%) / 165 (30.7%) on 2026-08-07. **The residual is no longer unscheduled.**
+537 (69.3%) / 165 (30.7%) on 2026-08-07 **before this arc's increments began landing against it**.
+**The residual is no longer unscheduled.**
 `capability-layer-coverage-arc` was chartered 2026-08-07 to resolve every story-grain declaration one
 of two ways — re-point it at a capability that STATES ITS PROOF, or record the story as one
 competence with the reason written down (the `proof-protocol` / `storage-protocol` shape) — so this
@@ -212,11 +213,20 @@ is a chartered worklist, not an open hole and not a closed one. Read its movemen
 arc's increment 1 re-pointed FIVE declarations under `packages/drive/src` from story to capability
 grain, taking `drive-machinery` from 13 owned files to 8, and that is all it did to this number; the
 rest of the day's movement was not its work — `studio` went 34 → 39 and `desktop` 11 → 12 as new
-code landed story-grain on `main`. The residual therefore accrues as well as drains, which is why a
-falling count is not the measure of that arc: its own end state calls a count driven to zero by
-authoring unprovable capabilities a FAILURE. Concentration on 2026-08-07: `cli` 51, `studio` 39,
-`desktop` 12, `app-surface` 8, `drive-machinery` 8 — with `proof-protocol` 8 and `storage-protocol`
-6 already decided as one-competence stories and so not residue at all. The totality check
+code landed story-grain on `main`. Its increment 2 then resolved all SIX story-grain declarations of
+the `desktop` story, taking that owner from 12 files to 5: three re-pointed at capability grain (two
+of them brownfield capabilities authored over already-tested code, one an existing capability), two
+recorded as one competence with the reason written down, one deferred as a three-way lodger. The
+residual therefore accrues as well as drains, which is why a falling count is not the measure of that
+arc: its own end state calls a count driven to zero by authoring unprovable capabilities a FAILURE.
+**No per-package concentration snapshot is quoted here, deliberately** — this arc moves those figures
+by design, twice within 2026-08-07 alone, so any number written into an accepted ADR is false within
+hours and re-correcting it every increment is churn the "read it live" instruction above already
+exists to prevent; `storytree ownership`'s own BY PACKAGE and DECLARED OWNERS blocks are the answer.
+What is durable is the SHAPE rather than the count: the residue concentrates in the flat,
+heterogeneous `src/` directories this ADR's D2 correction already names (`cli` and `studio` carry
+most of it), while `proof-protocol` and `storage-protocol` are decided one-competence stories and so
+are not residue at all. The totality check
 demonstrated itself during that authoring: a merge of `main` brought two new `packages/drive/src`
 files and the report named them unowned immediately, which is why the map carries no per-package
 catch-all that would have absorbed them silently.)*
