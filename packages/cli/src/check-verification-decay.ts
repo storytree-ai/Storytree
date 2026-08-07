@@ -139,9 +139,23 @@ const CEILINGS = {
   /**
    * Baselined 2026-07-27 at the 5 signals that sweep located — every one of them a unit bound to
    * `@storytree/core` (dissolved by ADR-0068) or `@storytree/store` (dissolved by ADR-0077).
-   * Unchanged since: no binding has been repaired.
+   *
+   * TIGHTENED 5 → 3 (2026-08-07) — the ordinary drain move this ceiling exists to invite: repair a
+   * signal, lower the number. Both `@storytree/store` bindings were re-pointed at the code's real
+   * homes after ADR-0077 dissolved that package — `cloud-sql-admin-rest` to
+   * `packages/library/src/store/cloud-sql-admin.{ts,test.ts}`, and `change-store-pg` to
+   * `packages/orchestrator/src/store/pg-change-store.{ts,live.test.ts}` (NOT the library
+   * mirror-image path — that adapter landed in the orchestrator).
+   *
+   * The APERTURE IS UNCHANGED: same loader, same `stories/**` walk, same two target kinds. So this is
+   * a repair lowering the number, not a narrowing that would owe a matching drop (ADR-0269 5), and
+   * not a raise that would owe a decomposition here (ADR-0269 4(f)).
+   *
+   * The remaining 3 are undrained, not excused — `boundhash-on-verdict`, `change-event-store` and
+   * `source-drift`, every one bound to `@storytree/core` and all three sitting in
+   * `stories/binding-staleness`, the story named for this exact class of rot.
    */
-  [CONTRACT_BINDING_DRIFT]: 5,
+  [CONTRACT_BINDING_DRIFT]: 3,
   /**
    * Baselined 2026-07-27 at the 10 route pairs that sweep located — every `/api/*` path served by
    * BOTH the studio server and the desktop backend except `/api/docs`, the one pair `MIRRORS`

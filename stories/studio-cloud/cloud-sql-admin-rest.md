@@ -18,20 +18,20 @@ depends_on: []
 proof:
   command:
     file: pnpm
-    args: ["--filter", "@storytree/store", "test"]
+    args: ["--filter", "@storytree/library", "test"]
   scope:
-    testGlobs: ["packages/store/src/**/*.test.ts"]
-    sourceGlobs: ["packages/store/src/**/*.ts"]
+    testGlobs: ["packages/library/src/store/**/*.test.ts"]
+    sourceGlobs: ["packages/library/src/store/**/*.ts"]
   real:
-    testFile: "packages/store/src/cloud-sql-admin.test.ts"
-    sourceFile: "packages/store/src/cloud-sql-admin.ts"
+    testFile: "packages/library/src/store/cloud-sql-admin.test.ts"
+    sourceFile: "packages/library/src/store/cloud-sql-admin.ts"
     scope:
-      testGlobs: ["packages/store/src/cloud-sql-admin.test.ts"]
-      sourceGlobs: ["packages/store/src/cloud-sql-admin.ts"]
+      testGlobs: ["packages/library/src/store/cloud-sql-admin.test.ts"]
+      sourceGlobs: ["packages/library/src/store/cloud-sql-admin.ts"]
     install: true
     typecheck:
       file: pnpm
-      args: ["--filter", "@storytree/store", "typecheck"]
+      args: ["--filter", "@storytree/library", "typecheck"]
 ---
 
 # Typed Cloud SQL Admin REST client (describe + set activation policy)
@@ -56,7 +56,7 @@ with an ambient ADC token and **never shell out to gcloud**.
 
 ## Guidance
 
-ONE self-contained module `packages/store/src/cloud-sql-admin.ts` — **no runtime imports** (no `fetch`
+ONE self-contained module `packages/library/src/store/cloud-sql-admin.ts` — **no runtime imports** (no `fetch`
 call, no `process`, no `fs`, no workspace import); all I/O is injected, exactly like the pure core of
 `apps/studio/server/dbWake.ts` (`createDbWaker(deps)`). Mirror that file's shape and naming.
 
@@ -162,6 +162,6 @@ mints an ADC token) is a LATER unit, deliberately out of this node's write scope
      - `instanceUrl` builds the documented path off the default base and off an explicit `baseUrl`;
      - `parseInstanceStatus` extracts `state` + `activationPolicy` from a well-formed body, and THROWS
        on each malformed input (non-object, missing `state`, missing `settings.activationPolicy`).
-   - **proven by —** `packages/store/src/cloud-sql-admin.test.ts` (authored by the leaf inside the
+   - **proven by —** `packages/library/src/store/cloud-sql-admin.test.ts` (authored by the leaf inside the
      gate's AUTHOR_TEST phase; the spine observes the red — the missing `./cloud-sql-admin.js` — before
      IMPLEMENT writes the source).

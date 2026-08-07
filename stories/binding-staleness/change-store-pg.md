@@ -10,44 +10,45 @@ depends_on: [change-event-store]
 decisions: [16, 64]
 # Node-borne proof config (ADR-0057 keystone A) + DB-BACKED proof mode (ADR-0064 §1): authoring THIS
 # block is what makes the node inner-loop buildable. NET-NEW: the leaf authors a net-new
-# packages/store/src/pg-change-store.ts (the red is the missing module). `db: true` makes the spine
+# packages/orchestrator/src/store/pg-change-store.ts (the red is the missing module). `db: true` makes the spine
 # provision an ISOLATED test database (storytree_test, never prod) and FORCE STORYTREE_DB_NAME onto the
 # proof env, so the authored round-trip test connects to the disposable DB via createTestPool(). The
 # `events.change_event` table + the `changeStoreParitySuite` it is held to are PREREQUISITES already on
 # this branch (committed by the orchestrator — outside the leaf's write scope). `install: true` +
-# typecheck because the adapter imports `@storytree/core` and the test imports `pg`/the Cloud SQL
+# typecheck because the adapter imports `@storytree/proof-protocol`/`@storytree/storage-protocol` and
+# the test imports `@storytree/library/store` plus `pg`/the Cloud SQL
 # connector from node_modules (ADR-0064 requires db ⇒ install ⇒ typecheck). A custom pnpm proofCommand
 # carries `--test-force-exit` so the connector socket can never hang the proof (a live-store-test trap).
 proof:
   command:
     file: pnpm
-    args: ["--filter", "@storytree/store", "test"]
+    args: ["--filter", "@storytree/orchestrator", "test"]
   scope:
-    testGlobs: ["packages/store/src/**/*.test.ts"]
-    sourceGlobs: ["packages/store/src/**/*.ts"]
+    testGlobs: ["packages/orchestrator/src/store/**/*.test.ts"]
+    sourceGlobs: ["packages/orchestrator/src/store/**/*.ts"]
   real:
-    testFile: "packages/store/src/pg-change-store.live.test.ts"
-    sourceFile: "packages/store/src/pg-change-store.ts"
+    testFile: "packages/orchestrator/src/store/pg-change-store.live.test.ts"
+    sourceFile: "packages/orchestrator/src/store/pg-change-store.ts"
     scope:
-      testGlobs: ["packages/store/src/pg-change-store.live.test.ts"]
-      sourceGlobs: ["packages/store/src/pg-change-store.ts"]
+      testGlobs: ["packages/orchestrator/src/store/pg-change-store.live.test.ts"]
+      sourceGlobs: ["packages/orchestrator/src/store/pg-change-store.ts"]
     install: true
     db: true
     typecheck:
       file: pnpm
-      args: ["--filter", "@storytree/store", "typecheck"]
+      args: ["--filter", "@storytree/orchestrator", "typecheck"]
     proofCommand:
       file: pnpm
       args:
         - "--filter"
-        - "@storytree/store"
+        - "@storytree/orchestrator"
         - "exec"
         - "node"
         - "--import"
         - "tsx"
         - "--test"
         - "--test-force-exit"
-        - "src/pg-change-store.live.test.ts"
+        - "src/store/pg-change-store.live.test.ts"
 ---
 
 # PgChangeStore — the Postgres home for the change log
@@ -67,23 +68,26 @@ cannot attest).
 
 ## Guidance
 
-You author exactly TWO files (your write scope): the test `packages/store/src/pg-change-store.live.test.ts`
-and the implementation `packages/store/src/pg-change-store.ts`. Everything they depend on is ALREADY on
+You author exactly TWO files (your write scope): the test
+`packages/orchestrator/src/store/pg-change-store.live.test.ts` and the implementation
+`packages/orchestrator/src/store/pg-change-store.ts`. Everything they depend on is ALREADY on
 this branch — do NOT create or edit it:
 
-- the `events.change_event` table is in `packages/store/src/schema.sql` (applied by `applySchema`);
-- the `ChangeStore` interface + `ChangeEvent` type are exported from `@storytree/core`;
-- `createTestPool` / `closePool` / `applySchema` are exported from `packages/store` (use the **relative**
-  `./test-db.js`, `./connection.js`, `./migrate.js` — the live test lives inside `packages/store`).
+- the `events.change_event` table is in `packages/library/src/store/schema.sql` (applied by `applySchema`);
+- the `ChangeEvent` type is exported from `@storytree/proof-protocol` and the `ChangeStore` interface from
+  `@storytree/storage-protocol` (`@storytree/core` is DISSOLVED — ADR-0068);
+- `createTestPool` / `closePool` / `applySchema` are exported from **`@storytree/library/store`** — import
+  them from the PACKAGE, not relatively: the live test lives in `packages/orchestrator`, not beside them.
 
-**1. The implementation `packages/store/src/pg-change-store.ts`.** A small, append-only adapter over
+**1. The implementation `packages/orchestrator/src/store/pg-change-store.ts`.** A small, append-only adapter over
 `events.change_event`, mirroring `PgWorkStore`'s structural-client seam (a duck-typed `query` so the
 offline test can inject a fake). The full ADR-0016 `ChangeEvent` is stored in the `doc` JSONB column so a
 read round-trips it byte-for-byte (including an absent `description`/`commitSha`); reads return the full
 append-only log ordered by `seq` (which `classifyDrift` consumes), filtered by `unitId` when given:
 
 ```ts
-import type { ChangeEvent, ChangeStore } from "@storytree/core";
+import type { ChangeEvent } from "@storytree/proof-protocol";
+import type { ChangeStore } from "@storytree/storage-protocol";
 
 /** The slice of `pg.Pool` this store needs (structural, so offline tests can inject a fake). */
 export interface ChangeStoreClient {
@@ -95,7 +99,7 @@ interface ChangeEventRow {
 }
 
 /**
- * The Postgres home for the ADR-0016 change log (the `ChangeStore` seam, @storytree/core). Append-only
+ * The Postgres home for the ADR-0016 change log (the `ChangeStore` seam, @storytree/storage-protocol). Append-only
  * over `events.change_event`: one row per change, the full ChangeEvent in `doc` JSONB (so a read
  * round-trips it unchanged), the scalar columns the queryable spine. Held to `changeStoreParitySuite`,
  * the same bar InMemoryStore meets.
@@ -136,21 +140,19 @@ export class PgChangeStore implements ChangeStore {
 }
 ```
 
-**2. The DB-backed round-trip test `packages/store/src/pg-change-store.live.test.ts`.** It connects to the
+**2. The DB-backed round-trip test `packages/orchestrator/src/store/pg-change-store.live.test.ts`.** It connects to the
 ISOLATED test DB via `createTestPool()` (fail-closed against production), applies the schema, truncates
 `events.change_event`, then writes a `ChangeEvent`, reads it back, and asserts the round-trip + filtering.
 It MUST self-skip when `STORYTREE_DB_NAME` is unset — so the offline package suite
-(`pnpm --filter @storytree/store test`, no DB) stays green, while the spine's db-backed proof (which
+(`pnpm --filter @storytree/orchestrator test`, no DB) stays green, while the spine's db-backed proof (which
 FORCES `STORYTREE_DB_NAME=storytree_test`) runs it for real:
 
 ```ts
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hashSpan } from "@storytree/core";
-import type { ChangeEvent } from "@storytree/core";
-import { createTestPool } from "./test-db.js";
-import { closePool } from "./connection.js";
-import { applySchema } from "./migrate.js";
+import { hashSpan } from "../proof/anchor-compute.js";
+import type { ChangeEvent } from "@storytree/proof-protocol";
+import { createTestPool, closePool, applySchema } from "@storytree/library/store";
 import { PgChangeStore } from "./pg-change-store.js";
 
 // DB-backed proof (ADR-0064): runs ONLY when STORYTREE_DB_NAME names a disposable test DB. The spine
@@ -203,6 +205,6 @@ prerequisite is absent, STOP and say so (the node spec is then wrong) rather tha
    - **asserts —** an appended `ChangeEvent` reads back deep-equal (filtered by `unitId` and unfiltered);
      a different unit's log is empty; the connection is the disposable test DB (`createTestPool` is
      fail-closed against prod, ADR-0054/0064).
-   - **proven by —** `packages/store/src/pg-change-store.live.test.ts`, authored by the gated leaf and run
+   - **proven by —** `packages/orchestrator/src/store/pg-change-store.live.test.ts`, authored by the gated leaf and run
      by the spine against `storytree_test` (the DB-backed proof mode, ADR-0064 §1); the offline
      fake-client `changeStoreParitySuite` run is the fast companion coverage the orchestrator adds.
