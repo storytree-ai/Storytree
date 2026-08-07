@@ -21,9 +21,15 @@ capabilities: [boundhash-on-verdict, change-event-store, source-drift, gate-emit
 # declared consumer-side so it can be annotated below (an unbacked provider-side `consumed_by: [cli]`
 # would sit as permanent cli-story drift-WARN wallpaper; consumed_by suits only code-backed hub
 # consumption, the notice-board pattern).
-depends_on: [drive-machinery, proof-protocol, cli]
-# ADR-0166 artifact edges: the cli edge is a hosted seam — no code import backs it.
-artifact_edges: [cli]
+# storage-protocol (ADR-0192 landlord rule): the change-event-store cap's proof source lives in
+# storage-protocol's territory (packages/storage-protocol/src/store.ts — the `Store`/`ChangeStore`
+# seam) — a hosted-seam edge, no code import backs it, declared consumer-side. The unit was
+# re-pointed there after ADR-0068 dissolved @storytree/core, whose packages/core/src/store.ts it
+# used to name.
+depends_on: [drive-machinery, proof-protocol, cli, storage-protocol]
+# ADR-0166 artifact edges: the cli and storage-protocol edges are both hosted seams — no code
+# import backs either.
+artifact_edges: [cli, storage-protocol]
 # Deciding ADR (ADR-0037 §2): the knowledge↔code binding & staleness model (16). gate-emits-change also
 # stands on the prove-it-gate honesty walls (20).
 decisions: [16]
@@ -36,7 +42,7 @@ events as code moves, and `storytree drift <unit>` reads a unit's stored anchor 
 store and classifies **fresh | stale | drifted-undescribed** — so staleness is a real, lazy signal on
 live units, never an explicit-args toy.
 
-**Depends on —** [`drive-machinery`](../drive-machinery/story.md)
+**Depends on —** [`drive-machinery`](../drive-machinery/story.md), [`proof-protocol`](../proof-protocol/story.md), [`cli`](../cli/story.md), [`storage-protocol`](../storage-protocol/story.md)
 
 This is the story home for the offline-provable slices that wire [ADR-0016](../../docs/decisions/0016-knowledge-code-binding-and-staleness.md)'s
 **binding/staleness engine** into the proof + store path. The engine itself is LANDED — since
