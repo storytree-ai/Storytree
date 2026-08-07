@@ -12,9 +12,11 @@ decisions: [216]
 # repo, its own CD; branch off ITS origin/main), which is NOT a pnpm workspace member, so the parent
 # spine cannot observe a red→green inside it — and the storm's real risk is FEEL (pacing, overwhelm,
 # audio, the diegetic reading), which no machine can honestly judge. Its machine floor is owned
-# upstream by `experience-rollout-guardrails` (`check:web-experience`: the skip + fallback markers
-# present, no static R3F reachability from Act 1; ARMED by `data-experience-entry` on the entry
-# page — this cap ships all three markers together) — do NOT duplicate those assertions here. NO
+# upstream by `experience-rollout-guardrails` (its judge: the skip + fallback markers present, no
+# static R3F reachability from Act 1; ARMED by `data-experience-entry` on the entry page — this cap
+# ships all three markers together) — do NOT duplicate those assertions here. That floor is
+# currently UNENFORCED: ADR-0311 D2 retired the `check:web-experience` rung, so the judge answers
+# only when invoked directly (see that cap's ⚠ note). NO
 # `proof:` block — operator-attested capabilities are witnessed, not `--real`-built. The
 # frontend-builder is the inner-loop role; the owner witnesses on the live/preview site; appearance
 # is never self-signed.
@@ -90,8 +92,9 @@ owner call on "presentable" (a HALT point, story open call 5).
 Real `file:line` into the pinned `web/` tree (paths relative to the submodule root):
 
 - **The entry page carries all THREE markers physically in its own source** (learning: the
-  upstream gate greps the entry page's text, then walks imports — a refactor that moves one marker
-  into a child component un-arms or reds `check:web-experience`): `data-experience-entry` on the
+  upstream judge greps the entry page's text, then walks imports — a refactor that moves one marker
+  into a child component un-arms or reds it; that verdict no longer reaches a merge, since ADR-0311
+  D2 retired the `check:web-experience` rung): `data-experience-entry` on the
   storm section (`src/pages/index.astro:74`), the persistent skip control `data-experience-skip`
   (`:78`, doubling as a `data-storm-disarm` target), the calm view `data-experience-fallback`
   (`:147`) — today's home content byte-for-byte (Keystatic `home.json` + TreeWorld untouched).
@@ -172,11 +175,12 @@ THE DRAMATURGY ([ADR-0216](../../docs/decisions/0216-act-1-experience-attested-o
   scripted text streams — no xterm, no WebGL, no heavy deps.
 - **The exits stay live.** The persistent skip control (`data-experience-skip`) and the
   reduced-motion / no-WebGL static-calm fallback (`data-experience-fallback`) ship IN THIS
-  increment's markup — the upstream gate refuses the merge without them. `prefers-reduced-motion`
-  visitors are never played the storm at all. The entry page also declares
-  **`data-experience-entry`** (the adoption marker that ARMS `check:web-experience` — as built,
-  the gate SKIPs until a `src/pages/` page carries it, then fails closed; all THREE markers land
-  together or the wall never stands watch).
+  increment's markup — the upstream guard refused the merge without them until ADR-0311 D2 retired
+  its rung; keeping them is now discipline plus the owner's decision 6, not a machine floor.
+  `prefers-reduced-motion` visitors are never played the storm at all. The entry page also declares
+  **`data-experience-entry`** (the adoption marker that ARMS the judge — as built, it SKIPs until a
+  `src/pages/` page carries it, then fails closed; all THREE markers land together or the wall never
+  stands watch — and today it stands watch only when invoked by hand).
 - **Interim coherence.** Until `storm-to-forest-inflection` lands, the storm's calm affordance and
   the skip both resolve to the static calm fallback + the existing site pages — coherent, just not
   yet transformative.
@@ -193,8 +197,9 @@ Human-witnessed legs on the live/preview site (an agent may stage; a human rende
 > **ATTESTED — all four legs witnessed by the owner (HuaMick), 2026-07-02**, on the local preview
 > (`npm run preview`, :4321) at `796d65a`, squash-merged to web main as `3e53f14` and live since;
 > the record is an owner comment on storytree-web PR #18 (agent-relayed per ADR-0044 §4). Leg 4's
-> machine floor is additionally held by `check:web-experience`, ARMED + OK against the parent's
-> `web/` pin.
+> machine floor was additionally held by `check:web-experience`, ARMED + OK against the parent's
+> `web/` pin at that time; ADR-0311 D2 has since retired that rung (see
+> [`experience-rollout-guardrails`](experience-rollout-guardrails.md)).
 
 1. **The boot.** _(witness: human)_ Fresh visit: ONE CRT terminal, already logged into a coding
    agent, suggested prompt chips + a type-in line, silence. Nothing else moves.

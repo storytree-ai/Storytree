@@ -3,7 +3,7 @@ id: "experience-rollout-guardrails"
 tier: capability
 story: website-experience
 title: "Skip and fallback are first-class from the first increment — machine-guarded"
-outcome: "A parent-side gate, check:web-experience (the check:web-grounding pattern), fails when the experience entry page lacks the persistent skip-to-calm affordance marker or the prefers-reduced-motion / no-WebGL fallback marker, or when any module statically reachable from the Act 1 entry imports the R3F island or three — so no increment of the incremental home replacement can ship the storm as a toll booth or leak WebGL into Act 1; absent an experience entry the check SKIPs (bootstrap allowance), so the guard lands BEFORE the storm."
+outcome: "A parent-side judge, web-experience-check.ts, reds when the experience entry page lacks the persistent skip-to-calm affordance marker or the prefers-reduced-motion / no-WebGL fallback marker, or when any module statically reachable from the Act 1 entry imports the R3F island or three; absent an experience entry it SKIPs (bootstrap allowance). It is BUILT and answers on demand — but ADR-0311 D2 retired its check:web-experience rung, so nothing invokes it on a merge and no increment is machine-stopped from shipping the storm as a toll booth today."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -12,9 +12,11 @@ decisions: [123, 215]
 # NOT-YET-EXISTING pure judge module (packages/cli/src/web-experience-check.ts) — red =
 # module-not-found at HEAD — then writes the judge (green). The judge is PURE (file-path → content
 # maps in, findings out; the web-engine-sync discipline), so every assertion runs offline over
-# in-memory fixtures — no web/ checkout needed in the proof. The IO shell (reading the real web/
-# sources at gate time), the root `check:web-experience` script, and its slot in `pnpm gate` are
-# orchestrator-supplemented GLUE; the site-side markers themselves (`data-experience-entry` arming
+# in-memory fixtures — no web/ checkout needed in the proof. This proof block is UNAFFECTED by the
+# ADR-0311 D2 retirement above: it binds the judge's own test + source, both of which still exist and
+# still run green. The IO shell (reading the real web/ sources) landed as orchestrator-supplemented
+# GLUE and still runs on demand; the root `check:web-experience` script and its `pnpm gate` slot were
+# retired and no longer exist. The site-side markers themselves (`data-experience-entry` arming
 # the gate, `data-experience-skip`, `data-experience-fallback` on the entry) land WITH the
 # storm/inflection caps — this cap ships the WALL, those caps satisfy it. install: true (the suite
 # runs under @storytree/cli; fresh-worktree
@@ -40,11 +42,32 @@ proof:
 
 # Skip and fallback are first-class from the first increment — machine-guarded
 
-**Outcome —** A parent-side gate, `check:web-experience`, fails when the experience entry page lacks
-the persistent **skip-to-calm** affordance marker or the **`prefers-reduced-motion` / no-WebGL
-fallback** marker, or when any module statically reachable from the Act 1 entry imports the R3F
-island or `three`. Absent an experience entry, the check SKIPs — so the guard lands BEFORE the
-storm and fails closed the moment the storm exists.
+**Outcome —** A parent-side judge reds when the experience entry page lacks the persistent
+**skip-to-calm** affordance marker or the **`prefers-reduced-motion` / no-WebGL fallback** marker,
+or when any module statically reachable from the Act 1 entry imports the R3F island or `three`.
+Absent an experience entry it SKIPs — so the guard could land BEFORE the storm and fail closed the
+moment the storm exists.
+
+> **⚠ THE RUNG IS RETIRED — THE JUDGE IS NOT. Read every `check:web-experience` mention in this
+> story against this paragraph.** ADR-0311 D2 (2026-08-05) retired `check:web-experience` from the
+> gate. It is **not a root `package.json` script**, **not a `GATE_PLAN` step**, and **not a CI
+> step** — it is declared in `RETIRED_CHECKS` in
+> [`packages/cli/src/gate-order.ts`](../../packages/cli/src/gate-order.ts), and
+> [`packages/cli/src/web-experience-check.ts`](../../packages/cli/src/web-experience-check.ts)
+> carries the `UNWIRED` banner the tombstone pins. So **nothing invokes it on a merge**: the storm
+> can ship as a toll booth, or leak WebGL into Act 1, and no machine will say so.
+>
+> What SURVIVES is real and is the reason this is a re-scope rather than a retirement. The judge and
+> its fs shell are intact and **directly runnable** —
+> `npx tsx packages/cli/src/web-experience-check.ts` answers today (SKIP without the `web/`
+> submodule checked out; ARMED against a checkout carrying the entry marker). Its four contracts are
+> still proven: the leaf's signed PASS (`real-mr2tjkid` @ `fc9b20f`) stands, and
+> `web-experience-check.test.ts` still runs green under `pnpm -r test`. **That green is not
+> evidence the rule is enforced** — it is exactly the trap ADR-0311's Consequences named, and this
+> capability is one of its instances.
+>
+> **Re-wiring is an owner decision, not a wiring change** (ADR-0311 D5: fresh production-catch
+> evidence AND an ADR, never merely the wiring). It is surfaced as the story's open modeling call 9.
 
 **Depends on —** (root — deliberately upstream of `act1-terminal-storm`: the storm may only face
 real visitors once these exits are machine-guarded. Owner decision 6, 2026-07-02.)
@@ -54,10 +77,12 @@ real visitors once these exits are machine-guarded. Owner decision 6, 2026-07-02
 > green through the real prove-it-gate (run `real-mr2tjkid`, signed PASS @ `fc9b20f` 2026-07-02,
 > persisted to `events.verdict`; package typecheck + suite observed green in the installed worktree);
 > the four contracts are cited at real `file:line` below (`storytree coverage
-> experience-rollout-guardrails` → 4/4). The orchestrator glue is landed: the root
+> experience-rollout-guardrails` → 4/4). The orchestrator glue WAS landed — the root
 > `check:web-experience` script, its `pnpm gate` slot, and the CI step after "web engine in sync" —
-> verified against the real pinned site (bootstrap SKIP at that pre-storm pin — no entry marker yet;
-> ARMED + OK since the 2026-07-02 home flip put all three markers on the entry page). The ADEQUACY of the
+> and verified against the real pinned site (bootstrap SKIP at that pre-storm pin — no entry marker yet;
+> ARMED + OK from the 2026-07-02 home flip, which put all three markers on the entry page, until
+> **ADR-0311 D2 retired all three wirings on 2026-08-05**; see the ⚠ note above. The judge itself and
+> its fs shell survive and still answer when invoked directly. The ADEQUACY of the
 > exits (does the fallback read as a real calm view; does the skip land well) stays human — **story-UAT
 > leg 5** as of the 2026-07-25 witness re-adjudication, which gave that claim its own explicit human leg
 > instead of leaving it in this prose (the exits' BEHAVIOUR — the exit resolving to the calm view, the
@@ -79,8 +104,8 @@ presence, not adequacy.
 
 THE ADOPTION MARKER (as built). A page under `src/pages/` becomes "the experience entry" by
 carrying **`data-experience-entry`** (`EXPERIENCE_ENTRY_MARKER`,
-`packages/cli/src/web-experience-check.ts:196`) — the explicit signal that ARMS the gate. Detection
-must be this explicit: keying on a page PATH (e.g. `index.astro` exists) would have armed the gate
+`packages/cli/src/web-experience-check.ts:196`) — the explicit signal that ARMS the judge. Detection
+must be this explicit: keying on a page PATH (e.g. `index.astro` exists) would have armed it
 against the pre-experience site and redded every increment until the storm lands. The storm cap
 adds all THREE markers when it flips home; the closure walk is seeded at the entry page itself (the
 storm's script graph hangs off its imports, resolved extensionless-tolerant via
@@ -95,10 +120,11 @@ reachability (the thing that would drag WebGL into first paint).
 
 THE BOOTSTRAP ALLOWANCE (the `check:web-engine` posture). No experience entry in `web/` yet → SKIP
 with a note, never a failure — the site has not adopted the experience. The moment the entry
-exists, every rule fails closed. An absent `web/` submodule follows the established local-SKIP /
-CI-fail posture.
+exists, every rule fails closed *within the judge's own verdict*. An absent `web/` submodule follows
+the established local-SKIP / CI-fail posture — though with the rung retired there is no CI leg left
+to fail, so the SKIP is what a direct invocation prints on a worktree without the submodule.
 
-FENCES — what this gate must NOT become: no pixel/appearance assertions (operator-attested,
+FENCES — what this judge must NOT become: no pixel/appearance assertions (operator-attested,
 ADR-0070); no performance budget (an open owner call — story open call 3); no page-copy rules
 (`check:web-grounding` owns claims). One narrow job: the exits exist and Act 1 stays WebGL-free.
 
@@ -153,12 +179,13 @@ The bootstrap rung (ADR-0057 §3, NET-NEW): author the pure judge, test-first.
 - **The RED the spine observes —** module-not-found: `web-experience-check.ts` does not exist at
   HEAD.
 - **The GREEN —** write the pure judge (`(files: Map<path, content>, config) → findings | skip`).
-  The IO shell + the root `check:web-experience` script + the `pnpm gate` slot follow as
-  orchestrator glue; after the leaf, the `@storytree/cli` suite + typecheck stay green.
+  The IO shell + the root `check:web-experience` script + the `pnpm gate` slot followed as
+  orchestrator glue; after the leaf, the `@storytree/cli` suite + typecheck stay green. *(The script
+  and the gate slot were retired by ADR-0311 D2 — see the ⚠ note above. The shell survives.)*
 
 Rules:
 
-- **Presence, not adequacy** — the gate greps markers and walks imports; a human witnesses the feel
+- **Presence, not adequacy** — the judge greps markers and walks imports; a human witnesses the feel
   (story-UAT leg 5), and a web-repo behaviour spec witnesses that the exits actually resolve (story-UAT
   leg 4). Do not author appearance assertions here.
 - **Static reachability only** — dynamic `import()` is the sanctioned inflection seam; counting it
