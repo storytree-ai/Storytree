@@ -54,7 +54,7 @@ Promotion of guidance into a guardrail, a new agent-guardrail, or any decision w
 
 ## Refuse — failure modes you must refuse
 
-- Live artifact state is edited only through the CLI write boundary against the live store — never by hand-editing the seed, and never by force-reloading the seed over live edits.  — `storytree library artifact live-store-is-the-edit-surface`
+- Live artifact state is edited only through the validated CLI write boundary against the live store (`library artifact new|edit --pg`) — the one and only edit surface, with no committed seed to hand-edit and no reload path that could overwrite a live edit.  — `storytree library artifact live-store-is-the-edit-surface`
 - The content invariants — contracts green, UAT signed, upstream healthy — can never be bypassed; the gate refuses invalid work rather than warning about it.  — `storytree library artifact never-bypass-the-gate`
 - An agent can never grant itself the attestation that reaches `healthy` — operator-attested promotion is operator-granted only.  — `storytree library artifact agent-never-self-exempts`
 - A specialist never improvises a process, force-fits a hollow proof, or silently skips work that is outside its role, uncovered by any process, or blocked by a capability gap — it STOPS and hands the situation UP to the session-orchestrator (its manager), in its return message, with the reason.  — `storytree library artifact escalate-up-when-blocked-or-out-of-scope`

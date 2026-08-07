@@ -48,7 +48,8 @@ canonical gate is `pnpm -r typecheck` + `pnpm -r test`; only `apps/studio` has a
 1. **A CI green gate — `.github/workflows/ci.yml`, job `verify`.** On PRs into `main` and
    pushes to `main`: checkout (no submodule) → pnpm@9.15.0 + Node 24 →
    `pnpm install --frozen-lockfile` → `pnpm -r typecheck` → `pnpm -r test`. This is the gate
-   `CLAUDE.md` declares; no secrets. Mirrored locally as `pnpm gate`. **`pnpm -r build` is
+   `CLAUDE.md` declares; no secrets. Mirrored locally as `pnpm gate` *(no longer true — see the
+   two-way-delta correction below)*. **`pnpm -r build` is
    deliberately excluded** — packages ship raw TS, and the one buildable target
    (`apps/studio`) currently fails `vite build` (its `devApi` imports the Node-only
    `@storytree/store`); gating on it would wedge every merge. That breakage is tracked
@@ -65,6 +66,19 @@ canonical gate is `pnpm -r typecheck` + `pnpm -r test`; only `apps/studio` has a
    main trigger, which does not fire for `GITHUB_TOKEN` auto-merges — GitHub anti-recursion), so
    §2's merge-result-is-green invariant is untouched; only what a PR proves narrowed. Read §1's "On PRs into `main` and pushes to `main`: … → `pnpm -r typecheck`
    → `pnpm -r test`" as full-on-push, affected-on-PR.
+
+   **Correction (2026-08-07, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+   "Mirrored locally as `pnpm gate`" no longer holds, and §1's step list above is no longer CI's
+   whole set.** Both sides have grown policy checks since 2026-06-08, and they grew differently: the
+   local gate and CI `verify` now stand in a **two-way delta**, not a mirror — they share a content
+   floor of checks, CI additionally keeps steps the local plan does not (`pnpm -r build`, the two
+   PR-only guards, the pinned web-submodule checkout, affected-scope selection), and the local plan
+   additionally keeps one CI does not (`check:verification-decay`). ADR-0304 D2 names this "the
+   current asymmetry" and shares only the *affected* computation across the two, not the step sets.
+   Read either roster from its source — `GATE_PLAN` in `packages/cli/src/gate-order.ts` and the
+   `verify` job in `.github/workflows/ci.yml` — never as the other minus a step. The DECISION here is
+   unchanged (a CI green gate plus auto-merge-on-green, §§2–3); the enumerated delta is contracted by
+   the `gate-ci-parity` capability under `stories/ci-cd/`, which is where it is kept honest.
 
 2. **Auto-merge-on-green, done inside free Actions — not GitHub-native auto-merge.** A second
    job `automerge` `needs: verify`, runs only on `pull_request` events, and merges the PR with
