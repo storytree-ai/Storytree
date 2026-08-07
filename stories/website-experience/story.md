@@ -10,8 +10,9 @@ proof_mode: UAT
 # overwhelm, the inflection's exhale, Act 2 reading as Act 1's request answered, a non-expert's
 # reading of the dependency layout — are ADR-0070 operator-attested human legs; an agent cannot
 # judge a feel and can NEVER self-attest one. Everything MECHANICAL underneath them is `machine`,
-# including the site BEHAVIOUR the two parent-side gates (the extended web-engine drift gate; the
-# `check:web-experience` rollout guard) cannot see: cross-repo and not-yet-harnessed are COSTS, not
+# including the site BEHAVIOUR the two parent-side guards (the extended web-engine drift gate — still
+# a live rung; the rollout guard, whose `check:web-experience` rung ADR-0311 D2 retired) cannot see:
+# cross-repo and not-yet-harnessed are COSTS, not
 # judgment gaps (`human-witness-is-a-judgment-gap-not-cost`). Eight machine legs, five human legs;
 # each Story-UAT leg below marks its own witness (the split table is in "UAT Test Criteria").
 capabilities: [r3f-world-spike, experience-rollout-guardrails, web-experience-sync, act2-beat-director, act1-terminal-storm, storm-to-forest-inflection, act2-guided-walkthrough, act2-guided-forest, info-pages-triage]
@@ -119,11 +120,13 @@ five-row beat table is the ORIGIN of the Act 2 spine, carried into `act2-beat-di
   to a static/deprecated page as a CAPABLE-VISITOR escape — ONLY the gate-required no-JS /
   `prefers-reduced-motion` a11y fallback stays. This narrows the "skip is first-class" consequence to
   the a11y-fallback path. OPEN OWNER/BUILD-TIME CALL — flagged, not silently resolved here: whether
-  `experience-rollout-guardrails`'s `check:web-experience` should keep asserting a distinct "skip
+  `experience-rollout-guardrails`'s judge should keep asserting a distinct "skip
   affordance marker" or fold it into the a11y-fallback marker is a change to that LEAF cap's contract,
   outside this Act-2 re-spec's scope; the owner tunes it. Until then the guardrail still requires both
   markers, and the Act-2 build simply stops offering the skip as a capable-visitor escape — the marker
-  can remain present on the a11y path.)*
+  can remain present on the a11y path. **Since 2026-08-05 that requirement is unenforced**: ADR-0311
+  D2 retired the `check:web-experience` rung, so the judge answers only on a direct invocation — open
+  call 9.)*
 
 ## Structural calls (recorded, not re-litigated)
 
@@ -177,7 +180,7 @@ owner witnesses it), or CONTENT (owner-attested editorial judgement).
 | # | capability | class | outcome (short) | `--real` | depends on |
 |---|---|---|---|---|---|
 | 1 | [`r3f-world-spike`](r3f-world-spike.md) | LEAF | `packages/forest-world-r3f` is born: a real forest-world `World` + scene-graph maps to typed 3D instance descriptors, rendered in an R3F canvas with drei `MapControls` in a dev harness. | yes | — |
-| 2 | [`experience-rollout-guardrails`](experience-rollout-guardrails.md) | LEAF | `check:web-experience` (parent-side, check:web-grounding pattern) fails the gate when the experience entry lacks the skip affordance or the reduced-motion/no-WebGL fallback, or when Act 1 statically reaches R3F. | yes | — |
+| 2 | [`experience-rollout-guardrails`](experience-rollout-guardrails.md) | LEAF | A parent-side judge (check:web-grounding pattern) reds when the experience entry lacks the skip affordance or the reduced-motion/no-WebGL fallback, or when Act 1 statically reaches R3F. **Its `check:web-experience` rung was retired by ADR-0311 D2 — the judge is BUILT and runnable, but fires on no merge; open call 9.** | yes | — |
 | 3 | [`web-experience-sync`](web-experience-sync.md) | LEAF | The sync + drift-gate mechanism generalises to carry the R3F mapper package (`.tsx`-aware, `@storytree/forest-world` imports rewritten to the synced sibling core) into the site under the same `@generated` discipline. | yes | `r3f-world-spike` |
 | 4 | [`act2-beat-director`](act2-beat-director.md) | LEAF | A pure, deterministic, visitor-paced beat director in `forest-world-r3f`: the ONE continuous arc as typed data (the website walk then the UPSTREAM dependency-layer reveal), advancing one tap at a time; a multi-story world where each story carries a `dependsOn` edge set + tri-state status; green appears only with a signed-proof marker (preserved verbatim); the wrong-way road is retired as the teach (ADR-0150). | yes | `r3f-world-spike` |
 | 5 | [`act1-terminal-storm`](act1-terminal-storm.md) | LOOK | One visitor prompt (now **"build me a shopping website"**, reused across both acts) breeds the diegetic terminal storm to the ~10–12 peak — CRT look, canvas grain, gesture-unlocked audio, HUD, unanswerable demands; no WebGL. | (look) | `experience-rollout-guardrails` |
@@ -379,7 +382,9 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
 > bytes pre-click, chunks first fetched at the click; 61 → 41 → 34 → 3/3 across the Act 2 walks incl.
 > the 16-tap flow, the director-beat mapping, the absence of the Next button and the corner overlays,
 > and no-JS / reduced-motion never fetching the walk; see each LOOK cap's proof record). Only legs 2
-> and 12 are discharged parent-side, by `check:web-experience` and `check:web-engine`. The web repo is
+> and 12 are discharged parent-side — leg 12 by `check:web-engine`, a live gate rung, and leg 2 by a
+> DIRECT invocation of the `experience-rollout-guardrails` judge, since ADR-0311 D2 retired its
+> `check:web-experience` rung (open call 9). The web repo is
 > not a pnpm workspace member, so the parent prove-it-gate cannot run red→green inside it (Structural
 > call 3's provability firewall) — **how a web-repo machine verdict reaches the parent proof spine is an
 > OPEN modeling call (item 6), which this re-adjudication surfaces rather than settles.** The witness
@@ -412,10 +417,15 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    cap); every terminal streams activity and parks on an unanswerable demand; the HUD reads
    `AGENTS: n ▲` rising to that peak; and NOT ONE further visitor input is required between the send and
    the peak.
-2. **The calm exits are machine-guarded.** _(witness: machine)_ `pnpm check:web-experience` at a _(criterion-id: uatc_e77db3011f6e5364be4fc12a)_ _(revision-id: uatr1:79c849d473556e27)_
-   clean HEAD. **Success —** green: the skip affordance marker and the reduced-motion / no-WebGL
+2. **The calm exits are machine-guarded.** _(witness: machine)_ `npx tsx _(criterion-id: uatc_e77db3011f6e5364be4fc12a)_ _(revision-id: uatr1:07854f144ae59d82)_
+   packages/cli/src/web-experience-check.ts` at a clean HEAD with the `web/` submodule checked out. _(previous-revision-id: uatr1:79c849d473556e27)_
+   **Success —** green: the skip affordance marker and the reduced-motion / no-WebGL
    fallback marker are present on the experience entry, and no module reachable from the Act 1
-   entry statically imports the R3F island / `three` — Act 1 ships no WebGL bytes.
+   entry statically imports the R3F island / `three` — Act 1 ships no WebGL bytes. *(This leg named
+   `pnpm check:web-experience` until ADR-0311 D2 retired that rung; the judge behind it is intact and
+   directly runnable, so the OBSERVABLE is unchanged and only the invocation moved. But an invocation
+   nobody is obliged to run is a weaker guarantee than a gate rung — whether the rung returns is open
+   call 9, and until it is settled this leg is discharged by a deliberate run, not by every merge.)*
 3. **The overwhelm is FELT.** _(witness: human)_ Watch the same arc leg 1 measures. **Success —** the _(criterion-id: uatc_9c37b1352c9786518fe7d65f)_ _(revision-id: uatr1:f10b128608caed07)_
    owner's verdict that the storm actually OVERWHELMS without any further visitor input, that the CRT
    surface reads retro rather than merely styled, and that each terminal's chatter reads
@@ -564,9 +574,18 @@ are PRECEDENT that these observables are reachable — not a discharge of these 
 is not a workspace member, the parent prove-it-gate cannot sign those runs today; the route by which a
 web-repo machine verdict reaches the proof spine is open call 6.
 
-The story goes green only when the two parent gates (legs 2, 12) run green at a clean HEAD, the six
+The story goes green only when the two parent-side legs (2, 12) run green at a clean HEAD, the six
 site-behaviour legs are green through a route the proof spine can honour, AND the five human legs are
 attested — attestation is recorded, never presumed (ADR-0044).
+
+**A note on leg 2's route, added 2026-08-07.** Only ONE of those two is a gate rung today.
+`check:web-engine` (leg 12) still runs in `pnpm gate` and in CI. Leg 2's `check:web-experience` was
+retired by ADR-0311 D2 on 2026-08-05, so its judge — which is intact, still leaf-proven, and still
+directly runnable — now answers only when someone chooses to run it. Nothing about the OBSERVABLE
+changed and no signed verdict was disturbed (every leg has been UNSTAMPED since the 2026-07-25
+re-adjudication), but the guarantee did weaken: what was "true on every merge" is now "true when
+last checked." Whether the rung should return is open call 9, and it needs an ADR under ADR-0311 D5,
+never merely the wiring.
 
 ## Open modeling calls (for the owner)
 
@@ -611,13 +630,16 @@ Surfaced rather than guessed — none blocks the first increments:
    published web-CD Playwright verdict SYNCED into the parent (the `check:web-engine` artifact-flow
    precedent); a parent-driven Playwright run against the PINNED preview build (which keeps the assertion
    parent-side and spine-signable, at the cost of standing up the site in the parent's gate); or a third
-   parent-side check in the `check:web-experience` family. Owner/build-time call — until it is settled,
-   these six legs are honestly `machine` and honestly unproven.
+   parent-side check in the `check:web-experience` family — noting that ADR-0311 D2 has since retired
+   that family's only member, which is call 9 and arguably the same decision. Owner/build-time call —
+   until it is settled, these six legs are honestly `machine` and honestly unproven.
 7. **Does a capable-visitor SKIP control still exist?** Leg 4 asserts an exit resolves to the calm view,
    but ADR-0153's redirection 2 removed the skip as a capable-visitor escape, leaving only the
-   gate-required no-JS / `prefers-reduced-motion` a11y fallback — and the rollout narrowing above already
-   flags, unresolved, whether `check:web-experience` keeps asserting a DISTINCT skip-affordance marker or
-   folds it into the fallback marker. Leg 4's first half cannot be specced until that is settled; its
+   no-JS / `prefers-reduced-motion` a11y fallback — and the rollout narrowing above already
+   flags, unresolved, whether the rollout judge keeps asserting a DISTINCT skip-affordance marker or
+   folds it into the fallback marker. *(That narrowing said "gate-required"; ADR-0311 D2 has since
+   retired the `check:web-experience` rung — see call 9, which changes who enforces the answer but
+   not the question.)* Leg 4's first half cannot be specced until that is settled; its
    a11y half (the reduced-motion / no-WebGL / no-JS visitor is never played the storm) is unaffected and
    is the load-bearing floor either way. Owner/build-time call on that LEAF cap's contract.
 8. **Which deferred module is the inflection's lazy-load observable, post-ADR-0148?** The old fused leg
@@ -627,3 +649,30 @@ Surfaced rather than guessed — none blocks the first increments:
    Machine leg 6's claim is stated generically (the deferred Act 2 bundle is first fetched AT the click);
    its spec must NAME the current target on the live surface. A build-time call, not a re-spec of the
    claim; recorded rather than guessed.
+9. **Should the `check:web-experience` rung be re-wired, and if not, what carries owner decision 6?**
+   Raised 2026-08-07 by the stale-claim sweep that corrected this story's prose. ADR-0311 D2 retired
+   the rung on 2026-08-05 as one of thirteen; the JUDGE survives intact, leaf-proven and directly
+   runnable (`npx tsx packages/cli/src/web-experience-check.ts`), but nothing invokes it on a merge.
+   The consequence is specific, not abstract: **owner decision 6 (2026-07-02) — "the skip affordance
+   and the no-WebGL / `prefers-reduced-motion` fallback are FIRST-CLASS from the FIRST increment" —
+   was a machine-guarded property and is now an unguarded one.** A web-repo refactor that moves a
+   marker into a child component, or that pulls `three` onto Act 1's static import path, would ship
+   with nothing red. That is exactly the toll booth and the WebGL leak this capability was built to
+   make impossible, and it lands on the LIVE public front door.
+   Three candidate shapes, none chosen here — **each needs an ADR, and re-wiring additionally needs
+   fresh production-catch evidence (ADR-0311 D5); the wiring alone is never sufficient**:
+   (a) **Re-wire as it was** — cheapest, and the retirement's own premise (D5: the implementations
+   stay so re-wiring is cheap) anticipates it; but ADR-0311 retired it on measured grounds, and
+   re-adding it without a production catch re-litigates that decision rather than answering it.
+   (b) **Accept the loss and say so** — the rung stays retired, and the markers are carried by this
+   spec plus the web repo's own Playwright suite (which already exercises them: 23/23 on the storm,
+   3/3 on the Act 2 walks, incl. the three `data-experience-*` markers). Coherent ONLY if that suite
+   genuinely covers the no-WebGL STATIC-CLOSURE wall — an import-graph property the parent judge
+   asserts directly and a runtime browser test does not naturally reach. Worth confirming before
+   choosing it, not assuming.
+   (c) **Fold it into the open call 6 answer** — those six site-behaviour legs need a route by which
+   a web-repo machine verdict reaches the parent spine; leg 2's judge is parent-side and needs the
+   opposite, a trigger. One decision could settle both, and this is the option that treats them as
+   one problem rather than two.
+   Owner call. Until it is settled, leg 2 is honestly `machine`, honestly runnable, and honestly not
+   run on any merge — which is what the leg now says.

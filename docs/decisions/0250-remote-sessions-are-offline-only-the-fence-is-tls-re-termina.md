@@ -249,8 +249,13 @@ sending them down port-shaped dead ends.
 - [ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md) — the hosted studio behind direct IAP (the
   surface path A would have used).
 - [ADR-0050](0050-adr-number-allocation.md) — why a remote session's `max+1` ADR fallback is safe.
-- [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md) D3 — `check:declared`
-  SKIPs on an unreachable DB, so a remote session's gate is not blocked.
+- [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md) D3 — the claim-ledger
+  rung a remote session cannot satisfy. *(Corrected in place 2026-08-07 per ADR-0139; nothing decided
+  here is re-decided. This line read "`check:declared` SKIPs on an unreachable DB, so a remote
+  session's gate is not blocked" — the same claim the Decision table and the Consequences bullet above
+  were already corrected for, and it was missed here. ADR-0311 D2 retired `check:declared` from root
+  policy and CI outright: the gate is unblocked because the rung does not run at all, not because a
+  SKIP arm is still watching.)*
 - `packages/library/src/store/data-plane.ts` (+ `.test.ts`) — the D2 refusal.
 - `packages/library/src/store/connection.ts`, `packages/drive/src/db-control.ts` — the two enforcement
   points.

@@ -150,8 +150,11 @@ the CLI's `template` listing category is not a kind). Body fields, per the KIND_
 
 - `statement` (lead, required) — the friction in one sentence: *what fought you, not what you learned*;
 - `evidence` (required) — ≥1 concrete citation: command + output excerpt, file path, PR#, quoted
-  error. **The CLI refuses an evidence-free write, fail-closed** (`check:corpus-content` gains the
-  structural floor);
+  error. **The CLI refuses an evidence-free write, fail-closed** *(corrected in place 2026-08-07 per
+  ADR-0139; the decision is unchanged and the refusal still stands — it lives in the `friction` zod
+  schema plus the concreteness validator, proven by `packages/cli/src/friction.test.ts`. This read
+  "(`check:corpus-content` gains the structural floor)"; ADR-0302 D4 DELETED that check outright, so
+  the second enforcement point named here no longer exists in any form)*;
 - `impact` (required) — what it cost (time, a red gate, a wrong build) and who hits it next;
 - `route` (optional, set only at adjudication) — `adr | tool | principle | guardrail | process |
   definition | edit-existing | nothing`; **capture never classifies** (no severity enums, no

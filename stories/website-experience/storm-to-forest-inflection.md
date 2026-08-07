@@ -9,9 +9,11 @@ proof_mode: operator-attested
 depends_on: [act1-terminal-storm, web-experience-sync]
 decisions: [216, 123]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work; the transform is a felt, choreographed moment no
-# machine can honestly judge. Its machine floor lives upstream: `check:web-experience` holds the
-# lazy-load wall (the R3F island is reachable from Act 1 ONLY behind a dynamic import — a static
-# chain reds the gate), and the extended `check:web-engine` holds that the R3F island it mounts is
+# machine can honestly judge. Its machine floor lives upstream: `experience-rollout-guardrails`'s
+# judge holds the lazy-load wall (the R3F island is reachable from Act 1 ONLY behind a dynamic
+# import — a static chain reds it), though ADR-0311 D2 retired the `check:web-experience` rung, so
+# that half of the floor now answers only on a direct invocation (see that cap's ⚠ note); the
+# extended `check:web-engine` is still a live gate rung and holds that the R3F island it mounts is
 # the byte-fresh synced artifact. NO `proof:` block — witnessed, not `--real`-built. This is also
 # the FIRST mount of the R3F island on the public site (client-only, non-SSR, ADR-0123 §3): the
 # island mount is deliberately FOLDED INTO this capability rather than split out, because the
@@ -63,8 +65,9 @@ Real `file:line` into the pinned `web/` tree (paths relative to the submodule ro
   external ghost exit. This cap's transform choreography is UNCHANGED; only the trigger's host
   moved. See `act1-terminal-storm` "As built — the finale rework".)*
 - **One click starts the load AND the exhale together** (`src/scripts/act1-storm.ts:486`):
-  `import('./inflection')` is the ONLY route to R3F — the dynamic-import seam
-  `check:web-experience` sanctions, no prefetch, so the first fetch happens AT the click (UAT 3);
+  `import('./inflection')` is the ONLY route to R3F — the dynamic-import seam the
+  `experience-rollout-guardrails` judge sanctions, no prefetch, so the first fetch happens AT the
+  click (UAT 3);
   `StormAudio.quell()` decays the soundscape over ~1.6s rather than cutting (`:491`; `:213` —
   `halt()` stays the hard stop); terminals CRT-power-off in a 62 ms stagger (`COLLAPSE_STAGGER`,
   `:28`); up to 88 seeded WAAPI phosphor fragments fall from the collapsing terminals into a
@@ -107,7 +110,7 @@ THE CHOREOGRAPHY ([ADR-0216](../../docs/decisions/0216-act-1-experience-attested
   fall INTO the ground — the noise literally becomes the soil/seed of the calm world that fades up.
   The continuity is the argument: the calm world is built out of the same stuff, re-ordered.
 - **The exhale buys the load.** The R3F bundle starts loading on the click (dynamic `import()` —
-  the sanctioned seam `check:web-experience` recognises); the collapse/quiet beat is long enough to
+  the sanctioned seam the `experience-rollout-guardrails` judge recognises); the collapse/quiet beat is long enough to
   hide a realistic fetch on an ordinary connection, with a graceful still-loading posture (the
   soil rests) if the network is slower. Optionally prefetch on peak-reached; never load in Act 1.
 - **It resolves EMPTY.** The land after the transform carries no story nodes — beat 1 of Act 2
@@ -127,9 +130,11 @@ animation is DOM/CSS (it animates Act 1's own elements), the fade-up is the isla
 > **ATTESTED — all four legs witnessed by the owner (HuaMick), 2026-07-02**, on the local preview
 > (fresh `npm run build` + `npx astro preview --host 127.0.0.1`, :4321) at `2869504`, squash-merged
 > to web main as `6546486` and live since; the record is an owner comment on storytree-web PR #19
-> (agent-relayed per ADR-0044 §4). Leg 3's machine floor is additionally held by
+> (agent-relayed per ADR-0044 §4). Leg 3's machine floor was additionally held by
 > `check:web-experience` (the lazy-load wall) and the 10/10 Playwright behaviour witness (zero R3F
-> pre-click; chunks first fetched at the click), both OK against the parent's `web/` pin.
+> pre-click; chunks first fetched at the click), both OK against the parent's `web/` pin at that
+> time; ADR-0311 D2 has since retired the `check:web-experience` rung (see
+> [`experience-rollout-guardrails`](experience-rollout-guardrails.md)).
 
 1. **The dimming and the one calm thing.** _(witness: human)_ At peak, the storm dims and exactly
    one calm storytree affordance appears; it reads as the obvious way out, not another demand.

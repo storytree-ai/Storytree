@@ -284,7 +284,8 @@ The verified anchors in the pinned tree (cite these, not the older sketches):
   routes a capable visitor STRAIGHT into the tutorial via the inline handler
   (`window.__stormSkipToTutorial`, index.astro:73–75) — falling back to `#calm-view` only with no JS.
   The `data-experience-fallback` calm view (index.astro:212) stays as the no-JS / reduced-motion
-  degradation (ADR-0148 §5; `check:web-experience` green).
+  degradation (ADR-0148 §5; `check:web-experience` green at the time — ADR-0311 D2 has since retired
+  that rung, see [`experience-rollout-guardrails`](experience-rollout-guardrails.md)).
 - **One shared mount, two ways in** — `web/src/scripts/act1-storm.ts`: `beginTransform` (the finale
   transform, :567) and `jumpToTutorial` (the skip-straight-in, :674) both mount through the shared
   `resolveToLand` (:526); `window.__stormSkipToTutorial` is registered at :683. Zero WebGL on the path.
@@ -377,8 +378,10 @@ GOVERN where they touch the older framing-moves below):
 - **No escape hatches.** Remove "skip the intro" and EVERY path to a static / deprecated page — a
   capable visitor is offered no escape. This RETIRES the shipped top-left-skip-straight-into-tutorial as
   a capable-visitor affordance AND the interim static-page fallback as a destination. The ONLY surviving
-  non-experience path is the gate-required no-JS / `prefers-reduced-motion` a11y fallback (a clean
-  minimal static page, `check:web-experience` green).
+  non-experience path is the no-JS / `prefers-reduced-motion` a11y fallback (a clean minimal static
+  page). It was gate-required when this was written; ADR-0311 D2 retired the `check:web-experience`
+  rung, so the requirement now rests on owner decision 6 and this spec, not on a machine —
+  see [`experience-rollout-guardrails`](experience-rollout-guardrails.md).
 - **Step 1 is an OUTCOME BRIEF with an example, via the orchestrator chat at the bottom.** A story is
   presented as an OUTCOME BRIEF carrying an EXAMPLE — ideally shown through the session-orchestrator
   CHAT AT THE BOTTOM (as the real app), carrying that example. Drop the "young tree / lives on the map /
@@ -491,9 +494,12 @@ COHESION — ALL IN ON THE TUTORIAL (ADR-0148 §5 — the end-to-end flow the ow
   "prefer the classic front page?" opt-out for capable visitors — the tutorial is the front door.
   ADR-0148 kept a persistent skip affordance (routing a capable visitor straight into the tutorial);
   ADR-0153 redirection 2 REMOVES "skip the intro" and every path to a static / deprecated page as a
-  capable-visitor affordance. The ONLY surviving non-experience path is the gate-required no-JS /
-  reduced-motion accessibility fallback (a clean minimal static page, `check:web-experience` green —
-  NOT the old marketing homepage, and NOT an escape a capable visitor is offered). *(Note: the SHIPPED
+  capable-visitor affordance. The ONLY surviving non-experience path is the no-JS /
+  reduced-motion accessibility fallback (a clean minimal static page — NOT the old marketing
+  homepage, and NOT an escape a capable visitor is offered). *(It read "gate-required ...
+  `check:web-experience` green"; ADR-0311 D2 retired that rung, so the requirement is now carried by
+  owner decision 6 and this spec — see
+  [`experience-rollout-guardrails`](experience-rollout-guardrails.md).)* *(Note: the SHIPPED
   build wires `[data-experience-skip]` to jump into the tutorial — see "As built"; the reshape removes
   that capable-visitor skip, keeping only the a11y fallback marker the gate requires. Confirm with the
   owner at the gate whether any minimal replay/exit affordance is wanted, since call-1/call-2 in the
