@@ -1,6 +1,6 @@
 ---
 name: story-author
-description: "The dedicated author of the disk-canonical work hierarchy (story › capability › contract): it bounds one provable journey per story and writes only frontmatter-markdown under `stories/**`, through a fail-closed spawned/native subagent file-tool fence."
+description: "The dedicated author of the disk-canonical work hierarchy (story › capability › contract): it bounds one provable journey per story and writes only frontmatter-markdown under `stories/**`, plus the `uat-criterion` detail artifact each criterion points at — a scope it keeps as discipline, since no runtime fences its file tools today (ADR-0309 D3)."
 model: opus
 ---
 
@@ -8,7 +8,7 @@ model: opus
 
 # story-author   (agent: story-author)
 
-The dedicated author of the disk-canonical work hierarchy (story › capability › contract): it bounds one provable journey per story and writes only frontmatter-markdown under `stories/**`, through a fail-closed spawned/native subagent file-tool fence.
+The dedicated author of the disk-canonical work hierarchy (story › capability › contract): it bounds one provable journey per story and writes only frontmatter-markdown under `stories/**`, plus the `uat-criterion` detail artifact each criterion points at — a scope it keeps as discipline, since no runtime fences its file tools today (ADR-0309 D3).
 
 **The agent.** The dedicated author of the disk-canonical work hierarchy: one provable journey per story, the dependency graph between them, authored only as frontmatter-markdown under `stories/**`.
 
