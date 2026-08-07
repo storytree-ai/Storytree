@@ -38,13 +38,20 @@ recorded here as it resolves.
    `build-corpus.mjs`. The old `seed.assets.mjs` and glossary-as-source are **retired**. *(Resolves the
    durability question, ex-`oq-library-body-durability`: the store is the source; there is no competing
    generator left to revert it.)*
-   *(Amended — both generated views have since been retired outright: `docs/glossary.md` by
+   *(Amended — both generated views were retired outright: `docs/glossary.md` by
    [ADR-0135](0135-retire-docs-glossary-md-the-library-is-the-sole-term-authori.md), then `assets.json`
    together with the `build-corpus.mjs` generator by
-   [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md); `knowledge.json` is now the
-   sole committed corpus source and the committed generated-view set is zero — the offline studio
-   derives its view at runtime and per-kind templates live in `@storytree/library`'s
-   `libraryTemplates()`.)*
+   [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md).)*
+   *(Corrected in place 2026-08-07 per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) — this clause then
+   read "`knowledge.json` is now the sole committed corpus source". That is FALSE:
+   [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md) D1 DELETED
+   `apps/studio/data/knowledge.json`, so **no committed file mirrors the corpus** and the structured
+   source of truth this decision names is now the live Cloud SQL store for every kind — the agent tier
+   included, since [ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md)
+   withdrew ADR-0055's seed-canonical exception. The offline studio still derives its view at runtime, but from
+   the committed FIXTURE corpus `@storytree/library/fixture` (a small sandbox seed that drifts from the
+   Library by design, ADR-0302 D3) plus `@storytree/library`'s `libraryTemplates()`.)*
 
 2. **Templates are schema-derived.** One ordered `KIND_SPECS` table per kind drives the zod schema, the
    body renderer, and the blank-template generator — one table, three consumers. This **resolves
@@ -77,9 +84,9 @@ recorded here as it resolves.
 ## Consequences
 
 - Library units **94 → 82** (curation + retiring the four resolved open-questions); `assets.json` and
-  `docs/glossary.md` were pure derivatives of `knowledge.json` (both generated views have since been
-  retired — `docs/glossary.md` by ADR-0135, `assets.json` by ADR-0210 — leaving `knowledge.json` the
-  sole committed corpus source).
+  `docs/glossary.md` were pure derivatives of `knowledge.json` (both generated views were retired —
+  `docs/glossary.md` by ADR-0135, `assets.json` by ADR-0210, and `knowledge.json` itself by ADR-0302 D1,
+  leaving **no committed corpus source at all**; the live store is canonical).
 - The structured source is the input to **Phase 2** — migrating the corpus into the provisioned Cloud
   SQL store ([ADR-0015](0015-gcp-hosting-cloud-sql-event-store.md) / ADR-0017).
 - **Known tradeoffs (for the DB phase):** `glossaryBody` duplicates content with the Library body
@@ -104,6 +111,7 @@ recorded here as it resolves.
   [ADR-0016](0016-knowledge-code-binding-and-staleness.md),
   [ADR-0017](0017-cross-cutting-knowledge-tier.md),
   [ADR-0015](0015-gcp-hosting-cloud-sql-event-store.md) (Phase 2 target).
-- `apps/studio/data/knowledge.json` (source), `apps/studio/data/build-corpus.mjs` (generator, removed by ADR-0210),
+- `apps/studio/data/knowledge.json` (the source as decided here — **deleted** by ADR-0302 D1; the live
+  store replaced it), `apps/studio/data/build-corpus.mjs` (generator, removed by ADR-0210),
   `packages/core/src/knowledge.ts` *(now `packages/library/src/knowledge.ts` — ADR-0068)*
   (schema / `KIND_SPECS`), `docs/research/library-template-alignment.md`.

@@ -118,16 +118,31 @@ just-in-time principle a *navigational affordance*, not just a context-assembly 
     (`validateLibraryDoc`), returning the failure as guidance rather than persisting.
 
 11. **The shared store is the live source of truth for artifact state; `knowledge.json` is a seed.**
-    Parallel artifact work goes through the CLI to the **live `--pg` store** (the offline in-memory
-    copy is read-only-by-convention — a write without `--pg` is refused with guidance). `knowledge.json`
-    is the **migration seed / export view**, no longer the edit-here surface for live changes.
+    Parallel artifact work goes through the CLI to the **live `--pg` store** (a write without `--pg` is
+    refused with guidance). `knowledge.json` is the **migration seed / export view**, no longer the
+    edit-here surface for live changes.
     *(Amended: the generated `assets.json` / `docs/glossary.md` views that once accompanied the seed are
     retired — `docs/glossary.md` by ADR-0135, `assets.json` by
-    [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md) — so `knowledge.json` is now
-    the sole committed seed / export surface.)* **Do not re-run `load-corpus.ts --force`** against a
-    live DB that has CLI edits — it would revert them (a DB→seed export path is later work). The studio
-    reflects CLI edits only when run in store mode (`STORYTREE_STUDIO_STORE=pg`) — the single UI
-    session's concern; this ADR changes no studio code.
+    [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md).)*
+    *(Corrected in place 2026-08-07 per
+    [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) — three claims here
+    are now FALSE, while the DECISION above stands unchanged and stronger.
+    **(a)** [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md) D1 DELETED
+    `apps/studio/data/knowledge.json`, so there is no seed and no committed seed / export surface — this
+    clause read "`knowledge.json` is now the sole committed seed / export surface"; D4 deleted the
+    reconciling ceremonies outright, and
+    [ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md)
+    withdrew the agent tier's seed-canonical exception, so live-canonical is now universal.
+    **(b)** The "do not re-run `load-corpus.ts --force`" fence is MOOT: with the seed gone there is no
+    bulk file→DB load to revert parallel sessions' edits. The rule that survives is the boundary itself
+    (`asset:live-store-is-the-edit-surface`), whose reason is that the shared store is what every other
+    session reads.
+    **(c)** The offline in-memory copy is no longer a copy of the corpus: a BARE read now dials the live
+    store, and the hermetic offline path reads the FIXTURE corpus `@storytree/library/fixture`, which
+    drifts from the Library by design (ADR-0302 D3). `--pg` is still required for WRITES.)*
+    The studio reflects CLI edits only when run in store mode — since `oq-studio-store-default` resolved
+    to B the live store is the DEFAULT, and `STORYTREE_STUDIO_STORE=json` selects the offline backend;
+    this ADR changes no studio code.
 
 ## Consequences
 
