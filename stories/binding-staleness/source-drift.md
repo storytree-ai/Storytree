@@ -10,7 +10,7 @@ depends_on: []
 decisions: [16]
 # Node-borne proof config (ADR-0057 keystone A): authoring THIS block is what makes the node
 # inner-loop buildable. NET-NEW, install-free leaf: source-drift.ts uses ONLY `import type` from
-# ./anchor.js (erased by tsx) and reimplements the one-line described-change check inline, so it has NO
+# @storytree/proof-protocol (erased by tsx) and reimplements the one-line described-change check inline, so it has NO
 # runtime dependency — the fresh worktree needs no node_modules, the default `node --import tsx --test`
 # proof on the single test file resolves it. The red is genuine: source-drift.ts does not exist at HEAD,
 # so the authored test's `import { classifySourceDrift } from "./source-drift.js"` fails until IMPLEMENT
@@ -19,16 +19,16 @@ decisions: [16]
 proof:
   command:
     file: pnpm
-    args: ["--filter", "@storytree/core", "test"]
+    args: ["--filter", "@storytree/orchestrator", "test"]
   scope:
-    testGlobs: ["packages/core/src/**/*.test.ts"]
-    sourceGlobs: ["packages/core/src/**/*.ts"]
+    testGlobs: ["packages/orchestrator/src/proof/**/*.test.ts"]
+    sourceGlobs: ["packages/orchestrator/src/proof/**/*.ts"]
   real:
-    testFile: "packages/core/src/source-drift.test.ts"
-    sourceFile: "packages/core/src/source-drift.ts"
+    testFile: "packages/orchestrator/src/proof/source-drift.test.ts"
+    sourceFile: "packages/orchestrator/src/proof/source-drift.ts"
     scope:
-      testGlobs: ["packages/core/src/source-drift.test.ts"]
-      sourceGlobs: ["packages/core/src/source-drift.ts"]
+      testGlobs: ["packages/orchestrator/src/proof/source-drift.test.ts"]
+      sourceGlobs: ["packages/orchestrator/src/proof/source-drift.ts"]
 ---
 
 # A pure source-drift classifier over the derives_from DAG
@@ -39,7 +39,7 @@ described change → `stale`, an undescribed one → demoted, none → `fresh` �
 drift signals.
 
 > **The gap this closes (ADR-0016 §4 — "Two drift signals").** Code-drift (a binding's covered span
-> changed) is handled by [`classifyDrift`](../../packages/core/src/anchor.ts). The OTHER signal is
+> changed) is handled by [`classifyDrift`](../../packages/orchestrator/src/proof/anchor-compute.ts). The OTHER signal is
 > **source-drift**: an artifact's source ADR or upstream artifact changed (the `derives_from` DAG,
 > ADR-0017). This unit adds the pure, standalone classifier for it — the same three honest states, the
 > same described-change gate, but keyed on the upstreams' content rather than one span's. It is
@@ -49,12 +49,12 @@ drift signals.
 
 ## Guidance
 
-ONE net-new pure module `packages/core/src/source-drift.ts`. **Type-only imports only**, so the module
+ONE net-new pure module `packages/orchestrator/src/proof/source-drift.ts`. **Type-only imports only**, so the module
 has NO runtime dependency (keeps the inner-loop leaf install-free — `anchor.ts` imports `zod`, so a
 VALUE import of anything from it would pull `zod` into a worktree with no `node_modules`):
 
 ```ts
-import type { ChangeEvent, DriftState } from "./anchor.js";
+import type { ChangeEvent, DriftState } from "@storytree/proof-protocol";
 ```
 
 Export these and nothing else:
@@ -129,6 +129,6 @@ the module exists and every assertion passes.
        changed (e.g. two upstreams, only one present-and-equal → `fresh`);
      - **latest described wins** — two described changes on the changed upstream → the one with the
        greater `at` supplies `description`.
-   - **proven by —** `packages/core/src/source-drift.test.ts` (authored by the leaf inside the gate's
+   - **proven by —** `packages/orchestrator/src/proof/source-drift.test.ts` (authored by the leaf inside the gate's
      AUTHOR_TEST phase; the spine observes the red — the missing `./source-drift.js` module — before
      IMPLEMENT writes it).

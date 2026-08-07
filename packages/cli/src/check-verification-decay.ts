@@ -140,22 +140,35 @@ const CEILINGS = {
    * Baselined 2026-07-27 at the 5 signals that sweep located — every one of them a unit bound to
    * `@storytree/core` (dissolved by ADR-0068) or `@storytree/store` (dissolved by ADR-0077).
    *
-   * TIGHTENED 5 → 3 (2026-08-07) — the ordinary drain move this ceiling exists to invite: repair a
-   * signal, lower the number. Both `@storytree/store` bindings were re-pointed at the code's real
-   * homes after ADR-0077 dissolved that package — `cloud-sql-admin-rest` to
-   * `packages/library/src/store/cloud-sql-admin.{ts,test.ts}`, and `change-store-pg` to
-   * `packages/orchestrator/src/store/pg-change-store.{ts,live.test.ts}` (NOT the library
-   * mirror-image path — that adapter landed in the orchestrator).
+   * TIGHTENED 5 → 0 (2026-08-07) — FULLY DRAINED, the move this ceiling exists to invite: repair a
+   * signal, lower the number. All five bindings were re-pointed at the code's real homes:
+   *
+   *   cloud-sql-admin-rest  → packages/library/src/store/cloud-sql-admin.{ts,test.ts}
+   *   change-store-pg       → packages/orchestrator/src/store/pg-change-store.{ts,live.test.ts}
+   *   source-drift          → packages/orchestrator/src/proof/source-drift.{ts,test.ts}
+   *   change-event-store    → packages/storage-protocol/src/{store.ts,change-event-store.test.ts}
+   *   boundhash-on-verdict  → packages/proof-protocol/src/{proof.ts,shapes.test.ts}
+   *
+   * Two of those are worth knowing, because the obvious guess is wrong in both. `pg-change-store` did
+   * NOT follow the library mirror-image path — that adapter landed in the ORCHESTRATOR. And
+   * `boundhash-on-verdict`'s dedicated test file was DELETED, not renamed, when ADR-0068 carved the
+   * proof machinery out of core; its assertion survives verbatim inside the shared `shapes.test.ts`
+   * suite, which is what `real.testFile` now names.
    *
    * The APERTURE IS UNCHANGED: same loader, same `stories/**` walk, same two target kinds. So this is
    * a repair lowering the number, not a narrowing that would owe a matching drop (ADR-0269 5), and
    * not a raise that would owe a decomposition here (ADR-0269 4(f)).
    *
-   * The remaining 3 are undrained, not excused — `boundhash-on-verdict`, `change-event-store` and
-   * `source-drift`, every one bound to `@storytree/core` and all three sitting in
-   * `stories/binding-staleness`, the story named for this exact class of rot.
+   * AT ZERO THIS INSTRUMENT NOW BLOCKS, which is the point — the previous 5 sat un-drained for the
+   * eleven days from its baseline, reported by name on every gate run and read by nobody. But zero
+   * also removes the slack that absorbed {@link findContractBindingDrift}'s ONE stated false positive:
+   * a genuine net-new unit that will CREATE a new workspace package legitimately binds paths outside
+   * every package existing today. If you are that session, you are not looking at rot — and the
+   * remedy is still not a silent raise. Say so AT this number with the node named (ADR-0269 4(f)),
+   * or narrow the finding; absorbing an unrelated backlog under an unchanged aperture stays the
+   * gaming move ADR-0252 D3 fenced.
    */
-  [CONTRACT_BINDING_DRIFT]: 3,
+  [CONTRACT_BINDING_DRIFT]: 0,
   /**
    * Baselined 2026-07-27 at the 10 route pairs that sweep located — every `/api/*` path served by
    * BOTH the studio server and the desktop backend except `/api/docs`, the one pair `MIRRORS`
