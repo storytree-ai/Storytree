@@ -11,7 +11,7 @@ decisions: [16]
 # Node-borne proof config (ADR-0057 keystone A): authoring THIS block is what makes the node
 # inner-loop buildable — no NODE_BUILD_REGISTRY edit. EDIT-EXISTING (ADR-0057 §3 expansion C): the
 # leaf authors a regression test that FAILS against current behaviour, then edits the EXISTING
-# packages/core/src/proof.ts. The red is genuine and runtime: the `Verdict` schema is `.strict()`, so
+# packages/proof-protocol/src/proof.ts. The red is genuine and runtime: the `Verdict` schema is `.strict()`, so
 # `Verdict.parse({ ...validVerdict, boundHash: "…" })` THROWS at HEAD (unrecognized key) until IMPLEMENT
 # adds the optional field. `install: true` + a typecheck wall because proof.ts imports `zod` (the proof
 # runs in a fresh worktree — tsx + tsc need the lockfile-only install, ADR-0031 §2); single source file,
@@ -19,20 +19,20 @@ decisions: [16]
 proof:
   command:
     file: pnpm
-    args: ["--filter", "@storytree/core", "test"]
+    args: ["--filter", "@storytree/proof-protocol", "test"]
   scope:
-    testGlobs: ["packages/core/src/**/*.test.ts"]
-    sourceGlobs: ["packages/core/src/**/*.ts"]
+    testGlobs: ["packages/proof-protocol/src/**/*.test.ts"]
+    sourceGlobs: ["packages/proof-protocol/src/**/*.ts"]
   real:
-    testFile: "packages/core/src/boundhash-verdict.test.ts"
-    sourceFile: "packages/core/src/proof.ts"
+    testFile: "packages/proof-protocol/src/shapes.test.ts"
+    sourceFile: "packages/proof-protocol/src/proof.ts"
     scope:
-      testGlobs: ["packages/core/src/boundhash-verdict.test.ts"]
-      sourceGlobs: ["packages/core/src/proof.ts"]
+      testGlobs: ["packages/proof-protocol/src/shapes.test.ts"]
+      sourceGlobs: ["packages/proof-protocol/src/proof.ts"]
     install: true
     typecheck:
       file: pnpm
-      args: ["--filter", "@storytree/core", "typecheck"]
+      args: ["--filter", "@storytree/proof-protocol", "typecheck"]
     editsExisting: true
 ---
 
@@ -42,7 +42,7 @@ proof:
 (`hashSpan`) of the proved span at sign time — so a verdict **knows what code it proved** and drift can
 be computed against it later; absent on verdicts predating ADR-0016 (back-compat).
 
-> **The gap this closes (ADR-0016).** A `Verdict` (`packages/core/src/proof.ts`) records the outcome,
+> **The gap this closes (ADR-0016).** A `Verdict` (`packages/proof-protocol/src/proof.ts`) records the outcome,
 > the commit, the signer and the run — but NOT *which code* it proved. Without that, a verdict can never
 > answer "is the code I proved still the code on disk?" — the whole point of the binding/staleness model.
 > ADR-0016's anchor keeps IDENTITY (what) separate from VERSION (when); `boundHash` is the verdict's slot
@@ -51,7 +51,7 @@ be computed against it later; absent on verdicts predating ADR-0016 (back-compat
 
 ## Guidance
 
-ONE additive field on the existing `Verdict` zod schema in `packages/core/src/proof.ts`. The `Verdict`
+ONE additive field on the existing `Verdict` zod schema in `packages/proof-protocol/src/proof.ts`. The `Verdict`
 object is `.strict()`, so add the field INSIDE the `z.object({ … })` — anywhere among the existing keys
 (e.g. right after `runId`):
 
@@ -92,6 +92,13 @@ const base = {
 };
 ```
 
+**Note on the test binding.** This node's original dedicated test file `boundhash-verdict.test.ts` no
+longer exists: it was deleted when ADR-0068 carved the proof machinery out of `@storytree/core`, and its
+assertion now lives inside the shared `shapes.test.ts` suite, as the test
+`"Verdict: boundHash is preserved when present and absent when omitted (ADR-0016 back-compat)"`.
+`real.testFile` therefore points at a SHARED suite rather than a dedicated file, so a rebuild would
+author into a file containing many other shape tests.
+
 ## Contract
 
 1. **`verdict-records-the-bound-hash`** — the signed `Verdict` can carry, and round-trips, the
@@ -103,6 +110,6 @@ const base = {
        `undefined` (back-compat — a verdict predating ADR-0016 still parses);
      - the schema stays `.strict()`: parsing `{ ...base, bogusKey: 1 }` still THROWS (an unrelated
        unknown key is still rejected — the field added is exactly `boundHash`, not a relaxation).
-   - **proven by —** `packages/core/src/boundhash-verdict.test.ts` (authored by the leaf inside the
+   - **proven by —** `packages/proof-protocol/src/shapes.test.ts` (authored by the leaf inside the
      gate's AUTHOR_TEST phase; the spine observes the red — the `.strict()` rejection of the `boundHash`
      key on the unedited schema — before IMPLEMENT adds the optional field).

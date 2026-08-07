@@ -11,7 +11,7 @@ decisions: [16]
 # Node-borne proof config (ADR-0057 keystone A): authoring THIS block is what makes the node
 # inner-loop buildable. EDIT-EXISTING (ADR-0057 §3 expansion C): the leaf adds a parity-suite
 # regression test that FAILS against current behaviour, then edits the EXISTING
-# packages/core/src/store.ts. The red is genuine and runtime: the test imports `changeStoreParitySuite`
+# packages/storage-protocol/src/store.ts. The red is genuine and runtime: the test imports `changeStoreParitySuite`
 # from `./store.js`, which does not exist at HEAD, so calling it throws ("not a function") until
 # IMPLEMENT adds the contract + suite. `install: true` + typecheck because store.ts imports `zod`
 # (fresh-worktree tsx + tsc need the lockfile-only install, ADR-0031 §2); single source file → the
@@ -19,20 +19,20 @@ decisions: [16]
 proof:
   command:
     file: pnpm
-    args: ["--filter", "@storytree/core", "test"]
+    args: ["--filter", "@storytree/storage-protocol", "test"]
   scope:
-    testGlobs: ["packages/core/src/**/*.test.ts"]
-    sourceGlobs: ["packages/core/src/**/*.ts"]
+    testGlobs: ["packages/storage-protocol/src/**/*.test.ts"]
+    sourceGlobs: ["packages/storage-protocol/src/**/*.ts"]
   real:
-    testFile: "packages/core/src/change-event-store.test.ts"
-    sourceFile: "packages/core/src/store.ts"
+    testFile: "packages/storage-protocol/src/change-event-store.test.ts"
+    sourceFile: "packages/storage-protocol/src/store.ts"
     scope:
-      testGlobs: ["packages/core/src/change-event-store.test.ts"]
-      sourceGlobs: ["packages/core/src/store.ts"]
+      testGlobs: ["packages/storage-protocol/src/change-event-store.test.ts"]
+      sourceGlobs: ["packages/storage-protocol/src/store.ts"]
     install: true
     typecheck:
       file: pnpm
-      args: ["--filter", "@storytree/core", "typecheck"]
+      args: ["--filter", "@storytree/storage-protocol", "typecheck"]
     editsExisting: true
 ---
 
@@ -43,7 +43,7 @@ implemented by `InMemoryStore` and held to a reusable parity suite, so any backe
 session's Postgres adapter next) can be proven equivalent offline.
 
 > **The gap this closes (ADR-0016 §2).** ADR-0016's change unit is the `ChangeEvent` (already defined in
-> [`anchor.ts`](../../packages/core/src/anchor.ts)), but there is nowhere to PUT one: the narrow `Store`
+> [`anchor.ts`](../../packages/proof-protocol/src/anchor.ts)), but there is nowhere to PUT one: the narrow `Store`
 > seam holds docs + generic events, not the binding's change log. This unit adds a small typed contract
 > for appending and reading change events, backed by `InMemoryStore`, and — critically — a REUSABLE
 > parity suite so the parallel session's `PgChangeStore` can be held to the same behavioural bar (exactly
@@ -52,12 +52,12 @@ session's Postgres adapter next) can be proven equivalent offline.
 
 ## Guidance
 
-THREE additions to `packages/core/src/store.ts` (the only source file in scope). `ChangeEvent` already
+THREE additions to `packages/storage-protocol/src/store.ts` (the only source file in scope). `ChangeEvent` already
 lives in `anchor.ts` — import the **type** at the top of `store.ts` (a type-only import keeps the seam
 clean):
 
 ```ts
-import type { ChangeEvent } from "./anchor.js";
+import type { ChangeEvent } from "@storytree/proof-protocol";
 ```
 
 **1. The `ChangeStore` interface** (kept narrow and SEPARATE from `Store` on purpose — do NOT add these
@@ -139,7 +139,7 @@ above to `store.ts`.
 from `./store.js` and calls it. At HEAD that export does not exist, so the call throws — a genuine
 runtime red. After IMPLEMENT the suite registers and every parity test passes.
 
-The test file `packages/core/src/change-event-store.test.ts` is exactly the parity-suite invocation (the
+The test file `packages/storage-protocol/src/change-event-store.test.ts` is exactly the parity-suite invocation (the
 parity suite IS the proof — ADR-0016's offline change-event contract):
 
 ```ts
@@ -158,6 +158,6 @@ changeStoreParitySuite("InMemoryStore", () => new InMemoryStore());
      - `readChangeEvents({ unitId })` filters to that unit; the no-filter read returns all;
      - append order is preserved on read;
      - a fresh store's reads return `[]` (filtered and unfiltered), never throwing.
-   - **proven by —** `packages/core/src/change-event-store.test.ts` (authored by the leaf inside the
+   - **proven by —** `packages/storage-protocol/src/change-event-store.test.ts` (authored by the leaf inside the
      gate's AUTHOR_TEST phase; the spine observes the red — the missing `changeStoreParitySuite` export —
      before IMPLEMENT adds the contract, the `InMemoryStore` methods, and the suite).
