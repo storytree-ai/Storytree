@@ -7,13 +7,15 @@ import { upcastAndValidate, KIND_SPECS, NODE_REF_PREFIX } from "@storytree/libra
  * `storytree library --check` full report, and the ADR-0022 CI gate. NOT a standalone `doctor`
  * command. Ported from the read-only prototype (docs/research/library-doctor-prototype.mjs).
  *
- * Five checks run over the projection (`StoredDoc[]`; the body is in `d.doc`):
+ * Four checks run over the projection (`StoredDoc[]`; the body is in `d.doc`):
  *   1 schema-conformance  — every structured doc upcastAndValidate()s against the current schema (GATE)
  *   2 retired-field       — no doc carries a field a past migration removed (denylist) (GATE)
  *   3 version-floor       — no doc below CURRENT_SCHEMA_VERSION (GATE)
  *   4 referential-integ.  — asset:<id> resolves to a live id (FAIL on break); doc:<path> via
  *                           docExists and node:<id> via nodeExists (WARN) (WARN-class)
- *   5 count-reconciliation — structured-kind docs == opts.generatedAssetCount (WARN-class)
+ *
+ * (There was a fifth, count-reconciliation — structured-kind docs == the generated assets.json count.
+ * ADR-0210 deleted that file and this check together, with no replacement; see libraryHealth below.)
  *
  * The function stays node-light: filesystem (`docExists`) and the generated-asset count are INJECTED
  * via {@link HealthOpts}, so it is pure and unit-testable; the CLI layer provides the fs-backed

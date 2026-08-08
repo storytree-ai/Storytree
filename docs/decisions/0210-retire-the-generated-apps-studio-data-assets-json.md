@@ -1,7 +1,7 @@
 ---
 status: accepted
 decided: 2026-07-18
-amends: [18, 23, 120, 135]
+amends: [18, 23, 26, 120, 135]
 ---
 # ADR-0210: Retire the generated apps/studio/data/assets.json
 
@@ -11,11 +11,13 @@ accepted (2026-07-18) — decided/directed by the owner in conversation on 2026-
 Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask. Realizes the parked
 `retire-generated-assets-json` proposal.
 
-**Amends** ADR-0018, ADR-0023, ADR-0120, ADR-0135 — narrows the committed generated-view set from
+**Amends** ADR-0018, ADR-0023, ADR-0026, ADR-0120, ADR-0135 — narrows the committed generated-view set from
 "`assets.json` only" (where ADR-0135 left it) to **zero**: `assets.json` is deleted (0018 §the generated
 view; 0023 §11 seed/export surface), the `build-corpus.mjs` generator and its `check:corpus-build` drift
-gate are removed (0120 part 1). None overturned: `knowledge.json` stays the structured seed, the live
-Cloud SQL store stays the canonical non-agent tier, and the agent tier stays seed-canonical.
+gate are removed (0120 part 1), and the `count-reconciliation` health check ADR-0026 introduced as one of
+its five checks is deleted outright rather than graduated (0026 §5/§6). None overturned: `knowledge.json`
+stays the structured seed, the live Cloud SQL store stays the canonical non-agent tier, and the agent tier
+stays seed-canonical.
 
 ## Context
 
@@ -120,6 +122,9 @@ against it) and C (keep the file, keep a drift gate) were considered and rejecte
   surface; `assets.json` was the migration seed/export view, dropped here.
 - [ADR-0120](0120-live-to-seed-reconciliation-export-corpus-and-unit-status-to.md) — added
   `check:corpus-build`; removed here with the file it gated.
+- [ADR-0026](0026-library-schema-migrations-and-health-checks.md) — introduced the health module's five
+  checks, one of them `count-reconciliation`; that check is deleted here, not graduated to GATE, leaving
+  four.
 - Code: `packages/library/src/templates.ts` (+ `templates.test.ts`), `packages/library/src/store/load-corpus.ts`,
   `apps/desktop/src/backend/chat-sse-mount.ts`, `apps/studio/server/deriveOfflineCorpus.ts` +
   `libraryBackend.ts` (option B), `packages/drive/src/health.ts` + `packages/cli/src/commands.ts` (WARN
