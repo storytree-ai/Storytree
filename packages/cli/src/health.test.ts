@@ -30,7 +30,7 @@ import {
  * reads a frozen 13-artifact literal that ADR-0302 D3 says is "deliberately NOT a mirror and never
  * reconciled, so it drifts by design". A green run therefore proves the three GATE-class checks
  * classify a known-clean corpus correctly, and says NOTHING about the live one — which on 2026-08-08
- * was RED on two of those three while this suite passed.
+ * was RED on `version-floor` (ten docs, no session's own) while this suite passed.
  *
  * That is not a hole to plug here. `storytree library --check` reads the live corpus on demand and
  * is deliberately not a merge gate (ADR-0026 §5, "by design, not every push"); making one would need
