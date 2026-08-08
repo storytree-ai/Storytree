@@ -19,9 +19,25 @@ import {
  * Health-check tests (design §4: docs/research/library-schema-migrations-and-health-checks.md).
  * OFFLINE — no DB, no API key. Two parts:
  *  (a) pure-function tests with stubbed docs for each level of each check;
- *  (b) a SEED gate test — load the corpus into an InMemoryStore and assert gateFailures() is EMPTY
- *      (the GATE-class checks — schema-conformance / retired-field / version-floor — are clean on the
- *      stamped seed). This is what makes `pnpm -r test` (ADR-0022) enforce migration health.
+ *  (b) a FIXTURE gate test — load `@storytree/library/fixture` into an InMemoryStore and assert
+ *      gateFailures() is EMPTY (the GATE-class checks — schema-conformance / retired-field /
+ *      version-floor — are clean on it). This is what makes `pnpm -r test` (ADR-0022) enforce the
+ *      health ENGINE offline.
+ *
+ * WHAT (b) DOES NOT COVER, because its subject changed under it. It was written as a SEED gate over
+ * `apps/studio/data/knowledge.json`, the committed mirror of the corpus — so a green run once did
+ * mean the real corpus was schema-clean. ADR-0302 D1 DELETED that file, and the loader it now calls
+ * reads a frozen 13-artifact literal that ADR-0302 D3 says is "deliberately NOT a mirror and never
+ * reconciled, so it drifts by design". A green run therefore proves the three GATE-class checks
+ * classify a known-clean corpus correctly, and says NOTHING about the live one — which on 2026-08-08
+ * was RED on two of those three while this suite passed.
+ *
+ * That is not a hole to plug here. `storytree library --check` reads the live corpus on demand and
+ * is deliberately not a merge gate (ADR-0026 §5, "by design, not every push"); making one would need
+ * production-catch evidence and an ADR (ADR-0311 D5, `asset:justify-a-gate-rung`). What this comment
+ * buys is that nobody reads a green `pnpm -r test` as the corpus being watched —
+ * `stories/cli/verification-decay-instruments.md` already classes this suite as "five checks over a
+ * frozen fixture corpus", proving facts about a JUDGE rather than about the world.
  */
 
 const BASE_OPTS = { currentSchemaVersion: CURRENT_SCHEMA_VERSION, retiredFields: ["seeAlso"] };
@@ -196,9 +212,9 @@ test("libraryHealthCheap omits the fs-heavy referential-integrity check", () => 
   assert.ok(cheap.find((r) => r.name === "schema-conformance"));
 });
 
-// --- (b) SEED gate test ------------------------------------------------------------------------
+// --- (b) FIXTURE gate test ---------------------------------------------------------------------
 
-test("SEED gate: the stamped corpus has NO gate failures (schema/retired/version clean)", async () => {
+test("FIXTURE gate: the frozen fixture corpus has NO gate failures (schema/retired/version clean)", async () => {
   const store = new InMemoryStore();
   await loadFixtureCorpus(store);
   const docs = await store.queryDocs();
@@ -207,7 +223,7 @@ test("SEED gate: the stamped corpus has NO gate failures (schema/retired/version
   assert.deepEqual(
     gf.map((r) => `${r.name}: ${r.lines.join("; ")}`),
     [],
-    "the GATE-class checks must be clean on the stamped seed",
+    "the GATE-class checks must be clean on the frozen fixture (NOT a claim about the live corpus)",
   );
   // referential-integrity may be WARN — do NOT assert it as gating here.
 });

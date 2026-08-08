@@ -86,10 +86,19 @@ slice of expand/contract (C) only when a removal can't land atomically, plus the
 5. **One shared health module, surfaced where you already look — NOT a new command.** `libraryHealth(docs, opts)`
    (`packages/cli/src/health.ts`, ported from the read-only prototype) is one pure function running five
    checks, feeding three consumers: a **cheap health banner on the existing `storytree library` dashboard**
-   (the cosmetic `Library: OK` line made real), a **`--check` flag** for the full per-id report plus a live
-   `--pg` run (the one thing CI can't do — the DB is stopped by default), and the **CI green gate**
-   ([ADR-0022](0022-ci-green-gate-and-auto-merge.md)) via the offline SEED test. Filesystem and the
+   (the cosmetic `Library: OK` line made real), a **`--check` flag** for the full per-id report against the
+   live corpus (the one thing CI can't do — the DB was stopped by default), and the **CI green gate**
+   ([ADR-0022](0022-ci-green-gate-and-auto-merge.md)) via the offline corpus test. Filesystem and the
    generated-asset count are injected, so the function stays pure and offline-testable.
+
+   *(Corrected in place 2026-08-08 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md);
+   the decision is unchanged, two of its sentences were overtaken. The third consumer said "the offline
+   SEED test", and that test loaded `apps/studio/data/knowledge.json`, the committed mirror of the corpus —
+   so it once did enforce real corpus health. [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md)
+   D1 deleted that file; the test now loads a frozen 13-artifact fixture D3 calls "deliberately NOT a
+   mirror … it drifts by design", and so proves the health ENGINE rather than the corpus. Consumer (b) is
+   the only live-corpus reader left, and the sentence below still governs it. Nothing here re-decides the
+   GATE/WARN split of §6 or the exit-code semantics.)*
 
 6. **GATE vs. WARN split.** **schema-conformance, retired-field, version-floor are the GATE** — they are the
    invariant `.strict()` already promises, enforced across the *whole* set, fully in the prove-it-gate spirit
@@ -116,7 +125,13 @@ slice of expand/contract (C) only when a removal can't land atomically, plus the
   `apps/studio/data/stamp-schema-version.mjs`) and a per-version ledger row in the live DB.
 - Migration code accretes forever (every historical `up()` is permanent) — accepted, the registry is tiny.
 - Offline CI cannot see live out-of-band drift (a hand-edit straight to the DB); only an occasional operator
-  `storytree library --check --pg` does — by design, not every push.
+  `storytree library --check` does — **by design, not every push.** This is the sentence that settles what
+  that command is: an on-demand report, never a merge gate. It printed a broken-gate banner instructing the
+  reader to fix the failures before merging until 2026-08-08, when the language was corrected to match this
+  decision; a rung would need production-catch evidence and its own ADR
+  ([ADR-0311](0311-gate-survival-is-evidence-backed-retain-nine-production-catc.md) D5), never merely the
+  wiring. What ADR-0302 changed is only the SCOPE of the blind spot, not this rule: with the committed
+  mirror gone the live corpus is the whole corpus, so "out-of-band drift" now means all of it.
 - Re-projection-as-rollback is named but not yet tooled.
 - The `oq-adr-0014-draft` dangling-citation the prototype surfaced was repointed in this change (commit
   36b5237): the reference `doc:decisions/0018-resolve-knowledge-open-questions.md` (a non-existent file)

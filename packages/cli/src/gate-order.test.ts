@@ -7,7 +7,10 @@ import assert from "node:assert/strict";
 import {
   EXIT_CODE_COLLAPSING_INVOCATION,
   EXPENSIVE_STEPS,
+  GATE_AUTHORITY_PHRASES,
   GATE_PLAN,
+  GATE_VOICE_EXEMPTIONS,
+  GATE_VOICE_SCAN_ROOTS,
   type GateStep,
   NON_GATE_CHECK_SCRIPTS,
   PRE_EXPENSIVE_CHECKS,
@@ -16,7 +19,9 @@ import {
   SKIP_CAPABLE_CHECKS,
   UNWIRED_MARKER,
   evaluateGateOrder,
+  findGateVoice,
   firstExpensiveIndex,
+  gateVoiceKey,
   lastExpensiveIndex,
 } from "./gate-order.js";
 
@@ -347,6 +352,96 @@ test("every surviving retired source exists and carries the UNWIRED banner", () 
       "Each still compiles and its own tests still pass, so without the banner a reader has no way " +
       "to tell it enforces nothing. Add the banner, or — if it was re-wired — update RETIRED_CHECKS.",
   );
+});
+
+// ── the gate's VOICE vs. the real source tree ────────────────────────────────
+//
+// The tombstone tests above judge FILES. These judge SENTENCES, which is the half no inventory of
+// check-shaped files can reach: `storytree library --check` is not a `check:*` script and leaves no
+// `check-*.ts` behind, so every test above swept past it while it printed
+// `GATE BROKEN: … — fix before merge` on a report nothing has ever run.
+
+/** The module that DECLARES the phrases, and its test — scanning them would only flag their own data. */
+const GATE_VOICE_SELF: ReadonlySet<string> = new Set([
+  "packages/cli/src/gate-order.ts",
+  "packages/cli/src/gate-order.test.ts",
+]);
+
+/** Every `.ts` under {@link GATE_VOICE_SCAN_ROOTS}, repo-root-relative with forward slashes. */
+function gateVoiceFiles(): string[] {
+  const out: string[] = [];
+  for (const root of GATE_VOICE_SCAN_ROOTS) {
+    for (const entry of readdirSync(path.join(repoRoot, root), { recursive: true })) {
+      const rel = `${root}/${String(entry).split(path.sep).join("/")}`;
+      if (rel.endsWith(".ts") && !GATE_VOICE_SELF.has(rel)) out.push(rel);
+    }
+  }
+  return out.sort();
+}
+
+test("findGateVoice reports each phrase with its line and the sentence, and stays quiet otherwise", () => {
+  // The non-vacuity control: the sweep below asserts an EMPTY list, which a scanner that finds
+  // nothing would also satisfy. This proves it can speak before that one proves nobody is speaking.
+  assert.deepEqual(findGateVoice("const ok = 1;\n// nothing to declare here\n"), []);
+
+  const hits = findGateVoice('a\nlines.push("GATE BROKEN: x — fix before merge.");\nb\n');
+  assert.deepEqual(
+    hits.map((h) => [h.line, h.phrase]),
+    [
+      [2, "GATE BROKEN"],
+      [2, "fix before merge"],
+    ],
+  );
+  assert.match(hits[0]?.text ?? "", /lines\.push/);
+});
+
+test("a mention of merging that claims no blocking authority is NOT a hit", () => {
+  // The two real sentences the narrow phrase list deliberately spares — widening it to catch these
+  // would bury the check in an allowlist nobody reads.
+  assert.deepEqual(findGateVoice("catch a collision before merge (it will fail the PR)"), []);
+  assert.deepEqual(findGateVoice("N candidate(s) await a librarian pass before merge (ADR-0095)"), []);
+});
+
+test("no source claims merge-blocking authority unless it is exempted with a reason", () => {
+  // THE LOAD-BEARING ONE, and the mirror of `every check:* script is IN the plan`: that test stops a
+  // check from existing unrun, this one stops a command from SOUNDING enforced while unrun. Both
+  // refuse the same conclusion — that something is watching when nothing is.
+  const unexplained: string[] = [];
+  for (const file of gateVoiceFiles()) {
+    for (const hit of findGateVoice(readFileSync(path.join(repoRoot, file), "utf8"))) {
+      if (GATE_VOICE_EXEMPTIONS.has(gateVoiceKey(file, hit.phrase))) continue;
+      unexplained.push(`${file}:${hit.line} — ${hit.text}`);
+    }
+  }
+
+  assert.deepEqual(
+    unexplained,
+    [],
+    `these assert merge-blocking authority: ${unexplained.join(" | ")}. Either the claim is FALSE — ` +
+      "reword it to report rather than to refuse (ADR-0311 D5: wiring a rung needs new " +
+      "production-catch evidence and an ADR, never merely the wiring) — or it is true, in which case " +
+      "trace it to its GATE_PLAN step and add it to GATE_VOICE_EXEMPTIONS with that reason.",
+  );
+});
+
+test("every gate-voice exemption still names a real, still-claiming sentence", () => {
+  // A stale exemption is removed, not kept — the same rule the NON_GATE_CHECK_SCRIPTS test applies,
+  // and the reason a reworded sentence cannot leave a permanent licence behind for the next author.
+  const live = new Set<string>();
+  for (const file of gateVoiceFiles()) {
+    for (const hit of findGateVoice(readFileSync(path.join(repoRoot, file), "utf8"))) {
+      live.add(gateVoiceKey(file, hit.phrase));
+    }
+  }
+  for (const [key, reason] of GATE_VOICE_EXEMPTIONS) {
+    assert.ok(live.has(key), `GATE_VOICE_EXEMPTIONS exempts \`${key}\`, which no longer says it`);
+    assert.ok(reason.length > 0, `${key} must record WHY the claim is honest`);
+  }
+});
+
+test("every declared phrase is a distinct claim of blocking authority", () => {
+  assert.ok(GATE_AUTHORITY_PHRASES.length > 0, "an empty phrase list makes the sweep vacuous");
+  assert.equal(new Set(GATE_AUTHORITY_PHRASES).size, GATE_AUTHORITY_PHRASES.length);
 });
 
 test("every check-shaped source file is either wired into the gate or declared retired", () => {
