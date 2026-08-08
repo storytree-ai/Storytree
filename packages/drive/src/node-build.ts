@@ -831,6 +831,14 @@ export interface RealBuildResult {
  * the proven commit on a `claude/real/<id>-<run>` branch (ADR-0031). Honesty walls are unchanged:
  * one `unitId`, one `PathWriteScope`, the spine's own observation; `buildNodeReal` orchestrates, it
  * never reaches inside `proveUnit`.
+ *
+ * IT TAKES NO CLAIM, AND THAT IS ITS CALLER'S JOB — stated because the silence here is what made the
+ * chain hold a proxy claim on the story id for as long as it did. Both callers claim the units they
+ * are about to write BEFORE any worktree or spend, which is where ADR-0121 puts the refusal: the
+ * single-node path in {@link nodeBuild} below, and the chain in `story-build.ts` via
+ * `acquireChainClaims` (chain-claims.ts), which takes the whole drive order all-or-nothing. Adding a
+ * take here would double-claim on both paths — re-entrant under the launching session's identity,
+ * reported as `displaced`, and then LEAKED on exit by the borrow-vs-take rule.
  */
 export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResult> {
   const { spec, worktree, baseSha, buildConfig, realConfig, store, runId, signer } = args;
