@@ -28,10 +28,15 @@ The cross-story edge system has a **determinism spectrum**, and only part of it 
   caught: drop a real import and the gate goes red until the declaration follows.
 - **Declared-but-UNENFORCEABLE — the escape hatch.** Three edge kinds carry no import the scan can see,
   so their declarations can drift with **zero gate signal**:
-  1. **Virtual-story edges.** A story that owns no package (e.g. `headless-orchestrator`, whose code is
-     physically hosted in `packages/agent` + `packages/drive`, owned by OTHER stories) has its
-     `depends_on` checked ONLY for acyclicity and rendered in the forest — never as a coverage
-     requirement, because no package maps back to it. Its edges are pure hand-prose.
+  1. **Virtual-story edges.** A story that owns no package (e.g. `wisp-as-story-claim`, whose code is
+     physically hosted in `packages/agent` + `packages/drive` + `packages/notice-board` + `apps/studio`,
+     owned by OTHER stories) has its `depends_on` checked ONLY for acyclicity and rendered in the
+     forest — never as a coverage requirement, because no package maps back to it. Its edges are pure
+     hand-prose. *(Corrected in place 2026-08-08 per ADR-0139: this bullet named `headless-orchestrator`
+     as the live example; that story has since retired — ADR-0175 — and a retired story is excluded from
+     the gate's story graph outright (ADR-0192's `check-boundaries.ts` gatherer skips it), so it is no
+     longer even acyclicity-checked. The example is swapped for a current virtual story; the class it
+     illustrates, and the incident narrated below, are unchanged.)*
   2. **IoC-injected seams.** A collaborator passed in as a parameter (a closure / runner) is bound at
      runtime, so the consumer's source names no provider. `packages/cli/src/commands.ts` injects its own
      `run()` into `packages/drive`'s `orchestrate()` as `runner: (toolArgv) => run(...)`; `drive` never

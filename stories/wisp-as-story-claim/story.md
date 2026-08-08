@@ -27,7 +27,11 @@ capabilities: [claim-store-work-time, render-claim-as-wisp, colour-by-subagent, 
 # + merge-sweep wiring in packages/drive, the wisp/in-flight render glue in apps/studio, the
 # spawn-seam claim in packages/agent — so the hosting is declared (consumer-side) and annotated
 # (hosted seams: the story owns no package and adds no @storytree/* import of its own). No cycle:
-# none of the four hosts depends on this story (its only consumer is chat-subagent-spawn, above them).
+# none of the four hosts depends on this story. Its one story-level consumer WAS chat-subagent-spawn
+# (above them); that story and all five of its capabilities are `status: retired` under ADR-0175 and its
+# code is deleted, so this story now has no live story-level consumer — which strengthens the no-cycle
+# claim rather than weakening it. The packages/agent seam ADR-0175 deliberately KEPT (spawn-claim.ts,
+# `resolveSpawnClaim`) is still hosted here, so the agent hosting edge stands.
 depends_on: [notice-board, drive-machinery, studio, agent]
 # ADR-0166 artifact edges: all four are hosted-seam edges (see above) — no code import backs them.
 artifact_edges: [notice-board, drive-machinery, studio, agent]
@@ -63,7 +67,7 @@ edges:
     rationale: "F witnesses the wisp clearing on merge D wires."
   - from: appearance-uat
     to: take-claim-at-spawn
-    rationale: "F witnesses that a claimed story (claimed at spawn by E) orbits exactly one wisp."
+    rationale: "F witnesses that a claimed story orbits exactly one wisp — the count/exclusivity E's acquire-or-wait seam decides. E's spawn-path CALLER retired with chat-subagent-spawn (ADR-0175); the live claim reaching the map is taken at workspace creation (ADR-0200 D3) and at declare-time (claim-at-declare)."
 # Deciding ADRs (ADR-0037 §2): 0200 is the re-decision this story now realises (the noticeboard is the
 # claim ledger; the claim gains grades exploring/waiting/work; presence retired; the map renders by grade
 # by default — the `?claims=` flag retires). 0138 is the mechanism it generalises (the wisp IS the claim,
@@ -75,8 +79,11 @@ edges:
 # wisp COUNT encodes SESSIONS, the separate build-wisp layer is DELETED with its red→green band folded
 # onto the work body as a third (motion) channel, and ADR-0200 D7's "exploring is stationary by
 # construction" is REVERSED — window shopping now carries its own small local orbit. Added by the
-# 2026-07-26 witness re-adjudication, whose machine legs assert that render.
-decisions: [200, 212, 138, 142, 121, 33, 128, 137, 45, 99, 70]
+# 2026-07-26 witness re-adjudication, whose machine legs assert that render. 0175 is added not as a
+# decider of this story's render but because it RETIRED the cross-story realisation of E2 (the whole
+# chat-subagent-spawn story and its spawn code, 2026-07-31) while deliberately KEEPING this story's own
+# packages/agent seam (spawn-claim.ts) — a reader cannot judge capability E's live scope without it.
+decisions: [200, 212, 138, 142, 121, 33, 128, 137, 45, 99, 70, 175]
 ---
 
 # The forest wisp IS the claim — graded, coloured by subagent, cleared on merge
@@ -149,14 +156,27 @@ well-behaved session showed no wisp between builds. [ADR-0142](../../docs/decisi
 takes the work-time claim ([`claim-at-declare`](claim-at-declare.md), landed PR #535), `done`
 bulk-releases, the statusline heartbeat keeps claims out of stale-reclaim, and CI refuses a PR from an
 already-merged head branch (*a branch is one landed unit* — what keeps D's branch-keyed clear from ever
-erasing live work). Claim-at-SPAWN (E2) has since landed: its GATE half graduated as
-chat-subagent-spawn's [`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md)
-(`packages/agent/src/claim-gated-spawn.ts`, signed `--real` PASS), and the runtime mount followed
-(that story's `spawn-tool-surface` / `spawn-deps-composition` caps, signed `--real` PASSes — the
-claim-gated spawn tools mounted on `runHeadlessOrchestrator`, the real spawn deps threaded through
-`orchestrate()`); only the desktop sidecar glue composing real deps (`backend-entry.ts`,
-operator-attested) still stands between here and the spawn being the live hard point alongside the
-declare-time wiring.
+erasing live work).
+
+**Claim-at-SPAWN (E2) landed cross-story and has since been RETIRED — the spawn never became the live hard
+point.** Its GATE half graduated as chat-subagent-spawn's
+[`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md) under a signed `--real` PASS, and the
+runtime mount followed (that story's `spawn-tool-surface` / `spawn-deps-composition` caps, also signed
+`--real` PASSes). Then
+[ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)
+retired the in-app orchestrator's spawn surface outright — neither the spawn nor the landing surface had a
+reachable caller — and its execution status records *SPAWN — DONE (2026-07-31)*:
+`packages/agent/src/{spawn-tool-surface,claim-gated-spawn}.ts`,
+`packages/drive/src/{spawn-deps,spawn-builder,spawn-trace}.ts` and
+`apps/desktop/src/backend/spawn-turns.ts` are **deleted**, the `spawn?` thread and the sidecar composition
+are unpicked, and it is all held gone by `apps/desktop/src/backend/spawn-surface-retired.test.ts`. The
+`chat-subagent-spawn` story and all five of its capabilities are `status: retired`; their spec files remain
+browsable as history, so every cross-story link from here points at retired work whose code no longer
+exists. **What this means for the delivered layer:** the live acquisition surface is workspace creation
+(ADR-0200 D3's forced `exploring` claim) plus declare-time ([`claim-at-declare`](claim-at-declare.md)) —
+no spawn path in the tree is claim-gated today. E's own contribution SURVIVES intact and is unaffected:
+ADR-0175 deliberately KEEPS `packages/agent/src/spawn-claim.ts` (`resolveSpawnClaim`) because it "belongs
+to the LIVE `wisp-as-story-claim` story this ADR does not retire".
 
 ## UAT Test Criteria
 
@@ -387,3 +407,22 @@ Surfaced rather than guessed — none blocks the delivered layer, and none is se
    separate, and the case human leg 8 is asked to judge. Both fields exist on `SceneTerritoryInput`, so
    the co-presence case is buildable. Whether leg 7 should widen to cover it, or whether it stays leg 8's
    human burden, is a build-time call.
+6. **Capability E is half-orphaned by ADR-0175: does it narrow to its one live contract, and does its
+   spent `real:` arm come off?** Two facts now sit under [`take-claim-at-spawn`](take-claim-at-spawn.md),
+   both verified at file level. **(a)** Its E1 seam LANDED — `packages/agent/src/spawn-claim.ts`
+   (`resolveSpawnClaim`) and its spec are at HEAD, authored by the gated leaf under a signed `--real`
+   PASS — so the capability still carries a `real:` arm declaring a NET-NEW source file that already
+   exists. The original red is spent, and a `--real` drive on this node would manufacture a red over green
+   code: exactly what [`claim-at-declare`](claim-at-declare.md) refuses to do by carrying no `proof:`
+   block at all. **(b)** Its second contract, `orchestrator-acquires-before-spawn`, was realised
+   cross-story and then RETIRED with the whole `chat-subagent-spawn` story under ADR-0175 — so it now
+   describes behaviour that exists nowhere and has no home capability. The honest shapes, none chosen
+   here: leave the capability as authored and let the fold speak; narrow it to contract 1 and strike
+   contract 2 as withdrawn; or drop the `real:` arm the way `claim-at-declare` did, converting E into
+   documentation of landed work. **The third is not a stories-only edit** — `packages/cli/src/node-build.test.ts`
+   pins `take-claim-at-spawn` in its REAL-buildable snapshot, so removing the arm reds that snapshot until
+   the pin moves with it. Recorded rather than guessed, for the same reason as call 1: narrowing a
+   capability's scope is a story-shape decision, and flipping E toward green on the strength of an
+   already-landed file would be an agent self-exempting a unit (`agent-never-self-exempts`). E's status
+   therefore stays `proposed`, and `retired` is affirmatively wrong for it — ADR-0175 KEEPS
+   `spawn-claim.ts` precisely because it belongs to this live story.
