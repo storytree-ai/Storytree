@@ -36,6 +36,8 @@ export const CLI_AREAS = [
   "desktop",
   "onboarding",
   "friction",
+  // `storytree factory health` — the report-only factory-floor health instrument (ADR-0316).
+  "factory",
   "doctor",
   "guide",
   "traversal",

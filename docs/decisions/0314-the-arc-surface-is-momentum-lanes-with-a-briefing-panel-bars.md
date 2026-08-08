@@ -264,7 +264,10 @@ track by memory between sessions.
 - `packages/drive/src/arc-rollup.ts` — the one join both surfaces render from (increment 1).
 - `apps/studio/src/components/ArcSurface.tsx` + `apps/studio/src/lib/arcSurface.ts` — the shipped
   surface (D1/D2/D3/D4/D9); `apps/studio/src/components/FloorHealthStrip.tsx` is D7's frame, whose
-  figure stays unwired until `factory-floor-health-arc`'s instrument exists (ADR-0316 D5).
+  figure waited on `factory-floor-health-arc`'s instrument (ADR-0316 D5), which LANDED 2026-08-08 as
+  the report-only `storytree factory health` — so the figure is now unwired only pending
+  `wire-the-floor-health-figure`, its own increment, not pending an instrument that does not exist
+  (corrected in place per ADR-0139; the decision is unchanged, only its build state).
 - `packages/cli/src/question.ts` — the `storytree question new` verb that realizes D5, and
   `asset:merge-ceremony` step 10(b), where the escalation landing runs it.
 - `docs/research/arc-surface-mocks-2026-08-05/` — the re-rendered options the owner picked from, and
