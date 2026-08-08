@@ -1031,6 +1031,60 @@ export interface ArcsPayload {
   arcs: ArcRollup[] | null;
 }
 
+// ---------- the factory-floor health reading (GET /api/floor-health, ADR-0314 D7 / ADR-0316) ----------
+//
+// A WIRE MIRROR, like the arc shapes above and for the same reason: the authoritative shape is
+// `FloorHealthReading` in `packages/drive/src/factory-health.ts`, and `@storytree/drive` is forbidden
+// in apps/studio/src (ADR-0004, fenced by modelPathBoundary.test.ts). Re-cite the producer there.
+//
+// WHAT IS NOT HERE IS THE POINT. There is no field for a count of filings, sessions or reports, at
+// any depth. `recurrences` on ONE distinct cause is the only number that crosses this wire, and it
+// arrives with the window it was computed over (ADR-0316 D2) and the rule that collapsed filings into
+// distinct causes (ADR-0316 D3 — "a distinctness count whose rule is hidden is just a different
+// unaudited number"). A hundred reports of one bottleneck must never score like a hundred reports of
+// a hundred: that error closed a whole arc
+// (`factory-self-load-tune-the-guidance-loop-back-to-evidence-arc`, whose two closing metrics both
+// counted filings), so widening this interface to admit a volume figure should require editing these
+// lines and answering for it.
+
+/** The distinct cause with the most post-route recurrence, when the floor has one. */
+export interface FloorHealthLoudest {
+  /** The collapsed cause's stable key — a Library artifact id, not a number. */
+  cause: string;
+  /** The filings an author joined into this one cause (see `collapsingRule`). */
+  members: string[];
+  /** The route the recurrence landed under — always one of the instrument's TRIPWIRE routes. */
+  route: string;
+  /** Post-route reinforcements on ONE distinct cause. The only number on this wire. */
+  recurrences: number;
+}
+
+/** The wire mirror of drive's `FloorHealthReading` — the figure plus everything needed to audit it. */
+export interface FloorHealthReading {
+  /** The window every figure was computed over; both bounds open ⇒ all history → now. */
+  window: { from?: string; to?: string };
+  /** How filings were collapsed into distinct causes (ADR-0316 D3). */
+  collapsingRule: string;
+  /** How a reinforcement was attributed to the route standing when it landed. */
+  attributionRule: string;
+  /** Absent ⇒ no live distinct cause recurred after its remedy landed. Never a zero dressed up. */
+  loudest?: FloorHealthLoudest;
+  /** A CEILING on live distinct causes — always read with `unjoined`. Not rendered by the band. */
+  distinctCauses: number;
+  /** Live filings carrying no join edge — how far the collapsing rule actually reached. */
+  unjoined: number;
+}
+
+/**
+ * GET /api/floor-health — the same advisory contract as {@link ArcsPayload}: `reading: null` means
+ * the backend has no document store (the offline json one), which is a DIFFERENT fact from a quiet
+ * floor. A band that rendered a missing instrument as "all clear" is the exact failure the strip
+ * exists to avoid, so the two never collapse into one answer.
+ */
+export interface FloorHealthPayload {
+  reading: FloorHealthReading | null;
+}
+
 // ---------- UI-driven build (POST/GET /api/build, ADR-0090 Phase 1) ----------
 
 /** A build run's lifecycle state (mirrors the server's `BuildRunStatus`). */

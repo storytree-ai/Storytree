@@ -196,7 +196,7 @@
       "packages/drive/src/curate.ts": "post-build-curation-pass",
       "packages/drive/src/db-control.ts": "live-build-db-preflight",
       "packages/drive/src/doctrine.ts": "drive-machinery",
-      "packages/drive/src/factory-health.ts": "drive-machinery",
+      "packages/drive/src/factory-health*.ts": "drive-machinery",
       "packages/drive/src/health.ts": "library-health-gate",
       "packages/drive/src/index.ts": "drive-machinery",
       "packages/drive/src/inspect-deps.ts": "drive-machinery",

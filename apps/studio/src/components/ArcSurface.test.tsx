@@ -211,6 +211,30 @@ describe('ArcSurface — the floor-health strip sits above the lanes (ADR-0314 D
     expect(strip.compareDocumentPosition(lanes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(strip.getAttribute('data-health-state')).toBe('unwired');
   });
+
+  it('passes the band straight through — this component thresholds nothing', () => {
+    // The loud/quiet call belongs to the strip (`LOUD_AT_RECURRENCES`), which is where its reasoning
+    // is written down. A surface that quietly re-decided it would put the one undecided call in a
+    // second place, and the two would drift.
+    const { rerender } = render(
+      <ArcSurface
+        arcs={[ORIENTATION_ARC]}
+        now={NOW}
+        floorHealth={{
+          bottlenecks: [{ id: 'a-cause', cause: 'a cause that keeps coming back', recurrences: 9 }],
+          window: 'all history → now',
+          collapsingRule: 'collapsed by authored join edges',
+        }}
+      />,
+    );
+    expect(screen.getByTestId('floor-health-strip').getAttribute('data-health-state')).toBe('loud');
+
+    // …and a DECLINED reading is never smoothed into a calm one on the way through.
+    rerender(
+      <ArcSurface arcs={[ORIENTATION_ARC]} now={NOW} floorHealth={{ declined: 'the read did not answer' }} />,
+    );
+    expect(screen.getByTestId('floor-health-strip').getAttribute('data-health-state')).toBe('declined');
+  });
 });
 
 describe('ArcSurface — honest absence: no store ≠ no arcs', () => {

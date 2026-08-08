@@ -31,11 +31,13 @@ proof:
       - "apps/studio/src/components/FloorHealthStrip.test.tsx"
       - "apps/studio/src/lib/arcSurface.test.ts"
       - "apps/studio/src/lib/arcRollups.test.ts"
+      - "apps/studio/src/lib/floorHealth.test.ts"
     sourceGlobs:
       - "apps/studio/src/components/ArcSurface.tsx"
       - "apps/studio/src/components/FloorHealthStrip.tsx"
       - "apps/studio/src/lib/arcSurface.ts"
       - "apps/studio/src/lib/arcRollups.ts"
+      - "apps/studio/src/lib/floorHealth.ts"
 ---
 
 # The arc lens — an owner arriving cold is oriented from the map's top drawer alone
