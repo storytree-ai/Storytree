@@ -70,6 +70,15 @@ generated-view gate.
 3. **Cursor files start with the minimum explicit native policy:** `name`, `description`, and
    `model: inherit`. Do not infer `readonly` or `is_background` from prose. Those fields grant
    execution semantics and require structured Library policy before the generator may emit them.
+   *(The `model: inherit` clause is RETIRED — corrected in place per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).
+   [ADR-0182](0182-delegatable-library-agents-carry-a-model-tier.md), which carries the `amends: [178]`
+   edge, is the structural Library policy this clause was waiting for on the model dimension: the
+   `agent` artifact now carries an optional `model` tier (`inherit | sonnet | opus`) and BOTH renderers
+   emit the RESOLVED tier, so a Cursor file today declares e.g. `model: sonnet`, not a hard-coded
+   `inherit`. **The rest of this clause STANDS unchanged** — `readonly` and `is_background` remain
+   deferred exactly as written, and ADR-0182 §3 is explicit that it expresses the model dimension ONLY.
+   Absent a tier the renderers still emit `model: inherit`, so the default this clause set is preserved.)*
 
 4. **One gate covers every directory.** `pnpm check:agents` fails when any target is stale,
    missing, orphaned, carries dangling references, or violates the essentials size/structure

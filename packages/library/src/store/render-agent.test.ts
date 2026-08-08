@@ -14,6 +14,8 @@ import {
   renderOpencodeAgentFile,
   renderAgentStep,
   delegatableAgentIds,
+  agentAliases,
+  resolveAgentAlias,
   essentialsGateViolations,
   estimateTokens,
   ESSENTIALS_TOKEN_BUDGET,
@@ -243,6 +245,108 @@ test("both harness renderers emit the same model tier over the same essentials (
   assert.ok(cursor.content.includes(GENERATED_AGENT_MARKER));
   assert.equal(cursor.content, claude.content, "both harness surfaces render the same tier line");
   assert.deepEqual(cursor.missingRefs, []);
+});
+
+// ── aliases: discovery synonyms, never a second spawn name (ADR-0325 D4) ────────────────────────
+
+/** Seed `store` with a minimal agent carrying `aliases` (and optionally a `model` tier). */
+async function seedAliasAgent(
+  store: InMemoryStore,
+  aliases: string[] | undefined,
+  model?: "sonnet" | "opus",
+): Promise<void> {
+  await store.upsertDoc({
+    id: "alias-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "Alias Agent",
+      description: "sweeps and reports",
+      oneLine: "o",
+      role: "Find things and summarise them.",
+      outcome: "o",
+      context: ["asset:test-principle"],
+      ...(aliases ? { aliases } : {}),
+      ...(model ? { model } : {}),
+    },
+  });
+}
+
+test("aliases render into the harness description as discovery metadata (ADR-0325 D4)", async () => {
+  const store = await seeded();
+  await seedAliasAgent(store, ["scout", "probe"], "sonnet");
+  const res = await renderAgentFile(store, "alias-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+
+  // the alias list is appended to the DESCRIPTION — the `name:` line stays the canonical spawn id,
+  // because the harness resolves `subagent_type` by `name` alone and a second file would add
+  // per-session preamble weight for nothing (ADR-0325 D4 / ADR-0323 D3).
+  assert.match(
+    res.content,
+    /^---\nname: alias-agent\ndescription: "sweeps and reports \(aliases: scout, probe\)"\nmodel: sonnet\n---\n\n/,
+  );
+});
+
+test("an agent with no aliases renders exactly as before — no empty suffix (ADR-0325 D4)", async () => {
+  const store = await seeded();
+  await seedAliasAgent(store, undefined);
+  const res = await renderAgentFile(store, "alias-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.match(res.content, /\ndescription: "sweeps and reports"\n/);
+  assert.ok(!res.content.includes("(aliases:"), "no alias suffix when the field is absent");
+});
+
+test("every harness surface carries the same alias suffix, Codex TOML included (ADR-0325 D4)", async () => {
+  const store = await seeded();
+  await seedAliasAgent(store, ["scout"]);
+  const claude = await renderAgentFile(store, "alias-agent");
+  const cursor = await renderCursorAgentFile(store, "alias-agent");
+  const opencode = await renderOpencodeAgentFile(store, "alias-agent");
+  const codex = await renderCodexAgentFile(store, "alias-agent");
+  for (const r of [claude, cursor, opencode, codex]) assert.equal(r.ok, true);
+  if (!claude.ok || !cursor.ok || !opencode.ok || !codex.ok) return;
+
+  for (const r of [claude, cursor, opencode]) {
+    assert.match(r.content, /\ndescription: "sweeps and reports \(aliases: scout\)"\n/);
+  }
+  // Codex renders TOML, so the same suffix must survive its own quoting path
+  assert.match(codex.content, /^name = "alias-agent"\ndescription = "sweeps and reports \(aliases: scout\)"\n/);
+});
+
+test("agentAliases reads the field defensively and drops non-string entries (ADR-0325 D4)", async () => {
+  const store = await seeded();
+  await seedAliasAgent(store, ["scout", "probe"]);
+  const stored = await store.getDoc("alias-agent");
+  assert.deepEqual(agentAliases(stored), ["scout", "probe"]);
+  // a doc that never carried the field, and a null doc, both read as "no aliases"
+  assert.deepEqual(agentAliases(await store.getDoc("clean-agent")), []);
+  assert.deepEqual(agentAliases(null), []);
+});
+
+test("resolveAgentAlias maps an alias to the canonical id, and leaves a real id alone (ADR-0325 D4)", async () => {
+  const store = await seeded();
+  await seedAliasAgent(store, ["scout", "probe"]);
+  assert.equal(await resolveAgentAlias(store, "scout"), "alias-agent");
+  assert.equal(await resolveAgentAlias(store, "probe"), "alias-agent");
+  // a real id is returned untouched — an alias can never shadow an agent that exists
+  assert.equal(await resolveAgentAlias(store, "clean-agent"), "clean-agent");
+  assert.equal(await resolveAgentAlias(store, "alias-agent"), "alias-agent");
+  // an unknown name comes back UNCHANGED so the caller's fail-closed path reports what was typed
+  assert.equal(await resolveAgentAlias(store, "nope"), "nope");
+  assert.equal(await resolveAgentAlias(store, undefined), undefined);
+});
+
+test("a real agent id beats an alias that collides with it (ADR-0325 D4)", async () => {
+  const store = await seeded();
+  // an agent whose alias collides with an EXISTING agent's id must not re-point that id
+  await seedAliasAgent(store, ["clean-agent"]);
+  assert.equal(
+    await resolveAgentAlias(store, "clean-agent"),
+    "clean-agent",
+    "the real agent wins; the alias cannot shadow it",
+  );
 });
 
 test("renderCodexAgentFile emits the native custom-agent TOML shape without a foreign model tier", async () => {

@@ -73,6 +73,38 @@ test("agentsCommand: clean agent → ok envelope; dangling agent → not-ok with
   assert.match(broken.body, /dangling ref/);
 });
 
+test("agentsCommand resolves a discovery ALIAS to the canonical agent (ADR-0325 D4)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "sweep-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "Sweep Agent",
+      description: "hunts and digests",
+      oneLine: "The sweep agent finds things.",
+      role: "It exists to test alias resolution.",
+      outcome: "A digest comes back.",
+      context: ["asset:test-principle"],
+      tools: "none",
+      workflow: "sweep, then stop.",
+      aliases: ["scout", "probe"],
+      references: [],
+    },
+  });
+
+  const byAlias = await agentsCommand(store, "scout");
+  const byId = await agentsCommand(store, "sweep-agent");
+  assert.equal(byAlias.ok, true);
+  assert.equal(byAlias.body, byId.body, "the alias renders the same agent as its canonical id");
+  assert.deepEqual(byAlias.next, byId.next);
+
+  // …and an UNKNOWN name still fails closed reporting what the caller actually typed
+  const miss = await agentsCommand(store, "nonesuch");
+  assert.equal(miss.ok, false);
+  assert.match(miss.body, /nonesuch/);
+});
+
 test("the `agents` area is wired into the dispatch", async () => {
   const store = await seeded();
   const env = await run(["agents", "clean-agent"], { store });
