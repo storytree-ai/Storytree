@@ -307,8 +307,24 @@ function repoRoot(): string {
 /**
  * `storytree library --check` (design §4 surface b) — the FULL per-id health report (all four checks).
  * Provides the fs-backed `docExists` resolver (under <repoRoot>/docs) so {@link libraryHealth} stays
- * pure. Envelope `ok` is false IFF a GATE check FAILs (a real gate break / non-zero exit); a WARN
+ * pure. Envelope `ok` is false IFF a GATE-class check FAILs (non-zero exit, ADR-0026 §6); a WARN
  * keeps `ok` true (design §4 "A WARN keeps ok=true").
+ *
+ * THIS IS AN OPERATOR REPORT, NOT A MERGE GATE, and the output must never say otherwise. ADR-0026 §5
+ * gave `libraryHealth` three consumers — the dashboard banner, this on-demand live read, and a test
+ * in `pnpm -r test` — and only the last of the three runs on every merge. Its own Consequences say
+ * which this is: "only an occasional operator `storytree library --check` does — by design, not
+ * every push." No root `check:*` script and no CI job has ever run this command, so a red here
+ * blocks nothing.
+ *
+ * It spoke in the gate's own voice anyway until 2026-08-08 — a broken-gate banner naming the failed
+ * checks and instructing the reader to fix them before merging — and a session settling an unrelated
+ * question read that as a live merge gate. That is the defect `RETIRED_CHECKS` exists to refuse
+ * (`packages/cli/src/gate-order.ts`) arriving through prose rather than through an orphaned source
+ * file, and `gate-order.test.ts`'s gate-voice sweep now refuses it mechanically — including, as it
+ * happens, a docstring that reproduces the retired sentence verbatim, which is why this one
+ * describes it instead. Re-wiring this as a rung is a separate decision needing production-catch
+ * evidence and an ADR (ADR-0311 D5, `asset:justify-a-gate-rung`) — never merely the wiring.
  *
  * (The former count-reconciliation check read apps/studio/data/assets.json; it retired with that
  * generated file, ADR-0210.)
@@ -342,14 +358,19 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
   }
   lines.push("", `${fail} FAIL, ${warn} WARN  (worst: ${worstLevel(results)}).`);
   if (gateFails.length > 0) {
-    lines.push(`GATE BROKEN: ${gateFails.map((r) => r.name).join(", ")} — fix before merge.`);
+    lines.push(
+      `GATE-CLASS FAIL: ${gateFails.map((r) => r.name).join(", ")} (exit 1).`,
+      "  Severity, not authority: nothing runs this report on merge (ADR-0026 §5, \"by design, not",
+      "  every push\"). `pnpm -r test` proves the same three checks over the frozen 13-artifact",
+      "  fixture, which is NOT this corpus — so a red here is seen by nobody who does not run this.",
+    );
   }
   return {
     ok: gateFails.length === 0,
     body: lines.join("\n"),
     next: [
       "storytree library",
-      "storytree library --check --pg   (run the same checks against the live projection)",
+      "storytree library artifact edit <id> --set <field>=<value> --pg   (drain a FAIL at its source)",
     ],
   };
 }
@@ -1249,7 +1270,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "storytree library — explore + curate the Library (the knowledge tier).",
       "",
       "  storytree library                          health + dashboard + commands",
-      "  storytree library --check [--pg]           full health report (gate-fails exit non-zero)",
+      "  storytree library --check                  live health report (GATE-class fails exit 1)",
       "  storytree library artifact <id>            view one artifact",
       "  storytree library artifact list <category> list a category",
       "  storytree library artifact new|edit <id>   create / edit (writes need --pg)",

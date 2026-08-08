@@ -401,6 +401,108 @@ export const RETIRED_CHECKS: ReadonlyMap<string, RetiredCheck> = new Map<string,
 export const UNWIRED_MARKER = "UNWIRED";
 
 /**
+ * THE GATE'S VOICE — phrasings that assert MERGE-BLOCKING authority over the reader.
+ *
+ * {@link RETIRED_CHECKS} guards a check-shaped FILE that enforces nothing. This guards the other
+ * half of the same defect, which that inventory cannot see: a command that TELLS THE READER
+ * something must be fixed before merging, while no {@link GATE_PLAN} step runs it. A grep for the
+ * rule finds an authoritative sentence and concludes it is enforced — the identical failure
+ * {@link RETIRED_CHECKS} exists to refuse, arriving through prose instead of through a source file.
+ *
+ * MEASURED 2026-08-08, the instance that motivated this: `storytree library --check` printed
+ * `GATE BROKEN: … — fix before merge` on a live-corpus report that NO root script and NO CI job has
+ * ever run. ADR-0026 §5 had decided that surface was deliberately not a gate — "only an occasional
+ * operator `storytree library --check --pg` does — by design, not every push" — so the sentence was
+ * wrong at birth, and a session settling an unrelated question read it as a real merge gate.
+ *
+ * DELIBERATELY NARROW. These are claims of BLOCKING authority, not every mention of merging.
+ * `adr.ts`'s "catch a collision before merge (it will fail the PR…)" is TRUE and wired, and
+ * `graduate.ts`'s "await a librarian pass before merge" describes operating discipline rather than a
+ * machine that refuses — neither is listed, and widening this set to catch them would price the
+ * check into noise and then into an allowlist nobody reads.
+ */
+export const GATE_AUTHORITY_PHRASES: readonly string[] = [
+  "GATE BROKEN",
+  "fix before merge",
+  "blocks the merge",
+  "blocks a merge",
+];
+
+/** One assertion of merge-blocking authority found in a source file. */
+export interface GateVoiceHit {
+  /** 1-indexed line number. */
+  readonly line: number;
+  /** The {@link GATE_AUTHORITY_PHRASES} member that matched. */
+  readonly phrase: string;
+  /** The matching source line, trimmed — so a failure names the sentence, not just a location. */
+  readonly text: string;
+}
+
+/**
+ * Every {@link GATE_AUTHORITY_PHRASES} occurrence in one source file. Pure: the caller supplies the
+ * text, as with every other judgement in this module.
+ *
+ * COMMENTS ARE SCANNED TOO, and that is the fail-closed choice rather than an oversight. Restricting
+ * to string literals would need a parser here (this module has none, by design) and would miss the
+ * maintainer-facing half of the same lie — a docstring claiming a function "blocks the merge" sends
+ * the next session down the same road as a printed banner. The price is that a NEGATION
+ * ("a deploy failure never blocks a merge") also matches; it is paid once, in an exemption whose
+ * reason records that someone checked. Over-reporting costs an entry; under-reporting costs the
+ * whole point.
+ */
+export function findGateVoice(source: string): GateVoiceHit[] {
+  const hits: GateVoiceHit[] = [];
+  source.split(/\r?\n/).forEach((text, i) => {
+    for (const phrase of GATE_AUTHORITY_PHRASES) {
+      if (text.includes(phrase)) hits.push({ line: i + 1, phrase, text: text.trim() });
+    }
+  });
+  return hits;
+}
+
+/**
+ * The key {@link GATE_VOICE_EXEMPTIONS} is written in: `<file>::<phrase>`, where `<file>` is the
+ * path relative to the repo root. Built here so the map and the sweep cannot disagree about the
+ * shape.
+ */
+export function gateVoiceKey(file: string, phrase: string): string {
+  return `${file}::${phrase}`;
+}
+
+/**
+ * Sentences that MAY claim merge-blocking authority, each keyed to why the claim is honest.
+ *
+ * An entry is a statement that someone traced the claim to a step the gate actually runs, or
+ * established that it is not a claim at all. `gate-order.test.ts` refuses any unlisted hit, so a new
+ * one cannot be introduced silently — and the reason is the durable half: without it the next
+ * session re-verifies the same sentence from scratch.
+ *
+ * The DECLARING module and its test are not scanned; they hold the phrase list itself as data, and a
+ * scanner that flagged its own inventory could only ever be answered by exempting itself.
+ */
+export const GATE_VOICE_EXEMPTIONS: ReadonlyMap<string, string> = new Map([
+  [
+    gateVoiceKey("packages/cli/src/check-deploy-health.ts", "blocks a merge"),
+    "states the OPPOSITE — it records that a deploy failure never blocked one, which is why ADR-0311 D2 retired the rung; the file carries the UNWIRED banner",
+  ],
+  [
+    gateVoiceKey("packages/cli/src/friction.ts", "blocks the merge"),
+    "TRUE and wired: `friction-inbox.test.ts` runs `validateInboxDir` over the committed `docs/friction-inbox/` inside `pnpm -r test`, which is GATE_PLAN step 6 (verified 2026-08-08)",
+  ],
+]);
+
+/**
+ * The packages the gate-voice sweep reads — where this repo's CLI output and its shared drivers
+ * live, and therefore where a printed claim of merge authority can originate.
+ *
+ * NAMING THE APERTURE IS PART OF THE CHECK (`asset:an-observable-is-evidence-only-for-what-it-observes`).
+ * A clean sweep says nothing about `apps/**` or `stories/**`: the same false claim can and has lived
+ * in a Library artifact and in a story spec, where no mechanical reader reaches it. Widen this list
+ * rather than reading its silence as coverage.
+ */
+export const GATE_VOICE_SCAN_ROOTS: readonly string[] = ["packages/cli/src", "packages/drive/src"];
+
+/**
  * The seconds-cost steps that MUST run BEFORE {@link EXPENSIVE_STEPS} — axis 1.
  *
  * Membership means all three things at once: the check costs SECONDS, its answer does not depend on
