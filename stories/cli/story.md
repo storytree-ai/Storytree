@@ -14,7 +14,7 @@ proof_mode: UAT
 # statement, never a judgment gap (`human-witness-is-a-judgment-gap-not-cost`).
 # `uat_witness` stays ABSENT on purpose: the roll-up is per-leg, and a story-level `machine` would
 # re-open the blanket-adopt path that produced the stranded verdict. The crown derives per-leg.
-capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, arc-explicit-id-fidelity, guided-setup-repair, verification-decay-instruments]
+capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, arc-explicit-id-fidelity, guided-setup-repair, verification-decay-instruments, arc-derived-initiative-view, increment-freshness-check]
 # The CLI is the wiring HUB: it imports every organism to surface it. Those outbound edges
 # (cli → drive-machinery / library / notice-board / store) are declared PROVIDER-SIDE on each spoke
 # (their `consumed_by: [cli]`, ADR-0074 §4) so the hub stays de-noised and each organism owns its
@@ -83,7 +83,7 @@ authoring primitives (the corpus guard, the ADR frontmatter parser).
   in-memory seed; live writes refuse without `--pg` and a reachable DB (degrade with guidance, never
   a silent no-op).
 
-## Capabilities (6)
+## Capabilities (8)
 
 Lightweight and **expandable** (ADR-0074 §3): the hub's own connective competence, NOT a re-derivation
 of every per-domain command (those belong to the organism that owns the journey). The list grows one
@@ -108,6 +108,23 @@ subject.
 | 4 | [`arc-explicit-id-fidelity`](arc-explicit-id-fidelity.md) | An agent scaffolding an arc with an explicit id receives a refusal instead of creating an arc under a silently truncated id. | proposed | `unified-command-dispatch` |
 | 5 | [`guided-setup-repair`](guided-setup-repair.md) | A dev's failing setup probe is driven to a re-verified repair, or to a secrets-redacted owner escalation naming why no installer step can fix it. | mapped | — |
 | 6 | [`verification-decay-instruments`](verification-decay-instruments.md) | Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it. | mapped | — |
+| 7 | [`arc-derived-initiative-view`](arc-derived-initiative-view.md) | A session arriving cold on a long-running initiative reads its whole current state from the arc alone. | mapped | `unified-command-dispatch` |
+| 8 | [`increment-freshness-check`](increment-freshness-check.md) | A session about to consume a parked increment is told mechanically whether the repo moved under it since the increment was anchored. | mapped | `unified-command-dispatch` |
+
+Rows 7 and 8 were authored 2026-08-08 by `capability-layer-coverage-arc` increment 6 over
+already-implemented, already-tested code, and they are a DIFFERENT admission from rows 5 and 6 — read
+the difference, because it is the whole modeling problem. Rows 5 and 6 entered on the ground that no
+organism owns a dev's own machine or the repo's verification apparatus. Rows 7 and 8 cover the ARC
+TIER, which is a deep per-domain journey of exactly the kind the shim-vs-journey rule above says
+belongs to an organism story: it has its own kinds in the library schema, its own ADR family
+(0183 / 0267 / 0305 / 0314), a studio lens owned by `studio`
+([`arc-orientation-lens`](../studio/arc-orientation-lens.md)) and a desktop mirror. Its organism story
+is simply UNMODELLED, and ADR-0192 decision 2 (packages-forward) makes minting one a code move plus an
+owner-reviewed diff rather than an ownership declaration. So these two rows keep the organ addressable
+and provable under the story whose suite observes it, and they SHARPEN open modeling call 1 below
+rather than resolving it or leaning on it being resolved. Row 7 is also this story's first capability
+whose `proof.command` names two package suites — see its spec for why each half sees something the
+other cannot.
 
 ## Dependency graph (code-derived)
 
@@ -295,3 +312,22 @@ entries despite these five verdicts, so the generated offline status view is sta
    re-adjudication makes the leg's *tag* honest again, but cannot unsign a row. Options, not chosen
    here: (a) leave it and let a future real harness supersede it; (b) record a superseding `fail`/void
    verdict now. Signing and voiding are both operator-granted — no agent may self-exempt.
+5. **The arc tier has no organism story, and rows 7/8 park it here rather than answer that (raised
+   2026-08-08).** PLACED LAST DELIBERATELY: this list's numbers are cited by number elsewhere in the
+   corpus (e.g. `stories/cli/guided-setup-repair.md:171` cites this list's own "open modeling call 1"
+   verbatim), so a new call is APPENDED and no existing item is ever renumbered.
+   `arc-derived-initiative-view` + `increment-freshness-check` cover a genuine
+   per-domain journey — the durable initiative record every session's closing leg writes to. By this
+   story's own shim-vs-journey rule that journey belongs to an organism story, and there is none:
+   the kinds live in `packages/library`'s schema, the join lives in `packages/drive` for reach, the
+   verbs live in `packages/cli`, the lens is a `studio` capability, and a desktop backend mirrors it.
+   ADR-0192 decision 2 forbids minting a new story hosted in those foreign buildings — a new story's
+   code lives in its own workspace package — so the end-state is a `packages/arc` extraction plus an
+   owner-reviewed diff, which is a code move and was NOT taken here. Options, not chosen: (a) leave
+   the organ under this story indefinitely and accept that the shim owns one journey; (b) extract
+   `packages/arc` and migrate the organ into its own story, which also gives `studio`'s
+   `arc-orientation-lens` a real story to draw an edge to; (c) decide the arc tier is `library`'s,
+   since `arc` / `increment` / `open-question` are all library kinds — which would also re-home
+   `interface-oq-proposal-authoring`, whose text still names only the generic
+   `library artifact new --file` path that `question new` replaced. Owner or a scoped story-author
+   pass should pick.
