@@ -980,8 +980,33 @@ export interface ArcRollupIncrement {
   frictionRefs?: string[];
   /** The git anchor's short sha, when it has one. */
   anchorSha?: string;
+  /**
+   * The typed work-hierarchy + guidance pointers this increment carries (ADR-0306 D2) — `story:` /
+   * `capability:` / `asset:`, verbatim and in author order. Store-resident, so unlike
+   * {@link ArcRollup.stories} it is the same for every session.
+   */
+  cites?: string[];
+  /**
+   * The subset of `cites` the SERVER'S checkout could not resolve, as one-line reasons (ADR-0306 D1).
+   * Present is NOT an error — the work hierarchy is branch-dependent, so a ref naming a story that
+   * has not landed yet is legal and this is how it says so. A surface showing `cites` must show this
+   * too, or a citation reads as evidence the unit exists.
+   */
+  danglingCites?: string[];
   /** Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5). */
   outcome?: { date?: string; pr?: string; note?: string };
+}
+
+/**
+ * One story reachable from an arc through the STORE — an increment's `story:` citation
+ * (ADR-0306 D2/D4), mirrored from drive's `ArcRollupCitedStory`.
+ */
+export interface ArcRollupCitedStory {
+  id: string;
+  /** The increment ids citing it, sorted. */
+  by: string[];
+  /** Whether a story of that id exists in the SERVER's checkout — a report, never a defect. */
+  present: boolean;
 }
 
 /** A decision stamped to this arc (ADR frontmatter `arc:`). `status` is drive's `AdrStatus`,
@@ -1015,7 +1040,19 @@ export interface ArcRollup {
   /** Every increment citing this arc, forward-looking entries FIRST (drive's status-rank order). */
   increments: ArcRollupIncrement[];
   adrs: ArcRollupAdr[];
+  /**
+   * Stories carrying this arc's frontmatter stamp (ADR-0183 D3) — a DISK SCAN of the server's
+   * checkout, so it is branch-dependent.
+   *
+   * ADR-0306 D4 keeps this path and puts {@link citedStories} beside it, and binds any surface that
+   * lists an arc's stories: **do not merge them.** They answer different questions — the stamp says
+   * *this arc produced this story*, the citation says *an increment touched it* — and a reader who
+   * cannot tell a store-resident edge from a scan of one working tree cannot tell whether a story's
+   * absence means anything.
+   */
   stories: string[];
+  /** Stories reachable through the STORE — increments' `story:` citations (ADR-0306 D4). */
+  citedStories: ArcRollupCitedStory[];
   questions: ArcRollupQuestion[];
   /** ADR-0267 D7's one server-computed state: this arc has open questions waiting on the owner. */
   waiting: boolean;
@@ -1029,6 +1066,60 @@ export interface ArcRollup {
  */
 export interface ArcsPayload {
   arcs: ArcRollup[] | null;
+}
+
+// ---------- the factory-floor health reading (GET /api/floor-health, ADR-0314 D7 / ADR-0316) ----------
+//
+// A WIRE MIRROR, like the arc shapes above and for the same reason: the authoritative shape is
+// `FloorHealthReading` in `packages/drive/src/factory-health.ts`, and `@storytree/drive` is forbidden
+// in apps/studio/src (ADR-0004, fenced by modelPathBoundary.test.ts). Re-cite the producer there.
+//
+// WHAT IS NOT HERE IS THE POINT. There is no field for a count of filings, sessions or reports, at
+// any depth. `recurrences` on ONE distinct cause is the only number that crosses this wire, and it
+// arrives with the window it was computed over (ADR-0316 D2) and the rule that collapsed filings into
+// distinct causes (ADR-0316 D3 — "a distinctness count whose rule is hidden is just a different
+// unaudited number"). A hundred reports of one bottleneck must never score like a hundred reports of
+// a hundred: that error closed a whole arc
+// (`factory-self-load-tune-the-guidance-loop-back-to-evidence-arc`, whose two closing metrics both
+// counted filings), so widening this interface to admit a volume figure should require editing these
+// lines and answering for it.
+
+/** The distinct cause with the most post-route recurrence, when the floor has one. */
+export interface FloorHealthLoudest {
+  /** The collapsed cause's stable key — a Library artifact id, not a number. */
+  cause: string;
+  /** The filings an author joined into this one cause (see `collapsingRule`). */
+  members: string[];
+  /** The route the recurrence landed under — always one of the instrument's TRIPWIRE routes. */
+  route: string;
+  /** Post-route reinforcements on ONE distinct cause. The only number on this wire. */
+  recurrences: number;
+}
+
+/** The wire mirror of drive's `FloorHealthReading` — the figure plus everything needed to audit it. */
+export interface FloorHealthReading {
+  /** The window every figure was computed over; both bounds open ⇒ all history → now. */
+  window: { from?: string; to?: string };
+  /** How filings were collapsed into distinct causes (ADR-0316 D3). */
+  collapsingRule: string;
+  /** How a reinforcement was attributed to the route standing when it landed. */
+  attributionRule: string;
+  /** Absent ⇒ no live distinct cause recurred after its remedy landed. Never a zero dressed up. */
+  loudest?: FloorHealthLoudest;
+  /** A CEILING on live distinct causes — always read with `unjoined`. Not rendered by the band. */
+  distinctCauses: number;
+  /** Live filings carrying no join edge — how far the collapsing rule actually reached. */
+  unjoined: number;
+}
+
+/**
+ * GET /api/floor-health — the same advisory contract as {@link ArcsPayload}: `reading: null` means
+ * the backend has no document store (the offline json one), which is a DIFFERENT fact from a quiet
+ * floor. A band that rendered a missing instrument as "all clear" is the exact failure the strip
+ * exists to avoid, so the two never collapse into one answer.
+ */
+export interface FloorHealthPayload {
+  reading: FloorHealthReading | null;
 }
 
 // ---------- UI-driven build (POST/GET /api/build, ADR-0090 Phase 1) ----------

@@ -263,11 +263,17 @@ track by memory between sessions.
   standing counter-argument to D5 shipping as discipline rather than as a gate rung.
 - `packages/drive/src/arc-rollup.ts` — the one join both surfaces render from (increment 1).
 - `apps/studio/src/components/ArcSurface.tsx` + `apps/studio/src/lib/arcSurface.ts` — the shipped
-  surface (D1/D2/D3/D4/D9); `apps/studio/src/components/FloorHealthStrip.tsx` is D7's frame, whose
-  figure waited on `factory-floor-health-arc`'s instrument (ADR-0316 D5), which LANDED 2026-08-08 as
-  the report-only `storytree factory health` — so the figure is now unwired only pending
-  `wire-the-floor-health-figure`, its own increment, not pending an instrument that does not exist
-  (corrected in place per ADR-0139; the decision is unchanged, only its build state).
+  surface (D1/D2/D3/D4/D9); `apps/studio/src/components/FloorHealthStrip.tsx` is D7's frame, and its
+  figure is now WIRED (corrected in place per ADR-0139; the decision is unchanged, only its build
+  state). `wire-the-floor-health-figure`, `arc-orientation-surface-arc`'s last open entry, landed
+  2026-08-08: `packages/drive/src/factory-health-read.ts` composes the one store read, `GET
+  /api/floor-health` serves it, and the strip renders four states an owner can reach — pending,
+  declined, quiet, loud — off a settled loud/quiet threshold (`LOUD_AT_RECURRENCES = 2`), plus
+  `unwired` for a mount that wires no reading at all. A DECLINE never renders as quiet: reporting a
+  healthy floor on the strength of not having looked is ADR-0316 D2's refusal carried to the band. D7's "goes loud when a shared
+  bottleneck recurs" names no number; the threshold is a call the strip had to make to render at all,
+  made from the measured live board on 2026-08-08 (the loudest cause then carried one post-route
+  recurrence) and left retunable in one place.
 - `packages/cli/src/question.ts` — the `storytree question new` verb that realizes D5, and
   `asset:merge-ceremony` step 10(b), where the escalation landing runs it.
 - `docs/research/arc-surface-mocks-2026-08-05/` — the re-rendered options the owner picked from, and

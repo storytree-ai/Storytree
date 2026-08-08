@@ -1,5 +1,14 @@
 import type { StoredDoc } from "@storytree/storage-protocol";
-import { upcastAndValidate, KIND_SPECS, NODE_REF_PREFIX } from "@storytree/library";
+import {
+  upcastAndValidate,
+  KIND_SPECS,
+  NODE_REF_PREFIX,
+  CAPABILITY_REF_PREFIX,
+  STORY_REF_PREFIX,
+  parseCiteRef,
+} from "@storytree/library";
+
+import type { WorkTier } from "./work-hierarchy.js";
 
 /**
  * The Library health checks — ONE pure, testable module surfaced three ways (design §4,
@@ -12,14 +21,15 @@ import { upcastAndValidate, KIND_SPECS, NODE_REF_PREFIX } from "@storytree/libra
  *   2 retired-field       — no doc carries a field a past migration removed (denylist) (GATE)
  *   3 version-floor       — no doc below CURRENT_SCHEMA_VERSION (GATE)
  *   4 referential-integ.  — asset:<id> resolves to a live id (FAIL on break); doc:<path> via
- *                           docExists and node:<id> via nodeExists (WARN) (WARN-class)
+ *                           docExists, node:<id> via nodeExists, and an increment's cites
+ *                           story:/capability: via workUnitTier (WARN) (WARN-class)
  *
  * (There was a fifth, count-reconciliation — structured-kind docs == the generated assets.json count.
  * ADR-0210 deleted that file and this check together, with no replacement; see libraryHealth below.)
  *
- * The function stays node-light: filesystem (`docExists`) and the generated-asset count are INJECTED
- * via {@link HealthOpts}, so it is pure and unit-testable; the CLI layer provides the fs-backed
- * resolvers (design §4 "keep it node-light").
+ * The function stays node-light: the out-of-library resolvers (`docExists`, `nodeExists`,
+ * `workUnitTier`) are INJECTED via {@link HealthOpts}, so it is pure and unit-testable; the CLI
+ * layer provides the fs-backed resolvers (design §4 "keep it node-light").
  */
 
 export type CheckLevel = "PASS" | "WARN" | "FAIL";
@@ -44,6 +54,18 @@ export interface HealthOpts {
    * node: resolution — the same fail-open posture as {@link HealthOpts.docExists}.
    */
   readonly nodeExists?: (nodeId: string) => boolean;
+  /**
+   * Resolve a `story:<id>` / `capability:<id>` pointer (ADR-0306 D1) to the TIER that unit actually
+   * has in this checkout, or null when it is not here at all. Omit to skip work-hierarchy resolution
+   * entirely — the same fail-open posture as its two neighbours, and load-bearing here: an omitted
+   * resolver must never be read as "nothing resolves", because the hierarchy is branch-dependent and
+   * a false dangling report is exactly what ADR-0306 refuses to produce.
+   *
+   * Tier-aware rather than a boolean because the schemes are typed: `story:` naming a real capability
+   * is a different (and cheaply fixed) defect from naming nothing, and reporting it as absence would
+   * send a reader hunting for a unit that is right there.
+   */
+  readonly workUnitTier?: (id: string) => WorkTier | null;
 }
 
 /**
@@ -111,6 +133,16 @@ function refListRefsOf(d: StoredDoc, body: Record<string, unknown>): string[] {
   return out;
 }
 
+/**
+ * An increment's `cites` (ADR-0306 D2) off a doc body. A schema-level field, not a KIND_SPECS body
+ * section, so neither {@link refsOf} nor {@link refListRefsOf} would see it — and a citation edge
+ * nothing checks is precisely the "renamed and nobody noticed" failure the typed schemes replace.
+ */
+function citesOf(body: Record<string, unknown>): string[] {
+  const v = body["cites"];
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+}
+
 // 1. schema-conformance --------------------------------------------------------------------------
 function schemaConformance(docs: readonly StoredDoc[]): CheckResult {
   const structured = docs.filter(isStructured);
@@ -171,25 +203,32 @@ function versionFloor(docs: readonly StoredDoc[], current: number): CheckResult 
 
 // 4. referential-integrity -----------------------------------------------------------------------
 /**
- * All THREE corpus reference tokens are checked: `asset:<id>` against the live projection (a real
+ * All FIVE corpus reference tokens are checked: `asset:<id>` against the live projection (a real
  * graph break — FAIL), `doc:<relpath>` via the injected `docExists` (softer, a doc can move — WARN),
  * and `node:<id>` via the injected `nodeExists` (ADR-0107 D2's proving-process anchor — also WARN,
  * because like a doc it points OUT of the library at a tree this check does not own). A `node:` ref
  * used to fall through every arm and be silently ignored, so a retired story left its citations
- * dangling invisibly. Both out-of-library resolvers are OPTIONAL — omit one and that token is
- * skipped, never failed.
+ * dangling invisibly. The `story:<id>` / `capability:<id>` schemes (ADR-0306 D1) join them via
+ * `workUnitTier`, WARN-class for the same reason and one more: what they point at is BRANCH-
+ * DEPENDENT, so an increment citing a story its own branch has not landed yet is legal and must
+ * report rather than fail. All THREE out-of-library resolvers are OPTIONAL — omit one and that token
+ * is skipped, never failed.
+ *
+ * The refs come from three places on the doc: `references`, the KIND_SPECS `refList` fields, and an
+ * increment's schema-level `cites`.
  */
 function referentialIntegrity(
   docs: readonly StoredDoc[],
   docExists: ((relpath: string) => boolean) | undefined,
   nodeExists: ((nodeId: string) => boolean) | undefined,
+  workUnitTier: ((id: string) => WorkTier | null) | undefined,
 ): CheckResult {
   const liveIds = new Set(docs.map((d) => d.id));
   const danglingAsset: string[] = [];
   const danglingOut: string[] = [];
   for (const d of docs) {
     const body = bodyOf(d);
-    for (const ref of [...refsOf(body), ...refListRefsOf(d, body)]) {
+    for (const ref of [...refsOf(body), ...refListRefsOf(d, body), ...citesOf(body)]) {
       if (ref.startsWith("asset:")) {
         const id = ref.slice("asset:".length);
         if (!liveIds.has(id)) danglingAsset.push(`${d.id} -> ${ref} (no such artifact)`);
@@ -199,6 +238,23 @@ function referentialIntegrity(
       } else if (ref.startsWith(NODE_REF_PREFIX) && nodeExists !== undefined) {
         const nodeId = ref.slice(NODE_REF_PREFIX.length);
         if (!nodeExists(nodeId)) danglingOut.push(`${d.id} -> ${ref} (no such story/capability node)`);
+      } else if (
+        (ref.startsWith(STORY_REF_PREFIX) || ref.startsWith(CAPABILITY_REF_PREFIX)) &&
+        workUnitTier !== undefined
+      ) {
+        // ADR-0306 D1's two typed schemes. WARN-class like `doc:`/`node:` and for the SAME reason
+        // they are: they point OUT of the library at a tree this check does not own — and here that
+        // tree is branch-dependent, so a dangling ref is often just a story that has not landed yet.
+        // Failing it would be a write-time rejection wearing a gate's clothes, which D1 forbids.
+        const parsed = parseCiteRef(ref);
+        if (parsed !== null) {
+          const actual = workUnitTier(parsed.id);
+          if (actual === null) {
+            danglingOut.push(`${d.id} -> ${ref} (no such ${parsed.scheme} in this checkout)`);
+          } else if (actual !== parsed.scheme) {
+            danglingOut.push(`${d.id} -> ${ref} (exists, but as a ${actual} — wrong scheme)`);
+          }
+        }
       }
     }
   }
@@ -209,7 +265,7 @@ function referentialIntegrity(
   return {
     name: "referential-integrity",
     level,
-    lines: all.length > 0 ? all : ["every asset:/doc:/node: pointer resolves"],
+    lines: all.length > 0 ? all : ["every asset:/doc:/node:/story:/capability: pointer resolves"],
   };
 }
 
@@ -226,7 +282,7 @@ export function libraryHealth(docs: StoredDoc[], opts: HealthOpts): CheckResult[
     schemaConformance(docs),
     retiredField(docs, opts.retiredFields),
     versionFloor(docs, opts.currentSchemaVersion),
-    referentialIntegrity(docs, opts.docExists, opts.nodeExists),
+    referentialIntegrity(docs, opts.docExists, opts.nodeExists, opts.workUnitTier),
   ];
 }
 

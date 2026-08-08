@@ -1213,3 +1213,130 @@ test("arc show says so plainly when an arc has nothing at all", async () => {
     rmSync(fx.root, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// ADR-0306 D1/D2/D4 — `--cites` on the write verbs, and the arc show render.
+// ---------------------------------------------------------------------------
+
+test("arc increment new stores --cites, splitting on commas and collapsing duplicates", async () => {
+  const store = await seededStore();
+  const res = await arcIncrementNew(writeDeps(store), "map-arc", {
+    id: "typed-refs",
+    title: "Typed refs",
+    ...BODY,
+    cites: ["story:map-story,capability:a-cap", " asset:merge-ceremony ", "story:map-story"],
+  });
+  assert.equal(res.ok, true);
+  const doc = (await store.getDoc("typed-refs"))?.doc as Record<string, unknown>;
+  assert.deepEqual(doc["cites"], ["story:map-story", "capability:a-cap", "asset:merge-ceremony"]);
+});
+
+test("arc increment new OMITS cites entirely when none is given (optional, legitimately empty)", async () => {
+  // ADR-0308 D2: greenfield / planning / ADR work names no capability. An absent field says "none
+  // named"; an empty array would invite a reader to wonder whether something was removed.
+  const store = await seededStore();
+  await arcIncrementNew(writeDeps(store), "map-arc", { id: "no-cites", title: "t", ...BODY });
+  const doc = (await store.getDoc("no-cites"))?.doc as Record<string, unknown>;
+  assert.equal("cites" in doc, false);
+});
+
+test("A CITE THAT RESOLVES TO NOTHING IS ACCEPTED — the write boundary never refuses one", async () => {
+  // The clause ADR-0306 D1 turns on. The work hierarchy is disk-canonical and branch-dependent, so
+  // refusing here would make an increment unwritable on precisely the branch that creates the story
+  // it plans. `story:not-a-real-story` exists in no checkout, and the write still lands.
+  const store = await seededStore();
+  const res = await arcIncrementNew(writeDeps(store), "map-arc", {
+    id: "cites-the-future",
+    title: "t",
+    ...BODY,
+    cites: ["story:not-a-real-story"],
+  });
+  assert.equal(res.ok, true, res.body);
+  const doc = (await store.getDoc("cites-the-future"))?.doc as Record<string, unknown>;
+  assert.deepEqual(doc["cites"], ["story:not-a-real-story"]);
+});
+
+test("a malformed SCHEME is refused by name, and the refusal says resolution is not the reason", async () => {
+  // The one thing checked at the boundary is the token SHAPE — a scheme this corpus has no resolver
+  // for on ANY branch, which is a different fault from a ref that merely does not resolve here.
+  const store = await seededStore();
+  const res = await arcIncrementNew(writeDeps(store), "map-arc", {
+    id: "bad-scheme",
+    title: "t",
+    ...BODY,
+    cites: ["map-story", "doc:decisions/0306-x.md"],
+  });
+  assert.equal(res.ok, false);
+  assert.match(res.body, /not a citation pointer: map-story, doc:decisions\/0306-x\.md/);
+  assert.match(res.body, /does not RESOLVE is fine/);
+  assert.equal(await store.getDoc("bad-scheme"), null, "nothing is written on a refusal");
+});
+
+test("arc increment add carries --cites onto a LANDING too", async () => {
+  // A closed increment is permanent (ADR-0305 D3), so its citations are what make "which increments
+  // touched this capability" answerable over an arc's history and not only over its open work.
+  const store = await seededStore();
+  const res = await arcIncrementAdd(writeDeps(store), "map-arc", {
+    outcome: "the edge landed",
+    pr: "#1224",
+    id: "a-landing",
+    cites: ["capability:library-cli"],
+  });
+  assert.equal(res.ok, true, res.body);
+  const doc = (await store.getDoc("a-landing"))?.doc as Record<string, unknown>;
+  assert.equal(doc["status"], "closed");
+  assert.deepEqual(doc["cites"], ["capability:library-cli"]);
+});
+
+test("arc show prints an increment's cites and FLAGS the ones this checkout lacks", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await seededStore();
+    await arcIncrementNew(writeDeps(store), "map-arc", {
+      id: "cited-work",
+      title: "Cited work",
+      ...BODY,
+      cites: ["story:map-story", "story:elsewhere"],
+    });
+    const res = await arcCommand("show", "map-arc", depsFor(store, fx));
+    assert.equal(res.ok, true);
+    assert.match(res.body, /cites: story:map-story, story:elsewhere/);
+    assert.match(res.body, /⚠ not in this checkout: story:elsewhere \(no such story in this checkout\)/);
+    assert.match(
+      res.body,
+      /branch-dependent/,
+      "the flag must say the miss is LEGAL, or a reader reads a report as a defect",
+    );
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("D4: arc show renders the stamped and cited story paths as two LABELLED lists", async () => {
+  // A reader who cannot tell a store-resident edge from a scan of the local working tree cannot tell
+  // whether a story's absence means anything (ADR-0306 D4). `map-story` is BOTH stamped and cited
+  // here, so a merged render would show it once and lose which path it arrived by.
+  const fx = diskFixture();
+  try {
+    const store = await seededStore();
+    await arcIncrementNew(writeDeps(store), "map-arc", {
+      id: "cited-work",
+      title: "Cited work",
+      ...BODY,
+      cites: ["story:map-story", "story:elsewhere"],
+    });
+    const res = await arcCommand("show", "map-arc", depsFor(store, fx));
+    const stories = res.body.slice(res.body.indexOf("## Stories"));
+    assert.match(stories, /TWO paths, ADR-0306 D4 — not merged/);
+    assert.match(stories, /stamped by this arc.*DISK SCAN of this checkout/s);
+    assert.match(stories, /cited by an increment.*STORE-resident/s);
+    assert.match(stories, /- elsewhere {2}⚠ not in this checkout {3}\(cited by: cited-work\)/);
+    assert.match(stories, /- map-story {3}\(cited by: cited-work\)/);
+    // The stamped list is untouched by citations: `elsewhere` is cited and NOT stamped, so it must
+    // appear only under the cited heading.
+    const stamped = stories.slice(0, stories.indexOf("cited by an increment"));
+    assert.doesNotMatch(stamped, /elsewhere/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});

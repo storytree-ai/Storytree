@@ -1701,6 +1701,46 @@ export async function handleArcs(
   sendJson(res, 200, rollup);
 }
 
+/**
+ * `GET /api/floor-health` → `{ reading: FloorHealthReading | null }`.
+ *
+ * The factory-floor health reading behind ADR-0314 D7's strip — the instrument ADR-0316 D1–D4 built
+ * on `factory-floor-health-arc`, whose D5 names that strip its first committed CONSUMER. Composed
+ * exactly the way `/api/arcs` is: every figure comes from `loadFloorHealthReading` in
+ * `@storytree/drive` — the SAME composition `storytree factory health` prints under "THE READING" —
+ * so the map and the CLI can never disagree about the floor. This handler adds routing, the method
+ * check and the honest store-absent answer; it computes nothing of its own.
+ *
+ * IT SETS NO THRESHOLD, deliberately. ADR-0316 D4 keeps the instrument to MEASURING, so what crosses
+ * this wire is the figure and its provenance; the band that reads it decides loud from quiet
+ * (`LOUD_AT_RECURRENCES` in apps/studio/src/components/FloorHealthStrip.tsx). A server that decided
+ * loudness would put the one undecided call in the one place a reader cannot see it.
+ *
+ * `reading: null` is the offline json backend, which holds no friction tier to read — the same
+ * advisory contract `/api/arcs` uses, and a DIFFERENT fact from a quiet floor. The strip renders the
+ * two differently, because a missing instrument presented as "all clear" is the failure mode this
+ * whole band exists to avoid.
+ *
+ * Read-only like the rest of this round (ADR-0267 D6 / ADR-0314 D9); report-only by ADR-0316 D1 —
+ * nothing here routes, discharges or adjudicates anything.
+ */
+export async function handleFloorHealth(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ctx: { backend: Pick<LibraryBackend, 'docStore'> },
+): Promise<void> {
+  if ((req.method ?? 'GET') !== 'GET') {
+    throw new HttpError(405, 'method not allowed — the floor-health band reports, it does not adjudicate (ADR-0316 D4)');
+  }
+  const store = await (ctx.backend.docStore?.() ?? Promise.resolve(null));
+  if (store === null) {
+    sendJson(res, 200, { reading: null });
+    return;
+  }
+  const { loadFloorHealthReading } = await loadDrive();
+  sendJson(res, 200, { reading: await loadFloorHealthReading(store) });
+}
+
 export async function handleClaims(
   req: IncomingMessage,
   res: ServerResponse,
@@ -2252,6 +2292,8 @@ export async function handleApiRequest(
       await handleActivity(req, res, ctx.backend);
     } else if (url.pathname === '/api/arcs' || url.pathname.startsWith('/api/arcs/')) {
       await handleArcs(req, res, url, ctx);
+    } else if (url.pathname === '/api/floor-health') {
+      await handleFloorHealth(req, res, ctx);
     } else if (url.pathname === '/api/claims') {
       await handleClaims(req, res, ctx.backend);
     } else if (url.pathname === '/api/build') {

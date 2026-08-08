@@ -129,6 +129,16 @@ to flip `→ superseded` and the transcribe-not-invent honesty invariant (0086 �
 remains a projection of the `## Status` prose. A CI gate (the retired-edge check, Decision 4) is the
 un-bypassable floor; the semantic judgment ("this prose is overtaken", "this guidance should be
 rehomed") is the librarian's, caught on the reviewed PR.
+*(Amended by [ADR-0324](0324-the-librarian-pass-is-trigger-gated-and-split-not-per-landin.md) D1/D2:
+**"every loop, not in one-off sweeps" no longer holds unconditionally for this decision-log-curation
+work.** The standing pass this Decision relies on for enforcement splits into two halves with
+different triggers; graduation (ADR-0095 D4/D6/D8) stays session-local, every landing, no trigger. The
+truth-maintenance work described here — correct stale content in place, supersede on re-decision,
+rehome durable content — now runs only when the branch's diff touches a curated surface
+(`docs/decisions/**`, `stories/**`, the generated guidance projections) or the session wrote a live
+`agent`/`principle`/`guardrail`/`pattern`/`process` artifact, per ADR-0324 D2's mechanical, fail-wide
+trigger. Decision 1's invariant — an accepted ADR carries no stale prose — is untouched; only the
+cadence of the pass that enforces it narrows.)*
 
 **Restated from ADR-0086 (still in force).** §A — `storytree adr list --current | --load-bearing |
 --status` is the CLI-searchable current-state view derived from `docs/decisions/` on disk, never a
