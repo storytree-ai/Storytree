@@ -7,6 +7,20 @@ outcome: "An agent scaffolding an arc with an explicit id receives a refusal ins
 status: proposed
 proof_mode: integration-test
 depends_on: [unified-command-dispatch]
+# DELIVERED red→green BY THE SPINE (2026-08-09 correction, ADR-0139 correct-in-place): the `--real` build
+# run `real-msgbv0z0` was promoted as the spine-authored commit "storytree real build real-msgbv0z0:
+# arc-explicit-id-fidelity (authored by the gated leaf)", and promotion happens only on a SIGNED PASS
+# verdict (`promoteRealPass`), so the gate did observe this red→green. At HEAD packages/cli/src/arc.ts
+# carries `ARC_ID_CAP = 60`, a `normalizeExplicitId` helper (the shared `kebabSlug` normalisation MINUS its
+# truncating slice, so the caller measures the normalised length BEFORE any cap is applied) and the
+# pre-store refusal itself, whose own comment names this capability's contract id
+# `arc-explicit-id-refuses-lossy-cap`; the regression is present and passing in
+# packages/cli/src/cli.test.ts. The authored `status: proposed` above is the BASELINE the node rollup
+# augments from that signed verdict — it is NOT a claim the work is unbuilt, and it is not flipped here
+# because `healthy` is non-authorable (ADR-0020) and `mapped` would falsely deny the gate-driven proof. A
+# re-run of this node must start from a genuine red; the red it WAS built against was a 61-character
+# normalised explicit id, which the shared slug helper cut to 60 characters, letting creation continue
+# under a different id.
 proof:
   command:
     file: pnpm
@@ -44,11 +58,13 @@ before any store read or write when the normalised result exceeds the 60-charact
 normalised explicit id of exactly 60 characters remains accepted, and an id derived from `--title`
 retains its existing capped derivation.
 
-The behavioural red at HEAD is a 61-character normalised explicit id: the shared slug helper cuts it
-to 60 characters and lets creation continue under a different id. Add the regression to the
-canonical coverage surface, `packages/cli/src/cli.test.ts`. Prove zero store interaction before any
-verification read, or make verification reads bypass the spy; test-owned probes must never
-contaminate the call ledger whose emptiness proves the refusal happened pre-store.
+The behavioural red this capability was built against was a 61-character normalised explicit id: the
+shared slug helper cut it to 60 characters and let creation continue under a different id. The
+regression lives on the canonical coverage surface, `packages/cli/src/cli.test.ts`, and passes at
+HEAD; it proves zero store interaction before any verification read by counting `getDoc` alone and
+reading back through `queryDocs`, so the verification read cannot inflate the count it is checking.
+Test-owned probes must never contaminate the call ledger whose emptiness proves the refusal happened
+pre-store.
 
 ## Integration test
 
@@ -61,4 +77,13 @@ before length checking, and the retained cap for title-derived ids.
 1. **`arc-explicit-id-refuses-lossy-cap`** — `arc new` refuses an explicitly authored id that normalises beyond the 60-character cap rather than creating an arc under a truncated id
    - **asserts —** The explicit id is normalised before its length is checked; a normalised value over 60 characters returns `ok:false` before any store read or write, a value of exactly 60 remains accepted, and title-derived ids retain their existing capped derivation. Zero interaction is asserted before any verification read, or verification bypasses the spy; test-owned probes must not enter the call ledger.
    - **covers —** `packages/cli/src/arc.ts` (`arcNew`, explicit-id selection before store access)
-   - **would-be test —** Add the regression to `packages/cli/src/cli.test.ts`; at HEAD the shared slug helper truncates an overlength explicit id and creation proceeds under that altered id.
+   - **proven by —** `packages/cli/src/cli.test.ts` — the `arc-explicit-id-refuses-lossy-cap: …` case,
+     passing at HEAD against `arcNew` / `normalizeExplicitId` / `ARC_ID_CAP` in `packages/cli/src/arc.ts`.
+     It drives a 61-character explicit id through the real `arcNew` path and asserts `ok:false`, a refusal
+     naming the cap it exceeded, zero counted `getDoc` calls, and no arc written under either the typed id
+     or its truncated form. The red — that same case, against a source where the shared slug helper
+     truncated the overlength id and let creation proceed under the altered id — WAS observed by the spine
+     before the refusal was added, and the resulting signed pass promoted the build (`--real` run
+     `real-msgbv0z0`). *(Coverage note: the promoted build added the overlength-refusal case only. The
+     exactly-60-accepted boundary and the retained title-derived cap asserted above hold in the source but
+     are NOT pinned by a case at HEAD.)*
