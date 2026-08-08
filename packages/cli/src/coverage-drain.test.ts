@@ -6,6 +6,21 @@ import { fileURLToPath } from "node:url";
 import { DEFAULT_COVERAGE_DRAIN_CONFIG as CEILING, evaluateCoverageDrain } from "./coverage-drain.js";
 import { classifyGateCoverage, projectCoverageGaps, sweepRealBuildCoverage } from "./coverage-gate.js";
 
+/*
+ * LOAD-BEARING — DO NOT DELETE WITH THE UNWIRED ADR-0311 LEFTOVERS.
+ *
+ * `check:coverage` was retired by ADR-0311 D2 and `coverage-drain.ts` beside this file carries the
+ * UNWIRED banner, so this file LOOKS like a leftover. It is not. The `live corpus sweep` test at the
+ * bottom runs inside `pnpm -r test` — GATE_PLAN step 6, which CI runs too — and is the ONLY
+ * surviving enforcement of the contract-coverage ceiling (ADR-0252 D3): it sweeps the real
+ * `stories/` tree and asserts the drain verdict is not red, so the uncovered/unbound backlog cannot
+ * grow past its ceiling unnoticed.
+ *
+ * Deleting this file drops that ceiling silently. Declared, with its cost, in `gate-order.ts`'s
+ * RETIRED_TEST_COMPANIONS; `gate-order.test.ts` reds if the file or the banner goes. That is not a
+ * licence to re-wire the rung — ADR-0311 D5 still governs that, and this is an ordinary test.
+ */
+
 /**
  * The `check:coverage` drain ceiling (`verification-integrity-arc`, ADR-0252 D3, in ADR-0168 D4's
  * shape). Pure — the core takes gap lists and what the sweep read, so every level is testable without
