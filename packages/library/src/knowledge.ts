@@ -609,6 +609,62 @@ export const AssetRef = z.string().regex(/^asset:[A-Za-z0-9_-]+$/, {
 });
 
 /**
+ * The two WORK-HIERARCHY pointer schemes (ADR-0306 D1): `story:<id>` and `capability:<id>`.
+ *
+ * `AssetRef` names a Library artifact and `doc:` names an ADR file; neither can name a story or a
+ * capability, because those are not Library artifacts at all — they are the disk-canonical work
+ * hierarchy under `stories/**` (ADR-0002/0010). Until these existed, an artifact wanting to cite one
+ * had no option but PROSE, which is why ADR-0183 D2's `decomposition` named its units in markdown
+ * where nothing could query them, validate them, or notice a rename.
+ *
+ * They are CITATION edges, never containment ones: ADR-0183 D3's rule that every containment edge
+ * lives on the child is untouched, and nothing about an arc's or a story's ownership changes.
+ *
+ * NOT a duplicate of `node:<id>` (ADR-0107 D2), and the difference is the point. `node:` is a
+ * TIER-BLIND anchor for a proving process — it names a unit without saying what tier it is, so
+ * answering "which increments touch this CAPABILITY" through it would mean resolving every ref
+ * against disk first, and a checkout missing the story would answer wrongly rather than not at all.
+ * These carry the tier in the token, so the question is answerable from the store alone.
+ */
+export const STORY_REF_PREFIX = "story:";
+export const CAPABILITY_REF_PREFIX = "capability:";
+
+/** The three schemes a {@link CiteRef} admits — the mixed set ADR-0306 D2 puts on an increment. */
+export type CiteScheme = "story" | "capability" | "asset";
+
+/**
+ * One entry of an increment's `cites` (ADR-0306 D2): a `story:` / `capability:` work-hierarchy
+ * pointer, or an `asset:` Library pointer for the guidance it stands on.
+ *
+ * ONE regex rather than a union of three, so a malformed entry gets one message naming all three
+ * legal schemes instead of zod's three-branch union dump. `doc:` stays banned for the reason
+ * `AssetRef` bans it (ADR-0029: ADRs are searched just-in-time, never preloaded).
+ */
+export const CiteRef = z.string().regex(/^(?:story|capability|asset):[A-Za-z0-9_-]+$/, {
+  message:
+    "a `cites` entry must be a `story:<id>`, `capability:<id>` or `asset:<id>` pointer " +
+    "(doc:/ADR refs are banned here — ADR-0029)",
+});
+
+/**
+ * PURE: split a citation pointer into its scheme and id, or null when it is neither.
+ *
+ * Total and non-throwing — every reader of `cites` (the resolver, the health check, the render)
+ * parses through this one function so the token layout is defined in exactly one place. It accepts
+ * only the three {@link CiteRef} schemes: a `doc:`/`node:`/unknown token returns null rather than
+ * being coerced into a shape the caller would then resolve against the wrong tree.
+ */
+export function parseCiteRef(ref: string): { scheme: CiteScheme; id: string } | null {
+  const i = ref.indexOf(":");
+  if (i < 0) return null;
+  const scheme = ref.slice(0, i);
+  const id = ref.slice(i + 1);
+  if (id === "") return null;
+  if (scheme === "story" || scheme === "capability" || scheme === "asset") return { scheme, id };
+  return null;
+}
+
+/**
  * One workflow-step → refs edge on an agent (ADR-0156 §4; ADR-0161 the node-keyed context DAG): a
  * named workflow step keyed to the ORDERED `asset:` refs that step pulls just-in-time. This is the
  * agent-step NODE of the one Library context DAG — its `refs` are the node's outbound edges, served
@@ -943,7 +999,7 @@ export const Arc = buildKindSchema("arc").extend({
   lifecycle: ArcLifecycle.default("active"),
 });
 // The `increment` kind (ADR-0183 D2/D3, folded by ADR-0305 D1) — ONE unit of arc work, from the
-// moment it is decided through to the moment it closes. It carries six structured fields beyond its
+// moment it is decided through to the moment it closes. It carries seven structured fields beyond its
 // KIND_SPECS body table:
 //
 // - `arcRef` is REQUIRED — an increment is born citing its arc (ADR-0183 D3: the containment edge
@@ -957,6 +1013,10 @@ export const Arc = buildKindSchema("arc").extend({
 // - `parked` and `frictionRefs` are ADR-0298 D2/D3's delivery-ceiling inputs, moved onto the
 //   increment unchanged by ADR-0305 D6 so "how long has this decided-but-unbuilt remedy been
 //   waiting" keeps answering, per artifact, exactly as before.
+// - `cites` is the typed work-hierarchy edge (ADR-0306 D2) — the stories/capabilities this touches
+//   and the guidance it stands on, as pointers that RESOLVE rather than the prose ids
+//   `decomposition` carried. Optional and legitimately empty; a dangling ref is reported on read,
+//   never refused on write.
 // - `outcome` is the closing record (ADR-0305 D5).
 //
 // Ephemeral (see EPHEMERAL_KINDS): live-store-only. Read that as its LIFECYCLE, not as an exemption —
@@ -981,6 +1041,27 @@ export const Increment = buildKindSchema("increment").extend({
    * arc; an arc carries many increments, so it cannot say which one a recurrence presses on.
    */
   frictionRefs: z.array(z.string().min(1)).optional(),
+  /**
+   * The work-hierarchy units this increment touches and the guidance it stands on (ADR-0306 D2) —
+   * a mixed list of `story:` / `capability:` / `asset:` pointers ({@link CiteRef}).
+   *
+   * It replaces the id-naming half of the `decomposition` field ADR-0305 D4 removed. **A SET, not a
+   * sequence**: it carries no order and no proof route, because a flat list cannot honestly express
+   * either. Dependency order and per-unit proof route stay in `body` prose, where they already live.
+   *
+   * OPTIONAL, and legitimately empty. Greenfield work is creating the capability so it cannot cite
+   * one, and planning / ADR authoring / arc landings name no capability at all — an increment citing
+   * nothing is correct rather than under-specified, and no surface may read an absent `cites` as a
+   * defect.
+   *
+   * **A ref that resolves to nothing is a REPORT, never a write-time rejection** (ADR-0306 D1). The
+   * work hierarchy is disk-canonical and BRANCH-DEPENDENT (ADR-0002/0010), so an increment authored
+   * against a story that exists only on another branch must be writable — rejecting here would make
+   * an increment unwritable on precisely the branch that creates the story it plans. The report is
+   * the read surface's: `arc show` flags the dangling refs it can see from this checkout, and
+   * `library --check`'s referential-integrity leg lists them as a WARN.
+   */
+  cites: z.array(CiteRef).optional(),
   /** The landing (or other terminal event) that closed it — absent until it does (ADR-0305 D5). */
   outcome: IncrementOutcome.optional(),
 });

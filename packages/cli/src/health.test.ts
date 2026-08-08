@@ -227,3 +227,77 @@ test("FIXTURE gate: the frozen fixture corpus has NO gate failures (schema/retir
   );
   // referential-integrity may be WARN — do NOT assert it as gating here.
 });
+
+// --- ADR-0306 D1: an increment's `cites` is RESOLVED and REPORTED, never gated ------------------
+
+/** A valid closed increment carrying `cites` — the only kind that declares the field. */
+function incrementWithCites(cites: string[]): StoredDoc {
+  return stored({
+    kind: "increment",
+    id: "an-increment",
+    title: "An increment",
+    description: "one unit of arc work",
+    objective: "deliver one thing",
+    body: "the choreography",
+    arcRef: "asset:an-arc",
+    status: "ready",
+    cites,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    references: [],
+    createdAt: "2026-08-08T00:00:00.000Z",
+    updatedAt: "2026-08-08T00:00:00.000Z",
+  });
+}
+
+test("referential-integrity WARNs on a story:/capability: ref this checkout cannot resolve", () => {
+  // WARN-class, and that is a DECISION rather than leniency: what these point at is branch-dependent,
+  // so an increment citing a story its own branch has not landed yet is legal (ADR-0306 D1). Failing
+  // it would be a write-time rejection wearing a gate's clothes.
+  const results = libraryHealth([incrementWithCites(["story:ghost", "capability:also-ghost"])], {
+    ...BASE_OPTS,
+    workUnitTier: () => null,
+  });
+  const r = find(results, "referential-integrity");
+  assert.equal(r.level, "WARN");
+  assert.ok(r.lines.some((l) => l.includes("story:ghost (no such story in this checkout)")));
+  assert.ok(r.lines.some((l) => l.includes("capability:also-ghost (no such capability in this checkout)")));
+  assert.deepEqual(gateFailures(results), [], "never a gate break — ADR-0306 D1 forbids the refusal");
+});
+
+test("referential-integrity reports a TIER MISMATCH as its own fault, not as absence", () => {
+  const results = libraryHealth([incrementWithCites(["story:library-cli"])], {
+    ...BASE_OPTS,
+    workUnitTier: (id) => (id === "library-cli" ? "capability" : null),
+  });
+  const r = find(results, "referential-integrity");
+  assert.equal(r.level, "WARN");
+  assert.ok(
+    r.lines.some((l) => l.includes("story:library-cli (exists, but as a capability — wrong scheme)")),
+    `expected a wrong-scheme line, got: ${r.lines.join(" | ")}`,
+  );
+});
+
+test("cites resolution is SKIPPED with no workUnitTier injected — never failed", () => {
+  // The fail-open posture `docExists` and `nodeExists` already have, and load-bearing here: an
+  // omitted resolver must not read as "nothing resolves", or every DB-free caller reds every ref.
+  const results = libraryHealth([incrementWithCites(["story:ghost"])], BASE_OPTS);
+  assert.equal(find(results, "referential-integrity").level, "PASS");
+});
+
+test("a resolving cites list passes, and a dangling asset: inside cites is still a FAIL", () => {
+  const good = libraryHealth([incrementWithCites(["story:library"])], {
+    ...BASE_OPTS,
+    workUnitTier: (id) => (id === "library" ? "story" : null),
+  });
+  assert.equal(find(good, "referential-integrity").level, "PASS");
+
+  // An `asset:` pointer inside `cites` is IN-library, so a break is a real graph break and keeps the
+  // FAIL it has everywhere else. The scheme decides the severity, not the field it was written in.
+  const bad = libraryHealth([incrementWithCites(["asset:no-such-artifact"])], {
+    ...BASE_OPTS,
+    workUnitTier: () => null,
+  });
+  const r = find(bad, "referential-integrity");
+  assert.equal(r.level, "FAIL");
+  assert.ok(r.lines.some((l) => l.includes("asset:no-such-artifact (no such artifact)")));
+});

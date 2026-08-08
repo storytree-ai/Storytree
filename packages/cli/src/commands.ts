@@ -119,6 +119,9 @@ import { lookupNodeBuildConfig, parsePocketReadings } from "@storytree/orchestra
 import type { PocketReading } from "@storytree/orchestrator";
 
 import { nodeBuild, nodeHelp, nodeResolve, specView } from "@storytree/drive";
+// The work-hierarchy ref index (ADR-0306 D1) — one scan per report, feeding health's tier-aware
+// `story:`/`capability:` resolver.
+import { loadWorkHierarchyIndex } from "@storytree/drive";
 import { orchestrate } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
@@ -223,6 +226,17 @@ function fieldOf(stored: StoredDoc, key: "title" | "description"): string {
     if (typeof v === "string") return v;
   }
   return "";
+}
+
+/**
+ * An increment's `cites` off a stored doc (ADR-0306 D2), read defensively — a schema-level field, so
+ * it never appears in the rendered body and a render that wants it must go to the stored doc.
+ */
+function citesOf(stored: StoredDoc): string[] {
+  const doc = stored.doc;
+  if (typeof doc !== "object" || doc === null) return [];
+  const v = (doc as Record<string, unknown>)["cites"];
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
 
 /** Read the `references` string[] off a stored doc body (the only edge field today). */
@@ -332,6 +346,7 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
   const root = repoRoot();
   const docsDir = path.join(root, "docs");
   const storiesDir = path.join(root, "stories");
+  const workUnits = loadWorkHierarchyIndex(storiesDir);
   const results = libraryHealth(docs, {
     currentSchemaVersion: CURRENT_SCHEMA_VERSION,
     retiredFields: RETIRED_FIELDS,
@@ -346,6 +361,10 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
     // The `node:<id>` resolver (ADR-0107 D2) — the sibling of docExists, so a citation of a story
     // that no longer exists surfaces as a WARN instead of being silently ignored.
     nodeExists: (nodeId) => findNodeSpecFile(storiesDir, nodeId) !== null,
+    // The `story:` / `capability:` resolver (ADR-0306 D1) — tier-aware, because the schemes are, so
+    // a `story:` ref naming a real capability reads as the wrong scheme rather than as absence. The
+    // index is scanned ONCE for the whole report rather than per ref.
+    workUnitTier: (unitId) => workUnits.get(unitId)?.tier ?? null,
   });
   const { fail, warn } = levelCounts(results);
   const gateFails = gateFailures(results);
@@ -407,6 +426,18 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
       lines.push(`  ${group.group}:`);
       for (const item of group.items) lines.push(`    - ${item.label}  (${item.ref})`);
     }
+  }
+  // An increment's `cites` (ADR-0306 D2), rendered as its OWN block rather than folded into Sources.
+  // This view is the narrow read `arc show` points every increment row at ("read/edit it: storytree
+  // library artifact <id>"), so a citation edge invisible here would be unreachable from the one
+  // command the arc offers for reading an entry. It is kept apart from Sources because the two are
+  // different claims: `references` is what this artifact was WRITTEN FROM, `cites` is what the work
+  // TOUCHES. Resolution is deliberately not attempted — that answer is checkout-dependent and
+  // belongs to `arc show` (which holds the disk index) and to `library --check`.
+  const citeRefs = citesOf(stored);
+  if (citeRefs.length > 0) {
+    lines.push("", "Cites (work hierarchy + guidance it stands on — ADR-0306 D2):");
+    for (const ref of citeRefs) lines.push(`  - ${ref}`);
   }
   if (a.provenance) lines.push("", `provenance: ${a.provenance}`);
   // A `process` node DERIVES its `next:` from its branch-edges (ADR-0161: the node-keyed context DAG —
@@ -2068,6 +2099,13 @@ export const CLI_OPTIONS = {
   // --route tool --arc <id>` names the owning arc on the other side of the same edge; it reuses
   // the `arc` flag declared above rather than the retired `--proposal`.
   friction: { type: "string", multiple: true },
+  // `storytree arc increment new|add --cites <ref>` (repeatable, or comma-separated) — the typed
+  // work-hierarchy + guidance pointers (ADR-0306 D2): `story:<id>` / `capability:<id>` / `asset:<id>`.
+  // It replaces the id-naming half of the `decomposition` prose ADR-0305 D4 removed. A ref that does
+  // not resolve is REPORTED on read, never refused here (ADR-0306 D1) — the hierarchy is disk-
+  // canonical and branch-dependent, so an increment must be writable against a story its own branch
+  // is about to create.
+  cites: { type: "string", multiple: true },
   // `storytree arc increment new` — the increment's two body fields (long prose via @path).
   // TWO where the parked entry had seven (ADR-0305 D4): `summary`/`motivation`/`change`/`scope`/
   // `migration`/`readiness`/`risks` are gone from the schema, so the flags that fed them are gone
@@ -2186,6 +2224,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "discharged-by"?: string;
     "re-route"?: boolean;
     friction?: string[];
+    cites?: string[];
     objective?: string;
     body?: string;
     /** `question new` — the open-question briefing fields (ADR-0314 D5). */
@@ -2775,6 +2814,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
             ...(resolved.objective !== undefined ? { objective: resolved.objective } : {}),
             ...(resolved.body !== undefined ? { body: resolved.body } : {}),
             ...(Array.isArray(values.friction) ? { friction: values.friction } : {}),
+            ...(Array.isArray(values.cites) ? { cites: values.cites } : {}),
           });
         }
         if (third === "close") {
@@ -2817,6 +2857,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(values.pr !== undefined ? { pr: values.pr } : {}),
         ...(resolved.outcome !== undefined ? { outcome: resolved.outcome } : {}),
         ...(Array.isArray(values.id) && values.id[0] !== undefined ? { id: values.id[0] } : {}),
+        ...(Array.isArray(values.cites) ? { cites: values.cites } : {}),
       });
     }
 

@@ -134,6 +134,10 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "route",
   "discharged-by",
   "friction",
+  // `arc increment new|add --cites` (ADR-0306 D2) — typed POINTERS (`story:` / `capability:` /
+  // `asset:`), not prose. The schema's own regex refuses anything that is not `<scheme>:<id>`, so a
+  // value starting with `@` could never validate and there is nothing a file read could supply.
+  "cites",
   "source",
   "cap",
   "threshold-hours",
