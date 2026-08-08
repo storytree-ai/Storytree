@@ -1,6 +1,6 @@
 ---
 name: explorer
-description: "The disposable-context sweep leaf: it searches the repo and the corpus for work whose shape is not yet known, and returns a cited digest instead of a transcript — so the hunt's raw output dies with it rather than being carried by the caller for the rest of the session."
+description: "The disposable-context sweep leaf: it searches the repo and the corpus for work whose shape is not yet known, and returns a cited digest instead of a transcript — so the hunt's raw output dies with it rather than being carried by the caller for the rest of the session. (aliases: scout, probe)"
 mode: subagent
 ---
 

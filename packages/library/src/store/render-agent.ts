@@ -596,6 +596,64 @@ export function agentModelFrontmatter(stored: StoredDoc): string {
 }
 
 /**
+ * The agent's DISCOVERY synonyms (ADR-0325 D4), read defensively: a missing field, a null doc, or a
+ * non-array value all read as "no aliases" so a malformed doc thins the description rather than
+ * throwing mid-render. Mirrors {@link agentModelFrontmatter}'s tolerance of an absent tier.
+ */
+export function agentAliases(stored: StoredDoc | null | undefined): string[] {
+  const raw = stored ? (stored.doc as Record<string, unknown>)["aliases"] : undefined;
+  return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string" && x.length > 0) : [];
+}
+
+/**
+ * Resolve a name that may be an ALIAS to the canonical agent id (ADR-0325 D4).
+ *
+ * A real id always wins and is returned untouched — an alias can never shadow an agent that actually
+ * exists, so adding one to some artifact cannot silently re-point a caller at a different agent.
+ * Only when no agent carries the name is the `aliases` field consulted; ties resolve to the
+ * lowest-sorting id so the mapping is deterministic rather than store-order dependent. An unknown
+ * name is returned UNCHANGED (never null), so every caller's existing fail-closed path — which
+ * reports the name it was given and lists the agents that do exist — keeps reporting what the user
+ * actually typed.
+ *
+ * This is the CLI-side half of D4. It does NOT make an alias spawnable as a harness `subagent_type`:
+ * that resolution is the harness's, keyed on the `name:` frontmatter alone.
+ */
+export async function resolveAgentAlias(
+  store: Store,
+  name: string | undefined,
+): Promise<string | undefined> {
+  if (name === undefined) return undefined;
+  const direct = await store.getDoc(name);
+  if (direct && (direct.doc as Record<string, unknown>)["kind"] === "agent") return name;
+  const docs = await store.queryDocs({ kind: "agent" });
+  const match = docs
+    .filter((d) => agentAliases(d).includes(name))
+    .map((d) => d.id)
+    .sort()[0];
+  return match ?? name;
+}
+
+/**
+ * The `description:` value every harness subagent file carries. The agent's own one-line description,
+ * with its {@link agentAliases} appended as `(aliases: a, b)` when it has any — so a session reaching
+ * for "a scout" finds `explorer` in the harness's agent listing.
+ *
+ * The alias list rides the DESCRIPTION rather than minting a second agent file per alias, and that is
+ * the whole of ADR-0325 D4's mechanism: the harness resolves `subagent_type` by the `name:` line
+ * alone, so an alias is a synonym in the index, never a second spawnable door. Duplicating the file
+ * would buy that second door at the price of another full agent entry in EVERY session's system
+ * prompt — the preamble weight ADR-0323 D3 exists to hold down.
+ */
+export function agentDescriptionFrontmatter(
+  stored: StoredDoc | null | undefined,
+  description: string,
+): string {
+  const aliases = agentAliases(stored);
+  return aliases.length > 0 ? `${description} (aliases: ${aliases.join(", ")})` : description;
+}
+
+/**
  * Render the committed `.claude/agents/<id>.md` view of an agent: Claude Code subagent frontmatter
  * (`name` / `description` / `model`) + the generated marker + the ESSENTIALS system prompt (via
  * {@link renderAgentEssentials} — ADR-0156 §6ii re-decided this off the full-inline `renderAgentPrompt`
@@ -619,7 +677,7 @@ async function renderHarnessAgentFile(
   const frontmatter = [
     "---",
     `name: ${agent.name}`,
-    `description: ${yamlDoubleQuoted(agent.description)}`,
+    `description: ${yamlDoubleQuoted(agentDescriptionFrontmatter(stored, agent.description))}`,
     ...(stored ? extraFrontmatter(stored) : []),
     "---",
   ].join("\n");
@@ -691,12 +749,15 @@ export async function renderCodexAgentFile(
   const res = await renderAgentEssentials(store, name);
   if (!res.ok) return res;
   const { agent } = res;
+  // the stored doc carries the structured `aliases` (the essentials render returns only the prompt);
+  // the agent is known to exist here since renderAgentEssentials resolved it.
+  const stored = await store.getDoc(name);
   return {
     ok: true,
     name: agent.name,
     content: [
       `name = ${tomlBasicString(agent.name)}`,
-      `description = ${tomlBasicString(agent.description)}`,
+      `description = ${tomlBasicString(agentDescriptionFrontmatter(stored, agent.description))}`,
       `developer_instructions = ${tomlMultilineBasicString(`${GENERATED_AGENT_MARKER}\n\n${agent.prompt}`)}`,
       "",
     ].join("\n"),

@@ -93,6 +93,16 @@ delegated to by the corresponding harness. That is the gap this decision closes,
    can justify those execution semantics. Codex and Gemini inherit their spawning session's model;
    Gemini emits no tools, turn, or timeout policy until those grants are structured in the Library.
    Dedicated-surface agents remain excluded.
+   *(The "Cursor files declare `model: inherit`" clause is RETIRED — corrected in place per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).
+   [ADR-0182](0182-delegatable-library-agents-carry-a-model-tier.md) gave the `agent` artifact an
+   optional `model` tier and made BOTH `model:`-emitting renderers — Claude and Cursor — emit the
+   RESOLVED tier, so a generated Cursor file today reads e.g. `model: sonnet`; `inherit` is now only
+   the default for an untiered agent, not a hard-coded value. **The rest of this clause is unchanged
+   and verified against the generator:** Claude `tools` frontmatter is still omitted (no agent is
+   mechanically tool-fenced — [ADR-0309](0309-story-author-holds-a-kind-fenced-uat-criterion-library-write.md)
+   D3), `readonly` / `is_background` remain deferred, and Codex, Gemini and OpenCode still emit no
+   `model` key at all and so genuinely inherit the spawning session's model.)*
 
 ## Consequences
 
