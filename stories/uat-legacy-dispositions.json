@@ -681,33 +681,33 @@
     },
     {
       "legacyTestId": "library#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_307273205fe74b407e1b0196` (\"Seed + explore offline\") is proven by the capability `library-cli`, at `packages/cli/src/cli.test.ts`, test \"library dashboard reports a total + categories and maps artifacts by id\" — the banner, the per-kind map and the ok:true envelope this leg claimed — observed by `library#gate-2`, the same command that greens that capability. (Aspirational/would-be, so it held no proof credit either way; deleted on its merits, not to move a number.)",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_f48f13031bd4c0e43f582995` (\"Drill into one artifact\") is proven by the capability `library-cli`, at `packages/cli/src/cli.test.ts`, test \"artifact <id> prints the artifact with its id and body\" — exactly the scope the leg had already been narrowed to, its own text having recorded that the finer derived-vs-passed-through and Sources claims ride in gate 1's suite rather than gate 2's.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_5155e5340ce84fccab39dfc7` (\"Author on write, offline-refused\") is proven by the capability `library-cli`, at `packages/cli/src/cli.test.ts`, which asserts the offline write refusal and its \"run with --pg\" guidance; the sibling test \"the CLI refuses --store memory for a build — there is no run-without-persisting mode (ADR-0081)\" pins the same write-gate posture on the build path.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_4ef0f44eec0e40580aea716d` (\"Validate-on-write (writable)\") is proven by the capability `library-schema-and-write-validation`, at `packages/cli/src/cli.test.ts` for all three clauses (create-and-persist on a valid doc, ok:false with the zod message on an unknown field, edit-first refusal on a duplicate id) together with `packages/library/src/knowledge.test.ts`, \"every kind: required fields validate, a missing required field fails closed\".",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_5745585a5bb50b74cc476a62` (\"Run a migration\") is proven by the capability `eager-batch-migrate`, at `packages/library/src/store/batch-migrate.test.ts` — \"batchMigrate: upgrades a v0 structured doc to CURRENT_SCHEMA_VERSION in place\" and \"batchMigrate: re-running is a no-op (0 upgraded)\" are this leg's two success clauses verbatim — observed by `library#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library#uat-6",
@@ -717,9 +717,9 @@
     },
     {
       "legacyTestId": "library#uat-7",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_df4f4967d495c1c4a81f1ccf` (\"Run the health gate\") is proven by the capability `library-health-gate`, at `packages/cli/src/health.test.ts`, which proves each check and the FAIL/WARN classification this leg asserted — e.g. \"schema-conformance FAIL on a structured doc missing a required field\", \"referential-integrity FAIL on a dangling asset: pointer (a real graph break)\" and \"referential-integrity WARN on a dangling doc: pointer (softer — a doc can move)\" — observed by `library#gate-2`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library-review#uat-1",
@@ -735,9 +735,9 @@
     },
     {
       "legacyTestId": "library-review#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_76681235d644938d2598380c` (\"The comment persisted with a block anchor\") is proven by the capability `block-position-comment-anchor` (which signed a REAL PASS, run real-mr22bwt5), at `packages/library/src/store/pg-comment-store.test.ts` — \"bpa-block-anchor-is-the-stored-shape: normalizeCommentAnchor returns a block anchor canonical (blockId kept, legacy text-span fields stripped)\" asserts both halves, and \"normalizeCommentAnchor: legacy text kind is downgraded to topic and stripped of text-span fields\" pins the stripping. Its `library-review#uat-3` detail artifact is retired in the live store (ADR-0307 D5).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library-review#uat-4",
@@ -747,15 +747,15 @@
     },
     {
       "legacyTestId": "library-review#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_8d2b3ad46f16f3f8c1dda241` (\"The suggestion is a proposal, not an overwrite\") is proven by the capability `suggestion-edit-store` (REAL PASS, run real-mr24u2mt), at `packages/library/src/store/pg-suggestion-store.test.ts` — \"ses-record-validates-at-the-boundary: SuggestionSchema accepts a valid open suggestion\" pins status open carrying the proposed replacement, \"SuggestionSchema refuses a blank author\" pins the author field. The document-unchanged clause is STRUCTURAL: the suggestion store is handed no document-write path. Its detail artifact is retired in the live store.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library-review#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_afeb19036c9f6e66ceb082e5` (\"A member cannot accept/reject\") is proven by the capability `member-suggest-write-policy` (REAL PASS, run real-mr3kexsx), at `apps/studio/server/guestPolicy.test.ts` — \"msp-member-cannot-decide-a-suggestion: a member POST to the suggestion-decision path is 403 (deciding is admin-only)\" asserts the refusal and \"msp-admin-may-do-all-four\" pins the admit side. The stays-open clause follows: the decision route never runs, so no transition is applied. Its detail artifact is retired in the live store.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library-review#uat-7",
@@ -771,9 +771,9 @@
     },
     {
       "legacyTestId": "library-review#uat-9",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 (2026-08-08) on D1 first and D2 second, and the claim itself is now WITHDRAWN as a story-UAT obligation. `uatc_d5785439b3378b3c34aef9d1` (\"The old text-selection commenting is gone\") is a grep for absent symbols, which is not a step in a narratable journey, and its own success condition named `pnpm --filter studio test` + `pnpm --filter studio typecheck` — the package suite — as the thing that discharges it, so it is proven by the capability `remove-text-selection-anchoring` under that same command. Verified true before deletion: `apps/studio/src/lib/annotate.ts`, `apps/studio/src/lib/useAnnotations.tsx` and `apps/studio/src/components/CommentPanel.tsx` are absent, and no text kind survives on the comment anchor (the only remaining `kind: text` is an unrelated CriticMarkup segment type). Its detail artifact is retired in the live store.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library-tech-tree-overlay#uat-1",
@@ -783,9 +783,9 @@
     },
     {
       "legacyTestId": "library-tech-tree-overlay#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_a89c30e97ac72fc3c454d2fe` (\"Find an artifact in the drawer\") is proven by the capability `library-finder`, at `apps/studio/src/components/LibraryFinder.test.tsx` — \"lf-search-ranks-asset-matches-across-fields: an id/title hit outranks a description/body-only hit, all four asset fields are match surfaces\" asserts the client-side narrowing over id/title/description/body and \"lf-adrs-matched-on-title-and-id-only\" the ADR-title half; the kindLabel sub-line is pinned by the sibling \"ldag-node-plaque-kind-via-kindLabel\" over the same seam. One of only two legs in this story carrying no fused operator-attested Look clause, which is why it could be adjudicated here rather than by the ADR-0294 D3 pass. Its `library-tech-tree-overlay#uat-2` detail artifact is retired in the live store (ADR-0307 D5).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library-tech-tree-overlay#uat-3",
@@ -807,9 +807,9 @@
     },
     {
       "legacyTestId": "library-tech-tree-overlay#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_f8209997c50c90df84024161` (\"Close the Library drawer\") is proven by the capability `library-top-drawer`, at `apps/studio/src/components/LibraryTopDrawer.test.tsx` — \"ltd-handle-toggle-fires-in-both-states\" asserts the close firing onToggle, \"ltd-lens-state-is-url-derived: a changed search flips collapsed -> expanded -> collapsed -> expanded\" asserts the flag-clearing round trip, and \"ltd-flag-reader-survives\" asserts that a reload with the flag cleared stays collapsed. The other of the two legs carrying no fused Look clause. Its detail artifact is retired in the live store.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "map-terminal-build#uat-1",

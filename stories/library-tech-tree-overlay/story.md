@@ -273,6 +273,40 @@ forest map, walks from a search to an artifact's neighbourhood, dives into its b
 whole-corpus constellation, and closes the drawer — the map staying live the whole time except during a
 deliberate dive.
 
+### ADR-0294 disposition of the six original criteria
+
+**Two of six deleted (2026-08-08); four kept for a scoping reason, not a proof one.** Every leg here
+is a genuine D1 journey step — the six are consecutive moves of one operator session (open → find →
+read the DAG → dive → overview → close) — and every leg is UNBOUND, since this story declares no
+reliability gate at all. But four of the six FUSE two claims into one criterion: a machine `Success`
+clause and a `Look (operator-attested)` clause. Those Look clauses are ADR-0294 D3 appearance
+verdicts, owned by the D3 increment (chip `task_99f7e0a9`), which relocates them to the capability
+whose look it is. Cutting the machine half of a fused leg would either destroy the appearance claim
+or force a re-authoring that D3 must then re-author again, so those four are left whole and untouched.
+
+Legs 2 and 6 are the only two carrying NO Look clause, so they are pure machine legs and can be
+adjudicated here alone. Both are duplicates of their named capability, verified against actual test
+titles.
+
+**One stale claim corrected in place** (ADR-0139): the proof-status note above stated "only
+`library-drawer-shell` (increment 1) exists … legs 2–6 depend on increments 2–5 and are placeholders".
+That is no longer true — all five capabilities these legs name are built and carry real suites
+(`LibraryTopDrawer`, `LibraryFinder`, `LibraryDagCanvas`, `LibraryDiveBody`, `LibraryOverview`), which
+is what made this adjudication possible at all.
+
+**The surviving numbers are deliberately NOT closed up.** `2` and `6` are burned; their live
+`uat-criterion` detail artifacts (`library-tech-tree-overlay#uat-2`, `#uat-6`) are retired in the
+store. The four survivors keep their `(detail:)` pointers, as `PILOT_STORY_IDS` coverage requires.
+
+| original leg | criterion id | disposition |
+|---|---|---|
+| 1. **Open the Library drawer on the map** | `uatc_dc5913099db55821e44fe257` | **Keep — fused D3 clause.** Its machine half is largely covered by [`library-top-drawer`](library-top-drawer.md) (`ltd-collapsed-handle-by-default`, `ltd-flag-renders-expanded`, `ltd-no-scrim-either-state`, `ltd-lens-state-is-url-derived`), but it carries a Look clause (the drawer spans the full frame, reads as part of the world, legible against the map) that is D3's to relocate. |
+| 2. **Find an artifact in the drawer** | `uatc_a89c30e97ac72fc3c454d2fe` | **Delete as duplicate.** No Look clause — a pure machine leg. [`library-finder`](library-finder.md), `apps/studio/src/components/LibraryFinder.test.tsx`: **“lf-search-ranks-asset-matches-across-fields: an id/title hit outranks a description/body-only hit, all four asset fields are match surfaces”** asserts the client-side narrowing over id/title/description/body, and **“lf-adrs-matched-on-title-and-id-only”** asserts the ADR-title half. The kind sub-line via `kindLabel` is pinned by the sibling `LibraryDagCanvas` test **“ldag-node-plaque-kind-via-kindLabel: … an arc node reads ‘epic’, never the raw key”**, the same `kindLabel` seam this leg names. |
+| 3. **Read the selected neighbourhood DAG** | `uatc_586b8bb4e1f926b416497e3f` | **Keep — fused D3 clause.** Its machine half maps one-to-one onto [`library-dag-canvas`](library-dag-canvas.md) (`ldag-adjacency-one-level-each-way`, `ldag-edges-drawn-between-nodes`, `ldag-per-branch-fan-cap-collapses-overflow`, `ldag-viewbox-contains-all-nodes`, `ldag-layered-ranks-upstream-left-downstream-right`), but the two-line plaque and colour-encoding Look clause is D3's. |
+| 4. **Dive into the selected artifact** | `uatc_2539bfd0b1c1c04c2adf77c7` | **Keep — fused D3 clause.** Machine half in [`library-dive-body`](library-dive-body.md) (`ldb-asset-selection-renders-assetview-body-and-sources`, `ldb-doc-selection-fetches-and-renders-markdown`); the "reads over the world without losing the peek bar" clause is D3's. |
+| 5. **See the whole-corpus overview** | `uatc_1dfa5ebe29eb8a99f847ac01` | **Keep — fused D3 clause.** Machine half in [`library-overview`](library-overview.md) (`lov-importance-degree-over-references`, `lov-size-tier-buckets-by-importance`, `lov-lod-band-by-zoom`); the "reads as a tech-tree overview and stays smooth toward ~2000 nodes" clause is D3's. |
+| 6. **Close the Library drawer** | `uatc_f8209997c50c90df84024161` | **Delete as duplicate.** No Look clause — a pure machine leg, and the close half of the same capability leg 1 opens. [`library-top-drawer`](library-top-drawer.md), `apps/studio/src/components/LibraryTopDrawer.test.tsx`: **“ltd-handle-toggle-fires-in-both-states: the arrow toggle fires onToggle once from collapsed and once from expanded; no word button; no history mutation”** asserts the close firing `onToggle`; **“ltd-lens-state-is-url-derived: a changed `search` flips collapsed → expanded → collapsed → expanded”** asserts the flag-clearing round trip; **“ltd-flag-reader-survives: `?overlay=library` reads true; `""` … read false”** asserts that a reload with the flag cleared stays collapsed. |
+
 1. **Open the Library drawer on the map.** _(witness: machine)(detail: library-tech-tree-overlay#uat-1)_ Open the studio map (`#/tree`). **Success (machine — `library-top-drawer`) —** the Library presents by _(criterion-id: uatc_dc5913099db55821e44fe257)_ _(revision-id: uatr1:6dee52ba676b0173)_
    DEFAULT as a collapsed top drawer handle at the top edge of the forest (visible on load with no URL
    knowledge); clicking the handle slides the lens down (expanded), the forest map staying fully live and
@@ -281,9 +315,6 @@ deliberate dive.
    parent glue writing the flag via `commitSearch`). **Look (operator-attested) —** the drawer spans the
    full width of the forest frame, expanded takes ~the top 1/3, and reads as part of the world (the map's
    forest-cozy palette), legible against the map.
-2. **Find an artifact in the drawer.** _(witness: machine)(detail: library-tech-tree-overlay#uat-2)_ Type a query into the finder. **Success (machine — `finder`) —** results narrow client-side over the _(criterion-id: uatc_a89c30e97ac72fc3c454d2fe)_ _(revision-id: uatr1:8a44dca32659d224)_
-   loaded corpus (id/title/description/body + ADR titles), each result showing its kind as a muted
-   sub-line (via `kindLabel`, so `arc` reads "Epic"); selecting one sets the finder selection.
 3. **Read the selected neighbourhood DAG.** _(witness: machine)(detail: library-tech-tree-overlay#uat-3)_ Read the selected artifact's neighbourhood. **Success (machine — `library-dag-canvas`) —** the selected _(criterion-id: uatc_586b8bb4e1f926b416497e3f)_ _(revision-id: uatr1:ac51807fd7c96d83)_
    artifact is centred in a layered reference DAG, its `references[]` fanning upstream (stands on) left
    and downstream (stood on by) right to ONE level each way (ADR-0193 dec 3), with DRAWN edges between rank-adjacent
@@ -300,11 +331,6 @@ deliberate dive.
    at far zoom; a search match pulses independent of zoom; nodes swap to plaques at close zoom. **Look
    (operator-attested) —** the constellation reads as a tech-tree overview and stays smooth as the corpus
    grows toward ~2000 nodes (the LOD ladder holds).
-6. **Close the Library drawer.** _(witness: machine)(detail: library-tech-tree-overlay#uat-6)_ Click the handle to close the lens. **Success (machine — `library-top-drawer`) —** the lens slides back _(criterion-id: uatc_f8209997c50c90df84024161)_ _(revision-id: uatr1:4c3e0bafe5a58a0a)_
-   up to the collapsed top drawer handle (the handle firing `onToggle`, the parent glue clearing the
-   `?overlay=library` flag via `commitSearch`); the operator is returned to the full live map with the handle
-   still visible at the top edge, and a reload with the flag cleared stays collapsed to the handle.
-
 ## Proof
 
 The story carries the UAT (above) at the story tier (ADR-0010 §2). It is proven when that UAT passes
