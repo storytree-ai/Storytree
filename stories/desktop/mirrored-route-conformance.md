@@ -22,7 +22,7 @@ decisions: [251, 176, 100, 252, 249, 57]
 #      `apps/studio`. It is NOT registered for `packages/cli` — which costs nothing while there is no
 #      `real:` arm, and is the thing to check first if one is ever added.)
 # SINGLE-COMMAND PROOF, and the choice is deliberate — see "The proof command" in Guidance. The
-# command is spelled EXACTLY as `packages/cli/src/gate-order.ts:149` spells it, so the capability's
+# command is spelled EXACTLY as `packages/cli/src/gate-order.ts:176` spells it, so the capability's
 # proof and the gate step it names can never drift into two different invocations.
 proof:
   command:
@@ -63,14 +63,14 @@ is the dependency test in both directions: neither of them needs anything from t
 > units.
 >
 > **The outcome half — `pnpm check:mirror-conformance`.** One of the NINE retained gate steps
-> (`packages/cli/src/gate-order.ts:148-154`), classified **PROOF INTEGRITY** rather than factory
-> bookkeeping (`:115-116`). FOUR of the nine carry that classification — this rung, both `-r` legs and
+> (`packages/cli/src/gate-order.ts:175-181`), classified **PROOF INTEGRITY** rather than factory
+> bookkeeping (`:142-143`). FOUR of the nine carry that classification — this rung, both `-r` legs and
 > `check:verification-decay` — so the discriminating count is the narrower one: of the seven STANDALONE
 > `check:*` rungs it is one of only TWO proof-integrity rungs, the other five being factory bookkeeping
-> (the full classification is `:110-133`). It spawns all eight probes in their own processes over
+> (the full classification is `:137-160`). It spawns all eight probes in their own processes over
 > one shared fixture set and compares the real decoded payloads. That is a genuine integration proof
 > against real in-story collaborators — the desktop's own `/api/*` dispatcher and route handlers, run
-> for real — not a unit test over doubles. It has a recorded catch: `gate-order.ts:115-116` cites
+> for real — not a unit test over doubles. It has a recorded catch: `gate-order.ts:142-143` cites
 > commit `3ef84c96`, a studio-only docs change that produced 256+4 divergences.
 >
 > **The rules half — `packages/cli/src/mirror-conformance.test.ts`, 32 tests.** Part of the
@@ -162,7 +162,7 @@ fork, and settled against four candidates rather than two).
    *"Local-backend boundary call"* section of [`story.md`](story.md) is where re-compose-don't-import
    was decided. Nothing else in the corpus asserts that the re-composition stayed faithful.
 
-   **And the three rejected homes, with the reason each fails:**
+   **And the four rejected homes, with the reason each fails:**
 
    - **`cli` — the closest call, and the one the routing brief leaned away from for a reason I want to
      correct in passing.** The brief's precedent list (a `packages/cli` gate instrument homes to the
