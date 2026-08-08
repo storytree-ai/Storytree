@@ -13,7 +13,15 @@ import {
 import { classifySurfaceCoverage, loadSurfaceCoverageInputs } from "./surface-coverage-gate.js";
 
 /**
- * The `check:surface-coverage` drain ceiling (`verification-integrity-arc`, ADR-0252 D3, in ADR-0168
+ * The `check:surface-coverage` drain ceiling — a rung ADR-0311 D2 RETIRED. Say what that does and
+ * does not mean, because the two are easy to swap. These TESTS still run, inside `pnpm -r test`
+ * (GATE_PLAN step 6). The RUNG does not: `check:surface-coverage` is in neither the root
+ * `package.json` nor `.github/workflows/ci.yml` (verified 2026-08-08), and `surface-coverage-drain.ts`
+ * beside this file carries the UNWIRED banner. So what is exercised below is the retired module's own
+ * logic plus the 0/0 ceiling pin — the REAL repo's surface counts are enforced by nobody. Declared,
+ * with that reasoning, in `gate-order.ts`'s RETIRED_TEST_COMPANIONS.
+ *
+ * The ceiling as it was designed (`verification-integrity-arc`, ADR-0252 D3, in ADR-0168
  * D4's shape). Pure — the core takes gap lists and a substrate flag, so every level is testable
  * without disk. The red→green pair is each axis breaching ALONE; the guards pin what the ceiling must
  * NOT fire on, since a ceiling that reds on today's honest baseline (or on a substrate failure) would
@@ -167,10 +175,12 @@ test("BASELINE: a sweep over the real entrypoints sits within both ceilings", as
   // THIS TEST NO LONGER PINS THE REAL REPO'S 0/0, AND THAT IS THE HONEST STATE — say so rather than
   // let the title imply otherwise. It read the committed seed's process tier; ADR-0302 D1 deleted
   // that file, and ADR-0302 D3 keeps `STORYTREE_DB_USER` out of `pnpm -r test`, so a hermetic test
-  // cannot see the real tier at all. The real-repo 0/0 baseline is enforced by the
-  // `check:surface-coverage` RUNG, which reads live and runs in BOTH `pnpm gate` and CI — so the
-  // enforcement moved rather than lapsed, and it moved somewhere STRONGER (it now judges the
-  // authored corpus rather than an export of it that lagged behind every live edit).
+  // cannot see the real tier at all. AND THE REAL-REPO 0/0 BASELINE IS NOW ENFORCED BY NOTHING —
+  // an earlier revision of this comment said it had moved to the `check:surface-coverage` RUNG,
+  // "which reads live and runs in BOTH `pnpm gate` and CI", and that it "moved rather than lapsed".
+  // ADR-0311 D2 retired that rung: verified 2026-08-08, `check:surface-coverage` appears in neither
+  // the root `package.json` nor `.github/workflows/ci.yml`. The enforcement LAPSED. Restoring it
+  // needs fresh production-catch evidence and an ADR (ADR-0311 D5), never merely the wiring.
   //
   // What survives here is the wiring: the real entrypoint set, joined to a store's process tier,
   // evaluated by the real ceiling — the path that must not throw or mis-shape before the rung can
@@ -207,7 +217,8 @@ test("BASELINE: a sweep over the real entrypoints sits within both ceilings", as
   assert.equal(CEILING.unresolvedCeiling, 0, "the unresolved ceiling must not be loosened");
   assert.equal(CEILING.orphanCeiling, 0, "the orphan ceiling must not be loosened");
   // The real repo's counts against those ceilings — "the committed tree carries a CLEAN bijection,
-  // and the ADR-0195 process is what keeps `pnpm ci:affected` non-orphan" — are asserted by
-  // `check:surface-coverage` against the live corpus, in `pnpm gate` and in CI (armed, so an
-  // unreachable store reds there rather than skipping).
+  // and the ADR-0195 process is what keeps `pnpm ci:affected` non-orphan" — are asserted NOWHERE.
+  // They were `check:surface-coverage`'s job; ADR-0311 D2 retired it, so what is pinned above is the
+  // ceiling pair, not the corpus it was measured against. Read this test's green as "the retired
+  // module still computes", never as "the bijection is still clean".
 });
