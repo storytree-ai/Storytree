@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -12,12 +12,15 @@ import {
   GATE_VOICE_EXEMPTIONS,
   GATE_VOICE_SCAN_ROOTS,
   type GateStep,
+  LOAD_BEARING_MARKER,
   NON_GATE_CHECK_SCRIPTS,
   PRE_EXPENSIVE_CHECKS,
   RETIRED_CHECKS,
+  RETIRED_TEST_COMPANIONS,
   SHARED_ENVIRONMENT_CHECKS,
   SKIP_CAPABLE_CHECKS,
   UNWIRED_MARKER,
+  companionFileFor,
   evaluateGateOrder,
   findGateVoice,
   firstExpensiveIndex,
@@ -352,6 +355,133 @@ test("every surviving retired source exists and carries the UNWIRED banner", () 
       "Each still compiles and its own tests still pass, so without the banner a reader has no way " +
       "to tell it enforces nothing. Add the banner, or — if it was re-wired — update RETIRED_CHECKS.",
   );
+});
+
+// ── the tombstone's COMPANION half ───────────────────────────────────────────
+//
+// The tests above judge the retired PRODUCTION sources, which is the half that was tracked. Their
+// `.test.ts` companions were not — and three of them are not leftovers at all: they run inside
+// `pnpm -r test` (GATE_PLAN step 6, and a CI step) and assert invariants over the real tree. A
+// tidy-up deleting "the unwired ADR-0311 leftovers" would have taken them along and dropped those
+// invariants in silence. These make that impossible to do quietly.
+
+test("every `.test.ts` companion of a retired source is DECLARED — one cannot sit untracked", () => {
+  // The completeness half, and the direction that rots on its own: a companion nobody inventoried is
+  // exactly how the three load-bearing ones went unbannered beside genuinely dead code for a week.
+  const undeclared = retiredSources()
+    .map(companionFileFor)
+    .filter((file) => existsSync(path.join(cliSrc, file)))
+    .filter((file) => !RETIRED_TEST_COMPANIONS.has(file))
+    .sort();
+
+  assert.deepEqual(
+    undeclared,
+    [],
+    `these test files sit beside a retired source but are not in RETIRED_TEST_COMPANIONS: ` +
+      `${undeclared.join(", ")}. Declare each with its role and what deleting it would cost — an ` +
+      "undeclared companion is indistinguishable from a leftover, which is how a live invariant " +
+      "gets swept up by a tidy-up.",
+  );
+});
+
+test("every declared companion still EXISTS — deleting one reds here, naming what it enforced", () => {
+  // THE LOAD-BEARING ONE. This is the mechanism, not the documentation: removing the FILE fails here
+  // with its `cost` sentence, so dropping a repo-wide invariant takes three deliberate edits (the
+  // file, its entry, and the pinned set below) and each one lands visibly in the diff.
+  const gone: string[] = [];
+  for (const [file, companion] of RETIRED_TEST_COMPANIONS) {
+    if (!existsSync(path.join(cliSrc, file))) gone.push(`${file} (${companion.role}) — ${companion.cost}`);
+  }
+
+  assert.deepEqual(
+    gone,
+    [],
+    `these declared companions no longer exist: ${gone.join(" | ")}. If the deletion was deliberate, ` +
+      "remove the entry too — and for a `load-bearing` one, say in the commit which invariant is " +
+      "being abandoned and where it moved.",
+  );
+});
+
+test("every companion carries the banner its ROLE demands, and no inert one claims to enforce", () => {
+  // Both directions on `LOAD-BEARING`, because both fail: a missing banner leaves a live invariant
+  // looking like dead code, and a stale one leaves dead code looking protected. The second is the
+  // half that rots — a companion can stop enforcing without anyone touching this map.
+  const unbannered: string[] = [];
+  const overclaiming: string[] = [];
+
+  for (const [file, companion] of RETIRED_TEST_COMPANIONS) {
+    assert.ok(companion.cost.length > 0, `${file} must record what deleting it would cost`);
+    assert.ok(
+      retiredSources().includes(companion.of),
+      `${file} claims to companion \`${companion.of}\`, which RETIRED_CHECKS does not list`,
+    );
+    assert.equal(
+      companionFileFor(companion.of),
+      file,
+      `${file} is declared against \`${companion.of}\`, whose companion would be ${companionFileFor(companion.of)}`,
+    );
+
+    let body: string;
+    try {
+      body = readFileSync(path.join(cliSrc, file), "utf8");
+    } catch {
+      continue; // the test above owns the missing-file failure; don't report it twice
+    }
+    const claims = body.includes(LOAD_BEARING_MARKER);
+    if (companion.role === "load-bearing" && !claims) unbannered.push(file);
+    if (companion.role !== "load-bearing" && claims) overclaiming.push(file);
+  }
+
+  assert.deepEqual(
+    unbannered,
+    [],
+    `these still enforce a repo-wide invariant but carry no \`${LOAD_BEARING_MARKER}\` banner: ` +
+      `${unbannered.join(", ")}. Without it they read as ADR-0311 leftovers and get tidied away.`,
+  );
+  assert.deepEqual(
+    overclaiming,
+    [],
+    `these claim \`${LOAD_BEARING_MARKER}\` but are not declared load-bearing: ${overclaiming.join(", ")}. ` +
+      "Either the banner is stale — remove it — or the file started enforcing something, in which " +
+      "case say what in its RETIRED_TEST_COMPANIONS entry.",
+  );
+});
+
+test("the load-bearing companions are pinned BY NAME, so dropping one is a visible edit", () => {
+  // Derived by hand rather than read off the map — the same reason PRE_EXPENSIVE_CHECKS is. A set
+  // computed from the map would agree with it by construction and could never contradict it, which
+  // is precisely the contradiction this exists to force: quietly deleting a load-bearing entry has
+  // to fail a literal that spells out the three files.
+  const loadBearing = [...RETIRED_TEST_COMPANIONS]
+    .filter(([, companion]) => companion.role === "load-bearing")
+    .map(([file]) => file)
+    .sort();
+
+  assert.deepEqual(
+    loadBearing,
+    ["coverage-drain.test.ts", "coverage-gate.test.ts", "test-timing-drain.test.ts"],
+    "the set of companions that still enforce a repo-wide invariant changed. Adding one is fine — " +
+      "update this literal. REMOVING one means a repo-wide invariant is being abandoned or has " +
+      "moved; say which, and where it went.",
+  );
+});
+
+test("each load-bearing companion's banner NAMES the invariant, not just the marker", () => {
+  // A bare `LOAD-BEARING` token satisfies the banner test while telling a reader nothing about what
+  // is at stake, which is how a marker decays into decoration. The banner has to be readable on its
+  // own, by a session that never opens this module.
+  for (const [file, companion] of RETIRED_TEST_COMPANIONS) {
+    if (companion.role !== "load-bearing") continue;
+    const body = readFileSync(path.join(cliSrc, file), "utf8");
+    const banner = body.split(/\r?\n/).findIndex((line) => line.includes(LOAD_BEARING_MARKER));
+    const paragraph = body.split(/\r?\n/).slice(banner, banner + 12).join("\n");
+    assert.match(
+      paragraph,
+      /pnpm -r|GATE_PLAN|do not delete|DO NOT DELETE/i,
+      `${file}'s ${LOAD_BEARING_MARKER} banner must say where it runs and that it must survive a ` +
+        "leftover sweep — a bare marker is decoration",
+    );
+  }
 });
 
 // ── the gate's VOICE vs. the real source tree ────────────────────────────────

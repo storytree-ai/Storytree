@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import {
   demoClaims,
   demoDepartures,
+  foldBuildOntoClaims,
   nextSceneNow,
   orderClaimsForScene,
   readClaimsMode,
@@ -161,6 +162,172 @@ describe('resolveBuildPhase (ADR-0212 — RED WINS)', () => {
     expect(resolveBuildPhase([build(), build({ runId: 'r2', phase: 'CONFIRM_RED' })])).toBe(
       'CONFIRM_RED',
     );
+  });
+});
+
+// ADR-0326: the build→claim join is at the CLAIMED UNIT, not the story.
+//
+// Both layers arrive here already grouped to the story (buildsByStory / claimsByStory resolve a
+// member id up to its owning story), so "same group" says nothing about "same session". ADR-0212
+// joined at that group and argued it was sound from the ADR-0200 D2 mutex — but the mutex is per
+// UNIT ID, so story grain is the one grain at which it guarantees nothing. Two shapes break it, and
+// the second predates PR #1220: a member build (which never claimed the story) landing in the group
+// of a story-grain claim, and two legitimate ADR-0270 D1 work claims on disjoint capabilities of one
+// story, where `find` returned whichever sorted first rather than the building one.
+describe('foldBuildOntoClaims (ADR-0326 — join at the claimed unit)', () => {
+  const now = new Date('2026-08-08T00:10:00.000Z');
+  const at = '2026-08-08T00:00:00.000Z';
+  const build = (over: Partial<BuildActivity> = {}): BuildActivity => ({
+    unitId: 'cap-a',
+    tier: 'capability',
+    runId: 'r1',
+    at,
+    ...over,
+  });
+  /** What the assertions care about: whose body it is, at what grade, wearing which band. */
+  const shape = (
+    folded: ReturnType<typeof foldBuildOntoClaims>,
+  ): { key: string; grade: string | undefined; phase: string | undefined }[] =>
+    folded.map((f) => ({ key: f.key, grade: f.grade, phase: f.phase }));
+
+  it("a member build does NOT paint a story-grain claim held by a DIFFERENT session", () => {
+    // The shape PR #1220 exposed: session A legitimately holds S at story grain (ADR-0270 D1
+    // cross-capability work) while session B drives `story build S --real`, which since aa293a0d
+    // claims the MEMBERS and not S. Both land in S's group; only B is building.
+    const folded = foldBuildOntoClaims(
+      [claim({ unitId: 'story-s', sessionId: 'session-a', at })],
+      [build({ unitId: 'cap-a', phase: 'CONFIRM_RED', runId: 'run-b' })],
+      now,
+    );
+    // A's body is a CLAIM, not a build — it must carry no band at all.
+    expect(shape(folded)[0]).toEqual({ key: 'session-a', grade: 'work', phase: undefined });
+    // and the unclaimed build still renders as ITSELF (ADR-0212's claim-less fallback), rather than
+    // vanishing into A's body — one body per actor, and there are two actors here.
+    expect(shape(folded)[1]).toEqual({ key: 'run-b', grade: 'work', phase: 'CONFIRM_RED' });
+    expect(folded).toHaveLength(2);
+  });
+
+  it('the same mis-join through the OLDER door: `node build cap-of-S` beside a story claim', () => {
+    // Establishes the defect predates PR #1220 — a single-node build never took the story id
+    // either, and buildsByStory has always rolled it up to the parent.
+    const folded = foldBuildOntoClaims(
+      [claim({ unitId: 'story-s', sessionId: 'session-a', at })],
+      [build({ unitId: 'cap-of-s', tier: 'capability', phase: 'IMPLEMENT', runId: 'run-old' })],
+      now,
+    );
+    expect(shape(folded)).toEqual([
+      { key: 'session-a', grade: 'work', phase: undefined },
+      { key: 'run-old', grade: 'work', phase: 'IMPLEMENT' },
+    ]);
+  });
+
+  it('with two ADR-0270 D1 work claims on one story, the BUILDING one gets the band', () => {
+    // The mutex is per unit id, so two sessions on disjoint capabilities of one story is legitimate
+    // and both roll up here. The old `claims.find(work)` returned the oldest, not the builder.
+    const folded = foldBuildOntoClaims(
+      [
+        claim({ unitId: 'cap-a', sessionId: 'session-a', at: '2026-08-08T00:00:00.000Z' }),
+        claim({ unitId: 'cap-b', sessionId: 'session-b', at: '2026-08-08T00:05:00.000Z' }),
+      ],
+      [build({ unitId: 'cap-b', phase: 'CONFIRM_GREEN', runId: 'run-b' })],
+      now,
+    );
+    expect(shape(folded)).toEqual([
+      { key: 'session-a', grade: 'work', phase: undefined },
+      { key: 'session-b', grade: 'work', phase: 'CONFIRM_GREEN' },
+    ]);
+  });
+
+  it('RED WINS is resolved PER UNIT — one unit’s red never smears onto another’s body', () => {
+    // ADR-0212's collapse rule is about N runs on ONE body; applying it story-wide painted an
+    // unrelated session's body red. Each unit resolves its own.
+    const folded = foldBuildOntoClaims(
+      [
+        claim({ unitId: 'cap-a', sessionId: 'session-a', at }),
+        claim({ unitId: 'cap-b', sessionId: 'session-b', at }),
+      ],
+      [
+        build({ unitId: 'cap-a', phase: 'CONFIRM_RED', runId: 'ra' }),
+        build({ unitId: 'cap-b', phase: 'GATE', runId: 'rb' }),
+      ],
+      now,
+    );
+    expect(shape(folded)).toEqual([
+      { key: 'session-a', grade: 'work', phase: 'CONFIRM_RED' },
+      { key: 'session-b', grade: 'work', phase: 'GATE' },
+    ]);
+  });
+
+  it('RED WINS still collapses MULTIPLE runs on the SAME unit (the ADR-0212 rule, intact)', () => {
+    const folded = foldBuildOntoClaims(
+      [claim({ unitId: 'cap-a', sessionId: 'session-a', at })],
+      [
+        build({ unitId: 'cap-a', phase: 'GATE', runId: 'r1' }),
+        build({ unitId: 'cap-a', phase: 'CONFIRM_RED', runId: 'r2' }),
+      ],
+      now,
+    );
+    expect(shape(folded)).toEqual([{ key: 'session-a', grade: 'work', phase: 'CONFIRM_RED' }]);
+  });
+
+  // --- the regression locks: every shape the story-grain join already got RIGHT stays byte-identical.
+
+  it('a work claim on the unit being built still gets the band (the sound case, unchanged)', () => {
+    const folded = foldBuildOntoClaims(
+      [claim({ unitId: 'story-s', sessionId: 'session-a', at })],
+      [build({ unitId: 'story-s', tier: 'story', phase: 'CONFIRM_GREEN', runId: 'run-a' })],
+      now,
+    );
+    expect(shape(folded)).toEqual([{ key: 'session-a', grade: 'work', phase: 'CONFIRM_GREEN' }]);
+  });
+
+  it('no claims at all → the claim-less manufactured body, exactly as before', () => {
+    const folded = foldBuildOntoClaims([], [build({ phase: 'IMPLEMENT', runId: 'run-ci' })], now);
+    expect(shape(folded)).toEqual([{ key: 'run-ci', grade: 'work', phase: 'IMPLEMENT' }]);
+    expect(folded[0]?.title).toContain('a build, not a proof');
+    // never green, even claim-less (the ADR-0138 §5 honesty wall).
+    expect(folded[0]?.colourState).toBe('proving');
+  });
+
+  it('no builds → every claim body is bandless and nothing is manufactured', () => {
+    const folded = foldBuildOntoClaims(
+      [claim({ unitId: 'cap-a', sessionId: 'session-a', at })],
+      [],
+      now,
+    );
+    expect(shape(folded)).toEqual([{ key: 'session-a', grade: 'work', phase: undefined }]);
+  });
+
+  it('exploring and waiting never carry a band, even with a build on their OWN unit', () => {
+    // Window shopping and queueing are not building — the band is a work-stage channel (ADR-0212).
+    const folded = foldBuildOntoClaims(
+      [
+        claim({ unitId: 'cap-a', sessionId: 'session-a', grade: 'exploring', at }),
+        claim({ unitId: 'cap-a', sessionId: 'session-b', grade: 'waiting', at }),
+      ],
+      [build({ unitId: 'cap-a', phase: 'CONFIRM_RED', runId: 'run-x' })],
+      now,
+    );
+    expect(shape(folded).slice(0, 2)).toEqual([
+      { key: 'session-a', grade: 'exploring', phase: undefined },
+      { key: 'session-b', grade: 'waiting', phase: undefined },
+    ]);
+    // the build is claimed by NEITHER (a claim that is not `work` is not a builder), so it is an
+    // orphan and draws its own body — the same answer the story-grain fold gave.
+    expect(shape(folded)[2]).toEqual({ key: 'run-x', grade: 'work', phase: 'CONFIRM_RED' });
+  });
+
+  it('claim input order is preserved, so the core’s waiting-queue index contract survives', () => {
+    const folded = foldBuildOntoClaims(
+      [
+        claim({ unitId: 'cap-a', sessionId: 's1', grade: 'waiting', at }),
+        claim({ unitId: 'cap-b', sessionId: 's2', grade: 'waiting', at }),
+        claim({ unitId: 'cap-c', sessionId: 's3', grade: 'waiting', at }),
+      ],
+      [],
+      now,
+    );
+    expect(folded.map((f) => f.key)).toEqual(['s1', 's2', 's3']);
   });
 });
 
