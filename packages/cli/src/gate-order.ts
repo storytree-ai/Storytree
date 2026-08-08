@@ -248,17 +248,25 @@ export const NON_GATE_CHECK_SCRIPTS: ReadonlyMap<string, string> = new Map([
  *
  * THE ENTRY IS NOT DOCUMENTATION — `gate-order.test.ts` holds each one's ROOT SCRIPT to an invocation
  * form that actually preserves a child's exit code, and that fence exists because pnpm silently does
- * not. MEASURED 2026-08-08 on this repo:
+ * not. MEASURED 2026-08-08, all four combinations, with a positive control:
  *
- *     pnpm --filter @storytree/cli exec node -e "process.exit(3)"   → exit 1   ← COLLAPSES
- *     pnpm -C packages/cli exec         node -e "process.exit(3)"   → exit 3   ← preserves
+ *     pnpm --filter <pkg> exec node -e "process.exit(3)"   → exit 1    ← COLLAPSES
+ *     pnpm -C <dir>       exec node -e "process.exit(3)"   → exit 3
+ *     pnpm --filter <pkg> run  <script>                    → exit 3, and 75 → 75
+ *     pnpm -C <dir>       run  <script>                    → exit 75
  *
- * `--filter … exec` is pnpm's RECURSIVE exec: it reports `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL` and
- * normalises any non-zero child code to 1. Every other `check:*` script uses that form, and for them
- * it is harmless — they only ever mean pass or fail, and 1 is fail. For a skip-capable check it is
- * silently destructive in the worst direction: the declared SKIP would arrive at the runner as 1,
- * i.e. as a FAILURE, redding the gate on every local checkout without the `web/` submodule. The bug
- * would look like a broken check rather than a broken protocol.
+ * READ THE TABLE, NOT THE FIRST ROW. It is the RECURSIVE `exec` that collapses —
+ * `--filter … exec` reports `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL` and normalises any non-zero child
+ * code to 1. `--filter … run` does NOT, which is why `pnpm db:up`'s documented exit-75 (`EX_TEMPFAIL`
+ * = "started, still warming") protocol is intact and must not be "fixed": it goes through
+ * `--filter … run`. A session that generalises this hazard to `--filter` would go looking for a bug
+ * that is not there.
+ *
+ * Every other `check:*` script uses the collapsing form, and for them it is harmless — they only ever
+ * mean pass or fail, and 1 is fail. For a skip-capable check it is silently destructive in the worst
+ * direction: the declared SKIP would arrive at the runner as 1, i.e. as a FAILURE, redding the gate
+ * on every local checkout without the `web/` submodule. The bug would look like a broken check rather
+ * than a broken protocol.
  *
  * So a session normalising these scripts back to the house `--filter` form must fail a test rather
  * than discover this in a red gate. Adding a skip-capable check means adding it here.
@@ -271,8 +279,16 @@ export const SKIP_CAPABLE_CHECKS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
- * The pnpm invocation form that DESTROYS a child's exit code — see {@link SKIP_CAPABLE_CHECKS}. Kept
- * beside the set so the test and the reason cannot drift apart.
+ * The token whose presence in a skip-capable check's root script means its exit code will NOT
+ * survive — see {@link SKIP_CAPABLE_CHECKS}. Kept beside the set so the test and the reason cannot
+ * drift apart.
+ *
+ * DELIBERATELY BROADER THAN THE MEASURED CAUSE, and only sound because of the domain it is applied
+ * to. The collapse needs `--filter` AND `exec` together; `--filter … run` is safe. Matching on
+ * `--filter` alone therefore over-matches in general — but every `check:*` script in this repo is an
+ * `exec` form, so within {@link SKIP_CAPABLE_CHECKS} the two coincide, and the broader token is the
+ * conservative fence. Narrowing it to `exec` would WEAKEN it. Do not lift this constant out of that
+ * domain to reason about `run` scripts, where `--filter` is harmless.
  */
 export const EXIT_CODE_COLLAPSING_INVOCATION = "--filter";
 
