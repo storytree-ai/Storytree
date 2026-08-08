@@ -14,7 +14,8 @@ accepted (2026-08-09) — the owner directed closing this capability gap in conv
 instruction to establish the harness ground truth BY MEASUREMENT rather than from memory. Design-time
 alignment IS the ratification (ADR-0110); no second end-of-flow ask. The decision below is what the
 measurement forced, not a discretionary fork — where a fork existed (guidance vs tool) it is named in
-Consequences and its remaining half is parked, not silently taken.
+Consequences, and how it resolved (the tool half shipped same-day rather than staying parked, corrected
+in place under ADR-0139) is recorded there, not silently taken.
 
 ## Context
 
@@ -270,6 +271,6 @@ correction it licenses must be reverted with it. The probes are cheap and the pr
   · `friction-subagent-parks-awaiting-dead-subspawn` — the July-2026 evidence, re-explained rather
   than refuted by D1.
 - `gate-exceeds-one-foreground-tool-call` · `friction-backgrounded-gate-has-no-reliable-completion-or-outcome-signal`
-  — the tool-route precedent, and the fold instruction the parked increment must honour.
+  — the tool-route precedent, and the fold instruction the shipped `storytree dispatch` verb honours.
 - ADR-0139 — correct-in-place; the operation D1 uses on all three artifacts.
 - ADR-0110 — design-time alignment is ratification; why this is born accepted.
