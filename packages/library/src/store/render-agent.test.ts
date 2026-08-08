@@ -751,3 +751,187 @@ test("essentials gate: a non-agent / missing id fails closed", async () => {
   assert.equal(violations.length, 1);
   assert.ok(violations.some((v) => /not an agent artifact/.test(v)));
 });
+
+// ── the fail-closed read (projection-ownership-arc, condition 1) ──────────────────────────────────
+// A projection is a function of (STORE, GENERATOR), not of the store alone. These pin the read path
+// to the same fail-closed posture the WRITE path has always had, so a generator older than the store
+// REFUSES and names the field instead of silently emitting a partial, plausible, wrong render.
+//
+// `InMemoryStore.upsertDoc` does not validate (it sits BELOW the schema seam — storage-protocol
+// cannot depend on the library's schema), which is exactly what lets these seed the incident shape:
+// a doc the live pg store legitimately accepted because the WRITING branch's schema knew the field.
+
+/**
+ * The 2026-08-08 incident, reproduced: a store holding a field this checkout's schema lacks.
+ *
+ * This fixture carries the write-boundary commons (`id` / `createdAt` / `updatedAt`) that the rest of
+ * this file's fixtures omit, so it models a REAL stored row — and the refusal it produces is
+ * byte-for-byte the one a session would read at the gate, with no fixture-only noise in it.
+ */
+async function seededWithSkew(): Promise<InMemoryStore> {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "skewed-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      id: "skewed-agent",
+      title: "Skewed Agent",
+      description: "an agent written by a NEWER branch than this checkout",
+      oneLine: "The skewed agent carries a field this generator never heard of.",
+      role: "It exists to test the fail-closed read.",
+      outcome: "The render refuses instead of dropping the field.",
+      context: ["asset:test-principle"],
+      tools: "none",
+      workflow: "orient, then stop.",
+      references: [],
+      createdAt: "2026-08-08T00:00:00.000Z",
+      updatedAt: "2026-08-08T00:00:00.000Z",
+      // The field the older generator has no schema for — `aliases` in the real incident.
+      unknownFutureField: ["scout", "probe"],
+    },
+  });
+  return store;
+}
+
+test("fail-closed read: an unknown field REFUSES the render and NAMES the field", async () => {
+  const store = await seededWithSkew();
+  const res = await renderAgentEssentials(store, "skewed-agent");
+  assert.equal(res.ok, false, "an artifact this schema cannot account for must not render");
+  if (res.ok) return;
+  assert.match(res.reason, /unknownFutureField/, "the refusal must name the unknown field");
+  assert.match(res.reason, /SCHEMA SKEW/, "an unknown key that came from the STORE is skew, not a typo");
+  assert.match(res.reason, /skewed-agent/, "the refusal must name the artifact");
+  // The remedy, not just the diagnosis: this checkout's generator is older than the store.
+  assert.match(res.reason, /merge origin\/main/, "the refusal must state the remedy");
+  // And it must NOT invite the reader to delete another session's landed work.
+  assert.match(res.reason, /Do NOT strip the field/);
+});
+
+test("fail-closed read: EVERY render mode refuses, so no entry point stays fail-open", async () => {
+  const store = await seededWithSkew();
+  const results = [
+    ["renderAgentPrompt", await renderAgentPrompt(store, "skewed-agent")],
+    ["renderAgentEssentials", await renderAgentEssentials(store, "skewed-agent")],
+    ["renderAgentDigest", await renderAgentDigest(store, "skewed-agent")],
+    ["renderAgentFile", await renderAgentFile(store, "skewed-agent")],
+    ["renderCursorAgentFile", await renderCursorAgentFile(store, "skewed-agent")],
+    ["renderCodexAgentFile", await renderCodexAgentFile(store, "skewed-agent")],
+    ["renderGeminiAgentFile", await renderGeminiAgentFile(store, "skewed-agent")],
+    ["renderOpencodeAgentFile", await renderOpencodeAgentFile(store, "skewed-agent")],
+    ["renderAgentStep", await renderAgentStep(store, "skewed-agent", "orient")],
+  ] as const;
+  for (const [label, res] of results) {
+    assert.equal(res.ok, false, `${label} rendered a doc this checkout's schema cannot account for`);
+    if (!res.ok) assert.match(res.reason, /unknownFutureField/, `${label} did not name the unknown field`);
+  }
+});
+
+test("fail-closed read: the refusal is a TYPED result, never a throw (build-agents prints it)", async () => {
+  // `build-agents.ts` branches on `!res.ok` and calls fail() with res.reason; a throw would bypass
+  // that surface and lose the remedy text. The whole run failing is the INTENDED blast radius here:
+  // `build:agents` prunes orphans, so rendering 12 of 13 agents would DELETE the 13th's five harness
+  // files — a partial regeneration is the very "third variant that existed on no branch" this fix
+  // exists to prevent.
+  const store = await seededWithSkew();
+  const res = await renderAgentFile(store, "skewed-agent");
+  assert.equal(res.ok, false);
+  if (res.ok) return;
+  assert.ok(Array.isArray(res.available), "the refusal still carries the agent list");
+  assert.ok(res.available.includes("clean-agent"));
+});
+
+test("fail-closed read: the essentials GATE counts skew as a violation, not a clean file", async () => {
+  const store = await seededWithSkew();
+  const violations = await essentialsGateViolations(store, "skewed-agent", "any content");
+  assert.equal(violations.length, 1);
+  assert.match(violations[0] ?? "", /unknownFutureField/);
+});
+
+test("fail-closed read: a WELL-FORMED agent still renders byte-identically", async () => {
+  // The regression guard for the 40+ tests above: validation is a CHECK, never a transform. Rendering
+  // reads the stored doc exactly as before, so a clean artifact's bytes cannot move.
+  const before = await seeded();
+  const after = await seededWithSkew(); // the same corpus, plus one skewed sibling
+  for (const render of [
+    renderAgentPrompt,
+    renderAgentEssentials,
+    renderAgentFile,
+    renderCursorAgentFile,
+    renderCodexAgentFile,
+    renderGeminiAgentFile,
+    renderOpencodeAgentFile,
+  ]) {
+    const a = await render(before, "clean-agent");
+    const b = await render(after, "clean-agent");
+    assert.equal(a.ok, true, `${render.name} refused a well-formed agent`);
+    assert.deepEqual(a, b, `${render.name} output moved`);
+  }
+  // A skewed SIBLING does not poison a clean agent's render — the refusal is per-artifact.
+  const digest = await renderAgentDigest(after, "clean-agent");
+  assert.equal(digest.ok, true);
+});
+
+test("fail-closed read: a KNOWN field whose SHAPE moved is refused too, not just an unknown one", async () => {
+  // The incident's subtler sibling. `aliases` exists in this checkout's schema as string[]; a newer
+  // branch widening it to objects would otherwise be filtered to [] by agentAliases' defensive read
+  // and vanish from the frontmatter — the same silent thinning, wearing a field name we recognise.
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "reshaped-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent", id: "reshaped-agent", title: "Reshaped", description: "a known field, a newer shape",
+      oneLine: "o", role: "r", outcome: "o", tools: "t", workflow: "orient, then stop.",
+      context: ["asset:test-principle"], references: [],
+      createdAt: "2026-08-08T00:00:00.000Z", updatedAt: "2026-08-08T00:00:00.000Z",
+      aliases: [{ name: "scout", scope: "repo" }], // string[] in this checkout
+    },
+  });
+  const res = await renderAgentEssentials(store, "reshaped-agent");
+  assert.equal(res.ok, false, "a known field carrying an unrecognised shape must refuse");
+  if (res.ok) return;
+  assert.match(res.reason, /aliases/);
+});
+
+test("fail-closed read: an ABSENT field is not a refusal — the check is strict, not total", async () => {
+  // Required-ness is the WRITE boundary's business. An absent field renders as an absent section,
+  // which is honest; refusing it would break every legitimately partial fixture and catch no defect.
+  // This is what lets the 40+ pre-existing tests above keep their commons-free fixtures.
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "sparse-agent",
+    kind: "agent",
+    doc: { kind: "agent", title: "Sparse", description: "no role, no outcome, no commons" },
+  });
+  const res = await renderAgentEssentials(store, "sparse-agent");
+  assert.equal(res.ok, true, "absence must not be charged as schema skew");
+});
+
+test("fail-closed read: a doc LAGGING this checkout is upcast, not refused (the opposite skew)", async () => {
+  // Migrate-on-write already handles a doc older than the schema. Validating without the upcast would
+  // turn every pre-migration artifact into a spurious refusal — the mirror-image bug.
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "lagging-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent", title: "Lagging Agent", description: "authored before the version pin",
+      oneLine: "o", role: "r", outcome: "o", tools: "t", workflow: "orient, then stop.",
+      references: [],
+      schemaVersion: 0, // the pre-pin world
+    },
+  });
+  const res = await renderAgentEssentials(store, "lagging-agent");
+  assert.equal(res.ok, true, "a doc behind this checkout must be upcast and rendered, never refused");
+});
+
+test("fail-closed read: an unknown agent still reports the name the caller typed", async () => {
+  // The pre-existing fail-closed path must keep its own diagnosis — schema skew must not swallow it.
+  const store = await seededWithSkew();
+  const res = await renderAgentEssentials(store, "no-such-agent");
+  assert.equal(res.ok, false);
+  if (res.ok) return;
+  assert.match(res.reason, /no agent "no-such-agent"/);
+  assert.doesNotMatch(res.reason, /SCHEMA SKEW/);
+});

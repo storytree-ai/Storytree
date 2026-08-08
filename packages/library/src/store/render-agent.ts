@@ -1,5 +1,7 @@
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
-import { KIND_SPECS, type KnowledgeKind } from "../knowledge.js";
+import { Agent, KIND_SPECS, type KnowledgeKind } from "../knowledge.js";
+import { explainDocValidationError } from "../library-doc.js";
+import { upcast } from "../migrations.js";
 import { renderStoredDoc } from "./render-doc.js";
 
 /**
@@ -56,6 +58,121 @@ export type RenderAgentResult =
 async function agentIds(store: Store): Promise<string[]> {
   const docs = await store.queryDocs({ kind: "agent" });
   return docs.map((d) => d.id).sort();
+}
+
+// ── the fail-closed read (projection-ownership-arc, condition 1) ──────────────────────────────────
+// A generated projection is a function of (STORE, GENERATOR), not of the store alone — and until this
+// seam existed only one half of that pair was checked. The WRITE boundary is strict
+// (`buildKindSchema(...).strict()` via `upcastAndValidate`): an unknown field is refused with the
+// legal fields named. The READ path validated NOTHING — every field came through a raw
+// `as Record<string, unknown>` cast — so a generator meeting a field it had never heard of silently
+// ignored it and emitted confident, plausible, WRONG bytes.
+//
+// That asymmetry is what turned a version skew into divergent OUTPUT instead of an error message
+// naming the skew. Measured 2026-08-08: a session added the `aliases` field to the `explorer` agent
+// and to the renderer on ONE branch; a sibling holding the older generator was pushed red by
+// `check:agents` (which compares the committed views against the LIVE store), regenerated to get
+// green, and produced a third variant that existed on no branch — the right artifact, rendered
+// wrong. Both commits were individually correct, which is why it surfaced only as an add/add
+// conflict at merge time rather than as a failure anyone could act on.
+//
+// Fail-closed is this codebase's house style everywhere else (the phase machine, the gate,
+// `resolveAgentAlias`'s own miss branch); this was the exception.
+
+/** A `getDoc` + kind + SCHEMA check, or the reason the artifact must not be rendered. */
+type LoadedAgent = { ok: true; stored: StoredDoc } | { ok: false; reason: string };
+
+/**
+ * The `agent` schema as a READ check: `.strict()` kept, required-ness dropped. `.partial()` preserves
+ * the `.strict()` from `buildKindSchema`, and it keeps SHAPE-checking every field that IS present
+ * (nested keys included) — see {@link agentSchemaRefusal} for which of those issues actually refuse.
+ */
+const AgentReadShape = Agent.partial();
+
+/**
+ * The refusal reason for an agent artifact this checkout's schema cannot account for — or `null` when
+ * it validates and rendering may proceed.
+ *
+ * THE RULE, in one line: **absence never refuses; a PRESENT value this checkout cannot interpret
+ * always does.** That is the exact boundary between the write path's obligations and the read path's,
+ * and getting it wrong in either direction costs something real.
+ *
+ * REFUSED — the two ways a render goes silently wrong:
+ *   - an UNRECOGNIZED KEY. The measured defect: the generator ignores the field and emits a
+ *     confident, plausible, wrong file. This is the incident of 2026-08-08 (`aliases`).
+ *   - a KNOWN field carrying an UNRECOGNISED SHAPE. The same defect wearing a name we recognise: were
+ *     `aliases` widened from `string[]` to objects, {@link agentAliases}' defensive filter would quietly
+ *     reduce it to `[]` and the frontmatter would thin with no error anywhere.
+ *
+ * NOT REFUSED — absence, in every form (a missing field, or an empty required ref-list):
+ *   - Required-ness is the WRITE boundary's business, and it already enforces it. The fields a total
+ *     parse would additionally demand are ones the write path STAMPS (`id`, `createdAt`, `updatedAt`)
+ *     or ones it already refuses a doc for missing (`role`, `outcome`, …).
+ *   - Absence cannot produce wrong bytes. An absent field renders as an absent section, which is
+ *     honest — the failure mode this seam exists to stop is confident output from unread input.
+ *   - Enforcing it here would import the write boundary's COMPLETENESS obligation into a check that
+ *     needs only its RECOGNITION obligation, and would refuse every legitimately partial in-memory
+ *     fixture in the repo: collateral with no defect behind it.
+ *   - `.partial()` ALONE does not get you there, which is why the issue filter below exists:
+ *     {@link upcast} INJECTS `context: []` into an agent doc that lacks it, so the field is PRESENT
+ *     and trips its own `.min(1)` even after the schema stops requiring it. An injected empty list is
+ *     absence wearing a value, and has to be read as absence.
+ *
+ * Measured 2026-08-08: a total upcast+parse on the READ path failed on 0 of 1,211 live artifacts
+ * across all 12 structured kinds. Nothing in the live store needed the relaxation — the fixtures did,
+ * which is precisely why the relaxation must be principled rather than tuned until the suite is green.
+ */
+export function agentSchemaRefusal(stored: StoredDoc): string | null {
+  const doc = stored.doc as Record<string, unknown>;
+  // Mirror the write boundary (`upcastAndValidate`): forward-migrate an old-shape doc, THEN validate.
+  // Skipping the upcast would refuse a doc for lagging BEHIND this checkout — the opposite skew, and
+  // not a defect at all (migrate-on-write already handles it). An upcast that throws is not itself a
+  // shape verdict, so fall through and let the parse below name the real problem.
+  let candidate: unknown = doc;
+  try {
+    candidate = upcast(doc);
+  } catch {
+    candidate = doc;
+  }
+  const parsed = AgentReadShape.safeParse(candidate);
+  if (parsed.success) return null;
+  // `received: "undefined"` is zod's way of saying the value is ABSENT; every other invalid_type is a
+  // value that is THERE and unreadable. Size floors (`too_small` on the ref-lists) are absence too.
+  const blocking = parsed.error.issues.filter(
+    (issue) =>
+      issue.code === "unrecognized_keys" ||
+      (issue.code === "invalid_type" && issue.received !== "undefined"),
+  );
+  if (blocking.length === 0) return null;
+  // Every key here came from the STORE, never from a caller — so `storedKeys` charges each unknown
+  // field to SCHEMA SKEW and prints the merge-`main` remedy, instead of "this kind does not have it"
+  // and an invitation to delete another session's landed work. That is the same authorship split
+  // ADR-0290 made for `check:corpus-content`, and it is the whole difference between a refusal a
+  // session can act on and one that reads as "you passed a bad field".
+  //
+  // One seam: this helper diagnoses against the TOTAL arm, so for a doc that is both skewed AND
+  // missing required fields it also lists the absences — which are not why we refused. A doc that
+  // reached the live store cannot be in that state (the write path enforces them), so this shows up
+  // only for a hand-built in-memory fixture, below a headline that is already correct.
+  return (
+    `agent "${stored.id}" does not validate against this checkout's schema — refusing to render it ` +
+    `rather than emit a partial view of it.\n\n` +
+    explainDocValidationError(doc, parsed.error, { storedKeys: Object.keys(doc) })
+  );
+}
+
+/**
+ * Resolve `name` to a VALIDATED agent artifact. The one seam every render mode reads its raw fields
+ * through, so the fail-closed check cannot be forgotten at one entry point while the others hold it.
+ * Callers own the `available` list their own result shape carries.
+ */
+async function loadAgentDoc(store: Store, name: string): Promise<LoadedAgent> {
+  const stored = await store.getDoc(name);
+  if (!stored || stored.kind !== "agent") {
+    return { ok: false, reason: `no agent "${name}" in the Library.` };
+  }
+  const refusal = agentSchemaRefusal(stored);
+  return refusal === null ? { ok: true, stored } : { ok: false, reason: refusal };
 }
 
 /**
@@ -115,10 +232,9 @@ export async function renderAgentPrompt(store: Store, name: string | undefined):
   if (name === undefined) {
     return { ok: false, reason: "agents needs a name: storytree agents <name>", available };
   }
-  const stored = await store.getDoc(name);
-  if (!stored || stored.kind !== "agent") {
-    return { ok: false, reason: `no agent "${name}" in the Library.`, available };
-  }
+  const loaded = await loadAgentDoc(store, name);
+  if (!loaded.ok) return { ok: false, reason: loaded.reason, available };
+  const { stored } = loaded;
   const doc = stored.doc as Record<string, unknown>;
   const str = (k: string): string => (typeof doc[k] === "string" ? (doc[k] as string).trim() : "");
   const title = str("title") || stored.id;
@@ -204,10 +320,9 @@ export async function renderAgentEssentials(
   if (name === undefined) {
     return { ok: false, reason: "agents needs a name: storytree agents <name>", available };
   }
-  const stored = await store.getDoc(name);
-  if (!stored || stored.kind !== "agent") {
-    return { ok: false, reason: `no agent "${name}" in the Library.`, available };
-  }
+  const loaded = await loadAgentDoc(store, name);
+  if (!loaded.ok) return { ok: false, reason: loaded.reason, available };
+  const { stored } = loaded;
   const doc = stored.doc as Record<string, unknown>;
   const str = (k: string): string => (typeof doc[k] === "string" ? (doc[k] as string).trim() : "");
   const title = str("title") || stored.id;
@@ -323,10 +438,9 @@ export async function renderAgentStep(
       available,
     };
   }
-  const stored = await store.getDoc(name);
-  if (!stored || stored.kind !== "agent") {
-    return { ok: false, reason: `no agent "${name}" in the Library.`, steps: [], available };
-  }
+  const loaded = await loadAgentDoc(store, name);
+  if (!loaded.ok) return { ok: false, reason: loaded.reason, steps: [], available };
+  const { stored } = loaded;
   const entries = stepRefsOf(stored.doc as Record<string, unknown>);
   const steps = entries.map((e) => e.step);
   if (step === undefined || step === "") {
@@ -431,6 +545,16 @@ export async function essentialsGateViolations(
     violations.push(`${id}: not an agent artifact — the essentials gate cannot resolve its step map.`);
     return violations;
   }
+  // Fail-closed like every other read (the seam above): an agent this checkout's schema cannot
+  // account for is a VIOLATION, not something the gate waves through. Without it the gate would go on
+  // checking a file rendered from fields it never saw — measuring the wrong bytes and calling them
+  // clean. Spelled out rather than routed through `loadAgentDoc` so the not-an-agent message above
+  // keeps naming the step map, which is the diagnosis a caller of THIS function needs.
+  const schemaRefusal = agentSchemaRefusal(stored);
+  if (schemaRefusal !== null) {
+    violations.push(`${id}: ${schemaRefusal}`);
+    return violations;
+  }
   const doc = stored.doc as Record<string, unknown>;
   const stepRefs = stepRefsOf(doc);
 
@@ -497,10 +621,9 @@ export type RenderDigestResult =
  */
 export async function renderAgentDigest(store: Store, name: string): Promise<RenderDigestResult> {
   const available = await agentIds(store);
-  const stored = await store.getDoc(name);
-  if (!stored || stored.kind !== "agent") {
-    return { ok: false, reason: `no agent "${name}" in the Library.`, available };
-  }
+  const loaded = await loadAgentDoc(store, name);
+  if (!loaded.ok) return { ok: false, reason: loaded.reason, available };
+  const { stored } = loaded;
   const doc = stored.doc as Record<string, unknown>;
   const str = (k: string): string => (typeof doc[k] === "string" ? (doc[k] as string).trim() : "");
   const missingRefs: string[] = [];
@@ -618,6 +741,12 @@ export function agentAliases(stored: StoredDoc | null | undefined): string[] {
  *
  * This is the CLI-side half of D4. It does NOT make an alias spawnable as a harness `subagent_type`:
  * that resolution is the harness's, keyed on the `name:` frontmatter alone.
+ *
+ * Deliberately NOT routed through `loadAgentDoc`: this is a NAME LOOKUP, not a render, and it reads
+ * only `kind`/`aliases` — fields no skew can silently thin. Refusing here would make an unrelated
+ * agent's schema skew break the resolution of every OTHER name, and the refusal has nowhere honest to
+ * go (this returns a name, not a result type). The doc it resolves TO is validated at render, which
+ * is the moment a field actually gets read.
  */
 export async function resolveAgentAlias(
   store: Store,
@@ -672,7 +801,9 @@ async function renderHarnessAgentFile(
   if (!res.ok) return res;
   const { agent } = res;
   // re-fetch the stored doc for the structured `model` tier (essentials returns the assembled prompt,
-  // not the raw doc); the agent is known to exist here since renderAgentEssentials resolved it.
+  // not the raw doc); the agent is known to exist here since renderAgentEssentials resolved it — and
+  // to VALIDATE against this checkout's schema, since that resolution went through `loadAgentDoc`. So
+  // the raw reads below (`agentModelFrontmatter` / `agentAliases`) are reads of a checked doc.
   const stored = await store.getDoc(name);
   const frontmatter = [
     "---",
@@ -750,7 +881,8 @@ export async function renderCodexAgentFile(
   if (!res.ok) return res;
   const { agent } = res;
   // the stored doc carries the structured `aliases` (the essentials render returns only the prompt);
-  // the agent is known to exist here since renderAgentEssentials resolved it.
+  // the agent is known to exist AND to validate against this checkout's schema here, since
+  // renderAgentEssentials resolved it through `loadAgentDoc` (the renderHarnessAgentFile note).
   const stored = await store.getDoc(name);
   return {
     ok: true,
