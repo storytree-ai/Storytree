@@ -140,51 +140,39 @@ machine-green result or owner LOOK verdict is claimed.
 existing SVG island beneath registered organic tracks through deterministic, reversible product
 controls, ready for the owner's LOOK judgment.
 
-1. **The world presentation is deterministic and authority-free.** _(witness: machine)_ _(criterion-id: uatc_64fcbdd6348c342b802efad7)_ _(revision-id: uatr1:1360310da77be333)_
-   _(proof-gate: app-surface#gate-1)_ Fold and render the same representative world fixture twice.
-   **Success —** models and semantic renders are equal; the view has no fetch/store/clock authority
-   and reports only typed world events.
-2. **TreeView is the real first consumer.** _(witness: machine)_ _(criterion-id: uatc_039b8b6ddb147d375c932c7e)_ _(revision-id: uatr1:fbb603b227a97a7c)_
-   _(proof-gate: app-surface#gate-2)_ Inspect and exercise the real forest shell.
-   **Success —** it mounts the public shared view with no second private scene mapper while
-   legend/inspector/chat/camera remain Studio siblings. The previously recorded coverage gap around
-   fully rendered state folding and selection callbacks remains a gap until executable proof closes
-   it; this rewrite does not upgrade that evidence.
-3. **Existing art and selector policy survive.** _(witness: machine)_ _(criterion-id: uatc_fcd45a1512795648a5521f4e)_ _(revision-id: uatr1:5a8c8405599ad790)_
-   _(proof-gate: app-surface#gate-1)_ Exercise default, Vector, unknown and partially covered
-   Storybook cases plus moved selector fixtures. **Success —** fallback, sizing, ground contact,
-   depth order, trail reveal and arrival growth retain their existing behaviour.
-4. **The semantic walk exposes six honest states.** _(witness: machine)_ _(criterion-id: uatc_f5cd373a0b8a0e3f9a1875d4)_ _(revision-id: uatr1:a89d634715328b1e)_
-   _(proof-gate: app-surface#gate-3)_ Advance the public player through its representative frames.
-   **Success —** observed keys are exactly `empty`, `land`, `proposed`, `claimed`, `signed-proof`,
-   `healthy`; presence remains distinct from proof; healthy presentation appears only last.
-5. **Navigation and reduced motion preserve semantics.** _(witness: machine)_ _(criterion-id: uatc_5b9f6145b996d8c392101b81)_ _(revision-id: uatr1:c86bc0bae4f05041)_
-   _(proof-gate: app-surface#gate-3)_ Walk Back and Replay under full and reduced motion.
-   **Success —** equal actions yield equal semantic snapshots; reduced motion removes spatial
-   interpolation and delay without changing any settled cue.
-6. **The earlier semantic witness remains isolated from clean Studio.** _(witness: machine)_ _(criterion-id: uatc_4ea0ef71ec37e25732fb26fc)_ _(revision-id: uatr1:0193cee3155c6280)_
-   _(proof-gate: app-surface#gate-4)_ Exercise clean Studio and its existing exact semantic-demo
-   query. **Success —** clean Studio remains ordinary; only the exact flag mounts the public
-   six-frame demo through the real composition path.
-7. **Native land grows without changing the island or camera.** _(witness: machine)_ _(criterion-id: uatc_e92ecfa2a181ca2b109d7a8f)_ _(revision-id: uatr1:b7d5b8e676d14e8e)_
-   _(proof-gate: app-surface#gate-5)_ Exercise boundary and representative progress plus repeated
-   navigation traces. **Success —** the established SVG island/coast/ground grows in place at the
-   established view box, world parcel and painter slot; equal progress yields equal geometry state;
-   the retained final land is the real app SVG; no raster land frame, complete-scene composite,
-   second renderer, random value or asset clock participates.
-8. **Small-plant tracks are local, registered and product-driven.** _(witness: machine)_ _(criterion-id: uatc_deda5e5db5d7520161632855)_ _(revision-id: uatr1:4596e689a361c681)_
-   _(proof-gate: app-surface#gate-6)_ Validate and decode every referenced small-plant and flower
-   frame, then walk full and reduced-motion traces. **Success —** provenance, fixed dimensions,
-   order, reference camera, ground sockets, normalization, mature footprint and painter slots
-   are complete; all frames are transparent local assets; equal cue/progress selects equal frames;
-   Back/Replay settle identically; the SVG land remains visible; no runtime PixelLab dependency or
-   unbounded count-keyed family exists, and Experiment 8's cutout-trunk plus registered-canopy/
-   overlap-collar assembly does not return as the hero-tree treatment.
-9. **The corrected real-consumer route is exact and ordinary Studio stays ordinary.** _(criterion-id: uatc_0af87458e18a9d4495d21191)_ _(revision-id: uatr1:dae2278cc6ae9dc6)_
-   _(witness: machine)_(proof-gate: app-surface#gate-7)_ Exercise clean, near-miss and exact
-   organic-growth queries. **Success —** only the exact query mounts one public product player over
-   the real composition path with native land plus registered organic tracks; clean and near-miss
-   routes retain existing controller, selection, camera, chrome and art policy.
+### ADR-0294 disposition of the eleven original criteria
+
+**Nine of eleven deleted (2026-08-08), all as D2 duplicates.** This story's UAT section was the
+purest instance in the corpus of the shape ADR-0294 D2 measures: legs 1–9 each bound to an
+`app-surface#gate-N` that carries an explicit `_(covers: <capability>)_` annotation, so the command
+each leg named was *by declaration* the command that greens that leg's own capability. Every
+deletion below was checked against the named suite's actual test TITLES, not file existence — which
+is what caught that two capability `proof.real.testFile` paths are STALE (`svg-island-growth.test.tsx`
+and `organic-growth-track.test.tsx` do not exist; the real suites are `svg-island-accretion.test.tsx`
+and `organic-pose-to-pose-{track,assets}.test.ts`). The proof is real; only the recorded path has
+drifted. That drift is left for its owner rather than fixed here.
+
+**The surviving numbers are deliberately NOT closed up.** `1`–`9` are burned: never reused, never
+backfilled. The seven reliability gates are likewise untouched, including the six whose only claiming
+leg is now gone — `reliabilityGateId` mints `<story>#gate-<n>` from POSITION, so removing one would
+silently re-point already-signed verdicts and the surviving legs' bindings onto different gates
+(`asset:edit-story-uat-criteria`). Each retired gate is now unclaimed by any criterion and stays in
+place for that reason alone.
+
+| original leg | criterion id | disposition |
+|---|---|---|
+| 1. **World presentation is deterministic** | `uatc_64fcbdd6348c342b802efad7` | **Delete as duplicate.** [`app-surface-world-view`](app-surface-world-view.md), `packages/app-surface/src/WorldSceneView.test.tsx`: **“aswv-equal-plain-inputs-normalize-deterministically”** asserts equal renders from equal inputs, and **“aswv-wrapper-has-no-private-or-live-authority”** asserts the no-fetch/store/clock half; **“aswv-delegates-one-semantic-scene-and-event”** asserts it reports only typed world events. All three success clauses, one-to-one. |
+| 2. **TreeView is the real first consumer** | `uatc_039b8b6ddb147d375c932c7e` | **Delete as duplicate.** [`studio-app-surface-adapter`](studio-app-surface-adapter.md), `apps/studio/src/components/TreeViewShell.test.tsx`: **“asa-treeview-mounts-one-shared-world-view”** asserts exactly the mount-with-no-second-private-mapper claim. The leg's own text already conceded that the state-folding / selection-callback half “remains a gap until executable proof closes it” — it was never claimed here, so nothing unproven is lost by the deletion. |
+| 3. **Existing art and selector policy survive** | `uatc_fcd45a1512795648a5521f4e` | **Delete as duplicate.** [`app-surface-world-view`](app-surface-world-view.md), same `pnpm --filter @storytree/app-surface test` command: `SceneView.test.tsx` + `SceneView.vegetation.test.tsx` (fallback, ground contact, depth order), `sprite-sizing.test.ts` (sizing), `trailReveal.test.ts` + `semantic-growth-trail-reveal.test.tsx` (trail reveal), `vegetation-render.test.ts` (arrival growth). |
+| 4. **The semantic walk exposes six honest states** | `uatc_f5cd373a0b8a0e3f9a1875d4` | **Delete as duplicate.** [`semantic-growth-replay-view`](semantic-growth-replay-view.md), `apps/studio/src/components/TreeViewShell.test.tsx`: **“signed-proof stays proposed/non-healthy while carrying the proof bloom; healthy appears only last”** asserts both the presence-vs-proof distinction and the healthy-appears-last clause; **“sgsd-companion-witness-territory: … while only the primary narrates the six-frame walk”** asserts the six observed keys. |
+| 5. **Navigation and reduced motion preserve semantics** | `uatc_5b9f6145b996d8c392101b81` | **Delete as duplicate.** [`semantic-growth-replay-view`](semantic-growth-replay-view.md), `packages/app-surface/src/SemanticGrowthWorldView.test.tsx`: **“plays the supplied semantic sequence deterministically, clamps navigation, and renders its real scene immediately without motion when reduced”** and **“settles reduced motion immediately to and retains both final mature poses”** assert equal-actions-equal-snapshots and reduced-motion-changes-no-settled-cue. |
+| 6. **The earlier semantic witness stays isolated from clean Studio** | `uatc_4ea0ef71ec37e25732fb26fc` | **Delete as duplicate.** [`semantic-growth-studio-demo`](semantic-growth-studio-demo.md), `apps/studio/src/components/TreeViewShell.test.tsx`: **“the clean route (and any unknown value) never mounts the demo; only the exact flag mounts one public six-frame player, steppable via its own Next control”** is this leg verbatim, and **“sgsd-composed-through-real-studio-world-pipeline”** asserts the real-composition-path half. |
+| 7. **Native land grows without changing the island or camera** | `uatc_e92ecfa2a181ca2b109d7a8f` | **Delete as duplicate.** [`svg-island-growth-track`](svg-island-growth-track.md), `packages/app-surface/src/svg-island-accretion.test.tsx` (the capability's recorded `testFile` path is stale — see above): **“locally scales real cell paths without opacity, keeps coast/camera/anchor/painter and interaction geometry fixed”** asserts grows-in-place at the established view box/parcel/painter slot; **“uses the existing app clock for deterministic Back/Replay”** asserts equal-progress-equal-geometry; **“keeps the accretion runtime deterministic, SVG-only, and free of PixelLab/network/opacity animation authority”** asserts the no-raster/no-second-renderer/no-random/no-asset-clock wall. |
+| 8. **Small-plant tracks are local, registered, product-driven** | `uatc_deda5e5db5d7520161632855` | **Delete as duplicate.** [`pixellab-organic-growth-tracks`](pixellab-organic-growth-tracks.md), `packages/app-surface/src/organic-pose-to-pose-track.test.ts` + `organic-pose-to-pose-assets.test.ts` (recorded `testFile` path likewise stale): **“registers separate transparent local hero-tree and bounded plant tracks with costs”** (provenance, transparency, bounded families), **“requires registered anchors normalized only by recorded author-time offsets”** (sockets, normalization), **“makes Next, Back, and Replay select equivalent cue, progress, and frames”** (equal cue/progress, Back/Replay settle identically), **“rejects remote/runtime vendor, credential, client, and asset-clock fields”** (no runtime PixelLab dependency). |
+| 9. **The corrected real-consumer route is exact** | `uatc_0af87458e18a9d4495d21191` | **Delete as duplicate.** [`organic-growth-app-witness`](organic-growth-app-witness.md), `apps/studio/src/components/TreeViewShell.test.tsx`: **“only the exact organic-pose-to-pose gate grows local registered poses over the retained real SVG island, with stable Back/Replay sockets”** and **“only the exact organic-island-accretion gate reuses the canonical 50-cell pose fixture … without changing any existing behaviour”** assert the exact-query-only mount over the real composition path with native land plus organic tracks; **“only the exact `r3-lab` value mounts the lab; clean, unknown and near-miss routes fall through byte-identically and no sibling gate moves”** asserts the clean/near-miss retention. |
+| 10. **Hosted witness within its browser budget** | `uatc_2693bf5955c1b6add7a8162c` | **Keep.** No lower-tier node opens a DEPLOYED build in a real browser and measures request/decode/frame-pacing against a recorded budget; every suite above runs offline under jsdom or node against source. Structurally unwitnessable by the capability tier, so it stays deliberately UNBOUND and fails closed (ADR-0097 §2 — minting a gate with no persisted artifact to witness would be the rubber stamp). |
+| 11. **The composition earns the owner-held LOOK verdict** | `uatc_ea05f4b2c024e6500cd143fd` | **Keep, untouched — not this increment's to move.** This is an ADR-0294 D3 appearance verdict, owned by the D3 increment (chip `task_99f7e0a9`), which relocates such legs to the capability whose look it is. Deleting or relocating it here would pre-empt that adjudication. |
+
 10. **The hosted witness is viewable within its recorded browser budget.** _(witness: machine)_ _(criterion-id: uatc_2693bf5955c1b6add7a8162c)_ _(revision-id: uatr1:77472a1815d7dfeb)_
     Open the deployed real-app witness at representative desktop and mobile viewports; capture
     request, decode, frame-pacing and commit evidence. **Success —** the whole planted composition

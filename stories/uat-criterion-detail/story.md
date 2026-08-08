@@ -243,6 +243,20 @@ backfilled. The single reliability gate below is likewise NOT renumbered. The ma
 `packages/uat-criterion/src/uat-criterion-detail.uat.test.ts` are retired the same way, with the
 same reasoning recorded at each dead number.
 
+**ADR-0294 disposition (2026-08-08): all four surviving criteria KEPT, and the increment's carried
+hypothesis for this story was FALSIFIED.** `inc3-studio-library-cluster` predicted this story as "the
+classic D2 duplicate shape — expect heavy deletion", on the grounds that its legs bind to a package
+suite. Reading the suite instead of the binding shows otherwise. The four capability tests import
+their sibling modules by DEEP PATH (`./detail-kind.js`, `./criterion-pointer.js`, `./detail-hash.js`,
+`./story-author-scope.js`), whereas each leg here asserts the same behaviour reached through the
+PUBLIC `@storytree/uat-criterion` ROOT BARREL — "an empty barrel fails this leg". That is a claim the
+capability tier structurally cannot make, so under ADR-0294 D2 these are not duplicates and there is
+no lower-tier node to name. They are discharged at the STORY tier by
+`uat-criterion-detail.uat.test.ts`, which drives every leg through `./index.js` alone (verified green
+2026-08-08: 73 pass, 0 fail — the barrel is now fully populated, and that file's header comment,
+which still claimed the barrel was empty and every assertion failing, was corrected in place at the
+same time). The counted total is unchanged at four; the numbers `2` and `6` stay burned.
+
 1. **The detail kind validates through the public port.** _(witness: machine)_ _(proof-gate: uat-criterion-detail#gate-1)_ Import the detail kind schema and constructors from the `@storytree/uat-criterion` ROOT barrel. Author one well-formed detail (action, success, evidence, optional principle/process refs) and one malformed body. **Success —** the well-formed detail round-trips; the malformed body is refused at the schema boundary; the public barrel exports the kind API (an empty barrel fails this leg). _(criterion-id: uatc_d268988b76cc97f4062a1a89)_ _(revision-id: uatr1:f2b794579202afb9)_
 3. **The criterion points; the story title stays display-canonical.** _(witness: machine)_ _(proof-gate: uat-criterion-detail#gate-1)_ Bind a `model-uat` criterion (stable id + one-line title + witness/tier) to a detail artifact id. **Success —** the pointer resolves; reading display title still returns the story-owned one-liner; a detail body that attempts to override/redefine that title is refused or ignored as non-canonical (ADR-0209 D5/D6). _(criterion-id: uatc_bf69e4808c36de985a653b5f)_ _(revision-id: uatr1:10f071b49430716a)_
 4. **A substantive detail change invalidates the prior hash.** _(witness: machine)_ _(proof-gate: uat-criterion-detail#gate-1)_ Hash a detail; record that hash as a prior green anchor; change a proof-bearing field (action / success / evidence / refs); re-hash. **Success —** the new hash differs and the prior green is classified stale; an identical body keeps the same hash (fresh). The story title alone does not participate in the hash (display-canonical, not proof body). _(criterion-id: uatc_80f74d7a8665e86ac9b7e456)_ _(revision-id: uatr1:52bf945c061caeb5)_

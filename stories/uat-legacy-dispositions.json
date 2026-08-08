@@ -39,21 +39,21 @@
     },
     {
       "legacyTestId": "app-guide#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof, and named its own capability in its own success clause. `uatc_68cf75456b5e5d05de9ec7d2` (\"The transcript persists across turns\") is proven by the capability `multi-turn-transcript`, at `apps/studio/src/components/ChatPanel.test.tsx` — \"mtt-appends-not-replaces: a second send appends a new exchange without discarding the first — both present, in order, newest last\", \"mtt-echoes-each-prompt: each send appends its `› <prompt>` echo line above its reply, per turn\" and \"mtt-auto-scrolls-to-newest\" — observed by `app-guide#gate-1`, whose command is the same `pnpm --filter studio test` that greens that capability.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-guide#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof, and named its own capability in its own success clause. `uatc_900ddbae4fabec17da85c4c6` (\"The input grows and caps\") is proven by the capability `auto-grow-input`, at `apps/studio/src/components/ChatPanel.test.tsx` — \"agi-recomputes-height-from-content\" (the height recompute), \"agi-caps-height-and-scrolls-internally: past a max height the textarea clamps at the cap and scrolls inside itself\" (the cap and internal scrolling) and \"agi-keeps-enter-send-shift-enter-newline\" (the preserved Enter/Shift+Enter keybindings) — observed by `app-guide#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-guide#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof, and named its own capability in its own success clause. `uatc_9f5912771ca744fcae515a44` (\"Reset clears and aborts\") is proven by the capability `transcript-reset`, at `apps/studio/src/components/ChatPanel.test.tsx` — \"tr-clears-transcript-to-idle: clicking reset empties the transcript back to the idle empty state (input cleared + re-enabled + resting height)\" and \"tr-aborts-in-flight-stream: clicking reset mid-stream aborts the in-flight stream (the passed signal is aborted) and leaves no ghost reply in the cleared transcript\" — observed by `app-guide#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-guide#uat-4",
@@ -69,57 +69,57 @@
     },
     {
       "legacyTestId": "app-surface#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_64fcbdd6348c342b802efad7` (\"The world presentation is deterministic and authority-free\") is proven by the capability `app-surface-world-view`, at `packages/app-surface/src/WorldSceneView.test.tsx` — \"aswv-equal-plain-inputs-normalize-deterministically\" (equal renders from equal inputs), \"aswv-wrapper-has-no-private-or-live-authority\" (no fetch/store/clock authority) and \"aswv-delegates-one-semantic-scene-and-event\" (reports only typed world events) — observed by `app-surface#gate-1`, whose `covers:` annotation names that same capability.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-surface#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_039b8b6ddb147d375c932c7e` (\"TreeView is the real first consumer\") is proven by the capability `studio-app-surface-adapter`, at `apps/studio/src/components/TreeViewShell.test.tsx` — \"asa-treeview-mounts-one-shared-world-view\" asserts the mount-with-no-second-private-scene-mapper claim — observed by `app-surface#gate-2`. The leg's state-folding / selection-callback half was explicitly declared a standing gap in its own text and was never claimed, so nothing proven is lost.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-surface#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_fcd45a1512795648a5521f4e` (\"Existing art and selector policy survive\") is proven by the capability `app-surface-world-view` under the same `pnpm --filter @storytree/app-surface test` command that `app-surface#gate-1` observes: `SceneView.test.tsx` and `SceneView.vegetation.test.tsx` (fallback, ground contact, depth order), `sprite-sizing.test.ts` (sizing), `trailReveal.test.ts` and `semantic-growth-trail-reveal.test.tsx` (trail reveal), `vegetation-render.test.ts` (arrival growth).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-surface#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Known mixed-history collision: this positional key named materially different fourth criteria across app-surface revisions. Historical rows require row-level review and earn no current credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_f5cd373a0b8a0e3f9a1875d4` (\"The semantic walk exposes six honest states\") is proven by the capability `semantic-growth-replay-view`, at `apps/studio/src/components/TreeViewShell.test.tsx` — \"signed-proof stays proposed/non-healthy while carrying the proof bloom; healthy appears only last\" asserts both the presence-distinct-from-proof clause and the healthy-appears-last clause, and \"sgsd-companion-witness-territory\" asserts the six observed keys of the primary's walk — observed by `app-surface#gate-3`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-surface#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_5b9f6145b996d8c392101b81` (\"Navigation and reduced motion preserve semantics\") is proven by the capability `semantic-growth-replay-view`, at `packages/app-surface/src/SemanticGrowthWorldView.test.tsx` — \"plays the supplied semantic sequence deterministically, clamps navigation, and renders its real scene immediately without motion when reduced\" and \"settles reduced motion immediately to and retains both final mature poses\" — observed by `app-surface#gate-3`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-surface#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_4ea0ef71ec37e25732fb26fc` (\"The earlier semantic witness remains isolated from clean Studio\") is proven by the capability `semantic-growth-studio-demo`, at `apps/studio/src/components/TreeViewShell.test.tsx` — \"the clean route (and any unknown value) never mounts the demo; only the exact flag mounts one public six-frame player, steppable via its own Next control\" restates this leg verbatim, and \"sgsd-composed-through-real-studio-world-pipeline\" asserts the real-composition-path half — observed by `app-surface#gate-4`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-surface#uat-7",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_e92ecfa2a181ca2b109d7a8f` (\"Native land grows without changing the island or camera\") is proven by the capability `svg-island-growth-track`, at `packages/app-surface/src/svg-island-accretion.test.tsx` — \"locally scales real cell paths without opacity, keeps coast/camera/anchor/painter and interaction geometry fixed\" (grows in place at the established view box, parcel and painter slot), \"uses the existing app clock for deterministic Back/Replay\" (equal progress yields equal geometry) and \"keeps the accretion runtime deterministic, SVG-only, and free of PixelLab/network/opacity animation authority\" (no raster frame, no second renderer, no random value, no asset clock) — observed by `app-surface#gate-5`. NOTE: that capability's recorded `proof.real.testFile` still names `packages/app-surface/src/svg-island-growth.test.tsx`, which does not exist; the assertions above were located by reading the package, not by trusting the path. The binding drift is left for its owner.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-surface#uat-8",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_deda5e5db5d7520161632855` (\"Small-plant tracks are local, registered and product-driven\") is proven by the capability `pixellab-organic-growth-tracks`, at `packages/app-surface/src/organic-pose-to-pose-track.test.ts` and `organic-pose-to-pose-assets.test.ts` — \"registers separate transparent local hero-tree and bounded plant tracks with costs\" (provenance, transparent local frames, bounded families), \"requires registered anchors normalized only by recorded author-time offsets\" (ground sockets, normalization), \"makes Next, Back, and Replay select equivalent cue, progress, and frames\" (equal cue/progress selects equal frames; Back/Replay settle identically) and \"rejects remote/runtime vendor, credential, client, and asset-clock fields\" (no runtime PixelLab dependency) — observed by `app-surface#gate-6`. NOTE: that capability's recorded `proof.real.testFile` still names `packages/app-surface/src/organic-growth-track.test.tsx`, which does not exist; the binding drift is left for its owner.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-surface#uat-9",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_0af87458e18a9d4495d21191` (\"The corrected real-consumer route is exact and ordinary Studio stays ordinary\") is proven by the capability `organic-growth-app-witness`, at `apps/studio/src/components/TreeViewShell.test.tsx` — \"only the exact organic-pose-to-pose gate grows local registered poses over the retained real SVG island, with stable Back/Replay sockets\" and \"only the exact organic-island-accretion gate reuses the canonical 50-cell pose fixture as a connected adjacency wave … without changing any existing behaviour\" assert the exact-query-only mount over the real composition path, and \"only the exact `r3-lab` value mounts the lab; clean, unknown and near-miss routes fall through byte-identically and no sibling gate moves\" asserts the clean/near-miss retention — observed by `app-surface#gate-7`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-surface#uat-10",
@@ -1305,9 +1305,9 @@
     },
     {
       "legacyTestId": "studio-members#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_16e17662d5ba469edb7377bc` (\"Bootstrap admin\") is proven by the capability `app-authorization`, at `apps/studio/server/serveApi.integration.test.ts` — \"the bootstrap-seed admin writes assets (becomes an effective active admin)\" drives the seeded admin through `/api/me` with its verified identity header and asserts it resolves an effective active admin — and by the capability `user-directory`, at `packages/studio-members/src/users.test.ts`, \"resolveAccess: row wins, seed admin is admitted, everyone else is null\". Both run under the command `studio-members#gate-1` observes.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-members#uat-2",
@@ -1323,27 +1323,27 @@
     },
     {
       "legacyTestId": "studio-members#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof, for the exact operations this leg enumerated. `uatc_b2fa92d5f919f1a56d322813` (\"Role wall\") is proven by the capability `app-authorization`, at `apps/studio/server/serveApi.integration.test.ts` — \"a member reads, comments as self, but cannot write assets or reach user mgmt\" (member asset write 403), \"refuses every /api/users verb for a member (403, no mutation)\" (the invitation 403 and the no-mutation half) and \"the bootstrap-seed admin writes assets (becomes an effective active admin)\" (the corresponding admin request succeeds) — observed by `studio-members#gate-1`.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-members#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof across all three clauses. `uatc_f71ee15e9dc5d4ae8deac1a2` (\"Stranger\") is proven by the capability `app-authorization`, at `apps/studio/server/serveApi.integration.test.ts` — \"a stranger gets 403 + requestAccess on the whole corpus; only /api/me answers\" (the `/api/me` member:false and corpus 403+requestAccess clauses) — and its frontend clause is proven at `apps/studio/src/App.boot-independence.test.tsx`, which renders the real `<App/>` against a NON_MEMBER `/api/me` under \"Ceiling 2: a NON-member never reaches the corpus at all (ADR-0043)\" and asserts the Request access wall renders while `api.tree` and `api.listAssets` are never called.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-members#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof, and is proven in two places exactly as `studio-members#gate-1` already recorded. `uatc_4c2ed36bb3a1e59d5d9a2344` (\"No lockout\") is proven by the capability `app-authorization` at `apps/studio/server/serveApi.integration.test.ts`, \"the last admin cannot be removed or down-roled (409)\" (the status half), and by the capability `user-directory` at `packages/studio-members/src/users.test.ts`, \"last-admin guard: cannot remove or downgrade the only admin\" (the guarded mutation does not occur, asserted at the store rather than implied by the status code).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-members#uat-7",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-08",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-08): duplicates lower-tier proof. `uatc_caeb6702bd8022ab71349e27` (\"Remove\") is proven by the capability `user-directory`, at `apps/studio/server/serveApi.integration.test.ts`, \"an admin lists, invites, re-roles and removes; invite then activates on first request\" — whose closing steps DELETE `/api/users?email=…` for a 200 and then re-request `/api/me` from that account asserting `member: false`, which is this leg's whole success condition. The leg's comment-history clause was already declared STRUCTURAL rather than asserted by its proof command, so nothing proven is lost.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-members#uat-8",

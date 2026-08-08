@@ -12,13 +12,16 @@ import { EXACT_CRITERION } from "./criterion.test-helpers.js";
  * a consumer that imports `@storytree/uat-criterion` (the barrel, not a deep sibling path) must
  * actually get the working contract.
  *
- * `packages/uat-criterion/src/index.ts` at HEAD is a bootstrap-only doc comment with no
- * re-exports at all — every assertion below currently fails because the symbol it pulls off the
- * barrel is `undefined`. Each test genuinely DRIVES behaviour (round-trip / display-title /
- * hash-freshness / scope-fence) through whatever the barrel provides; none of
- * them merely check that a name is present. Deletion check: remove the eventual barrel
- * re-exports and every test below returns to red — each one both requires the symbol and then
- * exercises real behaviour through it.
+ * `packages/uat-criterion/src/index.ts` now re-exports every capability module's public surface,
+ * so these assertions PASS. (Corrected in place 2026-08-08 under ADR-0139: this comment used to
+ * state that the barrel was "a bootstrap-only doc comment with no re-exports at all — every
+ * assertion below currently fails". That was true when the file was authored and is now false; it
+ * was load-bearing enough to mislead the ADR-0294 pass into reading these legs as unproven, so it
+ * is fixed rather than left to age.) Each test genuinely DRIVES behaviour (round-trip /
+ * display-title / hash-freshness / scope-fence) through whatever the barrel provides; none of
+ * them merely check that a name is present. Deletion check: remove the barrel re-exports and every
+ * test below returns to red — each one both requires the symbol and then exercises real behaviour
+ * through it.
  *
  * Sibling-module types are pulled in purely via `typeof import(...)` type queries (erased at
  * runtime, zero coupling) so the values fetched off the barrel are cast to their real shape;
