@@ -11,11 +11,19 @@ outcome: "A programmatic intent drives a server-side runtime that loads the gene
 # orchestrate/chat-stream composition (packages/drive/src/{orchestrate,chat-stream}.ts), mounted via
 # desktop's chat-sse-mount — is now OWNED by `app-guide` (see ../app-guide/story.md). This story is
 # retired in place (like chat-drive-bridge / scoped-glue-actuator): the body is kept as history, the
-# capability files flip to `status: retired`. NOT retired here: the code itself (no unmount — a separate
-# thin PR, ADR-0175); and the caps keep their `real:` arms in this stories/**-only reconcile — dropping
-# them + updating packages/cli/src/node-build.test.ts's REAL-buildable snapshot AND removing this story
-# from repo-manifest.json's hostedStories.register are the companion code-cleanup PR (both are edits
-# OUTSIDE stories/**). Readers: this substrate now lives under `app-guide`.
+# capability files flip to `status: retired`. NOT retired here: the code itself — the engine, the
+# orientation tools and the orchestrate/chat-stream composition are all still mounted and their suites
+# still green (verified at file level 2026-08-08). Corrected in place the same day: this read "no
+# unmount — a separate thin PR, ADR-0175", which pointed at work that is no longer owed. ADR-0175's
+# execution-status block records the code half COMPLETE — the LANDING and SPAWN surfaces were deleted
+# on 2026-07-30/07-31, and this substrate is not among them because ADR-0175 KEEPS it under
+# `app-guide`. It is a repurpose, not a deferred deletion, so no unmount PR is pending for it.
+# COMPANION CLEANUP: LANDED — this comment previously described it as still owed. The four caps' `real:`
+# arms ARE dropped (none survives in this directory); packages/cli/src/node-build.test.ts's REAL-buildable
+# snapshot now carries only a comment recording their removal; and repo-manifest.json's
+# hostedStories.register no longer lists this story. Verified 2026-08-08 while closing
+# `explorer-onboarding-plan-1` — `check:boundaries` passes, which it could not if the register prune were
+# incomplete (ADR-0192 rule 6). Readers: this substrate now lives under `app-guide`.
 status: retired
 proof_mode: UAT
 # Per-leg witness (ADR-0106): the offline mechanics legs are machine-witnessed by the package suites;
@@ -97,7 +105,11 @@ decisions: [108, 30, 51, 4, 33, 90, 91, 112, 113]
 > (`packages/drive/src/{orchestrate,chat-stream}.ts`), mounted through desktop's `chat-sse-mount` — is
 > now **owned by [`app-guide`](../app-guide/story.md)**. This story is retired IN PLACE (the
 > `chat-drive-bridge` / `scoped-glue-actuator` precedent): the body below is kept as history. The code
-> is NOT unmounted here (a separate thin PR, ADR-0175). **See [`app-guide`](../app-guide/story.md).**
+> is not unmounted — and no unmount is owed: **ADR-0175** KEEPS this substrate under `app-guide`
+> ("repurpose, don't delete"), and its execution-status block records the code half COMPLETE, the
+> deletions there being the LANDING and SPAWN surfaces rather than this one. *(Corrected in place
+> 2026-08-08; this read "is NOT unmounted here (a separate thin PR, ADR-0175)".)*
+> **See [`app-guide`](../app-guide/story.md).**
 
 **Outcome —** A programmatic intent drives a server-side runtime that loads the generated
 `session-orchestrator` agent headlessly with read-only orientation tools wired, the agent orients on
@@ -490,7 +502,13 @@ the spine can drive their offline suites red→green under its own gate
 (`pnpm storytree story build headless-orchestrator --real`); the story's own machine-driven UAT node is
 WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving the three capabilities to a signed
 verdict is what makes the WHOLE story buildable, and the crown additionally awaits the operator's
-live-run attestation (leg 4) — `healthy` is never authored here.
+live-run attestation (leg 4) — `healthy` is never authored here. *(Corrected 2026-08-08: the
+paragraph above is AUTHORING-TIME history and its present tense no longer describes anything live —
+the story and all FOUR capabilities are `retired`, not `proposed` (it says "three"; the
+`capabilities:` list above has four), and their `real:` arms are dropped, so the `story build --real`
+command quoted just above cannot run. Kept as history. Unlike its two sibling retirements the CODE
+here was kept, not unmounted — see the frontmatter note. This is the same correction
+`spawn-visibility` has carried since 2026-07-26; its absence here was the asymmetry.)*
 
 ## Open modeling calls (for the owner)
 
