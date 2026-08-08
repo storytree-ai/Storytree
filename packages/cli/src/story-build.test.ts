@@ -11,6 +11,24 @@ import type { SdkCuratorResult } from "@storytree/agent";
 import { run } from "./commands.js";
 import { ScriptedCuratorRunner, SdkCuratorRunner } from "@storytree/drive";
 import { storyBuild } from "@storytree/drive";
+import type { BuildProgress } from "@storytree/drive";
+
+/** A recording {@link BuildProgress} — see the twin in `node-build.test.ts` for why it lives here. */
+function recordingProgress(): { progress: BuildProgress; stages: string[]; notes: string[] } {
+  const stages: string[] = [];
+  const notes: string[] = [];
+  return {
+    stages,
+    notes,
+    progress: {
+      stage: async <T>(name: string, work: () => Promise<T>): Promise<T> => {
+        stages.push(name);
+        return work();
+      },
+      note: (detail) => void notes.push(detail),
+    },
+  };
+}
 
 /**
  * `storytree story build <story-id>` (drive-machinery Phase E), driven through `run` exactly as
@@ -20,6 +38,38 @@ import { storyBuild } from "@storytree/drive";
 
 /** The story area never touches the library store; an empty InMemoryStore keeps the tests fast. */
 const deps = { store: new InMemoryStore() };
+
+test("story build names EACH NODE as its own progress leg — 'node i/N: <id>', in the driven order", async () => {
+  // A chain is the worst case the friction describes: it can run for an hour across many nodes, and
+  // a single "still running" cannot tell a chain on its seventh node from one wedged on its first.
+  // The per-node leg is the chain-ADVANCEMENT signal, and it must be the DRIVEN order — the story's
+  // own withheld UAT node is not a leg, because no leg ever runs for it.
+  const rec = recordingProgress();
+  const env = await storyBuild("library", {
+    dryRun: true,
+    actor: "tester@example.com",
+    progress: rec.progress,
+  });
+  assert.equal(env.ok, true, env.body);
+
+  const nodeLegs = rec.stages.filter((s) => s.startsWith("node "));
+  assert.ok(nodeLegs.length > 1, `a chain must report per-node legs: ${rec.stages.join(" | ")}`);
+  const driven = (env.body.split("\n").find((l) => l.startsWith("order:")) ?? "")
+    .replace("order:", "")
+    .split("→")
+    .map((s) => s.trim())
+    .filter((s) => s !== "");
+  assert.deepEqual(
+    nodeLegs,
+    driven.slice(0, nodeLegs.length).map((id, i) => `node ${i + 1}/${nodeLegs.length}: ${id}`),
+    "each leg carries its position in the chain AND the node it is on",
+  );
+  assert.ok(
+    rec.stages.some((s) => /verdict store/.test(s)),
+    `the store leg is named too: ${rec.stages.join(" | ")}`,
+  );
+  assert.ok(rec.notes.length > 0, "and each node's phase walk reaches the progress channel");
+});
 
 test("story build library --dry-run drives the capabilities topo-ordered and SIGNS the (machine-witnessed) story UAT node", async () => {
   const env = await run(

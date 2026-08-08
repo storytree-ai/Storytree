@@ -55,6 +55,28 @@ The operator surface over the whole machinery — two commands, one honest-envel
   synthetic PASS would plant a forged `healthy` in the shared event log (exactly what ADR-0020
   exists to prevent).
 
+- **The LIVENESS channel** (`packages/drive/src/build-progress.ts`, wired at every leg of
+  `nodeBuild`, `storyBuild` AND `packages/cli/src/gate-build-driver.ts` — all THREE `--real` entry
+  points, deliberately, because wiring two would leave the class open at the next one, which is the
+  pattern that chartered the arc): a `--live`/`--real` run names the leg holding its clock on STDERR
+  (`[build] <leg> - started` / `- still running, Ns elapsed` / `- done in Ns`), and feeds the gate's
+  red-green phase walk in as a sub-label so the longest leg reports the PHASE it is in. A chain adds
+  `node i/N: <id>`, which is what distinguishes a chain on its seventh node from one wedged on its
+  first. The envelope keeps STDOUT; only chatter goes to STDERR, so `> log 2>&1` interleaves both
+  while a piped report stays parseable. `--dry-run` is silent (seconds, offline).
+
+  Why it is a capability concern and not a nicety: measured 2026-08-04, a backgrounded `--real`
+  build emitted exactly 4 lines (the pnpm banner) for several minutes and then the whole 50-line
+  report — and a wedged, then-unbounded DB preflight looked IDENTICAL from that log, while the
+  correct responses to the two are opposite (wait out a cold start, intervene on a wedge). The
+  friction is `a-real-build-emits-no-progress-until-it-finishes`; the arc is
+  `diagnosis-honesty-arc`, whose charter is that a command names its real blocker rather than a
+  downstream symptom. The preflight's own half of the same fix — bounding every external wait, and
+  naming each of ITS legs — is [`live-build-db-preflight`](live-build-db-preflight.md) contracts
+  14-16. Both observers are ADVISORY and composed by `withPhaseReport`
+  (`packages/drive/src/phase-activity.ts`), with the liveness REPORT ahead of the wisp WRITE: a slow
+  or dead store must not be able to delay or swallow the one signal saying where the build is.
+
 Code edges for the `depends_on`: `node-build.ts:11-25` (the resolver/gate/worktree surface:
 `resolveProveSpec`, `proveUnit`, `createBuildWorktree`, `promoteRealPass`, `runRegressionSuite`,
 `runWorktreeTypecheck`, `loadNodeSpec`, `findNodeSpecFile`, registry lookups);
@@ -75,7 +97,7 @@ trail + verdict + rollup (`packages/cli/src/node-build.test.ts:17`, `:74`), and 
 library --dry-run` chains every real library node topo-ordered, story last, all signed, over one
 event log (`packages/cli/src/story-build.test.ts:17`).
 
-## Contracts (9)
+## Contracts (10)
 
 1. **`dry-run-walks-and-reports-honestly`** — the envelope carries the phase trail, the verdict line, the derived rollup, and the honest framing
    - **asserts —** trail `AUTHOR_TEST → … → GATE`, a signed verdict, rollup derived from the event log, the dry-run framing.
@@ -113,3 +135,7 @@ event log (`packages/cli/src/story-build.test.ts:17`).
    - **asserts —** the dry-run header reports the in-memory store.
    - **covers —** `node-build.ts:272-279`, `:308-315`
    - **proven by —** `story-build.test.ts:133` (REAL, passing)
+10. **`a-long-build-names-the-leg-holding-its-clock`** — the driver opens a NAMED progress stage around every leg that can sit for minutes, and feeds the gate's phase walk in
+    - **asserts —** a `node build` reports a named stage for the store leg AND the gate leg (a leg without a stage is a leg that can go silent again); the phases it reports ARE the phases the envelope's own `phase trail:` says were visited, in order — a liveness signal that disagreed with the trail would be a second, unverified account of the same run; a `story build` names each node as `node i/N: <id>` in the DRIVEN order, which is the chain-advancement signal a single "still running" cannot give; and the report is ADVISORY — a progress sink that THROWS on every phase still leaves a passing build with a signed verdict.
+    - **covers —** `packages/drive/src/build-progress.ts`, `packages/drive/src/phase-activity.ts` (`withPhaseReport`)
+    - **proven by —** `packages/cli/src/node-build.test.ts:1002`, `:1024`, `:1049` and `packages/cli/src/story-build.test.ts:42` (REAL, passing); the module's own cadence / elapsed / cancellation behaviour is `packages/drive/src/build-progress.test.ts` (12 tests, REAL, passing)

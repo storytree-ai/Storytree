@@ -57,6 +57,30 @@ export interface PhaseActivityTarget {
  * is swallowed (the build's result is identical with a dead board). Returns a callback typed to the
  * gate's `onPhase` signature.
  */
+/**
+ * Compose the store WRITE above with a synchronous liveness REPORT (`diagnosis-honesty-arc`): the
+ * gate exposes exactly one `onPhase` seam, and both observers want it.
+ *
+ * The report runs FIRST and in its own try: it is the signal telling a watcher which phase a
+ * long-running build is in, and letting a slow or dead store delay or swallow it would reinstate the
+ * very silence the arc exists to end. Both are advisory — neither can fail the build it observes.
+ * `report === undefined` returns the writer untouched, so the no-reporter path is unchanged.
+ */
+export function withPhaseReport(
+  write: (phase: BuildPhase) => Promise<void>,
+  report: ((phase: BuildPhase) => void) | undefined,
+): (phase: BuildPhase) => Promise<void> {
+  if (report === undefined) return write;
+  return async (phase: BuildPhase): Promise<void> => {
+    try {
+      report(phase);
+    } catch {
+      // A progress sink can never fail, or delay, the build it observes.
+    }
+    await write(phase);
+  };
+}
+
 export function phaseActivityWriter(
   store: PhaseActivityStore,
   target: PhaseActivityTarget,
