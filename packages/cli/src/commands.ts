@@ -52,6 +52,7 @@ import { traversalCommand, traversalHelp } from "./traversal.js";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp } from "./session-cost.js";
 import { CLI_AREAS } from "./cli-areas.js";
+import { dispatchCommand, dispatchHelp } from "./dispatch-command.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
 // seed↔live drift to the session that must reconcile it instead of to whoever gates next.
 import { defaultCliActor } from "./cli-actor.js";
@@ -3234,6 +3235,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // never handles a Claude credential (detects a logged-in CLI by file existence only, D3).
     if (help) return doctorHelp();
     return doctorCommand(positionals.slice(1));
+  }
+
+  if (area === "dispatch") {
+    // The caller's half of the ADR-0328 D3 handback: read a backgrounded job's handle ONCE and be
+    // told the truth, including when the truth is "not yet". Offline, read-only, no store — a
+    // handle must stay readable by whoever inherits it, long after the dispatching agent is gone.
+    if (help) return dispatchHelp();
+    return dispatchCommand(positionals.slice(1));
   }
 
   if (area === "guide") {

@@ -154,9 +154,9 @@ status or a sentinel it writes, never a line scraped from its log
 
 **D3 — Work that outlives the waiter is HANDED BACK, not waited out and not guessed.** The unit of
 handback is a DISPATCH HANDLE: the pre-chosen sentinel path, the log path, and what the caller must do
-to read the verdict. The dispatcher agrees that path IN ADVANCE (for the gate, by setting
-`GATE_BG_LOG`, which makes `$log.exit` deterministic), so the handle is valid even though the
-dispatcher never saw the result. **A handed-back handle is UNVERIFIED until someone reads it**
+to read the verdict. The dispatcher agrees that path IN ADVANCE (`GATE_BG_LOG=<path> pnpm gate:bg <command…>`,
+which makes `<path>.exit` deterministic), so the handle is valid even though the dispatcher never saw
+the result; the caller reads it with `storytree dispatch <handle>`. **A handed-back handle is UNVERIFIED until someone reads it**
 (`asset:unrun-check-is-unverified-not-refuted`): it is neither a pass nor a fail, it must be reported
 as dispatched-and-unread in those words, and the CALLER — which by construction is still taking turns
 — owes the single read. This is the "dispatch, return early, let the caller read the verdict" shape,
@@ -209,14 +209,30 @@ might one day spawn — and the honest read is that this trades a small permanen
 the removal of a recurring one. If a later measurement shows the preamble growth outweighing the
 stalls prevented, D5 is the part to revisit first, and the rule bodies are the place to trim.
 
-**Unresolved, and deliberately parked rather than half-built.** The corpus precedent points at a TOOL,
-and `gate-exceeds-one-foreground-tool-call`'s own routeReason instructs that "runnable AND observable"
-be folded into ONE capability rather than two half-fixes. This ADR does NOT build that capability: it
-decides the contract and corrects the false premise, which is what the measurement settles. What
-remains is a first-class handle — a verb that mints the sentinel path, dispatches, and prints the
-handle in the shape a caller can read back — generalised beyond `gate:bg` to `--real` builds and
-migrations. That is parked as an increment on this arc, and until it exists D3 is honoured by
-convention over `GATE_BG_LOG` + `$log.exit`.
+**The tool half is BUILT — `storytree dispatch <handle>` (corrected in place 2026-08-09, ADR-0139).**
+This paragraph previously parked that capability as a separate increment, on the estimate that a
+first-class handle needed a verb to mint the sentinel path, dispatch, print the handle, and be
+generalised beyond `gate:bg` to `--real` builds and migrations. **That estimate was wrong, and the
+error is worth recording because it is the same shape this ADR is about — a claim about a mechanism
+made without measuring it.** The dispatch half ALREADY generalised: `scripts/gate-bg.mjs` forwards
+`process.argv.slice(2)` into `scripts/gate-bg.sh`, which takes `"$@"` as its command, so
+`pnpm gate:bg <any command…>` already backgrounds arbitrary work, already lets the caller pre-choose
+the path via `GATE_BG_LOG`, and already PRINTS both the log and the exit-file — that printed pair is
+the handle. Only the READER was missing.
+
+So what shipped is the caller's half, which is where the honesty lives: `storytree dispatch <handle>`
+reads a handle ONCE — no loop, no watch — and answers `PASS` / `FAIL` (with the command's real exit
+code) or `RUNNING` / `UNVERIFIED`. The three unsettled states are structurally incapable of being
+read as a verdict: a single `isVerdict` predicate admits only `passed` and `failed`, so a caller
+cannot reach a pass by testing "not failed" — which is exactly the confident FALSE terminal D3
+exists to prevent. A sentinel that exists but carries no parseable status reads `UNVERIFIED`, never
+`FAIL`, because that is a failure to OBSERVE the job rather than a failure OF it
+(`asset:unrun-check-is-unverified-not-refuted`). `gate-exceeds-one-foreground-tool-call`'s
+instruction to fold "runnable AND observable" into ONE capability is therefore honoured rather than
+split: runnable already existed, observable now exists, and the help text names both halves in one
+place. `packages/cli/src/dispatch-handle.ts` holds the decision pure-by-injection; the read is
+offline and holds no store, so a handle stays readable by whoever inherits it long after the
+dispatching agent is gone — which is the whole point of a handback.
 
 **Explicitly NOT decided here.** This does not weaken the gate, does not license skipping a check, and
 does not make an unread handle count as a pass — D3 says the opposite in as many words. It does not
@@ -244,8 +260,12 @@ correction it licenses must be reverted with it. The probes are cheap and the pr
 - `asset:a-probe-cannot-falsify-the-predicate-it-borrows` · `asset:an-observable-is-evidence-only-for-what-it-observes`
   — why a bounded wait's condition must be the real terminal predicate.
 - `asset:pair-the-fence-with-the-affordance` — D3 and D4 are the fence that ships with D2's affordance.
-- `scripts/gate-bg.sh` (l.50-55, l.70) · `packages/cli/src/gate-bg.test.ts` — the pre-choosable log
-  path and the gate-tested `.exit` sentinel the handback convention stands on.
+- `scripts/gate-bg.sh` (l.50-55, l.70) · `scripts/gate-bg.mjs` · `packages/cli/src/gate-bg.test.ts` —
+  the DISPATCH half: an arbitrary command backgrounded, a pre-choosable log path, and the gate-tested
+  `.exit` sentinel carrying the command's own status.
+- `packages/cli/src/dispatch-handle.ts` (+ `.test.ts`) · `packages/cli/src/dispatch-command.ts` — the
+  READ half, `storytree dispatch <handle>`: the D3 handback made first-class, with `isVerdict` as the
+  single predicate that keeps `RUNNING` / `UNVERIFIED` from ever being cited as an outcome.
 - `friction-background-subagent-reports-route-to-main` · `friction-builder-agents-stall-awaiting-background-gate`
   · `friction-subagent-parks-awaiting-dead-subspawn` — the July-2026 evidence, re-explained rather
   than refuted by D1.
