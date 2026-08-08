@@ -44,6 +44,10 @@ export const CLI_AREAS = [
   "doctor",
   "guide",
   "traversal",
+  // `storytree dispatch <handle>` — the caller's half of the ADR-0328 D3 handback: read a
+  // backgrounded job's verdict ONCE, and report RUNNING / UNVERIFIED as non-verdicts rather than
+  // folding them into a pass. Read-only, offline, no store.
+  "dispatch",
 ] as const;
 
 export type CliArea = (typeof CLI_AREAS)[number];
