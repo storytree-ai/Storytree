@@ -86,6 +86,9 @@ import {
   frictionHelp,
   type FrictionContext,
 } from "./friction.js";
+// ADR-0316 — the report-only factory-floor health instrument (`factory-floor-health-arc`).
+import { factoryHealth, factoryHelp } from "./factory.js";
+import type { CommitRec } from "@storytree/drive";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { coverageCommand, type CoverageUnit } from "./coverage.js";
 // ADR-0317 D2 — the subtree-grain ownership map + its disk-walk totality report (report-only).
@@ -1082,6 +1085,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "the rest:",
       "  library          explore + curate the Library (the knowledge tier)",
       "  friction         file what fought you → the Library (ADR-0168) — new | migrate | reinforce | route | list",
+      "  factory health   is the factory getting better? recurrence-since-route · distinct bottlenecks · coupling churn (ADR-0316, report-only)",
       "  noticeboard      the claim ledger (ADR-0200/0033) — view | declare | done | claim | upgrade | downgrade | release | claims",
       "  branch next      a branch dies on merge (ADR-0142) — succeed a dead branch: fresh cut + re-declare",
       "  worktree         create (the claim-gated workspace ceremony, ADR-0200 D3) | prune (reap dead worktrees, ADR-0142/0033)",
@@ -1415,6 +1419,18 @@ export interface RunDeps {
     readonly inboxDir?: string;
     readonly docsDir?: string;
     readonly nodeExists?: (nodeId: string) => boolean;
+  };
+
+  /**
+   * The `storytree factory health` seam (ADR-0316): the git walk and the clock, injected so the
+   * report is testable without a repository. Absent in production — the trunk history comes from
+   * `git log` / `git diff --name-only` at the repo root, and the default window from the clock.
+   */
+  readonly factory?: {
+    readonly repoRoot?: string;
+    readonly now?: string;
+    readonly commits?: (ref: string) => CommitRec[];
+    readonly absorbed?: (commit: CommitRec) => string[];
   };
 }
 
@@ -2037,6 +2053,13 @@ export const CLI_OPTIONS = {
   // read is declaring it followed (ADR-0260 D3). Registered so the flag parses; the VALUE is
   // read from argv by the capture boundary in `main.ts`, never from here.
   "from-offer": { type: "string" },
+  // `storytree factory health` — the window and the dispatch-rate reference (ADR-0316 D2). A
+  // rate-sensitive figure is refused where `--from`/`--to` bound a window whose landings/day falls
+  // below the comparability floor against `--landings-per-day`.
+  from: { type: "string" },
+  to: { type: "string" },
+  "landings-per-day": { type: "string" },
+  ref: { type: "string" },
 } as const;
 
 /**
@@ -2137,6 +2160,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "threshold-hours"?: string;
     runtime?: string;
     "from-offer"?: string;
+    /** `factory health` — the window + the dispatch-rate reference (ADR-0316 D2). */
+    from?: string;
+    to?: string;
+    "landings-per-day"?: string;
+    ref?: string;
   };
   try {
     const parsed = parseArgs({
@@ -3046,6 +3074,31 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       body: `unknown friction command "${sub}". try: new | migrate | reinforce | route | list`,
       next: ["storytree friction --help", "storytree friction list"],
     };
+  }
+
+  if (area === "factory") {
+    // The report-only factory-floor health instrument (ADR-0316). Reads the live Library + the git
+    // history; writes nothing, gates nothing, and adjudicates nothing (D1/D4).
+    if (sub === undefined && help) return factoryHelp();
+    if (sub !== undefined && sub !== "health") {
+      return {
+        ok: false,
+        body: `unknown factory command "${sub}". try: storytree factory health [recurrence|bottlenecks|churn]`,
+        next: ["storytree factory health", "storytree factory --help"],
+      };
+    }
+    if (help) return factoryHelp();
+    return factoryHealth(deps.store, {
+      ...(third !== undefined ? { question: third } : {}),
+      ...(values.from !== undefined ? { from: values.from } : {}),
+      ...(values.to !== undefined ? { to: values.to } : {}),
+      ...(values["landings-per-day"] !== undefined ? { landingsPerDay: values["landings-per-day"] } : {}),
+      ...(values.ref !== undefined ? { ref: values.ref } : {}),
+      repoRoot: deps.factory?.repoRoot ?? repoRoot(),
+      ...(deps.factory?.commits !== undefined ? { commits: deps.factory.commits } : {}),
+      ...(deps.factory?.absorbed !== undefined ? { absorbed: deps.factory.absorbed } : {}),
+      now: deps.factory?.now ?? new Date().toISOString(),
+    });
   }
 
   if (area === "onboarding") {

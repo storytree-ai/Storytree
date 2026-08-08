@@ -124,6 +124,17 @@ currently **unbuildable without it**, and a session that builds the strip on the
 instrumentation" reading will ship the volume metric its own entry forbids, on a screen, where it is
 harder to argue with. That prose is overtaken and is corrected in place on the entry (ADR-0139).
 
+**THE INSTRUMENT HAS NOW LANDED, WHICH SATISFIES THIS DEPENDENCY RATHER THAN REMOVING IT**
+(corrected in place per ADR-0139; the decision is unchanged, only its build state). `storytree
+factory health` shipped 2026-08-08 as one report-only verb covering all three parked entries, and
+`floorHealthReading()` (`packages/drive/src/factory-health.ts`) returns exactly the fields the
+strip's `FloorHealthSignal` may hold — the loudest DISTINCT cause, its post-route recurrence count,
+the window it was computed over, and the collapsing rule that produced the distinctness — with no
+field able to carry a filing, session or report count. So *"currently unbuildable"* above reads as
+history from this date. What the strip still lacks is the server route, the wire shape and the
+loud/quiet threshold, and those were always `wire-the-floor-health-figure`'s own rather than this
+arc's.
+
 **What remains genuinely open is one thing: a scheduled/cron report** — whether health is PUSHED on a
 cadence or only PULLED by a session, a librarian pass, or the owner. D1 already answers the gate rung
 (no). The cron question stays deferred behind the falsifier below, because it is the one escalation
@@ -160,6 +171,11 @@ instrument exists, `factory-floor-health-arc` sits on `arc-orientation-surface-a
 not the reverse. The owner picked the momentum-lanes layout on 2026-08-05, so that arc's build is
 otherwise unblocked; a session reaching `factory-floor-health-signal` before this instrument lands
 should build the strip's frame and leave the figure unwired rather than substitute a volume count.
+
+That instruction is now DISCHARGED (corrected in place per ADR-0139; the decision is unchanged, only
+its build state). The frame shipped 2026-08-06 with the arc surface and the instrument landed
+2026-08-08, so a session reaching `factory-floor-health-signal` today WIRES the figure rather than
+leaving it unwired. The critical-path ordering this paragraph records held, and is now spent.
 
 **Not a concurrency cap.** Measuring dispatch rate is required by D2. Throttling it is the option the
 owner rejected on 2026-08-04 on the ground that the system was divided into story nodes precisely so

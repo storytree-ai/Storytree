@@ -60,6 +60,14 @@ export * from "./subtree-match.js";
 // above and the board render STATE, this reads TRANSITIONS (holdings, refusals, the summary). A
 // refusal leaves no state behind, so no state read can answer for it.
 export * from "./noticeboard-history.js";
+// The report-only factory-floor health instrument (ADR-0316, `factory-floor-health-arc`): the
+// recurrence-since-route and distinct-bottleneck computations over the Library's primary sources,
+// and the rate-normalise-or-refuse coupling-churn walk over git. Here rather than in `cli` for the
+// `arc-rollup` reason — ADR-0316 D5 names ADR-0314 D7's floor-health strip as the first committed
+// CONSUMER, and the studio server cannot import `@storytree/cli`. The CLI renders these; nothing
+// here writes, gates or adjudicates (D1/D4).
+export * from "./factory-health.js";
+export * from "./coupling-churn.js";
 // Claim-release honesty (the second instance of the ADR-0199 class): a run releases only the claim
 // its OWN take created, and every release that is not an explicit ceremony names the claim, the
 // caller and the time — so a silently-cleared claim is discovered when it happens, not a full gate
