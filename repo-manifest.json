@@ -149,6 +149,7 @@
       "packages/cli/src/question.ts": "arc-derived-initiative-view",
       "packages/cli/src/repair-planner.ts": "guided-setup-repair",
       "packages/cli/src/retire.ts": "library-cli",
+      "packages/cli/src/session-cost.ts": "cli",
       "packages/cli/src/story-completeness.ts": "cli",
       "packages/cli/src/*test-timing*.ts": "cli",
       "packages/cli/src/worktree*.ts": "cli",
