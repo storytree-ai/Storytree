@@ -15,7 +15,7 @@ import { KIND_SPECS } from "./knowledge.js";
  */
 
 /** The schema version every freshly-written structured Knowledge doc conforms to. */
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 /** One forward, version-numbered transform on a JSONB document. */
 export interface Migration {
@@ -231,6 +231,53 @@ export const MIGRATIONS: readonly Migration[] = [
       }
 
       return doc;
+    },
+  },
+  {
+    version: 6,
+    name: "increment-outcome-note-deduplication",
+    up(doc) {
+      // ADR-0322 — drop `outcome.note` when it is a VERBATIM copy of `body`.
+      //
+      // `arc increment add` used to persist its `--outcome` prose into both fields, because the old
+      // unconditional invariant ("an outcome with no `pr` needs a `note`") left it no other way to
+      // record a landing that had no PR ref. The copy was never a second fact: it was one paragraph
+      // stored twice, and only the `body` half is reachable by `library artifact edit --set` (the
+      // edit path resolves `@path` to a STRING, so `--set outcome=@file` is refused by the object
+      // schema). So an ADR-0139 in-place correction half-applied and left the row disagreeing with
+      // itself — silently, and in the direction that punishes the careful reader, since `arc show`
+      // and `library artifact <id>` render `body` while `--raw=outcome` serves the stale copy.
+      //
+      // This is a CLEANUP drop, not a writability fix — unlike migrations 4 and 5, a stored
+      // duplicate still validates, so nothing is bricked without it (migration 3's
+      // `drop-glossary-projection-fields` is the same class). What it buys is that the 54 live rows
+      // measured on 2026-08-08 stop being able to diverge later, and that `arc show`'s increment log
+      // stops printing a whole body into a section whose own rule is "never its body" (ADR-0305 D7).
+      //
+      // EXACT equality only, after trimming. A note that differs by so much as a sentence is a
+      // genuine second fact — the 40 divergent rows include both legitimate `arc increment close
+      // --note` closures and rows that ALREADY diverged through the defect — and this transform has
+      // no way to tell those apart, so it touches neither. Recovering an already-diverged note is a
+      // human read of `events.library_event`, not a guess made here.
+      //
+      // Pure and idempotent: a second pass finds no note to drop.
+      if (doc["kind"] !== "increment") return doc;
+      const outcome = doc["outcome"];
+      if (typeof outcome !== "object" || outcome === null || Array.isArray(outcome)) return doc;
+      const bag = outcome as Record<string, unknown>;
+      const note = bag["note"];
+      const body = doc["body"];
+      if (typeof note !== "string" || typeof body !== "string") return doc;
+      if (note.trim() !== body.trim()) return doc;
+      // A migration must never hand `upcast`'s caller a doc that its own validator then refuses —
+      // that would brick the row on its next write, which is the failure mode migration 5's backfill
+      // comment warns about from the other direction. `assertIncrementInvariants` still demands a
+      // `pr` or a `note` from a PARKED increment (its body is the intention, ADR-0322), so the drop
+      // is withheld there. No live row hit this on 2026-08-08 — all 54 duplicates were born closed
+      // with no `parked` — but a hand-authored doc can reach it, and the guard costs one condition.
+      if (bag["pr"] === undefined && doc["parked"] !== undefined) return doc;
+      const { note: _note, ...restOutcome } = bag;
+      return { ...doc, outcome: restOutcome };
     },
   },
 ];
