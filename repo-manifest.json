@@ -99,6 +99,7 @@
       "packages/cli/src/at-path.ts": "unified-command-dispatch",
       "packages/cli/src/db-required.ts": "unified-command-dispatch",
       "packages/cli/src/secrets.ts": "unified-command-dispatch",
+      "packages/cli/src/set-value.ts": "unified-command-dispatch",
       "packages/cli/src/gate*.ts": "gate-ci-parity",
       "packages/cli/src/ci-affected*.ts": "gate-ci-parity",
       "packages/cli/src/adr*.ts": "adr-health-gate",
@@ -151,6 +152,7 @@
       "packages/cli/src/story-completeness.ts": "cli",
       "packages/cli/src/*test-timing*.ts": "cli",
       "packages/cli/src/worktree*.ts": "cli",
+      "packages/cli/src/write-attribution.ts": "cli",
       "packages/cli/src/write-authority-install.ts": "cli",
 
       "$section_drive": "packages/drive — the shared build/orchestrate drivers (ADR-0112). Nearly every module is a named drive-machinery capability or the driver half of another story's capability; the residue is composition glue.",
