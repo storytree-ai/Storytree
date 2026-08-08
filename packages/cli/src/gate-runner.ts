@@ -20,16 +20,17 @@
 // The failure is silent in the direction that costs most: an aborted chain reports one red and says
 // nothing about the rest, while `asset:unrun-check-is-unverified-not-refuted` is explicit that a
 // check which COULD NOT RUN is UNVERIFIED, not refuted. Both readings — "the gate failed" and "not
-// my problem, skip it" — are available from the same output. Hence three distinct statuses here, and
-// `not-run` is never collapsed into either neighbour.
+// my problem, skip it" — are available from the same output. Hence FOUR distinct statuses here, and
+// neither `not-run` nor `skip` is ever collapsed into a neighbour.
 //
-// WHAT THIS DOES NOT REACH, stated because the gap is easy to mistake for closed. `pnpm -r test` is
-// ONE step here, and `pnpm -r` halts at its first failing package. So a flake in `packages/forest-
-// world` still hides `packages/cli`'s suite INSIDE step 12 — the 2026-07-29 evidence had both halves,
-// and only the outer one is fixed here. What changed is that the flake no longer costs the thirteen
-// steps BEHIND `pnpm -r test`, which is where the corpus RED was hiding. The inner half is a
-// different unit (it is `pnpm -r`'s behaviour, not the gate's shape) and is deliberately not
-// smuggled into this one.
+// THE INNER HALF IS NOW CLOSED TOO — ADR-0276 increment 4 is complete. This module's first landing
+// fixed only the OUTER half of the 2026-07-29 evidence: a flake stopped costing the thirteen steps
+// BEHIND `pnpm -r test`, but `pnpm -r` still halted at its first failing package, so a flake in
+// `packages/forest-world` still hid `packages/cli`'s suite INSIDE that single step. `GATE_PLAN` now
+// declares both expensive legs with `--no-bail`, so every workspace runs and every workspace's
+// verdict is reported. That is `pnpm`'s behaviour rather than this module's shape, which is why it
+// was correctly held back from the first landing; it lands here beside `skip` because together they
+// are the increment's last element — "an aggregate scoreboard naming every red AND EVERY SKIP".
 //
 // THIS IS STRICTLY STRONGER THAN THE CHAIN IT REPLACES, and that is the property to preserve when
 // editing: MORE steps actually execute, no check's own semantics change, no ceiling moves, and any
@@ -60,10 +61,41 @@
 import type { GateStep } from "./gate-order.js";
 
 /**
- * A step's outcome. Three values, never two: `not-run` is UNVERIFIED — it is not a pass (nothing was
- * checked) and it is not a fail (nothing was found wanting).
+ * A step's outcome. FOUR values, and the two that are neither pass nor fail are the point: `not-run`
+ * and `skip` are both UNVERIFIED — neither is a pass (nothing was checked) and neither is a fail
+ * (nothing was found wanting).
+ *
+ * `not-run` and `skip` are the same EPISTEMIC class and different CAUSES, which is why they are not
+ * one value. `not-run` means the runner never asked; `skip` means the step was asked, answered "I
+ * have no inputs", and verified nothing. A reader needs to tell those apart to know whether re-running
+ * would help.
  */
-export type GateStepStatus = "pass" | "fail" | "not-run";
+export type GateStepStatus = "pass" | "fail" | "not-run" | "skip";
+
+/**
+ * The exit code a step uses to declare "I ran, and I verified NOTHING" — the gate's opt-in skip
+ * protocol (ADR-0276 increment 4, "an aggregate scoreboard naming every red AND EVERY SKIP").
+ *
+ * WHY AN EXIT CODE AND NOT OUTPUT SCRAPING. The checks already print `SKIP` to stdout, and reading
+ * that would be the cheapest change. It is also the exact trap PR #1133 hit one layer up:
+ * `check-verification-decay.ts` scraped `pnpm check:x` out of the `gate` script's TEXT and went
+ * silently BLIND the moment the chain it was reading was replaced. A surface that another surface
+ * parses without either declaring the dependency is an invisible consumer. An exit code is a contract
+ * the step OPTS INTO and the compiler can point at.
+ *
+ * WHY 3. 0 is pass and 1 is the conventional failure both `process.exit(1)` and an uncaught throw
+ * produce; 2 is what a shell reports for misuse and what several tools use for "bad arguments". 3 is
+ * the first value no path here already means, so a step cannot land on it by accident — which matters,
+ * because a step that accidentally reported SKIP would be a failure the gate stopped counting.
+ *
+ * A SKIP DOES NOT RED THE GATE ({@link gateExitCode}) — deliberately, and it is the one place this
+ * module tolerates an unverified step in a green run. Some checks legitimately have no inputs in some
+ * environments (`check:web-grounding` without the `web/` submodule locally), and redding those runs
+ * would train sessions to ignore the gate. What was missing was never the exit code; it was that
+ * PASS was printed over it, so opting out and verifying were indistinguishable. This makes the skip
+ * VISIBLE without making it BLOCKING.
+ */
+export const GATE_SKIP_EXIT_CODE = 3;
 
 /** What one executed step reported. */
 export interface GateExecution {
@@ -139,7 +171,13 @@ export function runGate(input: RunGateInput): GateStepResult[] {
     const exec = execute(step, index);
     const durationMs = now() - started;
     const status: GateStepStatus =
-      exec.unverified === true ? "not-run" : exec.exitCode === 0 ? "pass" : "fail";
+      exec.unverified === true
+        ? "not-run"
+        : exec.exitCode === 0
+          ? "pass"
+          : exec.exitCode === GATE_SKIP_EXIT_CODE
+            ? "skip"
+            : "fail";
     const result: GateStepResult = {
       command: step.command,
       status,
@@ -162,6 +200,7 @@ export interface GateTally {
   readonly pass: number;
   readonly fail: number;
   readonly notRun: number;
+  readonly skip: number;
 }
 
 export function tallyGate(results: readonly GateStepResult[]): GateTally {
@@ -169,23 +208,32 @@ export function tallyGate(results: readonly GateStepResult[]): GateTally {
     pass: results.filter((r) => r.status === "pass").length,
     fail: results.filter((r) => r.status === "fail").length,
     notRun: results.filter((r) => r.status === "not-run").length,
+    skip: results.filter((r) => r.status === "skip").length,
   };
 }
 
 /**
- * The gate's exit code. GREEN ONLY IF EVERY STEP PASSED — a `not-run` step is unverified, and
- * unverified is not green. An empty result set is likewise non-zero: a run that proved nothing has
- * not earned a pass.
+ * The gate's exit code. GREEN ONLY IF EVERY STEP PASSED OR DECLARED A SKIP — a `not-run` step is
+ * unverified with nobody having asked, and that is not green. An empty result set is likewise
+ * non-zero: a run that proved nothing has not earned a pass.
+ *
+ * THE SKIP CARVE-OUT IS NARROW AND IS NOT A HOLE. A step reaches `skip` only by exiting the reserved
+ * {@link GATE_SKIP_EXIT_CODE} — an explicit, opt-in declaration on a path its own author wrote,
+ * never a default and never inferred. `not-run` gets no such carve-out precisely because nothing
+ * declared it. The honesty this buys is in the REPORT ({@link renderGateSummary}), which names every
+ * skipped step and says in terms that green with skips is narrower than green: the defect being fixed
+ * was that PASS was printed over an opt-out, not that the exit code was 0.
  */
 export function gateExitCode(results: readonly GateStepResult[]): number {
   if (results.length === 0) return 1;
-  return results.every((r) => r.status === "pass") ? 0 : 1;
+  return results.every((r) => r.status === "pass" || r.status === "skip") ? 0 : 1;
 }
 
 const GLYPH: Record<GateStepStatus, string> = {
   pass: "PASS   ",
   fail: "FAIL   ",
   "not-run": "NOT RUN",
+  skip: "SKIP   ",
 };
 
 function formatDuration(ms: number): string {
@@ -215,7 +263,8 @@ export function renderGateSummary(results: readonly GateStepResult[]): string[] 
 
   lines.push(
     "",
-    `  ${tally.pass} passed, ${tally.fail} failed, ${tally.notRun} not run  (of ${results.length})`,
+    `  ${tally.pass} passed, ${tally.fail} failed, ${tally.skip} skipped, ${tally.notRun} not run  ` +
+      `(of ${results.length})`,
   );
 
   if (tally.fail > 0) {
@@ -230,12 +279,24 @@ export function renderGateSummary(results: readonly GateStepResult[]): string[] 
     );
     for (const r of results.filter((x) => x.status === "not-run")) lines.push(`    ${r.command}`);
   }
+  if (tally.skip > 0) {
+    lines.push(
+      "",
+      "  SKIP is UNVERIFIED too — these steps RAN and declared they had nothing to check, so",
+      "  they proved nothing about this branch. They do not red the gate; they do narrow what",
+      "  green means. Supply their missing inputs to actually verify them:",
+    );
+    for (const r of results.filter((x) => x.status === "skip")) lines.push(`    ${r.command}`);
+  }
 
+  const green = gateExitCode(results) === 0;
   lines.push(
     "",
-    gateExitCode(results) === 0
-      ? "  GATE GREEN — every step ran and passed."
-      : "  GATE RED — the gate is green only when every step ran and passed.",
+    green && tally.skip > 0
+      ? `  GATE GREEN, NARROWED — every step ran, but ${tally.skip} verified nothing (see SKIP above).`
+      : green
+        ? "  GATE GREEN — every step ran and passed."
+        : "  GATE RED — the gate is green only when every step ran and passed or declared a skip.",
     "",
   );
   return lines;

@@ -271,18 +271,27 @@ kind owes a seed export any more.
   *nothing at all* — which cost ~25 min of hand re-runs per hit and once hid a genuine RED behind an
   unrelated flake. It is now a runner over a declared plan
   (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes the **nine** evidence-backed steps
-  retained by ADR-0311 and prints a per-step **PASS / FAIL / NOT RUN** table. (The plan carried 25
-  steps before ADR-0302 and ADR-0311 retired sixteen; the plan remains the count's source of truth.)
-  **Read the table, not the tail** — and read `NOT RUN` as
-  *unverified*, never as passed (it appears only under `--fail-fast`, or when a run was interrupted /
-  a step was killed). Any step not passing still exits non-zero, so `pnpm gate:bg` and every
+  retained by ADR-0311 and prints a per-step **PASS / FAIL / SKIP / NOT RUN** table. (The plan carried
+  25 steps before ADR-0302 and ADR-0311 retired sixteen; the plan remains the count's source of truth.)
+  **Read the table, not the tail** — and read **both** `NOT RUN` and `SKIP` as
+  *unverified*, never as passed. They are the same epistemic class and different causes: `NOT RUN`
+  means the runner never asked (only under `--fail-fast`, or when a run was interrupted / a step was
+  killed), while `SKIP` means the step RAN and declared it had nothing to check. A step declares a
+  skip by exiting the reserved code 3 — an opt-in its own author wrote, never inferred — and today
+  exactly one does: `check:web-grounding`, when the `web/` submodule is not checked out locally
+  (`git submodule update --init web` to actually verify it). A skip does **not** red the gate, but the
+  summary says **GATE GREEN, NARROWED** and names every skipped step, so green-with-skips can no
+  longer read as unqualified green. Any step failing still exits non-zero, so `pnpm gate:bg` and every
   exit-code caller are unchanged. Two consequences worth knowing: a FAILING run now takes the full
   wall clock instead of stopping early, so **background it** (`pnpm gate:bg`, merge-ceremony step 2);
   and the steps are ordered *own-work first* — four branch-local checks and both `-r` proof legs run
   ahead of the three retained checks that can observe shared live state. `STORYTREE_GATE_FAIL_FAST=1 pnpm gate`
   (or `pnpm gate --fail-fast`) restores the old stop-at-first-red for a fast inner loop.
-  **`pnpm -r`'s own halt is NOT fixed**: a flake in one workspace still hides later workspaces' tests
-  *inside* the `pnpm -r test` step, though the outer runner still continues to later gate steps.
+  **`pnpm -r`'s own halt is FIXED TOO (since 2026-08-08, ADR-0276 increment 4 complete):** both
+  expensive legs are declared `pnpm -r --no-bail`, so a flake in one workspace no longer hides later
+  workspaces' tests *inside* the `pnpm -r test` step — every workspace runs and every verdict is
+  reported. It cannot make the gate greener (pnpm still exits non-zero if any workspace failed); it
+  costs wall clock on a failing leg, which is one more reason to background it.
 - **The gate's two `-r` legs now test only what your branch AFFECTS (ADR-0304 D1, since 2026-08-04).**
   `pnpm gate` resolves what this branch changes on top of `main` — `merge-base(origin/main, HEAD)`
   vs the working tree, **untracked files included** — and narrows `typecheck`/`test` to the owning
