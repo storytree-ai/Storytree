@@ -960,35 +960,78 @@ export function nextSceneNow(
   return hasWisps || bloomingNow || wasBlooming ? now : prevSceneNow;
 }
 
-/** ADR-0212's join, surface-side: fold a story's live builds onto its ONE work body.
+/** ADR-0212's join, surface-side, re-keyed by ADR-0326: fold each live build onto the work body of
+ *  the session that CLAIMED THE UNIT IT IS BUILDING.
  *
- *  Two outcomes, and the second is the one that keeps the flip safe:
- *  - the story HAS a work claim → its build phase rides that body as the band (channel 3). By the
- *    ADR-0200 D2 mutex there is at most one such claim, so "the first work-grade claim" is "the".
- *  - the story has NO work claim (an unattended build, CI, or the website's demo data) → a
- *    claim-LESS body is manufactured for the build, keyed by the winning run so a single-run story
- *    keeps the exact orbit phase its old build wisp had. This is the fallback ADR-0212 calls for,
- *    and it is what lets the `wisps` layer stop being fed at all.
+ *  THE JOIN KEY IS THE CLAIMED UNIT, NOT THE STORY. Both layers reach here already grouped to the
+ *  story — `buildsByStory` / `claimsByStory` resolve a member id UP to its owning story — so "same
+ *  group" means "same territory", never "same actor". ADR-0212 joined at that group and argued it
+ *  was sound from the ADR-0200 D2 mutex, but the mutex is per UNIT ID, so story grain is the one
+ *  grain at which it guarantees nothing. Two shapes broke it, and the second predates the story
+ *  chain's per-member claim (PR #1220):
+ *    - a MEMBER build lands in the group of a story-grain claim it never took — so a `story build
+ *      S --real` (which now claims S's members) or a `node build cap-of-S --real` (which never
+ *      claimed S at all) painted its phase onto an unrelated session's body;
+ *    - TWO work claims on one story are legitimate under ADR-0270 D1 (disjoint capabilities), and
+ *      the old `claims.find(work)` handed the band to whichever sorted first, not to the builder.
+ *
+ *  WHY UNIT GRAIN IS SOUND — the mutex finally doing real work. A build visible in this layer has
+ *  necessarily taken the claim on the unit it builds: `nodeBuild` claims `spec.id` (ADR-0121) and
+ *  the chain claims every node in its drive order (`packages/drive/src/chain-claims.ts`), and the
+ *  per-unit claim store IS the `--store pg` pool's claim store — the same pool the `building` row
+ *  had to reach to be readable here. So a build on U + a work claim on U is exactly one actor.
+ *
+ *  Two outcomes, and the second is the one that keeps the render honest:
+ *  - the BUILT UNIT carries a work claim → that build's phase rides that body as the band (channel
+ *    3), resolved per unit, so RED-WINS (ADR-0212's multi-run collapse) applies across the runs on
+ *    ONE unit and never smears one unit's red onto another session's body.
+ *  - the built unit carries NO work claim (an unattended build, CI, the website's demo data, or a
+ *    finished run still inside its in-flight TTL) → a claim-LESS body is manufactured, keyed by the
+ *    winning run so a single-run story keeps the exact orbit phase its old build wisp had. This is
+ *    the fallback ADR-0212 calls for, and it is what lets the `wisps` layer stop being fed at all.
+ *    It now also catches an unclaimed build under a CLAIMED story, which used to be absorbed
+ *    silently into a stranger's body — one body per actor, and that was two actors.
  *
  *  `claims` must already be in the core's waiting-order (see {@link orderClaimsForScene}); the
  *  manufactured body is appended, which never disturbs a waiter's queue index. */
-function foldBuildOntoClaims(
+export function foldBuildOntoClaims(
   claims: ClaimActivity[],
   builds: BuildActivity[],
   now: Date,
 ): NonNullable<SceneInput['territories'][number]['claims']> {
-  const phase = resolveBuildPhase(builds);
-  const workClaim = claims.find((c) => (c.grade ?? 'work') === 'work');
-  const folded = claims.map((c) => ({
-    key: c.sessionId,
-    title: claimWispTitle(c, now),
-    colourState: claimColourState(c.intent),
-    grade: c.grade ?? 'work',
-    // only the WORK stage carries the band — window shopping and queueing are not building.
-    ...(phase && c === workClaim ? { phase } : {}),
-  }));
-  if (!phase || workClaim) return folded;
-  const primary = builds.find((b) => b.phase === phase) ?? builds[0]!;
+  const buildsByUnit = new Map<string, BuildActivity[]>();
+  for (const b of builds) {
+    const list = buildsByUnit.get(b.unitId);
+    if (list) list.push(b);
+    else buildsByUnit.set(b.unitId, [b]);
+  }
+  // Only a WORK claim can be the builder, so only work-claimed units absorb a build — an
+  // `exploring`/`waiting` claim on a building unit leaves that build an orphan, exactly as a
+  // story with no work claim always did.
+  const workUnits = new Set(
+    claims.filter((c) => (c.grade ?? 'work') === 'work').map((c) => c.unitId),
+  );
+
+  const folded = claims.map((c) => {
+    const grade = c.grade ?? 'work';
+    // only the WORK stage carries the band — window shopping and queueing are not building — and
+    // only from the builds on THIS claim's own unit.
+    const phase = grade === 'work' ? resolveBuildPhase(buildsByUnit.get(c.unitId) ?? []) : undefined;
+    return {
+      key: c.sessionId,
+      title: claimWispTitle(c, now),
+      colourState: claimColourState(c.intent),
+      grade,
+      ...(phase ? { phase } : {}),
+    };
+  });
+
+  // The orphans keep ADR-0212's single manufactured body rather than one each: RED-WINS collapses
+  // them, which errs toward showing the reddest live work rather than hiding it.
+  const orphans = builds.filter((b) => !workUnits.has(b.unitId));
+  const phase = resolveBuildPhase(orphans);
+  if (!phase) return folded;
+  const primary = orphans.find((b) => b.phase === phase) ?? orphans[0]!;
   return [
     ...folded,
     {
@@ -1063,10 +1106,12 @@ function territoryToScene(
     // `work` (the D2 back-compat orbit). Sorted ascending by `at` FIRST (orderClaimsForScene) so the
     // core's waiting-order contract (queue position = input index) reads oldest-waiter-first.
     //
-    // ADR-0212: a live build on this story folds its phase onto the WORK-grade body. The join key is
-    // the STORY, not the session — `BuildActivity` is keyed by runId and carries no session identity,
-    // but the work claim is an exclusive mutex, so a story with a work claim AND a live build has
-    // exactly one possible actor. (If that mutex is ever relaxed, THIS join must be revisited first.)
+    // ADR-0212 / ADR-0326: a live build folds its phase onto the WORK-grade body of the session that
+    // CLAIMED THE UNIT IT BUILDS. `BuildActivity` still carries no session identity, so the join is
+    // inferential — but at unit grain the ADR-0200 D2 mutex actually covers it, because a build only
+    // reaches this layer through the same pg pool that took its per-unit claim. Both arrays are
+    // grouped by STORY, which is a territory and not an actor: joining at that grain is what
+    // ADR-0326 repairs. See {@link foldBuildOntoClaims}.
     claims: foldBuildOntoClaims(orderClaimsForScene(claims), builds, now),
     // ADR-0200 D7: recently-released claims still fading — the departure layer (wisp-out legibility).
     // Keyed by sessionId like a live claim; `ageRatio` folds the server's read-time `ageMs` snapshot
