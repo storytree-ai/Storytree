@@ -66,6 +66,27 @@ construction. The surface therefore folds a story's live build phase onto that s
 body. The mutex is what makes this sound; if the mutex is ever relaxed to allow multiple work claims
 per story, this join must be revisited FIRST.
 
+*(Corrected in place 2026-08-08 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).
+**THE "BY CONSTRUCTION" INFERENCE ABOVE NO LONGER HOLDS, AND THIS PARAGRAPH'S OWN REVISIT-FIRST
+CLAUSE IS THEREFORE LIVE.** Nothing about the mutex changed — it is still one work claim per unit id,
+exactly as ADR-0200 D2 says — so the escape hatch as literally worded ("if the mutex is ever relaxed
+to allow multiple work claims per story") did not fire. The inference broke through a different door.
+It never rested on the mutex alone; it rested on the mutex PLUS a second fact nobody wrote down: that
+`story build S --real` took a work claim on `S` itself, so a session already holding S's work claim
+refused any other session's chain. That take was a PROXY for the story's members and fenced none of
+them, and it was retired on 2026-08-08 (`aa293a0d`, ADR-0121 D5 corrected in place): the chain now
+claims the MEMBERS of its drive order, and `S` only when S's own UAT node is in that order (a
+`uat_witness: machine` story). So session A can hold the work claim on S — legitimate under ADR-0270
+D1 for cross-capability work — while session B runs a live `story build S`, and the fold would then
+paint B's build phase onto A's wisp. Two open points this correction deliberately does NOT settle,
+because they are the render's call and not the decision log's: whether a member-grain build rolls up
+to its parent story in the fold (if it does, a `node build cap-of-S` weakened the same inference
+before this landing, since it never took `S` either), and which remedy applies — stamping a session id
+onto `events.work_event`, joining at the claimed unit rather than the story, or dropping the fold. The
+same premise is restated verbatim in `packages/forest-world/src/scene.ts` (the `claims[].phase`
+contract note) and carries the same defect. ADR-0212's other three channels, the build-wisp retirement
+and the ADR-0048/0138/0200 amendments are untouched.)*
+
 A build on a story with NO work claim (unattended, CI, or the marketing website's demo data) still
 renders its own claim-less body — that is the fallback, and it is also what keeps the website working
 without a claim concept.
