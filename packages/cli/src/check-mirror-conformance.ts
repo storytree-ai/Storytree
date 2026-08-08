@@ -41,6 +41,22 @@
  *     document store: the only way to catch a mirror answering `{ arcs: [] }` where its reference
  *     answers `{ arcs: null }`, or 404-ing one id where its reference 503s.
  *
+ *   `floor-health-fixtures` — `GET /api/floor-health`, compared over three synthetic fixture FILES,
+ *     each carrying the two reads the floor-health composition makes (friction/increment docs and the
+ *     raw event log) plus the request list both probes replay. The docs and events are served
+ *     VERBATIM by each probe's store rather than recorded through one: the `Store` seam's
+ *     `appendEvent` accepts no `at`, so a recording store would stamp the wall clock — which dates
+ *     every route to today, reads every reinforcement as PRE-route (leaving `loudest` absent and the
+ *     interesting half unexercised), and, because the two probes are separate processes at different
+ *     moments, is nondeterminism ACROSS the payloads being compared. What is at risk here is the
+ *     ENVELOPE, not the figure — the reading is shared `@storytree/drive` code both surfaces call —
+ *     so each probe prints the STATUS as well as the body, and THREE arms are needed rather than two:
+ *     `populated` (a loud floor), `quiet` (a store with nothing post-route — `loudest` absent), and
+ *     `no-store` (the advisory-absence arm). The last two are the pair that matters most: they are
+ *     the only way to catch a mirror answering a quiet READING where its reference answers
+ *     `{ reading: null }`, and the compiled band renders "no instrument here" and "all clear"
+ *     differently on purpose.
+ *
  * FAIL-CLOSED, and never vacuous. A probe that dies, prints unparseable output, or returns an
  * EMPTY payload for a non-empty input is a FAILURE, not a skip: two silent surfaces agree
  * perfectly, and "a proof that cannot fail is not a proof" is the class this arc exists to fence.
@@ -58,6 +74,7 @@ import {
   formatDivergences,
   projectActivityPayload,
   projectArcsPayload,
+  projectFloorHealthPayload,
   type Divergence,
   type Entry,
   type MirrorInputSet,
@@ -325,6 +342,156 @@ function buildArcFixtures(): { dir: string; inputs: { label: string; arg: string
 }
 
 /**
+ * Build the three synthetic `GET /api/floor-health` fixtures both probes replay. Each is one JSON
+ * FILE carrying `{ docs, events, requests }` — the two reads `loadFloorHealthReading` makes, plus the
+ * request list. No directories: unlike the arc rollup, the floor-health reading joins no on-disk tree.
+ *
+ * WHY THE EVENTS ARE WRITTEN OUT WITH EXPLICIT `at` VALUES rather than recorded through a store. A
+ * reinforcement is attributed to the route STANDING WHEN IT LANDED, read off the event log
+ * (drive's `RECURRENCE_ATTRIBUTION_RULE`), and the `Store` seam's `appendEvent` accepts no `at` — so
+ * a store that recorded these would stamp the wall clock, date every route to TODAY, and read every
+ * reinforcement as pre-route. `loudest` would then be absent from every arm and the richest half of
+ * the payload would never be compared. For a MIRROR comparison there is a second, sharper reason: the
+ * two probes run in separate processes at different moments, so a wall-clock stamp is nondeterminism
+ * between the very payloads being diffed. Verbatim input is what makes this comparison decidable.
+ *
+ * WHY THREE ARMS, and why the last two are not optional. `populated` proves the reading reaches the
+ * wire with its loudest distinct cause, its window and its collapsing rule, and that the method guard
+ * agrees. `quiet` holds a real store whose reinforcements are all PRE-route, so the reading arrives
+ * with NO `loudest` — a quiet floor. `no-store` wires no document store at all, so the reading is
+ * `null`. Those two are the ADVISORY-ABSENCE pair: they are the only thing that catches a mirror
+ * answering `{ reading: <quiet reading> }` where its reference answers `{ reading: null }`, and
+ * `apps/studio/src/lib/floorHealth.ts` renders those differently on purpose — a missing instrument
+ * presented as "all clear" is the exact failure ADR-0316's band exists to avoid. Without them, both
+ * surfaces would agree on every populated request and the defect would ship.
+ *
+ * There is deliberately no "real corpus" arm: friction is live-canonical and CI is DB-free, so the
+ * honest input is a fixture rather than a store nobody can reach.
+ */
+function buildFloorHealthFixtures(): { dir: string; inputs: { label: string; arg: string }[] } {
+  const dir = mkdtempSync(join(tmpdir(), "storytree-floor-health-"));
+
+  // The SAME requests against every arm — the point of the absence arms is that identical asks give
+  // different honest answers, so asking different things would defeat them.
+  const requests = [
+    { label: "read", method: "GET", path: "/api/floor-health" },
+    // Report-only is a DECISION (ADR-0316 D4), and it is expressed as a status — so it is replayed.
+    { label: "write", method: "POST", path: "/api/floor-health" },
+  ];
+
+  const friction = (
+    id: string,
+    body: Record<string, unknown>,
+  ): Record<string, unknown> => ({
+    id,
+    kind: "friction",
+    doc: { title: id, ...body },
+    createdAt: "2026-07-11T00:00:00.000Z",
+    updatedAt: "2026-08-08T00:00:00.000Z",
+  });
+
+  /** One route-setting event — the timestamp IS the fixture (see the header). */
+  const routeEvent = (seq: number, id: string, route: string, at: string): Record<string, unknown> => ({
+    seq,
+    id,
+    kind: "friction",
+    type: "updated",
+    doc: { route },
+    actor: "cli",
+    at,
+  });
+
+  const reinforcedBy = (...dates: string[]): Array<Record<string, unknown>> =>
+    dates.map((date) => ({ branch: "claude/x", date, evidence: "`e`" }));
+
+  // A LOUD floor. Two filings an author joined with one increment's `frictionRefs` (so they collapse
+  // into ONE distinct cause with two members — the collapsing rule reaching the wire), a third filing
+  // on a NON-tripwire route that stands alone (so `distinctCauses` > 1 and `unjoined` > 0), and a
+  // discharged filing that must leave the live population entirely.
+  const populatedDocs = [
+    friction("a-live-guardrail-that-keeps-firing", {
+      route: "guardrail",
+      // 07-11 is the day the route was set: SAME-DAY, never post-route, because day-granular dates
+      // cannot prove ordering. Only the three later ones count.
+      reinforcedBy: reinforcedBy("2026-07-11", "2026-07-12", "2026-07-16", "2026-07-28"),
+    }),
+    friction("a-second-filing-one-remedy-covers", {
+      route: "guardrail",
+      reinforcedBy: reinforcedBy("2026-07-20"),
+    }),
+    friction("an-unjoined-tool-gap", {
+      // `tool` is deliberately NOT a tripwire route — a parked capability gap keeps firing until the
+      // capability is built — so this contributes a distinct cause with zero tripwire recurrence.
+      route: "tool",
+      reinforcedBy: reinforcedBy("2026-07-22"),
+    }),
+    friction("a-discharged-filing", {
+      route: "guardrail",
+      dischargedBy: "asset:some-landed-remedy",
+      reinforcedBy: reinforcedBy("2026-07-25"),
+    }),
+    {
+      id: "one-remedy-for-both",
+      kind: "increment",
+      doc: {
+        title: "one remedy declared to cover both filings",
+        arcRef: "asset:some-arc",
+        status: "closed",
+        frictionRefs: ["a-live-guardrail-that-keeps-firing", "a-second-filing-one-remedy-covers"],
+      },
+      createdAt: "2026-07-12T00:00:00.000Z",
+      updatedAt: "2026-07-12T00:00:00.000Z",
+    },
+  ];
+  const populatedEvents = [
+    routeEvent(1, "a-live-guardrail-that-keeps-firing", "guardrail", "2026-07-11T13:54:04.888Z"),
+    routeEvent(2, "a-second-filing-one-remedy-covers", "guardrail", "2026-07-14T09:00:00.000Z"),
+    routeEvent(3, "an-unjoined-tool-gap", "tool", "2026-07-15T09:00:00.000Z"),
+    routeEvent(4, "a-discharged-filing", "guardrail", "2026-07-16T09:00:00.000Z"),
+  ];
+
+  // A QUIET floor: a real store, a routed live filing, but every reinforcement PREDATES the route
+  // event — pre-route evidence gathered at capture, never recurrence. So the reading arrives with no
+  // `loudest` at all. This is what `{ reading: null }` must not be confused with.
+  const quietDocs = [
+    friction("a-routed-filing-that-never-recurred", {
+      route: "guardrail",
+      reinforcedBy: reinforcedBy("2026-07-01", "2026-07-02"),
+    }),
+  ];
+  const quietEvents = [
+    routeEvent(1, "a-routed-filing-that-never-recurred", "guardrail", "2026-07-10T09:00:00.000Z"),
+  ];
+
+  const arms: { label: string; file: string; body: unknown }[] = [
+    {
+      label: "floor-health-populated",
+      file: "floor-health-populated.json",
+      body: { docs: populatedDocs, events: populatedEvents, requests },
+    },
+    {
+      label: "floor-health-quiet",
+      file: "floor-health-quiet.json",
+      body: { docs: quietDocs, events: quietEvents, requests },
+    },
+    {
+      // `docs: null` tells each probe to wire NO document store at all — the offline/json posture.
+      label: "floor-health-no-store",
+      file: "floor-health-no-store.json",
+      body: { docs: null, events: [], requests },
+    },
+  ];
+
+  const inputs: { label: string; arg: string }[] = [];
+  for (const arm of arms) {
+    const path = join(dir, arm.file);
+    writeFileSync(path, JSON.stringify(arm.body), "utf8");
+    inputs.push({ label: arm.label, arg: path });
+  }
+  return { dir, inputs };
+}
+
+/**
  * Assemble every input set, and the cleanup that removes what was written to disk. Each
  * {@link MirrorInputSet} is built ONCE and shared by every row that names it, so two mirrors over
  * the same input are compared over the identical bytes.
@@ -336,6 +503,7 @@ function buildInputSets(): {
   const docsFixture = buildDocsFixture();
   const activity = buildActivityFixtures();
   const arcs = buildArcFixtures();
+  const floorHealth = buildFloorHealthFixtures();
   return {
     sets: {
       "docs-trees": [
@@ -344,11 +512,13 @@ function buildInputSets(): {
       ],
       "activity-fixtures": activity.inputs,
       "arc-fixtures": arcs.inputs,
+      "floor-health-fixtures": floorHealth.inputs,
     },
     cleanup: () => {
       rmSync(docsFixture, { recursive: true, force: true });
       rmSync(activity.dir, { recursive: true, force: true });
       rmSync(arcs.dir, { recursive: true, force: true });
+      rmSync(floorHealth.dir, { recursive: true, force: true });
     },
   };
 }
@@ -380,6 +550,12 @@ function decodePayload(probe: Probe, inputs: MirrorInputSet, payload: unknown, a
     case "arc-fixtures":
       try {
         return projectArcsPayload(payload);
+      } catch (err) {
+        throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
+      }
+    case "floor-health-fixtures":
+      try {
+        return projectFloorHealthPayload(payload);
       } catch (err) {
         throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
       }

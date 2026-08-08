@@ -82,8 +82,19 @@ export interface Probe {
  *   probes replay). Each probe prints `{ [label]: { status, body } }` for those requests, which
  *   {@link projectArcsPayload} turns into entries. The request list rides the FIXTURE rather than
  *   living in each probe: two hand-kept lists of what to ask is the same drift class one level up.
+ * - `floor-health-fixtures` — argv is fixture JSON PATHS (`{ docs, events, requests }` — the two
+ *   reads the floor-health composition makes, plus the request list both probes replay). Each probe
+ *   prints `{ [label]: { status, body } }`, which {@link projectFloorHealthPayload} turns into
+ *   entries. The docs and events are served VERBATIM by each probe's own fixture store, because the
+ *   `Store` seam's `appendEvent` accepts no `at`: a store that recorded them would stamp the wall
+ *   clock, which both defeats the fixture (every reinforcement reads as pre-route) and makes the two
+ *   probes — separate processes, different moments — nondeterministic against each other.
  */
-export type MirrorInputSet = "docs-trees" | "activity-fixtures" | "arc-fixtures";
+export type MirrorInputSet =
+  | "docs-trees"
+  | "activity-fixtures"
+  | "arc-fixtures"
+  | "floor-health-fixtures";
 
 /** One registered mirrored payload: the rules, the input protocol, plus the two probes. */
 export interface MirrorTarget {
@@ -212,6 +223,57 @@ export const MIRRORS: readonly MirrorTarget[] = [
     reference: { appDir: "apps/studio", file: "apps/studio/server/arcsMirrorProbe.ts" },
     mirror: { appDir: "apps/desktop", file: "apps/desktop/src/backend/arcs-mirror-probe.ts" },
   },
+  {
+    // THE FOURTH ROW, registered in the SAME branch that created the pair — the discipline the row
+    // above established, and the one this registry's advisory sibling exists to enforce when it
+    // lapses. `mirror-pair-drift` in `check:verification-decay` pins its ceiling at the CURRENT count,
+    // so a desktop route serving a path the studio already serves WITHOUT a row here reds gate step 9.
+    // Raising that ceiling would have been the wrong remedy: ADR-0269 permits an upward move only for
+    // a genuine enlargement of what the instrument SCANS, and a new pair is not one.
+    //
+    // THE GAP THIS CLOSES IS THE SECOND INSTANCE OF ONE CLASS, which is why the shape was copied from
+    // `/api/arcs` rather than invented. The desktop loads the COMPILED STUDIO BUNDLE against its own
+    // backend, so it ships every lens the studio gains; #1228 wired ADR-0314 D7's floor-health band to
+    // ADR-0316's instrument, and with no route on this backend the fetch 404'd and the band rendered
+    // `declined` — "the floor-health read didn't answer here". Honest rather than broken, by design,
+    // but it is not the reading, and the desktop is a surface the owner actually uses. `/api/arcs` had
+    // exactly this shape: found in #1192, closed in #1195.
+    //
+    // WHAT IS AND IS NOT AT RISK. The READING is shared code — `loadFloorHealthReading` in
+    // @storytree/drive, called by both surfaces and by `storytree factory health` — so the figure
+    // carries no re-composition risk; drive's own suites own that. What is hand-copied is the
+    // ENVELOPE: the method guard AND ITS STATED REASON, the "no document store" answer, and the
+    // `{ reading }` key. Each is a DECISION the desktop copy could silently lose, and the loss would
+    // be invisible: `apps/studio/src/lib/floorHealth.ts` keeps `declined` apart from a QUIET floor,
+    // so a mirror answering `{ reading: <a reading with no loudest> }` where its reference answers
+    // `{ reading: null }` would drive the SAME compiled band into reporting "all clear" for a floor it
+    // never measured — the precise failure ADR-0316's band exists to avoid.
+    //
+    // ONE THING IT DELIBERATELY DOES NOT ASSERT: the loud/quiet THRESHOLD. That is
+    // `LOUD_AT_RECURRENCES` in apps/studio/src/components/FloorHealthStrip.tsx — frontend, one
+    // compiled bundle, served by both surfaces, so it has no drift class and no place in a
+    // server-payload comparison. ADR-0316 D4 keeps the wire to measuring; a server that decided
+    // loudness would be the defect, not a field to compare.
+    spec: {
+      surface: "GET /api/floor-health ({reading} — the factory-floor reading)",
+      route: "/api/floor-health",
+      reference: "studio",
+      mirror: "desktop",
+      // The projection's synthetic key (`response:<label>` / `<label>:reading` / `<label>#reading`),
+      // not a payload field — see `projectFloorHealthPayload`. Spelled literally like the rows above;
+      // `FLOOR_HEALTH_KEY` is declared below this table.
+      key: "_key",
+      // EMPTY BY DESIGN: both surfaces serve this wire to the SAME compiled band, which reads every
+      // field from either. A difference here is a defect, never a deliberate narrowing.
+      referenceOnlyFields: [],
+    },
+    inputs: "floor-health-fixtures",
+    reference: { appDir: "apps/studio", file: "apps/studio/server/floorHealthMirrorProbe.ts" },
+    mirror: {
+      appDir: "apps/desktop",
+      file: "apps/desktop/src/backend/floor-health-mirror-probe.ts",
+    },
+  },
 ];
 
 /**
@@ -249,6 +311,14 @@ export const ACTIVITY_KEY = "_key";
  * than re-spelled so a future change to the name cannot move one and leave the other.
  */
 export const ARCS_KEY = ACTIVITY_KEY;
+
+/**
+ * The `/api/floor-health` projection's key field — the SAME synthetic name again, and aliased for
+ * the same reason {@link ARCS_KEY} is: this is ONE projection protocol used by three payloads, not
+ * three protocols that happen to agree, so a future change to the name cannot move one and leave the
+ * others behind.
+ */
+export const FLOOR_HEALTH_KEY = ACTIVITY_KEY;
 
 /**
  * PURE: project a `GET /api/activity` response body — `{builds, claims, departures}`, each an array
@@ -368,6 +438,84 @@ export function projectArcsPayload(body: unknown): Entry[] {
     }
     // A one-arc answer, or an error body — one entry, compared field by field.
     out.push({ ...fields, [ARCS_KEY]: `${label}#body` });
+  }
+  return out;
+}
+
+/**
+ * PURE: project a `GET /api/floor-health` probe payload — `{ [label]: { status, body } }`, one entry
+ * per request both probes replayed — into comparable {@link Entry} rows.
+ *
+ * STATUS AND BODY TOGETHER, for the reason {@link projectArcsPayload} takes them together: this
+ * route's hand-copied part is its ENVELOPE, and half of that envelope is a STATUS — the 405 that
+ * makes report-only a decision rather than an omission (ADR-0316 D4). A projection over bodies alone
+ * would compare two error objects and never notice one surface returning them under different codes.
+ *
+ * THREE ENTRY KINDS PER LABEL:
+ *
+ *   `response:<label>` — the status, the body's SHAPE and its top-level key SET. The key set catches
+ *     an envelope that gained or lost a key while every shared key still agreed.
+ *   `<label>:reading` — the reading's own shape (`null` / `object`) plus its key set. THIS IS THE
+ *     LOAD-BEARING ONE, and it is why a marker exists at all rather than only the fields below: it
+ *     keeps `{ reading: null }` — "this backend has no document store" — apart from a reading that
+ *     merely has no `loudest`, i.e. a QUIET floor. `apps/studio/src/lib/floorHealth.ts` renders those
+ *     two differently on purpose, and a missing instrument presented as "all clear" is the exact
+ *     failure ADR-0316's band exists to avoid.
+ *   `<label>#reading` / `<label>#body` — the reading's own fields compared BY NAME, or the fields of
+ *     an error body. Per-field is deliberate: a whole-body JSON-string compare would make object KEY
+ *     ORDER — not a semantic difference in JSON — a red gate, and would report a whole-payload
+ *     mismatch where the real defect is one field. `window` and `loudest` are nested objects and so
+ *     are JSON-compared as subtrees, exactly as an `ArcRollup`'s nested arrays are: both surfaces
+ *     build them with ONE shared function (`loadFloorHealthReading`), so their key order cannot
+ *     differ, and a difference in either is a real divergence rather than a formatting artifact.
+ */
+export function projectFloorHealthPayload(body: unknown): Entry[] {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error(
+      `floor-health payload must be a JSON object keyed by request label, got ${render(body)}`,
+    );
+  }
+  const out: Entry[] = [];
+  // Sorted so the entry order is the request SET, never the probe's iteration order.
+  for (const label of Object.keys(body as Record<string, unknown>).sort()) {
+    const answer = (body as Record<string, unknown>)[label];
+    if (answer === null || typeof answer !== "object" || Array.isArray(answer)) {
+      throw new Error(
+        `floor-health answer "${label}" must be a { status, body } object, got ${render(answer)}`,
+      );
+    }
+    const { status, body: payload } = answer as { status?: unknown; body?: unknown };
+    const isRecord = payload !== null && typeof payload === "object" && !Array.isArray(payload);
+    const fields = isRecord ? (payload as Record<string, unknown>) : {};
+    out.push({
+      [FLOOR_HEALTH_KEY]: `response:${label}`,
+      status: status ?? null,
+      shape: payload === null ? "null" : Array.isArray(payload) ? "array" : typeof payload,
+      keys: Object.keys(fields).sort().join(","),
+    });
+    if (!isRecord) continue;
+
+    if (Object.hasOwn(fields, "reading")) {
+      const reading = fields["reading"];
+      const readingIsRecord =
+        reading !== null && typeof reading === "object" && !Array.isArray(reading);
+      out.push({
+        [FLOOR_HEALTH_KEY]: `${label}:reading`,
+        shape: reading === null ? "null" : Array.isArray(reading) ? "array" : typeof reading,
+        keys: readingIsRecord
+          ? Object.keys(reading as Record<string, unknown>)
+              .sort()
+              .join(",")
+          : "",
+      });
+      if (!readingIsRecord) continue;
+      // The synthetic key is written LAST so a reading that happened to carry `_key` cannot
+      // displace it and collapse two entries onto one.
+      out.push({ ...(reading as Record<string, unknown>), [FLOOR_HEALTH_KEY]: `${label}#reading` });
+      continue;
+    }
+    // An error body (or any envelope with no `reading` key) — one entry, compared field by field.
+    out.push({ ...fields, [FLOOR_HEALTH_KEY]: `${label}#body` });
   }
   return out;
 }
