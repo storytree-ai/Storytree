@@ -8,29 +8,41 @@ import type { StoredDoc } from "@storytree/storage-protocol";
  * first. This is the inverse altitude of the curator's OQ-only auto-retire (curate.ts): same
  * `store.deleteDoc` rationale primitive, but a reference wall instead of the open-question fence.
  *
- * "Depends on" = an intra-library `asset:<id>` edge. That edge appears in TWO places in a doc body
- * (knowledge.ts): the shared `references: string[]` citation list AND the agent kind's refList fields
- * (`context` / `rules` / `antiPatterns`), each validated as `asset:<id>` by `AssetRef`. Rather than
- * enumerate those fields per kind, this scans EVERY string value in the body for the `asset:<id>`
- * token — so it also catches a bare `asset:foo` mentioned inline in prose, and stays correct as new
- * ref-bearing fields are added. (`tree focus`'s inbound view only reads `references[]`, so it would
- * miss an agent prompt that inlines an asset — exactly the dependency this gate must not wave through.)
+ * "Depends on" = an intra-library `asset:<id>` EDGE — a string value that IS a ref, which is exactly
+ * what every ref-bearing field in knowledge.ts declares via `AssetRef`: the shared `references:
+ * string[]` citation list, the agent kind's refList fields (`context` / `rules` / `antiPatterns`),
+ * an agent's `stepRefs[].refs`, a process's `branchEdges[].ref`, and the single `arcRef` pointer on
+ * an increment / open question. This still walks every string in the body — so a new ref-bearing
+ * field is covered the day it is added, with no per-kind list to keep — but it counts a value only
+ * when the WHOLE value is a ref.
+ *
+ * IT USED TO COUNT `asset:` ANYWHERE IN ANY STRING, INCLUDING PROSE, and that is the defect
+ * `realizing-an-entry-drops-the-friction-edge-cli-write-fidelity` closes. A friction item's
+ * `routeReason` is a long adjudication record that NAMES the artifacts it reasons about; on
+ * 2026-08-03 an inline `asset:<id>` token inside one 6433-character `routeReason` hard-refused the
+ * retire of eight proposals, and the migration had to delete through the store instead — the exact
+ * hand-path the verb exists to replace. The arc fold makes such citations MORE common, not fewer.
+ *
+ * WHAT THIS GIVES UP, on purpose: an artifact can now be retired while some other artifact's PROSE
+ * mentions it, leaving a dangling name in a sentence. A name in a paragraph was never an edge in the
+ * graph sense, nothing resolves it, and no render breaks — whereas a declared ref that dangles is a
+ * broken pull. The gate keeps the guarantee it exists to give and stops charging for the other.
+ * (`tree focus`'s inbound view reads only `references[]`, so it is still the narrower of the two.)
  */
 
-/** The `asset:<id>` token shape — mirrors `AssetRef` in @storytree/library (knowledge.ts). */
-const ASSET_REF = /asset:([A-Za-z0-9_-]+)/g;
+/** The `asset:<id>` shape — mirrors `AssetRef` in @storytree/library (knowledge.ts). Anchored. */
+const ASSET_REF = /^asset:([A-Za-z0-9_-]+)$/;
 
 /**
- * Every library `asset:<id>` this doc body references, anywhere in it: walk all string values
- * (recursing into arrays/objects) and pull the `asset:<id>` tokens. Order-free, deduped (a Set).
+ * Every library `asset:<id>` this doc body references as an EDGE: walk all string values (recursing
+ * into arrays/objects) and take the ones that ARE a ref. Order-free, deduped (a Set).
  */
 export function referencedAssetIds(doc: unknown): Set<string> {
   const ids = new Set<string>();
   const visit = (v: unknown): void => {
     if (typeof v === "string") {
-      for (const m of v.matchAll(ASSET_REF)) {
-        if (m[1] !== undefined) ids.add(m[1]);
-      }
+      const m = ASSET_REF.exec(v.trim());
+      if (m?.[1] !== undefined) ids.add(m[1]);
     } else if (Array.isArray(v)) {
       for (const item of v) visit(item);
     } else if (typeof v === "object" && v !== null) {

@@ -81,13 +81,30 @@ concurrent build of one unit.
    too-short window re-opens the very race this closes). A mid-build heartbeat that lets the window
    shrink is a named follow-on, mirroring presence's separate statusline heartbeat.
 5. **Acquired spine-side around the build, live-store-gated** (ADR-0009 "at node-schedule time";
-   ADR-0033 §3 "spine-side, no hooks"): `node build` / `story build` claim the unit before the leaf
-   runs and release it in a `finally`. The claim is **enforcing** where presence is advisory — a
+   ADR-0033 §3 "spine-side, no hooks"): `node build` / `story build` claim **the units whose leaves
+   they are about to run** — before the first leaf runs — and release them in a `finally`. The claim is
+   **enforcing** where presence is advisory — a
    refusal returns a clear envelope and the build does NOT proceed (presence swallows all failures and
    always proceeds). It is live exactly when verdicts persist (`--store pg`, i.e. `--live` / `--real`)
    and identity is worktree-derivable; a `--dry-run` (in-memory, no shared store) and a non-worktree
    build (no identity) are no-ops, mirroring presence — neither is the parallel-contention scenario.
    A failed `release()` is swallowed (the claim ages out via reclaim).
+
+   *(Corrected in place 2026-08-08 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md);
+   D5 is unchanged as a DECISION — claim spine-side, before the leaf, enforcing, live-store-gated,
+   released in a `finally` — and D2's granularity is untouched. The clause read "`node build` /
+   `story build` claim **the unit** before the leaf runs", written when a chain was assumed to have one
+   unit. It does not: a chain runs a leaf PER NODE, and `buildNodeReal` takes no claim of its own, so
+   `story build` held one claim on `story.id` INSTEAD OF its members — a proxy for a set rather than
+   this clause's per-unit take. The set it stood in for was never fenced, since `events.node_claim` is
+   keyed `(unit_id, session_id)` and `story.id` is a different row from `cap-a`: a `node build cap-a
+   --real` and a `story build <story ⊇ cap-a> --real` both proved cap-a, both signed and both billed —
+   the cascade in Context, reachable through the mechanism named for it, and the Consequences below
+   were aspirational for it until this correction. The chain now takes the claim on every member of its
+   drive order, all-or-nothing before any worktree or spend, which is what this clause asks for once
+   "the leaf" is read as the plural it always was; `story.id` is claimed only where it names work the
+   chain performs (a `uat_witness: machine` story whose UAT node is in the drive order). Landed
+   `aa293a0d`, `packages/drive/src/chain-claims.ts`, 19 cases.)*
 6. **Placement: the notice-board organism, not the library store.** The claim is presence's enforcing
    twin and the literal subject of ADR-0033 §4, so `PgClaimStore` sits beside `PgPresenceStore` in
    `@storytree/notice-board/store`, with the pure shape + reclaim predicate (`claim.ts`) in the
@@ -128,5 +145,9 @@ natural shape, not a build claim. DBOS remains deferred (ADR-0019); this is the 
 - `docs/open-questions.md` §3 (b)/(c) — claim granularity + conflict ceremony, resolved here for the
   build surface.
 - Code: `packages/notice-board/src/claim.ts` + `src/store/claim-store.ts` (the claim); `events.node_claim`
-  / `events.claim_event` in `packages/library/src/store/schema.sql`; the spine-side acquire/release in
-  `packages/drive/src/node-build.ts` (and the `story build` chain).
+  / `events.claim_event` in `packages/library/src/store/schema.sql`; the spine-side acquire/release —
+  `packages/drive/src/node-build.ts` for the single-node `node build` path (keyed on `spec.id`;
+  `buildNodeReal`, the function a chain calls, deliberately takes none), and
+  `packages/drive/src/chain-claims.ts` for the `story build` chain's all-or-nothing per-member take,
+  called from `packages/drive/src/story-build.ts`. Both compose the borrow-vs-take exit in
+  `packages/drive/src/claim-release.ts` (ADR-0199's class).
