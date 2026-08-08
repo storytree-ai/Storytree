@@ -103,6 +103,7 @@ import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { LibraryDrawer } from './LibraryDrawer.js';
 import { ArcSurface } from './ArcSurface.js';
 import { useArcRollups } from '../lib/arcRollups.js';
+import { floorHealthBand, useFloorHealth } from '../lib/floorHealth.js';
 import { readDrawerLens, DEFAULT_DRAWER_LENS, type DrawerLens } from '../lib/drawerLens.js';
 import { LibraryFinder } from './LibraryFinder.js';
 import { LibraryFocusGraph } from './LibraryFocusGraph.js';
@@ -1776,6 +1777,11 @@ export function TreeView({
   // only while that lens is open, on the shared slow cadence: no new always-on cost class.
   const arcRollups = useArcRollups(drawerLens === 'arcs');
 
+  // The factory-floor health reading behind D7's strip (ADR-0316's instrument over
+  // `GET /api/floor-health`). Same lens scoping, its OWN much slower cadence — the read scans the
+  // whole friction tier and event log for a figure that moves on a daily grain (lib/floorHealth.ts).
+  const floorHealth = useFloorHealth(drawerLens === 'arcs');
+
   // The island ground is always the Townscaper mesh (ADR-0233 — the `?substrate=` gear control is
   // retired). Live tuning (`jitter`/`iters`/`relax`/`wheatScatter`) is still read from the URL so the
   // owner can dial the mesh look in without a rebuild.
@@ -3411,7 +3417,9 @@ export function TreeView({
             /* ADR-0267 D1's PRIMARY slot: the momentum-lanes arc surface (ADR-0314). Supplement
                glue — the surface itself is proven in isolation (ArcSurface.test.tsx); this mount
                hands it the polled rollups and the world's clock and nothing else. */
-            arcsSlot={<ArcSurface arcs={arcRollups} now={now} />}
+            arcsSlot={
+              <ArcSurface arcs={arcRollups} now={now} floorHealth={floorHealthBand(floorHealth)} />
+            }
             bodySlot={
               <div className="library-lens-panes">
                 <aside className="library-side">

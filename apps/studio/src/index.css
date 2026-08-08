@@ -5728,9 +5728,10 @@ button.legend-tile:hover {
   font-style: italic;
 }
 
-/* the factory-floor health strip (ADR-0314 D7) — persistent above the lanes, quiet by default, and
-   currently UNWIRED by ADR-0316 D5 (the instrument that computes the figure lives on
-   factory-floor-health-arc). Loud is the state that must not be missable. */
+/* the factory-floor health strip (ADR-0314 D7) — persistent above the lanes, quiet by default, fed
+   by ADR-0316's instrument over GET /api/floor-health. Loud is the state that must not be missable;
+   `declined` is deliberately NOT styled as calm, because a band that looks quiet when it has no
+   figure is reporting a healthy floor on the strength of not having looked (ADR-0316 D2). */
 .floor-health-strip {
   flex: 0 0 auto;
   display: flex;
@@ -5764,12 +5765,45 @@ button.legend-tile:hover {
   margin: 0;
   padding: 0;
 }
+/* the declined band: readable as "we don't know", distinct from both quiet and loud */
+.floor-health-declined {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--lp-bar),
+    var(--lp-bar) 7px,
+    color-mix(in srgb, var(--lp-ink-soft) 8%, var(--lp-bar)) 7px,
+    color-mix(in srgb, var(--lp-ink-soft) 8%, var(--lp-bar)) 14px
+  );
+}
+.floor-health-declined .floor-health-label {
+  color: var(--lp-ink-soft);
+  font-style: italic;
+}
 .floor-health-cause {
   font-weight: 600;
+}
+a.floor-health-cause {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+a.floor-health-cause:hover {
+  text-decoration-style: solid;
 }
 .floor-health-recurrences {
   margin-left: 5px;
   color: var(--lp-clay);
+}
+/* the stated collapsing rule (ADR-0316 D3) is carried IN FULL in the DOM and the accessible name,
+   but it runs ~450 words of qualification — rendered raw it made this persistent band 100px tall and
+   pushed the lanes down whenever the floor is loud. One line, ellipsised, full text on hover. */
+.floor-health-provenance {
+  flex: 1 1 260px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── the Open document overlay (ADR-0187 dec 2, inc 8): a separate full-detail artifact view

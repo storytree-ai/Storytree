@@ -23,7 +23,8 @@
  *        because neither of its two sources is derivable yet — the refusal, and why substituting one
  *        of the mock round's rejected predicates is forbidden, lives in `BLOCKED_IS_DERIVABLE`.
  *   D7 — a persistent factory-floor health strip sits ABOVE the lanes ({@link FloorHealthStrip}),
- *        with its figure deliberately unwired per ADR-0316 D5.
+ *        fed by `GET /api/floor-health` (ADR-0316's instrument, wired 2026-08-08). The strip owns the
+ *        loud/quiet threshold; this component only passes the band through.
  *   D9 — READ-ONLY. No comment affordance, no answering in place, no write path (ADR-0267 D6). The
  *        click-through is a read; the briefing itself is authored by the escalating session
  *        (`storytree question new`, ADR-0314 D5, landed #1186), never by the owner through here.
@@ -45,15 +46,19 @@ import {
 } from '../lib/arcSurface';
 import type { ArcRollupIncrement } from '../types';
 import { ARCS_UNREACHABLE, type ArcRollupsState } from '../lib/arcRollups';
-import { FloorHealthStrip, type FloorHealthSignal } from './FloorHealthStrip';
+import { FloorHealthStrip, type FloorHealthBand } from './FloorHealthStrip';
 
 export interface ArcSurfaceProps {
   /** `undefined` while nothing has answered · `null` when the backend has no document store. */
   arcs: ArcRollupsState;
   /** Injected so every recency judgement is reproducible in a test. */
   now: Date;
-  /** The floor-health reading, when an instrument exists (ADR-0316 D5 — none does yet). */
-  floorHealth?: FloorHealthSignal | null;
+  /**
+   * What the floor-health band is reading (ADR-0314 D7, instrument ADR-0316) — already mapped from
+   * the wire by `lib/floorHealth.ts`'s `floorHealthBand`, so this component joins nothing. Absent
+   * means no reading is wired into this mount, which the band renders as such rather than as calm.
+   */
+  floorHealth?: FloorHealthBand | null;
 }
 
 export function ArcSurface({ arcs, now, floorHealth }: ArcSurfaceProps): React.JSX.Element {

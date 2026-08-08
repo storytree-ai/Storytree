@@ -31,11 +31,13 @@ proof:
       - "apps/studio/src/components/FloorHealthStrip.test.tsx"
       - "apps/studio/src/lib/arcSurface.test.ts"
       - "apps/studio/src/lib/arcRollups.test.ts"
+      - "apps/studio/src/lib/floorHealth.test.ts"
     sourceGlobs:
       - "apps/studio/src/components/ArcSurface.tsx"
       - "apps/studio/src/components/FloorHealthStrip.tsx"
       - "apps/studio/src/lib/arcSurface.ts"
       - "apps/studio/src/lib/arcRollups.ts"
+      - "apps/studio/src/lib/floorHealth.ts"
 ---
 
 # The arc lens — an owner arriving cold is oriented from the map's top drawer alone
@@ -56,26 +58,27 @@ capability produces, the same same-file-adjacency-is-not-an-edge call `coalesced
 > landed through ordinary sessions (#1186, #1191, #1195) and its tests were written alongside it.
 > That is what `mapped` records (ADR-0094), and it is why there is no `real:` arm.
 >
-> **The outcome half — `apps/studio/src/components/ArcSurface.test.tsx`, 18 tests.** A jsdom render
+> **The outcome half — `apps/studio/src/components/ArcSurface.test.tsx`, 19 tests.** A jsdom render
 > of the REAL `ArcSurface` over real `ArcRollup[]` props, holding the lens to ADR-0314 decision by
 > decision (D1/D2/D3/D4/D7/D9) plus the four-answer absence contract. No stub sits between the
 > in-story collaborators: the component under test imports the real derivation (`lib/arcSurface.ts`),
 > the real state vocabulary (`lib/arcRollups.ts`) and the real strip (`FloorHealthStrip.tsx`), and
 > exercises all four through one render. That is the integration proof.
 >
-> **The leaf half — 40 further tests** across `arcSurface.test.ts` (24), `arcRollups.test.ts` (9)
-> and `FloorHealthStrip.test.tsx` (7). These are the contracts below.
+> **The leaf half — 63 further tests** across `arcSurface.test.ts` (24), `FloorHealthStrip.test.tsx`
+> (15), `floorHealth.test.ts` (15) and `arcRollups.test.ts` (9). These are the contracts below.
 >
 > **The stated gap — the DATA layer is proven, but never against the real route.**
-> `arcRollups.test.ts` drives `useArcRollups` with a stubbed `api.arcs()`, and
-> `ArcSurface.test.tsx` takes rollups as props and declares its own fence in its header (*"No
-> backend seam (no `api`, no fetch, no socket, no DB)"*). So nothing in this capability's scope ever
-> calls `GET /api/arcs` for real. The route's own payload IS covered — by
-> [`mirrored-route-conformance`](../desktop/mirrored-route-conformance.md), whose `/api/arcs`
-> registry row replays the real dispatcher over fixture arc stores — but that is a different
-> capability in a different story, and it proves the desktop's copy matches the studio's rather than
-> proving this lens reads it. The seam between the two is asserted nowhere. Recorded here, not
-> implied.
+> `arcRollups.test.ts` drives `useArcRollups` with a stubbed `api.arcs()`, `floorHealth.test.ts`
+> drives `useFloorHealth` with a stubbed `api.floorHealth()`, and `ArcSurface.test.tsx` takes its
+> props already-shaped and declares its own fence in its header (*"No backend seam (no `api`, no
+> fetch, no socket, no DB)"*). So nothing in this capability's scope ever calls `GET /api/arcs` or
+> `GET /api/floor-health` for real. Both routes' own payloads ARE covered, and by suites OUTSIDE this
+> capability: `/api/arcs` by [`mirrored-route-conformance`](../desktop/mirrored-route-conformance.md),
+> whose registry row replays the real dispatcher over fixture arc stores, and `/api/floor-health` by
+> `apps/studio/server/floorHealthApi.integration.test.ts`, which drives the real handler over a real
+> `node:http` server. Neither proves that THIS lens reads what they serve. The seam between the two
+> halves is asserted nowhere. Recorded here, not implied.
 >
 > **A second gap, smaller and named rather than folded in.** `useArcRollups`'s poll is driven
 > through fake timers against a stubbed client, so the REAL cadence constant it imports
@@ -106,7 +109,12 @@ by layer — a data hook, a pure derivation, a component, a strip — which is e
   `ArcRollup[]`) and one observable (the rendered lens).
 - **The dependency runs one way and the graph stays acyclic.** `arcRollups` → `arcSurface` →
   `ArcSurface` → `FloorHealthStrip` is a single chain with no back-edge; nothing upstream needs
-  anything the downstream delivers.
+  anything the downstream delivers. `lib/floorHealth.ts`, the fifth file (added when the strip's
+  figure was wired), sits beside `arcRollups` on the same rung and is the same shape of thing: a
+  drawer-scoped poll plus a mapping whose only consumer is this component. Its one `import type` from
+  `FloorHealthStrip.tsx` is deliberate rather than a cycle — the volume fence is a TYPE with nowhere
+  to put a filing count, so it belongs where its justification is written, and a type-only edge
+  carries nothing at runtime.
 
 **WHY THE OUTCOME IS "ORIENTED" AND NOT "READS EVERY ARC'S STANDING", AND WHY THAT IS WHAT LETS THE
 STRIP BE IN THE ORGAN.** This is the one live fork in authoring this unit, so it is recorded rather
@@ -132,13 +140,26 @@ strip is the fourth. Under that outcome it is INSIDE the organ, and three indepe
 3. **The integration proof already covers it**: `ArcSurface.test.tsx:206` asserts the strip renders
    and precedes the lanes in document order.
 
-**NO NODE IS AUTHORED FOR THE INSTRUMENT, AND THE UNWIRED FIGURE IS NOT A GAP IN THIS UNIT.**
-ADR-0316 D1–D4 moved the measurement to `factory-floor-health-arc`; D5 gives this component its
-orders verbatim — *"build the strip's frame and leave the figure unwired rather than substitute a
-volume count."* `TreeView.tsx:3369` renders `<ArcSurface arcs={arcRollups} now={now} />` with no
-`floorHealth` prop, so `signal` is `null` on every real render and the band reads `unwired`. That is
-the DECIDED state, not a defect and not a TODO, and contract 8 below is what keeps it honest. A
-future session must not read the absent figure as work this capability owes.
+**NO NODE IS AUTHORED FOR THE INSTRUMENT, AND THE FIGURE IS NOW WIRED TO IT.** ADR-0316 D1–D4 moved
+the MEASUREMENT to `factory-floor-health-arc`, and it landed there in #1215 as `storytree factory
+health`. This organ consumes it and computes none of it: `GET /api/floor-health` serves drive's
+`loadFloorHealthReading` — the same composition the CLI prints under "THE READING" — and
+`lib/floorHealth.ts` polls it and maps it to what the strip may hold. What this unit owns on top of
+the reading is exactly two things, and both are rendering calls rather than measurement:
+
+- **The loud/quiet THRESHOLD** (`LOUD_AT_RECURRENCES` in `FloorHealthStrip.tsx`), which ADR-0314 D7
+  left unstated and ADR-0316 D4 deliberately kept out of the instrument — *the band that reads the
+  figure decides*. It is 2, and the constant carries its reasoning: at ≥1 the band was loud on its
+  first day and permanently, because the loudest live cause on 2026-08-08 had recurred exactly once.
+- **What a DECLINE looks like.** ADR-0316 D2's refusal is the instrument's; honouring it is the
+  band's. A pending read and a stated decline each get their own state, and neither falls back to
+  `quiet` — reporting a healthy floor on the strength of not having looked is the one reading this
+  band must never produce.
+
+Contracts 8 and 10 below are what keep both honest, and contract 8 still fences the volume rule that
+survived the wiring unchanged: the signal shape has nowhere to put a filing, session or report count,
+and the mapping drops the reading's own population figures (`distinctCauses`, `unjoined`, `members`)
+rather than passing them through.
 
 **WHY THIS IS A `studio` CAPABILITY, and the two rejected homes.**
 
@@ -190,7 +211,7 @@ two: still-loading, read-never-answered, store-absent and store-empty each rende
 `mapped` (observational); the prove-it-gate did not drive it. The `GET /api/arcs` seam and the live
 poll cadence are exercised nowhere in this scope — the stated gaps recorded above, not claimed here.
 
-## Contracts (9)
+## Contracts (10)
 
 The test-proven leaf behaviours — each **one isolated automated test** with collaborators stubbed
 (ADR-0002). Every contract here has a REAL passing test (`proven by`).
@@ -255,20 +276,24 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **covers —** `apps/studio/src/lib/arcSurface.ts:273-290`
    - **proven by —** `apps/studio/src/lib/arcSurface.test.ts:265`, `:282`, `:288`, `:298`, `:304`
      (REAL, passing)
-8. **`the-floor-band-shows-no-figure-it-does-not-have`** — the ADR-0316 D5 unwired state, and the
-     volume count that must never stand in for it
-   - **asserts —** with no signal the band renders `unwired` and NAMES where the instrument is being
-     built, showing no figure at all; a signal with no recurring bottleneck reads `quiet` with its
-     window attached; a signal with bottlenecks goes `loud`, naming each distinct cause and its
-     recurrences SINCE ROUTING, and prints the collapsing rule beside the figure (ADR-0316 D3 — a
-     distinctness count whose rule is hidden is just a different unaudited number); the signal shape
-     carries NO filing / session / report / total field at all, so a hundred reports of one
-     bottleneck can never score like a hundred reports of a hundred; and the band offers no
-     affordance to discharge, route or dismiss, because ADR-0316 D4 keeps adjudication with the
-     graduation-synthesist and a dismiss button would be adjudicating.
-   - **covers —** `apps/studio/src/components/FloorHealthStrip.tsx:48-137`
-   - **proven by —** `apps/studio/src/components/FloorHealthStrip.test.tsx:23`, `:31`, `:40`, `:64`,
-     `:78`, `:86`, `:97` (REAL, passing)
+8. **`the-floor-band-shows-no-figure-it-does-not-have`** — the volume count that must never stand
+     in for a reading, and the two states that must never read as calm
+   - **asserts —** the signal shape carries NO filing / session / report / total field at all, so a
+     hundred reports of one bottleneck can never score like a hundred reports of a hundred; with no
+     signal the band renders `unwired` showing no figure whatsoever; a read still in flight reads
+     `reading` and a stated DECLINE reads `declined` naming the condition that stopped it — neither
+     collapses into `quiet`, because a healthy floor reported on the strength of not having looked is
+     the one answer this band must never give (ADR-0316 D2 carried to the renderer); a reading with
+     no recurring bottleneck reads `quiet` with its window attached; a reading past the threshold
+     goes `loud`, naming each qualifying cause and its recurrences SINCE ROUTING, deep-linking each
+     into its Library artifact, and printing the collapsing rule beside the figure (ADR-0316 D3 — a
+     distinctness count whose rule is hidden is just a different unaudited number); and the band
+     offers no affordance to discharge, route or dismiss, because ADR-0316 D4 keeps adjudication with
+     the graduation-synthesist and a dismiss button would be adjudicating.
+   - **covers —** `apps/studio/src/components/FloorHealthStrip.tsx` (`FloorHealthStrip`, its band
+     types and `LOUD_AT_RECURRENCES`)
+   - **proven by —** `apps/studio/src/components/FloorHealthStrip.test.tsx:26`, `:33`, `:42`, `:57`,
+     `:63`, `:74`, `:97`, `:108`, `:114`, `:122`, `:133` (REAL, passing)
 9. **`four-answers-four-different-facts-and-a-blip-is-not-one-of-them`** — the #1191 regression, and
      the distinction the endpoint itself insists on
    - **asserts —** the hook fetches nothing while closed and fetches IMMEDIATELY the instant it
@@ -284,3 +309,22 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **covers —** `apps/studio/src/lib/arcRollups.ts:53-78`
    - **proven by —** `apps/studio/src/lib/arcRollups.test.ts:62`, `:74`, `:90`, `:98`, `:105`,
      `:115`, `:123`, `:135`, `:146` (REAL, passing)
+10. **`the-floor-reading-crosses-the-wire-without-its-population-counts`** — the mapping, the two
+      delays, and the guard that stops one open lens from scanning the corpus twice
+    - **asserts —** the reading becomes a signal carrying the loudest cause de-slugged into the
+      owner's language, its recurrence, the window (both bounds open ⇒ "all history → now") and the
+      collapsing rule — and NOTHING ELSE: `distinctCauses`, `unjoined` and `members` are DROPPED, all
+      three being counts over a population rather than one cause coming back, and the last of them a
+      filing count wearing a collapse label. Each of the four wire answers maps to its own band arm
+      and none of them maps to a reading with zero bottlenecks, which is what "the floor is fine"
+      looks like. The hook fetches nothing while the lens is closed, fetches immediately on open,
+      and then runs TWO delays off one timer: a success is left alone for the long cadence (the read
+      scans the whole friction tier and event log for a figure that moves on a daily grain) while a
+      FAILURE comes back on the short one, so a cold-start blip is not five minutes of "no reading".
+      A failure with nothing yet known reports `unreachable`; once anything is known a later failure
+      keeps it. And a second effect invocation while a read is in flight fires NO second read — the
+      StrictMode double-invoke, measured against the live route as two contending whole-corpus scans
+      whose first response landed against a torn-down closure while the second aborted.
+    - **covers —** `apps/studio/src/lib/floorHealth.ts`
+    - **proven by —** `apps/studio/src/lib/floorHealth.test.ts:51`, `:68`, `:81`, `:87`, `:97`,
+      `:101`, `:109`, `:114`, `:139`, `:146`, `:161`, `:171`, `:181`, `:204`, `:212` (REAL, passing)

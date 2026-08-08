@@ -13,6 +13,7 @@ import type {
   DbStatus,
   DocContent,
   DocMeta,
+  FloorHealthPayload,
   GuidanceAsset,
   InviteResult,
   MeInfo,
@@ -265,6 +266,17 @@ export const api = {
   // arcs lens is open, not on the world's poll cadence.
   arcs: (): Promise<ArcsPayload> =>
     http('/api/arcs', { signal: AbortSignal.timeout(10_000) }),
+  // The factory-floor health reading behind the arc surface's strip (ADR-0314 D7 / ADR-0316 D5) —
+  // drive's `loadFloorHealthReading`, the SAME composition `storytree factory health` prints. Same
+  // advisory contract as arcs: a backend with no document store answers `{reading: null}`, which is
+  // a different fact from a quiet floor. Fetched on its OWN slow cadence (lib/floorHealth.ts): the
+  // reading scans the whole friction tier and event log, and the floor moves on a daily grain.
+  // A LONGER backstop than its neighbours, and the number is measured rather than picked: the read
+  // is ~2-4 s warm but runs while the page is still pulling the whole tree, and at 10 s it aborted
+  // TWICE on a cold load before its third attempt answered — so the band spent the first ~45 s of a
+  // page load saying "no reading" when the honest answer was "still reading".
+  floorHealth: (): Promise<FloorHealthPayload> =>
+    http('/api/floor-health', { signal: AbortSignal.timeout(30_000) }),
   // UI-driven build (ADR-0090 Phase 1 "the local loop"). build() posts a build INTENT (a safe
   // write — never a verdict); buildStatus() polls the run's coarse transcript + status. The frontend
   // imports NO build code (ADR-0004) — its only path to a build is these two endpoints.

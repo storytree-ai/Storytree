@@ -73,6 +73,10 @@ export * from "./noticeboard-history.js";
 // CONSUMER, and the studio server cannot import `@storytree/cli`. The CLI renders these; nothing
 // here writes, gates or adjudicates (D1/D4).
 export * from "./factory-health.js";
+// The store-reading half of that instrument — the ONE composition that turns a live store into the
+// floor-health reading, so `storytree factory health` and `GET /api/floor-health` cannot compose the
+// same three reads slightly differently.
+export * from "./factory-health-read.js";
 export * from "./coupling-churn.js";
 // Claim-release honesty (the second instance of the ADR-0199 class): a run releases only the claim
 // its OWN take created, and every release that is not an explicit ceremony names the claim, the
