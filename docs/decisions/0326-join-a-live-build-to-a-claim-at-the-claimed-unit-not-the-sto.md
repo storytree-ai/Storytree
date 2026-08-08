@@ -1,15 +1,24 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-08-09
 amends: [212]
 ---
 # ADR-0326: Join a live build to a claim at the claimed unit, not the story
 
 ## Status
 
-proposed (2026-08-08) — the owner directed the REPAIR of ADR-0212's fold in conversation on
-2026-08-08 and explicitly delegated the choice of remedy ("weigh them yourself"), so this is not the
-design-time alignment ADR-0110 ratifies. The fix lands with the ADR proposed; the ratification ask is
-the one clause the owner still owns.
+accepted (2026-08-09) — RATIFIED by the owner in conversation ("accept ADR-0326"), which is the green
+flip ADR-0084 permits once the decision is made and the prose supports it.
+
+It was born `proposed` on 2026-08-08 rather than accepted, and the distinction is worth keeping: the
+owner directed the REPAIR of ADR-0212's fold and explicitly delegated the choice of remedy ("weigh
+them yourself"), so ADR-0110's design-time alignment did not apply — a delegated call is not a
+directed one. The fix therefore LANDED first (PR #1226) with the decision still open, and the
+ratification was asked as an `open-question` artifact on `parallel-red-green-arc`
+(`ratify-adr0326-claimed-unit-join`, ADR-0314 D5) rather than in chat alone. This flip closes it. The
+owner ratified the recommended arm, Option A: take the claimed-unit join now and keep the
+`events.work_event` session stamp named-but-unbuilt as the closure for the residual named in
+Consequences.
 
 **Amends** [ADR-0212](0212-one-wisp-per-session-merge-the-build-wisp-into-the-claim-lif.md) — it
 replaces ONE clause, the join key. ADR-0212's three channels (position = stage, colour = intent,
