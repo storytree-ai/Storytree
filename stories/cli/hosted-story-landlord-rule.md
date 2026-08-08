@@ -13,10 +13,20 @@ depends_on: []
 # already exist at HEAD — the leaf ADDS a new BLOCKING rule (the hosted-story landlord rule) to the
 # existing `checkBoundaries` in packages/cli/src/boundaries.ts, plus the two new OPTIONAL BoundaryInput
 # fields it reads (unitSourceFiles, dirOwners), and ADDS exhaustive cases to
-# packages/cli/src/boundaries.test.ts. The red is a runtime-assertion red: the new cases feed a
-# hosted-story fixture to checkBoundaries AS IT STANDS AT HEAD (where the rule does not exist), so they
-# assert a landlord violation that is NOT yet produced — a behaviour red against the source at HEAD —
-# and green is the added rule. NO `install`: the test imports ONLY node:test, node:assert/strict, and
+# packages/cli/src/boundaries.test.ts. DELIVERED red→green BY THE SPINE (2026-08-09 correction, ADR-0139
+# correct-in-place): the `--real` build run `real-mrj75utd` was promoted as the spine-authored commit
+# "storytree real build real-mrj75utd: hosted-story-landlord-rule (authored by the gated leaf)", and
+# promotion happens only on a SIGNED PASS verdict (`promoteRealPass`), so the gate did observe this
+# red→green. At HEAD `checkHostedStoryLandlord` and the two optional `unitSourceFiles`/`dirOwners` fields
+# are present in packages/cli/src/boundaries.ts, the rule is CALLED from `checkBoundaries` in that same
+# file, and it is covered by passing cases in packages/cli/src/boundaries.test.ts (via the `landlordOnly`
+# isolation helper). The authored `status: proposed` above is the BASELINE the node rollup augments from
+# that signed verdict — it is NOT a claim the work is unbuilt, and it is not flipped here because
+# `healthy` is non-authorable (ADR-0020) and `mapped` would falsely deny the gate-driven proof. A re-run
+# of this node must start from a genuine red; the red it WAS built against was a runtime-assertion red —
+# the new cases fed a hosted-story fixture to checkBoundaries as it stood before the rule existed, so they
+# asserted a landlord violation that was not yet produced, and green was the added rule.
+# NO `install`: the test imports ONLY node:test, node:assert/strict, and
 # ./boundaries.js (relative); boundaries.ts itself imports nothing (no zod, no @storytree/*, no node:
 # builtins) and must STAY that way — so the proof runs OFFLINE in a bare worktree with no lockfile
 # install (and therefore no typecheck wall is required). Single LITERAL sourceFile (no `*`), and
@@ -145,7 +155,11 @@ unlike the ADR-0115 drift report it sits near in the file, which only WARNs.
      - **`unitSourceFiles` absent → no landlord violations** — with `unitSourceFiles` omitted the rule is
        SKIPPED entirely: even a fixture that would otherwise trip it (hostile dep-graph / story-graph
        inputs present) produces no landlord violation.
-   - **proven by —** `packages/cli/src/boundaries.test.ts` (the leaf ADDS these cases inside the gate's
-     AUTHOR_TEST phase; the red — the new cases asserting a landlord violation `checkBoundaries` does not
-     yet produce at HEAD — is observed by the spine before the rule is added to
-     `packages/cli/src/boundaries.ts`).
+   - **proven by —** `packages/cli/src/boundaries.test.ts` — the `rule 5 (landlord): …` cases, passing at
+     HEAD against `checkHostedStoryLandlord` in `packages/cli/src/boundaries.ts` (defined there and called
+     from `checkBoundaries` in the same file). They were authored by the leaf inside the gate's AUTHOR_TEST
+     phase, through the suite's `landlordOnly` isolation helper (`packageDeps: {}` to sidestep the other
+     rules, an already-acyclic `storyGraph`/`consumedBy` to keep the cycle rule silent); the red — those
+     cases asserting a landlord violation `checkBoundaries` did not yet produce — WAS observed by the spine
+     before the rule was added, and the resulting signed pass promoted the build (`--real` run
+     `real-mrj75utd`).

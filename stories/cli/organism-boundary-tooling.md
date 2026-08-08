@@ -39,8 +39,12 @@ imports.
 - **The blocking gate (ADR-0074) is brownfield (`mapped`).** The subgraph check + the v2 source-import
   scan + acyclicity (`checkBoundaries`, `mergeDeclaredGraph`, `findCycle`, `extractImports`, …) have a
   real, passing, OFFLINE suite, but storytree's prove-it-gate never DROVE them red→green — so they are
-  observationally verified `mapped`, not `healthy`. The `boundary-judge-subgraph` contract records that
-  honestly; it is not a net-new `--real` build.
+  observationally verified `mapped`, not `healthy`; it is not a net-new `--real` build. **That posture is
+  recorded HERE — in this capability and in the contract-list entry below — and in NO contract file,
+  because `boundary-judge-subgraph` was never authored** (2026-08-09 correction, ADR-0139
+  correct-in-place). It is a real, intended unit and keeps its place in the list below, but there is no
+  `stories/cli/boundary-judge-subgraph.md`: do not go looking for one, and do not cite it as the record of
+  anything. Bounding and authoring that contract is a separate, still-open decision.
 - **The drift report (ADR-0115) is a non-blocking SIBLING to the gate**, not a change to it: the gate
   still REFUSES undeclared real couplings; the report only WARNS about declared edges with no code
   backing, surfacing drift candidates for periodic human / `librarian-curator` review. It reuses the
@@ -48,7 +52,8 @@ imports.
   authoring burden, no new language, no build step. **It was AUTHORED as this capability's net-new
   provable slice but was DELIVERED by hand**, in an ordinary `feat(cli)` commit rather than a `--real`
   build, so storytree's gate never drove it red→green either — it is `mapped` on the same brownfield
-  honesty as `boundary-judge-subgraph`, and its `real:` arm is retained for a future re-proof. The two
+  honesty the bullet above records for the blocking gate, and its `real:` arm is retained for a future
+  re-proof. The two
   blocking rules below (`hosted-story-landlord-rule`, `packages-forward-refusal`) are this capability's
   only spine-driven red→green work.
 - **The report does NOT auto-classify legitimate-vs-drift.** A declared-but-unbacked edge is frequently
@@ -91,6 +96,13 @@ The integration test would:
 
 1. **`boundary-judge-subgraph`** — the blocking judge: a real cross-organism code edge with no declared
    cross-story edge is a violation; acyclicity + the source-import scan hold (ADR-0074, brownfield)
+   - **UNAUTHORED — there is no contract file.** `stories/cli/boundary-judge-subgraph.md` was never
+     written, so THIS entry is the only place in `stories/` the unit is recorded (2026-08-09 correction,
+     ADR-0139 correct-in-place). The entry stays because the unit is real and intended, and the behaviour
+     described below is a true account of code shipping at HEAD — `checkBoundaries`, `mergeDeclaredGraph`,
+     `findCycle` and `extractImports` are all exported from `packages/cli/src/boundaries.ts` and covered by
+     the existing offline suite. What is missing is the authored contract, not the code. Bounding it is a
+     separate, still-open decision.
    - **asserts —** `checkBoundaries` reports an undeclared cross-story coupling when a package's real
      `@storytree/*` dependency is not covered by either endpoint's declaration (`depends_on` ∪
      `consumed_by`), accepts a covered edge, flags a cross-story cycle in the merged declared graph, and
