@@ -31,6 +31,20 @@ Storytree's build work splits along a clean line the Library already names in pr
   the decision log honest, adjudicating accumulated signal, authoring the behavioural floor). These
   warrant Opus.
 
+*(Corrected in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).
+The SPLIT below is unchanged and is still the live rule — what changed is one roster assignment and the
+roster's size. **`librarian-curator` is no longer a judgment subagent and no longer warrants Opus:**
+[ADR-0324](0324-the-librarian-pass-is-trigger-gated-and-split-not-per-landin.md) D3 re-classified it to
+the WORKHORSE side and flipped it to `sonnet`, on the ground that sweep-compare-correct against an
+explicit standard — is this prose still true, does this edge exist, is this status a projection of the
+`## Status` prose — is mechanical work, not a judgment call; the seats that DECIDE what is true
+(`graduation-synthesist`, `guidance-curator`) stay on Opus, which is exactly this ADR's split applied
+correctly. A tenth delegatable agent, `explorer` (`sonnet`), joined the workhorse side via
+[ADR-0325](0325-exploration-is-delegated-to-a-disposable-context-leaf-and-ev.md) D1/D2, and `planner`
+(`opus`, ADR-0183 D5) postdates this ADR — so neither list above is a current roster. Per ADR-0052 §2
+the generated agent files, never a list in an ADR, are the roster of record; ask
+`storytree library artifact list agent`.)*
+
 Until now every delegatable subagent inherited the spawning session's model (ADR-0178 §3 for Cursor;
 `.claude/agents` files carried no `model:` line at all, which the Claude harness also treats as
 inherit). So when the orchestrator session runs on Opus — the correct default for the planning loop —

@@ -1,5 +1,5 @@
 import type { Store } from "@storytree/storage-protocol";
-import { renderAgentEssentials, renderAgentStep } from "@storytree/library/store";
+import { renderAgentEssentials, renderAgentStep, resolveAgentAlias } from "@storytree/library/store";
 
 import { emitNodeEnvelope, type Envelope } from "./envelope.js";
 
@@ -19,7 +19,9 @@ import { emitNodeEnvelope, type Envelope } from "./envelope.js";
  * `storytree library artifact <id>` / `--step` affordances the essentials view points at.
  */
 export async function agentsCommand(store: Store, name: string | undefined): Promise<Envelope> {
-  const result = await renderAgentEssentials(store, name);
+  // an alias resolves to the canonical id first (ADR-0325 D4) — a real id always wins, and an
+  // unknown name passes through unchanged so the fail-closed branch below reports what was typed.
+  const result = await renderAgentEssentials(store, await resolveAgentAlias(store, name));
   if (!result.ok) {
     return {
       ok: false,
@@ -53,7 +55,9 @@ export async function agentStepCommand(
   name: string | undefined,
   step: string | undefined,
 ): Promise<Envelope> {
-  const result = await renderAgentStep(store, name, step);
+  // the same alias resolution as `agentsCommand`, so `--step` works under either name (ADR-0325 D4)
+  const resolved = await resolveAgentAlias(store, name);
+  const result = await renderAgentStep(store, resolved, step);
   if (!result.ok) {
     const next =
       result.steps.length > 0

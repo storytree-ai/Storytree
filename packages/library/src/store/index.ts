@@ -51,6 +51,10 @@ export {
   renderCodexAgentFile,
   renderAgentStep,
   delegatableAgentIds,
+  // ADR-0325 D4: discovery aliases — the reader, the description renderer, and the CLI-side resolver.
+  agentAliases,
+  agentDescriptionFrontmatter,
+  resolveAgentAlias,
   essentialsGateViolations,
   estimateTokens,
   ESSENTIALS_TOKEN_BUDGET,

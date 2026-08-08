@@ -880,6 +880,19 @@ export const Agent = buildKindSchema("agent").extend({
   // migration, and the discriminated union + `.strict()` fail-closed are preserved (the `stepRefs`
   // precedent). Frontmatter-only metadata; the renderers read it, the body never does.
   model: AgentModel.optional(),
+  // DISCOVERY synonyms for this agent (ADR-0325 D4) — the names a session might reach for when it
+  // wants this role but does not know its canonical id (`explorer` ← `scout`, `probe`). The `model`
+  // precedent exactly: OPTIONAL schema-level metadata the renderers read into frontmatter, never a
+  // KIND_SPECS body section, so it does not round-trip through markdown and every existing agent doc
+  // still validates with NO `CURRENT_SCHEMA_VERSION` bump / migration; `.extend()` preserves
+  // `.strict()` and the `kind` literal, so the discriminated union is unaffected.
+  //
+  // An alias is a SYNONYM IN THE INDEX, NOT A SECOND DOOR. It renders into the generated
+  // `description` so the agent is findable under either name; the canonical spawn name stays the
+  // artifact id, because the harness resolves `subagent_type` by the `name:` frontmatter alone and
+  // minting a duplicate agent FILE per alias would add per-session preamble weight to every session
+  // (the cost ADR-0323 D3 exists to hold down) purely to save typing.
+  aliases: z.array(z.string().min(1)).optional(),
 });
 // The `friction` kind (ADR-0168 D2) tightens THREE fields beyond its KIND_SPECS table via
 // `.extend()` (the `stepRefs`/`branchEdges` precedent — `.strict()` and the `kind` literal are

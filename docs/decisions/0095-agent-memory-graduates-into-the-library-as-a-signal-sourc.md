@@ -167,6 +167,19 @@ pipeline; it is one more source feeding the conceived one.**
    → retro → librarian pass → merge* — and the pass gains a bounded friction-drain duty: hygiene-check
    newly filed friction and drain the K oldest routable items, with a fail-closed worklist ceiling as
    the backstop.)*
+   *(Amended by [ADR-0324](0324-the-librarian-pass-is-trigger-gated-and-split-not-per-landin.md)
+   D1/D2: **"curate + graduate" as one unconditional pass no longer holds.** The pass SPLITS into two
+   halves with different triggers, because one is perishable and the other is repairable by anyone.
+   **Graduation** — this Decision's own subject, and the D4/D6/D8 machinery — is unchanged: session-local,
+   every landing, no trigger, and the ordering fence above is preserved for it verbatim (it is the reason
+   the fence exists). **Decision-log curation** is now TRIGGERED: it fires only when the branch's diff
+   touches a curated surface (`docs/decisions/**`, `stories/**`, the generated guidance projections) or
+   the session wrote a live `agent`/`principle`/`guardrail`/`pattern`/`process` artifact — a mechanical,
+   fail-wide test, not a judgment call. Measured basis: the pass is 8.7% of session spend and every run
+   of it found real corrections, but four sessions in ten ran none and needed none
+   ([ADR-0323](0323-session-cost-is-input-side-context-rent-not-output.md)). The narrowing rests on
+   decision-log staleness being SHARED — any later branch's curator repairs it — which is precisely what
+   is NOT true of graduation.)*
 
 8. **The bar is genuine durability — no Library bloat.** (Owner's primary guardrail.) The librarian
    graduates **only** material that is genuinely durable, general, and **not** already reconstructible
@@ -238,9 +251,16 @@ and agent-memory is one more source; **delete-after-graduation** over a backlink
 - the inner-loop-provable **engine** `(memory, library) → candidates[]` (Decision 3), under
   `feedback-graduation`;
 - the **agent-definition edits** — `librarian-curator` (it graduates, derives definitions/principles for
-  guidance) and `session-orchestrator` (it runs the librarian pass before each merge ceremony) — which
-  are **seed-canonical** ([ADR-0055](0055-the-library-agent-tier-is-seed-canonical-sync-agents-reconci.md)):
-  edit `knowledge.json`, regenerate (`pnpm build:claude`), `sync-agents --pg`;
+  guidance) and `session-orchestrator` (it runs the librarian pass before each merge ceremony).
+  *(Corrected in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md):
+  this bullet originally routed the edits through the seed — "seed-canonical (ADR-0055): edit
+  `knowledge.json`, regenerate, `sync-agents --pg`". **That path no longer exists.**
+  [ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md) D1 supersedes ADR-0055
+  and makes the agent tier live-canonical like every other tier;
+  [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md) D1/D4 DELETED both
+  `knowledge.json` and the `sync-agents` ceremony. The live flow is now two steps:
+  `storytree library artifact edit <id> --pg`, then `pnpm build:guidance && pnpm build:agents` to
+  regenerate the committed projections.)*
 - the **guidance-render wiring** so derived definitions/principles surface in `CLAUDE.md` / the leaf
   prompt (ADR-0051/0053).
 
@@ -258,7 +278,12 @@ and agent-memory is one more source; **delete-after-graduation** over a backlink
 - [ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) /
   [ADR-0053](0053-cli-builds-its-guidance-prose-from-the-library.md) — the agent-guidance render
   pipeline derived definitions/principles flow into (Decision 4); [ADR-0055](0055-the-library-agent-tier-is-seed-canonical-sync-agents-reconci.md)
-  — the agent tier is seed-canonical (the follow-on agent edits).
+  — the agent tier WAS seed-canonical (the follow-on agent edits); **superseded by
+  [ADR-0307](0307-the-agent-tier-goes-live-canonical-the-committed-seed-stops.md) D1** — it is now
+  live-canonical, and ADR-0055 is retained as browsable history only.
+- [ADR-0324](0324-the-librarian-pass-is-trigger-gated-and-split-not-per-landin.md) — **amends Decision 7**:
+  the pass splits, graduation stays unconditional, decision-log curation becomes trigger-gated.
+  [ADR-0323](0323-session-cost-is-input-side-context-rent-not-output.md) — the measurement behind it.
 - [ADR-0030](0030-all-in-on-claude-agent-sdk.md) — the human owns the outer loop; the transitional outer
   loop whose eventual removal makes this bridge load-bearing.
 - [ADR-0069](0069-parameterise-the-forest-world-geometry-as-a-procedural-pipel.md) /
