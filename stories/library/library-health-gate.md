@@ -40,9 +40,11 @@ The five checks: schema-conformance / retired-field / version-floor are GATE-cla
 
 ## Integration test
 
-**Goal —** Run the real health engine over the REAL seed corpus — `loadFixtureCorpus` into an `InMemoryStore`, `queryDocs`, then `libraryHealth` — and assert `gateFailures()` is EMPTY, proving the stamped seed clears the GATE-class checks so the ADR-0022 `pnpm -r test` run enforces migration/seed health offline.
+**Goal —** Run the real health engine over the frozen FIXTURE corpus — `loadFixtureCorpus` into an `InMemoryStore`, `queryDocs`, then `libraryHealth` — and assert `gateFailures()` is EMPTY, proving the GATE-class checks classify a known-clean corpus correctly so the ADR-0022 `pnpm -r test` run enforces the health ENGINE offline.
 
-Real collaborators, no stubs: the integration-flavoured proof is `packages/cli/src/health.test.ts:191-203` (passing): `loadFixtureCorpus` (the real `@storytree/library/fixture` loader) into a real `InMemoryStore`, `queryDocs`, then `libraryHealth` — asserts `gateFailures()` is EMPTY (schema-conformance + retired-field + version-floor all clean on the stamped seed). That is exactly what makes `pnpm -r test` (ADR-0022) enforce migration/seed health offline, wiring two real collaborators (the health checks + the fixture loader `loadFixtureCorpus`) with no stub.
+Real collaborators, no stubs: the integration-flavoured proof is `packages/cli/src/health.test.ts:191-203` (passing): `loadFixtureCorpus` (the real `@storytree/library/fixture` loader) into a real `InMemoryStore`, `queryDocs`, then `libraryHealth` — asserts `gateFailures()` is EMPTY (schema-conformance + retired-field + version-floor all clean on the fixture). That is exactly what makes `pnpm -r test` (ADR-0022) enforce the health engine offline, wiring two real collaborators (the health checks + the fixture loader `loadFixtureCorpus`) with no stub.
+
+**The subject is the JUDGE, not the corpus, and this wording was corrected on 2026-08-08 to say so.** It read "the REAL seed corpus … proving the stamped seed clears the GATE-class checks", which was true while `loadFixtureCorpus`'s ancestor read `apps/studio/data/knowledge.json` — the committed mirror of the live Library. ADR-0302 D1 deleted that file, and D3 makes the replacement a frozen 13-artifact literal that is "deliberately NOT a mirror and never reconciled, so it drifts by design". A green run here has therefore said nothing about corpus health since; on 2026-08-08 the live corpus was GATE-class RED on `version-floor` — ten docs below the schema floor, authored by no session then working — with this suite passing. `stories/cli/verification-decay-instruments.md` already classes this unit that way ("five checks over a frozen fixture corpus … facts about a JUDGE"), so the correction aligns the spec with a reading the tree had already settled. Live-corpus health is `storytree library --check`, an on-demand operator report that ADR-0026 §5 deliberately made no merge gate.
 
 Underneath, 17 pure-function tests (`health.test.ts:70-187`, all passing) cover every level of all five checks plus the gate-vs-warn classification and the cheap-subset shape. `mapped` (observational); the prove-it-gate did not drive it.
 
@@ -78,7 +80,7 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **asserts —** `libraryHealthCheap` returns no referential-integrity result but keeps schema-conformance.
    - **covers —** `packages/cli/src/health.ts:218-225`
    - **proven by —** `packages/cli/src/health.test.ts:183-187` (REAL, passing)
-8. **`seed-gate-clean`** — The stamped seed corpus has zero gate-class failures
-   - **asserts —** Loading the real corpus via `loadFixtureCorpus` into an `InMemoryStore` and running `libraryHealth` yields an empty `gateFailures()`.
+8. **`seed-gate-clean`** — The frozen fixture corpus has zero gate-class failures (id kept: renaming a contract re-points signed verdicts)
+   - **asserts —** Loading the frozen fixture via `loadFixtureCorpus` into an `InMemoryStore` and running `libraryHealth` yields an empty `gateFailures()`. NOT a claim about the live corpus (ADR-0302 D3).
    - **covers —** `packages/cli/src/health.ts:203-211,238-240`
    - **proven by —** `packages/cli/src/health.test.ts:191-203` (REAL, passing)
