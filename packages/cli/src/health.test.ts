@@ -36,7 +36,7 @@ import {
  * is deliberately not a merge gate (ADR-0026 §5, "by design, not every push"); making one would need
  * production-catch evidence and an ADR (ADR-0311 D5, `asset:justify-a-gate-rung`). What this comment
  * buys is that nobody reads a green `pnpm -r test` as the corpus being watched —
- * `stories/cli/verification-decay-instruments.md` already classes this suite as "five checks over a
+ * `stories/cli/verification-decay-instruments.md` already classes this suite as "four checks over a
  * frozen fixture corpus", proving facts about a JUDGE rather than about the world.
  */
 

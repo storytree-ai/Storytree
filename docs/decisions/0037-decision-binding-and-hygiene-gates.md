@@ -144,6 +144,11 @@ becomes machine-checked.
 - `library-health-gate`'s "five checks" capability spec stays true: §4's anchor check lives in the
   new `adr-health` module, not `health.ts`; folding it into `libraryHealth` later means updating
   that capability spec in the same change.
+  *(Corrected in place 2026-08-08 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md);
+  the decision is unchanged — §4's anchor check still lives in `adr-health`, not `health.ts`, and was
+  never folded in — but "five checks" is now stale on its own terms, for a reason unrelated to this
+  ADR: [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md) deleted the
+  `count-reconciliation` check, and `library-health-gate` specs FOUR checks today.)*
 - Future ADRs are authored frontmatter-first; superseding an ADR means adding the outgoing edge to
   the *new* ADR's frontmatter and flipping the old one's `status` — the consistency check refuses
   half-done supersessions.

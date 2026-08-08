@@ -127,7 +127,7 @@ precisely because `boundaries.test.ts` reds — was checked on the bytes for thi
 `boundaries.test.ts` builds *"a miniature world"* of literal fixtures and reads no repo file at all.
 Its single `node:fs` occurrence (`:715`) is inside a synthetic module source being fed to
 `extractImports`. So if "the thing that drifts" meant the SUBJECT MATTER, rule (6) would retroactively
-refuse its own anchor, and `library-health-gate` — five checks over a frozen fixture corpus — with it.
+refuse its own anchor, and `library-health-gate` — four checks over a frozen fixture corpus — with it.
 
 The reading that makes all three precedents true at once is the one ADR-0085 / ADR-0097 §2 actually
 state: **the proof must be able to red on WHAT THE OUTCOME ASSERTS.** Increment 3's sentence carries

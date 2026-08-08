@@ -108,6 +108,11 @@ slice of expand/contract (C) only when a removal can't land atomically, plus the
    views lag a data edit by one regenerate) — and **graduate to GATE** once the corpus is clean. Naming both
    sides: a gate that fires on benign drift trains people to bypass it; a warn that never graduates is noise.
    (Dangling `asset:` pointers are already a FAIL, since an intra-Library graph break is never benign.)
+   *(Corrected in place 2026-08-08 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md);
+   the split itself is unchanged, one clause of it was overtaken. `count-reconciliation` never graduated to
+   GATE — [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md) deleted it outright, along
+   with the `assets.json` it compared against. `referential-integrity` is the only WARN-class check left
+   (`GATE_CHECKS` in `packages/drive/src/health.ts`), and it still has not graduated.)*
 
 7. **A `schema_migration` ledger + batch-migrate.** `events.schema_migration (version PK, name, applied_at,
    actor)` is the append-only, human-facing "which migration ran + when + by whom" audit, complementing the

@@ -32,8 +32,11 @@ hierarchy) and **"Corpus integrity"** (the library tier):
    migrate-only — it will not push seed content over a present live row, and has no inverse — so an
    `artifact edit --pg` to an existing artifact never reaches `knowledge.json`. The only path back was
    a hand-done recipe (memory `live-to-seed-corpus-export`), run by eye.
-3. **The guards count, they do not compare (Corpus integrity).** `count-reconciliation` compares the
-   *number* of structured units to generated assets; `check:corpus-sync` compares *id presence*. Neither
+3. **The guards count, they do not compare (Corpus integrity).** `count-reconciliation` *(this check
+   itself, along with the `assets.json` it compared against, was later removed by
+   [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md); read this bullet as the
+   2026-06-27 state that motivated part 2 below, not a live guard)* compares the *number* of
+   structured units to generated assets; `check:corpus-sync` compares *id presence*. Neither
    looks at BODIES, and `build-corpus.mjs` had no `--check` wired into CI — so a stale glossary *(retired
    by ADR-0135)* / assets.json, or a live body that has drifted from its seed copy, passes clean.
 
