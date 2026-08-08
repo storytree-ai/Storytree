@@ -5,15 +5,19 @@ title: "The agent runtime — the swappable leaf behind the PhaseAuthor seam"
 outcome: "The spine hands a leaf one authoring slice and gets back an authored deliverable (or a fail-closed refusal) without caring which model runtime answered — the owned loop, the live Claude Agent SDK, or the live ChatGPT-funded Codex runtime, all behind one seam that never observes red/green or reports a verdict."
 status: proposed
 proof_mode: UAT
-# Near-root organism (ADR-0075, amended in degree by ADR-0138 §3): packages/agent's runtime deps are
-# @anthropic-ai/* + @openai/codex + zod + ONE @storytree package — @storytree/notice-board (pure
-# zod, browser-safe),
-# whose work-time claim primitive (workClaimRequest) the claim-at-spawn gate consumes
-# (packages/agent/src/claim-gated-spawn.ts, the chat-subagent-spawn story's claim-gated-spawn
-# capability — code hosted in this package under that story's declared edge, ADR-0004 forcing the
-# spawn machinery here). "No claim, no subagent" made the claim primitive part of the agent's own
-# spawning discipline, so the edge is genuine and declared. notice-board never imports agent — acyclic.
-depends_on: [notice-board]
+# Root of the story graph by ADR-0075's own test — `depends_on: []` — though this is a domain
+# organism, not a published port: packages/agent's runtime deps are @anthropic-ai/* + @openai/codex +
+# zod and NO @storytree package at all, so this story carries no outbound cross-story edge. It carried
+# exactly one until ADR-0175 retired the in-app spawn surface: `agent → notice-board`, hosted by the
+# claim-at-spawn gate (packages/agent/src/claim-gated-spawn.ts, the chat-subagent-spawn story's now
+# `retired` claim-gated-spawn capability). That file is DELETED and held gone by
+# apps/desktop/src/backend/spawn-surface-retired.test.ts, and nothing under packages/agent/src imports
+# @storytree/notice-board today — not in value, not in type. The one surviving pre-spawn seam,
+# spawn-claim.ts, DECLARES its own claim shapes rather than importing them; that decoupling is
+# deliberate, and the seam is owned by the wisp-as-story-claim story (which declares its own
+# notice-board edge), not by this one. With zero outbound edges no cycle through this story is
+# possible at all.
+depends_on: []
 # The buildable capability set (ADR-0057): listing a capability id here is what makes the STORY
 # story-level buildable — `isStoryBuildable` requires a non-empty, dependency-closed, acyclic set in
 # which EVERY listed capability resolves a `real:` proof arm. ONLY the 3 proof-wired capabilities are
@@ -34,11 +38,14 @@ consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the owned loop on the raw Messages API (11), the single model-runtime
 # import site (4), the Claude Agent SDK live leaf + the PhaseAuthor pivot seam (30), the leaf's
 # bounded feedback tools (35), the organism rebuild that gave this package the model-event vocabulary
-# port (68), ports-as-root-organisms (75) under which this leaf was a declared root, the
-# claim-at-spawn wall (138), the retirement of the Cursor second-harness leaf (198, superseding
-# 177), and the ChatGPT-funded Codex second live leaf (232, superseding 198 while preserving the
-# Cursor retirement).
-decisions: [4, 11, 30, 35, 68, 75, 138, 232]
+# port (68), ports-as-root-organisms (75) under which this leaf was a declared root, the retirement of
+# the Cursor second-harness leaf (198, superseding 177), and the ChatGPT-funded Codex second live leaf
+# (232, superseding 198 while preserving the Cursor retirement). ADR-0138's claim-at-spawn wall is
+# deliberately NOT listed: it decided the spawn gate, never this organism's outcome, and ADR-0175
+# deleted that gate. It stays a deciding ADR on the units whose code it really decides
+# (wisp-as-story-claim, chat-subagent-spawn, spawn-visibility, scoped-glue-actuator); packages/agent
+# only ever HOSTED some of that code.
+decisions: [4, 11, 30, 35, 68, 75, 232]
 ---
 
 # The agent runtime — the swappable leaf behind the PhaseAuthor seam
@@ -98,13 +105,26 @@ Run the direction test both ways. *Does the agent need drive-machinery's deliver
 a slice?* **No** — the leaf authors against a prompt + its tools; it never drives a gate, never reads
 a verdict. *Does drive-machinery (and cli) need the agent's delivered outcome?* **Yes** — both import
 `@storytree/agent` as a runtime dependency. So the consumer edges point **into** agent. Outbound it
-carries exactly ONE edge: `agent → notice-board` (the claim-at-spawn gate consumes the work-time
-claim primitive `workClaimRequest` — ADR-0138 §3's "no claim, no subagent" made the claim part of
-the agent's own spawning discipline; direction test: the gate genuinely needs the claim primitive's
-delivered outcome to spawn). `notice-board` (→ `library` → the protocol roots) never imports agent,
-so no path returns from agent to any consumer and the graph stays acyclic (ADR-0058 §4). This is a
-*near-root* shape: depended-upon-by-several, depending only on the pure claim/presence primitive —
-`proof-protocol` and `library` remain the true roots.
+carries **ZERO** edges — `depends_on: []`. Every edge points in and none points out, so the no-cycle
+check here is not a check but a structural guarantee: a story with no outbound edge cannot sit on a
+cycle, whatever the rest of the graph does (ADR-0058 §4).
+
+That is a **stronger** claim than the *near-root* shape this section used to describe, not a weaker
+one. The leaf depends on no storytree organism at all — its runtime deps are `@anthropic-ai/*`,
+`@openai/codex` and `zod` — so it satisfies ADR-0075's own root test (`depends_on: []`) while
+remaining a domain organism rather than a published port. `proof-protocol` and `library` are still the
+roots the rest of the system rests **on**, which is a different property from having nothing beneath
+you; this organism is depended-upon-by-several and depends on nothing.
+
+It held one outbound edge until ADR-0175 retired the in-app spawn surface: `agent → notice-board`,
+taken by the claim-at-spawn gate, which consumed the work-time claim primitive `workClaimRequest`
+under ADR-0138 §3's "no claim, no subagent". That gate's file was deleted with the rest of the spawn
+surface, and the edge went with it — no file under `packages/agent/src` imports
+`@storytree/notice-board` today, in value or in type. The pre-spawn seam that survives,
+`spawn-claim.ts`, mirrors notice-board's claim shapes deliberately instead of importing them, and it
+belongs to the `wisp-as-story-claim` story, which declares that edge itself. Re-declaring it here —
+bare or annotated — would name an import that does not exist and duplicate an edge its real owner
+already carries.
 
 ## Honest status
 
@@ -205,8 +225,9 @@ contract shape IS the coupling) and marked.
   `CodexPhaseAuthor` over the official Codex CLI. It is selected explicitly at the injection layer,
   without changing the Claude-specific `live-sdk-leaf` capability above.
 
-**Cross-story:** one outbound — `notice-board` (`claim-gated-spawn.ts`, hosted here by the
-chat-subagent-spawn story, value-imports `workClaimRequest`; see the frontmatter note). Inbound: the `PhaseAuthor` seam (and the
+**Cross-story:** **none outbound** — `depends_on: []`. No source file in this package imports another
+storytree organism, in value or in type; the one edge this story used to carry went with the
+claim-at-spawn gate ADR-0175 deleted (see **Direction & the no-cycle check**). Inbound: the `PhaseAuthor` seam (and the
 re-exported model-event vocabulary `port`) is consumed by `drive-machinery` (the spine's
 `OwnedLoopAuthor`, the gate, the prove-spec resolver) and bound to either `ClaudeAgentAuthor` (the
 compatibility default) or `CodexPhaseAuthor` (`--runtime codex`) in the CLI's build path — declared

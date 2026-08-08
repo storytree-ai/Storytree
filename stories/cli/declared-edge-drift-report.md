@@ -14,7 +14,8 @@ depends_on: []
 # passing `declaredEdgeDriftReport: …` cases in packages/cli/src/boundaries.test.ts — landed by an
 # ORDINARY hand-authored commit ("feat(cli): non-blocking declared-edge drift report (ADR-0115)"), NOT
 # by a `--real` build. So the planned red was never observed by storytree's spine and no signed verdict
-# backs this contract: the same brownfield posture its sibling `boundary-judge-subgraph` records. The
+# backs this contract: the same brownfield posture the parent capability `organism-boundary-tooling`
+# records for the blocking gate. The
 # `real:` arm below is RETAINED so the unit stays re-buildable, but a re-run must start from a genuine
 # red — the function it was to author already exists.
 #
@@ -158,5 +159,5 @@ data and NEVER appends to the gate's violation list / fails the gate.
      passing at HEAD against `declaredEdgeDriftReport` / `formatDriftReport` in
      `packages/cli/src/boundaries.ts`. *(Brownfield `mapped`: delivered by an ordinary hand-authored
      commit rather than a `--real` build, so storytree's gate never drove it red→green and no signed
-     verdict backs it — the same honesty its sibling `boundary-judge-subgraph` records. The `real:` arm
-     is retained for a future re-proof, which would have to start from a genuine red.)*
+     verdict backs it. The `real:` arm is retained for a future re-proof, which would have to start from
+     a genuine red.)*
