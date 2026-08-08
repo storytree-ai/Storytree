@@ -309,13 +309,22 @@ export interface RetiredCheck {
  * WHY THIS IS A LITERAL AND NOT A COMMENT. ADR-0311 kept the retired implementations on purpose
  * (D5: re-wiring stays cheap) and named the price in its own Consequences: it "leaves discoverable
  * code whose unwired status must not be mistaken for a forgotten gate rung." That price was left
- * unpaid. Twelve of the sixteen left source behind — 23 files that still compile, still carry
- * confident headers, and whose own unit tests still run GREEN under `pnpm -r test` while enforcing
- * NOTHING. A session grepping for the rule finds a complete, tested, plausible fence and concludes
- * it is enforced. That already happened one layer up: the `test-creation-principles` artifact
- * asserted the wall-clock rule was "enforced rather than merely advised" by `check:test-timing` a
- * full day after it was retired. This is the same defect the gate exists to refuse — believing
- * something is watching when nothing is.
+ * unpaid. Twelve of the sixteen left source behind — 23 files that still compile and still carry
+ * confident headers, while no `check:*` script invokes any of them. (Their CODE is not all
+ * unreached: three are imported by companions that do run — see below. What no longer runs is any
+ * of them AS A CHECK.) A session grepping for the
+ * rule finds a complete, tested, plausible fence and concludes it is enforced. That already
+ * happened one layer up: the `test-creation-principles` artifact asserted the wall-clock rule was
+ * "enforced rather than merely advised" by `check:test-timing` a full day after it was retired.
+ * This is the same defect the gate exists to refuse — believing something is watching when nothing
+ * is.
+ *
+ * THIS INVENTORY COVERS THE PRODUCTION SOURCES ONLY, AND THEIR `.test.ts` COMPANIONS ARE NOT ALL
+ * INERT. An earlier revision of this paragraph said the leftovers' "own unit tests still run GREEN
+ * under `pnpm -r test` while enforcing NOTHING". That is false, and it fails in the direction that
+ * costs something: three companions still assert repo-wide invariants over the real tree from
+ * inside `pnpm -r test` — {@link GATE_PLAN} step 6, which CI runs too. They are declared, with what
+ * each one still enforces, in {@link RETIRED_TEST_COMPANIONS}.
  *
  * So the inventory is DATA, and `gate-order.test.ts` holds the repo to it three ways: no retired
  * name may reappear as a root script unnoticed, every file named here must carry the `UNWIRED`
@@ -393,12 +402,180 @@ export const RETIRED_CHECKS: ReadonlyMap<string, RetiredCheck> = new Map<string,
 ]);
 
 /**
+ * What a surviving retired source's `.test.ts` companion still does — the only classification here
+ * that decides whether DELETING a file is free.
+ *
+ * - `load-bearing` — it asserts an invariant over the REAL tree that nothing else asserts. Deleting
+ *   it drops that invariant, silently and repo-wide. These carry {@link LOAD_BEARING_MARKER}.
+ * - `repo-coupled` — it reads the real tree, so it CAN red on a change the session did not expect,
+ *   but every assertion is about the retired module's own coherence. Deleting it drops nothing.
+ * - `unit-only` — pure; it exercises the retired module's logic and touches no disk.
+ *
+ * The middle class exists because collapsing it into either neighbour would be a false statement of
+ * exactly the kind this inventory was written to correct: calling it `unit-only` denies a real red
+ * it can produce, and calling it `load-bearing` would protect a file whose loss costs nothing.
+ */
+export type CompanionRole = "load-bearing" | "repo-coupled" | "unit-only";
+
+/** One surviving `.test.ts` companion of a retired check's source. */
+export interface RetiredCompanion {
+  /** The {@link RetiredCheck} source it tests, e.g. `"coverage-gate.ts"`. */
+  readonly of: string;
+  readonly role: CompanionRole;
+  /**
+   * WHAT DELETING THIS FILE WOULD COST, in one line — the whole point of the entry. For a
+   * `load-bearing` companion this names the invariant that would silently lapse; for the others it
+   * records why nothing would.
+   */
+  readonly cost: string;
+}
+
+/**
+ * THE COMPANION HALF OF THE TOMBSTONE — every `.test.ts` beside a {@link RETIRED_CHECKS} source, and
+ * what deleting it would cost.
+ *
+ * WHY THIS EXISTS SEPARATELY FROM {@link RETIRED_CHECKS}. That inventory tracks the PRODUCTION files
+ * and `gate-order.test.ts` bannered exactly those, so sixteen companions sat untracked and
+ * unbannered beside them — and three of those sixteen are not leftovers at all. They run inside
+ * `pnpm -r test` (GATE_PLAN step 6, and a CI step) and assert invariants over the real repo:
+ * `test-timing-drain.test.ts` sweeps every gate-tier workspace's test files for wall-clock calls,
+ * and the two `coverage-*` companions sweep the real `stories/` tree. A tidy-up deleting "the
+ * unwired ADR-0311 leftovers" would have taken them with it and dropped those invariants in
+ * silence, because nothing on disk said otherwise.
+ *
+ * SO THE ENTRY IS THE MECHANISM, NOT THE DOCUMENTATION. `gate-order.test.ts` holds the repo to it
+ * three ways: a companion that exists on disk must be declared here (so one cannot appear
+ * untracked), a companion declared here must still exist (so deleting the FILE reds immediately,
+ * naming the cost below), and the `load-bearing` set is additionally pinned BY NAME in that test.
+ * Dropping one is therefore three deliberate edits — the file, this entry, and that literal — and
+ * the middle one puts the sentence describing what is being abandoned into the diff. That is the
+ * whole ask: not that deletion is impossible, but that it cannot be silent.
+ *
+ * A `load-bearing` companion is NOT a gate rung and re-reading it as one would be the original
+ * defect wearing new clothes. It is an ordinary test that happens to assert something repo-wide;
+ * ADR-0311 D2 retired the RUNG, and ADR-0311 D5 still governs re-wiring one.
+ */
+export const RETIRED_TEST_COMPANIONS: ReadonlyMap<string, RetiredCompanion> = new Map<
+  string,
+  RetiredCompanion
+>([
+  // ── load-bearing: deleting these drops a repo-wide invariant ────────────────
+  [
+    "test-timing-drain.test.ts",
+    {
+      of: "test-timing-drain.ts",
+      role: "load-bearing",
+      cost: "its BASELINE test is the only surviving enforcement of ADR-0276's no-wall-clock-in-tests rule — it sweeps every gate-tier workspace's test files for `performance.now` / `process.hrtime` behind an anti-vacuity floor (>=20 workspaces, >=300 files) and asserts the unsanctioned list is empty, so a new timing call anywhere in the repo reds `pnpm -r test` through this file",
+    },
+  ],
+  [
+    "coverage-gate.test.ts",
+    {
+      of: "coverage-gate.ts",
+      role: "load-bearing",
+      cost: "its end-to-end test walks the real `stories/` tree and pins live proof bindings — that `deploy-health-signal` and `act2-regrow-camera-zoom-out` are scanned and fully covered, and act2's two literal `apps/studio/` proof paths — so moving or renaming one of those files reds here and nowhere else",
+    },
+  ],
+  [
+    "coverage-drain.test.ts",
+    {
+      of: "coverage-drain.ts",
+      role: "load-bearing",
+      cost: "its live-corpus test is the only surviving enforcement of the contract-coverage ceiling (ADR-0252 D3) — it sweeps the real `stories/` tree and asserts the drain verdict is not red, so the uncovered/unbound backlog cannot grow past its ceiling unnoticed",
+    },
+  ],
+
+  // ── repo-coupled: reads the real tree, but asserts only its own module ──────
+  [
+    "check-surface-coverage.test.ts",
+    {
+      of: "check-surface-coverage.ts",
+      role: "repo-coupled",
+      cost: "nothing — it joins a FIXTURE process tier to the real root `package.json`, so removing a script it names (`pnpm db:up`, `pnpm --filter desktop start`) reds it, but every assertion is about the retired loader's own classification rather than about the repo",
+    },
+  ],
+  [
+    "surface-coverage-drain.test.ts",
+    {
+      of: "surface-coverage-drain.ts",
+      role: "repo-coupled",
+      cost: "nothing — its own BASELINE comment concedes it no longer pins the real repo (ADR-0302 D1 deleted the seed it read), and its verdict assertion accepts `ok` or `red`; what it still pins is the retired module's 0/0 ceiling pair",
+    },
+  ],
+  [
+    "check-dist-drift.test.ts",
+    {
+      of: "check-dist-drift.ts",
+      role: "repo-coupled",
+      cost: "nothing — it reads the real `infra/install.ps1` and reds if the advertised URL stops matching the retired module's `PUBLISHED_URL`, which is a coherence check on dead code: no gate rung verifies that URL either way",
+    },
+  ],
+
+  // ── unit-only: pure, no disk ────────────────────────────────────────────────
+  [
+    "check-process-graph.test.ts",
+    { of: "check-process-graph.ts", role: "unit-only", cost: "nothing — pure, over injected fixtures" },
+  ],
+  [
+    "test-timing-gate.test.ts",
+    { of: "test-timing-gate.ts", role: "unit-only", cost: "nothing — pure; the repo sweep it powers is asserted by `test-timing-drain.test.ts`" },
+  ],
+  [
+    "web-experience-check.test.ts",
+    { of: "web-experience-check.ts", role: "unit-only", cost: "nothing — pure, over injected fixtures" },
+  ],
+  [
+    "check-declared.test.ts",
+    { of: "check-declared.ts", role: "unit-only", cost: "nothing — pure, over injected fixtures" },
+  ],
+  [
+    "friction-drain.test.ts",
+    { of: "friction-drain.ts", role: "unit-only", cost: "nothing — pure; the ceiling it exercises reaches no disk" },
+  ],
+  [
+    "db-required.test.ts",
+    { of: "db-required.ts", role: "unit-only", cost: "nothing — pure, over injected env" },
+  ],
+  [
+    "arc-proposal-drain.test.ts",
+    { of: "arc-proposal-drain.ts", role: "unit-only", cost: "nothing — pure; the ceiling it exercises reaches no disk" },
+  ],
+  [
+    "graduation-drain.test.ts",
+    { of: "graduation-drain.ts", role: "unit-only", cost: "nothing — pure; the ceiling it exercises reaches no disk" },
+  ],
+  [
+    "check-node-version.test.ts",
+    { of: "check-node-version.ts", role: "unit-only", cost: "nothing — pure, over injected version strings" },
+  ],
+  [
+    "deploy-health.test.ts",
+    { of: "deploy-health.ts", role: "unit-only", cost: "nothing — pure, over injected run records" },
+  ],
+]);
+
+/** The `.test.ts` companion filename a retired source would have, e.g. `coverage-gate.ts` → `coverage-gate.test.ts`. */
+export function companionFileFor(source: string): string {
+  return source.replace(/\.ts$/, ".test.ts");
+}
+
+/**
  * The banner every surviving retired source must carry, and the token the test greps for.
  *
  * Deliberately a bare ASCII word rather than a decorated string: it has to survive reformatting and
  * be greppable by a session that does not know this module exists.
  */
 export const UNWIRED_MARKER = "UNWIRED";
+
+/**
+ * The banner a `load-bearing` {@link RetiredCompanion} must carry, and the one an inert companion
+ * must NOT — the second direction is the anti-rot half, so a file that stops enforcing cannot keep
+ * the claim that it does.
+ *
+ * A distinct token from {@link UNWIRED_MARKER} on purpose: a session sweeping the leftovers greps
+ * one word to find what is safe to delete and hits the other word on what is not.
+ */
+export const LOAD_BEARING_MARKER = "LOAD-BEARING";
 
 /**
  * THE GATE'S VOICE — phrasings that assert MERGE-BLOCKING authority over the reader.

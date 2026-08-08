@@ -57,7 +57,10 @@ Three orthogonal channels:
 The **build-wisp layer is DELETED**. Its only signal not already carried by the claim wisp — the
 red→green `phaseBand` — folds into channel 3 on the work stage.
 
-**The join key is the STORY, not the session.** `BuildActivity` is deliberately keyed by `runId` and
+**The join key is the STORY, not the session.** *(REPLACED — see the correction note below and
+[ADR-0326](0326-join-a-live-build-to-a-claim-at-the-claimed-unit-not-the-sto.md), which amends this
+one clause: the join key is now the CLAIMED UNIT. The paragraph is kept as written because the
+correction note argues against it line by line; do not act on it.)* `BuildActivity` is deliberately keyed by `runId` and
 carries NO session identity ("its own identity (never a session's)"), so builds cannot be joined to
 sessions directly without stamping a session id onto `events.work_event` and the server fold. That
 backend change is NOT required: because the work claim is an exclusive mutex (ADR-0200 D2), a story
@@ -78,7 +81,7 @@ them, and it was retired on 2026-08-08 (`aa293a0d`, ADR-0121 D5 corrected in pla
 claims the MEMBERS of its drive order, and `S` only when S's own UAT node is in that order (a
 `uat_witness: machine` story). So session A can hold the work claim on S — legitimate under ADR-0270
 D1 for cross-capability work — while session B runs a live `story build S`, and the fold would then
-paint B's build phase onto A's wisp. Two open points this correction deliberately does NOT settle,
+paint B's build phase onto A's wisp. Two open points this correction deliberately did NOT settle,
 because they are the render's call and not the decision log's: whether a member-grain build rolls up
 to its parent story in the fold (if it does, a `node build cap-of-S` weakened the same inference
 before this landing, since it never took `S` either), and which remedy applies — stamping a session id
@@ -86,6 +89,17 @@ onto `events.work_event`, joining at the claimed unit rather than the story, or 
 same premise is restated verbatim in `packages/forest-world/src/scene.ts` (the `claims[].phase`
 contract note) and carries the same defect. ADR-0212's other three channels, the build-wisp retirement
 and the ADR-0048/0138/0200 amendments are untouched.)*
+
+*(BOTH OPEN POINTS ARE NOW SETTLED by
+[ADR-0326](0326-join-a-live-build-to-a-claim-at-the-claimed-unit-not-the-sto.md) (2026-08-08), which
+amends the join clause above and nothing else. Established from the code: member-grain builds DO roll
+up (`buildsByStory` resolves a member id to its owning story before the fold runs), so the defect is
+OLDER AND WIDER than the landing that exposed it — a `node build cap-of-S --real` weakened the same
+inference already. The remedy taken is the second: **join at the CLAIMED UNIT**, which is sound
+because a build only reaches this layer through the same pg pool that took its per-unit claim, so at
+unit grain the ADR-0200 D2 mutex genuinely gives one actor. The session-id stamp is not taken now and
+stays the closure for the residual TTL-window race ADR-0326 names; dropping the fold is rejected. The
+`scene.ts` contract note is corrected in the same landing.)*
 
 A build on a story with NO work claim (unattended, CI, or the marketing website's demo data) still
 renders its own claim-less body — that is the fallback, and it is also what keeps the website working
