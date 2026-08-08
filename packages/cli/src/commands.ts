@@ -49,6 +49,8 @@ import {
 import { questionCommand, questionHelp, type QuestionWriteDeps } from "./question.js";
 import { incrementCommand, incrementHelp, type CountCommitsSince } from "./increment.js";
 import { traversalCommand, traversalHelp } from "./traversal.js";
+// `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
+import { sessionCostCommand, sessionCostHelp } from "./session-cost.js";
 import { CLI_AREAS } from "./cli-areas.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
 // seed↔live drift to the session that must reconcile it instead of to whoever gates next.
@@ -2144,6 +2146,13 @@ export const CLI_OPTIONS = {
   to: { type: "string" },
   "landings-per-day": { type: "string" },
   ref: { type: "string" },
+  // `storytree session-cost --project <prefix>` — which transcript project directories to price
+  // (ADR-0323 D4). Defaults to this checkout's; `--all` widens to every one. The window itself
+  // reuses `--limit` / `--from` / `--to` declared above.
+  project: { type: "string" },
+  // `storytree session-cost --min-turns <n>` — the SELECTION floor that keeps machine-driven
+  // one-shots from filling a recency-ordered window. Their spend is still reported, never hidden.
+  "min-turns": { type: "string" },
 } as const;
 
 /**
@@ -2250,6 +2259,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     to?: string;
     "landings-per-day"?: string;
     ref?: string;
+    /** `session-cost` — which transcript project directories to price (ADR-0323 D4). */
+    project?: string;
+    "min-turns"?: string;
   };
   try {
     const parsed = parseArgs({
@@ -3195,6 +3207,24 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (help && sub === undefined) return onboardingHelp();
     return onboardingCommand(positionals.slice(1), {
       ...(values["agent-type"] !== undefined ? { agentType: values["agent-type"] } : {}),
+    });
+  }
+
+  if (area === "session-cost") {
+    // The repeatable session-cost measurement (ADR-0323 D4, `session-cost-arc`). Fully offline: it
+    // reads host transcripts under `~/.claude/projects`, never the store — no --pg, no credential.
+    // Report-only and deliberately NOT a gate rung (ADR-0323 Unresolved + ADR-0168 D1): a cost gate
+    // would be gamed by splitting sessions.
+    if (help) return sessionCostHelp();
+    return sessionCostCommand({
+      ...(values["limit"] !== undefined ? { limit: values["limit"] } : {}),
+      ...(values["from"] !== undefined ? { from: values["from"] } : {}),
+      ...(values["to"] !== undefined ? { to: values["to"] } : {}),
+      ...(values["project"] !== undefined ? { project: values["project"] } : {}),
+      ...(values["min-turns"] !== undefined ? { minTurns: values["min-turns"] } : {}),
+      all: values["all"] === true,
+      cwd: process.cwd(),
+      nowMs: Date.now(),
     });
   }
 

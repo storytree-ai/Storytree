@@ -12,6 +12,21 @@ import {
   type GateCoverageUnit,
 } from "./coverage-gate.js";
 
+/*
+ * LOAD-BEARING — DO NOT DELETE WITH THE UNWIRED ADR-0311 LEFTOVERS.
+ *
+ * `check:coverage` was retired by ADR-0311 D2 and `coverage-gate.ts` beside this file carries the
+ * UNWIRED banner, so this file LOOKS like a leftover. It is not. The `end-to-end over the REAL
+ * corpus` test below runs inside `pnpm -r test` — GATE_PLAN step 6, which CI runs too — and walks
+ * the real `stories/` tree, pinning live proof bindings that nothing else pins: that
+ * `deploy-health-signal` and `act2-regrow-camera-zoom-out` are scanned and fully covered, and
+ * act2's two literal `apps/studio/` proof paths. Moving or renaming one of those files reds HERE.
+ *
+ * Deleting this file drops that check silently. Declared, with its cost, in `gate-order.ts`'s
+ * RETIRED_TEST_COMPANIONS; `gate-order.test.ts` reds if the file or the banner goes. That is not a
+ * licence to re-wire the rung — ADR-0311 D5 still governs that, and this is an ordinary test.
+ */
+
 /**
  * `check:coverage` — the gate-level contract-coverage sweep (ADR-0122 R1, the deferred gate WARN-step).
  *
