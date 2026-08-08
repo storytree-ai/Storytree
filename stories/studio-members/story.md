@@ -74,9 +74,40 @@ gap under Open modeling calls.
 
 ## UAT Test Criteria
 
-1. **Bootstrap admin:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the seeded admin _(criterion-id: uatc_16e17662d5ba469edb7377bc)_ _(revision-id: uatr1:4bcab9209ba14e89)_
-   reaches `/api/me` with its verified identity header. **Success —** the response resolves an active
-   admin and the seed is persisted as an active admin user row.
+**Goal —** An admin runs a member through their whole lifecycle inside the app — invite, activate,
+remove — and marks a builder, without touching gcloud or a Cloud SQL IAM grant.
+
+### ADR-0294 disposition of the eight original criteria
+
+**Five of eight deleted (2026-08-08) as D2 duplicates; three kept.** Every leg here bound to
+`studio-members#gate-1`, whose command — `pnpm --filter @storytree/studio-members --filter studio test`
+— is exactly the command that greens this story's own capabilities, which is ADR-0294 D2's measured
+shape. Each deletion below was checked against the named suite's actual test TITLES and bodies, not
+file existence.
+
+**What was NOT decided here.** Legs 2 and 3 are D2 duplicates *of their current text* and were still
+KEPT, because deleting them would silently resolve **open modeling call A** below — an explicit owner
+call, marked "do not self-resolve". Those two ids carry signed `witness: human` attestations from
+2026-06-14 recording a LIVE walk (a real invite email delivered, a real Google sign-in), and the owner
+has yet to choose between accepting the machine legs and treating those signatures as history of a
+superseded condition, or restoring a live-journey leg. ADR-0294 D2 says where proof already lives; it
+grants no verdict and settles no owner call. The signatures and call A are untouched.
+
+**The surviving numbers are deliberately NOT closed up.** `1`, `4`, `5`, `6` and `7` are burned:
+never reused, never backfilled. The single reliability gate is likewise NOT renumbered — gate ids are
+positional, and moving one silently re-points already-signed verdicts (`asset:edit-story-uat-criteria`).
+
+| original leg | criterion id | disposition |
+|---|---|---|
+| 1. **Bootstrap admin** | `uatc_16e17662d5ba469edb7377bc` | **Delete as duplicate.** [`app-authorization`](app-authorization.md), `apps/studio/server/serveApi.integration.test.ts`, test **“the bootstrap-seed admin writes assets (becomes an effective active admin)”** drives the seeded admin through `/api/me` with its verified identity header and asserts it resolves an effective active admin; [`user-directory`](user-directory.md), `packages/studio-members/src/users.test.ts`, **“resolveAccess: row wins, seed admin is admitted, everyone else is null”** asserts the seed-admin resolution itself. |
+| 2. **Invite** | `uatc_90b7f952124f26e6eaa46b3a` | **Keep — owner call A, not this pass's to settle.** Its current text is duplicated by `serveApi.integration.test.ts` **“an admin lists, invites, re-roles and removes; invite then activates on first request”**, but a signed 2026-06-14 human attestation keys to this id and covers [`invite-notify`](invite-notify.md) SMTP delivery, which that suite skips outright. Deleting it would choose the owner's open question for them. |
+| 3. **Activate** | `uatc_f37ee96162f82a9bb8dd545a` | **Keep — owner call A, same basis.** Duplicated by **“an invited member is reported active and persisted active on first sign-in”**, **“comment authorship is stamped from the verified identity — the client field is ignored”** and **“a member reads, comments as self …”**, but the same signed attestation covers a real Google/IAP sign-in that the header-stubbed suite structurally cannot witness. |
+| 4. **Role wall** | `uatc_b2fa92d5f919f1a56d322813` | **Delete as duplicate of the exact enumerated operations.** [`app-authorization`](app-authorization.md), `apps/studio/server/serveApi.integration.test.ts`: **“a member reads, comments as self, but cannot write assets or reach user mgmt”** asserts the member asset-write `403`; **“refuses every /api/users verb for a member (403, no mutation)”** asserts both the invitation `403` and the no-mutation half; **“the bootstrap-seed admin writes assets …”** asserts the corresponding admin request succeeds. These are the two operations this leg claimed, not every asset or user verb. |
+| 5. **Stranger** | `uatc_f71ee15e9dc5d4ae8deac1a2` | **Delete as duplicate — all three clauses.** API halves: `serveApi.integration.test.ts` **“a stranger gets 403 + requestAccess on the whole corpus; only /api/me answers”**. Frontend half: `apps/studio/src/App.boot-independence.test.tsx` renders the real `<App/>` with a NON_MEMBER `/api/me` under “Ceiling 2: a NON-member never reaches the corpus at all (ADR-0043)” and asserts the *Request access* wall renders while `api.tree` and `api.listAssets` are never called — which is precisely this leg's “the frontend load-state projects that result to the request-access wall”. |
+| 6. **No lockout** | `uatc_4c2ed36bb3a1e59d5d9a2344` | **Delete as duplicate — proven in two places, as the gate itself already recorded.** `serveApi.integration.test.ts` **“the last admin cannot be removed or down-roled (409)”** asserts the status; `packages/studio-members/src/users.test.ts` **“last-admin guard: cannot remove or downgrade the only admin”** asserts the guarded mutation does not occur at the store. |
+| 7. **Remove** | `uatc_caeb6702bd8022ab71349e27` | **Delete as duplicate.** [`user-directory`](user-directory.md), `apps/studio/server/serveApi.integration.test.ts` **“an admin lists, invites, re-roles and removes …”** ends with the exact walk this leg claims — `DELETE /api/users?email=…` returns `200`, then a fresh `/api/me` from that account returns `member: false` (`// remove → gone; a request from that account then hits the wall`). The leg's comment-history clause was already declared STRUCTURAL rather than asserted, so nothing proven is lost. |
+| 8. **Mark a builder (ADR-0117)** | `uatc_226051427c57b95a23dd2e01` | **Keep.** Not a duplicate: no node proves it, because the in-app `builder` grant does not exist — the panel offers only member/admin and the `/api/users` role validator 400s a `builder`. Deliberately UNBOUND (see open modeling call B); binding it to gate-1 would let a passing run read as proof of a path that does not exist. |
+
 2. **Invite:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the admin POSTs _(criterion-id: uatc_90b7f952124f26e6eaa46b3a)_ _(revision-id: uatr1:adb1d912ba4bb75d)_
    `dev@example.com` as a member through the shared `/api/users` route the Members panel calls.
    **Success —** the response and user projection contain an `invited` member row; this in-app route
@@ -85,22 +116,6 @@ gap under Open modeling calls.
    `/api/me` with its verified identity header. **Success —** its row is persisted `active`; the
    resolved member can read corpus APIs, and a resolved member's comment write is stamped from the
    verified identity rather than from the client-supplied author field.
-4. **Role wall:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ a resolved member POSTs _(criterion-id: uatc_b2fa92d5f919f1a56d322813)_ _(revision-id: uatr1:2190bfd8ce229fc3)_
-   an asset edit and a user invitation through their API routes. **Success —** both are 403, and the
-   refused asset write leaves no asset mutation; the corresponding admin requests succeed.
-5. **Stranger:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ an uninvited verified _(criterion-id: uatc_f71ee15e9dc5d4ae8deac1a2)_ _(revision-id: uatr1:e444d74ecb62a6eb)_
-   identity requests `/api/me` and each corpus API. **Success —** `/api/me` reports `member: false`,
-   corpus requests return 403 with `requestAccess`, and the frontend load-state projects that result
-   to the request-access wall.
-6. **No lockout:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the sole admin tries to _(criterion-id: uatc_4c2ed36bb3a1e59d5d9a2344)_ _(revision-id: uatr1:ef07ea073c2ff513)_
-   DELETE themselves or PATCH their role to member through `/api/users`. **Success —** both return
-   409 and the guarded user mutation does not occur.
-7. **Remove:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ an admin DELETEs _(criterion-id: uatc_caeb6702bd8022ab71349e27)_ _(revision-id: uatr1:4b0d1dbf5acbf226)_
-   `dev@example.com` through `/api/users`. **Success —** the next `/api/me` resolves that identity as
-   `member: false`. Comment history staying attributed is STRUCTURAL, not asserted by this leg's
-   proof command: the users handler is handed only the user-store methods, so removal has no
-   comment-mutating call to make, and authorship was stamped from the verified identity back at
-   comment creation (asserted separately, leg 3).
 8. **Mark a builder (ADR-0117):** _(witness: machine)(detail: studio-members#uat-8)_ an admin grants _(criterion-id: uatc_226051427c57b95a23dd2e01)_ _(revision-id: uatr1:98636a68354a32fa)_
    `friend@example.com` the **builder** role through the same in-app `/api/users` route the Members
    panel calls — no gcloud, no Cloud SQL IAM grant. **Success —** the grant is accepted and the user

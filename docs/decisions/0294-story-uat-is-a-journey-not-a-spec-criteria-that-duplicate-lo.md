@@ -93,6 +93,27 @@ greens, no rendered signal changes. The obligation on the deleting author is to 
 criterion, the lower-tier node that already proves it**; a criterion with no such node is not a
 duplicate and must instead be re-authored as a journey step or dropped on its merits.
 
+**Corrected in place 2026-08-08 (ADR-0139), after increments 1–3 applied this to real stories. The
+decision is unchanged; what follows is the test it turned out to require.** "Provably lossless" is a
+property of each criterion, not of the population — asserted of the class it reads as a settled
+verdict, licensing exactly the bulk deletion the Cost / watch section below forbids. A leg is a
+duplicate only when it clears **both** of these:
+
+- **Does the command the leg NAMES also green that leg's own capabilities?** A different command means
+  this decision never reaches the leg. `studio`'s thirteen survive on that alone — `studio#gate-1` runs
+  `pnpm --filter studio uat`, a dedicated whole-journey Playwright run, not the `pnpm --filter studio
+  test` suite that greens its capabilities. `app-surface`'s nine died on it, because each bound gate
+  carried an explicit `_(covers: <capability>)_` annotation, so the identity was declared rather than
+  inferred. And where a story's capabilities register no `proof.real.testFile` at all there is no lower
+  tier to name, so the obligation cannot be discharged for any leg: `studio-build`'s eleven were kept
+  for that reason, all three of its capabilities declaring none.
+- **Do that suite's own assertions reach the leg's claim?** The binding is not the proof — verify
+  against the named suite's test TITLES, never against file existence. `uat-criterion-detail` was
+  carried into increment 3 as the classic duplicate shape with heavy deletion expected, and all four
+  legs survived: its capability tests import sibling modules by DEEP PATH, while every leg asserts the
+  same behaviour reached through the PUBLIC root barrel — a claim the capability tier structurally
+  cannot make.
+
 **3. Appearance is proven at the node it belongs to, never as a story-UAT criterion.**
 
 "Does it look right" earns an `operator-attested` verdict on the capability whose look it is
@@ -111,6 +132,15 @@ inventing criteria for them is what produced property-shaped legs in the first p
 
 Not a quota to hit mechanically — the number falls out of applying 1–4. It is recorded so that a later
 drift back toward ~7 criteria per story is visible as drift rather than growth.
+
+**Corrected in place 2026-08-08 (ADR-0139); the target stands.** What is added is the floor beneath
+it, so the remaining distance to ~60 is not read as a deletion budget. Applying 1–4 leaves criteria it
+provably cannot reach, and increment 3 measured a first instalment inside a single eleven-story
+cluster: `studio` (13 — decision 1's reference shape), `studio-build` (11 — no capability declares a
+`testFile`) and `uat-criterion-detail` (4 — a root-barrel claim no capability test makes) hold 28
+untouchable criteria between them. Corpus at the close of increment 3: **226 criteria, 218
+non-aspirational**. Whether ~60 survives the remaining stories is the re-measurement this decision
+exists to make visible; it is not a number to delete toward.
 
 ## Consequences
 

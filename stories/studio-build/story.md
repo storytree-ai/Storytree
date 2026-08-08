@@ -254,6 +254,29 @@ selects a buildable node in the studio world, clicks **Build** in the island sid
 coarse live transcript stream the phase trail, and sees the run finish at a real signed verdict —
 the node's hue updating in the world — entirely on their own machine.
 
+### ADR-0294 disposition (2026-08-08): all eleven criteria KEPT, none deleted
+
+Adjudicated against D1/D2 as part of increment 3 and recorded here so a later reader can see this
+story was examined rather than skipped. The result is the opposite of the cluster's other stories, and
+the reason is specific: **none of `studio-build`'s three capabilities declares a `proof.real.testFile`
+at all**, so there is no lower tier to point a D2 deletion at. The obligation D2 puts on a deleting
+author — name the node that already proves it — cannot be discharged for any leg here, and D2 says
+plainly that a criterion with no such node is not a duplicate.
+
+Leg by leg: legs 1–8 are consecutive steps of one narratable operator journey (start the studio →
+open the island panel → click Build → watch the transcript → be refused a second build → reach a
+terminal envelope → inspect the verdict's provenance → confirm the no-land walls), which is D1's
+shape, and each already records IN ITS OWN TEXT precisely how the existing suites fall short of it
+("No spec discharges this at HEAD", "Partly covered at HEAD"). Leg 5 is the only gate-bound one, and
+it is bound correctly rather than duplicately: `studio-build#gate-1` observes
+`apps/studio/server/buildApi.integration.test.ts`, whose `409` assertion lives inside the single
+story-tier walk **“runs an operator-dispatched build from intent to a terminal verdict over the
+wire”** — an integration journey, not a capability unit test. Legs 9 and 10 are live human legs (the
+subscription-billed run, the outward-facing approve-to-land) belonging to chip `task_47c74cb0`, and
+leg 11 is a D3 appearance verdict belonging to chip `task_99f7e0a9`.
+
+Nothing here is renumbered and no reliability gate is touched.
+
 1. **The studio is running against the live store, so the worker can persist a verdict.** _(criterion-id: uatc_84e580bdf4115de90e35b68e)_ _(revision-id: uatr1:282cf28df059352b)_
    _(witness: machine)(detail: studio-build#uat-1)_ Start the studio with the live store up: `pnpm db:up`, then
    `pnpm --filter studio dev` (the live backend is the default). **Success —** the data-api line logs
