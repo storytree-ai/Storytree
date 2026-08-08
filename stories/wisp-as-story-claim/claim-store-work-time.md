@@ -112,7 +112,9 @@ db-backed proof posture; the pure helper is offline-testable in `claim.test.ts`.
 own trace signals (`onMessage` / `onPhase`, ADR-0138 §4) call so a live session's claim never ages out.
 
 **A3 — a work-time `ClaimRequest` intent builder (pure, `claim.ts`).** `ClaimDoc.intent` is already free
-prose with `"edit"` foreseen (`claim.ts:59`, `claim.ts:17`). The provable piece is a pure helper that builds
+prose with `"edit"` foreseen (the module header comment and the `intent` field's own doc comment on
+`ClaimDoc`, both in `packages/notice-board/src/claim.ts` — cited by symbol, never by line, since line
+citations rot). The provable piece is a pure helper that builds
 the work-time `ClaimRequest` with the correct intent — e.g. `workClaimRequest({ unitId, sessionId, branch,
 kind })` mapping `kind: "edit" | "orchestrate"` to the `intent` string — generalising beyond the current
 build-only trigger (`"real"` / `"live-smoke"`). Pure, offline, builtins-only; no store touch.

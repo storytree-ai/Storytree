@@ -3,11 +3,11 @@ id: "claim-at-declare"
 tier: capability
 story: wisp-as-story-claim
 title: "Claim-at-declare — anchoring a node on the notice board takes the work-time story claim"
-outcome: "Declaring presence on a story (`storytree noticeboard declare --node <story> --pg`) ALSO takes the work-time claim on it (intent `orchestrate`) — one ceremony step = presence + wisp; `noticeboard done` bulk-releases every claim the session holds, the statusline heartbeat bumps the session's claim heartbeats, and a refusal never fails the declare — it surfaces the holder loudly. The cheap acquisition wiring for ADR-0138 §3's work-time claim, landed by ADR-0142; the claim-at-SPAWN gate (capability E's E2) has since landed as chat-subagent-spawn's claim-gated-spawn, awaiting only its runtime mount."
+outcome: "Declaring presence on a story (`storytree noticeboard declare --node <story> --pg`) ALSO takes the work-time claim on it (intent `orchestrate`) — one ceremony step = presence + wisp; `noticeboard done` bulk-releases every claim the session holds, the statusline heartbeat bumps the session's claim heartbeats, and a refusal never fails the declare — it surfaces the holder loudly. The cheap acquisition wiring for ADR-0138 §3's work-time claim, landed by ADR-0142; the claim-at-SPAWN gate (capability E's E2) landed cross-story as chat-subagent-spawn's claim-gated-spawn, was mounted, and then RETIRED with that whole story under ADR-0175 — so with ADR-0200's workspace-creation claim, this is the live acquisition surface."
 status: proposed
 proof_mode: integration-test
 depends_on: [claim-store-work-time]
-decisions: [142, 138, 121, 33]
+decisions: [142, 138, 121, 33, 175]
 # DOCUMENTATION OF LANDED WORK (ADR-0142, PR #535) — authored AFTER the landing to keep the story's
 # map honest, not to drive a build. NO `proof:` block: the behaviour is already proven by ordinary
 # offline package tests that landed WITH the implementation (packages/drive/src/noticeboard.test.ts,
@@ -87,12 +87,18 @@ landed branch's claims, never live work); and the merge ceremony gains the post-
 > in-session continuation. **Legs 1 and 2 — this capability included — stand unchanged.**
 
 **Relation to capability E ([`take-claim-at-spawn`](take-claim-at-spawn.md)):** this wiring **neither
-replaces nor blocks** E2's claim-at-SPAWN path (ADR-0142 leg 2, verbatim). E1's pure acquire-or-wait
-seam is built and proven; E2's GATE has since landed as chat-subagent-spawn's
-[`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md) (signed `--real` PASS), with only the
-runtime mount still deferred. When the orchestrator actually spawns, the spawn becomes the hard point
-(*no claim, no subagent*, ADR-0138 §3); declare-time acquisition remains the session-grain wiring
-alongside it.
+replaced nor blocked** E2's claim-at-SPAWN path (ADR-0142 leg 2, verbatim). E1's pure acquire-or-wait
+seam is built, proven, and deliberately kept (`packages/agent/src/spawn-claim.ts`, named by ADR-0175).
+E2's GATE did land cross-story as chat-subagent-spawn's
+[`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md) under a signed `--real` PASS, and its
+runtime mount landed after it — but **all of it then retired with that whole story under
+[ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)**
+(execution status *SPAWN — DONE (2026-07-31)*): the spawn tool surface, the gate and the deps composition
+are deleted, held gone by `apps/desktop/src/backend/spawn-surface-retired.test.ts`, and that story plus
+all five of its capabilities are `status: retired` — so the link above points at retired work whose code
+no longer exists. The spawn therefore never became the live hard point (*no claim, no subagent*,
+ADR-0138 §3): **declare-time acquisition, together with ADR-0200 D3's forced `exploring` claim at
+workspace creation, is the live acquisition surface** — not one of two coexisting paths.
 
 ## How it was proven
 

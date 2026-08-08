@@ -15,10 +15,19 @@ depends_on: []
 # new OPTIONAL BoundaryInput field it reads (the FROZEN grandfather register, suggested
 # `hostedStories?: string[]`), REUSING rule 5's evidence machinery (unitSourceFiles/dirOwners,
 # buildingDirOf, the per-(S,T) dedup — no new evidence path), and ADDS exhaustive cases to
-# packages/cli/src/boundaries.test.ts. The red is a runtime-assertion red: the new cases feed a
-# hosted-but-UNREGISTERED fixture to checkBoundaries AS IT STANDS AT HEAD (where the refusal rule does not
-# exist), so they assert a packages-forward refusal that is NOT yet produced — a behaviour red against the
-# source at HEAD — and green is the added rule. NO `install`: the test imports ONLY node:test,
+# packages/cli/src/boundaries.test.ts. DELIVERED red→green BY THE SPINE (2026-08-08 correction, ADR-0139
+# correct-in-place): the `--real` build run `real-mrja2qgq` was promoted as the spine-authored commit
+# "storytree real build real-mrja2qgq: packages-forward-refusal (authored by the gated leaf)", and
+# promotion happens only on a SIGNED PASS verdict (`promoteRealPass`), so the gate did observe this
+# red→green. At HEAD `checkPackagesForwardRefusal` and the `hostedStories?: string[]` field are present in
+# packages/cli/src/boundaries.ts, gathered by check-boundaries.ts, and covered by passing
+# `packages-forward-refusal: …` cases in packages/cli/src/boundaries.test.ts. The authored
+# `status: proposed` above is the BASELINE the node rollup augments from that signed verdict — it is NOT a
+# claim the work is unbuilt, and it is not flipped here because `healthy` is non-authorable (ADR-0020) and
+# `mapped` would falsely deny the gate-driven proof. A re-run of this node must start from a genuine red;
+# the red it was built against was a runtime-assertion red — the new cases fed a hosted-but-UNREGISTERED
+# fixture to checkBoundaries as it stood before the rule existed, asserting a refusal not yet produced.
+# NO `install`: the test imports ONLY node:test,
 # node:assert/strict, and ./boundaries.js (relative); boundaries.ts itself imports nothing (no zod, no
 # @storytree/*, no node: builtins) and must STAY that way — so the proof runs OFFLINE in a bare worktree
 # with no lockfile install (and therefore no typecheck wall is required). Single LITERAL sourceFile (no
@@ -63,9 +72,11 @@ worklist.
 > in its OWN workspace package (an organism, [ADR-0068](../../docs/decisions/0068-dissolve-core-into-organisms-the-organism-rebuild.md))
 > where the compiler and the package-granular gate enforce every edge for free — a new story must not host
 > in a neighbour's building **at all**, edge or no edge. The existing hosted stories are GRANDFATHERED in a
-> named register in `repo-manifest.json`, frozen at adoption: adding a name is a loud, owner-reviewed diff
+> register in `repo-manifest.json`, frozen at adoption in the sense that matters: adding a name is a loud,
+> owner-reviewed diff citing its reason
 > — the exact opposite of the silent `depends_on: []` omission that let the library-tech-tree-overlay
-> incident through (owner-caught 2026-07-13) — and entries only ever LEAVE the register as stories migrate.
+> incident through (owner-caught 2026-07-13). Entries LEAVE as stories migrate or retire; the register is
+> a reviewed, bounded residual, not an immutable list (see the `hostedStories` bullet below).
 > This contract is the pure core of that SECOND blocking rule. It reuses rule 5's exact evidence (so the
 > two rules can never disagree about what "hosted" means); the disk gatherer that reads the `hostedStories`
 > list out of `repo-manifest.json` (in
@@ -81,18 +92,25 @@ computation (`buildingDirOf`, the `unitSourceFiles`/`dirOwners` inputs, the per-
 ONE new OPTIONAL field on `BoundaryInput` (the leaf owns the exact name/type; the asserted behaviour below
 is binding):
 
-- **`hostedStories?: string[]`** — the FROZEN grandfather register: the currently-hosted story ids that
-  are permitted to keep files in a foreign building. In the real gather it comes from a new `hostedStories`
-  list in `repo-manifest.json`, read by `check-boundaries.ts` (that read is the gatherer's glue, OUT of
-  this contract's write scope). At freeze time the register holds exactly the **18** stories with a mapped
-  foreign-hosting pair, derived mechanically via rule 5's evidence over the current corpus:
-  `binding-staleness`, `chat-subagent-spawn`, `desktop`, `desktop-build-mount`, `drive-machinery`,
-  `embedded-terminal`, `headless-orchestrator`, `library-review`, `library-tech-tree-overlay`,
-  `map-terminal-build`, `notice-board`, `spawn-visibility`, `studio-cloud`, `app-guide`,
-  `terminal-repo-picker`, `terminal-tabs`, `website-experience`, `wisp-as-story-claim`. All 18 already
-  carry a declared host edge (the increment-1 remediation), so rule 5 is green over them; this rule FREEZES
-  that set as the bounded, shrinking, NAMED residual — the register IS the migration worklist (ADR-0192
-  consequences).
+- **`hostedStories?: string[]`** — the grandfather register: the currently-hosted story ids that are
+  permitted to keep files in a foreign building. In the real gather it comes from the `hostedStories`
+  block in `repo-manifest.json`, read by `check-boundaries.ts` (that read is the gatherer's glue, OUT of
+  this contract's write scope). **That block is a MAP**, not a list — story id → a note naming the hosts
+  it claimed at adoption — and the gatherer passes its KEYS to the pure judge, which is why the judge's
+  input shape here is a `string[]`. **`repo-manifest.json` is the register's only source of truth, and
+  this spec deliberately does NOT re-enumerate it.** At adoption (2026-07-13) it held **18** story ids
+  with a mapped foreign-hosting pair, derived mechanically via rule 5's evidence, each already carrying a
+  declared host edge (the increment-1 remediation) so rule 5 was green over them. The register is the
+  bounded, reviewed, shrinking residual that IS the migration worklist (ADR-0192 consequences) — but it
+  is not immutable, and membership has since moved in BOTH directions: entries LEAVE as stories migrate
+  or retire (`chat-subagent-spawn`, `headless-orchestrator` and `spawn-visibility` left with the ADR-0175
+  retirement), and an entry is ADDED only as a deliberate, owner-reviewed diff carrying its reason in the
+  manifest's own `$comment`/note (three have been — `app-surface` as the directed first-consumer seam
+  under ADR-0237, and `uat-detail-studio` + `model-uat-pilot` under ADR-0209). *(An earlier revision of
+  this bullet froze the 18 ids as a named list here. It drifted three-out / three-in while the COUNT
+  coincidentally stayed 18, so nothing caught it. The enumeration is removed rather than re-synced: a
+  spec that mirrors a live file is a second source of truth, and re-syncing it would only reset the same
+  trap.)*
 
 **The evidence is rule 5's, computed identically.** For a story `S`, its **mapped foreign-hosting pairs**
 are exactly what rule 5 computes: for each file `F` in `unitSourceFiles[S]`, take `F`'s first two path
@@ -110,7 +128,8 @@ register, in TWO directions:
   cannot squat in a foreign building at all (ADR-0192 decision 2). The message points the fix: re-home the
   unit's sources into `S`'s OWN workspace package (packages-forward, ADR-0192) — OR, ONLY for a deliberate
   owner-reviewed grandfathering, add `S` to the `hostedStories` register in `repo-manifest.json` (a loud
-  reviewed diff; entries only ever leave the register as stories migrate).
+  reviewed diff that must carry its reason alongside the entry; entries leave again as stories migrate or
+  retire).
 - **Stale-register (a registered story with no hosting evidence).** For each entry `E` in `hostedStories`
   that has NO mapped foreign-hosting pair (`E` no longer claims any file in a foreign building — it
   migrated, retired, or the entry is a typo), append ONE violation naming `E` and pointing at REMOVING the
@@ -175,9 +194,10 @@ register entry) FAILS the gate exactly like an undeclared coupling.
        order** — a hosted-but-unregistered story whose files sit across several foreign buildings yields
        exactly one refusal per `(S, T)` host pair, deduped across files (rule 5's dedup) and
        deterministically ordered.
-   - **proven by —** `packages/cli/src/boundaries.test.ts` (the leaf ADDS these cases inside the gate's
-     AUTHOR_TEST phase, mirroring rule 5's `landlordOnly` isolation helper — `packageDeps: {}` to sidestep
-     rules 0/1/3/4, an already-acyclic `storyGraph`/`consumedBy` to keep rule 2 silent — extended to pass
-     `hostedStories`; the red — the new cases asserting a packages-forward refusal `checkBoundaries` does
-     not yet produce at HEAD — is observed by the spine before the rule is added to
-     `packages/cli/src/boundaries.ts`).
+   - **proven by —** `packages/cli/src/boundaries.test.ts` — the `packages-forward-refusal: …` cases,
+     passing at HEAD against `checkPackagesForwardRefusal` in `packages/cli/src/boundaries.ts`. They were
+     authored by the leaf inside the gate's AUTHOR_TEST phase, mirroring rule 5's `landlordOnly` isolation
+     helper (`packageDeps: {}` to sidestep rules 0/1/3/4, an already-acyclic `storyGraph`/`consumedBy` to
+     keep rule 2 silent) extended to pass `hostedStories`; the red — those cases asserting a
+     packages-forward refusal `checkBoundaries` did not yet produce — WAS observed by the spine before the
+     rule was added, and the resulting signed pass is what promoted the build (run `real-mrja2qgq`).

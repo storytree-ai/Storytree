@@ -72,9 +72,15 @@ Owner-directed 2026-07-13:
    where the compiler and the existing package-granular gate enforce every edge for free. The
    existing hosted stories are GRANDFATHERED in a named register (`repo-manifest.json`), frozen at
    adoption; adding a name is a loud, owner-reviewed diff — the exact opposite of the silent
-   omission that let the incident through — and entries only retire as stories migrate. Enforced as
-   a second blocking rule (hosted per rule 1's evidence ∧ not registered → refuse, regardless of
-   declared edges), authored just-in-time as its own increment (landed 2026-07-14).
+   omission that let the incident through — and entries leave the register as stories migrate or
+   retire. Enforced as a second blocking rule (hosted per rule 1's evidence ∧ not registered →
+   refuse, regardless of declared edges), authored just-in-time as its own increment (landed
+   2026-07-14). *(Corrected in place 2026-08-08 per ADR-0139: this read "entries only retire as
+   stories migrate," naming migration as the sole exit path. Three entries have since left the
+   register by retiring outright rather than migrating into their own package —
+   `chat-subagent-spawn`, `headless-orchestrator`, and `spawn-visibility`, all under ADR-0175 — so
+   the decision this ADR records is unchanged, but its own prose undercounted the ways an entry
+   leaves.)*
 
 3. **Slow migration, never big-bang.** Grandfathered stories migrate one at a time, as next touched
    or as chores: move the story's WHOLE footprint into its own package, factoring shared host

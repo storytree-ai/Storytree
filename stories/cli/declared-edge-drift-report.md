@@ -5,16 +5,26 @@ story: cli
 capability: organism-boundary-tooling
 title: "Report declared cross-story edges with no code backing, deriving virtual stories' real edges from sourceFile"
 outcome: "A pure function computes, per story, the declared-but-code-unbacked cross-story edges (drift candidates) and the backed-but-undeclared edges — deriving a virtual story's real edges from its units' proof.real.sourceFile imports — as a non-blocking report, never a gate failure."
-status: proposed
+status: mapped
 proof_mode: contract-test
 depends_on: []
+# DELIVERED, BUT NOT GATE-PROVEN — hence `status: mapped`, not `proposed` (2026-08-08 correction,
+# ADR-0139 correct-in-place). `declaredEdgeDriftReport` and `formatDriftReport` are exported from
+# packages/cli/src/boundaries.ts at HEAD, wired non-blocking into check-boundaries.ts, and covered by
+# passing `declaredEdgeDriftReport: …` cases in packages/cli/src/boundaries.test.ts — landed by an
+# ORDINARY hand-authored commit ("feat(cli): non-blocking declared-edge drift report (ADR-0115)"), NOT
+# by a `--real` build. So the planned red was never observed by storytree's spine and no signed verdict
+# backs this contract: the same brownfield posture its sibling `boundary-judge-subgraph` records. The
+# `real:` arm below is RETAINED so the unit stays re-buildable, but a re-run must start from a genuine
+# red — the function it was to author already exists.
+#
 # Node-borne proof config (ADR-0057 keystone A): authoring THIS block is what makes the contract
 # inner-loop buildable — no NODE_BUILD_REGISTRY edit. EDIT-EXISTING (editsExisting: true): both files
 # already exist at HEAD — the leaf ADDS a new exported pure function (the per-story declared-vs-code set
 # difference + the report formatter) to packages/cli/src/boundaries.ts, and ADDS exhaustive cases to
-# packages/cli/src/boundaries.test.ts. The red is a runtime-assertion red: the new test calls the
-# not-yet-existing exported function (a missing-symbol/behaviour red against the source as it stands at
-# HEAD), green is the added function. NO `install`: the test imports ONLY node:test, node:assert/strict,
+# packages/cli/src/boundaries.test.ts. The planned red was a runtime-assertion red: a new test calling
+# the then-not-existing exported function (a missing-symbol/behaviour red), green the added function.
+# NO `install`: the test imports ONLY node:test, node:assert/strict,
 # and ./boundaries.js (relative); boundaries.ts itself imports nothing (no zod, no @storytree/*, no node:
 # builtins) — so the proof runs OFFLINE in a bare worktree with no lockfile install (and therefore no
 # typecheck wall is required). Single LITERAL sourceFile (no `*`), and sourceGlobs === [sourceFile], so
@@ -46,12 +56,15 @@ edges from its units' `proof.real.sourceFile` imports — as a NON-BLOCKING repo
 > **The gap this closes ([ADR-0115](../../docs/decisions/0115-detect-declared-edge-drift-derive-virtual-story-edges-from-s.md)).**
 > The blocking boundary gate ([ADR-0074](../../docs/decisions/0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md))
 > maps packages→stories via `repo-manifest.json` `packageOwnership`, so it is BLIND to a **virtual
-> story** that owns no package (e.g. `headless-orchestrator`, whose code is physically hosted in
-> `packages/agent` + `packages/drive`, owned by other stories) and to IoC / build-artifact seams. A
+> story** — one owning no package, its code physically hosted in packages owned by other stories — and
+> to IoC / build-artifact seams. A
 > virtual story's hand-authored `depends_on` can drift with ZERO gate signal — exactly what happened when
 > ADR-0112 moved the orchestrator composition into `packages/drive`: the code moved, the
 > `headless-orchestrator → cli` declaration did not, and a human had to notice and hand-correct it
-> (commit `57f4be8`). This contract is the pure core of the non-blocking drift report that would have
+> (commit `57f4be8`). *(That motivating story, `headless-orchestrator`, has since been RETIRED —
+> [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md),
+> owner-directed 2026-07-17 — so it is history here, not a live example. The blind spot it illustrates
+> is unchanged and still applies to every current virtual story.)* This contract is the pure core of the non-blocking drift report that would have
 > flagged it the moment ADR-0112 landed. It is a SIBLING to the gate, not a change to it (the disk
 > gatherer + the WARN wiring in [`check-boundaries.ts`](../../packages/cli/src/check-boundaries.ts) are
 > the consuming surface's I/O glue, deliberately OUT of this contract's write scope).
@@ -123,15 +136,27 @@ data and NEVER appends to the gate's violation list / fails the gate.
        imported `@storytree/*` packages to owning stories (same-story + self edges dropped);
      - **type-only imports skipped** — an `import type … from "@storytree/x"` in a derived source file does
        NOT contribute a real edge (erased, not a runtime coupling);
-     - **the `headless-orchestrator` fixture** — declared `depends_on: [agent, drive-machinery, library,
-       notice-board]`; its `orchestrator-composition` unit cites `sourceFile`
-       `packages/drive/src/orchestrate.ts`, whose text value-imports `@storytree/agent` + `@storytree/library`
-       at runtime and `@storytree/storage-protocol` type-only ⇒ derived real edges `{agent, library}`, so
-       the report flags **`drive-machinery`** and **`notice-board`** in `declaredButUnbacked` and does NOT
-       flag **`storage-protocol`** (type-only, skipped);
+     - **the `headless-orchestrator` fixture — a SYNTHETIC fixture, not a live story** — a virtual
+       story declaring `depends_on: [agent, drive-machinery, library, notice-board]` is fed an
+       in-memory source text (the suite's `ORCHESTRATE_TS` literal, modelled on the import head of
+       `packages/drive/src/orchestrate.ts`) that value-imports `@storytree/agent` and
+       `@storytree/library/store` at runtime and `@storytree/storage-protocol` type-only ⇒ derived real
+       edges `{agent, library}` — a SUBPATH specifier is reduced to its bare package (`scopePackage`)
+       before the ownership lookup, so `@storytree/library/store` still resolves to the `library` story
+       — so the report flags **`drive-machinery`** and **`notice-board`** in `declaredButUnbacked` and
+       does NOT flag **`storage-protocol`** (type-only, skipped). *(Why synthetic: the real story was
+       RETIRED with [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md),
+       and its `orchestrator-composition` capability had its `real:` arm dropped on retirement, so it
+       now cites NO `proof.real.sourceFile` and derives nothing. An in-memory literal is a legitimate
+       fixture and the suite is correct; what this bullet must not do is present it as a live worked
+       example. Note `packages/drive/src/orchestrate.ts` itself still EXISTS — ADR-0175's deliberately
+       KEPT half, re-aimed under `app-guide`; it is the CITATION that is gone, not the file.)*;
      - **non-blocking** — the function returns report data and never raises a violation / fails the gate
        (the blocking gate's violations and this report's drift candidates are separate outputs); a story
        with no asymmetry contributes no drift entry.
-   - **proven by —** `packages/cli/src/boundaries.test.ts` (the leaf ADDS these cases inside the gate's
-     AUTHOR_TEST phase; the red — the new test calling the not-yet-existing exported function — is observed
-     by the spine before the function is added to `packages/cli/src/boundaries.ts`).
+   - **proven by —** `packages/cli/src/boundaries.test.ts` — the `declaredEdgeDriftReport: …` cases,
+     passing at HEAD against `declaredEdgeDriftReport` / `formatDriftReport` in
+     `packages/cli/src/boundaries.ts`. *(Brownfield `mapped`: delivered by an ordinary hand-authored
+     commit rather than a `--real` build, so storytree's gate never drove it red→green and no signed
+     verdict backs it — the same honesty its sibling `boundary-judge-subgraph` records. The `real:` arm
+     is retained for a future re-proof, which would have to start from a genuine red.)*
