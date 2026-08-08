@@ -67,13 +67,13 @@ is the dependency test in both directions: neither of them needs anything from t
 > bookkeeping (`:115-116`). FOUR of the nine carry that classification — this rung, both `-r` legs and
 > `check:verification-decay` — so the discriminating count is the narrower one: of the seven STANDALONE
 > `check:*` rungs it is one of only TWO proof-integrity rungs, the other five being factory bookkeeping
-> (the full classification is `:110-133`). It spawns all six probes in their own processes over
+> (the full classification is `:110-133`). It spawns all eight probes in their own processes over
 > one shared fixture set and compares the real decoded payloads. That is a genuine integration proof
 > against real in-story collaborators — the desktop's own `/api/*` dispatcher and route handlers, run
 > for real — not a unit test over doubles. It has a recorded catch: `gate-order.ts:115-116` cites
 > commit `3ef84c96`, a studio-only docs change that produced 256+4 divergences.
 >
-> **The rules half — `packages/cli/src/mirror-conformance.test.ts`, 25 tests.** Part of the
+> **The rules half — `packages/cli/src/mirror-conformance.test.ts`, 32 tests.** Part of the
 > `@storytree/cli` suite. It covers every divergence kind the judge can report, which is what makes
 > the gate's PASS meaningful: a judge that could not detect a drift would pass forever. These are the
 > contracts below.
@@ -95,10 +95,10 @@ is the dependency test in both directions: neither of them needs anything from t
 >
 > **The other un-asserted pocket, named rather than implied.** The GATHER — `runProbe`'s spawn,
 > `decodePayload`, and the fail-closed `ProbeError` paths in
-> `packages/cli/src/check-mirror-conformance.ts:359-428` — has no offline assertion. It is exercised
-> on every gate run (six spawns, three input sets) but only on the success path; no test drives a
+> `packages/cli/src/check-mirror-conformance.ts:529-604` — has no offline assertion. It is exercised
+> on every gate run (eight spawns, four input sets) but only on the success path; no test drives a
 > probe that dies, prints garbage, or returns an empty payload for a non-empty input. The
-> never-vacuous rule at `:456-466` is therefore DESIGNED and RUN but not ASSERTED. This is the same
+> never-vacuous rule at `:632-642` is therefore DESIGNED and RUN but not ASSERTED. This is the same
 > pure-core / real-effects-wiring shape [`pinned-runtime-apply`](pinned-runtime-apply.md) records for
 > its four git readers.
 >
@@ -121,11 +121,11 @@ independent grounds:
   capabilities; it produces one capability and two units that are illegal to author.
 - **Neither half is independently viable.** Delete the probes and the judge has no input, and
   recovering one would require importing across the ADR-0176 wall — the thing the design exists to
-  avoid. Delete the judge and six probes print into the void. Delete the driver and neither ever
+  avoid. Delete the judge and eight probes print into the void. Delete the driver and neither ever
   meets the other. That is the organ test.
 - **Both triggers of the splitting-rule pass for the fused unit.** Its outcome states in one sentence
   without a conjunction (above), and its proof shares one precondition (one shared fixture set, built
-  once and handed to both sides — `check-mirror-conformance.ts:332-354`) and one observable (the
+  once and handed to both sides — `check-mirror-conformance.ts:499-524`) and one observable (the
   divergence list).
 
 **A PROBE IS NOT GLUE, AND THAT IS WHAT SEPARATES THIS FROM `check:boundaries`.** The nearest
@@ -144,8 +144,8 @@ than punching through it.* The probes are constitutive of the instrument, so the
 **WHY THIS IS A `desktop` CAPABILITY** (placement, story-author call — routed here as a structural
 fork, and settled against four candidates rather than two).
 
-1. **The obligation is the desktop's.** All three registry rows are `reference: "studio", mirror:
-   "desktop"` (`mirror-conformance.ts:114-215`). The studio is the fixed point; the hand-written copy
+1. **The obligation is the desktop's.** All four registry rows are `reference: "studio", mirror:
+   "desktop"` (`mirror-conformance.ts:125-277`). The studio is the fixed point; the hand-written copy
    that must track it is this surface's. The outcome above is a claim about the MIRROR conforming,
    and this story owns the mirror.
 2. **ADR-0251's Context is this story's defect.** Commit `71f68d2b` folded `parseAdrWireSignals` into
@@ -223,8 +223,8 @@ its second segment, so a three-unit scope is in bounds because the bound is per-
 The command is the honest one because it is the only one that runs the outcome; the cost of choosing
 it is the disjointness recorded under **The stated gap** above.
 
-**WHY THE ALLOWLIST IS EMPTY ON ALL THREE ROWS, AND WHY THAT IS NOT A MISSING FEATURE.** Every
-`referenceOnlyFields` is `[]` by design, and each row says why in its own comment: all three payloads
+**WHY THE ALLOWLIST IS EMPTY ON ALL FOUR ROWS, AND WHY THAT IS NOT A MISSING FEATURE.** Every
+`referenceOnlyFields` is `[]` by design, and each row says why in its own comment: all four payloads
 are served to the SAME compiled renderer from either surface, so a difference is a defect rather than
 a deliberate narrowing. The allowlist is the escape hatch, and it is self-pruning (contract 5) — an
 entry the mirror actually emits, or one the reference never emits, is itself a divergence — so it can
@@ -241,6 +241,26 @@ is inline in a `pg` closure this DB-free gate cannot reach. `/api/arcs` proves t
 method guard, the two no-store answers, the unknown-id answer, the id decode, the `{ arcs }` key —
 because the join itself is shared `@storytree/drive` code with no drift class.
 
+`/api/floor-health` proves the ENVELOPE for the same reason and with one extra arm. The READING
+carries no re-composition risk at all: `loadFloorHealthReading`
+(`packages/drive/src/factory-health-read.ts`) is shared `@storytree/drive` code that BOTH surfaces
+call and that `storytree factory health` also prints, so drive's own suites own the figure. What is
+hand-copied — and therefore what this row watches — is the method guard AND ITS STATED REASON
+(ADR-0316 D4's 405), the "no document store" answer, and the `{ reading }` key itself. It carries
+THREE arms rather than two because `quiet` (a real store whose reinforcements are all PRE-route, so
+the reading arrives with no `loudest`) and `no-store` (`{ reading: null }`) are the advisory-absence
+PAIR: they are the only thing that catches a mirror answering a quiet reading where its reference
+answers `null`, and `apps/studio/src/lib/floorHealth.ts` renders "no instrument here" and "all clear"
+differently on purpose. Its LIMITATION is worth stating in the same register: the fixture's docs and
+events are served VERBATIM by each probe's own store rather than recorded through one, because the
+`Store` seam's `appendEvent` accepts no `at`. That is what makes the comparison deterministic across
+two processes — but it also means this row, like the `/api/activity` row, cannot see a defect
+UPSTREAM of the reads (a mirror whose own store wiring returned the wrong rows), only one in how each
+surface wraps them. One thing it explicitly does NOT assert, and that is not a gap: the loud/quiet
+threshold (`LOUD_AT_RECURRENCES` in `apps/studio/src/components/FloorHealthStrip.tsx`). That is
+frontend, one compiled bundle served by both surfaces, so it has no drift class and no place in a
+server-payload comparison.
+
 ## Integration test
 
 **Goal —** Prove that the desktop's hand-written copy of each mirrored `/api/*` payload still serves
@@ -252,25 +272,28 @@ runs on every `pnpm gate` and in CI's `verify` job as a ROOT step, deliberately 
 affected-only narrowing (`check-mirror-conformance.ts:1-8` — drift here is introduced by editing
 EITHER surface, so a filter that ran only the edited one's suite would fence half the class).
 
-Real collaborators, no stub between them. For each of the three registry rows it spawns the
-reference probe and the mirror probe in their own processes (`runProbe`, `:393-428`), each in its own
+Real collaborators, no stub between them. For each of the four registry rows it spawns the
+reference probe and the mirror probe in their own processes (`runProbe`, `:569-604`), each in its own
 app dir so bare specifiers resolve through that app, and each driving its OWN surface's real route
 code — `listDocs` for docs, the real `/api/activity` handler over each surface's own re-composed fold
 for activity, and the real `handleApiRequest` / `createLocalBackend` dispatcher including its central
-error mapping for arcs, so status codes are inside the assertion rather than re-implemented beside it.
-The two decoded payloads are then compared by a third party that imported neither
-(`compareMirrors`). Six inputs across three sets: a synthetic docs fixture exercising branches the
-real corpus may not contain, the repo's REAL `docs/` tree, two activity fixtures carrying raw claim
-rows and a fixed `now` (a populated arm and an advisory-absence arm), and two arc fixture directories
-(a populated arm and a no-store arm). The comparison is equality between two implementations over one
-input rather than against a recorded value, so corpus content cannot destabilise it.
+error mapping for arcs and for floor-health, so status codes are inside the assertion rather than
+re-implemented beside it. The two decoded payloads are then compared by a third party that imported
+neither (`compareMirrors`). Nine inputs across four sets: a synthetic docs fixture exercising branches
+the real corpus may not contain, the repo's REAL `docs/` tree, two activity fixtures carrying raw claim
+rows and a fixed `now` (a populated arm and an advisory-absence arm), two arc fixture directories
+(a populated arm and a no-store arm), and three floor-health fixture files — a populated arm, a QUIET
+arm (a real store whose reinforcements are all pre-route, so the reading arrives with no `loudest`)
+and a no-store arm, the last two being the advisory-absence PAIR. The comparison is equality between
+two implementations over one input rather than against a recorded value, so corpus content cannot
+destabilise it.
 
-Underneath, the judge's 25 tests cover every divergence kind it can report — which is what makes the
+Underneath, the judge's 32 tests cover every divergence kind it can report — which is what makes the
 gate's PASS mean something. `mapped` (observational); the prove-it-gate did not drive it. The gather
 half and the never-vacuous rule are exercised on every run but not asserted offline — the stated gap
 recorded above, not claimed here.
 
-## Contracts (10)
+## Contracts (11)
 
 The test-proven leaf behaviours — each **one isolated automated test** with collaborators stubbed
 (ADR-0002). Every contract here has a REAL passing test (`proven by`). All are in the judge's suite,
@@ -279,41 +302,45 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
 
 1. **`identical-payloads-are-conformant`** — the baseline that keeps a green from being an artifact of the comparison
    - **asserts —** two identical payloads yield NO divergences; two EMPTY payloads are likewise conformant, and an empty allowlist adds no rule of its own.
-   - **covers —** `packages/cli/src/mirror-conformance.ts:395-466`
-   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:36` and `:136` (REAL, passing)
+   - **covers —** `packages/cli/src/mirror-conformance.ts:543-614`
+   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:38` and `:138` (REAL, passing)
 2. **`a-dropped-or-differing-field-is-a-divergence`** — the `71f68d2b` class, reported per field BY NAME
    - **asserts —** a field the mirror silently drops is a divergence naming the entry and the field; a value the mirror computes differently is a divergence; and an ABSENT key is distinguished from an explicit undefined-ish value, so `(absent)` and `null` can never be conflated into a false agreement.
-   - **covers —** `packages/cli/src/mirror-conformance.ts:428-439,376-378`
-   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:41`, `:60`, `:72` (REAL, passing)
+   - **covers —** `packages/cli/src/mirror-conformance.ts:576-587,524-526`
+   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:43`, `:62`, `:74` (REAL, passing)
 3. **`a-missing-or-extra-entry-is-reported`** — an entry-set difference is structural and is reported first
    - **asserts —** an entry the reference emits that the mirror does not is a `missing-entry`, and one the mirror emits that the reference does not is an `extra-entry`; each names its key.
-   - **covers —** `packages/cli/src/mirror-conformance.ts:404-412`
-   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:83` (REAL, passing)
+   - **covers —** `packages/cli/src/mirror-conformance.ts:552-560`
+   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:85` (REAL, passing)
 4. **`order-is-payload-and-is-judged-only-on-an-agreed-entry-set`** — the array is ordered payload, and a shift is reported once
    - **asserts —** a differing sort order over the same entries IS a divergence (a client rendering the array in order would show a different list); but order is NOT compared while the entry sets disagree, so a single missing entry cannot report a spurious shift at every position after it.
-   - **covers —** `packages/cli/src/mirror-conformance.ts:417-426`
-   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:94` and `:104` (REAL, passing)
+   - **covers —** `packages/cli/src/mirror-conformance.ts:565-574`
+   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:96` and `:106` (REAL, passing)
 5. **`the-allowlist-is-self-pruning`** — the one place a deliberate difference may be declared, and it cannot rot into a blanket exemption
    - **asserts —** an allowlisted reference-only field is exempted from the field comparison; but an entry the MIRROR in fact emits is reported stale (*the difference is no longer reference-only*), and an entry the REFERENCE never emits is reported stale (*nothing left to exempt*). Either half going false is a loud failure rather than a silently widening exemption.
-   - **covers —** `packages/cli/src/mirror-conformance.ts:445-463`
-   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:110`, `:116`, `:127` (REAL, passing)
+   - **covers —** `packages/cli/src/mirror-conformance.ts:593-611`
+   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:112`, `:118`, `:129` (REAL, passing)
 6. **`the-registry-exposes-its-routes-as-data`** — the second reader never scrapes a route out of prose
    - **asserts —** `registeredMirrorRoutes` derives the covered route set from the registry itself, so `check:verification-decay`'s `mirror-pair-drift` instrument reads what is registered rather than keeping a second list in step. Two hand-kept lists of one fact drifting apart is the exact class this file exists to fence, and a prose-scraping heuristic would be that class arriving inside its own instrument.
-   - **covers —** `packages/cli/src/mirror-conformance.ts:221-225`
-   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:140` (REAL, passing)
+   - **covers —** `packages/cli/src/mirror-conformance.ts:283-287`
+   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:142` (REAL, passing)
 7. **`the-activity-projection-keeps-an-omitted-layer-apart-from-an-empty-one`** — the `departures` class and the ADR-0200 `grade` class
    - **asserts —** the projection emits one `layer:<name>` marker per key PLUS one entry per row; a layer the mirror omits ENTIRELY diverges even at zero rows (rows alone cannot catch it — an omitted layer and an empty layer both contribute zero rows and would agree); a field a row drops is reported per row by name, which names the `grade` defect exactly; `null` and `[]` are distinguished, so the advisory-absence promise cannot be swapped for an empty array; and a row carrying its own `_key` cannot displace the synthetic one and collapse two entries into one.
-   - **covers —** `packages/cli/src/mirror-conformance.ts:274-300`
-   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:175`, `:192`, `:205`, `:220`, `:231` (REAL, passing)
+   - **covers —** `packages/cli/src/mirror-conformance.ts:344-370`
+   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:177`, `:194`, `:207`, `:222`, `:233` (REAL, passing)
 8. **`the-arcs-projection-compares-status-alongside-body`** — most of this envelope is expressed as a code, not as a field
    - **asserts —** the projection emits a `response:<label>` marker per replayed request carrying the STATUS, the body's shape and its top-level key set, plus one entry per arc; a status that diverges is a divergence (a projection over bodies alone would compare three error objects and never notice one surface returning them under different codes); `{ arcs: null }` and `{ arcs: [] }` are distinguished, because *no store* is not *no arcs* and the compiled arc lens renders those differently; an envelope key the mirror drops is a divergence even when every shared field agrees; and an arc the mirror drops is reported BY ID rather than as an order shift.
-   - **covers —** `packages/cli/src/mirror-conformance.ts:326-373`
-   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:256`, `:281`, `:293`, `:306`, `:321` (REAL, passing)
+   - **covers —** `packages/cli/src/mirror-conformance.ts:396-443`
+   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:258`, `:283`, `:295`, `:308`, `:323` (REAL, passing)
 9. **`an-undecodable-payload-throws-rather-than-projecting-empty`** — fail-closed at the projection, because an empty projection would agree with anything
-   - **asserts —** a payload that is not a JSON object is a THROW from BOTH projections, never a silently empty entry list. The caller converts it to a `ProbeError` and thus a conformance FAILURE, so a probe that returned garbage can never read as a pass.
-   - **covers —** `packages/cli/src/mirror-conformance.ts:275-277,327-329`
-   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:236` and `:329` (REAL, passing)
+   - **asserts —** a payload that is not a JSON object is a THROW from ALL THREE projections, never a silently empty entry list. The caller converts it to a `ProbeError` and thus a conformance FAILURE, so a probe that returned garbage can never read as a pass.
+   - **covers —** `packages/cli/src/mirror-conformance.ts:345-347,397-399,473-477`
+   - **proven by —** `packages/cli/src/mirror-conformance.test.ts:238`, `:331`, `:474` (REAL, passing)
 10. **`the-failure-report-censuses-by-field-and-elides`** — a 168-instance drift reads as ONE fact, not 168 lines
     - **asserts —** the report leads with a per-field census ordered by count, then lists at most `REPORT_LIMIT` lines and states how many more were elided — so an operator facing the `71f68d2b`-shaped failure is shown *which field* drifted rather than a wall of per-entry lines.
-    - **covers —** `packages/cli/src/mirror-conformance.ts:491-515`
-    - **proven by —** `packages/cli/src/mirror-conformance.test.ts:337` (REAL, passing)
+    - **covers —** `packages/cli/src/mirror-conformance.ts:639-663`
+    - **proven by —** `packages/cli/src/mirror-conformance.test.ts:482` (REAL, passing)
+11. **`the-floor-health-projection-keeps-a-quiet-floor-apart-from-no-instrument`** — the advisory-absence pair, and the reason this row carries three arms rather than two
+    - **asserts —** the projection emits a `response:<label>` marker per replayed request carrying the STATUS, the body's shape and its top-level key set, a `<label>:reading` marker carrying the reading's own shape and key set, plus the reading's fields compared BY NAME; a QUIET reading (present, but with no `loudest`) and `{ reading: null }` (*this backend has no document store*) are DISTINGUISHED — the load-bearing one, because `apps/studio/src/lib/floorHealth.ts` renders "no instrument here" and "all clear" differently on purpose, so a mirror that collapsed one into the other would drive the SAME compiled band into reporting all-clear for a floor it never measured; a status that diverges is a divergence, so ADR-0316 D4's 405 cannot silently become a generic 404; a reading key the mirror drops is a divergence even when every shared field agrees; and a reading carrying its own `_key` cannot displace the synthetic one.
+    - **covers —** `packages/cli/src/mirror-conformance.ts:472-521`
+    - **proven by —** `packages/cli/src/mirror-conformance.test.ts:362`, `:388`, `:410`, `:429`, `:445`, `:463` (REAL, passing)

@@ -830,6 +830,193 @@ test("local-backend: /api/arcs refuses a non-GET method with 405 — read-only b
   }
 });
 
+// ===========================================================================
+// GET /api/floor-health — the FACTORY-FLOOR reading (ADR-0316) behind ADR-0314 D7's strip.
+// Re-composes the studio's handleFloorHealth over the SAME shared composition (drive's
+// `loadFloorHealthReading`), so the desktop band, the hosted studio and `storytree factory health`
+// cannot disagree about how the floor is doing.
+//
+// THE GAP THESE CLOSE, measured rather than theorised, and the SECOND instance of one class: the
+// Electron app loads the COMPILED STUDIO BUNDLE against this backend, so it already ships the band
+// #1228 wired — and with no route here the band rendered `declined` ("no reading — the floor-health
+// read didn't answer here"). Honest rather than broken, by design, but it is not the reading. That is
+// the same shape #1192 found and #1195 closed for /api/arcs. Every assertion below fails if the route
+// is removed.
+// ===========================================================================
+
+const FLOOR_LOUD_ID = "a-live-guardrail-that-keeps-firing";
+
+/**
+ * The floor-health fixture, served VERBATIM — docs AND events, with every `at` written down.
+ *
+ * THAT IS NOT FASTIDIOUSNESS, IT IS THE ONLY WAY THIS FIXTURE MEANS ANYTHING. A reinforcement is
+ * attributed to the route STANDING WHEN IT LANDED, read off the event log's timestamps
+ * (`RECURRENCE_ATTRIBUTION_RULE`). `Store.appendEvent` accepts no `at` — the implementation stamps
+ * it — so a store that recorded its own events would date every route to TODAY and read every
+ * reinforcement as PRE-route, leaving `loudest` absent and the interesting half of the reading
+ * unexercised. The studio's own floorHealthApi.integration.test.ts carries the same fixture for the
+ * same reason.
+ *
+ * The dates are chosen to exercise the rule rather than merely to produce a number: the route is set
+ * on 07-11, so the 07-11 reinforcement is SAME-DAY (never post-route — day-granular dates cannot
+ * prove ordering) and only the three later ones count.
+ */
+const FLOOR_DOCS = [
+  {
+    id: FLOOR_LOUD_ID,
+    kind: "friction",
+    doc: {
+      title: FLOOR_LOUD_ID,
+      route: "guardrail",
+      reinforcedBy: ["2026-07-11", "2026-07-12", "2026-07-16", "2026-07-28"].map((date) => ({
+        branch: "claude/x",
+        date,
+        evidence: "`e`",
+      })),
+    },
+    createdAt: "2026-07-11T00:00:00.000Z",
+    updatedAt: "2026-08-08T00:00:00.000Z",
+  },
+];
+
+const FLOOR_EVENTS = [
+  {
+    seq: 1,
+    id: FLOOR_LOUD_ID,
+    kind: "friction",
+    type: "created" as const,
+    doc: {},
+    actor: "cli",
+    at: "2026-07-11T09:00:00.000Z",
+  },
+  {
+    seq: 2,
+    id: FLOOR_LOUD_ID,
+    kind: "friction",
+    type: "updated" as const,
+    doc: { route: "guardrail" },
+    actor: "cli",
+    at: "2026-07-11T13:54:04.888Z",
+  },
+];
+
+/**
+ * A minimal document store over that fixture — defined HERE for the same reason `ArcFixtureStore` is:
+ * `@storytree/storage-protocol` is drive's declared dep and not desktop's, so pnpm's strict isolation
+ * will not resolve `InMemoryStore` from apps/desktop.
+ *
+ * Only `queryDocs` and `readEvents` are on this route (`loadFloorHealthReading` reads nothing else).
+ * The remaining four satisfy the seam's SHAPE and THROW: this backend's floor-health path is
+ * report-only by ADR-0316 D4, so a route that ever started writing — or reaching for a doc by id —
+ * should break loudly here rather than quietly widening what these tests cover.
+ */
+class FloorHealthFixtureStore {
+  async queryDocs(filter?: { kind?: string }) {
+    return FLOOR_DOCS.filter((d) => filter?.kind === undefined || d.kind === filter.kind);
+  }
+  async readEvents(filter?: { id?: string }) {
+    return FLOOR_EVENTS.filter((e) => filter?.id === undefined || e.id === filter.id);
+  }
+  async upsertDoc(): Promise<never> {
+    throw new Error("floor-health is report-only (ADR-0316 D4) — it must not upsert");
+  }
+  async getDoc(): Promise<never> {
+    throw new Error("floor-health must not read a doc by id");
+  }
+  async deleteDoc(): Promise<never> {
+    throw new Error("floor-health is report-only (ADR-0316 D4) — it must not delete");
+  }
+  async appendEvent(): Promise<never> {
+    throw new Error("floor-health is report-only (ADR-0316 D4) — it must not append events");
+  }
+}
+
+// THE CORE OUTCOME: the thick client serves the reading, and it is DRIVE'S composition with nothing
+// derived locally — asserted against `loadFloorHealthReading` itself rather than a hand-shaped
+// literal, so a handler that ever started computing its own figure (or a desktop copy that drifted
+// from the studio's) goes red HERE. Deletion test: before this route existed the request fell through
+// to the 404 'unknown endpoint', which is exactly what left the desktop band `declined`.
+test("local-backend: GET /api/floor-health serves the SAME reading drive composes — not a 404 fall-through", async () => {
+  const store = new FloorHealthFixtureStore();
+  const backend = overlayBackend({ docStore: async () => store });
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend,
+    store: "pg",
+  });
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/floor-health`);
+    assert.equal(res.status, 200, "floor-health must be 200 — the route is mounted, not a 404");
+    const body = (await res.json()) as { reading: Record<string, unknown> };
+
+    const { loadFloorHealthReading } = await import("@storytree/drive");
+    const expected = await loadFloorHealthReading(store);
+    assert.deepEqual(body.reading, JSON.parse(JSON.stringify(expected)));
+
+    // And the instrument really read: the loudest DISTINCT cause reached the desktop payload, with
+    // the ONE number this wire may carry (ADR-0316 D3) — not an empty shell that happens to be equal.
+    const loudest = body.reading["loudest"] as { cause: string; route: string; recurrences: number };
+    assert.equal(loudest.cause, FLOOR_LOUD_ID);
+    assert.equal(loudest.route, "guardrail");
+    assert.equal(loudest.recurrences, 3, "3 post-route — the same-day reinforcement never counts");
+    assert.ok(Object.hasOwn(body.reading, "window"), "every figure arrives with its window (D2)");
+  });
+});
+
+// "NO STORE" AND "A QUIET FLOOR" ARE DIFFERENT FACTS, and `reading: null` is what keeps them apart.
+// A band that rendered a missing instrument as "all clear" is the exact failure the whole strip
+// exists to avoid, so the offline/json posture must not collapse into a quiet reading.
+test("local-backend: /api/floor-health answers { reading: null } with no document store — not a quiet floor", async () => {
+  // stubBackend omits docStore entirely — the narrow/offline posture.
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend: stubBackend(),
+    store: "json",
+  });
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/floor-health`);
+    assert.equal(res.status, 200, "a missing store is a 200 with a null reading, never a 503");
+    assert.deepEqual(await res.json(), { reading: null });
+  });
+});
+
+// A seam that ANSWERS null (wired, but this backend has no document store) reads identically to an
+// absent seam — the band's `declined` branch either way.
+test("local-backend: /api/floor-health answers { reading: null } when the docStore seam answers null", async () => {
+  const backend = overlayBackend({ docStore: async () => null });
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend,
+    store: "json",
+  });
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/floor-health`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { reading: null });
+  });
+});
+
+// Report-only BY DECISION, not by omission (ADR-0316 D4): a write is a typed 405 that states WHY,
+// never a silent fall-through to the 404.
+test("local-backend: /api/floor-health refuses a non-GET with 405 — it reports, it does not adjudicate", async () => {
+  const backend = overlayBackend({ docStore: async () => new FloorHealthFixtureStore() });
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend,
+    store: "pg",
+  });
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/floor-health`, { method: "POST" });
+    assert.equal(res.status, 405, "a write is refused by decision, with the ADR named");
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.match(String(body["error"]), /does not adjudicate/, "the refusal states WHY, not just that");
+  });
+});
+
 // Pins that the read-dispatch seam is wired: listAssets is called and its result (the stub's
 // empty array) is serialised as the response body.
 test("local-backend: GET /api/assets returns the stub backend's result as an array", async () => {

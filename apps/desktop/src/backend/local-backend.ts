@@ -30,22 +30,30 @@ const loadProofProtocol = (): Promise<typeof import("@storytree/proof-protocol")
 let noticeBoardModule: Promise<typeof import("@storytree/notice-board")> | null = null;
 const loadNoticeBoard = (): Promise<typeof import("@storytree/notice-board")> =>
   (noticeBoardModule ??= import("@storytree/notice-board"));
-// The arc → children JOIN behind `/api/arcs` is SHARED code, not a re-composition: `loadArcRollups`
-// lives in @storytree/drive (already this app's declared dep) precisely so the CLI, the studio server
-// and this backend read one join and cannot disagree about what an arc contains (ADR-0267). Loaded
-// lazily like the two above — drive pulls `node:`-bearing modules, and nothing on the health/tree
-// path should pay for them.
+// The two COMPOSITIONS behind `/api/arcs` and `/api/floor-health` are SHARED code, not
+// re-compositions: `loadArcRollups` (the arc → children join) and `loadFloorHealthReading` (the
+// floor-health instrument's one store-reading half) both live in @storytree/drive — already this
+// app's declared dep — precisely so the CLI, the studio server and this backend read one join and one
+// reading, and cannot disagree about what an arc contains or how the floor is doing (ADR-0267 /
+// ADR-0316). Loaded lazily like the two above — drive pulls `node:`-bearing modules, and nothing on
+// the health/tree path should pay for them.
 type DriveModule = typeof import("@storytree/drive");
 let driveModule: Promise<DriveModule> | null = null;
 const loadDrive = (): Promise<DriveModule> => (driveModule ??= import("@storytree/drive"));
 
 /**
- * The document store the arc rollup reads through — DRIVE'S OWN `Store` type, reached structurally
- * so this module needs no `@storytree/storage-protocol` import: that package is drive's declared dep
- * and not desktop's, and pnpm's strict isolation will not resolve it from here. The same route
+ * The library document store BOTH store-backed reads reach through — the arc rollup (`/api/arcs`) and
+ * the floor-health reading (`/api/floor-health`). DRIVE'S OWN `Store` type, reached structurally so
+ * this module needs no `@storytree/storage-protocol` import: that package is drive's declared dep and
+ * not desktop's, and pnpm's strict isolation will not resolve it from here. The same route
  * `chat-sse-mount.ts`'s `ChatCorpusStore` takes, for the same reason.
+ *
+ * Derived from the arc join because that is the WIDER of the two requirements — `loadArcRollups` wants
+ * the whole `Store`, `loadFloorHealthReading` only `queryDocs`/`readEvents` — so one seam satisfies
+ * both and the desktop keeps ONE document store rather than two spellings of it. That mirrors the
+ * studio, where `handleArcs` and `handleFloorHealth` both read `backend.docStore`.
  */
-type ArcDocStore = Parameters<DriveModule["loadArcRollups"]>[0]["store"];
+type LibraryDocStore = Parameters<DriveModule["loadArcRollups"]>[0]["store"];
 
 // ---------- minimal HTTP helpers (local copies — not imported from studio) ----------
 
@@ -140,18 +148,21 @@ export interface LocalBackendBackend {
    */
   sessionClaims?: () => Promise<unknown[] | null>;
   /**
-   * The library DOCUMENT STORE, for the arc rollup behind `GET /api/arcs` (ADR-0267 / ADR-0314) —
-   * the SAME `Store` the CLI drives under `--pg`, handed straight to drive's `loadArcRollups`, so
-   * the desktop, the studio and `storytree arc show` read ONE join and cannot disagree about what
-   * an arc contains. Optional exactly like {@link sessionClaims}: a narrow stub may omit it, and
-   * production wires it (electron/backend-entry.ts) to the live `PgLibraryStore`.
+   * The library DOCUMENT STORE — the SAME `Store` the CLI drives under `--pg`, and the seam behind
+   * BOTH store-backed reads: the arc rollup at `GET /api/arcs` (ADR-0267 / ADR-0314, handed straight
+   * to drive's `loadArcRollups`) and the factory-floor reading at `GET /api/floor-health` (ADR-0316,
+   * handed to drive's `loadFloorHealthReading`). One seam, so the desktop, the studio,
+   * `storytree arc show` and `storytree factory health` cannot disagree about what an arc contains or
+   * how the floor is doing. Optional exactly like {@link sessionClaims}: a narrow stub may omit it,
+   * and production wires it (electron/backend-entry.ts) to the live `PgLibraryStore`.
    *
-   * ITS ABSENCE IS NOT THE SAME ADVISORY NULL the overlay seams above carry, and the route treats
+   * ITS ABSENCE IS NOT THE SAME ADVISORY NULL the overlay seams above carry, and both routes treat
    * it differently on purpose. "This backend has no document store" and "the store is here and
-   * holds no arcs" are DIFFERENT facts — preserving that distinction is the whole reason
-   * `/api/arcs` answers `{ arcs: null }` rather than `{ arcs: [] }` when the seam is missing.
+   * holds no arcs / a quiet floor" are DIFFERENT facts — preserving that distinction is the whole
+   * reason `/api/arcs` answers `{ arcs: null }` rather than `{ arcs: [] }`, and `/api/floor-health`
+   * answers `{ reading: null }` rather than a reading with no `loudest`, when the seam is missing.
    */
-  docStore?: () => Promise<ArcDocStore | null>;
+  docStore?: () => Promise<LibraryDocStore | null>;
 }
 
 /**
@@ -260,6 +271,8 @@ async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, 
  *                        grouped by session (advisory: `{ sessions: null }` when the seam/DB is silent)
  * - GET  /api/arcs     — the ARC SURFACE's rollups (ADR-0267 / ADR-0314), `{ arcs }`; `/api/arcs/<id>`
  *                        serves one. Read-only by decision (405 on a write, ADR-0267 D6 / ADR-0314 D9)
+ * - GET  /api/floor-health — the FACTORY-FLOOR reading behind ADR-0314 D7's strip (ADR-0316),
+ *                        `{ reading }`; `null` when this backend has no document store
  * - GET  /api/assets   — library assets from the injected `backend`
  * - POST /api/build    — dispatch a build intent via the injected `build` seam (404 when absent)
  * - *    /api/*        — 404 with an error body
@@ -376,6 +389,44 @@ export function createLocalBackend(
             if (rollup === null) throw new HttpError(404, `no arc "${id}"`);
             sendJson(res, 200, rollup);
           }
+        }
+      } else if (url.pathname === "/api/floor-health") {
+        // The FACTORY-FLOOR HEALTH reading behind ADR-0314 D7's strip (the instrument ADR-0316 D1–D4
+        // built on `factory-floor-health-arc`, whose D5 names that strip its first committed
+        // CONSUMER). Re-composes the studio's handleFloorHealth (apiRouter.ts) — no
+        // apps/studio/server import (ADR-0100 / ADR-0176) — while the COMPUTE is genuinely shared:
+        // drive's `loadFloorHealthReading` is the same composition `storytree factory health` prints
+        // under "THE READING", so nothing is derived here and the surfaces cannot disagree about the
+        // floor. This branch adds routing, the method check and the honest store-absent answer only.
+        //
+        // WHY THE DESKTOP NEEDS IT AT ALL — the same gap `/api/arcs` had, found the same way. The
+        // Electron app loads the COMPILED STUDIO BUNDLE against this backend, so it already ships the
+        // band #1228 wired; without this route the fetch 404'd and the band rendered `declined` —
+        // "the floor-health read didn't answer here" (apps/studio/src/lib/floorHealth.ts). That was
+        // HONEST rather than broken, by design, but it is not the reading, and this is a surface the
+        // owner actually uses.
+        //
+        // IT SETS NO THRESHOLD, deliberately — ADR-0316 D4 keeps the instrument to MEASURING, so what
+        // crosses this wire is the figure and its provenance; the band that reads it decides loud from
+        // quiet (`LOUD_AT_RECURRENCES` in apps/studio/src/components/FloorHealthStrip.tsx). A mirror
+        // that decided loudness would put the one undecided call somewhere no reader can see it, and
+        // would make the two surfaces disagree about the same floor.
+        //
+        // `reading: null` IS THE STORE-ABSENT ANSWER, not a quiet floor — the same advisory contract
+        // `/api/arcs` carries, and the strip renders the two differently, because a missing instrument
+        // presented as "all clear" is the failure mode the whole band exists to avoid.
+        if ((req.method ?? "GET") !== "GET") {
+          throw new HttpError(
+            405,
+            "method not allowed — the floor-health band reports, it does not adjudicate (ADR-0316 D4)",
+          );
+        }
+        const store = await (deps.backend.docStore?.() ?? Promise.resolve(null));
+        if (store === null) {
+          sendJson(res, 200, { reading: null });
+        } else {
+          const { loadFloorHealthReading } = await loadDrive();
+          sendJson(res, 200, { reading: await loadFloorHealthReading(store) });
         }
       } else if (url.pathname === "/api/assets") {
         if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");

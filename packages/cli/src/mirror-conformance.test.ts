@@ -10,10 +10,12 @@ import {
   ACTIVITY_KEY,
   ARCS_KEY,
   compareMirrors,
+  FLOOR_HEALTH_KEY,
   formatDivergences,
   MIRRORS,
   projectActivityPayload,
   projectArcsPayload,
+  projectFloorHealthPayload,
   registeredMirrorRoutes,
   REPORT_LIMIT,
   type Entry,
@@ -332,6 +334,149 @@ test("an arcs payload that is not a JSON object is a THROW, never a silently emp
     assert.throws(() => projectArcsPayload(bad), /must be a JSON object/);
   }
   assert.throws(() => projectArcsPayload({ list: "200 OK" }), /must be a \{ status, body \} object/);
+});
+
+// ---------- projectFloorHealthPayload: the `/api/floor-health` projection ----------
+
+const FLOOR_HEALTH_SPEC: MirrorSpec = {
+  surface: "GET /api/floor-health",
+  route: "/api/floor-health",
+  reference: "studio",
+  mirror: "desktop",
+  key: FLOOR_HEALTH_KEY,
+  referenceOnlyFields: [],
+};
+
+/** A reading shaped like drive's: the rules, the window, and the ONE number (ADR-0316 D2/D3). */
+const reading = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+  window: {},
+  collapsingRule: "two live filings are ONE cause when an AUTHOR joined them…",
+  attributionRule: "attributed to the route STANDING WHEN IT LANDED…",
+  distinctCauses: 2,
+  unjoined: 1,
+  ...extra,
+});
+
+const loud = { cause: "a-live-guardrail", members: ["a-live-guardrail"], route: "guardrail", recurrences: 4 };
+
+test("the floor-health projection emits a response marker, a reading marker and the reading's fields", () => {
+  const entries = projectFloorHealthPayload({
+    read: answer(200, { reading: reading({ loudest: loud }) }),
+    write: answer(405, { error: "method not allowed — … it does not adjudicate (ADR-0316 D4)" }),
+  });
+  // Labels SORTED, so the entry order is the request SET and never the probe's iteration order.
+  assert.deepEqual(entries.map((e) => e[FLOOR_HEALTH_KEY]), [
+    "response:read",
+    "read:reading",
+    "read#reading",
+    "response:write",
+    "write#body",
+  ]);
+  assert.deepEqual(entries[0], {
+    [FLOOR_HEALTH_KEY]: "response:read",
+    status: 200,
+    shape: "object",
+    keys: "reading",
+  });
+  assert.deepEqual(entries[1], {
+    [FLOOR_HEALTH_KEY]: "read:reading",
+    shape: "object",
+    keys: "attributionRule,collapsingRule,distinctCauses,loudest,unjoined,window",
+  });
+});
+
+test("a QUIET reading and a NULL reading are distinguished — no instrument is not all clear", () => {
+  // THE load-bearing assertion of this row, and the reason the harness carries both a `quiet` arm and
+  // a `no-store` arm. `{ reading: null }` means "this backend has no document store"; a reading with
+  // no `loudest` means "the floor is quiet". `apps/studio/src/lib/floorHealth.ts` renders those
+  // differently on purpose — a missing instrument presented as "all clear" is the exact failure
+  // ADR-0316's band exists to avoid — so a mirror that collapsed one into the other must go red.
+  const studio = projectFloorHealthPayload({ read: answer(200, { reading: null }) });
+  const desktop = projectFloorHealthPayload({ read: answer(200, { reading: reading() }) });
+
+  const divergences = compareMirrors(studio, desktop, FLOOR_HEALTH_SPEC, "floor-health-no-store");
+  assert.ok(
+    divergences.some(
+      (d) => d.kind === "field" && d.key === "read:reading" && d.field === "shape",
+    ),
+    "the reading marker's SHAPE keeps null apart from an object",
+  );
+  assert.ok(
+    divergences.some((d) => d.kind === "extra-entry" && d.key === "read#reading"),
+    "and the mirror's invented reading shows up as an entry the reference never emitted",
+  );
+});
+
+test("a STATUS that diverges is a divergence — report-only is a DECISION, expressed as a code", () => {
+  // ADR-0316 D4's 405 is the hand-copied half of this envelope. A body-only projection would compare
+  // two error objects and never notice one surface refused with a different code — or, worse, that a
+  // mirror let a write fall through to the generic 404 and so never refused BY DECISION at all.
+  const studio = projectFloorHealthPayload({ write: answer(405, { error: "method not allowed" }) });
+  const desktop = projectFloorHealthPayload({ write: answer(404, { error: "method not allowed" }) });
+
+  assert.deepEqual(compareMirrors(studio, desktop, FLOOR_HEALTH_SPEC, "floor-health-populated"), [
+    {
+      kind: "field",
+      where: "floor-health-populated",
+      key: "response:write",
+      field: "status",
+      reference: "405",
+      mirror: "404",
+    },
+  ]);
+});
+
+test("a reading field the mirror computes differently is reported BY NAME", () => {
+  // The figure is shared code (`loadFloorHealthReading`), so this should never happen — but "should
+  // never" is what the /api/docs drift was too. Per-field rather than a whole-body JSON compare, so
+  // the failure names `loudest` instead of printing two readings side by side.
+  const studio = projectFloorHealthPayload({ read: answer(200, { reading: reading({ loudest: loud }) }) });
+  const desktop = projectFloorHealthPayload({
+    read: answer(200, { reading: reading({ loudest: { ...loud, recurrences: 2 } }) }),
+  });
+
+  const divergences = compareMirrors(studio, desktop, FLOOR_HEALTH_SPEC, "floor-health-populated");
+  assert.deepEqual(
+    divergences.map((d) => (d.kind === "field" ? `${d.key}.${d.field}` : d.kind)),
+    ["read#reading.loudest"],
+  );
+});
+
+test("a reading key the mirror drops is a divergence even when every shared field agrees", () => {
+  // A mirror that served the figure but lost `window` would strip the provenance ADR-0316 D2 requires
+  // every figure to arrive with — invisible if only shared keys were compared.
+  const studio = projectFloorHealthPayload({ read: answer(200, { reading: reading() }) });
+  const { window: _dropped, ...withoutWindow } = reading();
+  const desktop = projectFloorHealthPayload({ read: answer(200, { reading: withoutWindow }) });
+
+  const divergences = compareMirrors(studio, desktop, FLOOR_HEALTH_SPEC, "floor-health-populated");
+  assert.ok(
+    divergences.some((d) => d.kind === "field" && d.key === "read:reading" && d.field === "keys"),
+    "the reading marker's key SET catches a reading that lost a field entirely",
+  );
+  assert.ok(
+    divergences.some((d) => d.kind === "field" && d.key === "read#reading" && d.field === "window"),
+    "and the field itself is reported absent",
+  );
+});
+
+test("a reading carrying its own `_key` cannot displace the synthetic one", () => {
+  const entries = projectFloorHealthPayload({
+    read: answer(200, { reading: { [FLOOR_HEALTH_KEY]: "spoofed", distinctCauses: 1 } }),
+  });
+  assert.deepEqual(entries.map((e) => e[FLOOR_HEALTH_KEY]), [
+    "response:read",
+    "read:reading",
+    "read#reading",
+  ]);
+});
+
+test("a floor-health payload that is not a JSON object is a THROW, never a silently empty projection", () => {
+  // Fail-closed on both levels: the envelope, and each label's `{ status, body }` answer.
+  for (const bad of [null, [], "{}", 7]) {
+    assert.throws(() => projectFloorHealthPayload(bad), /must be a JSON object/);
+  }
+  assert.throws(() => projectFloorHealthPayload({ read: "200 OK" }), /must be a \{ status, body \} object/);
 });
 
 test("formatDivergences reports a per-field census and elides past the limit", () => {
