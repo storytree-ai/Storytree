@@ -12,6 +12,22 @@ import {
   loadTestTimingInputs,
 } from "./test-timing-gate.js";
 
+/*
+ * LOAD-BEARING — DO NOT DELETE WITH THE UNWIRED ADR-0311 LEFTOVERS.
+ *
+ * `check:test-timing` was retired by ADR-0311 D2 and `test-timing-drain.ts` beside this file carries
+ * the UNWIRED banner, so this file LOOKS like a leftover. It is not. Its BASELINE test at the bottom
+ * runs inside `pnpm -r test` — GATE_PLAN step 6, which CI runs too — and is the ONLY surviving
+ * enforcement of ADR-0276's no-wall-clock-in-tests rule: it sweeps every gate-tier workspace's test
+ * files for `performance.now` / `process.hrtime` behind an anti-vacuity floor and asserts the
+ * unsanctioned list is empty. A new timing call anywhere in the repo reds through HERE.
+ *
+ * Deleting this file drops that invariant silently. Declared, with its cost, in
+ * `gate-order.ts`'s RETIRED_TEST_COMPANIONS; `gate-order.test.ts` reds if the file or the banner
+ * goes. That is not a licence to re-wire the rung — ADR-0311 D5 still governs that, and this is an
+ * ordinary test, never a gate step.
+ */
+
 /**
  * The `check:test-timing` drain ceiling (ADR-0276 D3, in ADR-0252 D3 / ADR-0168 D4's shape). Pure —
  * the core takes gap lists and a substrate flag, so every level is testable without disk. The

@@ -145,6 +145,11 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "to",
   "landings-per-day",
   "ref",
+  // `session-cost` — a transcript project-directory prefix and a turn-count floor (ADR-0323 D4).
+  // Read-only report inputs like the `factory health` block above: neither is ever stored into an
+  // artifact, so neither can corrupt a durable record.
+  "project",
+  "min-turns",
 ]);
 
 /** A `@path` value that could not be read — the refusal the boundary returns instead of storing it. */
