@@ -20,6 +20,7 @@ import {
 } from "@storytree/orchestrator";
 import type { DecisionFork, NodeSpec } from "@storytree/orchestrator";
 import type { ReliabilityGate } from "@storytree/library";
+import { silentBuildProgress } from "@storytree/drive";
 
 import { driveBuildTestsGate } from "./gate-build-driver.js";
 
@@ -169,6 +170,7 @@ test("drives a build-tests gate's R2 red→green and signs a DRIVEN verdict FOR 
     const gate = buildTestsGate();
     const env = await driveBuildTestsGate(gate, "builder@example.com", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // the offline driver asserts the ENVELOPE, not the liveness chatter
       storiesDir: stories,
       repoRoot: repo,
       store, // the test OWNS the store, so it can roll up the events below
@@ -230,6 +232,7 @@ test("U3 regression wall: an R2 refactor that REGRESSES the sibling test reds th
       });
     const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // the offline driver asserts the ENVELOPE, not the liveness chatter
       storiesDir: stories,
       repoRoot: repo,
       store,
@@ -269,6 +272,7 @@ test("U4 — an UNRESOLVED key design fork HALTS the drive before any spend (no 
     // so the sweep blocks. The halt is BEFORE store/worktree, so repoRoot is never touched (`.` is fine).
     const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // the offline driver asserts the ENVELOPE, not the liveness chatter
       storiesDir: stories,
       repoRoot: ".",
       store,
@@ -298,6 +302,7 @@ test("U4 — a ROUTINE choice + a RESOLVED key fork sweep CLEAR; the drive proce
   try {
     const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // the offline driver asserts the ENVELOPE, not the liveness chatter
       storiesDir: stories,
       repoRoot: repo,
       store,
@@ -330,6 +335,7 @@ test("U4 — a ROUTINE choice + a RESOLVED key fork sweep CLEAR; the drive proce
 test("refuses a build-tests gate with no (build:) reference", async () => {
   const env = await driveBuildTestsGate(buildTestsGate({ buildNode: undefined }), "builder@example.com", {
     corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // the offline driver asserts the ENVELOPE, not the liveness chatter
     storiesDir: ".",
     repoRoot: ".",
     store: new InMemoryStore(),
@@ -343,6 +349,7 @@ test("refuses when the referenced build node spec does not exist", async () => {
   try {
     const env = await driveBuildTestsGate(buildTestsGate({ buildNode: "ghost-node" }), "builder@example.com", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // the offline driver asserts the ENVELOPE, not the liveness chatter
       storiesDir: stories,
       repoRoot: ".",
       store: new InMemoryStore(),

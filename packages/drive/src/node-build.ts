@@ -47,12 +47,15 @@ import {
 } from "@storytree/library/store";
 import { PgClaimStore } from "@storytree/notice-board/store";
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
+import type { BuildPhase } from "@storytree/proof-protocol";
 import { PgWorkStore } from "@storytree/orchestrator/store";
 
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 import { renderAgentPrompt } from "@storytree/library/store";
 import { openCorpusStore } from "./corpus-store.js";
-import { phaseActivityWriter } from "./phase-activity.js";
+import { liveBuildProgress, silentBuildProgress } from "./build-progress.js";
+import type { BuildProgress } from "./build-progress.js";
+import { phaseActivityWriter, withPhaseReport } from "./phase-activity.js";
 import {
   decideClaimExit,
   displacedClaimNotice,
@@ -571,6 +574,13 @@ export interface DriveNodeArgs {
    * ignores it.
    */
   phasePrompts?: LeafPhasePrompts;
+  /**
+   * Observe each red-green phase as the gate commits to it (`diagnosis-honesty-arc`) — the same
+   * liveness seam {@link RealBuildArgs.onPhase} carries, so a `--live` smoke and a `--real` build
+   * report their phase walk identically. Composed WITH the store-writing observer, never instead of
+   * it. Never throws.
+   */
+  onPhase?: (phase: BuildPhase) => void;
 }
 
 export type DriveNodeResult =
@@ -624,12 +634,15 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
     // the WRITE (a fresh phase-stamped `building` mark per transition) lives HERE in the drive,
     // exactly where the initial `building` mark above was written. Advisory: a store failure is
     // swallowed, so it can never fail the build.
-    resolved.spec.onPhase = phaseActivityWriter(args.store, {
-      unitId: spec.id,
-      runId: args.runId,
-      signer: args.signer,
-      ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
-    });
+    resolved.spec.onPhase = withPhaseReport(
+      phaseActivityWriter(args.store, {
+        unitId: spec.id,
+        runId: args.runId,
+        signer: args.signer,
+        ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
+      }),
+      args.onPhase,
+    );
     // A build run never writes session presence (ADR-0199): its footprint on the shared store is
     // the `building`/phase work-events above + the caller's write-claim — never `events.session`.
     const result = await proveUnit(resolved.spec);
@@ -771,6 +784,14 @@ export interface RealBuildArgs {
    * database (never production). Absent for non-db nodes.
    */
   dbProofEnv?: Record<string, string>;
+  /**
+   * Observe each red-green phase as the gate commits to it — the LIVENESS half of
+   * `diagnosis-honesty-arc`. The gate is by far the longest leg of a `--real` build, so "still in
+   * the gate" is barely more useful than silence; this is what lets the heartbeat report the PHASE
+   * a build stalled in. Composed WITH the store-writing phase observer, never instead of it: the
+   * wisp write is advisory and must stay so. Never throws.
+   */
+  onPhase?: (phase: BuildPhase) => void;
   /** Offline test seam: a scripted {@link PhaseAuthor}; defaults to the live SDK leaf. */
   authorOverride?: PhaseAuthor;
   /**
@@ -841,12 +862,15 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   }
   // ADR-0048 §3 v2: colour the wisp by the live red→green phase. The gate only INVOKES this; the
   // WRITE lives here in the drive (the same place the `building` mark above is written). Advisory.
-  resolved.spec.onPhase = phaseActivityWriter(store, {
-    unitId: spec.id,
-    runId,
-    signer,
-    ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
-  });
+  resolved.spec.onPhase = withPhaseReport(
+    phaseActivityWriter(store, {
+      unitId: spec.id,
+      runId,
+      signer,
+      ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
+    }),
+    args.onPhase,
+  );
   // `sign-after-typecheck`: the ADR-0031 backstop moves AHEAD of the signature. It is injected as
   // the gate's `backstop` seam (run inside GATE, after the clean-tree + signer refusals, before the
   // signing append), so a red package typecheck or suite refuses the VERDICT rather than only
@@ -1020,6 +1044,13 @@ export interface NodeBuildOpts {
    * pool's claim store (null in-memory).
    */
   claim?: { store?: ClaimStoreLike | null };
+  /**
+   * Where this build reports its LIVENESS (`diagnosis-honesty-arc`). Default: a real stderr
+   * heartbeat for `--live`/`--real` (the modes that take minutes) and silence for `--dry-run`
+   * (seconds, offline). Injected as {@link silentBuildProgress} by suites that assert on the
+   * envelope rather than the chatter.
+   */
+  progress?: BuildProgress;
 }
 
 /** `storytree node build <id>` — the full walk in one envelope (dry-run | live smoke | real). */
@@ -1183,9 +1214,19 @@ export async function nodeBuild(
   // missing agent / dangling ref BEFORE any spend or worktree — a live build runs the Library agent,
   // never the SDK's old hard-coded generic (the anti-blindside guarantee). The dry-run owned loop
   // needs no leaf prompt, so only live/real renders it.
+  //
+  // From here on the build can sit for minutes at a time, so every leg runs inside a NAMED progress
+  // stage (`diagnosis-honesty-arc`, friction `a-real-build-emits-no-progress-until-it-finishes`): a
+  // backgrounded `--real` build used to emit nothing at all between the pnpm banner and its final
+  // report, which is indistinguishable from a wedged precondition whose correct response is the
+  // opposite. Silent for `--dry-run` — that walk is offline and takes seconds.
+  const progress = opts.progress ?? (live || real ? liveBuildProgress() : silentBuildProgress());
   let phasePrompts: LeafPhasePrompts | undefined;
   if (live || real) {
-    const rendered = await renderLeafPhasePrompts(opts.corpusStore);
+    const rendered = await progress.stage(
+      "library agent prompts (red-builder + green-builder, from the live store)",
+      () => renderLeafPhasePrompts(opts.corpusStore),
+    );
     if (!rendered.ok) return rendered.refusal;
     phasePrompts = rendered.prompts;
   }
@@ -1203,7 +1244,9 @@ export async function nodeBuild(
   const needsDb = (effectiveStore === "pg" && mode === "real") || dbBacked;
   if (needsDb) {
     const ensureDb = opts.ensureDb ?? ensureLiveDb;
-    const ready = await ensureDb((m) => console.error(`[db] ${m}`));
+    const ready = await progress.stage("live-store preflight (probe -> db:up -> wait for connections)", () =>
+      ensureDb((m) => console.error(`[db] ${m}`)),
+    );
     if (!ready.ok) {
       return {
         ok: false,
@@ -1217,7 +1260,9 @@ export async function nodeBuild(
       };
     }
   }
-  const storeChoice = await resolveVerdictStore(effectiveStore, mode !== "real", retryCmd);
+  const storeChoice = await progress.stage("verdict store (open the pool, apply the schema)", () =>
+    resolveVerdictStore(effectiveStore, mode !== "real", retryCmd),
+  );
   if (!storeChoice.ok) return storeChoice.refusal;
   const { store, persisted } = storeChoice;
 
@@ -1281,10 +1326,17 @@ export async function nodeBuild(
     if (real) {
       // The REAL walk: a fresh DETACHED git worktree of this repo (the node's real source at
       // real paths); the spine commits the authored files before the GATE reads the real tree.
-      worktree = await createBuildWorktree(rootDir, {
-        ...(realConfig?.install === true ? { install: true } : {}),
-        ...(addDepsGroup !== null ? { addDeps: [addDepsGroup] } : {}),
-      });
+      // The install-bearing cut is minutes of `pnpm install` on its own, and it was the single
+      // longest unattributed silence in the measured run — name it.
+      worktree = await progress.stage(
+        `worktree (fresh detached checkout${realConfig?.install === true ? " + pnpm install" : ""})`,
+        () =>
+          createBuildWorktree(rootDir, {
+            ...(realConfig?.install === true ? { install: true } : {}),
+            ...(addDepsGroup !== null ? { addDeps: [addDepsGroup] } : {}),
+          }),
+      );
+      const cut = worktree;
       try {
         // The single-node real lifecycle (resolve → proveUnit → spine commit → ADR-0031 backstop +
         // promotion) is buildNodeReal — the same function story build --real chains. baseSha is the
@@ -1293,23 +1345,30 @@ export async function nodeBuild(
           // Unreachable past realConfigRefusal + the live/real prompt assembly, but fail-closed.
           return { ok: false, body: `internal: real build prerequisites missing for "${spec.id}"`, next: [] };
         }
-        const built = await buildNodeReal({
-          spec,
-          worktree,
-          baseSha: worktree.headSha,
-          buildConfig,
-          realConfig,
-          store,
-          runId,
-          signer: signer.signer,
-          phasePrompts,
-          repoRoot: rootDir,
-          runtime,
-          ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
-          ...(opts.model !== undefined ? { model: opts.model } : {}),
-          ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
-          ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
-        });
+        const built = await progress.stage(
+          "gate (the leaf authors, the spine observes red -> green)",
+          () =>
+            buildNodeReal({
+              spec,
+              worktree: cut,
+              baseSha: cut.headSha,
+              buildConfig,
+              realConfig,
+              store,
+              runId,
+              signer: signer.signer,
+              phasePrompts,
+              repoRoot: rootDir,
+              runtime,
+              // The gate is the long leg; its phase walk is what makes the heartbeat diagnostic
+              // rather than merely reassuring.
+              onPhase: (phase) => progress.note(phase),
+              ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
+              ...(opts.model !== undefined ? { model: opts.model } : {}),
+              ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
+              ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
+            }),
+        );
         result = built.result;
         liveAuthor = built.liveAuthor;
         promotion = built.promotion;
@@ -1320,17 +1379,22 @@ export async function nodeBuild(
         await worktree.remove();
       }
     } else {
-      const drive = await driveNode(spec, {
-        mode: live ? "live-smoke" : "dry-run",
-        store,
-        runId,
-        signer: signer.signer,
-        ...(live ? { runtime } : {}),
-        ...(phasePrompts !== undefined ? { phasePrompts } : {}),
-        ...(opts.model !== undefined ? { model: opts.model } : {}),
-        ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
-        ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
-      });
+      const drive = await progress.stage(
+        "gate (temp workspace; the leaf authors the synthetic pair)",
+        () =>
+          driveNode(spec, {
+            mode: live ? "live-smoke" : "dry-run",
+            store,
+            runId,
+            signer: signer.signer,
+            onPhase: (phase) => progress.note(phase),
+            ...(live ? { runtime } : {}),
+            ...(phasePrompts !== undefined ? { phasePrompts } : {}),
+            ...(opts.model !== undefined ? { model: opts.model } : {}),
+            ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
+            ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
+          }),
+      );
       if (!drive.resolved) {
         return {
           ok: false,

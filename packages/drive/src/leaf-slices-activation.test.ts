@@ -16,6 +16,7 @@ import {
 } from "@storytree/orchestrator";
 import type { NodeSpec } from "@storytree/orchestrator";
 
+import { silentBuildProgress } from "./build-progress.js";
 import { storyBuild } from "./story-build.js";
 import { buildNodeReal, renderLeafPhasePrompts } from "./node-build.js";
 import type { LeafSlicesObserver, LiveAuthor } from "./node-build.js";
@@ -74,6 +75,7 @@ test("the-leaf-slices-observer-fires-with-the-canned-run-accounting: a --real ch
   try {
     const env = await storyBuild("fix-story", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -107,6 +109,7 @@ test("no-live-author-override-leaves-the-observer-silent: authorOverride alone (
   try {
     const env = await storyBuild("fix-story", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -137,6 +140,7 @@ test("a-canned-live-author-cannot-move-a-verdict: a canned success-shaped run ac
   try {
     const env = await storyBuild("fix-story", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -252,6 +256,7 @@ test("each-chained-node-reports-its-own-slices: a two-node --real chain reports 
   try {
     const env = await storyBuild("fix-story", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
       actor: "tester@example.com",

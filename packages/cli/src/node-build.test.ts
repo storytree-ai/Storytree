@@ -20,7 +20,30 @@ import {
   resolveVerdictStore,
   workspacePackageForSource,
 } from "@storytree/drive";
-import type { ClaimStoreLike, SessionIdentity, WispSmokeStore } from "@storytree/drive";
+import type { BuildProgress, ClaimStoreLike, SessionIdentity, WispSmokeStore } from "@storytree/drive";
+
+/**
+ * A recording {@link BuildProgress}: proves the DRIVER actually reports its legs. The progress
+ * module's own behaviour (cadence, elapsed, cancellation) is proven next door in
+ * `packages/drive/src/build-progress.test.ts` — what can only be proven from HERE is the wiring,
+ * i.e. that `nodeBuild` opens a named stage around each leg that can sit for minutes and feeds it
+ * the gate's phase walk. Without this, the module could be perfect and the build still silent.
+ */
+function recordingProgress(): { progress: BuildProgress; stages: string[]; notes: string[] } {
+  const stages: string[] = [];
+  const notes: string[] = [];
+  return {
+    stages,
+    notes,
+    progress: {
+      stage: async <T>(name: string, work: () => Promise<T>): Promise<T> => {
+        stages.push(name);
+        return work();
+      },
+      note: (detail) => void notes.push(detail),
+    },
+  };
+}
 
 /**
  * The corpus the leaf's per-phase system prompts render from, INJECTED rather than opened.
@@ -972,6 +995,73 @@ test("node build --dry-run --emit-wisp drives the smoke: building appended + del
   assert.equal(deleted.length, 1, "the transient row is hard-deleted once");
   assert.equal(deleted[0]![0], "library-cli");
   assert.match(deleted[0]![1]!, /^wisp-smoke-/);
+});
+
+// ── diagnosis-honesty-arc: the build reports which leg is holding its clock ─────────────────────
+
+test("node build opens a NAMED progress stage around each leg that can sit for minutes", async () => {
+  // The friction: a backgrounded build emitted nothing between the pnpm banner and its final
+  // report, so a healthy build and a wedged precondition were byte-identical from the log — and
+  // their correct responses are opposite. A leg without a stage is a leg that can go silent again.
+  const rec = recordingProgress();
+  const env = await nodeBuild("library-cli", {
+    corpusStore: await fixtureCorpus(),
+    dryRun: true,
+    actor: "tester@example.com",
+    progress: rec.progress,
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.ok(
+    rec.stages.some((s) => /verdict store/.test(s)),
+    `the store leg must be named: ${rec.stages.join(" | ")}`,
+  );
+  assert.ok(
+    rec.stages.some((s) => /^gate\b/.test(s)),
+    `the gate leg must be named: ${rec.stages.join(" | ")}`,
+  );
+});
+
+test("node build feeds the gate's PHASE WALK to the progress channel, in order", async () => {
+  // "Still in the gate" is barely more useful than silence on the longest leg of the build. The
+  // phase notes are what let a stalled run report the phase it stalled IN.
+  const rec = recordingProgress();
+  const env = await nodeBuild("library-cli", {
+    corpusStore: await fixtureCorpus(),
+    dryRun: true,
+    actor: "tester@example.com",
+    progress: rec.progress,
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.ok(rec.notes.length > 0, "the phase walk reached the progress channel");
+  assert.deepEqual(
+    rec.notes,
+    env.body
+      .split("\n")
+      .find((l) => l.startsWith("phase trail:"))
+      ?.replace("phase trail:", "")
+      .split("→")
+      .map((s) => s.trim()),
+    "the reported phases ARE the phases the envelope says were visited — a liveness signal that " +
+      "disagreed with the trail would be a second, unverified account of the same run",
+  );
+});
+
+test("the phase report is ADVISORY: a throwing progress sink cannot fail the build", async () => {
+  // The report is composed ahead of the store write precisely so a slow store cannot swallow it —
+  // which makes it all the more important that it can never take the build down with it.
+  const env = await nodeBuild("library-cli", {
+    corpusStore: await fixtureCorpus(),
+    dryRun: true,
+    actor: "tester@example.com",
+    progress: {
+      stage: async <T>(_name: string, work: () => Promise<T>): Promise<T> => work(),
+      note: () => {
+        throw new Error("the progress sink exploded");
+      },
+    },
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /verdict: {5}PASS/);
 });
 
 // ── ADR-0121: the per-unit write-claim wired into the build (refuse a second concurrent builder) ──
