@@ -2,7 +2,7 @@
 status: accepted
 decided: 2026-08-08
 arc: session-cost-arc
-amends: [95]
+amends: [95, 139]
 load_bearing: true
 ---
 # ADR-0324: The librarian pass is trigger-gated and split, not per-landing
@@ -116,13 +116,22 @@ graduation half survive intact, and only its "every landing, unconditionally" sc
 half is narrowed. Per ADR-0139 this ADR carries the `amends: [95]` edge so the amendment renders
 beside the decision it qualifies and is pulled into the load-bearing set transitively.
 
+**ADR-0139 §7 is narrowed on the same axis, and carries the same edge.** §7 does not merely point at
+ADR-0095 D7 — it independently restates the standing pass in its own words, promising the corpus is
+kept in shape "every loop, not in one-off sweeps". D2 overtakes that phrasing exactly as it overtakes
+D7's scope: it is now every *triggered* loop. §7 stays current but is no longer wholly
+self-describing, which is ADR-0139's own test for an `amends` edge — hence `amends: [95, 139]`. The
+edge was missed when this ADR landed because 0139 was read only as the *rule source* for edge
+semantics, not as a target with a decision of its own on the same mechanism.
+
 ## References
 
 - ADR-0095 D7 — the mandatory pre-merge librarian pass this ADR amends (D4/D6/D8 graduation half preserved).
 - ADR-0323 — the measurement: the pass is 8.7%, and cost is context rent.
 - ADR-0304 D1 / `packages/cli/src/ci-affected.ts` — the fail-wide path classifier D2's trigger mirrors.
 - ADR-0182 — the workhorse/judgment model tier split D3 applies.
-- ADR-0139 — correct-in-place, and the `amends` edge semantics used here.
+- ADR-0139 §7 — correct-in-place and the `amends` edge semantics used here, AND the second decision
+  D2 narrows: §7's own "every loop, not in one-off sweeps" standing pass. Hence the `amends: [139]` edge.
 - ADR-0022 — CI performs the merge; the reason ADR-0095's ordering fence exists and is preserved.
 - ADR-0168 D1 / D5 — friction capture is free and discipline-not-gate; the graduation half's neighbour.
 - ADR-0325 — the sibling tiering decision (built-in agents, the `explorer` delegate).
