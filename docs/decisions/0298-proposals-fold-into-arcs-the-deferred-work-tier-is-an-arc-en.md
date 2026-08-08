@@ -286,12 +286,40 @@ realize`, and what survives is dropping the friction's arc citation at realizati
 `referencedAssetIds` to real `references[]` edges. Both the rewrite and the original premise are
 recorded in the entry, so the translation is visible rather than silent.
 
-**The deletion did not use `artifact retire`, and that is worth recording rather than hiding.** The
-retire verb hard-refuses while any `asset:<id>` token appears anywhere in another doc, and
-`referencedAssetIds` walks EVERY string value — so a prose mention inside a 6 kB `routeReason` blocks
-it. The migration therefore re-pointed all 13 friction citations first and deleted through the store
-with an explicit reason naming the arc and entry each body moved to. That over-broad scan is exactly
-the parked work above; working around it here is not fixing it.
+**The deletion did not use `artifact retire`, and that is worth recording rather than hiding.** At the
+time of this ADR the retire verb hard-refused while any `asset:<id>` token appeared anywhere in another
+doc, because `referencedAssetIds` walked EVERY string value — so a prose mention inside a 6 kB
+`routeReason` blocked it. The migration therefore re-pointed all 13 friction citations first and deleted
+through the store with an explicit reason naming the arc and entry each body moved to. That over-broad
+scan was exactly the parked work above; working around it here was not fixing it.
+
+**Correction (2026-08-08, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+the parked work above has LANDED, so the two paragraphs are put in the past tense rather than left
+reading as live defects. Nothing decided here is re-decided** — this ADR settled where the remedy is
+PARKED, never how the verb behaves, so both halves are a correction in place.
+
+- **The over-broad scan is closed.** `referencedAssetIds` is anchored (`/^asset:([A-Za-z0-9_-]+)$/`
+  against the trimmed value), so it counts a string only when the WHOLE value IS a ref. It still walks
+  every string value, which is the half worth keeping: that is what covers `references[]`, an agent's
+  refList fields and `stepRefs[].refs`, a process's `branchEdges[].ref`, and the single `arcRef` on an
+  increment or open question, with no per-kind list to maintain. So read the delivered narrowing as
+  *whole-value refs anywhere in the body*, not as the narrower "real `references[]` edges" this ADR
+  predicted at line 286 — retire remains strictly wider than `tree focus`'s `references[]`-only inbound
+  view. What it gives up on purpose: an artifact can now be retired while another artifact's PROSE
+  mentions it. A name in a paragraph resolves nothing and breaks no render, whereas a declared ref that
+  dangles is a broken pull.
+- **The `tool` route's reverse gear exists.** `storytree arc increment close` drops the
+  `asset:<arc-id>` citation from each friction the closing entry names, in the same verb — and only
+  when no other OPEN increment on that arc still names that friction, so a citation another parked lane
+  holds up is KEPT and its holder named. The trace is not lost: the closed increment keeps its own
+  `frictionRefs`, and a closed increment is permanent (ADR-0305 D3), so the edge survives in the
+  direction that carries the delivery signal.
+
+Recorded because a reader of these paragraphs alone would conclude the scan is still over-broad and the
+`tool` route still has no reverse gear, and would either re-open landed work or route around a fence
+that no longer refuses — the exact stale-prose harm ADR-0139 exists to prevent. The modules' own headers
+are the authority on the delivered shape and are not restated here (`asset:reference-dont-restate`):
+`packages/cli/src/retire.ts` and `dropDischargedCitations` in `packages/cli/src/arc.ts`.
 
 `proposal-tier-drain-arc` is CLOSED by this ADR. Its end state — "the proposal tier holds no
 undelivered adjudicated remedy" — is reached, though not the way it planned: the tier is gone and its

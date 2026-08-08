@@ -20,23 +20,42 @@ async function seed(docs: StoredDoc[]): Promise<InMemoryStore> {
 
 // --- the pure reference scan -------------------------------------------------------------------
 
-test("referencedAssetIds pulls asset:<id> from references[], refList fields, and inline prose", () => {
+test("referencedAssetIds pulls asset:<id> from every DECLARED ref field, at any depth", () => {
   const ids = referencedAssetIds({
     references: ["asset:alpha", "doc:decisions/0001-x.md"],
-    context: ["asset:beta", "asset:gamma"],
-    statement: "as noted in asset:delta this matters",
+    context: ["asset:beta", "asset:gamma"], // an agent refList field
+    arcRef: "asset:epsilon", // the single containment pointer
+    stepRefs: [{ step: "one", refs: ["asset:zeta"] }], // an agent step's outbound edges
+    branchEdges: [{ ref: "asset:eta", label: "next" }], // a process node's edges
     nested: { deeper: ["asset:alpha"] }, // dupe of alpha — deduped
   });
-  assert.deepEqual([...ids].sort(), ["alpha", "beta", "delta", "gamma"]);
+  assert.deepEqual([...ids].sort(), ["alpha", "beta", "epsilon", "eta", "gamma", "zeta"]);
 });
 
-test("findDependents finds referrers across all fields, excludes self, sorts by id", () => {
+test("referencedAssetIds does NOT count an asset: token mentioned inside prose", () => {
+  // The measured defect (2026-08-03): an inline `asset:<id>` inside a 6433-character `routeReason`
+  // counted as an edge and hard-refused the retire of eight proposals, forcing a raw store delete.
+  const ids = referencedAssetIds({
+    routeReason: "parked on asset:some-arc because the remedy is deferred capability work",
+    statement: "as noted in asset:delta this matters",
+    references: ["asset:alpha"],
+  });
+  assert.deepEqual([...ids].sort(), ["alpha"], "only the declared edge counts");
+});
+
+test("a ref field survives surrounding whitespace, a prose field is not rescued by trimming", () => {
+  assert.deepEqual([...referencedAssetIds({ references: ["  asset:alpha  "] })], ["alpha"]);
+  assert.deepEqual([...referencedAssetIds({ prose: "see asset:alpha." })], []);
+});
+
+test("findDependents finds referrers across all ref fields, excludes self, sorts by id", () => {
   const docs = [
     doc("target", "principle"),
     doc("z-ref", "definition", { references: ["asset:target"] }),
     doc("a-agent", "agent", { rules: ["asset:target"] }), // refList — the field tree-focus misses
     doc("unrelated", "pattern", { references: ["asset:other"] }),
     doc("self-ref", "guardrail", { references: ["asset:self-ref"] }), // never depends on itself
+    doc("just-talks", "friction", { routeReason: "superseded by asset:target's remedy" }), // prose
   ];
   const deps = findDependents("target", docs);
   assert.deepEqual(deps.map((d) => d.id), ["a-agent", "z-ref"]);

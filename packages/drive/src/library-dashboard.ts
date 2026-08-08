@@ -104,9 +104,12 @@ export async function dashboard(store: Store): Promise<Envelope> {
     "  artifact new | edit <id>      create / edit (writes need --pg)",
     "  artifact retire <id>          retire one artifact + rationale (needs --pg)",
     "  tree focus <id>               the local DAG of one artifact",
-    "  sync-agents                   reconcile the agent tier to the seed (needs --pg)",
-    "  sync-corpus                   migrate seed-only non-agent artifacts into live (needs --pg)",
-    "  export-corpus [--write]       export live non-agent bodies back to the seed (dry-run; needs --pg)",
+    // The three seed<->live reconcilers (`sync-agents` / `sync-corpus` / `export-corpus`) were listed
+    // here until 2026-08-08, three days after ADR-0302 D4 / ADR-0307 D3 DELETED them with the
+    // committed seed. Each answered "unknown library command" while this — the first command the
+    // library-edit ceremony sends a session to run — still advertised it, which is the precise input
+    // to `asset:library-edit-ceremony`'s "looking for the export/sync ceremony and re-inventing it"
+    // failure mode. A help block is a guidance surface, and a deleted verb must leave it too.
     "  graduate [--review]           agent-memory → Library worklist (ADR-0095, read-only)",
     "  (coming soon: artifact comment)",
   );
