@@ -58,10 +58,18 @@ always-on guide. Get one path right before adding more.
 
 **D4 — Data: hosted live read from day one.** The explorer's desktop app reads live tree state
 (verdicts, claims, presence) through the IAP-gated hosted studio API with the dev's Google
-identity — the ADR-0113 thick-client read loop — not via per-dev Cloud SQL IAM grants. The
-offline checkout + in-memory seed remains the zero-credential fallback when the hosted path is
-unreachable. Consequence accepted: an explorer holds three identities, each doing one job —
+identity — the ADR-0113 thick-client read loop — not via per-dev Cloud SQL IAM grants.
+Consequence accepted: an explorer holds three identities, each doing one job —
 GitHub (code), Google (live data), Anthropic (their agent).
+
+*(Correction in place, 2026-08-08 per ADR-0139 — the decision above is untouched. This clause also
+read: "The offline checkout + in-memory seed remains the zero-credential fallback when the hosted
+path is unreachable." That fallback no longer exists. [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md)
+D1 deleted the seed file the fallback read, and D2 dropped offline as a supported mode outright.
+The hosted live read of D4 is therefore no longer the preferred of two paths but the only one, which
+STRENGTHENS D4 rather than reversing it — hence a correction, not a supersede. What an explorer does
+when the hosted path is unreachable is a genuinely OPEN question this ADR no longer answers, and it
+is not answered here either; it belongs to whoever next works `explorer-onboarding-arc`.)*
 
 **D5 — Distribution: a public GCS bucket on the existing GCP project.** Install scripts, app
 binaries, and the auto-update feed (`latest.yml`, electron-updater generic provider) are served
@@ -77,7 +85,7 @@ would recreate the runtime-token problem.
 
 **D6 — The guide verifies and repairs setup.** Two layers. Bottom: `storytree doctor` — a
 deterministic, read-only, offline CLI that probes each setup invariant (git/Node present,
-checkout provisioned, repo fetchable, seed readable, Claude CLI present + logged in, app version
+checkout provisioned, repo fetchable, Claude CLI present + logged in, app version
 vs checkout HEAD) and emits machine-readable results plus a fix hint per failure. Top: the guide
 wraps it conversationally — run doctor → explain the failure plainly → propose the fix → dev
 confirms → re-run the corresponding **idempotent installer step from D1** → re-doctor. Repair is
@@ -86,6 +94,17 @@ environment only* (deps, clone freshness, login state, app restart) — it never
 tree, the library, or the DB (explorer mode has no `--pg`). When doctor cannot fix (access
 revoked, subscription lapsed), the guide generates a secrets-redacted diagnostic blob for the dev
 to paste to the owner — structured escalation, not a debugging session.
+
+*(Correction in place, 2026-08-08 per ADR-0139 — the decision above is untouched. The invariant list
+also named **"seed readable"**. That probe is GONE, not renamed: it existed to answer "is this
+checkout intact?" with zero credentials, so once [ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md)
+D1 deleted its subject there was nothing left to read, and repointing it at the live store would have
+defeated the one property it was for. `packages/cli/src/doctor.ts` keeps a comment where it stood.
+`checkout-provisioned` answers the weaker question and remains. Everything else in D6 stands: doctor
+is still deterministic, read-only and credential-free, so the zero-credential repair path this clause
+buys is intact — one of its six probes is simply no longer a thing that can be true or false. Two
+prose surfaces in `doctor.ts` — its module header and its own `--help` text — still advertise the
+retired probe; that is a code fix, outside the decision log, and is reported rather than made here.)*
 
 **Non-goals (v1):** no tree growing or mapping, no explorer writes of any kind, no Cursor or
 other agent paths, no browser-studio tour surface, no bucket gating.
