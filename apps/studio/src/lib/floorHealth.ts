@@ -22,7 +22,6 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { FloorHealthReading } from '../types';
 import type { FloorHealthBand } from '../components/FloorHealthStrip';
-import { SLOW_POLL_MS } from './poll';
 
 /** The read did not answer — no such route on this backend, or the request failed outright. */
 export const FLOOR_HEALTH_UNREACHABLE = 'unreachable';
@@ -54,8 +53,13 @@ export const FLOOR_POLL_MS = 5 * 60_000;
  * abort. On the long cadence a single cold-start blip would leave the band reading "no answer" for
  * five minutes — an honest state, but a stale one, and the band is the one surface that must not be
  * left saying less than it could. Retrying a request that already failed costs nothing.
+ *
+ * Declared here rather than borrowed from `lib/poll.ts`'s `SLOW_POLL_MS`, which it happens to equal.
+ * This layer deliberately does NOT ride the world's shared cadence — that is the whole point of
+ * {@link FLOOR_POLL_MS} — so importing the shared constant would assert a coupling that is not
+ * there, and it broke three TreeView suites that partially mock `../lib/poll`.
  */
-export const FLOOR_RETRY_MS = SLOW_POLL_MS;
+export const FLOOR_RETRY_MS = 30_000;
 
 /**
  * Fetch + poll the floor-health reading while `open` is true. Stops the instant `open` flips false;
