@@ -205,10 +205,19 @@ route this paragraph anticipated: `corpus-content-attribution.ts` was **WIDENED*
 "behind main" means would make a gate's own printed output untrustworthy. Absences now classify
 NEVER MIGRATED / RETIRED LIVE / BEHIND MAIN, precedence AUTHORED > RETIRED LIVE > BEHIND MAIN, and only
 never-migrated is charged; the git seed reads were extracted to `seed-revisions.ts` and are shared by
-both checks. **No ceiling moved** — M=0 stands. The module's own header is now the authority on the
-two-classifier shape and is not restated here (`asset:reference-dont-restate`). Recorded because a
-reader of this paragraph alone would conclude the sibling defect is still live and re-open work that
-has landed — the exact stale-prose harm ADR-0139 exists to prevent.
+both checks. **No ceiling moved** — M=0 stands. Recorded because a reader of this paragraph alone would
+conclude the sibling defect is still live and re-open work that has landed — the exact stale-prose harm
+ADR-0139 exists to prevent.
+
+**That correction is itself now HISTORY, and the same rule applies to it (2026-08-08, per ADR-0139).**
+The paragraph above is preserved as the record of how the sibling defect was closed, but read it in the
+past tense throughout: `check:corpus-sync` was DELETED on 2026-08-05 by
+[ADR-0302](0302-online-or-nothing-the-live-store-is-the-only-source-of-truth.md) D4 along with the
+committed seed it read, and `corpus-content-attribution.ts` / `seed-revisions.ts` went with it. So its
+closing pointer — "the module's own header is now the authority on the two-classifier shape" — names a
+module that no longer exists and is withdrawn rather than repointed: there is no successor authority,
+because there is no longer a seed for an absence to be classified against. Nothing is re-decided here
+either; only the tense.
 
 ## References
 
@@ -223,7 +232,13 @@ has landed — the exact stale-prose harm ADR-0139 exists to prevent.
 - [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — why this is born `accepted`.
 - [ADR-0050](0050-adr-number-allocation.md) — the branch-recording precedent D2 follows.
 - [ADR-0246](0246-forests-for-other-projects-the-adr-0133-deferral-is-lifted-a.md) — the repo-root seam the git reads go through.
-- `packages/cli/src/corpus-content-attribution.ts` · `corpus-content-drain.ts` ·
-  `check-corpus-content.ts` · `cli-actor.ts` · `packages/library/src/store/export-corpus.ts`.
+- `packages/cli/src/cli-actor.ts` — the ONLY surviving code reference, and the one D2 stands on. The
+  four this ADR originally also named — `corpus-content-attribution.ts`, `corpus-content-drain.ts`,
+  `check-corpus-content.ts`, `packages/library/src/store/export-corpus.ts` (and `seed-revisions.ts`,
+  added by the 2026-08-04 correction) — were DELETED by ADR-0302 D4 with the seed and its checks;
+  they are named here as history, and `git log -p` is where their text lives. Nothing pulls them.
+  D2's stamp now answers to its own live consumers instead: `branchOfActor`'s foreign-overwrite guard
+  in `packages/cli/src/friction.ts`, and the attribution fence in
+  `packages/cli/src/write-attribution.ts` that holds every CLI store-write call site to it.
 - `process:library-edit-ceremony` — the ceremony whose manual pristine-HEAD differential this
   mechanises.
