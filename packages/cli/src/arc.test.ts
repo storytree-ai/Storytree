@@ -639,17 +639,50 @@ test("arc increment add RECORDS a landing as its own closed increment row (ADR-0
   }
 });
 
-test("arc increment add defaults the date to today, and a PR-less landing carries its reason", async () => {
+test("arc increment add defaults the date to today, and writes a PR-less landing's prose ONCE (ADR-0322)", async () => {
   const store = await seededStore();
   const res = await arcIncrementAdd(writeDeps(store), "map-arc", { outcome: "an owner-attested halt" });
   assert.equal(res.ok, true);
   const written = (await store.queryDocs({ kind: "increment" })).find((d) => d.id.startsWith("map-arc-inc-"));
-  const outcome = (written?.doc as Record<string, unknown>)["outcome"] as Record<string, unknown>;
+  const doc = written?.doc as Record<string, unknown>;
+  const outcome = doc["outcome"] as Record<string, unknown>;
   assert.equal(outcome["date"], "2026-07-20"); // NOW's date part
   assert.equal(outcome["pr"], undefined, "no pr key when --pr is omitted");
-  // `assertIncrementInvariants` refuses a closure with neither a ref nor a reason, so the outcome
-  // prose becomes the note. A landing that cannot point at a PR still has to say what happened.
-  assert.equal(outcome["note"], "an owner-attested halt");
+
+  // THE FIX. This used to copy the outcome prose into `outcome.note` as well, to satisfy an
+  // invariant that demanded a ref-or-reason from every closure. Two copies of one paragraph, and
+  // `library artifact edit --set` reaches only the `body` half (`--set outcome=@file` is refused by
+  // the object schema), so an ADR-0139 correction half-applied and the row disagreed with itself.
+  assert.equal(outcome["note"], undefined, "the prose is NOT duplicated into the outcome");
+  assert.equal(doc["body"], "an owner-attested halt", "`body` is the one home for it");
+  assert.deepEqual(outcome, { date: "2026-07-20" }, "the outcome carries only what body cannot");
+
+  // And it is still a LEGAL closed increment: the row is born closed with no `parked`, which is the
+  // discriminator `assertIncrementInvariants` now reads — its `body` is the terminal prose by
+  // construction, because `--outcome` is required. (A row that was parked FIRST still owes a note.)
+  assert.equal(doc["parked"], undefined, "a landing recorded at the merge ceremony was never parked");
+});
+
+test("arc increment add's landing no longer floods `arc show` with the whole body (ADR-0305 D7)", async () => {
+  // The other half of the dual-write's cost: the increment-log renderer prints `outcome.note` when
+  // it differs from the objective, so a PR-less landing pushed its ENTIRE body into a section whose
+  // own rule is "each row is ONE line plus its objective and a PULL COMMAND — never its body".
+  const store = await seededStore();
+  await arcIncrementAdd(writeDeps(store), "map-arc", {
+    outcome: "The halt. A second sentence that must not reach the arc's log.",
+  });
+  const fx = diskFixture();
+  try {
+    const shown = await arcCommand("show", "map-arc", depsFor(store, fx));
+    assert.match(shown.body, /— The halt\./, "the derived title still renders");
+    assert.equal(
+      /A second sentence that must not reach the arc's log\./.test(shown.body),
+      false,
+      "the body stays behind the pull command",
+    );
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
 });
 
 test("arc increment add mints a FRESH id per landing — a re-run never overwrites one", async () => {
@@ -744,9 +777,13 @@ test("arc close defaults the date to today and works without a PR", async () => 
   assert.equal(res.ok, true);
   assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "closed");
   const terminal = (await store.queryDocs({ kind: "increment" })).find((d) => d.id.startsWith("map-arc-inc-"));
-  const outcome = (terminal?.doc as Record<string, unknown>)["outcome"] as Record<string, unknown>;
+  const bag = terminal?.doc as Record<string, unknown>;
+  const outcome = bag["outcome"] as Record<string, unknown>;
   assert.equal(outcome["date"], "2026-07-20");
-  assert.equal(outcome["note"], "delivered, attested by the owner");
+  // `arc close` mints its terminal increment THROUGH `arc increment add`, so it inherits ADR-0322:
+  // the closing prose is written once, into `body`, never also copied into `outcome.note`.
+  assert.equal(outcome["note"], undefined);
+  assert.equal(bag["body"], "delivered, attested by the owner");
 });
 
 test("arc close REFUSES without --outcome — no closure without the prose that justifies it", async () => {

@@ -21,7 +21,7 @@
     "kind": "definition",
     "id": "arc",
     "title": "Arc",
-    "oneLine": "The initiative overlay: a named multi-story owner intent tracked through an increment log to a closed end-state — upstream of stories and ADRs by provenance, containing plans, rendered as \"Epic\" in the studio."
+    "oneLine": "The initiative overlay: a named multi-story owner intent tracked through an increment log to a closed end-state — upstream of stories and ADRs by provenance, holding its increments, rendered as \"Epic\" in the studio."
   },
   {
     "kind": "definition",

@@ -54,6 +54,7 @@ import type { EnsureDbResult } from "@storytree/drive";
 import type { Envelope } from "./envelope.js";
 import {
   buildNodeReal,
+  liveBuildProgress,
   realConfigRefusal,
   rel,
   renderLeafPhasePrompts,
@@ -62,6 +63,7 @@ import {
   resolveLiveRuntime,
   resolveVerdictStore,
 } from "@storytree/drive";
+import type { BuildProgress } from "@storytree/drive";
 
 /** Seams a real build-tests-gate drive needs, all injectable so the R2 walk is offline-testable. */
 export interface GateBuildDriverDeps {
@@ -116,6 +118,14 @@ export interface GateBuildDriverDeps {
    * exactly as before (today's default — the candidate forks are agent analysis, supplied per drive).
    */
   decisionForks?: readonly DecisionFork[];
+  /**
+   * Where this drive reports its LIVENESS (`diagnosis-honesty-arc`). This is the THIRD `--real`
+   * entry point, alongside `nodeBuild` and `storyBuild`, and it runs the same three legs that can
+   * sit for minutes — the preflight, the worktree cut, the gate itself. Wiring only the other two
+   * would leave the class open at exactly the next entry point, which is the pattern that chartered
+   * the arc. Defaults to the real stderr heartbeat; suites inject {@link silentBuildProgress}.
+   */
+  progress?: BuildProgress;
 }
 
 const HONEST_FRAMING_GATE_REAL =
@@ -235,7 +245,13 @@ export async function driveBuildTestsGate(
   // 6. Assemble the live SDK leaf's per-phase system prompts from the Library (offline-safe — reads
   //    the seed). Fail-loud before any spend; the offline driver test injects authorOverride, but the
   //    prompts are still rendered (a missing red-builder/green-builder agent must refuse, not degrade).
-  const rendered = await renderLeafPhasePrompts(deps.corpusStore);
+  // Every leg past here can sit for minutes — name each one so a backgrounded drive's log tells
+  // "slow but progressing" from "wedged on a precondition" (`diagnosis-honesty-arc`).
+  const progress = deps.progress ?? liveBuildProgress();
+  const rendered = await progress.stage(
+    "library agent prompts (red-builder + green-builder, from the live store)",
+    () => renderLeafPhasePrompts(deps.corpusStore),
+  );
   if (!rendered.ok) return rendered.refusal;
 
   // 6b. ADR-0098 (U4): the pre-build BATCH DECISION-SWEEP. Before any spend (no DB brought up, no
@@ -273,7 +289,10 @@ export async function driveBuildTestsGate(
     const needsDb = effectiveStore === "pg" || dbBacked;
     if (needsDb) {
       const ensureDb = deps.ensureDb ?? ensureLiveDb;
-      const ready = await ensureDb((m) => console.error(`[db] ${m}`));
+      const ready = await progress.stage(
+        "live-store preflight (probe -> db:up -> wait for connections)",
+        () => ensureDb((m) => console.error(`[db] ${m}`)),
+      );
       if (!ready.ok) {
         return {
           ok: false,
@@ -286,7 +305,9 @@ export async function driveBuildTestsGate(
         };
       }
     }
-    const storeChoice = await resolveVerdictStore(effectiveStore, false, retryCmd);
+    const storeChoice = await progress.stage("verdict store (open the pool, apply the schema)", () =>
+      resolveVerdictStore(effectiveStore, false, retryCmd),
+    );
     if (!storeChoice.ok) return storeChoice.refusal;
     store = storeChoice.store;
     persisted = storeChoice.persisted;
@@ -298,30 +319,40 @@ export async function driveBuildTestsGate(
   let worktree: BuildWorktree | undefined;
   try {
     // The fresh detached worktree of this repo (the referenced node's real source at its real paths).
-    worktree = await createBuildWorktree(deps.repoRoot, {
-      ...(realConfig.install === true ? { install: true } : {}),
-      ...(addDepsGroup !== null ? { addDeps: [addDepsGroup] } : {}),
-    });
-    const override = deps.authorOverride?.(gateSpec, worktree.root);
-    const built = await buildNodeReal({
-      spec: gateSpec,
-      worktree,
-      baseSha: worktree.headSha,
-      buildConfig,
-      realConfig,
-      store,
-      runId,
-      signer: signer.signer,
-      phasePrompts,
-      repoRoot: deps.repoRoot,
-      promote: deps.promote ?? true,
-      ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
-      ...(override !== undefined ? { authorOverride: override } : {}),
-      ...(deps.model !== undefined ? { model: deps.model } : {}),
-      runtime: runtimeResult.runtime,
-      ...(deps.budgetUsd !== undefined ? { budgetUsd: deps.budgetUsd } : {}),
-      ...(deps.maxTurns !== undefined ? { maxTurns: deps.maxTurns } : {}),
-    });
+    const cut = await progress.stage(
+      `worktree (fresh detached checkout${realConfig.install === true ? " + pnpm install" : ""})`,
+      () =>
+        createBuildWorktree(deps.repoRoot, {
+          ...(realConfig.install === true ? { install: true } : {}),
+          ...(addDepsGroup !== null ? { addDeps: [addDepsGroup] } : {}),
+        }),
+    );
+    worktree = cut;
+    const override = deps.authorOverride?.(gateSpec, cut.root);
+    const built = await progress.stage(
+      "gate (the leaf authors, the spine observes red -> green)",
+      () =>
+        buildNodeReal({
+          spec: gateSpec,
+          worktree: cut,
+          baseSha: cut.headSha,
+          buildConfig,
+          realConfig,
+          store,
+          runId,
+          signer: signer.signer,
+          phasePrompts,
+          repoRoot: deps.repoRoot,
+          promote: deps.promote ?? true,
+          onPhase: (phase) => progress.note(phase),
+          ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
+          ...(override !== undefined ? { authorOverride: override } : {}),
+          ...(deps.model !== undefined ? { model: deps.model } : {}),
+          runtime: runtimeResult.runtime,
+          ...(deps.budgetUsd !== undefined ? { budgetUsd: deps.budgetUsd } : {}),
+          ...(deps.maxTurns !== undefined ? { maxTurns: deps.maxTurns } : {}),
+        }),
+    );
 
     const events = await store.readEvents();
     const derived = rollupStatus(gate.id, events);

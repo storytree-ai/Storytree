@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import type { GateStep } from "./gate-order.js";
 import {
+  GATE_SKIP_EXIT_CODE,
   type GateExecution,
   type GateStepResult,
   gateExitCode,
@@ -70,7 +71,7 @@ test("several independent failures are ALL reported, not just the first", () => 
 
   const results = runGate({ steps: plan, execute, now: fakeClock() });
 
-  assert.deepEqual(tallyGate(results), { pass: 1, fail: 2, notRun: 0 });
+  assert.deepEqual(tallyGate(results), { pass: 1, fail: 2, notRun: 0, skip: 0 });
   assert.equal(byCommand(results, "pnpm check:corpus-content").status, "fail");
 });
 
@@ -85,6 +86,71 @@ test("every step gets exactly one result, in plan order — an absent row can ne
     results.map((r) => r.command),
     plan.map((s) => s.command),
   );
+});
+
+// ── SKIP is a fourth status: it RAN, and it verified nothing ─────────────────
+
+test("a step exiting the reserved code reports SKIP, never PASS — the measured defect", () => {
+  // The 2026-08-01 shape (#1051): nothing flaked and the chain exited 0, while DB-backed checks had
+  // silently opted out. PASS was computed from the exit code, so opting out and verifying were
+  // indistinguishable. Today's live instance is `check:web-grounding` with no `web/` submodule.
+  const { execute } = scripted({ "pnpm check:web-grounding": GATE_SKIP_EXIT_CODE });
+  const plan = steps("check:web-grounding", "check:boundaries");
+
+  const results = runGate({ steps: plan, execute, now: fakeClock() });
+
+  assert.equal(byCommand(results, "pnpm check:web-grounding").status, "skip");
+  assert.notEqual(
+    byCommand(results, "pnpm check:web-grounding").status,
+    "pass",
+    "a step that verified nothing must never read as PASS",
+  );
+  assert.deepEqual(tallyGate(results), { pass: 1, fail: 0, notRun: 0, skip: 1 });
+});
+
+test("a SKIP does not red the gate, and the summary says green is NARROWED", () => {
+  const { execute } = scripted({ "pnpm check:web-grounding": GATE_SKIP_EXIT_CODE });
+  const results = runGate({ steps: steps("check:web-grounding", "check:boundaries"), execute, now: fakeClock() });
+
+  assert.equal(gateExitCode(results), 0, "a legitimate opt-out must not train sessions to ignore reds");
+
+  const summary = renderGateSummary(results).join("\n");
+  assert.match(summary, /SKIP {3}\s+pnpm check:web-grounding/, "the skipped step is named in the table");
+  assert.match(summary, /GATE GREEN, NARROWED/, "green with a skip must not read as unqualified green");
+  assert.match(summary, /SKIP is UNVERIFIED too/, "the reader is told what a skip did and did not prove");
+});
+
+test("SKIP and NOT RUN stay distinct — same epistemic class, different cause", () => {
+  const { execute } = scripted({ "pnpm check:a": GATE_SKIP_EXIT_CODE, "pnpm check:b": 1 });
+  const plan = steps("check:a", "check:b", "check:c");
+
+  const results = runGate({ steps: plan, execute, failFast: true, now: fakeClock() });
+
+  assert.equal(byCommand(results, "pnpm check:a").status, "skip", "asked, and answered 'nothing to check'");
+  assert.equal(byCommand(results, "pnpm check:c").status, "not-run", "never asked at all");
+  assert.equal(gateExitCode(results), 1, "the real red still fails the gate");
+});
+
+test("a SKIP never stops the walk — only a real failure can, and only under --fail-fast", () => {
+  const { ran, execute } = scripted({ "pnpm check:a": GATE_SKIP_EXIT_CODE });
+  const plan = steps("check:a", "check:b", "check:c");
+
+  const results = runGate({ steps: plan, execute, failFast: true, now: fakeClock() });
+
+  assert.deepEqual(ran, ["pnpm check:a", "pnpm check:b", "pnpm check:c"], "a skip is not a red");
+  assert.equal(gateExitCode(results), 0);
+});
+
+test("the reserved skip code is not a value any ordinary failure produces", () => {
+  // If a check could land on it by accident, a genuine failure would stop being counted.
+  assert.notEqual(GATE_SKIP_EXIT_CODE, 0, "0 is PASS");
+  assert.notEqual(GATE_SKIP_EXIT_CODE, 1, "1 is what process.exit(1) and an uncaught throw produce");
+  assert.notEqual(GATE_SKIP_EXIT_CODE, 2, "2 is conventional shell misuse / bad arguments");
+
+  const { execute } = scripted({ "pnpm check:a": 1, "pnpm check:b": 2 });
+  const results = runGate({ steps: steps("check:a", "check:b"), execute, now: fakeClock() });
+  assert.equal(byCommand(results, "pnpm check:a").status, "fail");
+  assert.equal(byCommand(results, "pnpm check:b").status, "fail");
 });
 
 // ── NOT RUN is a third status, never collapsed into a neighbour ──────────────
@@ -188,7 +254,7 @@ test("the summary distinguishes FAIL from NOT RUN, and says what NOT RUN means",
   assert.match(text, /PASS\s+pnpm check:a/);
   assert.match(text, /FAIL\s+pnpm check:b/);
   assert.match(text, /NOT RUN\s+pnpm check:c/);
-  assert.match(text, /1 passed, 1 failed, 1 not run/);
+  assert.match(text, /1 passed, 1 failed, 0 skipped, 1 not run/);
   assert.match(text, /NOT RUN is UNVERIFIED, not passed/);
   assert.match(text, /GATE RED/);
 });

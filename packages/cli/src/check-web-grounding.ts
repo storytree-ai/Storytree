@@ -19,6 +19,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadAdrMetas } from "@storytree/drive";
 
+import { GATE_SKIP_EXIT_CODE } from "./gate-runner.js";
+
 export interface GroundingRef {
   /** web-relative path, e.g. "src/pages/index.astro". */
   readonly file: string;
@@ -119,11 +121,16 @@ function main(): void {
       );
       process.exit(1);
     }
+    // DECLARE the skip to the gate runner rather than exiting 0 (ADR-0276 increment 4). Exiting 0
+    // here printed `PASS` on the gate's scoreboard for a step that read nothing at all — the runner
+    // computes status from the exit code, so opting out and verifying were indistinguishable to
+    // every reader of the summary. The reserved code makes it a visible SKIP; it still does not red
+    // the gate, because an absent `web/` is a legitimate local state (`gateExitCode`).
     console.log(
       "check:web-grounding — SKIP: web/ submodule not checked out " +
         "(run `git submodule update --init web` to enable this check locally).",
     );
-    return;
+    process.exit(GATE_SKIP_EXIT_CODE);
   }
 
   const { adrs, parseErrors } = loadAdrMetas(path.join(repoRoot, "docs", "decisions"));

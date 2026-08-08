@@ -52,6 +52,22 @@ export interface EnsureDbDeps {
   /** Poll interval while waiting (default 5s). */
   pollMs?: number;
   /**
+   * Budget for the ACTIVATION CALL itself — `start()`, the Cloud SQL Admin REST PATCH — default
+   * {@link START_TIMEOUT_MS}. Distinct from `timeoutMs`, which budgets the wait for the instance to
+   * finish coming up AFTERWARDS, and the distinction is the whole point: an unreturned PATCH means
+   * nothing is warming yet, so waiting longer cannot help, whereas a slow cold start means waiting
+   * is exactly right. `start()` had no bound at all until `diagnosis-honesty-arc` — a hung ADC token
+   * mint or an unreachable Admin API stalled the preflight forever, and from a redirected log that
+   * was byte-identical to a healthy build thinking.
+   */
+  startTimeoutMs?: number;
+  /**
+   * Cancellable timer for {@link startTimeoutMs} (real: {@link realBudget}) — the same shape
+   * {@link ProbeDeps.budget} uses, and cancellable for the same reason: a start that returns
+   * promptly must not leave a live timer holding the event loop open. Absent, the real one is used.
+   */
+  budget?: (ms: number) => { expired: Promise<void>; cancel: () => void };
+  /**
    * ADR-0250: the data-plane refusal for this session, or `null` when the DB may be dialled. A
    * remote session's egress structurally cannot carry a Postgres connection, so probing and then
    * starting the instance is ~8 minutes spent to learn nothing — refuse before the first probe.
@@ -71,6 +87,33 @@ export type EnsureDbResult =
   | { ok: false; reason: string; stillWarming?: boolean };
 
 /**
+ * Budget for the ACTIVATION CALL — not for the start it triggers. `start()` is one non-blocking
+ * Admin REST PATCH (ADR-0063), which answers in seconds on a healthy path; 120s is generous for it
+ * while still being a bound. It is deliberately NOT sized against the cold start (`timeoutMs`, 600s):
+ * they measure different things, and conflating them is what made a wedged PATCH look like a slow
+ * database.
+ */
+export const START_TIMEOUT_MS = 120_000;
+
+/**
+ * The real cancellable timer both budgets in this module run on. Shared rather than inlined twice so
+ * the probe's timeout and the activation call's timeout cannot drift into different cancel
+ * semantics — a budget that is not cancelled holds the event loop open past a finished command.
+ */
+export function realBudget(ms: number): { expired: Promise<void>; cancel: () => void } {
+  let timer: NodeJS.Timeout | undefined;
+  const expired = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, ms);
+  });
+  return {
+    expired,
+    cancel: () => {
+      if (timer !== undefined) clearTimeout(timer);
+    },
+  };
+}
+
+/**
  * Ensure the live store is reachable, starting it if needed (ADR-0060). Fast path: if a probe
  * succeeds, return immediately (the owner leaves the DB up, so this is the common case). Otherwise
  * start the instance and poll until it answers or the timeout elapses. Pure over its injected
@@ -84,14 +127,55 @@ export async function ensureDbUp(deps: EnsureDbDeps): Promise<EnsureDbResult> {
   if (deps.refusal !== undefined && deps.refusal !== null) {
     return { ok: false, reason: deps.refusal };
   }
-  if (await deps.probe()) return { ok: true, started: false };
+  // Name the leg BEFORE entering it. This probe costs up to DB_PROBE_TIMEOUT_MS and, on the common
+  // healthy path, is the preflight's ONLY wait — so without this line a build's first ~45s of
+  // silence had no owner, and a reader could not tell a probe in flight from a process doing
+  // nothing at all.
+  deps.log("probing the live store for reachability (bounded; a STOPPED instance hangs the pool build itself)…");
+  if (await deps.probe()) {
+    deps.log("live store reachable — no start needed");
+    return { ok: true, started: false };
+  }
 
-  deps.log("live store unreachable — starting Cloud SQL (db:up) and waiting for it to accept connections…");
-  try {
+  deps.log("live store unreachable — issuing the Cloud SQL activation call (db:up)…");
+  // BOUND the activation call. Unbounded, this was the wedge the arc names: a hung ADC token mint or
+  // an unreachable Admin API parked the build here with no line of its own, indistinguishable from a
+  // slow cold start whose correct response is the opposite (wait, versus intervene). The refusal
+  // therefore NAMES which of the two this is rather than reporting the downstream symptom.
+  const startMs = deps.startTimeoutMs ?? START_TIMEOUT_MS;
+  const startBudget = (deps.budget ?? realBudget)(startMs);
+  // The async IIFE is load-bearing, not style: `deps.start()` is typed to return a promise, but a
+  // caller that throws SYNCHRONOUSLY would escape `ensureDbUp` entirely if invoked outside a try —
+  // and this function's whole contract is to answer with a refusal rather than blow up. The wrapper
+  // turns a sync throw into a rejection the race's catch already handles.
+  const started = (async (): Promise<"started"> => {
     await deps.start();
+    return "started";
+  })();
+  // A `start()` that rejects AFTER the budget already won must not surface as an unhandled
+  // rejection — the same belt-and-braces `probeDb` applies to its own losing branch.
+  started.catch(() => {});
+  let raced: "started" | "timeout";
+  try {
+    raced = await Promise.race([started, startBudget.expired.then((): "timeout" => "timeout")]);
   } catch (e) {
     return { ok: false, reason: `could not start the database: ${(e as Error).message}` };
+  } finally {
+    startBudget.cancel();
   }
+  if (raced === "timeout") {
+    const waitedS = Math.round(startMs / 1000);
+    return {
+      ok: false,
+      reason:
+        `the Cloud SQL ACTIVATION CALL (db:up) did not return within ${waitedS}s — the Admin REST ` +
+        "API, or the ADC token it needs, is not answering. This is NOT a slow database start: the " +
+        "PATCH that would BEGIN the start never came back, so nothing is warming yet and waiting " +
+        "longer cannot help. Check `gcloud auth application-default print-access-token` (a stale " +
+        "or lock-contended credential hangs here) and reachability of sqladmin.googleapis.com.",
+    };
+  }
+  deps.log("activation call accepted — the instance is starting; now waiting for it to accept connections…");
 
   const timeoutMs = deps.timeoutMs ?? 600_000;
   const pollMs = deps.pollMs ?? 5_000;
@@ -116,10 +200,20 @@ export async function ensureDbUp(deps: EnsureDbDeps): Promise<EnsureDbResult> {
   const waitedS = Math.round(timeoutMs / 1000);
   if (deps.status !== undefined) {
     let observed: InstanceStatus | undefined;
+    const statusBudget = (deps.budget ?? realBudget)(startMs);
     try {
-      observed = await deps.status();
+      // BOUNDED, on the same budget as the activation call and for the same reason: this is the
+      // last thing the preflight does before telling the operator WHICH failure they have, so an
+      // Admin API that hangs here would hang the command at exactly the moment it was about to
+      // become useful — a diagnosis that never arrives is the defect this arc closes, not a
+      // lesser version of it.
+      const ask = deps.status().then((s): InstanceStatus | undefined => s);
+      ask.catch(() => {}); // the losing branch must not become an unhandled rejection
+      observed = await Promise.race([ask, statusBudget.expired.then(() => undefined)]);
     } catch {
       // Admin API unreachable — fall through to the generic refusal below.
+    } finally {
+      statusBudget.cancel();
     }
     if (observed !== undefined) {
       if (observed.activationPolicy === "ALWAYS") {
@@ -277,18 +371,7 @@ export function probeLiveDbDetailed(timeoutMs = DB_PROBE_TIMEOUT_MS): Promise<Db
       select1: (handle) => handle.pool.query("SELECT 1"),
       close: (handle) => closePool(handle.pool, handle.connector),
       now: () => Date.now(),
-      budget: (ms) => {
-        let timer: NodeJS.Timeout | undefined;
-        const expired = new Promise<void>((resolve) => {
-          timer = setTimeout(resolve, ms);
-        });
-        return {
-          expired,
-          cancel: () => {
-            if (timer !== undefined) clearTimeout(timer);
-          },
-        };
-      },
+      budget: realBudget,
     },
     timeoutMs,
   );

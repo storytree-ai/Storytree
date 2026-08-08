@@ -28,6 +28,8 @@ import type {
   ProveResult,
 } from "@storytree/orchestrator";
 
+import { liveBuildProgress, silentBuildProgress } from "./build-progress.js";
+import type { BuildProgress } from "./build-progress.js";
 import { backstopJobs, observeBackstop } from "./chain-backstop.js";
 import type { ClaimDocT } from "@storytree/notice-board";
 
@@ -353,6 +355,13 @@ export interface StoryBuildOpts {
    * pool's claim store (null in-memory).
    */
   claim?: { store?: ClaimStoreLike | null };
+  /**
+   * Where this chain reports its LIVENESS (`diagnosis-honesty-arc`). Default: a real stderr
+   * heartbeat for `--live`/`--real`, silence for `--dry-run`. A chain is the worst case the friction
+   * describes — it can run for an hour across many nodes — so the per-node stage below is what tells
+   * a watcher WHICH node the run is on rather than only that it has not finished.
+   */
+  progress?: BuildProgress;
 }
 
 /** `storytree story build <story-id>` — the whole Phase-E walk, returned as one envelope. */
@@ -579,9 +588,15 @@ export async function storyBuild(
   // The instance must be up to PERSIST verdicts AND to run any db-backed proof in the chain
   // (ADR-0064: the proof connects to the test DB on this instance), so ensure it for either reason.
   const needsDb = (effectiveStore === "pg" && mode === "real") || anyDb;
+  // Every leg from here can sit for minutes, so each runs inside a NAMED progress stage
+  // (`diagnosis-honesty-arc`): a backgrounded chain used to emit nothing between the pnpm banner and
+  // its final report, which reads exactly like a wedged precondition whose remedy is the opposite.
+  const progress = opts.progress ?? (live || real ? liveBuildProgress() : silentBuildProgress());
   if (needsDb) {
     const ensureDb = opts.ensureDb ?? ensureLiveDb;
-    const ready = await ensureDb((m) => console.error(`[db] ${m}`));
+    const ready = await progress.stage("live-store preflight (probe -> db:up -> wait for connections)", () =>
+      ensureDb((m) => console.error(`[db] ${m}`)),
+    );
     if (!ready.ok) {
       return {
         ok: false,
@@ -606,12 +621,17 @@ export async function storyBuild(
   // a live/real build runs the Library agent, never a generic. The dry-run owned loop needs no prompt.
   let phasePrompts: LeafPhasePrompts | undefined;
   if (live || real) {
-    const rendered = await renderLeafPhasePrompts(opts.corpusStore);
+    const rendered = await progress.stage(
+      "library agent prompts (red-builder + green-builder, from the live store)",
+      () => renderLeafPhasePrompts(opts.corpusStore),
+    );
     if (!rendered.ok) return rendered.refusal;
     phasePrompts = rendered.prompts;
   }
 
-  const storeChoice = await resolveVerdictStore(effectiveStore, mode !== "real", retryCmd);
+  const storeChoice = await progress.stage("verdict store (open the pool, apply the schema)", () =>
+    resolveVerdictStore(effectiveStore, mode !== "real", retryCmd),
+  );
   if (!storeChoice.ok) return storeChoice.refusal;
   const { store, persisted } = storeChoice;
 
@@ -681,10 +701,14 @@ export async function storyBuild(
       const anyInstall = driveOrder.some(
         (n) => resolveBuildConfig(n)?.config.real?.install === true,
       );
-      worktree = await createBuildWorktree(rootDir, {
-        ...(anyInstall ? { install: true } : {}),
-        ...(addDepsGroups.length > 0 ? { addDeps: addDepsGroups } : {}),
-      });
+      worktree = await progress.stage(
+        `shared worktree (fresh detached checkout${anyInstall ? " + pnpm install" : ""})`,
+        () =>
+          createBuildWorktree(rootDir, {
+            ...(anyInstall ? { install: true } : {}),
+            ...(addDepsGroups.length > 0 ? { addDeps: addDepsGroups } : {}),
+          }),
+      );
     }
 
     // Per-node side data for the report (the loop itself only sees ProveResults + costs).
@@ -697,95 +721,103 @@ export async function storyBuild(
     const run = await runStoryBuild({
       order: driveOrder,
       ...(budgetUsd !== undefined ? { budgetUsd } : {}),
-      buildNode: async (spec, _index, remainingUsd) => {
-        if (real) {
-          // The REAL per-node build in the SHARED worktree (promote:false — the chain promotes once
-          // at the end). Each node walks the full prove-it-gate, INCLUDING its own pre-signature
-          // backstop (`sign-after-typecheck`); honesty walls are per node.
-          const cfg = resolveBuildConfig(spec)?.config ?? null;
-          if (cfg === null || cfg.real === undefined || worktree === undefined || phasePrompts === undefined) {
-            // Unreachable past the real precheck + prompt assembly, but stays fail-closed.
-            const result: ProveResult = {
-              ok: false,
-              failedAt: "AUTHOR_TEST",
-              reason: `real build prerequisites missing for "${spec.id}"`,
-              phasesVisited: [],
+      // Each node is its own NAMED leg of the chain. On a story this is the line that matters most:
+      // "node 3/7: <id>" tells a watcher the chain is ADVANCING, where a single "still running"
+      // could not distinguish a chain on its seventh node from one wedged on its first.
+      buildNode: async (spec, index, remainingUsd) =>
+        progress.stage(`node ${index + 1}/${driveOrder.length}: ${spec.id}`, async () => {
+          if (real) {
+            // The REAL per-node build in the SHARED worktree (promote:false — the chain promotes once
+            // at the end). Each node walks the full prove-it-gate, INCLUDING its own pre-signature
+            // backstop (`sign-after-typecheck`); honesty walls are per node.
+            const cfg = resolveBuildConfig(spec)?.config ?? null;
+            if (cfg === null || cfg.real === undefined || worktree === undefined || phasePrompts === undefined) {
+              // Unreachable past the real precheck + prompt assembly, but stays fail-closed.
+              const result: ProveResult = {
+                ok: false,
+                failedAt: "AUTHOR_TEST",
+                reason: `real build prerequisites missing for "${spec.id}"`,
+                phasesVisited: [],
+              };
+              failures.set(spec.id, result);
+              return { result };
+            }
+            // Resolve the test-only scripted leaf ONCE (a stateful factory must not be called twice).
+            const override = opts.authorOverride?.(spec, worktree.root);
+            const liveOverride = opts.liveAuthorOverride?.(spec, worktree.root);
+            const built = await buildNodeReal({
+              spec,
+              worktree,
+              baseSha: currentHead,
+              buildConfig: cfg,
+              realConfig: cfg.real,
+              store,
+              runId,
+              signer: signer.signer,
+              phasePrompts,
+              repoRoot: rootDir,
+              promote: false,
+              runtime,
+              // The phase walk rides the per-node stage, so a stalled chain reports the node AND the
+              // phase it stalled in.
+              onPhase: (phase) => progress.note(phase),
+              ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
+              ...(override !== undefined ? { authorOverride: override } : {}),
+              ...(liveOverride !== undefined ? { liveAuthorOverride: liveOverride } : {}),
+              ...(opts.model !== undefined ? { model: opts.model } : {}),
+              // ADR-0130: a slice draws the remaining total when `--budget` is set; unbounded otherwise.
+              ...(remainingUsd !== undefined ? { budgetUsd: remainingUsd } : {}),
+              ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
+            });
+            if (built.liveAuthor !== undefined) {
+              leaves.set(spec.id, built.liveAuthor);
+              opts.onLeafSlices?.({ runId, unitId: spec.id, runs: built.liveAuthor.runs });
+            }
+            if (!built.result.ok) failures.set(spec.id, built.result);
+            // Advance the stacked HEAD only on a pass (commitSha is set iff result.ok; equals baseSha
+            // when nothing was authored, which is a harmless no-op advance).
+            if (built.commitSha !== undefined) currentHead = built.commitSha;
+            return {
+              result: built.result,
+              ...(built.liveAuthor?.runtime === "claude"
+                ? { costUsd: built.liveAuthor.totalCostUsd }
+                : {}),
             };
-            failures.set(spec.id, result);
-            return { result };
           }
-          // Resolve the test-only scripted leaf ONCE (a stateful factory must not be called twice).
-          const override = opts.authorOverride?.(spec, worktree.root);
-          const liveOverride = opts.liveAuthorOverride?.(spec, worktree.root);
-          const built = await buildNodeReal({
-            spec,
-            worktree,
-            baseSha: currentHead,
-            buildConfig: cfg,
-            realConfig: cfg.real,
+          const drive = await driveNode(spec, {
+            mode: live ? "live-smoke" : "dry-run",
             store,
             runId,
             signer: signer.signer,
-            phasePrompts,
-            repoRoot: rootDir,
-            promote: false,
-            runtime,
-            ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
-            ...(override !== undefined ? { authorOverride: override } : {}),
-            ...(liveOverride !== undefined ? { liveAuthorOverride: liveOverride } : {}),
+            onPhase: (phase) => progress.note(phase),
+            ...(live ? { runtime } : {}),
+            ...(phasePrompts !== undefined ? { phasePrompts } : {}),
             ...(opts.model !== undefined ? { model: opts.model } : {}),
-            // ADR-0130: a slice draws the remaining total when `--budget` is set; unbounded otherwise.
-            ...(remainingUsd !== undefined ? { budgetUsd: remainingUsd } : {}),
-            ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
+            // ADR-0130: a live slice draws the remaining total when `--budget` is set; unbounded otherwise.
+            ...(live && remainingUsd !== undefined ? { budgetUsd: remainingUsd } : {}),
           });
-          if (built.liveAuthor !== undefined) {
-            leaves.set(spec.id, built.liveAuthor);
-            opts.onLeafSlices?.({ runId, unitId: spec.id, runs: built.liveAuthor.runs });
+          if (!drive.resolved) {
+            // Unreachable past the precheck, but stays fail-closed rather than trusting it.
+            const result: ProveResult = {
+              ok: false,
+              failedAt: "AUTHOR_TEST",
+              reason: drive.reason,
+              phasesVisited: [],
+            };
+            return { result };
           }
-          if (!built.result.ok) failures.set(spec.id, built.result);
-          // Advance the stacked HEAD only on a pass (commitSha is set iff result.ok; equals baseSha
-          // when nothing was authored, which is a harmless no-op advance).
-          if (built.commitSha !== undefined) currentHead = built.commitSha;
+          if (drive.liveAuthor !== undefined) {
+            leaves.set(spec.id, drive.liveAuthor);
+            opts.onLeafSlices?.({ runId, unitId: spec.id, runs: drive.liveAuthor.runs });
+          }
+          if (!drive.result.ok) failures.set(spec.id, drive.result);
           return {
-            result: built.result,
-            ...(built.liveAuthor?.runtime === "claude"
-              ? { costUsd: built.liveAuthor.totalCostUsd }
+            result: drive.result,
+            ...(drive.liveAuthor?.runtime === "claude"
+              ? { costUsd: drive.liveAuthor.totalCostUsd }
               : {}),
           };
-        }
-        const drive = await driveNode(spec, {
-          mode: live ? "live-smoke" : "dry-run",
-          store,
-          runId,
-          signer: signer.signer,
-          ...(live ? { runtime } : {}),
-          ...(phasePrompts !== undefined ? { phasePrompts } : {}),
-          ...(opts.model !== undefined ? { model: opts.model } : {}),
-          // ADR-0130: a live slice draws the remaining total when `--budget` is set; unbounded otherwise.
-          ...(live && remainingUsd !== undefined ? { budgetUsd: remainingUsd } : {}),
-        });
-        if (!drive.resolved) {
-          // Unreachable past the precheck, but stays fail-closed rather than trusting it.
-          const result: ProveResult = {
-            ok: false,
-            failedAt: "AUTHOR_TEST",
-            reason: drive.reason,
-            phasesVisited: [],
-          };
-          return { result };
-        }
-        if (drive.liveAuthor !== undefined) {
-          leaves.set(spec.id, drive.liveAuthor);
-          opts.onLeafSlices?.({ runId, unitId: spec.id, runs: drive.liveAuthor.runs });
-        }
-        if (!drive.result.ok) failures.set(spec.id, drive.result);
-        return {
-          result: drive.result,
-          ...(drive.liveAuthor?.runtime === "claude"
-            ? { costUsd: drive.liveAuthor.totalCostUsd }
-            : {}),
-        };
-      },
+        }),
     });
 
     // REAL chain-end promotion (ADR-0031 at story grain): ONE branch at the stacked HEAD.
@@ -808,7 +840,10 @@ export async function storyBuild(
         // the dev-box OOM trap; chain-backstop.ts). Latency-only: `anyRed` is still the OR over every
         // observation and the lines keep their order, so a red in ANY package withholds the push
         // exactly as the serial loop did.
-        const backstop = await observeBackstop(backstopJobs(driveOrder), worktree.root);
+        const backstop = await progress.stage(
+          "chain-end push gate (typecheck + package suite over the stacked HEAD)",
+          () => observeBackstop(backstopJobs(driveOrder), (worktree as BuildWorktree).root),
+        );
         backstopLines.push(...backstop.lines);
         const anyRed = backstop.anyRed;
         promotion = await promoteRealPass({

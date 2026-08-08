@@ -3,7 +3,7 @@
  *
  * A deterministic, READ-ONLY, OFFLINE-CAPABLE CLI that probes each setup invariant a fresh explorer
  * environment must satisfy — git/Node present, the checkout provisioned, its dependencies current, the
- * repo fetchable, the seed readable, the Claude CLI present + logged in, the checkout current, the D4
+ * repo fetchable, the Claude CLI present + logged in, the checkout current, the D4
  * hosted live read reachable — and emits machine-readable
  * results plus a fix hint per failing probe. It is the keystone of D6: D1's installer VERIFIES with it,
  * and D6's conversational guide WRAPS it (run doctor → explain a failure → propose the fix → dev
@@ -28,16 +28,23 @@
  * Shape (the health.ts pattern — one pure module surfaced multiple ways): {@link runDoctor} is a PURE
  * function over injected {@link DoctorObservations}, so the whole level/fix-hint policy is
  * fixture-testable with no filesystem or process. The thin {@link doctorCommand} shell gathers the
- * real observations (command presence, file existence, the seed parse) and shapes the {@link Envelope}
+ * real observations (command presence, file existence) and shapes the {@link Envelope}
  * — mirroring the offline onboarding/drift/coverage commands. The guide (D6 top layer) imports
  * {@link runDoctor} directly and reads the structured {@link DoctorReport}; it never scrapes the text.
  *
  * OFFLINE-CAPABLE: doctor itself must run with no network and no DB (it is part of the zero-credential
  * path, ADR-0207 §Consequences). A probe it cannot determine offline (the remote reachability, the
  * checkout-behind count, the D4 hosted read) resolves to WARN, never FAIL — doctor never reports a
- * broken environment merely because doctor ran offline. The hosted-read probe is WARN-only for a
- * second reason too: D4 makes the offline checkout + in-memory seed the zero-credential FALLBACK, so
- * an unreachable live read DEGRADES exploring rather than breaking it.
+ * broken environment merely because doctor ran offline.
+ *
+ * NB (corrected 2026-08-08): this block used to justify the hosted-read WARN with a SECOND reason —
+ * "D4 makes the offline checkout + in-memory seed the zero-credential FALLBACK, so an unreachable live
+ * read DEGRADES exploring rather than breaking it". That fallback is GONE: ADR-0302 D1 deleted the seed
+ * and D2 dropped offline as a supported mode, so an unreachable hosted read now breaks exploring rather
+ * than degrading it. The WARN level is UNCHANGED and still correct, on the first reason alone — doctor
+ * cannot conclude from offline that access is genuinely gone, the same rule repo-fetchable follows.
+ * What changed is the justification, not the behaviour. The `seed-readable` probe that the fallback
+ * story rested on was deleted with its subject (see where it stood, below).
  */
 
 import { execFileSync } from "node:child_process";
@@ -319,11 +326,14 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
     probes.push({ name: "checkout-current", level: "PASS", detail: "checkout is up to date with origin/main" });
   }
 
-  // 10. hosted-read — the D4 live read through the IAP-gated hosted studio. NEVER a FAIL: D4 makes the
-  // offline checkout + in-memory seed the zero-credential FALLBACK, so an unreachable hosted read
-  // DEGRADES exploring rather than breaking it (and doctor itself must stay offline-capable). Only the
-  // concrete `refused` is owner-escalatable — the same "can't conclude access is gone offline" rule
-  // repo-fetchable follows. No fixStep: none of these is repaired by re-running an installer step.
+  // 10. hosted-read — the D4 live read through the IAP-gated hosted studio. NEVER a FAIL, because
+  // doctor itself must stay offline-capable and cannot conclude from offline that access is genuinely
+  // gone — the same rule repo-fetchable follows. Only the concrete `refused` is owner-escalatable. No
+  // fixStep: none of these is repaired by re-running an installer step.
+  // (Corrected 2026-08-08: this comment also claimed "D4 makes the offline checkout + in-memory seed
+  // the zero-credential FALLBACK, so an unreachable hosted read DEGRADES exploring rather than breaking
+  // it". ADR-0302 D1/D2 removed that fallback — an unreachable hosted read now BREAKS exploring. The
+  // WARN level is deliberately unchanged; only its justification was wrong.)
   if (obs.hostedRead === "ok") {
     probes.push({ name: "hosted-read", level: "PASS", detail: "the hosted live read is reachable" });
   } else if (obs.hostedRead === "refused") {
@@ -332,7 +342,7 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
       level: "WARN",
       detail: HOSTED_READ_REFUSED_DETAIL,
       fixHint:
-        "ask the owner to grant your Google identity access to the hosted studio (the D2 invite ceremony's IAP grant). Exploring still works offline from the checkout in the meantime.",
+        "ask the owner to grant your Google identity access to the hosted studio (the D2 invite ceremony's IAP grant). Exploring needs this read — there is no offline fallback (ADR-0302).",
     });
   } else if (obs.hostedRead === "unconfigured") {
     probes.push({
@@ -340,7 +350,7 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
       level: "WARN",
       detail: "no hosted studio URL configured (STORYTREE_STUDIO_URL unset)",
       fixHint:
-        "set STORYTREE_STUDIO_URL to the hosted studio URL the owner sent you to read live tree state; without it you still get the offline seed.",
+        "set STORYTREE_STUDIO_URL to the hosted studio URL the owner sent you to read live tree state; without it there is nothing to explore (ADR-0302 left no offline fallback).",
     });
   } else {
     probes.push({
@@ -528,7 +538,7 @@ export function doctorHelp(): Envelope {
       "",
       "  storytree doctor",
       "      probe each setup invariant (git/Node, checkout provisioned, dependencies current, repo",
-      "      fetchable, seed readable, Claude CLI present + logged in, checkout current) and print a fix hint per",
+      "      fetchable, Claude CLI present + logged in, checkout current, hosted read) and print a fix hint per",
       "      failure. Read-only and offline-capable — it never writes, and never handles your",
       "      Claude credential (it only detects a logged-in CLI). Exits non-zero on any failure.",
     ].join("\n"),

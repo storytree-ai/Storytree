@@ -790,9 +790,15 @@ export async function arcIncrementAdd(
     body: outcomeText,
     arcRef: `asset:${arcId}`,
     status: "closed",
-    // A landing whose PR ref is absent still owes a reason (`assertIncrementInvariants`), and the
-    // outcome prose IS that reason — an owner attestation, an honest halt.
-    outcome: { date, ...(pr !== undefined && pr !== "" ? { pr } : { note: outcomeText }) },
+    // The outcome prose is written ONCE, into `body` above — never also into `outcome.note`
+    // (ADR-0322). It used to be copied here whenever `--pr` was absent, because the old invariant
+    // demanded a `pr` or a `note` from every closure; the copy then made an ADR-0139 correction
+    // half-apply, since `library artifact edit --set body=@file` reaches one half and `--set
+    // outcome=@file` is refused by the object schema. The invariant now asks for a note only from an
+    // increment that was PARKED first, whose `body` is the intention rather than the outcome — and a
+    // row minted here is born closed, carries no `parked`, and states what happened in `body` by
+    // construction, because `--outcome` is required above.
+    outcome: { date, ...(pr !== undefined && pr !== "" ? { pr } : {}) },
     references: [],
     createdAt: deps.now,
     updatedAt: deps.now,

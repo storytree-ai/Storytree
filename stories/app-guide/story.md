@@ -311,21 +311,29 @@ the panel reading and behaving like one continuous conversation throughout.
 > **(c)** leg 5's re-adjudication to `machine` makes it walkable WITHOUT the UI at all (it drives the
 > sidecar route + the drive guard in-process), which is a real gain, not a workaround.
 
-1. **The transcript persists across turns.** _(witness: machine)_ _(proof-gate: app-guide#gate-1)_ The _(criterion-id: uatc_68cf75456b5e5d05de9ec7d2)_ _(revision-id: uatr1:7c635066284f9b3c)_
-   member sends several prompts in a row; each `› <prompt>` echo and its reply APPENDS below the last, prior
-   exchanges stay visible, and the surface auto-scrolls to the newest line. **Success —** a persistent
-   multi-turn scrollback, never a replace-on-send exchange; the named studio suite tests provide positive,
-   deterministic evidence for this `multi-turn-transcript` behaviour.
-2. **The input grows and caps.** _(witness: machine)_ _(proof-gate: app-guide#gate-1)_ The member types / _(criterion-id: uatc_900ddbae4fabec17da85c4c6)_ _(revision-id: uatr1:25270ce1fb4c2e04)_
-   pastes a multi-line prompt; the input grows to fit up to a max, then scrolls inside itself; plain Enter
-   sends, Shift+Enter inserts a newline. **Success —** the height recompute, cap, internal scrolling, and
-   preserved keybindings behave as declared; the named studio suite tests provide positive, deterministic
-   evidence for this `auto-grow-input` behaviour.
-3. **Reset clears and aborts.** _(witness: machine)_ _(proof-gate: app-guide#gate-1)_ The member clicks _(criterion-id: uatc_9f5912771ca744fcae515a44)_ _(revision-id: uatr1:f6fc79695d194b5d)_
-   reset mid-conversation; the transcript clears to idle, the in-flight stream aborts (no ghost reply), and
-   the input returns to its resting one-row height. **Success —** the clear-to-idle, abort, and input reset
-   behaviours occur without an app restart; the named studio suite tests provide positive, deterministic
-   evidence for this `transcript-reset` behaviour.
+### ADR-0294 disposition of the five original criteria
+
+**Three of five deleted (2026-08-08) as D2 duplicates.** Legs 1–3 were the cleanest instance of D2's
+shape in this cluster: each named its own capability BY NAME in its own success clause ("the named
+studio suite tests provide positive, deterministic evidence for this `multi-turn-transcript` /
+`auto-grow-input` / `transcript-reset` behaviour"), and each bound to `app-guide#gate-1`, whose
+command — `pnpm --filter studio test` — is the command that greens those three capabilities. The
+duplication was authored and declared, not inferred. Each deletion was checked against the suite's
+actual test titles, which are prefixed by capability (`mtt-` / `agi-` / `tr-`) and map one-to-one.
+
+**The surviving numbers are deliberately NOT closed up.** `1`, `2` and `3` are burned: never reused,
+never backfilled. The single reliability gate is likewise NOT renumbered, and is now unclaimed by any
+criterion — gate ids are positional, so removing it would silently re-point already-signed verdicts
+(`asset:edit-story-uat-criteria`).
+
+| original leg | criterion id | disposition |
+|---|---|---|
+| 1. **The transcript persists across turns** | `uatc_68cf75456b5e5d05de9ec7d2` | **Delete as duplicate.** [`multi-turn-transcript`](multi-turn-transcript.md), `apps/studio/src/components/ChatPanel.test.tsx`: **“mtt-appends-not-replaces: a second send appends a new exchange without discarding the first — both present, in order, newest last”** asserts append-not-replace and prior-exchanges-stay-visible; **“mtt-echoes-each-prompt: each send appends its `› <prompt>` echo line above its reply, per turn”** asserts the echo; **“mtt-auto-scrolls-to-newest …”** asserts the auto-scroll. Every clause, one-to-one. |
+| 2. **The input grows and caps** | `uatc_900ddbae4fabec17da85c4c6` | **Delete as duplicate.** [`auto-grow-input`](auto-grow-input.md), same file: **“agi-recomputes-height-from-content …”** asserts the height recompute, **“agi-caps-height-and-scrolls-internally: past a max height the textarea clamps at the cap and scrolls inside itself”** asserts the cap and internal scrolling, and **“agi-keeps-enter-send-shift-enter-newline …”** asserts the preserved keybindings. |
+| 3. **Reset clears and aborts** | `uatc_9f5912771ca744fcae515a44` | **Delete as duplicate.** [`transcript-reset`](transcript-reset.md), same file: **“tr-clears-transcript-to-idle: clicking reset empties the transcript back to the idle empty state (input cleared + re-enabled + resting height)”** asserts clear-to-idle and the resting height, and **“tr-aborts-in-flight-stream: clicking reset mid-stream aborts the in-flight stream (the passed signal is aborted) and leaves no ghost reply …”** asserts the abort and the no-ghost-reply clause. |
+| 4. **It reads like one continuous conversation** | `uatc_912f608f4b58430b772cec95` | **Keep, untouched — not this increment's to move.** An ADR-0294 D3 appearance verdict, owned by the D3 increment (chip `task_99f7e0a9`). |
+| 5. **A wedged backend session recovers** | `uatc_5102b68997d2cd5fdbf4e954` | **Keep.** Not a duplicate: the two assertions its capability [`backend-chat-reset-route`](backend-chat-reset-route.md) declares — `bcr-clears-the-composition-guard` and `bcr-falls-through-not-404s` — exist in the SPEC only. Searched the whole tree outside `stories/**` on 2026-08-08: neither name appears in any `.ts`/`.tsx` file, so the stretch capability is unbuilt and nothing proves this leg. It stays deliberately UNBOUND and fails closed, exactly as its own note already argued. |
+
 4. **It reads like one continuous conversation.** _(witness: human)(detail: app-guide#uat-4)_ Hold a real _(criterion-id: uatc_912f608f4b58430b772cec95)_ _(revision-id: uatr1:a99d796ff73bca9a)_
    conversation on the mounted panel inside the native desktop shell and judge the WHOLE surface: does it
    read as ONE continuous conversation, or as a sequence of separate exchanges sharing a box? **Success —**

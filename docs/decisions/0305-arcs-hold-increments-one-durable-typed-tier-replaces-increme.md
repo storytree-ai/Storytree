@@ -94,7 +94,10 @@ the common artifact fields. Nothing else.
 - **`active`** — execution started. Never edited again; re-planning supersedes (ADR-0183 D2's
   write-lock, renamed from `consumed`).
 - **`closed`** — terminal, for any reason. `superseded` and `retired` are removed as states; the
-  reason lives in `outcome.note` (D5).
+  reason has to be written down (D5). WHERE it is written depends on how the increment closed —
+  `outcome.note` for one that was PARKED first, the `body` for one BORN closed by `arc increment
+  add`, whose body IS the terminal prose. That is ADR-0322 D2's narrowing; the requirement itself is
+  unchanged.
 
 ### D3 — Increments are durable and are never pruned
 
@@ -122,6 +125,11 @@ green. File surfaces must still be named in backticks, and the `planner` guidanc
 `outcome?: {date, pr?, note?}` — absent until the increment closes, set in the same closing leg that
 already appends the arc's increment entry today (ADR-0271). This is `ArcIncrement`'s shape moved
 onto the artifact it describes; `ArcProposalRealization`, its duplicate, is removed.
+
+The SHAPE above is unchanged, but the ref-or-reason invariant read off it — *an outcome with no `pr`
+needs a `note`* — is narrowed by **ADR-0322 D2** to increments carrying `parked`. Unconditional, it
+forced `arc increment add` to satisfy it by copying its prose into `note` as well as `body`, and only
+one of those two copies is reachable by `library artifact edit`.
 
 ### D6 — The delivery ceiling's inputs move, and keep answering
 

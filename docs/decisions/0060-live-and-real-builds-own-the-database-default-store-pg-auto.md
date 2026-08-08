@@ -26,7 +26,7 @@ The "~60–90s … ≤180s" figures in this ADR were an estimate. A real GCP col
 (≤366s end-to-end; confirmed against ~12 Cloud SQL start operations over 12–22 June 2026, all 277–349s
 plus connection latency). Two things compounded the gap: [ADR-0063](0063-db-control-over-the-cloud-sql-admin-rest-api-retire-the-gclo.md)
 made the start a **non-blocking REST PATCH**, so the connection-poll — not a blocking `gcloud` call —
-now owns the *whole* wait; and 180s sat *below* the observed cold start, so the first live/real build
+now owns the wait for the instance to come up; and 180s sat *below* the observed cold start, so the first live/real build
 after the daily stop refused spuriously even though the instance came up a minute or two later. The
 poll budget in `ensureDbUp` (`packages/drive/src/db-control.ts` — moved out of `packages/cli` by
 ADR-0112) was raised **180s → 420s (7 min)** so the decision's intent — wait out a cold start, else
@@ -42,6 +42,21 @@ and when it does exhaust, the refusal consults the Cloud SQL Admin status and di
 warming** — activation policy `ALWAYS`, i.e. the PATCH took, so re-probe and never re-start (`db:up`
 exits `EX_TEMPFAIL` 75) — from **genuinely unreachable**, naming the observed state. Read the "≤180s"
 / "~60–90s" wording below as ~5–6 min / ≤600s.
+
+**Correction (2026-08-08, per ADR-0139) — the ACTIVATION CALL is bounded too, so the poll is no longer
+the preflight's only budget.** The 2026-06-22 note above is about the wait for the instance to come
+up; the *call that begins* that wait had no bound at all. `deps.start()` — the Admin REST PATCH plus
+the ADC token mint it needs — could hang indefinitely, parking a `--real` build with no line of its
+own and a log byte-identical to a healthy build thinking. It now runs under its own budget
+(`START_TIMEOUT_MS`, 120s), and the post-deadline Admin `status()` read runs on the same budget. The
+two budgets deliberately measure different things and are deliberately not sized against each other:
+exceeding `START_TIMEOUT_MS` means **nothing is warming yet**, so waiting cannot help and the refusal
+says so and names the ADC token / `sqladmin.googleapis.com`; exceeding the 600s poll means the
+instance is coming up slowly. Each preflight leg is also **announced before it is entered**, so the
+probe's up-to-45s silence has an owner. Nothing decided here is re-decided: the 600s poll budget, the
+still-warming vs genuinely-unreachable split, and the 75/1 exit vocabulary are all unchanged — an
+unreturned activation call is not `stillWarming`, i.e. exit 1, which is exactly right, since it is the
+case where re-probing does not help.
 
 ## Context
 
@@ -75,7 +90,7 @@ A `--live`/`--real` build **owns the database**:
    `--store memory` escape hatch this once offered was removed by [ADR-0081](0081-remove-the-store-memory-opt-out-live-and-real-builds-always.md)).
    No silent in-memory fallback: a build that means to persist says so when it cannot.
 
-Implemented in `packages/cli/src/db-control.ts` (`ensureDbUp` — the decision flow over injected
+Implemented in `packages/drive/src/db-control.ts` (`ensureDbUp` — the decision flow over injected
 effects, unit-tested with a fake clock; `probeLiveDb`/`startLiveDb`/`ensureLiveDb` — the real wiring;
 `effectiveVerdictStore` — the default), wired into `nodeBuild` and `storyBuild`. The offline gate and
 CI never reach this path (it fires only for live/real with an effective `pg` store).
@@ -104,4 +119,5 @@ CI never reach this path (it fires only for live/real with an effective `pg` sto
 - [ADR-0063](0063-db-control-over-the-cloud-sql-admin-rest-api-retire-the-gclo.md) — the gcloud→REST swap that made `start()` non-blocking (the 2026-06-22 correction above).
 - [ADR-0021](0021-keyless-agent-session-auth-and-db-bootstrap.md) — keyless ambient ADC (the gcloud/connector auth).
 - Retires the open-question `oq-store-pg-default-for-real-live-builds` (live library).
-- `packages/cli/src/db-control.ts`, `node-build.ts`, `story-build.ts`.
+- `packages/drive/src/db-control.ts`, `node-build.ts`, `story-build.ts` (all three moved out of
+  `packages/cli` by [ADR-0112](0112-extract-the-build-orchestrate-drivers-into-packages-drive.md)).

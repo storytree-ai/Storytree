@@ -330,6 +330,16 @@ Library from the forest, reads a rendered ADR, anchors and resolves a verified-a
 browses a knowledge-derived artifact and follows its source back to the corpus, authors a structured
 artifact, proves durability across a cold process, and restores both offline stores byte-for-byte.
 
+**ADR-0294 disposition (2026-08-08): all thirteen criteria KEPT, unchanged.** ADR-0294 D1 names this
+story as the corpus's REFERENCE SHAPE, and re-reading it under the surgery confirms why: the thirteen
+legs are consecutive steps of ONE operator walkthrough against a real Chromium and a real dev server,
+not thirteen properties of a module. D2 does not reach them either — `studio#gate-1` names
+`pnpm --filter studio uat`, a dedicated whole-journey Playwright run, which is a DIFFERENT command
+from the `pnpm --filter studio test` suite that greens the capabilities; so no leg here is the
+capability tier re-signed at the story tier. Recorded so a later reader can see this story was
+adjudicated rather than skipped, and so the ~60 corpus target (D5) is not mistaken for a quota that
+this story should be cut to meet — D5 says explicitly that it is not.
+
 1. **Boot the current offline studio on the forest.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Let the UAT-managed Vite process start with `STORYTREE_STUDIO_STORE=json`, then open `/`. **Success —** the `/api/*` backbone answers, the app lands on the forest map, and the offline-store status is visible; no retired Overview page or pre-fold sidebar is required. _(criterion-id: uatc_b5d90e0780e17d4a53e11260)_ _(revision-id: uatr1:c160d418fa617c2d)_
 2. **Open an ADR through the forest's Library-and-document chrome.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ From the forest, expand the persistent Library drawer, find ADR-0002 in the Library lens, and open it in the full-detail document overlay. **Success —** the real `docs/` markdown renders with its heading and slugged sections while the only global HUD chrome remains the verified-identity account avatar; no retired brand chip or avatar-menu Documents shortcut is used. _(criterion-id: uatc_eeaf4e098276044a6cc7e0c8)_ _(revision-id: uatr1:97f0d87c97b486db)_
 3. **Follow an in-corpus cross-link.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ From a rendered document that cites ADR-0002, follow the source link and then return. **Success —** `resolveDocHref` produces the internal document target, the sibling markdown renders from disk in the document surface, and returning restores the prior document context. _(criterion-id: uatc_7b1437b0d3e80ded20966d08)_ _(revision-id: uatr1:a7b8af0550d269df)_

@@ -13,9 +13,17 @@ outcome: "During a live spawn from the desktop chat, the operator can SEE that a
 # load-bearing for terminal Claude Code via the noticeboard).
 # COMPANION CLEANUP: LANDED — verified 2026-07-26, this comment previously described it as still
 # pending. The caps' `real:` arms ARE dropped; packages/cli/src/node-build.test.ts's REAL-buildable
-# snapshot now carries only a comment recording their removal (:273–278); and repo-manifest.json's
-# hostedStories.register no longer lists this story (zero hits). No code unmount was done (ADR-0175
-# item F) — the implementation is still mounted and its suites are still green.
+# snapshot now carries only a comment recording their removal (search the story id; the line numbers
+# this note used to cite had already rotted by 2026-08-08); and repo-manifest.json's
+# hostedStories.register no longer lists this story (zero hits).
+# CODE UNMOUNT: ALSO LANDED — corrected in place 2026-08-08. This line read "No code unmount was done
+# (ADR-0175 item F) — the implementation is still mounted and its suites are still green", which was true
+# on 2026-07-26 and went false five days later. ADR-0175's execution-status block records "SPAWN — DONE
+# (2026-07-31)", and it names this story's own surface among the deletions: the `ChatStreamSpawnEvent`
+# frame that carried the boundary traces out — i.e. `chat-spawn-trace-events` — went with the spawn
+# thread, held gone by `apps/desktop/src/backend/spawn-surface-retired.test.ts`. Verified at file level
+# on 2026-08-08, not taken from the prose. Still live and NOT this story's: the studio client's `spawn`
+# variant on its `ChatEvent` wire union, which ADR-0175 assigns to `app-guide`, not to this retirement.
 # ORIGINAL status note — status: proposed = ADR-0097 "adoption underway". The four capabilities LANDED in PR #567 with passing
 # real-arm tests across three offline suites, but that merge ran through DB-free CI, so the prove-it-gate
 # never signed a `--real --store pg` verdict — it was BROWNFIELD (built, tested, gate never drove it).
@@ -144,8 +152,11 @@ decisions: [137, 70, 138, 4, 33, 108, 106]
 > retired the in-app *interactive* orchestrator chat for an embedded terminal running real Claude Code;
 > **ADR-0175** held spawn/landing do not belong to `app-guide`), there is no chat spawn to make visible —
 > so this follow-on is moot and retires with it, IN PLACE (the `chat-drive-bridge` /
-> `scoped-glue-actuator` precedent): the body below is kept as history. The code is NOT unmounted here (a
-> separate thin PR, ADR-0175). NOT retired: [`wisp-as-story-claim`](../wisp-as-story-claim/story.md) — the
+> `scoped-glue-actuator` precedent): the body below is kept as history. The code was not unmounted in that
+> reconcile, and the thin PR it was deferred to has since LANDED — **ADR-0175** records "SPAWN — DONE
+> (2026-07-31)", which took this story's own `ChatStreamSpawnEvent` frame with it. *(Corrected in place
+> 2026-08-08; this read "The code is NOT unmounted here (a separate thin PR, ADR-0175)".)* NOT retired:
+> [`wisp-as-story-claim`](../wisp-as-story-claim/story.md) — the
 > claim ledger / map wisps stay load-bearing for terminal Claude Code via the noticeboard.
 
 **Outcome —** During a live spawn from the desktop chat, the operator can SEE that a subagent was

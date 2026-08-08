@@ -155,35 +155,54 @@ every surface; the list grows only when a real defect earns a permanent case. Ea
 witness — the backend legs are machine-exercised (`_(witness: machine)_`); the UI legs an agent cannot
 drive are human-witness actions (`_(witness: human)_`, ADR-0070 / ADR-0040), recorded not skipped.
 
+### ADR-0294 disposition of the nine original criteria
+
+**Four of nine deleted (2026-08-08) — every `witness: machine` leg, all as D2 duplicates.** The five
+survivors are the `witness: human` legs, and they are kept for a scoping reason rather than a proof
+one: this story's human legs are tagged human because "an agent cannot drive the UI", which
+`human-witness-is-a-judgment-gap-not-cost` classes as a HARNESS statement rather than a judgment gap.
+Re-adjudicating them is ADR-0209 §8 witness work and belongs to the increment that owns the live human
+legs (chip `task_47c74cb0`), not here. ADR-0294 D2 deletes duplicates; it does not re-tag witnesses.
+
+The four deleted legs map one-to-one onto capabilities that each signed a REAL PASS through
+`node build --real --store pg` (the runs are recorded in this story's `## Proof` section), which is
+the capability rung re-signed at the story rung in its plainest form. Every citation below was checked
+against the named suite's actual test titles.
+
+**The surviving numbers are deliberately NOT closed up.** `3`, `5`, `6` and `9` are burned. Each of
+those four carried a `(detail:)` pointer at `library-review#uat-<n>`; those live `uat-criterion`
+artifacts are retired in the store (ADR-0307 D5 — the tier is live-canonical, so retirement is a
+`--pg` write, not a file deletion). The five survivors keep their pointers intact, which the
+`PILOT_STORY_IDS` coverage check requires.
+
+| original leg | criterion id | disposition |
+|---|---|---|
+| 1. **Open an open-question in Review** | `uatc_50675817f38dafb3d307de22` | **Keep.** `witness: human`; re-adjudication belongs to `task_47c74cb0`. |
+| 2. **Comment at a block position** | `uatc_76b48b635e2a58dabf134d05` | **Keep.** Same basis. |
+| 3. **The comment persisted with a block anchor** | `uatc_76681235d644938d2598380c` | **Delete as duplicate.** [`block-position-comment-anchor`](block-position-comment-anchor.md), `packages/library/src/store/pg-comment-store.test.ts`: **“bpa-block-anchor-is-the-stored-shape: normalizeCommentAnchor returns a block anchor canonical (blockId kept, legacy text-span fields stripped)”** asserts both halves of this leg — that the stored anchor IS block-position, and that it is NOT a quote/prefix/suffix text span; **“normalizeCommentAnchor: legacy text kind is downgraded to topic and stripped of text-span fields”** pins the stripping directly. |
+| 4. **Propose a suggestion** | `uatc_579e8c23c11391ebd2396159` | **Keep.** `witness: human`; same basis as leg 1. |
+| 5. **The suggestion is a proposal, not an overwrite** | `uatc_8d2b3ad46f16f3f8c1dda241` | **Delete as duplicate.** [`suggestion-edit-store`](suggestion-edit-store.md), `packages/library/src/store/pg-suggestion-store.test.ts`: **“ses-record-validates-at-the-boundary: SuggestionSchema accepts a valid open suggestion”** pins status `open` carrying the proposed replacement, and **“SuggestionSchema refuses a blank author”** pins the author field. The document-unchanged half is STRUCTURAL rather than asserted — the suggestion store is handed no document-write path — which is the same kind of claim this story already declares structural elsewhere. |
+| 6. **A member cannot accept/reject** | `uatc_afeb19036c9f6e66ceb082e5` | **Delete as duplicate.** [`member-suggest-write-policy`](member-suggest-write-policy.md), `apps/studio/server/guestPolicy.test.ts`: **“msp-member-cannot-decide-a-suggestion: a member POST to the suggestion-decision path is 403 (deciding is admin-only)”** asserts the refusal, and **“msp-admin-may-do-all-four: an admin may comment, suggest, accept/reject, and hard-edit”** pins the admit side. The stays-`open` clause follows from the 403: the decision route never runs, so no transition is applied. |
+| 7. **The owner accepts** | `uatc_2c1854c481f8d507d1b88ebd` | **Keep.** `witness: human`; same basis as leg 1. |
+| 8. **Live refresh, no reload** | `uatc_ee3daee25bc4403dc413100a` | **Keep.** Same basis. |
+| 9. **The old text-selection commenting is gone** | `uatc_d5785439b3378b3c34aef9d1` | **Delete on D1 first, D2 second.** A grep for absent symbols is not a step in a narratable journey — nobody walks it — and this leg's own success condition literally named `pnpm --filter studio test` + `pnpm --filter studio typecheck`, i.e. the package suite, as the thing that discharges it. Its claim was verified true before deletion (2026-08-08): `apps/studio/src/lib/annotate.ts`, `apps/studio/src/lib/useAnnotations.tsx` and `apps/studio/src/components/CommentPanel.tsx` are all absent, and no `text` kind survives on the comment anchor — the only remaining `kind: 'text'` in the tree is a CriticMarkup SEGMENT type in `apps/studio/src/lib/criticmarkup.ts`, an unrelated shape. Nothing unproven is dropped. |
+
 1. **Open an open-question in Review.** _(witness: human)(detail: library-review#uat-1)_ Open a library open-question in the studio _(criterion-id: uatc_50675817f38dafb3d307de22)_ _(revision-id: uatr1:c45ed3b712f91d3a)_
    and flip the View → Review toggle. **Success —** the surface enters Review mode; the commenting +
    suggesting affordances appear, View was read-only.
 2. **Comment at a block position.** _(witness: human)(detail: library-review#uat-2)_ In Review mode, drop an inline comment above a _(criterion-id: uatc_76b48b635e2a58dabf134d05)_ _(revision-id: uatr1:f162af5d3872ecda)_
    specific block (not a side panel; not a text selection). **Success —** the comment thread renders
    IN the document flow above that block, like a code-review thread.
-3. **The comment persisted with a block anchor.** _(witness: machine)(detail: library-review#uat-3)_ Inspect the stored comment. _(criterion-id: uatc_76681235d644938d2598380c)_ _(revision-id: uatr1:8fbc03c2b562c8eb)_
-   **Success —** it carries a block-position anchor (which block), NOT a `quote`/`prefix`/`suffix`
-   text-span anchor — the block-position model end-to-end.
 4. **Propose a suggestion.** _(witness: human)(detail: library-review#uat-4)_ As a member, edit a block's prose in Review mode and _(criterion-id: uatc_579e8c23c11391ebd2396159)_ _(revision-id: uatr1:4cabbf0e6953dd9f)_
    submit it as a suggestion. **Success —** a suggestion record is created `open` (a proposal, not a
    direct overwrite); the surface shows the PROPOSED RESULT by default with the original collapsed
    behind a "show change" toggle — no strikethrough.
-5. **The suggestion is a proposal, not an overwrite.** _(witness: machine)(detail: library-review#uat-5)_ Inspect the stored doc + _(criterion-id: uatc_8d2b3ad46f16f3f8c1dda241)_ _(revision-id: uatr1:c6b13b978aa7f39d)_
-   the suggestion record. **Success —** the document is UNCHANGED; the suggestion holds the proposed
-   replacement with status `open`, author = the member.
-6. **A member cannot accept/reject.** _(witness: machine)(detail: library-review#uat-6)_ As a member, attempt accept and reject on _(criterion-id: uatc_afeb19036c9f6e66ceb082e5)_ _(revision-id: uatr1:ffb445a61d9cae9b)_
-   the suggestion. **Success —** both refused (member scope); the suggestion stays `open`.
 7. **The owner accepts.** _(witness: human)(detail: library-review#uat-7)_ As the owner/admin, click Accept. **Success —** _(criterion-id: uatc_2c1854c481f8d507d1b88ebd)_ _(revision-id: uatr1:aee83238ae66332a)_
    the suggestion flips `open → accepted`, the edit is applied to the document through the admin
    asset-write path, and re-deciding the now-closed suggestion is refused.
 8. **Live refresh, no reload.** _(witness: human)(detail: library-review#uat-8)_ With the open-question open, a second comment / _(criterion-id: uatc_ee3daee25bc4403dc413100a)_ _(revision-id: uatr1:bdfcd2940eee27cc)_
    suggestion is posted (another session / a scripted POST). **Success —** it appears on the Review
    surface within the poll window WITHOUT a manual reload (the 30 s visibility-gated refresh feed).
-9. **The old text-selection commenting is gone.** _(witness: machine)(detail: library-review#uat-9)_ Search the built studio for the _(criterion-id: uatc_d5785439b3378b3c34aef9d1)_ _(revision-id: uatr1:9bc1edae4437f438)_
-   removed path. **Success —** `annotate.ts` quote-matching, the select-to-highlight popover, the
-   `kind:'text'` comment anchor, and the range `<mark>` highlights are absent; `pnpm --filter studio
-   test` + `pnpm --filter studio typecheck` are green — a clean swap, no two systems side by side.
-
 ## Proof
 
 **Honest status — all 9 capabilities BUILT; the frontend surface PIVOTED to the split-pane editor

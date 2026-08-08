@@ -125,10 +125,21 @@ test("a scoped leg is still RECOGNISED as an expensive leg — else the invarian
   assert.ok(isExpensiveStep("pnpm -r typecheck"));
   assert.ok(isExpensiveStep("pnpm -r test"));
 
+  // ...including the `--no-bail` forms the plan actually declares and the rewrite actually emits.
+  // Missing these is the exact silent failure above: the plan would run, the matcher would find no
+  // expensive leg, and the ordering invariant would be judging nothing.
+  assert.ok(isExpensiveStep("pnpm -r --no-bail typecheck"));
+  assert.ok(isExpensiveStep("pnpm -r --no-bail test"));
+  assert.ok(isExpensiveStep("pnpm --filter ...studio --no-bail test"));
+  assert.ok(isExpensiveStep("pnpm --filter ...@storytree/cli --filter ...studio --no-bail typecheck"));
+
   // ...and does not swallow a neighbour that merely ends in a similar word.
   assert.ok(!isExpensiveStep("pnpm check:test-timing"));
   assert.ok(!isExpensiveStep("pnpm check:manifest"));
   assert.ok(!isExpensiveStep("pnpm -r build"));
+  assert.ok(!isExpensiveStep("pnpm -r --no-bail build"));
+  // The token list is an enumeration, not a wildcard: a form the gate never emits is not a leg.
+  assert.ok(!isExpensiveStep("pnpm --silent test"));
 });
 
 test("the SCOPED plan still satisfies BOTH ordering axes — the plan that runs is the plan judged", () => {
@@ -158,7 +169,12 @@ test("the rewrite consumes pnpmArgsFor's output verbatim — no second arg forma
   const scope = localAffectedScope({ ok: true, files: ["apps/studio/src/App.tsx"] }, PROJECTS);
   const scoped = scopeGatePlan(GATE_PLAN, pnpmArgsFor(scope));
   const legs = scoped.filter((s) => isExpensiveStep(s.command)).map((s) => s.command);
-  assert.deepEqual(legs, ["pnpm --filter ...studio typecheck", "pnpm --filter ...studio test"]);
+  // `--no-bail` survives the rewrite in place: narrowing WHICH packages run must not quietly drop
+  // the flag that makes all of the selected ones report.
+  assert.deepEqual(legs, [
+    "pnpm --filter ...studio --no-bail typecheck",
+    "pnpm --filter ...studio --no-bail test",
+  ]);
 });
 
 test("a name pnpmArgsFor refuses to splice falls back to the full run, and the plan follows", () => {

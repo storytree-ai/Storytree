@@ -17,7 +17,7 @@ import {
 } from "@storytree/orchestrator";
 import type { NodeSpec } from "@storytree/orchestrator";
 
-import { storyBuild } from "@storytree/drive";
+import { silentBuildProgress, storyBuild } from "@storytree/drive";
 
 /**
  * The corpus the leaf's per-phase system prompts render from, INJECTED rather than opened.
@@ -204,6 +204,7 @@ test("--real chains capabilities topo-ordered over ONE worktree; cap-b builds on
   try {
     const env = await storyBuild("fix-story", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -241,6 +242,7 @@ test("--real HALTS the chain when a node fails closed; the later node never runs
   try {
     const env = await storyBuild("fix-story", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -276,6 +278,7 @@ test("--real promotes ONCE at the stacked HEAD; cap-a's verdict commit is an anc
   try {
     const env = await storyBuild("fix-story", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -324,6 +327,7 @@ test("--real HALT parks the proven prefix LOCAL-ONLY — never pushed, never a l
   try {
     const env = await storyBuild("fix-story", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -413,6 +417,7 @@ test("--real refuses a story with a non-real-buildable driven node BEFORE any wo
   try {
     const env = await storyBuild("fix-story", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -443,6 +448,7 @@ test("--real refuses a machine-witnessed story whose UAT node is not real-builda
   try {
     const env = await storyBuild("fix-story", {
       corpusStore: await fixtureCorpus(),
+      progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
       actor: "tester@example.com",

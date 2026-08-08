@@ -227,7 +227,8 @@ function main(): void {
   const total = steps.length;
   console.log(
     `${TAG} running ${total} steps${failFast ? " (--fail-fast: stops at the first red)" : ""}. ` +
-      `Every step runs and is reported PASS / FAIL / NOT RUN; the gate is green only if all pass.`,
+      `Every step runs and is reported PASS / FAIL / SKIP / NOT RUN; the gate is green only if ` +
+      `every step passed or declared a skip.`,
   );
   console.log(`${TAG} ${renderScopeNotice(scope)}`);
   if (scope.mode === "affected") {
