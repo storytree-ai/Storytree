@@ -2,9 +2,16 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
+import { STORY_REF_PREFIX } from "@storytree/library";
 
 import { loadTitledAdrMetas, type TitledAdrMeta } from "./adr-metas.js";
 import type { AdrStatus } from "./adr-frontmatter.js";
+import {
+  danglingCiteReasons,
+  loadWorkHierarchyIndex,
+  resolveCites,
+  type WorkUnit,
+} from "./work-hierarchy.js";
 
 /**
  * The ARC ROLLUP — the derived initiative view (ADR-0183 D3) as DATA rather than as rendered text.
@@ -47,8 +54,46 @@ export interface ArcRollupIncrement {
   frictionRefs?: string[];
   /** The git anchor's short sha, when it has one — the freshness check's subject. */
   anchorSha?: string;
+  /**
+   * The typed work-hierarchy + guidance pointers this increment carries (ADR-0306 D2), VERBATIM and
+   * in author order. Store-resident, so unlike {@link ArcRollup.stories} it is identical for every
+   * session with no merge in the path.
+   */
+  cites?: string[];
+  /**
+   * The subset of `cites` this CHECKOUT cannot honour, as one-line reasons (ADR-0306 D1's report).
+   * Work-hierarchy refs only — an `asset:` pointer is resolved by the store, not by a disk scan, and
+   * `libraryHealth`'s referential-integrity leg is what fails a dangling one.
+   *
+   * Absent when everything lands. Present is NOT an error: the hierarchy is branch-dependent, so a
+   * ref naming a story that exists only on another branch is legal and this is how it says so.
+   */
+  danglingCites?: string[];
   /** Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5). */
   outcome?: { date?: string; pr?: string; note?: string };
+}
+
+/**
+ * One story reachable from this arc through the STORE — an increment's `story:` citation
+ * (ADR-0306 D2), joined here so ADR-0306 D4's second path has a shape of its own.
+ *
+ * Deliberately NOT merged into {@link ArcRollup.stories}, and that separation is the decision, not a
+ * rendering nicety. The two edges answer different questions — the frontmatter stamp says *this arc
+ * PRODUCED this story* and is a scan of whichever working tree the command ran in; the citation says
+ * *an increment of this arc TOUCHED this story* and is the same for every session. D4: "a reader who
+ * cannot tell a store-resident edge from a scan of the local working tree cannot tell whether a
+ * story's absence means anything."
+ */
+export interface ArcRollupCitedStory {
+  /** The cited story id — as authored, whether or not this checkout has it. */
+  id: string;
+  /** The increment ids citing it, sorted — so a reader can follow the edge back to its reason. */
+  by: string[];
+  /**
+   * Whether a story of that id exists in THIS checkout. `false` is a REPORT (ADR-0306 D1): the id
+   * stays listed, because dropping it would make the store-resident edge look branch-dependent too.
+   */
+  present: boolean;
 }
 
 /** A decision stamped to this arc (frontmatter `arc:`, ADR-0183 D3). */
@@ -107,8 +152,21 @@ export interface ArcRollup {
    */
   increments: ArcRollupIncrement[];
   adrs: ArcRollupAdr[];
-  /** Story directory names carrying this arc's frontmatter stamp. */
+  /**
+   * Story directory names carrying this arc's frontmatter stamp (ADR-0183 D3) — a DISK SCAN of the
+   * running checkout, so it is branch-dependent and always relative to one working tree.
+   *
+   * ADR-0306 D4 keeps this path and adds {@link citedStories} beside it. Neither subsumes the other
+   * and **no surface may silently merge them** — see {@link ArcRollupCitedStory}.
+   */
   stories: string[];
+  /**
+   * Stories reachable through the STORE — the `story:` citations on this arc's increments
+   * (ADR-0306 D2/D4). Identical for every session, id-sorted. The half of the arc's
+   * branch-dependence that IS removable; the ADR stamp above is the half that is not, because an ADR
+   * is a file in `docs/decisions/` and no citation edge changes that.
+   */
+  citedStories: ArcRollupCitedStory[];
   questions: ArcRollupQuestion[];
   /** ADR-0267 D7's one defined state: the arc has open questions waiting on the owner. */
   waiting: boolean;
@@ -245,6 +303,16 @@ export interface ArcRollupInput {
   adrs: readonly TitledAdrMeta[];
   /** Every story stamp from {@link storyArcStamps} — filtered here by arc. */
   storyStamps: readonly { story: string; arc: string }[];
+  /**
+   * This checkout's work-hierarchy units, keyed by id ({@link loadWorkHierarchyIndex}) — what turns
+   * an increment's `story:`/`capability:` citation into a resolution verdict (ADR-0306 D1).
+   *
+   * OPTIONAL, and an omitted index means "do not resolve", never "nothing resolves". A caller with
+   * no stories tree to scan (a pure unit test, a surface that only wants the store-resident half)
+   * would otherwise report every ref as dangling — reading a missing SCANNER as a missing STORY is
+   * exactly the falsified-absence error this edge exists to avoid.
+   */
+  workUnits?: ReadonlyMap<string, WorkUnit> | undefined;
 }
 
 /**
@@ -279,6 +347,19 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
       if (typeof pd["parked"] === "string") row.parked = pd["parked"] as string;
       if (refs !== undefined && refs.length > 0) row.frictionRefs = refs;
       if (sha !== undefined) row.anchorSha = sha;
+      // The typed citation edge (ADR-0306 D2), read defensively like every other leg here. The refs
+      // are carried VERBATIM; resolution is a separate, optional field, so a surface that only wants
+      // to know what was authored never has to consult a checkout to find out.
+      const cites = Array.isArray(pd["cites"])
+        ? (pd["cites"] as unknown[]).filter((c): c is string => typeof c === "string")
+        : [];
+      if (cites.length > 0) {
+        row.cites = cites;
+        if (input.workUnits !== undefined) {
+          const dangling = danglingCiteReasons(resolveCites(cites, input.workUnits));
+          if (dangling.length > 0) row.danglingCites = dangling;
+        }
+      }
       if (typeof outcome === "object" && outcome !== null) {
         row.outcome = outcome as NonNullable<ArcRollupIncrement["outcome"]>;
       }
@@ -306,6 +387,31 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
 
   const stories = input.storyStamps.filter((s) => s.arc === id).map((s) => s.story);
 
+  // ADR-0306 D4's SECOND path, built from the increments above and kept beside `stories`, never
+  // folded into it. One story may be cited by several increments, so the citers are collected rather
+  // than the last one winning — the edge's value is being able to follow it back to the reason.
+  const citedBy = new Map<string, Set<string>>();
+  for (const inc of increments) {
+    for (const ref of inc.cites ?? []) {
+      if (!ref.startsWith(STORY_REF_PREFIX)) continue;
+      const storyId = ref.slice(STORY_REF_PREFIX.length);
+      if (storyId === "") continue;
+      const set = citedBy.get(storyId);
+      if (set) set.add(inc.id);
+      else citedBy.set(storyId, new Set([inc.id]));
+    }
+  }
+  const citedStories: ArcRollupCitedStory[] = [...citedBy.entries()]
+    .map(([storyId, by]) => ({
+      id: storyId,
+      by: [...by].sort(),
+      // With no index injected the question was not asked, so it is answered the way an unasked
+      // question has to be: `true` (nothing observed the story to be missing). Reporting `false`
+      // here would manufacture an absence out of a caller that simply had no tree to look at.
+      present: input.workUnits === undefined ? true : input.workUnits.get(storyId)?.tier === "story",
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+
   return {
     id,
     title: str(doc, "title"),
@@ -316,6 +422,7 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
     increments,
     adrs,
     stories,
+    citedStories,
     questions,
     waiting: questions.length > 0,
   };
@@ -342,6 +449,9 @@ async function loadChildren(deps: ArcRollupDeps): Promise<Omit<ArcRollupInput, "
     questionDocs,
     adrs: loadTitledAdrMetas(deps.decisionsDir).adrs,
     storyStamps: storyArcStamps(deps.storiesDir),
+    // Scanned ONCE per load alongside the stamps, and for the same reason: a multi-arc rollup must
+    // not re-walk the tree per arc.
+    workUnits: loadWorkHierarchyIndex(deps.storiesDir),
   };
 }
 

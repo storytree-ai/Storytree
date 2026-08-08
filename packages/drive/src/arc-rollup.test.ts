@@ -417,3 +417,135 @@ test("deriveArcRollup is PURE — the same inputs join identically with no store
   assert.equal(rollup.waiting, true);
   assert.equal(rollup.lifecycle, "active", "an arc with no lifecycle field is in flight");
 });
+
+// ---------------------------------------------------------------------------
+// ADR-0306 D2/D4 — the typed citation edge, and the TWO story paths it creates.
+// ---------------------------------------------------------------------------
+
+/** One increment doc citing `refs`, minimal but shaped like the real thing. */
+function citingIncrement(id: string, refs: string[]): unknown {
+  return {
+    id,
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id,
+      title: id,
+      objective: `objective of ${id}`,
+      arcRef: "asset:a1",
+      status: "ready",
+      cites: refs,
+    },
+    createdAt: "",
+    updatedAt: "",
+  };
+}
+
+const A1 = {
+  id: "a1",
+  kind: "arc",
+  doc: { kind: "arc", id: "a1", title: "A", description: "d" },
+  createdAt: "",
+  updatedAt: "",
+};
+
+const WORK_UNITS = new Map([
+  ["here", { id: "here", tier: "story" as const, story: "here" }],
+  ["a-cap", { id: "a-cap", tier: "capability" as const, story: "here" }],
+]);
+
+test("cites ride the rollup verbatim, and the refs this checkout misses are reported beside them", () => {
+  const rollup = deriveArcRollup({
+    arc: A1 as never,
+    incrementDocs: [citingIncrement("inc-1", ["story:here", "story:elsewhere", "asset:a-guide"]) as never],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+    workUnits: WORK_UNITS,
+  });
+  const inc = rollup.increments[0];
+  assert.deepEqual(inc?.cites, ["story:here", "story:elsewhere", "asset:a-guide"], "verbatim, in author order");
+  assert.deepEqual(
+    inc?.danglingCites,
+    ["story:elsewhere (no such story in this checkout)"],
+    "the asset: ref is the STORE's to resolve, not this scan's — never counted dangling here",
+  );
+});
+
+test("NO workUnits index => NO dangling report, never a report that everything dangles", () => {
+  // An omitted index means "the question was not asked". Reading a missing SCANNER as a missing
+  // STORY is exactly the falsified-absence error ADR-0306 D1 is written to avoid, and it would fire
+  // on every caller that has no stories tree to walk.
+  const rollup = deriveArcRollup({
+    arc: A1 as never,
+    incrementDocs: [citingIncrement("inc-1", ["story:elsewhere"]) as never],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+  });
+  assert.deepEqual(rollup.increments[0]?.cites, ["story:elsewhere"]);
+  assert.equal(rollup.increments[0]?.danglingCites, undefined);
+  assert.deepEqual(
+    rollup.citedStories.map((c) => [c.id, c.present]),
+    [["elsewhere", true]],
+    "an unasked question is answered as unobserved-absent, not as absent",
+  );
+});
+
+test("D4: the STAMPED and CITED story paths are separate fields and never merged", () => {
+  // The stamp says *this arc PRODUCED this story* and is a scan of one working tree; the citation
+  // says *an increment TOUCHED this story* and is store-resident. Under one list, a story missing
+  // because this branch has not created it yet would look exactly like a story nobody stamped.
+  const rollup = deriveArcRollup({
+    arc: A1 as never,
+    incrementDocs: [
+      citingIncrement("inc-1", ["story:here", "capability:a-cap"]) as never,
+      citingIncrement("inc-2", ["story:here", "story:elsewhere"]) as never,
+    ],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [{ story: "stamped-only", arc: "a1" }],
+    workUnits: WORK_UNITS,
+  });
+  assert.deepEqual(rollup.stories, ["stamped-only"], "the disk-scan path is untouched by citations");
+  assert.deepEqual(rollup.citedStories, [
+    { id: "elsewhere", by: ["inc-2"], present: false },
+    { id: "here", by: ["inc-1", "inc-2"], present: true },
+  ]);
+  assert.ok(
+    !rollup.stories.includes("here"),
+    "a cited story must NOT leak into the stamped list — that merge is what D4 forbids",
+  );
+});
+
+test("only `story:` citations build citedStories — a capability is not a story", () => {
+  const rollup = deriveArcRollup({
+    arc: A1 as never,
+    incrementDocs: [citingIncrement("inc-1", ["capability:a-cap", "asset:a-guide"]) as never],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+    workUnits: WORK_UNITS,
+  });
+  assert.deepEqual(rollup.citedStories, []);
+});
+
+test("a malformed cites field never throws the join — it reads as no citations", () => {
+  const broken = {
+    id: "inc-bad",
+    kind: "increment",
+    doc: { kind: "increment", id: "inc-bad", title: "t", objective: "o", arcRef: "asset:a1", status: "ready", cites: "story:here" },
+    createdAt: "",
+    updatedAt: "",
+  };
+  const rollup = deriveArcRollup({
+    arc: A1 as never,
+    incrementDocs: [broken as never],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+    workUnits: WORK_UNITS,
+  });
+  assert.equal(rollup.increments[0]?.cites, undefined);
+  assert.deepEqual(rollup.citedStories, []);
+});

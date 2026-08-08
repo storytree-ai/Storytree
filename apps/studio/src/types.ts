@@ -980,8 +980,33 @@ export interface ArcRollupIncrement {
   frictionRefs?: string[];
   /** The git anchor's short sha, when it has one. */
   anchorSha?: string;
+  /**
+   * The typed work-hierarchy + guidance pointers this increment carries (ADR-0306 D2) — `story:` /
+   * `capability:` / `asset:`, verbatim and in author order. Store-resident, so unlike
+   * {@link ArcRollup.stories} it is the same for every session.
+   */
+  cites?: string[];
+  /**
+   * The subset of `cites` the SERVER'S checkout could not resolve, as one-line reasons (ADR-0306 D1).
+   * Present is NOT an error — the work hierarchy is branch-dependent, so a ref naming a story that
+   * has not landed yet is legal and this is how it says so. A surface showing `cites` must show this
+   * too, or a citation reads as evidence the unit exists.
+   */
+  danglingCites?: string[];
   /** Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5). */
   outcome?: { date?: string; pr?: string; note?: string };
+}
+
+/**
+ * One story reachable from an arc through the STORE — an increment's `story:` citation
+ * (ADR-0306 D2/D4), mirrored from drive's `ArcRollupCitedStory`.
+ */
+export interface ArcRollupCitedStory {
+  id: string;
+  /** The increment ids citing it, sorted. */
+  by: string[];
+  /** Whether a story of that id exists in the SERVER's checkout — a report, never a defect. */
+  present: boolean;
 }
 
 /** A decision stamped to this arc (ADR frontmatter `arc:`). `status` is drive's `AdrStatus`,
@@ -1015,7 +1040,19 @@ export interface ArcRollup {
   /** Every increment citing this arc, forward-looking entries FIRST (drive's status-rank order). */
   increments: ArcRollupIncrement[];
   adrs: ArcRollupAdr[];
+  /**
+   * Stories carrying this arc's frontmatter stamp (ADR-0183 D3) — a DISK SCAN of the server's
+   * checkout, so it is branch-dependent.
+   *
+   * ADR-0306 D4 keeps this path and puts {@link citedStories} beside it, and binds any surface that
+   * lists an arc's stories: **do not merge them.** They answer different questions — the stamp says
+   * *this arc produced this story*, the citation says *an increment touched it* — and a reader who
+   * cannot tell a store-resident edge from a scan of one working tree cannot tell whether a story's
+   * absence means anything.
+   */
   stories: string[];
+  /** Stories reachable through the STORE — increments' `story:` citations (ADR-0306 D4). */
+  citedStories: ArcRollupCitedStory[];
   questions: ArcRollupQuestion[];
   /** ADR-0267 D7's one server-computed state: this arc has open questions waiting on the owner. */
   waiting: boolean;

@@ -50,6 +50,8 @@ function arc(over: Partial<ArcRollup> & { id: string }): ArcRollup {
     increments: [],
     adrs: [],
     stories: [],
+    // ADR-0306 D4's store-resident story path, separate from the disk-scanned `stories` above.
+    citedStories: [],
     questions: [],
     waiting: false,
     ...over,

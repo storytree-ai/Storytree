@@ -56,6 +56,9 @@ function arc(over: Partial<ArcRollup> & { id: string }): ArcRollup {
     increments: [],
     adrs: [],
     stories: [],
+    // ADR-0306 D4's second story path — the STORE-resident one, kept beside `stories` and never
+    // merged into it. Empty by default here; a fixture that wants one overrides it.
+    citedStories: [],
     questions: [],
     waiting: false,
     ...over,

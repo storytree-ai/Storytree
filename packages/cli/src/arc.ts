@@ -1,5 +1,5 @@
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
-import { explainDocValidationError, upcastAndValidate } from "@storytree/library";
+import { explainDocValidationError, parseCiteRef, upcastAndValidate } from "@storytree/library";
 import {
   arcIsClosed,
   isForwardLooking,
@@ -234,6 +234,19 @@ export function renderArcRollup(rollup: ArcRollup, pg: boolean): string[] {
     if (i.frictionRefs !== undefined && i.frictionRefs.length > 0) {
       lines.push(`      from friction: ${i.frictionRefs.join(", ")}`);
     }
+    // The typed work-hierarchy edge (ADR-0306 D2), and — where this checkout can tell — which of its
+    // refs do not land. The dangling line is a REPORT, never a defect marker (D1): the hierarchy is
+    // branch-dependent, so an increment citing the story it is about to create is correct and this
+    // is how it says so. Printing the refs without it would be worse than not printing them, since a
+    // reader would take a citation as evidence the unit exists.
+    if (i.cites !== undefined && i.cites.length > 0) {
+      lines.push(`      cites: ${i.cites.join(", ")}`);
+      if (i.danglingCites !== undefined && i.danglingCites.length > 0) {
+        lines.push(
+          `      ⚠ not in this checkout: ${i.danglingCites.join("; ")} — legal (the work hierarchy is branch-dependent, ADR-0306 D1)`,
+        );
+      }
+    }
     lines.push(`      read/edit it:  storytree library artifact ${i.id}${pg ? " --pg" : ""}`);
   }
 
@@ -276,9 +289,35 @@ export function renderArcRollup(rollup: ArcRollup, pg: boolean): string[] {
     lines.push(`  - ADR-${String(a.number).padStart(4, "0")}  ${a.status.padEnd(10)} ${a.title}`);
   }
 
-  lines.push("", `## Stories  (derived: story frontmatter arc: ${rollup.id})`);
-  if (rollup.stories.length === 0) lines.push("  (none)");
-  for (const s of rollup.stories) lines.push(`  - ${s}`);
+  // TWO PATHS, LABELLED, NEVER MERGED (ADR-0306 D4). A story reaches an arc two ways now, and they
+  // answer different questions: the frontmatter stamp says *this arc PRODUCED this story* and is a
+  // scan of whichever working tree this command ran in; an increment's `story:` citation says *an
+  // increment of this arc TOUCHED this story* and is store-resident, identical for every session.
+  //
+  // Merging them would be cheap and wrong. D4: "a reader who cannot tell a store-resident edge from a
+  // scan of the local working tree cannot tell whether a story's absence means anything." Under one
+  // list, a story missing because this branch has not created it yet would look exactly like a story
+  // nobody ever stamped — and the first is expected, while the second is a gap.
+  lines.push("", "## Stories  (TWO paths, ADR-0306 D4 — not merged, they mean different things)");
+  lines.push(`  stamped by this arc  (frontmatter arc: ${rollup.id} — a DISK SCAN of this checkout):`);
+  if (rollup.stories.length === 0) lines.push("    (none)");
+  for (const s of rollup.stories) lines.push(`    - ${s}`);
+  lines.push(
+    "  cited by an increment  (increment.cites `story:` — STORE-resident, the same for every session):",
+  );
+  if (rollup.citedStories.length === 0) {
+    lines.push(
+      pg
+        ? "    (none — no increment on this arc cites a story yet)"
+        : "    (none visible OFFLINE — increments are live-only; try --pg)",
+    );
+  }
+  for (const c of rollup.citedStories) {
+    // The absence marker is on the CITED half only, and only where a scan actually looked. It is a
+    // report about this checkout, not a verdict on the citation (ADR-0306 D1).
+    const here = c.present ? "" : "  ⚠ not in this checkout";
+    lines.push(`    - ${c.id}${here}   (cited by: ${c.by.join(", ")})`);
+  }
 
   return lines;
 }
@@ -741,7 +780,13 @@ async function refuseTakenId(deps: ArcWriteDeps, id: string): Promise<Envelope |
 export async function arcIncrementAdd(
   deps: ArcWriteDeps,
   arcId: string | undefined,
-  opts: { date?: string | undefined; pr?: string | undefined; outcome?: string | undefined; id?: string | undefined },
+  opts: {
+    date?: string | undefined;
+    pr?: string | undefined;
+    outcome?: string | undefined;
+    id?: string | undefined;
+    cites?: string[] | undefined;
+  },
 ): Promise<Envelope> {
   if (!deps.writable) return arcNotWritable("increment add");
   if (arcId === undefined) {
@@ -759,6 +804,9 @@ export async function arcIncrementAdd(
       next: [`storytree arc show ${arcId} --pg`],
     };
   }
+  const cited = normaliseCites(opts.cites);
+  if ("error" in cited) return cited.error;
+
   const found = await loadArcForWrite(deps, arcId);
   if ("error" in found) return found.error;
 
@@ -799,6 +847,11 @@ export async function arcIncrementAdd(
     // row minted here is born closed, carries no `parked`, and states what happened in `body` by
     // construction, because `--outcome` is required above.
     outcome: { date, ...(pr !== undefined && pr !== "" ? { pr } : {}) },
+    // ADR-0306 D2, on a LANDING as well as on a parked entry: what this increment touched is worth
+    // recording after the fact, not only before it. A closed increment is permanent (ADR-0305 D3),
+    // so its citations are what make "which increments touched this capability" answerable over the
+    // arc's history rather than only over its open work.
+    ...(cited.cites.length > 0 ? { cites: cited.cites } : {}),
     references: [],
     createdAt: deps.now,
     updatedAt: deps.now,
@@ -831,6 +884,44 @@ export async function arcIncrementAdd(
   };
 }
 
+/**
+ * Normalise the repeatable `--cites` flag into the `cites` array (ADR-0306 D2), or refuse the
+ * malformed tokens by NAME.
+ *
+ * Comma-splitting as well as repetition, because the field is a SET and both spellings mean the same
+ * thing — `--cites story:a,capability:b` and two flags are indistinguishable once stored.
+ *
+ * The refusal is a SHAPE check and nothing more. It never asks whether the unit exists, because
+ * ADR-0306 D1 puts that answer on the read surface: the work hierarchy is disk-canonical and
+ * branch-dependent, so refusing an unresolvable ref here would make an increment unwritable on
+ * exactly the branch that creates the story it plans. A typo'd SCHEME is a different matter — that
+ * is a token this corpus has no resolver for at all, on any branch, so it is caught at the boundary
+ * where the author can still fix it. Duplicates collapse: a set cannot hold one twice.
+ */
+function normaliseCites(raw: readonly string[] | undefined): { cites: string[] } | { error: Envelope } {
+  const tokens = (raw ?? [])
+    .flatMap((c) => c.split(","))
+    .map((c) => c.trim())
+    .filter((c) => c !== "");
+  const bad = tokens.filter((t) => parseCiteRef(t) === null);
+  if (bad.length > 0) {
+    return {
+      error: {
+        ok: false,
+        body: [
+          `not a citation pointer: ${bad.join(", ")}.`,
+          "`--cites` takes `story:<id>` / `capability:<id>` (the work hierarchy, ADR-0306 D1) or",
+          "`asset:<id>` (the Library guidance it stands on). A bare id is refused because it cannot",
+          "say which tier it names, which is the whole point of the typed schemes.",
+          "A ref that does not RESOLVE is fine and is reported on read — only the token shape is checked here.",
+        ].join("\n"),
+        next: ["storytree tree", "storytree library artifact list definition"],
+      },
+    };
+  }
+  return { cites: [...new Set(tokens)] };
+}
+
 /** The body an increment carries at birth. */
 export interface ArcIncrementBodyOpts {
   objective?: string | undefined;
@@ -860,7 +951,12 @@ export interface ArcIncrementBodyOpts {
 export async function arcIncrementNew(
   deps: ArcWriteDeps,
   arcId: string | undefined,
-  opts: ArcIncrementBodyOpts & { id?: string | undefined; title?: string | undefined; friction?: string[] | undefined },
+  opts: ArcIncrementBodyOpts & {
+    id?: string | undefined;
+    title?: string | undefined;
+    friction?: string[] | undefined;
+    cites?: string[] | undefined;
+  },
 ): Promise<Envelope> {
   if (!deps.writable) return arcNotWritable("increment new");
   if (arcId === undefined) {
@@ -890,6 +986,9 @@ export async function arcIncrementNew(
     };
   }
 
+  const cited = normaliseCites(opts.cites);
+  if ("error" in cited) return cited.error;
+
   const found = await loadArcForWrite(deps, arcId);
   if ("error" in found) return found.error;
   const taken = await refuseTakenId(deps, id);
@@ -907,6 +1006,10 @@ export async function arcIncrementNew(
     status: "proposal",
     parked: deps.now,
     ...(frictionRefs.length > 0 ? { frictionRefs } : {}),
+    // ADR-0306 D2. Omitted entirely when empty rather than written as `[]`: `cites` is optional and
+    // legitimately empty, and an absent field says "none named" where an empty array invites a
+    // reader to wonder whether something was removed.
+    ...(cited.cites.length > 0 ? { cites: cited.cites } : {}),
     references: [],
     createdAt: deps.now,
     updatedAt: deps.now,
@@ -1273,17 +1376,23 @@ export function arcHelp(): Envelope {
       "  storytree arc edit <id> [--intent <text|@file>] [--end-state <text|@file>] --pg",
       "",
       "the increment verbs:",
-      "  storytree arc increment add <arc-id> --outcome <text|@file> [--pr <ref>] [--date] [--id <slug>] --pg",
+      "  storytree arc increment add <arc-id> --outcome <text|@file> [--pr <ref>] [--date] [--id <slug>]",
+      "        [--cites <ref>]... --pg",
       "        RECORD one landing — the merge-ceremony residue (ADR-0271). Creates a CLOSED increment;",
       "        title / objective / id are derived, so it still costs one command. Work that was PARKED",
       "        first should `increment close` its existing row instead of minting a second one.",
       '  storytree arc increment new <arc-id> --id <slug> --title "..." --objective <text|@file>',
-      "        --body <text|@file> [--friction <id>]... --pg",
+      "        --body <text|@file> [--friction <id>]... [--cites <ref>]... --pg",
       "        PARK one decided-but-unbuilt unit of work. There is no way to park without naming an arc:",
       "        that is the decision, not an inconvenience — charter one first (`arc new`) when none fits.",
       "        `--friction <id>` (repeatable) is the DELIVERY CEILING'S JOIN: the entry goes RED on a later",
       "        session's gate once one of those friction items is reinforced after this entry was parked.",
       "        An entry with no --friction can never red, and the command says so.",
+      "        `--cites <ref>` (repeatable or comma-separated) names what this increment TOUCHES as typed",
+      "        pointers — `story:<id>` / `capability:<id>` / `asset:<id>` (ADR-0306 D2) — replacing the prose",
+      "        ids `decomposition` used to carry. A SET: no order, no proof route (those stay in --body). A ref",
+      "        that does not resolve is REPORTED on read, never refused on write — the work hierarchy is",
+      "        disk-canonical and branch-dependent, so citing a story this branch is about to create is legal.",
       "  storytree arc increment close <id> [--pr <ref>] [--date] [--note <text|@file>] --pg",
       "        Mark one increment TERMINAL — for ANY reason, not only a landing. `--note` is REQUIRED",
       "        when there is no `--pr`: ADR-0305 D2 dropped `superseded`/`retired` because the",

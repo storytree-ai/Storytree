@@ -2,19 +2,23 @@
  * "Sources" — the grouped-by-type render of a unit's structured `references`
  * (docs/research/library-sources-unification.md).
  *
- * A unit cites related material with opaque `doc:<relpath>` / `asset:<id>` / `node:<id>` pointers.
+ * A unit cites related material with opaque `doc:<relpath>` / `asset:<id>` / `node:<id>` pointers,
+ * and — since ADR-0306 D1 — the two typed work-hierarchy schemes `story:<id>` / `capability:<id>`.
  * To read well, we group them by the TYPE of thing they point at (Definitions vs Decisions vs …)
  * rather than dumping a flat list. This is a *live view*: it is computed from `references` at render
  * time (studio, CLI, …), never baked into the stored body — so it never goes stale when a cited
  * artifact is recategorized or retitled.
  *
- * The `doc:` / `node:` classification and the group ORDER are corpus-free and owned here. Resolving
+ * The `doc:` / `node:` / `story:` / `capability:` classification and the group ORDER are corpus-free
+ * and owned here (the work tree is not the library's to resolve, so those tokens are their own
+ * labels — resolving them against disk is `packages/drive/src/work-hierarchy.ts`'s). Resolving
  * an `asset:<id>` to its category needs the corpus, so {@link groupSources} takes a `resolveAsset`
  * callback — each call site fills it from its own corpus view (the studio from `useAppData`, the
  * CLI from the store, build steps from the loaded corpus). Pure + offline.
  */
 
 import { NODE_REF_PREFIX } from "./oq-gating.js";
+import { CAPABILITY_REF_PREFIX, STORY_REF_PREFIX, parseCiteRef } from "./knowledge.js";
 
 /**
  * The fixed display order of Source groups; empty groups are omitted at render time.
@@ -103,6 +107,18 @@ export function groupSources(
       // that view learns the token"). Corpus-free like the `doc:` arm — the node id IS the label;
       // the work tree is not the library's to resolve.
       add("Story nodes", { ref, label: ref.slice(NODE_REF_PREFIX.length) });
+    } else if (ref.startsWith(STORY_REF_PREFIX) || ref.startsWith(CAPABILITY_REF_PREFIX)) {
+      // ADR-0306 D1's two typed work-hierarchy schemes. They share the "Story nodes" group with
+      // `node:` because they point at the same place — the work tree, not at knowledge — and the
+      // group's tail order is a pinned invariant, so a fourth and fifth GROUP would move it for a
+      // distinction the LABEL can carry instead. The tier is what these tokens add over `node:`, so
+      // it is what the label shows; without it a reader could not tell a cited story from a cited
+      // capability, which is the whole reason the schemes are typed.
+      const parsed = parseCiteRef(ref);
+      add("Story nodes", {
+        ref,
+        label: parsed === null ? ref : `${parsed.id} (${parsed.scheme})`,
+      });
     } else {
       add("Other", { ref, label: ref });
     }

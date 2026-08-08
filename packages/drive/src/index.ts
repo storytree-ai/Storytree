@@ -17,6 +17,9 @@ export * from "./adr-metas.js";
 // The derived arc → children join (ADR-0183 D3 / ADR-0267 D4): ONE rollup the cli renders and the
 // studio server serves, so the two surfaces can never disagree about what an arc contains.
 export * from "./arc-rollup.js";
+// The work-hierarchy ref resolver (ADR-0306 D1): `story:`/`capability:` pointers turned into the
+// units they name, against ONE checkout — reported when they dangle, never refused on write.
+export * from "./work-hierarchy.js";
 // The build's LIVENESS channel (`diagnosis-honesty-arc`): a long run names the leg holding its
 // clock, so a redirected log tells "slow but progressing" apart from "wedged on a precondition".
 export * from "./build-progress.js";
