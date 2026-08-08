@@ -471,9 +471,10 @@ test("increment kind (ADR-0305 D2/D5/D6): the two CONDITIONAL invariants fail cl
     /carries no `outcome`/,
   );
 
-  // 3. ...and that outcome needs a REF or a REASON. ADR-0305 D2 collapsed `superseded`/`retired`
-  //    into `closed` on the grounds that the difference was a reason, not a state; an unexplained
-  //    closure would read as a landing that never happened.
+  // 3. ...and a PARKED increment's outcome needs a REF or a REASON. ADR-0305 D2 collapsed
+  //    `superseded`/`retired` into `closed` on the grounds that the difference was a reason, not a
+  //    state; an unexplained closure would read as a landing that never happened. `minimalDoc`
+  //    carries `parked`, so this is the parked arm.
   assert.throws(
     () => validateLibraryDoc({ ...minimalDoc("increment"), status: "closed", outcome: { date: "2026-08-05" } }),
     /neither `outcome.pr` nor `outcome.note`/,
@@ -484,6 +485,32 @@ test("increment kind (ADR-0305 D2/D5/D6): the two CONDITIONAL invariants fail cl
   ]) {
     assert.doesNotThrow(() => validateLibraryDoc({ ...minimalDoc("increment"), status: "closed", outcome }));
   }
+});
+
+test("increment kind (ADR-0322): `parked` is what decides whether a closure owes its own prose", () => {
+  // The rule used to be unconditional, and that is what forced `arc increment add` to COPY its
+  // `--outcome` text into `outcome.note` as well as `body` — the duplication that made an ADR-0139
+  // correction half-apply, since `library artifact edit --set` can reach only the `body` half.
+  const parked: Record<string, unknown> = { ...minimalDoc("increment") };
+  const bornClosed: Record<string, unknown> = { ...minimalDoc("increment") };
+  delete bornClosed["parked"];
+
+  // A PARKED entry's `body` is the INTENTION, so its closure still owes a ref or a reason.
+  assert.throws(
+    () => validateLibraryDoc({ ...parked, status: "closed", outcome: { date: "2026-08-08" } }),
+    /was parked, then closed with neither/,
+  );
+
+  // An increment BORN closed (`arc increment add`, the merge ceremony's residue step) carries no
+  // `parked`; its `body` IS the terminal prose, required by the schema and demanded by the verb as
+  // `--outcome`. It can never be an unexplained closure, so it owes no note.
+  assert.doesNotThrow(() =>
+    validateLibraryDoc({ ...bornClosed, status: "closed", outcome: { date: "2026-08-08" } }),
+  );
+
+  // The relaxation is narrow: it is about the NOTE, not about the outcome. A closed increment with
+  // no outcome at all is still refused, parked or not — that check is untouched.
+  assert.throws(() => validateLibraryDoc({ ...bornClosed, status: "closed" }), /carries no `outcome`/);
 });
 
 test("arc kind (ADR-0239 D1): the stored lifecycle flag defaults to active and is enum-fenced", () => {
@@ -637,10 +664,11 @@ test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops 
   // ADR-0267's Consequences ask for exactly this re-verification rather than taking the
   // stepRefs/increments precedent on faith. The pin must NOT have moved, and an already-current
   // stamped question must survive the upcaster with its edge intact.
-  // ADR-0267's own change added an OPTIONAL field and bumped nothing. The pin has since moved to 4
-  // for an unrelated reason (ADR-0305 D2/D4's increment reshape, which REMOVES fields and so cannot
-  // be a zero-migration change) — what this guards is that no migration strips the edge.
-  assert.equal(CURRENT_SCHEMA_VERSION, 5, "the pin tracks migrations.ts, not this ADR's change");
+  // ADR-0267's own change added an OPTIONAL field and bumped nothing. The pin has since moved on
+  // for unrelated reasons (ADR-0305 D2/D4's increment reshape, then ADR-0322's outcome-note
+  // de-duplication — both REMOVE fields and so cannot be zero-migration changes) — what this guards
+  // is that no migration strips the edge.
+  assert.equal(CURRENT_SCHEMA_VERSION, 6, "the pin tracks migrations.ts, not this ADR's change");
   const stamped = {
     ...minimalDoc("open-question"),
     schemaVersion: CURRENT_SCHEMA_VERSION,

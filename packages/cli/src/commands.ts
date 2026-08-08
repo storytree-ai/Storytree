@@ -1092,8 +1092,8 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
-      "  arc              the initiative overlay (ADR-0183) — an arc reveals its plans/stories/ADRs by query",
-      "  plan             the ephemeral choreography tier (ADR-0183) — plan check <id>: the freshness gate",
+      "  arc              the initiative overlay (ADR-0183) — an arc reveals its increments/stories/ADRs by query",
+      "  increment        the ephemeral choreography tier (ADR-0183) — increment check <id>: the freshness gate",
       "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
       "  orchestrate      run the session-orchestrator agent headlessly: orient + propose (ADR-0108)",
       "  desktop          launch the Electron desktop client + install its Windows shortcut (ADR-0109/0111)",
@@ -1350,8 +1350,9 @@ export interface RunDeps {
    */
   readonly now?: () => Date;
   /**
-   * The `storytree plan check` git seam (ADR-0183 D2): commits touching a path since the plan's
-   * anchor sha. Injectable so the freshness check is provable offline; defaults to the real
+   * The `storytree increment check` git seam (ADR-0183 D2): commits touching a path since the
+   * increment's anchor sha (the verb was `plan check` until ADR-0305 D1 folded the kind).
+   * Injectable so the freshness check is provable offline; defaults to the real
    * `git rev-list --count <sha>..HEAD -- <path>` against the repo root.
    */
   readonly planCountCommits?: CountCommitsSince;

@@ -75,14 +75,14 @@ test("extractIncrementPaths pulls backtick path tokens and rejects flags/command
   );
 });
 
-test("plan check is FRESH when no named path moved since the anchor", async () => {
+test("increment check is FRESH when no named path moved since the anchor", async () => {
   const res = await incrementCommand("check", "p1", {}, depsFor(await seeded(), {}));
   assert.equal(res.ok, true);
   assert.match(res.body, /FRESH — no named path moved/);
   assert.match(res.body, /consume it: take lanes/);
 });
 
-test("plan check is DRIFTED past the threshold → re-plan, not repair", async () => {
+test("increment check is DRIFTED past the threshold → re-plan, not repair", async () => {
   const counts = { "packages/library/src/knowledge.ts": 3, "apps/studio/src": 1 };
   const res = await incrementCommand("check", "p1", {}, depsFor(await seeded(), counts));
   assert.equal(res.ok, true);
@@ -95,7 +95,7 @@ test("plan check is DRIFTED past the threshold → re-plan, not repair", async (
   assert.match(tolerated.body, /FRESH/);
 });
 
-test("plan check refuses to bless a spent increment even when fresh (executed once, ADR-0183 D2)", async () => {
+test("increment check refuses to bless a spent increment even when fresh (executed once, ADR-0183 D2)", async () => {
   // `active` and `closed` are ADR-0305 D2's renames of `consumed` and of `superseded`/`retired`;
   // the write-lock they enforce is unchanged.
   for (const status of ["active", "closed"]) {
@@ -109,7 +109,7 @@ test("plan check refuses to bless a spent increment even when fresh (executed on
   assert.match(ready.body, /consume it: take lanes/);
 });
 
-test("plan check is honest about a plan that names no paths (vacuous, not green)", async () => {
+test("increment check is honest about an increment that names no paths (vacuous, not green)", async () => {
   const store = await seeded({
     objective: "o",
     body: "one unit, no fence hints",
@@ -120,7 +120,7 @@ test("plan check is honest about a plan that names no paths (vacuous, not green)
   assert.match(res.body, /VACUOUS, not green/);
 });
 
-test("plan check fails honestly on a missing anchor, an unknown id, a wrong kind, and a bad sha", async () => {
+test("increment check fails honestly on a missing anchor, an unknown id, a wrong kind, and a bad sha", async () => {
   const unanchored = await incrementCommand("check", "p1", {}, depsFor(await seeded({ anchor: undefined }), {}));
   assert.equal(unanchored.ok, false);
   assert.match(unanchored.body, /no anchor\.sha/);
@@ -146,7 +146,7 @@ test("plan check fails honestly on a missing anchor, an unknown id, a wrong kind
   assert.match(badSha.body, /is the anchor commit in this checkout\?/);
 });
 
-test("plan help and unknown-sub are envelopes", async () => {
+test("increment help and unknown-sub are envelopes", async () => {
   const help = await incrementCommand(undefined, undefined, {}, { store: new InMemoryStore(), pg: false, countCommits: () => 0 });
   assert.equal(help.ok, true);
   assert.match(help.body, /freshness check/);

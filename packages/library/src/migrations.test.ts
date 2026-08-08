@@ -48,7 +48,7 @@ test("upcast: v0 structured unit drops seeAlso, stamps schemaVersion, and valida
   const out = upcast(v0DefinitionWithSeeAlso());
   assert.equal("seeAlso" in out, false, "retired seeAlso dropped");
   assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, "stamped to current version");
-  assert.equal(CURRENT_SCHEMA_VERSION, 5, "current version is 5 (arc-increments-fold)");
+  assert.equal(CURRENT_SCHEMA_VERSION, 6, "current version is 6 (increment-outcome-note-deduplication)");
   // The forwarded doc passes the strict validator (it would have been rejected un-upcast).
   const validated = validateLibraryDoc(out);
   assert.equal((validated as { schemaVersion?: number }).schemaVersion, CURRENT_SCHEMA_VERSION);
@@ -313,6 +313,102 @@ test("upcast: migration #5 re-keys the plan tier and backfills the fields its in
   assert.deepEqual(upcast(parked), parked);
   const own = upcast(v3PlanPreCollapse({ status: "draft", parked: "2026-01-01T00:00:00.000Z" }));
   assert.equal(own["parked"], "2026-01-01T00:00:00.000Z", "an existing parked stamp is preserved");
+});
+
+// ---------------------------------------------------------------------------
+// Migration #6 — ADR-0322: the increment's landed prose lives in ONE field.
+// ---------------------------------------------------------------------------
+
+/** A v5 increment closed by `arc increment add` with no `--pr`: `body` copied into `outcome.note`. */
+function v5IncrementWithDuplicatedNote(
+  overrides: Record<string, unknown> = {},
+  outcomeOverrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const prose = "LANDED — the halt is owner-attested. It touches `packages/library/src/knowledge.ts`.";
+  return {
+    kind: "increment",
+    id: "dup-note-increment",
+    title: "LANDED — the halt is owner-attested.",
+    description: "An increment used only by the migration test suite.",
+    schemaVersion: 5,
+    references: [],
+    arcRef: "asset:parity-arc",
+    status: "closed",
+    objective: "LANDED — the halt is owner-attested.",
+    body: prose,
+    outcome: { date: "2026-08-07", note: prose, ...outcomeOverrides },
+    createdAt: "2026-08-07T00:00:00.000Z",
+    updatedAt: "2026-08-07T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+test("upcast: migration #6 drops an `outcome.note` that is a verbatim copy of `body` (ADR-0322)", () => {
+  const out = upcast(v5IncrementWithDuplicatedNote());
+  assert.deepEqual(out["outcome"], { date: "2026-08-07" }, "the duplicate copy is dropped");
+  assert.equal(
+    out["body"],
+    "LANDED — the halt is owner-attested. It touches `packages/library/src/knowledge.ts`.",
+    "`body` — the half `library artifact edit --set` can actually reach — is untouched",
+  );
+  assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION);
+  // The dropped row must still be WRITABLE, which is the whole point: the invariant now reads
+  // `parked` and this row (born closed at a landing) carries none.
+  assert.doesNotThrow(() => validateLibraryDoc(out));
+  // Idempotent — a second pass finds no note to drop.
+  assert.deepEqual(upcast(out), out);
+});
+
+test("upcast: migration #6 keeps a note that says something `body` does not", () => {
+  // The 40 divergent live rows are a mix of legitimate `arc increment close --note` closures and
+  // rows that ALREADY diverged through the defect. The transform cannot tell those apart, so exact
+  // equality is the whole test — a note differing by one sentence is treated as a second fact.
+  const divergent = upcast(
+    v5IncrementWithDuplicatedNote({}, { note: "closed as a duplicate of inc-04; nothing shipped" }),
+  );
+  assert.equal(
+    (divergent["outcome"] as Record<string, unknown>)["note"],
+    "closed as a duplicate of inc-04; nothing shipped",
+  );
+
+  // Whitespace-only differences ARE the same fact, so trimming is applied before the comparison.
+  const padded = upcast(
+    v5IncrementWithDuplicatedNote(
+      {},
+      { note: "\n  LANDED — the halt is owner-attested. It touches `packages/library/src/knowledge.ts`.  \n" },
+    ),
+  );
+  assert.equal("note" in (padded["outcome"] as Record<string, unknown>), false);
+
+  // Migration #5's own backfill note is prose no `body` carries, so the two never collide.
+  const backfilled = upcast(v3PlanPreCollapse({ status: "retired" }));
+  assert.match(String((backfilled["outcome"] as Record<string, unknown>)["note"]), /events\.library_event/);
+});
+
+test("upcast: migration #6 withholds the drop when it would brick the row, and no-ops off-kind", () => {
+  // A PARKED increment's `body` is the INTENTION, so `assertIncrementInvariants` still demands a
+  // `pr` or a `note` from it. Dropping the note there would hand back a doc the validator refuses —
+  // a migration must never do that. (No live row hit this on 2026-08-08; a hand-authored doc can.)
+  const parked = upcast(v5IncrementWithDuplicatedNote({ parked: "2026-08-01T00:00:00.000Z" }));
+  assert.equal(
+    typeof (parked["outcome"] as Record<string, unknown>)["note"],
+    "string",
+    "the note is KEPT — dropping it would make the row unwritable",
+  );
+  assert.doesNotThrow(() => validateLibraryDoc(parked));
+
+  // ...but a `pr` satisfies the invariant on its own, so a parked row that HAS one still de-dupes.
+  const parkedWithPr = upcast(
+    v5IncrementWithDuplicatedNote({ parked: "2026-08-01T00:00:00.000Z" }, { pr: "#1153" }),
+  );
+  assert.deepEqual(parkedWithPr["outcome"], { date: "2026-08-07", pr: "#1153" });
+  assert.doesNotThrow(() => validateLibraryDoc(parkedWithPr));
+
+  // Every other kind passes through untouched — the transform is kind-scoped on `increment`, so a
+  // doc of another kind is only ever re-stamped.
+  const { seeAlso: _seeAlso, ...cleanDefinition } = v0DefinitionWithSeeAlso();
+  const atV5 = { ...cleanDefinition, schemaVersion: 5 };
+  assert.deepEqual(upcast(atV5), { ...atV5, schemaVersion: CURRENT_SCHEMA_VERSION });
 });
 
 test("upcast: migration #5 drops the arc's two folded arrays, so a stored arc stays writable", () => {

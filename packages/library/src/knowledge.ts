@@ -986,11 +986,27 @@ export const Increment = buildKindSchema("increment").extend({
  * - **`proposal` ⇒ `parked`.** `parked` is what the ADR-0298 D3 ceiling compares a reinforcement
  *   against. A parked increment without it is not merely under-documented — it is unmeasurable, and
  *   it fails OPEN: the ceiling can never red it, so the queue silently stops being drained.
- * - **`closed` ⇒ `outcome`, and an outcome with no `pr` needs a `note`.** ADR-0305 D2 collapsed
- *   `superseded` and `retired` into one terminal state on the grounds that the difference was a
- *   reason, not a state. That trade only holds if the reason is actually written down: a `closed`
- *   increment with neither a landing ref nor a note is exactly the "false landing" this tier exists
- *   to prevent, since a reader cannot tell a shipped increment from an abandoned one.
+ * - **`closed` ⇒ `outcome`, and a PARKED increment's outcome with no `pr` needs a `note`.** ADR-0305
+ *   D2 collapsed `superseded` and `retired` into one terminal state on the grounds that the
+ *   difference was a reason, not a state. That trade only holds if the reason is actually written
+ *   down: a `closed` increment with neither a landing ref nor a note is exactly the "false landing"
+ *   this tier exists to prevent, since a reader cannot tell a shipped increment from an abandoned
+ *   one.
+ *
+ *   **`parked` is the discriminator, and it is what ADR-0322 added.** The rule used to be
+ *   unconditional, which quietly forced `arc increment add` to satisfy it by COPYING its `--outcome`
+ *   prose into `outcome.note` as well as `body` — two copies of one paragraph, only one of them
+ *   reachable by `library artifact edit`, so an ADR-0139 correction half-applied. The reason the
+ *   copy was ever needed is that the invariant could not tell the tier's two closures apart:
+ *   - An increment that was **parked first** (`parked` stamped by `arc increment new`) has a `body`
+ *     that is the INTENTION. Its closure genuinely needs its own prose, so the rule still bites.
+ *   - An increment **born closed** (no `parked` — `arc increment add`, the merge ceremony's residue
+ *     step) has a `body` that IS the terminal prose, required by the schema and demanded by the verb
+ *     as `--outcome`. Its closure can never be unexplained, so the note has nothing left to add.
+ *   Validated against the live store on 2026-08-08 before the rule changed: of 460 closed
+ *   increments, all 54 carrying a note identical to their body had no `pr` AND no `parked`, and no
+ *   parked increment carried such a copy — the discriminator separates the two closures with zero
+ *   exceptions.
  *
  * Throws a plain `Error` (never a `ZodError`) — `explainDocValidationError` falls back to the raw
  * message for anything it cannot place, so the text below is what the author sees.
@@ -1012,12 +1028,20 @@ export function assertIncrementInvariants(doc: Increment): void {
         "close <id> --pr <ref> --pg`, or `--note` when it closed for any other reason.",
     );
   }
-  if (doc.outcome !== undefined && doc.outcome.pr === undefined && doc.outcome.note === undefined) {
+  if (
+    doc.outcome !== undefined &&
+    doc.outcome.pr === undefined &&
+    doc.outcome.note === undefined &&
+    doc.parked !== undefined
+  ) {
     throw new Error(
-      `increment "${doc.id}" closed with neither \`outcome.pr\` nor \`outcome.note\`. ` +
+      `increment "${doc.id}" was parked, then closed with neither \`outcome.pr\` nor \`outcome.note\`. ` +
         "ADR-0305 D2 removed `superseded` and `retired` as states because the difference between " +
         "them was a REASON, not a state — so the reason has to be written: give the landing ref, or " +
-        "say why it closed. An unexplained closure reads as a landing that never happened.",
+        "say why it closed. An unexplained closure reads as a landing that never happened. " +
+        "(A `parked` entry's `body` is the INTENTION, so it cannot double as the closing prose — " +
+        "ADR-0322. An increment born closed by `arc increment add` carries the outcome in `body` and " +
+        "needs no note.)",
     );
   }
 }
