@@ -14,7 +14,7 @@ proof_mode: UAT
 # statement, never a judgment gap (`human-witness-is-a-judgment-gap-not-cost`).
 # `uat_witness` stays ABSENT on purpose: the roll-up is per-leg, and a story-level `machine` would
 # re-open the blanket-adopt path that produced the stranded verdict. The crown derives per-leg.
-capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, arc-explicit-id-fidelity]
+capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, arc-explicit-id-fidelity, guided-setup-repair, verification-decay-instruments]
 # The CLI is the wiring HUB: it imports every organism to surface it. Those outbound edges
 # (cli → drive-machinery / library / notice-board / store) are declared PROVIDER-SIDE on each spoke
 # (their `consumed_by: [cli]`, ADR-0074 §4) so the hub stays de-noised and each organism owns its
@@ -83,11 +83,22 @@ authoring primitives (the corpus guard, the ADR frontmatter parser).
   in-memory seed; live writes refuse without `--pg` and a reachable DB (degrade with guidance, never
   a silent no-op).
 
-## Capabilities (4)
+## Capabilities (6)
 
 Lightweight and **expandable** (ADR-0074 §3): the hub's own connective competence, NOT a re-derivation
 of every per-domain command (those belong to the organism that owns the journey). The list grows one
 case per real defect (`uat-proves-the-goal-not-the-surface`).
+
+Rows 5 and 6 were authored 2026-08-08 by `capability-layer-coverage-arc` increment 5 over
+already-implemented, already-tested code. Both are **CLI-resident competences that are neither
+wiring nor authoring** — the third kind `organism-boundary-tooling` already OCCUPIES as a live
+capability in the tree, entered on that same footing and not widening it. Read "occupies", not
+"admitted": open modeling call 1 below NAMES that capability but ends "Confirm this shim-vs-journey
+split", so the call is still OPEN and these two rows neither resolve it nor lean on it being
+resolved. Neither re-derives a
+per-domain command surface, because neither has an owning organism: one diagnoses the DEV'S OWN
+MACHINE, the other judges the repo's verification apparatus, and no story in the tree owns either
+subject.
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
@@ -95,6 +106,8 @@ case per real defect (`uat-proves-the-goal-not-the-surface`).
 | 2 | [`cli-resident-corpus-tools`](cli-resident-corpus-tools.md) | The CLI-resident authoring primitives the gates build on: the `stories/` YAML corpus guard and the ADR frontmatter parser. | mapped | — |
 | 3 | [`organism-boundary-tooling`](organism-boundary-tooling.md) | The pure organism-boundary analyser behind `check:boundaries`: the blocking subgraph judge (ADR-0074) + the non-blocking declared-edge drift report (ADR-0115) that derives a virtual story's real edges from its units' `sourceFile` imports. | mapped | — |
 | 4 | [`arc-explicit-id-fidelity`](arc-explicit-id-fidelity.md) | An agent scaffolding an arc with an explicit id receives a refusal instead of creating an arc under a silently truncated id. | proposed | `unified-command-dispatch` |
+| 5 | [`guided-setup-repair`](guided-setup-repair.md) | A dev's failing setup probe is driven to a re-verified repair, or to a secrets-redacted owner escalation naming why no installer step can fix it. | mapped | — |
+| 6 | [`verification-decay-instruments`](verification-decay-instruments.md) | Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it. | mapped | — |
 
 ## Dependency graph (code-derived)
 
@@ -252,12 +265,17 @@ entries despite these five verdicts, so the generated offline status view is sta
 
 ## Open modeling calls (for the owner)
 
-1. **Capability granularity.** The hub keeps **three** lightweight capabilities (dispatch shim +
+1. **Capability granularity.** The hub keeps a small set of lightweight capabilities (dispatch shim +
    CLI-resident corpus tools + the organism-boundary analyser), deliberately NOT re-owning the per-domain
    command surfaces — those are their organisms' capabilities (`library-cli`, `noticeboard-cli`,
    `build-drive-cli`). The `organism-boundary-tooling` capability (ADR-0115) homes the previously-unbounded
    pure boundary judge (`boundaries.ts`) the CLI's `check:boundaries` builds on — genuinely CLI-resident
    (it rides the CLI's test surface), distinct from the corpus tools. Confirm this shim-vs-journey split.
+   *(Corrected in place 2026-08-08 by the pre-merge librarian pass, ADR-0139; the call itself is
+   unchanged and still OPEN. This read "**three** lightweight capabilities", which the table above had
+   already outgrown at four and this increment takes to six. The count was never the call — the
+   shim-vs-journey SPLIT is — and re-stamping a number here every time a row lands is the churn
+   ADR-0317's "read it live" instruction exists to prevent. The table above is the count.)*
 2. **The connection-declaration shape (ADR-0074 §4) — settled in this increment.** The CLI's outbound
    edges are declared provider-side on the spokes (`consumed_by: [cli]`) to de-noise the hub; the gate
    covers a code edge when EITHER endpoint declares it. The trade is the UI-sequencing note above
