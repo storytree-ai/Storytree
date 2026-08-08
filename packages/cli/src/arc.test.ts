@@ -943,6 +943,167 @@ test("arc increment close REQUIRES a reason when there is no --pr (ADR-0305 D2's
   assert.equal((doc["outcome"] as Record<string, unknown>)["pr"], undefined);
 });
 
+// ---------------------------------------------------------------------------
+// The `tool`-route lifecycle's REVERSE GEAR (parked entry
+// `realizing-an-entry-drops-the-friction-edge-cli-write-fidelity`): `friction route --arc` appends
+// the `asset:<arc>` citation and nothing ever removed it, so the only way to drop a discharged one
+// was hand-editing another adjudicator's row. Closing the entry now does it in the same verb.
+// ---------------------------------------------------------------------------
+
+/** A minimal valid friction item carrying an `asset:<arc>` citation on its `references[]`. */
+async function seedFriction(
+  store: InMemoryStore,
+  id: string,
+  references: string[],
+): Promise<void> {
+  await store.upsertDoc({
+    id,
+    kind: "friction",
+    doc: {
+      kind: "friction",
+      id,
+      title: `T ${id}`,
+      description: "d",
+      statement: "The verb reported success while storing something else.",
+      evidence: "Measured 2026-08-03 — the row read back as a path.",
+      impact: "A session trusts an exit code it should not.",
+      route: "tool",
+      routeReason: "Parked on asset:map-arc because the remedy is deferred capability work.",
+      references,
+      createdAt: "2026-08-03",
+      updatedAt: "2026-08-03",
+    },
+  });
+}
+
+/** The `asset:` refs on a stored friction, for asserting what the close did to them. */
+async function refsOf(store: InMemoryStore, id: string): Promise<unknown> {
+  return ((await store.getDoc(id))?.doc as Record<string, unknown>)["references"];
+}
+
+test("arc increment close DROPS the discharged friction's asset:<arc> citation, in the same verb", async () => {
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  await seedFriction(store, "the-friction", ["asset:map-arc", "asset:some-principle"]);
+  await arcIncrementNew(deps, "map-arc", {
+    id: "the-remedy",
+    title: "The remedy",
+    ...BODY,
+    friction: ["the-friction"],
+  });
+
+  const res = await arcIncrementClose(deps, "the-remedy", { pr: "#1200" });
+  assert.equal(res.ok, true);
+  assert.match(res.body, /dropped the asset:map-arc citation from the-friction/);
+  // ONLY the discharged arc's citation goes — an unrelated ref is not collateral.
+  assert.deepEqual(await refsOf(store, "the-friction"), ["asset:some-principle"]);
+  // The trace survives in the direction that carries the delivery signal: the CLOSED entry keeps its
+  // own frictionRefs, and a closed increment is never deleted (ADR-0305 D3).
+  const closed = (await store.getDoc("the-remedy"))?.doc as Record<string, unknown>;
+  assert.deepEqual(closed["frictionRefs"], ["the-friction"]);
+  assert.equal(closed["status"], "closed");
+});
+
+test("a citation held up by ANOTHER open entry on the same arc is KEPT, and the holder is named", async () => {
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  await seedFriction(store, "the-friction", ["asset:map-arc"]);
+  const both = { ...BODY, friction: ["the-friction"] };
+  await arcIncrementNew(deps, "map-arc", { id: "first-half", title: "First half", ...both });
+  await arcIncrementNew(deps, "map-arc", { id: "second-half", title: "Second half", ...both });
+
+  const res = await arcIncrementClose(deps, "first-half", { pr: "#1200" });
+  assert.equal(res.ok, true);
+  assert.match(res.body, /kept the-friction's asset:map-arc citation — entry second-half is still open/);
+  assert.deepEqual(await refsOf(store, "the-friction"), ["asset:map-arc"], "the live pointer stands");
+
+  // Closing the LAST holder drops it.
+  const last = await arcIncrementClose(deps, "second-half", { pr: "#1201" });
+  assert.equal(last.ok, true);
+  assert.match(last.body, /dropped the asset:map-arc citation from the-friction/);
+  assert.deepEqual(await refsOf(store, "the-friction"), []);
+});
+
+test("an open entry on a DIFFERENT arc does not hold the citation up", async () => {
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  await store.upsertDoc({
+    id: "other-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "other-arc",
+      title: "Other",
+      description: "d",
+      intent: "i",
+      endState: "e",
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+  await seedFriction(store, "the-friction", ["asset:map-arc", "asset:other-arc"]);
+  await arcIncrementNew(deps, "other-arc", {
+    id: "elsewhere",
+    title: "Elsewhere",
+    ...BODY,
+    friction: ["the-friction"],
+  });
+  await arcIncrementNew(deps, "map-arc", {
+    id: "here",
+    title: "Here",
+    ...BODY,
+    friction: ["the-friction"],
+  });
+
+  const res = await arcIncrementClose(deps, "here", { pr: "#1200" });
+  assert.equal(res.ok, true);
+  // `other-arc`'s open entry holds up ITS OWN citation, not map-arc's.
+  assert.deepEqual(await refsOf(store, "the-friction"), ["asset:other-arc"]);
+});
+
+test("closing an entry that cites no friction, or whose friction has no citation, says nothing extra", async () => {
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  await arcIncrementNew(deps, "map-arc", { id: "quiet", title: "t", ...BODY });
+  const quiet = await arcIncrementClose(deps, "quiet", { pr: "#1" });
+  assert.equal(quiet.ok, true);
+  assert.doesNotMatch(quiet.body, /citation/);
+
+  await seedFriction(store, "uncited", ["asset:some-principle"]);
+  await arcIncrementNew(deps, "map-arc", {
+    id: "uncited-remedy",
+    title: "t",
+    ...BODY,
+    friction: ["uncited"],
+  });
+  const none = await arcIncrementClose(deps, "uncited-remedy", { pr: "#2" });
+  assert.equal(none.ok, true);
+  assert.doesNotMatch(none.body, /citation/);
+  assert.deepEqual(await refsOf(store, "uncited"), ["asset:some-principle"]);
+});
+
+test("a REFUSED close strips no citation — the reverse gear runs only after the entry actually closes", async () => {
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  await seedFriction(store, "the-friction", ["asset:map-arc"]);
+  await arcIncrementNew(deps, "map-arc", {
+    id: "still-parked",
+    title: "t",
+    ...BODY,
+    friction: ["the-friction"],
+  });
+
+  // No --pr and no --note: ADR-0305 D2's refusal.
+  const refused = await arcIncrementClose(deps, "still-parked", {});
+  assert.equal(refused.ok, false);
+  assert.deepEqual(await refsOf(store, "the-friction"), ["asset:map-arc"]);
+  assert.equal(
+    ((await store.getDoc("still-parked"))?.doc as Record<string, unknown>)["status"],
+    "proposal",
+  );
+});
+
 test("arc increment close refuses a missing id, a SECOND closure, a wrong kind, and offline", async () => {
   const store = await seededStore();
   const deps = writeDeps(store);
