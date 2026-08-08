@@ -154,6 +154,8 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   // artifact, so neither can corrupt a durable record.
   "project",
   "min-turns",
+  "started-after",
+  "started-before",
 ]);
 
 /** A `@path` value that could not be read — the refusal the boundary returns instead of storing it. */

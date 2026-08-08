@@ -352,6 +352,124 @@ export function parseTranscript(raw: string): TranscriptRead {
 }
 
 // ---------------------------------------------------------------------------
+// Command classification — the two BEHAVIOURAL lines ADR-0323 measured
+// ---------------------------------------------------------------------------
+
+/**
+ * What a shell command was FOR, as far as a transcript can tell.
+ *
+ * ADR-0323 §3 and §4 each rest on a count this instrument could not previously produce: 133 polling
+ * turns (10% of spend) and 246-of-1,033 ad-hoc inspection bash calls (24%). Those numbers came from
+ * throwaway scratchpad analyzers that no longer exist, so their exact classifier is UNRECOVERABLE.
+ * That is precisely why the rule lives here now: a later window is compared against an earlier one
+ * by re-running THIS classifier over both, never by trusting a remembered percentage.
+ */
+export type CommandClass = "polling" | "inspection" | "other";
+
+/**
+ * Commands that mean "wait for a machine and look again" — ADR-0323 D2's retired pattern, now
+ * `asset:mechanical-waiting-never-pays-context-rent`.
+ *
+ * `gh pr checks` / `gh run watch` are counted by SHAPE, not by proven repetition: a transcript
+ * cannot distinguish one deliberate status read from the second tick of a loop without guessing at
+ * intent. The basket is therefore slightly GENEROUS in both directions equally, which is the
+ * property a before/after comparison actually needs.
+ */
+const POLLING_PHRASE = /\bgh\s+(?:pr\s+checks|run\s+watch)\b/;
+
+/**
+ * Read-only inspection verbs — ADR-0323 §4's `grep`/`cat`/`head`/`ls` basket, widened to the rest of
+ * the family a session actually reaches for. Deliberately NOT including `git`, `pnpm` or `node`:
+ * those do work, and folding them in would inflate the line this measures.
+ */
+const INSPECTION_VERBS = new Set([
+  "grep",
+  "rg",
+  "cat",
+  "head",
+  "tail",
+  "ls",
+  "find",
+  "wc",
+  "sed",
+  "awk",
+  "stat",
+  "du",
+  "tree",
+  "cut",
+  "sort",
+  "uniq",
+]);
+
+/**
+ * Segments that change where a command runs without doing anything themselves. Dropped before
+ * classification, because `cd packages/cli && grep -rn foo src` is a LOOK: counting the `cd` as a
+ * non-inspection segment would push the overwhelmingly common prefixed form into `other` and
+ * under-report the very line ADR-0323 §4 measures.
+ */
+const NEUTRAL_VERBS = new Set(["cd", "pushd", "popd", "true", "set"]);
+
+/** Split a compound command into the pieces that each have their own head verb. */
+function splitSegments(command: string): string[] {
+  return command
+    .split(/&&|\|\||[;|\n]/)
+    .map((s) => s.trim())
+    .filter((s) => s !== "" && !NEUTRAL_VERBS.has(headVerb(s)));
+}
+
+/** The verb a segment actually runs: leading `VAR=x` assignments dropped, path stripped. */
+function headVerb(segment: string): string {
+  for (const token of segment.split(/\s+/)) {
+    if (token === "") continue;
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(token)) continue; // `FOO=bar cmd`
+    const bare = token.replace(/^.*[/\\]/, "").replace(/^["']|["']$/g, "");
+    return bare.toLowerCase();
+  }
+  return "";
+}
+
+/**
+ * Classify one shell command.
+ *
+ * POLLING WINS over inspection, and that ordering is the whole point: `sleep 300; tail -4 gate.log`
+ * is the exact command ADR-0323 §3 measured, and reading it as "inspection" because it ends in
+ * `tail` would move the finding from one line to the other. Inspection requires EVERY segment to be
+ * a read verb, so `pnpm gate | tail -5` stays `other` — it is a build, not a look.
+ */
+export function classifyCommand(command: string): CommandClass {
+  const segments = splitSegments(command);
+  if (segments.length === 0) return "other";
+  if (POLLING_PHRASE.test(command)) return "polling";
+  if (segments.some((s) => headVerb(s) === "sleep")) return "polling";
+  return segments.every((s) => INSPECTION_VERBS.has(headVerb(s))) ? "inspection" : "other";
+}
+
+/** How a population of commands split three ways. */
+export interface CommandMix {
+  readonly calls: number;
+  readonly polling: number;
+  readonly inspection: number;
+  readonly other: number;
+}
+
+const ZERO_MIX: CommandMix = { calls: 0, polling: 0, inspection: 0, other: 0 };
+
+/**
+ * A turn that did NOTHING BUT poll — ADR-0323 §3's "133 turns were pure polling".
+ *
+ * Purity is the load-bearing word. A turn that polls AND edits a file is doing work and paying its
+ * context rent for a reason; the waste this counts is a full-context round-trip whose entire yield
+ * is four lines of a log. So every tool call on the turn must be a Bash call, and every one of them
+ * must classify as polling.
+ */
+export function isPollingTurn(turn: Turn): boolean {
+  if (turn.toolNames.length === 0) return false;
+  if (!turn.toolNames.every((name) => name === "Bash")) return false;
+  if (turn.commands.length !== turn.toolNames.length) return false;
+  return turn.commands.every((command) => classifyCommand(command) === "polling");
+}
+
+// ---------------------------------------------------------------------------
 // Phase attribution
 // ---------------------------------------------------------------------------
 
@@ -498,6 +616,13 @@ export interface PhaseRow {
 export interface AgentTypeRow {
   readonly agentType: string;
   readonly spawns: number;
+  /**
+   * Measured sessions that spawned this type at least once — the ADOPTION figure, which a spawn
+   * count alone hides. "13 spawns" is one session spawning thirteen or thirteen sessions spawning
+   * one, and only the second is a habit. ADR-0323 §4's own finding was shaped this way: 7 spawns
+   * across 10 sessions with 4 sessions using none.
+   */
+  readonly sessions: number;
   readonly turns: number;
   readonly cost: number;
   /** Every distinct model this agent type ran on — the figure a tiering decision turns on. */
@@ -511,6 +636,16 @@ export interface SessionRow {
   readonly cost: number;
   readonly first: string;
   readonly last: string;
+  /** Subagent transcripts with at least one priced turn in the window. */
+  readonly subagentSpawns: number;
+  /** Main-thread turns that did nothing but poll ({@link isPollingTurn}). */
+  readonly pollingTurns: number;
+}
+
+/** Turns spent purely waiting on a machine, and what that cost. */
+export interface PollingTotals {
+  readonly turns: number;
+  readonly cost: number;
 }
 
 /**
@@ -530,6 +665,8 @@ export interface SessionCostReport {
   readonly sessions: readonly SessionRow[];
   /** Sessions excluded as still in flight — named, never silently dropped. */
   readonly active: readonly string[];
+  /** Sessions skipped because their FIRST turn fell outside `--started-after`/`--started-before`. */
+  readonly outsideStartWindow: number;
   /** Transcripts opened while filling the window. */
   readonly scanned: number;
   /** Older sessions never opened, because the window filled or the scan budget ran out. */
@@ -551,6 +688,19 @@ export interface SessionCostReport {
   readonly totalCost: number;
   readonly phases: readonly PhaseRow[];
   readonly agentTypes: readonly AgentTypeRow[];
+  /** Main-thread turns spent purely polling (ADR-0323 §3 / D2). */
+  readonly polling: PollingTotals;
+  /** Main-thread bash calls, split by what they were for (ADR-0323 §4). */
+  readonly commands: CommandMix;
+  /**
+   * The same split for SUBAGENT bash calls. Reported beside the main-thread mix because D1's whole
+   * claim is that inspection should MOVE here rather than disappear — a fall in main-thread
+   * inspection with no rise in subagent inspection is a session doing less looking, not a session
+   * delegating it, and those are different findings.
+   */
+  readonly subagentCommands: CommandMix;
+  /** Measured sessions that spawned no subagent at all — ADR-0323 §4's "4 sessions using none". */
+  readonly sessionsWithoutSubagents: number;
   /** Main-thread live-context size in tokens. */
   readonly context: { readonly median: number; readonly p90: number; readonly max: number };
   /** Models with no rate in {@link MODEL_PRICES}: turns and tokens, so the gap is visible. */
@@ -558,6 +708,8 @@ export interface SessionCostReport {
   readonly window: {
     readonly from: string | undefined;
     readonly to: string | undefined;
+    readonly startedAfter: string | undefined;
+    readonly startedBefore: string | undefined;
     readonly limit: number;
     readonly minTurns: number;
   };
@@ -574,6 +726,18 @@ export interface CollectOpts {
   /** ISO bounds applied to each TURN, after session selection. */
   readonly from?: string | undefined;
   readonly to?: string | undefined;
+  /**
+   * ISO bounds applied to a SESSION's first turn, selecting whole sessions rather than truncating
+   * them.
+   *
+   * `--from`/`--to` cut a session in half at the boundary, which is the wrong instrument for asking
+   * "did behaviour change after X landed": half a session's turns is not half a session's habits,
+   * and the orientation phase — where delegation is decided — lives entirely at the start. A
+   * session's behaviour is set by the guidance that was live when it STARTED, because the harness
+   * reads CLAUDE.md, AGENTS.md and `.claude/agents/` once at session start.
+   */
+  readonly startedAfter?: string | undefined;
+  readonly startedBefore?: string | undefined;
   /** A session whose file changed within this many minutes of `now` is treated as in flight. */
   readonly activeWithinMinutes: number;
   /** Priced turns a transcript needs before it counts as a session rather than a one-shot. */
@@ -628,6 +792,8 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
   let oneShotSessions = 0;
   let oneShotTurns = 0;
   let oneShotCost = 0;
+  let outsideStartWindow = 0;
+  const boundsStart = opts.startedAfter !== undefined || opts.startedBefore !== undefined;
 
   for (const session of completed) {
     if (selected.length >= opts.limit) break;
@@ -638,6 +804,18 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
     scanned++;
     const read = readTranscript(session.mainFile);
     const windowed = read.turns.filter((t) => inWindow(t.at, opts.from, opts.to));
+
+    // The START filter runs FIRST and is not a one-shot: a session excluded because it began on the
+    // wrong side of an intervention is out of SCOPE, not below the substance floor. Pooling the two
+    // would corrupt the one-shot block, which exists to account for spend rather than to hide it.
+    if (boundsStart) {
+      const start = windowed[0]?.at;
+      if (start === undefined || !inWindow(start, opts.startedAfter, opts.startedBefore)) {
+        outsideStartWindow++;
+        continue;
+      }
+    }
+
     if (windowed.length < opts.minTurns) {
       oneShotSessions++;
       oneShotTurns += windowed.length;
@@ -660,9 +838,24 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
   const phaseTotals = new Map<Phase, { turns: number; cost: number }>(
     PHASES.map((p) => [p, { turns: 0, cost: 0 }]),
   );
-  const agentTotals = new Map<string, { spawns: number; turns: number; cost: number; models: Set<string> }>();
+  const agentTotals = new Map<
+    string,
+    { spawns: number; sessions: number; turns: number; cost: number; models: Set<string> }
+  >();
   const unpriced = new Map<string, { turns: number; tokens: number }>();
   const sessions: SessionRow[] = [];
+  let pollingTurnCount = 0;
+  let pollingCost = 0;
+  let sessionsWithoutSubagents = 0;
+  const mainMix = { calls: 0, polling: 0, inspection: 0, other: 0 };
+  const subMix = { calls: 0, polling: 0, inspection: 0, other: 0 };
+
+  const tallyCommands = (into: typeof mainMix, turn: Turn): void => {
+    for (const command of turn.commands) {
+      into.calls++;
+      into[classifyCommand(command)]++;
+    }
+  };
 
   const account = (turn: Turn): number => {
     const turnCost = priceAxes(turn.axes, turn.tier);
@@ -696,12 +889,19 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
 
     let sessionCost = 0;
     let sessionTurns = 0;
+    let sessionPolling = 0;
     for (const [index, turn] of windowed.entries()) {
       const turnCost = account(turn);
       sessionCost += turnCost;
       sessionTurns++;
       mainTurns++;
       contexts.push(contextTokens(turn.axes));
+      tallyCommands(mainMix, turn);
+      if (isPollingTurn(turn)) {
+        pollingTurnCount++;
+        pollingCost += turnCost;
+        sessionPolling++;
+      }
       const phase = phases[index] ?? "orientation";
       const bucket = phaseTotals.get(phase);
       if (bucket !== undefined) {
@@ -710,6 +910,9 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       }
     }
 
+    let sessionSpawns = 0;
+    // Per SESSION, so an agent type spawned five times by one session counts once toward adoption.
+    const typesThisSession = new Set<string>();
     for (const sub of session.subagentFiles) {
       const subRead = readTranscript(sub.file);
       skippedLines += subRead.skipped;
@@ -717,20 +920,33 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       const subTurns = subRead.turns.filter((t) => inWindow(t.at, opts.from, opts.to));
       if (subTurns.length === 0) continue;
       subagentSpawns++;
+      sessionSpawns++;
       const agentType = readAgentType(sub.metaFile);
-      const row = agentTotals.get(agentType) ?? { spawns: 0, turns: 0, cost: 0, models: new Set<string>() };
+      const row = agentTotals.get(agentType) ?? {
+        spawns: 0,
+        sessions: 0,
+        turns: 0,
+        cost: 0,
+        models: new Set<string>(),
+      };
       row.spawns++;
+      if (!typesThisSession.has(agentType)) {
+        typesThisSession.add(agentType);
+        row.sessions++;
+      }
       for (const turn of subTurns) {
         const turnCost = account(turn);
         row.turns++;
         row.cost += turnCost;
         if (turn.model !== "") row.models.add(turn.model);
+        tallyCommands(subMix, turn);
         sessionCost += turnCost;
         sessionTurns++;
         subagentTurns++;
       }
       agentTotals.set(agentType, row);
     }
+    if (sessionSpawns === 0) sessionsWithoutSubagents++;
 
     const first = windowed[0]?.at ?? "";
     const last = windowed[windowed.length - 1]?.at ?? "";
@@ -741,6 +957,8 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       cost: sessionCost,
       first,
       last,
+      subagentSpawns: sessionSpawns,
+      pollingTurns: sessionPolling,
     });
   }
 
@@ -748,6 +966,7 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
   return {
     sessions,
     active,
+    outsideStartWindow,
     scanned,
     outsideWindow: Math.max(0, completed.length - scanned),
     scanBudgetHit,
@@ -769,11 +988,16 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       .map(([agentType, row]) => ({
         agentType,
         spawns: row.spawns,
+        sessions: row.sessions,
         turns: row.turns,
         cost: row.cost,
         models: [...row.models].sort(),
       }))
       .sort((a, b) => b.cost - a.cost),
+    polling: { turns: pollingTurnCount, cost: pollingCost },
+    commands: { ...mainMix },
+    subagentCommands: { ...subMix },
+    sessionsWithoutSubagents,
     context: {
       median: quantile(contexts, 0.5),
       p90: quantile(contexts, 0.9),
@@ -782,7 +1006,14 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
     unpriced: [...unpriced.entries()]
       .map(([model, row]) => ({ model, turns: row.turns, tokens: row.tokens }))
       .sort((a, b) => b.tokens - a.tokens),
-    window: { from: opts.from, to: opts.to, limit: opts.limit, minTurns: opts.minTurns },
+    window: {
+      from: opts.from,
+      to: opts.to,
+      startedAfter: opts.startedAfter,
+      startedBefore: opts.startedBefore,
+      limit: opts.limit,
+      minTurns: opts.minTurns,
+    },
     root,
     projectPrefix: opts.projectPrefix,
   };
@@ -838,6 +1069,13 @@ export function renderSessionCost(report: SessionCostReport): string {
   }
   if (report.window.from !== undefined || report.window.to !== undefined) {
     lines.push(`  turns:    bounded to ${report.window.from ?? "(open)"} .. ${report.window.to ?? "(open)"}`);
+  }
+  if (report.window.startedAfter !== undefined || report.window.startedBefore !== undefined) {
+    lines.push(
+      `  started:  whole sessions beginning in ${report.window.startedAfter ?? "(open)"} .. ` +
+        `${report.window.startedBefore ?? "(open)"}` +
+        (report.outsideStartWindow > 0 ? ` — ${report.outsideStartWindow} session(s) began outside it` : ""),
+    );
   }
   const spanFrom = report.sessions.map((s) => s.first).filter((s) => s !== "").sort()[0];
   const spanTo = report.sessions.map((s) => s.last).filter((s) => s !== "").sort().reverse()[0];
@@ -921,6 +1159,41 @@ export function renderSessionCost(report: SessionCostReport): string {
     "",
   );
 
+  // -- the two behavioural lines --------------------------------------------
+  const measured = report.sessions.length;
+  lines.push(
+    "## MECHANICAL WAITING  (ADR-0323 D2 / `asset:mechanical-waiting-never-pays-context-rent`)",
+    "",
+    `  polling turns   ${String(report.polling.turns).padStart(5)} of ${report.mainTurns} main-thread  ` +
+      `${usd(report.polling.cost).padStart(9)}  ${pct(report.polling.cost, report.totalCost)} of spend`,
+    "",
+    "  A polling turn is one whose EVERY tool call is a bash `sleep`, `gh pr checks` or `gh run watch`",
+    "  — a full-context round-trip whose entire yield is a status line. Counted by command SHAPE: a",
+    "  transcript cannot separate one deliberate status read from the second tick of a loop, so this",
+    "  is generous in both directions equally, which is what a before/after comparison needs.",
+    "",
+    "## BASH CALLS BY PURPOSE  (ADR-0323 §4 — inspection should MOVE to a subagent, not vanish)",
+    "",
+    `  ${"population".padEnd(14)} ${"calls".padStart(6)} ${"inspection".padStart(11)} ${"polling".padStart(9)} ${"other".padStart(7)}`,
+  );
+  for (const [label, mix] of [
+    ["main thread", report.commands],
+    ["subagents", report.subagentCommands],
+  ] as const) {
+    lines.push(
+      `  ${label.padEnd(14)} ${String(mix.calls).padStart(6)} ` +
+        `${`${mix.inspection} (${mix.calls === 0 ? "0.0" : ((mix.inspection / mix.calls) * 100).toFixed(1)}%)`.padStart(11)} ` +
+        `${String(mix.polling).padStart(9)} ${String(mix.other).padStart(7)}`,
+    );
+  }
+  lines.push(
+    "",
+    "  inspection = a command whose every segment is a read verb (grep/rg/cat/head/tail/ls/find/…).",
+    "  Its face cost is trivial; the cost that matters is that the result lands in context and is",
+    "  re-read on every later turn — 10–40× face value at a 200-turn session's depth.",
+    "",
+  );
+
   // -- subagents ------------------------------------------------------------
   lines.push("## SUBAGENT COST BY AGENT TYPE  (disposable context — never re-charged to the parent)", "");
   if (report.agentTypes.length === 0) {
@@ -932,11 +1205,19 @@ export function renderSessionCost(report: SessionCostReport): string {
   } else {
     for (const row of report.agentTypes) {
       lines.push(
-        `  ${row.agentType.padEnd(24)} ${String(row.spawns).padStart(3)} spawn(s)  ${String(row.turns).padStart(4)} turn(s)  ` +
-          `${usd(row.cost).padStart(9)}  ${pct(row.cost, report.totalCost)}  [${row.models.join(", ") || "(no model recorded)"}]`,
+        `  ${row.agentType.padEnd(24)} ${String(row.spawns).padStart(3)} spawn(s) in ${String(row.sessions).padStart(2)}/${measured} session(s)  ` +
+          `${String(row.turns).padStart(4)} turn(s)  ${usd(row.cost).padStart(9)}  ${pct(row.cost, report.totalCost)}  ` +
+          `[${row.models.join(", ") || "(no model recorded)"}]`,
       );
     }
-    lines.push("");
+    lines.push(
+      "",
+      `  ADOPTION: ${measured - report.sessionsWithoutSubagents} of ${measured} session(s) spawned at least one subagent; ` +
+        `${report.sessionsWithoutSubagents} spawned none.`,
+      "  Spawn count alone hides this — thirteen spawns is one session's habit or thirteen sessions',",
+      "  and only the second is adoption.",
+      "",
+    );
   }
 
   // -- context --------------------------------------------------------------
@@ -951,10 +1232,12 @@ export function renderSessionCost(report: SessionCostReport): string {
   );
 
   // -- per session ----------------------------------------------------------
-  lines.push("## PER SESSION  (newest first)", "");
+  lines.push("## PER SESSION  (newest first; `started` is the FIRST turn — what guidance was live)", "");
   for (const row of report.sessions.slice(0, 20)) {
     lines.push(
-      `  ${row.sessionId}  ${String(row.turns).padStart(4)} turn(s)  ${usd(row.cost).padStart(9)}  ${row.first.slice(0, 16)}  ${row.project}`,
+      `  ${row.sessionId}  ${String(row.turns).padStart(4)} turn(s)  ${usd(row.cost).padStart(9)}  ` +
+        `${String(row.subagentSpawns).padStart(2)} sub  ${String(row.pollingTurns).padStart(3)} poll  ` +
+        `${row.first.slice(0, 16)}  ${row.project}`,
     );
   }
   if (report.sessions.length > 20) lines.push(`  … ${report.sessions.length - 20} more`);
@@ -982,6 +1265,8 @@ export interface SessionCostOpts {
   readonly limit?: string | undefined;
   readonly from?: string | undefined;
   readonly to?: string | undefined;
+  readonly startedAfter?: string | undefined;
+  readonly startedBefore?: string | undefined;
   readonly project?: string | undefined;
   readonly minTurns?: string | undefined;
   /** Measure every storytree-shaped project directory, not just this checkout's. */
@@ -1021,6 +1306,8 @@ export function sessionCostCommand(opts: SessionCostOpts): Envelope {
     minTurns,
     from: opts.from,
     to: opts.to,
+    startedAfter: opts.startedAfter,
+    startedBefore: opts.startedBefore,
     activeWithinMinutes: DEFAULT_ACTIVE_MINUTES,
     nowMs: opts.nowMs,
   });
@@ -1045,12 +1332,14 @@ export function sessionCostHelp(): Envelope {
       "storytree session-cost — what did our sessions cost, and on what? (ADR-0323 D4)",
       "",
       "  storytree session-cost [--limit <n>] [--min-turns <n>] [--from <iso>] [--to <iso>]",
+      "                         [--started-after <iso>] [--started-before <iso>]",
       "                         [--project <prefix>] [--all]",
       "",
       "Prices a window of PAST sessions from the harness's own JSONL transcripts, per assistant",
       "turn, from the recorded `message.usage` and `message.model`. It reports the four-way price",
-      "SPLIT (cache read / cache write / output / input), cost per phase, subagent cost per agent",
-      "type with the model each ran on, and live-context size.",
+      "SPLIT (cache read / cache write / output / input), cost per phase, polling turns, bash calls",
+      "by purpose, subagent cost per agent type with the model each ran on and how many sessions",
+      "spawned it, and live-context size.",
       "",
       `  --limit         most-recent N completed sessions (default ${DEFAULT_SESSION_LIMIT}). A session whose`,
       `                  transcript changed in the last ${DEFAULT_ACTIVE_MINUTES} minutes is treated as IN FLIGHT and`,
@@ -1060,6 +1349,11 @@ export function sessionCostHelp(): Envelope {
       "                  the whole window by recency. They are NOT hidden: the report prints their",
       "                  count and aggregate cost. `--min-turns 1` folds them back in.",
       "  --from / --to   bound individual TURNS by ISO timestamp, after session selection.",
+      "  --started-after / --started-before",
+      "                  bound WHOLE SESSIONS by their first turn, instead of truncating them at the",
+      "                  boundary. This is the segmentation flag for \"did behaviour change after X",
+      "                  landed\": a session's habits are set by the guidance live when it STARTED,",
+      "                  because CLAUDE.md / AGENTS.md / `.claude/agents/` are read once at start.",
       "  --project       project-directory prefix (default: this checkout's, so a worktree still",
       "                  measures the whole repo's sessions).",
       "  --all           every project directory under the transcript root.",

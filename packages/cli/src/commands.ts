@@ -2153,6 +2153,11 @@ export const CLI_OPTIONS = {
   // `storytree session-cost --min-turns <n>` — the SELECTION floor that keeps machine-driven
   // one-shots from filling a recency-ordered window. Their spend is still reported, never hidden.
   "min-turns": { type: "string" },
+  // `storytree session-cost --started-after/--started-before <iso>` — select WHOLE sessions by their
+  // first turn rather than truncating them at a `--from`/`--to` boundary. The segmentation flag for
+  // "did behaviour change after X landed" (ADR-0323 D4's falsifiability).
+  "started-after": { type: "string" },
+  "started-before": { type: "string" },
 } as const;
 
 /**
@@ -2262,6 +2267,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     /** `session-cost` — which transcript project directories to price (ADR-0323 D4). */
     project?: string;
     "min-turns"?: string;
+    /** `session-cost` — whole-session segmentation by first turn (ADR-0323 D4). */
+    "started-after"?: string;
+    "started-before"?: string;
   };
   try {
     const parsed = parseArgs({
@@ -3222,6 +3230,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       ...(values["to"] !== undefined ? { to: values["to"] } : {}),
       ...(values["project"] !== undefined ? { project: values["project"] } : {}),
       ...(values["min-turns"] !== undefined ? { minTurns: values["min-turns"] } : {}),
+      ...(values["started-after"] !== undefined ? { startedAfter: values["started-after"] } : {}),
+      ...(values["started-before"] !== undefined ? { startedBefore: values["started-before"] } : {}),
       all: values["all"] === true,
       cwd: process.cwd(),
       nowMs: Date.now(),

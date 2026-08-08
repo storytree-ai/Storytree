@@ -92,10 +92,30 @@ triggered passes routinely finding nothing.
 **Good.** The four sessions in ten that already ran no pass become CORRECT rather than
 under-enforced, and the discipline stops being honoured selectively. On the measured window the
 curation half would have fired for the ADR-editing sessions (which all found real corrections) and
-not for the pure-code ones. Combined with D3's tier flip the population cost drops from $24.79 toward
-roughly $7 — a ~70% reduction on this line with, on the measured evidence, no correction lost. The
-split also makes each half's purpose legible: one is "don't lose what you learned", the other is
-"don't leave the log lying".
+not for the pure-code ones. The split also makes each half's purpose legible: one is "don't lose what
+you learned", the other is "don't leave the log lying".
+
+**What D3 bought and what D2 did not — MEASURED, replacing this section's own projection.** This
+section originally predicted that D2 and D3 together would drop the population cost "from $24.79
+toward roughly $7 — a ~70% reduction on this line". `session-cost-arc`'s post-intervention
+re-measurement (2026-08-08, `storytree session-cost`) compared the 10 completed sessions that STARTED
+after this ADR landed against the 60 that started before it, one classifier over both:
+
+- **D3 delivered, almost exactly as designed.** Every post-landing pass ran on sonnet and none on
+  opus. Cost per spawn fell $5.61 → $2.40 (−57%) and cost per turn $0.112 → $0.066 (−41%) — the
+  sonnet/opus rate ratio.
+- **D2 narrowed nothing.** The pass ran in 27 of 60 sessions (45%) before the trigger and 9 of 10
+  (90%) after it. Frequency roughly doubled.
+- **So the line barely moved: 9.6% → 8.7% of spend.** The ~70% figure is withdrawn as overtaken
+  prose (ADR-0139, correct in place). The per-PASS saving it predicted is real; the per-POPULATION
+  saving is not, because it assumed a fall in frequency that did not happen.
+
+Two readings survive and ten sessions over twelve hours cannot separate them. The post-window is a
+single ADR-and-guidance-heavy day, on which a fail-wide trigger SHOULD fire nearly every time; and a
+mechanical trigger plausibly raised COMPLIANCE where a blanket mandate was being honoured
+selectively — which is a good outcome for the decision log and the opposite of the cost prediction.
+Neither reading disturbs D1–D3, and D4's revisit condition (triggered passes routinely finding
+nothing) is not met, so no batched drain is warranted on this evidence.
 
 **Bad / the honest risks.** The real risk is a session that overtakes an ADR's prose WITHOUT touching
 a curated path — landing a code change that silently falsifies a claim in an accepted ADR. D2's
