@@ -14,8 +14,10 @@ import { test } from "node:test";
 import {
   MODEL_PRICES,
   attributePhases,
+  classifyCommand,
   collectSessionCost,
   contextTokens,
+  isPollingTurn,
   mainCheckoutRoot,
   parseTranscript,
   priceAxes,
@@ -42,6 +44,26 @@ function collect(over: Partial<Parameters<typeof collectSessionCost>[0]> = {}): 
   return collectSessionCost({
     root: FIXTURE_ROOT,
     projectPrefix: FIXTURE_PROJECT,
+    limit: 10,
+    minTurns: 2,
+    activeWithinMinutes: 10,
+    nowMs: NOW_MS,
+    ...over,
+  });
+}
+
+/**
+ * The second fixture project — polling turns, inspection calls, and one session that delegates
+ * beside one that does not. It lives under its OWN prefix rather than beside `sess-alpha` because
+ * `discoverSessions` matches by `startsWith`, so a `C--code-fixture-*` name would silently join
+ * every existing assertion's population.
+ */
+const POLLING_PROJECT = "C--code-polling";
+
+function polling(over: Partial<Parameters<typeof collectSessionCost>[0]> = {}): SessionCostReport {
+  return collectSessionCost({
+    root: FIXTURE_ROOT,
+    projectPrefix: POLLING_PROJECT,
     limit: 10,
     minTurns: 2,
     activeWithinMinutes: 10,
@@ -415,6 +437,170 @@ test("a worktree measures its MAIN checkout's sessions, not just its own slot", 
     slugifyRepoPath(mainCheckoutRoot("C:\\code\\storytree\\.claude\\worktrees\\x")),
     "C--code-storytree",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Command classification — the two BEHAVIOURAL lines ADR-0323 measured
+// ---------------------------------------------------------------------------
+
+test("classifies a command by what it was FOR", () => {
+  // Polling: waiting on a machine and looking again.
+  assert.equal(classifyCommand("sleep 300"), "polling");
+  assert.equal(classifyCommand("sleep 300; tail -4 .gate-logs/gate.log"), "polling");
+  assert.equal(classifyCommand("gh pr checks 1234"), "polling");
+  assert.equal(classifyCommand("gh pr checks 1234 --watch"), "polling");
+  assert.equal(classifyCommand("gh run watch 99"), "polling");
+
+  // Inspection: every segment is a read verb.
+  assert.equal(classifyCommand("ls -la packages"), "inspection");
+  assert.equal(classifyCommand('grep -rn "foo" src'), "inspection");
+  assert.equal(classifyCommand('grep -rn "foo" src | head -20'), "inspection");
+  assert.equal(classifyCommand("cat a.txt && wc -l b.txt"), "inspection");
+  assert.equal(classifyCommand("/usr/bin/grep -n x y"), "inspection", "a path-qualified verb");
+  assert.equal(classifyCommand("FOO=1 grep -n x y"), "inspection", "a leading env assignment");
+  // A `cd` prefix is where, not what. Counting it as a non-inspection segment would push the
+  // overwhelmingly common prefixed form into `other` and under-report this whole line.
+  assert.equal(classifyCommand("cd packages/cli && grep -rn foo src"), "inspection");
+  assert.equal(classifyCommand("cd /repo && ls -la"), "inspection");
+  assert.equal(classifyCommand("cd /repo && pnpm gate"), "other", "the neutral prefix decides nothing");
+  assert.equal(classifyCommand("cd /repo && sleep 60"), "polling");
+  assert.equal(classifyCommand("cd /repo"), "other", "a bare `cd` inspects nothing");
+
+  // Everything else does WORK, and folding it into either line would inflate that line.
+  assert.equal(classifyCommand("pnpm gate"), "other");
+  assert.equal(classifyCommand("git status --short"), "other");
+  assert.equal(classifyCommand("gh pr create --fill"), "other");
+  assert.equal(classifyCommand(""), "other");
+});
+
+test("polling BEATS inspection, or the finding moves from one line to the other", () => {
+  // `sleep 300; tail -4 log` is the exact command ADR-0323 §3 counted. Reading it as inspection
+  // because it ends in `tail` would move ~10% of spend onto the wrong line.
+  assert.equal(classifyCommand("sleep 300; tail -4 .gate-logs/gate.log"), "polling");
+  // And a build that happens to end in a read verb is neither — it is work.
+  assert.equal(classifyCommand("pnpm gate | tail -5"), "other");
+});
+
+test("a polling TURN is pure — a turn that also edits is doing work", () => {
+  const turn = (toolNames: string[], commands: string[]) => ({
+    requestId: "r",
+    at: "2026-08-07T09:00:00.000Z",
+    model: "claude-opus-5",
+    tier: "opus",
+    axes: { input: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, output: 0 },
+    toolUseIds: [],
+    toolNames,
+    commands,
+  });
+  assert.equal(isPollingTurn(turn(["Bash"], ["sleep 300; tail -4 x.log"])), true);
+  assert.equal(isPollingTurn(turn(["Bash", "Bash"], ["sleep 5", "gh pr checks 1"])), true);
+  // A poll alongside real work pays its rent for a reason; only the pure round-trip is waste.
+  assert.equal(isPollingTurn(turn(["Bash", "Edit"], ["sleep 5"])), false);
+  assert.equal(isPollingTurn(turn(["Bash"], ["ls -la"])), false);
+  assert.equal(isPollingTurn(turn([], [])), false, "a turn with no tool call polls nothing");
+});
+
+test("counts polling turns and their cost over a real transcript walk", () => {
+  const report = polling();
+  assert.equal(report.sessions.length, 2, "sess-poll and sess-quiet");
+  assert.equal(report.mainTurns, 6);
+  assert.equal(report.polling.turns, 2, "the `sleep; tail` turn and the `gh pr checks` turn");
+  // 200k + 200k cache read at the opus rate — the rent a status line costs.
+  close(report.polling.cost, 0.2, "polling cost");
+
+  const byId = new Map(report.sessions.map((s) => [s.sessionId, s]));
+  assert.equal(byId.get("sess-poll")!.pollingTurns, 2);
+  assert.equal(byId.get("sess-quiet")!.pollingTurns, 0);
+  assert.match(renderSessionCost(report), /MECHANICAL WAITING/);
+});
+
+test("splits bash calls by purpose, main thread and subagents apart", () => {
+  const report = polling();
+  // Main thread: ls + grep (inspection), sleep-tail + gh-pr-checks (polling), pnpm gate + git
+  // status (other). Counted by unique tool_use.id across all lines, never by turn.
+  assert.deepEqual(report.commands, { calls: 6, inspection: 2, polling: 2, other: 2 });
+  // The subagent's grep is reported SEPARATELY: D1's claim is that inspection MOVES here, and a
+  // fall in main-thread inspection with no rise here is a session looking less, not delegating.
+  assert.deepEqual(report.subagentCommands, { calls: 1, inspection: 1, polling: 0, other: 0 });
+  assert.match(renderSessionCost(report), /BASH CALLS BY PURPOSE/);
+});
+
+test("reports ADOPTION — sessions that spawned a type, not just the spawn count", () => {
+  const report = polling();
+  const explorer = report.agentTypes.find((row) => row.agentType === "explorer");
+  assert.ok(explorer !== undefined);
+  assert.equal(explorer.spawns, 1);
+  assert.equal(explorer.sessions, 1, "one of the two measured sessions used it");
+  assert.equal(report.sessionsWithoutSubagents, 1, "sess-quiet spawned none");
+
+  const byId = new Map(report.sessions.map((s) => [s.sessionId, s]));
+  assert.equal(byId.get("sess-poll")!.subagentSpawns, 1);
+  assert.equal(byId.get("sess-quiet")!.subagentSpawns, 0);
+  assert.match(renderSessionCost(report), /ADOPTION: 1 of 2 session\(s\)/);
+});
+
+test("a type spawned twice by ONE session counts once toward adoption", () => {
+  // Adoption is the habit, not the volume: thirteen spawns is one session's habit or thirteen
+  // sessions', and only the second is behaviour change.
+  const report = polling();
+  const explorer = report.agentTypes.find((row) => row.agentType === "explorer")!;
+  assert.ok(explorer.sessions <= report.sessions.length, "coverage can never exceed the population");
+});
+
+// ---------------------------------------------------------------------------
+// Whole-session segmentation — `--started-after` / `--started-before`
+// ---------------------------------------------------------------------------
+
+test("--started-after selects WHOLE sessions by their first turn, never truncating one", () => {
+  const report = polling({ startedAfter: "2026-08-07T12:00:00.000Z" });
+  assert.deepEqual(
+    report.sessions.map((s) => s.sessionId),
+    ["sess-quiet"],
+  );
+  assert.equal(report.outsideStartWindow, 1, "sess-poll began before the bound");
+  assert.equal(report.mainTurns, 2, "sess-quiet arrives WHOLE — both its turns");
+  assert.equal(report.polling.turns, 0);
+});
+
+test("--started-before is its mirror, and the two bracket a segment", () => {
+  const report = polling({ startedBefore: "2026-08-07T12:00:00.000Z" });
+  assert.deepEqual(
+    report.sessions.map((s) => s.sessionId),
+    ["sess-poll"],
+  );
+  assert.equal(report.outsideStartWindow, 1);
+  assert.equal(report.mainTurns, 4, "all four of sess-poll's turns, including the ones after noon");
+  assert.equal(report.polling.turns, 2);
+});
+
+test("--from TRUNCATES where --started-after SELECTS — the difference is the point", () => {
+  // Bounding TURNS at 09:01:30 keeps only sess-poll's later half, which is half a session's turns
+  // and not half a session's habits: orientation, where delegation is decided, is already gone.
+  const truncated = polling({ from: "2026-08-07T09:01:30.000Z" });
+  assert.equal(truncated.sessions.length, 2);
+  assert.equal(truncated.mainTurns, 4, "sess-poll loses 2 turns; sess-quiet keeps both");
+  assert.equal(truncated.commands.inspection, 0, "its inspection calls were in the lost half");
+
+  // Selecting whole sessions instead keeps sess-poll intact.
+  const selected = polling({ startedBefore: "2026-08-07T12:00:00.000Z" });
+  assert.equal(selected.commands.inspection, 2);
+});
+
+test("a session excluded by the start bound is NOT counted as a one-shot", () => {
+  // Out of SCOPE and below the substance floor are different things; pooling them would corrupt
+  // the one-shot block, which exists to account for spend rather than to hide it.
+  const report = polling({ startedAfter: "2026-08-07T12:00:00.000Z" });
+  assert.equal(report.oneShot.sessions, 0);
+  assert.equal(report.oneShot.cost, 0);
+  assert.equal(report.outsideStartWindow, 1);
+  assert.match(renderSessionCost(report), /1 session\(s\) began outside it/);
+});
+
+test("a start bound that excludes everything reports nothing, not a zeroed table", () => {
+  const report = polling({ startedAfter: "2099-01-01T00:00:00.000Z" });
+  assert.equal(report.sessions.length, 0);
+  assert.equal(report.outsideStartWindow, 2);
+  assert.match(renderSessionCost(report), /NO PRICEABLE TURN IN THIS WINDOW/);
 });
 
 // ---------------------------------------------------------------------------
