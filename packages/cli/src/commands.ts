@@ -14,6 +14,7 @@ import {
   KIND_SPECS,
   arrayFieldsForKind,
   knownFieldsForKind,
+  stringFieldsForKind,
   NODE_REF_PREFIX,
   REPO_ROOT_ENV,
   resolveRepoRoot,
@@ -131,6 +132,7 @@ import type { ClaimHistoryStoreLike } from "@storytree/drive";
 import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
 import type { ClaimDocT } from "@storytree/notice-board";
 import { findDependents } from "./retire.js";
+import { typeMismatchRefusal } from "./set-value.js";
 import { storyBuild, storyHelp } from "@storytree/drive";
 import { flipFrontmatterStatus, type AdoptStory, type FlipResult } from "@storytree/drive";
 import { treeCommand } from "./tree.js";
@@ -711,6 +713,11 @@ export async function editArtifact(
     // The ARRAY-typed fields (`references`, a uat-criterion's `stepRefs`, …): a bare string can
     // never validate against them, so `--set` parses the value (inline or @file) as a JSON array.
     const arrayFields = kindStr !== undefined ? arrayFieldsForKind(kindStr) : null;
+    // The mirror image, and the reason it is needed: a `--set` value is ALWAYS a string, so a JSON
+    // array sent to a PROSE field validates perfectly and persists as literal JSON text at exit 0
+    // (`artifact-edit-set-refuses-a-type-mismatched-value`). The array path above is exactly what
+    // licenses the mistake, so the two sets are read together, here, from the same schema.
+    const stringFields = kindStr !== undefined ? stringFieldsForKind(kindStr) : null;
     const changed: string[] = [];
     for (const s of opts.sets) {
       const i = s.indexOf("=");
@@ -762,6 +769,23 @@ export async function editArtifact(
         value = await resolveAtPathValue(s.slice(i + 1));
       } catch (e) {
         return { ok: false, body: `could not read --set ${field}=${s.slice(i + 1)}: ${(e as Error).message}`, next: [] };
+      }
+      // The value boundary (`set-value.ts`): a structured JSON payload headed at a string-declared
+      // field is refused HERE — after `@path` resolution, since the file's contents are what would
+      // be stored, and before anything is written. The strict schema cannot catch this one: a JSON
+      // array IS a valid string, so it validates and persists, and only the render shows it.
+      const mismatch = typeMismatchRefusal({
+        kind: kindStr ?? "artifact",
+        field,
+        value,
+        stringFields,
+      });
+      if (mismatch !== null) {
+        return {
+          ok: false,
+          body: mismatch,
+          next: [`storytree library artifact ${id} --raw ${field} --pg`, `storytree library artifact ${id}`],
+        };
       }
       // The arc containment edge — `arcRef`, on a plan (ADR-0183 D3) or on an open question
       // (ADR-0267 D4). It is the edge a DERIVED arc view is assembled from, so a DANGLING one is

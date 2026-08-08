@@ -1074,8 +1074,8 @@ export function knownFieldsForKind(kind: string): ReadonlySet<string> | null {
   return new Set(Object.keys(schema.shape));
 }
 
-/** True iff `schema`, after unwrapping optional/nullable/default/effects wrappers, is an array. */
-function isArraySchema(schema: z.ZodTypeAny): boolean {
+/** `schema` with its optional/nullable/default/effects wrappers peeled off. */
+function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
   let cur: z.ZodTypeAny = schema;
   for (;;) {
     if (cur instanceof z.ZodOptional || cur instanceof z.ZodNullable) {
@@ -1085,9 +1085,14 @@ function isArraySchema(schema: z.ZodTypeAny): boolean {
     } else if (cur instanceof z.ZodEffects) {
       cur = cur.innerType() as z.ZodTypeAny;
     } else {
-      return cur instanceof z.ZodArray;
+      return cur;
     }
   }
+}
+
+/** True iff `schema`, after unwrapping optional/nullable/default/effects wrappers, is an array. */
+function isArraySchema(schema: z.ZodTypeAny): boolean {
+  return unwrapSchema(schema) instanceof z.ZodArray;
 }
 
 /**
@@ -1107,6 +1112,29 @@ export function arrayFieldsForKind(kind: string): ReadonlySet<string> | null {
   return new Set(
     Object.entries(schema.shape)
       .filter(([, field]) => isArraySchema(field as z.ZodTypeAny))
+      .map(([name]) => name),
+  );
+}
+
+/**
+ * The STRING-typed top-level fields of a structured Knowledge kind — every KIND_SPECS prose section
+ * plus the string commons (`title`, `description`, `arcRef`, …), read straight from the schema shape
+ * like its two neighbours above. Drift-proof, never a hand-maintained list. Null for a non-Knowledge
+ * kind.
+ *
+ * Its reason for existing (`artifact-edit-set-refuses-a-type-mismatched-value`): a `--set` value is
+ * ALWAYS a string, so a JSON array sent to a prose field validates perfectly and persists as literal
+ * JSON text — exit 0, no warning, and the corruption visible only in the render. Knowing which
+ * fields are string-typed lets the write surface refuse that mismatch instead of storing it. The
+ * enum-typed fields (a friction's `route`) are deliberately NOT here: their own schema already
+ * refuses anything off the closed set.
+ */
+export function stringFieldsForKind(kind: string): ReadonlySet<string> | null {
+  const schema = Knowledge.optionsMap.get(kind as KnowledgeKind);
+  if (schema === undefined) return null;
+  return new Set(
+    Object.entries(schema.shape)
+      .filter(([, field]) => unwrapSchema(field as z.ZodTypeAny) instanceof z.ZodString)
       .map(([name]) => name),
   );
 }
