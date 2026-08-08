@@ -26,7 +26,17 @@ Tracing it to root:
 
 ## Decision
 
-1. **librarian-curator gains a standing, proactive charter: keep the `process` tier a current projection of the load-bearing decision log.** Its existing pre-merge curation pass (ADR-0095 D7 — it already runs before every merge ceremony) extends to: *any load-bearing ADR that changes a way-of-working must have a current `process` artifact deriving from it.* The derivation rule is ADR-0034 §2 unchanged (reference-don't-restate; the cited ADR wins; a process makes no new policy). This **complements** the reactive graduation-from-memory path (ADR-0095) — it does not replace it. Ownership stays with librarian-curator because this is a decision-log→library projection, the same family as its existing charter of keeping every accepted ADR true-in-full (ADR-0139).
+1. **librarian-curator gains a standing, proactive charter: keep the `process` tier a current projection of the load-bearing decision log.** Its existing pre-merge curation pass (ADR-0095 D7) extends to: *any load-bearing ADR that changes a way-of-working must have a current `process` artifact deriving from it.* The derivation rule is ADR-0034 §2 unchanged (reference-don't-restate; the cited ADR wins; a process makes no new policy). This **complements** the reactive graduation-from-memory path (ADR-0095) — it does not replace it. Ownership stays with librarian-curator because this is a decision-log→library projection, the same family as its existing charter of keeping every accepted ADR true-in-full (ADR-0139).
+   *(Corrected in place 2026-08-08 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).
+   This parenthetical originally read "ADR-0095 D7 — it already runs before every merge ceremony".
+   [ADR-0324](0324-the-librarian-pass-is-trigger-gated-and-split-not-per-landin.md) D1/D2 has since split
+   that pass: this process-tier charter is carried by the DECISION-LOG CURATION half, which now runs
+   only when the branch's diff touches a curated surface — `docs/decisions/**`, `stories/**`, the
+   generated guidance projections, or a live-store write to an `agent`/`principle`/`guardrail`/
+   `pattern`/`process` artifact — not before every merge ceremony unconditionally. The CHARTER itself
+   is unchanged: librarian-curator still owns the process tier as a standing projection of the
+   decision log, and every load-bearing way-of-working ADR still needs a current `process` deriving
+   from it. What changed is only the cadence of the pass that carries the charter out.)*
 
 2. **The CLI/pnpm surface is a declared projection of the process tier — never a judgment of necessity.** Every `process` names its enacting entrypoint(s) in `surfaces` (a `storytree` command or a root `pnpm` script). `check:surface-coverage` remains an on-demand diagnostic that reports (a) a process surface that no longer resolves and (b) an operator-facing entrypoint with no process behind it. The librarian uses that report as a curation worklist. **ADR-0311 retires its standalone root/CI gate obligation and the associated zero-ceiling merge policy.** The checker can still measure the bijection; no count decides whether a command *should* exist.
 
@@ -45,6 +55,7 @@ Tracing it to root:
 - ADR-0034 (process artifacts as derived ways-of-working — the §2 decision this stands on and the §3 staffing this amends).
 - ADR-0023 (the exploratory just-in-time CLI — choose-your-own-adventure) · ADR-0053 (the CLI builds its guidance prose from the library — the projection precedent this extends from prose to structure).
 - ADR-0095 (memory→Library graduation — the reactive process-authoring path this complements) · ADR-0139 (every accepted ADR true-in-full — the librarian charter this parallels).
+- ADR-0324 (the librarian pass splits and the decision-log-curation half — which carries this charter — becomes trigger-gated rather than per-merge-ceremony; the source of the correction above).
 - ADR-0116 / ADR-0118 (per-area command-surface decisions — the ad-hoc pattern this gives a standing owner).
 - ADR-0109 / ADR-0111 (the desktop surface — the originating drift) · ADR-0042 / ADR-0063 / ADR-0114 / ADR-0100 (the operational ADRs whose processes the backfill derives).
 - `packages/cli/src/check-surface-coverage.ts` — the retained on-demand diagnostic; ADR-0311 owns its retired gate status.

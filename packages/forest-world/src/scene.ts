@@ -547,11 +547,23 @@ export interface SceneTerritoryInput {
    *  (the D2 back-compat default: every pre-grade surface keeps today's orbit byte-for-byte).
    *  WAITING ORDER CONTRACT: waiters are placed by their INDEX in input order, so the surface sends
    *  them ordered by `claimedAt` (the queue order the claim ledger already keeps). */
-  /*  The optional `phase` (ADR-0212) is the LIVE prove-it-gate phase of a build running on this story,
-   *  folded onto the WORK-grade claim body — the first step of merging the separate build-wisp layer
-   *  (ADR-0048) into the one-wisp-per-session lifecycle. The surface joins build → claim by STORY, not
-   *  by session: `BuildActivity` carries no session identity, but the work claim is an exclusive mutex
-   *  (ADR-0200 D2), so a story with a work claim AND a live build has exactly one possible actor.
+  /*  The optional `phase` (ADR-0212) is the LIVE prove-it-gate phase of a build THIS CLAIM'S OWN
+   *  SESSION is running; the core maps it to the body's red→green band. That band is the one signal
+   *  the retired build-wisp layer (ADR-0048) carried which the claim body did not, and folding it
+   *  here is what merged the two layers into the one-wisp-per-session lifecycle.
+   *
+   *  THE SURFACE'S OBLIGATION, which the core CANNOT CHECK (ADR-0326): supply a phase only from a
+   *  build joined at the CLAIMED UNIT — the build whose `unitId` equals this claim's `unitId`. By the
+   *  time claims reach the core they are one flat per-territory list, so the core cannot tell a
+   *  story's own claim from its members', nor which session each belongs to. A surface that joins at
+   *  the STORY instead paints one session's build phase onto another session's body: a member build
+   *  and a story-grain claim land in the same territory while belonging to different actors, and two
+   *  work claims on disjoint capabilities of one story are legitimate (ADR-0270 D1), so "one work
+   *  claim per territory" is false. ADR-0212 first wrote that story-grain join down HERE as sound,
+   *  arguing from the ADR-0200 D2 mutex — but the mutex is per UNIT ID, and the premise it leaned on
+   *  no longer holds. Stated as an obligation rather than re-derived, because the argument belongs
+   *  with the surface that performs the join; carrying it in the core is how it went stale unseen.
+   *
    *  ABSENT ⇒ no band, and every pre-ADR-0212 surface renders BYTE-FOR-BYTE unchanged. Ignored on the
    *  `exploring`/`waiting` grades — only work builds. */
   claims?: {
