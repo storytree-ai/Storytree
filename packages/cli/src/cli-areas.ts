@@ -38,6 +38,9 @@ export const CLI_AREAS = [
   "friction",
   // `storytree factory health` — the report-only factory-floor health instrument (ADR-0316).
   "factory",
+  // `storytree session-cost` — the repeatable session-cost measurement (ADR-0323 D4). Report-only
+  // and deliberately NOT a gate rung; it reads host transcripts, never the store.
+  "session-cost",
   "doctor",
   "guide",
   "traversal",

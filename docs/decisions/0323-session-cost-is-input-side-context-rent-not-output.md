@@ -108,10 +108,15 @@ quantifiable recurring price and that the pull-based alternative (a Library arti
 relevant) is the default for anything that is not needed by EVERY session on its FIRST turn.
 
 **D4 — The measurement is the check, not this prose.** The analysis above is reproducible from the
-transcripts and MUST be re-runnable over any window of sessions. A claim in this ADR that the numbers
-later contradict is overtaken prose to be corrected in place (ADR-0139), not a rule to defend. This
-ADR is explicitly falsifiable: if a later measurement shows output-side cost dominating, or shows
-delegation failing to reduce main-thread context, D1–D3 are wrong and should be reversed.
+transcripts and MUST be re-runnable over any window of sessions — `storytree session-cost`
+(`session-cost-arc` increment 2) is now the enacting entrypoint for that re-run, per
+`process:measure-session-cost-from-transcripts`. A claim in this ADR that the numbers later contradict
+is overtaken prose to be corrected in place (ADR-0139), not a rule to defend. This ADR is explicitly
+falsifiable: if a later measurement shows output-side cost dominating, or shows delegation failing to
+reduce main-thread context, D1–D3 are wrong and should be reversed. A first replication (2026-08-08,
+a fresh ten-session window) reproduced the split and did not falsify it — see the process artifact's
+Verification section for the numbers; this ADR's own figures are the original measurement and are left
+as measured, not updated to the replication's.
 
 ## Consequences
 
@@ -145,6 +150,8 @@ reverted.
 ## References
 
 - `session-cost-arc` — the owning arc (intent, end state, increment log).
+- `process:measure-session-cost-from-transcripts` — the operational method this ADR's analysis
+  follows; `storytree session-cost` is its enacting entrypoint (increment 2).
 - ADR-0324 — the librarian pass is trigger-gated and split (the narrower, measured follow-on).
 - ADR-0325 — the `explorer` delegate and the per-agent model tiering that D1 depends on.
 - `asset:delegate-exploration-to-digest-subagents` — the STANDING principle D1 re-affirms (authored
