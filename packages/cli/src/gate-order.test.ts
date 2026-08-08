@@ -5,6 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  EXIT_CODE_COLLAPSING_INVOCATION,
   EXPENSIVE_STEPS,
   GATE_PLAN,
   type GateStep,
@@ -12,6 +13,7 @@ import {
   PRE_EXPENSIVE_CHECKS,
   RETIRED_CHECKS,
   SHARED_ENVIRONMENT_CHECKS,
+  SKIP_CAPABLE_CHECKS,
   UNWIRED_MARKER,
   evaluateGateOrder,
   firstExpensiveIndex,
@@ -155,8 +157,8 @@ test("the REAL gate plan is exactly the nine audited survivors in their declared
       "pnpm check:mirror-conformance",
       "pnpm check:web-grounding",
       "pnpm check:web-engine",
-      "pnpm -r typecheck",
-      "pnpm -r test",
+      "pnpm -r --no-bail typecheck",
+      "pnpm -r --no-bail test",
       "pnpm check:guidance",
       "pnpm check:agents",
       "pnpm check:verification-decay",
@@ -236,6 +238,35 @@ test("every deliberate exclusion still names a real script — a stale exemption
   for (const [name, reason] of NON_GATE_CHECK_SCRIPTS) {
     assert.ok(Object.hasOwn(scripts, name), `NON_GATE_CHECK_SCRIPTS excludes \`${name}\`, which no longer exists`);
     assert.ok(reason.length > 0, `${name} must record why it is out of the gate`);
+  }
+});
+
+// ── the skip protocol vs. the invocation form that silently destroys it ──────
+
+test("every skip-capable check is invoked through a form that PRESERVES its exit code", () => {
+  // MEASURED 2026-08-08: `pnpm --filter <pkg> exec node -e "process.exit(3)"` exits 1, while
+  // `pnpm -C <dir> exec …` exits 3. pnpm's recursive exec normalises any non-zero child code, so a
+  // skip-capable check on that form would deliver its declared SKIP to the runner as a FAILURE and
+  // red the gate for every checkout that legitimately opts out. Harmless for the other checks (they
+  // only ever mean pass or fail); silently destructive for these.
+  const scripts = rootScripts();
+  for (const [name] of SKIP_CAPABLE_CHECKS) {
+    const script = scripts[name] ?? "";
+    assert.ok(script.length > 0, `SKIP_CAPABLE_CHECKS names \`${name}\`, which no longer exists`);
+    assert.ok(
+      !script.includes(EXIT_CODE_COLLAPSING_INVOCATION),
+      `\`${name}\` may declare a SKIP, but is invoked via \`${EXIT_CODE_COLLAPSING_INVOCATION}\`, ` +
+        `which collapses its exit code to 1 — the skip would arrive as a FAILURE. ` +
+        `Use \`pnpm -C <dir> exec …\`. Script: ${script}`,
+    );
+  }
+});
+
+test("a skip-capable check is a step the gate actually runs, and records why it may opt out", () => {
+  const planned = new Set(GATE_PLAN.map((s) => s.check).filter((c) => c !== undefined));
+  for (const [name, condition] of SKIP_CAPABLE_CHECKS) {
+    assert.ok(planned.has(name), `${name} is declared skip-capable but is not a gate step`);
+    assert.ok(condition.length > 0, `${name} must record the condition under which it verifies nothing`);
   }
 });
 

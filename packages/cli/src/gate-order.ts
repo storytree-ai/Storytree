@@ -35,7 +35,27 @@
  * it always names the full `-r` run — so this is what a reader of the plan sees and what
  * `gate-order.test.ts` holds the plan to.
  */
-export const EXPENSIVE_STEPS: readonly string[] = ["pnpm -r typecheck", "pnpm -r test"];
+export const EXPENSIVE_STEPS: readonly string[] = [
+  "pnpm -r --no-bail typecheck",
+  "pnpm -r --no-bail test",
+];
+
+/*
+ * WHY `--no-bail` IS PART OF THE DECLARED LEG (ADR-0276 increment 4, the last of its three elements).
+ *
+ * Without it `pnpm -r` halts at the FIRST failing workspace, so one package's red hides every later
+ * package's verdict INSIDE this one step. That is the inner half of the 2026-07-29 evidence recorded
+ * in `gate-runner.ts`: an `apps/studio` `waitFor` flake aborted `pnpm -r test`, `packages/cli` never
+ * ran, and it held a REAL break the session then pushed. The runner's per-step scoreboard fixed the
+ * OUTER half — a red no longer hides later STEPS — and this fixes the same defect one level down,
+ * inside the step. Both halves are the same rule: a gate must report what it did not verify.
+ *
+ * IT CANNOT MAKE THE GATE GREENER. `--no-bail` changes only how far the leg gets before reporting;
+ * pnpm still exits non-zero if any workspace failed, so every red that blocked before blocks now. The
+ * trade is wall clock — a failing leg runs every workspace instead of stopping at the first — which
+ * is the same trade the runner already made at step granularity and the reason `asset:merge-ceremony`
+ * step 2 mandates `pnpm gate:bg`.
+ */
 
 /**
  * The same two legs in the AFFECTED-SCOPE form (ADR-0304 D1): `pnpm --filter ...<name> typecheck`.
@@ -47,9 +67,16 @@ export const EXPENSIVE_STEPS: readonly string[] = ["pnpm -r typecheck", "pnpm -r
  * exactly that reason; this is what lets it.
  *
  * Anchored (`^`/`$`) so it cannot swallow a neighbour: `pnpm check:unit-test` ends in
- * `check:unit-test`, not `test`, and no `check:*` step begins with `-r` or `--filter`.
+ * `check:unit-test`, not `test`, and no `check:*` step begins with `-r`, `--filter` or `--no-bail`.
+ *
+ * The leading group is an ENUMERATION of the three token forms the gate actually emits — `-r`, one
+ * `--filter ...<name>`, and `--no-bail` — rather than a permissive `.+?`. That is deliberate: a
+ * wildcard here would classify any `pnpm <anything> test` as an expensive leg, and this predicate
+ * decides where the ordering wall sits. Recognising a step the plan never emits is the failure that
+ * would be silent.
  */
-const SCOPED_EXPENSIVE_LEG = /^pnpm\s+(?:-r|--filter\s+.+?)\s+(?:typecheck|test)$/;
+const SCOPED_EXPENSIVE_LEG =
+  /^pnpm(?:\s+(?:-r|--no-bail|--filter\s+\S+))+\s+(?:typecheck|test)$/;
 
 /**
  * Is this step one of the two minutes-cost legs — in either the declared `-r` form or the
@@ -168,14 +195,14 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
   },
   // ── B. own-work, minutes ───────────────────────────────────────────────────
   {
-    command: "pnpm -r typecheck",
+    command: "pnpm -r --no-bail typecheck",
     check: undefined,
     subject: "own-work",
     cost: "minutes",
     why: "the session's own diff, and the first of the two answers a session actually came for",
   },
   {
-    command: "pnpm -r test",
+    command: "pnpm -r --no-bail test",
     check: undefined,
     subject: "own-work",
     cost: "minutes",
@@ -214,6 +241,56 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
 export const NON_GATE_CHECK_SCRIPTS: ReadonlyMap<string, string> = new Map([
   ["check:claude", "a back-compat alias for `check:guidance`, which the plan already runs"],
 ]);
+
+/**
+ * Gate steps that may legitimately verify NOTHING in some environment, and declare it by exiting
+ * `GATE_SKIP_EXIT_CODE` (ADR-0276 increment 4). Keyed to the condition under which they opt out.
+ *
+ * THE ENTRY IS NOT DOCUMENTATION — `gate-order.test.ts` holds each one's ROOT SCRIPT to an invocation
+ * form that actually preserves a child's exit code, and that fence exists because pnpm silently does
+ * not. MEASURED 2026-08-08, all four combinations, with a positive control:
+ *
+ *     pnpm --filter <pkg> exec node -e "process.exit(3)"   → exit 1    ← COLLAPSES
+ *     pnpm -C <dir>       exec node -e "process.exit(3)"   → exit 3
+ *     pnpm --filter <pkg> run  <script>                    → exit 3, and 75 → 75
+ *     pnpm -C <dir>       run  <script>                    → exit 75
+ *
+ * READ THE TABLE, NOT THE FIRST ROW. It is the RECURSIVE `exec` that collapses —
+ * `--filter … exec` reports `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL` and normalises any non-zero child
+ * code to 1. `--filter … run` does NOT, which is why `pnpm db:up`'s documented exit-75 (`EX_TEMPFAIL`
+ * = "started, still warming") protocol is intact and must not be "fixed": it goes through
+ * `--filter … run`. A session that generalises this hazard to `--filter` would go looking for a bug
+ * that is not there.
+ *
+ * Every other `check:*` script uses the collapsing form, and for them it is harmless — they only ever
+ * mean pass or fail, and 1 is fail. For a skip-capable check it is silently destructive in the worst
+ * direction: the declared SKIP would arrive at the runner as 1, i.e. as a FAILURE, redding the gate
+ * on every local checkout without the `web/` submodule. The bug would look like a broken check rather
+ * than a broken protocol.
+ *
+ * So a session normalising these scripts back to the house `--filter` form must fail a test rather
+ * than discover this in a red gate. Adding a skip-capable check means adding it here.
+ */
+export const SKIP_CAPABLE_CHECKS: ReadonlyMap<string, string> = new Map([
+  [
+    "check:web-grounding",
+    "the `web/` submodule is absent locally (it is cloned in CI, where an absent web/ is a hard failure instead)",
+  ],
+]);
+
+/**
+ * The token whose presence in a skip-capable check's root script means its exit code will NOT
+ * survive — see {@link SKIP_CAPABLE_CHECKS}. Kept beside the set so the test and the reason cannot
+ * drift apart.
+ *
+ * DELIBERATELY BROADER THAN THE MEASURED CAUSE, and only sound because of the domain it is applied
+ * to. The collapse needs `--filter` AND `exec` together; `--filter … run` is safe. Matching on
+ * `--filter` alone therefore over-matches in general — but every `check:*` script in this repo is an
+ * `exec` form, so within {@link SKIP_CAPABLE_CHECKS} the two coincide, and the broader token is the
+ * conservative fence. Narrowing it to `exec` would WEAKEN it. Do not lift this constant out of that
+ * domain to reason about `run` scripts, where `--filter` is harmless.
+ */
+export const EXIT_CODE_COLLAPSING_INVOCATION = "--filter";
 
 /** One retired rung: the decision that retired it, and the source it left behind. */
 export interface RetiredCheck {
