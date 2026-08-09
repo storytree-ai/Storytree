@@ -871,6 +871,63 @@ test("arc-explicit-id-refuses-lossy-cap: arc new refuses an explicit id whose no
   assert.equal(written.length, 0, "no arc was created under a truncated id");
 });
 
+test("arc-explicit-id-refuses-lossy-cap: an explicit id normalising to EXACTLY 60 characters is accepted, under the id as typed", async () => {
+  const counting = new GetDocCountingStore(new InMemoryStore());
+  // The boundary the refusal must NOT swallow: at the cap, not past it. 60 lowercase letters are
+  // already normalised, so `normalizeExplicitId` returns them unchanged at length 60 and
+  // `kebabSlug`'s slice(0, 60) is a no-op — the id created must be the id typed, character for
+  // character. A `>=` where the rule wants `>` would refuse exactly this input and nothing else.
+  const boundaryId = "a".repeat(60);
+
+  const env = await run(
+    ["arc", "new", boundaryId, "--title", "T", "--intent", "i", "--end-state", "e", "--pg"],
+    { store: counting, writable: true },
+  );
+
+  assert.equal(env.ok, true, env.body);
+  const written = await counting.queryDocs({ kind: "arc" });
+  assert.equal(written.length, 1, "an id AT the cap is created, not refused");
+  assert.equal(
+    written[0]?.id,
+    boundaryId,
+    "created under the id as typed — fidelity means not one character shorter",
+  );
+});
+
+test("arc-explicit-id-refuses-lossy-cap: a TITLE-derived id keeps its capped derivation — the explicit-id refusal never leaked into the derive path", async () => {
+  const counting = new GetDocCountingStore(new InMemoryStore());
+  // With no explicit id the value comes from `--title` via `arcIdFromTitle`, whose contract is the
+  // OPPOSITE of the authored path's: cap by TRUNCATION, because there is no author-typed string to
+  // preserve. A refusal reaching here would break scaffolding from any long title.
+  const longTitle =
+    "A deliberately long initiative title that runs well past the sixty character identifier cap";
+  const normalisedTitle = longTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  assert.ok(
+    normalisedTitle.length > 60,
+    "fixture guard: the title must normalise PAST the cap, or this case proves nothing",
+  );
+
+  const env = await run(
+    ["arc", "new", "--title", longTitle, "--intent", "i", "--end-state", "e", "--pg"],
+    { store: counting, writable: true },
+  );
+
+  assert.equal(env.ok, true, env.body);
+  const written = await counting.queryDocs({ kind: "arc" });
+  assert.equal(written.length, 1, "a long title derives an id — it is never refused");
+  const derived = written[0]?.id ?? "";
+  assert.ok(derived.endsWith("-arc"), `derived id keeps the house suffix: ${derived}`);
+  // The slug core is capped at 60 BEFORE the suffix is appended, and it is a genuine PREFIX of the
+  // normalised title rather than some other shortening — asserted structurally, so the case does not
+  // rot into a golden-string comparison the next wording change breaks.
+  const core = derived.slice(0, -"-arc".length);
+  assert.ok(core.length <= 60, `slug core stays capped at 60: got ${core.length} (${core})`);
+  assert.ok(
+    normalisedTitle.startsWith(core),
+    `the capped id is a prefix of the normalised title, not a re-derivation: ${core}`,
+  );
+});
+
 // ---- `library artifact <id> --raw <field>` — the bare-bytes read (proposal
 // `library-artifact-can-read-one-raw-stored-field`) ---------------------------------------------
 //
