@@ -2920,6 +2920,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           ...(resolved.intent !== undefined ? { intent: resolved.intent } : {}),
           ...(resolved.endState !== undefined ? { endState: resolved.endState } : {}),
           ...(resolved.description !== undefined ? { description: resolved.description } : {}),
+          // The bundled first increment (ADR-0335) — the same two flags `arc increment new` reads,
+          // already `@path`-expanded by the boundary above.
+          ...(resolved.objective !== undefined ? { objective: resolved.objective } : {}),
+          ...(resolved.body !== undefined ? { body: resolved.body } : {}),
         });
       }
       if (sub === "edit") {

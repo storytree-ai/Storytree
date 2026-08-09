@@ -151,16 +151,31 @@ go closed without a terminal increment stating the observable end-state conditio
 ADR-0084/0086 discipline applied unchanged — status is a projection of prose that supports it, never
 a free flip — and it is why a bare `--set lifecycle=closed` must be refused.
 
+*(Corrected in place 2026-08-09, per ADR-0139: "atomically" no longer holds — ADR-0305 D1 split the
+terminal increment into its own document, so `arc close` now writes two rows in order, not one
+transaction. The invariant this line protects — no closed arc without terminal prose — survives via
+that order, not atomicity: the increment lands first, so an interruption leaves a visibly-open arc
+with a spare increment rather than a closed one with no prose behind it.)*
+
 Re-opening (`closed → active`) was reserved as **owner-only** here, mirroring ADR-0084's human-only
-`accepted → proposed` un-deciding. **That reservation is WITHDRAWN by
-[ADR-0337](0337-an-agent-may-reopen-a-closed-arc-arc-reopen-records-why-then.md) (2026-08-09): any
-caller may reopen an arc, via `storytree arc reopen <id> --reason <text|@file> --pg`.** The
-reservation was never given a mechanism — no verb, no flag, no owner path — so it did not make the
-transition owner-only, it made it reachable by *nobody*, and it stranded ADR-0334's reopening of
+`accepted → proposed` un-deciding. **That reservation is WITHDRAWN**, and reopening now has two paths,
+neither of them owner-gated:
+
+- MECHANICALLY, by [ADR-0335](0335-arc-lifecycle-is-derived-from-increment-state-min-one-increm.md):
+  every increment write recomputes `lifecycle` from the increment log, so a closed arc — whether
+  closed by this verb or auto-closed — reopens the instant new forward-looking work is parked on it
+  (`arc increment new`), with no owner call.
+- EXPLICITLY, by [ADR-0337](0337-an-agent-may-reopen-a-closed-arc-arc-reopen-records-why-then.md):
+  `storytree arc reopen <id> --reason <text|@file> --pg`, this verb's mirror, for the case the
+  mechanical rule cannot express — a closure that was WRONG, where there is no new work to park and
+  the reason is the point. Any caller may run it.
+
+The reservation was never given a mechanism — no verb, no flag, no owner path — so it did not make
+the transition owner-only, it made it reachable by *nobody*, and it stranded ADR-0334's reopening of
 `parallel-session-dispatch-arc` with the arc doc unable to follow its own accepted ADR. What this
-paragraph got right and ADR-0337 keeps is the rule above it: the flip is a projection of prose that
-supports it, so `--reason` is required in the opening direction exactly as `--outcome` is in the
-closing one, and a bare `--set lifecycle=…` stays refused in both.
+paragraph got right, and what both successors keep, is the rule above it: the flip is a projection of
+prose that supports it, so `--reason` is required in the opening direction exactly as `--outcome` is
+in the closing one, and a bare `--set lifecycle=…` stays refused in both.
 
 ### D3 — `arc list` filters by default
 

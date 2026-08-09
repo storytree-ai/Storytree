@@ -28,15 +28,25 @@
  * `real.proofCommand` — the guard's precondition is the shape, and a declared command can satisfy it
  * just as well.
  *
- * What stays exit-code-only is what genuinely CANNOT be measured, and the line is measured rather than
- * assumed (Node 24, 2026-08-09): a SUITE, because node:test isolates each file in a child process and
- * the runner PARENT overwrites this report LAST with its own count of zero (so an accounted suite would
- * false-RED every green); and a FOREIGN RUNNER (vitest, jest), whose assertions go through APIs this
- * guard does not count. Those routes carry the classifier's own disclosure onto the verdict instead.
+ * What stays exit-code-only is what genuinely CANNOT be measured: a FOREIGN RUNNER (vitest, jest),
+ * whose assertions go through APIs this guard does not count, and a package-manager suite this
+ * classifier could not PROVE is node:test-shaped. Those routes carry the classifier's own disclosure
+ * onto the verdict instead.
+ *
+ * A WHOLE-SUITE node:test run (direct or via a package script) is no longer in that unmeasurable set
+ * (`custom-proof-command-red-accounting` residual, `parallel-red-green-arc`). It WAS: node:test
+ * isolates each file in a child process, and the runner PARENT outlives every child, so a single
+ * shared report file used to be overwritten LAST with the parent's own count of zero (measured, Node
+ * 24, 2026-08-09) — an accounted suite would false-RED every green. The fix is not to skip suites; it
+ * is that {@link assertOracleGuardUrl}'s guard writes a PER-PROCESS report (one file per pid, parent
+ * and every child), and every function in this module that reads or resets "the report" now reads or
+ * resets ALL of a build's report files and sums the counts. The parent's honest zero and each child's
+ * honest count compose into the suite's real total, instead of the parent's zero winning a last-write
+ * race.
  */
 
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -93,57 +103,80 @@ export function allocateOracleReportPath(runId: string, unitId: string): string 
 }
 
 /**
- * CLEAR the report before an observation the spine intends to TRUST — the freshness half of the
- * protocol (ADR-0249).
+ * List every report file BELONGING to `reportPath` — the exact path itself (kept for tests/callers
+ * that write there directly) plus every PER-PROCESS file the guard writes (`${reportPath}.<pid>`, see
+ * `assert-oracle-guard.mjs`'s header). A directory listing filtered by name prefix, not a glob lib:
+ * `allocateOracleReportPath`'s basename already carries a random token, so a prefix match cannot
+ * collide with an unrelated report. Never throws — an unreadable directory is "no files".
+ */
+function reportFileCandidates(reportPath: string): string[] {
+  const dir = path.dirname(reportPath);
+  const base = path.basename(reportPath);
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((name) => name === base || name.startsWith(`${base}.`))
+    .map((name) => path.join(dir, name));
+}
+
+/**
+ * CLEAR every report file belonging to `reportPath` before an observation the spine intends to TRUST
+ * — the freshness half of the protocol (ADR-0249), now over the whole per-process SET rather than one
+ * file (`custom-proof-command-red-accounting` residual: a suite's guard writes one file per process).
  *
- * Why it is load-bearing: {@link allocateOracleReportPath} hands back ONE path per build, and the
- * resolver closes over it for CONFIRM_RED, every leaf feedback run, and CONFIRM_GREEN. The report
- * body carries no identity, so the spine cannot tell WHICH observation wrote the count it is reading.
+ * Why it is load-bearing: {@link allocateOracleReportPath} hands back ONE base path per build, and the
+ * resolver closes over it for CONFIRM_RED, every leaf feedback run, and CONFIRM_GREEN. A report body
+ * carries no identity, so the spine cannot tell WHICH observation wrote the count(s) it is reading.
  * The protocol leaned on "the guard truncates on every run" — but the guard's `process.on("exit")` hook
  * only truncates if it RUNS, and IMPLEMENT-phase source can simply
  * `process.removeAllListeners("exit")` before `process.exit(0)`. Then nothing truncates, CONFIRM_GREEN
  * exits 0, and the spine reads the PREVIOUS observation's positive count and greens a proof that
  * executed zero assertions — a layer designed to fail closed failing OPEN.
  *
- * Deleting the report first makes the count trustworthy BY CONSTRUCTION: after a successful reset the
- * only way a report can exist is that the guard wrote it DURING this observation. "The guard did not
- * write" then collapses to "no report", which is what {@link verifyOracleExercised} already refuses —
- * so the guard's own best-effort-write comment becomes true rather than aspirational.
+ * Deleting every candidate first makes the aggregate count trustworthy BY CONSTRUCTION: after a
+ * successful reset the only way any report file can exist is that a guard-loaded process wrote it
+ * DURING this observation. "No process wrote" then collapses to "no reports", which is what
+ * {@link verifyOracleExercised} already refuses — so the guard's own best-effort-write comment becomes
+ * true rather than aspirational.
  *
- * FAIL-CLOSED, including its own failure: a report that SURVIVES the reset attempt is a refusal, never
- * a shrug. An uncleared report is precisely the stale read this exists to prevent, so swallowing the
- * unlink error would reintroduce the hole it closes. A missing report is the normal
- * first-observation case and succeeds silently.
+ * FAIL-CLOSED, including its own failure: any file that SURVIVES the reset attempt is a refusal, never
+ * a shrug. An uncleared report is precisely the stale read this exists to prevent, so swallowing an
+ * unlink error would reintroduce the hole it closes. No matching files is the normal first-observation
+ * case and succeeds silently.
  */
 export function resetOracleReport(
   reportPath: string,
 ): { ok: true } | { ok: false; reason: string } {
-  try {
-    rmSync(reportPath, { force: true });
-  } catch {
-    // Swallowed HERE only because the existence check below is the real verdict — see it fail closed.
+  for (const file of reportFileCandidates(reportPath)) {
+    try {
+      rmSync(file, { force: true });
+    } catch {
+      // Swallowed HERE only because the survivor check below is the real verdict — see it fail closed.
+    }
   }
-  if (existsSync(reportPath)) {
+  const survivors = reportFileCandidates(reportPath);
+  if (survivors.length > 0) {
     return {
       ok: false,
       reason:
-        `oracle accounting: the previous assertion report at ${reportPath} could not be cleared before ` +
-        `this observation, so a count read back from it cannot be attributed to this run — refusing ` +
-        `the observation fail-closed rather than trusting a possibly stale report`,
+        `oracle accounting: ${survivors.length} previous assertion report file(s) at ${reportPath}.* ` +
+        `could not be cleared before this observation, so a count read back from them cannot be ` +
+        `attributed to this run — refusing the observation fail-closed rather than trusting possibly ` +
+        `stale reports`,
     };
   }
   return { ok: true };
 }
 
-/**
- * Fail-closed read of the assertion count from a guard report. Returns the finite count, or `null`
- * when the file is missing, unreadable, malformed, or does not carry a numeric `assertions` — every
- * "cannot trust this" case collapses to `null`, which the caller treats as "the oracle did not run".
- */
-export function readAssertionCount(reportPath: string): number | null {
+/** Parse ONE report file's assertion count. `null` on any "cannot trust this" case — see below. */
+function readSingleReport(file: string): number | null {
   let raw: string;
   try {
-    raw = readFileSync(reportPath, "utf8");
+    raw = readFileSync(file, "utf8");
   } catch {
     return null;
   }
@@ -161,6 +194,30 @@ export function readAssertionCount(reportPath: string): number | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Fail-closed AGGREGATE read of the assertion count across every report file belonging to
+ * `reportPath` (`custom-proof-command-red-accounting` residual — a suite's guard writes one file per
+ * process, parent plus every node:test worker it forked; this sums them into the suite's real total).
+ * Returns the summed count, or `null` when NO file exists, or when every file that exists is
+ * unreadable/malformed/non-numeric — every "cannot trust this" case collapses to `null`, which the
+ * caller treats as "the oracle did not run". A malformed file found ALONGSIDE at least one valid one
+ * is excluded from the sum rather than invalidating it (fail-closed in the direction that matters: it
+ * can only ever UNDERCOUNT, never manufacture assertions that were not measured).
+ */
+export function readAssertionCount(reportPath: string): number | null {
+  const files = reportFileCandidates(reportPath);
+  let total = 0;
+  let sawValid = false;
+  for (const file of files) {
+    const count = readSingleReport(file);
+    if (count !== null) {
+      total += count;
+      sawValid = true;
+    }
+  }
+  return sawValid ? total : null;
 }
 
 /**

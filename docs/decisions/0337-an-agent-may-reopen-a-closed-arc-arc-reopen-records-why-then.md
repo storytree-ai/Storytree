@@ -1,7 +1,7 @@
 ---
 status: accepted
 decided: 2026-08-09
-amends: [239]
+amends: [239, 335]
 arc: arcs-hold-increments-arc
 ---
 # ADR-0337: An agent may reopen a closed arc: arc reopen records why, then flips the bit
@@ -19,6 +19,19 @@ studio-UI-only control, or documenting a manual DB write) and the owner directed
 the transition is given the verb it never had. D2's first paragraph — a lifecycle bit is a projection
 of prose that supports it, never a free flip — is untouched and is extended to the opening direction.
 D1, D3, D4 and D5 are untouched.
+
+**Amends** [ADR-0335](0335-arc-lifecycle-is-derived-from-increment-state-min-one-increm.md) — its D3
+ends *"Re-opening a CLOSED-BY-`arc close` arc still has no bare verb"*; this ADR adds one, and D3 is
+corrected in place accordingly. **Nothing else in ADR-0335 changes**: lifecycle stays derived from
+increment state, the recompute still runs after every increment write, parking work is still the
+ordinary way an arc reopens, and the zero-increment birth invariant is untouched.
+
+**The two ADRs were decided the same day, in parallel sessions, neither aware of the other** — this
+one from a fork raised by ADR-0334's stranded lifecycle bit, ADR-0335 from an owner review of the
+studio's arc surface. ADR-0335 landed first (PR #1254). The overlap was caught before this ADR's PR
+merged and put back to the owner with the option of dropping this verb as redundant; the owner chose
+to keep both. That resolution is recorded here rather than in a third ADR because no new decision was
+needed — only a choice between two already-directed ones.
 
 ## Context
 
@@ -73,6 +86,14 @@ transition gets a first-class verb.
 The mirror image of `arc close`: it records an increment stating why the arc is open again, then sets
 `lifecycle: active`. `--reason` is **required**, exactly as `--outcome` is on close.
 
+**It is the SECOND reopen path, not the only one, and the division of labour is by REASON.** ADR-0335
+made lifecycle derived: parking forward-looking work (`arc increment new`) reopens a closed arc
+mechanically, and that is the ordinary case — *there is more to do*. This verb is for the case that
+rule cannot express — *the closure was WRONG* — where there is no new work to park and the stated
+reason is the entire content of the write. Inventing a placeholder increment to move a bit would put
+fictional work on the log, which is exactly what ADR-0305 D3's durability makes permanent. Both
+refusal messages and `arc --help` state the fork this way, so the choice is made at the point of use.
+
 ### D2 — What survives the amendment is the discipline, not the gate
 
 ADR-0239 D2's load-bearing half — *the state is a projection of the prose that supports it, never a
@@ -95,7 +116,7 @@ than refuted — a real identity gate is blocked on the same unsolved OIDC crede
 `remote-session-access-arc` carries (ADR-0254 D4 retired `storytree-remote-dev`), and a
 studio-UI-only control would leave the CLI, where the work happens, with no path.
 
-### D4 — Increment-first, for the same reason `arc close` is
+### D4 — Increment-first, for the same reason `arc close` is — and now for a second reason too
 
 ADR-0305 D1 made the increment its own row, so no transaction spans the two writes (ADR-0239 D2's
 "SINGLE atomic write" already did not survive that fold). `arcReopen` orders them increment-then-flip.
@@ -103,13 +124,36 @@ Interrupted, that leaves a still-**closed** arc carrying a reopening increment: 
 and fixed by re-running the verb. Flipping first would leave an arc reading `active` with nothing
 saying why — the same lie in the other direction, and the one the ordering exists to prevent.
 
+**Since ADR-0335 the ordering is also what makes the verb work at all.** The increment write runs
+`recomputeArcLifecycle`, and the row this verb creates is born `closed`, so on an arc with no other
+forward-looking increment the recompute computes `closed` — precisely the arcs this verb exists for.
+The explicit flip is applied **after** it and therefore wins. Reversed, `arc reopen` would be a silent
+no-op on its own use case. This is pinned by test rather than left to comment.
+
+**And the override may later be overtaken by the rule — accepted, in both directions.** A reopened arc
+with no forward-looking increment will close again at the next increment write, just as an arc
+force-closed by `arc close` past open increments reopens at the next one. ADR-0335 already accepted
+that bargain for `arc close`; this ADR takes the same one rather than inventing an exemption. An
+explicit override states an intent at a moment in time; the derived rule keeps the bit honest
+afterwards. If that proves wrong in practice it is wrong for BOTH verbs, and the fix belongs to the
+derived rule, not to a special case here.
+
 ## Consequences
 
 **The lifecycle bit is a bit again, not a one-way latch.** `lifecycleOf`'s `arc` branch
 (`packages/library/src/lifecycle.ts`) reads a field that can now move both ways, so the projection
 and the CLI can no longer disagree with an accepted ADR the way they did on 2026-08-09. ADR-0334's
 recorded gap is discharged, and `parallel-session-dispatch-arc` is flipped back to `active` as this
-ADR's first use.
+ADR's first use — where it is also STABLE under ADR-0335's rule, since it carries a forward-looking
+increment (`measure-lane-width-after-brief`, `proposal`), so the recompute agrees with the override.
+
+**Two reopen paths is one more concept than one, and that is the cost being paid.** A reader must now
+know which to reach for. The mitigation is that the fork is stated where the choice is made — both
+refusals and `arc --help` name both routes and the question that picks between them ("more work" vs
+"the closure was wrong") — rather than in prose someone has to have read beforehand. The alternative
+considered and rejected was making `arc reopen` park a forward-looking increment, collapsing it into
+ADR-0335's single mechanism: that removes the second concept but writes fictional work onto a
+permanent log to move a state bit, and ADR-0305 D3 means nothing later prunes it.
 
 **A governance guarantee is given up — knowingly, and it was never real.** Anyone can now reopen any
 arc. What that gives up is the *idea* that a human ratified every reopening; what it costs in
@@ -138,6 +182,9 @@ what the author typed, which is stated here rather than left to be discovered.
 
 - ADR-0239 — amended here: D2's owner-only reservation is withdrawn; its projection-of-prose rule is
   kept and extended to the opening direction. D1/D3/D4/D5 untouched.
+- ADR-0335 — amended here: D3's "still has no bare verb" is corrected in place. Its derived-lifecycle
+  rule, its recompute-after-every-increment-write, and its birth invariant all stand unchanged, and
+  its `arc close` override sets the precedent D4 relies on.
 - ADR-0334 — the failure that forced this: an accepted ADR reopened an arc the machinery could not.
 - ADR-0305 D1/D3 — the increment is its own durable row, which is why the ordering (D4) replaces the
   atomicity and why the reopening entry is permanent.

@@ -370,18 +370,25 @@ kind owes a seed export any more.
   message (naming the bad field + the editable ones), not the opaque `.strict()` union dump.
 - **Writing an arc? Use the first-class verbs — never hand-authored doc JSON or a `PgLibraryStore`
   one-shot** (the old fragile paths). The whole lifecycle has a verb, creation included:
-  `pnpm storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file> --pg`
-  SCAFFOLDS one (the `adr new` precedent) — supply those three fields and nothing else; the CLI stamps
-  `kind`/`id`/`description`/`lifecycle`/timestamps, so **don't read `KIND_SPECS` to hand-write the doc
-  JSON and don't file it through `library artifact new --file`**. The id derives from the title (with
-  the house `-arc` suffix) unless you pass one; `--description` overrides the one-liner derived from the
-  intent. Then `arc edit <id> [--intent] [--end-state] --pg` patches the narrative, `arc increment add
-  <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` APPENDS one landing to the
-  increment log (ADR-0183 D1 — the merge-ceremony residue), and `arc close` writes the terminal one.
-  **`arc reopen <id> --reason <text|@file> --pg` is the way back (ADR-0337)** — any caller may run it;
-  ADR-0239 D2's owner-only reservation is withdrawn, since it was never given a verb and so left the
-  transition reachable by nobody. `--reason` is required for the same reason `--outcome` is on close.
-  All go through the validated write path; long prose comes from `@path` so newlines survive.
+  `pnpm storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file>
+  --objective <text|@file> --body <text|@file> --pg` SCAFFOLDS one (the `adr new` precedent) AND its
+  first increment (ADR-0335 — an arc is never born with zero: `--objective`/`--body` are the same two
+  fields `arc increment new` asks for, bundled here); the CLI stamps `kind`/`id`/`description`/
+  `lifecycle`/timestamps, so **don't read `KIND_SPECS` to hand-write the doc JSON and don't file it
+  through `library artifact new --file`**. The id derives from the title (with the house `-arc`
+  suffix) unless you pass one; `--description` overrides the one-liner derived from the intent. Then
+  `arc edit <id> [--intent] [--end-state] --pg` patches the narrative, `arc increment add <id>
+  --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` APPENDS one landing to the increment
+  log (ADR-0183 D1 — the merge-ceremony residue), and `arc close` writes the terminal one AND forces
+  the lifecycle flip explicitly. **Lifecycle is otherwise MECHANICAL, not curated (ADR-0335):** every
+  increment write recomputes it from the increment log itself — an arc auto-closes the moment its last
+  open increment closes, and auto-reopens the moment new forward-looking work is parked on it
+  (`arc increment new`), so a fully-drained arc never lingers reading as "active" waiting for someone
+  to remember `arc close`. **`arc reopen <id> --reason <text|@file> --pg` is `close`'s explicit mirror
+  (ADR-0337)** — any caller may run it, and it is for the case the mechanical rule cannot express: a
+  closure that was WRONG, where there is no new work to park and the REASON is the point. If you
+  simply have more work, park it and the arc reopens itself. All writes go through the validated
+  write path; long prose comes from `@path` so newlines survive.
 - **Hosted studio (ADR-0042):** the members deployment — Cloud Run `storytree-studio`
   (australia-southeast1) behind **direct IAP** (no LB, no domain), serving
   `apps/studio/server/serve.ts`: members read + comment (author stamped from the IAP identity,

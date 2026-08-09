@@ -74,6 +74,8 @@ async function newArc(s: InMemoryStore, id: string) {
       "--title", `Arc ${id}`,
       "--intent", "collapse the three export ceremonies into one command",
       "--end-state", "one `library sync` verb, and the three zero ceilings answer to it",
+      "--objective", "land the first slice",
+      "--body", "what the first increment of this arc does",
       "--pg",
     ],
     { store: s, writable: true },

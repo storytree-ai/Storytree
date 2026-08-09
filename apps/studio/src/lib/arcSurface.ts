@@ -80,8 +80,9 @@ export function laneCounts(rollup: ArcRollup): LaneCounts {
 // ---------- D4: the states, and the one this surface refuses to invent ----------
 
 /**
- * The states the surface KNOWS (ADR-0267 D7, defined by ADR-0314 D4). All four are named here
- * because the vocabulary is decided; only three are ever COMPUTED — see {@link arcState}.
+ * The states the surface KNOWS (ADR-0267 D7, defined by ADR-0314 D4; `closed` added by ADR-0335).
+ * All five are named here because the vocabulary is decided; only four are ever COMPUTED — see
+ * {@link arcState}.
  *
  * - `waiting`  — an authored open question is sitting on this arc. Answerable right now, from the
  *                briefing panel, without a re-onboarding round trip.
@@ -89,8 +90,12 @@ export function laneCounts(rollup: ArcRollup): LaneCounts {
  * - `running`  — moving.
  * - `quiet`    — moving slowly, nobody stuck (ADR-0314 D4's re-definition, load-bearing now that
  *                B3 "gone quiet" was rejected as a `blocked` predicate).
+ * - `closed`   — `lifecycle: closed` (ADR-0335: mechanical, derived from the increment log — never
+ *                a curated flag a session must remember to flip). Distinct from `quiet`: a quiet arc
+ *                is still active and may resume any time on its own; a closed one reopens only when
+ *                new forward-looking work is parked on it.
  */
-export type ArcSurfaceState = 'waiting' | 'blocked' | 'running' | 'quiet';
+export type ArcSurfaceState = 'waiting' | 'blocked' | 'running' | 'quiet' | 'closed';
 
 /** The states {@link arcState} may actually return. `blocked` is NOT among them — by decision. */
 export type DerivableArcState = Exclude<ArcSurfaceState, 'blocked'>;
@@ -158,14 +163,17 @@ export function lastActivityAt(rollup: ArcRollup): number | null {
 }
 
 /**
- * One arc's state (ADR-0314 D4). `waiting` wins over everything: an arc the owner can unblock by
- * reading and replying is the one thing this surface exists to surface, so it never hides behind a
- * recency judgement.
+ * One arc's state (ADR-0314 D4, `closed` added by ADR-0335). `closed` wins over everything else —
+ * a fully-drained arc reads as closed even if it happens to carry a stray unanswered question, since
+ * `waiting` promises "answerable right now, in flight" and a closed arc is not in flight. Short of
+ * that, `waiting` wins: an arc the owner can unblock by reading and replying is the one thing this
+ * surface exists to surface, so it never hides behind a recency judgement.
  *
  * Never returns `blocked` — see {@link BLOCKED_IS_DERIVABLE}. The return type says so, so a future
  * session cannot add it here without deliberately widening the signature.
  */
 export function arcState(rollup: ArcRollup, now: Date): DerivableArcState {
+  if (rollup.lifecycle === 'closed') return 'closed';
   if (rollup.questions.length > 0) return 'waiting';
   const last = lastActivityAt(rollup);
   if (last === null) return 'quiet';
@@ -188,23 +196,38 @@ const STATE_RANK: Readonly<Record<DerivableArcState, number>> = {
   waiting: 0,
   running: 1,
   quiet: 2,
+  closed: 3,
 };
 
 /**
- * Every ACTIVE arc as a lane, waiting arcs first, then running, then quiet; within a state the
- * most recently active first, ties broken by id so the order is total and a render is stable
- * between polls.
+ * Which arcs {@link arcLanes} draws — the CLI's `ArcScope` naming (`packages/cli/src/arc.ts`),
+ * reused here as a plain string union rather than an import: the studio must not depend on `cli`.
+ * `active` is the default and matches ADR-0239 D3 / ADR-0335's own worklist framing.
+ */
+export type ArcLaneScope = 'active' | 'closed' | 'all';
+
+/**
+ * Every arc in `scope` as a lane, waiting arcs first, then running, then quiet, then closed; within
+ * a state the most recently active first, ties broken by id so the order is total and a render is
+ * stable between polls.
  *
- * Closed arcs are dropped (ADR-0239 D3's active-only default): the surface answers "where is this
- * initiative up to", and 27 finished initiatives above the 20 live ones would bury the answer. They
- * stay one click away in the Library.
+ * `scope` defaults to `active` (ADR-0239 D3's worklist framing): the surface answers "where is this
+ * initiative up to", and a pile of finished initiatives above the live ones would bury the answer.
+ * Closed arcs are NOT hidden, only DEFAULT-excluded — ADR-0335 added the `closed`/`all` scopes after
+ * the CLI already had `--closed`/`--all` but the studio surface had no equivalent, so "one click away
+ * in the Library" was a promise the map itself did not keep (this doc used to say that; ADR-0335
+ * corrected it in place rather than superseding, since the DECISION — active-by-default — never
+ * changed, only the surface's ability to widen it).
  *
  * Waiting-first is the D3 posture expressed as an ordering: the panel is "where the owner acts", so
  * the arcs that have something for them to act on sit at the top of the list they scan.
  */
-export function arcLanes(arcs: readonly ArcRollup[], now: Date): ArcLane[] {
+export function arcLanes(arcs: readonly ArcRollup[], now: Date, scope: ArcLaneScope = 'active'): ArcLane[] {
   return arcs
-    .filter((arc) => arc.lifecycle === 'active')
+    .filter((arc) => {
+      if (scope === 'all') return true;
+      return (arc.lifecycle === 'closed') === (scope === 'closed');
+    })
     .map((arc) => ({
       arc,
       bars: laneBars(arc),
