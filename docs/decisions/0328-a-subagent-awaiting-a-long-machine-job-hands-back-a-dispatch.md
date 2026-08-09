@@ -175,11 +175,48 @@ Library unread by every spawned seat. `asset:an-awaited-notification-is-not-a-tu
 wired to `guidance-curator` (which hit the ceiling for real on #1223, and is the seat in
 `friction-subagent-parks-awaiting-dead-subspawn`), `frontend-builder` (the only seat that drives a
 long machine job, and the seat in `friction-builder-agents-stall-awaiting-background-gate`), and
-`graduation-synthesist` (the 2026-07-13 stall). `asset:mechanical-waiting-never-pays-context-rent` is
-wired to `guidance-curator` and `frontend-builder` — the two that actually run or await machine work —
-and NOT to `graduation-synthesist`, which does not. Wiring follows named evidence per
-`asset:least-authority-tool-grants`; a seat that later shows the failure earns the rule then, and
-seats fenced away from the gate entirely do not get it on speculation.
+`graduation-synthesist` (the 2026-07-13 stall).
+
+**WIDENED 2026-08-09 at the owner's direction, corrected in place (ADR-0139).** This clause first
+wired on NAMED EVIDENCE only (`asset:least-authority-tool-grants`), holding the rules back from seats
+with a predicted rather than observed need. The owner overruled that on two grounds: the orchestrator's
+waiting is observed constantly, and current models can be trusted to judge when the move applies.
+**Both rules are therefore wired to every seat that can dispatch a long machine job OR spawn a child
+whose report it must not sit on** — adding `glue-worker`, `story-author`, `planner`, and completing
+`graduation-synthesist`'s pair, alongside the original `guidance-curator` / `frontend-builder`.
+`librarian-curator` takes `an-awaited-notification-is-not-a-turn-ending-state` ONLY: it spawns
+children (so the stall applies to it), but its own checks run in seconds, so the machine-waiting rule
+would be preamble it never acts on.
+
+**A SECOND, GATE-ENFORCED BUDGET was discovered by breaching it, and it is the one that actually
+binds this decision.** ADR-0330 D1's 96 KiB ceiling covers the eagerly-loaded `CLAUDE.md` +
+`MEMORY.md` surface and is untouched by any wiring — measured on this landing, `CLAUDE.md` did not
+change by a byte. But a per-agent **6000-token essentials budget** (ADR-0156 §5 / ADR-0161) is
+enforced by `check:agents`, and the first attempt at this widening went RED on it: `librarian-curator`
+rendered at ~6005. That red was correct and useful, and two things came out of it. First, the
+`an-awaited-notification` STATEMENT was over-written — 1,508 bytes narrating a mechanism that belongs
+in `why` / `howToApply`, which stay pull-based; tightened to 1,202, which is ~76 tokens returned to
+every seat carrying it and a better rule by `asset:state-the-principle-not-the-mechanics`. Second,
+`librarian-curator` is genuinely OVER-SUBSCRIBED at 13 rules and was near the ceiling before this
+change touched it; it now renders 5,788 with ~212 tokens of headroom, and the next seat-level addition
+there should triage its rule list rather than assume room. Recorded because the ceiling is invisible
+until it reds: a `rules` entry is not free, it is just billed to a different budget than the preamble.
+
+Three seats are deliberately still WITHOUT it, and this is the live judgement rather than a leftover:
+`explorer`, `corpus-investigator` and `friction-analyst` are read-only leaves that dispatch no machine
+job and spawn no children, so the rules would be preamble they can never act on — and `explorer` is
+the cheap disposable sweep leaf (ADR-0325) spawned several times a session, where per-spawn preamble
+is exactly the cost this arc exists to reduce. If one of them is ever seen stalling, it earns the
+rules then.
+
+**The wiring costs NOTHING against ADR-0330 D1's 96 KiB budget, which is why the widening was cheap.**
+That ceiling covers the eagerly-loaded `CLAUDE.md` + `MEMORY.md` surface every session pays on its
+FIRST turn; an agent's `rules` list is paid only by that agent, only when it is spawned. Measured on
+this landing: `CLAUDE.md` did not change by a byte and the budgeted surface stayed at 90,077 of 98,304
+bytes. The same asymmetry is why the `dispatch` VERB is free: a CLI area is discovered at use time and
+enters no eagerly-loaded surface at all — `storytree dispatch` appears zero times in `CLAUDE.md`,
+`AGENTS.md` and `definitions.generated.json`. Pull-based context is not a slogan here; it is the
+reason a capability can ship without a recurring tax.
 
 ## Consequences
 
