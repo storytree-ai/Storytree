@@ -14,6 +14,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import {
+  FANOUT_MIN_SPAWNS,
   GUIDANCE_BUDGET_BYTES,
   GUIDANCE_CHARS_PER_TOKEN,
   MODEL_PRICES,
@@ -32,8 +33,11 @@ import {
   renderSessionCost,
   resolveTier,
   sessionCostCommand,
+  SPAWN_TOOLS,
   sessionCostHelp,
   slugifyRepoPath,
+  spawnOverlap,
+  spawnsDispatched,
   type SessionCostReport,
 } from "./session-cost.js";
 
@@ -776,6 +780,274 @@ test("reports ADOPTION — sessions that spawned a type, not just the spawn coun
   assert.equal(byId.get("sess-poll")!.subagentSpawns, 1);
   assert.equal(byId.get("sess-quiet")!.subagentSpawns, 0);
   assert.match(renderSessionCost(report), /ADOPTION: 1 of 2 session\(s\)/);
+});
+
+// ---------------------------------------------------------------------------
+// Spawn overlap — is the delegation ALREADY concurrent?
+// ---------------------------------------------------------------------------
+
+/**
+ * The fourth fixture project. `sess-serial` runs three delegates strictly one after another,
+ * `sess-parallel` runs two that overlap plus a single-turn POINT, and `sess-solo` delegates nothing.
+ * Between them they carry every shape the ceiling arithmetic has to get right.
+ */
+const FANOUT_PROJECT = "C--code-fanout";
+
+function fanout(over: Partial<Parameters<typeof collectSessionCost>[0]> = {}): SessionCostReport {
+  return collectSessionCost({
+    root: FIXTURE_ROOT,
+    projectPrefix: FANOUT_PROJECT,
+    limit: 10,
+    minTurns: 2,
+    activeWithinMinutes: 10,
+    nowMs: NOW_MS,
+    ...over,
+  });
+}
+
+const MIN = 60_000;
+
+test("spawnOverlap: strictly sequential delegates are SERIAL — union equals the sum", () => {
+  const stats = spawnOverlap([
+    { agentType: "explorer", startMs: 0, endMs: 10 * MIN },
+    { agentType: "explorer", startMs: 12 * MIN, endMs: 17 * MIN },
+  ]);
+  assert.equal(stats.serialMs, 15 * MIN);
+  assert.equal(stats.unionMs, 15 * MIN, "no shared instant, so the union is the sum");
+  assert.equal(stats.criticalPathMs, 10 * MIN, "the slowest single chain");
+  assert.equal(stats.maxConcurrency, 1);
+  assert.equal(stats.overlappingSpawns, 0);
+});
+
+test("spawnOverlap: overlapping delegates shrink the union below the sum", () => {
+  const stats = spawnOverlap([
+    { agentType: "explorer", startMs: 0, endMs: 10 * MIN },
+    { agentType: "explorer", startMs: 1 * MIN, endMs: 7 * MIN },
+  ]);
+  assert.equal(stats.serialMs, 16 * MIN);
+  assert.equal(stats.unionMs, 10 * MIN, "the second ran entirely inside the first");
+  assert.equal(stats.maxConcurrency, 2);
+  assert.equal(stats.overlappingSpawns, 2, "both members of an overlapping pair count");
+});
+
+test("spawnOverlap: intervals that merely TOUCH are serial, never concurrent", () => {
+  // The knife edge decides the headline verdict, so it is pinned rather than left to rounding: a
+  // delegate that starts at the instant the previous one ended was dispatched after reading it.
+  const stats = spawnOverlap([
+    { agentType: "explorer", startMs: 0, endMs: 10 * MIN },
+    { agentType: "explorer", startMs: 10 * MIN, endMs: 20 * MIN },
+  ]);
+  assert.equal(stats.unionMs, 20 * MIN);
+  assert.equal(stats.maxConcurrency, 1);
+  assert.equal(stats.overlappingSpawns, 0);
+});
+
+test("spawnOverlap: a single-turn POINT is counted and named, never read as concurrency", () => {
+  // A one-turn delegate's measured interval has zero length, so it can only bias the window toward
+  // "serial". Reporting the count is what stops a serial verdict from being an instrument artifact.
+  const stats = spawnOverlap([
+    { agentType: "explorer", startMs: 0, endMs: 10 * MIN },
+    { agentType: "explorer", startMs: 5 * MIN, endMs: 5 * MIN },
+  ]);
+  assert.equal(stats.spawns, 2);
+  assert.equal(stats.pointSpawns, 1);
+  assert.equal(stats.overlappingSpawns, 0, "zero shared LENGTH is not overlap");
+  assert.equal(stats.maxConcurrency, 1);
+  assert.equal(stats.unionMs, 10 * MIN, "a point extends nothing");
+});
+
+test("spawnOverlap: an empty set is zero, and a lone spawn is fully incompressible", () => {
+  assert.equal(spawnOverlap([]).spawns, 0);
+  const solo = spawnOverlap([{ agentType: "explorer", startMs: 0, endMs: 9 * MIN }]);
+  assert.equal(solo.unionMs, 9 * MIN);
+  assert.equal(
+    solo.unionMs - solo.criticalPathMs,
+    0,
+    "one delegate IS the critical path — there is nothing for a batcher to remove",
+  );
+});
+
+test("measures spawn intervals off the subagents' OWN timestamps, per session", () => {
+  const byId = new Map(fanout().sessions.map((s) => [s.sessionId, s]));
+
+  const serial = byId.get("sess-serial")!;
+  assert.equal(serial.subagentSpawns, 3);
+  assert.equal(serial.overlap.maxConcurrency, 1, "spawn, wait, read the digest, spawn again");
+  assert.equal(serial.overlap.serialMs, 24.5 * MIN);
+  assert.equal(serial.overlap.unionMs, 24.5 * MIN);
+  assert.equal(serial.overlap.criticalPathMs, 10 * MIN);
+  assert.equal(serial.wallMs, 28 * MIN);
+
+  const parallel = byId.get("sess-parallel")!;
+  assert.equal(parallel.subagentSpawns, 3);
+  assert.equal(parallel.overlap.maxConcurrency, 2, "two delegates live at one instant");
+  assert.equal(parallel.overlap.pointSpawns, 1);
+  assert.equal(parallel.overlap.unionMs, 10 * MIN, "16m of delegate time inside 10m of wall clock");
+  assert.equal(parallel.overlap.criticalPathMs, 10 * MIN);
+});
+
+test("the CEILING is union minus critical path, summed PER SESSION", () => {
+  // Summed per session because delegates in different sessions run on different clocks and can
+  // never be batched with each other — a global union would invent a fan-out nobody could build.
+  const ov = fanout().overlap;
+  assert.equal(ov.spawns, 6);
+  assert.equal(ov.pointSpawns, 1);
+  assert.equal(ov.serialMs, 40.5 * MIN, "24.5m serial + 16m parallel");
+  assert.equal(ov.unionMs, 34.5 * MIN, "24.5m + 10m — the parallel session's 16m fits in 10m");
+  assert.equal(ov.criticalPathMs, 20 * MIN, "10m + 10m, each session's own slowest chain");
+  assert.equal(
+    ov.compressibleMs,
+    14.5 * MIN,
+    "only the serial session has anything to compress; the parallel one is already at its floor",
+  );
+});
+
+test("an already-concurrent session contributes ZERO to the ceiling", () => {
+  // The negative result has to be reachable, or the instrument can only ever argue for building.
+  const only = collectSessionCost({
+    root: FIXTURE_ROOT,
+    projectPrefix: `${FANOUT_PROJECT}/sess-parallel`,
+    limit: 10,
+    minTurns: 2,
+    activeWithinMinutes: 10,
+    nowMs: NOW_MS,
+  });
+  // The prefix match is on the project DIRECTORY, so narrow by hand instead.
+  assert.equal(only.sessions.length, 0);
+
+  const parallel = fanout().sessions.find((s) => s.sessionId === "sess-parallel")!;
+  assert.equal(parallel.overlap.unionMs - parallel.overlap.criticalPathMs, 0);
+});
+
+test("reports the ≥3-spawn population and the spawns-per-session distribution", () => {
+  const ov = fanout().overlap;
+  assert.equal(ov.sessionsMultiSpawn, 2, "sess-solo delegates nothing");
+  assert.equal(ov.sessionsFanoutCandidate, 2, "both delegating sessions cleared FANOUT_MIN_SPAWNS");
+  assert.equal(ov.sessionsWithOverlap, 1);
+  assert.equal(ov.maxConcurrency, 2);
+  assert.deepEqual(ov.histogram, [
+    { spawns: 0, sessions: 1 },
+    { spawns: 3, sessions: 2 },
+  ]);
+  assert.equal(FANOUT_MIN_SPAWNS, 3);
+});
+
+test("counts main-thread turns that ran WHILE a delegate was live — the thread was not blocked", () => {
+  // The other half of "would a batcher help": a main thread already working through a delegate's
+  // run has overlapped its own work with the delegation, with no engine involved.
+  const ov = fanout().overlap;
+  assert.equal(ov.mainTurnsDuringSpawns, 1, "sess-parallel's 11:06 turn sits inside D and E");
+  assert.equal(ov.sessionWallMs, 44 * MIN, "28m + 11m + 5m");
+});
+
+test("renders Amdahl COMPUTED — wall clock, best case, and the removable share", () => {
+  const rendered = renderSessionCost(fanout());
+  assert.match(rendered, /## SPAWN OVERLAP/);
+  // 44m wall, 14.5m compressible -> 29.5m best case, x1.492.
+  assert.match(rendered, /AMDAHL, computed: session wall clock 44\.0m → best case 29\.5m \(×1\.492, 33\.0% removable\)/);
+  assert.match(rendered, /NO batcher compresses this/);
+  assert.match(rendered, /sessions with 3\+ spawns/);
+});
+
+test("names WHICH sessions carry the ceiling, so one outlier cannot read as the factory", () => {
+  const rendered = renderSessionCost(fanout());
+  // Exactly one of the three sessions has anything to compress, and it holds all of it. A ceiling
+  // carried by one session is that session's shape — the confound this arc has hit twice.
+  assert.match(rendered, /CONCENTRATION: 1 of 3 session\(s\) carry any compressible interval at all; the largest holds 100\.0% of it\./);
+  assert.match(rendered, /sess-serial\s+14\.5m compressible\s+3 spawn\(s\)\s+peak ×1/);
+  assert.doesNotMatch(rendered, /sess-parallel\s+\S+ compressible/);
+});
+
+test("a window whose delegation is entirely concurrent reports a ZERO ceiling in words", () => {
+  // "Small" and "zero" are different findings and the second must be sayable, or the instrument can
+  // only ever argue for building something.
+  const onlyParallel = collectSessionCost({
+    root: FIXTURE_ROOT,
+    projectPrefix: FANOUT_PROJECT,
+    limit: 10,
+    minTurns: 2,
+    activeWithinMinutes: 10,
+    nowMs: NOW_MS,
+    startedAfter: "2026-08-09T10:00:00.000Z",
+  });
+  assert.deepEqual(
+    onlyParallel.sessions.map((s) => s.sessionId),
+    ["sess-parallel"],
+  );
+  assert.equal(onlyParallel.overlap.compressibleMs, 0);
+  assert.match(
+    renderSessionCost(onlyParallel),
+    /NO SESSION CARRIES ANY COMPRESSIBLE INTERVAL — the ceiling is zero, not small\./,
+  );
+});
+
+test("counts spawns per DISPATCH turn — the concurrency the harness gives away for free", () => {
+  // A turn emitting three spawn blocks has already collapsed three decision turns into one, which
+  // is precisely the saving a fan-out primitive would sell. Measuring it is what makes the residual
+  // prize a number instead of an intuition.
+  const dp = fanout().dispatch;
+  assert.equal(dp.calls, 6, "3 dispatched one at a time + 3 dispatched together");
+  assert.equal(dp.turns, 4, "three serial dispatch turns plus one batched turn");
+  assert.equal(dp.batchedTurns, 1);
+  assert.equal(dp.batchedCalls, 3);
+  assert.equal(dp.widest, 3);
+  assert.equal(dp.sessions, 2, "sess-solo dispatched nothing");
+});
+
+test("the legacy `Task` spawn name still counts, and `SendMessage` never does", () => {
+  // `SendMessage` continues an already-running delegate. Counting it would inflate the very number
+  // a fan-out primitive is meant to reduce.
+  assert.ok(SPAWN_TOOLS.has("Agent") && SPAWN_TOOLS.has("Task"));
+  assert.ok(!SPAWN_TOOLS.has("SendMessage"));
+  const [turn] = parseTranscript(
+    JSON.stringify({
+      type: "assistant",
+      requestId: "req_mix",
+      timestamp: "2026-08-09T12:00:00.000Z",
+      message: {
+        model: "claude-opus-5",
+        content: [
+          { type: "tool_use", id: "t1", name: "Agent", input: {} },
+          { type: "tool_use", id: "t2", name: "Task", input: {} },
+          { type: "tool_use", id: "t3", name: "SendMessage", input: {} },
+          { type: "tool_use", id: "t4", name: "Bash", input: { command: "ls" } },
+        ],
+        usage: { input_tokens: 0, cache_read_input_tokens: 1000, output_tokens: 10 },
+      },
+    }),
+  ).turns;
+  assert.equal(spawnsDispatched(turn!), 2);
+});
+
+test("prices the RESIDUAL decision turns — collapsing each session's dispatches to one", () => {
+  const report = fanout();
+  const rendered = renderSessionCost(report);
+  assert.match(rendered, /DISPATCH: 6 spawn call\(s\) arrived in 4 main-thread turn\(s\) across 2 session\(s\); 1 of those turn\(s\) carried 2\+ \(widest ×3\)/);
+  assert.match(rendered, /50\.0% of spawns were ALREADY batched/);
+  // 4 dispatch turns - 2 dispatching sessions = 2 removable turns, and no more.
+  assert.match(rendered, /RESIDUAL: collapsing every session's dispatches to ONE turn removes 2 turn\(s\)/);
+});
+
+test("accounts for spawns dispatched BY a delegate, so the two counts reconcile", () => {
+  // The gap between the spawn count and the main-thread dispatch count is delegates spawning
+  // delegates — measured on this machine, not supposed. Reporting it stops the difference reading
+  // as an instrument fault, and it matters: no MAIN-THREAD batcher could ever have reached them.
+  const report = fanout();
+  assert.equal(report.dispatch.subagentCalls, 1, "agent-a's last turn spawns a delegate of its own");
+  assert.equal(report.dispatch.calls, 6, "the main thread's own dispatches are unchanged by it");
+  assert.match(
+    renderSessionCost(report),
+    /A further 1 spawn\(s\) were dispatched BY a delegate, not by the main thread/,
+  );
+});
+
+test("a window with no delegation says so, rather than printing a zeroed ceiling", () => {
+  // A zeroed table reads as "measured, and the answer is no". It has to say it measured nothing.
+  const rendered = renderSessionCost(polling({ projectPrefix: "C--code-polling/nope" }));
+  assert.doesNotMatch(rendered, /AMDAHL/);
+  const empty = spawnOverlap([]);
+  assert.equal(empty.unionMs, 0);
+  assert.equal(empty.maxConcurrency, 0);
 });
 
 test("a type spawned twice by ONE session counts once toward adoption", () => {
