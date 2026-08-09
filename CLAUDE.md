@@ -383,8 +383,11 @@ kind owes a seed export any more.
   the lifecycle flip explicitly. **Lifecycle is otherwise MECHANICAL, not curated (ADR-0335):** every
   increment write recomputes it from the increment log itself — an arc auto-closes the moment its last
   open increment closes, and auto-reopens the moment new forward-looking work is parked on it
-  (`arc increment new`) — so there is no bare reopen verb, and a fully-drained arc never lingers
-  reading as "active" waiting for someone to remember `arc close`. All writes go through the validated
+  (`arc increment new`), so a fully-drained arc never lingers reading as "active" waiting for someone
+  to remember `arc close`. **`arc reopen <id> --reason <text|@file> --pg` is `close`'s explicit mirror
+  (ADR-0337)** — any caller may run it, and it is for the case the mechanical rule cannot express: a
+  closure that was WRONG, where there is no new work to park and the REASON is the point. If you
+  simply have more work, park it and the arc reopens itself. All writes go through the validated
   write path; long prose comes from `@path` so newlines survive.
 - **Hosted studio (ADR-0042):** the members deployment — Cloud Run `storytree-studio`
   (australia-southeast1) behind **direct IAP** (no LB, no domain), serving

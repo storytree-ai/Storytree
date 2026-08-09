@@ -168,6 +168,10 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **asserts —** `arc new` and `question new` refuse without a live store, returning `ok:false` with a `--pg` pointer rather than writing to the offline seed.
    - **covers —** `packages/cli/src/arc.ts` (`arcNew`), `packages/cli/src/question.ts` (`questionNew`)
    - **proven by —** `packages/cli/src/arc.test.ts`, *"arc new refuses offline — arcs are live-canonical"*; `packages/cli/src/question.test.ts`, *"question new refuses offline — questions are live-canonical"* (REAL, passing)
+9. **`a-lifecycle-bit-moves-only-with-prose`** — both lifecycle transitions require their reason and each lands its own durable increment
+   - **asserts —** `arc close` requires `--outcome` and `arc reopen` requires `--reason`; either refusal writes NOTHING on either side; each success records its increment before flipping the flag, so an interrupt leaves the arc in its prior state carrying a visible extra increment rather than a flipped bit with nothing behind it; and close → reopen → close round-trips, leaving three durable rows rather than one mutated in place. Declared for BOTH directions in one contract because the invariant is one invariant — the flip is a projection of the prose that supports it (ADR-0239 D2, extended to the opening direction by ADR-0337, which withdrew D2's owner-only reservation on the grounds that it was never given a verb and so left the transition reachable by nobody).
+   - **covers —** `packages/cli/src/arc.ts` (`arcClose`, `arcReopen`)
+   - **proven by —** `packages/cli/src/arc.test.ts`, *"arc close REFUSES without --outcome — no closure without the prose that justifies it"*, *"arc reopen refuses without --reason, and writes NOTHING on that refusal"*, *"arc reopen records the increment, flips to active, and returns the arc to the worklist"* and *"close → reopen → close round-trips, and every transition leaves its own durable increment"* (REAL, passing)
 
 ## Open modeling call (for the owner)
 

@@ -165,6 +165,9 @@ THE PER-KIND MAPPING IS ADR-0196 D1 VERBATIM — NO INVENTED CLOSED STATES. Bran
   writes a stored `lifecycle` field, so this branch now reads it — `closed` → `archived`, absent/`active`/
   anything else → `active`. The never-invent rule is UNCHANGED and is exactly why absence still means in
   flight; what changed is that `archived` is finally witnessable rather than unreachable by construction.
+  **And since ADR-0337 the bit moves BOTH ways** (`storytree arc reopen`), so this branch reads a field
+  that can return to `active` rather than a one-way latch — the mapping is unchanged, but `archived` is
+  no longer terminal, and nothing downstream may treat it as permanently settled.
 - durable kinds — `definition`, `principle`, `pattern`, `guardrail`, `techstack`, `process`, `agent`, `template`
   → `active` (the evergreen default; soft-retire is a future WRITE, not a projected state).
 

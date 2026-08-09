@@ -85,9 +85,21 @@ This one rule produces both directions with no separate "reopen" code path:
 **3. `arc close --outcome` (ADR-0239 D2) is UNCHANGED and stays the stronger, explicit override.** It
 still asserts the end-state condition was met, in prose, and still force-closes an arc even with open
 increments remaining — an owner call the mechanical rule never makes on its own. Re-opening a
-CLOSED-BY-`arc close` arc still has no bare verb; it only reopens the same way any auto-closed arc
-does, by parking new work (`arc increment new`), which is the owner's own "we can always reopen them
-if needed."
+CLOSED-BY-`arc close` arc has no bare verb here; it reopens the same way any auto-closed arc does, by
+parking new work (`arc increment new`), which is the owner's own "we can always reopen them if
+needed."
+
+*(Corrected in place 2026-08-09, per ADR-0139 — this sentence's last clause no longer holds.
+[ADR-0337](0337-an-agent-may-reopen-a-closed-arc-arc-reopen-records-why-then.md), owner-directed the
+same day in a parallel session that did not yet know of this ADR, **adds the bare verb**:
+`storytree arc reopen <id> --reason <text|@file> --pg`. The two decisions are compatible and the
+owner resolved the overlap in favour of keeping both — parking work stays the ordinary way an arc
+reopens, and the verb covers the case this rule cannot express: a closure that was WRONG, where there
+is no new work to park and the stated reason is the whole point. Note this ADR's own framing already
+anticipated the shape: it accepts that `arc close` force-closes past open increments and can later be
+overtaken by the recompute, so an explicit override whose effect the derived rule may revisit is
+already this design's accepted property — `arc reopen` is that same bargain in the other direction,
+not a new one.)*
 
 **4. `check:agents`/no new gate rung.** This is existing-increment-write behaviour, not a new
 invariant a session must remember — nothing to check for compliance, only to test for correctness.

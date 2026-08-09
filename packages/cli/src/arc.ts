@@ -1379,11 +1379,20 @@ export async function arcIncrementClose(
  * behind it, which is precisely the lie the atomicity was written to prevent. The invariant that
  * mattered is preserved; the mechanism that delivered it could not be.
  *
- * Re-opening (`closed → active`) has no BARE verb here — same as before ADR-0335. What changed is
- * how an arc reopens: not an owner-only flip, but the mechanical `recomputeArcLifecycle` (ADR-0335)
- * that every increment write already runs — parking new forward-looking work on a closed arc
- * (`arc increment new`) reopens it. `arc close` itself stays a stronger, explicit override: it force-
- * closes even with open increments remaining, which the mechanical rule alone never does.
+ * Re-opening (`closed → active`) happens TWO ways, and they are not rivals:
+ *   - MECHANICALLY, via `recomputeArcLifecycle` (ADR-0335), which every increment write already runs
+ *     — parking new forward-looking work on a closed arc (`arc increment new`) reopens it. This is
+ *     the common case and needs no verb.
+ *   - EXPLICITLY, via {@link arcReopen} (ADR-0337) — a verb any caller may run, stating WHY in
+ *     `--reason`. It exists for the case the mechanical rule cannot express: correcting a closure
+ *     that was WRONG, when there is no new work to park and the reason is the whole point.
+ *
+ * `arcReopen` is the exact mirror of this verb, including its stability characteristics. `arc close`
+ * force-closes even with open increments remaining, so the next increment write's recompute can undo
+ * it; that is already accepted (ADR-0335 D3), and the same is true in the opening direction. An
+ * explicit override states an intent at a moment in time; the derived rule keeps the bit honest
+ * afterwards. What both overrides share, and what ADR-0239 D2 contributed, is that neither moves the
+ * bit without prose behind it.
  */
 export async function arcClose(
   deps: ArcWriteDeps,
@@ -1419,10 +1428,11 @@ export async function arcClose(
       ok: false,
       body: [
         `arc ${id} is already closed — nothing to do (this verb is not an increment append).`,
-        "To reopen it, park new forward-looking work: `storytree arc increment new` (ADR-0335) reopens",
-        "an arc mechanically the moment it has open work again — there is no bare reopen verb.",
+        "Two ways to reopen it, depending on WHY:",
+        `  storytree arc increment new ${id} …  — there is more work: parking it reopens the arc mechanically (ADR-0335).`,
+        `  storytree arc reopen ${id} --reason "<why the end state does not hold>" --pg  — the closure was WRONG (ADR-0337).`,
       ].join("\n"),
-      next: [`storytree arc show ${id} --pg`],
+      next: [`storytree arc show ${id} --pg`, `storytree arc reopen ${id} --reason "…" --pg`],
     };
   }
 
@@ -1459,6 +1469,128 @@ export async function arcClose(
       `closed arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${outcome}`,
       "(lifecycle: closed; the terminal increment is its own row).",
       "It drops out of `storytree arc list` (--all / --closed still show it) and reads as archived on the library shelves.",
+    ].join("\n"),
+    next: [`storytree arc show ${saved.id} --pg`, "storytree arc list --pg"],
+  };
+}
+
+/**
+ * The marker {@link arcReopen} prepends to its increment's prose. `arc increment add` DERIVES the
+ * title from the first sentence of what it is given, so without it a reopening reads in the log as
+ * one more landing — the one entry whose whole point is that it is not one. Prepending is a
+ * deliberate, documented transform of the author's text rather than a second title parameter: the
+ * marker then shows up in `arc show`'s log render AND in the stored `body`, so the two cannot
+ * disagree about which entry moved the bit.
+ */
+const REOPEN_MARKER = "REOPENED";
+
+/**
+ * `storytree arc reopen <id> --reason <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` — the
+ * opening half of the lifecycle, and the mirror image of {@link arcClose}: it records an increment
+ * stating WHY the arc is open again, then sets `lifecycle: active`.
+ *
+ * **ADR-0337 amends ADR-0239 D2, which reserved this transition for the owner.** That reservation
+ * mirrored ADR-0084's human-only `accepted → proposed` un-deciding, but it was never given a
+ * mechanism — no verb, no flag, no env var, no owner path anywhere — so in practice it was not
+ * owner-only, it was NOBODY-only, and the owner could not exercise the authority the guard reserved
+ * for them. It failed for real on 2026-08-09: ADR-0334 superseded ADR-0333's closure of
+ * `parallel-session-dispatch-arc` and landed `accepted` saying the arc was open, while the arc doc
+ * still read `closed`, because nothing could flip it and writing round a guard the CLI deliberately
+ * refuses was not acceptable. `arc list` disagreed with an accepted ADR, and any reader querying
+ * arcs rather than the decision log missed the reopening entirely.
+ *
+ * The owner's call on the fork was to build the verb WITHOUT an owner gate: an agent may reopen an
+ * arc when it needs to. So there is no attestation flag here, and there is deliberately no simulated
+ * one — the alternative on the table was a `--owner-attested` flag that guidance told agents not to
+ * pass, which would have bought no mechanical guarantee (an agent can pass a flag) at the cost of
+ * prose claiming a fence that does not exist. What DOES carry over from ADR-0239 D2 is the part that
+ * was always load-bearing: **the state is a projection of prose that supports it**, so `--reason` is
+ * required exactly as `--outcome` is on close, and a bare `library artifact edit --set
+ * lifecycle=active` stays refused.
+ *
+ * The ORDER is increment-first, for the same reason `arc close` is (ADR-0305 D1 made the increment
+ * its own row, so no transaction spans the two writes). Interrupted here, you get a still-CLOSED arc
+ * carrying a reopening increment: visibly unfinished, fixed by re-running this verb. Flipping first
+ * would leave the opposite — an arc reading `active` with nothing on it saying why — which is the
+ * same lie in the other direction, and the one the ordering exists to prevent.
+ */
+export async function arcReopen(
+  deps: ArcWriteDeps,
+  id: string | undefined,
+  opts: { date?: string | undefined; pr?: string | undefined; reason?: string | undefined },
+): Promise<Envelope> {
+  if (!deps.writable) return arcNotWritable("reopen");
+  if (id === undefined) {
+    return {
+      ok: false,
+      body: "arc reopen needs an id: storytree arc reopen <id> --reason <text|@file> --pg",
+      next: ["storytree arc list --closed --pg"],
+    };
+  }
+  const reason = opts.reason?.trim();
+  if (reason === undefined || reason === "") {
+    return {
+      ok: false,
+      body: [
+        "arc reopen needs --reason — the increment stating why this arc's end state does not hold after all.",
+        "An arc never goes active without it, for the same reason it never goes closed without --outcome:",
+        "the state is a projection of the prose that supports it (ADR-0337, carrying ADR-0239 D2's discipline).",
+        "(long prose: --reason @path reads from a file).",
+      ].join("\n"),
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  const found = await loadArcForWrite(deps, id);
+  if ("error" in found) return found.error;
+
+  const base = found.doc;
+  if (base["lifecycle"] !== "closed") {
+    return {
+      ok: false,
+      body: [
+        `arc ${id} is already active — nothing to re-open (this verb is not an increment append).`,
+        "To record a landing on it, use:",
+        `  storytree arc increment add ${id} --outcome "<what landed>" --pr <ref> --pg`,
+      ].join("\n"),
+      next: [`storytree arc show ${id} --pg`, `storytree arc increment add ${id} --outcome "…" --pg`],
+    };
+  }
+
+  // 1. The increment FIRST — see the header for why this order is the mitigation.
+  const entry = await arcIncrementAdd(deps, id, {
+    outcome: `${REOPEN_MARKER} — ${reason}`,
+    ...(opts.pr !== undefined ? { pr: opts.pr } : {}),
+    ...(opts.date !== undefined ? { date: opts.date } : {}),
+  });
+  if (!entry.ok) return entry;
+
+  // 2. Then the flip. Written EXPLICITLY rather than by deleting the field: `lifecycleOf` reads
+  // absent and "active" identically, so both would render the same — but only a stored value
+  // records that the state was decided here rather than never set.
+  base["lifecycle"] = "active";
+  base["updatedAt"] = deps.now;
+  let valid: unknown;
+  try {
+    valid = upcastAndValidate(base);
+  } catch (e) {
+    return {
+      ok: false,
+      body:
+        `the reopening increment was recorded, but the lifecycle flip would make "${id}" invalid:\n` +
+        `${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}\n` +
+        "the arc is still CLOSED — fix the doc and re-run `arc reopen`.",
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
+  const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
+  const pr = opts.pr?.trim();
+  return {
+    ok: true,
+    body: [
+      `re-opened arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${reason}`,
+      `(lifecycle: active; the ${REOPEN_MARKER} increment is its own row and stays in the log — increments are durable, ADR-0305 D3).`,
+      "It is back in the default `storytree arc list` worklist.",
     ].join("\n"),
     next: [`storytree arc show ${saved.id} --pg`, "storytree arc list --pg"],
   };
@@ -1523,12 +1655,21 @@ export function arcHelp(): Envelope {
       "        edit --set lifecycle=closed` is refused. Since the fold this is TWO rows, written",
       "        increment-first: an interrupted close leaves an open arc with an extra increment, never a",
       "        closed arc with no prose behind it.",
+      "  storytree arc reopen <id> --reason <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
+      "        Its MIRROR (ADR-0337): a REOPENED increment AND lifecycle: active, forced the same way.",
+      "        Any caller may run it. Reach for it when a closure was WRONG and the reason is the point —",
+      "        if there is simply more work to do, park it (`increment new`) and the arc reopens itself.",
+      "        --reason is required for the same reason --outcome is; increment-first likewise, so an",
+      "        interrupted reopen leaves the arc CLOSED carrying its increment, never active with",
+      "        nothing saying why.",
       "",
-      "LIFECYCLE IS MECHANICAL, NOT JUST THIS VERB (ADR-0335): every increment write (`add`/`new`/`close`",
+      "LIFECYCLE IS MECHANICAL, NOT JUST THESE VERBS (ADR-0335): every increment write (`add`/`new`/`close`",
       "above) recomputes `lifecycle` from the increment log itself — closed when no increment is",
       "`proposal`/`ready`/`active`, active otherwise. So an arc auto-closes the moment its last open",
       "increment closes, and auto-reopens the moment new forward-looking work is parked on it",
-      "(`increment new`) — there is no bare reopen verb, and none is needed.",
+      "(`increment new`). `close` and `reopen` are the EXPLICIT overrides on top of that rule: each",
+      "states an intent, in prose, at a moment in time — and each can later be overtaken by the rule,",
+      "which is accepted in both directions (ADR-0335 D3, ADR-0337 D4).",
       "",
       "Every containment edge lives on the CHILD (increment.arcRef; ADR/story frontmatter `arc:` stamps",
       "via `storytree adr new --arc <id>`), so this view is derived-from-source and can never drift.",

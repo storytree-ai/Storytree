@@ -157,17 +157,25 @@ transaction. The invariant this line protects — no closed arc without terminal
 that order, not atomicity: the increment lands first, so an interruption leaves a visibly-open arc
 with a spare increment rather than a closed one with no prose behind it.)*
 
-Re-opening (`closed → active`) is **owner-only**, mirroring ADR-0084's human-only `accepted →
-proposed` un-deciding: an agent may recognise that an end state was met; deciding it was not is the
-owner's call.
+Re-opening (`closed → active`) was reserved as **owner-only** here, mirroring ADR-0084's human-only
+`accepted → proposed` un-deciding. **That reservation is WITHDRAWN**, and reopening now has two paths,
+neither of them owner-gated:
 
-*(Narrowed in place 2026-08-09, per ADR-0139 — corrected, not overturned:
-[ADR-0335](0335-arc-lifecycle-is-derived-from-increment-state-min-one-increm.md) adds a second,
-mechanical reopen path alongside this one. Every increment write now recomputes `lifecycle` from the
-increment log, so a closed arc — whether closed by this verb or auto-closed — reopens the instant new
-forward-looking work is parked on it (`arc increment new`), with no owner call. "Owner-only" still
-names the only EXPLICIT reopen verb — there still is none — but no longer describes reopening in
-general.)*
+- MECHANICALLY, by [ADR-0335](0335-arc-lifecycle-is-derived-from-increment-state-min-one-increm.md):
+  every increment write recomputes `lifecycle` from the increment log, so a closed arc — whether
+  closed by this verb or auto-closed — reopens the instant new forward-looking work is parked on it
+  (`arc increment new`), with no owner call.
+- EXPLICITLY, by [ADR-0337](0337-an-agent-may-reopen-a-closed-arc-arc-reopen-records-why-then.md):
+  `storytree arc reopen <id> --reason <text|@file> --pg`, this verb's mirror, for the case the
+  mechanical rule cannot express — a closure that was WRONG, where there is no new work to park and
+  the reason is the point. Any caller may run it.
+
+The reservation was never given a mechanism — no verb, no flag, no owner path — so it did not make
+the transition owner-only, it made it reachable by *nobody*, and it stranded ADR-0334's reopening of
+`parallel-session-dispatch-arc` with the arc doc unable to follow its own accepted ADR. What this
+paragraph got right, and what both successors keep, is the rule above it: the flip is a projection of
+prose that supports it, so `--reason` is required in the opening direction exactly as `--outcome` is
+in the closing one, and a bare `--set lifecycle=…` stays refused in both.
 
 ### D3 — `arc list` filters by default
 

@@ -708,8 +708,10 @@ test("artifact edit --set lifecycle on an arc is REFUSED — closure is not a fr
   });
   assert.equal(env.ok, false);
   assert.match(env.body, /not a free flip/);
-  assert.match(env.body, /storytree arc close a-live-arc --outcome/);
-  assert.match(env.body, /OWNER-only/);
+  // BOTH directions are named (ADR-0337). This refusal used to name `arc close` and then say the
+  // other direction was OWNER-only — which pointed at no verb, because none existed.
+  assert.match(env.body, /storytree arc close {2}a-live-arc --outcome/);
+  assert.match(env.body, /storytree arc reopen a-live-arc --reason/);
   const got = (await store.getDoc("a-live-arc"))?.doc as { lifecycle?: string };
   assert.notEqual(got.lifecycle, "closed", "the flip was not persisted");
 
@@ -752,6 +754,19 @@ test("arc close through the dispatcher writes the terminal increment and the fli
   assert.ok(terminal, "the terminal increment exists");
   assert.equal((terminal.doc as Record<string, unknown>)["status"], "closed");
   assert.equal(((terminal.doc as Record<string, unknown>)["outcome"] as Record<string, unknown>)["pr"], "#1012");
+
+  // ADR-0337 — the way BACK, through the same dispatcher. `--reason` needs no new flag declaration:
+  // it is already a PROSE_FLAG, so it arrives `@path`-expanded like `--outcome` does.
+  const back = await run(
+    ["arc", "reopen", "closing-arc", "--reason", "a later decision superseded that closure", "--pg"],
+    { store, writable: true },
+  );
+  assert.equal(back.ok, true, back.body);
+  assert.equal(((await store.getDoc("closing-arc"))?.doc as { lifecycle?: string }).lifecycle, "active");
+  const reopening = (await store.queryDocs({ kind: "increment" })).find((d) =>
+    ((d.doc as Record<string, unknown>)["body"] as string | undefined)?.startsWith("REOPENED"),
+  );
+  assert.ok(reopening, "the reopening increment is its own durable row");
 });
 
 test("arc list --all / --closed parse as flags and widen the default worklist (ADR-0239 D3)", async () => {
