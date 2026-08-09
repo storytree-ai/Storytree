@@ -95,8 +95,15 @@ encodes, and it is the sentence to argue with if the number is wrong.
 
 *What is deliberately NOT in it.* `AGENTS.md` (Codex's surface, above). The system prompt and the
 tool definitions, which are the larger half of the floor and are the harness's — budgeting what we
-cannot edit would make the number unactionable. Subagent preamble, which is the same files paid at a
-different rate and is a consequence of this budget rather than a second one.
+cannot edit would make the number unactionable. The MULTIPLIER on `CLAUDE.md`/`MEMORY.md` growth from
+delegation — a subagent re-paying this same surface at the cache-write rate — is a consequence of THIS
+budget rather than a second one (Context's "delegation has made the surface more expensive" bullet is
+that consequence). **That is a narrower claim than "this is the only budgeted guidance surface", and
+should not be read as the wider one:** a subagent's OWN essentials render — its `rules` /
+`antiPatterns` / `context` list, content generated per agent and distinct from `CLAUDE.md` /
+`MEMORY.md`, not a copy of it — is governed by a genuinely separate, pre-existing, gate-enforced
+budget: a per-agent 6000-token ceiling on `check:agents` (ADR-0156 §5 / ADR-0161). This ADR neither
+sets nor reports on that ceiling; ADR-0328 D5 hit it directly while wiring rules onto delegated seats.
 
 *What being over budget means.* Not "delete text". ADR-0323's own Consequences warn that trimming
 too far re-creates the orientation failures ADR-0162 measured. The remedy is REHOMING to a Library
@@ -200,6 +207,9 @@ should be reverted (ADR-0323).
 - ADR-0323 — the arc's founding measurement; D3 deferred this number, D4 makes it falsifiable, and
   §1's composition is corrected in place here. D3 of this ADR amends its D2.
 - `session-cost-arc` — the owning arc (intent, end state, increment log).
+- ADR-0156 §5 / ADR-0161 — the separate, pre-existing, gate-enforced per-agent 6000-token essentials
+  budget on `check:agents`; not this ADR's subject, named here only to keep the two ceilings from being
+  read as one. ADR-0328 D5 is where that ceiling was hit in practice.
 - `process:measure-session-cost-from-transcripts` — the method, and the classifier-dependence trap
   that forbids comparing a new figure against ADR-0323's published percentages.
 - `packages/cli/src/session-cost.ts` — the instrument: `pollingRuns` / `LOOP_RUN_MIN`,
