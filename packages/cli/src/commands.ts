@@ -517,6 +517,51 @@ export function isRawEnvelope(e: Envelope): e is RawEnvelope {
  * option taking a whole doc, and overloading it would reproduce the exact confusion the missing read
  * path caused.
  */
+/**
+ * Every `<area> <sub>` that READS one artifact by id, and therefore honours `--raw <field>`.
+ *
+ * THIS LIST EXISTS BECAUSE THE FLAG USED TO BE DROPPED IN SILENCE. `--raw` is parsed once for the
+ * whole CLI, but only the verb that thought to consult it ever did — so `arc show <id> --raw=intent`
+ * returned the full rendered arc, and so did `--raw=endState`, and so did `--raw=nonsense`. Three
+ * different questions, one byte-identical answer, and no signal that the flag had been ignored. That
+ * is worse than a missing feature: the prescribed way to edit arc narrative is `arc edit --intent
+ * @file`, so the obvious read-modify-write (`--raw=intent > f`, edit, write it back) would have
+ * pasted the ENTIRE render — increment log, derived ADR list, trailing `next:` pointers — into the
+ * `intent` field, and the output looked plausible enough that nothing said otherwise.
+ *
+ * So the fix is not only "route `arc show` too". A verb that does not read `--raw` REFUSES it
+ * ({@link rawUnsupported}), which is what stops the next id-addressed read verb from re-acquiring the
+ * bug by simply not thinking about the flag. Add the pair here when you add such a verb; the refusal
+ * is what will tell you that you have to.
+ */
+const RAW_READ_VERBS: ReadonlyArray<readonly [area: string, sub: string]> = [
+  ["library", "artifact"],
+  ["arc", "show"],
+];
+
+/** Does `<area> <sub>` read one artifact by id? */
+function rawIsRead(area: string, sub: string | undefined): boolean {
+  return RAW_READ_VERBS.some(([a, s]) => a === area && s === sub);
+}
+
+/** `--raw` on a verb that does not read it — refused by name, never dropped. */
+function rawUnsupported(area: string, sub: string | undefined): Envelope {
+  const spelled = `${area}${sub === undefined ? "" : ` ${sub}`}`;
+  return {
+    ok: false,
+    body: [
+      `\`--raw <field>\` reads ONE stored field of ONE artifact, and \`${spelled}\` is not that read.`,
+      "",
+      "the verbs that honour it:",
+      ...RAW_READ_VERBS.map(([a, s]) => `  storytree ${a} ${s} <id> --raw <field>`),
+      "",
+      "It is refused rather than ignored on purpose: a silently-dropped `--raw` returns the whole",
+      "rendered view, which reads like a field value and will overwrite one if you write it back.",
+    ].join("\n"),
+    next: RAW_READ_VERBS.map(([a, s]) => `storytree ${a} ${s} <id> --raw <field>`),
+  };
+}
+
 export async function rawField(store: Store, id: string, field: string): Promise<Envelope> {
   const stored = await store.getDoc(id);
   if (!stored) {
@@ -2309,6 +2354,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === undefined) return topHelp(deps.store);
 
+  // `--raw <field>` is REFUSED where it is not read, never ignored (the silent-drop defect below).
+  if (values.raw !== undefined && !help && !rawIsRead(area, sub)) {
+    return rawUnsupported(area, sub);
+  }
+
   if (area === "node") {
     if (sub === undefined || help) return nodeHelp();
     if (sub === "resolve") {
@@ -2880,6 +2930,22 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(Array.isArray(values.id) && values.id[0] !== undefined ? { id: values.id[0] } : {}),
         ...(Array.isArray(values.cites) ? { cites: values.cites } : {}),
       });
+    }
+
+    // `arc show <id> --raw <field>` reads the SAME way `library artifact` does — the identical
+    // function, not a second implementation, because the whole point of a raw read is that two
+    // callers cannot disagree about what one stored field's bytes are. It also inherits that
+    // function's miss behaviour: an unknown field exits non-zero naming the fields the doc has,
+    // where this verb used to accept any string and answer with the full render.
+    if (sub === "show" && values.raw !== undefined) {
+      if (third === undefined) {
+        return {
+          ok: false,
+          body: "`arc show --raw <field>` needs the arc id: `storytree arc show <arc-id> --raw <field>`.",
+          next: ["storytree arc list --pg", "storytree arc show <arc-id> --raw intent --pg"],
+        };
+      }
+      return rawField(deps.store, third, values.raw);
     }
 
     return arcCommand(
