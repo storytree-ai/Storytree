@@ -9,6 +9,8 @@ import {
   kebabSlug,
   parseEdges,
   maxAdrNumber,
+  parallelAllocations,
+  parallelAllocationNote,
   scaffold,
   extractAdrTitle,
   renderAdrList,
@@ -387,6 +389,94 @@ test("adr next --pg reserves a number; offline it only peeks with a warning", as
     assert.equal(peek.ok, false);
     assert.match(peek.body, /0047/);
     assert.match(peek.body, /NOT reserved/);
+  });
+});
+
+// ---- the parallel-allocation heads-up ------------------------------------------------------
+//
+// The 2026-08-09 near-miss: ADR-0335 and ADR-0337 were decided the same day in parallel sessions and
+// partially contradicted each other. The 0337 session's `git fetch && git merge origin/main` said
+// "Already up to date" — 0335's PR had not merged — so the ceremony saw nothing, and CI would have
+// shown it only as a merge conflict, after both designs were settled. The allocator already knew:
+// handing out 0337 means 0335/0336 exist. These tests hold that signal to being emitted, exact, and
+// QUIET whenever it has nothing to say.
+
+test("parallelAllocations is the exact gap between the local max and the reserved number", () => {
+  // The real shape: checkout is at 0334, the store hands out 0337 → two sessions took 0335/0336.
+  assert.deepEqual(parallelAllocations(334, 337), [335, 336]);
+  // Contiguous — nobody allocated in parallel. The silent case, and the common one.
+  assert.deepEqual(parallelAllocations(338, 339), []);
+  // Never negative/backwards: an offline-authored ADR can leave the checkout AHEAD of the store.
+  assert.deepEqual(parallelAllocations(340, 339), []);
+  assert.deepEqual(parallelAllocations(339, 339), []);
+  // No ADRs on disk = a missing/unreadable decisions dir, not a parallel-allocation signal.
+  assert.deepEqual(parallelAllocations(0, 50), []);
+});
+
+test("parallelAllocationNote is empty for an empty gap and caps a very stale checkout", () => {
+  assert.deepEqual(parallelAllocationNote([]), { lines: [], next: [] });
+
+  // Singular reads as singular — one number is "another session", not "other sessions".
+  const one = parallelAllocationNote([335]).lines.join("\n");
+  assert.match(one, /ADR-0335 was allocated by another session and is NOT in this checkout/);
+  assert.match(one, /If it touches your area/);
+
+  const many = parallelAllocationNote([301, 302, 303, 304, 305, 306, 307, 308, 309, 310]);
+  const body = many.lines.join("\n");
+  assert.match(body, /ADR-0301, 0302, 0303, 0304, 0305, 0306, 0307, 0308, \+2 more were allocated/);
+  assert.doesNotMatch(body, /0309/, "the tail is a count, not a wall of numbers");
+});
+
+test("adr new --pg names the numbers other sessions allocated, and points across ALL refs", async () => {
+  await withDecisionsDir(async (dir) => {
+    writeFileSync(path.join(dir, "0334-prior.md"), "x");
+    const { allocator } = fakeAllocator(337);
+    const env = await adrCommand("new", { title: "Arc reopen verb" }, depsFor(dir, allocator));
+    assert.equal(env.ok, true);
+
+    // It is a HEADS-UP, not a gate: the scaffold was still written and the envelope is still ok.
+    assert.ok(existsSync(path.join(dir, "0337-arc-reopen-verb.md")), "the ADR was still scaffolded");
+    assert.match(env.body, /ADR-0335, 0336 were allocated by other sessions and are NOT in this checkout/);
+    assert.match(env.body, /can CONTRADICT yours/);
+
+    // The contradicting ADR is typically NOT on origin/main yet — that is exactly why the ordinary
+    // pre-PR merge missed it — so the offered next step looks across every fetched ref.
+    const next = (env.next ?? []).join("\n");
+    assert.match(next, /git fetch origin/);
+    assert.match(next, /git log --all --oneline -- "docs\/decisions\/0335-\*"/);
+  });
+});
+
+test("adr new --pg says NOTHING when the checkout is current (fail quiet)", async () => {
+  await withDecisionsDir(async (dir) => {
+    writeFileSync(path.join(dir, "0338-prior.md"), "x");
+    const { allocator } = fakeAllocator(339);
+    const env = await adrCommand("new", { title: "Next in line" }, depsFor(dir, allocator));
+    assert.equal(env.ok, true);
+    assert.doesNotMatch(env.body, /NOT in this checkout/);
+    assert.doesNotMatch((env.next ?? []).join("\n"), /git fetch/);
+  });
+});
+
+test("adr new offline never claims a parallel allocation (max+1 leaves no gap)", async () => {
+  await withDecisionsDir(async (dir) => {
+    writeFileSync(path.join(dir, "0334-prior.md"), "x");
+    const env = await adrCommand("new", { title: "Offline one" }, depsFor(dir, null));
+    assert.equal(env.ok, true);
+    assert.match(env.body, /OFFLINE/); // the existing not-reserved warning still fires...
+    assert.doesNotMatch(env.body, /NOT in this checkout/); // ...and never doubles up with this one
+  });
+});
+
+test("adr next --pg carries the same heads-up (its author writes prose too)", async () => {
+  await withDecisionsDir(async (dir) => {
+    writeFileSync(path.join(dir, "0334-prior.md"), "x");
+    const { allocator } = fakeAllocator(337);
+    const env = await adrCommand("next", {}, depsFor(dir, allocator));
+    assert.equal(env.ok, true);
+    assert.match(env.body, /ADR-0337 reserved/);
+    assert.match(env.body, /ADR-0335, 0336 were allocated by other sessions/);
+    assert.match((env.next ?? []).join("\n"), /git fetch origin/);
   });
 });
 
