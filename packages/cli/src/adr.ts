@@ -100,6 +100,82 @@ export function parseEdges(raw: string | undefined): number[] {
 const pad = (n: number): string => String(n).padStart(4, "0");
 
 /**
+ * PURE: the ADR numbers the store has already handed out that this checkout carries no file for —
+ * every number strictly between the highest ADR on disk and the one just reserved.
+ *
+ * EXACT, not heuristic. The allocator reserves `GREATEST(localMax, max-ever-handed-out) + 1`
+ * (ADR-0050, `PgAdrStore.allocate`), so a number more than one above this checkout's max is PROOF
+ * that the store's own max was ahead of us — i.e. other sessions took the numbers in between. Nothing
+ * else can produce that gap, so every number reported was genuinely allocated elsewhere.
+ *
+ * WHY it is worth saying (2026-08-09): ADR-0335 and ADR-0337 were decided the same day in parallel
+ * sessions, neither aware of the other, and partially CONTRADICTED each other — 0335 made arc
+ * `lifecycle` derived and said there should be no bare reopen verb; 0337 added exactly that verb. The
+ * 0337 session's pre-PR `git fetch origin && git merge origin/main` reported "Already up to date",
+ * because 0335's PR had not merged yet — so nothing in the ceremony saw it. `pnpm gate` is
+ * branch-local, and CI would have surfaced it only as a MERGE CONFLICT after both designs were
+ * settled, at which point the natural move is to resolve the hunks and thereby silently override an
+ * accepted, owner-directed decision. It was caught by luck.
+ *
+ * The allocator already KNEW: when it handed that session 0337 it had 0335 and 0336 on file. This
+ * turns the number it was throwing away into the warning, at the one moment the session can still act
+ * on it cheaply — before the prose is written.
+ *
+ * A number here may also be a BURNED allocation (an abandoned branch's number is never reused, see
+ * `adr-store.ts`), which is why this is a heads-up and not a gate: the claim it makes — "allocated
+ * elsewhere, not in this checkout" — stays true either way, and the reader decides.
+ */
+export function parallelAllocations(localMax: number, reserved: number): number[] {
+  // No ADRs on disk at all means the decisions dir is missing or unreadable (`maxAdrNumber` returns 0
+  // for both) — a broken checkout, not a parallel-allocation signal. Reporting every number below the
+  // reservation there would be loud and wrong, so stay silent and let the real problem surface.
+  if (localMax <= 0) return [];
+  const out: number[] = [];
+  for (let n = localMax + 1; n < reserved; n++) out.push(n);
+  return out;
+}
+
+/** Enumerate at most this many numbers inline; a very stale checkout gets a count, not a wall. */
+const MAX_LISTED_PARALLEL = 8;
+
+/**
+ * PURE: render {@link parallelAllocations} as envelope lines + `next:` steps. Empty in, empty out —
+ * FAIL QUIET (a session whose checkout is current sees nothing at all, and this never reddens
+ * anything). Guidance at the point of use, in the tool's own output rather than in any agent prompt:
+ * the ADR-0023 pull model, the shape ADR-0239 D4 chose for its closure hint, whose stated virtue is
+ * zero context cost for every session that is not doing this.
+ *
+ * The `next:` steps fetch rather than assume: the contradicting ADR is typically NOT on `origin/main`
+ * yet (that is exactly why the ordinary merge missed it), so they look across ALL fetched refs — the
+ * sibling session's branch included.
+ */
+export function parallelAllocationNote(missing: readonly number[]): {
+  lines: string[];
+  next: string[];
+} {
+  const first = missing[0];
+  if (first === undefined) return { lines: [], next: [] };
+  const listed = missing.slice(0, MAX_LISTED_PARALLEL).map(pad).join(", ");
+  const more = missing.length > MAX_LISTED_PARALLEL ? `, +${missing.length - MAX_LISTED_PARALLEL} more` : "";
+  const one = missing.length === 1;
+  return {
+    lines: [
+      "",
+      one
+        ? `⚠️  ADR-${listed} was allocated by another session and is NOT in this checkout.`
+        : `⚠️  ADR-${listed}${more} were allocated by other sessions and are NOT in this checkout.`,
+      `    A decision written in parallel can CONTRADICT yours. If ${one ? "it touches" : "any of them touches"} your area,`,
+      "    READ it BEFORE you write your Decision — this same overlap surfaces later as a CI merge",
+      "    conflict, where resolving the hunks silently overrides an accepted decision.",
+    ],
+    next: [
+      "git fetch origin   (the contradicting ADR is often still on its own branch, not yet on main)",
+      `git log --all --oneline -- "docs/decisions/${pad(first)}-*"   then   git show <sha>:<path>`,
+    ],
+  };
+}
+
+/**
  * PURE: the scaffold body for a fresh ADR — frontmatter + H1 + the standard sections.
  *
  * Default (no `decided`): born `proposed` (ADR-0050) — the scaffold for a still-thinking ADR, left for
@@ -241,11 +317,16 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
       "    catch a collision before merge (it will fail the PR; just bump the number).",
     );
   }
+  // The parallel-allocation heads-up. Only ever non-empty on the RESERVED path — offline takes
+  // `localMax + 1`, which leaves no gap by construction, so the two warnings never both fire.
+  const parallel = parallelAllocationNote(parallelAllocations(localMax, n));
+  lines.push(...parallel.lines);
   return {
     ok: true,
     body: lines.join("\n"),
     next: [
       `open ${rel}`,
+      ...parallel.next,
       ...(reserved ? [] : ['pnpm db:up   then   storytree adr next --pg   (reserve atomically next time)']),
     ],
   };
@@ -269,10 +350,16 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
       branch: deps.branch,
       actor: deps.actor,
     });
+    // Same heads-up as `adr new` — `adr next` reserves for a hand-authored file, so its author is in
+    // exactly the position the note is for: about to write prose against numbers it cannot see.
+    const parallel = parallelAllocationNote(parallelAllocations(localMax, r.number));
     return {
       ok: true,
-      body: `ADR-${pad(r.number)} reserved. Author docs/decisions/${pad(r.number)}-<slug>.md (or use \`adr new --title\`).`,
-      next: ['storytree adr new --title "..." --pg'],
+      body: [
+        `ADR-${pad(r.number)} reserved. Author docs/decisions/${pad(r.number)}-<slug>.md (or use \`adr new --title\`).`,
+        ...parallel.lines,
+      ].join("\n"),
+      next: ['storytree adr new --title "..." --pg', ...parallel.next],
     };
   } catch (e) {
     return {
@@ -532,6 +619,10 @@ export function adrHelp(): Envelope {
       "",
       "writes need --pg (bring the DB up first: pnpm db:up). Offline new/next fall back to max+1 with a",
       "loud warning that the number is NOT reserved — the CI dup-number gate is the backstop.",
+      "",
+      "A reserved number more than one above this checkout's highest ADR means other sessions allocated",
+      "the numbers in between — `new`/`next` name them, because a decision written in parallel can",
+      "CONTRADICT yours and you cannot read a file you do not have. A heads-up, never a gate.",
     ].join("\n"),
     next: ["storytree adr list --load-bearing", 'storytree adr new --title "..." --pg'],
   };
