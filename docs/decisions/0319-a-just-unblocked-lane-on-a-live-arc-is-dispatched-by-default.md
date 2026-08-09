@@ -127,6 +127,12 @@ vehicles, both first-class, neither mandated:
 The choice is the one ADR-0275 D1 Axis 2 already assigns to the session: its own remaining context
 headroom, plus ADR-0275 D2's hard ends. **A hard end removes the first vehicle for that lane; it never
 removes the dispatch** — that separation is ADR-0288 D1's, and it is what lets the two rules compose.
+
+*[Joined by ADR-0329 D1 (2026-08-09): the unit's expected SIZE is a second vehicle input beside
+headroom — a unit smaller than a session's own orientation overhead (~17–18 turns, ~$2.60–3.10) is a
+reason to drive it here rather than cut for it. This D2 default and D2b's dispatch/vehicle split are
+both untouched; only the list of vehicle-choice inputs grows.]*
+
 A session with room drives; a session that has spent its context deciding hands off, which is the
 original `land-decisions-then-cut-a-fresh-session` judgment rather than an exception to it.
 
@@ -137,6 +143,11 @@ constraint binds the in-session vehicle and is the easier half to get wrong: **d
 in-thread and give the rest their own sessions.** Taking all three in-thread re-creates the very queue
 this ADR unwinds — a serial chain wearing a different hat — and ADR-0275 D2's ~3-continuations guard
 is a context-rot backstop, not a licence to run the lanes one after another.
+
+*[Qualified by ADR-0329 D3 (2026-08-09): this cap binds lanes at or above a session's own orientation
+overhead (~17–18 turns). Below that threshold several small lanes may be taken together in-thread —
+the serialisation cost this cap guards against inverts, since paying orientation once beats paying it
+once per lane.]*
 
 **D3 — Count the lanes by reading each entry's own dependency sentence, never by its ordinal.**
 Increment numbering records the order entries were authored, not a dependency chain. Increments 1, 2
