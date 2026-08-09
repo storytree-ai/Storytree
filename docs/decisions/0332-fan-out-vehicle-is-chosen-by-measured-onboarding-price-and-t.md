@@ -161,7 +161,10 @@ writers has still never become a real condition, because nothing is built on the
 **Corrected in place, 2026-08-09 (ADR-0139):** ADR-0333's closure did not survive —
 [ADR-0334](0334-plan-lane-width-is-planned-for-not-discovered-the-fan-out-ar.md) superseded it the same
 day and reopened the arc, gating any build behind evidence that its D4 planning-brief change actually
-produces wider plans. The ADR-0255/0284 wall is a static deny
+produces wider plans. **Further corrected in place, 2026-08-10 (ADR-0139):** that gate is amended by
+[ADR-0340](0340-lane-width-is-real-and-gated-on-shared-registries-not-on-t.md) D5 to require delivered
+(landed, file-disjoint) width alongside declared width — see the fuller correction below. The
+ADR-0255/0284 wall is a static deny
 block over the primary checkout and is **claim-blind**: a write into a SIBLING worktree is refused by
 nothing, de-scoped on zero evidenced instances. N concurrent writers is precisely the condition that
 makes that hazard live, and the owner's "previous attempts have overloaded the system" is a second,
@@ -176,10 +179,19 @@ unrepresentative and REPLACED the whole re-open condition rather than resolving 
 is now whether plans authored under ADR-0334 D4's width-seeking brief show more independent lanes than
 plans authored before it. The backlog half of this D5 condition (three or more arcs holding two or more
 independent open increments at once, or a fresh median W1 of two or more) no longer governs reopening;
-ADR-0334 is the current test.
+ADR-0334 is the current test. **Further corrected in place, 2026-08-10 (ADR-0139):**
+[ADR-0340](0340-lane-width-is-real-and-gated-on-shared-registries-not-on-t.md) D5 amended that
+falsifier again — a declared-width-only test is confounded, because a width-seeking brief can raise a
+plan's stated lane count whether or not the resulting landings can actually be dispatched independently
+(shared registries can re-serialise them regardless of what the plan says). The falsifier now requires
+BOTH declared width rising AND the resulting landings being file-disjoint on ADR-0340 D1's instrument.
+ADR-0340 is the current test.
 
 ## References
 
+- ADR-0340 — amends ADR-0334, not this ADR directly; reached here only through this ADR's own prose,
+  which is corrected in place above (twice) to retire the declared-width-only falsifier language
+  inherited from ADR-0334 and point at ADR-0340's requirement of delivered width as well.
 - ADR-0333 — the second width reading (all 58 anchored plans, median ONE lane); amends this ADR (D5's
   "unmeasured" prose, corrected in place). Its closure of the arc was itself superseded the same day —
   see ADR-0334 below.
