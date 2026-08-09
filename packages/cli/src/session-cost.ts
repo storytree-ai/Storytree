@@ -469,6 +469,59 @@ export function isPollingTurn(turn: Turn): boolean {
   return turn.commands.every((command) => classifyCommand(command) === "polling");
 }
 
+/** A maximal run of CONSECUTIVE polling turns inside one transcript. */
+export interface PollingRun {
+  /** Index of the first turn of the run, within the transcript's windowed turns. */
+  readonly start: number;
+  readonly length: number;
+}
+
+/**
+ * A run of at least this many consecutive polling turns is a LOOP; a shorter one is a status check.
+ *
+ * Two is the whole signature, and it is the least arbitrary cut available. A session that wants a
+ * status reads it ONCE — `gh pr checks` after opening a PR is a deliberate, correct, single act. It
+ * is the SECOND consecutive full-context round-trip that says the session is standing in a loop
+ * doing by hand what `run_in_background` plus a completion notification does for free
+ * (`asset:mechanical-waiting-never-pays-context-rent`, ADR-0323 D2). Nothing about "wait then look"
+ * is wasteful until it repeats.
+ */
+export const LOOP_RUN_MIN = 2;
+
+/**
+ * The maximal runs of consecutive polling turns in one transcript's turns.
+ *
+ * WHY THIS EXISTS, AND WHAT IT FIXES. {@link isPollingTurn} counts by command SHAPE, and is
+ * deliberately generous: a single deliberate `gh pr checks` scores identically to the second tick of
+ * a `sleep 300; tail` loop. That generosity is exactly right for the before/after comparison it was
+ * built for — it is equally generous on both sides of a cut point, so the DIFFERENCE is evidence —
+ * and exactly wrong for the question `session-cost-arc`'s end-state 2 actually asks, which is
+ * whether the LOOP is gone. A window can hold a fixed count of polling turns whose every instance is
+ * one isolated status read, and that window has no loop in it at all.
+ *
+ * ADJACENCY IS THE INSTRUMENT, AND ITS LIMITATION IS DELIBERATE. A turn that does real work between
+ * two polls breaks the run, so `poll → read the failing CI log → poll` reads here as two isolated
+ * checks rather than one loop. That is the conservative direction on purpose: it can only
+ * UNDER-report looping, so a loop count this instrument reports is a floor, and "the loops are gone"
+ * is the claim it is least able to manufacture.
+ */
+export function pollingRuns(turns: readonly Turn[]): readonly PollingRun[] {
+  const runs: PollingRun[] = [];
+  let start = -1;
+  for (const [index, turn] of turns.entries()) {
+    if (isPollingTurn(turn)) {
+      if (start === -1) start = index;
+      continue;
+    }
+    if (start !== -1) {
+      runs.push({ start, length: index - start });
+      start = -1;
+    }
+  }
+  if (start !== -1) runs.push({ start, length: turns.length - start });
+  return runs;
+}
+
 // ---------------------------------------------------------------------------
 // Phase attribution
 // ---------------------------------------------------------------------------
@@ -604,6 +657,115 @@ export function readAgentType(metaFile: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// The guidance surface — ADR-0323 D3's budget, in the one unit that is exact
+// ---------------------------------------------------------------------------
+
+/**
+ * The ceiling on the eagerly-loaded, REPO-OWNED session-start guidance surface: 96 KiB across
+ * `CLAUDE.md` and the harness `MEMORY.md`, together (ADR-0330 D1, setting the number ADR-0323 D3
+ * deferred).
+ *
+ * IT IS DENOMINATED IN BYTES BECAUSE BYTES ARE EXACT. Tokens are the unit the bill is in, but
+ * counting them needs a tokenizer this repo does not carry, and a budget whose measurement drifts
+ * with an estimator is not a budget. Bytes are `wc -c`, identical on every machine and in every
+ * checkout, so two readings of this number are always comparable — which is the only property a
+ * ceiling has to have.
+ *
+ * THE NUMBER WAS CHOSEN AS A SHARE OF SESSION SPEND, then converted once. At the marginal price
+ * this instrument measures — ~$0.115 per 1,000 eagerly-loaded tokens per session — and ~3.8
+ * chars/token for this repo's markdown, 96 KiB is ≈25.9k tokens ≈ $2.98 on a ~$30 session: a TENTH
+ * of what a session costs, spent on the factory's own standing instructions. That is the trade the
+ * budget encodes. Re-derive it by re-running `storytree session-cost` when the rates, the turn
+ * counts or the delegation habit move (ADR-0323 D4 makes that re-run the check on this prose).
+ *
+ * WHAT IS NOT IN IT. `AGENTS.md` is the CODEX runtime's root guidance (ADR-0232) and a Claude
+ * session's preamble does not carry it — verified against a live session's own injected context,
+ * and correcting ADR-0323 §1, which listed it. The system prompt and the tool definitions are the
+ * larger half of the measured floor and are the harness's, not ours; budgeting what we cannot edit
+ * would make the number unactionable.
+ */
+export const GUIDANCE_BUDGET_BYTES = 98_304;
+
+/**
+ * Bytes per token for this repo's guidance markdown, used ONLY to state the budget in the unit the
+ * bill uses. Back-solved from ADR-0323 §1's own `CLAUDE.md` figure (17.8k tokens) against the file's
+ * git-recorded size on the day it was measured (~67.5 KB), so it is calibrated on this corpus rather
+ * than borrowed from general prose. It is a CONVERSION with maybe ±10% in it — never let a decision
+ * turn on a token figure derived through it when the byte figure would do.
+ */
+export const GUIDANCE_CHARS_PER_TOKEN = 3.8;
+
+/** One file on the eagerly-loaded surface, and what it weighs here. */
+export interface GuidanceFile {
+  readonly label: string;
+  readonly path: string;
+  /**
+   * Size in bytes, or `null` when the file is ABSENT. Absent is a determined ZERO, not an unknown:
+   * the harness loads nothing for a file that does not exist, so that machine's preamble really is
+   * smaller. `MEMORY.md` is per-user and per-machine and is legitimately missing in CI and on a
+   * fresh checkout — reporting that as undetermined would WARN on every clean environment.
+   */
+  readonly bytes: number | null;
+}
+
+export interface GuidanceSurface {
+  readonly files: readonly GuidanceFile[];
+  /** Total bytes actually present. */
+  readonly bytes: number;
+  readonly budget: number;
+  /** Bytes over the ceiling; zero when within it. */
+  readonly overBy: number;
+  /** The same total in tokens, via {@link GUIDANCE_CHARS_PER_TOKEN} — a conversion, not a count. */
+  readonly approxTokens: number;
+}
+
+/** Where the eagerly-loaded surface lives for a given checkout and home directory. */
+export function guidanceSurfacePaths(
+  checkoutDir: string,
+  homeDir: string,
+): ReadonlyArray<{ readonly label: string; readonly path: string }> {
+  return [
+    { label: "CLAUDE.md", path: path.join(checkoutDir, "CLAUDE.md") },
+    {
+      // Keyed to the MAIN checkout, not the worktree: the harness files memory per project, and a
+      // worktree shares its parent's. `mainCheckoutRoot` is the same fold the transcript walk uses.
+      label: "MEMORY.md",
+      path: path.join(
+        homeDir,
+        ".claude",
+        "projects",
+        slugifyRepoPath(mainCheckoutRoot(checkoutDir)),
+        "memory",
+        "MEMORY.md",
+      ),
+    },
+  ];
+}
+
+/** Weigh the surface. Reads sizes only — never the contents. */
+export function measureGuidanceSurface(
+  files: ReadonlyArray<{ readonly label: string; readonly path: string }>,
+  budget: number = GUIDANCE_BUDGET_BYTES,
+): GuidanceSurface {
+  const measured: GuidanceFile[] = files.map((file) => {
+    try {
+      const stat = fs.statSync(file.path);
+      return { label: file.label, path: file.path, bytes: stat.isFile() ? stat.size : null };
+    } catch {
+      return { label: file.label, path: file.path, bytes: null };
+    }
+  });
+  const bytes = measured.reduce((sum, file) => sum + (file.bytes ?? 0), 0);
+  return {
+    files: measured,
+    bytes,
+    budget,
+    overBy: Math.max(0, bytes - budget),
+    approxTokens: Math.round(bytes / GUIDANCE_CHARS_PER_TOKEN),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The report
 // ---------------------------------------------------------------------------
 
@@ -640,12 +802,74 @@ export interface SessionRow {
   readonly subagentSpawns: number;
   /** Main-thread turns that did nothing but poll ({@link isPollingTurn}). */
   readonly pollingTurns: number;
+  /** Of those, the ones inside a run of {@link LOOP_RUN_MIN} or more — the loop signature. */
+  readonly pollingLoopTurns: number;
+  /** Context tokens on this session's FIRST main-thread turn — preamble + its opening prompt. */
+  readonly firstTurnContext: number;
 }
 
 /** Turns spent purely waiting on a machine, and what that cost. */
 export interface PollingTotals {
   readonly turns: number;
   readonly cost: number;
+  /**
+   * Polling turns that sat ALONE — a maximal run of exactly one. A deliberate single status read;
+   * not the pattern ADR-0323 D2 retired.
+   */
+  readonly isolatedTurns: number;
+  readonly isolatedCost: number;
+  /** Polling turns inside a run of {@link LOOP_RUN_MIN}+ consecutive turns — the LOOP. */
+  readonly loopedTurns: number;
+  readonly loopedCost: number;
+  /** Maximal consecutive runs of length {@link LOOP_RUN_MIN} or more, across the window. */
+  readonly loops: number;
+  readonly longestRun: number;
+  /** Measured sessions containing at least one polling turn of any kind. */
+  readonly sessionsPolling: number;
+  /** Measured sessions containing at least one LOOP. The adoption figure for D2. */
+  readonly sessionsLooping: number;
+}
+
+/**
+ * What a session pays before it does anything — the eagerly-loaded preamble, measured rather than
+ * estimated (ADR-0323 D3, whose budget number this block is what makes arguable).
+ *
+ * MEASURED, NOT COUNTED FROM THE FILES. A transcript never records the system prompt, the tool
+ * definitions, `CLAUDE.md` or `MEMORY.md` — the harness injects all four at request-build time — but
+ * the FIRST assistant turn's `usage` prices every one of them, because turn one's live context IS
+ * the preamble plus that session's opening prompt and hook output. So the floor is read off the
+ * bill, and no tokenizer, no file list and no guess about what the harness loads enters the number.
+ *
+ * WHY THE MINIMUM IS THE FLOOR. Every first-turn context over-states the fixed part by exactly that
+ * session's opening prompt. The smallest one in a population therefore bounds the fixed preamble
+ * most tightly from above, and is the closest thing to a direct reading of it. It is an UPPER bound
+ * on the fixed surface and a LOWER bound on what any session actually paid — say which you mean.
+ */
+export interface PreambleTotals {
+  /** Tightest observed main-thread first-turn context in the measured window. */
+  readonly mainFloor: number;
+  readonly mainMedian: number;
+  /**
+   * The same over transcripts skipped by `--min-turns` — machine-driven one-shots, whose opening
+   * prompt is a single scripted line. They bound the fixed preamble far more tightly than a working
+   * session can, which is the one thing this otherwise-uninteresting population is good for.
+   */
+  readonly oneShotFloor: number;
+  /** Tightest observed SUBAGENT first-turn context — a delegate pays its own preamble (ADR-0325). */
+  readonly subagentFloor: number;
+  readonly subagentTranscripts: number;
+  /**
+   * What carrying 1,000 extra eagerly-loaded tokens would have cost PER SESSION over this window.
+   *
+   * The model is deliberately the cheapest defensible one: each transcript pays the added tokens
+   * ONCE at its tier's cache-WRITE rate and then re-reads them at the cache-READ rate on every
+   * later turn. It therefore under-states — a cache entry expires and is re-written, and every
+   * subagent spawn pays a whole fresh write — so treat it as a floor on the marginal price, which
+   * is the honest direction for a number that argues AGAINST adding text.
+   */
+  readonly marginalPerKTokPerSession: number;
+  /** What the measured floors themselves cost across the whole window, on the same model. */
+  readonly floorCost: number;
 }
 
 /**
@@ -690,6 +914,8 @@ export interface SessionCostReport {
   readonly agentTypes: readonly AgentTypeRow[];
   /** Main-thread turns spent purely polling (ADR-0323 §3 / D2). */
   readonly polling: PollingTotals;
+  /** What every session pays before it does anything (ADR-0323 D3). */
+  readonly preamble: PreambleTotals;
   /** Main-thread bash calls, split by what they were for (ADR-0323 §4). */
   readonly commands: CommandMix;
   /**
@@ -787,6 +1013,7 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
    */
   const scanBudget = opts.scanLimit ?? Math.max(200, opts.limit * 25);
   const selected: Array<{ session: SessionFiles; read: TranscriptRead; windowed: readonly Turn[] }> = [];
+  const oneShotFirstTurns: number[] = [];
   let scanned = 0;
   let scanBudgetHit = false;
   let oneShotSessions = 0;
@@ -820,6 +1047,11 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       oneShotSessions++;
       oneShotTurns += windowed.length;
       for (const turn of windowed) oneShotCost += priceAxes(turn.axes, turn.tier);
+      // A one-shot's opening prompt is one scripted line, so its first-turn context is the tightest
+      // reading of the fixed preamble this machine offers. Captured even though the session itself
+      // is out of the window — the spend is excluded, the OBSERVATION is not.
+      const opening = windowed[0];
+      if (opening !== undefined) oneShotFirstTurns.push(contextTokens(opening.axes));
       continue;
     }
     selected.push({ session, read, windowed });
@@ -846,7 +1078,19 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
   const sessions: SessionRow[] = [];
   let pollingTurnCount = 0;
   let pollingCost = 0;
+  let isolatedTurns = 0;
+  let isolatedCost = 0;
+  let loopedTurns = 0;
+  let loopedCost = 0;
+  let loops = 0;
+  let longestRun = 0;
+  let sessionsPolling = 0;
+  let sessionsLooping = 0;
   let sessionsWithoutSubagents = 0;
+  const mainFirstTurns: number[] = [];
+  const subFirstTurns: number[] = [];
+  /** One row per transcript: what it would cost to make every one of them carry more preamble. */
+  const shapes: Array<{ turns: number; tier: string | undefined; main: boolean }> = [];
   const mainMix = { calls: 0, polling: 0, inspection: 0, other: 0 };
   const subMix = { calls: 0, polling: 0, inspection: 0, other: 0 };
 
@@ -890,6 +1134,24 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
     let sessionCost = 0;
     let sessionTurns = 0;
     let sessionPolling = 0;
+    let sessionLoopTurns = 0;
+    // Which run each polling turn belongs to, so its cost lands on the isolated or the looped line.
+    // Computed BEFORE the pricing walk because a run is a property of the whole transcript, and a
+    // turn cannot know from the inside whether the next turn continues it.
+    const runs = pollingRuns(windowed);
+    const loopedIndices = new Set<number>();
+    for (const run of runs) {
+      longestRun = Math.max(longestRun, run.length);
+      if (run.length < LOOP_RUN_MIN) continue;
+      loops++;
+      sessionLoopTurns += run.length;
+      for (let i = run.start; i < run.start + run.length; i++) loopedIndices.add(i);
+    }
+
+    const openingContext = windowed[0] === undefined ? 0 : contextTokens(windowed[0].axes);
+    if (windowed[0] !== undefined) mainFirstTurns.push(openingContext);
+    shapes.push({ turns: windowed.length, tier: windowed[0]?.tier, main: true });
+
     for (const [index, turn] of windowed.entries()) {
       const turnCost = account(turn);
       sessionCost += turnCost;
@@ -901,6 +1163,13 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
         pollingTurnCount++;
         pollingCost += turnCost;
         sessionPolling++;
+        if (loopedIndices.has(index)) {
+          loopedTurns++;
+          loopedCost += turnCost;
+        } else {
+          isolatedTurns++;
+          isolatedCost += turnCost;
+        }
       }
       const phase = phases[index] ?? "orientation";
       const bucket = phaseTotals.get(phase);
@@ -909,6 +1178,8 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
         bucket.cost += turnCost;
       }
     }
+    if (sessionPolling > 0) sessionsPolling++;
+    if (sessionLoopTurns > 0) sessionsLooping++;
 
     let sessionSpawns = 0;
     // Per SESSION, so an agent type spawned five times by one session counts once toward adoption.
@@ -921,6 +1192,9 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       if (subTurns.length === 0) continue;
       subagentSpawns++;
       sessionSpawns++;
+      const subOpening = subTurns[0];
+      if (subOpening !== undefined) subFirstTurns.push(contextTokens(subOpening.axes));
+      shapes.push({ turns: subTurns.length, tier: subTurns[0]?.tier, main: false });
       const agentType = readAgentType(sub.metaFile);
       const row = agentTotals.get(agentType) ?? {
         spawns: 0,
@@ -959,10 +1233,34 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       last,
       subagentSpawns: sessionSpawns,
       pollingTurns: sessionPolling,
+      pollingLoopTurns: sessionLoopTurns,
+      firstTurnContext: openingContext,
     });
   }
 
   contexts.sort((a, b) => a - b);
+  mainFirstTurns.sort((a, b) => a - b);
+  subFirstTurns.sort((a, b) => a - b);
+  oneShotFirstTurns.sort((a, b) => a - b);
+
+  /**
+   * What making EVERY transcript in this window carry `carried` more eagerly-loaded tokens would
+   * have cost: one cache write per transcript, then a cache read on every later turn.
+   */
+  const priceCarried = (carried: number, over: typeof shapes): number => {
+    let total = 0;
+    for (const shape of over) {
+      const price = shape.tier === undefined ? undefined : MODEL_PRICES[shape.tier];
+      if (price === undefined) continue;
+      total += (carried * price.cacheWrite1h) / 1_000_000;
+      total += (carried * Math.max(0, shape.turns - 1) * price.cacheRead) / 1_000_000;
+    }
+    return total;
+  };
+  const measuredSessions = Math.max(1, selected.length);
+  const mainFloor = mainFirstTurns[0] ?? 0;
+  const subagentFloor = subFirstTurns[0] ?? 0;
+
   return {
     sessions,
     active,
@@ -994,7 +1292,35 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
         models: [...row.models].sort(),
       }))
       .sort((a, b) => b.cost - a.cost),
-    polling: { turns: pollingTurnCount, cost: pollingCost },
+    polling: {
+      turns: pollingTurnCount,
+      cost: pollingCost,
+      isolatedTurns,
+      isolatedCost,
+      loopedTurns,
+      loopedCost,
+      loops,
+      longestRun,
+      sessionsPolling,
+      sessionsLooping,
+    },
+    preamble: {
+      mainFloor,
+      mainMedian: quantile(mainFirstTurns, 0.5),
+      oneShotFloor: oneShotFirstTurns[0] ?? 0,
+      subagentFloor,
+      subagentTranscripts: subFirstTurns.length,
+      marginalPerKTokPerSession: priceCarried(1_000, shapes) / measuredSessions,
+      floorCost:
+        priceCarried(
+          mainFloor,
+          shapes.filter((s) => s.main),
+        ) +
+        priceCarried(
+          subagentFloor,
+          shapes.filter((s) => !s.main),
+        ),
+    },
     commands: { ...mainMix },
     subagentCommands: { ...subMix },
     sessionsWithoutSubagents,
@@ -1166,11 +1492,26 @@ export function renderSessionCost(report: SessionCostReport): string {
     "",
     `  polling turns   ${String(report.polling.turns).padStart(5)} of ${report.mainTurns} main-thread  ` +
       `${usd(report.polling.cost).padStart(9)}  ${pct(report.polling.cost, report.totalCost)} of spend`,
+    `    in LOOPS      ${String(report.polling.loopedTurns).padStart(5)} turn(s) in ${report.polling.loops} run(s) of ${LOOP_RUN_MIN}+  ` +
+      `${usd(report.polling.loopedCost).padStart(9)}  ${pct(report.polling.loopedCost, report.totalCost)} of spend` +
+      `  — longest run ${report.polling.longestRun}`,
+    `    ISOLATED      ${String(report.polling.isolatedTurns).padStart(5)} turn(s) standing alone  ` +
+      `${usd(report.polling.isolatedCost).padStart(9)}  ${pct(report.polling.isolatedCost, report.totalCost)} of spend`,
+    `    sessions      ${report.polling.sessionsPolling} of ${measured} polled at all; ` +
+      `${report.polling.sessionsLooping} of ${measured} LOOPED`,
     "",
     "  A polling turn is one whose EVERY tool call is a bash `sleep`, `gh pr checks` or `gh run watch`",
     "  — a full-context round-trip whose entire yield is a status line. Counted by command SHAPE: a",
     "  transcript cannot separate one deliberate status read from the second tick of a loop, so this",
     "  is generous in both directions equally, which is what a before/after comparison needs.",
+    "",
+    `  THE SPLIT IS WHAT JUDGES THE PATTERN, and the total is what compares two windows. ${LOOP_RUN_MIN}+`,
+    "  CONSECUTIVE polling turns is the LOOP — the hand-rolled `run_in_background` that ADR-0323 D2",
+    "  retired. One polling turn standing alone is a deliberate status read and was never the target:",
+    "  a session that checks `gh pr checks` once after opening a PR has done nothing wrong. So a flat",
+    "  polling count can stay non-zero while the retired PATTERN is gone, and only this split can",
+    "  tell those apart. Adjacency UNDER-reports (real work between two polls breaks the run), so the",
+    "  loop line is a floor: it cannot manufacture the conclusion that the loops have stopped.",
     "",
     "## BASH CALLS BY PURPOSE  (ADR-0323 §4 — inspection should MOVE to a subagent, not vanish)",
     "",
@@ -1231,12 +1572,35 @@ export function renderSessionCost(report: SessionCostReport): string {
     "",
   );
 
+  // -- the preamble ---------------------------------------------------------
+  const pre = report.preamble;
+  lines.push(
+    "## THE PREAMBLE  (ADR-0323 D3 — what a session pays before it does anything)",
+    "",
+    `  main-thread floor   ${tokens(pre.mainFloor).padStart(7)}   (median first turn ${tokens(pre.mainMedian)})`,
+    `  one-shot floor      ${tokens(pre.oneShotFloor).padStart(7)}   (tightest reading: a one-line scripted prompt)`,
+    `  subagent floor      ${tokens(pre.subagentFloor).padStart(7)}   over ${pre.subagentTranscripts} delegate transcript(s)`,
+    "",
+    `  carrying those floors cost ${usd(pre.floorCost)} across this window — ` +
+      `${pct(pre.floorCost, report.totalCost).trim()} of spend.`,
+    `  MARGINAL PRICE: +1,000 eagerly-loaded tokens costs ${usd(pre.marginalPerKTokPerSession)} per session here.`,
+    "",
+    "  Read off the BILL, not counted from the files: a transcript never records the system prompt,",
+    "  the tool definitions, `CLAUDE.md` or `MEMORY.md`, but the first turn's `usage` prices all four,",
+    "  because turn one's live context IS the preamble plus that session's opening prompt. The floor",
+    "  is the smallest first turn in a population, so it OVER-states the fixed part by the shortest",
+    "  prompt in the window and no more. Both figures under-state the marginal price — a cache entry",
+    "  expires and is re-written, and every delegate pays a whole fresh preamble at the write rate.",
+    "",
+  );
+
   // -- per session ----------------------------------------------------------
   lines.push("## PER SESSION  (newest first; `started` is the FIRST turn — what guidance was live)", "");
   for (const row of report.sessions.slice(0, 20)) {
     lines.push(
       `  ${row.sessionId}  ${String(row.turns).padStart(4)} turn(s)  ${usd(row.cost).padStart(9)}  ` +
-        `${String(row.subagentSpawns).padStart(2)} sub  ${String(row.pollingTurns).padStart(3)} poll  ` +
+        `${String(row.subagentSpawns).padStart(2)} sub  ${String(row.pollingTurns).padStart(3)} poll ` +
+        `(${String(row.pollingLoopTurns).padStart(3)} looped)  ${tokens(row.firstTurnContext).padStart(6)} floor  ` +
         `${row.first.slice(0, 16)}  ${row.project}`,
     );
   }
@@ -1337,9 +1701,10 @@ export function sessionCostHelp(): Envelope {
       "",
       "Prices a window of PAST sessions from the harness's own JSONL transcripts, per assistant",
       "turn, from the recorded `message.usage` and `message.model`. It reports the four-way price",
-      "SPLIT (cache read / cache write / output / input), cost per phase, polling turns, bash calls",
-      "by purpose, subagent cost per agent type with the model each ran on and how many sessions",
-      "spawned it, and live-context size.",
+      "SPLIT (cache read / cache write / output / input), cost per phase, polling turns split into",
+      "LOOPS and isolated status checks, bash calls by purpose, subagent cost per agent type with the",
+      "model each ran on and how many sessions spawned it, live-context size, and the measured",
+      "preamble floor with the marginal price of adding to it.",
       "",
       `  --limit         most-recent N completed sessions (default ${DEFAULT_SESSION_LIMIT}). A session whose`,
       `                  transcript changed in the last ${DEFAULT_ACTIVE_MINUTES} minutes is treated as IN FLIGHT and`,

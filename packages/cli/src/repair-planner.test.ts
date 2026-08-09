@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { runDoctor, NODE_MAJOR_FLOOR, type DoctorObservations } from "./doctor.js";
+import { measureGuidanceSurface } from "./session-cost.js";
 import { planRepairs, formatRepairPlan } from "./repair-planner.js";
 
 /**
@@ -28,6 +29,9 @@ const HEALTHY: DoctorObservations = {
   claudeLoggedIn: true,
   checkoutBehind: 0,
   hostedRead: "ok",
+  // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
+  // preamble-budget probe reads PASS and stays out of the way of what this suite is about.
+  guidanceSurface: measureGuidanceSurface([]),
 };
 
 /** A fresh, un-set-up environment — every fixable invariant is unmet. */
@@ -41,6 +45,9 @@ const BROKEN: DoctorObservations = {
   claudeLoggedIn: false,
   checkoutBehind: null,
   hostedRead: "unconfigured",
+  // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
+  // preamble-budget probe reads PASS and stays out of the way of what this suite is about.
+  guidanceSurface: measureGuidanceSurface([]),
 };
 
 test("GREEN: a healthy report yields an EMPTY plan (nothing to repair)", () => {

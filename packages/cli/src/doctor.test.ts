@@ -16,6 +16,7 @@ import {
   NODE_MAJOR_FLOOR,
   type DoctorObservations,
 } from "./doctor.js";
+import { GUIDANCE_BUDGET_BYTES, measureGuidanceSurface } from "./session-cost.js";
 
 /**
  * The machine floor for `storytree doctor` (ADR-0207 D6). doctor is the keystone the installer
@@ -43,6 +44,9 @@ const HEALTHY: DoctorObservations = {
   claudeLoggedIn: true,
   checkoutBehind: 0,
   hostedRead: "ok",
+  // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
+  // preamble-budget probe reads PASS and stays out of the way of what this suite is about.
+  guidanceSurface: measureGuidanceSurface([]),
 };
 
 /** A fresh, un-set-up environment — every fixable invariant is unmet. */
@@ -56,6 +60,9 @@ const BROKEN: DoctorObservations = {
   claudeLoggedIn: false,
   checkoutBehind: null,
   hostedRead: "unconfigured",
+  // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
+  // preamble-budget probe reads PASS and stays out of the way of what this suite is about.
+  guidanceSurface: measureGuidanceSurface([]),
 };
 
 test("GREEN: a healthy environment passes every probe and the report is ok", () => {
@@ -164,6 +171,58 @@ test("the three currency states read differently (an undetermined probe is not a
     runDoctor({ ...HEALTHY, dependencyCurrency }).probes.find((p) => p.name === "dependencies-current")!.detail;
   const details = (["current", "stale", "unknown"] as const).map(detailOf);
   assert.equal(new Set(details).size, 3, "each state must be distinguishable in the report");
+});
+
+// ---------------------------------------------------------------------------
+// preamble-budget — ADR-0330 D1's ceiling, reported here because it is NOT a gate rung
+// ---------------------------------------------------------------------------
+
+/** A surface of the given total size, built without touching disk. */
+function surfaceOf(bytes: number): DoctorObservations["guidanceSurface"] {
+  return {
+    files: [
+      { label: "CLAUDE.md", path: "/repo/CLAUDE.md", bytes },
+      { label: "MEMORY.md", path: "/home/.claude/…/MEMORY.md", bytes: null },
+    ],
+    bytes,
+    budget: GUIDANCE_BUDGET_BYTES,
+    overBy: Math.max(0, bytes - GUIDANCE_BUDGET_BYTES),
+    approxTokens: Math.round(bytes / 3.8),
+  };
+}
+
+const probeNamed = (obs: DoctorObservations, name: string) =>
+  runDoctor(obs).probes.find((p) => p.name === name)!;
+
+test("preamble-budget PASSes within the ceiling and names both the size and the ceiling", () => {
+  const probe = probeNamed({ ...HEALTHY, guidanceSurface: surfaceOf(70_000) }, "preamble-budget");
+  assert.equal(probe.level, "PASS");
+  assert.match(probe.detail, /68 KiB of 96 KiB/, "the reading and the ceiling, both in the report");
+  assert.equal(probe.fixHint, undefined, "nothing to fix while it is within budget");
+});
+
+test("preamble-budget WARNs over the ceiling — and never FAILs, because this is cost, not breakage", () => {
+  // NEVER FAIL is the load-bearing assertion, not a style choice (ADR-0330 D2): being over budget is
+  // a cost signal with no production escape behind it, and a FAIL would make `doctor` exit non-zero
+  // and read as a broken environment. It is the same reason this is not a `pnpm gate` rung.
+  const report = runDoctor({ ...HEALTHY, guidanceSurface: surfaceOf(GUIDANCE_BUDGET_BYTES + 12_288) });
+  const probe = report.probes.find((p) => p.name === "preamble-budget")!;
+  assert.equal(probe.level, "WARN");
+  assert.match(probe.detail, /OVER by 12 KiB/);
+  assert.equal(report.failing, 0, "an over-budget surface must not fail the setup check");
+  assert.equal(report.ok, true, "…nor make doctor exit non-zero");
+  // The fix is REHOMING, not deleting — trimming orientation too far re-creates ADR-0162.
+  assert.match(probe.fixHint ?? "", /Library artifact/);
+  assert.match(probe.fixHint ?? "", /REHOME/);
+});
+
+test("an ABSENT MEMORY.md is a determined ZERO, never an undetermined WARN", () => {
+  // MEMORY.md is per-user, per-machine state: it does not exist in CI or on a fresh checkout, and
+  // there it genuinely contributes nothing to the preamble. Treating absence as "not determined"
+  // would WARN on every clean environment and train the reader to ignore this probe.
+  const probe = probeNamed({ ...HEALTHY, guidanceSurface: surfaceOf(1_024) }, "preamble-budget");
+  assert.equal(probe.level, "PASS");
+  assert.match(probe.detail, /MEMORY\.md absent/);
 });
 
 // The OBSERVATION half, against real files on a real disk — `lockfileAdvanced` is deliberately not
