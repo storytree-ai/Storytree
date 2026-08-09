@@ -1655,7 +1655,13 @@ export function nodeResolve(unitId: string | undefined, opts: NodeResolveOpts = 
       `  typecheck:    ${r.typecheck ?? "(none — builtins-only, no install)"}`,
       `  proof cmd:    ${r.proofCommand ?? "(default: node:test on the test file)"}`,
       `  real proof:   ${r.proofDisplay}`,
+      // `custom-proof-command-red-accounting`: the accounting posture is the one fact a `--real` build
+      // used to reveal only by SPENDING authoring turns against it. It is free here.
+      `  accounting:   ${r.proofAccounting} (${r.proofRouteBasis})`,
     );
+    if (r.proofAccountingNote !== null) {
+      lines.push(`                ${r.proofAccountingNote}`);
+    }
   } else {
     lines.push(
       "",

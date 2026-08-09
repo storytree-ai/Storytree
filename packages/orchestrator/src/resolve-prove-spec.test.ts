@@ -34,6 +34,7 @@ import {
   realPrompts,
   scriptedWriterModel,
 } from "./resolve-prove-spec.js";
+import { classifyProofRoute } from "./proof/proof-route.js";
 import { proveUnit, gitTreeState } from "./prove-it-gate.js";
 import { PathWriteScope } from "./phase-machine.js";
 import { WriteScopedToolExecutor } from "./write-scoped-executor.js";
@@ -1259,6 +1260,220 @@ test("B — a trivially-green declared proofCommand still fails CONFIRM_RED (no 
     assert.equal(result.failedAt, "CONFIRM_RED");
   } finally {
     await worktree.remove();
+  }
+});
+
+// ── `custom-proof-command-red-accounting` (parallel-red-green-arc): the custom route's accounting ──
+// ADR-0211's guard was wired by ROUTE (default vs custom) rather than by CAPABILITY, so a declared
+// command that runs node:test over the node's OWN test file — the exact shape the guard measures —
+// silently kept exit-code-only observation. These prove the wiring end-to-end on the spine's OWN
+// observation channel, which is the only channel that decides anything.
+
+/** A temp workspace holding ONE CommonJS test file, plus a spec whose custom command runs exactly it. */
+async function ownFileProofSpec(
+  body: string,
+): Promise<{ ws: string; spec: ReturnType<typeof loadById> }> {
+  const ws = await fs.mkdtemp(path.join(os.tmpdir(), "own-file-oracle-"));
+  await fs.writeFile(path.join(ws, "unit.test.cjs"), body, "utf8");
+  const base = loadById("verdict-line");
+  const bc = base.buildConfig;
+  assert.ok(bc?.real !== undefined);
+  const real = {
+    ...bc.real,
+    testFile: "unit.test.cjs",
+    proofCommand: { file: process.execPath, args: ["--test", "unit.test.cjs"] },
+  };
+  return { ws, spec: { ...base, id: "own-file-proof", buildConfig: { ...bc, real } } };
+}
+
+test("a declared own-file node:test proof is now oracle-ACCOUNTED — its green reports the measured count", async () => {
+  const { ws, spec } = await ownFileProofSpec(
+    'const { test } = require("node:test");\n' +
+      'const assert = require("node:assert/strict");\n' +
+      'test("green", () => { assert.equal(1, 1); assert.equal(2, 2); });\n',
+  );
+  try {
+    const resolved = resolveProveSpec(spec, {
+      mode: "real",
+      workspace: ws,
+      store: new InMemoryStore(),
+      runId: "own-file-green",
+      signerInputs: { flag: "tester@example.com" },
+      authorOverride: NOOP_AUTHOR,
+    });
+    assert.equal(resolved.ok, true);
+    if (!resolved.ok) return;
+    const obs = await resolved.spec.testExecutor.run(spec.id);
+    assert.equal(obs.result, "green");
+    assert.match(
+      obs.note ?? "",
+      /assert-oracle: 2 assertion\(s\) executed/,
+      "a custom command that runs the node's own test file must be CROSS-CHECKED, not merely trusted",
+    );
+  } finally {
+    await fs.rm(ws, { recursive: true, force: true });
+  }
+});
+
+test("a declared own-file node:test proof can PROVE a red BY ASSERTION — the measured kind, not a text guess", async () => {
+  // The increment's headline. Before this, every custom-command red carried kindBasis "output-text",
+  // which `nextPhase` refuses to gate on — so an editsExisting node declaring an ASSERTION red had no
+  // instrument that could tell one from a run that died in setup.
+  const { ws, spec } = await ownFileProofSpec(
+    'const { test } = require("node:test");\n' +
+      'const assert = require("node:assert/strict");\n' +
+      'test("red", () => { assert.equal(1, 2); });\n',
+  );
+  try {
+    const resolved = resolveProveSpec(spec, {
+      mode: "real",
+      workspace: ws,
+      store: new InMemoryStore(),
+      runId: "own-file-red",
+      signerInputs: { flag: "tester@example.com" },
+      authorOverride: NOOP_AUTHOR,
+    });
+    assert.equal(resolved.ok, true);
+    if (!resolved.ok) return;
+    const obs = await resolved.spec.testExecutor.run(spec.id);
+    assert.equal(obs.result, "red");
+    assert.equal(obs.kind, "runtime", "one assertion ran and refused → an ASSERTION red");
+    assert.equal(obs.kindBasis, "oracle-count", "only this basis arms nextPhase's right-kind-red gate");
+  } finally {
+    await fs.rm(ws, { recursive: true, force: true });
+  }
+});
+
+test("a declared own-file node:test proof distinguishes a STRUCTURAL red from an assertion one", async () => {
+  const { ws, spec } = await ownFileProofSpec('require("./nope.cjs");\n');
+  try {
+    const resolved = resolveProveSpec(spec, {
+      mode: "real",
+      workspace: ws,
+      store: new InMemoryStore(),
+      runId: "own-file-structural",
+      signerInputs: { flag: "tester@example.com" },
+      authorOverride: NOOP_AUTHOR,
+    });
+    assert.equal(resolved.ok, true);
+    if (!resolved.ok) return;
+    const obs = await resolved.spec.testExecutor.run(spec.id);
+    assert.equal(obs.result, "red");
+    assert.equal(obs.kind, "compile", "zero assertions executed → the run never reached one");
+    assert.equal(obs.kindBasis, "oracle-count");
+  } finally {
+    await fs.rm(ws, { recursive: true, force: true });
+  }
+});
+
+test("the guard rides the SPAWNED arg vector, never the display or the author's declared command", () => {
+  const base = loadById("verdict-line").buildConfig?.real;
+  assert.ok(base !== undefined);
+  const declared = { file: "node", args: ["--test", base.testFile] };
+  const real = { ...base, proofCommand: declared };
+  const resolved = realProofCommand(real, "/ws");
+  assert.equal(resolved.accounted, true);
+  assert.equal(resolved.command.args[0], "--import");
+  assert.match(String(resolved.command.args[1]), /assert-oracle-guard\.mjs$/);
+  assert.deepEqual(declared.args, ["--test", base.testFile], "the declared config is never mutated");
+  assert.equal(resolved.display, `node --test ${base.testFile}`, "the display stays the human command");
+});
+
+test("a SUITE proof command stays unaccounted and BUILDABLE — refusing it would unbuild every ADR-0098 R2 node", () => {
+  const base = loadById("verdict-line").buildConfig?.real;
+  assert.ok(base !== undefined);
+  const real = {
+    ...base,
+    install: true,
+    typecheck: { file: "pnpm", args: ["--filter", "@storytree/cli", "typecheck"] },
+    proofCommand: { file: "pnpm", args: ["--filter", "@storytree/cli", "test"] },
+  };
+  const resolved = realProofCommand(real, "/ws");
+  assert.equal(resolved.accounted, false);
+  assert.equal(resolved.route.accounting, "none");
+  assert.equal(resolved.route.basis, "suite-scoped");
+  // No guard is spliced into a suite: measured on Node 24, node:test's runner PARENT overwrites the
+  // report LAST with its own count of zero, so an accounted suite would false-RED every green.
+  assert.deepEqual(resolved.command, platformShellCommand({ ...real.proofCommand, cwd: "/ws" }));
+});
+
+test("an unaccounted route stamps the CLASSIFIER's own sentence on its green, not a standing disclaimer", async () => {
+  const ws = await fs.mkdtemp(path.join(os.tmpdir(), "unaccounted-note-"));
+  try {
+    const base = loadById("verdict-line");
+    const bc = base.buildConfig;
+    assert.ok(bc?.real !== undefined);
+    const real = {
+      ...bc.real,
+      proofCommand: { file: process.execPath, args: ["-e", "process.exit(0)"] },
+    };
+    const resolved = resolveProveSpec(
+      { ...base, id: "unaccounted-note", buildConfig: { ...bc, real } },
+      {
+        mode: "real",
+        workspace: ws,
+        store: new InMemoryStore(),
+        runId: "unaccounted-note-1",
+        signerInputs: { flag: "tester@example.com" },
+        authorOverride: NOOP_AUTHOR,
+      },
+    );
+    assert.equal(resolved.ok, true);
+    if (!resolved.ok) return;
+    const obs = await resolved.spec.testExecutor.run("unaccounted-note");
+    assert.equal(obs.result, "green");
+    assert.match(obs.note ?? "", /^unvetted: exit-code-only/);
+    assert.match(
+      obs.note ?? "",
+      /names no runner this spine can read/,
+      "the verdict must say WHICH flavour of unaccounted this was, not just THAT it was",
+    );
+  } finally {
+    await fs.rm(ws, { recursive: true, force: true });
+  }
+});
+
+test("REFUSED before a turn is spent: a proof command that runs a file the leaf is not authoring", async () => {
+  // The unprovable combination. AUTHOR_TEST writes `testFile`; this command runs something else, so
+  // CONFIRM_RED is unreachable by construction — and the resolver knows it before the worktree exists.
+  const base = loadById("verdict-line");
+  const bc = base.buildConfig;
+  assert.ok(bc?.real !== undefined);
+  const real = {
+    ...bc.real,
+    proofCommand: { file: "node", args: ["--test", "packages/orchestrator/src/proof/rollup.test.ts"] },
+  };
+  const resolved = resolveProveSpec(
+    { ...base, id: "observes-another-file", buildConfig: { ...bc, real } },
+    {
+      mode: "real",
+      workspace: os.tmpdir(),
+      store: new InMemoryStore(),
+      runId: "refused-1",
+      signerInputs: { flag: "tester@example.com" },
+      authorOverride: NOOP_AUTHOR,
+    },
+  );
+  assert.equal(resolved.ok, false, "this must never reach an authoring turn");
+  if (resolved.ok) return;
+  assert.match(resolved.reason, /cannot prove a red/);
+  assert.match(resolved.reason, /rollup\.test\.ts/, "it names the file the command actually runs");
+  assert.match(resolved.reason, /verdict-line\.test\.ts/, "…and the file AUTHOR_TEST would write");
+  assert.match(resolved.reason, /node --import tsx --test/, "…and the oracle-accounted remedy");
+});
+
+test("every real-buildable node in the corpus resolves to a route that is NOT refused", () => {
+  // The migration check for the refusal above: it is a fail-closed fence, not a corpus change. If a
+  // node ever lands whose command observes a file it does not author, this fails HERE — in the offline
+  // gate — rather than after a leaf has been paid to author against it.
+  for (const id of realBuildableNodeIds()) {
+    const real = loadById(id).buildConfig?.real;
+    if (real === undefined) continue;
+    assert.notEqual(
+      classifyProofRoute(real).accounting,
+      "refused",
+      `${id}: its declared proof command cannot observe its own testFile`,
+    );
   }
 });
 
