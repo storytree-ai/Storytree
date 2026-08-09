@@ -378,6 +378,9 @@ kind owes a seed export any more.
   intent. Then `arc edit <id> [--intent] [--end-state] --pg` patches the narrative, `arc increment add
   <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` APPENDS one landing to the
   increment log (ADR-0183 D1 — the merge-ceremony residue), and `arc close` writes the terminal one.
+  **`arc reopen <id> --reason <text|@file> --pg` is the way back (ADR-0337)** — any caller may run it;
+  ADR-0239 D2's owner-only reservation is withdrawn, since it was never given a verb and so left the
+  transition reachable by nobody. `--reason` is required for the same reason `--outcome` is on close.
   All go through the validated write path; long prose comes from `@path` so newlines survive.
 - **Hosted studio (ADR-0042):** the members deployment — Cloud Run `storytree-studio`
   (australia-southeast1) behind **direct IAP** (no LB, no domain), serving

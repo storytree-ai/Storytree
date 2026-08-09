@@ -151,9 +151,16 @@ go closed without a terminal increment stating the observable end-state conditio
 ADR-0084/0086 discipline applied unchanged — status is a projection of prose that supports it, never
 a free flip — and it is why a bare `--set lifecycle=closed` must be refused.
 
-Re-opening (`closed → active`) is **owner-only**, mirroring ADR-0084's human-only `accepted →
-proposed` un-deciding: an agent may recognise that an end state was met; deciding it was not is the
-owner's call.
+Re-opening (`closed → active`) was reserved as **owner-only** here, mirroring ADR-0084's human-only
+`accepted → proposed` un-deciding. **That reservation is WITHDRAWN by
+[ADR-0337](0337-an-agent-may-reopen-a-closed-arc-arc-reopen-records-why-then.md) (2026-08-09): any
+caller may reopen an arc, via `storytree arc reopen <id> --reason <text|@file> --pg`.** The
+reservation was never given a mechanism — no verb, no flag, no owner path — so it did not make the
+transition owner-only, it made it reachable by *nobody*, and it stranded ADR-0334's reopening of
+`parallel-session-dispatch-arc` with the arc doc unable to follow its own accepted ADR. What this
+paragraph got right and ADR-0337 keeps is the rule above it: the flip is a projection of prose that
+supports it, so `--reason` is required in the opening direction exactly as `--outcome` is in the
+closing one, and a bare `--set lifecycle=…` stays refused in both.
 
 ### D3 — `arc list` filters by default
 

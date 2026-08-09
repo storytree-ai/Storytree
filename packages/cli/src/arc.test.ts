@@ -8,6 +8,7 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 
 import {
   arcClose,
+  arcReopen,
   arcCommand,
   arcDescriptionFrom,
   arcEdit,
@@ -814,7 +815,123 @@ test("arc close refuses offline, on a missing id, on a wrong kind, and on an alr
   const again = await arcClose(writeDeps(store), "done-arc", { outcome: "x" });
   assert.equal(again.ok, false);
   assert.match(again.body, /already closed/);
-  assert.match(again.body, /Re-opening a closed arc is OWNER-only/);
+  // ADR-0337: this used to send the reader to "re-opening is OWNER-only" — a rule with no verb
+  // behind it, so the dead end WAS the refusal's advice. It names the verb now.
+  assert.match(again.body, /storytree arc reopen done-arc --reason/);
+});
+
+// ---------------------------------------------------------------------------
+// `arc reopen` (ADR-0337) — the opening half of the lifecycle. ADR-0239 D2 reserved `closed →
+// active` for the owner and shipped no mechanism for it: `arc close` refuses on an already-closed
+// arc, `library artifact edit --set lifecycle` is refused unconditionally for an arc, and no flag or
+// env var existed anywhere. So the transition was not owner-only, it was NOBODY-only — proved for
+// real when ADR-0334 reopened `parallel-session-dispatch-arc` in the decision log and the arc doc
+// could not follow. The owner's call was to build the verb ungated: an agent may reopen an arc.
+// What these tests pin is the discipline that DID survive — a lifecycle bit moves only with prose
+// behind it, in either direction, increment-first.
+// ---------------------------------------------------------------------------
+
+test("arc reopen records the increment, flips to active, and returns the arc to the worklist", async () => {
+  const store = await withClosedArc(await seededStore());
+  const fx = diskFixture();
+  try {
+    // Precondition: closed, and out of the default list.
+    const before = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.doesNotMatch(before.body, /done-arc/);
+
+    const res = await arcReopen(writeDeps(store), "done-arc", {
+      reason: "ADR-0334 superseded the closure — the end state does not hold.",
+      pr: "#1253",
+      date: "2026-08-09",
+    });
+    assert.equal(res.ok, true);
+    assert.match(res.body, /re-opened arc done-arc/);
+    assert.match(res.body, /#1253/);
+
+    // The FLIP.
+    assert.equal(((await store.getDoc("done-arc"))?.doc as { lifecycle?: string }).lifecycle, "active");
+
+    // The PROSE behind it: its own increment row, marked so the log says which entry moved the bit
+    // (an unmarked one would read as one more landing — the one thing it is not).
+    const rows = (await store.queryDocs({ kind: "increment" })).filter(
+      (d) => (d.doc as { arcRef?: string }).arcRef === "asset:done-arc",
+    );
+    assert.equal(rows.length, 1);
+    const entry = rows[0]?.doc as { body?: string; title?: string; status?: string };
+    assert.match(entry.title ?? "", /^REOPENED/);
+    assert.match(entry.body ?? "", /ADR-0334 superseded the closure/);
+    assert.equal(entry.status, "closed", "the log entry is a record, not work to be done");
+
+    // And it is back in the default worklist — the whole point of the bit.
+    const after = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.match(after.body, /done-arc/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc reopen refuses without --reason, and writes NOTHING on that refusal", async () => {
+  const store = await withClosedArc(await seededStore());
+  const res = await arcReopen(writeDeps(store), "done-arc", { pr: "#1253" });
+  assert.equal(res.ok, false);
+  assert.match(res.body, /needs --reason/);
+  assert.match(res.body, /a projection of the prose that supports it/);
+  // Neither half landed — the refusal is total, exactly as `arc close`'s missing-outcome refusal is.
+  assert.equal(((await store.getDoc("done-arc"))?.doc as { lifecycle?: string }).lifecycle, "closed");
+  assert.equal(
+    (await store.queryDocs({ kind: "increment" })).filter(
+      (d) => (d.doc as { arcRef?: string }).arcRef === "asset:done-arc",
+    ).length,
+    0,
+  );
+});
+
+test("arc reopen refuses offline, on a missing id, on a wrong kind, and on an already-active arc", async () => {
+  const store = await withClosedArc(await seededStore());
+
+  const offline = await arcReopen(writeDeps(store, false, false), "done-arc", { reason: "x" });
+  assert.equal(offline.ok, false);
+  assert.match(offline.body, /writes to the shared store/);
+
+  const missing = await arcReopen(writeDeps(store), "nope", { reason: "x" });
+  assert.equal(missing.ok, false);
+  assert.match(missing.body, /no arc "nope"/);
+
+  const wrongKind = await arcReopen(writeDeps(store), "map-arc-plan-1", { reason: "x" });
+  assert.equal(wrongKind.ok, false);
+  assert.match(wrongKind.body, /is a increment, not an arc/);
+
+  // The mirror of `arc close`'s already-closed refusal: an OPEN arc has nothing to re-open, and the
+  // refusal names the verb that DOES fit the situation rather than leaving the reader guessing.
+  const alreadyOpen = await arcReopen(writeDeps(store), "map-arc", { reason: "x" });
+  assert.equal(alreadyOpen.ok, false);
+  assert.match(alreadyOpen.body, /already active/);
+  assert.match(alreadyOpen.body, /storytree arc increment add map-arc --outcome/);
+});
+
+test("close → reopen → close round-trips, and every transition leaves its own durable increment", async () => {
+  const store = await seededStore();
+  const arcId = "map-arc";
+
+  await arcClose(writeDeps(store), arcId, { outcome: "the end state is met" });
+  assert.equal(((await store.getDoc(arcId))?.doc as { lifecycle?: string }).lifecycle, "closed");
+
+  await arcReopen(writeDeps(store), arcId, { reason: "it was not met after all" });
+  assert.equal(((await store.getDoc(arcId))?.doc as { lifecycle?: string }).lifecycle, "active");
+
+  await arcClose(writeDeps(store), arcId, { outcome: "met, this time for real" });
+  assert.equal(((await store.getDoc(arcId))?.doc as { lifecycle?: string }).lifecycle, "closed");
+
+  // THREE rows, not one mutated in place: increments are durable (ADR-0305 D3), so the arc's history
+  // shows it was closed, reopened and closed again rather than presenting the last state as the only
+  // one there ever was. A reader of the log can see the reversal happened.
+  // Scoped to the rows the TRANSITIONS minted (`<arc>-inc-NN`) — the seeded `map-arc-plan-1` is this
+  // arc's pre-existing work and would otherwise be counted as a fourth.
+  const bodies = (await store.queryDocs({ kind: "increment" }))
+    .filter((d) => (d.doc as { arcRef?: string }).arcRef === `asset:${arcId}` && d.id.startsWith(`${arcId}-inc-`))
+    .map((d) => (d.doc as { body?: string }).body ?? "");
+  assert.equal(bodies.length, 3);
+  assert.equal(bodies.filter((b) => b.startsWith("REOPENED")).length, 1);
 });
 
 test("a closed arc leaves the default worklist end-to-end (D2 write → D3 filter)", async () => {
@@ -845,6 +962,10 @@ test("arc help advertises the three increment verbs and refuses the retired prop
   assert.match(help.body, /arc increment close/);
   // The correction path is advertised where a reader looks for a verb that does not exist.
   assert.match(help.body, /storytree library artifact edit <increment-id> --pg/);
+  // Both lifecycle directions are advertised (ADR-0337) — help that lists only `close` is what let
+  // "re-opening is OWNER-only" read as a policy rather than as a missing verb.
+  assert.match(help.body, /storytree arc close <id> --outcome/);
+  assert.match(help.body, /storytree arc reopen <id> --reason/);
 });
 
 test("an EMPTY arc list offers the scaffolder, not the hand-authoring path it replaced", async () => {
