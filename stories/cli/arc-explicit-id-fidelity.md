@@ -77,13 +77,21 @@ before length checking, and the retained cap for title-derived ids.
 1. **`arc-explicit-id-refuses-lossy-cap`** — `arc new` refuses an explicitly authored id that normalises beyond the 60-character cap rather than creating an arc under a truncated id
    - **asserts —** The explicit id is normalised before its length is checked; a normalised value over 60 characters returns `ok:false` before any store read or write, a value of exactly 60 remains accepted, and title-derived ids retain their existing capped derivation. Zero interaction is asserted before any verification read, or verification bypasses the spy; test-owned probes must not enter the call ledger.
    - **covers —** `packages/cli/src/arc.ts` (`arcNew`, explicit-id selection before store access)
-   - **proven by —** `packages/cli/src/cli.test.ts` — the `arc-explicit-id-refuses-lossy-cap: …` case,
-     passing at HEAD against `arcNew` / `normalizeExplicitId` / `ARC_ID_CAP` in `packages/cli/src/arc.ts`.
-     It drives a 61-character explicit id through the real `arcNew` path and asserts `ok:false`, a refusal
-     naming the cap it exceeded, zero counted `getDoc` calls, and no arc written under either the typed id
-     or its truncated form. The red — that same case, against a source where the shared slug helper
-     truncated the overlength id and let creation proceed under the altered id — WAS observed by the spine
-     before the refusal was added, and the resulting signed pass promoted the build (`--real` run
-     `real-msgbv0z0`). *(Coverage note: the promoted build added the overlength-refusal case only. The
-     exactly-60-accepted boundary and the retained title-derived cap asserted above hold in the source but
-     are NOT pinned by a case at HEAD.)*
+   - **proven by —** `packages/cli/src/cli.test.ts` — the three `arc-explicit-id-refuses-lossy-cap: …`
+     cases, passing at HEAD against `arcNew` / `normalizeExplicitId` / `ARC_ID_CAP` / `arcIdFromTitle` in
+     `packages/cli/src/arc.ts`, one per behaviour this contract asserts:
+     - **over the cap → refused pre-store** — drives a 61-character explicit id through the real `arcNew`
+       path and asserts `ok:false`, a refusal naming the cap it exceeded, zero counted `getDoc` calls, and
+       no arc written under either the typed id or its truncated form.
+     - **exactly 60 → accepted, under the id as typed** — the boundary the refusal must not swallow.
+     - **title-derived ids keep their capped derivation** — a title normalising past the cap still
+       CREATES, with the slug core capped before the `-arc` suffix and asserted structurally (a prefix of
+       the normalised title) rather than against a golden string.
+
+     The red for the first — that case against a source where the shared slug helper truncated the
+     overlength id and let creation proceed under the altered id — WAS observed by the spine before the
+     refusal was added, and the resulting signed pass promoted the build (`--real` run `real-msgbv0z0`).
+     The other two are a hand-landed coverage backfill over behaviour that already shipped, so no genuine
+     red existed to drive and forcing one would have been theater (ADR-0085/0097); each was instead
+     verified by MUTATION — `>` → `>=` at the cap reds only the exactly-60 case, and leaking the refusal
+     onto the derived id reds only the title case, while the original case stays green through both.
