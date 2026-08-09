@@ -17,9 +17,22 @@
  *      `Object.freeze` both assert modules. A source that tries to reassign a method (vector A) throws
  *      a TypeError under ESM strict → its import fails → the proof reds. The wrappers cannot be swapped.
  *   2. ACCOUNT — a `process.on("exit")` hook (registered FIRST, so it runs even when the source calls
- *      `process.exit(0)` — vector B) writes the real assertion count to the file named by
- *      `STORYTREE_PROOF_REPORT`. The spine reads it and refuses a green that executed 0 assertions,
- *      out-of-band — the thing a bare exit code cannot see.
+ *      `process.exit(0)` — vector B) writes the real assertion count to a file DERIVED from
+ *      `STORYTREE_PROOF_REPORT`. The spine reads it back (aggregated — see the PER-PROCESS note below)
+ *      and refuses a green that executed 0 assertions, out-of-band — the thing a bare exit code cannot
+ *      see.
+ *
+ * PER-PROCESS REPORT FILES (`custom-proof-command-red-accounting` residual, `parallel-red-green-arc`).
+ * A WHOLE-SUITE proof command (`node --test` over more than one file, whether invoked directly or via
+ * a package script) isolates each test file in its OWN child process, and node:test's runner PARENT
+ * outlives every child — so a single shared report file is overwritten LAST by the parent's own exit
+ * hook, with the parent's own count of ZERO (it never runs an assertion itself). That is not a partial
+ * signal, it is a GUARANTEED false zero regardless of how many real assertions the children ran.
+ * Every guard-loaded process (the parent AND each child) therefore writes to its OWN file —
+ * `${STORYTREE_PROOF_REPORT}.${process.pid}` — rather than the shared path directly. The spine reads
+ * ALL of them back and sums the counts ({@link import("./oracle-accounting.js").readAssertionCount}),
+ * so the parent's honest zero and each child's honest count compose into the suite's real total,
+ * instead of the parent's zero silently winning a last-write race.
  *
  * WHAT REGISTERING FIRST DOES *NOT* BUY (ADR-0249, read before touching the write below): registering
  * first survives `process.exit(0)`, but nothing an in-process hook can do survives
@@ -105,9 +118,15 @@ instrument(assertLoose);
 // TRUE only because the spine cleared the report before this observation (ADR-0249; see the header).
 const reportPath = process.env[REPORT_ENV];
 if (reportPath !== undefined && reportPath !== "") {
+  // PER-PROCESS: this process's own count goes to its own file, never the shared base path — see the
+  // header note. `process.pid` is unique among the concurrently-live processes of one observation
+  // (parent + every node:test worker it forks), which is all the uniqueness this needs: the spine
+  // clears every matching file before each observation it trusts (ADR-0249), so a stale pid from a
+  // PRIOR observation can never survive to be misread as this one's.
+  const perProcessPath = `${reportPath}.${process.pid}`;
   process.on("exit", () => {
     try {
-      const fd = openSync(reportPath, "w");
+      const fd = openSync(perProcessPath, "w");
       writeSync(fd, JSON.stringify({ assertions: assertionCount }));
       closeSync(fd);
     } catch {
