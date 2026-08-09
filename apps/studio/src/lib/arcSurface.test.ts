@@ -189,6 +189,13 @@ describe('arcState — waiting / running / quiet, and NEVER blocked (ADR-0314 D4
     expect(arcState(rollup, NOW)).toBe('quiet');
   });
 
+  it('a closed arc reads `closed`, even over a stray unanswered question (ADR-0335)', () => {
+    // `closed` wins over everything: `waiting` promises "answerable right now, in flight", and a
+    // closed arc is not in flight even if it happens to still carry an unresolved question.
+    const rollup = arc({ id: 'a', lifecycle: 'closed', questions: [question('q1')] });
+    expect(arcState(rollup, NOW)).toBe('closed');
+  });
+
   it('NO input produces `blocked` — the refusal is declared, and holds across every shape', () => {
     expect(BLOCKED_IS_DERIVABLE).toBe(false);
     const shapes: ArcRollup[] = [
@@ -241,6 +248,27 @@ describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D
       NOW,
     );
     expect(lanes.map((l) => l.arc.id)).toEqual(['alpha', 'zulu']);
+  });
+
+  describe('scope (ADR-0335) — closed arcs are one flag away, not hidden', () => {
+    const LIVE = arc({ id: 'live-one', increments: [landed('c', '2026-08-05')] });
+    const DONE = arc({ id: 'done-one', lifecycle: 'closed', increments: [landed('c', '2026-07-01')] });
+
+    it('defaults to `active` — unchanged from before the scope param existed', () => {
+      expect(arcLanes([LIVE, DONE], NOW).map((l) => l.arc.id)).toEqual(['live-one']);
+      expect(arcLanes([LIVE, DONE], NOW, 'active').map((l) => l.arc.id)).toEqual(['live-one']);
+    });
+
+    it('`closed` shows ONLY closed arcs, each reading state `closed`', () => {
+      const lanes = arcLanes([LIVE, DONE], NOW, 'closed');
+      expect(lanes.map((l) => l.arc.id)).toEqual(['done-one']);
+      expect(lanes[0]?.state).toBe('closed');
+    });
+
+    it('`all` shows both, closed sorted after every derivable-active state', () => {
+      const lanes = arcLanes([DONE, LIVE], NOW, 'all');
+      expect(lanes.map((l) => l.arc.id)).toEqual(['live-one', 'done-one']);
+    });
   });
 });
 

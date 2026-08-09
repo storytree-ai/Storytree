@@ -277,6 +277,78 @@ describe('ArcSurface — honest absence: no store ≠ no arcs', () => {
   });
 });
 
+describe('ArcSurface — closed arcs are one flag away, not filed and forgotten (ADR-0335)', () => {
+  it('the Closed toggle reveals what the default Active scope hides', () => {
+    render(<ArcSurface arcs={[arc({ id: 'live-arc' }), arc({ id: 'done-arc', lifecycle: 'closed' })]} now={NOW} />);
+    expect(screen.queryByTestId('arc-lane:done-arc')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('arc-lanes-scope:closed'));
+    expect(screen.getByTestId('arc-lane:done-arc')).not.toBeNull();
+    expect(screen.queryByTestId('arc-lane:live-arc')).toBeNull();
+    expect(screen.getByTestId('arc-lane:done-arc').getAttribute('data-arc-state')).toBe('closed');
+  });
+
+  it('the All toggle shows both, and switching back to Active hides the closed one again', () => {
+    render(<ArcSurface arcs={[arc({ id: 'live-arc' }), arc({ id: 'done-arc', lifecycle: 'closed' })]} now={NOW} />);
+    fireEvent.click(screen.getByTestId('arc-lanes-scope:all'));
+    expect(screen.getByTestId('arc-lane:live-arc')).not.toBeNull();
+    expect(screen.getByTestId('arc-lane:done-arc')).not.toBeNull();
+
+    fireEvent.click(screen.getByTestId('arc-lanes-scope:active'));
+    expect(screen.getByTestId('arc-lane:live-arc')).not.toBeNull();
+    expect(screen.queryByTestId('arc-lane:done-arc')).toBeNull();
+  });
+});
+
+describe('ArcSurface — deep links open in the map overlay, not a navigation away (ADR-0335)', () => {
+  const WITH_LINKS = arc({
+    id: 'linked-arc',
+    questions: [question('oq-1')],
+    increments: [landed('done-1', '2026-08-01'), parked('next-1', '2026-08-05')],
+  });
+
+  it('a plain click calls onOpen and never navigates — href is still there for everything else', () => {
+    const opened: Array<{ id: string; category: string }> = [];
+    render(
+      <ArcSurface
+        arcs={[WITH_LINKS]}
+        now={NOW}
+        onOpen={(s) => opened.push({ id: s.id, category: s.category })}
+      />,
+    );
+    const openArcLink = within(screen.getByTestId('arc-briefing')).getByRole('link', { name: /open the arc/ });
+    // The href stays real — right-click / middle-click / copy-link / screen readers are unaffected.
+    expect(openArcLink.getAttribute('href')).toBe('#/asset/linked-arc');
+    fireEvent.click(openArcLink);
+    expect(opened).toEqual([{ id: 'linked-arc', category: 'arc' }]);
+
+    const questionLink = screen.getByRole('link', { name: 'Question oq-1' });
+    fireEvent.click(questionLink);
+    expect(opened).toContainEqual({ id: 'oq-1', category: 'open-question' });
+
+    const incrementLink = screen.getByRole('link', { name: 'title of next-1' });
+    fireEvent.click(incrementLink);
+    expect(opened).toContainEqual({ id: 'next-1', category: 'increment' });
+  });
+
+  it('a modified click (e.g. ctrl/cmd, for opening in a new tab) is left to the browser, not intercepted', () => {
+    const opened: string[] = [];
+    render(<ArcSurface arcs={[WITH_LINKS]} now={NOW} onOpen={(s) => opened.push(s.id)} />);
+    const openArcLink = within(screen.getByTestId('arc-briefing')).getByRole('link', { name: /open the arc/ });
+    fireEvent.click(openArcLink, { ctrlKey: true });
+    expect(opened).toEqual([]);
+  });
+
+  it('without onOpen, a click is a no-op here — falls through to ordinary navigation, unchanged', () => {
+    render(<ArcSurface arcs={[WITH_LINKS]} now={NOW} />);
+    const openArcLink = within(screen.getByTestId('arc-briefing')).getByRole('link', { name: /open the arc/ });
+    // jsdom does not actually navigate on an anchor click; the assertion is simply that this does
+    // not throw and the href is untouched.
+    fireEvent.click(openArcLink);
+    expect(openArcLink.getAttribute('href')).toBe('#/asset/linked-arc');
+  });
+});
+
 describe('ArcSurface — READ-ONLY this round (ADR-0267 D6 / ADR-0314 D9)', () => {
   it('offers no way to answer, comment on, or edit anything', () => {
     render(

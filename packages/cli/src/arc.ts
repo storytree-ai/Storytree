@@ -474,8 +474,8 @@ export function arcDescriptionFrom(intent: string): string {
 
 /**
  * `storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file>
- * [--description <text|@file>] --pg` — SCAFFOLD a new arc through the same validated write path as
- * every other arc verb.
+ * --objective <text|@file> --body <text|@file> [--description <text|@file>] --pg` — SCAFFOLD a new
+ * arc AND its first increment, through the same validated write path as every other arc verb.
  *
  * The missing FIRST step of an otherwise fully first-class lifecycle: `arc edit` / `arc increment
  * add` (ADR-0183 D1) and `arc close` (ADR-0239 D2) all exist, but CREATING an arc still meant
@@ -488,14 +488,21 @@ export function arcDescriptionFrom(intent: string): string {
  * a SLUG, so there is no number to reserve atomically and no DB allocator here. This verb is the
  * CHEAPER of the two, not the dearer.
  *
- * The author supplies the three required fields only. The CLI owns `kind`; `id` (derived from the
- * title unless one is passed); `description` (derived from the intent unless passed); `references`;
- * `schemaVersion` (via the upcaster); both timestamps; and `lifecycle: active` — the schema default,
- * spelled out so a born arc is explicitly in flight rather than defaulted-into-it. `increments` is
- * deliberately ABSENT: an arc is born with an empty landing log, and the first entry arrives through
- * `arc increment add` (ADR-0183 D1 — the log is append-only residue, never authored ahead of a
- * landing). Nothing here authors a containment edge either: plans/ADRs/stories point UP at the arc
- * (D3), so there is no child list to seed.
+ * `--objective`/`--body` are ADR-0335's addition: the same two fields `arc increment new` already
+ * asks for (the increment's one-sentence lead and its full prose), bundled here so an arc is NEVER
+ * observably at zero increments — the gap that made a freshly-scaffolded arc and a fully-drained one
+ * (ADR-0335) indistinguishable at the `lifecycle` field. The bundled increment is born `status:
+ * proposal`, id `<arc>-inc-01`, title derived from `--objective`'s first sentence. The CLI owns
+ * `kind`; `id` (derived from the title unless one is passed); `description` (derived from the intent
+ * unless passed); `references`; `schemaVersion` (via the upcaster); both timestamps; and
+ * `lifecycle: active`. Nothing here authors a containment edge on the ARC either: plans/ADRs/stories
+ * point UP at the arc (D3), so there is no child list to seed — only the one bundled increment, which
+ * points up at the arc the same way every later one does.
+ *
+ * NOT atomic across the two documents (same non-atomicity `arc close` already lives with, ADR-0239
+ * D2's note): the arc is written FIRST because the increment's `arcRef` must cite something that
+ * exists. An interruption between the two leaves a transient zero-increment arc, recoverable with
+ * `storytree arc increment new` — never an orphan increment with no arc.
  */
 export async function arcNew(
   deps: ArcWriteDeps,
@@ -505,22 +512,28 @@ export async function arcNew(
     intent?: string | undefined;
     endState?: string | undefined;
     description?: string | undefined;
+    objective?: string | undefined;
+    body?: string | undefined;
   },
 ): Promise<Envelope> {
   if (!deps.writable) return arcNotWritable("new");
 
   const usage =
-    'storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file> --pg';
+    'storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file> --objective <text|@file> --body <text|@file> --pg';
   const title = opts.title?.trim() ?? "";
   const intent = opts.intent?.trim() ?? "";
   const endState = opts.endState?.trim() ?? "";
+  const firstObjective = opts.objective?.trim() ?? "";
+  const firstBody = opts.body?.trim() ?? "";
 
-  // One refusal naming EVERYTHING missing — three round-trips to learn three required fields is the
+  // One refusal naming EVERYTHING missing — five round-trips to learn five required fields is the
   // schema-spelunking cost in a different costume.
   const missing = [
     title === "" ? '--title "<short name for the initiative>"' : null,
     intent === "" ? "--intent <the owner's initiative, in one sentence>" : null,
     endState === "" ? "--end-state <the observable condition under which this arc is delivered>" : null,
+    firstObjective === "" ? "--objective <the first increment's one-sentence lead>" : null,
+    firstBody === "" ? "--body <what the first increment does, in full>" : null,
   ].filter((s): s is string => s !== null);
   if (missing.length > 0) {
     return {
@@ -529,8 +542,10 @@ export async function arcNew(
         `arc new needs ${missing.length === 1 ? "one more field" : `${missing.length} more fields`}:`,
         ...missing.map((m) => `  ${m}`),
         "",
-        "An arc is a named multi-story intent tracked to a closed end-state (ADR-0183 D1). Long prose:",
-        "@path reads the value from a file, so newlines survive the shell.",
+        "An arc is a named multi-story intent tracked to a closed end-state (ADR-0183 D1). --objective/",
+        "--body are its FIRST increment (ADR-0335) — an arc is never born with zero, the same two",
+        "fields `arc increment new` asks for later. Long prose: @path reads the value from a file, so",
+        "newlines survive the shell.",
       ].join("\n"),
       next: [usage, "storytree arc list --pg   (search before you write)"],
     };
@@ -609,10 +624,34 @@ export async function arcNew(
   }
   const saved = await deps.store.upsertDoc({ id: arcId, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
 
+  // The bundled FIRST increment (ADR-0335) — reuses `arcIncrementNew` rather than re-deriving its doc
+  // shape, so the two callers of "park a proposal increment" can never drift. `<arc>-inc-01` is safe
+  // unclaimed: the arc id was free a moment ago and an increment id is a different row.
+  const firstIncrementTitle = firstSentenceOf(firstObjective, DERIVED_TITLE_CAP);
+  const increment = await arcIncrementNew(deps, arcId, {
+    id: `${arcId}-inc-01`,
+    title: firstIncrementTitle,
+    objective: firstObjective,
+    body: firstBody,
+  });
+  if (!increment.ok) {
+    return {
+      ok: true,
+      body: [
+        `created arc ${saved.id}  [active] — but its first increment could not be recorded:`,
+        increment.body,
+        "",
+        "The arc exists with ZERO increments (ADR-0335 expects at least one) — finish it by hand:",
+        `  storytree arc increment new ${saved.id} --id ${saved.id}-inc-01 --title "..." --objective <text|@file> --body <text|@file> --pg`,
+      ].join("\n"),
+      next: [`storytree arc show ${saved.id} --pg`],
+    };
+  }
+
   return {
     ok: true,
     body: [
-      `created arc ${saved.id}  [active, 0 increments]`,
+      `created arc ${saved.id}  [active, 1 increment]`,
       "",
       `# ${title}`,
       `**The intent.** ${intent}`,
@@ -627,6 +666,9 @@ export async function arcNew(
           ]
         : []),
       "",
+      `## First increment — ${saved.id}-inc-01`,
+      firstIncrementTitle,
+      "",
       // The ADR-0183 D3 reminder, delivered where it is actionable rather than in any agent prompt:
       // the arc holds no child list, so the very next writes are the CHILDREN's upward stamps.
       "Every containment edge lives on the CHILD, so nothing else is authored here — stamp the arc on",
@@ -635,7 +677,7 @@ export async function arcNew(
     next: [
       `storytree arc show ${saved.id} --pg`,
       `storytree adr new --title "..." --arc ${saved.id} --pg   (an ADR produced under this arc)`,
-      `storytree arc increment add ${saved.id} --outcome "<what landed>" --pr <ref> --pg   (at each landing)`,
+      `storytree arc increment close ${saved.id}-inc-01 --pr <ref> --pg   (when the first increment lands)`,
     ],
   };
 }
@@ -763,6 +805,58 @@ async function refuseTakenId(deps: ArcWriteDeps, id: string): Promise<Envelope |
 }
 
 /**
+ * Recompute an arc's `lifecycle` from its OWN increments' `status` (ADR-0335) — called after every
+ * increment write (`arc increment add|new|close`) so lifecycle is a live projection of the log
+ * rather than a flag a session must remember to flip.
+ *
+ * Closed when no increment is forward-looking (`isForwardLooking` — `proposal`/`ready`/`active`),
+ * active when at least one is. This is deliberately NOT the signal ADR-0239 measured and rejected:
+ * that was PLAN state (optional, ephemeral, normally empty between increments — "all plans consumed"
+ * says nothing about the arc). An increment's `status` is the arc's own durable landing log
+ * (ADR-0305 D2/D3, nothing prunes it), so "every increment is closed" is a direct read of that log,
+ * not an inference from a side artifact.
+ *
+ * Writes only when the computed value differs from the stored one, so it is silent (returns `null`)
+ * on every call that changes nothing. A validation failure on the flip is reported as a WARNING
+ * string rather than thrown — the increment write that already succeeded must never be discarded
+ * over a bookkeeping projection (ADR-0095: no silent caps, so the warning is returned, not swallowed).
+ *
+ * Never touches an arc closed EXPLICITLY via `arc close --outcome` differently from one this function
+ * closed itself — both read `lifecycle: closed` the same way, and both reopen the same way: park new
+ * forward-looking work on them.
+ */
+async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise<string | null> {
+  const citation = `${ASSET_REF_PREFIX}${arcId}`;
+  const siblings = await deps.store.queryDocs({ kind: "increment" });
+  const hasOpen = siblings.some((d) => {
+    const doc = typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {};
+    if (doc["arcRef"] !== citation) return false;
+    const status = typeof doc["status"] === "string" ? doc["status"] : "";
+    return isForwardLooking(status);
+  });
+
+  const stored = await deps.store.getDoc(arcId);
+  if (!stored || stored.kind !== "arc") return null;
+  const doc = { ...(stored.doc as Record<string, unknown>) };
+  const current = doc["lifecycle"] === "closed" ? "closed" : "active";
+  const desired = hasOpen ? "active" : "closed";
+  if (current === desired) return null;
+
+  doc["lifecycle"] = desired;
+  doc["updatedAt"] = deps.now;
+  let valid: unknown;
+  try {
+    valid = upcastAndValidate(doc);
+  } catch (e) {
+    return `WARNING: arc ${arcId} should have auto-${desired === "closed" ? "closed" : "reopened"} but the flip failed validation: ${(e as Error).message} — fix by hand: storytree arc show ${arcId} --pg`;
+  }
+  await deps.store.upsertDoc({ id: arcId, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
+  return desired === "closed"
+    ? `arc ${arcId} auto-closed — no open increments remain (reopens automatically the moment new work is parked, ADR-0335).`
+    : `arc ${arcId} reopened — open work is back on it (ADR-0335).`;
+}
+
+/**
  * `storytree arc increment add <arc-id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>]
  * [--id <slug>] --pg` — record one LANDING on the arc: the merge ceremony's residue step (ADR-0271).
  *
@@ -859,27 +953,34 @@ export async function arcIncrementAdd(
   const result = await upsertIncrement(deps, doc, `increment "${id}"`, arcId);
   if ("ok" in result) return result;
 
+  // ADR-0335: lifecycle is a live projection of the increment log, recomputed after every write —
+  // this landing may have been the arc's LAST open item, in which case it auto-closes right here.
+  const lifecycleNote = await recomputeArcLifecycle(deps, arcId);
+
   // The closure reminder lives HERE, in the output of the command the situation forces you to run,
   // not in any agent prompt (ADR-0239 D4 — the ADR-0023 pull model applied to a ceremony step). The
   // session that just recorded a landing reads the closure question at the exact moment it can answer
   // it, against the arc's OWN stored end state. It never asserts the end state was met; the "(if …)"
-  // is load-bearing, since that call is irreducibly the session's.
+  // is load-bearing, since that call is irreducibly the session's. This offer is now for the FORCED,
+  // explicit override only (`arc close` even while other increments stay open) — the ordinary "this
+  // was the last landing" case is handled by the auto-close above and needs no prompt.
   const endState = typeof found.doc["endState"] === "string" ? found.doc["endState"] : "";
-  const alreadyClosed = found.doc["lifecycle"] === "closed";
-  const closureHint = !alreadyClosed && endState !== "" ? `\n\nthis arc's end state: ${endState}` : "";
+  const stillOpen = lifecycleNote === null && found.doc["lifecycle"] !== "closed";
+  const closureHint = stillOpen && endState !== "" ? `\n\nthis arc's end state: ${endState}` : "";
 
   return {
     ok: true,
     body:
       `recorded increment ${result.saved.id} on arc ${arcId} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}\n` +
       `${lead}` +
-      closureHint,
+      closureHint +
+      (lifecycleNote !== null ? `\n\n${lifecycleNote}` : ""),
     next: [
       `storytree arc show ${arcId} --pg`,
       `storytree library artifact ${result.saved.id} --pg`,
-      ...(alreadyClosed
-        ? []
-        : [`storytree arc close ${arcId} --outcome "…" --pg  (if this landing met the end state)`]),
+      ...(stillOpen
+        ? [`storytree arc close ${arcId} --outcome "…" --pg  (to force-close despite other open work)`]
+        : []),
     ],
   };
 }
@@ -1017,6 +1118,10 @@ export async function arcIncrementNew(
   const result = await upsertIncrement(deps, doc, `parking "${id}" on arc ${arcId}`, arcId);
   if ("ok" in result) return result;
 
+  // ADR-0335: parking forward-looking work is exactly the signal that reopens a closed arc — this
+  // entry is born `proposal`, so if the arc was closed the recompute flips it back to active here.
+  const lifecycleNote = await recomputeArcLifecycle(deps, arcId);
+
   // The obligation this write opens, stated where it is incurred rather than left to memory (the
   // ADR-0239 D4 precedent). An entry with no `--friction` is unreachable by the recurrence ceiling
   // and quiet forever — legitimate for work nobody filed friction about, and a silent gap otherwise,
@@ -1028,7 +1133,10 @@ export async function arcIncrementNew(
 
   return {
     ok: true,
-    body: `parked increment ${result.saved.id} on arc ${arcId} — ${title}` + uncited,
+    body:
+      `parked increment ${result.saved.id} on arc ${arcId} — ${title}` +
+      uncited +
+      (lifecycleNote !== null ? `\n\n${lifecycleNote}` : ""),
     next: [
       `storytree arc show ${arcId} --pg`,
       `storytree library artifact edit ${result.saved.id} --pg   (correct it in place)`,
@@ -1238,12 +1346,16 @@ export async function arcIncrementClose(
     : [];
   const citations = await dropDischargedCitations(deps, id, arcRef, frictionRefs);
 
+  // ADR-0335: this may have been the arc's last open increment — recompute closes it right here if so.
+  const lifecycleNote = await recomputeArcLifecycle(deps, arcRef);
+
   return {
     ok: true,
     body: [
       `closed increment ${result.saved.id} on arc ${arcRef} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}` +
         (note !== undefined && note !== "" ? `\n${note}` : ""),
       ...citationLines(citations, arcRef),
+      ...(lifecycleNote !== null ? [lifecycleNote] : []),
     ].join("\n"),
     next: [`storytree arc show ${arcRef} --pg`, `storytree library artifact ${result.saved.id} --pg`],
   };
@@ -1267,9 +1379,11 @@ export async function arcIncrementClose(
  * behind it, which is precisely the lie the atomicity was written to prevent. The invariant that
  * mattered is preserved; the mechanism that delivered it could not be.
  *
- * Re-opening (`closed → active`) is deliberately NOT a verb here: it is owner-only, mirroring
- * ADR-0084's human-only `accepted → proposed` un-deciding. An agent may recognise that an end state
- * was met; deciding it was NOT is the owner's call.
+ * Re-opening (`closed → active`) has no BARE verb here — same as before ADR-0335. What changed is
+ * how an arc reopens: not an owner-only flip, but the mechanical `recomputeArcLifecycle` (ADR-0335)
+ * that every increment write already runs — parking new forward-looking work on a closed arc
+ * (`arc increment new`) reopens it. `arc close` itself stays a stronger, explicit override: it force-
+ * closes even with open increments remaining, which the mechanical rule alone never does.
  */
 export async function arcClose(
   deps: ArcWriteDeps,
@@ -1305,8 +1419,8 @@ export async function arcClose(
       ok: false,
       body: [
         `arc ${id} is already closed — nothing to do (this verb is not an increment append).`,
-        "Re-opening a closed arc is OWNER-only (ADR-0239 D2, mirroring ADR-0084's human-only un-deciding):",
-        "if its end state was NOT met, escalate that call rather than flipping it back.",
+        "To reopen it, park new forward-looking work: `storytree arc increment new` (ADR-0335) reopens",
+        "an arc mechanically the moment it has open work again — there is no bare reopen verb.",
       ].join("\n"),
       next: [`storytree arc show ${id} --pg`],
     };
@@ -1367,12 +1481,15 @@ export function arcHelp(): Envelope {
       "either — that is the point of the fold.",
       "",
       "write an arc (validated write path — no fragile store one-shot; long prose via @path reads from a file):",
-      '  storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file> --pg',
-      "        SCAFFOLD a new arc — the `adr new` precedent (ADR-0050). Supply the three required",
-      "        fields; the CLI stamps kind / id / description / lifecycle / timestamps, so there is no",
-      "        doc JSON to hand-write. The id is derived from the title (`-arc` suffix) unless you pass",
-      "        one; `--description` overrides the one-liner derived from the intent. No number to",
-      "        reserve — an arc id is a slug, so this is cheaper than `adr new`, not dearer.",
+      '  storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file>',
+      "        --objective <text|@file> --body <text|@file> --pg",
+      "        SCAFFOLD a new arc AND its first increment — the `adr new` precedent (ADR-0050),",
+      "        extended by ADR-0335: an arc is never born with zero increments, so --objective/--body",
+      "        (the same two fields `increment new` asks for) bundle a `proposal` first increment into",
+      "        the same command. The CLI stamps kind / id / description / lifecycle / timestamps, so",
+      "        there is no doc JSON to hand-write. The id is derived from the title (`-arc` suffix)",
+      "        unless you pass one; `--description` overrides the one-liner derived from the intent. No",
+      "        number to reserve — an arc id is a slug, so this is cheaper than `adr new`, not dearer.",
       "  storytree arc edit <id> [--intent <text|@file>] [--end-state <text|@file>] --pg",
       "",
       "the increment verbs:",
@@ -1400,11 +1517,18 @@ export function arcHelp(): Envelope {
       "        This is what lets a wrong or duplicate entry close honestly instead of reading as landed.",
       "",
       "  storytree arc close <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
-      "        The terminal increment AND lifecycle: closed (ADR-0239 D2). --outcome is required — an",
-      "        arc never closes without prose stating the end-state condition it met, and a bare",
-      "        `library artifact edit --set lifecycle=closed` is refused. Re-opening is OWNER-only.",
-      "        Since the fold this is TWO rows, written increment-first: an interrupted close leaves an",
-      "        open arc with an extra increment, never a closed arc with no prose behind it.",
+      "        The terminal increment AND lifecycle: closed (ADR-0239 D2) — an EXPLICIT, FORCED close",
+      "        that works even with other increments still open. --outcome is required — an arc never",
+      "        closes without prose stating the end-state condition it met, and a bare `library artifact",
+      "        edit --set lifecycle=closed` is refused. Since the fold this is TWO rows, written",
+      "        increment-first: an interrupted close leaves an open arc with an extra increment, never a",
+      "        closed arc with no prose behind it.",
+      "",
+      "LIFECYCLE IS MECHANICAL, NOT JUST THIS VERB (ADR-0335): every increment write (`add`/`new`/`close`",
+      "above) recomputes `lifecycle` from the increment log itself — closed when no increment is",
+      "`proposal`/`ready`/`active`, active otherwise. So an arc auto-closes the moment its last open",
+      "increment closes, and auto-reopens the moment new forward-looking work is parked on it",
+      "(`increment new`) — there is no bare reopen verb, and none is needed.",
       "",
       "Every containment edge lives on the CHILD (increment.arcRef; ADR/story frontmatter `arc:` stamps",
       "via `storytree adr new --arc <id>`), so this view is derived-from-source and can never drift.",
@@ -1413,7 +1537,7 @@ export function arcHelp(): Envelope {
     next: [
       "storytree arc list --pg",
       "storytree arc show <id> --pg",
-      'storytree arc new --title "<the initiative>" --intent "…" --end-state "…" --pg',
+      'storytree arc new --title "<the initiative>" --intent "…" --end-state "…" --objective "…" --body "…" --pg',
       "storytree arc increment add <arc-id> --outcome \"<what landed>\" --pr <ref> --pg",
       "storytree arc close <id> --outcome \"<the end-state condition met>\" --pg",
     ],
