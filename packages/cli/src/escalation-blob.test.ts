@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { runDoctor, NODE_MAJOR_FLOOR, type DoctorObservations, type DoctorReport } from "./doctor.js";
+import { measureGuidanceSurface } from "./session-cost.js";
 import { planRepairs } from "./repair-planner.js";
 import { buildEscalationBlob, formatEscalationBlob, redact, escalationCategoryOf, REDACTED } from "./escalation-blob.js";
 
@@ -24,6 +25,9 @@ const HEALTHY: DoctorObservations = {
   claudeLoggedIn: true,
   checkoutBehind: 0,
   hostedRead: "ok",
+  // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
+  // preamble-budget probe reads PASS and stays out of the way of what this suite is about.
+  guidanceSurface: measureGuidanceSurface([]),
 };
 
 // --- (1) a healthy report needs no escalation ---------------------------------------------------

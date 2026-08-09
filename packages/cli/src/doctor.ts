@@ -4,7 +4,10 @@
  * A deterministic, READ-ONLY, OFFLINE-CAPABLE CLI that probes each setup invariant a fresh explorer
  * environment must satisfy — git/Node present, the checkout provisioned, its dependencies current, the
  * repo fetchable, the Claude CLI present + logged in, the checkout current, the D4
- * hosted live read reachable — and emits machine-readable
+ * hosted live read reachable — plus one probe that is NOT a setup invariant and is here on purpose:
+ * `preamble-budget`, which weighs the eagerly-loaded guidance surface against ADR-0330 D1's ceiling.
+ * ADR-0330 D2 declined to make that a gate rung and needed a surface where WARN is a first-class
+ * verdict with a fix hint; this is the only offline, local, checkout-reading one. It emits machine-readable
  * results plus a fix hint per failing probe. It is the keystone of D6: D1's installer VERIFIES with it,
  * and D6's conversational guide WRAPS it (run doctor → explain a failure → propose the fix → dev
  * confirms → re-run the idempotent installer step → re-doctor).
@@ -56,6 +59,11 @@ import { fileURLToPath } from "node:url";
 
 import { lockfileAdvanced, lockfilePair } from "../provision-worktree.mjs";
 import type { Envelope } from "./envelope.js";
+import {
+  guidanceSurfacePaths,
+  measureGuidanceSurface,
+  type GuidanceSurface,
+} from "./session-cost.js";
 
 /** The Node major-version floor the workspace engine requires (mirrors install.ps1 Test-Node24). */
 export const NODE_MAJOR_FLOOR = 24;
@@ -122,6 +130,12 @@ export interface DoctorObservations {
    *                      conclude access is gone, so this never escalates (the repo-fetchable rule).
    */
   readonly hostedRead: HostedReadState;
+  /**
+   * The eagerly-loaded guidance surface's size against ADR-0330 D1's ceiling. Determined entirely
+   * offline from file sizes — a missing `MEMORY.md` is a determined zero on that machine, never an
+   * undetermined value, so this probe has no WARN-because-offline branch.
+   */
+  readonly guidanceSurface: GuidanceSurface;
 }
 
 /** The four distinguishable outcomes of the D4 hosted-live-read probe. */
@@ -326,7 +340,44 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
     probes.push({ name: "checkout-current", level: "PASS", detail: "checkout is up to date with origin/main" });
   }
 
-  // 10. hosted-read — the D4 live read through the IAP-gated hosted studio. NEVER a FAIL, because
+  // 10. preamble-budget — the eagerly-loaded guidance surface against ADR-0330 D1's ceiling.
+  //
+  // NEVER A FAIL, AND NEVER A GATE RUNG (ADR-0330 D2). Being over budget is a cost signal, not a
+  // broken environment: nothing is wrong with this checkout, and no wrong outcome has reached `main`
+  // — which is the escape `process:justify-a-gate-rung` step 1 asks for and this has none of. Two
+  // further reasons close it: `gate-runner.ts` has no WARN status, so a non-blocking rung would
+  // print PASS on a row named for the thing while the thing was breached (step 7); and half the
+  // surface (`MEMORY.md`) is per-user state that does not exist in CI, the category ADR-0311 D2
+  // retired by name (step 6). So the budget speaks HERE, where a WARN is a first-class verdict and
+  // carries a fix hint.
+  //
+  // This stretches doctor's "setup invariant" charter and the stretch is deliberate: doctor is the
+  // only offline, local, checkout-reading report surface with WARN semantics and a fix slot, and a
+  // budget nobody can read is a budget nobody keeps.
+  {
+    const surface = obs.guidanceSurface;
+    const present = surface.files
+      .map((f) => `${f.label} ${f.bytes === null ? "absent" : `${Math.round(f.bytes / 1024)} KiB`}`)
+      .join(" + ");
+    const size = `${present} = ${Math.round(surface.bytes / 1024)} KiB of ${Math.round(surface.budget / 1024)} KiB`;
+    probes.push(
+      surface.overBy === 0
+        ? {
+            name: "preamble-budget",
+            level: "PASS",
+            detail: `${size} (~${Math.round(surface.approxTokens / 1000)}k tokens re-read every turn)`,
+          }
+        : {
+            name: "preamble-budget",
+            level: "WARN",
+            detail: `${size} — OVER by ${Math.round(surface.overBy / 1024)} KiB`,
+            fixHint:
+              "move text off the eagerly-loaded surface into a Library artifact, pulled just-in-time (ADR-0023 / ADR-0330 D1): anything not needed by EVERY session on its FIRST turn belongs there. Trimming is not the only move and deleting orientation re-creates ADR-0162's failures — REHOME it. `storytree session-cost` re-derives the price.",
+          },
+    );
+  }
+
+  // 11. hosted-read — the D4 live read through the IAP-gated hosted studio. NEVER a FAIL, because
   // doctor itself must stay offline-capable and cannot conclude from offline that access is genuinely
   // gone — the same rule repo-fetchable follows. Only the concrete `refused` is owner-escalatable. No
   // fixStep: none of these is repaired by re-running an installer step.
@@ -527,6 +578,7 @@ function gatherLocalObservations(checkoutDir: string): Omit<DoctorObservations, 
     // D3: DETECT a logged-in CLI by the credentials file's EXISTENCE only — never read its contents.
     claudeLoggedIn: existsSync(path.join(os.homedir(), ".claude", ".credentials.json")),
     checkoutBehind: checkoutBehind(checkoutDir),
+    guidanceSurface: measureGuidanceSurface(guidanceSurfacePaths(checkoutDir, os.homedir())),
   };
 }
 
@@ -538,7 +590,8 @@ export function doctorHelp(): Envelope {
       "",
       "  storytree doctor",
       "      probe each setup invariant (git/Node, checkout provisioned, dependencies current, repo",
-      "      fetchable, Claude CLI present + logged in, checkout current, hosted read) and print a fix hint per",
+      "      fetchable, Claude CLI present + logged in, checkout current, the eagerly-loaded guidance",
+      "      surface against its byte budget, hosted read) and print a fix hint per",
       "      failure. Read-only and offline-capable — it never writes, and never handles your",
       "      Claude credential (it only detects a logged-in CLI). Exits non-zero on any failure.",
     ].join("\n"),

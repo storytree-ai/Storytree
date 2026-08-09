@@ -8,18 +8,25 @@
  * the line parser.
  */
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
 import {
+  GUIDANCE_BUDGET_BYTES,
+  GUIDANCE_CHARS_PER_TOKEN,
   MODEL_PRICES,
   attributePhases,
   classifyCommand,
   collectSessionCost,
   contextTokens,
+  guidanceSurfacePaths,
   isPollingTurn,
   mainCheckoutRoot,
+  measureGuidanceSurface,
   parseTranscript,
+  pollingRuns,
   priceAxes,
   readTranscript,
   renderSessionCost,
@@ -512,6 +519,238 @@ test("counts polling turns and their cost over a real transcript walk", () => {
   assert.equal(byId.get("sess-poll")!.pollingTurns, 2);
   assert.equal(byId.get("sess-quiet")!.pollingTurns, 0);
   assert.match(renderSessionCost(report), /MECHANICAL WAITING/);
+});
+
+// ---------------------------------------------------------------------------
+// LOOPS vs ISOLATED status checks — what `isPollingTurn`'s SHAPE count cannot say
+// ---------------------------------------------------------------------------
+
+/**
+ * The third fixture project. It exists because the loop question needs a population holding BOTH a
+ * multi-turn run and a genuinely isolated status read, and adding either to `C--code-polling` would
+ * silently move every count already asserted against it.
+ */
+const LOOPS_PROJECT = "C--code-loops";
+
+function loops(over: Partial<Parameters<typeof collectSessionCost>[0]> = {}): SessionCostReport {
+  return collectSessionCost({
+    root: FIXTURE_ROOT,
+    projectPrefix: LOOPS_PROJECT,
+    limit: 10,
+    minTurns: 2,
+    activeWithinMinutes: 10,
+    nowMs: NOW_MS,
+    ...over,
+  });
+}
+
+test("pollingRuns finds MAXIMAL consecutive runs, including at both edges", () => {
+  const turn = (command: string) => ({
+    requestId: command,
+    at: "2026-08-07T09:00:00.000Z",
+    model: "claude-opus-5",
+    tier: "opus",
+    axes: { input: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, output: 0 },
+    toolUseIds: [],
+    toolNames: ["Bash"],
+    commands: [command],
+  });
+  const poll = () => turn("sleep 300; tail -4 x.log");
+  const work = () => turn("pnpm gate");
+
+  assert.deepEqual(pollingRuns([]), []);
+  assert.deepEqual(pollingRuns([work(), work()]), []);
+  // A run that STARTS at index 0 and one that ENDS at the last turn are the two boundary cases a
+  // scan built around "flush when the run breaks" gets wrong in opposite directions.
+  assert.deepEqual(pollingRuns([poll(), work()]), [{ start: 0, length: 1 }]);
+  assert.deepEqual(pollingRuns([work(), poll()]), [{ start: 1, length: 1 }]);
+  assert.deepEqual(pollingRuns([poll(), poll(), poll()]), [{ start: 0, length: 3 }]);
+  // Real work BETWEEN two polls breaks the run — deliberately, and this is the conservative
+  // direction: it can only under-report looping, never invent it.
+  assert.deepEqual(pollingRuns([poll(), work(), poll()]), [
+    { start: 0, length: 1 },
+    { start: 2, length: 1 },
+  ]);
+  assert.deepEqual(pollingRuns([work(), poll(), poll(), work(), poll()]), [
+    { start: 1, length: 2 },
+    { start: 4, length: 1 },
+  ]);
+});
+
+test("separates a polling LOOP from an isolated status check over a real transcript walk", () => {
+  const report = loops();
+  assert.equal(report.sessions.length, 2, "sess-loop and sess-solo");
+
+  // FIVE polling turns by SHAPE — the count `isPollingTurn` alone would report, and the count that
+  // cannot answer whether the retired pattern is gone.
+  assert.equal(report.polling.turns, 5);
+
+  // Three of them are ONE run: `sleep; tail` twice then `gh pr checks`, back to back. That is the
+  // loop ADR-0323 D2 retired.
+  assert.equal(report.polling.loops, 1);
+  assert.equal(report.polling.loopedTurns, 3);
+  assert.equal(report.polling.longestRun, 3);
+
+  // The other two are `sess-solo`'s: one before an edit and one twenty minutes after it. Same
+  // command shape, entirely different behaviour, and only adjacency tells them apart.
+  assert.equal(report.polling.isolatedTurns, 2);
+
+  assert.equal(report.polling.sessionsPolling, 2, "both sessions poll by shape");
+  assert.equal(report.polling.sessionsLooping, 1, "only one of them LOOPS");
+
+  // The two lines partition the total — a polling turn is in a run of one or a run of more.
+  assert.equal(report.polling.loopedTurns + report.polling.isolatedTurns, report.polling.turns);
+  close(report.polling.loopedCost + report.polling.isolatedCost, report.polling.cost, "the cost partition");
+
+  const byId = new Map(report.sessions.map((s) => [s.sessionId, s]));
+  assert.equal(byId.get("sess-loop")!.pollingLoopTurns, 3);
+  assert.equal(byId.get("sess-solo")!.pollingTurns, 2);
+  assert.equal(byId.get("sess-solo")!.pollingLoopTurns, 0, "two isolated checks are not a loop");
+
+  const rendered = renderSessionCost(report);
+  assert.match(rendered, /in LOOPS/);
+  assert.match(rendered, /ISOLATED/);
+  assert.match(rendered, /1 of 2 LOOPED/);
+});
+
+test("a window of only isolated checks reports ZERO loops — the null result must be reachable", () => {
+  // The judgement this instrument exists to support is "end-state 2 is MET". If a population of
+  // pure status reads still scored a loop, that verdict could never be honestly reached.
+  const report = loops({ startedAfter: "2026-08-07T09:00:00.000Z" });
+  assert.deepEqual(
+    report.sessions.map((s) => s.sessionId),
+    ["sess-solo"],
+  );
+  assert.equal(report.polling.turns, 2, "still two polling turns by shape");
+  assert.equal(report.polling.loops, 0);
+  assert.equal(report.polling.loopedTurns, 0);
+  close(report.polling.loopedCost, 0, "no looped cost");
+  assert.equal(report.polling.sessionsLooping, 0);
+});
+
+test("the EXISTING polling fixture's two back-to-back turns read as one loop", () => {
+  // `sess-poll` runs `sleep 300; tail` and then `gh pr checks` on consecutive turns. The flat count
+  // has always been 2; what is new is that both of them are inside one run.
+  const report = polling();
+  assert.equal(report.polling.turns, 2);
+  assert.equal(report.polling.loops, 1);
+  assert.equal(report.polling.loopedTurns, 2);
+  assert.equal(report.polling.isolatedTurns, 0);
+  assert.equal(report.polling.longestRun, 2);
+});
+
+// ---------------------------------------------------------------------------
+// The preamble — ADR-0323 D3's budget, read off the bill
+// ---------------------------------------------------------------------------
+
+test("reads the preamble floor off the FIRST turn, never from a file list", () => {
+  const report = loops();
+
+  // The floor is the smallest first-turn context in the population: `sess-solo` opens at 30k where
+  // `sess-loop` opens at 60k. Every first turn over-states the fixed preamble by exactly that
+  // session's own opening prompt, so the minimum bounds it most tightly.
+  assert.equal(report.preamble.mainFloor, 30_000);
+  // The median takes the lower element of an even population — the same `quantile` convention the
+  // context median has always used, not a separate rule for this block.
+  assert.equal(report.preamble.mainMedian, 30_000);
+
+  // A delegate pays its OWN preamble — the cost ADR-0325 accepts and inc-08 measured as a rise in
+  // cache WRITE. It is reported separately because it is a different surface, not a smaller one.
+  assert.equal(report.preamble.subagentFloor, 20_000);
+  assert.equal(report.preamble.subagentTranscripts, 1);
+
+  assert.match(renderSessionCost(report), /THE PREAMBLE/);
+});
+
+test("prices the MARGINAL kilotoken: one cache write per transcript, then a read per later turn", () => {
+  const report = loops();
+
+  // sess-loop  5 turns opus: 1000 × $10/M (write) + 1000 × 4 × $0.50/M (read) = $0.0120
+  // sess-solo  3 turns opus: 1000 × $10/M         + 1000 × 2 × $0.50/M        = $0.0110
+  // agent-001  2 turns sonnet: 1000 × $6/M        + 1000 × 1 × $0.30/M        = $0.0063
+  // over 2 measured sessions
+  close(report.preamble.marginalPerKTokPerSession, (0.012 + 0.011 + 0.0063) / 2, "marginal per ktok");
+
+  // And the same model applied to the two measured floors: 30k across the main threads, 20k across
+  // the delegate.
+  const mainFloorCost = 30_000 * 30 * (1 / 1_000_000);
+  close(
+    report.preamble.floorCost,
+    // sess-loop 0.30 + 0.06, sess-solo 0.30 + 0.03, agent-001 0.12 + 0.006
+    0.36 + 0.33 + 0.126,
+    "floor cost",
+  );
+  assert.ok(mainFloorCost > 0, "the model is linear in the tokens carried");
+});
+
+test("the one-shot floor is captured even though the one-shot's SPEND is excluded", () => {
+  // A machine-driven one-shot's opening prompt is a single scripted line, so its first turn is the
+  // tightest reading of the fixed preamble a machine offers. Excluding its spend from the window
+  // (which `--min-turns` does, correctly) must not throw away that observation.
+  const report = collect();
+  assert.ok(report.oneShot.sessions > 0, "the fixture has a one-shot");
+  assert.ok(report.preamble.oneShotFloor > 0, "and its first-turn context was read");
+});
+
+// ---------------------------------------------------------------------------
+// The guidance surface — the budget's own measurement, in bytes
+// ---------------------------------------------------------------------------
+
+test("weighs the guidance surface in BYTES, and reads an absent file as a determined zero", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "st-preamble-"));
+  try {
+    writeFileSync(path.join(dir, "CLAUDE.md"), "x".repeat(4_096));
+    const surface = measureGuidanceSurface([
+      { label: "CLAUDE.md", path: path.join(dir, "CLAUDE.md") },
+      { label: "MEMORY.md", path: path.join(dir, "nope", "MEMORY.md") },
+    ]);
+    assert.equal(surface.bytes, 4_096, "the present file's exact size, never an estimate");
+    assert.equal(surface.files[1]!.bytes, null, "absent is null — and contributes nothing");
+    assert.equal(surface.budget, GUIDANCE_BUDGET_BYTES);
+    assert.equal(surface.overBy, 0);
+    // The token figure is a CONVERSION and is labelled as one; the byte figure is the measurement.
+    assert.equal(surface.approxTokens, Math.round(4_096 / GUIDANCE_CHARS_PER_TOKEN));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("reports how far OVER the ceiling a surface is, not merely that it is over", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "st-preamble-"));
+  try {
+    writeFileSync(path.join(dir, "CLAUDE.md"), "x".repeat(GUIDANCE_BUDGET_BYTES + 2_048));
+    const surface = measureGuidanceSurface([{ label: "CLAUDE.md", path: path.join(dir, "CLAUDE.md") }]);
+    assert.equal(surface.overBy, 2_048, "the distance is what tells an author how much to rehome");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a directory where a guidance file should be is absent, not a size", () => {
+  // `statSync` answers for a directory too, and its `size` is meaningless. Reading it as bytes would
+  // silently add filesystem noise to a budget.
+  const dir = mkdtempSync(path.join(tmpdir(), "st-preamble-"));
+  try {
+    mkdirSync(path.join(dir, "CLAUDE.md"));
+    const surface = measureGuidanceSurface([{ label: "CLAUDE.md", path: path.join(dir, "CLAUDE.md") }]);
+    assert.equal(surface.files[0]!.bytes, null);
+    assert.equal(surface.bytes, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("MEMORY.md is resolved against the MAIN checkout, so a worktree measures the same surface", () => {
+  // The harness files memory per PROJECT, and a worktree shares its parent's — the same fold the
+  // transcript walk already applies. A worktree that looked for its own slug would find nothing and
+  // silently report a smaller preamble than it actually pays.
+  const worktree = "C:/code/storytree/.claude/worktrees/happy-galileo-db7062";
+  const paths = guidanceSurfacePaths(worktree, "/home/dev");
+  assert.equal(paths[0]!.path, path.join(worktree, "CLAUDE.md"));
+  assert.equal(
+    paths[1]!.path,
+    path.join("/home/dev", ".claude", "projects", "C--code-storytree", "memory", "MEMORY.md"),
+  );
 });
 
 test("splits bash calls by purpose, main thread and subagents apart", () => {

@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { runDoctor, NODE_MAJOR_FLOOR, type DoctorObservations } from "./doctor.js";
+import { measureGuidanceSurface } from "./session-cost.js";
 import { escalationCategoryOf } from "./escalation-blob.js";
 
 /**
@@ -33,6 +34,9 @@ const BOTH_ACCESS_REFUSED: DoctorObservations = {
   claudeLoggedIn: true,
   checkoutBehind: 0,
   hostedRead: "refused", // IAP access refused
+  // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
+  // preamble-budget probe reads PASS and stays out of the way of what this suite is about.
+  guidanceSurface: measureGuidanceSurface([]),
 };
 
 test("every owner-escalatable ACCESS probe is named in the invite runbook", () => {

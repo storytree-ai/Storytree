@@ -46,12 +46,25 @@ billed rent on the context it drags from turn to turn.
 
 Four structural consequences follow directly, all measured:
 
-1. **The fixed preamble is ~85k tokens** (CLAUDE.md 17.8k + AGENTS.md 5.7k + MEMORY.md 5.4k + system
-   prompt + tool definitions) and is re-read on every turn. Across 1,482 turns that is ~$63 — **24% of
-   everything** — spent re-reading onboarding text. This is the sharpest irony available: CLAUDE.md's
+1. **The fixed preamble is ~85k tokens** (CLAUDE.md 17.8k + MEMORY.md 5.4k + system prompt + tool
+   definitions) and is re-read on every turn. Across 1,482 turns that is ~$63 — **24% of everything**
+   — spent re-reading the session's standing context. This is the sharpest irony available: CLAUDE.md's
    own opening paragraph directs agents to pull context just-in-time (ADR-0023, ADR-0135), and the
-   file arguing for pull-based context is itself the single largest eagerly-loaded object in the
-   session.
+   file arguing for pull-based context is itself the single largest eagerly-loaded object this repo
+   owns.
+
+   *Corrected in place 2026-08-09 (ADR-0139), by re-measuring rather than re-reading.* Two things in
+   the original wording were wrong and one was right. **`AGENTS.md` is NOT in a Claude session's
+   preamble** — it is the Codex runtime's root guidance (ADR-0232), and a Claude Code session's
+   injected context carries CLAUDE.md and MEMORY.md only; its 5.7k is struck from this list. **"~85k"
+   HELD**: read off the bill rather than counted from files — the first assistant turn's `usage`
+   prices the whole preamble, because turn one's live context IS the preamble plus that session's
+   opening prompt — the floor is 85k tokens across the 14 sessions of 2026-08-08's post-intervention
+   window and 81k across the 62 before it. **"24% of everything" also held** (24.3%, independently
+   priced), but "onboarding text" over-claimed what that 24% IS: the majority of the floor is the
+   harness's system prompt and tool definitions, which are neither onboarding text nor ours to edit.
+   The share this repo actually owns — CLAUDE.md + MEMORY.md — is ≈23.5k of the 85k floor, about
+   **7–8% of session spend**. ADR-0330 sets the budget on that share and carries the full figures.
 2. **Median live context is 200–307k tokens, peaking at 428k.** At $0.177/turn average, a turn costs
    that much simply to EXIST, before it calls a tool. Cost therefore scales with
    `turns × context size` — with session LENGTH — and not with the number of ceremonies performed.
@@ -96,16 +109,20 @@ measurement shows. `explorer` (ADR-0325 D1) is the missing delegate.
 
 **D2 — Mechanical waiting never pays full-context rent.** A backgrounded gate, a CI run, a long build
 or any other wait for a machine is watched with a background task plus its completion notification, or
-with a single bounded `Monitor`. `sleep N; tail` polling loops are RETIRED as a pattern. This is not
+with a single bounded `Monitor`. `sleep N; tail` polling LOOPS are RETIRED as a pattern. This is not
 a style preference: at a 250k context each tick costs ~$0.21 to read four lines, and the harness
-already offers the free version.
+already offers the free version. **The subject is the LOOP** — two or more consecutive polling turns
+— and not a single deliberate status read, which was never the target; ADR-0330 D3 amends this
+sentence to say so precisely, and makes the distinction measurable.
 
-**D3 — The preamble is budgeted.** The eagerly-loaded session-start surface (CLAUDE.md + AGENTS.md +
-MEMORY.md) is treated as a standing cost multiplied by every turn of every session, and is held to a
-budget rather than allowed to grow monotonically. This ADR sets no number — the measurement instrument
-below is what makes a number arguable — but it establishes that ADDING to those files has a
-quantifiable recurring price and that the pull-based alternative (a Library artifact, fetched when
-relevant) is the default for anything that is not needed by EVERY session on its FIRST turn.
+**D3 — The preamble is budgeted.** The eagerly-loaded session-start surface (CLAUDE.md + MEMORY.md;
+`AGENTS.md` is the Codex runtime's, see §1's correction) is treated as a standing cost multiplied by
+every turn of every session, and is held to a budget rather than allowed to grow monotonically. It
+establishes that ADDING to those files has a quantifiable recurring price and that the pull-based
+alternative (a Library artifact, fetched when relevant) is the default for anything that is not needed
+by EVERY session on its FIRST turn. **The number is 96 KiB, set by ADR-0330 D1** once the instrument
+below made it arguable; this ADR deliberately set none, and that sentence is now spent rather than
+current.
 
 **D4 — The measurement is the check, not this prose.** The analysis above is reproducible from the
 transcripts and MUST be re-runnable over any window of sessions — `storytree session-cost`
@@ -136,10 +153,14 @@ D3 constrains a file that exists precisely because sessions needed orientation, 
 far re-creates the orientation failures ADR-0162 measured — the budget is a forcing function for
 moving text to the Library, never a licence to delete it.
 
-**Unresolved.** This ADR does not set the preamble budget number, and does not decide whether the
-measurement instrument becomes a `check:*` gate rung. Making it a rung is tempting and probably wrong
-for the reason ADR-0168 D1 gives about retro theater: a cost gate would be gamed by splitting
-sessions. It is currently a diagnostic a session or the owner runs deliberately.
+**Unresolved — BOTH SETTLED 2026-08-09 by ADR-0330, and this paragraph is kept only to record what
+they were.** The preamble budget number is 96 KiB (D1). The instrument does NOT become a `check:*`
+gate rung (D2), for the reason sketched here — ADR-0168 D1's retro-theater finding, plus the sharper
+objection that a cost gate is gamed by splitting sessions — now argued through
+`process:justify-a-gate-rung` and joined by two mechanical ones: `gate-runner.ts` has no WARN status,
+so a non-blocking rung would print PASS while the budget was breached, and half the subject
+(`MEMORY.md`) does not exist in CI. It remains a diagnostic a session or the owner runs deliberately,
+now with a WARN-level `preamble-budget` probe on `storytree doctor` as its standing voice.
 
 **What this ADR explicitly does NOT do.** It does not weaken the librarian pass (that is ADR-0324's
 narrower decision, and it gates rather than removes it), does not reduce what any session PROVES, and
