@@ -49,8 +49,16 @@ its build-drive counterpart is drive-machinery's `oq-hygiene-gate` (ADR-0037 §5
 - Live legs (the allocator's reservation from `events.adr_number`) need `pnpm db:up`; the registered
   offline proof should cover the pure layers (the `adr-health` checks over a fixture corpus, the
   collision script's diff parsing) and let the DB reservation follow the house live-gated pattern.
+- **The allocation envelope carries one thing the gates cannot (ADR-0339).** Both layers above catch a
+  duplicate NUMBER; neither catches a parallel DECISION — two ADRs on different branches that
+  contradict each other, which reaches CI as a merge conflict long after both designs are settled
+  (the 2026-08-09 ADR-0335 / ADR-0337 near-miss). The allocator already knows: reserving `N` when this
+  checkout's max is `M < N - 1` proves other sessions took `M+1 … N-1`. `adr new` / `adr next` say so.
+  It is a HEADS-UP and deliberately not a seventh gate check — a reported number may be a burned
+  allocation, so the only honest claim is "allocated elsewhere, not in this checkout", and
+  `process:justify-a-gate-rung` has no catch evidence to price a rung on.
 
-## Contracts (5)
+## Contracts (6)
 
 1. **`atomic-allocation`** — `adr new --pg` reserves distinct, monotonically increasing numbers
    - **asserts —** two reservations against `events.adr_number` never return the same number and
@@ -72,3 +80,9 @@ its build-drive counterpart is drive-machinery's `oq-hygiene-gate` (ADR-0037 §5
    - **asserts —** `adr-pr-collision-check.sh` exits non-zero (fail-CLOSED) when another open PR adds
      the same ADR number this PR adds, and exits zero (fail-OPEN) when `gh` is unavailable or returns
      an error — a flaky API never blocks all merges.
+6. **`parallel-allocations-are-named`** — allocation reports the numbers this checkout does not have
+   - **asserts —** reserving a number more than one above the highest ADR on disk makes `adr new` /
+     `adr next` name every number in between as allocated by other sessions and offer an
+     across-all-refs lookup (not `origin/main`, which the contradicting ADR is typically not on yet);
+     a contiguous reservation and the offline `max+1` path both say NOTHING; and the envelope stays
+     `ok` with the scaffold written either way — a heads-up, never a gate (ADR-0339).
