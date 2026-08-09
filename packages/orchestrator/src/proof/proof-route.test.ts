@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 
-import { classifyProofRoute, namesTestFile, withOracleGuard } from "./proof-route.js";
+import { classifyProofRoute, namesTestFile, withOracleGuard, withOracleGuardEnv } from "./proof-route.js";
 import type { RealProofConfig } from "../proof-config.js";
 
 /** A minimal REAL arm; each case overrides only what it is about. */
@@ -109,7 +112,9 @@ test("a flag VALUE is never mistaken for the test path — `--import tsx` must n
 // ── "No oracle POSSIBLE" — disclosed, never refused. Refusing these would unbuild ADR-0098's R2 arm,
 // whose schema refine REQUIRES a suite proofCommand.
 
-test("a package-script proof command is suite-scoped: no oracle possible, and NOT refused", () => {
+test("a package-script proof command with NO workspaceRoot supplied is suite-scoped: no oracle possible, and NOT refused", () => {
+  // classifyProofRoute's early (pre-worktree) refusal-check call site passes no opts at all — this is
+  // that degrade path: unable to read the target's package.json, it must never GUESS.
   const route = classifyProofRoute(
     real({ proofCommand: { file: "pnpm", args: ["--filter", "@storytree/library", "test"] } }),
   );
@@ -127,7 +132,131 @@ test("a package name containing a slash does not masquerade as a test path", () 
   assert.notEqual(route.accounting, "refused");
 });
 
-test("a multi-file node:test command is suite-scoped — the runner parent zeroes the report (measured)", () => {
+// ── "no oracle WIRED" (residual), the package-script-node-test-suite arm: `pnpm --filter <pkg> test`
+// is accountable IFF the target package's OWN scripts.test is provably a bare node:test invocation —
+// read from its package.json, never guessed from the pnpm token stream, which cannot see it.
+
+/** A throwaway `{packages,apps}/<name>/package.json` workspace fixture for the lookup under test. */
+async function workspaceFixture(
+  members: ReadonlyArray<{ root: "packages" | "apps"; dir: string; name: string; test: string }>,
+): Promise<string> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-proof-route-ws-"));
+  for (const m of members) {
+    const pkgDir = path.join(root, m.root, m.dir);
+    await fs.mkdir(pkgDir, { recursive: true });
+    await fs.writeFile(
+      path.join(pkgDir, "package.json"),
+      JSON.stringify({ name: m.name, scripts: { test: m.test } }),
+    );
+  }
+  return root;
+}
+
+test("a bare `pnpm --filter <pkg> test` IS oracle-accounted when the target's own scripts.test is node:test", async () => {
+  const workspaceRoot = await workspaceFixture([
+    {
+      root: "packages",
+      dir: "library",
+      name: "@storytree/library",
+      test: 'node --import tsx --test "src/**/*.test.ts"',
+    },
+  ]);
+  try {
+    const route = classifyProofRoute(
+      real({
+        testFile: "packages/library/src/thing.test.ts",
+        proofCommand: { file: "pnpm", args: ["--filter", "@storytree/library", "test"] },
+      }),
+      { workspaceRoot },
+    );
+    assert.equal(route.accounting, "oracle");
+    assert.equal(route.basis, "package-script-node-test-suite");
+    assert.equal(route.accounting === "oracle" ? route.guardArgIndex : -1, null);
+  } finally {
+    await fs.rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("a bare `pnpm --filter <pkg> test` STAYS unaccounted when the target's own scripts.test is a foreign runner", async () => {
+  // The exact real-corpus hazard this lookup exists to prevent: `studio`/`@storytree/app-surface`
+  // both declare a BARE `pnpm --filter <pkg> test`, and their OWN scripts.test is `vitest run` — the
+  // pnpm token stream alone cannot see that, so wiring the guard without reading the manifest would
+  // false-red every green on those packages (vitest does not exercise node:assert the way it counts).
+  const workspaceRoot = await workspaceFixture([
+    { root: "apps", dir: "studio", name: "studio", test: "vitest run" },
+  ]);
+  try {
+    const route = classifyProofRoute(
+      real({
+        testFile: "apps/studio/src/components/Thing.test.tsx",
+        proofCommand: { file: "pnpm", args: ["--filter", "studio", "test"] },
+      }),
+      { workspaceRoot },
+    );
+    assert.equal(route.accounting, "none");
+    assert.equal(route.basis, "suite-scoped");
+  } finally {
+    await fs.rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("an UNRESOLVABLE --filter target degrades to the conservative disclosure, never a guess", async () => {
+  const workspaceRoot = await workspaceFixture([
+    { root: "packages", dir: "library", name: "@storytree/library", test: "node --import tsx --test" },
+  ]);
+  try {
+    const route = classifyProofRoute(
+      real({ proofCommand: { file: "pnpm", args: ["--filter", "@storytree/nonexistent", "test"] } }),
+      { workspaceRoot },
+    );
+    assert.equal(route.accounting, "none");
+    assert.equal(route.basis, "suite-scoped");
+  } finally {
+    await fs.rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("a resolved node:test package whose testFile does NOT live under it stays unaccounted (safety fence)", async () => {
+  const workspaceRoot = await workspaceFixture([
+    {
+      root: "packages",
+      dir: "library",
+      name: "@storytree/library",
+      test: 'node --import tsx --test "src/**/*.test.ts"',
+    },
+  ]);
+  try {
+    const route = classifyProofRoute(
+      real({
+        // testFile belongs to a DIFFERENT package than the one --filter names.
+        testFile: "packages/orchestrator/src/thing.test.ts",
+        proofCommand: { file: "pnpm", args: ["--filter", "@storytree/library", "test"] },
+      }),
+      { workspaceRoot },
+    );
+    assert.equal(route.accounting, "none");
+    assert.equal(route.basis, "suite-scoped");
+  } finally {
+    await fs.rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("withOracleGuardEnv composes a NODE_OPTIONS value, preserving any existing one", () => {
+  assert.equal(withOracleGuardEnv(undefined, "file:///guard.mjs"), "--import file:///guard.mjs");
+  assert.equal(withOracleGuardEnv("", "file:///guard.mjs"), "--import file:///guard.mjs");
+  assert.equal(
+    withOracleGuardEnv("--max-old-space-size=4096", "file:///guard.mjs"),
+    "--max-old-space-size=4096 --import file:///guard.mjs",
+  );
+});
+
+// ── "no oracle WIRED" (residual), the direct-node-test-suite arm: multi-file/glob node:test, run
+// DIRECTLY (never through a package manager), is now oracle-accounted — the per-process report
+// aggregation in oracle-accounting.ts is what makes a shared-report multi-process run measurable at
+// all, so the arg splice this shape already supports (it IS the node token, same as own-file) can be
+// wired unconditionally, with no package.json lookup needed.
+
+test("a multi-file node:test command is now oracle-accounted (direct-node-test-suite) — per-process reports fixed the zeroing", () => {
   const route = classifyProofRoute(
     real({
       proofCommand: {
@@ -136,16 +265,18 @@ test("a multi-file node:test command is suite-scoped — the runner parent zeroe
       },
     }),
   );
-  assert.equal(route.accounting, "none");
-  assert.equal(route.basis, "suite-scoped");
+  assert.equal(route.accounting, "oracle");
+  assert.equal(route.basis, "direct-node-test-suite");
+  assert.equal(route.accounting === "oracle" ? route.guardArgIndex : -1, 0);
 });
 
-test("a GLOB node:test command is suite-scoped, not a single-file run", () => {
+test("a GLOB node:test command is oracle-accounted too — glob and multi-file are the same suite shape", () => {
   const route = classifyProofRoute(
     real({ proofCommand: { file: "node", args: ["--import", "tsx", "--test", "src/**/*.test.ts"] } }),
   );
-  assert.equal(route.accounting, "none");
-  assert.equal(route.basis, "suite-scoped");
+  assert.equal(route.accounting, "oracle");
+  assert.equal(route.basis, "direct-node-test-suite");
+  assert.equal(route.accounting === "oracle" ? route.guardArgIndex : -1, 0);
 });
 
 test("a vitest command is a foreign runner: no oracle possible even when it runs exactly one file", () => {

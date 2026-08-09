@@ -35,7 +35,7 @@ import {
   resetOracleReport,
   verifyOracleExercised,
 } from "./proof/oracle-accounting.js";
-import { classifyProofRoute, withOracleGuard } from "./proof/proof-route.js";
+import { classifyProofRoute, withOracleGuard, withOracleGuardEnv } from "./proof/proof-route.js";
 import type { ProofRoute } from "./proof/proof-route.js";
 import { gitTreeState } from "./prove-it-gate.js";
 import type { PhasePrompts, ProveSpec, TreeState } from "./prove-it-gate.js";
@@ -500,7 +500,7 @@ function resolveReal(
   // and $2.19 of a 25.9-min story build, all AFTER this point). Only the two UNPROVABLE bases refuse —
   // a route with no oracle POSSIBLE (a suite, a foreign runner) still builds and is disclosed instead,
   // because ADR-0098's R2 arm is structurally suite-scoped and a blanket refusal would unbuild it.
-  const route = classifyProofRoute(real);
+  const route = classifyProofRoute(real, { workspaceRoot: opts.workspace });
   if (route.accounting === "refused") {
     return {
       ok: false,
@@ -547,17 +547,26 @@ function resolveReal(
   // `process.removeAllListeners("exit")`) reads as the missing report it actually is instead of
   // inheriting the previous observation's positive count. beforeRun and verifyGreen are wired as a
   // PAIR — never one without the other.
+  //
+  // `gate-the-right-kind-red` is wired NARROWER than the green veto (`custom-proof-command-red-accounting`
+  // residual): a WHOLE-SUITE route's aggregated count sums EVERY process's assertions, including every
+  // OTHER test file in the package — a sibling test's real assertions make the aggregate >= 1 even when
+  // THIS node's own test never reached one (a structural red), which would measure a genuine structural
+  // red as "runtime" and wrongly refuse to advance CONFIRM_RED (ADR-0098 R2's regression-wall shape:
+  // the pre-existing sibling test always contributes real assertions). The GREEN veto stays meaningful
+  // at suite grain (a suite exiting 0 with a genuinely ZERO aggregate is still a hollow run worth
+  // refusing); the KIND measurement does not, because it cannot attribute the count to the ONE file
+  // whose red is being classified. Only the two single-explicit-file bases get it.
+  const redKindMeasurable =
+    base.route.accounting === "oracle" &&
+    (base.route.basis === "default-node-test" || base.route.basis === "custom-node-test-own-file");
   const testExecutor = new ShellTestExecutor({
     command: (): ShellCommand => realProofCmd,
     ...(reportPath !== undefined
       ? {
           beforeRun: () => resetOracleReport(reportPath),
           verifyGreen: (out: ShellRunResult) => verifyOracleExercised(reportPath, out),
-          // `gate-the-right-kind-red`: the SAME cleared-then-read report that vetoes a hollow green
-          // also MEASURES a red's kind — 0 assertions means the run never reached one (structural),
-          // >=1 means the oracle ran and refused (assertion). Wired only alongside beforeRun, for the
-          // same freshness reason: an uncleared report's count is not attributable to this run.
-          measureRedKind: () => classifyRedByOracle(reportPath),
+          ...(redKindMeasurable ? { measureRedKind: () => classifyRedByOracle(reportPath) } : {}),
         }
       : {
           // `custom-proof-command-red-accounting`: an unaccounted route stamps the CLASSIFIER's own
@@ -798,17 +807,32 @@ export function realProofCommand(
   // ADR-0211's narrowing used to be applied by ROUTE — every declared command was `accounted: false` —
   // but the guard's actual precondition is a SINGLE-FILE node:test run, which a declared command can
   // satisfy just as well as the default one. See {@link classifyProofRoute} for the measurement.
-  const route = classifyProofRoute(real);
+  const route = classifyProofRoute(real, { workspaceRoot: workspace });
   if (real.proofCommand !== undefined) {
     // The guard is spliced into the DECLARED arg vector (never the display, never the stored config),
-    // so an oracle-accountable custom command carries the same instrument the default route does.
+    // so an oracle-accountable custom command carries the same instrument the default route does. The
+    // one exception is `package-script-node-test-suite` (`custom-proof-command-red-accounting`
+    // residual): a `pnpm --filter <pkg> test` invocation never forwards an arg splice to the node
+    // process it spawns for the target package's own suite, so that route is wired via `NODE_OPTIONS`
+    // instead — guardArgIndex stays null for it, same as the "resolver builds it" default route, and
+    // the two are distinguished by `basis`.
     const args =
       route.accounting === "oracle" && route.guardArgIndex !== null
         ? withOracleGuard(real.proofCommand.args, route.guardArgIndex, assertOracleGuardUrl())
         : [...real.proofCommand.args];
     const command = platformShellCommand({ ...real.proofCommand, args, cwd: workspace });
+    const commandWithGuardEnv =
+      route.accounting === "oracle" && route.basis === "package-script-node-test-suite"
+        ? {
+            ...command,
+            env: {
+              ...(command.env ?? {}),
+              NODE_OPTIONS: withOracleGuardEnv(command.env?.["NODE_OPTIONS"], assertOracleGuardUrl()),
+            },
+          }
+        : command;
     return {
-      command: { ...command, ...budget },
+      command: { ...commandWithGuardEnv, ...budget },
       display: `${real.proofCommand.file} ${real.proofCommand.args.join(" ")}`.trim(),
       accounted: route.accounting === "oracle",
       route,
