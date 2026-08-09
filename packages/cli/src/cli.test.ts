@@ -852,7 +852,7 @@ test("arc-explicit-id-refuses-lossy-cap: arc new refuses an explicit id whose no
   const longId = "a".repeat(61);
 
   const env = await run(
-    ["arc", "new", longId, "--title", "T", "--intent", "i", "--end-state", "e", "--pg"],
+    ["arc", "new", longId, "--title", "T", "--intent", "i", "--end-state", "e", "--objective", "o", "--body", "b", "--pg"],
     { store: counting, writable: true },
   );
 
@@ -880,7 +880,7 @@ test("arc-explicit-id-refuses-lossy-cap: an explicit id normalising to EXACTLY 6
   const boundaryId = "a".repeat(60);
 
   const env = await run(
-    ["arc", "new", boundaryId, "--title", "T", "--intent", "i", "--end-state", "e", "--pg"],
+    ["arc", "new", boundaryId, "--title", "T", "--intent", "i", "--end-state", "e", "--objective", "o", "--body", "b", "--pg"],
     { store: counting, writable: true },
   );
 
@@ -908,7 +908,7 @@ test("arc-explicit-id-refuses-lossy-cap: a TITLE-derived id keeps its capped der
   );
 
   const env = await run(
-    ["arc", "new", "--title", longTitle, "--intent", "i", "--end-state", "e", "--pg"],
+    ["arc", "new", "--title", longTitle, "--intent", "i", "--end-state", "e", "--objective", "o", "--body", "b", "--pg"],
     { store: counting, writable: true },
   );
 

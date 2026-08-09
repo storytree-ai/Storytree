@@ -151,9 +151,23 @@ go closed without a terminal increment stating the observable end-state conditio
 ADR-0084/0086 discipline applied unchanged — status is a projection of prose that supports it, never
 a free flip — and it is why a bare `--set lifecycle=closed` must be refused.
 
+*(Corrected in place 2026-08-09, per ADR-0139: "atomically" no longer holds — ADR-0305 D1 split the
+terminal increment into its own document, so `arc close` now writes two rows in order, not one
+transaction. The invariant this line protects — no closed arc without terminal prose — survives via
+that order, not atomicity: the increment lands first, so an interruption leaves a visibly-open arc
+with a spare increment rather than a closed one with no prose behind it.)*
+
 Re-opening (`closed → active`) is **owner-only**, mirroring ADR-0084's human-only `accepted →
 proposed` un-deciding: an agent may recognise that an end state was met; deciding it was not is the
 owner's call.
+
+*(Narrowed in place 2026-08-09, per ADR-0139 — corrected, not overturned:
+[ADR-0335](0335-arc-lifecycle-is-derived-from-increment-state-min-one-increm.md) adds a second,
+mechanical reopen path alongside this one. Every increment write now recomputes `lifecycle` from the
+increment log, so a closed arc — whether closed by this verb or auto-closed — reopens the instant new
+forward-looking work is parked on it (`arc increment new`), with no owner call. "Owner-only" still
+names the only EXPLICIT reopen verb — there still is none — but no longer describes reopening in
+general.)*
 
 ### D3 — `arc list` filters by default
 
