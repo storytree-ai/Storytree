@@ -949,6 +949,104 @@ test("artifact <unknown id> --raw <field> is guidance, not bare bytes", async ()
   assert.equal((env as { raw?: unknown }).raw, undefined);
 });
 
+// ---- `--raw` on OTHER verbs: read where it is read, refused everywhere else -------------------
+//
+// REGRESSION. `--raw` is parsed once for the whole CLI, but only the verb that thought to consult it
+// ever did — so `arc show <id> --raw=intent` returned the full rendered arc, and so did
+// `--raw=endState`, and so did `--raw=nonsense`: three different questions, one byte-identical
+// answer, and nothing saying the flag had been ignored. That is worse than a missing feature. The
+// house way to edit arc narrative is `arc edit --intent @file`, so the obvious read-modify-write
+// would have pasted the WHOLE render — increment log, derived ADR list, trailing `next:` pointers —
+// into the `intent` field, and the output looked plausible enough that nothing said otherwise.
+
+/** An arc whose two long narrative fields differ, so "did it read the right one" is answerable. */
+async function storeWithArc(): Promise<InMemoryStore> {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "raw-read-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "raw-read-arc",
+      title: "Raw read arc",
+      description: "an arc whose narrative fields must be readable one at a time",
+      intent: "THE INTENT — what this arc is for.\n\n  indented, with trailing space  \n",
+      endState: "THE END STATE — when this arc is done.\n",
+      lifecycle: "active",
+      createdAt: "2026-08-09T00:00:00.000Z",
+      updatedAt: "2026-08-09T00:00:00.000Z",
+    },
+  });
+  return store;
+}
+
+test("arc show <id> --raw <field> returns THAT field, not the rendered arc", async () => {
+  const store = await storeWithArc();
+  const intent = await run(["arc", "show", "raw-read-arc", "--raw", "intent"], { store });
+  assert.equal(intent.ok, true, intent.body);
+  assert.equal(
+    (intent as { raw?: unknown }).raw,
+    "THE INTENT — what this arc is for.\n\n  indented, with trailing space  \n",
+    "byte-for-byte, so a partial edit can be written back with `arc edit --intent @file`",
+  );
+});
+
+test("two different --raw fields on arc show must not return the same bytes", async () => {
+  // The assertion that would have caught the original defect. It is stated as an inequality on
+  // purpose: the bug was not "the wrong field" but "the field name is not consulted at all", and
+  // only comparing two reads can see that.
+  const store = await storeWithArc();
+  const intent = await run(["arc", "show", "raw-read-arc", "--raw", "intent"], { store });
+  const endState = await run(["arc", "show", "raw-read-arc", "--raw", "endState"], { store });
+  assert.equal(endState.ok, true, endState.body);
+  assert.notEqual(
+    (intent as { raw?: unknown }).raw,
+    (endState as { raw?: unknown }).raw,
+    "identical output for two field names means the name is being ignored",
+  );
+  assert.match(String((endState as { raw?: unknown }).raw), /THE END STATE/);
+});
+
+test("arc show <id> --raw <nonsense field> is a MISS, never the full render", async () => {
+  // The other half of the silence: an unknown field name used to be accepted without complaint, so
+  // there was no way to discover the flag was inert.
+  const env = await run(["arc", "show", "raw-read-arc", "--raw", "notAField"], {
+    store: await storeWithArc(),
+  });
+  assert.equal(env.ok, false, "an unknown field must not fall back to the render");
+  assert.equal((env as { raw?: unknown }).raw, undefined);
+  assert.match(env.body, /notAField/, "the missing field is named");
+  assert.match(env.body, /intent/, "the fields the arc DOES have are listed");
+});
+
+test("arc show --raw <field> without an id asks for the id rather than ignoring --raw", async () => {
+  const env = await run(["arc", "show", "--raw", "intent"], { store: await storeWithArc() });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /arc id/);
+});
+
+test("--raw on a verb that does not read it is REFUSED, never silently dropped", async () => {
+  // This is the defect-CLASS fix. Without it the next id-addressed read verb re-acquires the bug by
+  // simply not thinking about the flag, which is exactly how `arc show` acquired it.
+  const store = await storeWithArc();
+  for (const argv of [
+    ["arc", "list", "--raw", "intent"],
+    ["library", "list", "--raw", "intent"],
+    ["adr", "list", "--raw", "status"],
+  ]) {
+    const env = await run(argv, { store });
+    assert.equal(env.ok, false, `${argv.join(" ")} must refuse --raw`);
+    assert.equal((env as { raw?: unknown }).raw, undefined);
+    assert.match(env.body, /--raw <field>/, `${argv.join(" ")} names the flag it refused`);
+    assert.match(env.body, /library artifact <id> --raw <field>/, "and names where it IS read");
+  }
+});
+
+test("--help still works alongside --raw rather than being swallowed by the refusal", async () => {
+  const env = await run(["arc", "--help", "--raw", "intent"], { store: await storeWithArc() });
+  assert.equal(env.ok, true, "help is help, whatever other flags are present");
+});
+
 // ---- `library artifact list <category>` — the listable set comes from the SCHEMA (proposal
 // `an-empty-tier-reports-empty-not-an-unknown-kind`) ---------------------------------------------
 //
