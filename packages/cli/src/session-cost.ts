@@ -523,6 +523,251 @@ export function pollingRuns(turns: readonly Turn[]): readonly PollingRun[] {
 }
 
 // ---------------------------------------------------------------------------
+// Spawn overlap — is the factory's delegation already concurrent?
+// ---------------------------------------------------------------------------
+
+/**
+ * Spawns a session needs before a deterministic fan-out primitive would have anything to fan out.
+ *
+ * Three, not two: two spawns is a pair a session can hold in its head, and the per-item decision
+ * turns a workflow removes are two. The question a fan-out engine has to answer is whether a
+ * POPULATION of sessions repeatedly dispatches enough items for the control flow to be worth
+ * writing, and three is the smallest count at which "iterate over a list" is a truer description of
+ * the work than "delegate a thing, then delegate another thing".
+ */
+export const FANOUT_MIN_SPAWNS = 3;
+
+/**
+ * Tool names that DISPATCH a delegate. Measured from this machine's own transcripts rather than
+ * assumed: `Agent` is what the harness emits (681 calls across the storytree history on 2026-08-09),
+ * `Task` is its earlier name and is kept so an older window still counts. `SendMessage` continues an
+ * ALREADY-RUNNING delegate and is deliberately not here — it starts nothing, so counting it would
+ * inflate the very number a fan-out primitive is supposed to reduce.
+ */
+export const SPAWN_TOOLS: ReadonlySet<string> = new Set(["Agent", "Task"]);
+
+/** How many delegates one main-thread turn dispatched. */
+export function spawnsDispatched(turn: Turn): number {
+  let count = 0;
+  for (const name of turn.toolNames) if (SPAWN_TOOLS.has(name)) count++;
+  return count;
+}
+
+/**
+ * The orchestrator's per-item DECISION turns — the prize left over when the spawns already overlap.
+ *
+ * WHY THIS IS THE OTHER HALF OF THE QUESTION. A deterministic fan-out primitive replaces N
+ * orchestrator decision turns with N spawns plus zero-cost control flow. If the spawns are already
+ * concurrent, that decision-turn saving is the ONLY thing left to buy — so it has to be sized rather
+ * than waved at. And it is directly observable: concurrency in this harness comes from emitting
+ * several spawn blocks in ONE assistant turn, so a turn that dispatched four delegates has already
+ * collapsed four decision turns into one, with no engine involved.
+ *
+ * THE RESIDUAL is `turns − sessions`: what would be saved if every session's dispatches collapsed to
+ * a single turn. It is an upper bound and a generous one, because it assumes a session could have
+ * known its whole delegation plan up front — which is exactly what a session discovering work cannot
+ * do.
+ */
+export interface DispatchTotals {
+  /** Main-thread turns carrying at least one spawn call. */
+  readonly turns: number;
+  /** Spawn calls across those turns. */
+  readonly calls: number;
+  /** Turns carrying 2+ spawn calls — a fan-out already batched into one turn. */
+  readonly batchedTurns: number;
+  /** Spawn calls that arrived inside a batched turn. */
+  readonly batchedCalls: number;
+  /** The widest single dispatch anywhere in the window. */
+  readonly widest: number;
+  /** Sessions that dispatched at least once. */
+  readonly sessions: number;
+  /** What the dispatch turns themselves cost. */
+  readonly cost: number;
+  /**
+   * Spawn calls made from INSIDE a delegate — a delegate spawning a delegate.
+   *
+   * This is why {@link OverlapTotals.spawns} exceeds {@link calls}: a sub-subagent's transcript
+   * lands in the parent SESSION's `subagents/` directory, but its dispatch turn is in another
+   * delegate's transcript and was never a main-thread decision. Reported so the difference between
+   * the two counts is accounted for rather than read as an instrument fault — and because a
+   * main-thread fan-out primitive could not have batched these at all.
+   *
+   * It EXPLAINS the gap; it does not close it arithmetically. A delegate dispatched here that
+   * produced no priced turn inside the window is a call with no transcript, so the sum can overshoot
+   * the spawn count. The direction is the finding, never an identity to reconcile.
+   */
+  readonly subagentCalls: number;
+}
+
+/**
+ * One delegate's live interval, read off its OWN transcript's first and last priced turn.
+ *
+ * THIS IS A FLOOR ON THE DURATION, IN A DIRECTION THAT MATTERS. The endpoints are the timestamps of
+ * turns the delegate was billed for, so the interval excludes dispatch latency before turn one and
+ * the generation time of the last turn itself. Both the per-spawn duration and the union are
+ * shortened by the same omission, so the SHARE this instrument reports is roughly unbiased while the
+ * absolute minutes are understated.
+ */
+export interface SpawnInterval {
+  readonly agentType: string;
+  readonly startMs: number;
+  readonly endMs: number;
+}
+
+/** What a set of spawn intervals says about whether they were already running at the same time. */
+export interface OverlapStats {
+  readonly spawns: number;
+  /**
+   * Spawns whose transcript holds ONE priced turn, so their interval is a point of zero length.
+   *
+   * A point can never overlap anything, so these bias every figure here toward "serial". They are
+   * counted separately rather than dropped, because a window made mostly of one-turn delegates would
+   * make a serial verdict an artifact of the instrument rather than a finding.
+   */
+  readonly pointSpawns: number;
+  /** Σ of each spawn's own duration — the wall clock delegation would take if nothing overlapped. */
+  readonly serialMs: number;
+  /** Wall clock during which at LEAST one delegate was live — the union of the intervals. */
+  readonly unionMs: number;
+  /**
+   * The longest single spawn. Amdahl's irreducible part: a perfect batcher starts everything at once
+   * and still waits for the slowest chain, so no fan-out primitive can ever compress below this.
+   */
+  readonly criticalPathMs: number;
+  /** Most delegates live at one instant. 1 means the session never had two running together. */
+  readonly maxConcurrency: number;
+  /** Spawns sharing a positive-length instant with at least one other spawn. */
+  readonly overlappingSpawns: number;
+}
+
+const EMPTY_OVERLAP: OverlapStats = {
+  spawns: 0,
+  pointSpawns: 0,
+  serialMs: 0,
+  unionMs: 0,
+  criticalPathMs: 0,
+  maxConcurrency: 0,
+  overlappingSpawns: 0,
+};
+
+/**
+ * Reduces one session's spawn intervals to the facts a fan-out decision turns on.
+ *
+ * WHY THIS IS A MEASUREMENT AND NOT A JUDGEMENT. "Would a workflow help" reads like an architecture
+ * question, but its load-bearing premise — that a session's delegates run one after another, so
+ * there is an interval to compress — is written on disk: every subagent transcript carries its own
+ * per-turn timestamps. If the spawns already overlap, a batcher buys nothing on wall clock and the
+ * only prize left is the orchestrator's per-item decision turns, which is a much smaller and
+ * separately-sized thing.
+ *
+ * OVERLAP REQUIRES POSITIVE SHARED LENGTH (`a.start < b.end && b.start < a.end`), so intervals that
+ * merely touch at an instant are serial. That is the conservative reading for the concurrency
+ * claim — it can only UNDER-report overlap, which is the honest bias here, because "already
+ * concurrent" is the answer that kills the work and an instrument should not be able to manufacture
+ * the convenient result.
+ */
+export function spawnOverlap(intervals: readonly SpawnInterval[]): OverlapStats {
+  if (intervals.length === 0) return EMPTY_OVERLAP;
+
+  const sorted = [...intervals].sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+  let serialMs = 0;
+  let criticalPathMs = 0;
+  let pointSpawns = 0;
+  for (const span of sorted) {
+    const duration = Math.max(0, span.endMs - span.startMs);
+    serialMs += duration;
+    criticalPathMs = Math.max(criticalPathMs, duration);
+    if (duration === 0) pointSpawns++;
+  }
+
+  // The union, by merging the sorted intervals. Zero-length spans extend nothing.
+  let unionMs = 0;
+  let openStart = Number.NaN;
+  let openEnd = Number.NaN;
+  for (const span of sorted) {
+    if (Number.isNaN(openStart)) {
+      openStart = span.startMs;
+      openEnd = span.endMs;
+      continue;
+    }
+    if (span.startMs <= openEnd) {
+      openEnd = Math.max(openEnd, span.endMs);
+      continue;
+    }
+    unionMs += Math.max(0, openEnd - openStart);
+    openStart = span.startMs;
+    openEnd = span.endMs;
+  }
+  if (!Number.isNaN(openStart)) unionMs += Math.max(0, openEnd - openStart);
+
+  let maxConcurrency = 0;
+  let overlappingSpawns = 0;
+  for (const [i, a] of sorted.entries()) {
+    let live = 0;
+    let overlaps = false;
+    for (const [j, b] of sorted.entries()) {
+      // Count everything live at `a`'s start instant, `a` included — the sweep's only sample points
+      // are interval starts, which is sufficient because concurrency can only RISE at a start.
+      if (b.startMs <= a.startMs && a.startMs < b.endMs) live++;
+      // Positive SHARED LENGTH, so intervals that merely touch are serial and a zero-length point
+      // sitting inside another spawn is not evidence of concurrency — its true duration is unknown.
+      if (i !== j && Math.min(a.endMs, b.endMs) > Math.max(a.startMs, b.startMs)) overlaps = true;
+    }
+    maxConcurrency = Math.max(maxConcurrency, live);
+    if (overlaps) overlappingSpawns++;
+  }
+  // A window of nothing but point spawns has no live instant at all, but it did have delegates.
+  if (maxConcurrency === 0) maxConcurrency = 1;
+
+  return {
+    spawns: sorted.length,
+    pointSpawns,
+    serialMs,
+    unionMs,
+    criticalPathMs,
+    maxConcurrency,
+    overlappingSpawns,
+  };
+}
+
+/** The window-wide roll-up of {@link spawnOverlap}, plus the population a fan-out would serve. */
+export interface OverlapTotals {
+  readonly spawns: number;
+  readonly pointSpawns: number;
+  readonly serialMs: number;
+  readonly unionMs: number;
+  /** Σ over sessions of that session's own critical path — never one global maximum. */
+  readonly criticalPathMs: number;
+  /**
+   * Σ over sessions of `union − criticalPath`: the wall clock a PERFECT fan-out could remove.
+   *
+   * This is the ceiling and nothing else is. It is summed per session because sessions run on
+   * different clocks — a delegate in one session cannot be batched with a delegate in another.
+   */
+  readonly compressibleMs: number;
+  /** The highest concurrency any single measured session reached. */
+  readonly maxConcurrency: number;
+  /** Sessions where two delegates were live at once — already fanning out, with no engine. */
+  readonly sessionsWithOverlap: number;
+  /** Sessions with 2+ spawns: the only ones where overlap was even possible. */
+  readonly sessionsMultiSpawn: number;
+  /** Sessions with {@link FANOUT_MIN_SPAWNS}+ spawns — the population a primitive would serve. */
+  readonly sessionsFanoutCandidate: number;
+  /**
+   * Main-thread turns whose timestamp fell inside a live spawn.
+   *
+   * The other half of "is the thread blocked". A session whose main thread keeps working while a
+   * delegate runs is already overlapping its OWN work with the delegation, and gains nothing from a
+   * batcher even when the spawns themselves are serial.
+   */
+  readonly mainTurnsDuringSpawns: number;
+  /** Σ of measured sessions' first-turn→last-turn spans — the Amdahl denominator. */
+  readonly sessionWallMs: number;
+  /** Spawns-per-session distribution, ascending; the shape behind the ≥3 population count. */
+  readonly histogram: ReadonlyArray<{ readonly spawns: number; readonly sessions: number }>;
+}
+
+// ---------------------------------------------------------------------------
 // Phase attribution
 // ---------------------------------------------------------------------------
 
@@ -806,6 +1051,10 @@ export interface SessionRow {
   readonly pollingLoopTurns: number;
   /** Context tokens on this session's FIRST main-thread turn — preamble + its opening prompt. */
   readonly firstTurnContext: number;
+  /** First→last main-thread turn. Includes idle, which is free — see {@link OverlapTotals}. */
+  readonly wallMs: number;
+  /** This session's delegation, from its subagents' own timestamps ({@link spawnOverlap}). */
+  readonly overlap: OverlapStats;
 }
 
 /** Turns spent purely waiting on a machine, and what that cost. */
@@ -927,6 +1176,10 @@ export interface SessionCostReport {
   readonly subagentCommands: CommandMix;
   /** Measured sessions that spawned no subagent at all — ADR-0323 §4's "4 sessions using none". */
   readonly sessionsWithoutSubagents: number;
+  /** Whether the factory's delegation is ALREADY concurrent, and the ceiling if it is not. */
+  readonly overlap: OverlapTotals;
+  /** How delegates were dispatched — the per-item decision turns a fan-out primitive would remove. */
+  readonly dispatch: DispatchTotals;
   /** Main-thread live-context size in tokens. */
   readonly context: { readonly median: number; readonly p90: number; readonly max: number };
   /** Models with no rate in {@link MODEL_PRICES}: turns and tokens, so the gap is visible. */
@@ -1087,6 +1340,27 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
   let sessionsPolling = 0;
   let sessionsLooping = 0;
   let sessionsWithoutSubagents = 0;
+  let overlapSpawns = 0;
+  let overlapPointSpawns = 0;
+  let overlapSerialMs = 0;
+  let overlapUnionMs = 0;
+  let overlapCriticalMs = 0;
+  let overlapCompressibleMs = 0;
+  let overlapMaxConcurrency = 0;
+  let sessionsWithOverlap = 0;
+  let sessionsMultiSpawn = 0;
+  let sessionsFanoutCandidate = 0;
+  let mainTurnsDuringSpawns = 0;
+  let sessionWallMs = 0;
+  const spawnHistogram = new Map<number, number>();
+  let dispatchTurns = 0;
+  let dispatchCalls = 0;
+  let dispatchBatchedTurns = 0;
+  let dispatchBatchedCalls = 0;
+  let dispatchWidest = 0;
+  let dispatchSessions = 0;
+  let dispatchCost = 0;
+  let dispatchSubagentCalls = 0;
   const mainFirstTurns: number[] = [];
   const subFirstTurns: number[] = [];
   /** One row per transcript: what it would cost to make every one of them carry more preamble. */
@@ -1148,6 +1422,7 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       for (let i = run.start; i < run.start + run.length; i++) loopedIndices.add(i);
     }
 
+    let sessionDispatchTurns = 0;
     const openingContext = windowed[0] === undefined ? 0 : contextTokens(windowed[0].axes);
     if (windowed[0] !== undefined) mainFirstTurns.push(openingContext);
     shapes.push({ turns: windowed.length, tier: windowed[0]?.tier, main: true });
@@ -1159,6 +1434,18 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       mainTurns++;
       contexts.push(contextTokens(turn.axes));
       tallyCommands(mainMix, turn);
+      const dispatched = spawnsDispatched(turn);
+      if (dispatched > 0) {
+        dispatchTurns++;
+        sessionDispatchTurns++;
+        dispatchCalls += dispatched;
+        dispatchCost += turnCost;
+        dispatchWidest = Math.max(dispatchWidest, dispatched);
+        if (dispatched >= 2) {
+          dispatchBatchedTurns++;
+          dispatchBatchedCalls += dispatched;
+        }
+      }
       if (isPollingTurn(turn)) {
         pollingTurnCount++;
         pollingCost += turnCost;
@@ -1180,10 +1467,12 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
     }
     if (sessionPolling > 0) sessionsPolling++;
     if (sessionLoopTurns > 0) sessionsLooping++;
+    if (sessionDispatchTurns > 0) dispatchSessions++;
 
     let sessionSpawns = 0;
     // Per SESSION, so an agent type spawned five times by one session counts once toward adoption.
     const typesThisSession = new Set<string>();
+    const intervals: SpawnInterval[] = [];
     for (const sub of session.subagentFiles) {
       const subRead = readTranscript(sub.file);
       skippedLines += subRead.skipped;
@@ -1196,6 +1485,14 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       if (subOpening !== undefined) subFirstTurns.push(contextTokens(subOpening.axes));
       shapes.push({ turns: subTurns.length, tier: subTurns[0]?.tier, main: false });
       const agentType = readAgentType(sub.metaFile);
+      const subLast = subTurns[subTurns.length - 1];
+      const startMs = subOpening === undefined ? Number.NaN : Date.parse(subOpening.at);
+      const endMs = subLast === undefined ? Number.NaN : Date.parse(subLast.at);
+      // An unparseable timestamp is dropped from the OVERLAP figures only — the spawn still counts
+      // and its cost is still priced. A guessed interval would be worse than a missing one.
+      if (Number.isFinite(startMs) && Number.isFinite(endMs)) {
+        intervals.push({ agentType, startMs, endMs: Math.max(startMs, endMs) });
+      }
       const row = agentTotals.get(agentType) ?? {
         spawns: 0,
         sessions: 0,
@@ -1214,6 +1511,7 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
         row.cost += turnCost;
         if (turn.model !== "") row.models.add(turn.model);
         tallyCommands(subMix, turn);
+        dispatchSubagentCalls += spawnsDispatched(turn);
         sessionCost += turnCost;
         sessionTurns++;
         subagentTurns++;
@@ -1224,6 +1522,31 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
 
     const first = windowed[0]?.at ?? "";
     const last = windowed[windowed.length - 1]?.at ?? "";
+    const firstMs = Date.parse(first);
+    const lastMs = Date.parse(last);
+    const wallMs = Number.isFinite(firstMs) && Number.isFinite(lastMs) ? Math.max(0, lastMs - firstMs) : 0;
+
+    const overlap = spawnOverlap(intervals);
+    overlapSpawns += overlap.spawns;
+    overlapPointSpawns += overlap.pointSpawns;
+    overlapSerialMs += overlap.serialMs;
+    overlapUnionMs += overlap.unionMs;
+    overlapCriticalMs += overlap.criticalPathMs;
+    // Per SESSION, because delegates in different sessions run on different clocks and cannot be
+    // batched with each other. Summing a global union would invent a fan-out nobody could build.
+    overlapCompressibleMs += Math.max(0, overlap.unionMs - overlap.criticalPathMs);
+    overlapMaxConcurrency = Math.max(overlapMaxConcurrency, overlap.maxConcurrency);
+    if (overlap.overlappingSpawns > 0) sessionsWithOverlap++;
+    if (sessionSpawns >= 2) sessionsMultiSpawn++;
+    if (sessionSpawns >= FANOUT_MIN_SPAWNS) sessionsFanoutCandidate++;
+    spawnHistogram.set(sessionSpawns, (spawnHistogram.get(sessionSpawns) ?? 0) + 1);
+    sessionWallMs += wallMs;
+    for (const turn of windowed) {
+      const atMs = Date.parse(turn.at);
+      if (!Number.isFinite(atMs)) continue;
+      if (intervals.some((span) => span.startMs < atMs && atMs < span.endMs)) mainTurnsDuringSpawns++;
+    }
+
     sessions.push({
       project: session.project,
       sessionId: session.sessionId,
@@ -1235,6 +1558,8 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       pollingTurns: sessionPolling,
       pollingLoopTurns: sessionLoopTurns,
       firstTurnContext: openingContext,
+      wallMs,
+      overlap,
     });
   }
 
@@ -1324,6 +1649,33 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
     commands: { ...mainMix },
     subagentCommands: { ...subMix },
     sessionsWithoutSubagents,
+    overlap: {
+      spawns: overlapSpawns,
+      pointSpawns: overlapPointSpawns,
+      serialMs: overlapSerialMs,
+      unionMs: overlapUnionMs,
+      criticalPathMs: overlapCriticalMs,
+      compressibleMs: overlapCompressibleMs,
+      maxConcurrency: overlapMaxConcurrency,
+      sessionsWithOverlap,
+      sessionsMultiSpawn,
+      sessionsFanoutCandidate,
+      mainTurnsDuringSpawns,
+      sessionWallMs,
+      histogram: [...spawnHistogram.entries()]
+        .map(([spawns, count]) => ({ spawns, sessions: count }))
+        .sort((a, b) => a.spawns - b.spawns),
+    },
+    dispatch: {
+      turns: dispatchTurns,
+      calls: dispatchCalls,
+      batchedTurns: dispatchBatchedTurns,
+      batchedCalls: dispatchBatchedCalls,
+      widest: dispatchWidest,
+      sessions: dispatchSessions,
+      cost: dispatchCost,
+      subagentCalls: dispatchSubagentCalls,
+    },
     context: {
       median: quantile(contexts, 0.5),
       p90: quantile(contexts, 0.9),
@@ -1362,6 +1714,11 @@ function tokens(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
   return String(value);
+}
+
+function mins(ms: number): string {
+  if (ms >= 3_600_000) return `${(ms / 3_600_000).toFixed(1)}h`;
+  return `${(ms / 60_000).toFixed(1)}m`;
 }
 
 export function renderSessionCost(report: SessionCostReport): string {
@@ -1561,6 +1918,106 @@ export function renderSessionCost(report: SessionCostReport): string {
     );
   }
 
+  // -- spawn overlap --------------------------------------------------------
+  const ov = report.overlap;
+  lines.push(
+    "## SPAWN OVERLAP  (does the factory ALREADY fan out? — the ceiling on any batching primitive)",
+    "",
+  );
+  if (ov.spawns === 0) {
+    lines.push(
+      "  NO SPAWN CARRIED A MEASURABLE INTERVAL IN THIS WINDOW. With nothing delegated there is",
+      "  nothing to batch, and a fan-out primitive would have no population to serve.",
+      "",
+    );
+  } else {
+    const idealMs = Math.max(0, ov.sessionWallMs - ov.compressibleMs);
+    const speedup = idealMs === 0 ? 1 : ov.sessionWallMs / idealMs;
+    lines.push(
+      `  spawns with an interval  ${String(ov.spawns).padStart(5)}   (${ov.pointSpawns} of them single-turn POINTS, which can never overlap)`,
+      `  sessions with 2+ spawns  ${String(ov.sessionsMultiSpawn).padStart(5)} / ${measured}   — the only ones where overlap was possible`,
+      `  sessions with ${FANOUT_MIN_SPAWNS}+ spawns  ${String(ov.sessionsFanoutCandidate).padStart(5)} / ${measured}   — the population a fan-out primitive would serve`,
+      `  sessions ALREADY overlapping ${String(ov.sessionsWithOverlap).padStart(2)} / ${measured}   — peak concurrency reached anywhere: ${ov.maxConcurrency}`,
+      "",
+      `  Σ spawn durations (serial) ${mins(ov.serialMs).padStart(7)}`,
+      `  Σ union of intervals       ${mins(ov.unionMs).padStart(7)}   — wall clock with ≥1 delegate live`,
+      `  Σ per-session critical path${mins(ov.criticalPathMs).padStart(7)}   — the slowest single chain; NO batcher compresses this`,
+      `  ⇒ COMPRESSIBLE             ${mins(ov.compressibleMs).padStart(7)}   = union − critical path, summed per session`,
+      "",
+      `  AMDAHL, computed: session wall clock ${mins(ov.sessionWallMs)} → best case ${mins(idealMs)} ` +
+        `(×${speedup.toFixed(3)}, ${pct(ov.compressibleMs, ov.sessionWallMs).trim()} removable).`,
+      `  Per session that is ${mins(ov.compressibleMs / Math.max(1, measured))} of the ${mins(ov.sessionWallMs / Math.max(1, measured))} a session spans.`,
+      `  Main-thread turns that ran WHILE a delegate was live: ${ov.mainTurnsDuringSpawns} of ${report.mainTurns} ` +
+        `(${pct(ov.mainTurnsDuringSpawns, report.mainTurns).trim()}).`,
+      "",
+    );
+
+    // IS THE CEILING BROAD, OR IS IT ONE SESSION? This window has twice been read wrongly for want
+    // of the question (`session-cost-arc` increments 8 and 10, where a single 682-turn session moved
+    // a per-session delta from −22% to +11%). A ceiling carried by one session is that session's
+    // shape, not the factory's, and a primitive built for it would serve nobody else.
+    const carriers = [...report.sessions]
+      .map((row) => ({ row, ms: Math.max(0, row.overlap.unionMs - row.overlap.criticalPathMs) }))
+      .filter((entry) => entry.ms > 0)
+      .sort((a, b) => b.ms - a.ms);
+    if (carriers.length === 0) {
+      lines.push("  NO SESSION CARRIES ANY COMPRESSIBLE INTERVAL — the ceiling is zero, not small.", "");
+    } else {
+      const top = carriers[0];
+      lines.push(
+        `  CONCENTRATION: ${carriers.length} of ${measured} session(s) carry any compressible interval at all; ` +
+          `the largest holds ${pct(top === undefined ? 0 : top.ms, ov.compressibleMs).trim()} of it.`,
+      );
+      for (const entry of carriers.slice(0, 5)) {
+        lines.push(
+          `    ${entry.row.sessionId}  ${mins(entry.ms).padStart(7)} compressible  ` +
+            `${String(entry.row.subagentSpawns).padStart(2)} spawn(s)  peak ×${entry.row.overlap.maxConcurrency}`,
+        );
+      }
+      lines.push("");
+    }
+
+    // THE OTHER PRIZE. When the spawns already overlap, the per-item decision turns are all a
+    // fan-out primitive has left to sell — so they are sized here rather than left as an intuition.
+    const dp = report.dispatch;
+    const perTurn = report.mainTurns === 0 ? 0 : report.totalCost / report.mainTurns;
+    const residualTurns = Math.max(0, dp.turns - dp.sessions);
+    lines.push(
+      `  DISPATCH: ${dp.calls} spawn call(s) arrived in ${dp.turns} main-thread turn(s) across ${dp.sessions} session(s); ` +
+        `${dp.batchedTurns} of those turn(s) carried 2+ (widest ×${dp.widest}).`,
+      `  ${pct(dp.batchedCalls, dp.calls).trim()} of spawns were ALREADY batched into a multi-spawn turn — that saving is banked, not available.`,
+      `  RESIDUAL: collapsing every session's dispatches to ONE turn removes ${residualTurns} turn(s) ≈ ${usd(residualTurns * perTurn)} ` +
+        `(${pct(residualTurns * perTurn, report.totalCost).trim()} of spend), at ${usd(perTurn)}/turn.`,
+      "  That residual is an upper bound: it assumes a session knew its whole delegation plan up",
+      "  front, which is what a session DISCOVERING work cannot do.",
+      `  A further ${dp.subagentCalls} spawn(s) were dispatched BY a delegate, not by the main thread — which is why the`,
+      `  spawn count above (${ov.spawns}) exceeds the ${dp.calls} main-thread call(s). No main-thread batcher reaches those.`,
+      "  The two do not BALANCE exactly, and are not meant to: a dispatched delegate that produced no",
+      "  priced turn in the window has a call here and no transcript there. This is the direction of the",
+      "  gap, accounted for — not an identity to reconcile.",
+      "",
+      "  spawns per session:",
+    );
+    for (const bucket of ov.histogram) {
+      lines.push(
+        `    ${String(bucket.spawns).padStart(3)} spawn(s)  ${String(bucket.sessions).padStart(3)} session(s)  ` +
+          "#".repeat(Math.min(40, bucket.sessions)),
+      );
+    }
+    lines.push(
+      "",
+      "  READ THE CEILING, NOT THE SPEEDUP. `compressible` is the wall clock a PERFECT batcher would",
+      "  remove if every delegate in a session were independent and could start at once — an upper",
+      "  bound twice over, since the transcript cannot show which spawn's prompt was written from a",
+      "  previous spawn's digest. The denominator includes IDLE, which is free, so the removable share",
+      "  understates the effect on an owner's attention while the absolute minutes do not.",
+      "  Intervals are first→last PRICED turn, so dispatch latency and the last turn's own generation",
+      "  are excluded: the minutes are a floor, and overlap needs positive shared length, so a session",
+      "  scored as serial genuinely never had two delegates live at the same instant.",
+      "",
+    );
+  }
+
   // -- context --------------------------------------------------------------
   lines.push(
     "## CONTEXT SIZE  (main-thread live window per turn — what a turn costs simply to EXIST)",
@@ -1599,7 +2056,7 @@ export function renderSessionCost(report: SessionCostReport): string {
   for (const row of report.sessions.slice(0, 20)) {
     lines.push(
       `  ${row.sessionId}  ${String(row.turns).padStart(4)} turn(s)  ${usd(row.cost).padStart(9)}  ` +
-        `${String(row.subagentSpawns).padStart(2)} sub  ${String(row.pollingTurns).padStart(3)} poll ` +
+        `${String(row.subagentSpawns).padStart(2)} sub (peak ×${row.overlap.maxConcurrency})  ${String(row.pollingTurns).padStart(3)} poll ` +
         `(${String(row.pollingLoopTurns).padStart(3)} looped)  ${tokens(row.firstTurnContext).padStart(6)} floor  ` +
         `${row.first.slice(0, 16)}  ${row.project}`,
     );
