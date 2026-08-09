@@ -156,7 +156,14 @@ It sits inside the threat model stated above, and hiding the path does not close
 - **Negligible cost.** One extra `--import` of a builtins-only module and one temp-file read per
   observation; no new services, no network, no DB. The guard loads from the spine's committed copy,
   so it works in a bare worktree with no `node_modules`.
-- **Custom-command nodes remain on the exit-code oracle** — a narrower, documented residual (below).
+- **Some custom-command nodes remain on the exit-code oracle** — a narrower, documented residual
+  (below). The residual is narrower than "custom": since `custom-proof-command-red-accounting`
+  (`parallel-red-green-arc`, 2026-08-09) the guard is wired by CAPABILITY rather than by route, so a
+  declared command that runs `node --test` over the node's OWN test file is accounted exactly as the
+  default one is. What genuinely cannot be accounted is a SUITE (measured on Node 24: node:test's
+  runner parent outlives its isolated children and overwrites the report LAST with its own count of
+  zero, so an accounted suite would false-RED every green) and a FOREIGN RUNNER (vitest asserts through
+  chai `expect`, which this guard does not count).
 - **Forensics.** `TestObservation` gains an optional `note`; a refused green explains WHY (the proof
   exited 0 but did not exercise the oracle) in the gate's fail-closed reason, not just "not green".
 
@@ -169,13 +176,24 @@ It sits inside the threat model stated above, and hiding the path does not close
   conditional — which is why it is deferred, not shipped in the floor.
 - **Custom-command coverage.** Extend accounting to package-suite / vitest proofs (count `expect`
   too, or a runner-level assertion plan) so custom-`proofCommand` nodes are no longer exit-code-only.
-  **STILL OPEN, but no longer SILENT (2026-08-06, `parallel-red-green-arc` entry
-  `oracle-veto-covers-custom-proof-commands`).** Extending the accounting is unbuilt. What landed is
-  the disclosure that makes the gap legible: a green observed with no cross-check wired is stamped
-  `UNVETTED_GREEN_NOTE` and a cross-checked green reports the count it measured, both riding onto the
-  verdict's evidence — so a vetted and an unvetted green are no longer byte-identical in the signed
-  record. Sharpening the case for the rest: the un-accounted population structurally includes EVERY
-  ADR-0098 R2 `refactorForTests` node, because R2's own schema refine REQUIRES a `proofCommand`.
+  **PARTLY BUILT; the remainder is now a bounded, named residual.**
+  - 2026-08-06 (`oracle-veto-covers-custom-proof-commands`): the gap stopped being SILENT. A green
+    observed with no cross-check wired is stamped `UNVETTED_GREEN_NOTE`, and a cross-checked green
+    reports the count it measured, both riding onto the verdict's evidence — so a vetted and an
+    unvetted green are no longer byte-identical in the signed record.
+  - 2026-08-09 (`custom-proof-command-red-accounting`): the gap stopped being ROUTE-shaped. A single
+    proof-command classifier (`packages/orchestrator/src/proof/proof-route.ts`) decides the accounting
+    posture at RESOLVE time, and a declared `node --test` over the node's own `testFile` is now
+    accounted — it measures its red kind (`kindBasis: "oracle-count"`, the only basis `nextPhase`'s
+    right-kind-red gate arms on) and vetoes a hollow green, exactly as the default route does. The same
+    classifier refuses, before any authoring turn is spent, a command that runs a single test file which
+    is NOT the one AUTHOR_TEST writes — a combination whose CONFIRM_RED is unreachable by construction.
+  - What is STILL unbuilt: counting `expect` for vitest, and attributing a suite's assertions to one
+    node's test. Both are genuine "no oracle possible" cases today, not unwired ones, and both are
+    DISCLOSED per route rather than left to a standing disclaimer. The population is not shrinking to
+    zero by design: it structurally includes EVERY ADR-0098 R2 `refactorForTests` node, because R2's own
+    schema refine REQUIRES a suite `proofCommand` — which is why the unaccounted route is disclosed and
+    never refused.
 
 ## References
 

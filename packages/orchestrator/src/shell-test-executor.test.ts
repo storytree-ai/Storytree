@@ -338,6 +338,35 @@ test("a green with NO oracle cross-check is stamped UNVETTED (the gap is visible
   );
 });
 
+// `custom-proof-command-red-accounting`: the note above is now a FALLBACK. Once the resolver started
+// wiring the guard onto every custom command that could carry one, an unaccounted route stopped meaning
+// "nobody wired an oracle" and started meaning "no oracle is POSSIBLE here" — which is a different fact
+// per route, so the executor takes the classifier's own sentence instead of a standing disclaimer.
+
+test("a resolver-supplied unvetted note replaces the generic one, and still reads as unvetted", async () => {
+  const exec = new ShellTestExecutor({
+    command: () => ({ file: process.execPath, args: ["-e", "process.exit(0)"] }),
+    unvettedNote: "unvetted: exit-code-only — the proof runs vitest, which asserts through chai",
+  });
+  const obs = await exec.run("t");
+
+  assert.equal(obs.result, "green");
+  assert.match(obs.note ?? "", /^unvetted: exit-code-only/);
+  assert.match(obs.note ?? "", /vitest/, "the route's OWN reason, not the standing disclaimer");
+  assert.notEqual(obs.note, UNVETTED_GREEN_NOTE);
+});
+
+test("a supplied unvetted note is IGNORED when a cross-check IS wired — a green cannot claim both", async () => {
+  const exec = new ShellTestExecutor({
+    command: () => ({ file: process.execPath, args: ["-e", "process.exit(0)"] }),
+    verifyGreen: () => ({ ok: true, note: "assert-oracle: 3 assertion(s) executed" }),
+    unvettedNote: "unvetted: exit-code-only — should never be reached",
+  });
+  const obs = await exec.run("t");
+
+  assert.equal(obs.note, "assert-oracle: 3 assertion(s) executed");
+});
+
 test("a green WITH a passing oracle cross-check carries that check's own note (vetted, and says how)", async () => {
   const exec = new ShellTestExecutor({
     command: () => ({ file: process.execPath, args: ["-e", "process.exit(0)"] }),

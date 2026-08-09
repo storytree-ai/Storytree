@@ -72,6 +72,27 @@ test("resolveReport on a spec-borne node reports source=spec, all command/scope/
     report.real.proofDisplay,
     "node --import tsx --test packages/orchestrator/src/proof/verdict-line.test.ts",
   );
+
+  // `custom-proof-command-red-accounting`: the accounting posture is reported HERE, on the free
+  // read-only surface, because it is the one fact a `--real` build used to charge authoring turns to
+  // discover. The default route is oracle-accounted and has nothing to disclose.
+  assert.equal(report.real.proofAccounting, "oracle");
+  assert.equal(report.real.proofRouteBasis, "default-node-test");
+  assert.equal(report.real.proofAccountingNote, null);
+});
+
+test("resolveReport discloses a SUITE proof command's accounting posture without refusing it", () => {
+  // A suite-scoped command is exit-code-only and stays buildable (ADR-0098 R2 is structurally this
+  // shape). What changes is that an operator can see it BEFORE paying for a build.
+  const file = findNodeSpecFile(STORIES_DIR, "model-judged-uat");
+  assert.ok(file !== null, "the story that hit this at node 5/5 on 2026-08-09");
+  const report = resolveReport(loadNodeSpec(file));
+
+  assert.ok(report.real !== null);
+  assert.equal(report.real.proofCommand, "pnpm --filter @storytree/model-judged-uat test");
+  assert.equal(report.real.proofAccounting, "none");
+  assert.equal(report.real.proofRouteBasis, "suite-scoped");
+  assert.match(report.real.proofAccountingNote ?? "", /no oracle is POSSIBLE/);
 });
 
 // ── Contract 1 (continued): spec-borne node with install + typecheck declared ────────────────────

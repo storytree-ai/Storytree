@@ -21,6 +21,21 @@ export interface ResolveRealReport {
   proofCommand: string | null;
   /** The RESOLVED real proof command display — reuse `realProofCommand(real, ...).display`. */
   proofDisplay: string;
+  /**
+   * `custom-proof-command-red-accounting`: the classified ACCOUNTING POSTURE of that proof route —
+   * `oracle` (the ADR-0211 assert-oracle measures this node's red and vetoes a hollow green), `none`
+   * (no oracle is POSSIBLE here, so red/green is honest exit-code evidence only), or `refused` (the
+   * route cannot prove this node's red at all and `--real` will refuse before spending a turn).
+   *
+   * It is HERE because `node resolve` is the free, read-only surface an operator can ask BEFORE paying
+   * for a build — which is the whole point: the resolver has always computed this, and the cost of not
+   * showing it was paid in authoring turns against a phase that could not be satisfied.
+   */
+  proofAccounting: "oracle" | "none" | "refused";
+  /** Which route basis produced {@link ResolveRealReport.proofAccounting} — see `ProofRouteBasis`. */
+  proofRouteBasis: string;
+  /** The classifier's own sentence: why no oracle is possible, or why the route is refused. Null when accounted. */
+  proofAccountingNote: string | null;
 }
 
 /** How a node spec resolves for a build — the read-only report behind `storytree node resolve`. */
@@ -118,7 +133,9 @@ export function resolveReport(spec: NodeSpec): ResolveReport {
       ? `${realConfig.proofCommand.file} ${realConfig.proofCommand.args.join(" ")}`
       : null;
 
-  const proofDisplay = realProofCommand(realConfig, "").display;
+  const resolvedProof = realProofCommand(realConfig, "");
+  const proofDisplay = resolvedProof.display;
+  const route = resolvedProof.route;
 
   const real: ResolveRealReport = {
     testFile: realConfig.testFile,
@@ -130,6 +147,14 @@ export function resolveReport(spec: NodeSpec): ResolveReport {
     typecheck,
     proofCommand: proofCommandStr,
     proofDisplay,
+    proofAccounting: route.accounting,
+    proofRouteBasis: route.basis,
+    proofAccountingNote:
+      route.accounting === "none"
+        ? route.disclosure
+        : route.accounting === "refused"
+          ? route.reason
+          : null,
   };
 
   return {

@@ -21,10 +21,18 @@
  * defeating THAT needs the declared-count cross-check (the owner-chosen follow-on, ADR-0211). This
  * floor fails closed on the easy vectors and makes forgery require conspicuous code.
  *
- * SCOPE: the veto is wired only for the DEFAULT `node --import tsx --test <file>` proof command, whose
- * tests assert via `node:assert/strict` (the codebase convention the coverage classifier already
- * assumes). Custom-`proofCommand` nodes (package suites, vitest) may assert via other APIs the guard
- * does not count, so they keep exit-code-only observation for now — a documented narrower follow-on.
+ * SCOPE is decided by CAPABILITY, not by route, and ONE classifier decides it —
+ * {@link ../proof/proof-route.js}'s `classifyProofRoute` (`custom-proof-command-red-accounting` on
+ * `parallel-red-green-arc`). The veto is wired wherever the proof is a SINGLE-FILE `node:test` run over
+ * the node's own test file, whether that command is the spine's default or a node's DECLARED
+ * `real.proofCommand` — the guard's precondition is the shape, and a declared command can satisfy it
+ * just as well.
+ *
+ * What stays exit-code-only is what genuinely CANNOT be measured, and the line is measured rather than
+ * assumed (Node 24, 2026-08-09): a SUITE, because node:test isolates each file in a child process and
+ * the runner PARENT overwrites this report LAST with its own count of zero (so an accounted suite would
+ * false-RED every green); and a FOREIGN RUNNER (vitest, jest), whose assertions go through APIs this
+ * guard does not count. Those routes carry the classifier's own disclosure onto the verdict instead.
  */
 
 import { randomUUID } from "node:crypto";

@@ -173,10 +173,12 @@ about it (4). ADR-0262's fork should be considered in the same sitting.
   vouching input and the verdict axis.
 - [ADR-0068](0068-make-the-organism-model-physical-real-story-isolation-and-th.md) section 3 — `proof-protocol` as the published port.
 - `packages/orchestrator/src/prove-it-gate.ts`, `phase-machine.ts`, `shell-test-executor.ts`,
-  `proof/oracle-accounting.ts` — the measured mechanism. `resolve-prove-spec.ts` holds the
-  default-vs-custom conditional that scopes the oracle channel (`realProofCommand` returns
-  `accounted: false` for a custom `proofCommand`, and `beforeRun`/`verifyGreen` are wired only when it
-  is true) — so it, not `shell-test-executor.ts`, is where routes (a) and (b) would be built.
+  `proof/oracle-accounting.ts` — the measured mechanism. `resolve-prove-spec.ts` holds the conditional
+  that scopes the oracle channel, and since `custom-proof-command-red-accounting` (2026-08-09) it reads
+  that scope off ONE classifier, `proof/proof-route.ts` — `realProofCommand` returns
+  `accounted: true` for any SINGLE-FILE `node:test` command over the node's own test file (default or
+  declared) and `false` for a suite or a foreign runner, with `beforeRun`/`verifyGreen` wired only when
+  it is true — so it, not `shell-test-executor.ts`, is where routes (a) and (b) would be built.
 - `stories/studio/map-server-memo.md` — the capability the gap was found on; custom vitest
   `proofCommand`.
 - Friction item `confirm-red-is-file-granular-so-a-green-on-arrival-contract-is-invisible`.

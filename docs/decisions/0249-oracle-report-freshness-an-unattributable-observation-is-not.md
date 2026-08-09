@@ -146,8 +146,13 @@ before the fix and GREEN after.
   ADR-0211's stated threat model, where the goal is to make forgery require conspicuous,
   reviewable, intent-revealing code rather than to be impossible. Recorded here because it was found
   while fixing the freshness hole and should not have to be rediscovered.
-- **ADR-0211's two follow-ons stand undone**: the maximal declared-count cross-check, and accounting
-  for custom-`proofCommand` (package-suite / vitest) nodes, which remain exit-code-only.
+- **ADR-0211's two follow-ons**: the maximal declared-count cross-check stands undone. The custom-command
+  one is PARTLY done — since `custom-proof-command-red-accounting` (`parallel-red-green-arc`,
+  2026-08-09) the guard is wired by CAPABILITY rather than by route, so a declared command running
+  `node --test` over the node's own test file is accounted exactly as the default one is. What remains
+  exit-code-only is the package-suite and vitest population, and for a measured reason rather than an
+  unfinished one: a suite's report is overwritten LAST by node:test's runner parent with its own count
+  of zero, and vitest asserts through an API this guard does not count.
 
 ### The generalisable lesson
 

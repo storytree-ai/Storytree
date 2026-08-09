@@ -67,8 +67,20 @@ export interface ShellCommand {
  */
 export const UNVETTED_GREEN_NOTE =
   "unvetted: exit-code-only — no assert-oracle cross-check is wired for this proof command " +
-  "(ADR-0211's guard covers the default node:test command; a custom proofCommand may assert " +
-  "through APIs the guard does not count)";
+  "(ADR-0211's guard measures a SINGLE-FILE node:test run, default or declared; a suite's report is " +
+  "overwritten by its runner parent and a foreign runner asserts through APIs the guard does not count)";
+
+/**
+ * `custom-proof-command-red-accounting`: the ROUTE-SPECIFIC form of the note above. The generic
+ * constant says a cross-check is absent; it cannot say WHY, and after the resolver started wiring the
+ * guard onto every custom command it could carry one, "why" became the whole content — an unaccounted
+ * route now means no oracle is POSSIBLE here (a suite whose report the runner parent zeroes, a runner
+ * that asserts through another API), never merely that nobody wired one. A reader of the signed verdict
+ * gets the classifier's own sentence rather than a standing disclaimer.
+ */
+export function unvettedGreenNote(disclosure: string): string {
+  return `unvetted: exit-code-only — ${disclosure}`;
+}
 
 export interface ShellTestResolver {
   command: (testId: string) => ShellCommand;
@@ -108,6 +120,16 @@ export interface ShellTestResolver {
    * actually about, where the text heuristic is a guess about how a toolchain phrased itself.
    */
   measureRedKind?: (out: ShellRunResult) => "compile" | "runtime" | undefined;
+  /**
+   * `custom-proof-command-red-accounting`: the note stamped on a green observed with NO
+   * {@link ShellTestResolver.verifyGreen} wired. Absent ⇒ the generic {@link UNVETTED_GREEN_NOTE}, so
+   * every existing caller keeps its exact wording. The resolver supplies the classified route's own
+   * disclosure instead, so the verdict says which flavour of unaccounted it was.
+   *
+   * Ignored when `verifyGreen` IS wired — a vetted green reports what it measured, and an executor
+   * carrying both would be declaring a cross-check it also says it does not have.
+   */
+  unvettedNote?: string;
 }
 
 /**
@@ -185,7 +207,8 @@ export class ShellTestExecutor implements TestExecutor {
       // and an unvetted one were byte-identical in the signed verdict, so no reader could tell which
       // they were holding. An absent cross-check now stamps itself, and a passing one reports what it
       // actually measured. This never changes red/green: it records how the green was reached.
-      const note = veto === undefined ? UNVETTED_GREEN_NOTE : veto.note;
+      const note =
+        veto === undefined ? (this.resolver.unvettedNote ?? UNVETTED_GREEN_NOTE) : veto.note;
       return note === undefined ? { result: "green", testId } : { result: "green", testId, note };
     }
 
