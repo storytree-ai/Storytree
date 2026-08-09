@@ -3,7 +3,7 @@ id: "experience-rollout-guardrails"
 tier: capability
 story: website-experience
 title: "Skip and fallback are first-class from the first increment — machine-guarded"
-outcome: "A parent-side judge, web-experience-check.ts, reds when the experience entry page lacks the persistent skip-to-calm affordance marker or the prefers-reduced-motion / no-WebGL fallback marker, or when any module statically reachable from the Act 1 entry imports the R3F island or three; absent an experience entry it SKIPs (bootstrap allowance). It is BUILT and answers on demand — but ADR-0311 D2 retired its check:web-experience rung, so nothing invokes it on a merge and no increment is machine-stopped from shipping the storm as a toll booth today."
+outcome: "A parent-side judge, web-experience-check.ts, reds when the experience entry page lacks the persistent skip-to-calm affordance marker or the prefers-reduced-motion / no-WebGL fallback marker, or when any module statically reachable from the Act 1 entry imports the R3F island or three; absent an experience entry it SKIPs (bootstrap allowance). It is BUILT and answers on demand — ADR-0311 D2 retired its check:web-experience rung, and ADR-0336 (2026-08-09) re-wired only the no-WebGL static-import-closure third as the new check:web-experience-closure gate rung, so a static R3F/three leak into Act 1 is machine-stopped on every merge again — but the skip/fallback MARKER-presence half stays unwired, so a marker regression still ships with nothing red."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -68,6 +68,17 @@ moment the storm exists.
 >
 > **Re-wiring is an owner decision, not a wiring change** (ADR-0311 D5: fresh production-catch
 > evidence AND an ADR, never merely the wiring). It is surfaced as the story's open modeling call 9.
+>
+> **UPDATE 2026-08-09 ([ADR-0336](../../docs/decisions/0336-re-wire-the-act-1-static-import-closure-check-as-a-new-narro.md)):**
+> call 9 closed NARROWLY. Only the no-WebGL static-import-closure THIRD of this judge is re-wired, as
+> a NEW, distinct gate rung — `check:web-experience-closure`
+> ([`packages/cli/src/check-web-experience-closure.ts`](../../packages/cli/src/check-web-experience-closure.ts)),
+> which reuses this file's `findExperienceEntries` / `walkStaticClosure` / `isWebGlSpecifier` /
+> `withExtensionFallback` exports rather than re-deriving them. `check:web-experience` itself, and the
+> marker-contract half of THIS file's own judge (`findExperienceMarkers`, and the marker half of
+> `checkExperienceEntry`/`checkExperienceSite`), stay exactly as retired and `UNWIRED` as described
+> above — the skip/fallback marker properties remain unguarded by any machine, a known and accepted
+> gap (ADR-0336 D2).
 
 **Depends on —** (root — deliberately upstream of `act1-terminal-storm`: the storm may only face
 real visitors once these exits are machine-guarded. Owner decision 6, 2026-07-02.)

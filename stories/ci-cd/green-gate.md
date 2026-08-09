@@ -3,7 +3,7 @@ id: "green-gate"
 tier: capability
 story: ci-cd
 title: "The green gate — verify proves a PR against the merge of branch and main"
-outcome: "A PR's verify job proves it against the merge of branch+main — organism boundaries, cross-surface mirror conformance, the two web checks, typecheck, test, build, and the generated root CLAUDE.md + AGENTS.md guidance plus all four harness-native specialist-agent directories in sync — and a red anything blocks the merge."
+outcome: "A PR's verify job proves it against the merge of branch+main — organism boundaries, cross-surface mirror conformance, the three web checks (grounding, engine, and — since ADR-0336 — the Act 1 static-import-closure wall), typecheck, test, build, and the generated root CLAUDE.md + AGENTS.md guidance plus all four harness-native specialist-agent directories in sync — and a red anything blocks the merge."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -14,7 +14,8 @@ depends_on: []
 **Outcome —** A PR's `verify` job ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml))
 proves it against the **merge of branch + main** — `pnpm check:boundaries`,
 `pnpm check:mirror-conformance`, `pnpm check:web-grounding`, `pnpm check:web-engine`,
-`pnpm -r typecheck`, `pnpm -r test`, `pnpm -r build`, `pnpm check:guidance`, `pnpm check:agents` —
+`pnpm check:web-experience-closure` (ADR-0336), `pnpm -r typecheck`, `pnpm -r test`,
+`pnpm -r build`, `pnpm check:guidance`, `pnpm check:agents` —
 and a red anything blocks the merge (ADR-0022).
 
 **The workflow file is the live list; this paragraph is a reading of it, not a second source.** The

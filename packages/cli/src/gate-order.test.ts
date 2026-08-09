@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine audited survivors in their declared order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336 addition, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -165,6 +165,7 @@ test("the REAL gate plan is exactly the nine audited survivors in their declared
       "pnpm check:mirror-conformance",
       "pnpm check:web-grounding",
       "pnpm check:web-engine",
+      "pnpm check:web-experience-closure",
       "pnpm -r --no-bail typecheck",
       "pnpm -r --no-bail test",
       "pnpm check:guidance",

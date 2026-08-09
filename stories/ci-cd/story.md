@@ -206,7 +206,8 @@ the branch's coordination claim, and dispatches the keyless Studio deployment.
 2. **The verify workflow keeps its hard merge-candidate floor** _(gate: observe)_
    `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['pull_request:','branches: [main]','uses: actions/checkout@v6','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','run: pnpm check:boundaries','run: pnpm check:mirror-conformance','run: pnpm check:web-grounding','run: pnpm check:web-engine','Affected scope (PRs only)','- name: Typecheck','- name: Test','run: pnpm -r build','run: pnpm check:guidance','run: pnpm check:agents','needs: verify'])if(!c.includes(s))throw new Error('missing verify seam: '+s)"`.
    The command reads the landed workflow itself and fails on removal of any named standing seam. The
-   named checks are the nine the job runs TODAY; `check:manifest` and `check:web-experience` were
+   named checks are a FLOOR, not the complete list the job runs today (ADR-0336 added a tenth,
+   `check:web-experience-closure`, not named here); `check:manifest` and `check:web-experience` were
    removed from this list when ADR-0311 D2 retired them, because a seam-presence gate that names a
    retired rung reds on the retirement itself rather than on drift.
 3. **The current local/CI relationship is declared** _(gate: observe)_
