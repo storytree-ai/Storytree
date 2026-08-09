@@ -111,10 +111,13 @@ arc offers exactly one lane, so there is nothing to fan.** An orchestrator-level
 PARKED INCREMENTS is therefore not built: it would serve ~9% of arcs, and 8 of the 17 units sit on a
 single arc.
 
-This is a refusal of one READING, not of the arc. The other width — **lanes inside a single ADR-0183
-plan** — is a planner-time decomposition and **cannot be counted from the backlog at all**. It is
-the only reading with plausible width and it is unmeasured. Measuring it is this arc's next
-increment, and nothing is built until it returns a number.
+This was a refusal of one READING, not of the arc. The other width — **lanes inside a single ADR-0183
+plan** — is a planner-time decomposition and **cannot be counted from the backlog at all**. It was
+the only reading with plausible width, and measuring it was this arc's next increment, with nothing
+built until it returned a number. **It returned one** (ADR-0333, 2026-08-09): all 58 anchored plans
+in the live store were read and the median plan holds **ONE** lane on every reading, the most
+generous included. Both named widths are one, so the arc's own falsifier fired and the arc is CLOSED
+with nothing built.
 
 ## Consequences
 
@@ -127,8 +130,9 @@ case where it costs nothing.
 measured the overlap of delegates actually spawned — curators, story-authors, explorers. In this
 window **0 of 105 delegates were builder types; no delegate has ever run a `--real` build.** A
 delegation mix containing 300–3200s builds would overlap far more than one containing 14-turn
-explorers, so the subagent-build cell is untried rather than refused. That is the cell the next
-increment must reach.
+explorers, so the subagent-build cell is untried rather than refused. It STAYS untried: the next
+increment measured width instead and returned one (ADR-0333), so the arc closed before any build
+delegate ran. Read that as unmeasured, never as measured-and-refused.
 
 Per ADR-0139 this ADR carries `amends: [331]`: ADR-0331's own decision (D1's read-only-sweep refusal,
 D2's carve-out for `parallel-red-green-arc`) stands unchanged and untouched — nothing here corrects
@@ -145,7 +149,8 @@ so it is never re-read at cache-read rates on later turns. The **sign** of that 
 session cost is genuinely unknown, and D3's break-even should not be read as a claim that three
 delegates cost $0.84 more than doing the work in-thread.
 
-The safety fence is now the live risk, not the economics. The ADR-0255/0284 wall is a static deny
+The safety fence WOULD have been the live risk, not the economics — and it stays unbuilt, because
+ADR-0333 closed the arc before N concurrent writers ever became a real condition. The ADR-0255/0284 wall is a static deny
 block over the primary checkout and is **claim-blind**: a write into a SIBLING worktree is refused by
 nothing, de-scoped on zero evidenced instances. N concurrent writers is precisely the condition that
 makes that hazard live, and the owner's "previous attempts have overloaded the system" is a second,
@@ -153,11 +158,15 @@ separate constraint still to be pinned to a concrete failure mode. Arbitration m
 rewritten — `acquireChainClaims` / `releaseChainClaims` in `packages/drive/src/chain-claims.ts`
 already does an all-or-nothing set take in canonical sorted lock order at ADR-0270 capability grain.
 
-Re-open D5 if plan-lane width returns a median above one, or if the backlog's shape changes such
-that three or more arcs hold two or more independent open increments at once.
+The first half of D5's re-open condition — *plan-lane width returns a median above one* — is
+DISCHARGED: ADR-0333 measured it at one. What remains is the backlog half: re-open only if three or
+more arcs hold two or more independent open increments at once, or if a run of fresh plans shows a
+median W1 of two or more. A single wide plan or a single wide arc is not that evidence.
 
 ## References
 
+- ADR-0333 — the second width reading (all 58 anchored plans, median ONE lane) and the arc's closure.
+  Amends this ADR: D5's decision stands; only its "unmeasured" prose is overtaken, corrected in place.
 - `parallel-session-dispatch-arc` — this arc; the owner's design and the acceptance bar in full.
 - ADR-0329 — session orientation is ~17 turns / $2.56–3.09; size is a vehicle input.
 - ADR-0330 — delegation re-prices rent; every delegate pays a fresh preamble at the cache-WRITE rate.
