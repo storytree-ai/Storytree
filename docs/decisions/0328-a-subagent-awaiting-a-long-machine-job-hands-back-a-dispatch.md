@@ -236,16 +236,25 @@ today, and it is exactly the kind of discipline the friction record shows decayi
 costs a round-trip the old stall did not: the caller pays one read it would not otherwise have paid.
 And D2 makes every long dispatch two steps where an impatient agent sees one.
 
-**The wiring has a price this arc of all arcs must state.** D5 adds a long rule to three agents'
-assembled guidance across five harness projections, and an agent's rules list is eagerly loaded on its
-first turn — which is exactly the standing cost ADR-0323 D3 puts under budget. This is a real charge
-against the thing this arc exists to reduce, taken deliberately: the alternative measured worse, since
-an unwired rule costs nothing and buys nothing while the failure it prevents burns a whole lane plus a
-manual nudge, and probe E shows agents reaching for the anti-pattern with no prompting at all. The
-mitigation is the one D5 already applies — wire against named evidence, not against every seat that
-might one day spawn — and the honest read is that this trades a small permanent input-side cost for
-the removal of a recurring one. If a later measurement shows the preamble growth outweighing the
-stalls prevented, D5 is the part to revisit first, and the rule bodies are the place to trim.
+**The wiring has a price this arc of all arcs must state, and it grew when D5 was widened.** D5 now
+adds a long rule to six agents' assembled guidance in full (`guidance-curator`, `frontend-builder`,
+`glue-worker`, `story-author`, `planner`, `graduation-synthesist`) and one rule to a seventh
+(`librarian-curator`, which spawns children but runs no long machine job) — seven agents, not the
+three the initial evidence-only wiring touched — across five harness projections, and an agent's rules
+list is eagerly loaded on its first turn — which is exactly the standing cost ADR-0323 D3 puts under
+budget. This is a real charge against the thing this arc exists to reduce, taken deliberately: the
+alternative measured worse, since an unwired rule costs nothing and buys nothing while the failure it
+prevents burns a whole lane plus a manual nudge, and probe E shows agents reaching for the anti-pattern
+with no prompting at all. **"Wire against named evidence, not against every seat that might one day
+spawn" is no longer the mitigation in force** — the owner explicitly widened past that bar on
+2026-08-09, judging that current models can be trusted to apply the rule without a named incident per
+seat. What is actually holding the line now is D5's own remaining boundary (three read-only leaf seats
+excluded, above) plus the per-agent 6000-token essentials budget (`check:agents`, ADR-0156 §5 /
+ADR-0161), which will refuse the next seat-level addition outright rather than let it pass unnoticed —
+as it already did once, on `librarian-curator`. The honest read is that this trades a small permanent
+input-side cost for the removal of a recurring one. If a later measurement shows the preamble growth
+outweighing the stalls prevented, D5 is the part to revisit first, and the rule bodies are the place to
+trim.
 
 **The tool half is BUILT — `storytree dispatch <handle>` (corrected in place 2026-08-09, ADR-0139).**
 This paragraph previously parked that capability as a separate increment, on the estimate that a
