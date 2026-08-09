@@ -1,0 +1,2703 @@
+{
+  "generated": {
+    "repoRoot": "C:/code/storytree/.claude/worktrees/jovial-pare-4c15a5",
+    "head": "b7c6533fa2a91d142cc04bc580c29a1afbb0ff48"
+  },
+  "meta": {
+    "incrementsInStore": 574,
+    "closedWithPr": 430,
+    "dropped": {
+      "nonNumericPr": 5,
+      "unresolvedPr": 9,
+      "emptyFileSet": 0
+    },
+    "arcs": 53,
+    "landedUnits": 371,
+    "prsResolved": 372,
+    "prsUnresolved": [
+      1046,
+      1047,
+      1048,
+      1053,
+      1054,
+      1055,
+      1056
+    ],
+    "registrySurfaces": [
+      "AGENTS.md",
+      "CLAUDE.md",
+      "apps/studio/data/knowledge.json",
+      "apps/studio/src/components/TreeView.tsx",
+      "apps/studio/src/index.css",
+      "packages/cli/src/commands.ts",
+      "packages/cli/src/node-build.test.ts",
+      "pnpm-lock.yaml",
+      "repo-manifest.json"
+    ]
+  },
+  "A": {
+    "all_strict": {
+      "units": 371,
+      "waves": 266,
+      "registryOnlyExcluded": 0,
+      "mean": 1.394736842105263,
+      "median": 1,
+      "wavesGe2": 59,
+      "shareWavesGe2": 0.22180451127819548,
+      "shareUnitsInWideWave": 0.4420485175202156,
+      "dist": [
+        [
+          1,
+          207
+        ],
+        [
+          2,
+          42
+        ],
+        [
+          3,
+          6
+        ],
+        [
+          4,
+          6
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          8,
+          1
+        ],
+        [
+          9,
+          2
+        ]
+      ],
+      "stragglerAdjustedSpeedup": 1.1669194630910815,
+      "arcsWithWideWave": 29,
+      "arcsCounted": 53,
+      "topSerialisers": [
+        [
+          "packages/cli/src/node-build.test.ts",
+          27
+        ],
+        [
+          "apps/studio/data/knowledge.json",
+          22
+        ],
+        [
+          "apps/studio/src/components/TreeView.tsx",
+          16
+        ],
+        [
+          "apps/studio/src/index.css",
+          13
+        ],
+        [
+          "CLAUDE.md",
+          11
+        ],
+        [
+          "repo-manifest.json",
+          11
+        ],
+        [
+          "packages/cli/src/check-verification-decay.ts",
+          11
+        ],
+        [
+          "packages/cli/src/commands.ts",
+          10
+        ],
+        [
+          "docs/decisions/0260-a-followed-edge-needs-an-offer-it-can-be-joined-to-and-order.md",
+          9
+        ],
+        [
+          "apps/desktop/electron/main.ts",
+          8
+        ]
+      ],
+      "perArc": [
+        {
+          "arc": "model-uat-promotion",
+          "units": 30,
+          "waves": 7,
+          "maxWave": 9,
+          "shareWide": 0.8666666666666667
+        },
+        {
+          "arc": "chapter2-pixellab-organic-growth-arc",
+          "units": 7,
+          "waves": 4,
+          "maxWave": 2,
+          "shareWide": 0.8571428571428571
+        },
+        {
+          "arc": "session-cost-arc",
+          "units": 13,
+          "waves": 6,
+          "maxWave": 4,
+          "shareWide": 0.8461538461538461
+        },
+        {
+          "arc": "explorer-onboarding-arc",
+          "units": 17,
+          "waves": 8,
+          "maxWave": 4,
+          "shareWide": 0.8235294117647058
+        },
+        {
+          "arc": "grounded-art-machinery-arc",
+          "units": 31,
+          "waves": 13,
+          "maxWave": 6,
+          "shareWide": 0.8064516129032258
+        },
+        {
+          "arc": "cli-write-fidelity-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "end-at-merge-arc",
+          "units": 5,
+          "waves": 3,
+          "maxWave": 3,
+          "shareWide": 0.6
+        },
+        {
+          "arc": "verification-integrity-arc",
+          "units": 35,
+          "waves": 22,
+          "maxWave": 6,
+          "shareWide": 0.5714285714285714
+        },
+        {
+          "arc": "noticeboard-claim-ledger-arc",
+          "units": 7,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.5714285714285714
+        },
+        {
+          "arc": "parallel-red-green-arc",
+          "units": 8,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "sprite-art-sheets-arc",
+          "units": 6,
+          "waves": 4,
+          "maxWave": 3,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "act2-intro-forest-regrow-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "friction-delivery-signal-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "studio-hud-chrome-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "arc-orientation-surface-arc",
+          "units": 9,
+          "waves": 7,
+          "maxWave": 2,
+          "shareWide": 0.4444444444444444
+        },
+        {
+          "arc": "linked-session-context-arc",
+          "units": 14,
+          "waves": 11,
+          "maxWave": 2,
+          "shareWide": 0.42857142857142855
+        },
+        {
+          "arc": "desktop-terminal-pivot-arc",
+          "units": 10,
+          "waves": 8,
+          "maxWave": 2,
+          "shareWide": 0.4
+        },
+        {
+          "arc": "foreign-project-forest-arc",
+          "units": 5,
+          "waves": 4,
+          "maxWave": 2,
+          "shareWide": 0.4
+        },
+        {
+          "arc": "uat-journey-surgery-arc",
+          "units": 5,
+          "waves": 4,
+          "maxWave": 2,
+          "shareWide": 0.4
+        },
+        {
+          "arc": "session-decoupling-arc",
+          "units": 11,
+          "waves": 9,
+          "maxWave": 2,
+          "shareWide": 0.36363636363636365
+        },
+        {
+          "arc": "chapter2-real-app-surface-arc",
+          "units": 6,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.3333333333333333
+        },
+        {
+          "arc": "first-class-edges-arc",
+          "units": 6,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.3333333333333333
+        },
+        {
+          "arc": "forest-parcels-arc",
+          "units": 7,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.2857142857142857
+        },
+        {
+          "arc": "session-isolation-arc",
+          "units": 7,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.2857142857142857
+        },
+        {
+          "arc": "arcs-hold-increments-arc",
+          "units": 8,
+          "waves": 7,
+          "maxWave": 2,
+          "shareWide": 0.25
+        },
+        {
+          "arc": "studio-map-responsiveness-arc",
+          "units": 9,
+          "waves": 8,
+          "maxWave": 2,
+          "shareWide": 0.2222222222222222
+        },
+        {
+          "arc": "terminal-orchestrator-seat-arc",
+          "units": 9,
+          "waves": 8,
+          "maxWave": 2,
+          "shareWide": 0.2222222222222222
+        },
+        {
+          "arc": "chapter2-code-generated-organic-art-arc",
+          "units": 11,
+          "waves": 10,
+          "maxWave": 2,
+          "shareWide": 0.18181818181818182
+        },
+        {
+          "arc": "library-tech-tree-overlay-arc",
+          "units": 17,
+          "waves": 16,
+          "maxWave": 2,
+          "shareWide": 0.11764705882352941
+        },
+        {
+          "arc": "context-decision-tree-arc",
+          "units": 10,
+          "waves": 10,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "proposal-tier-drain-arc",
+          "units": 8,
+          "waves": 8,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "capability-layer-coverage-arc",
+          "units": 6,
+          "waves": 6,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-camera-choreography-arc",
+          "units": 4,
+          "waves": 4,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "arcs-and-plans-arc",
+          "units": 3,
+          "waves": 3,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "factory-self-load-tune-the-guidance-loop-back-to-evidence-arc",
+          "units": 3,
+          "waves": 3,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "onboard-non-claude-models-onto-storytree-arc",
+          "units": 3,
+          "waves": 3,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "parallel-session-dispatch-arc",
+          "units": 3,
+          "waves": 3,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-tree-and-plant-growth-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "diagnosis-honesty-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "factory-floor-health-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "flaky-test-coverage-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "gate-machinery-audit-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "proposals-fold-into-arcs-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "worktree-reaper-integrity-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-camera-frame-delivery-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "arc-and-open-question-truth-maintenance-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "chapter2-pixellab-island-growth-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "directional-dag-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "distribution-posture-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "graduation-park-lease-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "map-connection-legibility-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "projection-ownership-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "session-staleness-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        }
+      ]
+    },
+    "build_strict": {
+      "units": 268,
+      "waves": 222,
+      "registryOnlyExcluded": 0,
+      "mean": 1.2072072072072073,
+      "median": 1,
+      "wavesGe2": 34,
+      "shareWavesGe2": 0.15315315315315314,
+      "shareUnitsInWideWave": 0.29850746268656714,
+      "dist": [
+        [
+          1,
+          188
+        ],
+        [
+          2,
+          25
+        ],
+        [
+          3,
+          7
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          5,
+          1
+        ]
+      ],
+      "stragglerAdjustedSpeedup": 1.0951143052282923,
+      "arcsWithWideWave": 18,
+      "arcsCounted": 50,
+      "topSerialisers": [
+        [
+          "packages/cli/src/node-build.test.ts",
+          29
+        ],
+        [
+          "apps/studio/data/knowledge.json",
+          18
+        ],
+        [
+          "apps/studio/src/components/TreeView.tsx",
+          17
+        ],
+        [
+          "apps/studio/src/index.css",
+          13
+        ],
+        [
+          "packages/cli/src/commands.ts",
+          12
+        ],
+        [
+          "packages/cli/src/check-verification-decay.ts",
+          11
+        ],
+        [
+          "apps/desktop/electron/main.ts",
+          8
+        ],
+        [
+          "CLAUDE.md",
+          7
+        ],
+        [
+          "docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/README.md",
+          7
+        ],
+        [
+          "apps/studio/src/components/TerminalDock.test.tsx",
+          6
+        ]
+      ],
+      "perArc": [
+        {
+          "arc": "end-at-merge-arc",
+          "units": 2,
+          "waves": 1,
+          "maxWave": 2,
+          "shareWide": 1
+        },
+        {
+          "arc": "explorer-onboarding-arc",
+          "units": 15,
+          "waves": 7,
+          "maxWave": 4,
+          "shareWide": 0.8666666666666667
+        },
+        {
+          "arc": "chapter2-pixellab-organic-growth-arc",
+          "units": 4,
+          "waves": 2,
+          "maxWave": 3,
+          "shareWide": 0.75
+        },
+        {
+          "arc": "grounded-art-machinery-arc",
+          "units": 24,
+          "waves": 13,
+          "maxWave": 5,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "cli-write-fidelity-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "arc-orientation-surface-arc",
+          "units": 8,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "parallel-red-green-arc",
+          "units": 8,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "session-cost-arc",
+          "units": 8,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "studio-hud-chrome-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "verification-integrity-arc",
+          "units": 29,
+          "waves": 22,
+          "maxWave": 3,
+          "shareWide": 0.4482758620689655
+        },
+        {
+          "arc": "sprite-art-sheets-arc",
+          "units": 5,
+          "waves": 4,
+          "maxWave": 2,
+          "shareWide": 0.4
+        },
+        {
+          "arc": "noticeboard-claim-ledger-arc",
+          "units": 6,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.3333333333333333
+        },
+        {
+          "arc": "linked-session-context-arc",
+          "units": 10,
+          "waves": 8,
+          "maxWave": 3,
+          "shareWide": 0.3
+        },
+        {
+          "arc": "forest-parcels-arc",
+          "units": 7,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.2857142857142857
+        },
+        {
+          "arc": "desktop-terminal-pivot-arc",
+          "units": 9,
+          "waves": 8,
+          "maxWave": 2,
+          "shareWide": 0.2222222222222222
+        },
+        {
+          "arc": "session-decoupling-arc",
+          "units": 9,
+          "waves": 8,
+          "maxWave": 2,
+          "shareWide": 0.2222222222222222
+        },
+        {
+          "arc": "chapter2-code-generated-organic-art-arc",
+          "units": 10,
+          "waves": 9,
+          "maxWave": 2,
+          "shareWide": 0.2
+        },
+        {
+          "arc": "library-tech-tree-overlay-arc",
+          "units": 16,
+          "waves": 15,
+          "maxWave": 2,
+          "shareWide": 0.125
+        },
+        {
+          "arc": "terminal-orchestrator-seat-arc",
+          "units": 8,
+          "waves": 8,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "proposal-tier-drain-arc",
+          "units": 7,
+          "waves": 7,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "studio-map-responsiveness-arc",
+          "units": 7,
+          "waves": 7,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "arcs-hold-increments-arc",
+          "units": 6,
+          "waves": 6,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "context-decision-tree-arc",
+          "units": 6,
+          "waves": 6,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "session-isolation-arc",
+          "units": 6,
+          "waves": 6,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "model-uat-promotion",
+          "units": 5,
+          "waves": 5,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-camera-choreography-arc",
+          "units": 4,
+          "waves": 4,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "first-class-edges-arc",
+          "units": 4,
+          "waves": 4,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-intro-forest-regrow-arc",
+          "units": 3,
+          "waves": 3,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "arcs-and-plans-arc",
+          "units": 3,
+          "waves": 3,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "chapter2-real-app-surface-arc",
+          "units": 3,
+          "waves": 3,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-tree-and-plant-growth-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "diagnosis-honesty-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "factory-self-load-tune-the-guidance-loop-back-to-evidence-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "flaky-test-coverage-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "foreign-project-forest-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "friction-delivery-signal-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "proposals-fold-into-arcs-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "uat-journey-surgery-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "worktree-reaper-integrity-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-camera-frame-delivery-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "chapter2-pixellab-island-growth-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "directional-dag-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "factory-floor-health-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "gate-machinery-audit-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "graduation-park-lease-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "map-connection-legibility-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "onboard-non-claude-models-onto-storytree-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "parallel-session-dispatch-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "projection-ownership-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "session-staleness-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        }
+      ]
+    },
+    "all": {
+      "units": 352,
+      "waves": 202,
+      "registryOnlyExcluded": 19,
+      "mean": 1.7425742574257426,
+      "median": 1,
+      "wavesGe2": 80,
+      "shareWavesGe2": 0.39603960396039606,
+      "shareUnitsInWideWave": 0.6534090909090909,
+      "dist": [
+        [
+          1,
+          122
+        ],
+        [
+          2,
+          47
+        ],
+        [
+          3,
+          18
+        ],
+        [
+          4,
+          9
+        ],
+        [
+          5,
+          2
+        ],
+        [
+          6,
+          1
+        ],
+        [
+          9,
+          2
+        ],
+        [
+          12,
+          1
+        ]
+      ],
+      "stragglerAdjustedSpeedup": 1.2821023927852224,
+      "arcsWithWideWave": 36,
+      "arcsCounted": 53,
+      "topSerialisers": [
+        [
+          "packages/cli/src/check-verification-decay.ts",
+          12
+        ],
+        [
+          "apps/desktop/electron/main.ts",
+          8
+        ],
+        [
+          "docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/blender_tree.py",
+          7
+        ],
+        [
+          "apps/studio/src/components/TerminalDock.test.tsx",
+          6
+        ],
+        [
+          "packages/cli/src/arc.ts",
+          5
+        ],
+        [
+          "apps/studio/src/components/TerminalDock.tsx",
+          5
+        ],
+        [
+          "apps/desktop/electron/preload.ts",
+          5
+        ],
+        [
+          "packages/forest-world/src/scene.ts",
+          5
+        ],
+        [
+          "web",
+          5
+        ],
+        [
+          "apps/studio/src/components/LibraryDrawer.tsx",
+          5
+        ]
+      ],
+      "perArc": [
+        {
+          "arc": "model-uat-promotion",
+          "units": 30,
+          "waves": 3,
+          "maxWave": 12,
+          "shareWide": 1
+        },
+        {
+          "arc": "uat-journey-surgery-arc",
+          "units": 5,
+          "waves": 2,
+          "maxWave": 3,
+          "shareWide": 1
+        },
+        {
+          "arc": "arcs-and-plans-arc",
+          "units": 3,
+          "waves": 1,
+          "maxWave": 3,
+          "shareWide": 1
+        },
+        {
+          "arc": "factory-self-load-tune-the-guidance-loop-back-to-evidence-arc",
+          "units": 3,
+          "waves": 1,
+          "maxWave": 3,
+          "shareWide": 1
+        },
+        {
+          "arc": "onboard-non-claude-models-onto-storytree-arc",
+          "units": 3,
+          "waves": 1,
+          "maxWave": 3,
+          "shareWide": 1
+        },
+        {
+          "arc": "explorer-onboarding-arc",
+          "units": 17,
+          "waves": 6,
+          "maxWave": 4,
+          "shareWide": 0.9411764705882353
+        },
+        {
+          "arc": "grounded-art-machinery-arc",
+          "units": 28,
+          "waves": 11,
+          "maxWave": 5,
+          "shareWide": 0.8571428571428571
+        },
+        {
+          "arc": "proposal-tier-drain-arc",
+          "units": 7,
+          "waves": 3,
+          "maxWave": 4,
+          "shareWide": 0.8571428571428571
+        },
+        {
+          "arc": "session-cost-arc",
+          "units": 12,
+          "waves": 5,
+          "maxWave": 4,
+          "shareWide": 0.8333333333333334
+        },
+        {
+          "arc": "chapter2-pixellab-organic-growth-arc",
+          "units": 6,
+          "waves": 3,
+          "maxWave": 3,
+          "shareWide": 0.8333333333333334
+        },
+        {
+          "arc": "end-at-merge-arc",
+          "units": 5,
+          "waves": 2,
+          "maxWave": 4,
+          "shareWide": 0.8
+        },
+        {
+          "arc": "linked-session-context-arc",
+          "units": 14,
+          "waves": 8,
+          "maxWave": 3,
+          "shareWide": 0.7857142857142857
+        },
+        {
+          "arc": "arc-orientation-surface-arc",
+          "units": 9,
+          "waves": 4,
+          "maxWave": 5,
+          "shareWide": 0.7777777777777778
+        },
+        {
+          "arc": "studio-map-responsiveness-arc",
+          "units": 8,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.75
+        },
+        {
+          "arc": "session-decoupling-arc",
+          "units": 11,
+          "waves": 7,
+          "maxWave": 2,
+          "shareWide": 0.7272727272727273
+        },
+        {
+          "arc": "noticeboard-claim-ledger-arc",
+          "units": 7,
+          "waves": 4,
+          "maxWave": 3,
+          "shareWide": 0.7142857142857143
+        },
+        {
+          "arc": "library-tech-tree-overlay-arc",
+          "units": 17,
+          "waves": 11,
+          "maxWave": 2,
+          "shareWide": 0.7058823529411765
+        },
+        {
+          "arc": "desktop-terminal-pivot-arc",
+          "units": 10,
+          "waves": 6,
+          "maxWave": 3,
+          "shareWide": 0.7
+        },
+        {
+          "arc": "verification-integrity-arc",
+          "units": 34,
+          "waves": 20,
+          "maxWave": 6,
+          "shareWide": 0.6764705882352942
+        },
+        {
+          "arc": "cli-write-fidelity-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "foreign-project-forest-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "friction-delivery-signal-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "studio-hud-chrome-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "context-decision-tree-arc",
+          "units": 8,
+          "waves": 5,
+          "maxWave": 4,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "parallel-red-green-arc",
+          "units": 8,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "capability-layer-coverage-arc",
+          "units": 6,
+          "waves": 4,
+          "maxWave": 3,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "sprite-art-sheets-arc",
+          "units": 6,
+          "waves": 4,
+          "maxWave": 3,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "act2-camera-choreography-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "act2-intro-forest-regrow-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "first-class-edges-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "arcs-hold-increments-arc",
+          "units": 8,
+          "waves": 6,
+          "maxWave": 3,
+          "shareWide": 0.375
+        },
+        {
+          "arc": "chapter2-real-app-surface-arc",
+          "units": 6,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.3333333333333333
+        },
+        {
+          "arc": "session-isolation-arc",
+          "units": 6,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.3333333333333333
+        },
+        {
+          "arc": "chapter2-code-generated-organic-art-arc",
+          "units": 10,
+          "waves": 8,
+          "maxWave": 3,
+          "shareWide": 0.3
+        },
+        {
+          "arc": "forest-parcels-arc",
+          "units": 7,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.2857142857142857
+        },
+        {
+          "arc": "terminal-orchestrator-seat-arc",
+          "units": 9,
+          "waves": 8,
+          "maxWave": 2,
+          "shareWide": 0.2222222222222222
+        },
+        {
+          "arc": "act2-tree-and-plant-growth-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "diagnosis-honesty-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "factory-floor-health-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "flaky-test-coverage-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "gate-machinery-audit-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "parallel-session-dispatch-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "proposals-fold-into-arcs-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "worktree-reaper-integrity-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-camera-frame-delivery-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "arc-and-open-question-truth-maintenance-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "chapter2-pixellab-island-growth-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "directional-dag-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "distribution-posture-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "graduation-park-lease-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "map-connection-legibility-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "projection-ownership-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "session-staleness-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        }
+      ]
+    },
+    "build": {
+      "units": 262,
+      "waves": 180,
+      "registryOnlyExcluded": 19,
+      "mean": 1.4555555555555555,
+      "median": 1,
+      "wavesGe2": 62,
+      "shareWavesGe2": 0.34444444444444444,
+      "shareUnitsInWideWave": 0.549618320610687,
+      "dist": [
+        [
+          1,
+          118
+        ],
+        [
+          2,
+          48
+        ],
+        [
+          3,
+          9
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          5,
+          1
+        ]
+      ],
+      "stragglerAdjustedSpeedup": 1.1901888100594762,
+      "arcsWithWideWave": 28,
+      "arcsCounted": 50,
+      "topSerialisers": [
+        [
+          "packages/cli/src/check-verification-decay.ts",
+          12
+        ],
+        [
+          "apps/desktop/electron/main.ts",
+          8
+        ],
+        [
+          "docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/blender_tree.py",
+          7
+        ],
+        [
+          "apps/studio/src/components/TerminalDock.test.tsx",
+          6
+        ],
+        [
+          "packages/cli/src/arc.ts",
+          5
+        ],
+        [
+          "apps/studio/src/components/TerminalDock.tsx",
+          5
+        ],
+        [
+          "apps/desktop/electron/preload.ts",
+          5
+        ],
+        [
+          "packages/forest-world/src/scene.ts",
+          5
+        ],
+        [
+          "web",
+          5
+        ],
+        [
+          "apps/studio/src/components/LibraryDrawer.tsx",
+          5
+        ]
+      ],
+      "perArc": [
+        {
+          "arc": "explorer-onboarding-arc",
+          "units": 14,
+          "waves": 5,
+          "maxWave": 4,
+          "shareWide": 1
+        },
+        {
+          "arc": "model-uat-promotion",
+          "units": 5,
+          "waves": 1,
+          "maxWave": 5,
+          "shareWide": 1
+        },
+        {
+          "arc": "arcs-and-plans-arc",
+          "units": 3,
+          "waves": 1,
+          "maxWave": 3,
+          "shareWide": 1
+        },
+        {
+          "arc": "end-at-merge-arc",
+          "units": 2,
+          "waves": 1,
+          "maxWave": 2,
+          "shareWide": 1
+        },
+        {
+          "arc": "factory-self-load-tune-the-guidance-loop-back-to-evidence-arc",
+          "units": 2,
+          "waves": 1,
+          "maxWave": 2,
+          "shareWide": 1
+        },
+        {
+          "arc": "uat-journey-surgery-arc",
+          "units": 2,
+          "waves": 1,
+          "maxWave": 2,
+          "shareWide": 1
+        },
+        {
+          "arc": "proposal-tier-drain-arc",
+          "units": 7,
+          "waves": 3,
+          "maxWave": 4,
+          "shareWide": 0.8571428571428571
+        },
+        {
+          "arc": "linked-session-context-arc",
+          "units": 10,
+          "waves": 5,
+          "maxWave": 3,
+          "shareWide": 0.8
+        },
+        {
+          "arc": "grounded-art-machinery-arc",
+          "units": 21,
+          "waves": 11,
+          "maxWave": 4,
+          "shareWide": 0.7619047619047619
+        },
+        {
+          "arc": "library-tech-tree-overlay-arc",
+          "units": 16,
+          "waves": 10,
+          "maxWave": 2,
+          "shareWide": 0.75
+        },
+        {
+          "arc": "arc-orientation-surface-arc",
+          "units": 8,
+          "waves": 4,
+          "maxWave": 4,
+          "shareWide": 0.75
+        },
+        {
+          "arc": "session-cost-arc",
+          "units": 8,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.75
+        },
+        {
+          "arc": "desktop-terminal-pivot-arc",
+          "units": 9,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "session-decoupling-arc",
+          "units": 9,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "noticeboard-claim-ledger-arc",
+          "units": 6,
+          "waves": 4,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "chapter2-pixellab-organic-growth-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "cli-write-fidelity-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "studio-hud-chrome-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "verification-integrity-arc",
+          "units": 29,
+          "waves": 20,
+          "maxWave": 3,
+          "shareWide": 0.5862068965517241
+        },
+        {
+          "arc": "studio-map-responsiveness-arc",
+          "units": 7,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.5714285714285714
+        },
+        {
+          "arc": "parallel-red-green-arc",
+          "units": 8,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "act2-camera-choreography-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "first-class-edges-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "sprite-art-sheets-arc",
+          "units": 5,
+          "waves": 4,
+          "maxWave": 2,
+          "shareWide": 0.4
+        },
+        {
+          "arc": "context-decision-tree-arc",
+          "units": 6,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.3333333333333333
+        },
+        {
+          "arc": "session-isolation-arc",
+          "units": 6,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.3333333333333333
+        },
+        {
+          "arc": "chapter2-code-generated-organic-art-arc",
+          "units": 10,
+          "waves": 8,
+          "maxWave": 3,
+          "shareWide": 0.3
+        },
+        {
+          "arc": "forest-parcels-arc",
+          "units": 7,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.2857142857142857
+        },
+        {
+          "arc": "terminal-orchestrator-seat-arc",
+          "units": 8,
+          "waves": 8,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "arcs-hold-increments-arc",
+          "units": 6,
+          "waves": 6,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-intro-forest-regrow-arc",
+          "units": 3,
+          "waves": 3,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "chapter2-real-app-surface-arc",
+          "units": 3,
+          "waves": 3,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-tree-and-plant-growth-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "diagnosis-honesty-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "flaky-test-coverage-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "foreign-project-forest-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "friction-delivery-signal-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "proposals-fold-into-arcs-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "worktree-reaper-integrity-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-camera-frame-delivery-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "chapter2-pixellab-island-growth-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "directional-dag-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "factory-floor-health-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "gate-machinery-audit-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "graduation-park-lease-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "map-connection-legibility-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "onboard-non-claude-models-onto-storytree-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "parallel-session-dispatch-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "projection-ownership-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "session-staleness-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        }
+      ]
+    },
+    "authoring": {
+      "units": 90,
+      "waves": 46,
+      "registryOnlyExcluded": 19,
+      "mean": 1.9565217391304348,
+      "median": 1,
+      "wavesGe2": 19,
+      "shareWavesGe2": 0.41304347826086957,
+      "shareUnitsInWideWave": 0.7,
+      "dist": [
+        [
+          1,
+          27
+        ],
+        [
+          2,
+          11
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          8,
+          2
+        ],
+        [
+          9,
+          1
+        ]
+      ],
+      "stragglerAdjustedSpeedup": 1.3321796806219162,
+      "arcsWithWideWave": 14,
+      "arcsCounted": 31,
+      "topSerialisers": [
+        [
+          "stories/desktop/story.md",
+          2
+        ],
+        [
+          "docs/design/context-traversal/README.md",
+          2
+        ],
+        [
+          "stories/embedded-terminal/story.md",
+          2
+        ],
+        [
+          "docs/decisions/0317-code-ownership-is-a-declared-map-held-to-the-disk-by-a-total.md",
+          1
+        ],
+        [
+          "stories/cli/story.md",
+          1
+        ],
+        [
+          "stories/app-surface/story.md",
+          1
+        ],
+        [
+          "docs/decisions/0277-occlusion-registered-cutouts-are-plant-only.md",
+          1
+        ],
+        [
+          "docs/decisions/0264-chapter-2-tree-growth-uses-one-deterministic-topology-rig-wi.md",
+          1
+        ],
+        [
+          "docs/decisions/0142-branch-dies-on-merge-the-wisp-survives-via-claim-at-declare.md",
+          1
+        ],
+        [
+          "docs/decisions/0275-sessions-may-continue-past-merge-the-unit-ends-ending-the-se.md",
+          1
+        ]
+      ],
+      "perArc": [
+        {
+          "arc": "model-uat-promotion",
+          "units": 25,
+          "waves": 3,
+          "maxWave": 9,
+          "shareWide": 1
+        },
+        {
+          "arc": "grounded-art-machinery-arc",
+          "units": 7,
+          "waves": 3,
+          "maxWave": 3,
+          "shareWide": 1
+        },
+        {
+          "arc": "verification-integrity-arc",
+          "units": 5,
+          "waves": 2,
+          "maxWave": 3,
+          "shareWide": 1
+        },
+        {
+          "arc": "session-cost-arc",
+          "units": 4,
+          "waves": 1,
+          "maxWave": 4,
+          "shareWide": 1
+        },
+        {
+          "arc": "explorer-onboarding-arc",
+          "units": 3,
+          "waves": 1,
+          "maxWave": 3,
+          "shareWide": 1
+        },
+        {
+          "arc": "arcs-hold-increments-arc",
+          "units": 2,
+          "waves": 1,
+          "maxWave": 2,
+          "shareWide": 1
+        },
+        {
+          "arc": "context-decision-tree-arc",
+          "units": 2,
+          "waves": 1,
+          "maxWave": 2,
+          "shareWide": 1
+        },
+        {
+          "arc": "onboard-non-claude-models-onto-storytree-arc",
+          "units": 2,
+          "waves": 1,
+          "maxWave": 2,
+          "shareWide": 1
+        },
+        {
+          "arc": "session-decoupling-arc",
+          "units": 2,
+          "waves": 1,
+          "maxWave": 2,
+          "shareWide": 1
+        },
+        {
+          "arc": "chapter2-real-app-surface-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "end-at-merge-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "uat-journey-surgery-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "capability-layer-coverage-arc",
+          "units": 6,
+          "waves": 4,
+          "maxWave": 3,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "linked-session-context-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "chapter2-pixellab-organic-growth-arc",
+          "units": 3,
+          "waves": 3,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-intro-forest-regrow-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "arc-and-open-question-truth-maintenance-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "arc-orientation-surface-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "desktop-terminal-pivot-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "distribution-posture-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "factory-floor-health-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "factory-self-load-tune-the-guidance-loop-back-to-evidence-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "foreign-project-forest-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "friction-delivery-signal-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "gate-machinery-audit-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "library-tech-tree-overlay-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "noticeboard-claim-ledger-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "parallel-session-dispatch-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "sprite-art-sheets-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "studio-map-responsiveness-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "terminal-orchestrator-seat-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        }
+      ]
+    },
+    "all_since_2026_08_04": {
+      "units": 99,
+      "waves": 67,
+      "registryOnlyExcluded": 4,
+      "mean": 1.4776119402985075,
+      "median": 1,
+      "wavesGe2": 21,
+      "shareWavesGe2": 0.31343283582089554,
+      "shareUnitsInWideWave": 0.5353535353535354,
+      "dist": [
+        [
+          1,
+          46
+        ],
+        [
+          2,
+          12
+        ],
+        [
+          3,
+          7
+        ],
+        [
+          4,
+          2
+        ]
+      ],
+      "stragglerAdjustedSpeedup": 1.2091457742720402,
+      "arcsWithWideWave": 13,
+      "arcsCounted": 25,
+      "topSerialisers": [
+        [
+          "packages/cli/src/arc.ts",
+          4
+        ],
+        [
+          "packages/orchestrator/src/index.ts",
+          4
+        ],
+        [
+          ".github/workflows/ci.yml",
+          4
+        ],
+        [
+          "apps/studio/src/components/ArcSurface.tsx",
+          3
+        ],
+        [
+          "packages/cli/src/arc.test.ts",
+          3
+        ],
+        [
+          "apps/studio/src/lib/arcRollups.ts",
+          2
+        ],
+        [
+          "packages/library/src/knowledge.ts",
+          2
+        ],
+        [
+          "packages/context-traversal-capture/src/index.ts",
+          2
+        ],
+        [
+          "packages/orchestrator/src/prove-it-gate.ts",
+          2
+        ],
+        [
+          "apps/studio/scripts/measure-camera-rasterisation.mjs",
+          1
+        ]
+      ],
+      "perArc": [
+        {
+          "arc": "onboard-non-claude-models-onto-storytree-arc",
+          "units": 3,
+          "waves": 1,
+          "maxWave": 3,
+          "shareWide": 1
+        },
+        {
+          "arc": "session-cost-arc",
+          "units": 12,
+          "waves": 5,
+          "maxWave": 4,
+          "shareWide": 0.8333333333333334
+        },
+        {
+          "arc": "session-decoupling-arc",
+          "units": 11,
+          "waves": 7,
+          "maxWave": 2,
+          "shareWide": 0.7272727272727273
+        },
+        {
+          "arc": "arc-orientation-surface-arc",
+          "units": 7,
+          "waves": 4,
+          "maxWave": 3,
+          "shareWide": 0.7142857142857143
+        },
+        {
+          "arc": "context-decision-tree-arc",
+          "units": 6,
+          "waves": 3,
+          "maxWave": 4,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "cli-write-fidelity-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "uat-journey-surgery-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "verification-integrity-arc",
+          "units": 8,
+          "waves": 5,
+          "maxWave": 3,
+          "shareWide": 0.625
+        },
+        {
+          "arc": "parallel-red-green-arc",
+          "units": 8,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "capability-layer-coverage-arc",
+          "units": 6,
+          "waves": 4,
+          "maxWave": 3,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "act2-camera-choreography-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "first-class-edges-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "arcs-hold-increments-arc",
+          "units": 8,
+          "waves": 6,
+          "maxWave": 3,
+          "shareWide": 0.375
+        },
+        {
+          "arc": "diagnosis-honesty-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "factory-floor-health-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "gate-machinery-audit-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "parallel-session-dispatch-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-camera-frame-delivery-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "arc-and-open-question-truth-maintenance-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "chapter2-code-generated-organic-art-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "directional-dag-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "explorer-onboarding-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "projection-ownership-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "proposals-fold-into-arcs-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "worktree-reaper-integrity-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        }
+      ]
+    },
+    "build_since_2026_08_04": {
+      "units": 74,
+      "waves": 57,
+      "registryOnlyExcluded": 4,
+      "mean": 1.2982456140350878,
+      "median": 1,
+      "wavesGe2": 16,
+      "shareWavesGe2": 0.2807017543859649,
+      "shareUnitsInWideWave": 0.44594594594594594,
+      "dist": [
+        [
+          1,
+          41
+        ],
+        [
+          2,
+          15
+        ],
+        [
+          3,
+          1
+        ]
+      ],
+      "stragglerAdjustedSpeedup": 1.1248327907470617,
+      "arcsWithWideWave": 9,
+      "arcsCounted": 23,
+      "topSerialisers": [
+        [
+          "packages/cli/src/arc.ts",
+          4
+        ],
+        [
+          "packages/orchestrator/src/index.ts",
+          4
+        ],
+        [
+          ".github/workflows/ci.yml",
+          4
+        ],
+        [
+          "apps/studio/src/components/ArcSurface.tsx",
+          3
+        ],
+        [
+          "packages/cli/src/arc.test.ts",
+          3
+        ],
+        [
+          "apps/studio/src/lib/arcRollups.ts",
+          2
+        ],
+        [
+          "packages/library/src/knowledge.ts",
+          2
+        ],
+        [
+          "packages/context-traversal-capture/src/index.ts",
+          2
+        ],
+        [
+          "packages/orchestrator/src/prove-it-gate.ts",
+          2
+        ],
+        [
+          "apps/studio/scripts/measure-camera-rasterisation.mjs",
+          1
+        ]
+      ],
+      "perArc": [
+        {
+          "arc": "session-cost-arc",
+          "units": 8,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.75
+        },
+        {
+          "arc": "arc-orientation-surface-arc",
+          "units": 7,
+          "waves": 4,
+          "maxWave": 3,
+          "shareWide": 0.7142857142857143
+        },
+        {
+          "arc": "session-decoupling-arc",
+          "units": 9,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "cli-write-fidelity-arc",
+          "units": 3,
+          "waves": 2,
+          "maxWave": 2,
+          "shareWide": 0.6666666666666666
+        },
+        {
+          "arc": "verification-integrity-arc",
+          "units": 7,
+          "waves": 5,
+          "maxWave": 2,
+          "shareWide": 0.5714285714285714
+        },
+        {
+          "arc": "parallel-red-green-arc",
+          "units": 8,
+          "waves": 6,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "act2-camera-choreography-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "context-decision-tree-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "first-class-edges-arc",
+          "units": 4,
+          "waves": 3,
+          "maxWave": 2,
+          "shareWide": 0.5
+        },
+        {
+          "arc": "arcs-hold-increments-arc",
+          "units": 6,
+          "waves": 6,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "diagnosis-honesty-arc",
+          "units": 2,
+          "waves": 2,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "act2-camera-frame-delivery-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "chapter2-code-generated-organic-art-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "directional-dag-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "explorer-onboarding-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "factory-floor-health-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "gate-machinery-audit-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "onboard-non-claude-models-onto-storytree-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "parallel-session-dispatch-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "projection-ownership-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "proposals-fold-into-arcs-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "uat-journey-surgery-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        },
+        {
+          "arc": "worktree-reaper-integrity-arc",
+          "units": 1,
+          "waves": 1,
+          "maxWave": 1,
+          "shareWide": 0
+        }
+      ]
+    }
+  },
+  "B": {
+    "landings": 371,
+    "touchingStoryGrain": 107,
+    "landingsSpanningGe2Stories": 17,
+    "shareOfStoryTouchingLandings": 0.1588785046728972,
+    "latentLanesCollapsed": 64,
+    "dist": [
+      [
+        1,
+        90
+      ],
+      [
+        2,
+        7
+      ],
+      [
+        3,
+        2
+      ],
+      [
+        4,
+        3
+      ],
+      [
+        5,
+        2
+      ],
+      [
+        7,
+        1
+      ],
+      [
+        9,
+        1
+      ],
+      [
+        23,
+        1
+      ]
+    ],
+    "widest": [
+      {
+        "arc": "session-decoupling-arc",
+        "pr": "1149",
+        "lanes": 23
+      },
+      {
+        "arc": "uat-journey-surgery-arc",
+        "pr": "1214",
+        "lanes": 9
+      },
+      {
+        "arc": "model-uat-promotion",
+        "pr": "908",
+        "lanes": 7
+      },
+      {
+        "arc": "explorer-onboarding-arc",
+        "pr": "775",
+        "lanes": 5
+      },
+      {
+        "arc": "uat-journey-surgery-arc",
+        "pr": "1120",
+        "lanes": 5
+      },
+      {
+        "arc": "model-uat-promotion",
+        "pr": "808",
+        "lanes": 4
+      },
+      {
+        "arc": "session-decoupling-arc",
+        "pr": "1144",
+        "lanes": 4
+      },
+      {
+        "arc": "session-decoupling-arc",
+        "pr": "1151",
+        "lanes": 4
+      },
+      {
+        "arc": "explorer-onboarding-arc",
+        "pr": "1212",
+        "lanes": 3
+      },
+      {
+        "arc": "grounded-art-machinery-arc",
+        "pr": "846",
+        "lanes": 3
+      },
+      {
+        "arc": "chapter2-real-app-surface-arc",
+        "pr": "892",
+        "lanes": 2
+      },
+      {
+        "arc": "gate-machinery-audit-arc",
+        "pr": "1157",
+        "lanes": 2
+      }
+    ]
+  }
+}
