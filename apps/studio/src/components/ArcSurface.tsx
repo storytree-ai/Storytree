@@ -43,10 +43,12 @@ import {
   defaultLaneId,
   BLOCKED_UNAVAILABLE_NOTE,
   type ArcLane,
+  type ArcLaneScope,
 } from '../lib/arcSurface';
 import type { ArcRollupIncrement } from '../types';
 import { ARCS_UNREACHABLE, type ArcRollupsState } from '../lib/arcRollups';
 import { FloorHealthStrip, type FloorHealthBand } from './FloorHealthStrip';
+import type { SearchResult } from '../lib/librarySearch';
 
 export interface ArcSurfaceProps {
   /** `undefined` while nothing has answered · `null` when the backend has no document store. */
@@ -59,16 +61,31 @@ export interface ArcSurfaceProps {
    * means no reading is wired into this mount, which the band renders as such rather than as calm.
    */
   floorHealth?: FloorHealthBand | null;
+  /**
+   * Open an artifact in the map's `LibraryOpenOverlay` instead of navigating away (the same callback
+   * `LibraryFocusGraph`/`LibrarySelectionCard` are handed, ADR-0335's UI fix). Every deep-link on this
+   * surface stays a real `<a href={assetHref(id)}>` — right-click / middle-click / copy-link / screen
+   * readers all still work exactly as before — but a plain left-click is intercepted and opens the
+   * overlay in place. Omitted (e.g. in isolation tests), a plain click falls through to the browser's
+   * normal navigation, unchanged from before this prop existed.
+   */
+  onOpen?: (selection: SearchResult) => void;
 }
 
-export function ArcSurface({ arcs, now, floorHealth }: ArcSurfaceProps): React.JSX.Element {
-  const lanes = Array.isArray(arcs) ? arcLanes(arcs, now) : [];
+export function ArcSurface({ arcs, now, floorHealth, onOpen }: ArcSurfaceProps): React.JSX.Element {
+  // ADR-0335: closed arcs are drawn one flag away, not only "one click away in the Library" — the
+  // studio surface had no equivalent of the CLI's `arc list --all|--closed` until this scope toggle.
+  const [scope, setScope] = useState<ArcLaneScope>('active');
+  const lanes = Array.isArray(arcs) ? arcLanes(arcs, now, scope) : [];
   const [picked, setPicked] = useState<string | null>(null);
   // The pick is only honoured while it still names a live lane: the list re-polls, and an arc that
-  // closed under the owner must not leave the panel pinned to a lane that is no longer drawn.
+  // closed under the owner (or fell out of the current scope) must not leave the panel pinned to a
+  // lane that is no longer drawn.
   const selectedId =
     picked !== null && lanes.some((l) => l.arc.id === picked) ? picked : defaultLaneId(lanes);
   const selected = lanes.find((l) => l.arc.id === selectedId) ?? null;
+  const emptyLabel =
+    scope === 'active' ? 'No active arcs.' : scope === 'closed' ? 'No closed arcs.' : 'No arcs.';
 
   return (
     <div className="arc-surface" data-testid="arc-surface">
@@ -76,6 +93,22 @@ export function ArcSurface({ arcs, now, floorHealth }: ArcSurfaceProps): React.J
       <FloorHealthStrip signal={floorHealth ?? null} />
       <div className="arc-surface-panes">
         <div className="arc-lanes" data-testid="arc-lanes" aria-label="arcs">
+          {/* ADR-0335: which arcs draw. Always rendered (even mid-load) so the control itself never
+              flickers in and out — only the list beneath it changes. */}
+          <div className="arc-lanes-scope" role="group" aria-label="which arcs to show">
+            {(['active', 'closed', 'all'] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`arc-lanes-scope-btn${scope === s ? ' on' : ''}`}
+                aria-pressed={scope === s}
+                data-testid={`arc-lanes-scope:${s}`}
+                onClick={() => setScope(s)}
+              >
+                {s === 'active' ? 'Active' : s === 'closed' ? 'Closed' : 'All'}
+              </button>
+            ))}
+          </div>
           {arcs === undefined ? (
             <p className="muted small arc-lanes-note">Reading arcs…</p>
           ) : arcs === ARCS_UNREACHABLE ? (
@@ -95,7 +128,7 @@ export function ArcSurface({ arcs, now, floorHealth }: ArcSurfaceProps): React.J
               Arcs need the live store — this backend has none.
             </p>
           ) : lanes.length === 0 ? (
-            <p className="muted small arc-lanes-note">No active arcs.</p>
+            <p className="muted small arc-lanes-note">{emptyLabel}</p>
           ) : (
             lanes.map((lane) => (
               <ArcLaneRow
@@ -107,7 +140,7 @@ export function ArcSurface({ arcs, now, floorHealth }: ArcSurfaceProps): React.J
             ))
           )}
         </div>
-        <ArcBriefingPanel lane={selected} />
+        <ArcBriefingPanel lane={selected} onOpen={onOpen} />
       </div>
     </div>
   );
@@ -165,6 +198,25 @@ function ArcLaneRow({
 }
 
 /**
+ * A deep link that stays a real `<a href>` (right-click / middle-click / copy-link / screen readers
+ * unaffected) but, on a plain unmodified left-click, opens the artifact in the map's overlay instead
+ * of navigating the whole app away from the forest (ADR-0335's UI fix). Without `onOpen` this is a
+ * no-op and the click falls through to ordinary navigation — the pre-fix behaviour, unchanged.
+ */
+function openOnClick(
+  onOpen: ((selection: SearchResult) => void) | undefined,
+  selection: SearchResult,
+): (event: React.MouseEvent<HTMLAnchorElement>) => void {
+  return (event) => {
+    if (!onOpen) return;
+    if (event.defaultPrevented || event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onOpen(selection);
+  };
+}
+
+/**
  * The briefing panel (D3) — the space the deleted axis returned, and where the owner acts.
  *
  * It defaults to the selected arc's briefing and leads with what is WAITING when anything is. Each
@@ -173,7 +225,13 @@ function ArcLaneRow({
  * looking for. Read-only: there is no reply box here by decision (ADR-0267 D6 / ADR-0314 D9), and
  * answering happens by the owner prompting an agent harness.
  */
-function ArcBriefingPanel({ lane }: { lane: ArcLane | null }): React.JSX.Element {
+function ArcBriefingPanel({
+  lane,
+  onOpen,
+}: {
+  lane: ArcLane | null;
+  onOpen?: ((selection: SearchResult) => void) | undefined;
+}): React.JSX.Element {
   if (lane === null) {
     return (
       <aside className="arc-briefing" data-testid="arc-briefing" aria-label="arc briefing">
@@ -188,7 +246,11 @@ function ArcBriefingPanel({ lane }: { lane: ArcLane | null }): React.JSX.Element
     <aside className="arc-briefing" data-testid="arc-briefing" aria-label="arc briefing">
       <header className="arc-briefing-header">
         <h4 className="arc-briefing-title">{arc.title || arc.id}</h4>
-        <a className="arc-briefing-open" href={assetHref(arc.id)}>
+        <a
+          className="arc-briefing-open"
+          href={assetHref(arc.id)}
+          onClick={openOnClick(onOpen, { id: arc.id, title: arc.title || arc.id, category: 'arc', source: 'asset' })}
+        >
           open the arc ↗
         </a>
       </header>
@@ -207,7 +269,11 @@ function ArcBriefingPanel({ lane }: { lane: ArcLane | null }): React.JSX.Element
                 {/* Stakes lead — what breaks while this stays unsettled (ADR-0314 D5's briefing
                     shape). The link reaches the artifact carrying the rest: the options, the
                     diagrams, the non-binding recommendation. */}
-                <a className="arc-question-title" href={assetHref(q.id)}>
+                <a
+                  className="arc-question-title"
+                  href={assetHref(q.id)}
+                  onClick={openOnClick(onOpen, { id: q.id, title: q.title || q.id, category: 'open-question', source: 'asset' })}
+                >
                   {q.title || q.id}
                 </a>
                 {q.stakes && <p className="arc-question-stakes">{q.stakes}</p>}
@@ -237,7 +303,7 @@ function ArcBriefingPanel({ lane }: { lane: ArcLane | null }): React.JSX.Element
         ) : (
           <ul className="arc-increment-list">
             {briefing.next.map((inc) => (
-              <IncrementRow key={inc.id} increment={inc} />
+              <IncrementRow key={inc.id} increment={inc} onOpen={onOpen} />
             ))}
           </ul>
         )}
@@ -250,7 +316,7 @@ function ArcBriefingPanel({ lane }: { lane: ArcLane | null }): React.JSX.Element
         ) : (
           <ul className="arc-increment-list">
             {briefing.landed.map((inc) => (
-              <IncrementRow key={inc.id} increment={inc} />
+              <IncrementRow key={inc.id} increment={inc} onOpen={onOpen} />
             ))}
           </ul>
         )}
@@ -260,12 +326,27 @@ function ArcBriefingPanel({ lane }: { lane: ArcLane | null }): React.JSX.Element
 }
 
 /** One increment row — the same rendering on both halves, so a reader compares like with like. */
-function IncrementRow({ increment }: { increment: ArcRollupIncrement }): React.JSX.Element {
+function IncrementRow({
+  increment,
+  onOpen,
+}: {
+  increment: ArcRollupIncrement;
+  onOpen?: ((selection: SearchResult) => void) | undefined;
+}): React.JSX.Element {
   const landedOn = increment.outcome?.date;
   const pr = increment.outcome?.pr;
   return (
     <li className="arc-increment" data-increment-status={increment.status}>
-      <a className="arc-increment-title" href={assetHref(increment.id)}>
+      <a
+        className="arc-increment-title"
+        href={assetHref(increment.id)}
+        onClick={openOnClick(onOpen, {
+          id: increment.id,
+          title: increment.title || increment.id,
+          category: 'increment',
+          source: 'asset',
+        })}
+      >
         {increment.title || increment.id}
       </a>
       <span className="muted small">

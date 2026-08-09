@@ -1,7 +1,7 @@
 ---
 status: accepted
 decided: 2026-08-04
-amends: [183, 298]
+amends: [183, 239, 298]
 arc: arcs-hold-increments-arc
 ---
 # ADR-0305: Arcs hold increments: one durable typed tier replaces increments, proposals and plans
@@ -12,6 +12,13 @@ accepted (2026-08-04) — decided/directed by the owner in conversation on 2026-
 alignment IS the ratification (ADR-0110); no second end-of-flow ask. The owner directed each fork
 in turn: collapse the three lists, cut the status enum down, collapse the body headings, drop
 `draft` in favour of `proposal` as a status, and rename the kind to `increment`.
+
+**Amends** [ADR-0239](0239-arc-closure-is-stored-state-an-arc-lifecycle-field-written-f.md) D2
+(`amends` edge added 2026-08-09, correcting a gap this ADR left when first landed): folding the
+terminal increment into its own document means `arc close` no longer writes it and the `lifecycle`
+flip in one atomic transaction — D1 below makes the terminal increment its own row like every other
+one. ADR-0239 D2's invariant (no closed arc without terminal prose) is unaffected; only the mechanism
+that delivered it changed, from atomicity to write order (increment first, then the flip).
 
 ## Context
 

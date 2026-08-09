@@ -116,8 +116,13 @@ plan** — is a planner-time decomposition and **cannot be counted from the back
 the only reading with plausible width, and measuring it was this arc's next increment, with nothing
 built until it returned a number. **It returned one** (ADR-0333, 2026-08-09): all 58 anchored plans
 in the live store were read and the median plan holds **ONE** lane on every reading, the most
-generous included. Both named widths are one, so the arc's own falsifier fired and the arc is CLOSED
-with nothing built.
+generous included, and on that reading the arc's own falsifier fired and the arc closed with nothing
+built. **Corrected in place, 2026-08-09 (ADR-0139): that closure did not stand** —
+[ADR-0334](0334-plan-lane-width-is-planned-for-not-discovered-the-fan-out-ar.md) found ADR-0333's
+58-plan population unrepresentative (10.3% of the store's increments, selected by whether a session
+chose to invoke the `planner` at all, and excluding `uat-journey-surgery-arc` — the owner's named
+paradigm case — entirely) and reopened the arc the same day; lane width is now designed for at
+planning time, not read off the backlog (ADR-0334 D4). The arc is OPEN.
 
 ## Consequences
 
@@ -131,8 +136,10 @@ measured the overlap of delegates actually spawned — curators, story-authors, 
 window **0 of 105 delegates were builder types; no delegate has ever run a `--real` build.** A
 delegation mix containing 300–3200s builds would overlap far more than one containing 14-turn
 explorers, so the subagent-build cell is untried rather than refused. It STAYS untried: the next
-increment measured width instead and returned one (ADR-0333), so the arc closed before any build
-delegate ran. Read that as unmeasured, never as measured-and-refused.
+increment measured plan-lane width (ADR-0333) and, on a population later found unrepresentative,
+closed the arc; [ADR-0334](0334-plan-lane-width-is-planned-for-not-discovered-the-fan-out-ar.md)
+reopened it the same day (corrected in place, 2026-08-09, ADR-0139), still before any build delegate
+ran either way. Read that as unmeasured, never as measured-and-refused.
 
 Per ADR-0139 this ADR carries `amends: [331]`: ADR-0331's own decision (D1's read-only-sweep refusal,
 D2's carve-out for `parallel-red-green-arc`) stands unchanged and untouched — nothing here corrects
@@ -149,8 +156,12 @@ so it is never re-read at cache-read rates on later turns. The **sign** of that 
 session cost is genuinely unknown, and D3's break-even should not be read as a claim that three
 delegates cost $0.84 more than doing the work in-thread.
 
-The safety fence WOULD have been the live risk, not the economics — and it stays unbuilt, because
-ADR-0333 closed the arc before N concurrent writers ever became a real condition. The ADR-0255/0284 wall is a static deny
+The safety fence WOULD have been the live risk, not the economics — and it stays unbuilt: N concurrent
+writers has still never become a real condition, because nothing is built on the reopened arc either.
+**Corrected in place, 2026-08-09 (ADR-0139):** ADR-0333's closure did not survive —
+[ADR-0334](0334-plan-lane-width-is-planned-for-not-discovered-the-fan-out-ar.md) superseded it the same
+day and reopened the arc, gating any build behind evidence that its D4 planning-brief change actually
+produces wider plans. The ADR-0255/0284 wall is a static deny
 block over the primary checkout and is **claim-blind**: a write into a SIBLING worktree is refused by
 nothing, de-scoped on zero evidenced instances. N concurrent writers is precisely the condition that
 makes that hazard live, and the owner's "previous attempts have overloaded the system" is a second,
@@ -158,15 +169,22 @@ separate constraint still to be pinned to a concrete failure mode. Arbitration m
 rewritten — `acquireChainClaims` / `releaseChainClaims` in `packages/drive/src/chain-claims.ts`
 already does an all-or-nothing set take in canonical sorted lock order at ADR-0270 capability grain.
 
-The first half of D5's re-open condition — *plan-lane width returns a median above one* — is
-DISCHARGED: ADR-0333 measured it at one. What remains is the backlog half: re-open only if three or
-more arcs hold two or more independent open increments at once, or if a run of fresh plans shows a
-median W1 of two or more. A single wide plan or a single wide arc is not that evidence.
+The first half of D5's re-open condition — *plan-lane width returns a median above one* — was read as
+DISCHARGED: ADR-0333 measured it at one. **Corrected in place, 2026-08-09 (ADR-0139):**
+[ADR-0334](0334-plan-lane-width-is-planned-for-not-discovered-the-fan-out-ar.md) found that population
+unrepresentative and REPLACED the whole re-open condition rather than resolving it — the live falsifier
+is now whether plans authored under ADR-0334 D4's width-seeking brief show more independent lanes than
+plans authored before it. The backlog half of this D5 condition (three or more arcs holding two or more
+independent open increments at once, or a fresh median W1 of two or more) no longer governs reopening;
+ADR-0334 is the current test.
 
 ## References
 
-- ADR-0333 — the second width reading (all 58 anchored plans, median ONE lane) and the arc's closure.
-  Amends this ADR: D5's decision stands; only its "unmeasured" prose is overtaken, corrected in place.
+- ADR-0333 — the second width reading (all 58 anchored plans, median ONE lane); amends this ADR (D5's
+  "unmeasured" prose, corrected in place). Its closure of the arc was itself superseded the same day —
+  see ADR-0334 below.
+- ADR-0334 — supersedes ADR-0333 and reopens the arc; D2–D4 above stand untouched by it. D5's
+  plan-lane-reading prose is corrected in place above to point here (ADR-0139).
 - `parallel-session-dispatch-arc` — this arc; the owner's design and the acceptance bar in full.
 - ADR-0329 — session orientation is ~17 turns / $2.56–3.09; size is a vehicle input.
 - ADR-0330 — delegation re-prices rent; every delegate pays a fresh preamble at the cache-WRITE rate.
