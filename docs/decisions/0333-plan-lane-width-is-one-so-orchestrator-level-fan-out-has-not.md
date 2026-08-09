@@ -1,13 +1,24 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-08-09
 arc: parallel-session-dispatch-arc
 amends: [332]
-load_bearing: true
 ---
 # ADR-0333: Plan-lane width is one, so orchestrator-level fan-out has nothing to fan and the arc closes
 
 ## Status
+
+**superseded (2026-08-09) by [ADR-0334](0334-plan-lane-width-is-planned-for-not-discovered-the-fan-out-ar.md)
+— the owner reversed the closure the same day.** The MEASUREMENT below stands and is why this file is
+kept browsable: the 58-plan read, its three readings, the re-plan dedupe, the temporal split, and
+D6's landing-serialisation finding (carried forward verbatim into ADR-0334 D4(c)). What was overturned
+is D7 and the reading it rests on — ADR-0334 D1 found the population was 58 anchored increments out of
+**564** (10.3%), from 11 arcs of roughly fifty, selected by whether a session chose to invoke the
+`planner` at all (plans are never mandatory, ADR-0183 D6), and **excluding `uat-journey-surgery-arc`
+entirely** — zero anchored plans, the very case the owner named. ADR-0334 D2 further found this ADR's
+own rebuttal of its endogeneity confound self-undermining: both planner declines quoted in D5 price a
+*second claim, worktree and PR*, i.e. the fresh-session vehicle, at 9x the subagent price ADR-0332 D2
+measured. Read D1–D6 below as sound measurement of a population that could not answer the question.
 
 accepted (2026-08-09) — the owner set the decision rule before the measurement was taken: if the
 median plan holds one lane the arc closes, and if it holds two or more the arc proceeds to the
