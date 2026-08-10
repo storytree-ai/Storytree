@@ -17,10 +17,16 @@
  *
  *   (a) every entrypoint a process NAMES in its `surfaces` resolves to a real entrypoint, and
  *   (b) every operator-facing entrypoint has SOME process behind it (else it is an orphan),
+ *   (c) every `storytree …` command a process PRESCRIBES in its four prose fields is still mounted.
  *
- * and prints both gaps. "Which commands do we need?" is a judgement the gate must not adjudicate — it
- * only asserts the bijection holds over what exists. The orphan list IS the process-tier backfill
+ * and prints all three gaps. "Which commands do we need?" is a judgement the gate must not adjudicate —
+ * it only asserts the bijection holds over what exists. The orphan list IS the process-tier backfill
  * worklist.
+ *
+ * Axis (c) is the later addition and reads the fields (a) never looked at; its recognition rule, the
+ * four things it deliberately does not match, and its resolution rule are stated in full above
+ * {@link parsePrescribedCommands}. Read that block before widening anything here — the design
+ * constraint is that arbitrary prose must never be treated as an entrypoint.
  *
  * BOUNDED AT A DRAIN CEILING since 2026-07-27 (`verification-integrity-arc`, ADR-0252 D3, in ADR-0168
  * D4's shape). It was WARN-only and exited 0 at every gap count — so when ADR-0195 added the
@@ -56,7 +62,8 @@
  * entrypoint is the only place that runs the sweep, prints, and exits 0.
  */
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 
 import type { Store } from "@storytree/storage-protocol";
 
@@ -93,6 +100,12 @@ export interface ProcessSurfaces {
   id: string;
   /** Canonical entrypoint refs named in its `surfaces` field (deduped, in first-seen order). */
   refs: string[];
+  /**
+   * `storytree …` invocations this process PRESCRIBES in its four prescriptive fields — the (c) axis
+   * (see {@link PRESCRIPTIVE_PROCESS_FIELDS}). Absent on inputs built before the axis existed, which
+   * simply contributes no (c) findings.
+   */
+  prescribed?: PrescribedCommand[];
 }
 
 /** A named surface that resolves to no real entrypoint — a fix-the-ref-or-add-the-entrypoint gap. */
@@ -107,11 +120,13 @@ export interface SurfaceCoverageReport {
   unresolved: UnresolvedSurface[];
   /** (b) orphan-checked entrypoints named by no process — the backfill worklist, in enum order. */
   orphans: string[];
+  /** (c) prescribed `storytree …` commands the mounted register no longer accepts, in scan order. */
+  danglingCommands: DanglingCommand[];
   /** How many processes were scanned. */
   processCount: number;
   /** How many entrypoints were enumerated. */
   entrypointCount: number;
-  /** True iff both gaps are empty. */
+  /** True iff all three gaps are empty. */
   clean: boolean;
 }
 
@@ -173,6 +188,251 @@ export function parseSurfaceRefs(prose: string, knownScripts: ReadonlySet<string
 }
 
 // ---------------------------------------------------------------------------
+// (c) Prescriptive fields → prescribed `storytree …` commands
+//
+// WHY THIS AXIS EXISTS. Axis (a) reads ONE field — `surfaces` — and resolves it at AREA granularity,
+// so `storytree library export-corpus` resolved as long as `library` was still an area. PR #1148
+// (ADR-0302 D4 / ADR-0307) deleted three Library verbs — `library sync-agents`, `library sync-corpus`,
+// `library export-corpus` — and both `library-edit-ceremony` and `retire-realized-proposal` went on
+// prescribing them in their PROSE while every rung stayed green. Twice over, which is what makes it
+// a detectable class rather than an incident: an operator following a green process artifact runs a
+// command that no longer exists.
+//
+// ─── THE RECOGNITION RULE, and what it deliberately does NOT match ───────────────────────────────
+// A backtick span in a prescriptive field is read as a command reference ONLY when, after stripping
+// an env-var assignment prefix and one recognised forwarder (`pnpm`, `pnpm --silent`/`-s`,
+// `npx tsx packages/cli/src/main.ts`, `node packages/cli/launch.mjs`), its first token is exactly
+// `storytree`. The command PATH is then the run of following tokens that are bare command words
+// (`^[a-z][a-z0-9:-]*$`); the first token that is not — a flag, a `<placeholder>`, a quoted arg, a
+// path, `|`, `&&`, an ellipsis — ENDS the path, because everything after it is argument territory.
+//
+// It therefore does NOT match, by construction and on purpose:
+//   • any other tool — `git`, `gh`, `gcloud`, `docker`, `curl`, `node`, `npx` (bar the one exact
+//     `main.ts` form). Their inventories are not ours to know.
+//   • a bare `pnpm <script>` span. Root scripts have a clean inventory, but `pnpm install` /
+//     `pnpm add` / `pnpm -r test` are pnpm builtins, not scripts, so checking them would need a
+//     hand-kept allow-list — a false-positive engine. Axis (a) already covers `pnpm <script>` in
+//     `surfaces`, where the author has DECLARED it an entrypoint.
+//   • a BARE token naming a command — `` `sync-corpus` ``, `` `export-corpus` ``,
+//     `` `check:corpus-content` ``. This is the load-bearing exclusion: today's live corpus names
+//     all three deleted ceremonies, in prose that says they are GONE. Prose ABOUT a command is not
+//     a prescription OF it, and only the fully-qualified invocation form is read as one.
+//   • ordinary prose, file paths, field names, flags — nothing outside a backtick span is read at all.
+//
+// ─── THE RESOLUTION RULE ─────────────────────────────────────────────────────────────────────────
+// The path is resolved against the MOUNTED REGISTER derived from the CLI's own sources (see
+// {@link deriveCommandRegister}) — never a hand-kept list, so a deleted verb leaves the register in
+// the same commit that deletes it. Resolution is conservative at every fork: the area is judged
+// against `CLI_AREAS`; below it, an advertised `<placeholder>` at a position ABSORBS that token and
+// everything after it (this is what keeps `storytree library artifact <some-artifact-id>` and
+// `storytree agents <some-agent-name>` from reading as unknown verbs), and a register node with no
+// children accepts the rest rather than guessing. A token is reported ONLY when the register knows
+// siblings at that exact position and this one is not among them.
+// ---------------------------------------------------------------------------
+
+/** The `process` fields whose prose PRESCRIBES commands to an operator (ADR-0154's (c) axis). */
+export const PRESCRIPTIVE_PROCESS_FIELDS = ["statement", "steps", "verification", "failureModes"] as const;
+
+/** One `storytree …` invocation a process prescribes, and where it says it. */
+export interface PrescribedCommand {
+  /** The `process` field it was read from — a member of {@link PRESCRIPTIVE_PROCESS_FIELDS}. */
+  field: string;
+  /** The command path BELOW `storytree`, e.g. `["library", "export-corpus"]`. Never empty. */
+  path: string[];
+  /** The canonical rendering, e.g. `storytree library export-corpus`. */
+  ref: string;
+}
+
+/** A prescribed command the mounted register does not accept, with the process that prescribes it. */
+export interface DanglingCommand extends PrescribedCommand {
+  /** The process artifact id. */
+  processId: string;
+  /** The token that failed to resolve (the area, or the verb at the diverging position). */
+  token: string;
+}
+
+/**
+ * One node of the mounted command register: the tokens the CLI advertises at this position, and
+ * whether it advertises a free-form ARGUMENT here (a `<placeholder>`), which absorbs any token.
+ */
+export interface CommandNode {
+  children: Map<string, CommandNode>;
+  wildcard: boolean;
+}
+
+const BARE_COMMAND_WORD = /^[a-z][a-z0-9:-]*$/;
+const PLACEHOLDER = /^[[<]/;
+const ENV_ASSIGNMENT = /^[A-Z][A-Z0-9_]*=/;
+
+function newCommandNode(): CommandNode {
+  return { children: new Map(), wildcard: false };
+}
+
+/**
+ * PURE: the tokens of a `storytree` invocation, with any env-var prefix and one recognised forwarder
+ * stripped — or `undefined` when the span is not a `storytree` invocation at all. See the rule above.
+ */
+export function storytreeInvocationTokens(span: string): string[] | undefined {
+  let toks = span.trim().split(/\s+/).filter((t) => t !== "");
+  while (toks[0] !== undefined && ENV_ASSIGNMENT.test(toks[0])) toks = toks.slice(1);
+  if (toks[0] === "pnpm") {
+    toks = toks.slice(1);
+    while (toks[0] === "--silent" || toks[0] === "-s") toks = toks.slice(1);
+  } else if (toks[0] === "npx" && toks[1] === "tsx" && toks[2] === "packages/cli/src/main.ts") {
+    toks = ["storytree", ...toks.slice(3)];
+  } else if (toks[0] === "node" && toks[1] === "packages/cli/launch.mjs") {
+    toks = ["storytree", ...toks.slice(2)];
+  }
+  return toks[0] === "storytree" ? toks : undefined;
+}
+
+/** PURE: the bare-command-word run following `storytree`, i.e. the resolvable command path. */
+function commandPathOf(tokens: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const t of tokens.slice(1)) {
+    if (!BARE_COMMAND_WORD.test(t)) break;
+    out.push(t);
+  }
+  return out;
+}
+
+/**
+ * PURE: every `storytree …` command a field's prose prescribes, deduped in first-seen order.
+ * `field` is carried through so a finding names the field, not just the process.
+ */
+export function parsePrescribedCommands(field: string, prose: string): PrescribedCommand[] {
+  const out: PrescribedCommand[] = [];
+  const seen = new Set<string>();
+  for (const m of prose.matchAll(BACKTICK_SPAN)) {
+    const tokens = storytreeInvocationTokens(m[1] ?? "");
+    if (tokens === undefined) continue;
+    const commandPath = commandPathOf(tokens);
+    if (commandPath.length === 0) continue; // a bare `storytree` / `storytree --help` names nothing
+    const ref = `storytree ${commandPath.join(" ")}`;
+    if (seen.has(ref)) continue;
+    seen.add(ref);
+    out.push({ field, path: commandPath, ref });
+  }
+  return out;
+}
+
+/**
+ * PURE: blank out line comments and block comments so only CODE (string literals included)
+ * contributes to the register.
+ *
+ * THIS IS THE DECISIVE HALF OF THE DERIVATION, not tidiness. All three verbs PR #1148 deleted
+ * still appear in `commands.ts` TODAY — in comments explaining that they are gone. A register built
+ * over raw source would re-mount every command the codebase merely REMEMBERS, and this axis would
+ * silently never fire. Line-oriented and deliberately simple (this module has no parser, by design):
+ * a `//` inside a string literal ends the line early, which can only DROP register entries — the
+ * permissive direction for a check whose failure mode to avoid is a false positive.
+ */
+export function stripSourceComments(source: string): string {
+  const withoutBlocks = source.replace(/\/\*[\s\S]*?\*\//g, " ");
+  return withoutBlocks
+    .split(/\r?\n/)
+    .map((line) => {
+      const i = line.indexOf("//");
+      return i === -1 ? line : line.slice(0, i);
+    })
+    .join("\n");
+}
+
+/**
+ * PURE: build the mounted command register from CLI source TEXT (injected, so this is offline-
+ * testable). Every `storytree …` span the code itself carries — the per-area help listings, the
+ * `next:` offers, the refusal hints — is an advertisement of a real command path, and they are
+ * authored beside the dispatch they describe: PR #1148 deleted the three verbs' dispatch arms and
+ * their help lines in the same commit, which is exactly the coupling this axis rests on.
+ *
+ * DELIBERATELY OVER-BROAD. Descriptive words trailing a usage line ("… `<id>`  view one artifact")
+ * enter the register too. That only ever ADDS accepted tokens, so it cannot manufacture a finding —
+ * and the tokens that matter here are absent from every string literal, which is what makes the
+ * derivation sound.
+ */
+export function deriveCommandRegister(sources: readonly string[]): CommandNode {
+  const root = newCommandNode();
+  for (const source of sources) {
+    const code = stripSourceComments(source);
+    for (const m of code.matchAll(/\bstorytree\b/g)) {
+      const rest = code.slice((m.index ?? 0) + "storytree".length);
+      let node = root;
+      for (const tok of rest.split(/\s+/)) {
+        if (tok === "") continue;
+        if (PLACEHOLDER.test(tok)) {
+          node.wildcard = true; // an argument lives here: it absorbs this token and everything after
+          break;
+        }
+        if (!BARE_COMMAND_WORD.test(tok)) break;
+        let next = node.children.get(tok);
+        if (next === undefined) {
+          next = newCommandNode();
+          node.children.set(tok, next);
+        }
+        node = next;
+      }
+    }
+  }
+  return root;
+}
+
+/** Read every non-test `.ts` under the CLI's `src/` — the sources {@link deriveCommandRegister} reads. */
+export function readCliSources(cliSrcDir: string): string[] {
+  return readdirSync(cliSrcDir)
+    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+    .sort()
+    .map((f) => readFileSync(path.join(cliSrcDir, f), "utf8"));
+}
+
+/**
+ * PURE: does the register accept this command path? Returns the DIVERGING token when it does not.
+ *
+ * Conservative at every fork — see the resolution rule above. The area is judged against
+ * `CLI_AREAS`; a wildcard absorbs the rest; an unadvertised area, or a register node with no
+ * children, accepts the rest rather than guessing.
+ */
+export function resolveCommandPath(
+  register: CommandNode,
+  commandPath: readonly string[],
+  areas: ReadonlySet<string> = new Set(CLI_AREAS),
+): { ok: true } | { ok: false; token: string } {
+  const area = commandPath[0];
+  if (area === undefined) return { ok: true };
+  if (!areas.has(area)) return { ok: false, token: area };
+
+  let node = register.children.get(area);
+  if (node === undefined) return { ok: true }; // a real area the sources never spell out — nothing to check
+  for (const tok of commandPath.slice(1)) {
+    if (node.wildcard) return { ok: true }; // argument territory
+    const next = node.children.get(tok);
+    if (next === undefined) {
+      // Nothing advertised at this position at all ⇒ the register is silent, so accept. Siblings
+      // advertised but not this one ⇒ the register knows this position and rejects the token.
+      return node.children.size === 0 ? { ok: true } : { ok: false, token: tok };
+    }
+    node = next;
+  }
+  return { ok: true };
+}
+
+/** PURE: every prescribed command in the scanned processes that the register does not accept. */
+export function classifyPrescribedCommands(input: {
+  processes: readonly ProcessSurfaces[];
+  register: CommandNode;
+  areas?: ReadonlySet<string>;
+}): DanglingCommand[] {
+  const areas = input.areas ?? new Set(CLI_AREAS);
+  const out: DanglingCommand[] = [];
+  for (const p of input.processes) {
+    for (const cmd of p.prescribed ?? []) {
+      const verdict = resolveCommandPath(input.register, cmd.path, areas);
+      if (!verdict.ok) out.push({ ...cmd, processId: p.id, token: verdict.token });
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Pure classify + format
 // ---------------------------------------------------------------------------
 
@@ -184,6 +444,8 @@ export function parseSurfaceRefs(prose: string, knownScripts: ReadonlySet<string
 export function classifySurfaceCoverage(input: {
   processes: readonly ProcessSurfaces[];
   entrypoints: readonly Entrypoint[];
+  /** The mounted register for axis (c). Omit to skip it — the two original axes are unaffected. */
+  register?: CommandNode;
 }): SurfaceCoverageReport {
   const validIds = new Set(input.entrypoints.map((e) => e.id));
   const named = new Set<string>();
@@ -198,12 +460,18 @@ export function classifySurfaceCoverage(input: {
 
   const orphans = input.entrypoints.filter((e) => e.orphanChecked && !named.has(e.id)).map((e) => e.id);
 
+  const danglingCommands =
+    input.register === undefined
+      ? []
+      : classifyPrescribedCommands({ processes: input.processes, register: input.register });
+
   return {
     unresolved,
     orphans,
+    danglingCommands,
     processCount: input.processes.length,
     entrypointCount: input.entrypoints.length,
-    clean: unresolved.length === 0 && orphans.length === 0,
+    clean: unresolved.length === 0 && orphans.length === 0 && danglingCommands.length === 0,
   };
 }
 
@@ -241,6 +509,15 @@ export function formatSurfaceCoverage(report: SurfaceCoverageReport): { warn: bo
     );
     for (const o of report.orphans) lines.push(`${TAG}     ${o}`);
   }
+  if (report.danglingCommands.length > 0) {
+    lines.push(
+      `${TAG}   ${report.danglingCommands.length} PRESCRIBED command(s) the CLI no longer mounts ` +
+        "(an operator following the process runs a command that does not exist):",
+    );
+    for (const d of report.danglingCommands) {
+      lines.push(`${TAG}     ${d.processId}.${d.field} → "${d.ref}" (unknown: ${d.token})`);
+    }
+  }
   return { warn: true, lines };
 }
 
@@ -250,7 +527,12 @@ export function formatSurfaceCoverage(report: SurfaceCoverageReport): { warn: bo
 
 /** Everything the runner reads, injected for offline testability (the disk loader is the seam). */
 export interface SurfaceCoverageDeps {
-  loadInputs: () => Promise<{ processes: ProcessSurfaces[]; entrypoints: Entrypoint[] }>;
+  loadInputs: () => Promise<{
+    processes: ProcessSurfaces[];
+    entrypoints: Entrypoint[];
+    /** The mounted register for axis (c); omitted by fixtures that only exercise (a)/(b). */
+    register?: CommandNode;
+  }>;
 }
 
 /**
@@ -326,6 +608,10 @@ export function enumerateEntrypoints(scriptNames: readonly string[]): Entrypoint
 /** The `process` fields this gate reads off a stored library doc. */
 interface ProcessDocLike {
   surfaces?: unknown;
+  statement?: unknown;
+  steps?: unknown;
+  verification?: unknown;
+  failureModes?: unknown;
 }
 
 /**
@@ -337,7 +623,12 @@ interface ProcessDocLike {
 export async function loadSurfaceCoverageInputs(opts: {
   store: Store;
   packageJsonPath: string;
-}): Promise<{ processes: ProcessSurfaces[]; entrypoints: Entrypoint[] }> {
+  /**
+   * The CLI's own `src/` — the mounted register for axis (c) is derived from it. Omit to load the
+   * two original axes only, which is what a fixture-only caller wants.
+   */
+  cliSrcDir?: string;
+}): Promise<{ processes: ProcessSurfaces[]; entrypoints: Entrypoint[]; register?: CommandNode }> {
   const pkg = JSON.parse(readFileSync(opts.packageJsonPath, "utf8")) as { scripts?: Record<string, string> };
   const scriptNames = Object.keys(pkg.scripts ?? {});
   const knownScripts = new Set(scriptNames);
@@ -347,7 +638,16 @@ export async function loadSurfaceCoverageInputs(opts: {
   for (const d of await opts.store.queryDocs({ kind: "process" })) {
     const doc = d.doc as ProcessDocLike;
     const surfaces = typeof doc.surfaces === "string" ? doc.surfaces : "";
-    processes.push({ id: d.id, refs: parseSurfaceRefs(surfaces, knownScripts) });
+    const prescribed: PrescribedCommand[] = [];
+    for (const field of PRESCRIPTIVE_PROCESS_FIELDS) {
+      const prose = doc[field];
+      if (typeof prose === "string") prescribed.push(...parsePrescribedCommands(field, prose));
+    }
+    processes.push({ id: d.id, refs: parseSurfaceRefs(surfaces, knownScripts), prescribed });
   }
-  return { processes, entrypoints };
+  return {
+    processes,
+    entrypoints,
+    ...(opts.cliSrcDir === undefined ? {} : { register: deriveCommandRegister(readCliSources(opts.cliSrcDir)) }),
+  };
 }
