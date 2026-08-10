@@ -128,11 +128,17 @@ number was not an artefact of its population.** ADR-0334 D1's population critiqu
 correct and its D3 statistic critique is load-bearing, but the defect it identified did not bias the
 answer.
 
-What *does* move the answer is the definition of a conflict. Forgiving the nine registry surfaces
-takes build width from **15.3% → 34.4%** at ≥2, and all-work width from **22.2% → 39.6%**. Better
-than half of the available width is behind that one door. ADR-0333 D6's landing-serialisation
-finding, which ADR-0334 D4(c) carried forward as "the real limit", turns out to be the whole story
-rather than a caveat.
+What *does* move the answer is the definition of a conflict. Forgiving everything this instrument
+forgives takes build width from **15.3% → 34.4%** at ≥2, and all-work width from **22.2% → 39.6%**.
+ADR-0333 D6's landing-serialisation finding, which ADR-0334 D4(c) carried forward as "the real
+limit", turns out to be the whole story rather than a caveat.
+
+> **That door is NOT nine files wide — see [the marginal ranking](#the-marginal-ranking-adr-0341)
+> below, added 2026-08-10.** The forgiving mode above forgives the nine registries **and** the
+> per-arc hot records, and the two are separate mechanisms. Split apart, the nine registries carry
+> 15.7% → 27.4% and the per-arc records a further 27.4% → 34.8%. Of the registry share, the surface
+> that carries the most is `apps/studio/data/knowledge.json`, which was already deleted. ADR-0341
+> records the split; this paragraph is corrected in place per ADR-0139.
 
 ### B — intra-landing width (confound-free)
 
@@ -165,6 +171,94 @@ ADR-0334 D3 corrected ADR-0333 D4: concentration names where to point the thing.
 | proposal-tier-drain-arc | 86% (max 4, 7u) | grounded-art-machinery-arc | 76% (max 4, 21u) |
 | session-cost-arc | 83% (max 4, 12u) | library-tech-tree-overlay-arc | 75% (max 2, 16u) |
 | arc-orientation-surface-arc | 78% (max 5, 9u) | arc-orientation-surface-arc | 75% (max 4, 8u) |
+
+---
+
+## The marginal ranking (ADR-0341)
+
+*Added 2026-08-10, after the owner answered `oq-fanout-next-step-after-registry-finding` with option
+A — fix the shared surfaces first. Ranking them needed evidence, so the instrument was extended
+rather than replaced: `measure()` now takes a forgiveness POLICY instead of a boolean, and
+`marginalRanking` re-runs the same simulation forgiving exactly one surface at a time. The pure core
+moved to `packages/cli/src/lane-width.ts` and is unit-tested; the script keeps the store and git.*
+
+**The re-run reproduces.** 577 increments (up from 574 — three landed since), 373 landings, 53 arcs,
+374 PRs resolved. Build strict **15.7%** vs the published 15.3%; build forgiven **34.8%** vs 34.4%.
+
+### The door, decomposed
+
+The published 15.3% → 34.4% is three separate things, and only the middle one is work anyone can do:
+
+| step | build ≥2 | all ≥2 | build speedup |
+|---|---|---|---|
+| strict — forgives nothing | 15.7% | 22.5% | 1.096× |
+| **+ `knowledge.json`** — deleted by ADR-0302 D1 on 2026-08-04 | 19.1% | 24.7% | 1.115× |
+| + the other **eight** registries | 27.4% | 29.3% | 1.145× |
+| + per-arc hot records — **not registries at all** | 34.8% | 39.9% | 1.191× |
+
+So of the 19.1 points of build width the published figure spans: **3.4 (18%) are already closed**,
+**7.4 (39%) are not shared registries** — they are each arc's own ledgers and decision docs, which
+"fix the nine surfaces" does not name and mostly cannot fix — and **8.3 (43%) are the eight
+remaining registries**, which is the actual size of option A.
+
+### Per-surface, all history, build lanes
+
+Baseline forgives `knowledge.json` (already gone). `+alone` = fix this one and nothing else;
+`−if skipped` = fix every candidate but this one. They disagree exactly when surfaces clash together.
+
+| surface | landings touching | waves blocked | **+alone** | −if skipped | +speedup |
+|---|---|---|---|---|---|
+| `packages/cli/src/node-build.test.ts` | 59 (15.8%) | 36 | **+2.8%** | 5.9% | +0.006× |
+| `packages/cli/src/commands.ts` | 46 (12.3%) | 17 | **+1.7%** | 1.9% | +0.007× |
+| `CLAUDE.md` | 46 (12.3%) | 9 | +0.6% | 0.6% | +0.002× |
+| `apps/studio/src/components/TreeView.tsx` | 52 (13.9%) | 19 | +0.6% | 1.9% | +0.002× |
+| `AGENTS.md` | 22 (5.9%) | 2 | 0.0% | 0.0% | 0 |
+| `pnpm-lock.yaml` | 21 (5.6%) | 9 | 0.0% | 1.7% | 0 |
+| `repo-manifest.json` | 26 (7.0%) | 6 | 0.0% | 1.7% | 0 |
+| `apps/studio/src/index.css` | 46 (12.3%) | 21 | **−0.4%** | 0.3% | −0.003× |
+
+The recent era (since 2026-08-04, 76 build landings) reorders the top two — `commands.ts` +3.5%,
+`CLAUDE.md` +1.7%, `node-build.test.ts` +1.7% — and drives the other five to exactly 0.0%. Small
+population, so read it as agreement on the shape rather than on the order: **both eras put the two
+CLI surfaces on top and the studio UI surfaces at or below zero.**
+
+**Why a delta can be negative.** Forgiving a file changes the POPULATION as well as the conflicts: a
+landing whose only source file was `index.css` stops being a build lane, and a landing whose whole
+file set was forgiven is excluded as registry-only. `index.css` loses more studio landings out of the
+build population than it unblocks. A negative delta means "this surface is not what serialises the
+work", not "fixing it makes things worse".
+
+**These deltas are UPPER BOUNDS.** Forgiveness models a *perfect* decomposition — every lane touching
+the surface made disjoint. A real split captures the fraction of that file's churn that was actually
+the registry, and no more.
+
+### What was done, and the honest form of the proof
+
+Only `packages/cli/src/node-build.test.ts` was de-registried (2026-08-10). Its append point was a
+single hardcoded, alphabetically-sorted regex naming every REAL-buildable node: **127 of the 157
+commits that ever touched that file edited it**, so 81% of the file's churn was one construct, and
+two sessions authoring two different nodes collided there even when nothing else they touched met.
+The list was redundant with the story specs — authoring a node's spec IS its registration (ADR-0057
+keystone A) — so it is derived from disk now and the file holds no list to append to.
+
+`commands.ts` was NOT touched: its churn is diffuse across a 3,507-line dispatch module (sampled
+hunks at lines 44, 52, 55, 89, 520, 716, 750, 773, 846, 858, 865, 1271 — no dominant append point),
+so it needs a real decomposition rather than a surgical fix.
+
+**A re-run cannot show history moving, and this note does not claim it does.** Instrument A reads
+landed file sets; fixing a file today cannot make yesterday's landings disjoint. What the instrument
+reports is a labelled counterfactual — the `programme` reading, over the surfaces actually
+de-registried:
+
+| | build ≥2 | all ≥2 |
+|---|---|---|
+| baseline (`knowledge.json` forgiven) | 19.1% | 24.7% |
+| **+ `node-build.test.ts` de-registried** | **21.9%** | **26.3%** |
+| + `commands.ts` as well (not done) | 23.7% | 26.6% |
+
+Read: had that catalogue been append-safe for the whole measured period, the factory's own landings
+would have offered 21.9% instead of 19.1%. The forward reading — landings authored *after* the fix —
+is the parked `measure-lane-width-after-brief` increment, and only time supplies it.
 
 ---
 

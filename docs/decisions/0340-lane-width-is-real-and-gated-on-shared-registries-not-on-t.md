@@ -66,19 +66,30 @@ correct and its D3 statistic critique is load-bearing, but the defect it named d
 answer.** This ADR records that correction rather than leaving the arc believing the previous number
 was wrong; it was incomplete, which is a different failure.
 
-**D3 — WHAT MOVES THE ANSWER IS THE DEFINITION OF A CONFLICT, AND THE DOOR IS NINE FILES WIDE.**
-Forgiving conflicts on shared registries — files the whole factory keeps returning to, derived as
-those touched by ≥5% of all resolved PRs — changes the picture:
+**D3 — WHAT MOVES THE ANSWER IS THE DEFINITION OF A CONFLICT.** Forgiving conflicts on shared
+consolidation surfaces — the factory-wide registries, derived as those touched by ≥5% of all
+resolved PRs, plus each arc's own hot records — changes the picture:
 
 | population | waves ≥2 lanes | units in a wide wave | straggler-adjusted |
 |---|---|---|---|
 | all work, strict | 22.2% | 44.2% | 1.167× |
-| all work, registries forgiven | **39.6%** | 65.3% | 1.282× |
+| all work, forgiven | **39.6%** | 65.3% | 1.282× |
 | build lanes, strict | 15.3% | 29.9% | 1.095× |
-| build lanes, registries forgiven | **34.4%** | 55.0% | 1.190× |
-| authoring lanes, registries forgiven | **41.3%** | 70.0% | 1.332× |
+| build lanes, forgiven | **34.4%** | 55.0% | 1.190× |
+| authoring lanes, forgiven | **41.3%** | 70.0% | 1.332× |
 
-Build width more than doubles. The nine surfaces are `CLAUDE.md`, `AGENTS.md`,
+Build width more than doubles.
+
+> **How that move divides is measured by ADR-0341, not by this ADR, and the division matters.**
+> This table's forgiving rows forgive the nine registries **and** the per-arc hot records — two
+> separate mechanisms (see the discriminator in the research note). ADR-0341 splits them: the nine
+> registries carry 15.7% → 27.4%, the per-arc records a further 27.4% → 34.8%, and within the
+> registry share the largest single contributor is `apps/studio/data/knowledge.json`, already
+> deleted. So "the door is nine files wide" — this decision's original framing — overstates what
+> engineering those files can buy, and only two of the nine carry non-trivial width. Corrected in
+> place per ADR-0139; the finding that shared surfaces are what re-serialise the work stands.
+
+The nine surfaces are `CLAUDE.md`, `AGENTS.md`,
 `apps/studio/data/knowledge.json`, `apps/studio/src/components/TreeView.tsx`,
 `apps/studio/src/index.css`, `packages/cli/src/commands.ts`,
 `packages/cli/src/node-build.test.ts`, `pnpm-lock.yaml`, `repo-manifest.json` — derived, not chosen,
@@ -87,7 +98,8 @@ and three of them are the ones ADR-0333 D6 named by hand.
 So **ADR-0333 D6's landing-serialisation finding is not a caveat on the result, it is the result.**
 ADR-0334 D4(c) carried it forward as "the real limit" and was right; what was not known is that it
 accounts for better than half of all available width. The factory's work does decompose. It is the
-shared registries that re-serialise it.
+shared surfaces that re-serialise it — though ADR-0341 shows that only a quarter of that width sits
+on surfaces anyone can still go and fix.
 
 **D4 — THE ARC'S FALSIFIER DOES NOT FIRE, AND WIDTH IS CONCENTRATED WHERE ADR-0334 D3 SAID TO POINT.**
 ADR-0332's falsifier was that the width does not exist. It exists: 36 of 53 arcs hold at least one
@@ -114,6 +126,9 @@ the intervention, and it now has a before-population on both instruments to be r
 append-safe, or the forward planner-brief test D5 just sharpened, is a redirect of an arc the owner
 reopened on a different premise, and it is not this session's call. It is escalated as an
 `open-question` on this arc. Nothing is built here beyond the instrument.
+
+> **Answered 2026-08-10: the owner chose option A**, make the surfaces dispatch-safe first. The
+> ranking that direction required, and what it found, are ADR-0341.
 
 ## Consequences
 

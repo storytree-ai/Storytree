@@ -91,8 +91,13 @@ so that step 3:
       priced at the fresh-session rate is now a stated error, per D2;
   (c) continues to name where lanes CONTEND, which ADR-0333 D6 showed is the real limit: the builds
       may be independent while the LANDINGS serialise on shared consolidation surfaces
-      (`packages/cli/src/node-build.test.ts`, the story `capabilities:` append,
+      (~~`packages/cli/src/node-build.test.ts`~~, the story `capabilities:` append,
       `packages/cli/src/main.ts`). Sequencing landings while fanning builds stays the correct shape.
+      **Corrected in place, 2026-08-10 (ADR-0139):** `node-build.test.ts` is struck through because
+      it no longer belongs on this list — [ADR-0341](0341-the-registry-door-is-a-quarter-as-wide-as-it-looked-and-only.md)
+      D4 de-registried its hardcoded append point (the REAL-buildable catalogue now derives from
+      `stories/**`, so there is no list left for two sessions to collide on); the other two surfaces
+      are unaffected.
 
 **D5 — THE EVIDENCE IS TAKEN FORWARD, NOT BACKWARD, AND 58 STALE PLANS ARE NOT RE-AUTHORED.**
 ADR-0333 was right that re-authoring its population under a width-seeking brief would be exactly the
