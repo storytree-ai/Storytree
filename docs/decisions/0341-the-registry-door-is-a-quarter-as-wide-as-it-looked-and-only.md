@@ -119,6 +119,13 @@ wide-wave share, and it is the owner's call whether to spend it. The other six s
 is a lockfile resolved by re-running install), and `CLAUDE.md`, `AGENTS.md`, `TreeView.tsx`,
 `index.css` and `repo-manifest.json` are worth +0.6% or less each, with `index.css` negative.
 
+> **Answered 2026-08-10 (ADR-0342): no.** A within-surface churn-attribution reading (a new
+> instrument capability, not a re-run of this one) found the decomposition confines only 31.0%–59.7%
+> of the file's commits against the 100% this ADR's ceiling assumed, and the CLI's one strict
+> `parseArgs` before dispatch makes a central flag enumeration structural — composing it from
+> per-module fragments relocates the collision rather than removing it. The decomposition is
+> declined on the measurement, and with it ADR-0340's whole nine-surface registry path is exhausted.
+
 **D6 — A RE-RUN CANNOT SHOW HISTORY MOVING, AND NO CLAIM THAT IT DOES WILL BE MADE.** Instrument A
 reads landed file sets. Fixing a file today cannot make yesterday's landings disjoint, so re-running
 the instrument after a fix necessarily reports the same numbers. What it reports instead is a
@@ -145,7 +152,10 @@ actually available to fix carry 1.115× → 1.145×, and the two surfaces worth 
 1.115× → about 1.13×. This ADR delivers 1.115× → 1.121×. Against ADR-0332 D1's bar — more than 20%
 extra tokens fails regardless of latency won — a half-percent of wall clock does not by itself
 justify a dispatcher, and the case for one still rests where ADR-0334 D3 put it: on the eleven
-concentrated arcs, not on the factory-wide average.
+concentrated arcs, not on the factory-wide average. **Corrected in place, 2026-08-10 (ADR-0139):**
+that further spend was weighed and declined — [ADR-0342](0342-decomposing-the-cli-dispatcher-cannot-buy-its-measured-width.md)
+found the decomposition cannot reach even this ADR's modelled ceiling, so 1.115× → 1.121× is where
+the registry path's contribution stops.
 
 **The de-registry pays off whether or not a dispatcher is ever built**, which was option A's own
 stated argument and is the part of it that survives this measurement intact. 127 commits appended to
@@ -168,6 +178,9 @@ owner's "previous attempts have overloaded the system", still unpinned to a conc
 
 ## References
 
+- ADR-0342 — amends this ADR: D5's open fork (whether to decompose `commands.ts`) is answered — no,
+  on a within-surface confinement reading, and ADR-0340's registry path is exhausted with it.
+  Corrected in place above (D5 and Consequences); D1–D4 and D6 are untouched.
 - ADR-0340 — the measurement that found the nine surfaces and escalated what to do about them.
   **Amended here** (`amends: [340]`): it stays current, but its D3 attributed the whole 15.3% → 34.4%
   move to the nine registries when the forgiving mode also forgave per-arc hot records. That passage

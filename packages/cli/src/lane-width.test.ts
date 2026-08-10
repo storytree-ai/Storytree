@@ -1,15 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  IMPORTS,
   STRICT,
   arcRecords,
+  attributeChurn,
   classify,
+  constructLines,
   forgiveOnly,
   marginalRanking,
   measure,
   simulateWaves,
   storyKeys,
   type ArcUnits,
+  type SurfaceEdit,
   type Unit,
 } from "./lane-width.js";
 
@@ -24,6 +28,78 @@ const arc = (name: string, sets: string[][]): ArcUnits[] => [
   { arc: name, units: sets.map((f, i) => unit(name, i + 1, f)) },
 ];
 const all = () => true;
+
+// A surface with one appendable list and two ordinary functions — the shape ADR-0341 D4/D5 compared.
+const SURFACE = [
+  /* 1 */ `import { a } from "./a.js";`,
+  /* 2 */ `import { b } from "./b.js";`,
+  /* 3 */ ``,
+  /* 4 */ `const REGISTRY = [`,
+  /* 5 */ `  "one",`,
+  /* 6 */ `  "two",`,
+  /* 7 */ `];`,
+  /* 8 */ ``,
+  /* 9 */ `export function helper(): number {`,
+  /* 10 */ `  return 1;`,
+  /* 11 */ `}`,
+  /* 12 */ ``,
+  /* 13 */ `export function run(): void {`,
+  /* 14 */ `  helper();`,
+  /* 15 */ `}`,
+].join("\n");
+
+const edit = (hash: string, addedLines: number[]): SurfaceEdit => ({ hash, text: SURFACE, addedLines });
+
+test("constructLines buckets each line under its enclosing column-0 declaration", () => {
+  const map = constructLines(SURFACE);
+  assert.equal(map[1], IMPORTS);
+  assert.equal(map[3], IMPORTS, "the gap before the first declaration is still the import block");
+  assert.equal(map[5], "REGISTRY");
+  assert.equal(map[10], "helper");
+  assert.equal(map[14], "run");
+});
+
+test("attributeChurn ranks by EDITS touched, not by lines added — a 1-line wiring edit conflicts as hard", () => {
+  const churn = attributeChurn([
+    edit("a", [5]),
+    edit("b", [6]),
+    edit("c", [5, 6]),
+    edit("d", Array.from({ length: 50 }, (_, i) => 10)), // one edit, fifty lines, inside `helper`
+  ]);
+  const [top, second] = churn.constructs;
+  assert.equal(top!.construct, "REGISTRY");
+  assert.equal(top!.commits, 3);
+  assert.equal(second!.construct, "helper");
+  assert.equal(second!.lines, 50, "still the bigger diff, and still ranked below");
+  assert.equal(top!.share, 0.75);
+});
+
+test("confinement separates the two cases: a fix removes churn only where NOTHING else was touched", () => {
+  // `node-build.test.ts` shape — every edit is the appendable list, so de-registrying it removes all of it.
+  const registryOnly = attributeChurn([edit("a", [5]), edit("b", [6]), edit("c", [5, 6])], ["REGISTRY"]);
+  assert.equal(registryOnly.confinedShare, 1);
+
+  // `commands.ts` shape — edits straddle the fence, so the file keeps being touched and the width stays.
+  const straddling = attributeChurn(
+    [edit("a", [5, 14]), edit("b", [6, 10]), edit("c", [5]), edit("d", [14])],
+    ["REGISTRY"],
+  );
+  assert.equal(straddling.confinedShare, 0.25, "only the REGISTRY-only edit would stop touching the file");
+});
+
+test("confinement widens as the fence covers more constructs, and is zero with no fence at all", () => {
+  const edits = [edit("a", [5, 14]), edit("b", [6, 10])];
+  assert.equal(attributeChurn(edits).confinedShare, 0, "no fence forgives nothing");
+  assert.equal(attributeChurn(edits, ["REGISTRY"]).confinedShare, 0);
+  assert.equal(attributeChurn(edits, ["REGISTRY", "run", "helper"]).confinedShare, 1);
+});
+
+test("attributeChurn on no edits reports zero rather than dividing by it", () => {
+  const churn = attributeChurn([], ["REGISTRY"]);
+  assert.equal(churn.edits, 0);
+  assert.equal(churn.confinedShare, 0);
+  assert.deepEqual(churn.constructs, []);
+});
 
 test("simulateWaves grows a wave while landings stay disjoint and closes on the first clash", () => {
   const waves = simulateWaves([

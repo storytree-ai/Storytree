@@ -42,6 +42,7 @@ import { writeFileSync } from "node:fs";
 import { createPool, closePool } from "@storytree/library/store";
 import {
   STRICT,
+  attributeChurn,
   forgiveOnly,
   marginalRanking,
   measure as measureWidth,
@@ -49,18 +50,82 @@ import {
   type ArcUnits,
   type ForgivePolicy,
   type Kind,
+  type SurfaceEdit,
   type Unit,
 } from "../src/lane-width.js";
 
 const repoRoot = process.argv[2];
-const outFile = process.argv[3];
-if (!repoRoot || !outFile) {
+const attributeAt = process.argv.indexOf("--attribute");
+const attributeFile = attributeAt > 0 ? process.argv[attributeAt + 1] : undefined;
+const outFile = attributeFile ? undefined : process.argv[3];
+if (!repoRoot || (!outFile && !attributeFile)) {
   console.error("usage: measure-lane-width.ts <repoRoot> <out.json>");
+  console.error("       measure-lane-width.ts <repoRoot> --attribute <path> [construct ...]");
   process.exit(2);
 }
 
 const git = (...a: string[]): string =>
   execFileSync("git", ["-C", repoRoot, ...a], { encoding: "utf8", maxBuffer: 512 * 1024 * 1024 });
+
+// ------------------------------------------- 0. (opt-in) WITHIN-surface churn attribution
+// Needs no store, so it runs before the pool opens. `marginalRanking` says which surfaces cost
+// width; this says whether a given one is FIXABLE, which is the question ADR-0341 D4/D5 answered
+// for `node-build.test.ts` and `commands.ts` by sampling hunks by hand.
+if (attributeFile) {
+  const fence = process.argv.slice(attributeAt + 2).filter((a) => !a.startsWith("--"));
+  const hashes = git("log", "--no-merges", "--format=%H", "--", attributeFile)
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  const edits: SurfaceEdit[] = [];
+  for (const hash of hashes) {
+    let text: string;
+    try {
+      text = git("show", `${hash}:${attributeFile}`);
+    } catch {
+      continue; // the path did not exist under this name at this commit
+    }
+    const diff = git("show", hash, "--format=", "--unified=0", "--", attributeFile);
+    const addedLines: number[] = [];
+    let n = 0;
+    for (const raw of diff.split("\n")) {
+      const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
+      if (hunk) {
+        n = Number(hunk[1]);
+        continue;
+      }
+      if (raw.startsWith("+++") || raw.startsWith("---")) continue;
+      if (raw.startsWith("+")) {
+        if (raw.slice(1).trim() !== "") addedLines.push(n);
+        n++;
+      }
+    }
+    edits.push({ hash, text, addedLines });
+  }
+
+  const churn = attributeChurn(edits, fence);
+  const share = (x: number) => `${(x * 100).toFixed(1)}%`;
+  console.log(`${attributeFile} — ${churn.edits} non-merge commits\n`);
+  console.log(`${"construct".padEnd(44)} ${"commits".padStart(8)} ${"share".padStart(7)} ${"+lines".padStart(7)}`);
+  for (const c of churn.constructs.slice(0, 25))
+    console.log(
+      `${c.construct.padEnd(44)} ${String(c.commits).padStart(8)} ${share(c.share).padStart(7)} ${String(c.lines).padStart(7)}`,
+    );
+  if (fence.length)
+    console.log(
+      `\nCONFINEMENT to [${fence.join(", ")}]: ${share(churn.confinedShare)} of commits touched nothing else.\n` +
+        `That is a CEILING on what removing those constructs buys, never an achieved number: the wave\n` +
+        `simulation counts whether two landings TOUCHED this file, never how many lines each added, so\n` +
+        `shrinking an edit without removing the touch buys zero measured width (ADR-0341 D6).`,
+    );
+  process.exit(0);
+}
+
+// The attribution mode always exits above, so the report path from here on has its out file.
+if (!outFile) {
+  console.error("usage: measure-lane-width.ts <repoRoot> <out.json>");
+  process.exit(2);
+}
 
 // ---------------------------------------------------------------- 1. the store
 type Row = { id: string; doc: Record<string, unknown> };

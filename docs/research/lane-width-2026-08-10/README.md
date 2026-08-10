@@ -241,9 +241,9 @@ two sessions authoring two different nodes collided there even when nothing else
 The list was redundant with the story specs — authoring a node's spec IS its registration (ADR-0057
 keystone A) — so it is derived from disk now and the file holds no list to append to.
 
-`commands.ts` was NOT touched: its churn is diffuse across a 3,507-line dispatch module (sampled
-hunks at lines 44, 52, 55, 89, 520, 716, 750, 773, 846, 858, 865, 1271 — no dominant append point),
-so it needs a real decomposition rather than a surgical fix.
+`commands.ts` was NOT touched, and 2026-08-10 measured *why* rather than leaving it at the original
+hand-sample of twelve hunks — see "Is a ranked surface fixable?" below. It was subsequently declined
+outright (ADR-0342).
 
 **A re-run cannot show history moving, and this note does not claim it does.** Instrument A reads
 landed file sets; fixing a file today cannot make yesterday's landings disjoint. What the instrument
@@ -259,6 +259,47 @@ de-registried:
 Read: had that catalogue been append-safe for the whole measured period, the factory's own landings
 would have offered 21.9% instead of 19.1%. The forward reading — landings authored *after* the fix —
 is the parked `measure-lane-width-after-brief` increment, and only time supplies it.
+
+---
+
+## Is a ranked surface fixable? — churn attribution and confinement (ADR-0342)
+
+The marginal ranking says which surfaces **cost** width. It cannot say which are **fixable**, and the
+two come apart: `node-build.test.ts` was fixable because 81% of its churn was one hardcoded list,
+while `commands.ts` ranks beside it and has no such construct. That was first judged by sampling
+hunks by hand, which is the weakest step in the ranking, so it is a reading now:
+
+```
+tsx packages/cli/scripts/measure-lane-width.ts <repoRoot> --attribute <path> [construct ...]
+```
+
+For every non-merge commit touching the path, it rebuilds the file's top-level construct map **from
+that commit's own blob** (lines move) and buckets each added line under the construct containing it.
+Ranking is by **commits touched, not lines added** — a three-line wiring edit conflicts exactly as
+hard as a three-hundred-line one. It opens no store.
+
+**CONFINEMENT** is the deciding statistic: the share of a surface's commits that touched *nothing
+outside* a proposed fix's blast radius — the commits that would stop touching the file at all.
+
+| surface | fence | confinement |
+|---|---|---|
+| `node-build.test.ts` | `deps` (held the hardcoded list) | **88.6%** of 132 commits |
+| `commands.ts` | derive `run` + `CLI_OPTIONS` + imports | **31.0%** of 129 commits |
+| `commands.ts` | …plus every help renderer, `RunDeps`, and all nine library/artifact bodies | **59.7%** |
+
+`commands.ts` churn concentrates in the dispatcher (`run` 74.4%, imports 70.5%) and then runs out
+into a tail of ~40 constructs, none above 8%. Extracting everything a reasonable person would extract
+still leaves 40% of commits touching the file, against a modelled +1.7% that assumes 100%.
+
+**Confinement is a CEILING, never an achievement** — the same discipline as the counterfactual above,
+for the same reason. The wave simulation counts whether two landings *touched* a file, never how many
+lines each added, so **shrinking an edit without removing the touch buys zero measured width**. It is
+also why composing `CLI_OPTIONS` from per-module fragments would buy nothing: the CLI has exactly one
+strict `parseArgs` (`commands.ts:2330`) running before dispatch across 31 areas, so a single place
+must enumerate every flag, and per-module composition relocates that place rather than removing it.
+
+Caveat: attribution is at top-level-construct grain, so a fix that splits a construct *internally* is
+invisible to it. That grain was chosen because it is the grain at which code moves between files.
 
 ---
 
