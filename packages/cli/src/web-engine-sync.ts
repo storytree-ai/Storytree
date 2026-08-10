@@ -76,11 +76,19 @@ export const ENGINE_PACKAGES: readonly EnginePackage[] = [CORE_PACKAGE, R3F_PACK
 
 /** Drop a file from the sync set — test files (node:test, `node:` imports) and
  *  declaration maps never ship to the browser bundle. `.tsx` is included so R3F
- *  component layers in sibling packages (e.g. forest-world-r3f) are also synced. */
+ *  component layers in sibling packages (e.g. forest-world-r3f) are also synced.
+ *
+ *  `*-fixture.ts` is dropped on the SAME ground as `*.test.ts`, and the distinction
+ *  is naming, not nature: a shared test fixture extracted OUT of a `.test.ts` file so
+ *  two suites can share it is still test scaffolding, and shipping it would put dead
+ *  data in the public bundle. Nothing production-side may import one — that is what
+ *  makes the drop safe, and it is asserted in the sibling test. */
 export function isEngineSource(file: string): boolean {
   return (file.endsWith(".ts") || file.endsWith(".tsx"))
     && !file.endsWith(".test.ts")
     && !file.endsWith(".test.tsx")
+    && !file.endsWith("-fixture.ts")
+    && !file.endsWith("-fixture.tsx")
     && !file.endsWith(".d.ts");
 }
 

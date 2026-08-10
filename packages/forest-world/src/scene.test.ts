@@ -34,6 +34,7 @@ import {
   type SceneVegHeroTrees,
   type GardenHeroId,
 } from './scene.js';
+import { BASE_TRAILS, isle, legacyInput, shippedInput, shippedTerritory } from './scene-fixture.js';
 
 // ---------- traversal helpers ----------
 
@@ -67,18 +68,12 @@ function mustByKind(n: SceneNode, kind: string): SceneNode {
 
 // ---------- fixtures ----------
 
-// Trail fixtures are ROUTED, not hand-forged: real `routeTrails` output on tiny island
-// sets (its own invariants are pinned in routing.test.ts). Computed once at module
-// load — routeTrails is a pure function, so sharing the instance is safe.
-const isle = (id: string, x: number, y: number, r: number): TrailIsland => ({ id, x, y, r });
-
-// one unobstructed edge, matching the default territories (library → cli)
-const BASE_ISLANDS = [isle('library', 100, 200, 60), isle('cli', 300, 60, 50)];
-const BASE_TRAILS = routeTrails(
-  BASE_ISLANDS,
-  [{ from: 'library', to: 'cli', title: 'cli depends on library' }],
-  'scene-fixture',
-);
+// The SHARED default (`scene-fixture.ts`) is shipped-map-shaped: `relaxedCells` non-null AND every
+// capability-bearing territory carrying `parcels`, because that is what the studio sends. A test that
+// wants the WEBSITE's absence render asks for it BY NAME (`legacyInput` / `withoutParcels`) rather
+// than getting it by writing nothing — the inversion is the whole point of the shared fixture.
+const mkTerritory = shippedTerritory;
+const mkInput = shippedInput;
 
 // two near-parallel edges into one destination — the reuse discount merges a trunk
 const MERGE_TRAILS = routeTrails(
@@ -98,53 +93,32 @@ for (let k = 0; k < 8; k++) {
 }
 const CAVE_TRAILS = routeTrails(CAVE_ISLANDS, [{ from: 'A', to: 'B' }], 'scene-cave');
 
-function mkTerritory(over: Partial<SceneTerritoryInput> = {}): SceneTerritoryInput {
-  return {
-    id: 'library',
-    status: 'healthy',
-    caps: 3,
-    centroid: { x: 100, y: 200 },
-    radius: 60,
-    treeSpot: { x: 100, y: 190 },
-    labelY: 260,
-    coastPaths: ['M 0 0 L 10 0 L 10 10 Z'],
-    decor: [{ x: 80, y: 180, seed: 7 }],
-    plants: [{ id: 'library#cap-a', status: 'healthy', x: 90, y: 205, title: 'cap a — proven' }],
-    treeTitle: 'library — healthy',
-    wisps: [],
-    claims: [],
-    plate: { w: 120, h: 33, rx: 7, idY: 14, subY: 27, idText: 'library', subText: 'healthy · 3 caps', title: 'The library' },
-    ...over,
-  };
-}
+// ---------- the shared default IS the shipped map (render-fixtures-default-to-the-shipped-map) ----------
+//
+// The red→green pin for the fixture inversion. Before the shared default carried `parcels`, this
+// assertion could not be written honestly: `mkInput()` rendered the conifer decor + the
+// one-plant-per-cap ring and NO `parcel-flora` at all, which is the public website's art — not
+// anything the studio map has drawn since forest-parcels inc 1 landed. Its mirror below pins the
+// named opt-out still reaching the legacy path, so the lock is preserved, not weakened.
 
-function mkInput(over: Partial<SceneInput> = {}): SceneInput {
-  return {
-    offset: { x: 300, y: 400 },
-    width: 1200,
-    height: 1600,
-    empties: [
-      { q: 0, r: 0 },
-      { q: 1, r: 0 },
-    ],
-    relaxedCells: [
-      { owner: 0, poly: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }], variant: 1, wheat: false },
-      { owner: 0, poly: [{ x: 5, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 5 }], variant: 2, wheat: true },
-      { owner: 1, poly: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }], variant: 0, wheat: false },
-    ],
-    drawTiles: [
-      { h: { q: 0, r: 0 }, owner: 0 },
-      { h: { q: 1, r: 0 }, owner: 1 },
-    ],
-    wheatSets: [new Set(['0,0']), new Set()],
-    trails: BASE_TRAILS,
-    territories: [
-      mkTerritory(),
-      mkTerritory({ id: 'cli', caps: 2, centroid: { x: 300, y: 60 }, treeSpot: { x: 300, y: 50 }, plants: [], decor: [] }),
-    ],
-    ...over,
-  };
-}
+test('the SHARED DEFAULT fixture renders the SHIPPED map: parcel flora, not the retired conifer + plant ring', () => {
+  const layer = mustByKind(buildScene(mkInput()), 'flora-layer');
+  assert.ok(
+    allByKind(layer, 'parcel-flora').length > 0,
+    'the default fixture must grow the capability-parcel flora the studio map actually draws',
+  );
+  assert.equal(firstByKind(layer, 'conifer'), null, 'the decorative conifers are retired on a parcels island');
+  assert.equal(firstByKind(layer, 'flora'), null, 'the one-plant-per-cap ring is retired on a parcels island');
+});
+
+test('the NAMED opt-out still reaches the website render — omission is no longer how you get there', () => {
+  const layer = mustByKind(buildScene(legacyInput()), 'flora-layer');
+  assert.equal(firstByKind(layer, 'parcel-flora'), null, 'no parcel flora once the parcels are named away');
+  assert.ok(firstByKind(layer, 'conifer'), 'the conifer decor returns on the absence path');
+  assert.ok(firstByKind(layer, 'flora'), 'the one-plant-per-cap ring returns on the absence path');
+  // and the opt-out is exactly the parcel gate — the substrate gate stays open.
+  assert.ok(firstByKind(buildScene(legacyInput()), 'ground-mesh'));
+});
 
 // ---------- determinism ----------
 
@@ -181,10 +155,19 @@ test('buildScene roots an offset world group with the layers in canonical order'
 test('mesh ground groups cells by owner; hex ground emits a group per tile', () => {
   const mesh = buildScene(mkInput());
   const ground = mustByKind(mesh, 'ground-mesh');
-  // two owners with cells → two territory groups; owner 0 has a wheat + a variant cell.
+  // two owners with cells → two territory groups.
   assert.equal(allByKind(ground, 'ground').length, 2);
-  assert.equal(allByKind(ground, 'cell-wheat').length, 1);
-  assert.equal(allByKind(ground, 'cell').length, 2);
+  // On the SHIPPED default the capability parcels sub-partition owner 0's cells and re-tint them by
+  // CAP status, so all three cells are plain `cell`s: the WHEAT vocabulary is a parcels-ABSENT
+  // drawable, and this test now says which fixture it is asserting about.
+  assert.equal(allByKind(ground, 'cell-wheat').length, 0);
+  assert.equal(allByKind(ground, 'cell').length, 3);
+
+  // the website's mesh (parcels named away) — owner 0 has a wheat + a variant cell.
+  const websiteGround = mustByKind(buildScene(legacyInput()), 'ground-mesh');
+  assert.equal(allByKind(websiteGround, 'ground').length, 2);
+  assert.equal(allByKind(websiteGround, 'cell-wheat').length, 1);
+  assert.equal(allByKind(websiteGround, 'cell').length, 2);
 
   const hex = buildScene(mkInput({ relaxedCells: null }));
   const hexGround = mustByKind(hex, 'ground-hex');

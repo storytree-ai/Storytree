@@ -23,6 +23,7 @@ import { neighbourHighlightPlan } from './neighbourHighlight.js';
 import { laneLayout } from './laneLayout.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 import { SceneView, litLaneWidth, laneDrawSeconds, type SceneCtx } from './SceneView.js';
+import { shippedCtx, shippedTerritory, withoutParcels, withoutSpriteSheet } from './scene-fixture.js';
 
 afterEach(cleanup);
 
@@ -93,8 +94,13 @@ function mkInput(
     drawTiles: [],
     wheatSets: [new Set()],
     trails: mkTrails(),
+    // SHIPPED-MAP SHAPED (`render-fixtures-default-to-the-shipped-map`): `relaxedCells` non-null AND
+    // the island carrying the `parcels` the studio sends for every capability-bearing story. Both
+    // gates must be open or this fixture renders the public WEBSITE's art — conifer decor + the
+    // one-plant-per-cap ring — which the studio map has not drawn since forest-parcels inc 1.
+    // `withoutParcels` is the named way back to that render.
     territories: [
-      {
+      shippedTerritory({
         id: 'lib',
         status: 'healthy',
         caps: 2,
@@ -119,9 +125,31 @@ function mkInput(
         ],
         ...(departures ? { departures } : {}),
         plate: { w: 60, h: 33, rx: 7, idY: 14, subY: 27, idText: 'lib', subText: 'healthy · 2 caps', title: 'Library' },
-      },
+      }),
     ],
   };
+}
+
+/** The SHIPPED map's ctx for this file: `shippedCtx`'s defaults (an `artStyle` sprite sheet is
+ *  present, because the clean-URL studio always resolves one) plus this suite's focus class, legend
+ *  filter and spies. */
+function mkCtx(over: Partial<SceneCtx> = {}): SceneCtx {
+  return shippedCtx({
+    territoryClassById: (id, status) => `hex-territory st-${status}${id === 'lib' ? ' is-focus' : ''}`,
+    hidden: new Set(['unhealthy']),
+    onSelectStory: vi.fn(),
+    onSelectCap: vi.fn(),
+    ...over,
+  });
+}
+
+function mountScene(input: SceneInput, ctx: SceneCtx): { root: HTMLElement; ctx: SceneCtx } {
+  const { container } = render(
+    <svg>
+      <SceneView scene={buildScene(input)} ctx={ctx} />
+    </svg>,
+  );
+  return { root: container, ctx };
 }
 
 function renderScene(
@@ -135,26 +163,60 @@ function renderScene(
   root: HTMLElement;
   ctx: SceneCtx;
 } {
-  const ctx: SceneCtx = {
-    territoryClassById: (id, status) => `hex-territory st-${status}${id === 'lib' ? ' is-focus' : ''}`,
-    reveal: null,
-    hidden: new Set(['unhealthy']),
-    onSelectStory: vi.fn(),
-    onSelectCap: vi.fn(),
-    ...over,
-  };
-  const { container } = render(
-    <svg>
-      <SceneView
-        scene={buildScene(mkInput(wispPhase, claimState, claimGrade, departures, claimPhase))}
-        ctx={ctx}
-      />
-    </svg>,
+  return mountScene(mkInput(wispPhase, claimState, claimGrade, departures, claimPhase), mkCtx(over));
+}
+
+/**
+ * The public WEBSITE's render, asked for BY NAME: `parcels` stripped (so the conifer decor and the
+ * one-plant-per-cap ring come back) and no sprite sheet (so every object draws its procedural vector
+ * body). This is exactly what {@link renderScene} used to produce by DEFAULT — every assertion that
+ * moved here is one that was pinning art the studio map no longer draws.
+ */
+function renderWebsiteScene(over: Partial<SceneCtx> = {}): { root: HTMLElement; ctx: SceneCtx } {
+  const input = mkInput();
+  return mountScene(
+    { ...input, territories: input.territories.map(withoutParcels) },
+    withoutSpriteSheet(mkCtx(over)),
   );
-  return { root: container, ctx };
 }
 
 describe('SceneView — the studio scene mapper', () => {
+  // ---- the shared default IS the shipped map (`render-fixtures-default-to-the-shipped-map`) ----
+  //
+  // The red→green pins for the fixture inversion. Neither could be written honestly before: the old
+  // default rendered the public WEBSITE's art — no `parcels` on the island and no `spriteSheet` key in
+  // the ctx at all — so a green assertion here was evidence about a path the studio map has not drawn
+  // since forest-parcels inc 1 and the 2026-07-23 storybook attestation respectively. Their mirrors
+  // pin the named opt-out still reaching the legacy render, so neither absence lock is weakened.
+
+  it('the SHARED DEFAULT input is SHIPPED-MAP shaped — parcel ground + flora, not the retired ring', () => {
+    const { root } = renderScene();
+    expect(root.querySelector('.parcel')).toBeTruthy();
+    expect(root.querySelector('.parcel-flora')).toBeTruthy();
+    expect(root.querySelector('.garden-flora')).toBeNull(); // the one-plant-per-cap ring is retired
+    expect(root.querySelector('.conifer-body')).toBeNull(); // so is the decorative conifer decor
+  });
+
+  it('the SHARED DEFAULT ctx is SHIPPED-MAP shaped — the tree resolves THROUGH the sprite sheet', () => {
+    // `renderNode` consults `trySprite` BEFORE the generic path and returns its own `<image>` without
+    // recursing, so on the real map a covered object never reaches the vector branch. A ctx with no
+    // `spriteSheet` cannot observe that at all — which is how a growth transform written only on the
+    // generic path shipped doing nothing for every sheet-covered object.
+    const { root } = renderScene();
+    expect(root.querySelector('.story-tree')?.tagName.toLowerCase()).toBe('image');
+    expect(root.querySelector('g.story-tree')).toBeNull();
+    expect(root.querySelector('.story-trunk')).toBeNull();
+  });
+
+  it('the NAMED opt-out still reaches the website + vector render — omission is no longer the route', () => {
+    const { root } = renderWebsiteScene();
+    expect(root.querySelector('.garden-flora')).toBeTruthy();
+    expect(root.querySelector('.conifer-body')).toBeTruthy();
+    expect(root.querySelector('.parcel-flora')).toBeNull();
+    expect(root.querySelector('.story-tree')?.tagName.toLowerCase()).toBe('g');
+    expect(root.querySelector('.story-trunk')).toBeTruthy();
+  });
+
   it('is React.memo-wrapped so a pan (identical scene + ctx) skips the O(nodes) re-walk (ADR-0069)', () => {
     // Pan perf rests on this: a pointermove pans by moving the parent camera <g>, re-rendering
     // TreeView; because TreeView hands stable `scene` + `ctx` identities, memo bails out here and the
@@ -223,13 +285,26 @@ describe('SceneView — the studio scene mapper', () => {
 
   it('maps roles to the studio classes, folding status + variant', () => {
     const { root } = renderScene();
+    // the central tree keeps its class hooks through the sprite swap the shipped sheet performs.
     expect(root.querySelector('.story-tree.st-healthy')).toBeTruthy();
-    // mesh cells carry their variant / wheat class.
+    // the shipped ground: each capability's cells wrapped in its own transparent `parcel` group and
+    // tinted by the CAP's status, not the island's.
+    expect(root.querySelector('.parcel.st-unhealthy')).toBeTruthy();
+    expect(root.querySelector('.relaxed-cell.st-unhealthy')).toBeTruthy();
+    // ... and the capability's land grows the themed parcel flora.
+    expect(root.querySelector('.parcel-flora.theme-meadow.st-unhealthy')).toBeTruthy();
+  });
+
+  it('maps the WEBSITE vocabulary too — the parcels-absent, vector art asked for BY NAME', () => {
+    const { root } = renderWebsiteScene();
+    // mesh cells carry their variant / wheat class (a parcel re-tint drops both).
     expect(root.querySelector('.relaxed-cell.v-1')).toBeTruthy();
     expect(root.querySelector('.relaxed-cell.is-wheat')).toBeTruthy();
     // conifer colour band = seed % 3 (5 % 3 = 2).
     expect(root.querySelector('.conifer-body.c-2')).toBeTruthy();
-    // the human-witness signpost (blank, unsigned).
+    // the human-witness signpost (blank, unsigned) — a CHILD of the tree wrapper, so a sprite swap
+    // discards it and only this vector fixture can see it. See the sprite-swap note above
+    // `renderWebsiteScene`.
     expect(root.querySelector('.story-sign.sign-blank')).toBeTruthy();
   });
 
@@ -238,9 +313,16 @@ describe('SceneView — the studio scene mapper', () => {
     // the island group folds in territoryClassById (focus) ...
     const terr = root.querySelector('.hex-flora');
     expect(terr?.classList.contains('is-focus')).toBe(true);
-    // ... and a hidden status wears is-filtered (unhealthy is filtered here).
-    expect(root.querySelector('.garden-flora.st-unhealthy.is-filtered')).toBeTruthy();
+    // ... and a visible status never wears is-filtered.
     expect(root.querySelector('.story-tree')?.classList.contains('is-filtered')).toBe(false);
+  });
+
+  it('the legend status filter reaches the WEBSITE plant ring', () => {
+    // `withFilter` composes `is-filtered` for the `flora` (one-plant-per-cap) kind. NOTE: it does NOT
+    // reach `parcel-flora`, so on the shipped map a filtered capability's land keeps drawing — a gap
+    // this fixture change surfaced, deliberately NOT pinned here in either direction.
+    const { root } = renderWebsiteScene();
+    expect(root.querySelector('.garden-flora.st-unhealthy.is-filtered')).toBeTruthy();
   });
 
   it('renders the generous per-story hit rect at the BACK — transparent, behind the flora', () => {
@@ -428,14 +510,20 @@ describe('SceneView — the studio scene mapper', () => {
     expect(departing.querySelector('.bloom-ring, .bloom-spark, .bloom-crown, .bloom-plant')).toBeNull();
   });
 
-  it('selects the story on an island click; selects the capability on a plant click (stopping propagation)', () => {
+  it('selects the story on an island click', () => {
     const onSelectStory = vi.fn();
-    const onSelectCap = vi.fn();
-    const { root } = renderScene({ onSelectStory, onSelectCap });
+    const { root } = renderScene({ onSelectStory });
     fireEvent.click(root.querySelector('.hex-flora')!);
     expect(onSelectStory).toHaveBeenCalledWith('lib');
+  });
 
-    onSelectStory.mockClear();
+  it('selects the capability on a plant click (stopping propagation) — the WEBSITE plant ring', () => {
+    // `handlersFor` wires `onSelectCap` on the `flora` kind ONLY. The shipped map retires that ring
+    // for a parcels island and its `parcel` groups carry no handler, so this route is reachable only
+    // on the absence path — which is why the fixture that exercises it now says so by name.
+    const onSelectStory = vi.fn();
+    const onSelectCap = vi.fn();
+    const { root } = renderWebsiteScene({ onSelectStory, onSelectCap });
     fireEvent.click(root.querySelector('.garden-flora')!);
     expect(onSelectCap).toHaveBeenCalledWith('lib', 'lib#c');
     expect(onSelectStory).not.toHaveBeenCalled(); // stopPropagation
@@ -871,10 +959,13 @@ describe('SceneView — the UAT marker flowers (forest-parcels inc 2; grounded-a
   });
 });
 
-// sprite-art-sheets spike: a default-off render mode that re-skins a covered wrapper node as an
-// `<image>` from a sprite STYLE SHEET instead of drawing its procedural vector body. Hand-built minimal
-// `SceneNode` fixtures (SceneView takes a `SceneNode` directly — no need to route through buildScene)
-// keep each case isolated to exactly the wrapper kind under test.
+// sprite-art-sheets: the render mode that re-skins a covered wrapper node as an `<image>` from a
+// sprite STYLE SHEET instead of drawing its procedural vector body. NOT default-off — an absent
+// `artStyle` has resolved to the owner-attested `storybook` sheet since 2026-07-23
+// (`apps/studio/src/lib/worldSettings.ts`), so the clean-URL map always has one; `vector` is the
+// explicit opt-out. The cases below deliberately drive a sheet PER TEST rather than through the shared
+// fixture: hand-built minimal `SceneNode` fixtures (SceneView takes a `SceneNode` directly — no need
+// to route through buildScene) keep each case isolated to exactly the wrapper kind under test.
 describe('SceneView — the sprite art-style render mode', () => {
   function baseCtx(spriteSheet?: SpriteStyleSheet | null): SceneCtx {
     return {
