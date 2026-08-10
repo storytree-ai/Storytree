@@ -28,12 +28,29 @@
  * `packages/notice-board/src/claim.ts` from `noticeboard-claim-ledger-arc`, which is the arc's
  * whole subject.
  *
+ * THE MARGINAL RANKING (added 2026-08-10). The owner directed that the registry surfaces be made
+ * dispatch-safe before any dispatcher is built, which asks WHICH of them — two of the nine must not
+ * be touched at all (`knowledge.json` is already deleted; `pnpm-lock.yaml` is a lockfile). So the
+ * same simulation is re-run forgiving exactly ONE surface at a time, over a baseline that already
+ * forgives what is gone, and each surface's contribution is measured rather than assumed.
+ *
  * Read-only: opens the live store, reads git, writes one report file. Run:
  *   pnpm --filter @storytree/cli exec tsx scripts/measure-lane-width.ts <repoRoot> <out.json>
  */
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { createPool, closePool } from "@storytree/library/store";
+import {
+  STRICT,
+  forgiveOnly,
+  marginalRanking,
+  measure as measureWidth,
+  storyKeys,
+  type ArcUnits,
+  type ForgivePolicy,
+  type Kind,
+  type Unit,
+} from "../src/lane-width.js";
 
 const repoRoot = process.argv[2];
 const outFile = process.argv[3];
@@ -100,7 +117,6 @@ const filesFor = (n: number): string[] | null => {
 };
 
 // ---------------------------------------------------------------- 3. units (one landing = one unit)
-type Unit = { arc: string; incs: string[]; date: string; prs: number[]; files: Set<string> };
 const byArc = new Map<string, Map<string, Unit>>();
 const dropped = { nonNumericPr: 0, unresolvedPr: 0, emptyFileSet: 0 };
 
@@ -148,110 +164,87 @@ for (const files of prFiles.values())
 const nPr = prFiles.size;
 const REGISTRY = new Set([...globalFreq].filter(([, n]) => n / nPr >= 0.05).map(([f]) => f));
 
-const isRecord = (f: string) => f.endsWith(".md") || f.endsWith(".json");
-const isSource = (f: string) => /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py|rs|css|scss|sql|sh|ya?ml|toml)$/.test(f);
-/** per-arc hot RECORDS only — ledgers and decision docs, never the arc's authored source */
-const arcRecords = (units: Unit[]): Set<string> => {
-  const c = new Map<string, number>();
-  for (const u of units) for (const f of u.files) if (isRecord(f)) c.set(f, (c.get(f) ?? 0) + 1);
-  return new Set([...c].filter(([, n]) => n >= 3 && n / units.length >= 1 / 3).map(([f]) => f));
-};
-
 // ---------------------------------------------------------------- 5. instrument A
-/** ADR-0332 D4 — measured, never re-derived here. Beyond 4 lanes the tax is unmeasured. */
-const SPEEDUP = (k: number): number => (k <= 1 ? 1 : k === 2 ? 1.31 : k === 3 ? 1.59 : 1.84);
-const DISPATCH_CAP = 4;
-type Kind = "build" | "authoring" | "registry-only";
-const classify = (own: string[]): Kind =>
-  own.length === 0 ? "registry-only" : own.some(isSource) ? "build" : "authoring";
+const arcsSince = (since?: string): ArcUnits[] =>
+  arcNames.map((arc) => ({ arc, units: ordered(arc, since) })).filter((a) => a.units.length > 0);
 
-function measure(since: string | undefined, want: (k: Kind) => boolean, forgive = true) {
-  const sizes: number[] = [];
-  let units = 0, unitsWide = 0, serial = 0, batched = 0, registryOnly = 0;
-  const serialisers = new Map<string, number>();
-  const perArc: Array<{ arc: string; units: number; waves: number; maxWave: number; shareWide: number }> = [];
-
-  for (const arc of arcNames) {
-    const all = ordered(arc, since);
-    if (!all.length) continue;
-    const recs = arcRecords(all);
-    // STRICT mode forgives nothing: it is the floor, the width available with no merge
-    // coordination at all. The gap between it and the default is the price of consolidation.
-    const forgiven = (f: string) => forgive && (REGISTRY.has(f) || recs.has(f));
-
-    const kept: Array<{ u: Unit; own: string[] }> = [];
-    for (const u of all) {
-      const own = [...u.files].filter((f) => !forgiven(f));
-      const k = classify(own);
-      // a unit whose whole file set is registry has no own surface: it would be disjoint from
-      // everything and join any wave for free. Excluded, and counted.
-      if (k === "registry-only") { registryOnly++; continue; }
-      if (want(k)) kept.push({ u, own });
-    }
-    if (!kept.length) continue;
-
-    const waves: Array<{ n: number; blockedBy: string[] }> = [];
-    let curN = 0, curF = new Set<string>();
-    for (const { own } of kept) {
-      const clash = own.filter((f) => curF.has(f));
-      if (curN > 0 && clash.length) {
-        waves.push({ n: curN, blockedBy: clash.slice(0, 3) });
-        curN = 0; curF = new Set();
-      }
-      curN++;
-      for (const f of own) curF.add(f);
-    }
-    if (curN) waves.push({ n: curN, blockedBy: [] });
-
-    units += kept.length;
-    for (const w of waves) {
-      sizes.push(w.n);
-      if (w.n >= 2) unitsWide += w.n;
-      let rem = w.n;
-      serial += rem;
-      while (rem > 0) { const x = Math.min(rem, DISPATCH_CAP); batched += x / SPEEDUP(x); rem -= x; }
-      for (const f of w.blockedBy) serialisers.set(f, (serialisers.get(f) ?? 0) + 1);
-    }
-    const wide = waves.filter((w) => w.n >= 2).reduce((a, w) => a + w.n, 0);
-    perArc.push({ arc, units: kept.length, waves: waves.length, maxWave: Math.max(...waves.map((w) => w.n)), shareWide: wide / kept.length });
-  }
-
-  const dist = new Map<number, number>();
-  for (const s of sizes) dist.set(s, (dist.get(s) ?? 0) + 1);
-  const ss = sizes.slice().sort((a, b) => a - b);
-  return {
-    units, waves: sizes.length, registryOnlyExcluded: registryOnly,
-    mean: units / sizes.length, median: ss[Math.floor(ss.length / 2)],
-    wavesGe2: sizes.filter((s) => s >= 2).length,
-    shareWavesGe2: sizes.filter((s) => s >= 2).length / sizes.length,
-    shareUnitsInWideWave: unitsWide / units,
-    dist: [...dist].sort((a, b) => a[0] - b[0]),
-    stragglerAdjustedSpeedup: serial / batched,
-    arcsWithWideWave: perArc.filter((a) => a.maxWave >= 2).length,
-    arcsCounted: perArc.length,
-    topSerialisers: [...serialisers].sort((a, b) => b[1] - a[1]).slice(0, 10),
-    perArc: perArc.sort((a, b) => b.shareWide - a.shareWide || b.units - a.units),
-  };
-}
+/** the published readings: STRICT forgives nothing (the floor), FULL is registries + arc records */
+const FULL: ForgivePolicy = { surfaces: REGISTRY, arcRecords: true };
+const measure = (since: string | undefined, want: (k: Kind) => boolean, forgive = true) =>
+  measureWidth(arcsSince(since), want, forgive ? FULL : STRICT);
 
 // ---------------------------------------------------------------- 6. instrument B
-const storyKeys = (files: Set<string>): Set<string> => {
-  const s = new Set<string>();
-  for (const f of files) {
-    let m = /^stories\/([^/]+)\/story\.md$/.exec(f);
-    if (m) { s.add(m[1]!); continue; }
-    m = /^apps\/studio\/data\/seed-kinds\/[^/]+\/([^_/]+)__/.exec(f);
-    if (m) s.add(m[1]!);
-  }
-  return s;
-};
 const allUnits = arcNames.flatMap((a) => ordered(a));
 const bRows = allUnits.map((u) => ({ arc: u.arc, pr: u.prs.join("+"), lanes: storyKeys(u.files).size }));
 const bWith = bRows.filter((r) => r.lanes >= 1);
 const bDist = new Map<number, number>();
 for (const r of bWith) bDist.set(r.lanes, (bDist.get(r.lanes) ?? 0) + 1);
 
-// ---------------------------------------------------------------- 7. report
+// ------------------------------------------------- 7. the marginal ranking (owner-directed, 08-10)
+/**
+ * Already gone, so it belongs in the BASELINE and not in the ranking: forgiving it does not describe
+ * work anyone still has to do. ADR-0302 D1 deleted it on 2026-08-04; it only appears among the nine
+ * because the measurement spans history.
+ */
+const ALREADY_FIXED = ["apps/studio/data/knowledge.json"];
+const CANDIDATES = [...REGISTRY].filter((f) => !ALREADY_FIXED.includes(f)).sort();
+const todayBase = forgiveOnly(ALREADY_FIXED.filter((f) => REGISTRY.has(f)));
+
+/**
+ * Surfaces this repo has since DE-REGISTRIED — the per-lane rows that made them collide are gone, so
+ * two lanes touching the same concern no longer edit the same file.
+ *
+ * Read the `programme` reading below as a COUNTERFACTUAL, not as an after-the-fact re-measurement.
+ * Instrument A reads landed history, and fixing a file today cannot make yesterday's landings
+ * disjoint — so a plain re-run necessarily reports the same numbers it did before. What the
+ * counterfactual says is: had these surfaces been append-safe for the whole measured period, the
+ * factory's own landings would have offered this much width. The forward reading — landings authored
+ * AFTER the fix — is the parked `measure-lane-width-after-brief` increment, and only time supplies it.
+ */
+const DE_REGISTRIED = [
+  // the hardcoded REAL-buildable catalogue, derived from the story specs instead (2026-08-10).
+  // 127 of the 157 commits that ever touched this file edited that one list.
+  "packages/cli/src/node-build.test.ts",
+];
+
+const marginal = {
+  $comment:
+    "Marginal width per registry surface. `baseline` already forgives the surfaces ALREADY_FIXED " +
+    "(knowledge.json, deleted 2026-08-04), so a delta here is width that work still to be done " +
+    "would unlock. deltaShareWavesGe2 = fix this one alone; costOfOmittingShareWavesGe2 = fix every " +
+    "candidate but this one. They disagree exactly when surfaces clash together.",
+  alreadyFixed: ALREADY_FIXED,
+  candidates: CANDIDATES,
+  build: marginalRanking(arcsSince(), (k) => k === "build", CANDIDATES, todayBase),
+  all: marginalRanking(arcsSince(), () => true, CANDIDATES, todayBase),
+  build_since_2026_08_04: marginalRanking(
+    arcsSince("2026-08-04"),
+    (k) => k === "build",
+    CANDIDATES,
+    todayBase,
+  ),
+  /** registries WITHOUT the per-arc record forgiveness, to show how the published 34.4% splits */
+  registriesOnly: {
+    build: measureWidth(arcsSince(), (k) => k === "build", forgiveOnly(REGISTRY)),
+    all: measureWidth(arcsSince(), () => true, forgiveOnly(REGISTRY)),
+  },
+  /** the counterfactual for what has ACTUALLY been de-registried — see DE_REGISTRIED above */
+  programme: {
+    deRegistried: DE_REGISTRIED,
+    build: measureWidth(
+      arcsSince(),
+      (k) => k === "build",
+      forgiveOnly([...ALREADY_FIXED.filter((f) => REGISTRY.has(f)), ...DE_REGISTRIED]),
+    ),
+    all: measureWidth(
+      arcsSince(),
+      () => true,
+      forgiveOnly([...ALREADY_FIXED.filter((f) => REGISTRY.has(f)), ...DE_REGISTRIED]),
+    ),
+  },
+};
+
+// ---------------------------------------------------------------- 8. report
 const report = {
   generated: { repoRoot, head: git("rev-parse", "HEAD").trim() },
   meta: {
@@ -279,6 +272,7 @@ const report = {
     dist: [...bDist].sort((a, b) => a[0] - b[0]),
     widest: bWith.slice().sort((a, b) => b.lanes - a.lanes).slice(0, 12),
   },
+  marginal,
 };
 writeFileSync(outFile, JSON.stringify(report, null, 2));
 
@@ -291,4 +285,19 @@ for (const [name, m] of Object.entries(report.A)) {
   console.log(`   dist: ${m.dist.map(([a, b]) => `${a}:${b}`).join(" ")}   speedup: ${m.stragglerAdjustedSpeedup.toFixed(3)}x`);
 }
 console.log(`\nB: ${report.B.landingsSpanningGe2Stories}/${report.B.touchingStoryGrain} story-touching landings spanned >=2 stories; ${report.B.latentLanesCollapsed} latent lanes collapsed into serial passes`);
+
+for (const [name, r] of [
+  ["build", marginal.build],
+  ["all", marginal.all],
+  ["build since 2026-08-04", marginal.build_since_2026_08_04],
+] as const) {
+  console.log(`\nMARGINAL — ${name}   baseline (already-fixed forgiven) ${pct(r.baseline.shareWavesGe2)} -> all candidates ${pct(r.together.shareWavesGe2)}`);
+  console.log(`   ${"surface".padEnd(44)} ${"touched".padStart(8)} ${"blocks".padStart(7)} ${"+alone".padStart(8)} ${"-if skipped".padStart(12)}`);
+  for (const s of r.surfaces)
+    console.log(`   ${s.surface.padEnd(44)} ${`${s.touchedBy} (${pct(s.shareOfLandings)})`.padStart(8)} ${String(s.wavesBlocked).padStart(7)} ${pct(s.deltaShareWavesGe2).padStart(8)} ${pct(s.costOfOmittingShareWavesGe2).padStart(12)}`);
+}
+console.log(`\nregistries only (no per-arc records): build ${pct(marginal.registriesOnly.build.shareWavesGe2)}  all ${pct(marginal.registriesOnly.all.shareWavesGe2)}`);
+console.log(`PROGRAMME (counterfactual — surfaces actually de-registried: ${DE_REGISTRIED.join(", ") || "none"})`);
+console.log(`   build ${pct(marginal.build.baseline.shareWavesGe2)} -> ${pct(marginal.programme.build.shareWavesGe2)}   all ${pct(marginal.all.baseline.shareWavesGe2)} -> ${pct(marginal.programme.all.shareWavesGe2)}`);
+
 console.log(`\nwrote ${outFile}`);
