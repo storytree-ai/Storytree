@@ -305,6 +305,124 @@ export function blockersUnder(
   return out;
 }
 
+/**
+ * ── WITHIN a ranked surface: is its churn CONFINED to something a fix can remove? ──────────────
+ *
+ * `marginalRanking` says which surfaces cost width. It cannot say whether any of them is FIXABLE,
+ * and those are different questions: ADR-0341 D4 de-registried `node-build.test.ts` because 81% of
+ * its churn was one hardcoded list, while D5 left `commands.ts` open because its churn looked
+ * diffuse — a judgement made by sampling twelve hunks by hand. This attributes a surface's churn to
+ * the top-level construct each edit landed in, so that judgement is a reading instead.
+ *
+ * The statistic that decides it is CONFINEMENT: the share of a surface's edits that touched nothing
+ * outside a proposed fix's blast radius. Those are the edits that would stop touching the file at
+ * all. It is the ceiling on what a fix can capture, and it is what makes the two cases comparable —
+ * `node-build.test.ts` confines to one construct, `commands.ts` does not.
+ *
+ * Confinement is a CEILING and never an achieved number, for the same reason ADR-0341 D6 gives: the
+ * lane-width simulation counts whether two landings TOUCHED a file, never how many lines each
+ * added. So a fix that shrinks a surface's per-command wiring without removing the touch buys
+ * exactly zero measured width.
+ */
+
+/** One commit's edit to a single surface: the file as it stood AFTER the commit, and what it added. */
+export type SurfaceEdit = {
+  readonly hash: string;
+  /** the surface's full text at this commit — the construct map is rebuilt per commit, since lines move */
+  readonly text: string;
+  /** 1-based line numbers, in the POST-image, of the lines this commit added */
+  readonly addedLines: readonly number[];
+};
+
+export type ConstructChurn = {
+  readonly construct: string;
+  /** edits that touched this construct at all */
+  readonly commits: number;
+  readonly lines: number;
+  /** `commits` as a share of all edits to the surface */
+  readonly share: number;
+};
+
+export type ChurnAttribution = {
+  readonly edits: number;
+  readonly constructs: readonly ConstructChurn[];
+  /** share of edits touching ONLY `confinedTo` — the ceiling on what removing those constructs buys */
+  readonly confinedShare: number;
+  readonly confinedTo: readonly string[];
+};
+
+const IMPORT_LINE = /^(import\s|}\s*from\s|export\s+\*\s|export\s*\{)/;
+const TOP_DECL =
+  /^(?:export\s+)?(?:declare\s+)?(?:default\s+)?(?:async\s+)?(?:function|const|let|var|class|interface|type|enum)\s+([A-Za-z0-9_$]+)/;
+
+/** Bucket for anything above the first declaration, and for the import block. */
+export const IMPORTS = "(imports)";
+
+/**
+ * Line → enclosing top-level construct, 1-based. Column-0 declarations only: a nested helper is
+ * churn IN its enclosing construct, which is the grain a fix would move.
+ */
+export const constructLines = (text: string): readonly string[] => {
+  const src = text.split("\n");
+  const out: string[] = new Array<string>(src.length + 1).fill(IMPORTS);
+  let cur = IMPORTS;
+  for (let i = 0; i < src.length; i++) {
+    const line = src[i] ?? "";
+    const decl = TOP_DECL.exec(line);
+    if (decl) cur = decl[1]!;
+    else if (IMPORT_LINE.test(line)) cur = IMPORTS;
+    out[i + 1] = cur;
+  }
+  return out;
+};
+
+/**
+ * Attribute a surface's churn to constructs, and report what share of it a fix bounded by
+ * `confinedTo` would remove. Ranked by edits touched, since a three-line wiring edit conflicts
+ * exactly as hard as a three-hundred-line one.
+ */
+export function attributeChurn(
+  edits: readonly SurfaceEdit[],
+  confinedTo: Iterable<string> = [],
+): ChurnAttribution {
+  const fence = new Set(confinedTo);
+  const commits = new Map<string, Set<string>>();
+  const lines = new Map<string, number>();
+  let confined = 0;
+
+  for (const edit of edits) {
+    const map = constructLines(edit.text);
+    const touched = new Set<string>();
+    for (const n of edit.addedLines) {
+      const c = map[n] ?? IMPORTS;
+      touched.add(c);
+      lines.set(c, (lines.get(c) ?? 0) + 1);
+    }
+    for (const c of touched) {
+      const seen = commits.get(c) ?? new Set<string>();
+      seen.add(edit.hash);
+      commits.set(c, seen);
+    }
+    if (touched.size > 0 && [...touched].every((c) => fence.has(c))) confined++;
+  }
+
+  const constructs = [...commits.entries()]
+    .map(([construct, seen]) => ({
+      construct,
+      commits: seen.size,
+      lines: lines.get(construct) ?? 0,
+      share: edits.length ? seen.size / edits.length : 0,
+    }))
+    .sort((a, b) => b.commits - a.commits || b.lines - a.lines);
+
+  return {
+    edits: edits.length,
+    constructs,
+    confinedShare: edits.length ? confined / edits.length : 0,
+    confinedTo: [...fence],
+  };
+}
+
 /** Story-grain lanes a single landing collapsed into a serial pass — instrument B, confound-free. */
 export const storyKeys = (files: Iterable<string>): Set<string> => {
   const s = new Set<string>();
