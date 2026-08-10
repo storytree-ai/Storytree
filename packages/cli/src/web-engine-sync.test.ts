@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   CORE_PACKAGE,
   ENGINE_DIR,
+  ENGINE_PACKAGES,
   R3F_PACKAGE,
   bannerFor,
   computeSyncPlan,
@@ -29,6 +33,54 @@ test("isEngineSource keeps browser sources, drops tests / decls / non-ts", () =>
   assert.equal(isEngineSource("scene.test.ts"), false);
   assert.equal(isEngineSource("scene.d.ts"), false);
   assert.equal(isEngineSource("README.md"), false);
+  // A shared test fixture extracted OUT of a `.test.ts` so two suites can use it is
+  // still test scaffolding: dead data in the public bundle if synced. Naming differs
+  // from `.test.ts`; nature does not.
+  assert.equal(isEngineSource("scene-fixture.ts"), false);
+  assert.equal(isEngineSource("scene-fixture.tsx"), false);
+  // The drop is by SUFFIX, so a production module that merely mentions the word is kept.
+  assert.equal(isEngineSource("fixture-loader.ts"), true);
+});
+
+// THE PROPERTY THAT MAKES THE `-fixture.ts` DROP SAFE, asserted against the REAL tree
+// rather than assumed: a dropped file is absent from the web bundle, so if any file we
+// DO sync imported one, the site would fail to resolve it at build time. `.test.ts` has
+// always been safe by construction (nothing production imports a test); `-fixture.ts` is
+// only safe by discipline, so the discipline is pinned here.
+//
+// Deliberately a real-repo read, not an in-memory fixture: an in-memory case would prove
+// the assertion's shape and nothing about this repo, which is the whole point.
+test("no SYNCED engine source imports a `-fixture` module", () => {
+  const repoRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+  const offenders: string[] = [];
+  let scanned = 0;
+
+  for (const pkg of ENGINE_PACKAGES) {
+    const srcDir = path.join(repoRoot, ...pkg.srcDir.split("/"));
+    let files: string[];
+    try {
+      files = readdirSync(srcDir);
+    } catch {
+      continue; // package not present in this checkout — the sync gate reports that itself
+    }
+    for (const file of files.filter(isEngineSource)) {
+      scanned += 1;
+      const source = readFileSync(path.join(srcDir, file), "utf8");
+      if (/from\s+["'][^"']*-fixture(?:\.js)?["']/.test(source)) {
+        offenders.push(`${pkg.srcDir}/${file}`);
+      }
+    }
+  }
+
+  // Non-vacuity: if this ever scans nothing, the assertion below is free and would
+  // silently stop meaning anything — the failure mode this whole arc exists to fence.
+  assert.ok(scanned > 0, "scanned no engine sources — the guard would be vacuous");
+  assert.deepEqual(
+    offenders,
+    [],
+    "a synced engine source imports a `-fixture` module, which is dropped from the web bundle — " +
+      "move the shared data into a synced module, or stop syncing the importer",
+  );
 });
 
 test("computeSyncPlan syncs only engine sources, stamped + sorted under ENGINE_DIR", () => {
