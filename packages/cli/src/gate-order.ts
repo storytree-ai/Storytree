@@ -508,7 +508,7 @@ export const RETIRED_TEST_COMPANIONS: ReadonlyMap<string, RetiredCompanion> = ne
     {
       of: "check-surface-coverage.ts",
       role: "repo-coupled",
-      cost: "nothing — it joins a FIXTURE process tier to the real root `package.json`, so removing a script it names (`pnpm db:up`, `pnpm --filter desktop start`) reds it, but every assertion is about the retired loader's own classification rather than about the repo",
+      cost: "little, but no longer nothing — most of it joins a FIXTURE process tier to the real root `package.json`, so removing a script it names (`pnpm db:up`, `pnpm --filter desktop start`) reds it. Since the prescriptive-command axis landed, one test also derives the MOUNTED COMMAND REGISTER from the real `packages/cli/src` and asserts both directions over it: that today's verbs resolve, and that the three Library verbs PR #1148 deleted do not. That is the non-vacuity control for the derivation — delete it and the axis can silently stop recognising anything while its fixture tests stay green",
     },
   ],
   [
