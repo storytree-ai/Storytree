@@ -151,6 +151,15 @@ automerge: #1265 6.1 min, #1266 7.7 min, #1264 17.0 min (that one carried an unr
 D6 and ADR-0334 D4(c) both said landings serialise; here that is not a caveat but half the wall clock.
 Amdahl does the rest — a 32-minute serial tail caps a three-lane fan-out at 1.71× no matter how
 perfectly the build phase parallelises, and **the tail grows with N while the build saving does not.**
+*(Corrected in place 2026-08-11 per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) — the 32.3 min figure
+and the 1.71× above stand, but this inference does not:
+[ADR-0345](0345-the-landing-tail-is-one-ci-job-its-biggest-step-is-read-ampl.md) D3 found the tail's
+serialism was THIS RUN'S CHOICE — it opened each PR only after the previous one merged — not a
+property of N. The factory already lands PRs concurrently elsewhere — across 45 recent merged PRs there
+are 19 overlapping open→merged PAIRS spanning 17 distinct PRs, and #1228–#1231 were opened within 74
+seconds of each other and all four merged inside one 9-minute window. Landed that way the tail is
+roughly flat in N, and this ADR's 1.71× becomes ≈2.8×.)*
 
 The 1.71× assumes the serial baseline also opens three PRs. If a serial session instead landed all
 three increments in ONE PR — which ADR-0340 D1's instrument explicitly collapses to a single landing,
@@ -244,9 +253,18 @@ test, not the presence of evidence.
 phase is already near its ceiling — 30.3 min against a 29.4 min critical path, so a perfect scheduler
 would save under a minute. The serial landing tail is 32.3 minutes, it is half the end-to-end wall
 clock, and it GROWS with N while the build saving does not. A fourth or fifth lane therefore buys
-progressively less and costs progressively more tail. Anyone proposing a dispatcher should be asked
+progressively less and costs progressively more tail. *(Corrected in place 2026-08-11 per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) — "GROWS with N" and
+the sentence it carries do not hold:
+[ADR-0345](0345-the-landing-tail-is-one-ci-job-its-biggest-step-is-read-ampl.md) D3 found the growth
+was a serialisation choice (opening each PR only after the previous merged), not a constraint, and a
+fourth or fifth lane costs no more tail once lanes land concurrently, which the factory already does
+elsewhere.)* Anyone proposing a dispatcher should be asked
 why they are not instead shortening the landing phase, which pays out in ordinary serial work too —
-the same argument ADR-0341 D4 made for the `node-build.test.ts` de-registry.
+the same argument ADR-0341 D4 made for the `node-build.test.ts` de-registry. *(That question was asked
+and answered: [ADR-0345](0345-the-landing-tail-is-one-ci-job-its-biggest-step-is-read-ampl.md)
+shortened it — D2 cut `check:agents` from 30.6 s to 13.5 s locally, D3 removed the serial constraint —
+turning this ADR's 1.71× into ≈2.8×.)*
 
 Accepted knowingly: the 3.1% rests on a modelled baseline and a per-lane onboarding price carried
 over from ADR-0332 D2 rather than re-derived; a serial arm would settle both and was deliberately not
