@@ -126,6 +126,12 @@ is a lockfile resolved by re-running install), and `CLAUDE.md`, `AGENTS.md`, `Tr
 > per-module fragments relocates the collision rather than removing it. The decomposition is
 > declined on the measurement, and with it ADR-0340's whole nine-surface registry path is exhausted.
 
+**Corrected in place, 2026-08-10 (ADR-0139):**
+[ADR-0343](0343-the-cli-command-register-is-one-capability-and-stays-one-uni.md) subsequently records
+that this decline is architectural as well as economic — the register is one capability by ownership
+(ADR-0192's landlord rule), not by size — so this fork cannot be reopened by any future measurement
+either.
+
 **D6 — A RE-RUN CANNOT SHOW HISTORY MOVING, AND NO CLAIM THAT IT DOES WILL BE MADE.** Instrument A
 reads landed file sets. Fixing a file today cannot make yesterday's landings disjoint, so re-running
 the instrument after a fix necessarily reports the same numbers. What it reports instead is a
