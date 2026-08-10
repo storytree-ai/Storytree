@@ -11,3 +11,4 @@
 export * from "./store.js";
 export * from "./store-wire.js";
 export * from "./http-store.js";
+export * from "./snapshot-store.js";

@@ -27,6 +27,7 @@ import { fileURLToPath } from "node:url";
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 
 import { openCorpusStore } from "@storytree/drive";
+import { snapshotReads } from "@storytree/storage-protocol";
 import { renderAgentDigest } from "@storytree/library/store";
 import {
   renderCodexGuidance,
@@ -88,8 +89,13 @@ async function main(): Promise<void> {
   // `fail()`, which exits the process (taking the pool with it), and an unexpected throw lands in
   // main()'s catch and exits the same way.
   const corpus = await openCorpusStore("build:guidance");
-  const res = await renderAgentDigest(corpus.store, AGENT);
-  const definitionDocs = await corpus.store.queryDocs({ kind: "definition" });
+  // One read-only snapshot, for the same two reasons as build-agents.ts (ADR-0345): each distinct
+  // document costs one round trip, and the pass reads a single instant, so a sibling's live artifact
+  // edit cannot land mid-read and be reported as drift. Much smaller amplification here than in the
+  // agents loop — one digest, not fifty renders — so the win is consistency more than latency.
+  const store = snapshotReads(corpus.store);
+  const res = await renderAgentDigest(store, AGENT);
+  const definitionDocs = await store.queryDocs({ kind: "definition" });
   await corpus.close();
 
   if (!res.ok) fail(`${res.reason} (agents: ${res.available.join(", ") || "none"})`);
