@@ -2481,6 +2481,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (isClaimHistoryVerb(sub)) {
       const auditStore = deps.presence?.ledger ?? null;
       const auditHistory = auditStore?.auditHistory;
+      // The LIVE-ROW cross-check. Without it the hold-span fold can only ever reach
+      // `unverified`, so the `cleared` rendering — the half that makes the ~205 spans with
+      // no closing transition legible rather than merely un-asserted — would be built,
+      // tested, and dormant in production. A dormant mechanism is indistinguishable from a
+      // working one from the outside, which is the exact class this arc exists to fence.
+      const claimsFor = auditStore?.claimsFor;
       return claimHistoryCommand(
         third,
         {
@@ -2494,7 +2500,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         {
           history:
             auditHistory !== undefined
-              ? { auditHistory: (query) => auditHistory.call(auditStore, query) }
+              ? {
+                  auditHistory: (query) => auditHistory.call(auditStore, query),
+                  ...(claimsFor !== undefined
+                    ? { claimsFor: (unitId: string) => claimsFor.call(auditStore, unitId) }
+                    : {}),
+                }
               : null,
           now: () => new Date(),
         },

@@ -37,15 +37,29 @@ const AUDIT_ROWS: ClaimAuditRow[] = [
 
 interface FakeAudit extends ClaimHistoryStoreLike {
   queries: ClaimAuditQuery[];
+  /** Units the dispatch actually cross-checked against live rows — the wiring's own witness. */
+  liveReads: string[];
 }
 
 /**
- * The audit half only. The ledger verbs are stubbed to THROW: if the dispatch ever routed `history`
- * through them, the test would fail loudly rather than pass on a coincidentally similar render.
+ * The audit half, plus the live-row read the `--holdings` fold cross-checks against. The
+ * claim-TAKING verbs are stubbed to THROW: if the dispatch ever routed `history` through one, the
+ * test would fail loudly rather than pass on a coincidentally similar render.
+ *
+ * `claimsFor` used to throw too, on the invariant "history reads the audit log, never the live claim
+ * rows". That invariant was DELIBERATELY reversed by `holdings-fold-distinguishes-cleared-from-held`:
+ * the fold cannot tell a cleared row from a held one without looking, and the whole defect was that
+ * it asserted a live holder it had never checked. Reading is now the point — so this records which
+ * units were read, and `live` says what the check finds. Empty (the default) is the interesting
+ * case: a `claimed` row with no `released` event and NO live row is exactly the ~205-span shape.
  */
-function fakeAudit(rows: ClaimAuditRow[] = AUDIT_ROWS): FakeAudit & ClaimLedgerStoreLike {
+function fakeAudit(
+  rows: ClaimAuditRow[] = AUDIT_ROWS,
+  live: ClaimDocT[] = [],
+): FakeAudit & ClaimLedgerStoreLike {
   const self = {
     queries: [] as ClaimAuditQuery[],
+    liveReads: [] as string[],
     async auditHistory(query: ClaimAuditQuery): Promise<ClaimAuditRow[]> {
       self.queries.push(query);
       return rows;
@@ -62,8 +76,9 @@ function fakeAudit(rows: ClaimAuditRow[] = AUDIT_ROWS): FakeAudit & ClaimLedgerS
     async release(): Promise<boolean> {
       throw new Error("history must never reach a claim-taking path");
     },
-    async claimsFor(): Promise<ClaimDocT[]> {
-      throw new Error("history reads the audit log, never the live claim rows");
+    async claimsFor(unitId: string): Promise<ClaimDocT[]> {
+      self.liveReads.push(unitId);
+      return live.filter((doc) => doc.unitId === unitId);
     },
   };
   return self;
@@ -128,6 +143,47 @@ test("noticeboard history --holdings renders the hold-span view through the disp
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /Hold spans \(/);
   assert.equal(audit.queries[0]?.type, undefined, "--holdings is a view, not a filter");
+});
+
+// THE WIRING ITSELF, in both directions. The fold can only distinguish a cleared row from a held one
+// if the dispatch hands it the live-row read; without that it degrades to `unverified` and the
+// `cleared` rendering is built-but-dormant. Only the CLI can prove the dep is actually constructed —
+// drive's own suite proves what the fold does once it HAS the read, and cannot see whether anything
+// passed it one. These two tests are the reason the dispatch dep is not shipped untested.
+test("--holdings CROSS-CHECKS the live row: an unclosed span with no live row reads CLEARED", async () => {
+  const audit = fakeAudit(); // no live rows — the ~205-span shape
+  const env = await run(["noticeboard", "history", "--holdings"], depsWith(audit));
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(audit.liveReads, ["cli"], "the dispatch must pass claimsFor, and read the unit");
+  assert.ok(
+    env.body.includes("cleared — no closing transition recorded"),
+    `expected the CLEARED rendering, got:\n${env.body}`,
+  );
+  assert.ok(
+    !env.body.includes("still held"),
+    "a row that is gone must never render as a live hold — the whole defect",
+  );
+});
+
+test("--holdings renders STILL HELD only when the live row is actually there", async () => {
+  const audit = fakeAudit(AUDIT_ROWS, [
+    {
+      unitId: "cli",
+      sessionId: "wt-first",
+      grade: "work",
+      branch: "claude/first",
+      intent: "the gate runner",
+      claimedAt: "2026-08-04T02:00:00.000Z",
+      heartbeatAt: "2026-08-04T02:05:00.000Z",
+    },
+  ]);
+  const env = await run(["noticeboard", "history", "--holdings"], depsWith(audit));
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(audit.liveReads, ["cli"]);
+  assert.ok(
+    env.body.includes("still held — live row confirmed"),
+    `expected the CONFIRMED hold rendering, got:\n${env.body}`,
+  );
 });
 
 test("noticeboard history --days all lifts the window (the flag reaches the parser, not parseArgs)", async () => {
