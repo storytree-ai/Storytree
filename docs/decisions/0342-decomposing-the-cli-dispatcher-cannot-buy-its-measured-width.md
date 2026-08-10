@@ -92,7 +92,12 @@ Those are user-visible CLI behaviours the brief for this work explicitly ruled o
 whole remaining registry prize is 1.115× → 1.145× straggler-adjusted; `node-build.test.ts` banked
 1.115× → 1.121×; both CLI surfaces together would reach about 1.13×. `commands.ts` is therefore worth
 about **+0.009× at its 100% ceiling**, and 31–60% of that in practice — under half a percent of wall
-clock, bought by rewriting the CLI's entry path. That does not clear any bar the arc has.
+clock, bought by rewriting the CLI's entry path. That does not clear any bar the arc has. **Corrected
+in place, 2026-08-10 (ADR-0139):** that framing was economic only —
+[ADR-0343](0343-the-cli-command-register-is-one-capability-and-stays-one-uni.md) records that the
+decomposition was never architecturally available in the first place (the register is one capability,
+owned by `cli`, per ADR-0192's landlord rule), so no future measurement — more or less favourable —
+can reopen it.
 
 **D5 — THE REGISTRY PATH IS EXHAUSTED, AND THAT IS THE REAL CONSEQUENCE.** With this decline, all nine
 of ADR-0340's surfaces are resolved: one already deleted, one fixed, six declined on the measurement,
@@ -138,6 +143,10 @@ with ADR-0341 D6, no claim is made that any number moved: nothing was fixed here
 
 ## References
 
+- ADR-0343 — amends this ADR (`amends: [342]`): this ADR's measurements stand and are untouched, but
+  its decline read as economic alone; ADR-0343 records that the decomposition was never
+  architecturally available regardless of cost, so no future measurement can revive it. Corrected in
+  place above (D4).
 - ADR-0341 — the ranking that produced this fork. **Amended here** (`amends: [341]`): it stays current
   in full, but its D5 left `commands.ts` as an open owner fork and that fork now has an answer. Its
   D1–D4 and D6 are untouched, and its "the owner should see the new number before spending more on it"

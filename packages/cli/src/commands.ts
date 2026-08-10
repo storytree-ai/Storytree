@@ -1,3 +1,23 @@
+/**
+ * The CLI command register — `cli#unified-command-dispatch`, ONE capability (ADR-0343).
+ *
+ * This file is large and is touched by nearly every verb the factory gains. That is a composition
+ * root doing its job, not a defect in it, and **it is not to be decomposed** — see ADR-0343 D1.
+ * The question has been raised and settled three times (ADR-0340 named it, ADR-0341 ranked it,
+ * ADR-0342 measured it, ADR-0343 fenced it); please do not re-open it.
+ *
+ * The distinction that matters (ADR-0343 D2): **one unit may live in many files; many files do not
+ * make many units.** Splitting code out across files is free and already normal here — this module
+ * already imports 39 per-command modules. What is refused is giving those pieces separate dispatch,
+ * separate argument parsing, or separate ownership in the work hierarchy. Nine stories reach their
+ * verb through this one register, and one owner per path is ADR-0192's landlord rule.
+ *
+ * What IS permitted, and arguably owed (ADR-0343 D4): the inline library/artifact command bodies
+ * below still hold domain logic, which this capability's own spec forbids — "the shim holds no
+ * domain logic; every verb forwards into the organism that owns it". Moving them into the owning
+ * organism is spec conformance. Do it for that reason; it buys no measurable lane width
+ * (ADR-0342 D2/D3).
+ */
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
