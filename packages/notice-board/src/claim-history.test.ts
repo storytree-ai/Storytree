@@ -5,7 +5,9 @@ import {
   CLAIM_REFUSED_TYPE,
   foldHoldings,
   foldRefusals,
+  resolveHoldingLiveness,
   summarizeClaimHistory,
+  unverifiedHoldingUnits,
   type ClaimAuditRow,
 } from "./claim-history.js";
 
@@ -90,8 +92,8 @@ test("foldHoldings: a refusal is NOT a hold — the refused session's only span 
   // And the first session's work span is still open at the end of the log.
   const first = holdings.filter((h) => h.sessionId === "wt-first");
   assert.equal(first.length, 1);
-  assert.equal(first[0]?.stillHeld, true);
-  assert.equal(first[0]?.durationMs, 60 * 60_000, "held from 02:00 to the supplied now (03:00)");
+  assert.equal(first[0]?.close, "unverified", "no close in the log is not evidence of a live hold");
+  assert.equal(first[0]?.durationMs, 60 * 60_000, "open at 02:00, bounded by the supplied now (03:00)");
 });
 
 test("summarizeClaimHistory: the incident's shape — 1 refusal on 1 unit, 2 sessions", () => {
@@ -119,7 +121,7 @@ test("foldHoldings: a closed span carries the real duration and what closed it",
   assert.equal(holdings.length, 1);
   assert.equal(holdings[0]?.durationMs, 45 * 60_000);
   assert.equal(holdings[0]?.closedBy, "released");
-  assert.equal(holdings[0]?.stillHeld, false, "a closed span must never read as still held");
+  assert.equal(holdings[0]?.close, "closed", "a recorded close is ground truth");
 });
 
 test("foldHoldings: a grade change reads as TWO adjacent spans, not one blurred one", () => {
@@ -150,8 +152,8 @@ test("foldHoldings: two sessions on the same unit never blur into one span", () 
   const a = holdings.find((h) => h.sessionId === "wt-a");
   const b = holdings.find((h) => h.sessionId === "wt-b");
   assert.equal(a?.durationMs, 20 * 60_000);
-  assert.equal(a?.stillHeld, false);
-  assert.equal(b?.stillHeld, true, "wt-b's exploring row was never released");
+  assert.equal(a?.close, "closed");
+  assert.equal(b?.close, "unverified", "wt-b's exploring row carries no close — and no verdict");
 });
 
 test("foldHoldings: rows out of `at`/seq order still fold correctly — seq is the total order", () => {
@@ -191,6 +193,88 @@ test("foldHoldings: an unknown transition type is neither open nor close, and br
 
 test("foldHoldings: empty in → empty out, and no clock read of its own", () => {
   assert.deepEqual(foldHoldings([], NOW), { holdings: [], unmatchedCloses: 0 });
+});
+
+// ---------------------------------------------------------------------------
+// Liveness — the fold may not assert a holder it has not checked
+// ---------------------------------------------------------------------------
+
+/**
+ * The increment `holdings-fold-distinguishes-cleared-from-held`. The fold used to carry a
+ * `stillHeld` boolean set from the ABSENCE of a `released` row, which is unsound: the branch-merge
+ * machine-clear, stale expiry and a direct row delete all delete `events.node_claim` while writing
+ * no transition at all. Measured 2026-08-06 the two instruments disagreed on the same unit in the
+ * same window (`history whoami` said `33d (still held)`, `claims whoami` said `No claims`), and
+ * ~205 of the log's first-40-days spans sit in that shape.
+ */
+const UNCLOSED: ClaimAuditRow[] = [
+  row(1, "whoami", "claimed", "wt-ghost", "2026-08-04T01:00:00.000Z", claimDoc("wt-ghost", "work")),
+  row(2, "cli", "claimed", "wt-live", "2026-08-04T02:00:00.000Z", claimDoc("wt-live", "work")),
+];
+
+test("foldHoldings: an unclosed span is `unverified` — the log ALONE may never say `held`", () => {
+  const { holdings } = foldHoldings(UNCLOSED, NOW);
+  assert.equal(holdings.length, 2);
+  assert.ok(
+    holdings.every((h) => h.close === "unverified"),
+    "the audit log cannot distinguish a live hold from a silently-cleared row, so it declares neither",
+  );
+});
+
+test("resolveHoldingLiveness: an observed live row is `held`, a missing one is `cleared`", () => {
+  const fold = foldHoldings(UNCLOSED, NOW);
+  const resolved = resolveHoldingLiveness(fold, {
+    holders: [{ unitId: "cli", sessionId: "wt-live" }],
+    units: ["cli", "whoami"],
+  });
+  const byUnit = (id: string) => resolved.holdings.find((h) => h.unitId === id);
+  assert.equal(byUnit("cli")?.close, "held", "the only state allowed to read as a live hold");
+  assert.equal(byUnit("whoami")?.close, "cleared", "cleared by a path that wrote no transition");
+  // The clearing path left no timestamp, so no duration is invented for it — the fold's bound stands.
+  assert.equal(byUnit("whoami")?.durationMs, 2 * 60 * 60_000);
+  assert.equal(byUnit("whoami")?.closedAt, null, "and no closedAt is fabricated either");
+});
+
+test("resolveHoldingLiveness: absence is evidence ONLY for the units the snapshot covers", () => {
+  // A per-unit read covers one unit. Reading "not in this list" as cleared for every OTHER unit
+  // would commit the original error in the opposite direction.
+  const resolved = resolveHoldingLiveness(foldHoldings(UNCLOSED, NOW), {
+    holders: [],
+    units: ["cli"],
+  });
+  const byUnit = (id: string) => resolved.holdings.find((h) => h.unitId === id);
+  assert.equal(byUnit("cli")?.close, "cleared", "the covered unit was looked at, and had no row");
+  assert.equal(byUnit("whoami")?.close, "unverified", "the uncovered unit was never observed");
+});
+
+test("resolveHoldingLiveness: a CLOSED span is never revisited — a recorded close outranks a snapshot", () => {
+  // A released span whose session happens to hold a NEW live row on the same unit must stay closed:
+  // the log recorded the end of THIS span, and the live row belongs to a later one.
+  const rows = [
+    row(1, "cli", "claimed", "wt-a", "2026-08-04T01:00:00.000Z", claimDoc("wt-a", "work")),
+    row(2, "cli", "released", "wt-a", "2026-08-04T01:30:00.000Z", claimDoc("wt-a", "work")),
+  ];
+  const resolved = resolveHoldingLiveness(foldHoldings(rows, NOW), {
+    holders: [{ unitId: "cli", sessionId: "wt-a" }],
+  });
+  assert.equal(resolved.holdings[0]?.close, "closed");
+  assert.equal(resolved.holdings[0]?.durationMs, 30 * 60_000);
+});
+
+test("resolveHoldingLiveness: no evidence at all leaves every span exactly as the fold left it", () => {
+  const fold = foldHoldings(UNCLOSED, NOW);
+  assert.deepEqual(resolveHoldingLiveness(fold, { holders: [], units: [] }), fold);
+});
+
+test("unverifiedHoldingUnits: exactly the units worth a live read, sorted and deduped", () => {
+  const rows = [
+    ...UNCLOSED,
+    row(3, "cli", "claimed", "wt-other", "2026-08-04T02:10:00.000Z", claimDoc("wt-other", "exploring")),
+    row(4, "library", "claimed", "wt-x", "2026-08-04T01:00:00.000Z", claimDoc("wt-x", "work")),
+    row(5, "library", "released", "wt-x", "2026-08-04T01:10:00.000Z", claimDoc("wt-x", "work")),
+  ];
+  // `library` closed cleanly, so it needs no cross-check and must not cost a query.
+  assert.deepEqual(unverifiedHoldingUnits(foldHoldings(rows, NOW)), ["cli", "whoami"]);
 });
 
 // ---------------------------------------------------------------------------
