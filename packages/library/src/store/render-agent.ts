@@ -509,37 +509,21 @@ const BODY_INJECTION_HEADER = new RegExp(
 );
 
 /**
- * The essentials size/structure + step→refs integrity gate (ADR-0156 §5 / ADR-0161 decision 5).
- * Returns the list of VIOLATIONS for one agent's rendered file (empty ⇒ passes); `build-agents.ts
- * --check` (`check:agents`, in `pnpm gate`) fails the build on any. `content` is the rendered
- * `.claude/agents/<id>.md` (frontmatter + marker + essentials prompt); `store`/`id` resolve the
- * artifact for the structured checks. Fail-closed: a non-agent / missing id is itself a violation.
+ * Checks 3 (STEP→REFS INTEGRITY) + 4 (NO UNATTACHED CONTEXT) of the essentials gate — the WIRING
+ * half, factored out because it needs only the STORED DOC, never a rendered `content` string (unlike
+ * checks 1/2 below, which are about the size/shape of a `.claude/agents/*.md` FILE specifically).
+ * This split is what lets {@link dedicatedSurfaceAgentGateViolations} hold session-orchestrator /
+ * red-builder / green-builder to the SAME wiring invariant every delegatable agent is held to,
+ * without also holding their (deliberately un-budgeted — session-orchestrator's own prose alone
+ * renders ~8.5k tokens, well over {@link ESSENTIALS_TOKEN_BUDGET}) projection surface to a token
+ * budget and body-inline shape that were measured against, and only ever meant for, the delegatable
+ * `.claude/agents/*.md` file surface (session-orchestrator-context-integrity-arc).
+ *
+ * Fail-closed like {@link essentialsGateViolations}: a non-agent / missing id, or one this
+ * checkout's schema cannot account for, is itself the one violation returned.
  */
-export async function essentialsGateViolations(
-  store: Store,
-  id: string,
-  content: string,
-): Promise<string[]> {
+async function wiringIntegrityViolations(store: Store, id: string): Promise<string[]> {
   const violations: string[] = [];
-
-  // 1. TOKEN BUDGET.
-  const tokens = estimateTokens(content);
-  if (tokens > ESSENTIALS_TOKEN_BUDGET) {
-    violations.push(
-      `${id}.md is ~${tokens} tokens (est., chars/4), over the ${ESSENTIALS_TOKEN_BUDGET}-token ` +
-        `essentials budget — a full ref body may have been inlined, or the own prose has bloated.`,
-    );
-  }
-
-  // 2. NO FULL REF BODY INLINE.
-  if (BODY_INJECTION_HEADER.test(content)) {
-    violations.push(
-      `${id}.md inlines a full ref BODY (a "### <title>  [<kind>]" injection header is present) — the ` +
-        `essentials surface renders assertions + pointers only; was renderAgentFile repointed to the ` +
-        `full-inline path?`,
-    );
-  }
-
   const stored = await store.getDoc(id);
   if (!stored || stored.kind !== "agent") {
     violations.push(`${id}: not an agent artifact — the essentials gate cannot resolve its step map.`);
@@ -548,8 +532,7 @@ export async function essentialsGateViolations(
   // Fail-closed like every other read (the seam above): an agent this checkout's schema cannot
   // account for is a VIOLATION, not something the gate waves through. Without it the gate would go on
   // checking a file rendered from fields it never saw — measuring the wrong bytes and calling them
-  // clean. Spelled out rather than routed through `loadAgentDoc` so the not-an-agent message above
-  // keeps naming the step map, which is the diagnosis a caller of THIS function needs.
+  // clean.
   const schemaRefusal = agentSchemaRefusal(stored);
   if (schemaRefusal !== null) {
     violations.push(`${id}: ${schemaRefusal}`);
@@ -589,6 +572,46 @@ export async function essentialsGateViolations(
       }
     }
   }
+
+  return violations;
+}
+
+/**
+ * The essentials size/structure + step→refs integrity gate (ADR-0156 §5 / ADR-0161 decision 5).
+ * Returns the list of VIOLATIONS for one agent's rendered file (empty ⇒ passes); `build-agents.ts
+ * --check` (`check:agents`, in `pnpm gate`) fails the build on any. `content` is the rendered
+ * `.claude/agents/<id>.md` (frontmatter + marker + essentials prompt); `store`/`id` resolve the
+ * artifact for the structured checks. Fail-closed: a non-agent / missing id is itself a violation.
+ */
+export async function essentialsGateViolations(
+  store: Store,
+  id: string,
+  content: string,
+): Promise<string[]> {
+  const violations: string[] = [];
+
+  // 1. TOKEN BUDGET.
+  const tokens = estimateTokens(content);
+  if (tokens > ESSENTIALS_TOKEN_BUDGET) {
+    violations.push(
+      `${id}.md is ~${tokens} tokens (est., chars/4), over the ${ESSENTIALS_TOKEN_BUDGET}-token ` +
+        `essentials budget — a full ref body may have been inlined, or the own prose has bloated.`,
+    );
+  }
+
+  // 2. NO FULL REF BODY INLINE.
+  if (BODY_INJECTION_HEADER.test(content)) {
+    violations.push(
+      `${id}.md inlines a full ref BODY (a "### <title>  [<kind>]" injection header is present) — the ` +
+        `essentials surface renders assertions + pointers only; was renderAgentFile repointed to the ` +
+        `full-inline path?`,
+    );
+  }
+
+  // 3 + 4 — the WIRING half (see {@link wiringIntegrityViolations}). If the doc itself doesn't
+  // resolve/validate, that single violation replaces the two size/shape checks above having anything
+  // further to say about a doc that was never read.
+  violations.push(...(await wiringIntegrityViolations(store, id)));
 
   return violations;
 }
@@ -904,4 +927,37 @@ export async function delegatableAgentIds(store: Store): Promise<string[]> {
     .map((d) => d.id)
     .filter((id) => !DEDICATED_SURFACE_AGENTS.has(id))
     .sort();
+}
+
+// ── closing the DEDICATED_SURFACE_AGENTS gate hole (session-orchestrator-context-integrity-arc) ───
+// `delegatableAgentIds()` correctly excludes DEDICATED_SURFACE_AGENTS from the per-harness FILE
+// render loop (they own a different projection surface — CLAUDE.md/AGENTS.md for session-orchestrator,
+// the SDK-leaf prompt for red-builder/green-builder — not a `.claude/agents/*.md` file). But
+// `check:agents` (build-agents.ts) discovers which ids to run the essentials gate against by walking
+// that SAME delegatable list, so the file-render exclusion silently also opted these three agents out
+// of the WIRING invariant every other agent is held to (ADR-0156 §5 / ADR-0161 decision 5) —
+// measured: session-orchestrator carried 6 unattached context refs and a stepRefs target absent from
+// context, and `pnpm gate` never saw it.
+//
+// The fix runs {@link wiringIntegrityViolations} (checks 3+4 only — see its own doc comment for why
+// NOT the full {@link essentialsGateViolations}) over the fixed DEDICATED_SURFACE_AGENTS set, BESIDE
+// the delegatable-agent loop — it does not touch `delegatableAgentIds()` or the per-harness file
+// render, so the correct file-render exclusion is unchanged, and no `.claude/agents/<id>.md` is ever
+// rendered or read for these three ids.
+
+/**
+ * The WIRING-gate violations (step→refs integrity + no-unattached-context) for every
+ * DEDICATED_SURFACE_AGENT (session-orchestrator, red-builder, green-builder) — the invariant
+ * `check:agents` already enforces on every OTHER agent, extended to the three that own a dedicated
+ * projection surface instead of a `.claude/agents/*.md` file. Deliberately does NOT run the
+ * size/body-inline checks ({@link essentialsGateViolations}'s 1/2) — those are budgeted against the
+ * delegatable-subagent FILE surface specifically and do not apply to session-orchestrator's own,
+ * much larger, CLAUDE.md/AGENTS.md prose (see {@link wiringIntegrityViolations}).
+ */
+export async function dedicatedSurfaceAgentGateViolations(store: Store): Promise<string[]> {
+  const violations: string[] = [];
+  for (const id of DEDICATED_SURFACE_AGENTS) {
+    violations.push(...(await wiringIntegrityViolations(store, id)));
+  }
+  return violations;
 }
