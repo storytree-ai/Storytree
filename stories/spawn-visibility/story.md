@@ -32,7 +32,10 @@ outcome: "During a live spawn from the desktop chat, the operator can SEE that a
 status: retired
 proof_mode: UAT
 # Per-leg witness (ADR-0106) — RE-ADJUDICATED 2026-07-26 (owner-directed corpus-wide pass, ADR-0209 D8,
-# arc model-uat-promotion). Now 6 machine / 1 human (was 4 machine / 3 human).
+# arc model-uat-promotion). Then 6 machine / 1 human (was 4 machine / 3 human). NARROWED 2026-08-11
+# (ADR-0348 D6): the one human leg — the spawn line's LEGIBILITY — is DELETED as a user EXPERIENCE
+# rather than a user ACCEPTANCE claim, leaving 6 machine / 0 human; the intent and the record that it
+# was never walkable are carried under "The spawn line's legibility".
 #   - Legs 1–4 (machine, unchanged): the typed spawn trace threaded onto the chat stream, the advisory
 #     read surviving a cold-start, the panel's spawn-line geometry, the dock→tree reload callback —
 #     machine-witnessed by the package + component suites over injected doubles + a slow injected fn.
@@ -262,9 +265,11 @@ Listed roots-first (a capability appears after everything it depends on). All fo
 (ADR-0057 — each carries a `proof:` block with a `real:` arm), so they form a dependency-closed,
 acyclic set in which every member resolves a `real:` arm — what makes the WHOLE story
 story-`real`-buildable (`isStoryBuildable`). The composed surface run live is NOT a fifth capability
-(it has no separate code); it is Story UAT legs 5–7. *(Re-adjudicated 2026-07-26: of those three, only
-leg 5 — whether the spawn line READS as a spawn happening — is human-witness. Legs 6 and 7 assert the
-presence of a map node and of a wisp: DOM/data claims with a compiler, so `machine`. The `real:` arms
+(it has no separate code); it is Story UAT legs 6–7. *(Re-adjudicated 2026-07-26: of the three legs it
+was then, only leg 5 — whether the spawn line READS as a spawn happening — was human-witness; legs 6 and
+7 assert the presence of a map node and of a wisp: DOM/data claims with a compiler, so `machine`.
+ADR-0348 D6 then DELETED leg 5 on 2026-08-11 as experience rather than acceptance, so what remains here
+is machine-only. The `real:` arms
 were subsequently dropped on retirement, so the story is no longer story-`real`-buildable — see the
 frontmatter's companion-cleanup note.)*
 
@@ -361,7 +366,8 @@ trace threading runs the REAL `startChatStream` delta-FIFO over a scripted `quer
 double; the advisory fix runs the REAL `createAdvisoryReader` over an injected slow fn; the panel/dock
 render over the REAL `api` wire shape scripted as a double. Only the SDK `query()` and the live DB
 cold-start are scripted/injected offline (ADR-0010 §5); the one irreducibly operator-attested leg is
-leg 5 (re-adjudicated 2026-07-26 — legs 6 and 7 are machine, unharnessed).
+leg 5 (re-adjudicated 2026-07-26 — legs 6 and 7 are machine, unharnessed). *(Updated 2026-08-11: ADR-0348
+D6 deleted leg 5, so NO leg here is operator-attested and every surviving leg is `machine`.)*
 
 > **HONEST status — `retired`, part-machine / part-attested.** Legs 1–4 are automatable by the package
 > + component suites (`@storytree/drive` + `apps/desktop` backend + the `studio` vitest suite) over an
@@ -371,6 +377,14 @@ leg 5 (re-adjudicated 2026-07-26 — legs 6 and 7 are machine, unharnessed).
 >
 > **Per-leg witness (ADR-0106) — RE-ADJUDICATED 2026-07-26** (owner-directed corpus-wide pass,
 > ADR-0209 D8, arc `model-uat-promotion`). **6 machine / 1 human**, was 4/3.
+>
+> **NARROWED 2026-08-11 (ADR-0348 D6): the one EXPERIENCE leg is DELETED, so the story is now 6
+> machine / 0 human.** It asked whether the spawn line is any GOOD to read, not whether the journey
+> achieved its goal — a user EXPERIENCE property, not a user ACCEPTANCE criterion. Its design intent,
+> and the record that it was never runnable, are carried under "The spawn line's legibility" above.
+> Ordinal 5 is BURNED, not reused, so the surviving legs keep the numbers they have always had and no
+> signed verdict or `(proof-gate:)` binding is silently re-pointed — which matters here because legs
+> 1–4 carry exact `proof-gate:` bindings to `#gate-1`/`#gate-2`/`#gate-3`.
 >
 > - Legs 1–4 stay `witness: machine`, each bound to the exact package observe gate that proves it:
 >   leg 1 → `spawn-visibility#gate-1`, leg 2 → `#gate-2`, legs 3–4 → `#gate-3`. Ids, positions,
@@ -385,7 +399,9 @@ leg 5 (re-adjudicated 2026-07-26 — legs 6 and 7 are machine, unharnessed).
 >   end-to-end assertion — so per ADR-0209 §6 both return to UNSTAMPED. That is correct and honest: a
 >   `machine` tag names the RIGHT KIND of witness, it does not claim the proof exists, and the owner
 >   signs nothing for them.
-> - **Leg 5 STAYS `human`**, narrowed to its irreducible core. Basis: **no compiler.** The spawn line's
+> - **Leg 5 STAYED `human`** after that pass, narrowed to its irreducible core — and was DELETED by
+>   ADR-0348 D6 on 2026-08-11, because having no compiler was never enough to make it an ACCEPTANCE
+>   claim. The reasoning it recorded is kept here as the derivation. Basis: **no compiler.** The spawn line's
 >   exact strings, their order and their arrival are leg 3's — already compiled and machine-witnessed;
 >   what has no compiler is whether the line READS as "a subagent is working right now" (an ADR-0070
 >   stage-2 appearance judgment). A **second and distinct** basis is that a live spawn is
@@ -408,6 +424,30 @@ leg 5 (re-adjudicated 2026-07-26 — legs 6 and 7 are machine, unharnessed).
 transcript as the subagent starts and finishes, and — for a story the spawn just authored — watches
 its island appear live on the forest map with its claim wisp lit, without reloading anything.
 
+### The spawn line's legibility — design intent, deliberately NOT a UAT leg (ADR-0348 D6)
+
+The appearance intent that stood as leg 5 until 2026-08-11 is recorded here so it is not lost with its
+leg. **With a real spawn running in a live transcript, the rendered spawn line should read at a glance
+as "a subagent is working RIGHT NOW"; it should stay visually distinguishable from the surrounding
+`delta` prose; and when it flips to the finished form it should read as the SAME line RESOLVING —
+never as two unrelated lines.** That last clause is the substantive one: the whole point of surfacing a
+spawn is that an operator can tell work started and then tell it finished, and a pair of lines that do
+not read as one event defeats the story's outcome even when every string is correct.
+
+Machine leg 3 pins the line's exact strings, their order and their arrival off the wire frame — and
+deliberately does not restate the reading. Under ADR-0348 D6 the reading is not an acceptance criterion:
+it is continuous owner feedback gathered through use.
+
+**This intent was never walked, and that is a RETIREMENT, not a pass.** The leg presumed the in-app
+interactive orchestrator chat, **RETIRED by ADR-0174** in favour of an embedded terminal running real
+Claude Code — *there is no in-app conversation left in which to spawn*, so the experience this intent
+describes cannot be looked at on the shipped app. `ChatDock` is likewise dormant: nothing imports or
+mounts it (`TreeView.tsx:2561`), and the callback wiring is exercised only at the component seam. Leg 5
+was never attested — no record exists — and nobody was going to attest it under the current build. The
+absence of a verdict must not later be misread as approval (ADR-0348 Consequences). *(A second, separate
+fact, recorded because it was a distinct basis on the old leg and not a judgment gap: a live spawn is
+subscription-billed and writes real files, so it was never run on a gate pass either.)*
+
 1. **The spawn trace is surfaced as an ordered chat event and still bumps the heartbeat.** _(criterion-id: uatc_bce0303470cb532601c23b58)_ _(revision-id: uatr1:76345d5c24ebaa1f)_
    _(witness: machine)_ _(proof-gate: spawn-visibility#gate-1)_ Drive `startChatStream` with a scripted `queryFn` and a scripted spawn double
    that fires `spawn_started` then `spawn_finished`. **Success —** the stream yields two non-terminal
@@ -421,12 +461,13 @@ its island appear live on the forest map with its claim wisp lit, without reload
    one retry; the other four overlay reads keep their 4s budget (a slow verdicts/activity/presence read
    still nulls at 4s — `/api/tree` never hangs); and a GENUINELY failing/absent claims read still
    returns null (the ADR-0033 advisory contract intact, never a throw).
-3. **The chat panel renders the spawn line off the wire frame.** _(witness: machine)_ _(proof-gate: spawn-visibility#gate-3)_ Render _(criterion-id: uatc_a8d191b854955d8fb93787e2)_ _(revision-id: uatr1:e0516d4d36497c41)_
+3. **The chat panel renders the spawn line off the wire frame.** _(witness: machine)_ _(proof-gate: spawn-visibility#gate-3)_ Render _(criterion-id: uatc_a8d191b854955d8fb93787e2)_ _(revision-id: uatr1:0fe22b5c420e2e8f)_ _(previous-revision-id: uatr1:e0516d4d36497c41)_
    `<ChatPanel/>` given a scripted `api` stream that emits a `spawn` frame (`phase: "started"`, role
    `story-author`) then `phase: "finished"`. **Success —** the panel's `ChatEvent` union + `isChatEvent`
    guard accept the `spawn` frame, the panel renders a "🔧 spawning story-author for `<id>`…" line that
    resolves to "✓ story-author finished", and the thin client imports no drive/agent/model
-   (`modelPathBoundary.test.ts` green). (This proves GEOMETRY/BEHAVIOUR; the on-screen look is leg 5.)
+   (`modelPathBoundary.test.ts` green). (This proves GEOMETRY/BEHAVIOUR; the on-screen look is carried
+   by no leg since ADR-0348 D6 — see "The spawn line's legibility" above.)
    *(Scope note, 2026-07-26 — the prose implied two render states; `ChatPanel.tsx:415–419` has THREE:
    `started` → "🔧 spawning `<role>` for `<id>`…", `finished` with `ok === false` → "✗ `<role>` failed",
    `finished` otherwise → "✓ `<role>` finished". This leg walks only the started→finished-ok path; the
@@ -443,21 +484,6 @@ its island appear live on the forest map with its claim wisp lit, without reload
    (`TreeView.tsx:2561` records this). The callback wiring is real and is exercised by
    `apps/studio/src/components/ChatDock.reload.test.tsx`, but ONLY at the component seam — a green
    there says nothing about the composed app, which is the detail artifact's false-pass fence.)*
-5. **Live: the spawn line READS as a spawn happening.** _(witness: human)(detail: spawn-visibility#uat-5)_ With a real _(criterion-id: uatc_31f7ba86ebc04936049e2366)_ _(revision-id: uatr1:ea706f070c802f90)_
-   spawn running in a live transcript, judge the rendered spawn line's LEGIBILITY. **Success —** the
-   operator judges the line reads at a glance as "a subagent is working right now", stays visually
-   distinguishable from the surrounding `delta` prose, and reads as RESOLVING when it flips to the
-   finished form — rather than as two unrelated lines.
-   *(Human on the NO-COMPILER basis, re-adjudicated 2026-07-26. The line's exact strings, their order
-   and their arrival are leg 3's — already compiled and machine-witnessed; this leg deliberately does
-   NOT restate them. What remains has no compiler: whether the line READS right, an ADR-0070 stage-2
-   appearance judgment. A SECOND and DISTINCT basis — recorded separately, never folded into the
-   irreducibility claim — is that a live spawn is subscription-billed and writes real files, so it is
-   not run on a gate pass; that is cost and blast radius, not "nothing could observe this".)*
-   *(Scope, 2026-07-26: UNRUNNABLE AS WRITTEN today. The leg presumed the in-app interactive
-   orchestrator chat, RETIRED by ADR-0174 for an embedded terminal running real Claude Code — there is
-   no in-app conversation left in which to spawn. Recorded, not deleted: this is a retired story kept as
-   history, and the leg stands honestly unstamped, not green.)*
 6. **The just-authored story's island is PRESENT on the map after a spawn-finished reload.** _(criterion-id: uatc_54c928ac0034b9e5f69b0644)_ _(revision-id: uatr1:485c5a00d4733238)_
    _(witness: machine)(detail: spawn-visibility#uat-6)_ With `stories/<id>/` present on disk, deliver a
    `spawn`-finished frame for a `story-author` to the composed dock+map surface and let the reload
@@ -472,7 +498,7 @@ its island appear live on the forest map with its claim wisp lit, without reload
    `proof-gate:` is bound — none of the three declared gates covers this end-to-end assertion — so per
    ADR-0209 §6 this leg returns to UNSTAMPED: correct and honest, not green. The map's LOOK, whether the
    island reads well where it lands, belongs to the map stories' appearance UAT, not to this story.)*
-7. **The fresh claim's wisp is PRESENT on the map after a >4s cold-start claims read.** _(criterion-id: uatc_e2e8f08e273621cb0bbd2346)_ _(revision-id: uatr1:ffac531178f38e3c)_
+7. **The fresh claim's wisp is PRESENT on the map after a >4s cold-start claims read.** _(criterion-id: uatc_e2e8f08e273621cb0bbd2346)_ _(revision-id: uatr1:499f32060279d8f4)_ _(previous-revision-id: uatr1:ffac531178f38e3c)_
    _(witness: machine)(detail: spawn-visibility#uat-7)_ Drive the composed overlay with an
    `inFlightClaims` read that resolves slower than the shared 4s but inside the softened budget, then
    let the first poll after the spawn land. **Success —** that poll carries the just-taken claim and the
@@ -491,10 +517,11 @@ subagent start and finish, and the map shows the new island and its lit claim wi
 the 2026-07-03 Phase-3 walk found are closed, every wall held (additive frames, heartbeat still bumps,
 thin-client wall intact, advisory null-on-failure preserved).
 
-*(Honesty note, 2026-07-26 — this end state is the AUTHORED goal, not a record of achievement. Legs 1–4
-are the only ones with bound proof; leg 5 was never attested (no record exists — see Proof below) and
-legs 6–7 are machine but unharnessed and unstamped. The story is `retired`, so this end state is kept
-as the statement of what the journey was FOR, not as a claim that it was witnessed.)*
+*(Honesty note, 2026-07-26, updated 2026-08-11 — this end state is the AUTHORED goal, not a record of
+achievement. Legs 1–4 are the only ones with bound proof; legs 6–7 are machine but unharnessed and
+unstamped. The appearance leg that stood at 5 was never attested (no record exists — see Proof below)
+and was DELETED by ADR-0348 D6, its intent carried above. The story is `retired`, so this end state is
+kept as the statement of what the journey was FOR, not as a claim that it was witnessed.)*
 
 ## Reliability Gates
 
@@ -516,10 +543,11 @@ ADR-0085 — the reliability-gate author surface). Same move proven on the `cli`
 The four caps span **three** suites, so the story declares **three** `observe` gates — one per suite —
 each `(covers:)` only the capabilities its suite genuinely exercises (ADR-0097 §5). The two studio caps
 are **two-stage** (ADR-0070): the vitest gate covers their machine GEOMETRY (the wire shape, the
-transcript render, the dock→tree reload callback); the remainder is UAT legs 5–6. *(Re-adjudicated
-2026-07-26: only leg 5 — does the spawn line READ as a spawn happening — is an APPEARANCE judgment and
-stays human. Leg 6 asserts a map node's PRESENCE, a DOM/data claim, and is now `machine`, unharnessed
-and unstamped.)* So an `observe` gate over each suite honestly covers its caps' machine
+transcript render, the dock→tree reload callback); the remainder is UAT leg 6. *(Re-adjudicated
+2026-07-26: only leg 5 — does the spawn line READ as a spawn happening — was an APPEARANCE judgment
+staying human, and ADR-0348 D6 deleted it on 2026-08-11 as experience rather than acceptance. Leg 6
+asserts a map node's PRESENCE, a DOM/data claim, and is `machine`, unharnessed and unstamped.)* So an
+`observe` gate over each suite honestly covers its caps' machine
 half — `healthy` still DERIVES from a signed verdict (ADR-0020), never authored.
 
 1. **The drive spawn-trace suite is green** _(gate: observe)_ _(covers: chat-spawn-trace-events)_
@@ -541,31 +569,35 @@ half — `healthy` still DERIVES from a signed verdict (ADR-0020), never authore
    the `ChatDock` → `TreeView.reloadTree` callback firing exactly once on a story-author finish
    (`live-story-island-refresh`), and the thin-client wall (no drive/agent import) — proven offline over
    the scripted `api` seam (studio vitest/jsdom). This is the machine GEOMETRY of the two two-stage caps
-   (UAT legs 3–4). Their remainder is legs 5–6 — leg 5 operator-attested (appearance), leg 6 `machine`
-   since the 2026-07-26 re-adjudication and covered by no gate.
+   (UAT legs 3–4). Their remainder is leg 6 — `machine` since the 2026-07-26 re-adjudication and covered
+   by no gate. *(It was legs 5–6 until ADR-0348 D6 deleted the appearance leg on 2026-08-11.)*
 
 Adopting these three gates signs one `adopted` verdict per gate (signer = the spine principal that
 witnessed the green, approvedBy = the owner adopting it) and observe-signs the four machine UAT legs
 (1–4) against their explicitly bound package suites (ADR-0106), then flips the authored status
 `mapped → proposed` ("adoption underway", ADR-0097). No single gate greens the story: `healthy` stays
 non-authorable (ADR-0020) — the crown DERIVES green once every capability is covered, every machine UAT
-leg is signed, and legs 5–7 are discharged. *(Corrected 2026-07-26: this previously read "the human
-legs 5–7 are attested (they already are)". After re-adjudication only leg 5 is human; legs 6 and 7 are
+leg is signed, and legs 6–7 are discharged. *(Corrected 2026-07-26: this previously read "the human
+legs 5–7 are attested (they already are)". After re-adjudication only leg 5 was human; legs 6 and 7 are
 `machine` and, per ADR-0209 §6, returned to UNSTAMPED with no gate bound — so they are NOT discharged,
-and no prior attestation can stand in for them. Retired story: nothing here is being driven to green.)*
+and no prior attestation can stand in for them. Updated 2026-08-11: ADR-0348 D6 deleted leg 5, so no
+attestation is owed at all and the crown turns entirely on machine verdicts. Retired story: nothing
+here is being driven to green.)*
 
 ## Proof
 
 The story carries the UAT (above); it is proven when that walkthrough passes — the offline legs (1–4)
-green under the package + backend + component suites, the appearance judgment (leg 5) operator-attested,
-and the two unharnessed machine legs (6–7) driven by some harness that does not yet exist —
-with the capabilities' integration tests and contracts green underneath. The capability/contract
+green under the package + backend + component suites, and the two unharnessed machine legs (6–7) driven
+by some harness that does not yet exist — with the capabilities' integration tests and contracts green
+underneath. *(The appearance judgment that stood at leg 5 was deleted by ADR-0348 D6 on 2026-08-11 and
+is design intent above, not a proof obligation.)* The capability/contract
 obligations are minimal-to-green (slow growth): the trace threading is an integration test over the
 real `startChatStream` FIFO with the SDK `query()` + spawn scripted; the advisory fix is isolatable
 over an injected slow fn; the panel render and the reload callback are component/behaviour tests over a
 scripted `api` seam (the studio vitest/jsdom convention). The on-screen APPEARANCE — whether the spawn
-line reads right — is the human-witness UAT leg, never a machine visual verdict (ADR-0070); the PRESENCE
-of a map node or a wisp is not appearance and is machine (legs 6–7, re-adjudicated 2026-07-26).
+line reads right — is carried by no leg since ADR-0348 D6 and is never a machine visual verdict
+(ADR-0070); the PRESENCE of a map node or a wisp is not appearance and is machine (legs 6–7,
+re-adjudicated 2026-07-26).
 
 **NO OWNER ATTESTATION WAS EVER RECORDED against any leg of this story** (verified 2026-07-26 — no row,
 no fixture, no signed UAT record; the prior "already operator-attested" wording traces to a single
@@ -580,8 +612,8 @@ re-raised and nothing is being decided.
 only ever DERIVED from signed verdicts, never authored. The four capabilities are proof-wired so the
 spine can drive their offline suites red→green (`pnpm storytree story build spawn-visibility --real`);
 the story's own machine-driven UAT node is WITHHELD (`uat_witness` absent → human, ADR-0040), and the
-crown additionally awaits leg 5's appearance attestation plus a harness for the two unstamped machine
-legs 6–7. *(Corrected 2026-07-26: this previously read "the operator's live-spawn attestation (legs
+crown additionally awaits a harness for the two unstamped machine legs 6–7 — and nothing else, since
+ADR-0348 D6 deleted the appearance leg that stood at 5. *(Corrected 2026-07-26: this previously read "the operator's live-spawn attestation (legs
 5–7)". The story is `retired` and its caps' `real:` arms are dropped, so the `story build --real`
 command quoted just above no longer applies either — kept as history.)*
 

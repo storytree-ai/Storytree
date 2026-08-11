@@ -19,6 +19,12 @@ decisions: [138, 70, 45, 99]
 # `machine`, four `human`. This capability keeps exactly the four HUMAN ones (story legs 4, 6, 8, 11); the
 # counts, placements, contention logic, structural honesty wall and release sweep that were welded onto
 # them are `machine` legs now, discharged in B's, C's and A's own harnesses rather than by an operator.
+# NARROWED 2026-08-11 (ADR-0348 D6): those four HUMAN legs were DELETED at the STORY tier as user
+# EXPERIENCE rather than user ACCEPTANCE claims, so this capability is now the ONLY place they exist —
+# the story-leg numbers below are the derivation record, not live pointers. D6 is story-tier only and
+# does NOT touch this capability's ADR-0070 stage-2 operator-attested node; whether the owner's
+# "doesn't have to exist in a gate" reaches the capability tier is an OPEN FORK ADR-0348 deliberately
+# left unanswered — put it to the owner rather than extending D6 by analogy.
 # The capability's own `proof_mode` is unchanged — still the operator-attested UAT node, just a narrower
 # and more honest one.
 ---
@@ -74,12 +80,20 @@ The **human-witnessed** legs that prove the story's goal on the real forest map.
 stage (claim a story, drive a build) but a human renders the verdict.
 
 > **Re-adjudicated 2026-07-26 (ADR-0209 D8).** These four legs used to be the story's WHOLE UAT set, each
-> fusing a countable claim onto a felt one. The story's `## UAT Test Criteria` now carries **eleven** legs
-> — seven `machine`, four `human` — and this capability keeps exactly the four HUMAN ones, renumbered to
+> fusing a countable claim onto a felt one. The story's `## UAT Test Criteria` then carried **eleven** legs
+> — seven `machine`, four `human` — and this capability kept exactly the four HUMAN ones, renumbered to
 > match the story: **story legs 4, 6, 8 and 11**. The counts, placements, contention logic, structural
 > honesty wall and merge-release sweep that were welded onto these legs are **story legs 1, 2, 3, 5, 7, 9
 > and 10**, discharged by specs in B's, C's and A's own harnesses — not by an operator's eye. Nothing felt
 > was reclassified; the human set got NARROWER and more honest, not weaker.
+>
+> **NARROWED AGAIN 2026-08-11 (ADR-0348 D6): the four story-tier human legs are DELETED.** The story now
+> carries seven `machine` legs and zero `human` ones, so **legs a–d below are the only place these four
+> claims exist** and the "story leg N" labels are the DERIVATION RECORD, not live pointers — those
+> ordinals were burned, never reassigned, so none of them now denotes a different claim. Because this
+> capability already restated all four near-verbatim, D6 COMPLETES ADR-0294 D3 here rather than
+> diverging from it, and nothing needed relocating. **D6 is story-tier only** and leaves this
+> capability's ADR-0070 stage-2 operator-attested node exactly as it was.
 >
 > **Owner-attested 2026-07-17** (the graded claim-wisps landed default-ON — hover / queue / orbit +
 > departure fades — and the owner signed the look; ADR-0200 D7 gated the presence-core retirement on that
@@ -88,7 +102,10 @@ stage (claim a story, drive a build) but a human renders the verdict.
 > covered legs b or c. Per ADR-0209 D6 every re-adjudicated leg returns UNSTAMPED — so the attestation is
 > preserved here as a RECORD with a leg to attach to, not as a live green, and **whether it carries
 > forward onto the split legs or must be re-signed is an open owner call** (story `## Open modeling
-> calls`, call 1). No agent resolves that in either direction.
+> calls`, call 1). No agent resolves that in either direction. **The 2026-08-11 story-tier deletion does
+> not resolve it either** — it moves the question one rung down, onto legs a and d here, and this
+> preamble is now the COMPLETE copy of the record. The call stays OPEN; ADR-0348 D7's supersession
+> ruling reaches `agent` leg 1 only and is deliberately not generalised.
 
 - **a. The three stages READ apart at a glance** _(story leg 4 — witness: human; the 2026-07-17 signature
   was given here)_ — an `exploring` window-shopper, a `waiting` queue and a `work` island orbit on one

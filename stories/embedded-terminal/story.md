@@ -11,12 +11,13 @@ proof_mode: UAT
 # artifacts, so the model rung genuinely does not apply). The native-module, live-store and structural
 # legs are `machine` — a real node-pty, a real xterm and a real claim row are all machine-observable
 # through the EXISTING Electron `_electron` harness plus one live-gated spec; unharnessed, native, live
-# and expensive are COSTS, never judgment gaps (`human-witness-is-a-judgment-gap-not-cost`). Exactly two
-# legs stay `human`: driving the REAL PAID Claude Code subscription interactively (the owner's honesty
-# wall — metered spend the proof spine must never burn unattended) and the terminal's FEEL (ADR-0070
-# stage 2 — "reads like a real terminal" has no compiler, and ADR-0209 keeps look/feel on the human
-# rung, never model-judged). The machine-driven story UAT node stays WITHHELD; the crown derives from
-# the two capabilities' signed verdicts plus those two attestations.
+# and expensive are COSTS, never judgment gaps (`human-witness-is-a-judgment-gap-not-cost`). Exactly ONE
+# leg stays `human`: driving the REAL PAID Claude Code subscription interactively (the owner's honesty
+# wall — metered spend the proof spine must never burn unattended). The terminal's FEEL was a second
+# human leg until ADR-0348 D6 (2026-08-11) DELETED it — a user EXPERIENCE property is not a user
+# ACCEPTANCE criterion; the intent is carried in "What this story is NOT". The machine-driven story UAT
+# node stays WITHHELD; the crown derives from the two capabilities' signed verdicts plus that one
+# attestation.
 # Capabilities, roots-first. TWO machine-provable caps on OPPOSITE sides of the contextBridge, each its
 # own suite (the chat-sse-mount ↔ chat-panel precedent): pty-session-manager (the backend pty lifecycle,
 # apps/desktop node:test over an injected fake pty) and terminal-dock-panel (the renderer xterm dock,
@@ -119,6 +120,14 @@ the watching rides for free.
   touch their behaviour. Concretely: `ChatDock.tsx` / `ChatPanel.tsx` stay in the studio bundle,
   behaviourally **DORMANT** (their vitest suites stay green). The terminal dock takes the interactive
   dock SLOT; the chat components are not ripped out.
+- **The terminal's FEEL is design intent, not a UAT leg (ADR-0348 D6, 2026-08-11).** It used to be
+  story UAT leg 7 and was DELETED: a user EXPERIENCE property is not a user ACCEPTANCE criterion, and
+  the owner's feedback on it comes from USING the terminal, not from a gate. The intent stands and is
+  recorded here — **colours, glyph rendering, the dock chrome and the terminal body should read as ONE
+  coherent terminal inside the native shell, not a web widget imitating a terminal.** Leg 6
+  machine-proves the mechanics underneath it (scrollback retention, reflow on resize, control keys,
+  a session surviving collapse/expand); none of those is the felt claim, and no leg carries the felt
+  claim now. The honest cost, stated rather than hidden: nothing records whether anyone has looked.
 
 ## Capabilities (2)
 
@@ -244,9 +253,19 @@ permanent regression case, never speculative breadth).
 > **Per-leg witness (ADR-0209 §1 / ADR-0106 / ADR-0070).** **RE-ADJUDICATED 2026-07-26** under the
 > ADR-0209 §8 corpus-wide migration (owner-directed 2026-07-25). Three classified kinds are available:
 > `machine` (deterministic, spine-observed proof), `model` (rubric-bound semantic judgment by an eligible
-> read-only judge), `human` (irreducible operator judgment). This story resolves to **six `machine` legs
-> and two `human` legs; no leg is model-judged** — nothing here turns on semantic judgment of prose or
-> artifacts, so the model rung genuinely does not apply.
+> read-only judge), `human` (irreducible operator judgment). That pass resolved this story to six
+> `machine` legs and two `human` legs; no leg is model-judged — nothing here turns on semantic judgment
+> of prose or artifacts, so the model rung genuinely does not apply.
+>
+> **NARROWED 2026-08-11 (ADR-0348 D6): the one EXPERIENCE leg is DELETED, so the story now carries six
+> `machine` legs and ONE `human` leg (seven).** The deleted leg — *"it READS as one coherent terminal"*
+> (old leg 7) — asked whether this surface is any GOOD, not whether the journey achieved its goal, and
+> a gate that waits on that verdict waits forever. Its design intent is carried in "What this story is
+> NOT" above. Ordinals are BURNED, not renumbered — position 7 is simply absent, so every surviving leg
+> keeps the number it has always had and no signed verdict or `(proof-gate:)` binding is silently
+> re-pointed. **This story's ordinals are unusually load-bearing** (see the attestation note below: a
+> signed row already points at `#uat-5`), which is exactly why nothing is renumbered here. The one
+> surviving human leg (5) is a genuine ACCEPTANCE claim about real metered spend, not a look.
 >
 > The wiring legs (2, 3) are covered by the two capabilities' signed `--real` verdicts (the pty lifecycle
 > over a fake pty; the xterm dock over a mocked xterm + bridge) — those two tags are unchanged.
@@ -264,13 +283,13 @@ permanent regression case, never speculative breadth).
 > itself as *"operator-attested glue, not a CI leg"* — glue-ness is a capability-TIERING call and the
 > absence of a harness is a cost; neither makes a DOM-structural claim irreducible.
 >
-> Exactly **two** legs stay `human` because their success condition has no compiler *(or, for leg 5, sits
-> behind the owner's explicit honesty wall)*: driving the **REAL PAID Claude Code subscription**
-> interactively — real metered spend the proof spine must never burn unattended, and a judgment about a
-> third-party interactive product's affordances rather than about our pty — and the terminal's **FEEL**
-> ("reads as ONE coherent terminal"; ADR-0070 stage 2, and ADR-0209 keeps look, feel and lived experience
-> on the human rung, never model-judged). The story-level `uat_witness` is absent → human (the ADR-0040
-> fail-closed signpost), so the machine-driven whole-story UAT node stays WITHHELD.
+> Two legs stayed `human` after that pass: driving the **REAL PAID Claude Code subscription**
+> interactively (leg 5 — real metered spend the proof spine must never burn unattended, and a judgment
+> about a third-party interactive product's affordances rather than about our pty; it sits behind the
+> owner's explicit honesty wall) and the terminal's **FEEL** (old leg 7). **ADR-0348 D6 deleted the
+> second on 2026-08-11**, so exactly **ONE** leg stays `human`: leg 5. The story-level `uat_witness` is
+> absent → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays
+> WITHHELD.
 >
 > **Nothing here is green.** Per ADR-0209 §6 a substantive criterion change invalidates the old green, so
 > every leg below is UNSTAMPED and earns green only under its newly-declared witness. Legs 1, 4, 6 and 8
@@ -299,21 +318,29 @@ permanent regression case, never speculative breadth).
 >
 > **That is NOT the claim now at position 5.** The ADR-0209 §8 re-adjudication (PR #904) split the old
 > fused leg and RENUMBERED, so position 5 now carries *"Real Claude Code runs interactively in the
-> embedded terminal"* — the REAL PAID subscription run. The feel claim the owner signed now lives at
-> **`#uat-7`** ("It READS as one coherent terminal") and is **UNSIGNED**; the mechanics half moved to
+> embedded terminal"* — the REAL PAID subscription run. The feel claim the owner signed moved to
+> `#uat-7` ("It READS as one coherent terminal"), where it stayed UNSIGNED; the mechanics half moved to
 > `machine` leg **6** and is likewise unsigned; the clipboard round trip the note actually describes has
 > no leg at all (open modeling call 5 below). **So this row must NOT be read as vouching for leg 5's paid
 > interactive Claude Code run — that run has never been attested.** Leg 5 is **UNSTAMPED**, exactly like
 > every other re-adjudicated leg here (ADR-0209 §6), and nothing on this page is green.
 >
-> **The remedy is the owner's to choose, and is not chosen here.** At least three honest options stand,
-> named without preference: (i) leave the row as it is and let this note carry the correction; (ii) the
-> owner re-signs the feel claim at its new id `#uat-7` (deciding separately what, if anything, the
-> mechanics and clipboard substance need); or (iii) the row is invalidated or superseded as pointing at a
-> retired claim. No agent may pick one — granting the row forward would be an agent restoring green it was
-> never given (`agent-never-self-exempts`), and discarding it would destroy real signed state. **This note
-> is a prerequisite of ALL THREE options, not an election of (i):** the mismatch has to be visible here
-> whatever the owner then decides, and writing it down settles nothing.
+> **UPDATED 2026-08-11: `#uat-7` NO LONGER EXISTS.** ADR-0348 D6 deleted the feel claim as an EXPERIENCE
+> property rather than an acceptance criterion, and the ordinal was BURNED rather than reused, so no leg
+> sits at position 7 and the intent it stated now lives in "What this story is NOT". This is a fact about
+> what the corpus holds, not a resolution of the call below — it REMOVES one of the three options and
+> settles none of the others.
+>
+> **The remedy is the owner's to choose, and is not chosen here.** Three honest options were named
+> without preference: (i) leave the row as it is and let this note carry the correction; ~~(ii) the owner
+> re-signs the feel claim at its new id `#uat-7`~~ — **no longer available**, since ADR-0348 D6 deleted
+> that claim from the story tier entirely; or (iii) the row is invalidated or superseded as pointing at a
+> retired claim. No agent may pick between the two that remain — granting the row forward would be an
+> agent restoring green it was never given (`agent-never-self-exempts`), and discarding it would destroy
+> real signed state. **This note is a prerequisite of BOTH surviving options, not an election of (i):**
+> the mismatch has to be visible here whatever the owner then decides, and writing it down settles
+> nothing. Note in particular that ADR-0348 D7's supersession ruling reaches `agent` leg 1 ONLY and is
+> deliberately not generalised here.
 >
 > **This is `wisp-as-story-claim`'s open call, actually occurred.** That story's open modeling call 1 asks
 > whether an owner attestation carries forward onto a SPLIT leg. Here the situation is strictly worse than
@@ -382,14 +409,7 @@ the real tool, the observability layer watching it through the existing seams wi
    `tdp-toggles-visibility-keeping-terminal-mounted`, `tdp-constructs-with-aligned-scrollback` — but a mock
    cannot exhibit reflow or scrollback retention, so this leg is the real-renderer half, not a
    restatement.)*
-7. **It READS as one coherent terminal.** _(witness: human)_ Colours, glyph rendering, the dock chrome and _(criterion-id: uatc_ae47c159f21ca01c37b53aa8)_ _(revision-id: uatr1:fc1b0d9b981352ca)_
-   the terminal body read as ONE coherent terminal inside the native shell — not a web widget imitating a
-   terminal. **Success —** the owner's two-stage visual verdict (ADR-0070 stage 2). *(Irreducible: "reads
-   like a real terminal" is an aesthetic judgment with no compiler, and ADR-0209 keeps look, feel and
-   lived experience on the human rung — never model-judged, never machine-asserted. The MECHANICS this leg
-   used to carry — scrollback, reflow, keys, the collapse/resize dock — moved to leg 6, where they have
-   one.)*
-8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:f9547fb6ce34ad2d)_
+8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:fce9af7f0492b084)_ _(previous-revision-id: uatr1:f9547fb6ce34ad2d)_
    _(witness: machine)(detail: embedded-terminal#uat-8)_ A session started in the embedded terminal takes its claim through the EXISTING
    CLI seam — `storytree noticeboard declare --node embedded-terminal --pg`, run in the terminal's real
    pty (ADR-0142) — and the map paints a wisp for it with NO new observer code, proving the ADR-0174
@@ -410,16 +430,17 @@ the real tool, the observability layer watching it through the existing seams wi
 End state — the desktop app embeds a real local terminal that runs real Claude Code in-app as the
 interactive build surface: the pty lifecycle and the renderer dock signed under their suites, the dock
 mount / the real pty / the terminal mechanics / the wisp seam machine-observed in the integrated harness,
-and exactly two legs operator-attested — the paid interactive Claude Code session and the terminal's feel
-— the interactive runtime becoming the real tool while the prove-it-gate leaf and the observability seams
-are untouched.
+and exactly ONE leg operator-attested — the paid interactive Claude Code session — the interactive
+runtime becoming the real tool while the prove-it-gate leaf and the observability seams are untouched.
+Whether the terminal FEELS coherent is no longer an acceptance obligation (ADR-0348 D6); that intent is
+recorded under "What this story is NOT" and answered by the owner using the app.
 
 ## Proof
 
 The story is proven when that walkthrough passes — the wiring legs (2, 3) green under the two
 capabilities' signed `--real` verdicts (with each cap's contracts green underneath), the integrated legs
 (1, 4, 6, 8) green under spine-observed specs in the Electron `_electron` harness plus one live-gated
-spec, and the two irreducible legs (5, 7) operator-attested. Per ADR-0209 §6 this re-adjudication leaves
+spec, and the one irreducible leg (5) operator-attested. Per ADR-0209 §6 this re-adjudication leaves
 every leg UNSTAMPED — nothing below is green, and two machine legs (6, 8) have no spec at HEAD; a
 `machine` tag states which witness is right, never that the proof exists. Per ADR-0020, `healthy` is only ever DERIVED from
 signed verdicts; nothing here is authored healthy. Both capabilities are proof-wired (each carries a
@@ -427,7 +448,7 @@ signed verdicts; nothing here is authored healthy. Both capabilities are proof-w
 injected fake/mock) so the spine can drive their offline suites red→green under its own gate; the story's
 machine-driven UAT node is WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving those
 capabilities to signed verdicts is what makes the terminal layer buildable, and the crown additionally
-awaits the four integrated machine legs (1, 4, 6, 8) and the operator's two attestations (legs 5, 7).
+awaits the four integrated machine legs (1, 4, 6, 8) and the operator's one attestation (leg 5).
 
 ## Open modeling calls (for the owner / orchestrator)
 
@@ -482,9 +503,12 @@ re-adjudication, not decided here:
    `events.attestation` seq 8 (`embedded-terminal#uat-5`, pass, human, signer `hua.mick@gmail.com`,
    2026-07-16) was given for the pre-#904 position-5 claim *"It reads and behaves like a real terminal"*;
    the ADR-0209 §8 re-adjudication renumbered, so position 5 now carries the REAL PAID interactive Claude
-   Code run, which has never been attested, while the feel claim moved to unsigned `#uat-7`. Leg 5 stays
-   UNSTAMPED and the row vouches for neither claim. Options, none chosen: annotate only; the owner re-signs
-   at `#uat-7`; or the row is invalidated/superseded. This is `wisp-as-story-claim`'s open modeling call 1
+   Code run, which has never been attested, while the feel claim moved to unsigned `#uat-7` — and
+   `#uat-7` was then DELETED outright by ADR-0348 D6 on 2026-08-11 (an experience property, not an
+   acceptance criterion; the ordinal is burned, not reused). Leg 5 stays
+   UNSTAMPED and the row vouches for neither claim. Options, none chosen: annotate only; or the row is
+   invalidated/superseded. *(The third option — the owner re-signs at `#uat-7` — died with the leg; that
+   is a mechanical consequence of the deletion, not a decision taken here.)* This is `wisp-as-story-claim`'s open modeling call 1
    (does an attestation carry forward onto a SPLIT leg?) having actually happened — and worse, since the
    ID was reused rather than merely narrowed. Cause: leg renumbering in PR #904, whose brief checked for
    prior attestations by TEXT search of `stories/**` while the record lives in Postgres.

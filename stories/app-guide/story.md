@@ -25,12 +25,14 @@ arc: explorer-onboarding-arc
 status: proposed
 proof_mode: UAT
 # uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT — "does the concierge
-# chat surface read as one continuous conversation" — is APPEARANCE/FEEL, operator-attested (ADR-0070).
-# The machine-driven story UAT node stays WITHHELD; the crown derives from the capabilities' signed
-# verdicts plus the operator's attestation of the concierge-chat feel leg.
+# chat surface read as one continuous conversation" — is APPEARANCE/FEEL, and since ADR-0348 D6 it is
+# design intent rather than a UAT leg. The machine-driven story UAT node stays WITHHELD; the crown
+# derives from the capabilities' signed verdicts alone — no story-tier attestation remains.
 # RE-ADJUDICATED 2026-07-26 (ADR-0209 D8 — see the `## UAT Test Criteria` section): legs 1–3 and 5 are
-# `witness: machine`; only leg 4 stays `human`, on the NO-COMPILER basis (does the surface READ as one
-# continuous conversation — an aesthetic verdict no test decides). Leg 5 (backend-wedge recovery) was
+# `witness: machine`; only leg 4 stayed `human`, on the NO-COMPILER basis (does the surface READ as one
+# continuous conversation — an aesthetic verdict no test decides). NARROWED 2026-08-11 (ADR-0348 D6):
+# leg 4 is DELETED as a user EXPERIENCE rather than a user ACCEPTANCE claim, leaving ZERO human legs;
+# the intent is carried in "The conversational feel". Leg 5 (backend-wedge recovery) was
 # human for a HARNESS reason, not a judgment gap: clearing a module-level guard through a POST route and
 # observing a subsequent session admitted is exactly what `backend-chat-reset-route`'s own authored
 # integration test asserts. Per ADR-0209 §6 it is UNSTAMPED until a spec judges it — the tag records
@@ -254,8 +256,18 @@ permanent regression case, never speculative breadth).
 > behaviour legs 1–3 are `witness: machine`, each bound exactly to the command-bearing
 > `app-guide#gate-1`: the studio vitest suite covers append-not-replace + auto-scroll, height recompute
 > + cap + keybindings, and clear-to-idle + abort + signal threading. Stretch leg 5 is ALSO
-> `witness: machine`, and deliberately carries **no** proof-gate annotation. Only leg 4 — the
-> holistic conversational-feel judgment — stays `witness: human`. No leg rests `either`.
+> `witness: machine`, and deliberately carries **no** proof-gate annotation. Leg 4 — the holistic
+> conversational-feel judgment — was the one `witness: human` leg. No leg rests `either`.
+>
+> **NARROWED 2026-08-11 (ADR-0348 D6): leg 4 is DELETED, so this story carries ZERO human legs.** It
+> asked whether the surface is any GOOD, not whether the journey achieved its goal — a user EXPERIENCE
+> property, not a user ACCEPTANCE criterion, and therefore continuous owner feedback gathered through
+> use rather than a discrete obligation the story must clear to be green. Its design intent, and the
+> record that it was never walkable, are carried under "The conversational feel" below. Ordinal 4 is
+> BURNED, not reused — as `1`–`3` already were by the ADR-0294 D2 deletions — so the surviving leg keeps
+> the number it has always had and no signed verdict or `(proof-gate:)` binding is silently re-pointed.
+> With legs 1–4 all gone, **leg 5 is the only criterion left**, and the single reliability gate stays
+> exactly where it is, unclaimed by any criterion, for the reason recorded below.
 >
 > **What the re-adjudication changed and why.** Leg 5 (a wedged backend session recovers without a
 > restart) was `human` for a HARNESS reason wearing a witness costume: "witnessed on the live surface".
@@ -278,17 +290,18 @@ permanent regression case, never speculative breadth).
 > author must close when the stretch capability is built*, which is the honest state, not a defect to
 > paper over. It still blocks the crown.
 >
-> **Leg 4 stays `human` on the NO-COMPILER basis, and on that basis alone.** Not spend (nothing here is
+> **Leg 4 was `human` on the NO-COMPILER basis, and on that basis alone** — not spend (nothing here is
 > billed), not liveness, not a missing harness: "does this read as ONE continuous conversation" is an
-> aesthetic verdict with no oracle. The mechanical halves it used to also assert — the scrollback
-> appends, the input grows, the reset clears — are NOT restated as human success conditions, because
-> each already has a machine leg (1, 2, 3) pointing at it; restating a compiled fact as something the
-> owner signs would launder it into an unrepeatable signature.
+> aesthetic verdict with no oracle. **That was never enough to make it an ACCEPTANCE claim, which is
+> the question ADR-0348 D6 puts FIRST**, and is why the leg is now deleted rather than merely correctly
+> tagged. The mechanical halves it used to also assert — the scrollback appends, the input grows, the
+> reset clears — were never restated as human success conditions, because each had a machine leg (1, 2,
+> 3) pointing at it; restating a compiled fact as something the owner signs would launder it into an
+> unrepeatable signature. That rule is unweakened.
 >
 > The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
-> machine-driven whole-story UAT node stays WITHHELD; the crown derives from the gate-signed machine
-> legs, the gate's declared capability coverage, leg 5's future binding, and the operator's attestation
-> of leg 4.
+> machine-driven whole-story UAT node stays WITHHELD; the crown derives from the gate's declared
+> capability coverage and leg 5's future binding. There is no longer a story-tier attestation in it.
 
 **Goal —** A member opens the desktop chat panel, holds a multi-turn conversation whose scrollback
 persists, edits a comfortable multi-line prompt in an input that grows, and resets to a fresh surface —
@@ -305,9 +318,12 @@ the panel reading and behaving like one continuous conversation throughout.
 > → `POST /api/chat`); it is the FRONTEND mount that is gone. Consequences, kept explicit so nobody
 > reads a false precondition into a spec: **(a)** legs 1–3 are unaffected — the studio vitest suite
 > renders the components directly under jsdom and never needs the app to mount them, which is why they
-> stay machine and stay green-able; **(b)** leg 4 (the FEEL judgment) genuinely cannot be walked until
-> the deferred concierge build re-mounts the surface — it is human because it is irreducible, and
-> *separately* it is currently unwalkable; those are two different facts and neither implies the other;
+> stay machine and stay green-able; **(b)** leg 4 (the FEEL judgment) genuinely could not be walked
+> until the deferred concierge build re-mounts the surface — it was human because it was irreducible,
+> and *separately* it was unwalkable; those are two different facts and neither implies the other.
+> **ADR-0348 D6 deleted that leg on 2026-08-11, on the first fact and not the second** — an experience
+> property is not an acceptance criterion whether or not anyone can currently walk it; the intent and
+> the never-walked record are preserved under "The conversational feel";
 > **(c)** leg 5's re-adjudication to `machine` makes it walkable WITHOUT the UI at all (it drives the
 > sidecar route + the drive guard in-process), which is a real gain, not a workaround.
 
@@ -331,21 +347,33 @@ criterion — gate ids are positional, so removing it would silently re-point al
 | 1. **The transcript persists across turns** | `uatc_68cf75456b5e5d05de9ec7d2` | **Delete as duplicate.** [`multi-turn-transcript`](multi-turn-transcript.md), `apps/studio/src/components/ChatPanel.test.tsx`: **“mtt-appends-not-replaces: a second send appends a new exchange without discarding the first — both present, in order, newest last”** asserts append-not-replace and prior-exchanges-stay-visible; **“mtt-echoes-each-prompt: each send appends its `› <prompt>` echo line above its reply, per turn”** asserts the echo; **“mtt-auto-scrolls-to-newest …”** asserts the auto-scroll. Every clause, one-to-one. |
 | 2. **The input grows and caps** | `uatc_900ddbae4fabec17da85c4c6` | **Delete as duplicate.** [`auto-grow-input`](auto-grow-input.md), same file: **“agi-recomputes-height-from-content …”** asserts the height recompute, **“agi-caps-height-and-scrolls-internally: past a max height the textarea clamps at the cap and scrolls inside itself”** asserts the cap and internal scrolling, and **“agi-keeps-enter-send-shift-enter-newline …”** asserts the preserved keybindings. |
 | 3. **Reset clears and aborts** | `uatc_9f5912771ca744fcae515a44` | **Delete as duplicate.** [`transcript-reset`](transcript-reset.md), same file: **“tr-clears-transcript-to-idle: clicking reset empties the transcript back to the idle empty state (input cleared + re-enabled + resting height)”** asserts clear-to-idle and the resting height, and **“tr-aborts-in-flight-stream: clicking reset mid-stream aborts the in-flight stream (the passed signal is aborted) and leaves no ghost reply …”** asserts the abort and the no-ghost-reply clause. |
-| 4. **It reads like one continuous conversation** | `uatc_912f608f4b58430b772cec95` | **Keep, untouched — not this increment's to move.** An ADR-0294 D3 appearance verdict, owned by the D3 increment (chip `task_99f7e0a9`). |
+| 4. **It reads like one continuous conversation** | `uatc_912f608f4b58430b772cec95` | ~~**Keep, untouched — not this increment's to move.** An ADR-0294 D3 appearance verdict, owned by the D3 increment (chip `task_99f7e0a9`).~~ **DELETED 2026-08-11 by ADR-0348 D6 — the reservation is RETIRED, and that chip's claim on this leg is discharged.** The reservation held because the leg's disposition was still open: D3 would have RELOCATED it to the capability whose look it is. ADR-0348 D6 IS that adjudication, and it went the other way — the owner ruled a user EXPERIENCE property is not a user ACCEPTANCE criterion, so the disposition changed from relocate to DELETE and there is nothing left for chip `task_99f7e0a9` to move here. ADR-0294 D3 still governs where an appearance verdict lives WHEN one is worth carrying; it is the "every one of them must be relocated" reading that is withdrawn. The design intent is carried in "The conversational feel" below. |
 | 5. **A wedged backend session recovers** | `uatc_5102b68997d2cd5fdbf4e954` | **Keep.** Not a duplicate: the two assertions its capability [`backend-chat-reset-route`](backend-chat-reset-route.md) declares — `bcr-clears-the-composition-guard` and `bcr-falls-through-not-404s` — exist in the SPEC only. Searched the whole tree outside `stories/**` on 2026-08-08: neither name appears in any `.ts`/`.tsx` file, so the stretch capability is unbuilt and nothing proves this leg. It stays deliberately UNBOUND and fails closed, exactly as its own note already argued. |
 
-4. **It reads like one continuous conversation.** _(witness: human)(detail: app-guide#uat-4)_ Hold a real _(criterion-id: uatc_912f608f4b58430b772cec95)_ _(revision-id: uatr1:a99d796ff73bca9a)_
-   conversation on the mounted panel inside the native desktop shell and judge the WHOLE surface: does it
-   read as ONE continuous conversation, or as a sequence of separate exchanges sharing a box? **Success —**
-   the owner's two-stage visual verdict (ADR-0070): the conversational feel is witnessed, not
-   machine-asserted. *(HUMAN on the **NO-COMPILER** basis, and on that basis alone — not spend (nothing
-   here is billed), not liveness, not a missing harness. "Does this read right" has no oracle. The
-   mechanical halves this leg used to ALSO assert — "the growing scrollback, the pinned-flush input, the
-   reset" *behaving* as declared — were removed on 2026-07-26: each already has a machine leg (1, 2, 3)
-   pointing at it, and restating a compiled fact as a condition the owner signs would launder it into an
-   unrepeatable signature. What is left is only the judgment. See the PRECONDITION SCOPE NOTE above: the
-   panel is currently unmounted, so this leg is not walkable until the deferred build re-mounts it — a
-   fact about scheduling, not about the witness.)*
+### The conversational feel — design intent, deliberately NOT a UAT leg (ADR-0348 D6)
+
+The appearance intent that stood as leg 4 until 2026-08-11 is recorded here so it is not lost with its
+leg. **Holding a real conversation on the mounted panel inside the native desktop shell, the WHOLE
+surface should read as ONE continuous conversation — not as a sequence of separate exchanges sharing a
+box.** Machine legs 1–3 pinned the mechanical halves this leg used to also assert (the scrollback
+appends and auto-scrolls, the input grows and caps, the reset clears and aborts), and those three legs
+were themselves deleted as ADR-0294 D2 duplicates once their capabilities' suites were confirmed to
+assert them one-to-one — so the behaviour is still proven, one rung down, by
+[`multi-turn-transcript`](multi-turn-transcript.md), [`auto-grow-input`](auto-grow-input.md) and
+[`transcript-reset`](transcript-reset.md) under `app-guide#gate-1`. What has never had a compiler is
+whether the result READS right, and under ADR-0348 D6 that is not an acceptance criterion at all: it is
+continuous owner feedback gathered through use.
+
+**This intent was never walked, and that is a DEFERRAL, not a pass.** The record matters more here than
+usual, because the leg's deletion removes the only place it was written down. `ChatDock` is imported by
+no non-test source file: **ADR-0174** gave the dock slot to the embedded terminal and **ADR-0175** held
+the concierge build as a deferred future slice, so there is no mounted panel on which to hold the
+conversation this intent describes (`apps/studio/src/components/TreeView.tsx:2561` records the swap; the
+BACKEND half still mounts `createChatSseMount`, it is the FRONTEND mount that is gone). So nobody has
+ever judged this surface, nobody was ever going to under the current build, and the absence of a verdict
+must not later be misread as approval (ADR-0348 Consequences). When the deferred concierge build
+re-mounts the panel, this paragraph is the brief for what it should feel like.
+
 5. **(OPTIONAL / STRETCH) A wedged backend session recovers without a restart.** _(criterion-id: uatc_5102b68997d2cd5fdbf4e954)_ _(revision-id: uatr1:c5941a43069cb8fa)_
    _(witness: machine)(detail: app-guide#uat-5)_ With the drive composition single-session guard in the
    in-flight state, a `POST /api/chat/reset` on the chat sidecar clears it and a subsequent session is
@@ -386,9 +414,11 @@ the `mapped → healthy` **Adopt** transition
 Distinct from `## UAT Test Criteria` above (the integrated continuous-conversation journey): this gate is the
 machine-observable reliability floor — the two-stage frontend-builder split
 ([ADR-0070](../../docs/decisions/0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)):
-the gate covers the caps' machine GEOMETRY; the "reads like one continuous conversation" FEEL stays the
-Story UAT's operator-attested `witness: human` leg 4. *(Corrected 2026-07-26: this read "legs", plural —
-after the ADR-0209 D8 re-adjudication leg 4 is the story's ONLY human leg.)*
+the gate covers the caps' machine GEOMETRY; the "reads like one continuous conversation" FEEL is carried
+by no leg at all since ADR-0348 D6 deleted it (2026-08-11) — it is design intent under "The
+conversational feel", answered by the owner using the app, and is still never machine-asserted here.
+*(History: this read "legs", plural, until 2026-07-26, when the ADR-0209 D8 re-adjudication left leg 4
+as the story's ONLY human leg; D6 then removed that one too.)*
 
 1. **The studio suite is green** _(gate: observe)_ _(covers: multi-turn-transcript, auto-grow-input, transcript-reset)_ `pnpm --filter studio test`. The
    spine runs the studio VITEST suite at a clean committed HEAD and OBSERVES it green, then signs an
@@ -406,8 +436,8 @@ after the ADR-0209 D8 re-adjudication leg 4 is the story's ONLY human leg.)*
    / `tr-aborts-in-flight-stream` / `tr-threads-abort-signal-through-api`), all offline (no DB, no API key).
    The three caps green via this gate's `(covers:)` (ADR-0097 §5). This is the two-stage proof (ADR-0070):
    the gate proves the machine GEOMETRY/BEHAVIOUR only; the conversational FEEL (does the growing scrollback
-   / the clean reset read like one continuous conversation) is the Story UAT's operator-attested
-   `witness: human` leg 4, never machine-asserted here.
+   / the clean reset read like one continuous conversation) is design intent under "The conversational
+   feel" — formerly Story UAT leg 4, deleted by ADR-0348 D6 — and is never machine-asserted here.
 
 The OPTIONAL / STRETCH `backend-chat-reset-route` cap is deliberately **left uncovered**: it is a desktop
 sidecar/drive `node:test` unit (not thin-client), its backend-wedge-recovery behaviour is UNBUILT (no
@@ -433,13 +463,15 @@ stretch (its cap + leg 5).
 The present slice is proven when that walkthrough passes: deterministic behaviour legs 1–3 sign through
 their exact `app-guide#gate-1` observe binding, and the same signed gate derives
 `multi-turn-transcript`, `auto-grow-input`, and `transcript-reset` healthy through its declared
-`(covers:)` list. No separate per-capability `--real` verdict is claimed. Holistic conversational-feel
-leg 4 is operator-attested. Backend-wedge-recovery leg 5 is `witness: machine` (re-adjudicated
+`(covers:)` list. No separate per-capability `--real` verdict is claimed. The holistic
+conversational-feel judgment is no longer a leg at all — ADR-0348 D6 deleted it on 2026-08-11 as an
+experience rather than an acceptance claim; its intent lives under "The conversational feel".
+Backend-wedge-recovery leg 5 is `witness: machine` (re-adjudicated
 2026-07-26, ADR-0209 D8) and awaits the binding it can only honestly acquire once
 `backend-chat-reset-route` is built. Per ADR-0020, `healthy` is only ever DERIVED from signed verdicts;
 nothing here is authored healthy. The story's machine-driven UAT node is WITHHELD (`uat_witness` is
-absent → human, ADR-0040), so the crown awaits the gate-backed machine legs, leg 5's future machine
-observation, and the ONE human attestation (leg 4). Capability 4 is OPTIONAL/STRETCH only in
+absent → human, ADR-0040), so the crown awaits the gate-backed capability coverage and leg 5's future
+machine observation. No story-tier attestation remains. Capability 4 is OPTIONAL/STRETCH only in
 prioritisation: because it and UAT leg 5 are normal authored obligations, holding that work keeps the
 story unproven. The concierge
 onboarding/wiring behaviour that rides this substrate is the DEFERRED app-guide build (ADR-0175); its

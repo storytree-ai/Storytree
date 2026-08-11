@@ -20,7 +20,11 @@ proof_mode: operator-attested
 # machine-witnessed" was too broad and is corrected — the LOOK cannot, but the counts, the placements, the
 # claim-ledger contention logic, the structural honesty wall and the release sweep all can, and are now
 # seven `machine` legs beside four `human` ones (see `## UAT Test Criteria`). Nothing about the human legs
-# is weakened by that; the story-level witness is unchanged.
+# is weakened by that; the story-level witness is unchanged. NARROWED 2026-08-11 (ADR-0348 D6): those four
+# human legs are DELETED as user EXPERIENCE rather than user ACCEPTANCE claims, leaving SEVEN machine legs
+# and ZERO human ones at the story tier. Nothing is lost — the capability `appearance-uat` already carries
+# all four near-verbatim as legs a/b/c/d, so for this story D6 completes ADR-0294 D3. The owner's
+# 2026-07-17 attestation record and open modeling call 1 are UNTOUCHED and stay open.
 capabilities: [claim-store-work-time, render-claim-as-wisp, colour-by-subagent, ci-clear-on-merge, take-claim-at-spawn, claim-at-declare, appearance-uat]
 # HOSTED-STORY edges (ADR-0192 landlord rule): this cross-cutting layer landed its organs INSIDE four
 # other stories' territories — the claim store in packages/notice-board/src/store, the subagent-colour
@@ -188,46 +192,70 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > **Per-leg witness — RE-ADJUDICATED 2026-07-26** under the ADR-0209 D8 corpus-wide migration. The
 > governing rule is `human-witness-is-a-judgment-gap-not-cost`: the human rung is for a success condition
 > that has **no compiler**, and a success that is machine-observable but merely LIVE, EXPENSIVE, or
-> NOT-YET-HARNESSED is `machine`. Re-adjudicating leg by leg resolves this story to **seven `machine` legs
-> and four `human` legs** (eleven, up from four — see the splits below). Only `machine` and `human` exist
+> NOT-YET-HARNESSED is `machine`. Re-adjudicating leg by leg resolved this story to seven `machine` legs
+> and four `human` legs (eleven, up from four — see the splits below). Only `machine` and `human` exist
 > as classified kinds here; there is no third rung to reach for.
+>
+> **NARROWED 2026-08-11 (ADR-0348 D6): all FOUR EXPERIENCE legs are DELETED, so the story now carries
+> seven `machine` legs and ZERO `human` legs.** The deleted set — *"the three stages READ apart at a
+> glance"* (old leg 4), *"the three colour states are distinguishable to the eye"* (old leg 6),
+> *"claimed LOOKS clearly different from proven-green"* (old leg 8) and *"the departure reads as just
+> left, not as lost"* (old leg 11) — asked whether this surface is any GOOD, not whether the journey
+> achieved its goal. That is continuous owner feedback gathered through use, not a discrete pass/fail
+> obligation the story must clear to be green. **No design intent is lost here and none needed
+> relocating:** this story's capability [`appearance-uat`](appearance-uat.md) already carries all four
+> near-verbatim as its legs a/b/c/d, each self-labelled with the story leg it restates, so for this
+> story D6 COMPLETES ADR-0294 D3 rather than diverging from it. Ordinals are BURNED, not renumbered —
+> positions 4, 6, 8 and 11 are simply absent, so every surviving leg keeps the number it has always had
+> and no signed verdict or `(proof-gate:)` binding is silently re-pointed. **The owner's 2026-07-17
+> attestation record and open modeling call 1 are untouched by this and stay OPEN** — see below; the
+> complete copy of that record survives in the capability's own preamble.
 >
 > **All four old legs were tagged `human` because the story is ABOUT a look — but their stated success
 > conditions were mostly COUNTS, PLACEMENTS and CLAIM-LEDGER LOGIC with a felt verdict welded on top. Each
-> was SPLIT rather than laundered**: the countable half becomes a machine leg, and the "does it read right
-> to the eye" half stays its own human leg. The leg count grows; nothing felt is shaved into a footnote.
+> was SPLIT rather than laundered**: the countable half became a machine leg, and the "does it read right
+> to the eye" half became its own human leg. The leg count grew; nothing felt was shaved into a footnote.
+> The felt halves then left the story tier entirely on 2026-08-11 — struck through below, and each still
+> carried by the capability's matching leg:
 >
-> | old leg | machine half | human half |
+> | old leg | machine half | felt half (deleted 2026-08-11, ADR-0348 D6) |
 > | --- | --- | --- |
-> | 1 (one wisp per claimed story, shaped by grade) | **1** — the COUNT and the ANCHOR: one body per claim, on the STORY's territory, never a second island orbit; **2** — the GRADE→POSITION channel; **3** — contention: the second work claim refused-and-named, or queued | **4** — whether the three stages READ apart at a glance |
-> | 2 (colour shifts by the active subagent) | **5** — the data→colour stamp: role/intent in, one of three mutually distinct non-green tokens out, and the token actually SHIFTING as the active subagent changes | **6** — whether the three colours are DISTINGUISHABLE TO THE EYE |
-> | 3 (claimed is visibly distinct from proven-green) | **7** — the STRUCTURAL wall: the claim/hover/queue/departing families emit no bloom kind, no `outcome`, no `bloom`/`verdict` class — even with a GREEN build band riding the work body | **8** — whether claimed LOOKS clearly different from a bloom to a human eye |
-> | 4 (the wisp clears on merge, with a legible departure) | **9** — the merge sweep: every grade released for the branch, audited, oldest live waiter promoted; **10** — the departure WINDOW: a departing body inside `DEPARTURE_WINDOW_MS` fading by age, gone past it, no zombie | **11** — whether the departure reads as *just left* rather than *lost* |
+> | 1 (one wisp per claimed story, shaped by grade) | **1** — the COUNT and the ANCHOR: one body per claim, on the STORY's territory, never a second island orbit; **2** — the GRADE→POSITION channel; **3** — contention: the second work claim refused-and-named, or queued | ~~**4** — whether the three stages READ apart at a glance~~ → `appearance-uat` leg **a** |
+> | 2 (colour shifts by the active subagent) | **5** — the data→colour stamp: role/intent in, one of three mutually distinct non-green tokens out, and the token actually SHIFTING as the active subagent changes | ~~**6** — whether the three colours are DISTINGUISHABLE TO THE EYE~~ → `appearance-uat` leg **b** |
+> | 3 (claimed is visibly distinct from proven-green) | **7** — the STRUCTURAL wall: the claim/hover/queue/departing families emit no bloom kind, no `outcome`, no `bloom`/`verdict` class — even with a GREEN build band riding the work body | ~~**8** — whether claimed LOOKS clearly different from a bloom to a human eye~~ → `appearance-uat` leg **c** |
+> | 4 (the wisp clears on merge, with a legible departure) | **9** — the merge sweep: every grade released for the branch, audited, oldest live waiter promoted; **10** — the departure WINDOW: a departing body inside `DEPARTURE_WINDOW_MS` fading by age, gone past it, no zombie | ~~**11** — whether the departure reads as *just left* rather than *lost*~~ → `appearance-uat` leg **d** |
 >
 > **THE OWNER'S 2026-07-17 ATTESTATION — PRESERVED, RE-POINTED, AND NOT RE-GRANTED.** The graded
 > claim-wisp renders landed default-ON and **the owner attested the look on 2026-07-17** — hover / queue /
 > orbit **+ departure fades** (ADR-0200 D7 gated the presence-core retirement on exactly that
-> attestation). That record is true history and is **not** deleted, weakened or re-scoped here. Where it
-> now lands:
+> attestation). That record is true history and is **not** deleted, weakened or re-scoped here — the
+> COMPLETE copy now lives in [`appearance-uat`](appearance-uat.md)'s own preamble, which is where a
+> reader should go for it. Where the four claims land after the 2026-08-11 deletion:
 >
-> - **Human leg 4** carries the *hover / queue / orbit* look claim — the graded render reading as three
->   distinct stages. This is the leg that signature was given against.
-> - **Human leg 11** carries the *departure fade* look claim — a released claim reading as *just left*.
-> - **Human legs 6 and 8 were NEVER in that attestation.** The 2026-07-17 signature covered the grade
->   GEOMETRY and the departure fade; it did not cover colour distinguishability (leg 6) or
->   claimed-versus-bloom distinctness (leg 8). Those two are unattested and always were — recorded here
+> - **`appearance-uat` leg a** carries the *hover / queue / orbit* look claim — the graded render reading
+>   as three distinct stages. This is the claim that signature was given against. *(It was story leg 4
+>   from 2026-07-26 until ADR-0348 D6 deleted the story-tier leg.)*
+> - **`appearance-uat` leg d** carries the *departure fade* look claim — a released claim reading as
+>   *just left*. *(Story leg 11 until the same deletion.)*
+> - **The colour and claimed-versus-bloom claims were NEVER in that attestation.** The 2026-07-17
+>   signature covered the grade GEOMETRY and the departure fade; it did not cover colour
+>   distinguishability (`appearance-uat` leg b, story leg 6) or claimed-versus-bloom distinctness
+>   (`appearance-uat` leg c, story leg 8). Those two are unattested and always were — recorded here
 >   rather than quietly absorbed by a nearby signature.
 >
-> **Per ADR-0209 D6 all eleven legs return UNSTAMPED, legs 4 and 11 included.** A substantive change to a
-> criterion invalidates the old green, and a leg SPLIT is such a change. So this re-adjudication does not
-> preserve the attestation as a live GREEN — it preserves it as a RECORD WITH A LEG TO ATTACH TO. **Whether
-> an attestation granted against an old fused leg carries forward onto the narrower split leg, or must be
-> re-signed, is an OPEN OWNER CALL (open modeling call 1) and is not a call this re-adjudication makes.**
-> No agent may resolve it in either direction: granting the carry-forward would be an agent self-exempting
-> a unit toward green (`agent-never-self-exempts`), and silently discarding it would destroy real signed
-> state. Until the owner rules, legs 4 and 11 are honestly unstamped with a live prior attestation on
-> record. **This story is the first in the migration to hit this, and it will recur on every
-> already-attested story the migration reaches.**
+> **Per ADR-0209 D6 all eleven legs returned UNSTAMPED, legs 4 and 11 included.** A substantive change to
+> a criterion invalidates the old green, and a leg SPLIT is such a change. So that re-adjudication did
+> not preserve the attestation as a live GREEN — it preserved it as a RECORD WITH A LEG TO ATTACH TO.
+> **Whether an attestation granted against an old fused leg carries forward onto the narrower split leg,
+> or must be re-signed, is an OPEN OWNER CALL (open modeling call 1) and is STILL OPEN.** Deleting the
+> story-tier legs does not answer it, narrow it, or moot it: the same question now stands of
+> `appearance-uat` legs a and d, which is where those claims live. ADR-0348 D7's supersession ruling
+> reaches `agent` leg 1 ONLY and is deliberately not generalised here. No agent may resolve it in either
+> direction: granting the carry-forward would be an agent self-exempting a unit toward green
+> (`agent-never-self-exempts`), and silently discarding it would destroy real signed state. Until the
+> owner rules, those claims are honestly unstamped with a live prior attestation on record. **This story
+> is the first in the migration to hit this, and it will recur on every already-attested story the
+> migration reaches.**
 >
 > **`machine` is a witness KIND, not a claim of coverage — but here much of it is genuinely already
 > covered, and that is stated per leg.** Unusually for this migration, most machine halves have REAL
@@ -269,15 +297,6 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    claim under real concurrency). *(Machine, not human: "exactly one winner, and the loser is told who
    holds it" is a returned value and an audit row — there is nothing here for an eye to judge. This half
    was fused onto a look leg only because it is WITNESSED on the map.)*
-4. **The three stages READ apart at a glance.** _(witness: human)_ With the studio on the real forest map _(criterion-id: uatc_bc61c6ca51eed99ae92668cf)_ _(revision-id: uatr1:3f37d3fa62244063)_
-   against the live store, watch a story carrying an `exploring`, a `waiting` and a `work` claim at once.
-   **Success —** the owner's verdict that the three stages are legible as three DIFFERENT things without
-   reading a tooltip — the window-shopper reads as *someone is looking here*, the queue as *someone is
-   waiting behind*, the island orbit as *someone is working this* — and that the result is not a soup of
-   near-identical dots. *(operator-attested and irreducible — "reads apart at a glance" has no compiler;
-   leg 2 pins the POSITIONS in scene coordinates and can never say the reading lands. **This is the leg the
-   owner's 2026-07-17 hover / queue / orbit attestation was given against**; per ADR-0209 D6 it returns
-   unstamped pending open modeling call 1.)*
 5. **The active subagent's colour state is STAMPED, and it SHIFTS.** _(witness: machine)(detail: wisp-as-story-claim#uat-5)_ Drive one claimed _(criterion-id: uatc_7b39f68835e41d1f472d4fc1)_ _(revision-id: uatr1:17eb530972d07a8e)_
    story through authoring → proving → supplementing and read the colour state off the data the surface
    consumes. **Success —** the pure mapping returns exactly one of three mutually distinct, never-green
@@ -289,15 +308,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    real run actually produces CHANGES across the three phases of work. The two mapping halves are green
    today; **the SHIFT is not, and no live producer drives all three states** — see the detail's producer
    gap.
-6. **The three colour states are distinguishable to the eye.** _(witness: human)_ On the real map, look at _(criterion-id: uatc_22327f01d6f542a1610c9b88)_ _(revision-id: uatr1:ca68b7c32f7771fc)_
-   claim wisps in the authoring, proving and supplementing states. **Success —** the owner's verdict that
-   the three read as three different states at map scale and map opacity — not three shades of one colour —
-   and that none of them reads as *green / proven*. *(operator-attested and irreducible — perceptual colour
-   separation has no compiler. Leg 5 proves three distinct TOKENS, which is not the claim that they render
-   as three distinguishable COLOURS; leg 7 proves the structural absence of bloom vocabulary, which is not
-   the claim that a claim wisp does not LOOK green. **NOT covered by the 2026-07-17 attestation** — that
-   signature was on hover / queue / orbit and the departure fades, not on colour.)*
-7. **The claim layer never wears the bloom's visual vocabulary — even under a green band.** _(criterion-id: uatc_8c9b5b23c10dc585a257193b)_ _(revision-id: uatr1:919336692177f8f5)_
+7. **The claim layer never wears the bloom's visual vocabulary — even under a green band.** _(criterion-id: uatc_8c9b5b23c10dc585a257193b)_ _(revision-id: uatr1:da41aec80028a221)_ _(previous-revision-id: uatr1:919336692177f8f5)_
    _(witness: machine)_ Walk the claim, hover, queue and departing families in the scene core and in the
    rendered DOM, across every grade and every colour state, including the at-risk case of a story whose
    work body carries a GREEN build phase band (ADR-0212 channel 3 folded the retired build wisp's red→green
@@ -309,18 +320,8 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    departures), `packages/app-surface/src/SceneView.test.tsx` (the rendered walls including the green-band
    case) and `apps/studio/server/inFlightActivity.test.ts` (the data-level `kind: 'claim'` discriminator).
    *(Machine, not human: a disjoint kind / class / field set is a structural comparison. That the two
-   families are SEPARATE CODE is this leg; that they LOOK apart is leg 8, and one has never implied the
-   other.)*
-8. **Claimed LOOKS clearly different from proven-green.** _(witness: human)_ On the real map, put a _(criterion-id: uatc_2d6143eedb6a8264b6348039)_ _(revision-id: uatr1:e00db1e95e0d64f6)_
-   claimed-but-not-proven story beside a story carrying a real signed-verdict green **bloom** — and, the
-   harder case, one story carrying BOTH at once. **Success —** the owner's verdict that the two read as
-   clearly different things and that the map does not silently inflate proof; if they look alike this leg
-   FAILS regardless of what the data says. *(operator-attested and irreducible — this is the §5 honesty
-   wall's own leg, and the reason the wall exists is that an eye can be fooled by data that is perfectly
-   well separated. Leg 7 proves the two families share no code, no kind and no class, which is exactly NOT
-   the claim that they look apart: `--claim-hue` and `--bloom-hue` resolve through CSS variable chains no
-   jsdom test can evaluate, and the both-at-once co-presence case is rendered by no test today (open
-   modeling call 5). **NOT covered by the 2026-07-17 attestation.**)*
+   families are SEPARATE CODE is this leg; that they LOOK apart is the capability
+   [`appearance-uat`](appearance-uat.md)'s leg c, and one has never implied the other.)*
 9. **The CI merge releases the branch's claims — every grade, audited, waiter promoted.** _(criterion-id: uatc_89597d2010852d4ef712a33a)_ _(revision-id: uatr1:53d8c3cefe6eb5b2)_
    _(witness: machine)(detail: wisp-as-story-claim#uat-9)_ Merge a real PR whose branch holds claims, then read the ledger. **Success —**
    every `events.node_claim` row for the merged branch is gone whatever its grade, one `released`
@@ -347,16 +348,6 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
     `ageRatio`). **Residual gap —** the studio-side fold that feeds all of it (`departureAgeRatio` and the
     per-territory `departures` mapping in `TreeView.tsx`) has NO test: no spec passes `departuresByStory`
     through `worldToScene`, so the window is proven on both sides of a seam that is itself unproven.
-11. **The departure reads as *just left*, not as *lost*.** _(witness: human)_ Watch a real claim release on _(criterion-id: uatc_6043c4cee1fb3bf6f7af8410)_ _(revision-id: uatr1:684147ea58676cb7)_
-    the map. **Success —** the owner's verdict that the fade reads as a session having WALKED AWAY —
-    finished, departed — and never as a claim that was dropped, crashed, or silently vanished. This leg
-    exists because the opposite reading was a REAL RECORDED DEFECT
-    (`friction-released-build-wisp-reads-as-lost-claim`), which is why it is a permanent regression case
-    rather than speculative breadth (`uat-proves-the-goal-not-the-surface`). *(operator-attested and
-    irreducible — "reads as just left rather than lost" is a semantic reading OF a motion, and no compiler
-    decides which of two meanings a fade carries; leg 10 pins the window, the fade ratio and the drift and
-    can never say which it reads as. **This is the leg the owner's 2026-07-17 departure-fades attestation
-    was given against**; per ADR-0209 D6 it returns unstamped pending open modeling call 1.)*
 
 ## Open modeling calls (for the owner)
 
@@ -365,8 +356,12 @@ Surfaced rather than guessed — none blocks the delivered layer, and none is se
 1. **Does an owner attestation carry forward onto a SPLIT leg, or must it be re-signed?** ★ The call this
    re-adjudication exists to surface. The owner attested this story's look on **2026-07-17** (hover / queue
    / orbit + departure fades). Re-adjudicating mechanically unstamps every leg under ADR-0209 D6 — so the
-   attestation's claims now sit on human legs **4** and **11**, both honestly UNSTAMPED, even though the
-   thing the owner looked at has not changed by one pixel. Two honest readings, and the corpus settles
+   attestation's claims sat on human legs **4** and **11**, both honestly UNSTAMPED, even though the
+   thing the owner looked at has not changed by one pixel. **Those two story legs were then DELETED by
+   ADR-0348 D6 (2026-08-11) and the claims now sit on [`appearance-uat`](appearance-uat.md)'s legs a and
+   d — which MOVES the question one rung down and settles nothing about it. This call remains OPEN and
+   owner-owned;** ADR-0348 D7's supersession ruling reaches `agent` leg 1 only and is deliberately not
+   generalised here. Two honest readings, and the corpus settles
    neither: (a) the split legs are strictly NARROWER than the leg that was signed, so the signature still
    covers them and should carry forward; or (b) ADR-0209 D6's invalidation is deliberate and absolute, so
    any re-adjudicated leg must be re-signed regardless of whether the surface moved. **An agent must not
@@ -404,9 +399,10 @@ Surfaced rather than guessed — none blocks the delivered layer, and none is se
    existing coverage asserts the claim families never reach for bloom vocabulary. Nothing asserts the
    converse (the bloom renderer never reaches for claim styling), and no test renders one story carrying a
    claim wisp AND an in-window bloom simultaneously — which is the case a human eye actually has to
-   separate, and the case human leg 8 is asked to judge. Both fields exist on `SceneTerritoryInput`, so
-   the co-presence case is buildable. Whether leg 7 should widen to cover it, or whether it stays leg 8's
-   human burden, is a build-time call.
+   separate, and the case [`appearance-uat`](appearance-uat.md)'s leg c is asked to judge (story leg 8
+   until ADR-0348 D6 deleted it). Both fields exist on `SceneTerritoryInput`, so the co-presence case is
+   buildable. Whether leg 7 should widen to cover it, or whether it stays that capability leg's human
+   burden, is a build-time call.
 6. **Capability E is half-orphaned by ADR-0175: does it narrow to its one live contract, and does its
    spent `real:` arm come off?** Two facts now sit under [`take-claim-at-spawn`](take-claim-at-spawn.md),
    both verified at file level. **(a)** Its E1 seam LANDED — `packages/agent/src/spawn-claim.ts`
