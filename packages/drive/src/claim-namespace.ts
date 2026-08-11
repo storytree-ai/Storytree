@@ -109,6 +109,18 @@ export interface ClaimTarget {
   readonly id: string;
   readonly kind: ClaimKind;
   /**
+   * STORY targets only: the story frontmatter's declared `uat_witness` (ADR-0040), verbatim —
+   * absent when the frontmatter omits it, which is the fail-closed `human` default.
+   *
+   * Carried because it is the ONE fact that tells a story id that names REAL WORK from a story id
+   * that is only a fence around unscoped work (ADR-0346 D2). It is read off the tree rather than
+   * guessed from the string: `story build` claims `story.id` in exactly one case — a
+   * `uat_witness: machine` story whose UAT node is in `driveOrder` — and {@link fenceStoryWorkClaim}
+   * has to reach the same answer from the same source, or the CLI would refuse a claim the build
+   * path takes.
+   */
+  readonly uatWitness?: string;
+  /**
    * SUBTREE targets only: the addressable unit the map declares responsible for this subtree.
    *
    * Carried so a claim can SAY it — `[subtree, owned by gate-ci-parity]`. Claiming the subtree does
@@ -473,6 +485,88 @@ export function claimNamespaceRefusalNext(suggestions: readonly ClaimSuggestion[
     "storytree ownership --all",
     "storytree library artifact list arc --pg",
   ];
+}
+
+// ---------------------------------------------------------------------------
+// The story-grain fence (ADR-0346 D2)
+// ---------------------------------------------------------------------------
+
+/** {@link fenceStoryWorkClaim}'s answer: proceed, or the refusal's body + next lines. */
+export type WorkClaimFence =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly body: string; readonly next: readonly string[] };
+
+/**
+ * PURE: may this id take the exclusive WORK claim? (ADR-0346 D2 — story-grain work claims retire.)
+ *
+ * The rule is one line: a `story` may not be claimed at work grade UNLESS its own frontmatter
+ * declares `uat_witness: machine`, in which case the story id names the UAT NODE — a real unit the
+ * gate drives and `story build` already claims alongside the story's members — rather than a fence
+ * around whatever the session happens to touch. Every other kind is unaffected, and so are the two
+ * SHARED grades: `exploring` on a story is the hovering wisp and fences nobody, and `waiting` is
+ * the queue.
+ *
+ * WHY THIS SHIPS WITH THE BINDING FENCE RATHER THAN AFTER IT. The ledger keys claims by string and
+ * knows no containment (`noticeboard.ts`), so a session holding story `library` does not contend
+ * with one holding `library-health-gate` inside it. While nothing blocked, that was harmless. The
+ * moment `waiting` BINDS (ADR-0346 D1), claiming the parent story becomes the obvious way around
+ * the fence — so landing D1 without D2 would ship the bypass with the rule. D2 closes it by
+ * REMOVING the move, not by teaching the ledger the work hierarchy: containment is deliberately not
+ * built, and the ledger is the instrument that says whether it needs to be (if story-grain work
+ * claims reappear in the measured log, revisit it).
+ *
+ * FAIL-OPEN with the namespace check that feeds it: `kind` is null when the universe could not be
+ * read in full, and an unknown kind is never a story, so an unreadable tree stands this fence down
+ * exactly as it stands `resolveClaimId` down. A false refusal here blocks real work; the leak it
+ * closes is one a session can see on the board.
+ */
+export function fenceStoryWorkClaim(input: {
+  readonly id: string;
+  readonly kind: ClaimKind | null;
+  /** The story's declared `uat_witness`, or null (absent / not a story / the check did not run). */
+  readonly uatWitness: string | null;
+  /** The command that would take the claim, so the remedy line is copy-pasteable. */
+  readonly verb: string;
+}): WorkClaimFence {
+  const { id, kind, uatWitness } = input;
+  if (kind !== "story") return { ok: true };
+  // The ADR-0040 default is fail-CLOSED toward the human witness, which here means fail-closed
+  // toward the fence: anything that is not the literal `machine` leaves the story id naming no
+  // driven unit. Read as an exact match rather than `?? "human"` so the defaulting seam in
+  // `@storytree/library` stays the only place that rule is written.
+  if (uatWitness === "machine") return { ok: true };
+  const quoted = quoteClaimId(id);
+  return {
+    ok: false,
+    body: [
+      `Work claim on "${id}" REFUSED — that is a STORY, and a story is no longer a work claim`,
+      "(ADR-0346 D2). Claim the CAPABILITY you are writing; several, if you are writing several —",
+      "the ledger has never capped units per session (ADR-0200 D2), and sessions measurably hold",
+      "8-13 at once.",
+      "",
+      "Why the story grain went, rather than being left as a coarse fallback: the ledger keys claims",
+      "by string and knows no containment, so a session holding this story would not contend with a",
+      "sibling holding a capability inside it. Now that a refusal BINDS (ADR-0346 D1), claiming the",
+      "parent story is the obvious way around the fence — so the move is removed rather than the",
+      "hierarchy taught to the ledger.",
+      "",
+      "Nothing was written, and this says nothing about claims this session already holds.",
+      "  - writing one capability?      claim it by id (`storytree tree` below lists this story's).",
+      "  - writing several?             claim each — that is the honest row, not a story-shaped one.",
+      "  - no capability to name?       claim the INCREMENT you are driving (ADR-0308 D5).",
+      "  - only reading or planning?    `--grade exploring` on this story is untouched: it is the",
+      "                                 hovering wisp, it is shared, and it fences nobody.",
+      "",
+      "The story TIER is still claimable where it names real work: a story declaring",
+      "`uat_witness: machine` has a UAT node the gate drives, and `story build` claims that id",
+      "alongside the story's members. This story does not declare it, so its id names no driven unit.",
+    ].join("\n"),
+    next: [
+      `storytree tree ${quoted}`,
+      "storytree noticeboard claim <capability-id> --grade work --pg",
+      `storytree noticeboard claim ${quoted} --grade exploring --intent "<why>" --pg`,
+    ],
+  };
 }
 
 // ---------------------------------------------------------------------------

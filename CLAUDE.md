@@ -534,12 +534,20 @@ Never self-exempt from the gate or the ceremony.
 - **Anchor your session on the notice board** once you know what you're working on:
   `pnpm storytree noticeboard declare --working-on "<what>" --node <unit-id> --pg` (repeat
   `--node` per unit; the claim upsert is idempotent per (unit, session), so refining is cheap).
-  **Claim the CAPABILITY you are writing — the story only for cross-capability work (ADR-0270 D1):**
-  capability-grain claims mean same-story siblings on disjoint capabilities never contend. The
-  declare TAKES the **work** claim on each `--node` (ADR-0142/0200) — that claim is the orbiting
-  wisp on the map. A refusal prints the unit's full claim board — resolve it yourself (narrow to
-  your capability or take the waiting grade); **a claim conflict is never an owner question**
-  (ADR-0270 D2). Since **ADR-0200** the noticeboard IS the deterministic claim
+  **Claim the CAPABILITY you are writing — several if you write several; a STORY is REFUSED
+  (ADR-0346 D2, since 2026-08-11), and work with no capability to name claims the INCREMENT it is
+  driving (ADR-0308 D5):** capability-grain claims mean same-story siblings on disjoint capabilities
+  never contend, and the story fallback went because the ledger knows no containment — under a
+  binding fence, claiming the parent story would have been the way around it. The story TIER is
+  still claimable where it names real work (a `uat_witness: machine` story's UAT node, which
+  `story build` claims alongside its members), and the shared `exploring` grade on a story is
+  untouched. The declare TAKES the **work** claim on each `--node` (ADR-0142/0200) — that claim is
+  the orbiting wisp on the map. **A refusal now BINDS (ADR-0346 D1):** you are queued in the same
+  transaction, promoted automatically when the holder releases, and you STOP working that unit —
+  ADR-0270 D2's "proceed on your own judgment" is withdrawn. Work another capability you already
+  hold, or write your residue onto the owning arc, release your claims and END (ADR-0346 D4 /
+  ADR-0303). What survives ADR-0270 D2 unchanged: **a claim conflict is never an owner question.**
+  Since **ADR-0200** the noticeboard IS the deterministic claim
   ledger (grades exploring / waiting / work); advisory session-presence rows are **retired**, so the
   hooks no longer auto-declare — the `SessionStart` hook injects the claim-ledger anchor nudge
   (ADR-0143), the studio dock renders claims grouped by session, and an unclaimed session is

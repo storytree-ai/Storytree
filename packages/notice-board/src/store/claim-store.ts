@@ -167,6 +167,21 @@ export interface ClaimOptions {
   now?: Date;
   /** Reclaim threshold in ms (default {@link CLAIM_STALE_RECLAIM_MS}). */
   staleReclaimMs?: number;
+  /**
+   * On a REFUSED work take, join the waiting line instead of dead-ending (ADR-0346 D1 — `waiting`
+   * binds). The refusal is still audited `conflict-refused`; the session then lands in the queue
+   * (audited `queued`) and the queued arm comes back, so it is promoted when the holder releases
+   * ({@link oldestLiveWaiter}, already enforced by {@link PgClaimStore.release}). ONE transaction —
+   * the enqueue cannot slip past a release the way a caller-side follow-up take can, which under a
+   * binding fence would leave a session queued behind nobody, forever.
+   *
+   * OPT-IN, default false, and the default is the load-bearing half: the SESSION ceremony wants a
+   * queue (a blocked session is fenced out and waits its turn), while a BUILD wants a dead end —
+   * `acquireChainClaims` takes a story's members all-or-nothing and rolls back on the first
+   * refusal, so silently queueing it behind every member would leave rows for work it abandoned in
+   * the same breath.
+   */
+  queueOnRefusal?: boolean;
 }
 
 /**
@@ -205,6 +220,9 @@ export class PgClaimStore {
    * gone stale (reclaim). Otherwise REFUSES — returning the live holder so the caller can name it —
    * and records a `conflict-refused` audit event. `req.grade` is ignored: this IS the work take
    * (grade-aware callers go through {@link take}). Atomic; ROLLBACK on any error.
+   *
+   * {@link ClaimOptions.queueOnRefusal} turns that refusal into a take-or-QUEUE (ADR-0346 D1): same
+   * refusal, plus the waiting row, in the one transaction. Off by default — see the option.
    */
   async claim(req: ClaimRequest, opts: ClaimOptions = {}): Promise<ClaimResult> {
     const now = opts.now ?? new Date();
@@ -242,10 +260,9 @@ export class PgClaimStore {
         existing.session_id !== candidate.sessionId &&
         !isReclaimable({ heartbeatAt: toIso(existing.heartbeat_at) }, now, staleMs)
       ) {
-        const heldBy = rowToDoc(existing);
-        await this.#appendEvent(client, candidate.unitId, "conflict-refused", candidate.sessionId, heldBy);
+        const refused = await this.#refuse(client, candidate, role, rowToDoc(existing), opts);
         await client.query("COMMIT");
-        return { acquired: false, heldBy };
+        return refused;
       }
 
       // ── Acquired ────────────────────────────────────────────────────────────
@@ -285,9 +302,11 @@ export class PgClaimStore {
             [candidate.unitId],
           );
           const heldBy = rowToDoc((winner.rows as ClaimRow[])[0] as ClaimRow);
-          await this.#appendEvent(client, candidate.unitId, "conflict-refused", candidate.sessionId, heldBy);
+          // The restore above puts our shared row back before #refuse may flip it to `waiting` —
+          // order matters: a queued session must end this transaction holding exactly ONE row.
+          const refused = await this.#refuse(client, candidate, role, heldBy, opts);
           await client.query("COMMIT");
-          return { acquired: false, heldBy };
+          return refused;
         }
         eventType = "claimed";
       } else {
@@ -1064,6 +1083,38 @@ export class PgClaimStore {
     for (const unitId of workUnits) {
       await this.#promoteOldestWaiter(client, unitId);
     }
+  }
+
+  /**
+   * The shared tail of {@link claim}'s two refusal branches: audit the refusal, and — when
+   * {@link ClaimOptions.queueOnRefusal} says so (ADR-0346 D1) — join the waiting line in the SAME
+   * transaction and hand back the queued arm.
+   *
+   * BOTH events are written on the queued path, never one or the other. The refusal is a real event
+   * a session was told "no" — `noticeboard history --refusals` is how a binding fence is audited,
+   * and a fence whose refusals stopped being recorded the moment it started binding would be
+   * unmeasurable exactly when it began to matter. `queued` then records what the session got
+   * INSTEAD. The caller COMMITs.
+   */
+  async #refuse(
+    client: ClaimClient,
+    candidate: ClaimDocT,
+    role: string | null,
+    heldBy: ClaimDocT,
+    opts: ClaimOptions,
+  ): Promise<ClaimResult> {
+    await this.#appendEvent(client, candidate.unitId, "conflict-refused", candidate.sessionId, heldBy);
+    if (opts.queueOnRefusal !== true) return { acquired: false, heldBy };
+    const waiting = await this.#upsertWaiting(
+      client,
+      candidate.unitId,
+      candidate.sessionId,
+      candidate.branch,
+      candidate.intent,
+      role,
+    );
+    await this.#appendEvent(client, candidate.unitId, "queued", candidate.sessionId, waiting);
+    return { acquired: false, queued: true, waiting, heldBy };
   }
 
   /**

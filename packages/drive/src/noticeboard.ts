@@ -9,6 +9,12 @@
  * is the ONE coordination + observability machinery. The board renders the ledger ONLY; `declare`
  * is the claim-taking anchor ceremony (ADR-0142 claim-at-declare, now the whole verb); `done`
  * bulk-releases the session's claims. Nothing here reads or writes `events.session` any more.
+ *
+ * `declare` is where ADR-0346 lands, because it is the highest-volume claim-taking path: a held node
+ * now QUEUES this session and fences it out (D1 — `waiting` binds, and the refusal exits non-zero
+ * instead of offering "coordinate or pick other work"), and a STORY id is refused outright (D2 —
+ * the grain retired; the capability, or the increment when there is no capability to name). The
+ * migration is pull-based: a session adopts the new grain at its next declare.
  */
 import { execFileSync } from "node:child_process";
 
@@ -26,7 +32,7 @@ import {
   workClaimRequest,
 } from "@storytree/notice-board";
 
-import { claimNamespaceOneLine } from "./claim-namespace.js";
+import { claimNamespaceOneLine, fenceStoryWorkClaim } from "./claim-namespace.js";
 import { guardClaimNamespace, kindSuffix, type ClaimUniverseLoader } from "./claim-universe.js";
 import type { Envelope } from "./envelope.js";
 
@@ -46,7 +52,13 @@ export interface SessionIdentity {
  * refuse with the db:up guidance (there is no presence fallback to land on, ADR-0200 D7).
  */
 export interface SessionClaimStoreLike {
-  claim(req: ClaimRequest): Promise<ClaimResult>;
+  /**
+   * `opts.queueOnRefusal` (ADR-0346 D1): a declared node whose work slot is held puts this session
+   * in the WAITING line rather than dead-ending, in one transaction — so a fenced-out node is a
+   * node this session is queued for, and the ADR-0200 D2 promotion reaches it when the holder lets
+   * go. Optional on the seam so a narrower test double stays assignable.
+   */
+  claim(req: ClaimRequest, opts?: { queueOnRefusal?: boolean }): Promise<ClaimResult>;
   releaseClaimsBySession(sessionId: string): Promise<number>;
 }
 
@@ -296,7 +308,7 @@ export async function noticeboardCommand(
         "",
         "Usage:",
         "  storytree noticeboard         — show the notice board (the claim ledger)",
-        "  storytree noticeboard declare  — take the work-time claim on your --node unit ids (the capability you are writing, ADR-0270; the story for cross-capability work)",
+        "  storytree noticeboard declare  — take the work-time claim on your --node unit ids (the CAPABILITY you are writing, several if several; the increment id when there is no capability to name — a story is no longer a work claim, ADR-0346 D2)",
         "  storytree noticeboard done     — release every claim this session holds",
       ].join("\n"),
       next: [
@@ -393,6 +405,8 @@ export async function noticeboardCommand(
     const held: string[] = [];
     const failed: string[] = [];
     const unresolved: string[] = [];
+    /** Nodes refused by the story-grain fence (ADR-0346 D2) — a real id, at a retired grain. */
+    const fenced: string[] = [];
     /** Owners of the SUBTREES this declare actually claimed — the overlap footer's input. */
     const subtreeOwners = new Set<string>();
     for (const nodeId of opts.nodes) {
@@ -406,6 +420,24 @@ export async function noticeboardCommand(
       if (!named.ok) {
         unresolved.push(nodeId);
         claimLines.push(`    ${nodeId}: ${claimNamespaceOneLine(named.suggestions)}`);
+        continue;
+      }
+      // The story-grain fence (ADR-0346 D2), per node and BEFORE the write, for the same fail-soft
+      // reason the namespace check is: one node declared at the retired grain must not cost the
+      // others their claims. `declare` is the highest-volume work-claim path, so this is where the
+      // grain actually migrates — pull-based, at each session's next declare.
+      const fence = fenceStoryWorkClaim({
+        id: nodeId,
+        kind: named.kind,
+        uatWitness: named.uatWitness,
+        verb: "storytree noticeboard declare --working-on <prose> --node <unit-id> --pg",
+      });
+      if (!fence.ok) {
+        fenced.push(nodeId);
+        claimLines.push(
+          `    ${nodeId}: NOT CLAIMED — a STORY is no longer a work claim (ADR-0346 D2); ` +
+            "claim the capability you are writing",
+        );
         continue;
       }
       try {
@@ -424,6 +456,10 @@ export async function noticeboardCommand(
             // compete for one column.
             intent: workingOn.trim(),
           }),
+          // ADR-0346 D1: a held node fences this session OUT of it, so the session joins the line
+          // rather than being told "no" and left to decide. The take and the enqueue are one
+          // transaction, so a release cannot slip between them.
+          { queueOnRefusal: true },
         );
         if (res.acquired) acquired.push(nodeId);
         else held.push(nodeId);
@@ -437,9 +473,12 @@ export async function noticeboardCommand(
         claimLines.push(
           res.acquired
             ? `    ${nodeId}${kindSuffix(named.kind, named.owner)}: claimed — the wisp is lit`
-            // The holder's LIVENESS rides along (ADR-0346 D1 companion work): "coordinate or pick
-            // other work" is unanswerable without knowing whether the holder is alive.
-            : `    ${nodeId}: HELD by ${describeHolder(res.heldBy, deps.now())} — coordinate or pick other work`,
+            // The holder's LIVENESS rides along (ADR-0346 D1 companion work): the choice this
+            // session now has to make is unanswerable without knowing whether the holder is alive.
+            // "coordinate or pick other work" is gone with the affordance it named — under D1 the
+            // session does not coordinate its way in, it is QUEUED and works elsewhere.
+            : `    ${nodeId}: HELD by ${describeHolder(res.heldBy, deps.now())} — ` +
+              `${"queued" in res ? "you are QUEUED behind them" : "NOT queued — take the waiting claim"}; this node is fenced`,
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -448,7 +487,7 @@ export async function noticeboardCommand(
       }
     }
 
-    const withheld = [...held, ...failed, ...unresolved];
+    const withheld = [...held, ...failed, ...unresolved, ...fenced];
     // The three outcomes are graded by WHAT THE SESSION HOLDS when the verb returns, because the
     // merge ceremony explicitly requires a live noticeboard claim (ADR-0200 D3).
     // Fidelity over politeness: the headline and the exit code both report the ledger, not the
@@ -504,10 +543,8 @@ export async function noticeboardCommand(
       bodyLines.push(
         "",
         `Withheld: ${withheld.join(", ")}. This session DOES hold a live noticeboard claim ` +
-          `(${acquired.join(", ")}), but the withheld node was not anchored. Resolve it from ` +
-          "the board above on your own judgment: narrow to the capability you are actually " +
-          "writing (ADR-0270 D1), or queue with a waiting claim. A claim conflict is not an owner " +
-          "question (ADR-0270 D2).",
+          `(${acquired.join(", ")}), but the withheld node was not anchored — and under ADR-0346 D1 ` +
+          "that is a FENCE, not a hint: do not write it. Work the nodes you did claim.",
       );
     } else if (withheld.length > 0) {
       bodyLines.push(
@@ -521,10 +558,13 @@ export async function noticeboardCommand(
       if (held.length > 0) {
         bodyLines.push(
           "",
-          "Resolve it here, from the board above, on your own judgment — a claim conflict is not " +
-            "an owner question (ADR-0270 D2). Either narrow to the capability you are actually " +
-            "writing (ADR-0270 D1) and re-declare, or queue behind the holder with a waiting " +
-            "claim, which is itself a live claim and satisfies the gate.",
+          "The held node is FENCED, and you are in its line — `waiting` binds (ADR-0346 D1): the " +
+            "store hands you the slot when the holder releases, so there is nothing to poll. Do " +
+            "not build it in the meantime. Two branches and only two (ADR-0346 D4): work another " +
+            "capability you already hold, or write what you were attempting and what remains onto " +
+            "the owning arc, release your claims, and END the session (ADR-0303 — escalating is a " +
+            "landing, never a pause). A claim conflict is still never an owner question " +
+            "(ADR-0270 D2's surviving clause).",
         );
       }
       if (failed.length > 0) {
@@ -554,18 +594,45 @@ export async function noticeboardCommand(
       );
     }
 
+    // Also outside the arms above, and for the same reason: a fenced node is neither a conflict nor
+    // a typo. Its id is REAL and nobody holds it — the GRAIN is retired, so the remedy is to declare
+    // at a finer one, which no amount of re-running or waiting reaches.
+    if (fenced.length > 0) {
+      bodyLines.push(
+        "",
+        `${fenced.length} declared id${fenced.length !== 1 ? "s are" : " is"} a STORY: ` +
+          `${fenced.join(", ")}. A story is no longer a work claim (ADR-0346 D2) — declare the ` +
+          "CAPABILITY you are writing, several if you are writing several, or the INCREMENT you " +
+          "are driving when there is no capability to name (ADR-0308 D5). Nobody is holding these " +
+          "ids: the grain went, not the node. The story tier is still claimable where it names " +
+          "real work — a `uat_witness: machine` story's UAT node, which `story build` claims " +
+          "alongside its members — and these stories do not declare it. To read or plan across a " +
+          "story rather than write it, take the SHARED exploring claim: it is untouched by D2, and " +
+          "it fences nobody.",
+      );
+    }
+
     // `next` points at the remedy for the state the session is actually in — for arm C that is the
     // one command the measured sessions eventually reached for, rather than the onward navigation
     // a successful declare offers.
     const firstHeld = held[0];
+    const firstFenced = fenced[0];
     let next: string[];
     if (acquired.length > 0) {
       next = [`storytree tree ${opts.nodes[0]} --pg`, "storytree noticeboard --pg"];
+    } else if (firstFenced !== undefined) {
+      // The fence outranks a conflict in `next` because it is the one state re-running cannot
+      // change: a held node promotes on its own, an unresolved id is a typo, a story is a grain.
+      next = [
+        `storytree tree ${firstFenced}   (this story's capabilities — declare the one you are writing)`,
+        "storytree noticeboard declare --working-on <prose> --node <capability-id> --pg",
+        `storytree noticeboard claim ${firstFenced} --grade exploring --intent "<why>" --pg`,
+      ];
     } else if (firstHeld !== undefined) {
       next = [
-        "storytree noticeboard declare --working-on <prose> --node <capability-id> --pg   (narrow to what you are writing, ADR-0270 D1)",
-        `storytree noticeboard claim ${firstHeld} --grade waiting --intent "<why>" --pg`,
+        "storytree noticeboard mine --pg   (what you hold — work one of these, ADR-0346 D4)",
         `storytree noticeboard claims ${firstHeld} --pg`,
+        "storytree arc increment add <arc-id> --outcome <text|@file> --pg   (land the residue and END)",
       ];
     } else {
       // Nothing held and nothing acquired: every node's write FAILED, so the store is the problem.

@@ -170,6 +170,9 @@ actually being grown.
   The reclaim predicate already exists (`isReclaimable`, 2h heartbeat), but the two surfaces disagree
   about which rows are live and neither says "stale" — so a refusal must state whether the holder is
   live or reclaimable before D1 can be trusted. **This is companion work to D1, not a follow-up.**
+  *(DISCHARGED 2026-08-11: `capability-claim-binds-arc` increment 1 (#1271) made `isReclaimable` the
+  ONE predicate every claim surface consults and made every render say the word "stale"; increment 3
+  landed D1 on top of it, so no refusal this fence issues can hide whether its holder is alive.)*
 - Binding reintroduces a real cost when a capability is drawn too coarse for two sessions that
   genuinely do not overlap. D4 absorbs it (work elsewhere, or land and end) rather than removing it;
   D3's deferred `scope` is the instrument that would show it, if it shows up.
