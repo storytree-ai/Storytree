@@ -4048,6 +4048,57 @@ button.legend-tile:hover {
 .tree-session-band.band-stale { background: var(--warn); }
 .tree-session-band.band-possibly-dead { background: var(--st-retired); }
 
+/* context-traversal picker + replay mount (traversal-panel-arc).
+   Every rule here exists to survive the panel at PANEL_MIN=360 and at the minimized
+   min(340px, 66%) cap — the constraint that chose the owner's Option A over the wider
+   alternatives. So: the control stacks under its label rather than sitting beside it, the
+   select is width-bounded and free to ellipsise (its option LIST is a popup and is not
+   clipped by the panel, which is why the unavailability reason can ride in the row text),
+   and every prose line wraps and breaks rather than forcing a horizontal scrollbar. */
+.traversal-picker-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.traversal-picker-select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-overflow: ellipsis;
+}
+.traversal-picker-note,
+.traversal-replay-note,
+.traversal-replay-pending {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+.traversal-replay {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.traversal-replay-facts {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+.traversal-replay-facts > li {
+  margin: 3px 0;
+}
+.traversal-replay-partial {
+  color: var(--warn);
+  font-weight: 600;
+}
+
 /* ── world settings gear (bottom-right of the #/tree frame) ─────────────────────
    A small gear button opens a compact panel of sliders/toggles/selects bound to the
    URL world dials (worldSettings schema). Closed by default ⇒ today's world is

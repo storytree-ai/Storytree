@@ -99,6 +99,7 @@ import {
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { DetailDisclosure } from './DetailDisclosure.js';
 import { BuildSection } from './BuildSection.js';
+import { SessionTraversalSection } from './SessionTraversalSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { LibraryDrawer } from './LibraryDrawer.js';
 import { ArcSurface } from './ArcSurface.js';
@@ -5681,6 +5682,15 @@ function StoryPanel({
           {claims.map(claimLine)}
         </DetailDisclosure>
       )}
+
+      {/* The context-traversal replay's entry point (`traversal-panel-arc`): the SAME claims the
+          disclosure above lists, joined against which of them this machine can actually replay, and
+          the replay mounted in place on selection. It sits immediately after "Sessions here" because
+          it is the same question one step further in — who is here, and can I watch what they did.
+          A block in the sequence, not a registered section: StoryPanel has no section-config seam,
+          and inventing one for a single caller would be a registry with one entry. It renders
+          nothing at all when nobody claims this story. */}
+      <SessionTraversalSection storyId={story.id} claims={claims} />
 
       <DetailDisclosure
         label="Capabilities"
