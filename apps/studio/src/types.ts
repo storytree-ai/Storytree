@@ -981,19 +981,117 @@ export interface TraversalSessionsPayload {
   sessions: TraversalSessionEntry[];
 }
 
-/**
- * One replayed event, mirrored at the DELIBERATELY MINIMAL width this increment renders — the
- * picker + mount seam reads a count and nothing else off these.
- *
- * It is narrow on purpose rather than by neglect: `traversal-panel-spine-render` is the increment
- * that draws the picture, and it is the one that should widen this to the full
- * `ContextTraversalEvent` union it actually plots. Mirroring the whole union HERE would be a shape
- * nothing in this increment reads, aged against a producer nothing in this increment consumes.
- */
-export interface TraversalEventEnvelope {
-  kind: string;
-  at?: string;
+// ---- the replayed event union, mirrored (`traversal-panel-spine-render`) ----
+//
+// WIDENED HERE, and by the increment the previous one named: the picker + mount seam mirrored a
+// two-field envelope because it read a COUNT and nothing else, and said in as many words that the
+// increment drawing the picture is the one that should widen it. This is that increment — the spine
+// plots read strength off `kind`, positions off `at`, and the occupancy bar off `residentInputTokens`,
+// so the narrow shape can no longer answer.
+//
+// It mirrors `ContextTraversalEvent` in `@storytree/context-traversal-telemetry` — the SAME reason the
+// payload types above are mirrored rather than imported, and the reason has not softened: that
+// package's barrel is reachable from the node-only sink, and the studio's browser bundle may not take
+// it. The strict zod union is the authority; this is a structural copy of what crosses the wire, and a
+// field added there is added here or it is simply not drawn.
+//
+// The union is CLOSED (no index signature, no `kind: string` escape hatch) on purpose: a renderer that
+// can silently receive an unknown kind is a renderer that silently omits it. A new event kind should
+// fail to typecheck here and be handled deliberately.
+
+interface TraversalEventBase {
+  eventId: string;
+  sessionId: string;
+  at: string;
 }
+
+/**
+ * A context visit. `kind` IS the read-strength discriminator the design's edge rule turns on — a full
+ * payload read draws a solid edge, a front-matter read a grey dotted one — so nothing else is needed
+ * to decide how the edge into this visit is drawn.
+ */
+export interface TraversalVisitEvent extends TraversalEventBase {
+  kind: 'front_matter_read' | 'full_payload_read';
+  visitId: string;
+  nodeId: string;
+  surfaceId?: string;
+  /** Depth. Carried but NOT drawn here — indentation is `traversal-panel-lanes-and-depth`. */
+  parentVisitId?: string;
+  priorVisitId?: string;
+  followedEdgeId?: string;
+}
+
+/** A search — the only non-circular mark in the signed grammar, drawn as a magnifying glass. */
+export interface TraversalSearchEvent extends TraversalEventBase {
+  kind: 'search';
+  searchId: string;
+  surfaceId: string;
+  operation: string;
+  resultNodeIds: string[];
+}
+
+/** A model request's context observation — the source of the one playhead occupancy bar. */
+export interface TraversalModelContextEvent extends TraversalEventBase {
+  kind: 'model_context';
+  modelId?: string;
+  windowId?: string;
+  /** A BILLING TOTAL, monotonic, and NOT what the bar plots (ADR-0248 D2). Mirrored, never drawn. */
+  cumulativeInputTokens: number;
+  /** DEAD DUPLICATE of the billing total (ADR-0248 D3). Mirrored so the shape is true; never plotted. */
+  addedInputTokens: number;
+  /** WINDOW OCCUPANCY — what the bar plots. Optional: absent means unobserved, never zero. */
+  residentInputTokens?: number;
+  contextWindowCapacity?: number;
+}
+
+/** An offer that was printed. Carried but NOT drawn here — fans are `traversal-panel-lanes-and-depth`. */
+export interface TraversalCandidateSetEvent extends TraversalEventBase {
+  kind: 'candidate_set';
+  candidateSetId: string;
+  surfaceId: string;
+  candidateNodeIds: string[];
+}
+
+/** An offer that was followed. Carried but NOT drawn here — same increment as the fans. */
+export interface TraversalFollowedEdgeEvent extends TraversalEventBase {
+  kind: 'followed_edge';
+  edgeId: string;
+  candidateSetId: string;
+  fromVisitId: string;
+  toVisitId: string;
+}
+
+interface TraversalSpawnEdgeBase extends TraversalEventBase {
+  edgeId: string;
+  parentSessionId: string;
+  childSessionId: string;
+}
+
+/** A subagent lane's birth. Carried but NOT drawn here — lanes are `traversal-panel-lanes-and-depth`. */
+export interface TraversalSpawnHandoffEvent extends TraversalSpawnEdgeBase {
+  kind: 'spawn_handoff';
+  agentType: string;
+  /** The model that lane ran on (PR #1272). Absent means UNOBSERVED — never a default or a guess. */
+  model?: string;
+  runtime?: 'sdk-leaf' | 'codex-leaf' | 'owned-loop';
+  payloadTokenCount?: number;
+}
+
+/** A subagent lane's return. Carried but NOT drawn here — same increment as the lanes. */
+export interface TraversalResultReturnEvent extends TraversalSpawnEdgeBase {
+  kind: 'result_return';
+  ok: boolean;
+  resultTokenCount?: number;
+}
+
+export type TraversalEventEnvelope =
+  | TraversalVisitEvent
+  | TraversalSearchEvent
+  | TraversalModelContextEvent
+  | TraversalCandidateSetEvent
+  | TraversalFollowedEdgeEvent
+  | TraversalSpawnHandoffEvent
+  | TraversalResultReturnEvent;
 
 /** What may honestly be said about the occupancy series — mirrors the spawn package's `TraversalOccupancy`. */
 export interface TraversalOccupancyDeclaration {
