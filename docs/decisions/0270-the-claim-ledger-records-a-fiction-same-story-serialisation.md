@@ -128,6 +128,18 @@ the session-orchestrator guidance in the same landing (the measured cost of the 
 minutes of one night asking an absent owner a question the ledger could answer, 147 of them behind a
 dead holder).
 
+*(**Amended 2026-08-11 — [ADR-0346](0346-the-capability-claim-becomes-a-real-fence-waiting-binds-stor.md)
+D1.** The **"proceeds"** half of this decision is WITHDRAWN: a session refused the `work` claim now
+takes the `waiting` claim and STOPS working that unit, and option (a) below — rejected here — is taken
+at capability grain. The reason is narrow and does not impugn this decision: option (a) was rejected as
+a **story-wide** fence that would have idled the factory, and D1 above then moved the ceremony to
+capability grain, so the rejection expired with the grain it was decided under. What this clause got
+right STANDS and is restated by ADR-0346 D1: **a claim conflict is still never an owner question.**
+ADR-0346 D4 supplies what a blocked session does instead — work another claimed capability, or write
+its residue onto the owning arc, release its claims and end. Note the mechanism has not changed yet:
+ADR-0346 is the decision, and `waiting` binds only when `capability-claim-binds-arc` increment 3
+lands.)*
+
 **Options weighed and not taken.**
 
 **(a) Enforce the serialisation ADR-0138/0200 accepted** — make `waiting` actually wait (refuse the
