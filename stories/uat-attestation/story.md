@@ -97,9 +97,14 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
 `uat-test-units` into `<story>#uat-<n>` ids — absent ⇒ `either`).
 
 > **Per-leg witness (ADR-0209 §1 / ADR-0106 / ADR-0070). RE-ADJUDICATED 2026-07-26** under the
-> ADR-0209 §8 corpus-wide migration. This story resolves to **six `machine` legs and one `human` leg;
-> no leg is model-judged** — nothing here turns on semantic judgment of prose or artifacts, so the
-> model rung genuinely does not apply. (It is also structurally unreachable from a story's prose today:
+> ADR-0209 §8 corpus-wide migration. That pass resolved this story to six `machine` legs and one
+> `human` leg; no leg is model-judged — nothing here turns on semantic judgment of prose or artifacts,
+> so the model rung genuinely does not apply. **NARROWED 2026-08-11 (ADR-0348 D6): the one `human` leg
+> is DELETED, so the story now carries six `machine` legs and ZERO `human` legs.** It asked whether the
+> two rigor tiers are any GOOD to read, not whether the journey achieved its goal — a user EXPERIENCE
+> property, not a user ACCEPTANCE criterion. Because that claim is this story's own reason to exist,
+> its intent is carried at length under "The rigor tiers must READ apart" below rather than in a line.
+> (It is also structurally unreachable from a story's prose today:
 > `UAT_TEST_CRITERION_WITNESSES` in `packages/library/src/uat-test-criteria.ts` is
 > `human | machine | either` and THROWS on `model`, and `proof-protocol`'s `UatWitness` is
 > `human | machine`. The gap between ADR-0209's three-kind model and that enum is an OPEN owner fork
@@ -117,11 +122,15 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
 > refusal (an agent that cannot self-attest, a click that cannot green a machine leg, a vouch that
 > cannot reach `events.verdict`) — a refusal is among the most machine-checkable things there is.
 >
-> Exactly **one** leg stays `human`, on the NO-COMPILER basis — not spend, not an outward-facing
-> action: whether the two rigor tiers actually READ as different to a person (leg 7). Everything
-> STRUCTURAL about that distinctness — which glyph, which colour, which column, which state can even
-> reach the row — is machine-observable and is leg 6; only the legibility verdict is irreducible, and
-> `apps/studio/src/index.css` already records the row's icon styling as owner-attested art (ADR-0070).
+> Exactly **one** leg stayed `human` after that pass, on the NO-COMPILER basis — not spend, not an
+> outward-facing action: whether the two rigor tiers actually READ as different to a person (leg 7).
+> Everything STRUCTURAL about that distinctness — which glyph, which colour, which column, which state
+> can even reach the row — is machine-observable and is leg 6; only the legibility verdict was
+> irreducible, and `apps/studio/src/index.css` already records the row's icon styling as owner-attested
+> art (ADR-0070). **ADR-0348 D6 deleted that leg**: having no compiler was never enough to make it an
+> acceptance claim, which is the question that now comes first. Nothing about the rule above is
+> weakened — a leg whose TOPIC is humans still does not thereby need a human witness, and a refusal is
+> still among the most machine-checkable things there is.
 >
 > **Stale prose corrected before it became executable (2026-07-26).** The old leg 6 asserted that the
 > studio panel shows a `✓/✗/–` PROVEN glyph "distinct from the lower-rigor vouch (⚑/⚐)". That is FALSE
@@ -145,7 +154,41 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
 > **Ordering note (leg ids are POSITIONAL, `uat-attestation#uat-N`).** Legs 1–5 keep their positions:
 > `packages/cli/src/attest.test.ts` uses `uat-attestation#uat-2` and `uat-attestation#uat-3` as fixture
 > ids, so *Human verdict* and *Machine* must stay at 2 and 3. The old leg 6 was narrowed IN PLACE and
-> its irreducible human half APPENDED as leg 7 rather than interleaved.
+> its irreducible human half APPENDED as leg 7 rather than interleaved. **ADR-0348 D6 then deleted leg
+> 7 on 2026-08-11 and BURNED the ordinal** — nothing was renumbered, so those two fixture ids and every
+> other position still denote exactly what they always did.
+
+### The rigor tiers must READ apart — design intent, deliberately NOT a UAT leg (ADR-0348 D6)
+
+The judgment that stood as leg 7 until 2026-08-11 is recorded here, and it deserves more care than a
+look verdict usually does, because **this claim is the reason the story exists.** The story's outcome
+sentence ends *"No path ever forges a green"* — and a forged green is not only a forged ROW. A vouch
+that a reader mistakes for a gate verdict has forged a green in the only place that ultimately matters,
+which is somebody's belief about what has been proven.
+
+**The intent: a vouch must never READ as a gate-proven pass.** Looking at a story whose UAT carries all
+three states — one test PROVEN, one carrying only a vouch, one blank — in the studio panel and in
+`storytree tree <story>`, a reader should be able to tell **WITHOUT being told** which mark is a gate
+verdict that can green the crown and which is only *"I also eyeballed it"*. The tiers should be
+unmistakable, not merely documented.
+
+**Machine leg 6 does NOT cover this, and the difference is the whole point.** Leg 6 proves the marks
+are STRUCTURALLY different — which glyph, which colour, which column, which state can even reach a row;
+that `storytree tree` renders proof and vouch in SEPARATE columns; that no vouch ever produces
+`proven=✓`; that the studio row surfaces the signed verdict ONLY, so no vouch state can reach it even
+though `/api/attestations` still carries one. Every clause of that is a structural comparison with a
+compiler. **None of it is the claim that a person reads the two as different RIGOR.** Two marks can be
+perfectly disjoint in the data and still read as interchangeable to the eye — and that is exactly the
+failure mode this story was built to prevent, so the gap between leg 6 and this intent is not a
+technicality.
+
+Under ADR-0348 D6 that reading is not an acceptance criterion: it is continuous owner feedback gathered
+by using the surfaces. The accepted cost is unusually pointed here — the anti-false-confidence wall now
+has a machine half that is checkable and a perceptual half that nothing records, so nothing will tell a
+later reader whether anyone has ever confirmed the tiers read apart. **Do not read that silence as
+approval** (ADR-0348 Consequences). `apps/studio/src/index.css` already records the row's icon styling
+as owner-attested art (ADR-0070), which is the nearest thing to a standing home for this judgment; if it
+becomes worth carrying a verdict again, the capability tier is where it belongs.
 
 1. **Decompose** _(witness: machine)_: a story's UAT prose resolves to addressable test ids with _(criterion-id: uatc_076b7e695fa9a4c068e71b97)_ _(revision-id: uatr1:fc1a6ea562a05a62)_
    witness kinds. **Success —** each test has a stable id and a `witness`.
@@ -182,17 +225,6 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
    with no vouch column. *(Restated 2026-07-26 to what the surfaces actually do — see the stale-prose
    note above — and re-adjudicated `human` → `machine`: which mark, which column, and which state can
    reach a row are all structural.)*
-7. **A vouch never READS as a gate-proven pass.** _(witness: human)(detail: uat-attestation#uat-7)_ _(criterion-id: uatc_ea4e9866fcc9534b19c4b7b4)_ _(revision-id: uatr1:85e758fcf130fdf8)_
-   The owner looks at a story whose UAT carries all three states — one test PROVEN, one carrying only
-   a vouch, one blank — in the studio panel and in `storytree tree <story>`, and judges whether the
-   rigor tiers are unmistakable: can a reader tell, WITHOUT being told, which mark is a gate verdict
-   that can green the crown and which is only "I also eyeballed it"? **Success —** the owner's
-   stage-2 visual verdict (ADR-0070) that the vouch cannot be misread as a proof.
-   *(Operator-attested and irreducible — the one success condition in this story with NO COMPILER.
-   The basis is the judgment gap, not spend and not an outward-facing action. Leg 6 proves the marks are structurally different, which is NOT the same claim as a person
-   reading them as different rigor; `apps/studio/src/index.css` already records the row's icon styling
-   as owner-attested art. Split out of the old leg 6 on 2026-07-26, which fused this verdict with the
-   structural claim.)*
 
 ## Resolved modeling calls
 

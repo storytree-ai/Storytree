@@ -57,9 +57,9 @@
     },
     {
       "legacyTestId": "app-guide#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-11",
+      "rationale": "Deleted by ADR-0348 D6 (2026-08-11), second batch: the CLAIM IS WITHDRAWN from the story tier, not relocated. `uatc_912f608f4b58430b772cec95` (\"It reads like one continuous conversation\") was a user EXPERIENCE property — whether the surface is any GOOD — and not a user ACCEPTANCE claim about whether the journey achieved its goal, so it is withdrawn as out-of-tier rather than proven one rung down. No lower-tier node is named because naming one would be a false citation (the ADR-0307 D5 precedent for a withdrawn subject). This leg was MISSED by the first sweep, which grepped the literal `_(witness: human)_` and could not see the fused `_(witness: human)(detail: …)_` form. The DESIGN INTENT is not discarded: it is carried in the story's \"The conversational feel\" section, answered by the owner using the system rather than by a gate. The ordinal is BURNED, not reused, so this positional key denotes no other criterion. The orphaned `uat-criterion` detail artifact was retired in the same change.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "app-guide#uat-5",
@@ -129,9 +129,9 @@
     },
     {
       "legacyTestId": "app-surface#uat-11",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-11",
+      "rationale": "Deleted by ADR-0348 D6 (2026-08-11), second batch: the CLAIM IS WITHDRAWN from the story tier, not relocated. `uatc_ea05f4b2c024e6500cd143fd` (\"The corrected composition earns the owner-held LOOK verdict\") was a user EXPERIENCE property — whether the surface is any GOOD — and not a user ACCEPTANCE claim about whether the journey achieved its goal, so it is withdrawn as out-of-tier rather than proven one rung down. No lower-tier node is named because naming one would be a false citation (the ADR-0307 D5 precedent for a withdrawn subject). This leg was MISSED by the first sweep, which grepped the literal `_(witness: human)_` and could not see the fused `_(witness: human)(detail: …)_` form. The DESIGN INTENT is not discarded: it is carried in the story's \"The planted-scene LOOK\" section, answered by the owner using the system rather than by a gate. The ordinal is BURNED, not reused, so this positional key denotes no other criterion. The orphaned `uat-criterion` detail artifact was retired in the same change.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "binding-staleness#uat-1",
@@ -195,9 +195,9 @@
     },
     {
       "legacyTestId": "chat-drive-bridge#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-11",
+      "rationale": "Deleted by ADR-0348 D6 (2026-08-11), second batch: the CLAIM IS WITHDRAWN from the story tier, not relocated. `uatc_188a7c4e2678cbab2662c478` (\"The chat surface reads as one accept-and-watch experience\") was a user EXPERIENCE property — whether the surface is any GOOD — and not a user ACCEPTANCE claim about whether the journey achieved its goal, so it is withdrawn as out-of-tier rather than proven one rung down. No lower-tier node is named because naming one would be a false citation (the ADR-0307 D5 precedent for a withdrawn subject). This leg was MISSED by the first sweep, which grepped the literal `_(witness: human)_` and could not see the fused `_(witness: human)(detail: …)_` form. The DESIGN INTENT is not discarded: it is carried in the story's \"The accept-and-watch feel\" section, answered by the owner using the system rather than by a gate. The ordinal is BURNED, not reused, so this positional key denotes no other criterion. The orphaned `uat-criterion` detail artifact was retired in the same change.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-subagent-spawn#uat-1",
@@ -1095,9 +1095,9 @@
     },
     {
       "legacyTestId": "spawn-visibility#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-11",
+      "rationale": "Deleted by ADR-0348 D6 (2026-08-11), second batch: the CLAIM IS WITHDRAWN from the story tier, not relocated. `uatc_31f7ba86ebc04936049e2366` (\"Live: the spawn line READS as a spawn happening\") was a user EXPERIENCE property — whether the surface is any GOOD — and not a user ACCEPTANCE claim about whether the journey achieved its goal, so it is withdrawn as out-of-tier rather than proven one rung down. No lower-tier node is named because naming one would be a false citation (the ADR-0307 D5 precedent for a withdrawn subject). This leg was MISSED by the first sweep, which grepped the literal `_(witness: human)_` and could not see the fused `_(witness: human)(detail: …)_` form. The DESIGN INTENT is not discarded: it is carried in the story's \"The spawn line's legibility\" section, answered by the owner using the system rather than by a gate. The ordinal is BURNED, not reused, so this positional key denotes no other criterion. The orphaned `uat-criterion` detail artifact was retired in the same change.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "spawn-visibility#uat-6",
@@ -1485,9 +1485,9 @@
     },
     {
       "legacyTestId": "uat-attestation#uat-7",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-11",
+      "rationale": "Deleted by ADR-0348 D6 (2026-08-11), second batch: the CLAIM IS WITHDRAWN from the story tier, not relocated. `uatc_ea4e9866fcc9534b19c4b7b4` (\"A vouch never READS as a gate-proven pass\") was a user EXPERIENCE property — whether the surface is any GOOD — and not a user ACCEPTANCE claim about whether the journey achieved its goal, so it is withdrawn as out-of-tier rather than proven one rung down. No lower-tier node is named because naming one would be a false citation (the ADR-0307 D5 precedent for a withdrawn subject). This leg was MISSED by the first sweep, which grepped the literal `_(witness: human)_` and could not see the fused `_(witness: human)(detail: …)_` form. The DESIGN INTENT is not discarded: it is carried in the story's \"The rigor tiers must READ apart\" section, answered by the owner using the system rather than by a gate. The ordinal is BURNED, not reused, so this positional key denotes no other criterion. The orphaned `uat-criterion` detail artifact was retired in the same change.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "uat-criterion-detail#uat-1",
