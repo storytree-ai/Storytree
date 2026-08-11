@@ -2320,6 +2320,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     review?: boolean;
     readings?: string;
     write?: boolean;
+    only?: string;
     step?: string;
     "agent-type"?: string;
     evidence?: string;
