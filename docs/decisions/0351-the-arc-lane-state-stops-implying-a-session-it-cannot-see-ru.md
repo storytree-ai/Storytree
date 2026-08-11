@@ -19,8 +19,9 @@ changes is the vocabulary of the two RECENCY states D4 named, and adds one state
 source for.
 
 **Note on numbering:** ADR-0350 was allocated by a parallel session minutes before this one and was
-not written to any branch at the time of writing, so it could not be read. If it lands touching the
-claim ledger or the arc surface, the two need reconciling rather than merging by hunk.
+not on any branch when this Decision was written. It has since landed on `main` and been READ:
+*"an event that caused another says so — causal edges on the event log"*. It touches neither the claim
+ledger nor the arc surface, so there is no contradiction to reconcile.
 
 ## Context
 
