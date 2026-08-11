@@ -22,7 +22,7 @@ import path from 'node:path';
 import { appendTraversalEvents, computeDecisionPoints } from '@storytree/context-traversal-capture';
 import { replayTraversalSessionAllAdapters } from '@storytree/context-traversal-spawn';
 
-import { handleTraversal } from './traversalApi';
+import { handleTraversal, primeTraversalIndex } from './traversalApi';
 import { HttpError } from './httpUtil';
 
 const SESSION = 'session-under-test';
@@ -399,6 +399,34 @@ describe('GET /api/traversal/sessions', () => {
     };
     expect(second.sessions[0]?.eventCount).toBe(6);
     expect(second.sessions[0]?.lastObservedAt).toBe('2026-08-11T18:00:00.000Z');
+  });
+
+  // Priming pulls the lazy imports and builds the index at dev-server start, off the request path
+  // (devApi.ts). It is an OPTIMISATION, so the two things worth pinning are that it cannot break the
+  // server and that it cannot poison the answer — a warm index that disagreed with a cold one would
+  // be strictly worse than the 6.3 s it removes.
+  it('primes without throwing on a trace dir that does not exist', async () => {
+    process.env['STORYTREE_TRAVERSAL_DIR'] = path.join(traceDir, 'nested', 'never-created');
+    await expect(primeTraversalIndex()).resolves.toBeUndefined();
+  });
+
+  it('serves the same answer primed as unprimed, and still sees a later append', async () => {
+    writeFixture(traceDir, SESSION);
+    await primeTraversalIndex();
+
+    const primed = (await (await fetch(`${base}/api/traversal/sessions`)).json()) as {
+      dir: string;
+      sessions: { sessionId: string; eventCount: number }[];
+    };
+    expect(primed.dir).toBe(traceDir);
+    expect(primed.sessions).toEqual([{ sessionId: SESSION, eventCount: 5, lastObservedAt: '2026-08-11T10:00:04.000Z' }]);
+
+    // A warm index must not outrank the filesystem.
+    writeFixture(traceDir, 'session-after-priming');
+    const after = (await (await fetch(`${base}/api/traversal/sessions`)).json()) as {
+      sessions: { sessionId: string }[];
+    };
+    expect(after.sessions.map((s) => s.sessionId).sort()).toEqual(['session-after-priming', SESSION]);
   });
 
   it('sees a trace file that did not exist when an earlier request answered', async () => {
